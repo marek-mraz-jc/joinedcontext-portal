@@ -43,6 +43,7 @@ import { OrganizationSetup, SetupReminder } from "./OrganizationSetup";
 import { People } from "./People";
 import { KindList } from "../../routes/ResourceListPage";
 import { ValidationHealth } from "./ValidationHealth";
+import { Brokers } from "./Brokers";
 import { McpServersPage } from "../mcp/McpServersPage";
 
 /** The tabs of `/organization/{tab}`, in the order Architecture/09 §14.1 lists them. */
@@ -62,6 +63,7 @@ export const ORGANIZATION_TABS = [
   "applications",
   "setup",
   "health",
+  "brokers",
   "endpoints",
   "mcp-servers",
 ] as const;
@@ -301,7 +303,8 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
   if (!known || !administers) {
     return (
       <div className="space-y-6">
-        <PageHeader title={t("organization.title")} />
+        {/* The purpose line a person who cannot administer still reads (T-3852). */}
+        <PageHeader title={t("organization.title")} description={t("organization.lead")} />
         {known ? (
           <Alert tone="info">{t("organization.adminOnly")}</Alert>
         ) : (
@@ -342,6 +345,7 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
         {tab === "applications" ? <OrganizationApplications /> : null}
         {tab === "setup" ? <OrganizationSetup anchor={anchor} /> : null}
         {tab === "health" ? <ValidationHealth /> : null}
+        {tab === "brokers" ? <Brokers /> : null}
         {tab === "endpoints" ? <AllEndpointsPage /> : null}
         {tab === "mcp-servers" ? <McpServersPage project={ORG_NAMESPACE} embedded /> : null}
       </div>

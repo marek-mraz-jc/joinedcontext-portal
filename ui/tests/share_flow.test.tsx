@@ -70,14 +70,18 @@ describe("what a share is made of (T-3275)", () => {
 
 describe("the share flow on an Endpoint's page (T-3275)", () => {
   let imports: { query: string; manifests: Manifest[]; conflictPolicy?: string }[];
-  function show(spec: object, policies: Manifest[]) {
+  let asked: string[];
+  function show(spec: object, policies: Manifest[], permissions?: object) {
     imports = [];
+    asked = [];
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const request = input as Request;
         const url = new URL(request.url);
         const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+        asked.push(url.pathname);
+        if (permissions && url.pathname.endsWith("/permissions/me")) return json(permissions);
         if (url.pathname === "/api/v1/projects") return json({ items: [{ name: "helsinki" }, { name: "praha" }, { name: "bbsk" }] });
         if (url.pathname.endsWith("/import") && request.method === "POST") {
           const sent = (await request.json()) as { manifests: Manifest[]; conflictPolicy?: string };
@@ -140,6 +144,14 @@ describe("the share flow on an Endpoint's page (T-3275)", () => {
     expect(shared.spec).toMatchObject({ allowedProjects: ["bbsk"] });
     expect(grant.metadata.name).toBe("air-bbsk");
     expect((grant.spec as { validity: { to: string } }).validity.to).toMatch(/^2026-12-31T|^2027-01-01T/);
+  });
+
+  it("asks for no group list the person does not read (T-3852)", async () => {
+    show({ allowedProjects: [] }, [], { grants: [{ rule: { kinds: ["Endpoint"], verbs: ["read"] } }] });
+    const pick = await screen.findByLabelText(en.endpoints.shareFlow.project);
+    await within(pick).findByRole("option", { name: "bbsk" });
+    await waitFor(() => expect(asked.filter((path) => path.endsWith("/permissions/me"))).toHaveLength(2));
+    expect(asked.filter((path) => path.endsWith("/groups"))).toEqual([]);
   });
 
   it("offers no share for an endpoint every project or anyone reads already", async () => {

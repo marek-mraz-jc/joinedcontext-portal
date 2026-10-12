@@ -167,6 +167,12 @@ pub struct Sources {
     pub retention: BTreeMap<(String, String), Vec<RetentionRule>>,
     /// Each Context Space's quality rules by `(project, space)` (DM-87).
     pub quality: BTreeMap<(String, String), Vec<QualityRule>>,
+    /// The broker each tenant lives on (PF-111, ADR-N-047); `""` for a space whose `brokerRef`
+    /// names no broker, which nothing is written for.
+    pub brokers: BTreeMap<String, String>,
+    /// The Context Spaces with a quality rule that quarantines (DM-90): their permits, but the
+    /// owner's and the steward's, exclude a quarantined entity.
+    pub quarantines: BTreeSet<(String, String)>,
 }
 
 /// One Mapping as a view of another model needs it (G18).
@@ -195,14 +201,36 @@ impl Sources {
     /// out: the load already reported it.
     pub fn read(repo: &Repository) -> Self {
         let mut sources = Self::default();
+        let declared: Vec<(String, jc_core::kinds::ContextBrokerSpec)> = repo
+            .iter()
+            .filter(|(id, _)| id.kind == "ContextBroker")
+            .filter_map(|(id, resource)| {
+                Some((
+                    id.name.clone(),
+                    serde_json::from_value(resource.manifest.spec.clone()).ok()?,
+                ))
+            })
+            .collect();
         for (id, resource) in repo.iter() {
             let project = id.namespace.clone().unwrap_or_default();
             let spec = &resource.manifest.spec;
             match id.kind.as_str() {
                 "ContextSpace" => {
                     let parsed = serde_json::from_value::<ContextSpaceSpec>(spec.clone()).ok();
+                    let tenant = repo.space_segment(&project, &id.name);
+                    let named = declared.iter().map(|(name, spec)| (name.as_str(), spec));
+                    let broker_ref = parsed.as_ref().and_then(|spec| spec.broker_ref.as_deref());
+                    let broker = jc_core::kinds::broker_of(broker_ref, named)
+                        .map(str::to_owned)
+                        .unwrap_or_default();
+                    sources.brokers.insert(tenant, broker);
                     let model = parsed.as_ref().and_then(|spec| spec.data_model_ref.clone());
                     if let Some(spec) = parsed {
+                        if spec.quality.iter().any(quarantines) {
+                            sources
+                                .quarantines
+                                .insert((project.clone(), id.name.clone()));
+                        }
                         sources
                             .retention
                             .insert((project.clone(), id.name.clone()), spec.retention);
@@ -492,6 +520,10 @@ impl Owner {
 pub struct Desired {
     /// The view documents by id.
     pub views: BTreeMap<String, (Owner, Value)>,
+    /// The tenant each view reads, by view id: what decides the broker it is written to.
+    pub tenants: BTreeMap<String, String>,
+    /// The broker each tenant lives on, as [`Sources::brokers`].
+    pub brokers: BTreeMap<String, String>,
     /// The rule documents by tenant.
     pub documents: BTreeMap<String, (Owner, Value)>,
     /// Each tenant's data model, which becomes its schema.
@@ -507,7 +539,10 @@ pub struct Desired {
 
 /// Every view and rule document the repository declares (plan 2.1, 3.3, 5.1).
 pub fn desired(sources: &Sources) -> Desired {
-    let mut out = Desired::default();
+    let mut out = Desired {
+        brokers: sources.brokers.clone(),
+        ..Desired::default()
+    };
     for e in &sources.endpoints {
         let owner = Owner::endpoint(e);
         let made = endpoint_view(sources, e).and_then(|view| {
@@ -522,6 +557,7 @@ pub fn desired(sources: &Sources) -> Desired {
         });
         match made {
             Ok((id, view)) => {
+                out.tenants.insert(id.clone(), e.tenant.clone());
                 out.views.insert(id, (owner, view));
             }
             Err(reason) => out.refused.push((owner, reason)),
@@ -531,10 +567,9 @@ pub fn desired(sources: &Sources) -> Desired {
         let owner = Owner::space(project, name);
         match space_view(sources, project, name, tenant) {
             Ok(view) => {
-                out.views.insert(
-                    format!("{SPACE_VIEW_PREFIX}{tenant}"),
-                    (owner.clone(), view),
-                );
+                let id = format!("{SPACE_VIEW_PREFIX}{tenant}");
+                out.tenants.insert(id.clone(), tenant.clone());
+                out.views.insert(id, (owner.clone(), view));
             }
             Err(reason) => out.refused.push((owner.clone(), reason)),
         }
@@ -1031,10 +1066,45 @@ fn rule_document(sources: &Sources, project: &str, space: &str) -> Value {
         }
         views.insert(slug, json!(ids));
     }
+    if sources
+        .quarantines
+        .contains(&(project.to_owned(), space.to_owned()))
+    {
+        policies.iter_mut().for_each(hide_quarantined);
+    }
     if views.is_empty() {
         return json!({ "policies": policies });
     }
     json!({ "policies": policies, "views": views })
+}
+
+/// Whether a quality rule can quarantine: its own outcome, or a `maxAge` the sweep applies
+/// (DM-87, DM-90).
+fn quarantines(rule: &jc_core::kinds::QualityRule) -> bool {
+    use jc_core::kinds::QualityOutcome::Quarantine;
+    rule.write_outcome() == Quarantine
+        || (rule.max_age.is_some() && rule.sweep_outcome() == Quarantine)
+}
+
+/// The roles that still see a quarantined entity, to act on it (DM-90).
+const SEE_QUARANTINE: &[&str] = &["owner", "steward"];
+
+/// Narrows one permit to entities that are not quarantined (DM-90): `!quarantinedAt` AND-ed
+/// before its own `q`. A prohibition, and a permit of the owner or steward role, stay as they
+/// are; quarantine never widens anything.
+fn hide_quarantined(policy: &mut Value) {
+    let role = policy["assignee"]["kind"] == "role"
+        && policy["assignee"]["id"]
+            .as_str()
+            .is_some_and(|id| SEE_QUARANTINE.contains(&id));
+    if policy["effect"] != "permit" || role {
+        return;
+    }
+    let q = match policy["q"].as_str() {
+        Some(own) if !own.trim().is_empty() => format!("!quarantinedAt;({own})"),
+        _ => "!quarantinedAt".to_owned(),
+    };
+    policy["q"] = json!(q);
 }
 
 /// One end of a `temporalQ` window as the engine reads it (Antares
@@ -1251,18 +1321,21 @@ type Compiled = (ModelSource, Value, Option<Value>);
 /// One HTTP client, the broker's address and where its admin token is mounted.
 pub struct ViewSync {
     http: reqwest::Client,
-    /// The broker as this Portal reaches it, without a trailing slash.
+    /// The broker `main` as this Portal reaches it, without a trailing slash.
     broker: String,
+    /// The address of every other `ContextBroker`, `{broker}` replaced by its name
+    /// (`JC_PORTAL_BROKER_URL_TEMPLATE`, ADR-N-047).
+    template: Option<String>,
     token_file: PathBuf,
-    /// The tenants whose rule document this Portal wrote since it started: only those are
-    /// deleted when their space goes.
+    /// The tenants whose rule document this Portal wrote since it started, each with the broker
+    /// it went to: only those are deleted, on that broker, when their space goes or moves.
     // ponytail: in memory, so a space deleted while the Portal restarts keeps its document;
     // with no view left to route to it, nothing reads it.
-    written_documents: Mutex<BTreeSet<String>>,
+    written_documents: Mutex<BTreeMap<String, String>>,
     /// Model Tools, which compiles a space's data model into its tenant's schema.
     model_tools: Option<String>,
     /// The tenants whose schema this Portal wrote since it started, as `written_documents`.
-    written_schemas: Mutex<BTreeSet<String>>,
+    written_schemas: Mutex<BTreeMap<String, String>>,
     /// The last schema compiled per tenant and the model it came from: an unchanged model is
     /// not compiled again on every run.
     // ponytail: a Model Tools upgrade reaches an unchanged model when the Portal restarts.
@@ -1290,6 +1363,7 @@ impl ViewSync {
                 .build()
                 .unwrap_or_default(),
             broker: broker.into().trim_end_matches('/').to_owned(),
+            template: None,
             token_file: token_file.into(),
             written_documents: Mutex::default(),
             model_tools: None,
@@ -1297,6 +1371,18 @@ impl ViewSync {
             compiled: Mutex::default(),
             last: Mutex::default(),
         }
+    }
+
+    /// Addresses every broker but `main` by `template`, `{broker}` replaced by its name.
+    pub fn with_broker_template(mut self, template: Option<String>) -> Self {
+        self.template = template;
+        self
+    }
+
+    /// The address of broker `name`: `main` is the configured broker, any other the template's;
+    /// `None` for a broker this Portal cannot reach, whose spaces are never written to `main`.
+    fn address(&self, name: &str) -> Option<String> {
+        crate::spaces::broker_address(name, Some(&self.broker), self.template.as_deref())
     }
 
     /// Compiles each space's data model with the Model Tools at `url` and writes it as the
@@ -1400,9 +1486,23 @@ impl ViewSync {
             Ok(token) if !token.trim().is_empty() => token.trim().to_owned(),
             _ => return Err("the broker's admin token is not readable".into()),
         };
+        let broker = lock(&self.last)
+            .as_ref()
+            .and_then(|sources| {
+                let tenant = &sources
+                    .endpoints
+                    .iter()
+                    .find(|e| e.spec.slug.to_string() == id)?
+                    .tenant;
+                sources.brokers.get(tenant).cloned()
+            })
+            .unwrap_or_else(|| jc_core::kinds::IMPLICIT_BROKER.to_owned());
+        let base = self
+            .address(&broker)
+            .ok_or_else(|| format!("the space's broker '{broker}' has no address"))?;
         let mut request = self
             .http
-            .post(format!("{}/q/views/{id}/preview?{query}", self.broker))
+            .post(format!("{base}/q/views/{id}/preview?{query}"))
             .bearer_auth(token)
             .json(view);
         for (name, value) in headers {
@@ -1418,8 +1518,8 @@ impl ViewSync {
 
     async fn apply(&self, desired: Desired) -> Vec<(Owner, ViewOutcome)> {
         let mut outcomes: BTreeMap<Owner, ViewOutcome> = BTreeMap::new();
-        for (owner, reason) in desired.refused {
-            outcomes.insert(owner, ViewOutcome::Refused(reason));
+        for (owner, reason) in &desired.refused {
+            outcomes.insert(owner.clone(), ViewOutcome::Refused(reason.clone()));
         }
         let mut note = |owner: &Owner, outcome: ViewOutcome| {
             let held = outcomes
@@ -1443,54 +1543,163 @@ impl ViewSync {
             }
         };
 
-        let listed = match self.get(&token, "/q/views").await {
+        // One pass per broker (ADR-N-047): each is told the views, rule documents and schemas of
+        // the tenants that live on it, and keeps none of another broker's. A tenant whose broker
+        // has no address is written nowhere, never to `main`.
+        let broker_of = |tenant: &str| {
+            desired
+                .brokers
+                .get(tenant)
+                .cloned()
+                .unwrap_or_else(|| jc_core::kinds::IMPLICIT_BROKER.to_owned())
+        };
+        let mut parts: BTreeMap<String, Desired> = BTreeMap::new();
+        parts
+            .entry(jc_core::kinds::IMPLICIT_BROKER.to_owned())
+            .or_default();
+        for (id, entry) in &desired.views {
+            let tenant = desired
+                .tenants
+                .get(id)
+                .map(String::as_str)
+                .unwrap_or_default();
+            parts
+                .entry(broker_of(tenant))
+                .or_default()
+                .views
+                .insert(id.clone(), entry.clone());
+        }
+        for (tenant, entry) in &desired.documents {
+            parts
+                .entry(broker_of(tenant))
+                .or_default()
+                .documents
+                .insert(tenant.clone(), entry.clone());
+        }
+        for (tenant, entry) in &desired.schemas {
+            parts
+                .entry(broker_of(tenant))
+                .or_default()
+                .schemas
+                .insert(tenant.clone(), entry.clone());
+        }
+        for (tenant, entry) in &desired.retention {
+            parts
+                .entry(broker_of(tenant))
+                .or_default()
+                .retention
+                .insert(tenant.clone(), entry.clone());
+        }
+        for (tenant, entry) in &desired.quality {
+            parts
+                .entry(broker_of(tenant))
+                .or_default()
+                .quality
+                .insert(tenant.clone(), entry.clone());
+        }
+        let mut passes: BTreeMap<String, Desired> = BTreeMap::new();
+        for (broker, part) in parts {
+            let Some(base) = self.address(&broker) else {
+                let reason = match broker.as_str() {
+                    "" => "the space's brokerRef names no ContextBroker, so nothing is written; \
+                           fix the space's manifest (PF-111)"
+                        .to_owned(),
+                    name => format!(
+                        "the space's broker '{name}' has no address, so nothing is written; set \
+                         JC_PORTAL_BROKER_URL_TEMPLATE (PF-111)"
+                    ),
+                };
+                for (owner, _) in part.views.values().chain(part.documents.values()) {
+                    note(owner, ViewOutcome::Failed(reason.clone()));
+                }
+                for owner in part
+                    .schemas
+                    .values()
+                    .map(|(owner, _)| owner)
+                    .chain(part.retention.values().map(|(owner, _)| owner))
+                    .chain(part.quality.values().map(|(owner, _)| owner))
+                {
+                    note(owner, ViewOutcome::Failed(reason.clone()));
+                }
+                continue;
+            };
+            passes.insert(base, part);
+        }
+        // A broker that held a document or schema and now holds no space still gets its pass,
+        // so what a deleted space left there is removed.
+        let held: Vec<String> = lock(&self.written_documents)
+            .values()
+            .chain(lock(&self.written_schemas).values())
+            .cloned()
+            .collect();
+        for base in held {
+            passes.entry(base).or_default();
+        }
+        for (base, part) in &passes {
+            self.apply_on(base, &token, part, &mut note).await;
+        }
+        outcomes.into_iter().collect()
+    }
+
+    /// Brings one broker at `base` to `part`, the share of `all` that lives on it.
+    async fn apply_on(
+        &self,
+        base: &str,
+        token: &str,
+        part: &Desired,
+        note: &mut impl FnMut(&Owner, ViewOutcome),
+    ) {
+        let listed = match self.get(base, token, "/q/views").await {
             Ok(Some(Value::Object(listed))) => listed,
             other => {
                 let reason = match other {
                     Err(reason) => reason,
                     _ => "the broker serves no views (built without the views feature)".into(),
                 };
-                for (owner, _) in desired.views.values().chain(desired.documents.values()) {
+                for (owner, _) in part.views.values().chain(part.documents.values()) {
                     note(owner, ViewOutcome::Failed(reason.clone()));
                 }
-                return outcomes.into_iter().collect();
+                return;
             }
         };
-        for (id, (owner, view)) in &desired.views {
+        for (id, (owner, view)) in &part.views {
             let outcome = self
-                .put_if_changed(&token, &format!("/q/views/{id}"), view)
+                .put_if_changed(base, token, &format!("/q/views/{id}"), view)
                 .await;
             note(owner, outcome);
         }
         for id in listed.keys() {
-            if owned(id) && !desired.views.contains_key(id) {
-                match self.delete(&token, &format!("/q/views/{id}")).await {
+            if owned(id) && !part.views.contains_key(id) {
+                match self.delete(base, token, &format!("/q/views/{id}")).await {
                     Ok(()) => tracing::info!(view = %id, "view removed with its Endpoint or space"),
                     Err(reason) => tracing::warn!(view = %id, %reason, "view not removed"),
                 }
             }
         }
 
-        for (tenant, (owner, model)) in &desired.schemas {
+        for (tenant, (owner, model)) in &part.schemas {
             let outcome = match self.broker_schema(tenant, model).await {
                 Ok(schema) => {
-                    self.put_if_changed(&token, &format!("/q/schemas/{tenant}"), &schema)
+                    self.put_if_changed(base, token, &format!("/q/schemas/{tenant}"), &schema)
                         .await
                 }
                 Err(outcome) => outcome,
             };
             if outcome == ViewOutcome::Written {
-                lock(&self.written_schemas).insert(tenant.clone());
+                lock(&self.written_schemas).insert(tenant.clone(), base.to_owned());
             }
             note(owner, outcome);
         }
         let gone: Vec<String> = lock(&self.written_schemas)
             .iter()
-            .filter(|tenant| !desired.schemas.contains_key(*tenant))
-            .cloned()
+            .filter(|(tenant, at)| at.as_str() == base && !part.schemas.contains_key(*tenant))
+            .map(|(tenant, _)| tenant.clone())
             .collect();
         for tenant in gone {
-            match self.delete(&token, &format!("/q/schemas/{tenant}")).await {
+            match self
+                .delete(base, token, &format!("/q/schemas/{tenant}"))
+                .await
+            {
                 Ok(()) => {
                     lock(&self.written_schemas).remove(&tenant);
                     tracing::info!(%tenant, "schema removed with its space's data model");
@@ -1499,10 +1708,10 @@ impl ViewSync {
             }
         }
 
-        for (tenant, (owner, rules)) in &desired.retention {
+        for (tenant, (owner, rules)) in &part.retention {
             let path = format!("/q/retention/{tenant}");
             let outcome = if rules.is_empty() {
-                match self.delete(&token, &path).await {
+                match self.delete(base, token, &path).await {
                     Ok(()) => ViewOutcome::Written,
                     Err(reason) => ViewOutcome::Failed(reason),
                 }
@@ -1511,15 +1720,15 @@ impl ViewSync {
                     .get(tenant)
                     .and_then(|(_, _, context)| context.clone());
                 let document = retention_document(rules, context.as_ref());
-                self.put_if_changed(&token, &path, &document).await
+                self.put_if_changed(base, token, &path, &document).await
             };
             note(owner, outcome);
         }
 
-        for (tenant, (owner, rules)) in &desired.quality {
+        for (tenant, (owner, rules)) in &part.quality {
             let path = format!("/q/quality/{tenant}");
             let outcome = if rules.is_empty() {
-                match self.delete(&token, &path).await {
+                match self.delete(base, token, &path).await {
                     Ok(()) => ViewOutcome::Written,
                     Err(reason) => ViewOutcome::Failed(reason),
                 }
@@ -1528,48 +1737,51 @@ impl ViewSync {
                     .get(tenant)
                     .and_then(|(_, _, context)| context.clone());
                 let document = quality_document(rules, context.as_ref());
-                self.put_if_changed(&token, &path, &document).await
+                self.put_if_changed(base, token, &path, &document).await
             };
             note(owner, outcome);
         }
 
         // No engine that reads rule documents: `/q/policy` answers 404 and the views stand
         // under whatever engine the broker runs.
-        match self.get(&token, "/q/policy").await {
+        match self.get(base, token, "/q/policy").await {
             Ok(Some(_)) => {}
             Ok(None) => {
                 tracing::debug!("the broker runs no engine that reads rule documents");
-                return outcomes.into_iter().collect();
+                return;
             }
             Err(reason) => {
-                for (owner, _) in desired.documents.values() {
+                for (owner, _) in part.documents.values() {
                     note(owner, ViewOutcome::Failed(reason.clone()));
                 }
-                return outcomes.into_iter().collect();
+                return;
             }
         }
-        for (tenant, (owner, document)) in &desired.documents {
+        for (tenant, (owner, document)) in &part.documents {
             let path = format!("/q/policy/{tenant}");
-            let outcome = match self.get(&token, &path).await {
+            let outcome = match self.get(base, token, &path).await {
                 Ok(Some(stored)) if stored.get("document") == Some(document) => {
                     ViewOutcome::Written
                 }
-                Ok(_) => self.put(&token, &path, document).await,
+                Ok(_) => self.put(base, token, &path, document).await,
                 Err(reason) => ViewOutcome::Failed(reason),
             };
             if outcome == ViewOutcome::Written {
-                self.written().insert(tenant.clone());
+                self.written().insert(tenant.clone(), base.to_owned());
             }
             note(owner, outcome);
         }
         let gone: Vec<String> = self
             .written()
             .iter()
-            .filter(|tenant| !desired.documents.contains_key(*tenant))
-            .cloned()
+            .filter(|(tenant, at)| at.as_str() == base && !part.documents.contains_key(*tenant))
+            .map(|(tenant, _)| tenant.clone())
             .collect();
         for tenant in gone {
-            match self.delete(&token, &format!("/q/policy/{tenant}")).await {
+            match self
+                .delete(base, token, &format!("/q/policy/{tenant}"))
+                .await
+            {
                 Ok(()) => {
                     self.written().remove(&tenant);
                     tracing::info!(%tenant, "rule document removed with its space");
@@ -1577,10 +1789,9 @@ impl ViewSync {
                 Err(reason) => tracing::warn!(%tenant, %reason, "rule document not removed"),
             }
         }
-        outcomes.into_iter().collect()
     }
 
-    fn written(&self) -> std::sync::MutexGuard<'_, BTreeSet<String>> {
+    fn written(&self) -> std::sync::MutexGuard<'_, BTreeMap<String, String>> {
         lock(&self.written_documents)
     }
 
@@ -1643,19 +1854,25 @@ impl ViewSync {
         }
     }
 
-    async fn put_if_changed(&self, token: &str, path: &str, doc: &Value) -> ViewOutcome {
-        match self.get(token, path).await {
+    async fn put_if_changed(
+        &self,
+        base: &str,
+        token: &str,
+        path: &str,
+        doc: &Value,
+    ) -> ViewOutcome {
+        match self.get(base, token, path).await {
             Ok(Some(stored)) if stored == *doc => ViewOutcome::Written,
-            Ok(_) => self.put(token, path, doc).await,
+            Ok(_) => self.put(base, token, path, doc).await,
             Err(reason) => ViewOutcome::Failed(reason),
         }
     }
 
     /// The JSON at `path`, `None` on 404.
-    async fn get(&self, token: &str, path: &str) -> Result<Option<Value>, String> {
+    async fn get(&self, base: &str, token: &str, path: &str) -> Result<Option<Value>, String> {
         let response = self
             .http
-            .get(format!("{}{path}", self.broker))
+            .get(format!("{base}{path}"))
             .bearer_auth(token)
             .send()
             .await
@@ -1690,14 +1907,21 @@ impl ViewSync {
         let context = lock(&self.compiled)
             .get(tenant)
             .and_then(|(_, _, context)| context.clone());
+        let broker = lock(&self.last)
+            .as_ref()
+            .and_then(|sources| sources.brokers.get(tenant).cloned())
+            .unwrap_or_else(|| jc_core::kinds::IMPLICIT_BROKER.to_owned());
+        let base = self
+            .address(&broker)
+            .ok_or_else(|| format!("the space's broker '{broker}' has no address"))?;
         let request = match rules {
             Some(rules) => self
                 .http
-                .post(format!("{}/q/retention/{tenant}/preview", self.broker))
+                .post(format!("{base}/q/retention/{tenant}/preview"))
                 .json(&retention_document(rules, context.as_ref())),
             None => self
                 .http
-                .get(format!("{}/q/retention/{tenant}/deleted", self.broker)),
+                .get(format!("{base}/q/retention/{tenant}/deleted")),
         };
         let response = request
             .bearer_auth(token)
@@ -1742,10 +1966,10 @@ impl ViewSync {
             .collect())
     }
 
-    async fn put(&self, token: &str, path: &str, doc: &Value) -> ViewOutcome {
+    async fn put(&self, base: &str, token: &str, path: &str, doc: &Value) -> ViewOutcome {
         let sent = self
             .http
-            .put(format!("{}{path}", self.broker))
+            .put(format!("{base}{path}"))
             .bearer_auth(token)
             .json(doc)
             .send()
@@ -1759,10 +1983,10 @@ impl ViewSync {
         }
     }
 
-    async fn delete(&self, token: &str, path: &str) -> Result<(), String> {
+    async fn delete(&self, base: &str, token: &str, path: &str) -> Result<(), String> {
         let response = self
             .http
-            .delete(format!("{}{path}", self.broker))
+            .delete(format!("{base}{path}"))
             .bearer_auth(token)
             .send()
             .await
@@ -3174,7 +3398,84 @@ mod tests {
             "{outcomes:?}"
         );
         assert!(!format!("{outcomes:?}").contains(TOKEN));
-        assert!(sync.written().contains("city-air"));
+        assert!(sync.written().contains_key("city-air"));
+    }
+
+    /// PF-111: a space on broker `canary` is written to the canary's address and nothing of it
+    /// reaches `main`; a space whose brokerRef names no broker is refused and written nowhere.
+    #[tokio::test]
+    async fn each_space_is_written_on_its_own_broker_and_never_on_main() {
+        let main = MockServer::start().await;
+        let canary = MockServer::start().await;
+        // `main` is listed, so what it held is cleaned up, and is told nothing.
+        Mock::given(method("GET"))
+            .and(path("/q/views"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+            .mount(&main)
+            .await;
+        Mock::given(method("PUT"))
+            .respond_with(ResponseTemplate::new(500))
+            .expect(0)
+            .mount(&main)
+            .await;
+        Mock::given(method("DELETE"))
+            .respond_with(ResponseTemplate::new(500))
+            .expect(0)
+            .mount(&main)
+            .await;
+        for listing in ["/q/views", "/q/policy"] {
+            Mock::given(method("GET"))
+                .and(path(listing))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+                .mount(&canary)
+                .await;
+        }
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(404).set_body_json(json!({})))
+            .mount(&canary)
+            .await;
+        Mock::given(method("PUT"))
+            .and(path("/q/policy/city-air"))
+            .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(1)
+            .mount(&canary)
+            .await;
+        Mock::given(method("PUT"))
+            .respond_with(ResponseTemplate::new(201))
+            .mount(&canary)
+            .await;
+
+        let canary_host = canary.uri().replace("127.0.0.1", "{broker}");
+        let mut on_canary = sources(vec![("cars", cars())]);
+        on_canary
+            .brokers
+            .insert("city-air".into(), "127.0.0.1".into());
+        let file = token_file();
+        let sync = ViewSync::new(main.uri(), &file).with_broker_template(Some(canary_host));
+        let written = sync.apply(desired(&on_canary)).await;
+
+        let mut nowhere = sources(vec![("cars", cars())]);
+        nowhere.brokers.insert("city-air".into(), String::new());
+        let refused = ViewSync::new(main.uri(), &file)
+            .apply(desired(&nowhere))
+            .await;
+        let _ = std::fs::remove_file(&file);
+
+        assert!(
+            written
+                .iter()
+                .all(|(_, outcome)| *outcome == ViewOutcome::Written),
+            "{written:?}"
+        );
+        assert_eq!(sync.written().get("city-air"), Some(&canary.uri()));
+        assert!(
+            refused.iter().all(
+                |(_, outcome)| matches!(outcome, ViewOutcome::Failed(r) if r.contains("brokerRef"))
+            ),
+            "{refused:?}"
+        );
+        assert!(!refused.is_empty());
     }
 
     /// A rule document whose space is gone is deleted; one the broker already holds is not
@@ -3213,13 +3514,13 @@ mod tests {
             .await;
         let file = token_file();
         let sync = ViewSync::new(server.uri(), &file);
-        sync.written().insert("old-space".into());
+        sync.written().insert("old-space".into(), server.uri());
         let outcomes = sync.apply(desired(&s)).await;
         assert_eq!(
             outcomes,
             [(Owner::space("city", "air"), ViewOutcome::Written)]
         );
-        assert!(!sync.written().contains("old-space"));
+        assert!(!sync.written().contains_key("old-space"));
 
         let no_engine = broker().await;
         json_at("/q/views", 200, json!({})).mount(&no_engine).await;
@@ -3615,7 +3916,7 @@ mod tests {
                 "{outcomes:?}"
             );
         }
-        assert_eq!(held, BTreeSet::from(["city-air".to_owned()]));
+        assert_eq!(held.keys().collect::<Vec<_>>(), ["city-air"]);
         assert!(lock(&sync.written_schemas).is_empty());
     }
 
@@ -4149,5 +4450,70 @@ mod tests {
         );
         assert_eq!(get("/q/policy/city-air").await.0, 404);
         assert_eq!(get("/q/schemas/city-air").await.0, 404);
+    }
+
+    /// DM-90: a space that can quarantine narrows every permit but the owner's and the
+    /// steward's to entities without `quarantinedAt`, its own `q` kept; a prohibition and a
+    /// space without such a rule are left as they were.
+    #[test]
+    fn a_quarantining_space_hides_quarantined_entities_from_all_but_owner_and_steward() {
+        let steward = policy(json!({"assignee": {"kind": "role", "id": "steward"}}));
+        let narrowed = policy(json!({"q": "speed>3|speed<1"}));
+        let deny = policy(json!({"effect": "prohibition"}));
+        let mut s = sources(vec![
+            ("public", policy(json!({}))),
+            ("narrowed", narrowed),
+            ("stewards", steward),
+            ("deny", deny),
+        ]);
+        let before = rule_document(&s, "city", "air");
+        assert!(
+            !before.to_string().contains("quarantinedAt"),
+            "no rule, no narrowing"
+        );
+        s.quarantines.insert(("city".into(), "air".into()));
+        let doc = rule_document(&s, "city", "air");
+        let q = |id: &str| {
+            doc["policies"]
+                .as_array()
+                .and_then(|all| all.iter().find(|p| p["id"] == id))
+                .map(|p| p["q"].clone())
+                .expect(id)
+        };
+        assert_eq!(q("city/public"), json!("!quarantinedAt"));
+        assert_eq!(
+            q("city/narrowed"),
+            json!("!quarantinedAt;(speed>3|speed<1)")
+        );
+        assert_eq!(q("city/stewards"), Value::Null, "the steward acts on it");
+        assert_eq!(q("city/deny"), Value::Null, "a prohibition never narrows");
+        let gateway = with_gateway(doc.clone());
+        assert!(gateway["policies"].as_array().is_some_and(|all| all
+            .iter()
+            .any(|p| p["id"] == "@context-gateway" && p.get("q").is_none())));
+    }
+
+    #[test]
+    fn a_rule_quarantines_by_its_outcome_or_its_max_age() {
+        let rule = |extra: Value| -> jc_core::kinds::QualityRule {
+            let mut base = json!({"name": "r", "entityType": "Vehicle", "attribute": "speed"});
+            if let (Some(b), Some(e)) = (base.as_object_mut(), extra.as_object()) {
+                b.extend(e.clone());
+            }
+            serde_json::from_value(base).expect("rule")
+        };
+        assert!(!quarantines(&rule(json!({"kind": "range", "max": 1}))));
+        assert!(quarantines(&rule(
+            json!({"kind": "range", "max": 1, "outcome": "quarantine"})
+        )));
+        assert!(quarantines(&rule(
+            json!({"kind": "freshness", "maxAge": "PT5M"})
+        )));
+        assert!(!quarantines(&rule(
+            json!({"kind": "freshness", "maxAge": "PT5M", "outcome": "flag"})
+        )));
+        assert!(!quarantines(&rule(
+            json!({"kind": "freshness", "maxAhead": "PT30S"})
+        )));
     }
 }

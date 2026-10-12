@@ -86,6 +86,10 @@ pub struct Config {
     /// federated client whose one audience is the App's Endpoint (AP-159, T-3539). Unset, no job
     /// gets a token.
     pub app_identity_namespace: Option<String>,
+    /// The namespace the MQTT edge brokers run in (`JC_PORTAL_MQTT_NAMESPACE`,
+    /// `{instance}-mqtt`): set, the reconciler applies one release per `MqttBroker` there from the
+    /// deployment's template (ADR-N-048, T-3994); unset, it applies none and says so.
+    pub mqtt_namespace: Option<String>,
     /// The platform host the context spaces are served on, which is where a declared
     /// `Subscription` is written (`JC_PORTAL_GATEWAY_URL`,
     /// `/cs/{space}/ngsi-ld/v1/subscriptions`, T-0931). `None`
@@ -118,6 +122,10 @@ pub struct Config {
     /// on the same broker (PF-48; `JC_PORTAL_BROKER_URL`). `None` leaves registrations read
     /// from the repository and written nowhere.
     pub broker_url: Option<String>,
+    /// The address of every broker but `main` (`JC_PORTAL_BROKER_URL_TEMPLATE`, PF-111), with
+    /// `{broker}` in the authority replaced by the `ContextBroker`'s name. `None` leaves a space
+    /// on another broker unwritten and uncounted, never sent to `main`.
+    pub broker_url_template: Option<String>,
     /// Where the broker's admin token is mounted from its Secret
     /// (`JC_PORTAL_BROKER_ADMIN_TOKEN_FILE`), read on every run and sent only as the bearer of
     /// the `/q` calls that write every Endpoint's and Context Space's view and every space's
@@ -299,12 +307,14 @@ impl std::fmt::Debug for Config {
             .field("pipeline_identity", &self.pipeline_identity)
             .field("pipeline_namespace", &self.pipeline_namespace)
             .field("app_identity_namespace", &self.app_identity_namespace)
+            .field("mqtt_namespace", &self.mqtt_namespace)
             .field("gateway_url", &self.gateway_url)
             .field("gateway_client_id", &self.gateway_client_id)
             .field("agent_proxy_client_id", &self.agent_proxy_client_id)
             .field("pipeline_runner_client_id", &self.pipeline_runner_client_id)
             .field("invitation_client_id", &self.invitation_client_id)
             .field("broker_url", &self.broker_url)
+            .field("broker_url_template", &self.broker_url_template)
             .field("broker_admin_token_file", &self.broker_admin_token_file)
             .field("org_domain", &self.org_domain)
             .field("pipeline_test_capture_url", &self.pipeline_test_capture_url)
@@ -1304,6 +1314,13 @@ impl Config {
             None => None,
         };
 
+        let broker_url_template = match lookup("JC_PORTAL_BROKER_URL_TEMPLATE")
+            .filter(|value| !value.trim().is_empty())
+        {
+            Some(value) => Some(broker_url_template(&value)?),
+            None => None,
+        };
+
         let broker_admin_token_file = lookup("JC_PORTAL_BROKER_ADMIN_TOKEN_FILE")
             .filter(|path| !path.trim().is_empty())
             .map(std::path::PathBuf::from);
@@ -1341,6 +1358,17 @@ impl Config {
             if jc_core::names::validate_dns1123_label(namespace).is_err() {
                 return Err(ConfigError::Invalid {
                     var: "JC_PORTAL_APP_IDENTITY_NAMESPACE",
+                    reason: format!("`{namespace}` is not a DNS-1123 label"),
+                });
+            }
+        }
+        let mqtt_namespace = lookup("JC_PORTAL_MQTT_NAMESPACE")
+            .map(|v| v.trim().to_owned())
+            .filter(|v| !v.is_empty());
+        if let Some(namespace) = &mqtt_namespace {
+            if jc_core::names::validate_dns1123_label(namespace).is_err() {
+                return Err(ConfigError::Invalid {
+                    var: "JC_PORTAL_MQTT_NAMESPACE",
                     reason: format!("`{namespace}` is not a DNS-1123 label"),
                 });
             }
@@ -1581,6 +1609,7 @@ impl Config {
             pipeline_identity,
             pipeline_namespace,
             app_identity_namespace,
+            mqtt_namespace,
             gateway_url,
             gateway_client_id: lookup("JC_PORTAL_GATEWAY_CLIENT_ID")
                 .filter(|v| !v.trim().is_empty()),
@@ -1592,6 +1621,7 @@ impl Config {
                 .map(|v| v.trim().to_owned())
                 .filter(|v| !v.is_empty()),
             broker_url,
+            broker_url_template,
             broker_admin_token_file,
             org_domain: lookup("JC_PORTAL_ORG_DOMAIN").filter(|v| !v.trim().is_empty()),
             pipeline_test_capture_url,
@@ -1644,12 +1674,14 @@ impl Config {
             pipeline_identity: false,
             pipeline_namespace: None,
             app_identity_namespace: None,
+            mqtt_namespace: None,
             gateway_url: None,
             gateway_client_id: None,
             agent_proxy_client_id: None,
             pipeline_runner_client_id: None,
             invitation_client_id: None,
             broker_url: None,
+            broker_url_template: None,
             broker_admin_token_file: None,
             org_domain: None,
             pipeline_test_capture_url: None,
@@ -1693,6 +1725,31 @@ impl Config {
 #[cfg(test)]
 #[path = "config_documentation_tests.rs"]
 mod config_documentation_tests;
+
+/// `JC_PORTAL_BROKER_URL_TEMPLATE`: an http(s) scheme and an authority holding `{broker}`, no path.
+fn broker_url_template(raw: &str) -> Result<String, ConfigError> {
+    let invalid = |reason: &str| ConfigError::Invalid {
+        var: "JC_PORTAL_BROKER_URL_TEMPLATE",
+        reason: reason.to_owned(),
+    };
+    let raw = raw.trim().trim_end_matches('/');
+    let sample: Url = raw
+        .replace("{broker}", "b")
+        .parse()
+        .map_err(|_| invalid("is not a URL"))?;
+    if !raw.contains("{broker}")
+        || raw
+            .split("://")
+            .nth(1)
+            .is_some_and(|rest| rest.contains('/'))
+    {
+        return Err(invalid("must name {broker} in the authority, with no path"));
+    }
+    if sample.scheme() != "http" && sample.scheme() != "https" {
+        return Err(invalid("must be http or https"));
+    }
+    Ok(raw.to_owned())
+}
 
 #[cfg(test)]
 mod tests {
@@ -1773,6 +1830,30 @@ mod tests {
         let missing = dir.join("absent.yaml").to_string_lossy().into_owned();
         assert!(with(Some(missing)).is_err());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_broker_template_names_the_broker_in_its_authority_and_nothing_else() {
+        let with = |value: &'static str| {
+            Config::from_vars(move |name| {
+                (name == "JC_PORTAL_BROKER_URL_TEMPLATE").then(|| value.to_owned())
+            })
+        };
+        assert_eq!(
+            with("http://broker-{broker}.ns.svc:8080/")
+                .unwrap()
+                .broker_url_template,
+            Some("http://broker-{broker}.ns.svc:8080".to_owned())
+        );
+        assert_eq!(with(" ").unwrap().broker_url_template, None);
+        for refused in [
+            "http://broker.ns.svc",
+            "http://broker.ns.svc/{broker}",
+            "ftp://{broker}.ns.svc",
+            "{broker}",
+        ] {
+            assert!(with(refused).is_err(), "{refused} was accepted");
+        }
     }
 
     #[test]
@@ -1931,6 +2012,28 @@ mod tests {
             config.pipeline_namespace.as_deref(),
             Some("jc-pipeline-identities")
         );
+    }
+
+    /// T-3994: the MQTT brokers' namespace is read when set, absent when blank, and refused when it
+    /// is not a DNS-1123 label.
+    #[test]
+    fn the_mqtt_namespace_is_a_dns_label_or_absent() {
+        let with = |value: Option<&str>| {
+            Config::from_vars(|k| match k {
+                "JC_PORTAL_MQTT_NAMESPACE" => value.map(str::to_owned),
+                _ => None,
+            })
+        };
+        assert_eq!(with(None).expect("unset").mqtt_namespace, None);
+        assert_eq!(with(Some(" ")).expect("blank").mqtt_namespace, None);
+        assert_eq!(
+            with(Some("jc-mqtt"))
+                .expect("set")
+                .mqtt_namespace
+                .as_deref(),
+            Some("jc-mqtt")
+        );
+        assert!(with(Some("JC_Mqtt")).is_err());
     }
 
     /// AP-159 (T-3539): the Apps' identities namespace is read when set, absent when blank, and a

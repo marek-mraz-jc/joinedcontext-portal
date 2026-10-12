@@ -1,12 +1,12 @@
 import { useState } from "react";
 import type { JSX } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { ApiError, queryKeys } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
 import { asManifests, isChange, ORG_NAMESPACE, storedMetadata } from "../../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
-import { beyondOwnRights, ownRights, usePermissions } from "../../api/permissions";
+import { beyondOwnRights, ownRights, usePermissions, useReadableList } from "../../api/permissions";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { FormRecordLink } from "../../components/RecordLink";
@@ -15,6 +15,7 @@ import { ResourceFormDialog } from "../../components/ResourceFormDialog";
 import { FormFrame, useCreateForm, useFormRoute } from "../../components/forms/FormRoute";
 import { ROLE_VERBS, roleSchema } from "../../schemas/kinds";
 import {
+  Alert,
   Badge,
   Button,
   EmptyState,
@@ -115,16 +116,7 @@ export function organizationKindsIn(rules: { kinds?: string[] }[] | undefined): 
 export type RoleScope = "organization" | "project" | "all";
 
 function useRoles(project: string, enabled = true) {
-  return useQuery({
-    queryKey: queryKeys.list(project, "roles"),
-    enabled,
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/{plural}", {
-          params: { path: { project, plural: "roles" } },
-        }),
-      ),
-  });
+  return useReadableList(project, "roles", "Role", enabled);
 }
 
 /**
@@ -319,7 +311,11 @@ export function Roles({
         </PermissionGuard>
       </div>
 
-      {error ? (
+      {(organization.hidden || here.hidden) &&
+      (scope === "project" || organization.hidden) &&
+      (!ownRoles || here.hidden) ? (
+        <Alert tone="info">{t("access.projectRoles.hidden")}</Alert>
+      ) : error ? (
         <PageFailed
           error={error}
           onRetry={() => {

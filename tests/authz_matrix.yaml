@@ -195,6 +195,10 @@ routes:
   - route: GET /organization/health
     rule: "org-admin"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]
+  - route: GET /organization/brokers
+    rule: "org-admin (approve and delete on RoleBinding, PF-03)"
+    expect: [401, 403, 403, 403, 403, allow, 403, 403]
+    note: "each broker's health and load, asked by the Portal; the browser never reaches a broker (API/01 §43, PF-116)"
   - route: GET /organization/limits
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]
@@ -657,6 +661,9 @@ routes:
     expect: [403, 403, allow, allow, 403, allow, 403, 403]
     body: {"pipeline": {"apiVersion": "joinedcontext.com/v1alpha1", "kind": "Pipeline", "metadata": {"name": "existing"}, "spec": {"class": "auto", "source": {"endpointRef": "existing"}, "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:helsinki:existing"}}, "sample": {}}
   - route: GET /projects/{project}/pipelines/{name}/metrics
+    rule: "project-verb:read:Pipeline"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/pipelines/{name}/stats
     rule: "project-verb:read:Pipeline"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
   - route: GET /projects/{project}/pipelines/{name}/rejected

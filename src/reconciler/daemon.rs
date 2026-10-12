@@ -152,6 +152,9 @@ pub struct Syncer {
     /// `None` outside a cluster.
     app_hosts: Option<Arc<super::app_hosts::AppHosts>>,
     wasm_shards: Option<Arc<super::wasm_shards::WasmShards>>,
+    /// Every `MqttBroker`'s release and its Keycloak client (ADR-N-048, T-3994).
+    mqtt_brokers: Option<Arc<super::mqtt_brokers::MqttBrokers>>,
+    mqtt_clients: Option<Arc<super::mqtt_brokers::MqttClientSync>>,
     /// Where a run says what it did (OPS-48). `None` leaves the loop silent, which is what a
     /// Portal built without a state does in a unit test.
     activity: Option<ActivityStore>,
@@ -237,6 +240,8 @@ impl Syncer {
             edge_file: None,
             app_hosts: None,
             wasm_shards: None,
+            mqtt_brokers: None,
+            mqtt_clients: None,
             activity: None,
             apps_cache_dir: None,
             apps_dir: None,
@@ -415,6 +420,18 @@ impl Syncer {
     /// Makes each run write every WASM shard's placement and store key (AP-157, AP-158).
     pub fn with_wasm_shards(mut self, shards: Arc<super::wasm_shards::WasmShards>) -> Self {
         self.wasm_shards = Some(shards);
+        self
+    }
+
+    /// Makes each run apply every `MqttBroker`'s release (T-3994).
+    pub fn with_mqtt_brokers(mut self, brokers: Arc<super::mqtt_brokers::MqttBrokers>) -> Self {
+        self.mqtt_brokers = Some(brokers);
+        self
+    }
+
+    /// Makes each run keep every `MqttBroker`'s bearer-only client (T-3994).
+    pub fn with_mqtt_clients(mut self, clients: Arc<super::mqtt_brokers::MqttClientSync>) -> Self {
+        self.mqtt_clients = Some(clients);
         self
     }
 
@@ -1636,6 +1653,64 @@ impl Syncer {
                     status.jobs = runs.get(&id).cloned().unwrap_or_default();
                     self.mirror.upsert(envelope);
                 }
+            }
+        }
+
+        // 6a3. Every MqttBroker's release and client (ADR-N-048 §2.6–§2.7, T-3994). A manifest
+        //      the platform refuses keeps the release it had and says why in its status; one no
+        //      repository holds any more loses both, and only when every repository staged.
+        if self.mqtt_brokers.is_some() || self.mqtt_clients.is_some() {
+            let brokers = super::mqtt_brokers::declared(&self.mirror);
+            let mut failed: BTreeMap<String, String> = brokers
+                .iter()
+                .filter_map(|broker| Some((broker.label(), broker.spec.clone().err()?)))
+                .collect();
+            if let Some(releases) = self.mqtt_brokers.as_ref() {
+                let retire = scratch.unstaged.is_empty();
+                for (broker, error) in releases.converge(&brokers, retire).await {
+                    if broker == "*" {
+                        tracing::warn!(%error, "the MQTT brokers did not converge");
+                    }
+                    failed.entry(broker).or_insert(error);
+                }
+            }
+            if let Some(clients) = self.mqtt_clients.as_ref() {
+                for outcome in clients.converge(&brokers).await {
+                    match (&outcome.error, outcome.drift.is_empty()) {
+                        (Some(error), _) => {
+                            tracing::warn!(broker = %outcome.app, %error, "MQTT broker client did not converge");
+                            failed.entry(outcome.app.clone()).or_insert(error.clone());
+                        }
+                        (None, false) => {
+                            tracing::info!(broker = %outcome.app, drift = %outcome.drift.join("; "), "MQTT broker client brought back to the broker")
+                        }
+                        (None, true) => {}
+                    }
+                }
+            }
+            for broker in &brokers {
+                let Some(error) = failed.get(&broker.label()) else {
+                    continue;
+                };
+                let Some(mut envelope) =
+                    self.mirror.get(&broker.project, "MqttBroker", &broker.name)
+                else {
+                    continue;
+                };
+                if let Some(status) = envelope.status.as_mut() {
+                    status.conditions = vec![if broker.spec.is_err() {
+                        super::streams::make_condition(
+                            "Ready",
+                            "False",
+                            "Invalid",
+                            &format!("{error}; the broker's running release, if any, is unchanged"),
+                        )
+                    } else {
+                        super::streams::make_condition("Ready", "False", "NotApplied", error)
+                    }];
+                }
+                transitions.keep(&mut envelope);
+                self.mirror.upsert(envelope);
             }
         }
 

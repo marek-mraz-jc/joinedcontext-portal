@@ -121,6 +121,7 @@ export function CronScheduleWidget(props: WidgetProps): JSX.Element {
         <label className="flex flex-col gap-1 text-caption text-fg-muted">
           {t("pipelines.schedule.how")}
           <Select
+            aria-describedby={ariaDescribedByIds(id)}
             value={choice.kind}
             disabled={off}
             onChange={(event) => {
@@ -141,6 +142,7 @@ export function CronScheduleWidget(props: WidgetProps): JSX.Element {
           <label className="flex flex-col gap-1 text-caption text-fg-muted">
             {t(`pipelines.schedule.every.${choice.kind}`)}
             <Select
+              aria-describedby={ariaDescribedByIds(id)}
               value={String(choice.every)}
               disabled={off}
               onChange={(event) => write({ ...choice, every: Number(event.target.value) })}
@@ -157,6 +159,7 @@ export function CronScheduleWidget(props: WidgetProps): JSX.Element {
           <label className="flex flex-col gap-1 text-caption text-fg-muted">
             {t("pipelines.schedule.atMinute")}
             <Input
+              aria-describedby={ariaDescribedByIds(id)}
               type="number"
               min={0}
               max={59}
@@ -174,6 +177,7 @@ export function CronScheduleWidget(props: WidgetProps): JSX.Element {
           <label className="flex flex-col gap-1 text-caption text-fg-muted">
             {t("pipelines.schedule.on")}
             <Select
+              aria-describedby={ariaDescribedByIds(id)}
               value={String(choice.weekday)}
               disabled={off}
               onChange={(event) => write({ ...choice, weekday: Number(event.target.value) })}
@@ -192,6 +196,7 @@ export function CronScheduleWidget(props: WidgetProps): JSX.Element {
           <label className="flex flex-col gap-1 text-caption text-fg-muted">
             {t("pipelines.schedule.atTime")}
             <Input
+              aria-describedby={ariaDescribedByIds(id)}
               type="time"
               className="w-32"
               value={timeValue}

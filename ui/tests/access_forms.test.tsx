@@ -364,6 +364,8 @@ describe("the Role form", () => {
       effective([
         { kinds: ["Pipeline"], verbs: ["propose"] },
         { kinds: ["DataSource"], verbs: ["approve"] },
+        // Proposing a Role is itself a grant: without it the form says only that (UI-44).
+        { kinds: ["Role"], verbs: ["propose"] },
       ]),
     );
 
@@ -407,12 +409,34 @@ describe("the Role form", () => {
     });
   });
 
+  it("a reader's form says why it cannot be proposed and offers no list control to press", async () => {
+    // demo.viewer on the walk (T-3852): every create form offered Add, Remove and Propose change
+    // to a role that may only read, and the API's 403 was the first word of it (UI-44, PF-51).
+    roleDialog(effective([{ kinds: ["Role"], verbs: ["read"] }]));
+
+    const dialog = await screen.findByRole("dialog");
+    const submit = await waitFor(() => {
+      const found = within(dialog).getByRole("button", { name: en.access.projectRoles.propose });
+      expect(found).toHaveAttribute("aria-disabled", "true");
+      return found;
+    });
+    expect(submit.getAttribute("title")).toBe(
+      i18n.t("permissions.denied", { verb: "propose", kind: "Role" }),
+    );
+    expect(within(dialog).queryByRole("button", { name: /^(Add|Remove)\b/ })).toBeNull();
+  });
+
   it("refuses the same role typed into the YAML view, where the lists do not reach", async () => {
     // The lists cannot offer `approve on Pipeline` here, but the YAML view can write it, and a
     // manifest pasted there is the form one render later (T-0890). The refusal has to hold on both
     // doors, or the fields would be the only place PF-52 is read before the API answers.
     const user = userEvent.setup();
-    roleDialog(effective([{ kinds: ["Pipeline"], verbs: ["propose"] }]));
+    roleDialog(
+      effective([
+        { kinds: ["Pipeline"], verbs: ["propose"] },
+        { kinds: ["Role"], verbs: ["propose"] },
+      ]),
+    );
 
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("tab", { name: en.form.view.yaml }));

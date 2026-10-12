@@ -135,6 +135,16 @@ describe("the shell (SDK-39)", () => {
     expect(screen.getByRole("status")).toHaveTextContent(SDK_WORDS.sk["state.loading"]);
   });
 
+  // T-4008: a Helsinki App on its Svenska page speaks Swedish in the shell too.
+  it("speaks Swedish when the App's language is sv", () => {
+    render(
+      <JcProvider client={stubClient(undefined, { language: "en" })}>
+        <AppShell title="Karta" language="sv" pages={[{ id: "a", label: "A", render: () => <Loading /> }]} />
+      </JcProvider>,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Läser in…");
+  });
+
   it("leaves the colour scheme to the App's own stylesheet, so a light-only App keeps light native controls", () => {
     document.documentElement.style.colorScheme = "";
     show(READ);
@@ -434,7 +444,7 @@ describe("the panel's pieces", () => {
 
   it("speaks four languages with the same words and placeholders", () => {
     const keys = Object.keys(SDK_WORDS.en).sort();
-    for (const language of ["fi", "sk", "cs"] as const) {
+    for (const language of ["fi", "sv", "sk", "cs"] as const) {
       expect(Object.keys(SDK_WORDS[language]).sort()).toEqual(keys);
       for (const key of keys) {
         const placeholders = (text: string) => (text.match(/\{\w+\}/g) ?? []).sort();

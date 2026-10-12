@@ -65,7 +65,7 @@ path = "src/main.rs"
 
 [dependencies]
 # The manifest contract, by tag or by full commit, never by path into another agent's clone
-# (T-0249). Pinned to platform a704084 (T-3901's ContextSpace spec.retention, DM-82, over T-3920's Pipeline routes) until jc-core-v0.7.76 is tagged
+# (T-0249). Pinned to platform a5c1173 (T-3902 spec.quality and jc_core::quality over T-3842 ContextBroker) until jc-core-v0.7.76 is tagged
 # there (T-3167); the three crates share one reference, so cargo pulls one copy.
 # `version` is the crate's own version at that tag (the tag counts differently); without it
 # cargo-deny reads the requirement as `*` and the supply-chain check goes red (T-0287).
