@@ -168,6 +168,9 @@ pub struct Sources {
     /// The broker each tenant lives on (PF-111, ADR-N-047); `""` for a space whose `brokerRef`
     /// names no broker, which nothing is written for.
     pub brokers: BTreeMap<String, String>,
+    /// The Context Spaces with a quality rule that quarantines (DM-90): their permits, but the
+    /// owner's and the steward's, exclude a quarantined entity.
+    pub quarantines: BTreeSet<(String, String)>,
 }
 
 /// One Mapping as a view of another model needs it (G18).
@@ -221,6 +224,11 @@ impl Sources {
                     sources.brokers.insert(tenant, broker);
                     let model = parsed.as_ref().and_then(|spec| spec.data_model_ref.clone());
                     if let Some(spec) = parsed {
+                        if spec.quality.iter().any(quarantines) {
+                            sources
+                                .quarantines
+                                .insert((project.clone(), id.name.clone()));
+                        }
                         sources
                             .retention
                             .insert((project.clone(), id.name.clone()), spec.retention);
@@ -1041,10 +1049,45 @@ fn rule_document(sources: &Sources, project: &str, space: &str) -> Value {
         }
         views.insert(slug, json!(ids));
     }
+    if sources
+        .quarantines
+        .contains(&(project.to_owned(), space.to_owned()))
+    {
+        policies.iter_mut().for_each(hide_quarantined);
+    }
     if views.is_empty() {
         return json!({ "policies": policies });
     }
     json!({ "policies": policies, "views": views })
+}
+
+/// Whether a quality rule can quarantine: its own outcome, or a `maxAge` the sweep applies
+/// (DM-87, DM-90).
+fn quarantines(rule: &jc_core::kinds::QualityRule) -> bool {
+    use jc_core::kinds::QualityOutcome::Quarantine;
+    rule.write_outcome() == Quarantine
+        || (rule.max_age.is_some() && rule.sweep_outcome() == Quarantine)
+}
+
+/// The roles that still see a quarantined entity, to act on it (DM-90).
+const SEE_QUARANTINE: &[&str] = &["owner", "steward"];
+
+/// Narrows one permit to entities that are not quarantined (DM-90): `!quarantinedAt` AND-ed
+/// before its own `q`. A prohibition, and a permit of the owner or steward role, stay as they
+/// are; quarantine never widens anything.
+fn hide_quarantined(policy: &mut Value) {
+    let role = policy["assignee"]["kind"] == "role"
+        && policy["assignee"]["id"]
+            .as_str()
+            .is_some_and(|id| SEE_QUARANTINE.contains(&id));
+    if policy["effect"] != "permit" || role {
+        return;
+    }
+    let q = match policy["q"].as_str() {
+        Some(own) if !own.trim().is_empty() => format!("!quarantinedAt;({own})"),
+        _ => "!quarantinedAt".to_owned(),
+    };
+    policy["q"] = json!(q);
 }
 
 /// One end of a `temporalQ` window as the engine reads it (Antares
@@ -4263,5 +4306,70 @@ mod tests {
         );
         assert_eq!(get("/q/policy/city-air").await.0, 404);
         assert_eq!(get("/q/schemas/city-air").await.0, 404);
+    }
+
+    /// DM-90: a space that can quarantine narrows every permit but the owner's and the
+    /// steward's to entities without `quarantinedAt`, its own `q` kept; a prohibition and a
+    /// space without such a rule are left as they were.
+    #[test]
+    fn a_quarantining_space_hides_quarantined_entities_from_all_but_owner_and_steward() {
+        let steward = policy(json!({"assignee": {"kind": "role", "id": "steward"}}));
+        let narrowed = policy(json!({"q": "speed>3|speed<1"}));
+        let deny = policy(json!({"effect": "prohibition"}));
+        let mut s = sources(vec![
+            ("public", policy(json!({}))),
+            ("narrowed", narrowed),
+            ("stewards", steward),
+            ("deny", deny),
+        ]);
+        let before = rule_document(&s, "city", "air");
+        assert!(
+            !before.to_string().contains("quarantinedAt"),
+            "no rule, no narrowing"
+        );
+        s.quarantines.insert(("city".into(), "air".into()));
+        let doc = rule_document(&s, "city", "air");
+        let q = |id: &str| {
+            doc["policies"]
+                .as_array()
+                .and_then(|all| all.iter().find(|p| p["id"] == id))
+                .map(|p| p["q"].clone())
+                .expect(id)
+        };
+        assert_eq!(q("city/public"), json!("!quarantinedAt"));
+        assert_eq!(
+            q("city/narrowed"),
+            json!("!quarantinedAt;(speed>3|speed<1)")
+        );
+        assert_eq!(q("city/stewards"), Value::Null, "the steward acts on it");
+        assert_eq!(q("city/deny"), Value::Null, "a prohibition never narrows");
+        let gateway = with_gateway(doc.clone());
+        assert!(gateway["policies"].as_array().is_some_and(|all| all
+            .iter()
+            .any(|p| p["id"] == "@context-gateway" && p.get("q").is_none())));
+    }
+
+    #[test]
+    fn a_rule_quarantines_by_its_outcome_or_its_max_age() {
+        let rule = |extra: Value| -> jc_core::kinds::QualityRule {
+            let mut base = json!({"name": "r", "entityType": "Vehicle", "attribute": "speed"});
+            if let (Some(b), Some(e)) = (base.as_object_mut(), extra.as_object()) {
+                b.extend(e.clone());
+            }
+            serde_json::from_value(base).expect("rule")
+        };
+        assert!(!quarantines(&rule(json!({"kind": "range", "max": 1}))));
+        assert!(quarantines(&rule(
+            json!({"kind": "range", "max": 1, "outcome": "quarantine"})
+        )));
+        assert!(quarantines(&rule(
+            json!({"kind": "freshness", "maxAge": "PT5M"})
+        )));
+        assert!(!quarantines(&rule(
+            json!({"kind": "freshness", "maxAge": "PT5M", "outcome": "flag"})
+        )));
+        assert!(!quarantines(&rule(
+            json!({"kind": "freshness", "maxAhead": "PT30S"})
+        )));
     }
 }
