@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ListFailed, reasonOf } from "../../components/forms/widgets/ListFailed";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
-import { asManifests, overlay, plainTitle, prune, refName } from "../../api/manifest";
+import { asManifests, knownSecretNames, overlay, plainTitle, prune, refName } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { useBranding } from "../../branding";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
@@ -536,9 +536,10 @@ export function PipelineEditorDialog({
     ];
   }, [endpointList, orgDomain, draft?.source?.endpointRef, draft?.targetEndpoint]);
 
+  const secretNames = useMemo(() => knownSecretNames(dataSourceList), [dataSourceList]);
   const schema = useMemo(
-    () => pipelineSchema(t, dataSourceNames, endpointOptions),
-    [t, dataSourceNames, endpointOptions],
+    () => pipelineSchema(t, dataSourceNames, endpointOptions, secretNames),
+    [t, dataSourceNames, endpointOptions, secretNames],
   );
   // Keyed on what decides it, not on the draft: a new arrangement on every keystroke would make
   // RJSF rebuild the input being typed into.
