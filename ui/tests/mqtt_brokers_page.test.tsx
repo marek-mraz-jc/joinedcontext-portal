@@ -203,3 +203,68 @@ describe("the MQTT brokers page", () => {
     expect(document.body.textContent).not.toMatch(/password\s*[:=]|secret\s*[:=]/i);
   });
 });
+
+describe("what a broker measures (T-4043)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+    window.history.replaceState({}, "", `/projects/${PROJECT}/mqttbrokers`);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  const show = (measured: () => Response) =>
+    renderPage(<MqttBrokersPage project={PROJECT} />, {
+      path: `/projects/${PROJECT}/mqttbrokers`,
+      answer: (url) => {
+        if (url.pathname.endsWith("/mqttbrokers/cameras/measured")) return measured();
+        return url.pathname.endsWith("/mqttbrokers") ? json(list([CAMERAS])) : undefined;
+      },
+    });
+
+  it("shows the publishers, the rate and each account's connected clients", async () => {
+    show(() =>
+      json({
+        measured: true,
+        observedAt: "2026-10-12T08:47:00Z",
+        messagesPerSecond: 2.5,
+        publishers: 2,
+        reason: null,
+        accounts: [
+          { serviceAccount: "cam-1", connected: 2, since: "2026-10-12T08:46:51Z" },
+          { serviceAccount: "cam-2", connected: 0, since: null },
+        ],
+      }),
+    );
+    expect(await screen.findByText("2 publishers connected, 2.5 messages per second")).toBeInTheDocument();
+    const cams = screen.getByText("cam-1, cam-2").closest("tr") as HTMLElement;
+    expect(within(cams).getByText(/^cam-1: 2, newest since /)).toBeInTheDocument();
+    expect(within(cams).getByText("cam-2: 0")).toBeInTheDocument();
+  });
+
+  it("says not measured, and why, when the broker did not answer the Portal", async () => {
+    show(() =>
+      json({
+        measured: false,
+        observedAt: "2026-10-12T08:47:00Z",
+        messagesPerSecond: null,
+        publishers: null,
+        reason: "the broker did not answer; try again in a minute",
+        accounts: [],
+      }),
+    );
+    expect(await screen.findByText("the broker did not answer; try again in a minute")).toBeInTheDocument();
+    expect(screen.getByText(en.mqttbrokers.measured.not)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/publishers? connected/);
+    const cams = screen.getByText("cam-1, cam-2").closest("tr") as HTMLElement;
+    expect(within(cams).queryByText(/^cam-1:/)).toBeNull();
+  });
+
+  it("says not measured, never a zero, when the Portal itself cannot be read", async () => {
+    show(() => new Response("", { status: 502 }));
+    expect(await screen.findByText(en.mqttbrokers.measured.not, {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/0 publishers/);
+  });
+});

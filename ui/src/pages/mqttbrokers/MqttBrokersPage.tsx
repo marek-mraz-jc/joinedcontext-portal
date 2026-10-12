@@ -1,9 +1,12 @@
 import type { JSX } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
+import { api, unwrap } from "../../api/client";
 import { asManifests } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { useReadableList } from "../../api/permissions";
+import type { components } from "../../api/schema";
 import { RecordLink, RECORD_LINK_STYLE } from "../../components/RecordLink";
 import { CopyUrlButton } from "../../components/endpoints/links";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
@@ -40,6 +43,8 @@ export function MqttBrokersPage({ project }: { project: string }): JSX.Element {
   );
 }
 
+type Measured = components["schemas"]["Measured"];
+
 interface Role {
   name?: string;
   serviceAccounts?: string[];
@@ -66,6 +71,16 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
   const address = brokerAddress(name, project, window.location.hostname, spec.port);
   const devices = [...new Set(roles.flatMap((role) => role.serviceAccounts ?? []))];
   const caption = t("mqttbrokers.acl.caption", { broker: name });
+  const measured = useQuery({
+    queryKey: ["mqttBrokerMeasured", project, name],
+    refetchInterval: 15_000,
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/mqttbrokers/{name}/measured", {
+          params: { path: { project, name } },
+        }),
+      ),
+  });
   return (
     <Card>
       <section aria-labelledby={`broker-${name}`} className="flex flex-col gap-3">
@@ -81,6 +96,7 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
             <TableHeaderCell>{t("mqttbrokers.acl.accounts")}</TableHeaderCell>
             <TableHeaderCell>{t("mqttbrokers.acl.publish")}</TableHeaderCell>
             <TableHeaderCell>{t("mqttbrokers.acl.subscribe")}</TableHeaderCell>
+            <TableHeaderCell>{t("mqttbrokers.measured.connected")}</TableHeaderCell>
           </TableHead>
           <TableBody>
             {roles.map((role) => (
@@ -93,11 +109,18 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
                 <TableCell>
                   <Filters filters={role.subscribe} />
                 </TableCell>
+                <TableCell>
+                  <Connected accounts={role.serviceAccounts ?? []} measured={measured.data} />
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
         <dl className="grid gap-x-4 gap-y-1 text-body sm:grid-cols-[max-content_1fr]">
+          <dt className="text-fg-muted">{t("mqttbrokers.measured.title")}</dt>
+          <dd>
+            <Measurement measured={measured.data} failed={measured.isError} />
+          </dd>
           <dt className="text-fg-muted">{t("mqttbrokers.connect.address")}</dt>
           <dd className="flex flex-wrap items-center gap-2">
             {address ? (
@@ -127,6 +150,58 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
         </dl>
       </section>
     </Card>
+  );
+}
+
+/**
+ * What the broker measures (T-4043, API/01 §44): publishers connected and messages per second,
+ * read by the Portal from the broker itself. A broker that did not answer is "not measured" with
+ * the reason, never a zero.
+ */
+function Measurement({ measured, failed }: { measured?: Measured; failed: boolean }): JSX.Element {
+  const { t, i18n } = useTranslation();
+  const number = new Intl.NumberFormat(i18n.resolvedLanguage ?? i18n.language ?? "en", { maximumFractionDigits: 1 });
+  if (!measured) return <>{failed ? t("mqttbrokers.measured.not") : t("app.loading")}</>;
+  if (!measured.measured) {
+    return (
+      <span className="flex flex-wrap items-center gap-2" data-measured="no">
+        <Badge tone="neutral">{t("mqttbrokers.measured.not")}</Badge>
+        {measured.reason ? <span className="text-caption text-fg-muted">{measured.reason}</span> : null}
+      </span>
+    );
+  }
+  return (
+    <span data-measured="yes">
+      {t("mqttbrokers.measured.summary", {
+        publishers: measured.publishers ?? 0,
+        rate: measured.messagesPerSecond == null ? "—" : number.format(measured.messagesPerSecond),
+      })}
+    </span>
+  );
+}
+
+/** The connected clients of a role's accounts, each with the time the newest one connected. */
+function Connected({ accounts, measured }: { accounts: string[]; measured?: Measured }): JSX.Element {
+  const { t, i18n } = useTranslation();
+  if (!measured?.measured) return <>—</>;
+  const time = new Intl.DateTimeFormat(i18n.resolvedLanguage ?? i18n.language ?? "en", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+  return (
+    <ul className="flex flex-col gap-0.5">
+      {accounts.map((account) => {
+        const seen = measured.accounts.find((entry) => entry.serviceAccount === account);
+        const count = seen?.connected ?? 0;
+        return (
+          <li key={account} data-account={account}>
+            {count > 0 && seen?.since
+              ? t("mqttbrokers.measured.since", { account, count, since: time.format(new Date(seen.since)) })
+              : t("mqttbrokers.measured.count", { account, count })}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

@@ -38,6 +38,7 @@ pub mod import_git;
 pub mod internal;
 pub mod knowledge;
 pub mod live;
+pub mod mqtt_measured;
 pub mod mutate;
 pub mod ops;
 pub mod organization_limits;
@@ -125,6 +126,7 @@ pub fn router() -> Router<AppState> {
         .merge(validation::router())
         .merge(organization_limits::router())
         .merge(brokers::router())
+        .merge(mqtt_measured::router())
         .merge(workspaces::router())
         .merge(crate::tools::model_tools::router())
         .layer(axum::middleware::from_fn(auth::csrf::require_csrf));

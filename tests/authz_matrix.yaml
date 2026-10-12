@@ -654,6 +654,10 @@ routes:
     rule: "project-verb:propose:Pipeline"
     expect: [403, 403, allow, allow, 403, allow, 403, 403]
     body: {"pipeline": {"apiVersion": "joinedcontext.com/v1alpha1", "kind": "Pipeline", "metadata": {"name": "existing"}, "spec": {"class": "auto", "source": {"endpointRef": "existing"}, "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:helsinki:existing"}}, "sample": {}}
+  - route: GET /projects/{project}/mqttbrokers/{name}/measured
+    rule: "project-verb:read:MqttBroker"
+    expect: [401, 404, 404, 404, 404, 404, 404, 404]
+    note: "what the broker measures, read by the Portal from the broker's own HTTP API; the browser never reaches a broker (API/01 §44, T-4043)"
   - route: GET /projects/{project}/pipelines/{name}/metrics
     rule: "project-verb:read:Pipeline"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

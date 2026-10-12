@@ -7251,6 +7251,14 @@
       "pipeline": "Pipeline",
       "brokerRef": "Vyberte {broker} ako broker platformy MQTT zdroja údajov."
     },
+    "measured": {
+      "title": "Namerané",
+      "connected": "Práve pripojené",
+      "not": "Nemerané",
+      "summary": "{publishers, plural, one {# pripojený vydavateľ} few {# pripojení vydavatelia} other {# pripojených vydavateľov}}, {rate} správ za sekundu",
+      "count": "{account}: {count}",
+      "since": "{account}: {count}, najnovší od {since}"
+    },
     "connections": {
       "title": "Spojenia",
       "lead": "Kto s kým hovorí, od zariadenia po Policy, ktorá chráni zápis, a čo každý krok povoľuje.",
