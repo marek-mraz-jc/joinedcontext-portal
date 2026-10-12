@@ -93,7 +93,8 @@
     "knowledge": "Zdroje znalostí",
     "mcp": "MCP servery",
     "home": "Domov",
-    "inbox": "Doručené"
+    "inbox": "Doručené",
+    "mqttbrokers": "MQTT brokery"
   },
   "auth": {
     "lead": "Prihláste sa účtom svojej organizácie a spravujte túto platformu.",
@@ -1533,7 +1534,11 @@
       "secretKey": "Kľúč v tajomstve",
       "input": "Konfigurácia vstupu",
       "typeHint": "Ako sa platforma k zdroju dostane; polia nižšie sa podľa toho menia a uložený zdroj si typ ponechá.",
-      "typeFixed": "Typ je pevný, keď zdroj údajov existuje. Pre iný typ pridajte nový zdroj údajov."
+      "typeFixed": "Typ je pevný, keď zdroj údajov existuje. Pre iný typ pridajte nový zdroj údajov.",
+      "brokerRef": "Broker platformy",
+      "brokerRefHelp": "MQTT broker tohto projektu. Pipeline ho číta cez interný listener platformy, takže nepotrebuje URL ani prihlasovacie údaje. Nechajte prázdne pre externý broker.",
+      "broker": "Broker",
+      "externalBroker": "Externý broker (URL a secret nižšie)"
     },
     "probe": {
       "title": "Jedno stiahnutie feedu",
@@ -7263,5 +7268,67 @@
     "when": "{at} · pruh {lane} · {id}",
     "notWritten": "Táto zmena nezapísala {kind} {name}, takže nie je čo obnoviť.",
     "loaded": "Verzia, ktorú zapísala zmena {id}, je vo formulári. Skontrolujte ju a navrhnite, aby ste ju obnovili; kým nie je schválená, nič sa nemení."
+  },
+  "mqttbrokers": {
+    "field": {
+      "name": "Názov",
+      "roles": "Roly",
+      "roleName": "Rola",
+      "serviceAccounts": "Servisné účty (zariadenia)",
+      "publish": "Smie publikovať do",
+      "subscribe": "Smie odoberať",
+      "limits": "Limity",
+      "maxMessageBytes": "Najväčšia správa (bajty)",
+      "messagesPerSecond": "Správ za sekundu na zariadenie",
+      "maxConnections": "Najviac spojení",
+      "port": "Vlastný port"
+    },
+    "acl": {
+      "caption": "Prístup k témam brokera {broker} podľa roly",
+      "role": "Rola",
+      "accounts": "Servisné účty",
+      "publish": "Publikovať",
+      "subscribe": "Odoberať"
+    },
+    "connect": {
+      "address": "Adresa",
+      "copy": "Kopírovať adresu",
+      "noAddress": "Zobrazí sa, keď je Portál otvorený na vlastnej adrese (portal.<doména>).",
+      "client": "ID klienta a používateľské meno",
+      "password": "Heslo",
+      "token": "Prístupový token vlastného klienta zariadenia, získaný jeho kľúčom; nikdy uložené heslo.",
+      "pipeline": "Pipeline",
+      "brokerRef": "Vyberte {broker} ako broker platformy MQTT zdroja údajov."
+    },
+    "connections": {
+      "title": "Spojenia",
+      "lead": "Kto s kým hovorí, od zariadenia po Policy, ktorá chráni zápis, a čo každý krok povoľuje.",
+      "partial": "Druhy, ktoré nesmiete čítať, sú vynechané.",
+      "edge": "Krok",
+      "from": "Od",
+      "to": "Do",
+      "allowedBy": "Povolené",
+      "state": "Stav",
+      "ok": "Povolené",
+      "fix": "Opraviť",
+      "kind": {
+        "device": "Zariadenie publikuje do brokera",
+        "broker": "Broker plní zdroj údajov",
+        "pipeline": "Pipeline číta zdroj údajov",
+        "endpoint": "Pipeline zapisuje do Endpointu",
+        "policy": "Policy chráni Endpoint"
+      },
+      "byRole": "rola {role}, klient {client}",
+      "byListener": "interný listener, identita runnera",
+      "byRunner": "runner pipeline",
+      "byPipelineAccount": "servisný účet pipeline {pipeline}",
+      "byPolicy": "Policy Endpointu",
+      "unknownAccount": "V projekte nie je servisný účet {account}",
+      "noBroker": "V projekte nie je broker {broker}",
+      "brokerError": "Broker {broker} je v chybe; otvorte ho a prečítajte si prečo",
+      "unread": "Žiadna pipeline ho nečíta",
+      "noEndpoint": "V projekte nie je Endpoint {endpoint}",
+      "noPolicy": "V projekte nie je Policy {policy}"
+    }
   }
 }

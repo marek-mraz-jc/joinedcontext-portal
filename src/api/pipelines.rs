@@ -841,6 +841,8 @@ pub async fn retry_rejected(
         );
         *output = crate::pipeline_log::with_outcomes(output.take(), &outcomes);
     }
+    // The internal listener admits the project's own client only (T-3193, T-4038).
+    crate::reconciler::streams::own_credential(&mut config, &project);
     jcctl::bento::inject_space(
         &mut config,
         &[crate::spaces::segment(&state.mirror, &project, &space)],
