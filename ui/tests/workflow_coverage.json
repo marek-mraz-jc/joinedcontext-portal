@@ -341,7 +341,8 @@
         "assistant": "jc_resource_propose",
         "routes": [
           "PUT /api/v1/projects/{project}/{plural}/{name}",
-          "PATCH /api/v1/projects/{project}/{plural}/{name}"
+          "PATCH /api/v1/projects/{project}/{plural}/{name}",
+          "POST /api/v1/projects/{project}/spaces/{space}/retention/preview"
         ]
       },
       "approve": {
