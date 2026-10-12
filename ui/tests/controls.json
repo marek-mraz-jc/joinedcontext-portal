@@ -1341,6 +1341,7 @@
         "Button": 1
       },
       "tests": [
+        "organization_brokers.test.tsx",
         "organization_health.test.tsx",
         "organization_limits.test.tsx",
         "organization_page.test.tsx",

@@ -1021,9 +1021,14 @@ export function SpaceInside({ project, name }: { project: string; name: string }
 
       <Section title={<Term name="entityType">{t("spaces.inside.types")}</Term>}>
         {usage.data !== undefined ? (
-          <p className="mb-3 text-body text-fg" data-testid="space-total">
-            {t("spaces.inside.total", { count: usage.data.entities })}
-          </p>
+          <>
+            <p className="mb-3 text-body text-fg" data-testid="space-total">
+              {t("spaces.inside.total", { count: usage.data.entities })}
+            </p>
+            <p className="mb-3 text-caption text-fg-muted" data-testid="space-broker">
+              {t("spaces.inside.broker", { broker: usage.data.broker })}
+            </p>
+          </>
         ) : usage.isError ? (
           <p className="mb-3 text-body text-fg-muted" data-testid="space-total">
             {t("spaces.entitiesUnknown", { reason: usageRefusal(usage.error) })}

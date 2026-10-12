@@ -516,7 +516,8 @@
       "modelEmptyLead": "Ein Datenmodell benennt die Entitätstypen des Raums und ihre Attribute. Legen Sie eines an oder importieren Sie ein Smart Data Model für diesen Raum.",
       "modelCreate": "Datenmodell anlegen",
       "modelImport": "Smart Data Model importieren",
-      "tooMany": "Der Endpoint ist ausgelastet (zu viele Lesezugriffe auf einmal)."
+      "tooMany": "Der Endpoint ist ausgelastet (zu viele Lesezugriffe auf einmal).",
+      "broker": "Er liegt auf dem Context-Broker {broker}."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -5060,7 +5061,8 @@
       "environments": "Umgebungen",
       "health": "Prüfstatus",
       "endpoints": "Alle Endpunkte",
-      "mcp-servers": "MCP-Server der Organisation"
+      "mcp-servers": "MCP-Server der Organisation",
+      "brokers": "Broker"
     },
     "settings": {
       "title": "Einstellungen",
@@ -5590,6 +5592,27 @@
       "models": "Modelle, die der Assistent nutzen darf",
       "modelsHint": "Leer lassen, um jedes Modell der Installation zu erlauben.",
       "everyModel": "Jedes Modell der Installation"
+    },
+    "brokers": {
+      "title": "Context-Broker",
+      "lead": "Alle Broker der Organisation mit den Räumen, die sie halten. Das Portal fragt jeden Broker nach seinem Zustand; die Zahlen sind höchstens fünf Minuten alt.",
+      "hidden": "Nur eine Administratorin oder ein Administrator der Organisation sieht die Broker.",
+      "caption": "Context-Broker",
+      "name": "Broker-Name",
+      "health": "Zustand",
+      "version": "Fassung",
+      "spaces": "Räume",
+      "entities": "Entitäten",
+      "default": "Standard",
+      "size": "Größe: {size}",
+      "noSpaces": "Noch kein Raum",
+      "implicit": "Die Organisation deklariert keinen Broker, daher liegen alle Räume auf dem eingebauten Broker main. Um einen weiteren zu betreiben, deklarieren Sie ihn im Repository der Organisation.",
+      "down": "{count, plural, one {# Broker antwortet nicht. Prüfen Sie seinen Pod und den Grund in seiner Zeile.} other {# Broker antworten nicht. Prüfen Sie ihre Pods und die Gründe in ihren Zeilen.}}",
+      "states": {
+        "up": "Erreichbar",
+        "down": "Ausgefallen",
+        "unknown": "Keine Adresse"
+      }
     }
   },
   "projectDelete": {

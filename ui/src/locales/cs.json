@@ -516,7 +516,8 @@
       "modelEmptyLead": "Datový model pojmenovává typy entit prostoru a jejich atributy. Vytvořte ho nebo importujte Smart Data Model pro tento prostor.",
       "modelCreate": "Vytvořit datový model",
       "modelImport": "Importovat Smart Data Model",
-      "tooMany": "Endpoint je zaneprázdněný (příliš mnoho čtení najednou)."
+      "tooMany": "Endpoint je zaneprázdněný (příliš mnoho čtení najednou).",
+      "broker": "Běží na kontextovém brokeru {broker}."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -5060,7 +5061,8 @@
       "environments": "Prostředí",
       "health": "Stav ověření",
       "endpoints": "Všechny koncové body",
-      "mcp-servers": "MCP servery organizace"
+      "mcp-servers": "MCP servery organizace",
+      "brokers": "Brokery"
     },
     "settings": {
       "title": "Nastavení",
@@ -5590,6 +5592,27 @@
       "models": "Modely, které smí asistent používat",
       "modelsHint": "Nechte prázdné, aby byly povoleny všechny modely instalace.",
       "everyModel": "Všechny modely instalace"
+    },
+    "brokers": {
+      "title": "Kontextové brokery",
+      "lead": "Všechny brokery organizace s prostory, které drží. Portál se každého brokeru ptá na jeho stav; počty jsou staré nejvýše pět minut.",
+      "hidden": "Brokery vidí pouze administrátor organizace.",
+      "caption": "Kontextové brokery",
+      "name": "Broker",
+      "health": "Stav",
+      "version": "Verze",
+      "spaces": "Prostory",
+      "entities": "Entity",
+      "default": "Výchozí",
+      "size": "Velikost: {size}",
+      "noSpaces": "Zatím žádný prostor",
+      "implicit": "Organizace nedeklaruje žádný broker, proto všechny prostory běží na vestavěném brokeru main. Chcete-li spustit další, deklarujte ho v repozitáři organizace.",
+      "down": "{count, plural, one {# broker neodpovídá. Zkontrolujte jeho pod a důvod v jeho řádku.} few {# brokery neodpovídají. Zkontrolujte jejich pody a důvody v jejich řádcích.} other {# brokerů neodpovídá. Zkontrolujte jejich pody a důvody v jejich řádcích.}}",
+      "states": {
+        "up": "Běží",
+        "down": "Nedostupný",
+        "unknown": "Bez adresy"
+      }
     }
   },
   "projectDelete": {
