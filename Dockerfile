@@ -4,7 +4,7 @@
 # The Vite build. rust-embed reads ui/dist at compile time, so the bundle has to exist
 # before cargo runs; without this stage the binary ships the placeholder page and every
 # view of DEMO.md is unreachable on the deployed platform (T-0369).
-FROM node:24-slim AS ui
+FROM node:24-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS ui
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 # Both halves of the build context: `ui` depends on `@joinedcontext/sdk` as `link:../sdk` (T-1439,
 # UI-71 — one grid, linked and never copied), so the sibling has to be beside it before
@@ -24,7 +24,7 @@ WORKDIR /work/ui
 RUN pnpm build && test -s dist/index.html && ls dist/assets/*.js >/dev/null
 
 # The App SDK (SDK-01) with the kit renderer the spec pass still fills in, embedded like the UI.
-FROM node:24-slim AS sdk
+FROM node:24-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS sdk
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 WORKDIR /sdk
 COPY sdk/package.json sdk/pnpm-lock.yaml ./
@@ -37,7 +37,7 @@ RUN pnpm build && test -s dist/kit.js && test -s dist/kit.css && test -s dist/ki
 # The static apps the Portal serves under /apps/{name}/ (AP-14): each built bundle with the
 # `integrity.json` the host checks every file against before it serves it (AP-12). An app without
 # that map serves nothing, so the stage fails rather than ship one without it (T-2457).
-FROM node:24-slim AS apps
+FROM node:24-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS apps
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 WORKDIR /work
 COPY sdk/package.json sdk/pnpm-lock.yaml ./sdk/
@@ -171,7 +171,7 @@ RUN cd apps/zilina-vyskum/ui && pnpm build \
     && cp -r dist /srv/apps/zilina-vyskum \
     && node /work/scripts/app-integrity.mjs /srv/apps/zilina-vyskum
 
-FROM rust:1.97-slim-bookworm AS build
+FROM rust:1.97-slim-trixie@sha256:8e8cf8f7fd54a2d23d5a743b3a03f56e26b6c774276c33fa0595111704ebb15c AS build
 WORKDIR /src
 COPY Cargo.toml Cargo.lock build.rs ./
 COPY src ./src
@@ -212,7 +212,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo build --release --locked -p joinedcontext-portal && \
     install -m 0755 target/release/joinedcontext-portal /joinedcontext-portal
 
-FROM gcr.io/distroless/cc-debian12:nonroot
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:e792ab3d241a468a4fd7519ddbbebe66b49b5f365771716ea688ad40b6c6f1c2
 COPY --from=build /joinedcontext-portal /usr/local/bin/joinedcontext-portal
 COPY --from=apps /srv/apps /srv/apps
 USER nonroot:nonroot
