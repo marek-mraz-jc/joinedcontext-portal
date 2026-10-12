@@ -15,7 +15,24 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::RwLock;
 
 /// The label of the outcome sink in a rendered stream, which the metrics leave out.
-pub const SINK_LABEL: &str = "outcome";
+pub const SINK_LABEL: &str = SINK_LABELS[0];
+
+/// The labels of the sink and each of its parts; an unlabelled part would count its reports as
+/// the stream's own writes.
+pub const SINK_LABELS: [&str; 9] = [
+    "outcome",
+    "outcome_post",
+    "outcome_runs",
+    "outcome_chunks",
+    "outcome_join",
+    "outcome_report",
+    "outcome_drop",
+    "outcome_records",
+    "outcome_split",
+];
+
+/// The most ids one outcome report carries: the outcome route's own limit.
+pub const BATCH_LINES: usize = 1000;
 
 /// The labels of the pass report and its request (T-3001), which the metrics leave out like the
 /// sink: a report the Portal did not take says nothing about the stream's own reads and writes.
@@ -181,15 +198,23 @@ pub const TICK: &str = r#"meta jc_run = now().ts_format("2006-01-02T15:04:05Z", 
 /// MQTT input and lost the connection every 45 seconds (T-4036). `fallback` keeps the sink's
 /// own in-flight window.
 ///
+/// The sink reports in batches, not one POST per write: one report per write held a
+/// connection-pool slot and the run's row of `pipeline_runs` for each HFP position, the route
+/// answered in 1.4 s on dev, and 64 reports in flight capped the stream at 45 writes a second
+/// (T-4036, again). The sink splits each write into its records, gathers them for half a
+/// second, groups them by run and sends at most [`BATCH_LINES`] ids per report.
+///
+/// Every part carries a label from [`SINK_LABELS`], so the stream's counters leave the sink out.
+///
 /// The broker fails fast (T-2983): a write that fails after its own retries goes back to the
 /// input as a nack, which replays it. Plain `fan_out_sequential` retried it inside the broker
 /// without end and without heeding a stop, so a stream whose target failed could be neither
 /// replaced nor deleted, and only a runner restart (all its streams) freed it.
 pub fn with_outcomes(output: serde_json::Value, url: &str) -> serde_json::Value {
     let sink = serde_json::json!({
-        "label": SINK_LABEL,
+        "label": SINK_LABELS[0],
         "fallback": [
-            { "http_client": {
+            { "label": SINK_LABELS[1], "http_client": {
                 "url": url,
                 "verb": "POST",
                 "headers": { "Content-Type": "application/json" },
@@ -201,14 +226,26 @@ pub fn with_outcomes(output: serde_json::Value, url: &str) -> serde_json::Value 
                     "client_secret": "${JC_CLIENT_SECRET}",
                     "token_url": "${JC_TOKEN_URL}",
                 },
+                "batching": {
+                    "count": BATCH_LINES,
+                    "period": "500ms",
+                    "processors": [
+                        { "label": SINK_LABELS[2], "group_by_value": { "value": "${! meta(\"jc_run\") }" } },
+                        { "label": SINK_LABELS[3], "split": { "size": BATCH_LINES } },
+                        { "label": SINK_LABELS[4], "archive": { "format": "json_array" } },
+                        { "label": SINK_LABELS[5], "mapping": format!(
+                            "root = {{ \"run\": {RUN}, \"sent\": this.map_each(record -> record.id.or(\"\")), \
+                             \"hashes\": this.map_each(record -> record.format_json().hash(\"xxhash64\").string()) }}"
+                        ) },
+                    ],
+                },
             }},
-            { "drop": {} },
+            { "label": SINK_LABELS[6], "drop": {} },
         ],
-        "processors": [{ "mapping": format!(
-            "let records = if this.type() == \"array\" {{ this }} else {{ [this] }}\n\
-             root = {{ \"run\": {RUN}, \"sent\": $records.map_each(record -> record.id.or(\"\")), \
-             \"hashes\": $records.map_each(record -> record.format_json().hash(\"xxhash64\").string()) }}"
-        ) }],
+        "processors": [
+            { "label": SINK_LABELS[7], "mapping": "root = if this.type() == \"array\" { this } else { [this] }" },
+            { "label": SINK_LABELS[8], "unarchive": { "format": "json_array" } },
+        ],
     });
     serde_json::json!({ "broker": {
         "pattern": "fan_out_sequential_fail_fast",
@@ -749,8 +786,60 @@ mod tests {
         assert!(sink["fallback"][0]["http_client"]
             .get("max_in_flight")
             .is_none_or(|n| n.as_u64() > Some(1)));
-        assert_eq!(sink["fallback"][1], serde_json::json!({ "drop": {} }));
+        assert!(sink["fallback"][1].get("drop").is_some(), "{sink}");
         assert_eq!(sink["fallback"].as_array().map(Vec::len), Some(2));
+    }
+
+    /// T-4036: one report per write held the Portal's route to 1.4 s and the stream to 45 writes
+    /// a second; the sink gathers records into reports of one run and at most the route's limit.
+    #[test]
+    fn the_sink_reports_in_batches_of_one_run_within_the_route_s_limit() {
+        let stream = with_outcomes(serde_json::json!({ "drop": {} }), "http://portal/outcomes");
+        let sink = &stream["broker"]["outputs"][1];
+        let batching = &sink["fallback"][0]["http_client"]["batching"];
+        assert_eq!(batching["count"], BATCH_LINES);
+        assert_eq!(batching["period"], "500ms");
+        let steps: Vec<&str> = batching["processors"]
+            .as_array()
+            .expect("the batch's steps")
+            .iter()
+            .filter_map(|step| step.as_object()?.keys().find(|key| *key != "label"))
+            .map(String::as_str)
+            .collect();
+        assert_eq!(steps, ["group_by_value", "split", "archive", "mapping"]);
+        assert_eq!(
+            batching["processors"][0]["group_by_value"]["value"],
+            r#"${! meta("jc_run") }"#
+        );
+        assert_eq!(batching["processors"][1]["split"]["size"], BATCH_LINES);
+        // A write of many records is split into them first, so a chunk counts records.
+        assert_eq!(sink["processors"][1]["unarchive"]["format"], "json_array");
+    }
+
+    /// T-4036: every part of the sink is labelled, so none of its counters is the stream's.
+    #[test]
+    fn every_part_of_the_sink_carries_one_of_its_labels() {
+        let stream = with_outcomes(serde_json::json!({ "drop": {} }), "http://portal/outcomes");
+        let sink = &stream["broker"]["outputs"][1];
+        let parts: Vec<&serde_json::Value> = std::iter::once(sink)
+            .chain(sink["fallback"].as_array().into_iter().flatten())
+            .chain(sink["processors"].as_array().into_iter().flatten())
+            .chain(
+                sink.pointer("/fallback/0/http_client/batching/processors")
+                    .and_then(serde_json::Value::as_array)
+                    .into_iter()
+                    .flatten(),
+            )
+            .collect();
+        let mut labels: Vec<&str> = parts
+            .iter()
+            .filter_map(|part| part["label"].as_str())
+            .collect();
+        assert_eq!(labels.len(), parts.len(), "{sink}");
+        let mut expected = SINK_LABELS.to_vec();
+        expected.sort_unstable();
+        labels.sort_unstable();
+        assert_eq!(labels, expected);
     }
 
     /// T-3304: the sink sends the hash of each record beside its id, so the Portal can tell a
@@ -759,16 +848,16 @@ mod tests {
     fn the_outcome_sink_sends_a_hash_beside_each_id() {
         let stream = with_outcomes(serde_json::json!({ "drop": {} }), "http://portal/outcomes");
         let mapping = stream
-            .pointer("/broker/outputs/1/processors/0/mapping")
+            .pointer("/broker/outputs/1/fallback/0/http_client/batching/processors/3/mapping")
             .and_then(serde_json::Value::as_str)
             .expect("the sink's mapping");
         println!("{mapping}");
         assert!(
-            mapping.contains(r#""sent": $records.map_each(record -> record.id.or(""))"#),
+            mapping.contains(r#""sent": this.map_each(record -> record.id.or(""))"#),
             "{mapping}"
         );
         assert!(
-            mapping.contains(r#""hashes": $records.map_each(record -> record.format_json().hash("xxhash64").string())"#),
+            mapping.contains(r#""hashes": this.map_each(record -> record.format_json().hash("xxhash64").string())"#),
             "{mapping}"
         );
     }

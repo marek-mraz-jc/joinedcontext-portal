@@ -56,16 +56,26 @@ afterEach(() => {
 });
 
 describe("the App in the SDK's shell", () => {
-  it("has the shell's title and a language switch that reloads the page in the other language", async () => {
+  it("has the shell's title", () => {
     show();
     expect(screen.getByRole("heading", { level: 1, name: "Air quality and weather" })).toBeInTheDocument();
-    const language = screen.getByRole("combobox", { name: "Language" });
-    expect(language).toHaveValue("en");
+  });
+
+  // Every language's own list is used once: the role sweeps leave the shell header alone,
+  // because a change of language reloads the page (T-4058).
+  it.each([
+    ["en", "Language", "fi"],
+    ["fi", "Kieli", "sv"],
+    ["sv", "Språk", "en"],
+  ])("in %s, the language switch %s reloads the page in %s", (current, label, next) => {
+    show(current);
+    const language = screen.getByRole("combobox", { name: label });
+    expect(language).toHaveValue(current);
     const reload = vi.fn();
     const original = window.location;
     Object.defineProperty(window, "location", { configurable: true, value: { ...original, search: "", hash: "", pathname: "/", reload } });
     try {
-      fireEvent.change(language, { target: { value: "fi" } });
+      fireEvent.change(language, { target: { value: next } });
       expect(reload).toHaveBeenCalledTimes(1);
     } finally {
       Object.defineProperty(window, "location", { configurable: true, value: original });
