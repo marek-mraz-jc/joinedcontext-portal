@@ -1,0 +1,136 @@
+// covers (T-2137, the module gate in gate_modules.test.ts): src/pages/spaces/csvUpload.ts.
+/**
+ * T-3840: a CSV is ranked against the Smart Data Models types of the city subjects, and its rows
+ * become entities with a point location from two columns or WKT, written by upsert; the refused
+ * rows download as CSV no spreadsheet runs as a formula.
+ */
+import { describe, expect, it, vi } from "vitest";
+import { MIN_SCORE, modelsOf, rankModels } from "../src/pages/spaces/csvUpload";
+import type { CatalogueModel } from "../src/pages/spaces/csvUpload";
+import {
+  createInBatches,
+  LATITUDE,
+  LONGITUDE,
+  MAX_BYTES,
+  parseCsv,
+  readTable,
+  rejectedCsv,
+  suggestMapping,
+  toEntities,
+} from "../src/pages/spaces/importRows";
+import type { ImportSlot, Send } from "../src/pages/spaces/importRows";
+
+// Attribute names as the catalogue lists them (abridged to what tells the types apart).
+const model = (subject: string, name: string, attributes: string[]): CatalogueModel => ({ id: `dataModel.${subject}/${name}`, name, attributes });
+const CATALOGUE: CatalogueModel[] = [
+  model("Parking", "OffStreetParking", [
+    "address", "name", "description", "location", "availableSpotNumber", "totalSpotNumber", "occupiedSpotNumber",
+    "openingHours", "maximumAllowedHeight", "chargeType", "allowedVehicleType", "category", "status",
+  ]),
+  model("Parking", "OnStreetParking", [
+    "address", "name", "location", "availableSpotNumber", "totalSpotNumber", "occupiedSpotNumber", "permitActiveHours",
+    "maximumParkingDuration", "allowedVehicleType", "chargeType", "category", "status", "areaServed",
+  ]),
+  model("Parking", "ParkingSpot", ["address", "name", "location", "status", "category", "refParkingSite", "width", "length"]),
+  model("Environment", "AirQualityObserved", [
+    "address", "location", "dateObserved", "no2", "o3", "pm10", "pm25", "co", "so2", "airQualityIndex", "temperature", "relativeHumidity",
+  ]),
+  model("Weather", "WeatherObserved", [
+    "address", "location", "dateObserved", "temperature", "relativeHumidity", "atmosphericPressure", "windSpeed", "windDirection", "precipitation",
+  ]),
+  model("Building", "Building", []),
+];
+
+describe("which Smart Data Models type a CSV is", () => {
+  it("ranks a parking garage file as OffStreetParking first, with the columns mapped", () => {
+    const columns = ["Name", "Address", "totalSpotNumber", "available_spot_number", "Opening hours", "lat", "lon"];
+    const [best, second] = rankModels(columns, CATALOGUE);
+    expect(best.model.name).toBe("OffStreetParking");
+    expect(best.score).toBe(1);
+    expect(best.mapping).toMatchObject({ Name: "name", Address: "address", available_spot_number: "availableSpotNumber", "Opening hours": "openingHours", lat: "location", lon: "location" });
+    expect(second.model.name).toBe("OnStreetParking");
+    expect(second.score).toBeLessThan(best.score);
+  });
+
+  it("ranks an air quality file as AirQualityObserved, through the date synonym and PM2.5", () => {
+    const [best, ...rest] = rankModels(["station", "date", "NO2", "PM10", "PM2.5", "O3"], CATALOGUE);
+    expect(best.model.name).toBe("AirQualityObserved");
+    expect(best.mapping).toMatchObject({ date: "dateObserved", "PM2.5": "pm25", NO2: "no2" });
+    expect(rest).toEqual([]);
+  });
+
+  it("offers no type for a file no type names enough of, so it gets its own model", () => {
+    expect(rankModels(["foo", "bar", "qux", "name"], CATALOGUE)).toEqual([]);
+    // one specific column is not enough, however high its share
+    expect(rankModels(["name", "temperature"], CATALOGUE)).toEqual([]);
+    // only generic columns: nothing tells a type
+    expect(rankModels(["name", "address", "lat", "lon"], CATALOGUE)).toEqual([]);
+    expect(rankModels([], CATALOGUE)).toEqual([]);
+    expect(rankModels(["no2", "pm10"], [])).toEqual([]);
+    for (const match of rankModels(["no2", "pm10", "a", "b", "c"], CATALOGUE)) expect(match.score).toBeGreaterThanOrEqual(MIN_SCORE);
+    expect(rankModels(["no2", "pm10", "a", "b", "c", "d"], CATALOGUE)).toEqual([]);
+  });
+
+  it("flattens the catalogue index, and an empty or absent one is no model", () => {
+    expect(modelsOf({ subjects: [{ models: CATALOGUE.slice(0, 2) }, {}] })).toHaveLength(2);
+    expect(modelsOf(undefined)).toEqual([]);
+  });
+});
+
+const slots: ImportSlot[] = [
+  { name: "name", kind: "Property", required: true },
+  { name: "totalSpotNumber", range: "integer", kind: "Property", required: false },
+  { name: "location", kind: "GeoProperty", required: false },
+];
+const target = { type: "OffStreetParking", orgDomain: "hel.fi", space: "parking" };
+
+describe("rows of an uploaded CSV", () => {
+  it("reads quoted newlines, a header with no rows and an empty file", () => {
+    expect(parseCsv('name;note\r\n"A";"two\nlines"\r\n').rows).toEqual([{ name: "A", note: "two\nlines" }]);
+    expect(parseCsv("name,lat,lon\n")).toEqual({ columns: ["name", "lat", "lon"], rows: [] });
+    expect(parseCsv("")).toEqual({ columns: [], rows: [] });
+  });
+
+  it("refuses a file over the size limit before reading it", async () => {
+    const big = new File(["x"], "big.csv");
+    Object.defineProperty(big, "size", { value: MAX_BYTES + 1 });
+    const read = vi.spyOn(big, "arrayBuffer");
+    await expect(readTable(big)).rejects.toThrow("50 MB");
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("makes the point location from a latitude and a longitude column, or from WKT", () => {
+    const table = parseCsv("name,lat,lon\nA,60.17,24.94\nB,,\nC,95,24\n");
+    const mapping = suggestMapping(table.columns, slots);
+    expect(mapping).toEqual({ name: "name", lat: LATITUDE, lon: LONGITUDE });
+    let minted = 0;
+    const { entities, rejected } = toEntities(table, mapping, slots, target, () => `x${(minted += 1)}`);
+    expect(entities[0].entity.location).toEqual({ type: "GeoProperty", value: { type: "Point", coordinates: [24.94, 60.17] } });
+    expect(entities[1].entity.location).toBeUndefined();
+    expect(rejected).toEqual([{ row: 4, id: "urn:ngsi-ld:OffStreetParking:hel.fi:parking:x3", reason: expect.stringContaining("not a latitude and a longitude") }]);
+
+    const wkt = parseCsv('name,geometry\nA,"POINT (24.94 60.17)"\n');
+    const out = toEntities(wkt, { name: "name", geometry: "location" }, slots, target, () => "y");
+    expect(out.entities[0].entity.location).toEqual({ type: "GeoProperty", value: { type: "Point", coordinates: [24.94, 60.17] } });
+  });
+
+  it("offers no latitude target when the type has no geometry", () => {
+    expect(suggestMapping(["lat", "lon"], slots.slice(0, 2))).toEqual({ lat: "", lon: "" });
+  });
+
+  it("upserts, so the same file uploaded twice writes the same entities", async () => {
+    const send = vi.fn<Send>(async () => ({ status: 204 }));
+    const answer = await createInBatches(send, "parking", [{ row: 2, entity: { id: "urn:x", type: "T" } }], () => {}, "upsert");
+    expect(answer).toEqual({ created: 1, rejected: [] });
+    expect(send.mock.calls[0][0].path).toBe("/cs/parking/ngsi-ld/v1/entityOperations/upsert");
+  });
+
+  it("writes refused rows no spreadsheet runs as a formula", () => {
+    const csv = rejectedCsv([
+      { row: 2, id: "=HYPERLINK(\"http://x\")", reason: "+1" },
+      { row: 3, id: "-2", reason: "@SUM(A1)" },
+      { row: 4, id: "ok", reason: "plain" },
+    ]);
+    expect(csv.split("\r\n")).toEqual(["row,id,reason", "2,\"'=HYPERLINK(\"\"http://x\"\")\",'+1", "3,'-2,'@SUM(A1)", "4,ok,plain"]);
+  });
+});
