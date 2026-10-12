@@ -1503,7 +1503,11 @@
       "secretKey": "Key in the secret",
       "input": "Input configuration",
       "typeHint": "How the platform reaches the source; the fields below follow it, and a saved source keeps its type.",
-      "typeFixed": "The type is fixed once the data source exists. Add a new data source for another type."
+      "typeFixed": "The type is fixed once the data source exists. Add a new data source for another type.",
+      "brokerRef": "Platform broker",
+      "brokerRefHelp": "An MQTT broker of this project. The pipeline reads it on the platform's internal listener, so it needs no URL and no credential. Leave it empty to read an external broker.",
+      "broker": "Broker",
+      "externalBroker": "External broker (URL and secret below)"
     },
     "probe": {
       "title": "One fetch of the feed",

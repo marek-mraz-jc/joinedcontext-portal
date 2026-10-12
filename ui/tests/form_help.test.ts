@@ -53,7 +53,7 @@ const FORMS: Record<string, JsonSchema[]> = {
   ContextSpace: [kinds.contextSpaceSchema(t)],
   Endpoint: [kinds.endpointSchema(t, ["helsinki"], ["helsinki"])],
   DataSource: kinds.DATA_SOURCE_TYPES.map((type) =>
-    kinds.dataSourceSchema(t, type, ["hsl-api-token"]),
+    kinds.dataSourceSchema(t, type, ["hsl-api-token"], [{ name: "cameras", publish: ["cameras/+/frames"] }]),
   ),
   SyncSource: kinds.SYNC_ORIGINS.map((origin) =>
     kinds.syncSourceSchema(t, origin, ["forge-token"]),

@@ -1484,7 +1484,11 @@
       "secretKey": "Schlüssel im Secret",
       "input": "Eingabekonfiguration",
       "typeHint": "Wie die Plattform die Quelle erreicht; die Felder darunter richten sich danach, und eine gespeicherte Quelle behält ihren Typ.",
-      "typeFixed": "Der Typ steht fest, sobald die Datenquelle existiert. Legen Sie für einen anderen Typ eine neue Datenquelle an."
+      "typeFixed": "Der Typ steht fest, sobald die Datenquelle existiert. Legen Sie für einen anderen Typ eine neue Datenquelle an.",
+      "brokerRef": "Plattform-Broker",
+      "brokerRefHelp": "Ein MQTT-Broker dieses Projekts. Die Pipeline liest ihn über den internen Listener der Plattform, ohne URL und ohne Zugangsdaten. Leer lassen, um einen externen Broker zu lesen.",
+      "broker": "Broker",
+      "externalBroker": "Externer Broker (URL und Secret unten)"
     },
     "probe": {
       "title": "Ein Abruf des Feeds",

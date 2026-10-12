@@ -1484,7 +1484,11 @@
       "secretKey": "Klíč v tajemství",
       "input": "Konfigurace vstupu",
       "typeHint": "Jak se platforma ke zdroji dostane; pole níže se podle toho mění a uložený zdroj si typ ponechá.",
-      "typeFixed": "Typ je pevný, jakmile zdroj dat existuje. Pro jiný typ přidejte nový zdroj dat."
+      "typeFixed": "Typ je pevný, jakmile zdroj dat existuje. Pro jiný typ přidejte nový zdroj dat.",
+      "brokerRef": "Broker platformy",
+      "brokerRefHelp": "MQTT broker tohoto projektu. Pipeline ho čte přes interní listener platformy, takže nepotřebuje URL ani přihlašovací údaje. Nechte prázdné pro externí broker.",
+      "broker": "Broker",
+      "externalBroker": "Externí broker (URL a secret níže)"
     },
     "probe": {
       "title": "Jedno stažení feedu",
