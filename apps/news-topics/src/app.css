@@ -215,3 +215,42 @@
   text-decoration: underline;
   text-underline-offset: 0.15em;
 }
+
+/* Roles, followed topics, topic names and the history (T-3828). */
+.app-role {
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--jc-color-line, #cbd5e1);
+  border-radius: 999px;
+  font-size: var(--jc-font-size-sm, 0.75rem);
+}
+.app-list {
+  list-style: none;
+  margin: var(--jc-space-3, 0.75rem) 0 0;
+  padding: 0;
+}
+.app-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--jc-space-1, 0.25rem) var(--jc-space-3, 0.75rem);
+  padding: var(--jc-space-1, 0.25rem) 0;
+  overflow-wrap: anywhere;
+}
+.app-follow {
+  margin-top: var(--jc-space-1, 0.25rem);
+}
+.app-filters select:disabled,
+.app-filters input:disabled {
+  opacity: 0.6;
+}
+.app-history {
+  width: 100%;
+  border-collapse: collapse;
+}
+.app-history th,
+.app-history td {
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--jc-color-line, #e2e8f0);
+  overflow-wrap: anywhere;
+}

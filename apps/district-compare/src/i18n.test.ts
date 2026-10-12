@@ -82,8 +82,9 @@ describe("langOf", () => {
 
   it("detects Finnish or Swedish from browser languages when param is missing or invalid", () => {
     expect(langOf("", ["fi-FI"])).toBe("fi");
-    expect(langOf("", ["sv-SE"])).toBe("fi");
-    expect(langOf("?lang=invalid", ["sv-FI"])).toBe("fi");
+    expect(langOf("", ["sv-SE"])).toBe("sv");
+    expect(langOf("?lang=sv", ["fi-FI"])).toBe("sv");
+    expect(langOf("?lang=invalid", ["sv-FI"])).toBe("sv");
     expect(langOf("", ["en-GB", "fi"])).toBe("en");
     expect(langOf("", ["de-DE"])).toBe("en");
     expect(langOf("", [])).toBe("en");

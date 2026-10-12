@@ -36,8 +36,51 @@ const KEPT = {
   stale: false,
 };
 
+/** Who reads (T-3828): a viewer follows topics, a steward also names and merges them. */
+export const VIEWER = { id: "u-viewer", name: "Vera Viewer", roles: ["viewer"] };
+export const STEWARD = { id: "u-steward", name: "Sara Steward", roles: ["viewer", "steward"] };
+type Me = typeof VIEWER;
+
+/** The App's role routes in memory, deciding as the server does. */
+function roleServer(me: Me) {
+  const follows: Array<{ id: number; term: string }> = [];
+  const names: Array<{ id: number; term: string; name: string; ownerName: string }> = [];
+  const history: Array<Record<string, unknown>> = [];
+  let next = 1;
+  const log = (action: string, summary: string) =>
+    history.unshift({ id: next++, at: "2026-10-18T06:00:00Z", actorName: me.name, action, target: "", summary });
+  return (method: string, path: string, body: Record<string, string> | undefined): { status: number; body: unknown } | null => {
+    if (method === "GET" && path === "/me") return { status: 200, body: me };
+    if (method === "GET" && path === "/history") return { status: 200, body: history };
+    if (method === "GET" && path === "/follows") return { status: 200, body: follows };
+    if (method === "POST" && path === "/follows") {
+      const follow = { id: next++, term: body!.term };
+      follows.unshift(follow);
+      log("insert", `followed ${follow.term}`);
+      return { status: 201, body: follow };
+    }
+    if (method === "GET" && path === "/names") return { status: 200, body: names };
+    if (method === "POST" && path === "/names") {
+      if (!me.roles.includes("steward")) return { status: 403, body: { title: "Forbidden", detail: "a steward names topics" } };
+      const entry = { id: next++, term: body!.term, name: body!.name, ownerName: me.name };
+      names.splice(0, names.length, ...names.filter((other) => other.term !== entry.term), entry);
+      log("insert", `named the topic of ${entry.term} ${entry.name}`);
+      return { status: 201, body: entry };
+    }
+    const gone = /^\/(follows|names)\/(\d+)$/.exec(path);
+    if (method === "DELETE" && gone) {
+      const list: Array<{ id: number }> = gone[1] === "follows" ? follows : names;
+      list.splice(list.findIndex((one) => one.id === Number(gone[2])), 1);
+      log("delete", `deleted ${gone[1]} ${gone[2]}`);
+      return { status: 204, body: null };
+    }
+    return null;
+  };
+}
+
 /** Serves the built bundle at the root of the App's own host, with the SDK's stub answering its endpoint. */
-export async function serve(page: Page): Promise<Served> {
+export async function serve(page: Page, me: Me = VIEWER): Promise<Served> {
+  const roles = roleServer(me);
   const transport = stubTransport({
     entities: NEWS,
     access: { permissions: [{ resource: { type: "NewsArticle" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }], prohibitions: [] },
@@ -64,6 +107,12 @@ export async function serve(page: Page): Promise<Served> {
     }
     if (url.pathname === "/apps/news-topics/api/weeks") {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(KEPT) });
+    }
+    if (url.pathname.startsWith("/apps/news-topics/api/")) {
+      const body = route.request().postData();
+      const answer = roles(route.request().method(), url.pathname.slice("/apps/news-topics/api".length), body ? JSON.parse(body) : undefined);
+      if (answer?.status === 204) return route.fulfill({ status: 204, body: "" });
+      if (answer) return route.fulfill({ status: answer.status, contentType: "application/json", body: JSON.stringify(answer.body) });
     }
     const corpus = /^\/apps\/news-topics\/api\/weeks\/(\d{4}-W\d{2})\/corpus$/.exec(url.pathname);
     if (corpus) {

@@ -4,12 +4,12 @@
  * Everything here reads the dry-run trace; nothing is written to a space.
  */
 import type { PipelineForm } from "./PipelineEditor";
-import { outputIndexOf, sourceIndexOf, stepIndexOf } from "./PipelineFlow";
+import { isLane, outputIndexOf, routeNodeOf, stepIndexOf } from "./PipelineFlow";
 import type { FlowEdge, FlowNode, FlowNodeId } from "./PipelineFlow";
 import type { SampleFormat, Trace } from "../../api/pipelineTest";
 
-const isSource = (id: FlowNodeId): boolean => id === "source" || sourceIndexOf(id) !== undefined;
-const isOutput = (id: FlowNodeId): boolean => id === "output" || outputIndexOf(id) !== undefined;
+const isOutput = (id: FlowNodeId): boolean =>
+  id === "output" || outputIndexOf(id) !== undefined || routeNodeOf(id)?.output !== undefined;
 
 /** A wire's key, as a tap names it. */
 export const wireKey = (edge: FlowEdge): string => `${edge.from}>${edge.to}`;
@@ -21,7 +21,7 @@ export const wireKey = (edge: FlowEdge): string => `${edge.from}>${edge.to}`;
  */
 export function wireCount(trace: Trace, nodes: FlowNode[], edge: FlowEdge): number | undefined {
   if (isOutput(edge.to)) return trace.mapping.length;
-  const lane = nodes.filter((node) => !isSource(node.id) && !isOutput(node.id));
+  const lane = nodes.filter((node) => isLane(node.id));
   const at = lane.findIndex((node) => node.id === edge.to);
   if (at === 0) return trace.input.events;
   return trace.stages?.find((stage) => stage.step === at)?.reached;

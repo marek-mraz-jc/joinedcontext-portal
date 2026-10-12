@@ -50,4 +50,41 @@ describe("the App's server", () => {
     await expect(api.attach(3, png)).rejects.toMatchObject({ status: 403 });
     expect(await api.snapshotUrl(3)).toBe("https://store.test/get");
   });
+
+  it("asks who reads, keeps and forgets filters, acknowledges alerts and reads the history (T-3828)", async () => {
+    const calls: Array<[string, string]> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const method = init?.method ?? "GET";
+        calls.push([method, url]);
+        if (method === "DELETE") return new Response(null, { status: 204 });
+        if (url.endsWith("/me")) return json(200, null);
+        if (url.endsWith("/filters") && method === "POST") return json(201, { id: 4, ...JSON.parse(String(init?.body)) });
+        if (url.endsWith("/acks") && method === "POST") return json(201, { id: 9, ownerName: "Sara", ...JSON.parse(String(init?.body)) });
+        return json(200, []);
+      }),
+    );
+    const api = server("/api");
+    expect(await api.me()).toBeNull();
+    expect(await api.filters()).toEqual([]);
+    expect(await api.keepFilter({ name: "Road works", view: "kinds=ROAD_WORK" })).toEqual({ id: 4, name: "Road works", view: "kinds=ROAD_WORK" });
+    expect(await api.forgetFilter(4)).toBeUndefined();
+    expect(await api.acks()).toEqual([]);
+    const ack = await api.acknowledge("urn:ngsi-ld:Alert:1", "Crew sent");
+    expect(ack).toMatchObject({ id: 9, alert: "urn:ngsi-ld:Alert:1", comment: "Crew sent", ownerName: "Sara" });
+    expect(Number.isNaN(Date.parse(ack.at))).toBe(false);
+    expect(await api.unacknowledge(9)).toBeUndefined();
+    expect(await api.changes()).toEqual([]);
+    expect(calls).toEqual([
+      ["GET", "/api/me"],
+      ["GET", "/api/filters"],
+      ["POST", "/api/filters"],
+      ["DELETE", "/api/filters/4"],
+      ["GET", "/api/acks"],
+      ["POST", "/api/acks"],
+      ["DELETE", "/api/acks/9"],
+      ["GET", "/api/history"],
+    ]);
+  });
 });

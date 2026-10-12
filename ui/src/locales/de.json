@@ -1734,7 +1734,9 @@
         "source": "Quelle",
         "compute": "Berechnung",
         "output": "Ausgabe",
-        "step": "Schritt"
+        "step": "Schritt",
+        "routeStep": "Schritt von {name}",
+        "routeOutput": "Zweig {name}"
       },
       "passThrough": "Ohne Berechnung",
       "eventsIn": "rein",
@@ -1801,7 +1803,8 @@
         "self": "Ein Knoten kann sich nicht selbst speisen.",
         "middleIntoOutput": "Nur der letzte Schritt speist die Ausgaben. Verschieben Sie diesen Schritt ans Ende, oder setzen Sie einen branch- oder switch-Schritt vor die Ausgabe, der einen Teil der Nachrichten anderswohin schickt.",
         "moved": "Schritt verschoben: Der Draht hat die Reihenfolge der Schritte bestimmt.",
-        "already": "Diese beiden sind schon verbunden."
+        "already": "Diese beiden sind schon verbunden.",
+        "route": "Schritte und Ausgaben eines Zweigs folgen seiner Bedingung; bearbeiten Sie sie am Zweig."
       },
       "state": {
         "configured": "Eingerichtet",
@@ -1810,14 +1813,23 @@
           "output": "Endpoint fehlt",
           "mapping": "Mapping fehlt",
           "mappingRef": "Mapping-Name fehlt",
-          "module": "Modul fehlt"
+          "module": "Modul fehlt",
+          "condition": "Bedingung fehlt"
         }
       },
       "nothingToUndo": "Noch nichts rückgängig zu machen.",
       "nothingToRedo": "Nichts zu wiederholen.",
       "zoomClosed": "Zoom funktioniert in der Leinwandansicht, von 50 % bis 200 %.",
       "atTop": "Bereits der erste Schritt.",
-      "atBottom": "Bereits der letzte Schritt."
+      "atBottom": "Bereits der letzte Schritt.",
+      "addRoute": "+ Zweig",
+      "removeRoute": "Zweig entfernen",
+      "routeName": "Name des Zweigs",
+      "routeNameHint": "Kleinbuchstaben, Ziffern und Bindestriche, eindeutig in dieser Pipeline.",
+      "routeWhen": "Nimmt die Datensätze, bei denen",
+      "routeWhenHint": "Eine Bloblang-Bedingung, etwa this.temperature.value > 30. Ein Datensatz nimmt den ersten Zweig, dessen Bedingung gilt; die übrigen gehen an die Ausgaben der Hauptlinie.",
+      "routeAddOutput": "+ Ausgabe dieses Zweigs",
+      "routeNoCondition": "noch keine Bedingung"
     },
     "emptyHint": "Fügen Sie mit der Schaltfläche eine Datenquelle und eine Pipeline hinzu, oder lassen Sie den Assistenten eine aus dem bauen, was Sie schon haben.",
     "credentialsOfSource": "Liegen bei seiner Datenquelle {name}",
