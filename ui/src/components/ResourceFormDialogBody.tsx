@@ -23,6 +23,7 @@ import { ago } from "../pages/apps/CatalogCards";
 import { guideUrl, useBranding } from "../branding";
 import { digestOf, getDraft, putDraft, subscribeDrafts } from "../api/drafts";
 import { pastedSecrets } from "../api/pastedSecrets";
+import { ResourceHistory } from "./ResourceHistory";
 import { askAbout, standingIn } from "../assistant/state";
 import type { Effective } from "../api/permissions";
 import { proposeStanding } from "../api/approval";
@@ -107,7 +108,7 @@ export interface ResourceFormDialogProps<T> {
   onChange?: (data: T | undefined) => void;
 }
 
-type View = "form" | "yaml";
+type View = "form" | "yaml" | "history";
 
 const VIEWS: View[] = ["form", "yaml"];
 
@@ -643,21 +644,26 @@ export function ResourceFormDialogBody<T>({
     if (next === view || !source) {
       return;
     }
-    if (next === "yaml") {
-      setText(stringifyYaml(source.toManifest(formData ?? ({} as T))));
-      setYamlError(null);
-      setIssues([]);
-      setView("yaml");
-      return;
+    let form = formData;
+    if (view === "yaml") {
+      const read = readYaml();
+      if (read === null) {
+        return;
+      }
+      onChange?.(read);
+      form = read;
     }
-    const form = readYaml();
-    if (form === null) {
-      return;
+    if (next === "yaml") {
+      setText(stringifyYaml(source.toManifest(form ?? ({} as T))));
+      setYamlError(null);
     }
     setIssues([]);
-    onChange?.(form);
-    setView("form");
+    setView(next);
   }
+
+  // An existing resource shows its own history beside the form and the YAML (T-3975).
+  const views: View[] = project && draftKind && lockedName ? [...VIEWS, "history"] : VIEWS;
+  const [restored, setRestored] = useState<string | null>(null);
 
   /** The manifest the YAML view holds, saved as a file (T-3977): references, never values. */
   function downloadYaml() {
@@ -1165,7 +1171,7 @@ export function ResourceFormDialogBody<T>({
             id={viewsId}
             label={title}
             variant="pill"
-            tabs={VIEWS.map((name) => ({ value: name, label: t(`form.view.${name}`) }))}
+            tabs={views.map((name) => ({ value: name, label: t(`form.view.${name}`) }))}
             value={view}
             onChange={show}
           />
@@ -1173,6 +1179,11 @@ export function ResourceFormDialogBody<T>({
 
         {view === "form" ? (
           <div {...(source ? tabPanelProps(viewsId, "form") : {})} className="flex flex-col gap-4">
+            {restored ? (
+              <Alert role="status" tone="info" data-testid="history-restored">
+                {t("resourceHistory.loaded", { id: restored })}
+              </Alert>
+            ) : null}
             {children ? (
               <div className="flex flex-col gap-3">{children}</div>
             ) : null}
@@ -1243,6 +1254,21 @@ export function ResourceFormDialogBody<T>({
               }
             />
             </Suspense>
+          </div>
+        ) : view === "history" && project && draftKind && lockedName ? (
+          <div {...tabPanelProps(viewsId, "history")} className="flex flex-col gap-3">
+            <ResourceHistory
+              project={project}
+              kind={draftKind}
+              name={lockedName}
+              onRestore={(manifest, id) => {
+                if (!source) return;
+                onChange?.(source.fromManifest(manifest));
+                setRestored(id);
+                setIssues([]);
+                setView("form");
+              }}
+            />
           </div>
         ) : (
           <div {...tabPanelProps(viewsId, "yaml")} className="flex flex-col gap-3">

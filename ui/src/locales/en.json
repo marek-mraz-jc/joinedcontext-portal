@@ -135,7 +135,8 @@
     "uischemaProblems": "This form's arrangement manifest asks for something the form cannot do",
     "view": {
       "form": "Form",
-      "yaml": "YAML"
+      "yaml": "YAML",
+      "history": "History"
     },
     "yamlHint": "The whole manifest as it is written to Git. Switching back to the form reads it again; the same schema checks both.",
     "yamlError": "Correct the YAML: {message}",
@@ -7124,5 +7125,13 @@
         "hint": "completions from the organization's models"
       }
     }
+  },
+  "resourceHistory": {
+    "restore": "Restore this version",
+    "empty": "No closed change touched {kind} {name} yet.",
+    "noneOnPage": "None of these changes touched this resource. Older ones may have.",
+    "when": "{at} · {lane} lane · {id}",
+    "notWritten": "That change wrote no {kind} {name}, so there is no version of it to restore.",
+    "loaded": "The version change {id} wrote is in the form. Check it and propose it to restore it; nothing is changed until it is approved."
   }
 }

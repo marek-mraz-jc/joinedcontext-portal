@@ -135,7 +135,8 @@
     "uischemaProblems": "Manifest usporiadania tohto formulára žiada niečo, čo formulár nevie",
     "view": {
       "form": "Formulár",
-      "yaml": "YAML"
+      "yaml": "YAML",
+      "history": "História"
     },
     "yamlHint": "Celý manifest tak, ako sa zapíše do Gitu. Prepnutie späť na formulár ho znova načíta; obe podoby kontroluje tá istá schéma.",
     "yamlError": "Opravte YAML: {message}",
@@ -7124,5 +7125,13 @@
         "hint": "odpovede modelov organizácie"
       }
     }
+  },
+  "resourceHistory": {
+    "restore": "Obnoviť túto verziu",
+    "empty": "Žiadna uzavretá zmena sa zatiaľ {kind} {name} netýkala.",
+    "noneOnPage": "Žiadna z týchto zmien sa tohto zdroja netýkala. Staršie možno áno.",
+    "when": "{at} · pruh {lane} · {id}",
+    "notWritten": "Táto zmena nezapísala {kind} {name}, takže nie je čo obnoviť.",
+    "loaded": "Verzia, ktorú zapísala zmena {id}, je vo formulári. Skontrolujte ju a navrhnite, aby ste ju obnovili; kým nie je schválená, nič sa nemení."
   }
 }
