@@ -320,6 +320,8 @@ mod tests {
                 "KnowledgeSource",
                 "AssistantDeployment",
                 "McpServer",
+                // One MQTT broker a project's devices publish to (MF-54, ADR-N-048, T-3994).
+                "MqttBroker",
                 "Blueprint",
                 // Arrived with jc-core-v0.7.8 (T-0537, T-0540): the builder profile every
                 // agent run loads.
