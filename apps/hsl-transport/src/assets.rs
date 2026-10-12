@@ -18,7 +18,7 @@ pub struct Assets;
 /// of in a log nobody reads.
 pub const PLACEHOLDER_HTML: &str = r#"<!doctype html>
 <html lang="en">
-<head><meta charset="utf-8" /><title>Buses live</title></head>
+<head><meta charset="utf-8" /><title>HSL live</title></head>
 <body><p>UI bundle not built. Run <code>pnpm build</code> in <code>ui/</code>.</p></body>
 </html>
 "#;

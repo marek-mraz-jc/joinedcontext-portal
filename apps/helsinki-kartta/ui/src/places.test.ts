@@ -63,6 +63,11 @@ describe("what a register may send that the map still reads", () => {
 
   it("reads the first of several values, and a temperature that is no number as none", () => {
     expect(place({ address: [{ type: "Property", value: "Töölönlahdenkatu 4", datasetId: "urn:a" }, { type: "Property", value: "B", datasetId: "urn:b" }] }).address).toBe("Töölönlahdenkatu 4");
+    // T-3949: the register's address is a PostalAddress, shown as its line.
+    expect(
+      place({ address: { type: "Property", value: { streetAddress: "Töölönlahdenkatu 4", postalCode: "00100", addressLocality: "Helsinki", addressCountry: "FI" } } })
+        .address,
+    ).toBe("Töölönlahdenkatu 4, 00100 Helsinki");
     expect(place({ temperature: { type: "Property", value: "warm" } }).temperature).toBeNull();
   });
 

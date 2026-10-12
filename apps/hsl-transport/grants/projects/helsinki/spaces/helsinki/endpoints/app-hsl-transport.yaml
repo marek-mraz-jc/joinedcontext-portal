@@ -6,8 +6,8 @@ metadata:
   annotations:
     joinedcontext.com/generated-by: portal/app-reconciler
   title:
-    en: Buses live
-    fi: Bussit livenä
+    en: HSL live
+    fi: HSL livenä
 spec:
   audience: public
   callerRole: true

@@ -5,7 +5,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized, ORG_NAMESPACE, plainTitle } from "../../api/manifest";
-import { usePermissions } from "../../api/permissions";
+import { administersOrganization, usePermissions } from "../../api/permissions";
 import type { Rule } from "../../api/permissions";
 import { DeleteProjectAction } from "../../components/DeleteProjectDialog";
 import { DuplicateProjectAction } from "../../components/DuplicateProjectDialog";
@@ -31,6 +31,7 @@ import {
   Tabs,
 } from "../../components/ui";
 import { APP_SERVICES_UI, projectSchema } from "../../schemas/kinds";
+import { AccessExplorer } from "../access/AccessExplorer";
 import { EffectivePermissions } from "../access/EffectivePermissions";
 import { findSettings, settingsIndex } from "./settingsIndex";
 import { RoleBindings } from "../access/RoleBindings";
@@ -44,6 +45,7 @@ export const PROJECT_SETTINGS_TABS = [
   "roles",
   "service-accounts",
   "access",
+  "explorer",
   "danger",
 ] as const;
 
@@ -351,6 +353,8 @@ function SettingsSearch({ project }: { project: string }): JSX.Element {
 export function ProjectSettingsPage({ project, tab }: { project: string; tab: ProjectSettingsTab }): JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  // The explorer shows another principal's access: an organization administrator's tab (T-3792).
+  const administrator = administersOrganization(usePermissions(ORG_NAMESPACE).data);
   return (
     <div className="space-y-6">
       <PageHeader title={t("projectSettings.title")} description={t("projectSettings.lead", { project })} />
@@ -362,7 +366,10 @@ export function ProjectSettingsPage({ project, tab }: { project: string; tab: Pr
         onChange={(next) =>
           void navigate({ to: "/projects/$project/settings/$tab", params: { project, tab: next } })
         }
-        tabs={PROJECT_SETTINGS_TABS.map((value) => ({ value, label: t(`projectSettings.tab.${value}`) }))}
+        tabs={PROJECT_SETTINGS_TABS.filter((value) => value !== "explorer" || administrator).map((value) => ({
+          value,
+          label: t(`projectSettings.tab.${value}`),
+        }))}
       />
       <div {...tabPanelProps("project-settings", tab)} className="space-y-8">
         {tab === "general" ? <General project={project} /> : null}
@@ -370,6 +377,7 @@ export function ProjectSettingsPage({ project, tab }: { project: string; tab: Pr
         {tab === "roles" ? <Roles project={project} scope="project" /> : null}
         {tab === "service-accounts" ? <ServiceAccounts project={project} /> : null}
         {tab === "access" ? <YourAccess project={project} /> : null}
+        {tab === "explorer" ? <AccessExplorer project={project} /> : null}
         {tab === "danger" ? <Danger project={project} /> : null}
       </div>
     </div>

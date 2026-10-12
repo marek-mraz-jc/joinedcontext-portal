@@ -192,7 +192,16 @@
         "form_asks_the_assistant.test.tsx",
         "form_check_names_the_missing_field.test.tsx",
         "form_empty_check_marks_the_field.test.tsx",
-        "form_yaml_file.test.tsx"
+        "form_yaml_file.test.tsx",
+        "resource_history.test.tsx"
+      ]
+    },
+    "src/components/ResourceHistory.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "resource_history.test.tsx"
       ]
     },
     "src/components/SaveAsDialog.tsx": {
@@ -638,6 +647,14 @@
       },
       "tests": [
         "navigation_ease.test.tsx"
+      ]
+    },
+    "src/pages/access/AccessExplorer.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "access_explorer.test.tsx"
       ]
     },
     "src/pages/access/GroupPage.tsx": {
@@ -1424,6 +1441,14 @@
         "pipeline_kpi_preset.test.tsx",
         "pipeline_studio_debug.test.tsx",
         "pipeline_studio_functions.test.ts"
+      ]
+    },
+    "src/pages/pipelines/PipelineTemplates.tsx": {
+      "controls": {
+        "Button": 5
+      },
+      "tests": [
+        "pipeline_templates.test.tsx"
       ]
     },
     "src/pages/pipelines/PipelineTest.tsx": {
