@@ -187,7 +187,7 @@ export function AddFieldDialog({ project, modelName, source, type, open, onOpenC
           <Button variant="secondary" onClick={() => close(false)}>
             {t("app.cancel")}
           </Button>
-          <Button variant="primary" onClick={submit} disabled={busy}>
+          <Button variant="primary" onClick={submit} disabled={busy} disabledReason={t("app.busyReason")}>
             {t("spaces.fields.propose")}
           </Button>
         </>
@@ -220,7 +220,7 @@ export function AddFieldDialog({ project, modelName, source, type, open, onOpenC
                   <Button
                     size="sm"
                     variant="secondary"
-                    disabled={busy}
+                    disabled={busy} disabledReason={t("app.busyReason")}
                     aria-label={t("spaces.fields.proposeOfficial", { name: slot.name })}
                     onClick={() => official.data && void propose(withOfficialSlot(source, slot, official.data, model, type))}
                   >

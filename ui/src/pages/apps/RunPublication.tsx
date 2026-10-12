@@ -107,6 +107,7 @@ export function RunPublication({
               variant="primary"
               size="sm"
               disabled={approve.isPending}
+              disabledReason={t("app.busyReason")}
               onClick={() => approve.mutate()}
             >
               {approve.isPending ? t("approvals.approving") : t("agentRun.publication.approve")}

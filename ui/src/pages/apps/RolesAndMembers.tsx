@@ -308,6 +308,7 @@ function RoleRow({
                     size="sm"
                     variant="secondary"
                     disabled={busy}
+                    disabledReason={t("app.busyReason")}
                     aria-label={t("apps.roles.removeLabel", { member: member.user, role: title })}
                     onClick={() =>
                       onGroup(
@@ -376,6 +377,7 @@ function RoleRow({
                       size="sm"
                       variant="secondary"
                       disabled={busy}
+                      disabledReason={t("app.busyReason")}
                       aria-label={t("apps.roles.removeLabel", { member: label, role: title })}
                       onClick={() => onTake(subject)}
                     >
