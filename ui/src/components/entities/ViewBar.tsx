@@ -176,6 +176,7 @@ export function ViewBar({ project, space, type, kind, selected, onSelect, curren
             <Button
               variant="primary"
               disabled={!editing || editing.title.trim() === "" || editing.title.length > 120 || save.isPending}
+                disabledReason={save.isPending ? t("app.busyReason") : t("spaces.saved.titleFirst")}
               onClick={() =>
                 editing &&
                 save.mutate({
@@ -210,9 +211,12 @@ export function ViewBar({ project, space, type, kind, selected, onSelect, curren
               options={VIEW_MODES.map((mode) => ({
                 value: mode,
                 label: modeLabel(mode),
-                description: t(`spaces.saved.modeHelp.${mode}`),
                 // Who sees a view is its owner's or a steward's to change.
                 disabled: editing.action === "settings" && !governs && mode !== selected?.mode,
+                description:
+                  editing.action === "settings" && !governs && mode !== selected?.mode
+                    ? t("spaces.saved.modeLocked")
+                    : t(`spaces.saved.modeHelp.${mode}`),
               }))}
             />
           </div>

@@ -59,7 +59,7 @@ describe("AppJobRuns", () => {
     expect(within(rows[1]).getByText("Succeeded")).toBeInTheDocument();
     expect(within(rows[1]).getByText("42 ms")).toBeInTheDocument();
     expect(within(rows[1]).getByText(/UTC$/)).toBeInTheDocument();
-    expect(within(rows[2]).getByText("Failed")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("Ended with an error")).toBeInTheDocument();
     expect(within(rows[2]).getByText("403 from the Endpoint: the indicator type is not granted")).toBeInTheDocument();
     expect(within(rows[2]).getByText("3 failed runs in a row")).toBeInTheDocument();
     await expectNoViolations(container);
