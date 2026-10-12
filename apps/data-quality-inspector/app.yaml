@@ -31,6 +31,19 @@ spec:
       quotaMiB: 50
     blob:
       quotaMiB: 1024
+  # Who does what (T-3827): the server decides from the signed-in person, never from the page.
+  roles:
+    - name: viewer
+      title: { en: "Viewer", fi: "Katselija" }
+      description: "Reads every finding and what stewards resolved; their own history."
+    - name: steward
+      title: { en: "Steward", fi: "Ylläpitäjä" }
+      description: "What a viewer does, and marks a finding resolved with a note, or corrects the attribute of the entity through the App's Endpoint; opens a finding again. Reads the whole history."
+  access:
+    - role: viewer
+      subjects: [{ group: data-quality-inspector-viewer }]
+    - role: steward
+      subjects: [{ group: data-quality-inspector-steward }]
   visibility: public
   lifecycle: published
   dataNeeds:
@@ -53,3 +66,25 @@ spec:
         - WeatherObserved
       operations: [queryEntity, retrieveEntity]
       representations: [ngsi-ld]
+    # A steward corrects one attribute of an entity a finding names (T-3827, API/07 §4): the server
+    # checks the role first and this Policy, held by the steward role alone, is the second check.
+    # Never createEntity or deleteEntity, and no other role.
+    - contextSpaceRef:
+        kind: ContextSpace
+        name: helsinki
+      types:
+        - AirQualityObserved
+        - Alert
+        - BikeHireDockingStation
+        - CityDistrict
+        - Event
+        - NewsArticle
+        - ParkingArea
+        - ParkingZone
+        - PointOfInterest
+        - PublicAreaPermit
+        - Vehicle
+        - WaterQualityObserved
+        - WeatherObserved
+      operations: [updateAttrs]
+      roles: [steward]
