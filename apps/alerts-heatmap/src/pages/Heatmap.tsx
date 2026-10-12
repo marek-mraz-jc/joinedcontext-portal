@@ -3,14 +3,16 @@ import { Card, Empty, Grid, Loading, Page, ProblemError, displayName, format, us
 import type { Row } from "@joinedcontext/sdk";
 import { useAnalysis } from "../analysis";
 import type { AnalysisOutput, Place } from "../analysis";
-import { ALERT, ATTRS, EMPTY, filterOf, readView, toInput, writeView } from "../alerts";
+import { ALERT, ATTRS, EMPTY, filterOf, readView, startOf, toInput, writeView } from "../alerts";
 import type { ViewState } from "../alerts";
 import { cellOf, weekOption } from "../charts";
+import { Acks } from "../components/Acks";
 import { ChartCard } from "../components/ChartCard";
+import { Filters } from "../components/Filters";
 import { HexMap } from "../components/HexMap";
 import { Reports } from "../components/Reports";
 import { Weeks } from "../components/Weeks";
-import { day, hourOfWeek, number, subCategory, t } from "../i18n";
+import { day, hourOfWeek, moment, number, subCategory, t } from "../i18n";
 import type { Lang } from "../i18n";
 import { useServer } from "../server";
 
@@ -23,6 +25,21 @@ function placeName(place: Place, rows: Map<string, Row>): string {
     if (row) return displayName(row) || format(row.address);
   }
   return "";
+}
+
+/**
+ * The newest alerts by when they start, at most `most`, each named in words with its start, as
+ * the feed repeats a name for every alert at one place.
+ */
+export function newest(rows: readonly Row[], lang: Lang, most = 10): Array<{ id: string; name: string }> {
+  return rows
+    .map((row) => ({ row, at: startOf(row) }))
+    .sort((a, b) => (b.at ?? -Infinity) - (a.at ?? -Infinity))
+    .slice(0, most)
+    .map(({ row, at }) => {
+      const name = displayName(row);
+      return { id: row.id, name: at === null ? name : `${name} ${moment(lang, at)}` };
+    });
 }
 
 /** The sentence that answers the page's question before anything is touched. */
@@ -56,6 +73,7 @@ export function Heatmap({ lang }: { lang: Lang }) {
     }
   }, [view]);
 
+  const latest = useMemo(() => newest(rows, lang), [rows, lang]);
   const byId = useMemo(() => new Map(rows.map((row) => [row.id, row])), [rows]);
   const alerts = useMemo(() => rows.map(toInput), [rows]);
   const input = useMemo(() => (rows.length === 0 ? null : { alerts, filter: filterOf(view) }), [rows.length, alerts, view]);
@@ -190,6 +208,10 @@ export function Heatmap({ lang }: { lang: Lang }) {
           onOpen={(saved) => setView(readView(`?${saved}`))}
         />
         <Weeks lang={lang} server={server} />
+      </Grid>
+      <Grid columns={2}>
+        <Filters lang={lang} server={server} onApply={(saved) => setView(readView(`?${saved}`))} />
+        <Acks lang={lang} server={server} alerts={latest} />
       </Grid>
     </Page>
   );

@@ -13,7 +13,7 @@ Helsinki-region traffic alerts, the whole history the city's feed holds, on one 
 - a From and To date and the kinds (road works, traffic announcements), all in the address, so a
   view is a link (`?from=2026-09-01&kind=ROAD_WORK&day=0&hour=7&lang=en`).
 
-Finnish or English (`?lang=fi|en`, else the browser's language); the alerts' own texts are Finnish,
+Finnish, English or Swedish (`?lang=fi|en|sv`, else the browser's language); the alerts' own texts are Finnish,
 as the feed publishes them. Light and dark follow the reader's system.
 
 The page sits in the SDK's `AppShell` (SDK-39), which carries the language switch. The entity panel
@@ -55,6 +55,23 @@ server component in Rust on the shared WASM host for what the browser cannot kee
 The App is public and the host passes no reader's identity, so any reader can save a report and
 nobody can delete one; the cap of 200 keeps the App's quota.
 
+## Roles and history
+
+A signed-in reader keeps filters of their own (T-3828): a name and the page's address after `?`, at most 20, applied again with a click and deleted by their owner. A steward acknowledges one of the ten newest alerts with a comment, at most one acknowledgement per alert, and takes one back; everyone, signed in or not, sees who acknowledged what and when. A viewer's acknowledge controls stay closed with the reason as their tooltip. Every change shows at once and is taken back when the server refuses; the server records each in `app_audit`, and the Changes page lists a viewer's own and a steward's every one. Saving a report (T-3351) stays open to anyone, as before. Roles come from the caller's token through `identity::caller()`, never from the page.
+
+| Route | Who | What it does |
+|---|---|---|
+| `GET /apps/alerts-heatmap/api/me` | anyone | the caller's name and roles, `null` when signed out |
+| `GET /apps/alerts-heatmap/api/filters` | signed in | the caller's filters, newest first |
+| `POST /apps/alerts-heatmap/api/filters` `{name, view}` | signed in | a filter kept; 409 past 20 |
+| `DELETE /apps/alerts-heatmap/api/filters/{id}` | owner | gone |
+| `GET /apps/alerts-heatmap/api/acks` | anyone | the newest acknowledgements |
+| `POST /apps/alerts-heatmap/api/acks` `{alert, comment}` | steward | the alert (`urn:ngsi-ld:Alert:…`) acknowledged; 409 when it is already |
+| `DELETE /apps/alerts-heatmap/api/acks/{id}` | steward | the acknowledgement taken back |
+| `GET /apps/alerts-heatmap/api/history` | signed in | the newest 100 changes (a viewer: their own) |
+
+The groups `alerts-heatmap-viewer` and `alerts-heatmap-steward` (`grants/users/groups/`) hold the demo viewer and steward. The App writes no context data, so its Endpoint's Policy stays read-only.
+
 ## Run the tests
 
 ```sh
@@ -64,7 +81,7 @@ pnpm wasm          # cargo build --target wasm32-unknown-unknown, then wasm-bind
 (cd server && cargo test && cargo build --release --target wasm32-wasip2)
 pnpm test          # vitest, with the compiled module run in-process
 pnpm build
-pnpm e2e           # the built bundle in Chromium: 4 widths, light and dark, fi and en, axe, and an alert in the panel
+pnpm e2e           # the built bundle in Chromium: 4 widths, light and dark, fi, en and sv, axe, and an alert in the panel
 ```
 
 The App is under the Apps' coverage gate (T-3373): vitest 95 % (branches 90 %) with every control
