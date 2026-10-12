@@ -162,7 +162,7 @@ pub struct Sources {
     /// names and every platform model that imports, or why they do not read. A space without
     /// `dataModelRef` has none, and its tenant no schema.
     pub models: BTreeMap<(String, String), Result<ModelSource, String>>,
-    /// The broker each tenant lives on (PF-111, ADR-N-046); `""` for a space whose `brokerRef`
+    /// The broker each tenant lives on (PF-111, ADR-N-047); `""` for a space whose `brokerRef`
     /// names no broker, which nothing is written for.
     pub brokers: BTreeMap<String, String>,
 }
@@ -1244,7 +1244,7 @@ pub struct ViewSync {
     /// The broker `main` as this Portal reaches it, without a trailing slash.
     broker: String,
     /// The address of every other `ContextBroker`, `{broker}` replaced by its name
-    /// (`JC_PORTAL_BROKER_URL_TEMPLATE`, ADR-N-046).
+    /// (`JC_PORTAL_BROKER_URL_TEMPLATE`, ADR-N-047).
     template: Option<String>,
     token_file: PathBuf,
     /// The tenants whose rule document this Portal wrote since it started, each with the broker
@@ -1463,7 +1463,7 @@ impl ViewSync {
             }
         };
 
-        // One pass per broker (ADR-N-046): each is told the views, rule documents and schemas of
+        // One pass per broker (ADR-N-047): each is told the views, rule documents and schemas of
         // the tenants that live on it, and keeps none of another broker's. A tenant whose broker
         // has no address is written nowhere, never to `main`.
         let broker_of = |tenant: &str| {
