@@ -1,5 +1,5 @@
 /**
- * T-3901 (DM-81, DM-84): the Retention section of a space. The rules in plain units, what the
+ * T-3901 (DM-82, DM-85): the Retention section of a space. The rules in plain units, what the
  * broker's sweeps deleted, and for an owner an editor that names what a shorter rule deletes
  * before it is proposed; a longer rule is proposed without the confirmation.
  */
@@ -42,7 +42,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("the Retention section (DM-81, DM-84)", () => {
+describe("the Retention section (DM-82, DM-85)", () => {
   it("shows each type's rule in plain units, forever where none, and what was deleted", async () => {
     const { container } = renderRetention((url) =>
       url.pathname === `${BASE}/retention/deleted` ? json(DELETED) : undefined,

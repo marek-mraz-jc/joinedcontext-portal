@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fromIso, seconds, shortens, toIso, written } from "../src/pages/spaces/retention";
 
-describe("retention durations (DM-81)", () => {
+describe("retention durations (DM-82)", () => {
   it("reads and writes the broker's form within one minute and 3650 days", () => {
     expect(seconds("PT5M")).toBe(300);
     expect(seconds("P1DT12H")).toBe(129_600);

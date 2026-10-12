@@ -55,7 +55,7 @@ function rulesOf(manifest: Manifest): RetentionRule[] {
 }
 
 /**
- * How long a space keeps each type's data (DM-81, DM-84, ADR-N-046): the rules in plain units,
+ * How long a space keeps each type's data (DM-82, DM-85, ADR-N-046): the rules in plain units,
  * what the broker's sweeps deleted, and for the space's owners an editor that names what a shorter
  * rule deletes before it is proposed. A type without a rule is kept forever.
  */

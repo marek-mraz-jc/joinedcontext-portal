@@ -2732,7 +2732,7 @@ export interface paths {
         put?: never;
         /**
          * Preview Space Retention
-         * @description What a draft of the space's `spec.retention` would delete now, per class and kind (`entity`, `history`), counted by the broker without deleting anything and at most 100 000 each. For the space's owners, who alone save retention (DM-84).
+         * @description What a draft of the space's `spec.retention` would delete now, per class and kind (`entity`, `history`), counted by the broker without deleting anything and at most 100 000 each. For the space's owners, who alone save retention (DM-85).
          */
         post: operations["preview_retention"];
         delete?: never;
@@ -5902,7 +5902,7 @@ export interface components {
             branch: string;
             pullRequestUrl: string;
         };
-        /** @description How many rows of one class retention deletes, or would (DM-84). */
+        /** @description How many rows of one class retention deletes, or would (DM-85). */
         RetentionCount: {
             /**
              * Format: int64

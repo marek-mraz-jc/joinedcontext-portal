@@ -1045,7 +1045,7 @@ async fn propose_engine(
         )?;
     }
 
-    // 4e-retention. Retention deletes data: only the space's owner sets or changes it (DM-84).
+    // 4e-retention. Retention deletes data: only the space's owner sets or changes it (DM-85).
     if operation != Operation::Delete {
         crate::spaces::check_retention(
             state,

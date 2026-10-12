@@ -123,7 +123,7 @@ pub fn check(
     )))
 }
 
-/// Only the space's owner sets or changes its retention, which deletes data (DM-84): the grant
+/// Only the space's owner sets or changes its retention, which deletes data (DM-85): the grant
 /// that approves a Context Space there, beyond the one that proposes it. An unchanged
 /// `spec.retention`, absent and empty alike, asks nothing more.
 pub fn check_retention(
@@ -157,7 +157,7 @@ pub fn check_retention(
     }
     Err(ApiError::Denied(format!(
         "only an owner of context space '{name}', who may approve it, sets or changes its \
-         retention: it deletes data (DM-84)"
+         retention: it deletes data (DM-85)"
     )))
 }
 
@@ -325,7 +325,7 @@ mod tests {
         check(&state, &jana, "doprava", "Pipeline", "mhd", &json!({})).expect("not a space");
     }
 
-    /// DM-84: a proposer who may not approve the space changes anything but its retention; an
+    /// DM-85: a proposer who may not approve the space changes anything but its retention; an
     /// owner, bound to that space or the project, sets and removes it.
     #[test]
     fn only_an_owner_sets_or_changes_a_spaces_retention() {
@@ -380,7 +380,7 @@ mod tests {
             "empty is absent"
         );
         let said = format!("{:?}", ask("jana@hel.fi", &ruled).expect_err("a proposer"));
-        assert!(said.contains("DM-84"), "{said}");
+        assert!(said.contains("DM-85"), "{said}");
         assert!(
             ask("aino@hel.fi", &ruled).is_err(),
             "an owner of another space"

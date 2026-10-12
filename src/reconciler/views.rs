@@ -163,7 +163,7 @@ pub struct Sources {
     /// `dataModelRef` has none, and its tenant no schema.
     pub models: BTreeMap<(String, String), Result<ModelSource, String>>,
     /// Each Context Space's retention rules by `(project, space)`, empty for keep-forever
-    /// (DM-81).
+    /// (DM-82).
     pub retention: BTreeMap<(String, String), Vec<RetentionRule>>,
 }
 
@@ -491,7 +491,7 @@ pub struct Desired {
     pub documents: BTreeMap<String, (Owner, Value)>,
     /// Each tenant's data model, which becomes its schema.
     pub schemas: BTreeMap<String, (Owner, ModelSource)>,
-    /// Each tenant's retention rules, empty to remove its document (DM-81).
+    /// Each tenant's retention rules, empty to remove its document (DM-82).
     pub retention: BTreeMap<String, (Owner, Vec<RetentionRule>)>,
     /// The objects the writer refused, and why.
     pub refused: Vec<(Owner, String)>,
@@ -1640,7 +1640,7 @@ impl ViewSync {
     }
 
     /// Per class and kind what `rules` of the space whose broker tenant is `tenant` would delete
-    /// now, as the broker counts the document the reconciler would write (DM-84); with `None`,
+    /// now, as the broker counts the document the reconciler would write (DM-85); with `None`,
     /// what this broker's sweeps deleted of the space's `held` rules since it started.
     pub async fn retention_counts(
         &self,
@@ -1741,7 +1741,7 @@ impl ViewSync {
     }
 }
 
-/// How many rows of one class retention deletes, or would (DM-84).
+/// How many rows of one class retention deletes, or would (DM-85).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RetentionCount {
@@ -1753,7 +1753,7 @@ pub struct RetentionCount {
     pub count: u64,
 }
 
-/// The broker's retention document of one space (DM-81, ADR-N-046): each rule under every IRI
+/// The broker's retention document of one space (DM-82, ADR-N-046): each rule under every IRI
 /// its type is written as, the NGSI-LD core context's and the space's model's, once.
 fn retention_document(rules: &[RetentionRule], context: Option<&Value>) -> Value {
     let mut seen = BTreeSet::new();
@@ -3562,7 +3562,7 @@ mod tests {
         assert!(lock(&sync.written_schemas).is_empty());
     }
 
-    /// DM-81: a space's retention rules reach the broker under the core context's IRI and the
+    /// DM-82: a space's retention rules reach the broker under the core context's IRI and the
     /// model's; a space whose rules are gone has its document removed, which keeps forever.
     #[tokio::test]
     async fn a_spaces_retention_is_written_and_removed_with_its_rules() {
@@ -3621,7 +3621,7 @@ mod tests {
         }
     }
 
-    /// DM-84: the broker counts the document the reconciler would write, and its IRIs come back
+    /// DM-85: the broker counts the document the reconciler would write, and its IRIs come back
     /// as the classes the rules name, both IRIs of one class summed; a type no rule names keeps
     /// its last segment. A broker refusal is the caller's error, with its detail.
     #[tokio::test]

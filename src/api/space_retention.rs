@@ -1,4 +1,4 @@
-//! A space's retention as the broker runs it (DM-84, ADR-N-046): what a draft of
+//! A space's retention as the broker runs it (DM-85, ADR-N-046): what a draft of
 //! `spec.retention` would delete now, before an owner saves it, and what the sweeps deleted.
 //!
 //! The rules themselves are the space manifest's, saved through the manifest routes, where only
@@ -87,7 +87,7 @@ async fn counts(
     post,
     path = "/api/v1/projects/{project}/spaces/{space}/retention/preview",
     summary = "Preview Space Retention",
-    description = "What a draft of the space's `spec.retention` would delete now, per class and kind (`entity`, `history`), counted by the broker without deleting anything and at most 100 000 each. For the space's owners, who alone save retention (DM-84).",
+    description = "What a draft of the space's `spec.retention` would delete now, per class and kind (`entity`, `history`), counted by the broker without deleting anything and at most 100 000 each. For the space's owners, who alone save retention (DM-85).",
     tag = "spaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -112,7 +112,7 @@ pub async fn preview_retention(
     let (held, owner) = readable(&state, &user, &project, &space)?;
     if !owner {
         return Err(ApiError::Denied(format!(
-            "only an owner of context space '{space}' sets its retention (DM-84)"
+            "only an owner of context space '{space}' sets its retention (DM-85)"
         )));
     }
     let Json(draft) = body.map_err(|e| ApiError::BadRequest(e.body_text()))?;

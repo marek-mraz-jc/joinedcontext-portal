@@ -1,5 +1,5 @@
 /**
- * A space's retention in plain units (DM-81, DM-84, ADR-N-046): the manifest holds ISO 8601
+ * A space's retention in plain units (DM-82, DM-85, ADR-N-046): the manifest holds ISO 8601
  * durations in days, hours, minutes and seconds (`PT5M`, `PT8H`, `P30D`), the form "5 minutes",
  * "8 hours", "keep forever".
  */
@@ -48,7 +48,7 @@ export function fromIso(iso: string): Keep | undefined {
   return { amount: Math.max(1, Math.floor(total / SECONDS[unit])), unit };
 }
 
-/** Whether `draft` keeps anything shorter than `held` does: a confirmation is owed (DM-84). */
+/** Whether `draft` keeps anything shorter than `held` does: a confirmation is owed (DM-85). */
 export function shortens(held: RetentionRule[], draft: RetentionRule[]): boolean {
   const forever = Number.POSITIVE_INFINITY;
   const length = (iso?: string) => (iso === undefined ? forever : (seconds(iso) ?? forever));
