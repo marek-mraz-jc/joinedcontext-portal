@@ -76,13 +76,21 @@ export function pageFindings(options: PageCheckOptions): string[] {
     // A search box filters what the page shows; its label is the whole instruction.
     if (!shown(control) || skip.has((control as HTMLInputElement).type) || control.closest("[role='search']")) continue;
     if ((control as HTMLInputElement).type === "search") continue;
-    const described = (control.getAttribute("aria-describedby") ?? "")
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((id) => document.getElementById(id))
-      .some((hint) => hint !== null && text(hint).length > 0);
+    const hinted = (element: Element | null) =>
+      (element?.getAttribute("aria-describedby") ?? "")
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((id) => document.getElementById(id))
+        .some((hint) => hint !== null && text(hint).length > 0);
+    // A box of a list is one choice of its group, and the group carries the one-line hint: the
+    // fieldset's description, read once before its boxes (T-3852).
+    const box = ["checkbox", "radio"].includes((control as HTMLInputElement).type);
+    const described = hinted(control) || (box && hinted(control.closest("fieldset")));
     if (!described) {
-      const label = control.getAttribute("aria-label") ?? text(control.id ? document.querySelector(`label[for="${CSS.escape(control.id)}"]`) : null);
+      const labels = (control as HTMLInputElement).labels;
+      const label =
+        control.getAttribute("aria-label") ??
+        (labels && labels.length > 0 ? text(labels[0]) : text(control.id ? document.querySelector(`label[for="${CSS.escape(control.id)}"]`) : null));
       say("field-hint", label || control.getAttribute("name") || control.getAttribute("placeholder") || control.outerHTML.slice(0, 100));
     }
   }

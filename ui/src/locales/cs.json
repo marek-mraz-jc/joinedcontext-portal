@@ -1302,6 +1302,7 @@
     "filterEditor": {
       "label": "Filtr tohoto rozhraní",
       "types": "Typy entit, které obsluhuje",
+      "typesHelp": "Zaškrtněte typy, které tu volající čte; nezaškrtnutý typ se vůbec neposkytuje.",
       "noType": "Ponechte alespoň jeden typ: rozhraní bez typu neobsluhuje nic.",
       "hidden": "Skryté atributy",
       "hiddenHelp": "Zaškrtnutý atribut se nikdy neposkytne v žádném formátu. Název se skryje v každém typu, který ho má.",
@@ -1387,6 +1388,7 @@
       "title": "Sdílet s projektem",
       "project": "Projekt",
       "types": "Co čte",
+      "typesHelp": "Zaškrtněte typy, které bude druhý projekt číst; nic jiného z tohoto koncového bodu se nesdílí.",
       "until": "Do",
       "untilHint": "Nepovinné. Po tomto dni přes něj projekt nic nepřečte; prázdné ponechá sdílení, dokud jej nezastavíte.",
       "preview": "Co uvidí {project}",

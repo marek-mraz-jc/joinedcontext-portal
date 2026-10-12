@@ -235,8 +235,9 @@ export function ShareFlow({
             ))}
           </Select>
         </Field>
-        <fieldset className="flex flex-col gap-1">
+        <fieldset className="flex flex-col gap-1" aria-describedby={`${ids}-types-help`}>
           <legend className="text-body font-medium text-fg">{t("endpoints.shareFlow.types")}</legend>
+          <p id={`${ids}-types-help`} className="text-caption text-fg-muted">{t("endpoints.shareFlow.typesHelp")}</p>
           {types.map((type) => (
             <Checkbox
               key={type}

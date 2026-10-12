@@ -790,8 +790,9 @@ function FilterForm({
             {failure}
           </Alert>
         ) : null}
-        <fieldset className="space-y-2">
+        <fieldset className="space-y-2" aria-describedby="filter-types-help">
           <legend className="text-caption font-medium">{t("endpoints.filterEditor.types")}</legend>
+          <p id="filter-types-help" className="text-caption text-fg-muted">{t("endpoints.filterEditor.typesHelp")}</p>
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             {storedClasses.map((klass) => (
               <Checkbox
@@ -843,9 +844,9 @@ function FilterForm({
             setDraft({ ...draft, q: andQ(draft.q, term) ?? "" })
           }
         />
-        <fieldset className="space-y-2">
+        <fieldset className="space-y-2" aria-describedby="filter-hidden-help">
           <legend className="text-caption font-medium">{t("endpoints.filterEditor.hidden")}</legend>
-          <p className="text-caption text-fg-muted">{t("endpoints.filterEditor.hiddenHelp")}</p>
+          <p id="filter-hidden-help" className="text-caption text-fg-muted">{t("endpoints.filterEditor.hiddenHelp")}</p>
           {classes.map((klass) => (
             <div key={klass.name} className="space-y-1">
               <p className="text-caption font-medium text-fg-muted">{klass.name}</p>

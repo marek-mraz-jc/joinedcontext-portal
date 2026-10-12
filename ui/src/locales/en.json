@@ -1302,6 +1302,7 @@
     "filterEditor": {
       "label": "Filter of this endpoint",
       "types": "Entity types it serves",
+      "typesHelp": "Tick the types a caller reads here; an unticked type is not served at all.",
       "noType": "Keep at least one type: an endpoint that serves no type serves nothing.",
       "hidden": "Hidden attributes",
       "hiddenHelp": "A ticked attribute is never served, in any format. A name is hidden in every type that has it.",
@@ -1387,6 +1388,7 @@
       "title": "Share with a project",
       "project": "Project",
       "types": "What it reads",
+      "typesHelp": "Tick the types the other project reads; nothing else of this endpoint is shared.",
       "until": "Until",
       "untilHint": "Optional. After this day the project reads nothing through it; empty keeps the share until it is stopped.",
       "preview": "What {project} will see",

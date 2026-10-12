@@ -1302,6 +1302,7 @@
     "filterEditor": {
       "label": "Filter tohto endpointu",
       "types": "Typy entít, ktoré obsluhuje",
+      "typesHelp": "Zaškrtnite typy, ktoré tu volajúci číta; nezaškrtnutý typ sa vôbec neposkytuje.",
       "noType": "Ponechajte aspoň jeden typ: endpoint bez typu neobsluhuje nič.",
       "hidden": "Skryté atribúty",
       "hiddenHelp": "Zaškrtnutý atribút sa nikdy neposkytne v žiadnom formáte. Názov sa skryje v každom type, ktorý ho má.",
@@ -1387,6 +1388,7 @@
       "title": "Zdieľať s projektom",
       "project": "Projekt",
       "types": "Čo číta",
+      "typesHelp": "Zaškrtnite typy, ktoré bude druhý projekt čítať; nič iné z tohto koncového bodu sa nezdieľa.",
       "until": "Do",
       "untilHint": "Nepovinné. Po tomto dni cez neho projekt nič neprečíta; prázdne ponechá zdieľanie, kým ho nezastavíte.",
       "preview": "Čo uvidí {project}",

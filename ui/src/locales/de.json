@@ -1302,6 +1302,7 @@
     "filterEditor": {
       "label": "Filter dieses Endpunkts",
       "types": "Entitätstypen, die er bedient",
+      "typesHelp": "Kreuzen Sie die Typen an, die ein Aufrufer hier liest; ein nicht angekreuzter Typ wird gar nicht ausgeliefert.",
       "noType": "Behalten Sie mindestens einen Typ: ein Endpunkt ohne Typ liefert nichts.",
       "hidden": "Verborgene Attribute",
       "hiddenHelp": "Ein angehaktes Attribut wird in keinem Format geliefert. Ein Name wird in jedem Typ verborgen, der ihn hat.",
@@ -1387,6 +1388,7 @@
       "title": "Mit einem Projekt teilen",
       "project": "Projekt",
       "types": "Was es liest",
+      "typesHelp": "Kreuzen Sie die Typen an, die das andere Projekt liest; sonst wird nichts von diesem Endpunkt geteilt.",
       "until": "Bis",
       "untilHint": "Optional. Nach diesem Tag liest das Projekt darüber nichts mehr; leer lässt die Freigabe bestehen, bis sie beendet wird.",
       "preview": "Was {project} sehen wird",
