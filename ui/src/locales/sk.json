@@ -979,7 +979,8 @@
       "afterApproval": "Keď je zmena schválená a nasadená, zapíšte riadky do {space} ako {type}. Opätovný zápis toho istého súboru aktualizuje tie isté entity.",
       "noSlots": "Navrhnutý model nedeklaruje pre tento typ žiadne polia: nie je čo zapísať.",
       "write": "{count, plural, =0 {Nie je čo zapísať} one {Zapísať # riadok} few {Zapísať # riadky} other {Zapísať # riadkov}}",
-      "done": "{written, plural, =0 {Nezapísal sa žiadny riadok} one {Zapísaný # riadok} few {Zapísané # riadky} other {Zapísaných # riadkov}}, {refused, plural, =0 {žiadny odmietnutý.} other {odmietnutých: #.}}"
+      "done": "{written, plural, =0 {Nezapísal sa žiadny riadok} one {Zapísaný # riadok} few {Zapísané # riadky} other {Zapísaných # riadkov}}, {refused, plural, =0 {žiadny odmietnutý.} other {odmietnutých: #.}}",
+      "preview": "Náhľad {count, plural, one {prvej # entity} few {prvých # entít} other {prvých # entít}} ako NGSI-LD"
     }
   },
   "endpoints": {

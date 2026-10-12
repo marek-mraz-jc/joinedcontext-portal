@@ -979,7 +979,8 @@
       "afterApproval": "Když je změna schválená a nasazená, zapište řádky do {space} jako {type}. Opakovaný zápis stejného souboru aktualizuje tytéž entity.",
       "noSlots": "Navržený model pro tento typ nedeklaruje žádná pole: není co zapsat.",
       "write": "{count, plural, =0 {Není co zapsat} one {Zapsat # řádek} few {Zapsat # řádky} other {Zapsat # řádků}}",
-      "done": "{written, plural, =0 {Nezapsal se žádný řádek} one {Zapsán # řádek} few {Zapsány # řádky} other {Zapsáno # řádků}}, {refused, plural, =0 {žádný odmítnutý.} other {odmítnutých: #.}}"
+      "done": "{written, plural, =0 {Nezapsal se žádný řádek} one {Zapsán # řádek} few {Zapsány # řádky} other {Zapsáno # řádků}}, {refused, plural, =0 {žádný odmítnutý.} other {odmítnutých: #.}}",
+      "preview": "Náhled {count, plural, one {první # entity} few {prvních # entit} other {prvních # entit}} jako NGSI-LD"
     }
   },
   "endpoints": {

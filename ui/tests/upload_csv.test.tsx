@@ -103,6 +103,7 @@ describe("Upload CSV", () => {
     expect(op).toMatchObject({ space: "parking", typeName: "OffStreetParking", upload: true, propose: true });
     expect((op.files as { name: string }[]).map((f) => f.name)).toEqual(["garages.csv", "OffStreetParking.linkml.yaml"]);
 
+    expect(JSON.parse(screen.getByTestId("upload-preview").textContent ?? "")).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "Write 1 row" }));
     await screen.findByText("1 row written, 1 refused.");
     const write = calls.find((c) => c.url.pathname.includes("/entityOperations/"));

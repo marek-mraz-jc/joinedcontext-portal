@@ -20,6 +20,9 @@ import type { SdmMatch } from "./csvUpload";
 import { createInBatches, importSlotsOf, readTable, rejectedCsv, suggestMapping, toEntities } from "./importRows";
 import type { Rejected, Table } from "./importRows";
 
+/** How many entities the preview shows as NGSI-LD before they are written. */
+const PREVIEW = 10;
+
 /** A type name the person writes for their own model: PascalCase, as the op names the class. */
 const TYPE_NAME = /^[A-Z][A-Za-z0-9]{0,62}$/;
 
@@ -182,6 +185,16 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
           ) : (
             <Alert tone="warning">{t("spaces.upload.noSlots")}</Alert>
           )}
+          {checked && checked.entities.length > 0 ? (
+            <details>
+              <summary className="focus-ring cursor-pointer rounded-md text-body font-medium text-fg">
+                {t("spaces.upload.preview", { count: Math.min(PREVIEW, checked.entities.length) })}
+              </summary>
+              <pre className="max-h-80 overflow-auto rounded-md bg-surface-muted p-3 font-mono text-caption" data-testid="upload-preview">
+                {JSON.stringify(checked.entities.slice(0, PREVIEW).map((each) => each.entity), null, 2)}
+              </pre>
+            </details>
+          ) : null}
           {progress ? (
             <p role="status" className="text-body">
               {t("spaces.import.writing", progress)}
