@@ -10,12 +10,32 @@
 //! |---|---|
 //! | `GET /api/metrics?codes=101,102` | the kept days of up to six districts, the newest first; today's computed first when missing |
 //! | `GET /api/boundaries` | URLs to download the boundaries and their licence from |
+//!
+//! Roles and edits (T-3828, API/07), decided from `identity::caller()` alone: a signed-in reader
+//! keeps comparisons of their own and shares one by its link, which any signed-in reader of the
+//! project opens read-only; a steward pins the comparison everyone opens first.
+//!
+//! | Route | Who | What it does |
+//! |---|---|---|
+//! | `GET /api/me` | anyone | the caller's name and roles, `null` when signed out |
+//! | `GET /api/comparisons` | signed in | the caller's comparisons, newest first |
+//! | `POST /api/comparisons` `{name, codes, measure}` | signed in | a comparison kept |
+//! | `GET /api/comparisons/{id}` | signed in | any comparison, read-only, with its owner's name |
+//! | `PUT /api/comparisons/{id}` `{name, codes, measure}` | owner | changed |
+//! | `DELETE /api/comparisons/{id}` | owner | gone |
+//! | `GET /api/default` | anyone | the pinned comparison, `null` when none |
+//! | `PUT /api/default` `{name, codes, measure}` | steward | pinned for everyone |
+//! | `DELETE /api/default` | steward | the newest pin taken back |
+//! | `GET /api/history` | signed in | the newest changes (a viewer: their own) |
 
 use district_compare::{run, AirInput, BikeInput, DistrictInput, Input, Output};
+use jc_app_sdk::access::Owned;
 use jc_app_sdk::blob::{self, Method};
 use jc_app_sdk::gateway;
 use jc_app_sdk::http::{Params, Request, Response, Router};
+use jc_app_sdk::identity::{self, Caller};
 use jc_app_sdk::sql::{self, Value};
+use serde::Deserialize;
 use serde_json::{json, Value as Json};
 
 /// How long a presigned URL lives; the host allows at most 300 seconds.
@@ -26,6 +46,14 @@ const MOST: usize = 5000;
 /// Districts compared at once, as the page allows, and days answered per district.
 const MOST_CODES: usize = 6;
 const DAYS: i64 = 120;
+const STEWARD: &str = "steward";
+const COMPARISONS: Owned = Owned::new("comparisons", "");
+const PINS: Owned = Owned::new("pins", STEWARD);
+/// Comparisons a reader keeps at most, and changes answered in History.
+const MOST_COMPARISONS: i64 = 20;
+const HISTORY: i64 = 100;
+/// The measures the page offers (`src/districts.ts`).
+pub const MEASURES: [&str; 6] = ["events", "bikes", "bikeSlots", "alerts", "pm25", "aqi"];
 const BOUNDARIES: &str = "boundaries/districts.geojson";
 const LICENCE: &str = "boundaries/LICENCE.txt";
 /// Where the boundaries come from and under which terms: the platform's district pipeline reads
@@ -169,6 +197,37 @@ pub fn codes(raw: Option<&str>) -> Result<Vec<String>, String> {
     Ok(codes)
 }
 
+/// A comparison as a reader names it: the districts and the measure the page shows.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NewComparison {
+    pub name: String,
+    pub codes: Vec<String>,
+    pub measure: String,
+}
+
+/// The comparison's name and its codes as kept (`101,102`), or why not.
+pub fn checked_comparison(new: &NewComparison) -> Result<(String, String), String> {
+    let name = new.name.trim();
+    if name.is_empty() || name.chars().count() > 80 || name.chars().any(char::is_control) {
+        return Err("a comparison's name is one line of 1 to 80 characters".into());
+    }
+    if new.codes.iter().any(|c| c.contains(',')) {
+        return Err("a district's code is 1 to 20 letters, digits, dashes or underscores".into());
+    }
+    let mut kept = codes(Some(&new.codes.join(",")))?;
+    let before = kept.len();
+    kept.sort();
+    kept.dedup();
+    if kept.len() != before {
+        return Err("each district is compared once".into());
+    }
+    if !MEASURES.contains(&new.measure.as_str()) {
+        return Err(format!("the measure is one of {}", MEASURES.join(", ")));
+    }
+    Ok((name.to_owned(), new.codes.join(",")))
+}
+
 /// Every entity of `kind` the App's Endpoint lets the caller read, page by page, up to [`MOST`].
 fn entities(kind: &str, attrs: &str) -> Result<Vec<Json>, gateway::Error> {
     let mut all = Vec::new();
@@ -303,10 +362,292 @@ fn refused(kind: &str, err: gateway::Error) -> Response {
     }
 }
 
+fn bad(why: &str) -> Response {
+    Response::problem(400, "Bad Request", why)
+}
+
+fn id(params: &Params) -> Result<i64, Response> {
+    params["id"]
+        .parse()
+        .map_err(|_| Response::problem(404, "Not Found", "no such comparison"))
+}
+
+fn me(_: &Request, _: &Params) -> Response {
+    match identity::caller() {
+        Some(caller) => Response::json(
+            200,
+            &json!({"id": caller.id, "name": caller.name, "roles": caller.roles}),
+        ),
+        None => Response::json(200, &Json::Null),
+    }
+}
+
+/// A comparison's row as the page reads it: its codes as a list.
+fn comparison_of(mut row: serde_json::Map<String, Json>) -> Json {
+    let codes: Vec<Json> = row
+        .get("codes")
+        .and_then(Json::as_str)
+        .unwrap_or_default()
+        .split(',')
+        .filter(|c| !c.is_empty())
+        .map(|c| json!(c))
+        .collect();
+    row.insert("codes".into(), Json::Array(codes));
+    Json::Object(row)
+}
+
+const COLUMNS: &str = "id, name, codes, measure, owner_name as \"ownerName\", \
+    to_char(created_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') as \"createdAt\"";
+
+fn comparisons(_: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    match sql::query(
+        &format!("select {COLUMNS} from comparisons where owner_id = $1 order by id desc limit 50"),
+        &[Value::from(caller.id.as_str())],
+    ) {
+        Ok(rows) => Response::json(
+            200,
+            &sql::objects(&rows)
+                .into_iter()
+                .map(comparison_of)
+                .collect::<Vec<_>>(),
+        ),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
+fn keep(request: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let new: NewComparison = match request.json() {
+        Ok(new) => new,
+        Err(answer) => return answer,
+    };
+    let (name, codes) = match checked_comparison(&new) {
+        Ok(checked) => checked,
+        Err(why) => return bad(&why),
+    };
+    match sql::query(
+        "select count(*) from comparisons where owner_id = $1",
+        &[Value::from(caller.id.as_str())],
+    ) {
+        Ok(rows) => {
+            if let Some(Value::Int(n)) = rows.values.first().and_then(|row| row.first()) {
+                if *n >= MOST_COMPARISONS {
+                    return Response::problem(
+                        409,
+                        "Conflict",
+                        &format!(
+                            "at most {MOST_COMPARISONS} comparisons are kept; delete one first"
+                        ),
+                    );
+                }
+            }
+        }
+        Err(err) => return Response::from_sql(err),
+    }
+    match COMPARISONS.insert(
+        &caller,
+        &["name", "codes", "measure", "owner_name"],
+        vec![
+            Value::from(name.as_str()),
+            Value::from(codes.as_str()),
+            Value::from(new.measure.as_str()),
+            Value::from(caller.name.as_str()),
+        ],
+        &format!("kept the comparison {name}"),
+    ) {
+        Ok(rows) => {
+            let row = sql::objects(&rows).into_iter().next().unwrap_or_default();
+            Response::json(
+                201,
+                &json!({"id": row.get("id"), "name": name, "codes": new.codes, "measure": new.measure, "ownerName": caller.name}),
+            )
+        }
+        Err(answer) => answer,
+    }
+}
+
+/// Any comparison, for a link shared inside the project: read-only, its owner named.
+fn shared(_: &Request, params: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let id = match id(params) {
+        Ok(id) => id,
+        Err(answer) => return answer,
+    };
+    match sql::query(
+        &format!("select {COLUMNS}, owner_id = $2 as mine from comparisons where id = $1"),
+        &[Value::Int(id), Value::from(caller.id.as_str())],
+    ) {
+        Ok(rows) => match sql::objects(&rows).into_iter().next() {
+            Some(row) => Response::json(200, &comparison_of(row)),
+            None => Response::problem(404, "Not Found", "no such comparison"),
+        },
+        Err(err) => Response::from_sql(err),
+    }
+}
+
+fn change(request: &Request, params: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let id = match id(params) {
+        Ok(id) => id,
+        Err(answer) => return answer,
+    };
+    let new: NewComparison = match request.json() {
+        Ok(new) => new,
+        Err(answer) => return answer,
+    };
+    let (name, codes) = match checked_comparison(&new) {
+        Ok(checked) => checked,
+        Err(why) => return bad(&why),
+    };
+    match COMPARISONS.update(
+        &caller,
+        id,
+        &["name", "codes", "measure"],
+        vec![
+            Value::from(name.as_str()),
+            Value::from(codes.as_str()),
+            Value::from(new.measure.as_str()),
+        ],
+        &format!("changed the comparison {name}"),
+    ) {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+fn forget(_: &Request, params: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let id = match id(params) {
+        Ok(id) => id,
+        Err(answer) => return answer,
+    };
+    match COMPARISONS.delete(&caller, id, "deleted a comparison") {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+/// A steward, checked before the body is read, so nothing in the body stands in for the role.
+fn steward() -> Result<Caller, Response> {
+    let caller = Caller::require()?;
+    caller.require_role(&[STEWARD])?;
+    Ok(caller)
+}
+
+/// The newest pin: the comparison everyone opens first.
+fn pinned(_: &Request, _: &Params) -> Response {
+    match sql::query(
+        &format!("select {COLUMNS} from pins order by id desc limit 1"),
+        &[],
+    ) {
+        Ok(rows) => Response::json(
+            200,
+            &sql::objects(&rows)
+                .into_iter()
+                .next()
+                .map_or(Json::Null, comparison_of),
+        ),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
+fn pin(request: &Request, _: &Params) -> Response {
+    let caller = match steward() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let new: NewComparison = match request.json() {
+        Ok(new) => new,
+        Err(answer) => return answer,
+    };
+    let (name, codes) = match checked_comparison(&new) {
+        Ok(checked) => checked,
+        Err(why) => return bad(&why),
+    };
+    match PINS.insert(
+        &caller,
+        &["name", "codes", "measure", "owner_name"],
+        vec![
+            Value::from(name.as_str()),
+            Value::from(codes.as_str()),
+            Value::from(new.measure.as_str()),
+            Value::from(caller.name.as_str()),
+        ],
+        &format!("pinned {name} for everyone"),
+    ) {
+        Ok(_) => pinned(request, &Params::default()),
+        Err(answer) => answer,
+    }
+}
+
+fn unpin(_: &Request, _: &Params) -> Response {
+    let caller = match steward() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let newest = match sql::query("select id from pins order by id desc limit 1", &[]) {
+        Ok(rows) => match rows.values.first().and_then(|row| row.first()) {
+            Some(Value::Int(id)) => *id,
+            _ => return Response::problem(404, "Not Found", "nothing is pinned"),
+        },
+        Err(err) => return Response::from_sql(err),
+    };
+    match PINS.delete(&caller, newest, "took back the pinned comparison") {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+/// The newest changes: a steward's every one, anyone else's their own.
+fn history(_: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    match sql::query(
+        "select id, at, actor_name as \"actorName\", action, target, summary from app_audit \
+         where actor_id = $1 or $2::boolean order by at desc, id desc limit $3",
+        &[
+            Value::from(caller.id.as_str()),
+            Value::Boolean(caller.has_role(STEWARD)),
+            Value::Int(HISTORY),
+        ],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
 pub fn handle(request: Request) -> Response {
     Router::new()
         .get("/api/metrics", metrics)
         .get("/api/boundaries", files)
+        .get("/api/me", me)
+        .get("/api/comparisons", comparisons)
+        .post("/api/comparisons", keep)
+        .get("/api/comparisons/{id}", shared)
+        .put("/api/comparisons/{id}", change)
+        .delete("/api/comparisons/{id}", forget)
+        .get("/api/default", pinned)
+        .put("/api/default", pin)
+        .delete("/api/default", unpin)
+        .get("/api/history", history)
         .handle(&request)
 }
 
@@ -430,5 +771,48 @@ mod tests {
         let bare = get("/api/metrics");
         assert_eq!(bare.status, 400);
         assert!(String::from_utf8_lossy(&bare.body).contains("?codes=101,102"));
+    }
+
+    fn named(name: &str, codes: &[&str], measure: &str) -> NewComparison {
+        NewComparison {
+            name: name.into(),
+            codes: codes.iter().map(|c| (*c).to_owned()).collect(),
+            measure: measure.into(),
+        }
+    }
+
+    #[test]
+    fn a_comparison_is_a_name_up_to_six_districts_and_a_measure() {
+        assert_eq!(
+            checked_comparison(&named(" Centre ", &["101", "102"], "events")),
+            Ok(("Centre".into(), "101,102".into()))
+        );
+        for bad in [
+            named("", &["101"], "events"),
+            named(&"x".repeat(81), &["101"], "events"),
+            named("two\nlines", &["101"], "events"),
+            named("n", &[], "events"),
+            named("n", &["1", "2", "3", "4", "5", "6", "7"], "events"),
+            named("n", &["101", "101"], "events"),
+            named("n", &["101,102"], "events"),
+            named("n", &["10 1"], "events"),
+            named("n", &["101"], "noise"),
+        ] {
+            assert!(checked_comparison(&bad).is_err(), "{bad:?}");
+        }
+        assert!(serde_json::from_str::<NewComparison>(
+            r#"{"name":"n","codes":["101"],"measure":"events","owner_id":"u-1"}"#
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn a_comparison_reads_its_codes_as_a_list() {
+        let row = json!({"id": 1, "codes": "101,102"});
+        let Json::Object(row) = row else {
+            unreachable!()
+        };
+        assert_eq!(comparison_of(row)["codes"], json!(["101", "102"]));
+        assert_eq!(comparison_of(serde_json::Map::new())["codes"], json!([]));
     }
 }
