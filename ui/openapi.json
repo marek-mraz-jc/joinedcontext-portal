@@ -11458,6 +11458,189 @@
         }
       }
     },
+    "/api/v1/projects/{project}/spaces/{space}/retention/deleted": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Read Space Retention Deletions",
+        "description": "What the broker's retention sweeps deleted of the space since the broker started, per class and kind (`entity`, `history`). The same numbers for everyone who reads the space.",
+        "operationId": "retention_deleted",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What retention deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionCounts"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No broker, or the broker did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/spaces/{space}/retention/preview": {
+      "post": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Preview Space Retention",
+        "description": "What a draft of the space's `spec.retention` would delete now, per class and kind (`entity`, `history`), counted by the broker without deleting anything and at most 100 000 each. For the space's owners, who alone save retention (DM-84).",
+        "operationId": "preview_retention",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetentionDraft"
+              },
+              "example": {
+                "retention": [
+                  {
+                    "current": "PT5M",
+                    "entityType": "Vehicle",
+                    "history": "PT8H"
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "What the draft would delete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionCounts"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A rule the space manifest would refuse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller reads the space but does not own it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No broker, or the broker did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/spaces/{space}/trash": {
       "get": {
         "tags": [
@@ -21724,6 +21907,63 @@
             "type": "string"
           }
         }
+      },
+      "RetentionCount": {
+        "type": "object",
+        "description": "How many rows of one class retention deletes, or would (DM-84).",
+        "required": [
+          "entityType",
+          "kind",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many.",
+            "minimum": 0
+          },
+          "entityType": {
+            "type": "string",
+            "description": "The class of the space's model."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`entity` for current state, `history` for temporal instances."
+          }
+        }
+      },
+      "RetentionCounts": {
+        "type": "object",
+        "description": "Rows per class and kind.",
+        "required": [
+          "counts"
+        ],
+        "properties": {
+          "counts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RetentionCount"
+            }
+          }
+        }
+      },
+      "RetentionDraft": {
+        "type": "object",
+        "description": "A draft of a space's retention rules.",
+        "required": [
+          "retention"
+        ],
+        "properties": {
+          "retention": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "The rules as `spec.retention` would hold them."
+          }
+        },
+        "additionalProperties": false
       },
       "RetryAnswer": {
         "type": "object",

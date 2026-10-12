@@ -323,6 +323,15 @@ routes:
   - route: GET /projects/{project}/spaces/{space}/quality
     rule: "space-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/spaces/{space}/retention/preview
+    rule: "space-read, then approve on ContextSpace in the space (DM-84)"
+    expect: [403, 403, allow, allow, allow, allow, 404, 403]
+    body: {"retention": [{"entityType": "Station", "history": "PT8H"}]}
+    note: "an owner's 503 is the fixture's: it has no broker"
+  - route: GET /projects/{project}/spaces/{space}/retention/deleted
+    rule: "space-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    note: "a reader's 503 is the fixture's: it has no broker"
   - route: GET /projects/{project}/spaces/{space}/usage
     rule: "space-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

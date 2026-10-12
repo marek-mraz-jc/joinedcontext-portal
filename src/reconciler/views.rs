@@ -1639,6 +1639,75 @@ impl ViewSync {
             .map_err(|err| format!("GET {path} did not answer JSON: {err}"))
     }
 
+    /// Per class and kind what `rules` of the space whose broker tenant is `tenant` would delete
+    /// now, as the broker counts the document the reconciler would write (DM-84); with `None`,
+    /// what this broker's sweeps deleted of the space's `held` rules since it started.
+    pub async fn retention_counts(
+        &self,
+        tenant: &str,
+        rules: Option<&[RetentionRule]>,
+        held: &[RetentionRule],
+    ) -> Result<Vec<RetentionCount>, String> {
+        let token = std::fs::read_to_string(&self.token_file)
+            .ok()
+            .map(|token| token.trim().to_owned())
+            .filter(|token| !token.is_empty())
+            .ok_or("the broker's admin token is not readable")?;
+        let context = lock(&self.compiled)
+            .get(tenant)
+            .and_then(|(_, _, context)| context.clone());
+        let request = match rules {
+            Some(rules) => self
+                .http
+                .post(format!("{}/q/retention/{tenant}/preview", self.broker))
+                .json(&retention_document(rules, context.as_ref())),
+            None => self
+                .http
+                .get(format!("{}/q/retention/{tenant}/deleted", self.broker)),
+        };
+        let response = request
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|err| format!("the broker did not answer: {}", err.without_url()))?;
+        if !response.status().is_success() {
+            return Err(refusal("the broker refused the retention count", response).await);
+        }
+        let answer: Value = response
+            .json()
+            .await
+            .map_err(|err| format!("the broker answered no JSON: {err}"))?;
+        let classes: BTreeMap<String, &str> = rules
+            .unwrap_or(held)
+            .iter()
+            .chain(held)
+            .flat_map(|rule| {
+                type_iris(&rule.entity_type, context.as_ref())
+                    .into_iter()
+                    .map(|iri| (iri, rule.entity_type.as_str()))
+            })
+            .collect();
+        let mut out: BTreeMap<(String, String), u64> = BTreeMap::new();
+        for row in answer["counts"].as_array().into_iter().flatten() {
+            let iri = row["type"].as_str().unwrap_or_default();
+            let class = classes.get(iri).map_or_else(
+                || iri.rsplit(['/', '#']).next().unwrap_or(iri).to_owned(),
+                |class| (*class).to_owned(),
+            );
+            let kind = row["kind"].as_str().unwrap_or_default().to_owned();
+            let total = out.entry((class, kind)).or_default();
+            *total = total.saturating_add(row["count"].as_u64().unwrap_or_default());
+        }
+        Ok(out
+            .into_iter()
+            .map(|((entity_type, kind), count)| RetentionCount {
+                entity_type,
+                kind,
+                count,
+            })
+            .collect())
+    }
+
     async fn put(&self, token: &str, path: &str, doc: &Value) -> ViewOutcome {
         let sent = self
             .http
@@ -1670,6 +1739,18 @@ impl ViewSync {
             false => Err(refusal(&format!("DELETE {path}"), response).await),
         }
     }
+}
+
+/// How many rows of one class retention deletes, or would (DM-84).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RetentionCount {
+    /// The class of the space's model.
+    pub entity_type: String,
+    /// `entity` for current state, `history` for temporal instances.
+    pub kind: String,
+    /// How many.
+    pub count: u64,
 }
 
 /// The broker's retention document of one space (DM-81, ADR-N-046): each rule under every IRI
@@ -3538,6 +3619,75 @@ mod tests {
                 "{outcomes:?}"
             );
         }
+    }
+
+    /// DM-84: the broker counts the document the reconciler would write, and its IRIs come back
+    /// as the classes the rules name, both IRIs of one class summed; a type no rule names keeps
+    /// its last segment. A broker refusal is the caller's error, with its detail.
+    #[tokio::test]
+    async fn retention_counts_fold_the_brokers_iris_back_into_classes() {
+        let server = broker().await;
+        let core = "https://uri.etsi.org/ngsi-ld/default-context/Bus";
+        let rules = [RetentionRule {
+            entity_type: "Bus".into(),
+            current: None,
+            history: Some("PT8H".into()),
+        }];
+        Mock::given(method("POST"))
+            .and(path("/q/retention/city-air/preview"))
+            .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+            .and(body_json(
+                json!({"rules": [{"type": core, "history": "PT8H"}, {"type": "https://e.org/Bus", "history": "PT8H"}]}),
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"counts": [
+                {"type": core, "kind": "history", "count": 3}]})))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/q/retention/city-air/deleted"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"counts": [
+                {"type": core, "kind": "history", "count": 2},
+                {"type": "https://e.org/Bus", "kind": "history", "count": 5},
+                {"type": "https://e.org/v#Stop", "kind": "entity", "count": 1}]})))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/q/retention/refused/preview"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!({"detail": "type twice"})))
+            .mount(&server)
+            .await;
+        let file = token_file();
+        let sync = ViewSync::new(server.uri(), &file);
+        lock(&sync.compiled).insert(
+            "city-air".into(),
+            (
+                air_model(),
+                json!({}),
+                Some(json!({"@context": {"Bus": "https://e.org/Bus"}})),
+            ),
+        );
+        let count = |entity_type: &str, kind: &str, count: u64| RetentionCount {
+            entity_type: entity_type.into(),
+            kind: kind.into(),
+            count,
+        };
+        let preview = sync.retention_counts("city-air", Some(&rules), &[]).await;
+        let deleted = sync.retention_counts("city-air", None, &rules).await;
+        let refused = sync.retention_counts("refused", Some(&rules), &[]).await;
+        let _ = std::fs::remove_file(&file);
+        let unreadable = ViewSync::new(server.uri(), "/nonexistent/token")
+            .retention_counts("city-air", None, &rules)
+            .await;
+        assert_eq!(preview, Ok(vec![count("Bus", "history", 3)]));
+        assert_eq!(
+            deleted,
+            Ok(vec![count("Bus", "history", 7), count("Stop", "entity", 1)])
+        );
+        assert!(
+            refused.as_ref().is_err_and(|e| e.contains("type twice")),
+            "{refused:?}"
+        );
+        assert!(unreadable.is_err());
     }
 
     #[test]

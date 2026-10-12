@@ -2657,6 +2657,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/spaces/{space}/retention/deleted": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Space Retention Deletions
+         * @description What the broker's retention sweeps deleted of the space since the broker started, per class and kind (`entity`, `history`). The same numbers for everyone who reads the space.
+         */
+        get: operations["retention_deleted"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/spaces/{space}/retention/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Space Retention
+         * @description What a draft of the space's `spec.retention` would delete now, per class and kind (`entity`, `history`), counted by the broker without deleting anything and at most 100 000 each. For the space's owners, who alone save retention (DM-84).
+         */
+        post: operations["preview_retention"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/spaces/{space}/trash": {
         parameters: {
             query?: never;
@@ -5802,6 +5842,27 @@ export interface components {
         Restored: {
             branch: string;
             pullRequestUrl: string;
+        };
+        /** @description How many rows of one class retention deletes, or would (DM-84). */
+        RetentionCount: {
+            /**
+             * Format: int64
+             * @description How many.
+             */
+            count: number;
+            /** @description The class of the space's model. */
+            entityType: string;
+            /** @description `entity` for current state, `history` for temporal instances. */
+            kind: string;
+        };
+        /** @description Rows per class and kind. */
+        RetentionCounts: {
+            counts: components["schemas"]["RetentionCount"][];
+        };
+        /** @description A draft of a space's retention rules. */
+        RetentionDraft: {
+            /** @description The rules as `spec.retention` would hold them. */
+            retention: Record<string, never>[];
         };
         /** @description What a replay sent to the runner, and what it could not send. */
         RetryAnswer: {
@@ -14978,6 +15039,143 @@ export interface operations {
             };
             /** @description No such space the caller may read */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    retention_deleted: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What retention deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionCounts"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No broker, or the broker did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    preview_retention: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "retention": [
+                 *         {
+                 *           "current": "PT5M",
+                 *           "entityType": "Vehicle",
+                 *           "history": "PT8H"
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["RetentionDraft"];
+            };
+        };
+        responses: {
+            /** @description What the draft would delete */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionCounts"];
+                };
+            };
+            /** @description A rule the space manifest would refuse */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller reads the space but does not own it */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No broker, or the broker did not answer */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

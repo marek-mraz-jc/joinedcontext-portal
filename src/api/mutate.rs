@@ -1045,6 +1045,18 @@ async fn propose_engine(
         )?;
     }
 
+    // 4e-retention. Retention deletes data: only the space's owner sets or changes it (DM-84).
+    if operation != Operation::Delete {
+        crate::spaces::check_retention(
+            state,
+            identity,
+            project,
+            kind_info.kind,
+            &envelope.metadata.name,
+            &envelope.spec,
+        )?;
+    }
+
     // 4f. An App name is one address for the organization (AP-14a): `/apps/{name}/` carries no
     //     project, so another project's App of the same name is refused before a Change exists.
     if operation != Operation::Delete {

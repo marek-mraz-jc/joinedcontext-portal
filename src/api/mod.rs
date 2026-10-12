@@ -51,6 +51,7 @@ pub mod resources;
 pub mod restore;
 pub mod service_accounts;
 pub mod setup;
+pub mod space_retention;
 pub mod space_usage;
 pub mod sync;
 pub mod sync_sources;
@@ -109,6 +110,7 @@ pub fn router() -> Router<AppState> {
         .merge(projects::router())
         .merge(quality::router())
         .merge(space_usage::router())
+        .merge(space_retention::router())
         .merge(data_views::router())
         .merge(type_attributes::router())
         .merge(entity_trash::router())
