@@ -52,4 +52,4 @@ spec:
       types: [CityDistrict, Event, BikeHireDockingStation, Alert, AirQualityObserved]
       attrs: [name, districtCode, divisionLevel, location, startDate, totalSlotNumber, validFrom, pm25, airQualityIndex, dateObserved]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]

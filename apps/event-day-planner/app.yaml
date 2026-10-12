@@ -60,4 +60,4 @@ spec:
       # endpoint): name and description in fi, sv and en, the times, status, place and source.
       attrs: [name, description, startDate, endDate, eventStatus, address, location, source]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]

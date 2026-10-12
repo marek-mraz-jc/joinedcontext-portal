@@ -36,4 +36,4 @@ spec:
       types: [KeyPerformanceIndicator]
       attrs: [name, currentValue, calculationPeriod, calculationFormula, updatedAt]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]

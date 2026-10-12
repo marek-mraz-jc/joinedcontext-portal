@@ -52,7 +52,7 @@ spec:
       operations: [queryEntity, retrieveEntity, retrieveTemporal]
       temporalQ:
         window: P1D
-      representations: [ngsi-ld, geojson]
+      representations: [ngsi-ld, geojson, ogc-features]
     # The steward's record form (AP-09, red lane on purpose): a station's name, position and
     # note. The measured values, `dateObserved` and `source` are the pipeline's and stay
     # read-only.

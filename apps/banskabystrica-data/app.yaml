@@ -37,4 +37,4 @@ spec:
       types: [Event, School, AirQualityObserved]
       attrs: [name, startDate, endDate, startTime, eventCategory, address, url, schoolCode, teachingLanguage, pupilCount, teachingStaff, nonTeachingStaff, annualBudget, budgetYear, stationCode, dateObserved, pm10, pm25]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld, csv, geojson]
+      representations: [ngsi-ld, csv, geojson, ogc-features]

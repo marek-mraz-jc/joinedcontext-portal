@@ -16,4 +16,5 @@ spec:
     name: zilina-verejne
   enabledRepresentations:
   - ngsi-ld
+  - ogc-features
   slug: ecifgir4dzgl7h45rwvty2ygyb

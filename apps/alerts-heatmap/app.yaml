@@ -63,4 +63,4 @@ spec:
       # analysis reads the place, the start and the kind; the name and address label a place.
       attrs: [name, subCategory, address, dateIssued, validFrom, location]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]
