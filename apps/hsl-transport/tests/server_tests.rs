@@ -24,7 +24,6 @@ fn app_at(endpoint: &MockServer) -> Arc<App> {
     Arc::new(App::new(Config {
         base_path: BASE.to_owned(),
         endpoint_url: format!("{}/", endpoint.uri()),
-        poll_seconds: 1,
         page_config: None,
     }))
 }
@@ -84,7 +83,7 @@ async fn the_fleet_is_read_from_the_endpoints_geojson_representation() {
         .await;
 
     let app = app_at(&endpoint);
-    let changed = app.poll_once().await.expect("a fleet");
+    let changed = app.reload().await.expect("a fleet");
 
     assert_eq!(changed.len(), 1);
     assert_eq!(changed[0].id, BUS);
@@ -99,7 +98,7 @@ async fn the_poll_carries_no_credential_at_all() {
     let endpoint = MockServer::start().await;
     serving(&endpoint, collection(vec![feature(BUS, 24.94, 60.17)])).await;
 
-    app_at(&endpoint).poll_once().await.expect("a fleet");
+    app_at(&endpoint).reload().await.expect("a fleet");
 
     let requests = endpoint.received_requests().await.expect("the requests");
     assert_eq!(requests.len(), 1);
@@ -118,7 +117,7 @@ async fn every_call_the_app_makes_goes_to_its_own_endpoint() {
     serving(&endpoint, collection(vec![feature(BUS, 24.94, 60.17)])).await;
     let app = app_at(&endpoint);
 
-    app.poll_once().await.expect("a fleet");
+    app.reload().await.expect("a fleet");
     // Serving a browser must not produce a call of its own; the fleet is already in memory.
     router(Arc::clone(&app))
         .oneshot(
@@ -142,9 +141,9 @@ async fn a_bus_that_has_not_moved_is_not_sent_again() {
     serving(&endpoint, collection(vec![feature(BUS, 24.94, 60.17)])).await;
     let app = app_at(&endpoint);
 
-    assert_eq!(app.poll_once().await.expect("a fleet").len(), 1);
+    assert_eq!(app.reload().await.expect("a fleet").len(), 1);
     assert!(
-        app.poll_once().await.expect("a fleet").is_empty(),
+        app.reload().await.expect("a fleet").is_empty(),
         "an unchanged fleet produced a change"
     );
     assert_eq!(app.snapshot().len(), 1, "the bus left the map");
@@ -173,8 +172,8 @@ async fn a_bus_that_moves_is_reported_once_and_the_others_stay_quiet() {
     .await;
     let app = app_at(&endpoint);
 
-    assert_eq!(app.poll_once().await.expect("a fleet").len(), 2);
-    let moved = app.poll_once().await.expect("a fleet");
+    assert_eq!(app.reload().await.expect("a fleet").len(), 2);
+    let moved = app.reload().await.expect("a fleet");
 
     assert_eq!(moved.len(), 1);
     assert_eq!(moved[0].id, BUS);
@@ -198,7 +197,7 @@ async fn the_fleet_is_capped_at_ninety_vehicles() {
     serving(&endpoint, collection(features)).await;
 
     let app = app_at(&endpoint);
-    assert_eq!(app.poll_once().await.expect("a fleet").len(), 90);
+    assert_eq!(app.reload().await.expect("a fleet").len(), 90);
     assert_eq!(app.snapshot().len(), 90);
 }
 
@@ -215,7 +214,7 @@ async fn a_feature_with_no_point_is_dropped_rather_than_placed_at_zero() {
     )
     .await;
 
-    let fleet = app_at(&endpoint).poll_once().await.expect("a fleet");
+    let fleet = app_at(&endpoint).reload().await.expect("a fleet");
     assert_eq!(fleet.len(), 1);
     assert_eq!(fleet[0].id, BUS);
 }
@@ -236,7 +235,7 @@ async fn an_attribute_the_grant_hides_is_absent_and_not_defaulted() {
     )
     .await;
     let app = app_at(&endpoint);
-    app.poll_once().await.expect("a fleet");
+    app.reload().await.expect("a fleet");
 
     let response = router(Arc::clone(&app))
         .oneshot(
@@ -286,7 +285,7 @@ async fn the_stream_opens_with_the_whole_fleet() {
     let endpoint = MockServer::start().await;
     serving(&endpoint, collection(vec![feature(BUS, 24.94, 60.17)])).await;
     let app = app_at(&endpoint);
-    app.poll_once().await.expect("a fleet");
+    app.reload().await.expect("a fleet");
 
     let response = router(app)
         .oneshot(
@@ -337,8 +336,8 @@ async fn an_endpoint_that_refuses_leaves_the_last_known_fleet_in_place() {
         .await;
     let app = app_at(&endpoint);
 
-    app.poll_once().await.expect("a fleet");
-    assert_eq!(app.poll_once().await, Err(PollError::Refused(403)));
+    app.reload().await.expect("a fleet");
+    assert_eq!(app.reload().await, Err(PollError::Refused(403)));
     assert_eq!(app.snapshot().len(), 1, "a refusal emptied the map");
 }
 
@@ -391,7 +390,6 @@ async fn the_app_starts_on_its_own_host_at_the_root() {
     let app = Arc::new(App::new(Config {
         base_path: "/".to_owned(),
         endpoint_url: format!("{}/", endpoint.uri()),
-        poll_seconds: 1,
         page_config: None,
     }));
     for uri in ["/healthz", "/api/vehicles"] {
@@ -419,7 +417,6 @@ async fn the_front_page_carries_the_reconcilers_configuration_with_its_basemap()
         let app = Arc::new(App::new(Config {
             base_path: "/".to_owned(),
             endpoint_url: format!("{}/", endpoint.uri()),
-            poll_seconds: 1,
             page_config,
         }));
         async move {
@@ -613,6 +610,6 @@ async fn a_vehicle_carries_its_mode() {
     tram["properties"]["transportMode"] = json!({ "type": "Property", "value": "tram" });
     serving(&endpoint, collection(vec![tram])).await;
     let app = app_at(&endpoint);
-    let fleet = app.poll_once().await.expect("a fleet");
+    let fleet = app.reload().await.expect("a fleet");
     assert_eq!(fleet[0].mode.as_deref(), Some("tram"));
 }
