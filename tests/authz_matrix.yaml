@@ -195,6 +195,10 @@ routes:
   - route: GET /organization/health
     rule: "org-admin"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]
+  - route: GET /organization/brokers
+    rule: "org-admin (approve and delete on RoleBinding, PF-03)"
+    expect: [401, 403, 403, 403, 403, allow, 403, 403]
+    note: "each broker's health and load, asked by the Portal; the browser never reaches a broker (API/01 §42, PF-116)"
   - route: GET /organization/limits
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]

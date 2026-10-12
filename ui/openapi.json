@@ -1584,6 +1584,48 @@
         }
       }
     },
+    "/api/v1/organization/brokers": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "List Context Brokers",
+        "description": "Every context broker of the organization with its spaces, version, health and load (API/01 §42, PF-116). Organization administrators only.",
+        "operationId": "list_brokers",
+        "responses": {
+          "200": {
+            "description": "The brokers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Brokers"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an organization administrator",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organization/datamodels": {
       "get": {
         "tags": [
@@ -15472,6 +15514,92 @@
           }
         }
       },
+      "Broker": {
+        "type": "object",
+        "description": "One broker as the Portal sees it.",
+        "required": [
+          "name",
+          "declared",
+          "default",
+          "features",
+          "health",
+          "spaces",
+          "entities",
+          "observedAt"
+        ],
+        "properties": {
+          "declared": {
+            "type": "boolean",
+            "description": "`false` for the implicit `main` of an organization that declares no broker."
+          },
+          "default": {
+            "type": "boolean"
+          },
+          "entities": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The load: the entities its spaces hold, as API/01 §29 counts them.",
+            "minimum": 0
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "health": {
+            "$ref": "#/components/schemas/Health"
+          },
+          "name": {
+            "type": "string"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the broker is `down` or `unknown`, or why a space's count is missing."
+          },
+          "size": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "spaces": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The spaces living on it, as `project/space`."
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Brokers": {
+        "type": "object",
+        "description": "The organization's brokers.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Broker"
+            }
+          }
+        }
+      },
       "BuildEntry": {
         "type": "object",
         "description": "One successful build of an App, as Restore offers it (AP-171).",
@@ -18218,23 +18346,13 @@
         }
       },
       "Health": {
-        "type": "object",
-        "required": [
-          "name",
-          "version",
-          "status"
-        ],
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "version": {
-            "type": "string"
-          }
-        }
+        "type": "string",
+        "description": "Whether a broker answered its health.",
+        "enum": [
+          "up",
+          "down",
+          "unknown"
+        ]
       },
       "Identity": {
         "type": "object",
@@ -21925,9 +22043,14 @@
         "description": "What one space holds.",
         "required": [
           "entities",
+          "broker",
           "observedAt"
         ],
         "properties": {
+          "broker": {
+            "type": "string",
+            "description": "The `ContextBroker` the space lives on, which counted it (PF-111)."
+          },
           "entities": {
             "type": "integer",
             "format": "int64",

@@ -596,6 +596,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/brokers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Context Brokers
+         * @description Every context broker of the organization with its spaces, version, health and load (API/01 §42, PF-116). Organization administrators only.
+         */
+        get: operations["list_brokers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organization/datamodels": {
         parameters: {
             query?: never;
@@ -3661,6 +3681,32 @@ export interface components {
             /** @default strict */
             validation: components["schemas"]["Validation"];
         };
+        /** @description One broker as the Portal sees it. */
+        Broker: {
+            /** @description `false` for the implicit `main` of an organization that declares no broker. */
+            declared: boolean;
+            default: boolean;
+            /**
+             * Format: int64
+             * @description The load: the entities its spaces hold, as API/01 §29 counts them.
+             */
+            entities: number;
+            features: string[];
+            health: components["schemas"]["Health"];
+            name: string;
+            /** Format: date-time */
+            observedAt: string;
+            /** @description Why the broker is `down` or `unknown`, or why a space's count is missing. */
+            reason?: string | null;
+            size?: string | null;
+            /** @description The spaces living on it, as `project/space`. */
+            spaces: string[];
+            version?: string | null;
+        };
+        /** @description The organization's brokers. */
+        Brokers: {
+            items: components["schemas"]["Broker"][];
+        };
         /** @description One successful build of an App, as Restore offers it (AP-171). */
         BuildEntry: {
             commit: string;
@@ -4582,11 +4628,11 @@ export interface components {
         GroupRef: {
             name: string;
         };
-        Health: {
-            name: string;
-            status: string;
-            version: string;
-        };
+        /**
+         * @description Whether a broker answered its health.
+         * @enum {string}
+         */
+        Health: "up" | "down" | "unknown";
         /** @description Who is signed in. Returned by `GET /api/v1/auth/me` and used by every protected route. */
         Identity: {
             email?: string | null;
@@ -5910,6 +5956,8 @@ export interface components {
         };
         /** @description What one space holds. */
         SpaceUsage: {
+            /** @description The `ContextBroker` the space lives on, which counted it (PF-111). */
+            broker: string;
             /**
              * Format: int64
              * @description The entities of the space's tenant, as the broker counts them.
@@ -7520,6 +7568,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_brokers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The brokers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Brokers"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an organization administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
             };
         };
     };

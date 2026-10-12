@@ -34,6 +34,8 @@ const TIMEOUT: Duration = Duration::from_secs(5);
 pub struct SpaceUsage {
     /// The entities of the space's tenant, as the broker counts them.
     pub entities: u64,
+    /// The `ContextBroker` the space lives on, which counted it (PF-111).
+    pub broker: String,
     /// When the broker answered.
     #[schema(value_type = String, format = DateTime)]
     pub observed_at: DateTime<Utc>,
@@ -138,6 +140,7 @@ impl Counter {
         };
         let usage = SpaceUsage {
             entities,
+            broker: broker_name.to_owned(),
             observed_at: now,
         };
         self.cache
@@ -145,6 +148,46 @@ impl Counter {
             .unwrap_or_else(|e| e.into_inner())
             .insert(key, usage.clone());
         Ok(usage)
+    }
+
+    /// Whether the Portal has an address for broker `broker_name`.
+    pub fn reaches(&self, broker_name: &str) -> bool {
+        crate::spaces::broker_address(
+            broker_name,
+            self.broker.as_deref(),
+            self.template.as_deref(),
+        )
+        .is_some()
+    }
+
+    /// The version broker `broker_name` reports on `GET /q/health`, or why it is not up
+    /// (API/01 §42). Asked on every call: a health answer kept for minutes would hide an outage.
+    pub async fn health(&self, broker_name: &str) -> Result<String, String> {
+        let broker = crate::spaces::broker_address(
+            broker_name,
+            self.broker.as_deref(),
+            self.template.as_deref(),
+        )
+        .ok_or_else(|| {
+            "the Portal has no address for this broker (JC_PORTAL_BROKER_URL, \
+             JC_PORTAL_BROKER_URL_TEMPLATE)"
+                .to_owned()
+        })?;
+        let response = self
+            .http
+            .get(format!("{broker}/q/health"))
+            .send()
+            .await
+            .map_err(|err| {
+                tracing::warn!(broker_name, error = %err.without_url(), "a broker did not answer its health");
+                "the broker did not answer; try again in a minute".to_owned()
+            })?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(format!("the broker answered {status} for its health"));
+        }
+        let body: Value = response.json().await.unwrap_or(Value::Null);
+        Ok(body["version"].as_str().unwrap_or_default().to_owned())
     }
 }
 
