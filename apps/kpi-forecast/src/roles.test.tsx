@@ -19,6 +19,9 @@ import { inProcess } from "./test-analyser";
 import { memoryServer, STEWARD, VIEWER } from "./test-server";
 import { sweep } from "./testing/sweep";
 
+// A sweep presses every control: a slow CI runner takes several times a laptop's 4 s.
+const SWEEP = 30_000;
+
 vi.mock("echarts", () => ({ init: vi.fn(() => ({ setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn(), on: vi.fn() })) }));
 
 const READ = {
@@ -247,7 +250,7 @@ describe("a steward", () => {
       // Back on the indicators, once the analysis settled and the publications were read again.
       await screen.findByText("Last week's");
       await act(async () => sweep(main()));
-    });
+    }, SWEEP);
   }
 });
 
