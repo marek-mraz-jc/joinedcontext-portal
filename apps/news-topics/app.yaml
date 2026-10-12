@@ -37,6 +37,19 @@ spec:
   # The news endpoint of Helsinki is public (GW22): an anonymous reader gets what the public
   # role is granted and nothing more.
   visibility: public
+  # Who edits what (T-3828): the App's own tables only, never the context data.
+  roles:
+    - name: viewer
+      title: { en: "Viewer", fi: "Katselija" }
+      description: "Follows topics of their own, each by its top keyword, and stops following them; reads every topic name."
+    - name: steward
+      title: { en: "Steward", fi: "Ylläpitäjä" }
+      description: "What a viewer does, and names a topic, renames it or merges topics by giving them one name, which everyone reads. Reads the whole history."
+  access:
+    - role: viewer
+      subjects: [{ group: news-topics-viewer }]
+    - role: steward
+      subjects: [{ group: news-topics-steward }]
   lifecycle: published
   dataNeeds:
     - contextSpaceRef:
