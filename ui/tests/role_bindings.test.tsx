@@ -178,6 +178,16 @@ describe("people and roles", () => {
     expect(asked.filter((path) => /\/(rolebindings|roles|spaces)$/.test(path))).toEqual([]);
   });
 
+  it("lists the bindings to a role that reads them but not the spaces, never stuck at loading", async () => {
+    // T-4027: the unasked-for spaces list stayed pending, so the table never left "Loading".
+    const fetchMock = renderAccess({ grants: [{ rule: { kinds: ["RoleBinding", "Role"], verbs: ["read"] } }] });
+
+    expect(await screen.findByText("demo.steward@hel.fi")).toBeInTheDocument();
+    expect(within(roles()).queryByText(en.app.loading)).not.toBeInTheDocument();
+    const asked = fetchMock.mock.calls.map(([input]) => new URL((input as Request).url).pathname);
+    expect(asked.filter((path) => path.endsWith("/spaces"))).toEqual([]);
+  });
+
   it("proposes the binding the form shows to the organization's route and shows the red change", async () => {
     const fetchMock = renderAccess({ grants: ADMIN });
 
