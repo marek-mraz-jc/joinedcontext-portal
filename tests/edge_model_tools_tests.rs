@@ -322,6 +322,66 @@ async fn the_catalogue_route_forwards_one_boolean_and_nothing_else_of_the_query(
     }
 }
 
+/// T-3840: `subject` names catalogue subjects to fill, comma-separated, at most eight, each in the
+/// catalogue's own `dataModel.<Name>` spelling. A valid list reaches Model Tools one subject per
+/// request, the refresh only on the first; anything else is refused before the service is asked.
+#[tokio::test]
+async fn subjects_reach_the_catalogue_one_per_request_and_nothing_else_does() {
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, ResponseTemplate};
+    let service = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/catalog"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"subjects": []})))
+        .mount(&service)
+        .await;
+    let config = config_for(&service);
+    let nine = (0..9)
+        .map(|i| format!("dataModel.S{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    for query in [
+        "?subject=Parking".to_owned(),
+        "?subject=dataModel.".to_owned(),
+        "?subject=dataModel.Park/../x".to_owned(),
+        "?subject=dataModel.Parking,https://evil.example".to_owned(),
+        format!("?subject={nine}"),
+    ] {
+        let (status, body) = send(
+            &config,
+            "GET",
+            &format!("/api/v1/tools/sdm-catalog{query}"),
+            "",
+            Vec::new(),
+            false,
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{query}: {body}");
+    }
+    assert!(
+        asked(&service).await.is_empty(),
+        "a refused subject reached the service"
+    );
+
+    let (status, body) = send(
+        &config,
+        "GET",
+        "/api/v1/tools/sdm-catalog?refresh=true&subject=dataModel.Parking,%20dataModel.Environment,",
+        "",
+        Vec::new(),
+        false,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(
+        asked(&service).await,
+        vec![
+            "GET /catalog?refresh=true&subject=dataModel.Parking".to_owned(),
+            "GET /catalog?refresh=false&subject=dataModel.Environment".to_owned(),
+        ],
+    );
+}
+
 // -------------------------------------------------------------------------------------------------
 // T-2080 infer_schema
 // -------------------------------------------------------------------------------------------------
