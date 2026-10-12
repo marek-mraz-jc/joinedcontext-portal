@@ -27,17 +27,50 @@ export const REPRESENTATION_PATHS: Record<string, string> = {
   sta: "/sta/v1.1",
 };
 
+/** Every representation an Endpoint may serve, in jc-core's `Representation::ALL` order. */
+export const ALL_REPRESENTATIONS = [
+  "ngsi-ld",
+  "mcp",
+  "geojson",
+  "csv",
+  "xlsx",
+  "json",
+  "zip",
+  "ogc-features",
+  "sta",
+  "odata",
+  "websocket",
+] as const;
+
+/** Served by every Endpoint whatever it lists: `mcp` only while `spec.mcp` is not `false`. */
+export function alwaysServed(spec: { mcp?: unknown }): string[] {
+  return spec.mcp === false ? ["ngsi-ld", "geojson"] : ["ngsi-ld", "geojson", "mcp"];
+}
+
+function names(list: unknown): string[] | undefined {
+  return Array.isArray(list) ? list.filter((rep): rep is string => typeof rep === "string") : undefined;
+}
+
 /**
- * What an Endpoint serves: the representations its manifest lists, then `ngsi-ld` and
- * `geojson`, which every Endpoint serves (EP-10, T-2939), and `mcp`, which every Endpoint
- * serves, public or internal, unless `spec.mcp` is `false` (EP-24). The gateway reads the same
- * rule, so a link shown here answers there; its Policy still decides every call.
+ * What an Endpoint serves: the representations its manifest lists or, when it lists none,
+ * every one but `sta` less `disabledRepresentations` (EP-104); then `ngsi-ld` and `geojson`,
+ * which every Endpoint serves (EP-10, T-2939), and `mcp`, which every Endpoint serves, public
+ * or internal, unless `spec.mcp` is `false` (EP-24). The gateway reads the same rule
+ * (jc-core's `served_representations`), so a link shown here answers there; its Policy still
+ * decides every call.
  */
-export function servedRepresentations(spec: { enabledRepresentations?: unknown; mcp?: unknown }): string[] {
-  const listed = Array.isArray(spec.enabledRepresentations)
-    ? spec.enabledRepresentations.filter((rep): rep is string => typeof rep === "string")
-    : [];
-  const always = spec.mcp === false ? ["ngsi-ld", "geojson"] : ["ngsi-ld", "geojson", "mcp"];
+export function servedRepresentations(spec: {
+  enabledRepresentations?: unknown;
+  disabledRepresentations?: unknown;
+  mcp?: unknown;
+}): string[] {
+  const always = alwaysServed(spec);
+  const disabled = names(spec.disabledRepresentations) ?? [];
+  const listed =
+    names(spec.enabledRepresentations) ??
+    ALL_REPRESENTATIONS.filter(
+      (rep) => rep !== "sta" && !disabled.includes(rep) && (rep !== "mcp" || always.includes("mcp")),
+    );
   return [...listed, ...always.filter((rep) => !listed.includes(rep))];
 }
 

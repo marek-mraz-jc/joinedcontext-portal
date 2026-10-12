@@ -11,6 +11,7 @@ import { download } from "@joinedcontext/sdk";
 import { Alert, Button, Dialog, Field, FilePicker, Select, safeHref } from "../../components/ui";
 import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui/Table";
 import type { Manifest } from "../../api/manifest";
+import { servedRepresentations } from "../../components/endpoints/links";
 import {
   EXPORTS,
   ID,
@@ -335,8 +336,9 @@ export function ExportLinks({
   const { t } = useTranslation();
   const offering = endpoints
     .map((endpoint) => {
-      const spec = (endpoint.spec ?? {}) as { slug?: string; enabledRepresentations?: string[] };
-      const formats = EXPORTS.filter((format) => (spec.enabledRepresentations ?? []).includes(format));
+      const spec = (endpoint.spec ?? {}) as { slug?: string };
+      const served = servedRepresentations(endpoint.spec ?? {});
+      const formats = EXPORTS.filter((format) => served.includes(format));
       return { name: endpoint.metadata.name, slug: spec.slug ?? "", formats };
     })
     .filter((endpoint) => endpoint.slug && endpoint.formats.length > 0);

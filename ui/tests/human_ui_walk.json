@@ -163,6 +163,7 @@
     "src/pages/spaces/SpaceDrift.tsx": null,
     "src/pages/spaces/SpaceInside.tsx": null,
     "src/pages/spaces/TypeApi.tsx": null,
+    "src/pages/spaces/UploadCsv.tsx": null,
     "src/pages/sync/SyncSourcesPage.tsx": null,
     "src/pages/workspaces/BringBackPage.tsx": null,
     "src/pages/workspaces/TryItPage.tsx": null,

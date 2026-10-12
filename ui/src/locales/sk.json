@@ -966,6 +966,27 @@
       "removeOne": "Odstrániť váš komentár z {when}",
       "unknown": "Bez upozornenia, lebo nemôžu čítať tento priestor: {names}",
       "writeFirst": "Najprv napíšte komentár."
+    },
+    "upload": {
+      "open": "Nahrať CSV",
+      "title": "Nahrať CSV",
+      "lead": "Vyberte CSV do 50 MB. Porovná sa s typmi Smart Data Models; model, priestor, jeho Endpoint a vaše právo zapisovať riadky sa navrhnú ako jedna zmena a keď je zmena nasadená, riadky sa zapíšu cez bránu pod vaším menom.",
+      "choose": "Vybrať súbor CSV",
+      "type": "Čo riadky sú",
+      "noMatch": "Žiadny typ Smart Data Models nepomenúva dosť týchto stĺpcov: súbor dostane vlastný model.",
+      "match": "{name} ({score} % stĺpcov)",
+      "own": "Vlastný model",
+      "ownType": "Názov typu",
+      "ownTypeHint": "Jedno slovo s veľkým začiatočným písmenom, napríklad Garage.",
+      "space": "Názov priestoru",
+      "notReady": "Najprv vyberte súbor, typ a priestor.",
+      "propose": "Navrhnúť zmenu",
+      "proposing": "Navrhuje sa…",
+      "afterApproval": "Keď je zmena schválená a nasadená, zapíšte riadky do {space} ako {type}. Opätovný zápis toho istého súboru aktualizuje tie isté entity.",
+      "noSlots": "Navrhnutý model nedeklaruje pre tento typ žiadne polia: nie je čo zapísať.",
+      "write": "{count, plural, =0 {Nie je čo zapísať} one {Zapísať # riadok} few {Zapísať # riadky} other {Zapísať # riadkov}}",
+      "done": "{written, plural, =0 {Nezapísal sa žiadny riadok} one {Zapísaný # riadok} few {Zapísané # riadky} other {Zapísaných # riadkov}}, {refused, plural, =0 {žiadny odmietnutý.} other {odmietnutých: #.}}",
+      "preview": "Náhľad {count, plural, one {prvej # entity} few {prvých # entít} other {prvých # entít}} ako NGSI-LD"
     }
   },
   "endpoints": {
@@ -1154,6 +1175,8 @@
       "xlsx": "Excel (xlsx)",
       "zip": "ZIP na stiahnutie",
       "ogc-features": "OGC API Features",
+      "odata": "OData v4",
+      "websocket": "Notifikácie cez WebSocket",
       "sta": "SensorThings API",
       "mcp": "MCP pre AI asistentov"
     },

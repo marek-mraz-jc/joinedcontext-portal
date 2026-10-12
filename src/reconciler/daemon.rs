@@ -2624,6 +2624,7 @@ fn published_events(reports: &[super::ckan::Report]) -> Vec<ActivityEvent> {
                     dataset,
                     outcome,
                     rows,
+                    no_linkml,
                 } => {
                     if matches!(
                         outcome,
@@ -2636,10 +2637,17 @@ fn published_events(reports: &[super::ckan::Report]) -> Vec<ActivityEvent> {
                         Some(count) => format!(", sheet of {count} rows"),
                         None => String::new(),
                     };
+                    // EP-68: a model without its LinkML still publishes, linked to the schema
+                    // index; the event says so, so the author can add the artifact.
+                    let linkml = if *no_linkml {
+                        " Its model has no LinkML, so the dataset links the schema index instead."
+                    } else {
+                        ""
+                    };
                     (
-                        format!("Endpoint {} is dataset {dataset}{rows}.", report.endpoint),
+                        format!("Endpoint {} is dataset {dataset}{rows}.{linkml}", report.endpoint),
                         "info",
-                        serde_json::json!({ "dataset": dataset, "rows": rows, "object": format!("endpoints/{}", report.endpoint) }),
+                        serde_json::json!({ "dataset": dataset, "rows": rows, "noLinkml": no_linkml, "object": format!("endpoints/{}", report.endpoint) }),
                     )
                 }
                 Publication::Withdrawn { dataset } => (
@@ -2692,6 +2700,7 @@ mod tests {
                     dataset: "air".into(),
                     outcome: jcctl::publish::ckan::Outcome::Created,
                     rows: Some(3),
+                    no_linkml: true,
                 },
             ),
             report(
@@ -2700,6 +2709,7 @@ mod tests {
                     dataset: "same".into(),
                     outcome: jcctl::publish::ckan::Outcome::Unchanged,
                     rows: None,
+                    no_linkml: false,
                 },
             ),
             report(
@@ -2724,6 +2734,12 @@ mod tests {
         );
         assert_eq!(events[2].severity, "error");
         assert_eq!(events[2].details["reason"], "catalogue answered 403");
+        assert_eq!(events[0].details["noLinkml"], true, "EP-68 is in the event");
+        assert!(
+            events[0].summary.contains("no LinkML"),
+            "{}",
+            events[0].summary
+        );
         assert!(events
             .iter()
             .all(|event| event.kind == "catalogue.published"));
