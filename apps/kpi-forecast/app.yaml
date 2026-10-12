@@ -67,4 +67,4 @@ spec:
       operations: [queryEntity, retrieveEntity, queryTemporal, retrieveTemporal]
       temporalQ:
         window: P90D
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]

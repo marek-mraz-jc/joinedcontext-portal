@@ -37,4 +37,4 @@ spec:
       types: [PointOfInterest, GtfsStop, AirQualityObserved]
       attrs: [name, location, address, monumentNumber, monumentKind, architecturalStyle, constructionPeriod, cadastralArea, ownershipForm, dailyDepartures, dateObserved, pm10, pm25, no2, o3, co]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]

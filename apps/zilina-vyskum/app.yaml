@@ -36,4 +36,4 @@ spec:
       types: [CreativeWork]
       attrs: [name, workType, yearPublished, isPartOf, license, url]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]

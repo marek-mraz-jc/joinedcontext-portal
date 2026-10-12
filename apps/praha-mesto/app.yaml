@@ -36,4 +36,4 @@ spec:
         name: praha-mesto
       types: [BikeHireDockingStation, OffStreetParking, AirQualityObserved]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]

@@ -37,7 +37,7 @@ spec:
       types: [PointOfInterest, GtfsStop, AirQualityObserved]
       attrs: [name, monumentKind, architecturalStyle, constructionPeriod, cadastralArea, ownershipForm, monumentNumber, address, dailyDepartures, stopCode, pm10, pm25, no2, o3, co, dateObserved]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]
     - contextSpaceRef:
         kind: ContextSpace
         name: zilina-uniza

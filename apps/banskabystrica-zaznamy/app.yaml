@@ -44,7 +44,7 @@ spec:
       # names an attribute, so an attribute missing here is a filter the endpoint refuses.
       attrs: [indicator, refArea, refPeriod, observationValue, unitText, dateObserved, stewardNote]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]
     # The one write, a need of its own: a need's attrs bound every operation it names, so the
     # write named beside the columns above would let a person type over a published figure the
     # next pipeline run overwrites (AP-62, T-3596).

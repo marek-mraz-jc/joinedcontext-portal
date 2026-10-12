@@ -828,3 +828,27 @@ fn the_wasm_templates_lock_is_in_the_runners_store() {
         "{manifest}"
     );
 }
+
+/// T-4073, T-4074, EP-104: every sample App's Endpoint serves OGC API Features beside its own
+/// representations, read only. WebSocket stays a need's own choice: a subscription is a write for
+/// an App (AP-09), so an App that follows live data subscribes on its space's public Endpoint.
+#[test]
+fn every_sample_app_endpoint_serves_ogc_features() {
+    for (name, _) in reference_apps() {
+        let endpoints: Vec<RawManifest> = held_grants(&name)
+            .into_iter()
+            .filter_map(|(_, text)| serde_yaml_ng::from_str::<RawManifest>(&text).ok())
+            .filter(|raw| raw.kind == "Endpoint")
+            .collect();
+        for endpoint in endpoints {
+            let representations = endpoint.spec["enabledRepresentations"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+            assert!(
+                representations.contains(&serde_json::json!("ogc-features")),
+                "apps/{name}: its Endpoint serves no ogc-features"
+            );
+        }
+    }
+}

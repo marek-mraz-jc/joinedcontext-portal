@@ -16,4 +16,5 @@ spec:
     name: zilina-uniza
   enabledRepresentations:
   - ngsi-ld
+  - ogc-features
   slug: u2xp2bnmai7hyioora2qdvtphr

@@ -38,4 +38,4 @@ spec:
       types: [Event, School, AirQualityObserved]
       attrs: [name, location, address, url, startDate, endDate, startTime, eventCategory, pupilCount, teachingLanguage, dateObserved, pm10, pm25]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld]
+      representations: [ngsi-ld, ogc-features]

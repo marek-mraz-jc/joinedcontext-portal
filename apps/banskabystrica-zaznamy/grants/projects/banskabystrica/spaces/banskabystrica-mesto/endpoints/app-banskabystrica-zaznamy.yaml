@@ -18,4 +18,5 @@ spec:
     name: banskabystrica-mesto
   enabledRepresentations:
   - ngsi-ld
+  - ogc-features
   slug: i4sngyhtq6ifgjt4nwv5eacvhw
