@@ -249,6 +249,16 @@
         "drift_modal.test.tsx"
       ]
     },
+    "src/components/endpoints/links.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "browser_security.test.tsx",
+        "endpoint_reads_name_a_type.test.tsx",
+        "part_endpoint_links.test.tsx"
+      ]
+    },
     "src/components/entities/AddFieldDialog.tsx": {
       "controls": {
         "Button": 3,
@@ -1677,7 +1687,7 @@
     },
     "src/routes/EndpointsPage.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 3
       },
       "tests": [
         "edit_prefill.test.tsx",

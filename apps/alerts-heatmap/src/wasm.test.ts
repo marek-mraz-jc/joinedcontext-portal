@@ -18,11 +18,11 @@ describe("the compiled analysis", () => {
     expect(out.hexes[0].count).toBe(4);
     // Mondays 05:00–05:45 UTC are 08:00 in Helsinki in October (summer time until the 27th).
     expect(out.busiest).toEqual({ weekday: 0, hour: 8, count: 4 });
-    expect(out.subCategories.map((s) => s.name)).toEqual(["ROAD_WORK", "TRAFFIC_ANNOUNCEMENT"]);
+    expect(out.subCategories.map((s) => s.name)).toEqual(["roadWorks", "carAccident"]);
   });
 
   it("filters over the whole set and keeps the choices", async () => {
-    const out = await inProcess({ alerts: ALERTS.map(toInput), filter: { subCategories: ["TRAFFIC_ANNOUNCEMENT"] } });
+    const out = await inProcess({ alerts: ALERTS.map(toInput), filter: { subCategories: ["carAccident"] } });
     expect(out.kept).toBe(3);
     expect(out.places).toEqual([]);
     expect(out.subCategories).toHaveLength(2);

@@ -43,7 +43,7 @@ test("a click on an hour of the week keeps only that hour, and the address says 
 test("saves the view as a report with its map picture, and shows it again from the list", async ({ page }) => {
   const { outside, missing, problems } = await serve(page);
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto(`${BASE}?lang=en&kind=ROAD_WORK`);
+  await page.goto(`${BASE}?lang=en&kind=roadWorks`);
   await expect(page.locator(".app-summary")).toHaveText(/ alerts /);
   await expect(page.getByRole("table", { name: "Repeat places week by week" }).getByRole("row")).toHaveCount(3);
   await page.getByLabel("Report name").fill("Road works");
@@ -55,7 +55,7 @@ test("saves the view as a report with its map picture, and shows it again from t
   await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBeNull();
   await page.reload();
   await page.getByRole("button", { name: "Show the report Road works" }).click();
-  await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBe("ROAD_WORK");
+  await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBe("roadWorks");
   await expect(page.getByRole("button", { name: "Open the map picture of Road works" })).toBeVisible();
   expect(await layoutProblems(page)).toEqual([]);
   expect({ outside, missing, problems }).toEqual({ outside: [], missing: [], problems: [] });
@@ -96,7 +96,7 @@ for (const scheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
       const { outside, missing, problems } = await serve(page);
       await page.setViewportSize({ width, height: 900 });
-      await page.goto(`${BASE}?lang=en&kind=ROAD_WORK`);
+      await page.goto(`${BASE}?lang=en&kind=roadWorks`);
       await expect(page.getByLabel("Role: Viewer")).toBeVisible();
       await expect(page.locator(".app-summary")).toHaveText(/ alerts /);
       await page.getByLabel("Name of the filter").fill("Road works");
@@ -105,7 +105,7 @@ for (const scheme of ["light", "dark"] as const) {
       await page.getByRole("button", { name: "Clear filters" }).click();
       await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBeNull();
       await page.getByRole("button", { name: "Apply Road works" }).click();
-      await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBe("ROAD_WORK");
+      await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBe("roadWorks");
       const acknowledge = page.getByRole("button", { name: /^Acknowledge Kehä I/ });
       await expect(acknowledge).toBeDisabled();
       await expect(acknowledge).toHaveAttribute("title", "Only a steward acknowledges alerts.");
