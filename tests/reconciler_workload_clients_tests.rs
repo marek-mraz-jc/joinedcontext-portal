@@ -894,3 +894,154 @@ async fn the_apps_job_accounts_follow_the_apps_jobs() {
     assert!(applied.is_empty(), "{applied:?}");
     assert_eq!(deleted, vec!["appjob-zilina-kpi".to_owned()]);
 }
+
+const EC_X: &str = "f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU";
+const EC_Y: &str = "x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0";
+
+/// A device account of `project` writing into space `air`, signing in by the public key `key`.
+fn device(project: &str, name: &str, key: Value) -> ResourceEnvelope {
+    envelope(
+        "ServiceAccount",
+        project,
+        name,
+        json!({
+            "owner": { "user": "jana.kovacova@hel.fi" },
+            "purpose": "camera north publishes its frames",
+            "roles": [{ "role": "space-writer", "scope": { "contextSpace": "air" } }],
+            "credentials": [{ "kind": "oauth-client", "name": "main", "jwks": { "keys": [key] } }],
+        }),
+    )
+}
+
+fn ec(kid: &str) -> Value {
+    json!({ "kty": "EC", "crv": "P-256", "kid": kid, "x": EC_X, "y": EC_Y, "alg": "ES256", "use": "sig" })
+}
+
+/// T-4015, PF-47: a device signs in by its own key pair. Its client checks the device's assertion
+/// against the declared public keys, has the audiences its roles name (an MQTT broker's among
+/// them), and holds no secret anyone reads.
+#[tokio::test]
+async fn a_device_gets_a_client_jwt_client_for_its_public_keys_and_no_secret() {
+    let keycloak = realm(json!([])).await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/clients")))
+        .and(query_param("clientId", "helsinki-cam-north"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .up_to_n_times(1)
+        .mount(&keycloak)
+        .await;
+    let mut held = joinedcontext_portal::reconciler::workload_clients::device_desired(
+        "helsinki",
+        "cam-north",
+        &serde_json::from_value(json!({ "keys": [ec("cam-2026")] })).expect("a key set"),
+    );
+    held["id"] = json!("uuid-cam");
+    client_lookup(&keycloak, "helsinki-cam-north", json!([held])).await;
+    Mock::given(method("POST"))
+        .and(path(format!("{REALM}/clients")))
+        .respond_with(ResponseTemplate::new(201))
+        .mount(&keycloak)
+        .await;
+    mappers(&keycloak, "uuid-cam", json!([])).await;
+    let broker = envelope(
+        "MqttBroker",
+        "helsinki",
+        "cameras",
+        json!({ "roles": [{ "name": "camera", "serviceAccounts": ["cam-north"], "publish": ["cameras/${clientid}/#"] }] }),
+    );
+
+    let outcomes = sync(&keycloak)
+        .converge(&mirror_with(vec![
+            device("helsinki", "cam-north", ec("cam-2026")),
+            endpoint("helsinki", "air-all", "air", SLUG),
+            broker,
+        ]))
+        .await;
+
+    assert_eq!(outcomes.len(), 1, "{outcomes:?}");
+    assert_eq!(outcomes[0].app, "helsinki/cam-north");
+    assert_eq!(outcomes[0].error, None, "{outcomes:?}");
+    let created = &bodies(&keycloak, "POST", &format!("{REALM}/clients")).await[0];
+    assert_eq!(created["clientId"], "helsinki-cam-north");
+    assert_eq!(created["clientAuthenticatorType"], "client-jwt");
+    assert_eq!(created["attributes"]["use.jwks.string"], "true");
+    assert_eq!(created["attributes"]["use.jwks.url"], "false");
+    let keys: Value = serde_json::from_str(
+        created["attributes"]["jwks.string"]
+            .as_str()
+            .expect("a key set"),
+    )
+    .expect("JSON");
+    assert_eq!(keys["keys"][0]["kid"], "cam-2026");
+    assert!(keys["keys"][0].get("d").is_none());
+    assert_eq!(created["attributes"][MANAGED_BY], MANAGED_VALUE);
+    assert_eq!(created["serviceAccountsEnabled"], true);
+    for flow in [
+        "standardFlowEnabled",
+        "implicitFlowEnabled",
+        "directAccessGrantsEnabled",
+        "publicClient",
+    ] {
+        assert_eq!(created[flow], false, "{flow}");
+    }
+    let audiences: Vec<Value> = bodies(
+        &keycloak,
+        "POST",
+        &format!("{REALM}/clients/uuid-cam/protocol-mappers/models"),
+    )
+    .await
+    .iter()
+    .map(|mapper| mapper["config"]["included.custom.audience"].clone())
+    .collect();
+    assert_eq!(audiences, [json!(SLUG), json!("mqtt-helsinki-cameras")]);
+    let asked: Vec<String> = keycloak
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .map(|r| r.url.path().to_owned())
+        .collect();
+    assert!(
+        !asked.iter().any(|p| p.ends_with("/client-secret")),
+        "{asked:?}"
+    );
+}
+
+/// T-4015: a device whose key set is gone, or whose key set the kind refuses, has no client; a
+/// managed one is deleted.
+#[tokio::test]
+async fn a_device_without_a_valid_key_set_loses_its_client() {
+    let mut held = joinedcontext_portal::reconciler::workload_clients::device_desired(
+        "helsinki",
+        "cam-north",
+        &serde_json::from_value(json!({ "keys": [ec("cam-2026")] })).expect("a key set"),
+    );
+    held["id"] = json!("uuid-cam");
+    let mut south = held.clone();
+    south["id"] = json!("uuid-south");
+    south["clientId"] = json!("helsinki-cam-south");
+    south["attributes"]["joinedcontext.serviceaccount"] = json!("helsinki/cam-south");
+    let keycloak = realm(json!([held, south])).await;
+    let mut gone = device("helsinki", "cam-north", ec("k"));
+    gone.spec["credentials"] = json!([{ "kind": "oauth-client", "name": "main" }]);
+    let private = {
+        let mut key = ec("k");
+        key["d"] = json!("jpsQnnGQmL-YBIffH1136cspYG6-0iY7X1fCE9-E9LI");
+        device("helsinki", "cam-south", key)
+    };
+
+    let outcomes = sync(&keycloak)
+        .converge(&mirror_with(vec![gone, private]))
+        .await;
+
+    let mut deleted = wrote(&keycloak).await;
+    deleted.sort();
+    assert_eq!(
+        deleted,
+        [
+            format!("DELETE {REALM}/clients/uuid-cam"),
+            format!("DELETE {REALM}/clients/uuid-south")
+        ]
+    );
+    assert!(outcomes.iter().all(|o| o.error.is_none()), "{outcomes:?}");
+}

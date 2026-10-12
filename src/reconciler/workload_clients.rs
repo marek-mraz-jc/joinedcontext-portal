@@ -15,6 +15,10 @@
 //! the same way to `appjob-{project}-{app}` in the identities namespace, and its one audience is
 //! the App's own Endpoint.
 //!
+//! A device outside the cluster has no pod token to present: an account whose `oauth-client`
+//! credential declares a public key set gets the same client with `client-jwt` authentication
+//! against that set instead, and the same audiences (T-4015).
+//!
 //! This wave is the only writer of such a client, as the App wave is of an App's: the client
 //! carries `managed-by: joinedcontext` and the account it belongs to, a change made in the
 //! console is written back and reported, and a managed client whose account is gone or no longer
@@ -25,6 +29,7 @@
 use crate::config::ClientAuth;
 use std::collections::{BTreeMap, BTreeSet};
 
+use jc_core::kinds::service_account::Jwks;
 use jc_core::kinds::service_account::{keycloak_client_id, KubernetesBinding};
 use jc_core::kinds::ServiceAccountSpec;
 use serde_json::{json, Value};
@@ -70,6 +75,72 @@ pub fn desired(project: &str, name: &str, binding: &KubernetesBinding) -> Value 
             ACCOUNT_ATTRIBUTE: format!("{project}/{name}"),
         },
     })
+}
+
+/// The client a device account should have (PF-47, T-4015): the device signs its client
+/// assertion with a private key whose public half the account's `oauth-client` credential
+/// declares, so Keycloak verifies it against that set and no secret opens the client.
+pub fn device_desired(project: &str, name: &str, keys: &Jwks) -> Value {
+    json!({
+        "clientId": keycloak_client_id(project, name),
+        "name": format!("ServiceAccount {project}/{name}"),
+        "protocol": "openid-connect",
+        "enabled": true,
+        "publicClient": false,
+        "bearerOnly": false,
+        "standardFlowEnabled": false,
+        "implicitFlowEnabled": false,
+        "directAccessGrantsEnabled": false,
+        "serviceAccountsEnabled": true,
+        "clientAuthenticatorType": "client-jwt",
+        "attributes": {
+            "use.jwks.url": "false",
+            "use.jwks.string": "true",
+            "jwks.string": serde_json::to_string(keys).unwrap_or_default(),
+            "oauth2.device.authorization.grant.enabled": "false",
+            MANAGED_BY: MANAGED_VALUE,
+            ACCOUNT_ATTRIBUTE: format!("{project}/{name}"),
+        },
+    })
+}
+
+/// One account that signs in by its own key pair (T-4015).
+#[derive(Debug, Clone)]
+struct DeviceAccount {
+    project: String,
+    name: String,
+    spec: ServiceAccountSpec,
+    keys: Jwks,
+}
+
+/// The accounts of the mirror whose `oauth-client` credential declares a valid key set and that
+/// bind no workload, sorted. One the kind refuses gets no client: `validate` reports it.
+fn devices(mirror: &Mirror) -> Vec<DeviceAccount> {
+    let mut accounts: Vec<DeviceAccount> = mirror
+        .namespaces()
+        .into_iter()
+        .flat_map(|project| {
+            mirror
+                .list(&project, "ServiceAccount", &ListOptions::default())
+                .items
+                .into_iter()
+                .filter_map(move |envelope| {
+                    let spec: ServiceAccountSpec = serde_json::from_value(envelope.spec).ok()?;
+                    if spec.workload.is_some() || spec.validate().is_err() {
+                        return None;
+                    }
+                    let keys = spec.device_keys()?.clone();
+                    Some(DeviceAccount {
+                        project: project.clone(),
+                        name: envelope.metadata.name,
+                        spec,
+                        keys,
+                    })
+                })
+        })
+        .collect();
+    accounts.sort_by(|a, b| (&a.project, &a.name).cmp(&(&b.project, &b.name)));
+    accounts
 }
 
 /// The audiences an account's token carries (PF-47): the slug of every Endpoint of `project` on
@@ -504,7 +575,12 @@ impl WorkloadClientSync {
         if let Some(namespace) = &self.app_jobs {
             accounts.extend(app_job_accounts(mirror, namespace));
         }
-        let wanted: BTreeSet<String> = accounts.iter().map(BoundAccount::label).collect();
+        let devices = devices(mirror);
+        let wanted: BTreeSet<String> = accounts
+            .iter()
+            .map(BoundAccount::label)
+            .chain(devices.iter().map(|d| format!("{}/{}", d.project, d.name)))
+            .collect();
         let refused = contested(&accounts, &listed);
         for account in &accounts {
             if let Some(reason) = refused.get(&account.label()) {
@@ -515,20 +591,26 @@ impl WorkloadClientSync {
             }
             let audiences = match &account.reach {
                 Reach::Roles(spec) => {
-                    // And every MQTT broker whose roles name the account (ADR-N-048 §2.7).
-                    let mut found = audiences(mirror, &account.project, spec, &self.portal);
-                    found.extend(super::mqtt_brokers::audiences_of(
-                        mirror,
-                        &account.project,
-                        &account.name,
-                    ));
-                    found.sort();
-                    found.dedup();
-                    found
+                    self.role_audiences(mirror, &account.project, &account.name, spec)
                 }
                 Reach::Endpoint(slug) => vec![slug.clone()],
             };
-            outcomes.push(self.converge_one(&token, account, &audiences).await);
+            let want = desired(&account.project, &account.name, &account.binding);
+            outcomes.push(
+                self.converge_one(&token, &account.project, &account.name, &want, &audiences)
+                    .await,
+            );
+        }
+        // A device signs in by its key pair and reaches what its roles name, as a bound account
+        // does (T-4015).
+        for device in &devices {
+            let audiences =
+                self.role_audiences(mirror, &device.project, &device.name, &device.spec);
+            let want = device_desired(&device.project, &device.name, &device.keys);
+            outcomes.push(
+                self.converge_one(&token, &device.project, &device.name, &want, &audiences)
+                    .await,
+            );
         }
 
         // A managed workload client no bound account names is this wave's to remove (PF-47).
@@ -556,7 +638,8 @@ impl WorkloadClientSync {
                     .await
                 {
                     Ok(_) => outcome.drift.push(
-                        "the account is gone or no longer bound to a workload, so its client was removed"
+                        "the account is gone, or binds no workload and declares no key set, so \
+                         its client was removed"
                             .to_owned(),
                     ),
                     Err(err) => outcome.error = Some(err),
@@ -568,15 +651,33 @@ impl WorkloadClientSync {
         outcomes
     }
 
+    /// What a token of an account whose roles decide its reach carries: [`audiences`], and every
+    /// MQTT broker whose roles name the account (ADR-N-048 §2.7).
+    fn role_audiences(
+        &self,
+        mirror: &Mirror,
+        project: &str,
+        name: &str,
+        spec: &ServiceAccountSpec,
+    ) -> Vec<String> {
+        let mut found = audiences(mirror, project, spec, &self.portal);
+        found.extend(super::mqtt_brokers::audiences_of(mirror, project, name));
+        found.sort();
+        found.dedup();
+        found
+    }
+
     async fn converge_one(
         &self,
         token: &str,
-        account: &BoundAccount,
+        project: &str,
+        name: &str,
+        want: &Value,
         audiences: &[String],
     ) -> ClientOutcome {
-        let mut outcome = ClientOutcome::of(&account.label());
-        let id = keycloak_client_id(&account.project, &account.name);
-        let want = desired(&account.project, &account.name, &account.binding);
+        let label = format!("{project}/{name}");
+        let mut outcome = ClientOutcome::of(&label);
+        let id = keycloak_client_id(project, name);
 
         let held = match self.admin.find(token, &id).await {
             Ok(held) => held,
@@ -591,10 +692,10 @@ impl WorkloadClientSync {
             .and_then(|a| a.get(ACCOUNT_ATTRIBUTE))
             .and_then(Value::as_str);
         let uuid = match held.as_ref() {
-            Some(client) if !managed(client) || owner != Some(account.label().as_str()) => {
+            Some(client) if !managed(client) || owner != Some(label.as_str()) => {
                 outcome.error = Some(format!(
                     "the realm holds a client {id} this wave did not create for this account; it \
-                     is left alone and the workload has no identity until it is renamed or \
+                     is left alone and the account has no identity until it is renamed or \
                      removed (PF-47)"
                 ));
                 return outcome;
@@ -604,7 +705,7 @@ impl WorkloadClientSync {
                     outcome.error = Some(format!("the realm answered {id} without an id"));
                     return outcome;
                 };
-                let found = drift(&want, client);
+                let found = drift(want, client);
                 if !found.is_empty() {
                     if let Err(err) = self
                         .admin
@@ -612,7 +713,7 @@ impl WorkloadClientSync {
                             token,
                             reqwest::Method::PUT,
                             &format!("/clients/{uuid}"),
-                            Some(&want),
+                            Some(want),
                         )
                         .await
                     {
@@ -626,7 +727,7 @@ impl WorkloadClientSync {
             None => {
                 if let Err(err) = self
                     .admin
-                    .send(token, reqwest::Method::POST, "/clients", Some(&want))
+                    .send(token, reqwest::Method::POST, "/clients", Some(want))
                     .await
                 {
                     outcome.error = Some(err);
