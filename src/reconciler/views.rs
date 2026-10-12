@@ -23,9 +23,9 @@
 use jc_core::envelope::ORG_NAMESPACE;
 use jc_core::kinds::data_model::ModelImport;
 use jc_core::kinds::{
-    ContextSpaceSpec, DataModelLifecycle, DataModelRef, DataModelSpec, EndpointSpec, MappingSpec,
-    ModelProjectionSpec, Operation, OperationRef, PolicySpec, PrincipalKind, ProjectedClass,
-    Projection, ProjectionFilter,
+    ContextSpaceSpec, DataAgreementSpec, DataModelLifecycle, DataModelRef, DataModelSpec,
+    DataOfferSpec, EndpointSpec, MappingSpec, ModelProjectionSpec, Operation, OperationRef,
+    PolicySpec, PrincipalKind, ProjectedClass, Projection, ProjectionFilter,
 };
 use jcctl::loader::Repository;
 use serde_json::{json, Map, Value};
@@ -193,6 +193,10 @@ impl Sources {
     /// out: the load already reported it.
     pub fn read(repo: &Repository) -> Self {
         let mut sources = Self::default();
+        // Data-space agreements and the offers they were made on, compiled once every Policy
+        // they narrow is read (DS-10, T-3927).
+        let mut offers = BTreeMap::new();
+        let mut agreements = Vec::new();
         let declared: Vec<(String, jc_core::kinds::ContextBrokerSpec)> = repo
             .iter()
             .filter(|(id, _)| id.kind == "ContextBroker")
@@ -269,6 +273,16 @@ impl Sources {
                 "App" => {
                     sources.apps.insert((project, id.name.clone()));
                 }
+                "DataOffer" => {
+                    if let Ok(spec) = serde_json::from_value::<DataOfferSpec>(spec.clone()) {
+                        offers.insert((project, id.name.clone()), spec);
+                    }
+                }
+                "DataAgreement" => {
+                    if let Ok(spec) = serde_json::from_value::<DataAgreementSpec>(spec.clone()) {
+                        agreements.push((project, id.name.clone(), spec));
+                    }
+                }
                 "Mapping" => {
                     let Ok(spec) = serde_json::from_value::<MappingSpec>(spec.clone()) else {
                         continue;
@@ -311,6 +325,26 @@ impl Sources {
                     .or_default()
                     .push((name, spec));
             }
+        }
+        // An accepted agreement is its offer's Policies for the participant's DID, narrowed
+        // (DS-10, DS-03): compiled from the Endpoints' bound Policies read above.
+        let bound = |project: &str, endpoint: &str| -> Vec<(String, PolicySpec)> {
+            sources
+                .endpoints
+                .iter()
+                .find(|e| e.project == project && e.name == endpoint)
+                .map(|e| {
+                    sources
+                        .bound(e)
+                        .into_iter()
+                        .map(|(name, policy)| (name.to_owned(), policy.clone()))
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        let compiled = super::agreements::compile_all(&agreements, &offers, bound);
+        for (space, policies) in compiled {
+            sources.policies.entry(space).or_default().extend(policies);
         }
         sources
     }
@@ -794,9 +828,15 @@ fn granted(
 fn parsed(model: &ModelSource) -> Vec<serde_yaml_ng::Value> {
     std::iter::once(&model.source)
         .chain(model.imports.values())
+        .map(String::as_str)
+        .chain([NGSI_LD_CORE])
         .filter_map(|text| serde_yaml_ng::from_str(text).ok())
         .collect()
 }
+
+/// The `ngsi-ld-core` import no DataModel holds: its `Entity` gives every class `is_a: Entity`
+/// the core `location`, so a view lets a geo write through. Last, so a model's own wins.
+const NGSI_LD_CORE: &str = "classes:\n  Entity: {slots: [location]}\n";
 
 /// The Attributes of `class` in the model: its `slots` and inline `attributes` and those of
 /// every class it reaches through `is_a` and `mixins`, without the identifier slots (the
@@ -2526,6 +2566,17 @@ mod tests {
             Some(["location".to_owned()].into())
         );
         assert_eq!(class_slots(&model, "Tram"), None);
+        let core = parsed(&ModelSource {
+            model: "hsl".into(),
+            source: "imports: [ngsi-ld-core]\nclasses:\n  Bus: {is_a: Entity, slots: [speed]}\n"
+                .into(),
+            imports: BTreeMap::new(),
+        });
+        assert_eq!(
+            class_slots(&core, "Bus"),
+            Some(["location".to_owned(), "speed".to_owned()].into()),
+            "the core Entity's location reaches every class built on it"
+        );
         let odd = parsed(&ModelSource {
             model: "odd".into(),
             source: "classes:\n  A: {is_a: B, mixins: Gone, slots: [x]}\n  B: {is_a: A, attributes: [y]}\n".into(),

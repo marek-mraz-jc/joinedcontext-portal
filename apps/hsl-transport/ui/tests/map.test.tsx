@@ -63,22 +63,29 @@ function bus(id: string, longitude: number, refLine = "550"): Vehicle {
 class StubEventSource {
   static last: StubEventSource | undefined;
   closed = false;
-  private listeners: Array<(event: MessageEvent<string>) => void> = [];
+  private listeners: Array<[string, (event: MessageEvent<string>) => void]> = [];
   constructor(readonly url: string) {
     StubEventSource.last = this;
   }
-  addEventListener(_type: string, handler: (event: MessageEvent<string>) => void) {
-    this.listeners.push(handler);
+  addEventListener(type: string, handler: (event: MessageEvent<string>) => void) {
+    this.listeners.push([type, handler]);
   }
   close() {
     this.closed = true;
   }
+  private emit(type: string, data: unknown) {
+    const event = new MessageEvent(type, { data: JSON.stringify(data) });
+    for (const [listening, handler] of this.listeners) {
+      if (listening === type) handler(event);
+    }
+  }
   /** What the server pushes when a bus moves. */
   push(vehicles: Vehicle[]) {
-    const event = new MessageEvent("vehicles", { data: JSON.stringify(vehicles) });
-    for (const handler of this.listeners) {
-      handler(event);
-    }
+    this.emit("vehicles", vehicles);
+  }
+  /** What the server pushes when its live feed is lost, or live again (T-3581). */
+  feed(lostSince: string | null) {
+    this.emit("feed", { lostSince });
   }
 }
 
@@ -180,6 +187,18 @@ describe("the app", () => {
       expect(collection.features).toHaveLength(2);
     });
     expect(screen.getByRole("status")).toHaveTextContent("2 vehicles, updating live");
+  });
+
+  it("says since when the live feed is lost, and updating live once it is back (T-3581)", async () => {
+    render(<App />);
+    load?.();
+    await waitFor(() => expect(StubEventSource.last).toBeDefined());
+    StubEventSource.last?.push([bus(BUS, 24.94)]);
+    StubEventSource.last?.feed("2026-10-12T08:05:00Z");
+    // 08:05 UTC is 11:05 in Helsinki in October.
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("1 vehicles, live feed lost since 11:05"));
+    StubEventSource.last?.feed(null);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("1 vehicles, updating live"));
   });
 
   it("subscribes to its own backend and never to the endpoint", async () => {

@@ -2489,8 +2489,26 @@ impl Scratch {
         &self.0
     }
 
+    /// Writes one repository file under the run's directory. A path that climbs out (`..`, a
+    /// root or a prefix) refuses the sync instead of writing beside it (T-4039): the tree comes
+    /// from the forge, and a forge without `receive.fsckObjects` takes such a tree object.
     fn write(&self, relative: &str, content: &str) -> Result<(), SyncError> {
-        let target = self.0.join(relative.trim_start_matches('/'));
+        let mut target = self.0.clone();
+        for component in Path::new(relative.trim_start_matches('/')).components() {
+            match component {
+                std::path::Component::Normal(part) => target.push(part),
+                std::path::Component::CurDir => {}
+                _ => {
+                    return Err(SyncError::Scratch {
+                        path: PathBuf::from(relative),
+                        source: std::io::Error::new(
+                            std::io::ErrorKind::InvalidInput,
+                            "the path leaves the repository",
+                        ),
+                    })
+                }
+            }
+        }
         if let Some(parent) = target.parent() {
             std::fs::create_dir_all(parent).map_err(|source| SyncError::Scratch {
                 path: parent.to_path_buf(),
@@ -2684,6 +2702,39 @@ fn published_events(reports: &[super::ckan::Report]) -> Vec<ActivityEvent> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-4039: a repository path stays inside the run's directory or refuses the sync.
+    #[test]
+    fn a_repository_path_that_climbs_out_of_the_scratch_directory_is_refused() {
+        let scratch = Scratch::new("t4039-climb").expect("scratch");
+        let outside = scratch
+            .path()
+            .parent()
+            .expect("parent")
+            .join("t4039-escaped");
+        for climbing in [
+            "../t4039-escaped",
+            "a/../../t4039-escaped",
+            "./a/../../t4039-escaped",
+        ] {
+            assert!(
+                matches!(scratch.write(climbing, "x"), Err(SyncError::Scratch { .. })),
+                "{climbing}"
+            );
+        }
+        assert!(
+            !outside.exists(),
+            "nothing was written beside the scratch directory"
+        );
+
+        scratch
+            .write("//projects/./a/b.yaml", "kind: X")
+            .expect("a nested path");
+        assert_eq!(
+            std::fs::read_to_string(scratch.path().join("projects/a/b.yaml")).expect("written"),
+            "kind: X"
+        );
+    }
 
     #[test]
     fn every_catalogue_event_names_its_endpoint_and_an_unchanged_one_is_no_event() {
