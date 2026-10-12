@@ -1086,6 +1086,7 @@
       "title": "Zveřejněné atributy",
       "hint": "Endpoint může to, co povoluje politika, jen zúžit, nikdy rozšířit. Skrytý atribut chybí v každé reprezentaci i ve zveřejněném schématu.",
       "formalism": "Formalismus schématu",
+      "formalismHelp": "Jazyk schématu, ve kterém je zveřejněné schéma; adresa níže ho poskytuje.",
       "hide": "Skrýt",
       "unhide": "Znovu zobrazit",
       "effective": "Zveřejněno zde",

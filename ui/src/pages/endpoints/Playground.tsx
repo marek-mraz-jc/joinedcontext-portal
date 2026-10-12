@@ -143,7 +143,7 @@ export function Playground({ slug, types, open }: { slug: string; types: string[
   const snippets = url ? snippetsOf(url, open) : undefined;
   return (
     <div className="flex flex-col gap-3" data-testid="endpoint-playground">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field id={`${id}-operation`} label={t("endpoints.playground.operation")}>
           <Select id={`${id}-operation`} value={operation} onChange={(event) => setChosen(event.target.value as Operation)}>
             {allowed.map((key) => (

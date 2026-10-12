@@ -1086,6 +1086,7 @@
       "title": "Published attributes",
       "hint": "An endpoint can narrow what the policy grants, never widen it. A hidden attribute is absent from every representation and from the published schema.",
       "formalism": "Schema formalism",
+      "formalismHelp": "The schema language the published schema is written in; the address below serves it.",
       "hide": "Hide",
       "unhide": "Show again",
       "effective": "Published here",

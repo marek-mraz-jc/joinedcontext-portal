@@ -1063,6 +1063,7 @@
       "title": "Veröffentlichte Attribute",
       "hint": "Ein Endpunkt kann das, was die Richtlinie gewährt, nur einschränken, niemals erweitern. Ein verborgenes Attribut fehlt in jeder Repräsentation und im veröffentlichten Schema.",
       "formalism": "Schema-Formalismus",
+      "formalismHelp": "Die Schemasprache, in der das veröffentlichte Schema geschrieben ist; die Adresse darunter liefert es aus.",
       "hide": "Verbergen",
       "unhide": "Wieder anzeigen",
       "effective": "Hier veröffentlicht",
