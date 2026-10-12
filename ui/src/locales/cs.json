@@ -1417,8 +1417,12 @@
       "window": "Entity {from} až {to} z {total}"
     },
     "hub": {
-      "title": "Připojit vše",
-      "lead": "Jeden MCP konektor pro všechna rozhraní, která smíte číst. Vložte tuto URL do AI aplikace, při přihlášení vyberte rozhraní a každé volání proběhne pod politikou daného rozhraní."
+      "title": "Připojit AI asistenta",
+      "lead": "Jedna MCP adresa pro všechna rozhraní. Přidejte ji jednou do AI asistenta: otevřená rozhraní odpovídají bez přihlášení a po přihlášení přibudou ta, která smíte číst. Asistent si rozhraní vybere, přečte jeho atributy, model a přístup a každé volání proběhne pod politikou daného rozhraní.",
+      "claude": "Kopírovat pro Claude Code",
+      "json": "Kopírovat pro jiného MCP klienta",
+      "vscode": "Přidat do VS Code",
+      "cursor": "Přidat do Cursor"
     },
     "playground": {
       "title": "Vyzkoušet",
