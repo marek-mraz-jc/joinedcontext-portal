@@ -748,6 +748,26 @@ export interface paths {
         patch: operations["edit_person"];
         trace?: never;
     };
+    "/api/v1/organization/people/{id}/consents/{client}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke A Consent
+         * @description Revokes a person's consent to one client, the hub, an Endpoint's MCP client or an App, which also ends that client's offline sessions of theirs. No grant changes (API/01 §41, T-3792).
+         */
+        delete: operations["revoke_consent"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organization/people/{id}/disable": {
         parameters: {
             query?: never;
@@ -978,6 +998,26 @@ export interface paths {
          * @description Proposes the one red-lane change that removes a project and every space, endpoint, app, service account, role and binding written for it.
          */
         delete: operations["delete_project"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/access/explore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * See What Someone Can Access
+         * @description Every Endpoint of the project a person, a group or role member, a ServiceAccount or the public reaches, with the gateway's grant document for them on each, the McpServers covering them and, for a person, their consents (API/01 §41, EP-103). Organization administrators only; recorded as an `access.explored` activity event. Changes no data.
+         */
+        post: operations["explore_access"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1623,6 +1663,26 @@ export interface paths {
          * @description Approves and merges a change proposal.
          */
         post: operations["approve_change"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/changes/{id}/manifests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the Manifests a Change Wrote
+         * @description The manifests a merged change wrote, each read at the change's own last commit: the version a resource's editor offers to restore through a new, checked Change. A kind the caller does not read, a native file and a deleted file are left out (T-3975).
+         */
+        get: operations["change_manifests"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2396,6 +2456,50 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/pipelinetemplates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Pipeline Templates
+         * @description The pipelines this project saved to start from, newest first (T-3976).
+         */
+        get: operations["list_pipeline_templates"];
+        put?: never;
+        /**
+         * Save a Pipeline Template
+         * @description Keeps a Pipeline manifest's spec without its secretRefs, its source and target references and its space, as a template of the project. A credential written out is refused (T-3976).
+         */
+        post: operations["create_pipeline_template"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/pipelinetemplates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a Pipeline Template
+         * @description Removes one template of the project; pipelines made from it are not touched (T-3976).
+         */
+        delete: operations["delete_pipeline_template"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4173,6 +4277,18 @@ export interface components {
          * @enum {string}
          */
         ConflictPolicy: "fail" | "skip" | "replace" | "rename";
+        /**
+         * @description One client a person consented to (the hub, an Endpoint's MCP client, an App), as the realm's
+         *     admin API lists it (T-3792). Never a token: Keycloak keeps those to itself.
+         */
+        Consent: {
+            clientId: string;
+            /** Format: int64 */
+            createdDate?: number | null;
+            grantedClientScopes?: string[];
+            /** Format: int64 */
+            lastUpdatedDate?: number | null;
+        };
         /** @description One thing that leaves with a removed resource (T-3247). */
         Consequence: {
             /** Format: int64 */
@@ -4235,6 +4351,12 @@ export interface components {
             unattended?: boolean;
             /** @description Who may reach the published application. `public` is refused (AP-42). */
             visibility?: string;
+        };
+        CreateTemplate: {
+            /** @description A Pipeline manifest; only its `spec` is kept, without what belongs to the project. */
+            manifest: Record<string, never>;
+            /** @description What the gallery shows, 1 to 120 characters. */
+            title: string;
         };
         CreateView: {
             config?: components["schemas"]["ViewConfig"];
@@ -4439,6 +4561,17 @@ export interface components {
         EventReceipt: {
             /** Format: int64 */
             seq: number;
+        };
+        ExploreRequest: {
+            subject: components["schemas"]["Who"];
+        };
+        Explored: {
+            /** @description A person's Keycloak consents; empty for every other kind. */
+            consents: components["schemas"]["Consent"][];
+            endpoints: components["schemas"]["Reached"][];
+            /** @description The project's McpServers with a member among `endpoints`. */
+            mcpServers: string[];
+            subject: components["schemas"]["Resolved"];
         };
         ExportLogsServiceResponse: {
             partialSuccess?: null | components["schemas"]["PartialSuccess"];
@@ -5281,6 +5414,15 @@ export interface components {
             /** @description When the newest reading was taken, RFC 3339. */
             scrapedAt: string;
         };
+        PipelineTemplate: {
+            /** Format: date-time */
+            createdAt: string;
+            createdBy: string;
+            id: string;
+            /** @description The pipeline's spec without `secretRefs`, source and target references or a space. */
+            spec: Record<string, never>;
+            title: string;
+        };
         /**
          * @description The sample of one test as the route reads it and the OpenAPI document publishes it (UI-07).
          *     jcctl's `Sample` carries no schema; this is its shape, turned into it by `From` below, so a
@@ -5565,6 +5707,23 @@ export interface components {
              * @description The manifest count for a countable dimension (PF-75); `null` for a runtime limit.
              */
             used?: number | null;
+        };
+        /** @description One Endpoint the subject reaches, with the gateway's grant document for them. */
+        Reached: {
+            name: string;
+            /**
+             * @description The AuthZEN permissions as the gateway answered them (types, actions, attributes,
+             *     constraints `q`, `scopeQ`, `geoQ`, `temporalQ`).
+             */
+            permissions: Record<string, never>[];
+            /** @description The Policies in force for the subject here. */
+            policies: string[];
+            prohibitions: Record<string, never>[];
+            /** @description The surfaces the Endpoint serves; the page builds each URL under `/api/endpoint/{slug}`. */
+            representations: string[];
+            slug: string;
+            space: string;
+            title?: string | null;
         };
         /** @description Whether this replica serves the repository yet: `ready` or `loading`, nothing more (OPS-51). */
         Readiness: {
@@ -6079,6 +6238,10 @@ export interface components {
             name: string;
             purpose: string;
             title: string;
+        };
+        TemplateList: {
+            /** @description The project's templates, newest first. */
+            items: components["schemas"]["PipelineTemplate"][];
         };
         /** @description The request of API/01 §7a. */
         TestRequest: {
@@ -8105,6 +8268,56 @@ export interface operations {
             };
         };
     };
+    revoke_consent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Keycloak user id */
+                id: string;
+                /** @description The client id the person consented to */
+                client: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The caller lacks disable on Person, or a right the person holds */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person or consent */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     disable_person: {
         parameters: {
             query?: never;
@@ -8846,6 +9059,87 @@ export interface operations {
                 };
             };
             /** @description No git forge configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    explore_access: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        /** @description Who. */
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "subject": {
+                 *         "kind": "serviceAccount",
+                 *         "name": "etl"
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["ExploreRequest"];
+            };
+        };
+        responses: {
+            /** @description The Endpoints the subject reaches */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Explored"];
+                };
+            };
+            /** @description An unknown member or kind */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an organization administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person or ServiceAccount */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No gateway, no realm admin client, or one of them did not answer */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -11000,6 +11294,76 @@ export interface operations {
             };
             /** @description Change proposal not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Git forge unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    change_manifests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description The merged change: chg- + 8 hex digits */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The manifests it wrote */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceList"];
+                };
+            };
+            /** @description Not a change id */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such change the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not merged */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -13855,6 +14219,207 @@ export interface operations {
             };
         };
     };
+    list_pipeline_templates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The project's templates */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateList"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No project whose pipelines the caller reads */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    create_pipeline_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "manifest": {
+                 *         "apiVersion": "joinedcontext.com/v1alpha2",
+                 *         "kind": "Pipeline",
+                 *         "metadata": {
+                 *           "name": "aq-mqtt-ingest",
+                 *           "namespace": "banskabystrica"
+                 *         },
+                 *         "spec": {
+                 *           "class": "resident",
+                 *           "outputs": [
+                 *             {
+                 *               "mode": "upsert",
+                 *               "targetEndpoint": "urn:ngsi-ld:Endpoint:banskabystrica.sk:ovzdusie:air",
+                 *               "type": "AirQualityObserved"
+                 *             }
+                 *           ],
+                 *           "secretRefs": [
+                 *             {
+                 *               "envVar": "MQTT_PASSWORD",
+                 *               "key": "password",
+                 *               "name": "mqtt-credentials"
+                 *             }
+                 *           ],
+                 *           "sources": [
+                 *             {
+                 *               "dataSourceRef": {
+                 *                 "kind": "DataSource",
+                 *                 "name": "aq-mqtt"
+                 *               }
+                 *             }
+                 *           ]
+                 *         }
+                 *       },
+                 *       "title": "MQTT sensor feed"
+                 *     }
+                 */
+                "application/json": components["schemas"]["CreateTemplate"];
+            };
+        };
+        responses: {
+            /** @description The saved template */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PipelineTemplate"];
+                };
+            };
+            /** @description Not a Pipeline, a credential written out, no title or too large */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No `propose` on Pipeline */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No project whose pipelines the caller reads */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project holds the most templates it may */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    delete_pipeline_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description The template's id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No `propose` on Pipeline */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such template in a project the caller reads */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     get_registry_entry: {
         parameters: {
             query?: never;
@@ -15064,7 +15629,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description No broker is configured, or it did not answer */
+            /** @description No broker or admin token is configured, or the broker did not answer or refused */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -16910,6 +17475,8 @@ export interface operations {
             query?: {
                 /** @description Refresh the cached index now instead of waiting for the daily run */
                 refresh?: boolean;
+                /** @description Comma-separated subjects, at most 8, whose model attribute names are filled first */
+                subject?: string;
             };
             header?: never;
             path?: never;

@@ -135,10 +135,15 @@
     "uischemaProblems": "Manifest usporiadania tohto formulára žiada niečo, čo formulár nevie",
     "view": {
       "form": "Formulár",
-      "yaml": "YAML"
+      "yaml": "YAML",
+      "history": "História"
     },
     "yamlHint": "Celý manifest tak, ako sa zapíše do Gitu. Prepnutie späť na formulár ho znova načíta; obe podoby kontroluje tá istá schéma.",
     "yamlError": "Opravte YAML: {message}",
+    "yamlDownload": "Stiahnuť YAML",
+    "yamlUpload": "Nahrať YAML",
+    "yamlUploadSecret": "Súbor obsahuje vypísané tajomstvo ({keys}). Odkážte naň cez secretRef a nahrajte znova; nič sa nenačítalo.",
+    "yamlUploadMoved": "Súbor pochádza z projektu {from}; načíta sa do {to} a pred navrhnutím na ňom prebehne kontrola.",
     "yamlNotManifest": "dokument nie je manifest",
     "schemaErrors": "Manifest nezodpovedá schéme:",
     "exclusive": "Vyplniť možno len jedno z týchto polí",
@@ -170,7 +175,8 @@
     "language": "Dvojpísmenový kód jazyka malými písmenami, ako sk alebo en.",
     "sitePath": "Cesta webu, ktorá začína lomkou, ako /news/**.",
     "color": "Farba ako # a šesť šestnástkových číslic, ako #0b5394.",
-    "notAnAttribute": "{name} nie je atribút typu {types} v modeloch projektu; skontrolujte pravopis."
+    "notAnAttribute": "{name} nie je atribút typu {types} v modeloch projektu; skontrolujte pravopis.",
+    "missing": "{field} je povinné"
   },
   "approvals": {
     "lead": "Každá zmena projektu je tu návrhom, kým ju schvaľovateľ nezlúči.",
@@ -960,6 +966,27 @@
       "removeOne": "Odstrániť váš komentár z {when}",
       "unknown": "Bez upozornenia, lebo nemôžu čítať tento priestor: {names}",
       "writeFirst": "Najprv napíšte komentár."
+    },
+    "upload": {
+      "open": "Nahrať CSV",
+      "title": "Nahrať CSV",
+      "lead": "Vyberte CSV do 50 MB. Porovná sa s typmi Smart Data Models; model, priestor, jeho Endpoint a vaše právo zapisovať riadky sa navrhnú ako jedna zmena a keď je zmena nasadená, riadky sa zapíšu cez bránu pod vaším menom.",
+      "choose": "Vybrať súbor CSV",
+      "type": "Čo riadky sú",
+      "noMatch": "Žiadny typ Smart Data Models nepomenúva dosť týchto stĺpcov: súbor dostane vlastný model.",
+      "match": "{name} ({score} % stĺpcov)",
+      "own": "Vlastný model",
+      "ownType": "Názov typu",
+      "ownTypeHint": "Jedno slovo s veľkým začiatočným písmenom, napríklad Garage.",
+      "space": "Názov priestoru",
+      "notReady": "Najprv vyberte súbor, typ a priestor.",
+      "propose": "Navrhnúť zmenu",
+      "proposing": "Navrhuje sa…",
+      "afterApproval": "Keď je zmena schválená a nasadená, zapíšte riadky do {space} ako {type}. Opätovný zápis toho istého súboru aktualizuje tie isté entity.",
+      "noSlots": "Navrhnutý model nedeklaruje pre tento typ žiadne polia: nie je čo zapísať.",
+      "write": "{count, plural, =0 {Nie je čo zapísať} one {Zapísať # riadok} few {Zapísať # riadky} other {Zapísať # riadkov}}",
+      "done": "{written, plural, =0 {Nezapísal sa žiadny riadok} one {Zapísaný # riadok} few {Zapísané # riadky} other {Zapísaných # riadkov}}, {refused, plural, =0 {žiadny odmietnutý.} other {odmietnutých: #.}}",
+      "preview": "Náhľad {count, plural, one {prvej # entity} few {prvých # entít} other {prvých # entít}} ako NGSI-LD"
     }
   },
   "endpoints": {
@@ -1719,7 +1746,8 @@
       "ready": "Všetkých {count} správ sa mapuje na entity. Navrhnite pipeline nižšie.",
       "useUrl": "Otestovať na URL zdroja",
       "urlSample": "{url} · json · stiahne runner",
-      "gate": "Najprv otestujte mapovanie: Navrhnúť sa otvorí, keď je test pre toto mapovanie zelený."
+      "gate": "Najprv otestujte mapovanie: Navrhnúť sa otvorí, keď je test pre toto mapovanie zelený.",
+      "replaceDrafted": "Nahradiť navrhnutým mapovaním"
     },
     "flow": {
       "palette": "Paleta výpočtov",
@@ -1736,7 +1764,6 @@
       "eventsIn": "dnu",
       "eventsOut": "von",
       "remove": "Odstrániť krok",
-      "selectedHint": "Tento krok nastavíte vo formulári nižšie.",
       "view": {
         "flow": "Tok",
         "yaml": "YAML",
@@ -1826,7 +1853,10 @@
       "routeNoCondition": "zatiaľ bez podmienky",
       "perMinute": "/min",
       "liveUnavailable": "Živé počty nie sú dostupné: spúšťač pipeline neodpovedá. Pipeline môže stále bežať.",
-      "lastError": "Posledná chyba o {at}: {message}. Opravte krok a potom záznam znova spustite z odmietnutých záznamov pipeliny."
+      "lastError": "Posledná chyba o {at}: {message}. Opravte krok a potom záznam znova spustite z odmietnutých záznamov pipeliny.",
+      "queueShort": "{count} v rade",
+      "queue": "{count, plural, one {# správa čaká} few {# správy čakajú} other {# správ čaká}} v bufferi pred výstupom",
+      "queueHigh": "{count, plural, one {# správa čaká} few {# správy čakajú} other {# správ čaká}} v bufferi pred výstupom, viac než {limit}: výstup nestíha"
     },
     "emptyHint": "Pridajte zdroj údajov a pipeline tlačidlom, alebo požiadajte asistenta, aby ju postavil z toho, čo už máte.",
     "credentialsOfSource": "Drží ich jeho zdroj údajov {name}",
@@ -2140,6 +2170,23 @@
         "type": "Zadajte typ entity na agregáciu.",
         "attribute": "Zadajte názov číselného atribútu: písmená, číslice a podčiarkovníky."
       }
+    },
+    "canvasLoss": {
+      "noSource": "Pipeline nemá prvý zdroj: najprv zvoľte, odkiaľ číta, inak nemožno zapísať jej ďalšie zdroje, kroky ani výstupy.",
+      "noTarget": "Pipeline nemá cieľový endpoint: najprv zvoľte, kam zapisuje, inak nemožno zapísať jej ďalšie výstupy."
+    },
+    "templates": {
+      "title": "Uložené v tomto projekte",
+      "by": "Uložil(a) {name}",
+      "use": "Použiť",
+      "delete": "Zmazať",
+      "deleteOf": "Zmazať šablónu {title}",
+      "save": "Uložiť ako šablónu",
+      "saveIt": "Uložiť šablónu",
+      "titleField": "Názov šablóny",
+      "titleHelp": "Čo ukazuje galéria. Šablóna si ponechá kroky a mapovanie; prístupové údaje, zdroj a cieľ vynechá.",
+      "titleNeeded": "Najprv šablóne dajte názov.",
+      "saved": "Uložené ako šablóna „{title}“."
     }
   },
   "dashboards": {
@@ -2500,6 +2547,42 @@
       "ckanInstance": "{project} / {name}",
       "ckanVia": "cez rolu {role}",
       "appNotLoaded": "Aplikácia sa ešte načítava alebo ju nemôžete čítať."
+    },
+    "explorer": {
+      "title": "Pozrite, k čomu má niekto prístup",
+      "lead": "Vyberte osobu, skupinu, rolu, servisný účet alebo verejnosť. Každý Endpoint tohto projektu, ku ktorému sa dostanú, sa zobrazí s tým, čo tam smú čítať a robiť, ako rozhodla brána. Endpointy, ku ktorým sa nedostanú, sa nezobrazia.",
+      "kind": "Kto",
+      "search": "Hľadať osoby",
+      "show": "Zobraziť prístup",
+      "failed": "Prístup sa nepodarilo zobraziť. Skúste to znova o minútu; dôvod je nižšie.",
+      "nothing": "Nedosiahne nič",
+      "nothingLead": "Žiadny Endpoint tohto projektu ich nepripúšťa ani im nič neudeľuje. Prístup udelíte politikou, skupinou alebo väzbou roly.",
+      "space": "priestor {space}",
+      "through": "Udelené cez",
+      "openEndpoint": "Otvoriť Endpoint",
+      "may": "Smie",
+      "mayNot": "Nesmie",
+      "attributes": "Atribúty:",
+      "allAttributes": "všetky",
+      "only": "Len kde",
+      "copy": "Kopírovať URL {surface}",
+      "geoQ": "Oblasť obmedzenia: {shape}",
+      "mcp": "Jeden MCP konektor na všetko",
+      "mcpLead": "Hub pokrýva všetky Endpointy vyššie jedným konektorom; Endpoint sa uvádza pri každom volaní.",
+      "connectAll": "Pripojiť všetko (kopírovať URL hubu)",
+      "consents": "Pripojení klienti",
+      "noConsents": "Žiadni pripojení klienti.",
+      "lastUsed": "naposledy použité {when}",
+      "revoke": "Odvolať",
+      "revokeTitle": "Odvolať súhlas pre {client}?",
+      "revokeLead": "Klient stratí pripojenie a offline relácie a musí požiadať znova. Žiadne oprávnenie sa nemení.",
+      "revokeFailed": "Súhlas sa nepodarilo odvolať. Skúste to znova; dôvod je nižšie.",
+      "endpoints": "{count, plural, one {# dosiahnutý Endpoint} few {# dosiahnuté Endpointy} other {# dosiahnutých Endpointov}}",
+      "pickFirst": "Najprv vyberte, koho chcete vyhľadať.",
+      "kindHelp": "Osoba, skupina, rola alebo servisný účet: čí prístup stránka vypíše.",
+      "personHelp": "Ľudia organizácie podľa e-mailu; vyhľadávanie vyššie zúži zoznam.",
+      "accountHelp": "Servisné účty projektu, teda programy, ktoré volajú endpointy.",
+      "nameHelp": "Názov presne tak, ako je napísaný v Keycloaku."
     }
   },
   "flows": {
@@ -3076,7 +3159,7 @@
       "noBuilder": "Toto nasadenie nemá agenta na stavbu aplikácií, takže tu aplikáciu vygenerovať nemožno. Agent Runner je voliteľný doplnok; požiadajte správcu o jeho inštaláciu.",
       "examplesHint": "Dve aplikácie dodávané s platformou sú hotové príklady rovnakého tvaru:",
       "examples": {
-        "hsl-transport": "Autobusy naživo: 30 vozidiel na mape, verejné a len na čítanie",
+        "hsl-transport": "HSL naživo: až 90 vozidiel všetkých druhov dopravy na mape, odchody a dopravné hlásenia, verejné a len na čítanie",
         "air-quality": "Kvalita ovzdušia: stanice, denná história a poznámka správcu"
       },
       "needs": {
@@ -4517,7 +4600,8 @@
       },
       "access": {
         "denied": "Prístup odmietnutý",
-        "simulated": "Pravidlo vyskúšané na osobe"
+        "simulated": "Pravidlo vyskúšané na osobe",
+        "explored": "Prístup zobrazený"
       },
       "mcp": {
         "tool": "Volanie nástroja asistenta"
@@ -5606,7 +5690,8 @@
       "roles": "Roly",
       "service-accounts": "Servisné účty",
       "access": "Váš prístup",
-      "danger": "Odstrániť alebo odovzdať"
+      "danger": "Odstrániť alebo odovzdať",
+      "explorer": "Prehľad prístupu"
     },
     "field": {
       "title": "Názov",
@@ -7077,5 +7162,13 @@
         "hint": "odpovede modelov organizácie"
       }
     }
+  },
+  "resourceHistory": {
+    "restore": "Obnoviť túto verziu",
+    "empty": "Žiadna uzavretá zmena sa zatiaľ {kind} {name} netýkala.",
+    "noneOnPage": "Žiadna z týchto zmien sa tohto zdroja netýkala. Staršie možno áno.",
+    "when": "{at} · pruh {lane} · {id}",
+    "notWritten": "Táto zmena nezapísala {kind} {name}, takže nie je čo obnoviť.",
+    "loaded": "Verzia, ktorú zapísala zmena {id}, je vo formulári. Skontrolujte ju a navrhnite, aby ste ju obnovili; kým nie je schválená, nič sa nemení."
   }
 }

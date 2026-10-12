@@ -63,6 +63,7 @@ pub struct AppState {
     pub workspaces: crate::ops::workspaces::WorkspaceStore,
     /// Saved data views of the spaces (API/01 §30).
     pub data_views: crate::ops::data_views::DataViewStore,
+    pub pipeline_templates: crate::ops::pipeline_templates::TemplateStore,
     /// The renders of running workspace previews, by branch head (CC-78).
     pub previews: Arc<crate::ops::previews::Renders>,
     /// What is happening in a project (UI-31, OPS-48). Always present, durable only when there
@@ -155,7 +156,10 @@ impl AppState {
             .map(|o| Arc::new(BearerVerifier::new(&o.issuer, &o.client_id)));
         let draft_events = DraftHub::new();
         let drafts = DraftStore::new(None).with_hub(draft_events.clone());
-        let space_usage = Arc::new(crate::space_usage::Counter::new(config.broker_url.clone()));
+        let space_usage = Arc::new(crate::space_usage::Counter::new(
+            config.broker_url.clone(),
+            config.broker_admin_token_file.clone(),
+        ));
         let activity_events = crate::activity::ActivityHub::new();
         let activity = crate::activity::ActivityStore::new(None).with_hub(activity_events.clone());
         Self {
@@ -174,6 +178,7 @@ impl AppState {
             draft_events,
             workspaces: crate::ops::workspaces::WorkspaceStore::new(None),
             data_views: crate::ops::data_views::DataViewStore::new(None),
+            pipeline_templates: crate::ops::pipeline_templates::TemplateStore::new(None),
             previews: Arc::default(),
             activity,
             activity_events,
@@ -245,6 +250,8 @@ impl AppState {
         self.draft_events.connect(db.clone());
         self.workspaces = crate::ops::workspaces::WorkspaceStore::new(Some(db.clone()));
         self.data_views = crate::ops::data_views::DataViewStore::new(Some(db.clone()));
+        self.pipeline_templates =
+            crate::ops::pipeline_templates::TemplateStore::new(Some(db.clone()));
         self.activity = crate::activity::ActivityStore::new(Some(db.clone()))
             .with_hub(self.activity_events.clone());
         self.rejected = Arc::new(crate::pipeline_outcomes::RejectedStore::new(Some(
@@ -297,6 +304,7 @@ impl AppState {
         }
         state.workspaces = crate::ops::workspaces::WorkspaceStore::new(db.clone());
         state.data_views = crate::ops::data_views::DataViewStore::new(db.clone());
+        state.pipeline_templates = crate::ops::pipeline_templates::TemplateStore::new(db.clone());
         state.activity =
             crate::activity::ActivityStore::new(db.clone()).with_hub(state.activity_events.clone());
         state.rejected = Arc::new(crate::pipeline_outcomes::RejectedStore::new(db.clone()));

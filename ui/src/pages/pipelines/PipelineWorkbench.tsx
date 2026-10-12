@@ -537,7 +537,7 @@ export function PipelineWorkbench({
     <div className="flex flex-col gap-3" data-testid="pipeline-workbench">
       <Step number={1} id="workbench-source" title={t("pipelines.workbench.source.title")} hint={t("pipelines.workbench.source.hint")}>
         <Field id="workbench-source-pick" label={t("pipelines.workbench.source.pick")} description={t("pipelines.workbench.source.pickHint")}>
-          <Select id="workbench-source-pick" value={sourceValue} onChange={(event) => pickSource(event.target.value)}>
+          <Select id="workbench-source-pick" data-field="source" value={sourceValue} onChange={(event) => pickSource(event.target.value)}>
             <option value="">{t("pipelines.workbench.source.none")}</option>
             {dataSources.length > 0 ? (
               <optgroup label={t("nav.datasources")}>
@@ -647,6 +647,7 @@ export function PipelineWorkbench({
         <Field id="workbench-target-pick" label={t("pipelines.field.targetEndpoint")} description={t("pipelines.field.targetEndpointHint")}>
           <Select
             id="workbench-target-pick"
+            data-field="targetEndpoint"
             value={draft?.targetEndpoint ?? ""}
             onChange={(event) => onChange({ ...(draft ?? {}), targetEndpoint: event.target.value || undefined })}
           >

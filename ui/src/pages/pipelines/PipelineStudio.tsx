@@ -335,6 +335,21 @@ export function PipelineStudio({
       ),
   });
   const liveCounters = liveStats.data?.nodes ? countersOfStats(liveStats.data.nodes) : undefined;
+  // The queue on the wire into the output (T-3973), from the runner's metrics.
+  const bufferQuery = useQuery({
+    // Its own key: the pipelines list caches this route under `"metrics"` with a derived `rate`,
+    // and a shared entry without it crashed that list's row (T-3090).
+    queryKey: [...queryKeys.resource(project, "pipelines", pipelineName), "metrics", "nodes"],
+    enabled: pipelineName !== "",
+    retry: false,
+    refetchInterval: 15_000,
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/pipelines/{name}/metrics", {
+          params: { path: { project, name: pipelineName } },
+        }),
+      ),
+  });
   const statsUnavailable = liveStats.error instanceof ApiError && liveStats.error.status === 503;
   // A failing node's last refused record, by the step it failed at: its message only, never
   // the record (PL-52).
@@ -968,6 +983,7 @@ export function PipelineStudio({
                   onChange={onChange}
                   trace={flowTrace}
                   live={liveCounters}
+                  bufferDepth={bufferQuery.data?.bufferDepth}
                   selected={selectedNode}
                   onSelect={setSelectedNode}
                   onOpen={(id) => {
@@ -1128,6 +1144,7 @@ export function PipelineStudio({
                   />
                 ) : selectedStep ? (
                   <StepBlock
+                    variables={(draft?.secretRefs ?? []).flatMap((ref) => (ref.envVar ? [ref.envVar] : []))}
                     key={selectedNode}
                     entry={selectedStep}
                     onChange={(entry) =>
@@ -1199,12 +1216,29 @@ export function PipelineStudio({
                       />
                     );
                   })()
-                ) : selectedNode === "source" || selectedNode === "output" ? (
-                  <p className="text-caption text-fg-muted">
-                    {t("pipelines.flow.selectedHint", {
-                      defaultValue: "Edit source and output in the sections below.",
-                    })}
-                  </p>
+                ) : selectedNode === "source" ? (
+                  // The first source opens the same block as the others (T-3978); it stays.
+                  <SourceBlock
+                    key="source"
+                    project={project}
+                    source={draft?.source ?? {}}
+                    dataSources={dataSources}
+                    endpoints={endpoints}
+                    locale={locale}
+                    onChange={(source) => {
+                      onChange({ ...draft, source });
+                      setKindChoice(sourceKindOf({ source }));
+                    }}
+                  />
+                ) : selectedNode === "output" ? (
+                  <OutputBlock
+                    key="output"
+                    project={project}
+                    output={{ targetEndpoint: draft?.targetEndpoint, ...draft?.output }}
+                    targets={endpoints.map((manifest) => ({ manifest, urn: endpointUrn(orgDomain, manifest) }))}
+                    locale={locale}
+                    onChange={({ targetEndpoint, ...output }) => onChange({ ...draft, targetEndpoint, output })}
+                  />
                 ) : null}
 
                 {flowTrace && selectedNode ? (

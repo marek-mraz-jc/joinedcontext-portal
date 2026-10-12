@@ -68,7 +68,7 @@ describe("the App's server", () => {
     const api = server("/api");
     expect(await api.me()).toBeNull();
     expect(await api.filters()).toEqual([]);
-    expect(await api.keepFilter({ name: "Road works", view: "kinds=ROAD_WORK" })).toEqual({ id: 4, name: "Road works", view: "kinds=ROAD_WORK" });
+    expect(await api.keepFilter({ name: "Road works", view: "kinds=roadWorks" })).toEqual({ id: 4, name: "Road works", view: "kinds=roadWorks" });
     expect(await api.forgetFilter(4)).toBeUndefined();
     expect(await api.acks()).toEqual([]);
     const ack = await api.acknowledge("urn:ngsi-ld:Alert:1", "Crew sent");

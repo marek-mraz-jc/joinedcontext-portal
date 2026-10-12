@@ -71,6 +71,7 @@ export const ADDRESSES: Record<string, string[]> = {
   "/projects/$project/import": [`${P}/import`],
   "/projects/$project/federation": [`${P}/federation`],
   "/projects/$project/spaces/complete": [`${P}/spaces/complete`],
+  "/projects/$project/spaces/upload": [`${P}/spaces/upload`],
   "/projects/$project/assistant": [`${P}/assistant`],
   "/projects/$project/shared": [`${P}/shared`],
   "/projects/$project/$plural": NAV_SECTIONS.map(({ plural }) => `${P}/${plural}`).concat(`${P}/csrs`),

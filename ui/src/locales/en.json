@@ -135,10 +135,15 @@
     "uischemaProblems": "This form's arrangement manifest asks for something the form cannot do",
     "view": {
       "form": "Form",
-      "yaml": "YAML"
+      "yaml": "YAML",
+      "history": "History"
     },
     "yamlHint": "The whole manifest as it is written to Git. Switching back to the form reads it again; the same schema checks both.",
     "yamlError": "Correct the YAML: {message}",
+    "yamlDownload": "Download YAML",
+    "yamlUpload": "Upload YAML",
+    "yamlUploadSecret": "The file holds a secret written out ({keys}). Reference it with a secretRef and upload again; nothing was read.",
+    "yamlUploadMoved": "The file came from project {from}; it is read into {to}, and Check runs on it before you propose it.",
     "yamlNotManifest": "the document is not a manifest",
     "schemaErrors": "The manifest does not match the schema:",
     "exclusive": "Only one of these fields may be set",
@@ -170,7 +175,8 @@
     "language": "A two-letter language code in lower case, such as sk or en.",
     "sitePath": "A path of the site starting with a slash, such as /news/**.",
     "color": "A colour as # and six hexadecimal digits, such as #0b5394.",
-    "notAnAttribute": "{name} is not an attribute of {types} in the project's models; check the spelling."
+    "notAnAttribute": "{name} is not an attribute of {types} in the project's models; check the spelling.",
+    "missing": "{field} is required"
   },
   "approvals": {
     "lead": "Every change to the project is a proposal here until an approver merges it.",
@@ -960,6 +966,27 @@
       "removeOne": "Remove your comment of {when}",
       "unknown": "Not notified, because they may not read this space: {names}",
       "writeFirst": "Write a comment first."
+    },
+    "upload": {
+      "open": "Upload CSV",
+      "title": "Upload a CSV",
+      "lead": "Choose a CSV of up to 50 MB. It is matched against the Smart Data Models types, the model, the space, its Endpoint and your right to write the rows are proposed as one change, and once that change is live the rows are written through the gateway as you.",
+      "choose": "Choose a CSV file",
+      "type": "What the rows are",
+      "noMatch": "No Smart Data Models type names enough of these columns: the file gets its own model.",
+      "match": "{name} ({score} % of the columns)",
+      "own": "My own model",
+      "ownType": "Type name",
+      "ownTypeHint": "One word starting with a capital letter, such as Garage.",
+      "space": "Context Space",
+      "notReady": "Choose a file, a type and a space first.",
+      "propose": "Propose the change",
+      "proposing": "Proposing…",
+      "afterApproval": "Once the change is approved and live, write the rows into {space} as {type}. Writing the same file again updates the same entities.",
+      "noSlots": "The proposed model declares no fields for this type: there is nothing to write.",
+      "write": "{count, plural, =0 {Nothing to write} one {Write # row} other {Write # rows}}",
+      "done": "{written, plural, =0 {No row was written} one {# row written} other {# rows written}}, {refused, plural, =0 {none refused.} one {# refused.} other {# refused.}}",
+      "preview": "Preview the first {count, plural, one {# entity} other {# entities}} as NGSI-LD"
     }
   },
   "endpoints": {
@@ -1719,7 +1746,8 @@
       "ready": "All {count} messages map to entities. Propose the pipeline below.",
       "useUrl": "Test on the source's URL",
       "urlSample": "{url} · json · fetched by the runner",
-      "gate": "Test the mapping first: Propose opens when the test is green for this mapping."
+      "gate": "Test the mapping first: Propose opens when the test is green for this mapping.",
+      "replaceDrafted": "Replace with a drafted mapping"
     },
     "flow": {
       "palette": "Compute palette",
@@ -1736,7 +1764,6 @@
       "eventsIn": "in",
       "eventsOut": "out",
       "remove": "Remove stage",
-      "selectedHint": "Configure this stage in the form below.",
       "view": {
         "flow": "Flow",
         "yaml": "YAML",
@@ -1826,7 +1853,10 @@
       "routeNoCondition": "no condition yet",
       "perMinute": "/min",
       "liveUnavailable": "Live counts unavailable: the pipeline runner does not answer. The pipeline itself may still be running.",
-      "lastError": "Last error at {at}: {message}. Fix the step, then retry the record from the pipeline's rejected records."
+      "lastError": "Last error at {at}: {message}. Fix the step, then retry the record from the pipeline's rejected records.",
+      "queueShort": "{count} queued",
+      "queue": "{count, plural, one {# message waits} other {# messages wait}} in the buffer before the output",
+      "queueHigh": "{count, plural, one {# message waits} other {# messages wait}} in the buffer before the output, more than {limit}: the output is not keeping up"
     },
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have.",
     "credentialsOfSource": "Held by its data source {name}",
@@ -2140,6 +2170,23 @@
         "type": "Name the entity type to aggregate.",
         "attribute": "Enter a numeric attribute name: letters, digits and underscores."
       }
+    },
+    "canvasLoss": {
+      "noSource": "The pipeline has no first source: choose where it reads from before its extra sources, steps or outputs can be written.",
+      "noTarget": "The pipeline has no target endpoint: choose where it writes before its extra outputs can be written."
+    },
+    "templates": {
+      "title": "Saved in this project",
+      "by": "Saved by {name}",
+      "use": "Use",
+      "delete": "Delete",
+      "deleteOf": "Delete the template {title}",
+      "save": "Save as template",
+      "saveIt": "Save template",
+      "titleField": "Template title",
+      "titleHelp": "What the gallery shows. The template keeps the steps and the mapping; credentials, the source and the target are left out.",
+      "titleNeeded": "Give the template a title first.",
+      "saved": "Saved as template \"{title}\"."
     }
   },
   "dashboards": {
@@ -2500,6 +2547,42 @@
       "ckanInstance": "{project} / {name}",
       "ckanVia": "through the role {role}",
       "appNotLoaded": "The app is still loading, or you may not read it."
+    },
+    "explorer": {
+      "title": "See what someone can access",
+      "lead": "Pick a person, a group, a role, a service account or the public. Every Endpoint of this project they reach is listed with what they may read and do there, decided by the gateway. Endpoints they cannot reach are not listed.",
+      "kind": "Who",
+      "search": "Search people",
+      "show": "Show access",
+      "failed": "Access could not be shown. Try again in a minute; the reason is below.",
+      "nothing": "Reaches nothing",
+      "nothingLead": "No Endpoint of this project admits them or grants them anything. Grant access with a Policy, a group or a role binding.",
+      "space": "space {space}",
+      "through": "Granted through",
+      "openEndpoint": "Open the Endpoint",
+      "may": "May",
+      "mayNot": "May not",
+      "attributes": "Attributes:",
+      "allAttributes": "all",
+      "only": "Only where",
+      "copy": "Copy {surface} URL",
+      "geoQ": "Area of the restriction: {shape}",
+      "mcp": "One MCP connector for all of it",
+      "mcpLead": "The hub covers every Endpoint above with one connector; the Endpoint is named on each call.",
+      "connectAll": "Connect all (copy hub URL)",
+      "consents": "Connected clients",
+      "noConsents": "No connected clients.",
+      "lastUsed": "last used {when}",
+      "revoke": "Revoke",
+      "revokeTitle": "Revoke the consent to {client}?",
+      "revokeLead": "The client loses its connection and offline sessions and must ask again. No grant changes.",
+      "revokeFailed": "The consent could not be revoked. Try again; the reason is below.",
+      "endpoints": "{count, plural, one {# Endpoint reached} other {# Endpoints reached}}",
+      "pickFirst": "Pick who to look up first.",
+      "kindHelp": "A person, a group, a role or a service account: whose access the page lists.",
+      "personHelp": "The people of the organization, by email; the search above narrows the list.",
+      "accountHelp": "The project's service accounts, the workloads that call endpoints.",
+      "nameHelp": "The name exactly as it is written in Keycloak."
     }
   },
   "flows": {
@@ -3076,7 +3159,7 @@
       "noBuilder": "This deployment has no builder agent, so an app cannot be generated here. The Agent Runner is an optional addon; ask your administrator to install it.",
       "examplesHint": "The two apps that ship with the platform are worked examples of the same shape:",
       "examples": {
-        "hsl-transport": "Buses live: 30 vehicles on a map, public and read-only",
+        "hsl-transport": "HSL live: up to 90 vehicles of every mode on a map, departures and service alerts, public and read-only",
         "air-quality": "Air quality: stations, a day of history and a steward note"
       },
       "needs": {
@@ -4517,7 +4600,8 @@
       },
       "access": {
         "denied": "Access refused",
-        "simulated": "Policy tried on a person"
+        "simulated": "Policy tried on a person",
+        "explored": "Explored activity"
       },
       "mcp": {
         "tool": "Assistant tool call"
@@ -5606,7 +5690,8 @@
       "roles": "Roles",
       "service-accounts": "Service accounts",
       "access": "Your access",
-      "danger": "Delete or hand over"
+      "danger": "Delete or hand over",
+      "explorer": "Access explorer"
     },
     "field": {
       "title": "Title",
@@ -7077,5 +7162,13 @@
         "hint": "completions from the organization's models"
       }
     }
+  },
+  "resourceHistory": {
+    "restore": "Restore this version",
+    "empty": "No closed change touched {kind} {name} yet.",
+    "noneOnPage": "None of these changes touched this resource. Older ones may have.",
+    "when": "{at} · {lane} lane · {id}",
+    "notWritten": "That change wrote no {kind} {name}, so there is no version of it to restore.",
+    "loaded": "The version change {id} wrote is in the form. Check it and propose it to restore it; nothing is changed until it is approved."
   }
 }
