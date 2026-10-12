@@ -977,7 +977,7 @@
       "match": "{name} ({score} % stĺpcov)",
       "own": "Vlastný model",
       "ownType": "Názov typu",
-      "ownTypeHint": "Jedno slovo s veľkým začiatočným písmenom, napríklad ParkingGarage.",
+      "ownTypeHint": "Jedno slovo s veľkým začiatočným písmenom, napríklad Garage.",
       "space": "Názov priestoru",
       "notReady": "Najprv vyberte súbor, typ a priestor.",
       "propose": "Navrhnúť zmenu",

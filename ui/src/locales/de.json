@@ -977,7 +977,7 @@
       "match": "{name} ({score} % der Spalten)",
       "own": "Eigenes Modell",
       "ownType": "Typname",
-      "ownTypeHint": "Ein Wort mit großem Anfangsbuchstaben, etwa ParkingGarage.",
+      "ownTypeHint": "Ein Wort mit großem Anfangsbuchstaben, etwa Garage.",
       "space": "Name des Raums",
       "notReady": "Wählen Sie zuerst eine Datei, einen Typ und einen Space.",
       "propose": "Änderung vorschlagen",

@@ -977,7 +977,7 @@
       "match": "{name} ({score} % of the columns)",
       "own": "My own model",
       "ownType": "Type name",
-      "ownTypeHint": "One word starting with a capital letter, such as ParkingGarage.",
+      "ownTypeHint": "One word starting with a capital letter, such as Garage.",
       "space": "Context Space",
       "notReady": "Choose a file, a type and a space first.",
       "propose": "Propose the change",
