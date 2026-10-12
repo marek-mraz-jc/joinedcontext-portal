@@ -1,10 +1,12 @@
+import { useState } from "react";
 import type { JSX } from "react";
+import { useTranslation } from "react-i18next";
 import { useQueries } from "@tanstack/react-query";
 import { clsx } from "clsx";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { asManifests, refName } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
-import { Icon, safeHref } from "../ui";
+import { Button, Icon, safeHref } from "../ui";
 
 /**
  * Where each enabled representation answers under the endpoint's URL (EP-08, EP-44): the
@@ -209,5 +211,27 @@ export function EndpointLink({
       {children}
       <Icon name="external" className="size-3" />
     </a>
+  );
+}
+
+/** Copies a URL; its own module so a page that shows one does not load the Endpoints page (bundle budget). */
+export function CopyUrlButton({ url, label }: { url: string; label?: string }): JSX.Element {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <Button
+      size="sm"
+      title={url}
+      icon={<Icon name={copied ? "check" : "copy"} className="size-4" />}
+      onClick={() => {
+        void navigator.clipboard
+          ?.writeText(url)
+          .then(() => setCopied(true))
+          .catch(() => setCopied(false));
+      }}
+    >
+      {copied ? t("endpoints.copied") : (label ?? t("endpoints.copyUrl"))}
+    </Button>
   );
 }
