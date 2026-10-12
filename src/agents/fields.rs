@@ -36,7 +36,7 @@ fn property_of(range: &str, enums: &Map<String, Value>) -> Value {
 /// inline LinkML schema; a type the model does not declare is absent, so the form falls back
 /// to what the rows show.
 pub fn field_schema(linkml: &str, types: &[String]) -> Value {
-    let root: Value = serde_yaml_ng::from_str(linkml).unwrap_or(Value::Null);
+    let root: Value = serde_norway::from_str(linkml).unwrap_or(Value::Null);
     let empty = Map::new();
     let classes = root["classes"].as_object().unwrap_or(&empty);
     let slots = root["slots"].as_object().unwrap_or(&empty);

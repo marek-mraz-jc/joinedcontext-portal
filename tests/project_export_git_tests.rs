@@ -239,7 +239,7 @@ async fn the_git_export_is_a_bundle_per_repository_with_its_head() {
     );
 
     let index: jc_core::kinds::Bundle =
-        serde_yaml_ng::from_slice(&files["bundle.yaml"]).expect("the platform's Bundle");
+        serde_norway::from_slice(&files["bundle.yaml"]).expect("the platform's Bundle");
     index.validate().expect("a valid index");
     let heads: Vec<(&str, &str)> = index
         .spec
@@ -264,7 +264,7 @@ async fn the_git_export_is_a_bundle_per_repository_with_its_head() {
     );
 
     let entry: Value =
-        serde_yaml_ng::from_slice(&files["projects/ovzdusie.yaml"]).expect("the entry");
+        serde_norway::from_slice(&files["projects/ovzdusie.yaml"]).expect("the entry");
     assert!(entry["spec"].get("parameters").is_none(), "{entry}");
     assert_eq!(entry["spec"]["repository"]["name"], "ovzdusie");
 }
@@ -430,7 +430,7 @@ async fn an_imported_organization_model_travels_with_the_project() {
         ORG_MODEL
     );
     let index: jc_core::kinds::Bundle =
-        serde_yaml_ng::from_slice(&files["bundle.yaml"]).expect("the platform's Bundle");
+        serde_norway::from_slice(&files["bundle.yaml"]).expect("the platform's Bundle");
     index.validate().expect("a valid index");
     let [model] = index.spec.models.as_slice() else {
         panic!("one carried model: {:?}", index.spec.models);

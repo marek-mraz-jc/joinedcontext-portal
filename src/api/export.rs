@@ -233,7 +233,7 @@ async fn read_project(
         };
 
         let manifest = if is_manifest_path(&path) {
-            serde_yaml_ng::from_str::<ResourceEnvelope>(&file.content).ok()
+            serde_norway::from_str::<ResourceEnvelope>(&file.content).ok()
         } else {
             None
         };
@@ -252,7 +252,7 @@ async fn read_project(
                 if envelope.kind == "SharedSpaceReference" {
                     reference_by_name(&mut envelope.spec, endpoints);
                 }
-                let content = serde_yaml_ng::to_string(&envelope).map_err(|e| {
+                let content = serde_norway::to_string(&envelope).map_err(|e| {
                     ApiError::Internal(format!("manifest '{path}' did not serialise: {e}"))
                 })?;
                 files.push(Exported {
@@ -378,7 +378,7 @@ fn bundle_index(
         "metadata": { "name": header.project, "namespace": crate::permissions::ORG_NAMESPACE },
         "spec": spec,
     });
-    serde_yaml_ng::to_string(&bundle)
+    serde_norway::to_string(&bundle)
         .map_err(|e| ApiError::Internal(format!("bundle index did not serialise: {e}")))
 }
 
@@ -1070,7 +1070,7 @@ pub async fn export(
 
     let mut body = String::new();
     for envelope in &manifests {
-        let document = serde_yaml_ng::to_string(envelope)
+        let document = serde_norway::to_string(envelope)
             .map_err(|e| ApiError::Internal(format!("export did not serialise: {e}")))?;
         body.push_str("---\n");
         body.push_str(&document);

@@ -1204,7 +1204,7 @@ fn labelled(component: serde_json::Value, label: &str) -> serde_json::Value {
 /// platform's own a step may name (PL-16, T-3163).
 fn bento_processors(bento: &str, own: &[&str]) -> Result<Vec<Value>, RenderError> {
     let config: Value =
-        serde_yaml_ng::from_str(bento).map_err(|e| RenderError::Bento(e.to_string()))?;
+        serde_norway::from_str(bento).map_err(|e| RenderError::Bento(e.to_string()))?;
     if config.get("input").is_some() {
         return Err(RenderError::BentoInput);
     }

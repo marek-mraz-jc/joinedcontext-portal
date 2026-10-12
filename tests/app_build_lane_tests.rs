@@ -573,7 +573,7 @@ async fn a_build_judged_against_a_mirror_behind_main_is_refused_and_nothing_writ
         .and(query_param("ref", "main"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "sha": "blob-on-main",
-            "content": common::encode(&serde_yaml_ng::to_string(&pinned).expect("yaml")),
+            "content": common::encode(&serde_norway::to_string(&pinned).expect("yaml")),
         })))
         .with_priority(1)
         .mount(&gitea)

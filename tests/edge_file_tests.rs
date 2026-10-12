@@ -285,7 +285,7 @@ async fn a_lowered_organization_rate_is_written_on_the_next_run() {
                 .expect("the file"),
         )
         .expect("base64");
-    let file: Value = serde_yaml_ng::from_slice(&file).expect("YAML");
+    let file: Value = serde_norway::from_slice(&file).expect("YAML");
     let surface = file["plugin_configs"]
         .as_array()
         .expect("plugin_configs")

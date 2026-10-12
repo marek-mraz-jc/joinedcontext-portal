@@ -92,11 +92,15 @@ futures-util = { version = "0.3", default-features = false, features = ["std"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
-serde_yaml_ng = "0.10"
+# The maintained fork of serde_yaml jc-core already links; serde_yaml_ng runs on the unmaintained
+# unsafe-libyaml (RUSTSEC-2024-0449, T-4070), and this crate parses YAML from Git repositories.
+serde_norway = "0.9"
 utoipa = { version = "5", features = ["axum_extras"] }
 # `include-exclude`: the template is embedded without its build output (src/agents/preview.rs).
 rust-embed = { version = "8", features = ["include-exclude"] }
 mime_guess = "2"
+# The public API and User Guide pages rendered to HTML on the server (T-4063).
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 openidconnect = "4"
 jsonwebtoken = "9"
 # App mail and alerts through the relay a secretRef names (T-3583, AP-168): SMTP over rustls on

@@ -212,7 +212,7 @@ struct Row {
 }
 
 fn table() -> Table {
-    serde_yaml_ng::from_str(TABLE).expect("tests/authz_matrix.yaml parses")
+    serde_norway::from_str(TABLE).expect("tests/authz_matrix.yaml parses")
 }
 
 fn split(route: &str) -> (&str, &str) {
@@ -576,7 +576,7 @@ async fn every_role_meets_every_route_as_the_table_says() {
     if let Some(file) = record {
         let mut out = BTreeMap::new();
         out.insert("routes", recorded);
-        std::fs::write(&file, serde_yaml_ng::to_string(&out).expect("yaml"))
+        std::fs::write(&file, serde_norway::to_string(&out).expect("yaml"))
             .expect("write the record");
         return;
     }

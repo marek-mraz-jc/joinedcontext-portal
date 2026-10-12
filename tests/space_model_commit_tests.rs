@@ -107,7 +107,7 @@ async fn a_new_space_change_carries_its_empty_model_and_names_it() {
     let files = committed(&gitea).await;
     let manifest = file(&files, "spaces/parking/space.yaml")
         .unwrap_or_else(|| panic!("the space manifest is committed: {files:?}"));
-    let manifest: Value = serde_yaml_ng::from_str(manifest).expect("yaml");
+    let manifest: Value = serde_norway::from_str(manifest).expect("yaml");
     assert_eq!(
         manifest["spec"]["dataModelRef"],
         json!({ "kind": "DataModel", "name": "parking" })
@@ -115,7 +115,7 @@ async fn a_new_space_change_carries_its_empty_model_and_names_it() {
 
     let model = file(&files, "spaces/parking/datamodels/parking.yaml")
         .unwrap_or_else(|| panic!("the model manifest rides in the same commit: {files:?}"));
-    let model: Value = serde_yaml_ng::from_str(model).expect("yaml");
+    let model: Value = serde_norway::from_str(model).expect("yaml");
     assert_eq!(model["kind"], "DataModel");
     assert_eq!(model["spec"]["contextSpaceRef"], "parking");
     assert_eq!(model["spec"]["linkml"], "./parking.linkml.yaml");
@@ -128,7 +128,7 @@ async fn a_new_space_change_carries_its_empty_model_and_names_it() {
 
     let source = file(&files, "spaces/parking/datamodels/parking.linkml.yaml")
         .unwrap_or_else(|| panic!("the LinkML source rides in the same commit: {files:?}"));
-    let source: Value = serde_yaml_ng::from_str(source).expect("the source is YAML");
+    let source: Value = serde_norway::from_str(source).expect("the source is YAML");
     assert_eq!(source["name"], "parking");
     assert_eq!(source["default_prefix"], "helsinki");
     assert!(source["prefixes"]["helsinki"].is_string(), "{source}");

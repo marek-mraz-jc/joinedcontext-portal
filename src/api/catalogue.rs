@@ -258,7 +258,7 @@ pub struct CatalogueClass {
 /// The model's classes with their LinkML `description`: a plain string, or the English (else
 /// the first) entry of a map per language. A source that does not parse describes nothing.
 pub fn classes(names: &[String], linkml: Option<&str>) -> Vec<CatalogueClass> {
-    let model = linkml.and_then(|l| serde_yaml_ng::from_str::<serde_yaml_ng::Value>(l).ok());
+    let model = linkml.and_then(|l| serde_norway::from_str::<serde_norway::Value>(l).ok());
     names
         .iter()
         .map(|name| {

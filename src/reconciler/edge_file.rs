@@ -326,7 +326,7 @@ fn framed_by_portal(plugins: &mut Value, host: &str, policy: Option<&str>) {
 /// (AP-112, AP-133, ADR-N-035).
 pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Composed, ComposeError> {
     let mut document: Value =
-        serde_yaml_ng::from_str(base).map_err(|err| ComposeError::Unreadable(err.to_string()))?;
+        serde_norway::from_str(base).map_err(|err| ComposeError::Unreadable(err.to_string()))?;
     if !document.is_object() {
         return Err(ComposeError::Unreadable("not a mapping".into()));
     }
@@ -576,7 +576,7 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
             }),
         );
     }
-    let body = serde_yaml_ng::to_string(&document)
+    let body = serde_norway::to_string(&document)
         .map_err(|err| ComposeError::Unreadable(err.to_string()))?;
     Ok(Composed {
         file: format!("{body}{END_MARKER}\n"),
@@ -874,7 +874,7 @@ routes:
     }
 
     fn parsed(file: &str) -> Value {
-        serde_yaml_ng::from_str(file).expect("the composed file is YAML")
+        serde_norway::from_str(file).expect("the composed file is YAML")
     }
 
     #[test]
@@ -1377,7 +1377,7 @@ routes:
         );
         document["global_rules"] = json!([{"id": EDGE_BODY_RULE,
             "plugins": {"client-control": {"max_body_size": 16 * 1024 * 1024}}}]);
-        serde_yaml_ng::to_string(&document).expect("yaml") + "#END\n"
+        serde_norway::to_string(&document).expect("yaml") + "#END\n"
     }
 
     fn body(file: &Value) -> Value {

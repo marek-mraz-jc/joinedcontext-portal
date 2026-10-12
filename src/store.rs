@@ -30,7 +30,7 @@ pub enum MirrorError {
     #[error("failed to parse yaml at {path}: {source}")]
     Yaml {
         path: PathBuf,
-        source: serde_yaml_ng::Error,
+        source: serde_norway::Error,
     },
     #[error("invalid resource at {path}: {reason}")]
     InvalidResource { path: PathBuf, reason: String },
@@ -270,13 +270,13 @@ impl Mirror {
 /// The manifest one file holds, when it holds one of a kind and version this platform serves;
 /// anything else, a malformed file included, is no manifest.
 pub fn envelope_of(content: &str) -> Option<ResourceEnvelope> {
-    let value: serde_yaml_ng::Value = serde_yaml_ng::from_str(content).ok()?;
+    let value: serde_norway::Value = serde_norway::from_str(content).ok()?;
     let api_version = value.get("apiVersion")?.as_str()?;
     let kind = value.get("kind")?.as_str()?;
     if !jc_core::serves(kind, api_version) {
         return None;
     }
-    let envelope: ResourceEnvelope = serde_yaml_ng::from_value(value).ok()?;
+    let envelope: ResourceEnvelope = serde_norway::from_value(value).ok()?;
     crate::resource::validate_meta(&envelope.metadata).ok()?;
     Some(envelope)
 }
@@ -315,7 +315,7 @@ fn visit_dir(dir: &Path, mirror: &Mirror) -> Result<(), MirrorError> {
                 continue;
             }
 
-            let value: serde_yaml_ng::Value = match serde_yaml_ng::from_str(&content) {
+            let value: serde_norway::Value = match serde_norway::from_str(&content) {
                 Ok(v) => v,
                 Err(e) => {
                     return Err(MirrorError::Yaml {
@@ -340,7 +340,7 @@ fn visit_dir(dir: &Path, mirror: &Mirror) -> Result<(), MirrorError> {
             }
 
             let envelope: ResourceEnvelope =
-                serde_yaml_ng::from_value(value).map_err(|e| MirrorError::Yaml {
+                serde_norway::from_value(value).map_err(|e| MirrorError::Yaml {
                     path: path.clone(),
                     source: e,
                 })?;

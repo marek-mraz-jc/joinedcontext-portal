@@ -570,7 +570,7 @@ pub(crate) fn open_project_files(
     });
 
     let yaml = |value: &Value| -> Result<String, ApiError> {
-        serde_yaml_ng::to_string(value)
+        serde_norway::to_string(value)
             .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))
     };
     Ok(vec![
@@ -597,7 +597,7 @@ pub(crate) fn into_registry_entry(
         .position(|(path, _)| *path == own_path)
         .ok_or_else(|| ApiError::Internal("the project's own manifest is missing".into()))?;
     let (_, own) = files.remove(position);
-    let project: Value = serde_yaml_ng::from_str(&own)
+    let project: Value = serde_norway::from_str(&own)
         .map_err(|e| ApiError::Internal(format!("the project manifest did not parse: {e}")))?;
     let mut entry = project.clone();
     entry["spec"]["repository"] = json!({ "name": repo });
@@ -605,7 +605,7 @@ pub(crate) fn into_registry_entry(
     if let Some(parameters) = parameters.filter(|p| !p.is_empty()) {
         entry["spec"]["parameters"] = Value::Object(parameters.clone());
     }
-    let entry = serde_yaml_ng::to_string(&entry)
+    let entry = serde_norway::to_string(&entry)
         .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))?;
     files.insert(position, (format!("projects/{name}.yaml"), entry));
     Ok(project)
@@ -632,7 +632,7 @@ async fn seed_project_repository(
     let mut project = into_registry_entry(files, name, &repository.repo, None)?;
     project["spec"]["version"] = json!("0.1.0");
     let yaml = |value: &Value| -> Result<String, ApiError> {
-        serde_yaml_ng::to_string(value)
+        serde_norway::to_string(value)
             .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))
     };
 
@@ -942,7 +942,7 @@ async fn registered(
     let base = gitea.default_branch().await?;
     let path = format!("projects/{project}.yaml");
     let file = gitea.get_file(&path, &base).await?.ok_or_else(missing)?;
-    let manifest: Value = serde_yaml_ng::from_str(&file.content).map_err(|e| {
+    let manifest: Value = serde_norway::from_str(&file.content).map_err(|e| {
         ApiError::Internal(format!("the registry entry {path} does not parse: {e}"))
     })?;
     let spec: jc_core::kinds::ProjectSpec = serde_json::from_value(
@@ -1147,7 +1147,7 @@ pub async fn repoint_project(
             pending.name
         )));
     }
-    let content = serde_yaml_ng::to_string(&manifest)
+    let content = serde_norway::to_string(&manifest)
         .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))?;
     let branch = crate::api::mutate::create_or_reuse_branch(&gitea, &branch, &base).await?;
     let (author_name, author_email) = crate::api::mutate::author_credentials(identity, &project);
@@ -1277,7 +1277,7 @@ fn remount_manifests(text: &str, remount: &Remount<'_>) -> Option<String> {
     use serde::Deserialize as _;
     let mut documents = Vec::new();
     let mut changed = false;
-    for document in serde_yaml_ng::Deserializer::from_str(text) {
+    for document in serde_norway::Deserializer::from_str(text) {
         let mut manifest = Value::deserialize(document).ok()?;
         let kind = manifest
             .get("kind")
@@ -1336,7 +1336,7 @@ fn remount_manifests(text: &str, remount: &Remount<'_>) -> Option<String> {
     if !changed {
         return None;
     }
-    let rendered: Result<Vec<String>, _> = documents.iter().map(serde_yaml_ng::to_string).collect();
+    let rendered: Result<Vec<String>, _> = documents.iter().map(serde_norway::to_string).collect();
     Some(rendered.ok()?.join("---\n"))
 }
 
