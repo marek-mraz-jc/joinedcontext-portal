@@ -1373,7 +1373,7 @@
     },
     "src/pages/pipelines/PipelineFlow.tsx": {
       "controls": {
-        "Button": 20
+        "Button": 23
       },
       "tests": [
         "part_pipeline_flow.test.tsx",
@@ -1383,6 +1383,7 @@
         "pipeline_flow_graph.test.tsx",
         "pipeline_flow_live.test.tsx",
         "pipeline_flow_outputs.test.tsx",
+        "pipeline_flow_routes.test.tsx",
         "pipeline_flow_steps.test.tsx",
         "pipeline_graph.test.ts",
         "pipeline_step_form.test.tsx"
@@ -1414,6 +1415,7 @@
         "pipeline_editor.test.tsx",
         "pipeline_flow.test.tsx",
         "pipeline_flow_outputs.test.tsx",
+        "pipeline_flow_routes.test.tsx",
         "pipeline_flow_steps.test.tsx",
         "pipeline_kpi_preset.test.tsx",
         "pipeline_studio_debug.test.tsx",

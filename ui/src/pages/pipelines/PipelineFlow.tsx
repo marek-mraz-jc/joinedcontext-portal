@@ -10,7 +10,7 @@ import { TypePicker } from "../../components/pickers/TypePicker";
 import { Button, Field, Input, Select, Tabs, tabPanelProps, Textarea } from "../../components/ui";
 import processorCatalogue from "../../schemas/bento-processors.json";
 import { COMPUTE_KINDS, OUTPUT_MODES, YamlFieldError } from "../../schemas/kinds";
-import type { OutputForm, PipelineForm, SourceForm, StepForm } from "./PipelineEditor";
+import type { OutputForm, PipelineForm, RouteForm, SourceForm, StepForm } from "./PipelineEditor";
 import { spaceOf } from "../spaces/spaceFacts";
 import { sourceKindOf } from "./PipelineStudio";
 import type { Trace } from "./PipelineTest";
@@ -46,7 +46,8 @@ export const plainSummary = (summary: string): string =>
  * A step node is `step-<index into form.processors>`, a second source `source-<index into
  * form.moreSources>` and a second output `output-<index into form.moreOutputs>`; the first
  * source, the compute step and the first output are what they were, so everything the studio
- * hangs off `"source"` still finds it.
+ * hangs off `"source"` still finds it. A route's step is `route-<route>-step-<index>` and its
+ * output `route-<route>-output-<index>`, both into `form.routes` (PL-73).
  */
 export type FlowNodeId =
   | "source"
@@ -54,7 +55,9 @@ export type FlowNodeId =
   | "output"
   | `step-${number}`
   | `source-${number}`
-  | `output-${number}`;
+  | `output-${number}`
+  | `route-${number}-step-${number}`
+  | `route-${number}-output-${number}`;
 
 export const stepIndexOf = (id: FlowNodeId | null): number | undefined =>
   id?.startsWith("step-") ? Number(id.slice(5)) : undefined;
@@ -67,7 +70,22 @@ const isSource = (id: FlowNodeId): boolean => id === "source" || id.startsWith("
 export const outputIndexOf = (id: FlowNodeId | null): number | undefined =>
   id?.startsWith("output-") ? Number(id.slice(7)) : undefined;
 
-const isOutput = (id: FlowNodeId): boolean => id === "output" || id.startsWith("output-");
+/** Which route a node belongs to, and which of its steps or outputs it is (PL-73). */
+export function routeNodeOf(
+  id: FlowNodeId | null,
+): { route: number; step?: number; output?: number } | undefined {
+  const match = id ? /^route-(\d+)-(step|output)-(\d+)$/.exec(id) : null;
+  if (!match) return undefined;
+  const route = Number(match[1]);
+  return match[2] === "step" ? { route, step: Number(match[3]) } : { route, output: Number(match[3]) };
+}
+
+const isOutput = (id: FlowNodeId): boolean =>
+  id === "output" || id.startsWith("output-") || routeNodeOf(id)?.output !== undefined;
+
+/** A node of the lane: neither a source, an output, nor a step of a route. */
+export const isLane = (id: FlowNodeId): boolean =>
+  !isSource(id) && !isOutput(id) && routeNodeOf(id) === undefined;
 
 export interface FlowNode {
   id: FlowNodeId;
@@ -80,6 +98,8 @@ export interface FlowNode {
 export interface FlowEdge {
   from: FlowNodeId;
   to: FlowNodeId;
+  /** The route whose condition this wire carries: the wire from the lane into a route (PL-73). */
+  route?: number;
 }
 
 /** The one processor a `processor` step names, or nothing for a compute or `mappingRef` step. */
@@ -194,7 +214,72 @@ export function toFlow(form: PipelineForm | undefined): { nodes: FlowNode[]; edg
     ...lane.slice(1).map((node, index) => ({ from: lane[index].id, to: node.id })),
     ...tail.flatMap((from) => outputs.map((output) => ({ from: from.id, to: output.id }))),
   ];
-  return { nodes: [...sources, ...lane, ...outputs], edges };
+  // A route leaves the lane's tail on a wire that carries its condition, runs its own steps and
+  // ends at its own outputs (PL-73). The manifest still stores no edges: this is its list order.
+  const routeNodes = (form?.routes ?? []).flatMap((route, at) => {
+    const steps = (route.steps ?? []).map(
+      (step, index): FlowNode => ({ ...stepNode({ step }, index), id: `route-${at}-step-${index}` }),
+    );
+    const ends = (route.outputs ?? []).map(
+      (output, index): FlowNode => ({
+        id: `route-${at}-output-${index}`,
+        kind: "output",
+        label: "Output",
+        summary: [route.name, output.type, output.targetEndpoint?.split(":").pop()]
+          .filter(Boolean)
+          .join(" · "),
+        present: true,
+      }),
+    );
+    const entry = steps.length > 0 ? [steps[0]] : ends;
+    edges.push(
+      ...tail.flatMap((from) => entry.map((to) => ({ from: from.id, to: to.id, route: at }))),
+      ...steps.slice(1).map((node, index) => ({ from: steps[index].id, to: node.id })),
+      ...(steps.length > 0 ? ends.map((end) => ({ from: steps[steps.length - 1].id, to: end.id })) : []),
+    );
+    return [...steps, ...ends];
+  });
+  return { nodes: [...sources, ...lane, ...outputs, ...routeNodes], edges };
+}
+
+/** The first name `route-<n>` no route of the form holds. */
+function freeRouteName(form: PipelineForm): string {
+  const taken = new Set((form.routes ?? []).map((route) => route.name));
+  let n = 1;
+  while (taken.has(`route-${n}`)) n += 1;
+  return `route-${n}`;
+}
+
+/**
+ * The form with one more route (PL-73): no condition yet, and one output to pick an Endpoint
+ * for, because every route ends in an output. The node it became is that output.
+ */
+export function addRoute(form: PipelineForm | undefined): { form: PipelineForm; id: FlowNodeId } {
+  const base: PipelineForm = form ?? { class: "auto" };
+  const routes = [...(base.routes ?? []), { name: freeRouteName(base), when: "", outputs: [{ mode: "upsert" }] }];
+  return { form: { ...base, routes }, id: `route-${routes.length - 1}-output-0` };
+}
+
+/** The form without route `index`. */
+export function removeRoute(form: PipelineForm, index: number): PipelineForm {
+  return { ...form, routes: (form.routes ?? []).filter((_, at) => at !== index) };
+}
+
+/**
+ * The form without node `id` of a route: a step goes, and so does an output, except the route's
+ * last one, which takes the route with it, because a route without an output writes nowhere.
+ */
+export function removeRouteNode(form: PipelineForm, id: FlowNodeId): PipelineForm {
+  const node = routeNodeOf(id);
+  const route = node && form.routes?.[node.route];
+  if (!node || !route) return form;
+  if (node.output !== undefined && (route.outputs ?? []).length <= 1) return removeRoute(form, node.route);
+  const changed = {
+    ...route,
+    steps: (route.steps ?? []).filter((_, at) => at !== node.step),
+    outputs: (route.outputs ?? []).filter((_, at) => at !== node.output),
+  };
+  return { ...form, routes: (form.routes ?? []).map((was, at) => (at === node.route ? changed : was)) };
 }
 
 /** The form with one more source to read, and the node it became (PL-52). */
@@ -246,6 +331,18 @@ export function addStep(
 ): { form: PipelineForm; id: FlowNodeId } | undefined {
   if (!PROCESSOR_NAMES.has(name)) return undefined;
   const base: PipelineForm = form ?? { class: "auto" };
+  // Into a route: behind the route's step, or at the end of its steps from one of its outputs.
+  const inRoute = routeNodeOf(after);
+  const route = inRoute && base.routes?.[inRoute.route];
+  if (inRoute && route) {
+    const own = [...(route.steps ?? [])];
+    const index = inRoute.step !== undefined ? inRoute.step + 1 : own.length;
+    own.splice(index, 0, { processor: { [name]: blankConfig(name) } });
+    return {
+      form: { ...base, routes: (base.routes ?? []).map((was, at) => (at === inRoute.route ? { ...route, steps: own } : was)) },
+      id: `route-${inRoute.route}-step-${index}`,
+    };
+  }
   const steps = base.processors ?? [];
   const head = steps.filter((entry) => !entry.after);
   const tail = steps.filter((entry) => entry.after);
@@ -358,7 +455,7 @@ export function paintOf(trace: Trace | null, nodes: FlowNode[]): Record<string, 
   const sourceNodes = nodes.filter((node) => isSource(node.id));
   const read = trace.input?.events ?? 0;
   // The lane in manifest order, so a step index from the trace names the node that ran it.
-  const lane = nodes.filter((node) => !isSource(node.id) && !isOutput(node.id));
+  const lane = nodes.filter((node) => isLane(node.id));
   const errorsByNode: Record<string, string | undefined> = {
     ...Object.fromEntries(sourceNodes.map((node) => [node.id, sourceError])),
     ...Object.fromEntries(
@@ -441,7 +538,7 @@ export function samplesOf(
     if (id === "compute") return { in: read, out: trace.mapping?.[0] };
     return { in: trace.mapping?.[0], out: passed };
   }
-  const lane = nodes.filter((node) => !isSource(node.id) && !isOutput(node.id));
+  const lane = nodes.filter((node) => isLane(node.id));
   const sampleAt = (at: number) => (at < 0 ? read : stages.find((stage) => stage.step === at)?.sample);
   if (isOutput(id)) return { in: sampleAt(lane.length - 1), out: passed };
   const at = lane.findIndex((node) => node.id === id);
@@ -577,8 +674,13 @@ export function PipelineFlow({
   );
   const stateWords = (id: FlowNodeId): string =>
     missing[id] ? t(`pipelines.flow.state.missing.${missing[id]}`) : t("pipelines.flow.state.configured");
-  const nodeName = (node: FlowNode): string =>
-    t(
+  const nodeName = (node: FlowNode): string => {
+    const inRoute = routeNodeOf(node.id);
+    if (inRoute) {
+      const name = form?.routes?.[inRoute.route]?.name ?? "";
+      return t(`pipelines.flow.node.${inRoute.step !== undefined ? "routeStep" : "routeOutput"}`, { name });
+    }
+    return t(
       `pipelines.flow.node.${
         stepIndexOf(node.id) !== undefined
           ? "step"
@@ -590,6 +692,7 @@ export function PipelineFlow({
       }`,
       { defaultValue: node.label },
     );
+  };
   const needle = query.trim().toLowerCase();
   const found = needle
     ? (processorCatalogue as Processor[]).filter(
@@ -613,18 +716,35 @@ export function PipelineFlow({
   const startY = 25;
 
   // Sources stand in the left column and outputs in the right one, each one under the other,
-  // and the lane runs between them along the middle of the taller column (PL-56).
+  // and the lane runs between them along the middle of the taller column (PL-56). Each route
+  // takes rows of its own below, one per output, its steps under the lane's (PL-73).
   const sourceCount = nodes.filter((node) => isSource(node.id)).length;
-  const outputCount = nodes.filter((node) => isOutput(node.id)).length;
-  const laneCount = nodes.length - sourceCount - outputCount;
+  const outputCount = nodes.filter((node) => isOutput(node.id) && !routeNodeOf(node.id)).length;
+  const laneCount = nodes.filter((node) => isLane(node.id)).length;
+  const routeSteps = Math.max(0, ...(form?.routes ?? []).map((route) => route.steps?.length ?? 0));
   const columnHeight = (Math.max(sourceCount, outputCount) - 1) * rowSpacing;
   const column = (count: number, at: number) =>
     startY + (columnHeight - (count - 1) * rowSpacing) / 2 + at * rowSpacing;
+  const outputX = startX + (laneCount + 1 + routeSteps) * nodeSpacing;
+  const routeRows: number[] = [];
+  let routeRowCount = 0;
+  for (const route of form?.routes ?? []) {
+    routeRows.push(routeRowCount);
+    routeRowCount += Math.max(1, route.outputs?.length ?? 0);
+  }
+  const routeTop = startY + columnHeight + rowSpacing;
   const placed = nodes.map((node, index) => {
+    const inRoute = routeNodeOf(node.id);
+    if (inRoute) {
+      const y = routeTop + (routeRows[inRoute.route] ?? 0) * rowSpacing;
+      return inRoute.step !== undefined
+        ? { node, x: startX + (laneCount + 1 + inRoute.step) * nodeSpacing, y }
+        : { node, x: outputX, y: y + (inRoute.output ?? 0) * rowSpacing };
+    }
     if (isSource(node.id)) return { node, x: startX, y: column(sourceCount, index) };
     if (isOutput(node.id)) {
       const at = index - sourceCount - laneCount;
-      return { node, x: startX + (laneCount + 1) * nodeSpacing, y: column(outputCount, at) };
+      return { node, x: outputX, y: column(outputCount, at) };
     }
     return { node, x: startX + (index - sourceCount + 1) * nodeSpacing, y: startY + columnHeight / 2 };
   });
@@ -638,8 +758,8 @@ export function PipelineFlow({
   };
   const distance = (at: { x: number; y: number } | undefined, x: number, y: number) =>
     at ? Math.hypot(at.x - x, at.y - y) : Number.POSITIVE_INFINITY;
-  const svgWidth = Math.max((laneCount + 2) * nodeSpacing + 40, 520);
-  const svgHeight = 150 + columnHeight;
+  const svgWidth = Math.max((laneCount + routeSteps + 2) * nodeSpacing + 40, 520);
+  const svgHeight = 150 + columnHeight + routeRowCount * rowSpacing;
 
   const insert = (name: string, after: FlowNodeId | null) => {
     const added = addStep(form, after, name);
@@ -654,7 +774,9 @@ export function PipelineFlow({
     const output = outputIndexOf(id);
     if (!form) return;
     change(
-      step !== undefined
+      routeNodeOf(id)
+        ? removeRouteNode(form, id)
+        : step !== undefined
         ? removeStep(form, step)
         : source !== undefined
           ? removeSource(form, source)
@@ -727,6 +849,18 @@ export function PipelineFlow({
           }}
         >
           {t("pipelines.flow.addOutput")}
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          data-testid="palette-route"
+          onClick={() => {
+            const added = addRoute(form);
+            change(added.form);
+            onSelect(added.id);
+          }}
+        >
+          {t("pipelines.flow.addRoute")}
         </Button>
         {onTap ? (
           <Button
@@ -941,7 +1075,7 @@ export function PipelineFlow({
           </defs>
 
           {/* Edges */}
-          {edges.map((edge) => {
+          {edges.map((edge, edgeIndex) => {
             const from = place(edge.from);
             const to = place(edge.to);
             if (!from || !to) return null;
@@ -978,6 +1112,23 @@ export function PipelineFlow({
                   strokeWidth={14}
                   onClick={() => open(edge.to)}
                 />
+                {/* The condition rides on the wire into its route, once (PL-73). */}
+                {edge.route !== undefined && edges.findIndex((one) => one.route === edge.route) === edgeIndex ? (
+                  <text
+                    x={mx}
+                    y={my + 16}
+                    textAnchor="middle"
+                    data-testid={`flow-route-when-${edge.route}`}
+                    className="cursor-pointer select-none fill-fg font-mono text-caption"
+                    onClick={() => open(`route-${edge.route ?? 0}-output-0`)}
+                  >
+                    {(() => {
+                      const when = form?.routes?.[edge.route]?.when?.trim() ?? "";
+                      if (!when) return t("pipelines.flow.routeNoCondition");
+                      return when.length > 28 ? `${when.slice(0, 27)}…` : when;
+                    })()}
+                  </text>
+                ) : null}
                 {count !== undefined ? (
                   <text
                     x={mx}
@@ -1722,6 +1873,77 @@ export function OutputBlock({ project, output, targets, locale, onChange, onRemo
           />
         </Field>
       </div>
+    </div>
+  );
+}
+
+export interface RouteBlockProps {
+  project: string;
+  route: RouteForm;
+  /** The output of the route the selected node is, when it is one. */
+  output: number | undefined;
+  targets: OutputBlockProps["targets"];
+  locale: string;
+  onChange: (route: RouteForm) => void;
+  onRemove: () => void;
+}
+
+/**
+ * A route (PL-73): its name, the condition its records meet, and the selected output of the
+ * route. A record takes the first route whose condition holds; the rest go to the lane's outputs.
+ */
+export function RouteBlock({ project, route, output, targets, locale, onChange, onRemove }: RouteBlockProps): JSX.Element {
+  const { t } = useTranslation();
+  const outputs = route.outputs ?? [];
+  const selected = output === undefined ? undefined : outputs[output];
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-border bg-surface p-3" data-testid="flow-node-editor-route">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-caption font-semibold text-fg">{t("pipelines.flow.node.routeOutput", { name: route.name ?? "" })}</span>
+        <Button size="sm" variant="ghost" data-testid="flow-route-remove" onClick={onRemove}>
+          {t("pipelines.flow.removeRoute")}
+        </Button>
+      </div>
+      <Field id="flow-route-name" label={t("pipelines.flow.routeName")} help={t("pipelines.flow.routeNameHint")} required>
+        <Input
+          id="flow-route-name"
+          data-testid="flow-route-name"
+          value={route.name ?? ""}
+          onChange={(event) => onChange({ ...route, name: event.target.value })}
+        />
+      </Field>
+      <Field id="flow-route-when" label={t("pipelines.flow.routeWhen")} help={t("pipelines.flow.routeWhenHint")} required>
+        <Textarea
+          id="flow-route-when"
+          data-testid="flow-route-when"
+          className="font-mono"
+          rows={2}
+          value={route.when ?? ""}
+          onChange={(event) => onChange({ ...route, when: event.target.value })}
+        />
+      </Field>
+      {selected && output !== undefined ? (
+        <OutputBlock
+          key={output}
+          project={project}
+          output={selected}
+          targets={targets}
+          locale={locale}
+          onChange={(changed) => onChange({ ...route, outputs: outputs.map((was, at) => (at === output ? changed : was)) })}
+          onRemove={() =>
+            outputs.length <= 1 ? onRemove() : onChange({ ...route, outputs: outputs.filter((_, at) => at !== output) })
+          }
+        />
+      ) : null}
+      <Button
+        size="sm"
+        variant="secondary"
+        className="self-start"
+        data-testid="flow-route-add-output"
+        onClick={() => onChange({ ...route, outputs: [...outputs, { mode: "upsert" }] })}
+      >
+        {t("pipelines.flow.routeAddOutput")}
+      </Button>
     </div>
   );
 }

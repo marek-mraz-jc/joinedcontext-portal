@@ -6,14 +6,15 @@
  * order; a wire the runner cannot run is refused with the reason instead of being kept.
  */
 import type { PipelineForm, StepForm } from "./PipelineEditor";
-import { outputIndexOf, sourceIndexOf, stepIndexOf, toFlow } from "./PipelineFlow";
+import { outputIndexOf, routeNodeOf, sourceIndexOf, stepIndexOf, toFlow } from "./PipelineFlow";
 import type { FlowNodeId } from "./PipelineFlow";
 
 const isSource = (id: FlowNodeId): boolean => id === "source" || sourceIndexOf(id) !== undefined;
-const isOutput = (id: FlowNodeId): boolean => id === "output" || outputIndexOf(id) !== undefined;
+const isOutput = (id: FlowNodeId): boolean =>
+  id === "output" || outputIndexOf(id) !== undefined || routeNodeOf(id)?.output !== undefined;
 
 /** Why a wire was refused; each is a sentence under `pipelines.flow.wire.<reason>`. */
-export type WireRefusal = "intoSource" | "outOfOutput" | "self" | "middleIntoOutput";
+export type WireRefusal = "intoSource" | "outOfOutput" | "self" | "middleIntoOutput" | "route";
 
 export type WireResult =
   | { form: PipelineForm; id: FlowNodeId }
@@ -22,7 +23,9 @@ export type WireResult =
 
 /** The lane's nodes in the order they run: the steps before the compute step, it, the rest. */
 export function laneOf(form: PipelineForm | undefined): FlowNodeId[] {
-  return toFlow(form).nodes.map((node) => node.id).filter((id) => !isSource(id) && !isOutput(id));
+  return toFlow(form)
+    .nodes.map((node) => node.id)
+    .filter((id) => !isSource(id) && !isOutput(id) && routeNodeOf(id) === undefined);
 }
 
 /**
@@ -62,6 +65,12 @@ export function connect(form: PipelineForm | undefined, from: FlowNodeId, to: Fl
   if (from === to) return { refused: "self" };
   if (isSource(to)) return { refused: "intoSource" };
   if (isOutput(from)) return { refused: "outOfOutput" };
+  // A route's nodes hang off the lane's tail in their own order (PL-73): the wires the canvas
+  // draws are there already, and any other is refused rather than moving a step across routes.
+  if (routeNodeOf(from) || routeNodeOf(to)) {
+    const drawn = toFlow(form).edges.some((edge) => edge.from === from && edge.to === to);
+    return drawn ? { unchanged: true } : { refused: "route" };
+  }
   const lane = laneOf(form);
   if (isOutput(to)) {
     const tail = lane[lane.length - 1];
@@ -104,6 +113,19 @@ export function missingOf(form: PipelineForm | undefined, id: FlowNodeId): strin
     named(source?.endpointRef) ||
     (typeof source?.endpointRef === "object" && source.endpointRef !== null && named((source.endpointRef as { name?: unknown }).name));
   if (id === "source") return reads(form?.source) ? undefined : "source";
+  const inRoute = routeNodeOf(id);
+  if (inRoute) {
+    const route = form?.routes?.[inRoute.route];
+    if (!named(route?.when)) return "condition";
+    if (inRoute.output !== undefined) return named(route?.outputs?.[inRoute.output]?.targetEndpoint) ? undefined : "output";
+    const step = route?.steps?.[inRoute.step ?? -1];
+    const processor = step?.processor;
+    const [name, config] =
+      processor && typeof processor === "object"
+        ? (Object.entries(processor)[0] ?? [])
+        : [step?.kind === "bloblang" ? "mapping" : "", step?.bloblang];
+    return ["mapping", "mutation", "bloblang"].includes(name ?? "") && !named(config) ? "mapping" : undefined;
+  }
   const source = sourceIndexOf(id);
   if (source !== undefined) return reads(form?.moreSources?.[source]) ? undefined : "source";
   if (id === "output") return named(form?.targetEndpoint) ? undefined : "output";
