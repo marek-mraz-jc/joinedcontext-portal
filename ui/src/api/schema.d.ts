@@ -2450,7 +2450,7 @@ export interface paths {
         };
         /**
          * Read the Last Messages per Step
-         * @description The newest messages the runner's taps sent from each node of a running pipeline, without what its target Endpoint hides and with every secret-list key masked (T-3974).
+         * @description The newest messages the runner's taps sent from each node of a running pipeline, without what its target Endpoint hides and with every secret-list key masked. When a target hides attributes only the mapped output node is served, and `withheld` says so (T-3974).
          */
         get: operations["get_samples"];
         put?: never;
@@ -5401,6 +5401,11 @@ export interface components {
                 [key: string]: components["schemas"]["Sample"][];
             };
             pipeline: string;
+            /**
+             * @description True when a target Endpoint hides attributes (or cannot be read): the nodes before the
+             *     mapping carry the source's own field names, so only `output` is served.
+             */
+            withheld: boolean;
         };
         PipelineTemplate: {
             /** Format: date-time */

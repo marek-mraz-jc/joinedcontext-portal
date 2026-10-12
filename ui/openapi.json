@@ -10214,7 +10214,7 @@
           "resources"
         ],
         "summary": "Read the Last Messages per Step",
-        "description": "The newest messages the runner's taps sent from each node of a running pipeline, without what its target Endpoint hides and with every secret-list key masked (T-3974).",
+        "description": "The newest messages the runner's taps sent from each node of a running pipeline, without what its target Endpoint hides and with every secret-list key masked. When a target hides attributes only the mapped output node is served, and `withheld` says so (T-3974).",
         "operationId": "get_samples",
         "parameters": [
           {
@@ -20729,7 +20729,8 @@
         "description": "What last crossed each node of a running stream (T-3974, API/01 §7b).",
         "required": [
           "pipeline",
-          "nodes"
+          "nodes",
+          "withheld"
         ],
         "properties": {
           "nodes": {
@@ -20747,6 +20748,10 @@
           },
           "pipeline": {
             "type": "string"
+          },
+          "withheld": {
+            "type": "boolean",
+            "description": "True when a target Endpoint hides attributes (or cannot be read): the nodes before the\nmapping carry the source's own field names, so only `output` is served."
           }
         }
       },

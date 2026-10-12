@@ -1835,7 +1835,8 @@
       "queueHigh": "{count, plural, one {# správa čaká} few {# správy čakajú} other {# správ čaká}} v bufferi pred výstupom, viac než {limit}: výstup nestíha",
       "lastSamples": "Posledné správy týmto krokom",
       "lastSamplesNone": "Týmto krokom zatiaľ nič neprešlo.",
-      "lastSamplesUnavailable": "Posledné správy nie sú k dispozícii."
+      "lastSamplesUnavailable": "Posledné správy nie sú k dispozícii.",
+      "lastSamplesWithheld": "Skryté: cieľový endpoint skrýva atribúty a pred mapovaním nesú ešte názvy zo zdroja. Vyberte výstup a uvidíte, čo sa zapísalo."
     },
     "emptyHint": "Pridajte zdroj údajov a pipeline tlačidlom, alebo požiadajte asistenta, aby ju postavil z toho, čo už máte.",
     "credentialsOfSource": "Drží ich jeho zdroj údajov {name}",

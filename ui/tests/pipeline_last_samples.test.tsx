@@ -42,6 +42,7 @@ describe("the last messages through a step", () => {
   it("shows the newest samples of the selected step, newest first", async () => {
     answer(200, {
       pipeline: "stations",
+      withheld: false,
       nodes: {
         step_0: [
           { at: "2026-10-12T08:00:02Z", record: { n: 2 } },
@@ -58,9 +59,20 @@ describe("the last messages through a step", () => {
   });
 
   it("says nothing passed yet when the step has no samples", async () => {
-    answer(200, { pipeline: "stations", nodes: {} });
+    answer(200, { pipeline: "stations", withheld: false, nodes: {} });
     open("step-0");
     expect(await screen.findByText("Nothing has passed through this step yet.")).toBeInTheDocument();
+  });
+
+  it("says a step before the mapping is withheld when the target hides attributes", async () => {
+    answer(200, {
+      pipeline: "stations",
+      withheld: true,
+      nodes: { output: [{ at: "2026-10-12T08:00:00Z", record: { n: 0 } }] },
+    });
+    open("step-0");
+    expect(await screen.findByText(/^Withheld: the target endpoint hides attributes/)).toBeInTheDocument();
+    expect(screen.queryByRole("listitem")).toBeNull();
   });
 
   it("says the messages are not available on a 404", async () => {

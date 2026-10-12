@@ -275,13 +275,16 @@ pub struct PipelineSamples {
     pub pipeline: String,
     /// The newest samples per node label (`input`, `step_{j}`, `compute`, `output`), newest first.
     pub nodes: std::collections::BTreeMap<String, Vec<crate::pipeline_samples::Sample>>,
+    /// True when a target Endpoint hides attributes (or cannot be read): the nodes before the
+    /// mapping carry the source's own field names, so only `output` is served.
+    pub withheld: bool,
 }
 
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/pipelines/{name}/samples",
     summary = "Read the Last Messages per Step",
-    description = "The newest messages the runner's taps sent from each node of a running pipeline, without what its target Endpoint hides and with every secret-list key masked (T-3974).",
+    description = "The newest messages the runner's taps sent from each node of a running pipeline, without what its target Endpoint hides and with every secret-list key masked. When a target hides attributes only the mapped output node is served, and `withheld` says so (T-3974).",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -308,31 +311,38 @@ pub async fn get_samples(
         )));
     };
     // A sample shows no more than the pipeline's targets serve: what any of them hides is out.
-    let hidden: Vec<String> =
+    // `None` when a target cannot be read, which withholds as much as a target that hides.
+    let hidden: Option<Vec<String>> =
         serde_json::from_value::<jc_core::kinds::pipeline::PipelineSpec>(pipeline.spec.clone())
-            .map(|spec| {
+            .ok()
+            .and_then(|spec| {
                 spec.outputs()
                     .into_iter()
-                    .filter_map(|output| {
+                    .map(|output| {
                         state
                             .mirror
                             .get(&project, "Endpoint", output.target_endpoint.local_id())
+                            .map(|endpoint| {
+                                endpoint.spec["projection"]["hiddenAttributes"]
+                                    .as_array()
+                                    .into_iter()
+                                    .flatten()
+                                    .filter_map(|name| name.as_str().map(str::to_owned))
+                                    .collect::<Vec<_>>()
+                            })
                     })
-                    .flat_map(|endpoint| {
-                        endpoint.spec["projection"]["hiddenAttributes"]
-                            .as_array()
-                            .into_iter()
-                            .flatten()
-                            .filter_map(|name| name.as_str().map(str::to_owned))
-                            .collect::<Vec<_>>()
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
+                    .collect::<Option<Vec<_>>>()
+                    .map(|lists| lists.concat())
+            });
+    // Before the mapping a record carries the source's own field names, so a hidden attribute
+    // is not recognisable there: with anything hidden only the mapped `output` is served.
+    let withheld = hidden.as_ref().is_none_or(|names| !names.is_empty());
+    let hidden = hidden.unwrap_or_default();
     let nodes = state
         .pipeline_samples
         .read(&project, &name, chrono::Utc::now())
         .into_iter()
+        .filter(|(node, _)| !withheld || node == "output")
         .map(|(node, samples)| {
             let samples = samples
                 .into_iter()
@@ -347,6 +357,7 @@ pub async fn get_samples(
     Ok(Json(PipelineSamples {
         pipeline: name,
         nodes,
+        withheld,
     }))
 }
 

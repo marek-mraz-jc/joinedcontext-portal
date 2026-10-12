@@ -1835,7 +1835,8 @@
       "queueHigh": "{count, plural, one {# message waits} other {# messages wait}} in the buffer before the output, more than {limit}: the output is not keeping up",
       "lastSamples": "Last messages through this step",
       "lastSamplesNone": "Nothing has passed through this step yet.",
-      "lastSamplesUnavailable": "The last messages are not available."
+      "lastSamplesUnavailable": "The last messages are not available.",
+      "lastSamplesWithheld": "Withheld: the target endpoint hides attributes, and before the mapping they carry the source's own names. Select the output to see what was written."
     },
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have.",
     "credentialsOfSource": "Held by its data source {name}",
