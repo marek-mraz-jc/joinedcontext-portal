@@ -445,7 +445,8 @@ export function ArrayFieldTemplate(props: ArrayFieldTemplateProps): React.JSX.El
           <div className="flex flex-col gap-2">{items}</div>
         </ArrayHintContext.Provider>
       ) : null}
-      {canAdd ? (
+      {/* A form that cannot be changed has nothing to add (UI-44): no refused button per list. */}
+      {canAdd && !disabled && !readonly ? (
         <div>
           <AddButton
             id={`${fieldPathId.$id}__add`}
@@ -467,7 +468,7 @@ export function ArrayFieldItemTemplate(props: ArrayFieldItemTemplateProps): Reac
   return (
     <div className="flex items-start gap-2 rounded-md border border-border bg-surface p-2">
       <div className="min-w-0 flex-1 [&>div]:gap-1">{children}</div>
-      {hasToolbar ? (
+      {hasToolbar && !buttonsProps.disabled && !buttonsProps.readonly ? (
         <div className="flex shrink-0 items-center gap-1">
           <ArrayFieldItemButtonsTemplate {...buttonsProps} uiSchema={uiSchema} registry={registry} />
         </div>

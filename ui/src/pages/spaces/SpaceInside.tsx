@@ -646,7 +646,9 @@ function SpaceData({
           />
         </div>
       ) : null}
+      {/* The grid is a view like the others: its tab names this panel (axe aria-valid-attr-value, T-3851). */}
       {probe.isSuccess && config && view === "grid" ? (
+        <div {...tabPanelProps("space-data-view", view)}>
         <PortalEntityGrid
           // A new key after an import, or a view applied, reads the type again: nothing typed under
           // the last one carries over.
@@ -670,6 +672,7 @@ function SpaceData({
           query={groupQuery}
           empty={<p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>}
         />
+        </div>
       ) : null}
     </div>
   );
@@ -1005,7 +1008,13 @@ export function SpaceInside({ project, name }: { project: string; name: string }
           </Link>
           <PageHeader
             title={localized(manifest.metadata.title, locale, manifest.metadata.name)}
-            description={<span className="font-mono">{manifest.metadata.name}</span>}
+            description={
+              <>
+                {/* What the space is for comes first; its name is the identifier beside it (T-3851). */}
+                {localized(manifest.metadata.description, locale, "") || t("spaces.inside.lead")}{" "}
+                <span className="font-mono">{manifest.metadata.name}</span>
+              </>
+            }
           />
         </div>
         <div className="flex items-center gap-2">

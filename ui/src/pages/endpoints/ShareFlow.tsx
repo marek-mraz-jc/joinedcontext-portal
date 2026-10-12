@@ -2,9 +2,9 @@ import { useId, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api } from "../../api/client";
 import { asManifests, ORG_NAMESPACE } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
+import { useReadableList } from "../../api/permissions";
 import { useProposal } from "../../api/proposal";
 import { useProjects } from "../../api/projects";
 import { ChangeNotice } from "../../components/ChangeNotice";
@@ -126,23 +126,20 @@ export function ShareFlow({
   const hidden = spec.projection?.hiddenAttributes ?? [];
   const shared = spec.allowedProjects ?? [];
   const projects = (useProjects().data ?? []).filter((name) => name !== project && !shared.includes(name));
-  const groups = useQuery({
-    queryKey: ["share-groups", project],
-    retry: false,
-    queryFn: async () => {
-      const names = new Set<string>();
-      for (const owner of [ORG_NAMESPACE, project]) {
-        const listed = await api.GET("/api/v1/projects/{project}/{plural}", { params: { path: { project: owner, plural: "groups" } } });
-        for (const group of asManifests(listed.data?.items ?? [])) names.add(group.metadata.name);
-      }
-      return names;
-    },
-  });
+  // A list the caller does not read counts as empty instead of being asked for (a 404, T-3852).
+  const groupLists = [useReadableList(ORG_NAMESPACE, "groups", "Group"), useReadableList(project, "groups", "Group")];
+  const groupNames = groupLists.every((list) => list.hidden || list.data !== undefined)
+    ? new Set(
+        groupLists.flatMap((list) =>
+          asManifests((list.data as { items?: Manifest[] } | undefined)?.items ?? []).map((group) => group.metadata.name),
+        ),
+      )
+    : undefined;
   const [target, setTarget] = useState("");
   const [chosen, setChosen] = useState<string[]>(types);
   const [until, setUntil] = useState("");
   const [change, setChange] = useState<Change | null>(null);
-  const needsGroup = target !== "" && groups.data !== undefined && !groups.data.has(target);
+  const needsGroup = target !== "" && groupNames !== undefined && !groupNames.has(target);
   const proposal = useProposal(project, "endpoints", setChange);
   const day = new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" });
   const policyOf = (other: string) => policies.find((policy) => policy.metadata.name === sharePolicyName(endpoint.metadata.name, other));
@@ -235,8 +232,9 @@ export function ShareFlow({
             ))}
           </Select>
         </Field>
-        <fieldset className="flex flex-col gap-1">
+        <fieldset className="flex flex-col gap-1" aria-describedby={`${ids}-types-help`}>
           <legend className="text-body font-medium text-fg">{t("endpoints.shareFlow.types")}</legend>
+          <p id={`${ids}-types-help`} className="text-caption text-fg-muted">{t("endpoints.shareFlow.typesHelp")}</p>
           {types.map((type) => (
             <Checkbox
               key={type}
