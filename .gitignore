@@ -18,3 +18,4 @@ sdk/template/dist/
 sdk/template/node_modules/
 # The lane test borrows the SDK's Vite (ci.yml); the image bakes the template's.
 builder/node_modules
+__pycache__/
