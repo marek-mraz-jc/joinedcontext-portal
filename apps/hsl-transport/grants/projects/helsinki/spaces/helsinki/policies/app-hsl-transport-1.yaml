@@ -21,11 +21,13 @@ spec:
     - heading
     - speed
     - route
+    - transportMode
     relationshipNames:
     - location
     - heading
     - speed
     - route
+    - transportMode
   operations:
   - queryEntity
   - retrieveEntity

@@ -649,6 +649,14 @@
         "navigation_ease.test.tsx"
       ]
     },
+    "src/pages/access/AccessExplorer.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "access_explorer.test.tsx"
+      ]
+    },
     "src/pages/access/GroupPage.tsx": {
       "controls": {
         "Button": 6

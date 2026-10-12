@@ -2526,6 +2526,42 @@
       "ckanInstance": "{project} / {name}",
       "ckanVia": "přes roli {role}",
       "appNotLoaded": "Aplikace se ještě načítá nebo ji nemůžete číst."
+    },
+    "explorer": {
+      "title": "Podívejte se, k čemu má kdo přístup",
+      "lead": "Vyberte osobu, skupinu, roli, servisní účet nebo veřejnost. Každý Endpoint tohoto projektu, ke kterému se dostanou, se zobrazí s tím, co tam smějí číst a dělat, jak rozhodla brána. Endpointy, ke kterým se nedostanou, se nezobrazí.",
+      "kind": "Kdo",
+      "search": "Hledat osoby",
+      "show": "Zobrazit přístup",
+      "failed": "Přístup se nepodařilo zobrazit. Zkuste to znovu za minutu; důvod je níže.",
+      "nothing": "Nedosáhne ničeho",
+      "nothingLead": "Žádný Endpoint tohoto projektu je nepřipouští ani jim nic neuděluje. Přístup udělíte politikou, skupinou nebo vazbou role.",
+      "space": "prostor {space}",
+      "through": "Uděleno přes",
+      "openEndpoint": "Otevřít Endpoint",
+      "may": "Smí",
+      "mayNot": "Nesmí",
+      "attributes": "Atributy:",
+      "allAttributes": "všechny",
+      "only": "Jen kde",
+      "copy": "Kopírovat URL {surface}",
+      "geoQ": "Oblast omezení: {shape}",
+      "mcp": "Jeden MCP konektor na všechno",
+      "mcpLead": "Hub pokrývá všechny Endpointy výše jedním konektorem; Endpoint se uvádí při každém volání.",
+      "connectAll": "Připojit vše (kopírovat URL hubu)",
+      "consents": "Připojení klienti",
+      "noConsents": "Žádní připojení klienti.",
+      "lastUsed": "naposledy použito {when}",
+      "revoke": "Odvolat",
+      "revokeTitle": "Odvolat souhlas pro {client}?",
+      "revokeLead": "Klient ztratí připojení a offline relace a musí požádat znovu. Žádné oprávnění se nemění.",
+      "revokeFailed": "Souhlas se nepodařilo odvolat. Zkuste to znovu; důvod je níže.",
+      "endpoints": "{count, plural, one {# dosažený Endpoint} few {# dosažené Endpointy} other {# dosažených Endpointů}}",
+      "pickFirst": "Nejprve vyberte, koho chcete vyhledat.",
+      "kindHelp": "Osoba, skupina, role nebo servisní účet: čí přístup stránka vypíše.",
+      "personHelp": "Lidé organizace podle e-mailu; vyhledávání výše seznam zúží.",
+      "accountHelp": "Servisní účty projektu, tedy programy, které volají endpointy.",
+      "nameHelp": "Název přesně tak, jak je zapsán v Keycloaku."
     }
   },
   "flows": {
@@ -3102,7 +3138,7 @@
       "noBuilder": "Toto nasazení nemá agenta pro stavbu aplikací, takže zde aplikaci vygenerovat nelze. Agent Runner je volitelný doplněk; požádejte správce o jeho instalaci.",
       "examplesHint": "Dvě aplikace dodávané s platformou jsou hotové příklady stejného tvaru:",
       "examples": {
-        "hsl-transport": "Autobusy živě: 30 vozidel na mapě, veřejné a jen ke čtení",
+        "hsl-transport": "HSL živě: až 90 vozidel všech druhů dopravy na mapě, odjezdy a dopravní hlášení, veřejné a jen ke čtení",
         "air-quality": "Kvalita ovzduší: stanice, denní historie a poznámka správce"
       },
       "needs": {
@@ -4543,7 +4579,8 @@
       },
       "access": {
         "denied": "Přístup odmítnut",
-        "simulated": "Pravidlo vyzkoušené na osobě"
+        "simulated": "Pravidlo vyzkoušené na osobě",
+        "explored": "Přístup zobrazen"
       },
       "mcp": {
         "tool": "Volání nástroje asistenta"
@@ -5632,7 +5669,8 @@
       "roles": "Role",
       "service-accounts": "Servisní účty",
       "access": "Váš přístup",
-      "danger": "Smazat nebo předat"
+      "danger": "Smazat nebo předat",
+      "explorer": "Přehled přístupu"
     },
     "field": {
       "title": "Název",

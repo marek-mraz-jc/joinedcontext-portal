@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use argon2::password_hash::rand_core::{OsRng, RngCore};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::error::ApiError;
@@ -101,6 +101,20 @@ struct Credential {
     id: String,
     #[serde(rename = "type", default)]
     kind: String,
+}
+
+/// One client a person consented to (the hub, an Endpoint's MCP client, an App), as the realm's
+/// admin API lists it (T-3792). Never a token: Keycloak keeps those to itself.
+#[derive(Debug, Clone, Deserialize, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Consent {
+    pub client_id: String,
+    #[serde(default)]
+    pub granted_client_scopes: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_date: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_updated_date: Option<i64>,
 }
 
 #[derive(Deserialize)]
@@ -407,6 +421,24 @@ impl Admin<'_> {
             .json(&format!("/users/{}/sessions", segment(id)?))
             .await?;
         Ok(sessions.iter().filter_map(|s| s.last_access).max())
+    }
+
+    /// The clients the person consented to.
+    pub async fn consents(&self, id: &str) -> Result<Vec<Consent>, PeopleError> {
+        self.json(&format!("/users/{}/consents", segment(id)?))
+            .await
+    }
+
+    /// Revokes the person's consent to `client`, which also ends that client's offline sessions
+    /// of theirs; no grant changes.
+    pub async fn revoke_consent(&self, id: &str, client: &str) -> Result<(), PeopleError> {
+        self.send(self.people.http.delete(self.url(&format!(
+            "/users/{}/consents/{}",
+            segment(id)?,
+            segment(client)?
+        ))))
+        .await
+        .map(drop)
     }
 
     /// The names of the realm groups the person is in, and of the realm roles they hold, managed

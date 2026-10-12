@@ -138,7 +138,8 @@
         },
         "assistant": "jc_person_sign_out",
         "routes": [
-          "POST /api/v1/organization/people/{id}/sign-out"
+          "POST /api/v1/organization/people/{id}/sign-out",
+          "DELETE /api/v1/organization/people/{id}/consents/{client}"
         ]
       },
       "remove": {
@@ -816,7 +817,8 @@
         },
         "personOnly": "weighing another person's rights is an organization administrator's own question, recorded with both subjects (EP-103); no assistant tool reveals another person's access",
         "routes": [
-          "POST /api/v1/projects/{project}/endpoints/{name}/access/simulate"
+          "POST /api/v1/projects/{project}/endpoints/{name}/access/simulate",
+          "POST /api/v1/projects/{project}/access/explore"
         ]
       }
     },
