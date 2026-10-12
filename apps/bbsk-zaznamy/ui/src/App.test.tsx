@@ -125,7 +125,7 @@ describe("the records of one publisher", () => {
     await waitFor(() => expect(rows()).toHaveLength(CITY.length));
     // One text box per row, and it is the note's.
     expect(screen.getAllByRole("textbox", { name: `${sk.grid.edit} ${sk.column[NOTE]}` })).toHaveLength(CITY.length);
-    for (const column of ["value", "indicator", "refArea", "refPeriod", "dateObserved"]) {
+    for (const column of ["observationValue", "indicator", "refArea", "refPeriod", "dateObserved"]) {
       expect(
         screen.queryAllByRole("textbox", { name: `${sk.grid.edit} ${sk.column[column]}` }),
         column,
@@ -185,6 +185,26 @@ describe("the charts above the table (T-2966)", () => {
     const overview = screen.getByRole("region", { name: sk.overview });
     expect(await within(overview).findByRole("alert")).toHaveTextContent(sk.chartsFailed);
     await waitFor(() => expect(rows()).toHaveLength(CITY.length));
+  });
+
+  it("reads the figure from observationValue in the table and the chart, and none from a value member (T-3966)", async () => {
+    const user = userEvent.setup();
+    const figure = new Intl.NumberFormat(sk.chart.locale, { maximumFractionDigits: 2 }).format(4061.2);
+    show();
+    await waitFor(() => expect(rows().some((row) => row.textContent?.includes(figure))).toBe(true));
+    const overview = screen.getByRole("region", { name: sk.overview });
+    await user.click(within(overview).getByRole("button", { name: datasetName("vh5003rr", "sk") }));
+    const chart = await within(overview).findByRole("figure", { name: /Spotreba pitnej vody - spolu/ });
+    expect(chart.textContent).toContain(figure);
+  });
+
+  it("draws no figure for a record that names its number value, the member T-3964 renamed", async () => {
+    const renamed = () =>
+      json(answer(CITY).map(({ observationValue, ...rest }) => ({ ...rest, value: observationValue })));
+    show({ rows: renamed, cube: renamed });
+    await waitFor(() => expect(rows()).toHaveLength(CITY.length));
+    const figure = new Intl.NumberFormat(sk.chart.locale, { maximumFractionDigits: 2 }).format(4061.2);
+    expect(rows().some((row) => row.textContent?.includes(figure))).toBe(false);
   });
 
   it("says when a cube has no records yet", async () => {

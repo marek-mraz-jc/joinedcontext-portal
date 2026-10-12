@@ -26,7 +26,7 @@ export function record(one: RecordFixture, space: string, domain: string): Recor
     indicator: { type: "Property", value: one.indicator },
     refArea: { type: "Property", value: one.refArea },
     refPeriod: { type: "Property", value: one.refPeriod },
-    value: { type: "Property", value: one.value, unitCode: one.unitCode ?? "MTQ" },
+    observationValue: { type: "Property", value: one.value, unitCode: one.unitCode ?? "MTQ" },
     source: { type: "Property", value: `https://data.statistics.sk/api/v2/dataset/${one.dataSet}` },
     dateObserved: { type: "Property", value: one.dateObserved },
   };

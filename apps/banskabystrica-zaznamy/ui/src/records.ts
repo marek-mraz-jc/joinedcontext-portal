@@ -27,7 +27,7 @@ export const COLUMNS: readonly string[] = [
   "indicator",
   "refArea",
   "refPeriod",
-  "value",
+  "observationValue",
   "dateObserved",
   NOTE,
 ];

@@ -43,10 +43,10 @@ describe("the table's cells", () => {
   });
 
   it("draw a value that is no number as written, and a number without a unit alone", () => {
-    expect(cell(renderers, "value", { value: { type: "Property", value: "n/a" } })).toBe("n/a");
-    expect(cell(renderers, "value", {})).toBe("");
-    expect(cell(renderers, "value", { value: { type: "Property", value: 12.5 } })).toBe("12.5");
-    expect(cell(renderers, "value", { value: { type: "Property", value: 3 }, unitText: { type: "Property", value: 7 } })).toBe("3");
+    expect(cell(renderers, "observationValue", { observationValue: { type: "Property", value: "n/a" } })).toBe("n/a");
+    expect(cell(renderers, "observationValue", {})).toBe("");
+    expect(cell(renderers, "observationValue", { observationValue: { type: "Property", value: 12.5 } })).toBe("12.5");
+    expect(cell(renderers, "observationValue", { observationValue: { type: "Property", value: 3 }, unitText: { type: "Property", value: 7 } })).toBe("3");
   });
 
   it("draw a date that is no date as written", () => {
