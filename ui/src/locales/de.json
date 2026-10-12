@@ -170,7 +170,8 @@
     "language": "Ein zweibuchstabiger Sprachcode in Kleinbuchstaben, wie sk oder en.",
     "sitePath": "Ein Pfad der Website, der mit einem Schrägstrich beginnt, wie /news/**.",
     "color": "Eine Farbe als # und sechs Hexadezimalziffern, wie #0b5394.",
-    "notAnAttribute": "{name} ist kein Attribut von {types} in den Modellen des Projekts; prüfen Sie die Schreibweise."
+    "notAnAttribute": "{name} ist kein Attribut von {types} in den Modellen des Projekts; prüfen Sie die Schreibweise.",
+    "missing": "{field} ist erforderlich"
   },
   "approvals": {
     "lead": "Jede Änderung am Projekt ist hier ein Vorschlag, bis eine freigebende Person sie zusammenführt.",
@@ -2125,6 +2126,10 @@
         "type": "Nennen Sie den zu aggregierenden Entitätstyp.",
         "attribute": "Geben Sie den Namen eines numerischen Attributs ein: Buchstaben, Ziffern und Unterstriche."
       }
+    },
+    "canvasLoss": {
+      "noSource": "Die Pipeline hat keine erste Quelle: Wähle zuerst, woraus sie liest, sonst können ihre weiteren Quellen, Schritte und Ausgaben nicht geschrieben werden.",
+      "noTarget": "Die Pipeline hat keinen Ziel-Endpunkt: Wähle zuerst, wohin sie schreibt, sonst können ihre weiteren Ausgaben nicht geschrieben werden."
     }
   },
   "dashboards": {

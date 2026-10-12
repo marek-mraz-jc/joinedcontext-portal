@@ -170,7 +170,8 @@
     "language": "Dvoupísmenný kód jazyka malými písmeny, jako sk nebo en.",
     "sitePath": "Cesta webu začínající lomítkem, jako /news/**.",
     "color": "Barva jako # a šest šestnáctkových číslic, jako #0b5394.",
-    "notAnAttribute": "{name} není atribut typu {types} v modelech projektu; zkontrolujte pravopis."
+    "notAnAttribute": "{name} není atribut typu {types} v modelech projektu; zkontrolujte pravopis.",
+    "missing": "{field} je povinné"
   },
   "approvals": {
     "lead": "Každá změna projektu je zde návrhem, dokud ji schvalovatel nesloučí.",
@@ -2125,6 +2126,10 @@
         "type": "Zadejte typ entity k agregaci.",
         "attribute": "Zadejte název číselného atributu: písmena, číslice a podtržítka."
       }
+    },
+    "canvasLoss": {
+      "noSource": "Pipeline nemá první zdroj: nejdřív zvolte, odkud čte, jinak nelze zapsat její další zdroje, kroky ani výstupy.",
+      "noTarget": "Pipeline nemá cílový endpoint: nejdřív zvolte, kam zapisuje, jinak nelze zapsat její další výstupy."
     }
   },
   "dashboards": {

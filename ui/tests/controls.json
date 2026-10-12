@@ -189,6 +189,7 @@
       "tests": [
         "draft_form.test.tsx",
         "form_asks_the_assistant.test.tsx",
+        "form_check_names_the_missing_field.test.tsx",
         "form_empty_check_marks_the_field.test.tsx"
       ]
     },

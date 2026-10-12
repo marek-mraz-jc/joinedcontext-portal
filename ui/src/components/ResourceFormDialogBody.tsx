@@ -67,6 +67,12 @@ export interface ResourceFormDialogProps<T> {
   /** Why proposing is closed right now (PL-49): both views disable their button and say so. */
   submitDisabledReason?: string;
   /**
+   * Why the form cannot be checked as it stands, and the field that would fix it: Check sends
+   * nothing, says this beside the button and brings that field into view (T-3969). A kind whose
+   * form holds more than its manifest can say passes it rather than check a smaller manifest.
+   */
+  checkRefusal?: { message: string; field?: string };
+  /**
    * A proposal is in flight. The form is closed for the duration and the button says so, which
    * `disabled` alone cannot: a disabled button is one that cannot be pressed for any reason,
    * and a person who clicked and sees nothing move clicks again (UI-01, T-0962).
@@ -145,6 +151,30 @@ function atPath(root: ErrorSchema, path: string[]): string[] {
 }
 
 /**
+ * The control that edits a field: a workbench control standing in for a hidden form field
+ * carries `data-field`, a form field has rjsf's `root_…` id. A hidden input is no control.
+ */
+function controlOf(field: string): HTMLElement | null {
+  const target =
+    document.querySelector<HTMLElement>(`[data-field="${CSS.escape(field)}"]`) ??
+    document.getElementById(`root_${field.split(".").join("_")}`);
+  return target && !(target instanceof HTMLInputElement && target.type === "hidden") ? target : null;
+}
+
+/** The name a field shows, its schema `title`, or the last segment of its path without one. */
+function titleAt(schema: JsonSchema, path: string[]): string {
+  let node: JsonSchema | undefined = schema;
+  for (const segment of path) {
+    const properties: Record<string, JsonSchema> | undefined = (
+      node as { properties?: Record<string, JsonSchema> } | undefined
+    )?.properties;
+    node = properties?.[segment];
+  }
+  const title = (node as { title?: unknown } | undefined)?.title;
+  return typeof title === "string" && title.trim() !== "" ? title : (path[path.length - 1] ?? "");
+}
+
+/**
  * The form's field a finding's manifest path names: `metadata.name` is the form's `name`, and a
  * form that holds the spec's fields at its top level (most do, through `source`) has
  * `spec.contextSpaceRef` as `contextSpaceRef` (T-2731, UI-45).
@@ -169,6 +199,7 @@ export function ResourceFormDialogBody<T>({
   submitLabel,
   disabled: closed,
   submitDisabledReason,
+  checkRefusal,
   submitting,
   error,
   size = "xl",
@@ -297,6 +328,11 @@ export function ResourceFormDialogBody<T>({
   const [issues, setIssues] = useState<string[]>([]);
   /** What the browser's own check refused, keyed by field, until the form changes (T-1491). */
   const [schemaErrors, setSchemaErrors] = useState<ErrorSchema | undefined>(undefined);
+  // Why the last Check stopped before asking the server, and the field to bring into view: a
+  // count of filled fields beside the button left a person searching a long form (T-3970).
+  // It holds the form it judged, so any change to the draft, from a field or from a workbench
+  // beside the form, retires it.
+  const [stopped, setStopped] = useState<{ message: string; field?: string; form?: T } | null>(null);
   /** Whether the last check said applying this restarts the pipeline's stream (T-1056). */
   const [restartsStream, setRestartsStream] = useState(false);
 
@@ -783,9 +819,25 @@ export function ResourceFormDialogBody<T>({
     return mergeObjects(findingErrors, schemaErrors, "preventDuplicates") as ErrorSchema;
   }, [schemaErrors, findingErrors]);
 
+  /** The first required field the schema finds empty, as its path and the name it shows. */
+  function firstMissing(form: T): { message: string; field: string } | null {
+    const { errors } = validator.validateFormData(namesOfRefs(kind, form), schema);
+    const issue = errors.find((candidate) => candidate.name === "required");
+    if (!issue) {
+      return null;
+    }
+    const path = (issue.property ?? "").split(".").filter(Boolean);
+    return { message: t("form.missing", { field: titleAt(schema, path) }), field: path.join(".") };
+  }
+
   /** The check runs on what the active view holds: the form, or the YAML read back into it. */
   function runCheck() {
     if (!canCheck) {
+      return;
+    }
+    setStopped(null);
+    if (checkRefusal) {
+      setStopped({ ...checkRefusal, form: formData });
       return;
     }
     const check = onCheck ?? ((form: T) => ownCheck.mutate(form));
@@ -800,6 +852,13 @@ export function ResourceFormDialogBody<T>({
         setSchemaErrors(refused?.marked);
         if (!refused?.missing) {
           check(formData);
+        } else {
+          const missing = firstMissing(formData);
+          setStopped(missing ? { ...missing, form: formData } : null);
+          // A required field among the advanced ones is not on screen until they are shown.
+          if (missing && !controlOf(missing.field) && arranged?.advancedFields && !advanced) {
+            setAdvancedChoice(true);
+          }
         }
       }
       return;
@@ -816,6 +875,26 @@ export function ResourceFormDialogBody<T>({
       check(form);
     }
   }
+
+  // The field a stopped check names is opened, scrolled to and focused once it is on screen,
+  // with every fold around it opened (T-3970); `advanced` reruns it once those fields show.
+  useEffect(() => {
+    const target = view === "form" && stopped?.field ? controlOf(stopped.field) : null;
+    if (!target) {
+      return;
+    }
+    for (let fold = target.closest("details"); fold; fold = fold.parentElement?.closest("details") ?? null) {
+      fold.open = true;
+    }
+    target.scrollIntoView?.({ block: "center" });
+    target.focus();
+  }, [stopped, view, advanced]);
+
+  const stoppedElement = stopped && stopped.form === formData ? (
+    <span data-testid="check-stopped" role="status" className="text-caption text-danger">
+      {stopped.message}
+    </span>
+  ) : null;
 
   const checkButton = canCheck ? (
     <Button
@@ -1087,6 +1166,7 @@ export function ResourceFormDialogBody<T>({
                     {t("form.cancel")}
                   </Button>
                   {checkButton}
+                  {stoppedElement}
                   {draftKind && activeName ? (
                     <>
                       {verdictChip}
@@ -1159,6 +1239,7 @@ export function ResourceFormDialogBody<T>({
                 {t("form.cancel")}
               </Button>
               {checkButton}
+              {stoppedElement}
               {draftKind && activeName ? (
                 <>
                   {verdictChip}

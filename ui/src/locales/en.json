@@ -170,7 +170,8 @@
     "language": "A two-letter language code in lower case, such as sk or en.",
     "sitePath": "A path of the site starting with a slash, such as /news/**.",
     "color": "A colour as # and six hexadecimal digits, such as #0b5394.",
-    "notAnAttribute": "{name} is not an attribute of {types} in the project's models; check the spelling."
+    "notAnAttribute": "{name} is not an attribute of {types} in the project's models; check the spelling.",
+    "missing": "{field} is required"
   },
   "approvals": {
     "lead": "Every change to the project is a proposal here until an approver merges it.",
@@ -2125,6 +2126,10 @@
         "type": "Name the entity type to aggregate.",
         "attribute": "Enter a numeric attribute name: letters, digits and underscores."
       }
+    },
+    "canvasLoss": {
+      "noSource": "The pipeline has no first source: choose where it reads from before its extra sources, steps or outputs can be written.",
+      "noTarget": "The pipeline has no target endpoint: choose where it writes before its extra outputs can be written."
     }
   },
   "dashboards": {

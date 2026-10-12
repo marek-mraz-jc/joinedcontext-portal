@@ -351,8 +351,8 @@ test.describe("pipeline studio walk (CIVITAS/CORE comparison)", () => {
     await expect(page.getByTestId("flow-port-in-source")).toHaveCount(0);
   });
 
-  // A required field left empty proposes nothing: the check is not sent and the form counts
-  // what is missing. (Gap on the comparison page: the field is not brought into view.)
+  // A required field left empty proposes nothing: the check is not sent, the form counts what is
+  // missing, and the Check names the field and brings its control into view (T-3970).
   test("proposes nothing while the target endpoint is empty", async ({
     page,
   }) => {
@@ -365,9 +365,43 @@ test.describe("pipeline studio walk (CIVITAS/CORE comparison)", () => {
     await expect(dialog.getByTestId("required-count")).toHaveText(
       "2 of 3 required fields filled",
     );
+    await expect(dialog.getByTestId("check-stopped")).toHaveText(
+      "Target endpoint is required",
+    );
+    await expect(dialog.locator('[data-field="targetEndpoint"]')).toBeFocused();
     await expect(dialog.getByTestId("draft-verdict")).toHaveText(
       "Not checked yet",
     );
+    await expect(
+      dialog.getByRole("button", { name: "Propose change" }),
+    ).toBeDisabled();
+    expect(writes).toEqual([]);
+  });
+
+  // A step drawn on the canvas with no first source cannot be written (v1alpha2 needs one), so
+  // Check and Propose stop and say so rather than propose the pipeline without it (T-3969).
+  test("refuses a step drawn with no first source rather than drop it", async ({
+    page,
+  }) => {
+    const { writes } = await stubApi(page, {});
+    await page.goto("/projects/helsinki/pipelines?lang=en");
+    await page.getByRole("button", { name: "New pipeline" }).first().click();
+    const dialog = page.getByTestId("form-page");
+    await dialog.getByLabel(/^Name/).fill("no-source");
+    await dialog.getByText("More options").click();
+    await dialog.getByText("Advanced editor").click();
+    const canvas = page.getByTestId("flow-canvas");
+    await page.getByLabel("Find a processor").fill("log");
+    const found = page.getByTestId("palette-found-log");
+    await found.scrollIntoViewIfNeeded();
+    await found.dragTo(canvas);
+    await expect(page.getByTestId("flow-node-step-0")).toBeVisible();
+    await dialog.getByLabel(/^Target endpoint/).selectOption({ label: "transport" });
+    await dialog.getByRole("button", { name: "Check", exact: true }).click();
+    await expect(dialog.getByTestId("check-stopped")).toContainText(
+      "The pipeline has no first source",
+    );
+    await expect(dialog.locator('[data-field="source"]')).toBeFocused();
     await expect(
       dialog.getByRole("button", { name: "Propose change" }),
     ).toBeDisabled();
