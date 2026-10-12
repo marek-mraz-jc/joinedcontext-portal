@@ -93,7 +93,8 @@
     "knowledge": "Knowledge sources",
     "mcp": "MCP servers",
     "home": "Home",
-    "inbox": "Inbox"
+    "inbox": "Inbox",
+    "mqttbrokers": "MQTT brokers"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -7218,5 +7219,67 @@
     "when": "{at} · {lane} lane · {id}",
     "notWritten": "That change wrote no {kind} {name}, so there is no version of it to restore.",
     "loaded": "The version change {id} wrote is in the form. Check it and propose it to restore it; nothing is changed until it is approved."
+  },
+  "mqttbrokers": {
+    "field": {
+      "name": "Name",
+      "roles": "Roles",
+      "roleName": "Role",
+      "serviceAccounts": "Service accounts (devices)",
+      "publish": "May publish to",
+      "subscribe": "May subscribe to",
+      "limits": "Limits",
+      "maxMessageBytes": "Largest message (bytes)",
+      "messagesPerSecond": "Messages per second per device",
+      "maxConnections": "Connections at most",
+      "port": "Dedicated port"
+    },
+    "acl": {
+      "caption": "Topic access of {broker} by role",
+      "role": "Role",
+      "accounts": "Service accounts",
+      "publish": "Publish",
+      "subscribe": "Subscribe"
+    },
+    "connect": {
+      "address": "Address",
+      "copy": "Copy address",
+      "noAddress": "Shown when the Portal is opened at its own address (portal.<domain>).",
+      "client": "Client id and user name",
+      "password": "Password",
+      "token": "An access token of the device's own client, fetched with its key; never a stored password.",
+      "pipeline": "Pipelines",
+      "brokerRef": "Pick {broker} as the platform broker of an MQTT data source."
+    },
+    "connections": {
+      "title": "Connections",
+      "lead": "Who talks to whom, from a device to the Policy that guards the write, and what allows each step.",
+      "partial": "Kinds you may not read are left out.",
+      "edge": "Step",
+      "from": "From",
+      "to": "To",
+      "allowedBy": "Allowed by",
+      "state": "State",
+      "ok": "Allowed",
+      "fix": "Fix it",
+      "kind": {
+        "device": "Device publishes to broker",
+        "broker": "Broker feeds data source",
+        "pipeline": "Pipeline reads data source",
+        "endpoint": "Pipeline writes to Endpoint",
+        "policy": "Policy guards Endpoint"
+      },
+      "byRole": "role {role}, client {client}",
+      "byListener": "the internal listener, runner identity",
+      "byRunner": "the pipeline runner",
+      "byPipelineAccount": "the service account of {pipeline}",
+      "byPolicy": "the Endpoint's Policy",
+      "unknownAccount": "No service account {account} in this project",
+      "noBroker": "No broker {broker} in this project",
+      "brokerError": "Broker {broker} is in error; open it to read why",
+      "unread": "No pipeline reads it",
+      "noEndpoint": "No Endpoint {endpoint} in this project",
+      "noPolicy": "No Policy {policy} in this project"
+    }
   }
 }
