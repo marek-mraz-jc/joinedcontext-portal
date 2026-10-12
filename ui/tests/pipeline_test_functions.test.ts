@@ -15,8 +15,10 @@ import {
   firstRecordOf,
   formatOf,
   idColumnOf,
+  literalTypeOf,
   spaceOfTarget,
   typeOf,
+  withSample,
 } from "../src/pages/pipelines/PipelineTest";
 
 describe("the format a sample is in", () => {
@@ -181,5 +183,43 @@ describe("the mapping lines an error names", () => {
   it("ignores line 0 and a missing line, which mean the error is not on one", () => {
     expect(errorLines({ errors: [{ line: 0, message: "x" }, { message: "y" }] } as never)).toEqual(new Set());
     expect(errorLines({ errors: [] } as never)).toEqual(new Set());
+  });
+});
+
+describe("a sample dropped on a pipeline that already has a mapping (T-3971)", () => {
+  const drafted = draftFromSample("hfp.json", '{"VP": {"veh": 1}}', "helsinki");
+  if (!drafted) throw new Error("hfp.json drafts a mapping");
+
+  it("keeps a typed mapping and takes the type the mapping writes, not the file's name", () => {
+    const typed = 'root.id = "urn:ngsi-ld:Vehicle:" + this.VP.veh.string()\nroot.type = "Vehicle"';
+    const form = withSample({ class: "auto", compute: { kind: "bloblang", bloblang: typed } }, drafted);
+    expect(form.compute?.bloblang).toBe(typed);
+    expect(form.output).toEqual({ type: "Vehicle", mode: "upsert" });
+  });
+
+  it("drafts an empty compute node from the sample, typed by the draft", () => {
+    for (const compute of [undefined, { kind: "bloblang" as const, bloblang: "  \n" }]) {
+      const form = withSample({ class: "auto", compute, output: { type: "", mode: "update-attrs" } }, drafted);
+      expect(form.compute?.bloblang).toBe(drafted.bloblang);
+      expect(form.output).toEqual({ type: "Hfp", mode: "update-attrs" });
+    }
+  });
+
+  it("keeps the type the form holds when the kept mapping names none", () => {
+    const form = withSample(
+      { class: "auto", compute: { kind: "bloblang", bloblang: "root = this" }, output: { type: "Vehicle", mode: "upsert" } },
+      drafted,
+    );
+    expect(form.output?.type).toBe("Vehicle");
+  });
+
+  it("reads a literal type from an assignment or the object built, never an attribute's kind", () => {
+    expect(literalTypeOf('root.type = "ParkingZone"')).toBe("ParkingZone");
+    expect(
+      literalTypeOf('root = {"id": this.id, "pm10": {"type": "Property", "value": 1}, "type": "AirQualityObserved"}'),
+    ).toBe("AirQualityObserved");
+    expect(literalTypeOf('root.type = this.kind')).toBeUndefined();
+    expect(literalTypeOf('root.loc = {"type": "GeoProperty", "value": this.geo}')).toBeUndefined();
+    expect(literalTypeOf("")).toBeUndefined();
   });
 });

@@ -188,7 +188,7 @@ const WALKS: Walk[] = [
     mapping:
       'root.id = "urn:ngsi-ld:Vehicle:" + this.VP.veh.string()\nroot.type = "Vehicle"\nroot.speed = this.VP.spd',
     sample: {
-      name: "Vehicle.json",
+      name: "hfp.json",
       mimeType: "application/json",
       body: JSON.stringify([
         { VP: { veh: 1234, spd: 8.4, lat: 60.17, long: 24.94 } },
@@ -203,7 +203,7 @@ const WALKS: Walk[] = [
     mapping:
       'root = if this.pm10 == null { deleted() } else { {"id": "urn:ngsi-ld:AirQualityObserved:" + this.station, "type": "AirQualityObserved", "pm10": this.pm10} }',
     sample: {
-      name: "AirQualityObserved.json",
+      name: "air.json",
       mimeType: "application/json",
       body: JSON.stringify([
         { station: "kallio", pm10: 12 },
@@ -222,7 +222,7 @@ const WALKS: Walk[] = [
     mapping:
       'root.id = "urn:ngsi-ld:ParkingZone:" + this.zone\nroot.type = "ParkingZone"\nroot.fee = this.fee.number()',
     sample: {
-      name: "ParkingZone.csv",
+      name: "zones.csv",
       mimeType: "text/csv",
       body: "zone,fee\n1,4.0\n2,3.0\n",
     },
@@ -273,6 +273,9 @@ test.describe("pipeline studio walk (CIVITAS/CORE comparison)", () => {
       await expect(page.getByTestId("flow-node-step-0")).toBeVisible();
       await page.getByTestId("palette-bloblang").dragTo(canvas);
       await expect(page.getByTestId("flow-node-compute")).toBeVisible();
+      // The mapping is typed before the sample lands, and the sample keeps it: the type comes
+      // from the mapping's own literal, not from the file's name (T-3971).
+      await page.getByTestId("flow-bloblang").fill(walk.mapping);
       await dialog
         .getByTestId("pipeline-studio")
         .locator('input[type="file"]')
@@ -281,7 +284,8 @@ test.describe("pipeline studio walk (CIVITAS/CORE comparison)", () => {
           mimeType: walk.sample.mimeType,
           buffer: Buffer.from(walk.sample.body),
         });
-      await page.getByTestId("flow-bloblang").fill(walk.mapping);
+      await expect(page.getByTestId("flow-bloblang")).toHaveValue(walk.mapping);
+      await expect(dialog.getByTestId("replace-drafted")).toBeVisible();
       await canvas.scrollIntoViewIfNeeded();
       await shot(page, `${walk.name}-3-steps`);
 

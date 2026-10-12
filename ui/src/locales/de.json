@@ -1720,7 +1720,8 @@
       "ready": "Alle {count} Nachrichten ergeben Entitäten. Pipeline unten vorschlagen.",
       "useUrl": "Mit der URL der Quelle testen",
       "urlSample": "{url} · json · vom Runner geholt",
-      "gate": "Erst das Mapping testen: Vorschlagen öffnet sich, wenn der Test für dieses Mapping grün ist."
+      "gate": "Erst das Mapping testen: Vorschlagen öffnet sich, wenn der Test für dieses Mapping grün ist.",
+      "replaceDrafted": "Durch eine entworfene Zuordnung ersetzen"
     },
     "flow": {
       "palette": "Rechenpalette",

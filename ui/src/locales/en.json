@@ -1720,7 +1720,8 @@
       "ready": "All {count} messages map to entities. Propose the pipeline below.",
       "useUrl": "Test on the source's URL",
       "urlSample": "{url} · json · fetched by the runner",
-      "gate": "Test the mapping first: Propose opens when the test is green for this mapping."
+      "gate": "Test the mapping first: Propose opens when the test is green for this mapping.",
+      "replaceDrafted": "Replace with a drafted mapping"
     },
     "flow": {
       "palette": "Compute palette",

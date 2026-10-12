@@ -1720,7 +1720,8 @@
       "ready": "Všetkých {count} správ sa mapuje na entity. Navrhnite pipeline nižšie.",
       "useUrl": "Otestovať na URL zdroja",
       "urlSample": "{url} · json · stiahne runner",
-      "gate": "Najprv otestujte mapovanie: Navrhnúť sa otvorí, keď je test pre toto mapovanie zelený."
+      "gate": "Najprv otestujte mapovanie: Navrhnúť sa otvorí, keď je test pre toto mapovanie zelený.",
+      "replaceDrafted": "Nahradiť navrhnutým mapovaním"
     },
     "flow": {
       "palette": "Paleta výpočtov",
