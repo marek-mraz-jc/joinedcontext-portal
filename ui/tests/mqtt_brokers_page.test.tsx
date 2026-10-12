@@ -117,7 +117,7 @@ describe("the broker form", () => {
       PROJECT,
       {
         name: "cameras",
-        roles: [{ name: "cams", serviceAccounts: [" cam-1 ", ""], publish: ["cameras/${clientid}/frames"], subscribe: [] }],
+        roles: [{ name: "cams", serviceAccounts: [" cam-1 ", "", undefined as never], publish: ["cameras/${clientid}/frames"], subscribe: [] }],
         limits: { messagesPerSecond: 20 },
       },
       { metadata: { name: "cameras", labels: { team: "a" } } },

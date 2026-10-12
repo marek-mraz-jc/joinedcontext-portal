@@ -85,7 +85,9 @@ export function mqttBrokerSchema(t: (key: string) => string): JsonSchema {
 
 /** The form as the manifest the API stores; the metadata the form has no field for travels on. */
 export function toMqttBrokerManifest(project: string, form: MqttBrokerForm, stored?: unknown): unknown {
-  const list = (values?: string[]) => (values ?? []).map((value) => value.trim()).filter(Boolean);
+  // A row the form added and nobody filled is undefined, not "".
+  const list = (values?: (string | undefined)[]) =>
+    (values ?? []).map((value) => (value ?? "").trim()).filter(Boolean);
   const limits = Object.fromEntries(
     Object.entries(form.limits ?? {}).filter(([, value]) => typeof value === "number"),
   );
