@@ -826,7 +826,8 @@ impl AppState {
                 Some(broker) => {
                     syncer = syncer.with_registrations(Arc::new(
                         crate::reconciler::registrations::RegistrationSync::new(broker)
-                            .with_broker_template(state.config.broker_url_template.clone()),
+                            .with_broker_template(state.config.broker_url_template.clone())
+                            .with_gateway(state.config.gateway_url.clone()),
                     ));
                 }
                 None => tracing::info!(
