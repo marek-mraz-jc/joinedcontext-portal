@@ -69,7 +69,11 @@ pub fn find_literal_secret(val: &Value) -> Option<String> {
             for (k, v) in map {
                 // Any scalar: YAML reads `password: 123456` unquoted as a number, and it is still a
                 // secret typed into a manifest (T-2540). `null` is an absent value.
-                let scalar = v.is_string() || v.is_number() || v.is_boolean();
+                // A whole `${VAR}` names a secret the runner injects and holds none; jc-core
+                // decides which names a manifest may read (PL-15, T-3972).
+                let scalar = (v.is_string() && !v.as_str().is_some_and(is_variable_reference))
+                    || v.is_number()
+                    || v.is_boolean();
                 if SECRET_KEYS.contains(&k.as_str()) && scalar {
                     return Some(k.clone());
                 }
@@ -89,6 +93,19 @@ pub fn find_literal_secret(val: &Value) -> Option<String> {
         }
         _ => None,
     }
+}
+
+/// Whether `value` is exactly one runner variable reference, `${NAME}` with `NAME` a shell name.
+pub(crate) fn is_variable_reference(value: &str) -> bool {
+    value
+        .strip_prefix("${")
+        .and_then(|rest| rest.strip_suffix('}'))
+        .is_some_and(|name| {
+            name.chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+                && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        })
 }
 
 fn parse_body_to_value(headers: &HeaderMap, bytes: &[u8]) -> Result<Value, ApiError> {
@@ -2445,6 +2462,40 @@ mod tests {
             access_expires_at: 9_999_999_999,
             refresh_token: None,
         })
+    }
+
+    /// T-3972: a credential field of a runner step names the pipeline's secret as `${VAR}`, which
+    /// is a reference and no secret; jc-core holds which names a manifest may read (PL-15). A
+    /// value that is anything more than one whole reference is still a literal.
+    #[test]
+    fn a_whole_variable_reference_is_no_literal_secret() {
+        let step = |password: Value| {
+            json!({ "spec": {
+                "secretRefs": [{ "name": "feed", "key": "pw", "envVar": "FEED_PW" }],
+                "steps": [{ "processor": { "http": {
+                    "url": "https://example.org",
+                    "basic_auth": { "enabled": true, "username": "u", "password": password }
+                } } }]
+            } })
+        };
+        assert_eq!(find_literal_secret(&step(json!("${FEED_PW}"))), None);
+        assert_eq!(find_literal_secret(&step(json!("${_PW2}"))), None);
+        for literal in [
+            json!("hunter2"),
+            json!("x${FEED_PW}"),
+            json!("${FEED_PW}x"),
+            json!("${FEED_PW}${OTHER}"),
+            json!("${FEED-PW}"),
+            json!("${}"),
+            json!("${! meta(\"pw\") }"),
+            json!(1234),
+        ] {
+            assert_eq!(
+                find_literal_secret(&step(literal.clone())),
+                Some("password".into()),
+                "{literal}"
+            );
+        }
     }
 
     #[test]
