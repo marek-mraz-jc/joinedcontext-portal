@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests, isChange, localized, ORG_NAMESPACE, storedMetadata } from "../../api/manifest";
-import { usePermissions } from "../../api/permissions";
+import { usePermissions, useReadableList } from "../../api/permissions";
 import { useIdentity } from "../../auth/AuthProvider";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { FormRecordLink } from "../../components/RecordLink";
@@ -932,25 +932,8 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
   // The role is picked from the roles there are (T-2758): the organization's templates, which a
   // service account holds like a person does, and this project's own. A role an account already
   // holds stays a choice even when neither list names it, so an edit never loses it.
-  const orgRoles = useQuery({
-    queryKey: queryKeys.list(ORG_NAMESPACE, "roles"),
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/{plural}", {
-          params: { path: { project: ORG_NAMESPACE, plural: "roles" } },
-        }),
-      ),
-  });
-  const projectRoles = useQuery({
-    queryKey: queryKeys.list(project, "roles"),
-    enabled: project !== ORG_NAMESPACE,
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/{plural}", {
-          params: { path: { project, plural: "roles" } },
-        }),
-      ),
-  });
+  const orgRoles = useReadableList(ORG_NAMESPACE, "roles", "Role");
+  const projectRoles = useReadableList(project, "roles", "Role", project !== ORG_NAMESPACE);
   const roleChoices = new Map<string, string>();
   for (const role of asManifests([...(orgRoles.data?.items ?? []), ...(projectRoles.data?.items ?? [])])) {
     roleChoices.set(role.metadata.name, localized(role.metadata.title, locale, role.metadata.name));

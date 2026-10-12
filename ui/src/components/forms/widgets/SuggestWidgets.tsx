@@ -6,6 +6,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../../api/client";
 import { asManifests, ORG_NAMESPACE } from "../../../api/manifest";
+import { readsOnceKnown, usePermissions } from "../../../api/permissions";
 import type { Manifest } from "../../../api/manifest";
 import { filterSlotsOf } from "../../entities/filters";
 import { Input } from "../../ui";
@@ -52,10 +53,10 @@ function names(items: unknown): string[] {
 }
 
 /** Where each kind of grantee is listed, and whether the list is the project's or the organization's. */
-const LISTS: Record<string, { plural: string; scopes: ("project" | "org")[] }> = {
-  role: { plural: "roles", scopes: ["project", "org"] },
-  group: { plural: "groups", scopes: ["org"] },
-  serviceAccount: { plural: "serviceaccounts", scopes: ["project"] },
+const LISTS: Record<string, { plural: string; kind: string; scopes: ("project" | "org")[] }> = {
+  role: { plural: "roles", kind: "Role", scopes: ["project", "org"] },
+  group: { plural: "groups", kind: "Group", scopes: ["org"] },
+  serviceAccount: { plural: "serviceaccounts", kind: "ServiceAccount", scopes: ["project"] },
 };
 
 /**
@@ -70,6 +71,8 @@ export function AssigneePicker(props: WidgetProps): JSX.Element {
   const root = useContext(FormDataContext) as { assignee?: { kind?: unknown } } | undefined;
   const kind = typeof root?.assignee?.kind === "string" ? root.assignee.kind : "role";
   const list = LISTS[kind];
+  // A list the caller's role does not read is not asked for: the API answers it with a 404 (T-3852).
+  const reads = { project: usePermissions(project), org: usePermissions(ORG_NAMESPACE) };
   const lists = useQueries({
     queries: (list?.scopes ?? []).map((scope) => {
       const owner = scope === "org" ? ORG_NAMESPACE : project;
@@ -77,7 +80,7 @@ export function AssigneePicker(props: WidgetProps): JSX.Element {
         queryKey: queryKeys.list(owner, list?.plural ?? ""),
         queryFn: async () =>
           unwrap(await api.GET("/api/v1/projects/{project}/{plural}", { params: { path: { project: owner, plural: list?.plural ?? "" } } })),
-        enabled: Boolean(owner && list),
+        enabled: Boolean(owner && list) && readsOnceKnown(reads[scope], list?.kind ?? "") === true,
         retry: false,
       };
     }),

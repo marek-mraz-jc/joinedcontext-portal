@@ -303,7 +303,8 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
   if (!known || !administers) {
     return (
       <div className="space-y-6">
-        <PageHeader title={t("organization.title")} />
+        {/* The purpose line a person who cannot administer still reads (T-3852). */}
+        <PageHeader title={t("organization.title")} description={t("organization.lead")} />
         {known ? (
           <Alert tone="info">{t("organization.adminOnly")}</Alert>
         ) : (

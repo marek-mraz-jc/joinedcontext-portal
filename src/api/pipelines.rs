@@ -358,6 +358,44 @@ pub async fn metrics_for(
     Ok(metrics)
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/pipelines/{name}/stats",
+    summary = "Read Pipeline Rates",
+    description = "What each node of the pipeline received, sent and failed over the last 1, 5 and 15 minutes, from the runner's counters read at most every two seconds and kept 15 minutes (PL-68).",
+    tag = "resources",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("name" = String, Path, description = "Pipeline name"),
+    ),
+    responses(
+        (status = 200, description = "Counts per node and window", body = crate::pipeline_stats::PipelineStats),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 404, description = "Pipeline not found", body = ProblemDetails),
+        (status = 503, description = "No runner configured, or it did not answer", body = ProblemDetails)
+    )
+)]
+pub async fn get_stats(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+) -> Result<Json<crate::pipeline_stats::PipelineStats>, ApiError> {
+    readable_pipeline(&state, &user, &project, &name)?;
+    let now = time::OffsetDateTime::now_utc().unix_timestamp().max(0) as u64;
+    if let Some(stats) = state.pipeline_stats.fresh(&project, &name, now) {
+        return Ok(Json(stats));
+    }
+    // A runner that is down is 503 from here, never a body of zeros.
+    let metrics = metrics_for(&state, &project, &name).await?;
+    Ok(Json(state.pipeline_stats.record(
+        &project,
+        &name,
+        now,
+        metrics.scraped_at,
+        metrics.nodes,
+    )))
+}
+
 fn now_rfc3339() -> String {
     time::OffsetDateTime::now_utc()
         .format(&time::format_description::well_known::Rfc3339)
@@ -806,6 +844,7 @@ pub fn router() -> Router<AppState> {
             "/projects/{project}/pipelines/{name}/rejected",
             get(get_rejected),
         )
+        .route("/projects/{project}/pipelines/{name}/stats", get(get_stats))
 }
 
 #[cfg(test)]

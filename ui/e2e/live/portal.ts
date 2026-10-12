@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { expect } from "@playwright/test";
 import type { APIRequestContext, Browser, BrowserContext, Locator, Page } from "@playwright/test";
 import { clipRecording, recordingSince } from "./guide";
@@ -96,10 +98,39 @@ export async function signIn(browser: Browser, who: { user: string; password: st
     );
   }
   const context = await browser.newContext(clipRecording());
+  await withLocalUi(context);
   const page = await context.newPage();
   recordingSince(page);
   await goSignedIn(page, who, path);
   return { context, page };
+}
+
+/**
+ * `WALK_UI_DIST=dist`: the browser runs this tree's built UI against the deployed Portal (T-3848),
+ * so a walk judges a fix before it is deployed. Same origin, the same sign-in and the same API:
+ * only the shell the Portal answers a page with and its `/assets/` come from the local build.
+ */
+async function withLocalUi(context: BrowserContext): Promise<void> {
+  const dist = process.env.WALK_UI_DIST;
+  if (!dist) return;
+  const shell = readFileSync(join(dist, "index.html"), "utf8");
+  const portal = new URL(process.env.PORTAL_URL ?? "https://portal.dev.joinedcontext.com").host;
+  await context.route((url) => url.host === portal && url.pathname.startsWith("/assets/"), async (route) => {
+    const file = join(dist, new URL(route.request().url()).pathname);
+    if (!existsSync(file)) return route.continue();
+    const type = file.endsWith(".js") ? "text/javascript" : file.endsWith(".css") ? "text/css" : undefined;
+    return route.fulfill({ body: readFileSync(file), contentType: type });
+  });
+  await context.route(
+    (url) => url.host === portal && !/^\/(api|auth|assets)\//.test(url.pathname),
+    async (route) => {
+      if (route.request().resourceType() !== "document") return route.continue();
+      const response = await route.fetch({ maxRedirects: 0 });
+      const html = (response.headers()["content-type"] ?? "").includes("text/html") ? await response.text() : "";
+      if (response.status() !== 200 || !html.includes("/assets/index-")) return route.fulfill({ response });
+      return route.fulfill({ response, body: shell });
+    },
+  );
 }
 
 /** The Portal's own landmark: what every Portal page has once the sign-in is over. */

@@ -62,6 +62,8 @@ const STEWARD = {
       scope: "project:helsinki",
       rule: { kinds: ["Pipeline", "DataSource", "Role", "RoleBinding"], verbs: ["propose", "approve"] },
     },
+    // A steward reads the spaces the bindings name; a list it does not read is never asked for.
+    { role: "space-reader", binding: "helsinki-readers", scope: "project:helsinki", rule: { kinds: ["ContextSpace"], verbs: ["read"] } },
   ],
 } as unknown as Effective;
 
