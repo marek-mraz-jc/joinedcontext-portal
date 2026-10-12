@@ -156,3 +156,39 @@ export function useTopics(rows: Row[], k = 5, seed = 1): TopicsHookResult {
 
   return { status, result, error };
 }
+
+/** A topic's top keyword: what a follow and a steward's name hold on to as topics are fitted again. */
+export const topTerm = (topic: Topic): string => topic.keywords[0]?.term ?? "";
+
+/**
+ * Topics a steward gave one name, as one (T-3828): the first topic's id kept, the shares summed,
+ * keywords and articles joined. A topic without a name stays as it is.
+ */
+export function mergeNamed(result: AnalysisOutput, nameOf: (term: string) => string | undefined): AnalysisOutput {
+  const groups = new Map<string, Topic[]>();
+  for (const topic of result.topics) {
+    const key = nameOf(topTerm(topic)) ?? `#${topic.id}`;
+    groups.set(key, [...(groups.get(key) ?? []), topic]);
+  }
+  const topics = [...groups.values()].map(([first, ...rest]) =>
+    rest.length === 0
+      ? first
+      : {
+          id: first.id,
+          keywords: [...first.keywords, ...rest.flatMap((topic) => topic.keywords)].filter(
+            (keyword, index, all) => all.findIndex((other) => other.term === keyword.term) === index,
+          ),
+          articles: [...first.articles, ...rest.flatMap((topic) => topic.articles)],
+          share: rest.reduce((sum, topic) => sum + topic.share, first.share),
+        },
+  );
+  const weeks = result.weeks.map((week) => {
+    const shares = [...week.shares];
+    for (const [first, ...rest] of groups.values()) {
+      if (rest.length === 0) continue;
+      shares[first.id] = rest.reduce((sum, topic) => sum + (week.shares[topic.id] ?? 0), week.shares[first.id] ?? 0);
+    }
+    return { week: week.week, shares };
+  });
+  return { ...result, topics, weeks };
+}
