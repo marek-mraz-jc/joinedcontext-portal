@@ -15,6 +15,8 @@ export interface Vehicle {
   bearing?: number;
   speed?: number;
   refLine?: string;
+  /** bus, tram, metro, train or ferry; a vehicle written before modes were (T-3893) is a bus. */
+  mode?: string;
 }
 
 export interface VehicleFeature {
@@ -214,5 +216,115 @@ export function panelSource(page: { portal?: string; space?: string }): PanelSou
     mayEdit: () => false,
     portalLink: (entity) => (page.portal && page.space ? portalLinkOf(page.portal, page.space, entity.id) : null),
     language: "en",
+  };
+}
+
+/** HSL's modes, in the order the filter shows them (T-3893). */
+export const MODES = ["bus", "tram", "metro", "train", "ferry"] as const;
+
+/** The vehicles of the chosen modes; one without a mode counts as a bus. */
+export function ofModes(vehicles: Vehicle[], modes: ReadonlySet<string>): Vehicle[] {
+  return vehicles.filter((vehicle) => modes.has(vehicle.mode ?? "bus"));
+}
+
+export interface Departure {
+  line: string;
+  headsign?: string;
+  /** ISO 8601, UTC. */
+  expected: string;
+  /** scheduled, skipped or canceled. */
+  status: string;
+  /** Seconds behind the timetable, when HSL sends it. */
+  delay?: number;
+}
+
+export interface StopBoard {
+  id: string;
+  name: string;
+  coordinates?: [number, number];
+  departures: Departure[];
+}
+
+export interface AlertView {
+  id: string;
+  /** HSL's text; rendered as text, never as HTML. */
+  title: string;
+  body?: string;
+  severity?: string;
+  validFrom?: string;
+  validTo?: string;
+  lines: string[];
+  stops: string[];
+  places: Array<{ stop: string; coordinates: [number, number] }>;
+}
+
+/** A JSON array from the backend, or nothing: a 503 before its first read, or no backend. */
+async function listOf(path: string): Promise<unknown[]> {
+  try {
+    const response = await fetch(`${BASE}${path}`);
+    if (!response.ok) return [];
+    const body: unknown = await response.json();
+    return Array.isArray(body) ? body : [];
+  } catch {
+    return [];
+  }
+}
+
+/** The stops with departures, by name (T-3891). */
+export async function getDepartures(): Promise<StopBoard[]> {
+  return (await listOf("api/departures")).filter(
+    (stop): stop is StopBoard =>
+      typeof (stop as StopBoard)?.id === "string" && Array.isArray((stop as StopBoard).departures),
+  );
+}
+
+/** HSL's service alerts, most severe first (T-3892). */
+export async function getAlerts(): Promise<AlertView[]> {
+  return (await listOf("api/alerts")).filter(
+    (alert): alert is AlertView =>
+      typeof (alert as AlertView)?.title === "string" && Array.isArray((alert as AlertView).lines),
+  );
+}
+
+/** The alerts on a line, or every alert without one. */
+export function alertsFor(alerts: AlertView[], line: string | undefined): AlertView[] {
+  return line ? alerts.filter((alert) => alert.lines.includes(line)) : alerts;
+}
+
+/** Whole minutes from `now` to `expected`, never below zero; undefined for a time it cannot read. */
+export function minutesUntil(expected: string, now: number = Date.now()): number | undefined {
+  const at = Date.parse(expected);
+  if (Number.isNaN(at)) return undefined;
+  return Math.max(0, Math.floor((at - now) / 60000));
+}
+
+/** "now", "1 min", "12 min", or the clock time an hour or more ahead. */
+export function when(expected: string, now: number = Date.now()): string {
+  const minutes = minutesUntil(expected, now);
+  if (minutes === undefined) return "";
+  if (minutes === 0) return "now";
+  if (minutes < 60) return `${minutes} min`;
+  return new Date(expected).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Helsinki" });
+}
+
+export interface AlertFeature {
+  type: "Feature";
+  id: string;
+  geometry: { type: "Point"; coordinates: [number, number] };
+  properties: { alert: string; stop: string; title: string };
+}
+
+/** One point per stop an alert names and the space places, for the map's alert layer. */
+export function alertPlaces(alerts: AlertView[]): { type: "FeatureCollection"; features: AlertFeature[] } {
+  return {
+    type: "FeatureCollection",
+    features: alerts.flatMap((alert) =>
+      alert.places.map((place) => ({
+        type: "Feature" as const,
+        id: `${alert.id}#${place.stop}`,
+        geometry: { type: "Point" as const, coordinates: place.coordinates },
+        properties: { alert: alert.id, stop: place.stop, title: alert.title },
+      })),
+    ),
   };
 }

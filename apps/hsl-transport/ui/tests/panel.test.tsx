@@ -68,7 +68,7 @@ describe("a bus in the entity panel", () => {
   it("opens from the map with its line and speed, links to the Portal, offers no Edit, and closes", async () => {
     page({ slug: "s", space: "helsinki", portal: "https://portal.test/projects/helsinki" });
     render(<App />);
-    await screen.findByText(/^2 buses/);
+    await screen.findByText(/^2 vehicles/);
     act(() => clickBus({ features: [{ properties: {} }] }));
     expect(screen.queryByRole("dialog")).toBeNull();
     act(() => clickBus({ features: [{ properties: { id: BUS } }] }));
@@ -90,7 +90,7 @@ describe("a bus in the entity panel", () => {
 
   it("opens from the list of the buses in view, by fleet number and line", async () => {
     render(<App />);
-    const list = await screen.findByRole("combobox", { name: "Open a bus" });
+    const list = await screen.findByRole("combobox", { name: "Open a vehicle" });
     expect(Array.from((list as HTMLSelectElement).options).map((option) => option.textContent)).toEqual(["—", "12-2201, line 4570", "12-2204"]);
     await userEvent.setup().selectOptions(list, QUIET);
     const panel = await screen.findByRole("dialog");
@@ -100,7 +100,7 @@ describe("a bus in the entity panel", () => {
 
   it("says a bus the backend no longer reports is gone", async () => {
     render(<App />);
-    const list = await screen.findByRole("combobox", { name: "Open a bus" });
+    const list = await screen.findByRole("combobox", { name: "Open a vehicle" });
     fleet = [];
     await userEvent.setup().selectOptions(list, BUS);
     expect(await within(await screen.findByRole("dialog")).findByText("This entity is no longer there.")).toBeInTheDocument();
@@ -110,7 +110,7 @@ describe("a bus in the entity panel", () => {
     fleet = [];
     render(<App />);
     await screen.findByText("Waiting for the first positions");
-    expect(screen.queryByRole("combobox", { name: "Open a bus" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Open a vehicle" })).toBeNull();
   });
 });
 
@@ -143,7 +143,7 @@ describe("the panel's source", () => {
 describe("the reader's way back", () => {
   it("gives the focus back to the list after the panel closes", async () => {
     render(<App />);
-    const list = await screen.findByRole("combobox", { name: "Open a bus" });
+    const list = await screen.findByRole("combobox", { name: "Open a vehicle" });
     const user = userEvent.setup();
     await user.selectOptions(list, BUS);
     await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Close" }));
