@@ -853,9 +853,15 @@ fn granted(
 fn parsed(model: &ModelSource) -> Vec<serde_yaml_ng::Value> {
     std::iter::once(&model.source)
         .chain(model.imports.values())
+        .map(String::as_str)
+        .chain([NGSI_LD_CORE])
         .filter_map(|text| serde_yaml_ng::from_str(text).ok())
         .collect()
 }
+
+/// The `ngsi-ld-core` import no DataModel holds: its `Entity` gives every class `is_a: Entity`
+/// the core `location`, so a view lets a geo write through. Last, so a model's own wins.
+const NGSI_LD_CORE: &str = "classes:\n  Entity: {slots: [location]}\n";
 
 /// The Attributes of `class` in the model: its `slots` and inline `attributes` and those of
 /// every class it reaches through `is_a` and `mixins`, without the identifier slots (the
@@ -2810,6 +2816,17 @@ mod tests {
             Some(["location".to_owned()].into())
         );
         assert_eq!(class_slots(&model, "Tram"), None);
+        let core = parsed(&ModelSource {
+            model: "hsl".into(),
+            source: "imports: [ngsi-ld-core]\nclasses:\n  Bus: {is_a: Entity, slots: [speed]}\n"
+                .into(),
+            imports: BTreeMap::new(),
+        });
+        assert_eq!(
+            class_slots(&core, "Bus"),
+            Some(["location".to_owned(), "speed".to_owned()].into()),
+            "the core Entity's location reaches every class built on it"
+        );
         let odd = parsed(&ModelSource {
             model: "odd".into(),
             source: "classes:\n  A: {is_a: B, mixins: Gone, slots: [x]}\n  B: {is_a: A, attributes: [y]}\n".into(),
