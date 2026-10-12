@@ -172,8 +172,14 @@ pub const RUN: &str = r#"meta("jc_run").or(now().ts_format("2006-01-02T15:00Z", 
 pub const TICK: &str = r#"meta jc_run = now().ts_format("2006-01-02T15:04:05Z", "UTC")"#;
 
 /// The output a stream writes through, followed by the outcome sink once it has taken a batch
-/// (PL-62): the sink only runs after the write succeeded, and a sink that fails is dropped, so the
-/// log never holds back or repeats a write.
+/// (PL-62): the sink only runs after the write succeeded, and a sink that fails falls through to
+/// `drop`, so the log never holds back or repeats a write.
+///
+/// The fall-through is a `fallback`, not `drop_on`: Bento's `drop_on` waits for each answer
+/// before it takes the next message, which held a stream of single positions to one outcome
+/// at a time, about fifty a second; the HSL feed sends three times that, backed up into its
+/// MQTT input and lost the connection every 45 seconds (T-4036). `fallback` keeps the sink's
+/// own in-flight window.
 ///
 /// The broker fails fast (T-2983): a write that fails after its own retries goes back to the
 /// input as a nack, which replays it. Plain `fan_out_sequential` retried it inside the broker
@@ -182,9 +188,8 @@ pub const TICK: &str = r#"meta jc_run = now().ts_format("2006-01-02T15:04:05Z", 
 pub fn with_outcomes(output: serde_json::Value, url: &str) -> serde_json::Value {
     let sink = serde_json::json!({
         "label": SINK_LABEL,
-        "drop_on": {
-            "error": true,
-            "output": { "http_client": {
+        "fallback": [
+            { "http_client": {
                 "url": url,
                 "verb": "POST",
                 "headers": { "Content-Type": "application/json" },
@@ -197,7 +202,8 @@ pub fn with_outcomes(output: serde_json::Value, url: &str) -> serde_json::Value 
                     "token_url": "${JC_TOKEN_URL}",
                 },
             }},
-        },
+            { "drop": {} },
+        ],
         "processors": [{ "mapping": format!(
             "let records = if this.type() == \"array\" {{ this }} else {{ [this] }}\n\
              root = {{ \"run\": {RUN}, \"sent\": $records.map_each(record -> record.id.or(\"\")), \
@@ -726,6 +732,25 @@ mod tests {
             resident, before,
             "a stream without a clock has no pass to report"
         );
+    }
+
+    /// T-4036: the sink keeps its own in-flight window. `drop_on` sends one message and waits
+    /// for its answer before the next, which capped a stream of single records at one outcome
+    /// per round trip; a failed outcome still ends in `drop`, never back at the write.
+    #[test]
+    fn a_failed_outcome_falls_through_to_drop_without_a_one_at_a_time_wrapper() {
+        let stream = with_outcomes(serde_json::json!({ "drop": {} }), "http://portal/outcomes");
+        let sink = &stream["broker"]["outputs"][1];
+        assert!(sink.get("drop_on").is_none(), "{sink}");
+        assert_eq!(
+            sink["fallback"][0]["http_client"]["url"],
+            "http://portal/outcomes"
+        );
+        assert!(sink["fallback"][0]["http_client"]
+            .get("max_in_flight")
+            .is_none_or(|n| n.as_u64() > Some(1)));
+        assert_eq!(sink["fallback"][1], serde_json::json!({ "drop": {} }));
+        assert_eq!(sink["fallback"].as_array().map(Vec::len), Some(2));
     }
 
     /// T-3304: the sink sends the hash of each record beside its id, so the Portal can tell a

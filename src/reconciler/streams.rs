@@ -3341,10 +3341,10 @@ output:
         );
         assert_eq!(outputs[0]["label"], "output");
         assert_eq!(outputs[1]["label"], crate::pipeline_log::SINK_LABEL);
-        assert_eq!(outputs[1]["drop_on"]["error"], true);
-        assert_eq!(outputs[1]["drop_on"]["output"]["http_client"]["retries"], 0);
+        assert_eq!(outputs[1]["fallback"][0]["http_client"]["retries"], 0);
+        assert_eq!(outputs[1]["fallback"][1], serde_json::json!({ "drop": {} }));
         assert_eq!(
-            outputs[1]["drop_on"]["output"]["http_client"]["url"],
+            outputs[1]["fallback"][0]["http_client"]["url"],
             "http://portal-internal:8081/internal/pipelines/helsinki/citybikes-free/outcomes"
         );
         assert!(
