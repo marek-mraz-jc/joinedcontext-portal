@@ -127,7 +127,7 @@ fn grew(now: f64, base: f64) -> f64 {
 pub struct Readings {
     /// `{gateway}/metrics`; `None` without a gateway address, and every answer is empty.
     source: Option<(reqwest::Client, String)>,
-    /// One reading an hour at most, oldest first, for [`KEEP`].
+    /// One reading an hour at most, oldest first, for `KEEP` (eight days).
     kept: Mutex<VecDeque<Reading>>,
     latest: Mutex<Option<Reading>>,
 }
@@ -146,7 +146,7 @@ impl Readings {
     }
 
     /// Keeps `reading` as the latest, and in the hourly series when the last kept one is an
-    /// hour older; drops what is older than [`KEEP`].
+    /// hour older; drops what is older than `KEEP`.
     pub fn record(&self, reading: Reading) {
         let mut kept = self.kept.lock().unwrap_or_else(|e| e.into_inner());
         if kept
