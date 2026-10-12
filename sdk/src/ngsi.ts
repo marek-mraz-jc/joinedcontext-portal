@@ -198,6 +198,16 @@ export function pointOf(value: Cell): [number, number] | null {
   return null;
 }
 
+/**
+ * A Smart Data Models PostalAddress (`streetAddress`, `postalCode`, `addressLocality`) as the one
+ * line a label shows, "Siltakatu 11, 00580 Helsinki"; "" for any other object.
+ */
+export function addressLine(value: Record<string, unknown>): string {
+  const text = (key: string) => (typeof value[key] === "string" ? (value[key] as string).trim() : "");
+  const place = [text("postalCode"), text("addressLocality")].filter(Boolean).join(" ");
+  return [text("streetAddress"), place].filter(Boolean).join(", ");
+}
+
 /** A cell as text for a table or a label. */
 export function format(value: Cell, kind: Column = "text"): string {
   if (value === null || value === undefined) {
@@ -205,7 +215,10 @@ export function format(value: Cell, kind: Column = "text"): string {
   }
   if (typeof value === "object") {
     const point = pointOf(value);
-    return point ? `${point[1].toFixed(5)}, ${point[0].toFixed(5)}` : value.type;
+    if (point) {
+      return `${point[1].toFixed(5)}, ${point[0].toFixed(5)}`;
+    }
+    return addressLine(value as unknown as Record<string, unknown>) || (typeof value.type === "string" ? value.type : "");
   }
   if (typeof value === "number") {
     if (!Number.isFinite(value)) {

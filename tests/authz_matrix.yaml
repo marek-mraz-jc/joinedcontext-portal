@@ -561,6 +561,16 @@ routes:
     rule: "project-read, then project-verb:read:<manifest kind>"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
     note: "the fixture's forge holds no change chg-00000000, so a caller who passes the check meets its 404"
+  - route: GET /projects/{project}/pipelinetemplates
+    rule: "project-verb:read:Pipeline"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/pipelinetemplates
+    rule: "project-verb:propose:Pipeline"
+    expect: [403, 403, allow, allow, 403, allow, 404, 403]
+  - route: DELETE /projects/{project}/pipelinetemplates/{id}
+    rule: "project-verb:propose:Pipeline"
+    expect: [403, 403, 404, 404, 403, 404, 404, 403]
+    note: "the fixture holds no template, so a caller who passes the check meets its 404"
   - route: POST /projects/{project}/changes/{id}/approve
     rule: "project-verb:approve:<change kind>"
     expect: [403, 403, allow, allow, allow, allow, 403, 403]

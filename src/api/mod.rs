@@ -42,6 +42,7 @@ pub mod ops;
 pub mod organization_limits;
 pub mod people;
 pub mod permissions;
+pub mod pipeline_templates;
 pub mod pipeline_test;
 pub mod pipelines;
 pub mod preferences;
@@ -112,6 +113,7 @@ pub fn router() -> Router<AppState> {
         .merge(space_usage::router())
         .merge(space_retention::router())
         .merge(data_views::router())
+        .merge(pipeline_templates::router())
         .merge(type_attributes::router())
         .merge(entity_trash::router())
         .merge(entity_comments::router())

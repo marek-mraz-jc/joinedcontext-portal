@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { aggregate, applyFilters, cell, columnKind, displayName, entitiesUrl, extent, format, pointOf, toRow } from "../src/ngsi";
-import type { Row } from "../src/ngsi";
+import type { Cell, Row } from "../src/ngsi";
 
 const rows: Row[] = [
   { id: "urn:a", type: "T", name: "Kamppi", bikes: 12, seen: "2026-09-12T10:00:00Z", location: { type: "Point", coordinates: [24.93, 60.17] } },
@@ -45,6 +45,16 @@ describe("columns", () => {
     expect(format(1234)).toBe((1234).toLocaleString());
     expect(format(1.23456)).toBe((1.23456).toLocaleString(undefined, { maximumFractionDigits: 2 }));
     expect(format({ type: "Point", coordinates: [24.9, 60.1] })).toBe("60.10000, 24.90000");
+    // A PostalAddress (T-3949) reads as one line; a part the source left out leaves no comma.
+    const address = (parts: Record<string, string>) => format(parts as unknown as Cell);
+    expect(address({ streetAddress: "Siltakatu 11", postalCode: "00580", addressLocality: "Helsinki", addressCountry: "FI" })).toBe(
+      "Siltakatu 11, 00580 Helsinki",
+    );
+    expect(address({ streetAddress: "Rapparinkuja 8b", addressLocality: "Helsinki" })).toBe("Rapparinkuja 8b, Helsinki");
+    expect(address({ addressLocality: "Espoo", addressCountry: "FI" })).toBe("Espoo");
+    expect(address({ streetAddress: " ", addressCountry: "FI" })).toBe("");
+    // Any other object without a type is empty text, never `undefined`.
+    expect(format({ coordinates: null } as unknown as Cell)).toBe("");
     expect(format(null)).toBe("");
     expect(format(Number.NaN)).toBe("—");
     expect(format(Number.POSITIVE_INFINITY, "number")).toBe("—");

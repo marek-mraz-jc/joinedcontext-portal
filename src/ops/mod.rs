@@ -20,6 +20,7 @@ pub mod drafts;
 pub mod feed_shape;
 pub mod people;
 pub mod pipeline_steps;
+pub mod pipeline_templates;
 pub mod previews;
 pub mod proposals;
 pub mod resources;

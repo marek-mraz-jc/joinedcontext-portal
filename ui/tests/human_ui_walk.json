@@ -145,6 +145,7 @@
     "src/pages/pipelines/PipelineRejected.tsx": null,
     "src/pages/pipelines/PipelineRuns.tsx": null,
     "src/pages/pipelines/PipelineStudio.tsx": null,
+    "src/pages/pipelines/PipelineTemplates.tsx": null,
     "src/pages/pipelines/PipelineTest.tsx": null,
     "src/pages/pipelines/PipelineWorkbench.tsx": null,
     "src/pages/pipelines/RecipeGallery.tsx": null,

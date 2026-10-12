@@ -1,6 +1,9 @@
 # hsl-transport
 
-The public reference app (AP-34, AP-38). Thirty buses on a map, moving.
+The public reference app (AP-34, AP-38). HSL's vehicles on a map, moving: the buses of four
+trunk lines and every tram, metro, train and ferry, at most 90 at a time (the HFP pipeline's caps
+per mode, T-3893), with a filter per mode, the departures of a chosen stop and HSL's service
+alerts beside the map, the stops they name marked on it (T-3895).
 
 It reads one Context Space through one Endpoint and nothing else: no broker, no database, no
 second host, no credential. The Endpoint it is bound to is public, so the app never sees a
@@ -22,6 +25,16 @@ browser never learns the Endpoint URL.
 
 A poll that fails leaves the last known fleet on every map: the buses stop moving rather than
 disappearing, which is the honest thing to show.
+
+## Departures and alerts (T-3895)
+
+Every 30 s the same poll loop reads, in the simplified representation: the GtfsStops that carry
+`departures` (`q=departures`, the curated set of T-3891), the headsign of each line and direction
+from TransitRoute (read again hourly), HSL's Alerts (the space's Digitraffic road alerts are left
+out by their `source`) and the GtfsStops those alerts name, for their place on the map. The
+browser reads them from `{JC_BASE_PATH}api/departures` and `{JC_BASE_PATH}api/alerts` (503 before
+the first read), every 30 s; a failed read keeps what was shown. Alert text is HSL's and the page
+renders it as text, never as HTML.
 
 ## Environment
 
