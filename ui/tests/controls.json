@@ -256,6 +256,7 @@
       "tests": [
         "browser_security.test.tsx",
         "endpoint_reads_name_a_type.test.tsx",
+        "endpoint_representations.test.ts",
         "part_endpoint_links.test.tsx"
       ]
     },
