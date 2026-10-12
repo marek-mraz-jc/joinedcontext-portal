@@ -27,4 +27,34 @@ describe("the App's server", () => {
     expect(refused).toMatchObject({ status: 404, message: "the server has not kept the boundaries yet" });
     await expect(api.history(["x"])).rejects.toMatchObject({ status: 502, message: "HTTP 502" });
   });
+
+  it("keeps, opens, changes and deletes comparisons, pins one, and reads who is signed in and the changes", async () => {
+    const c = { name: "Centre", codes: ["101"], measure: "events" as const };
+    const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (url === "/api/me") return json(200, null);
+      if (url === "/api/comparisons" && method === "GET") return json(200, []);
+      if (url === "/api/comparisons" && method === "POST") return json(201, { ...JSON.parse(String(init?.body)), id: 3, ownerName: "V" });
+      if (url === "/api/comparisons/3" && method === "GET") return json(200, { ...c, id: 3, ownerName: "V", mine: true });
+      if (url === "/api/comparisons/3") return new Response(null, { status: 204 });
+      if (url === "/api/default" && method === "GET") return json(200, null);
+      if (url === "/api/default" && method === "PUT") return json(200, { ...c, id: 1, ownerName: "S" });
+      if (url === "/api/default") return json(403, { detail: "this needs the role steward" });
+      if (url === "/api/history") return json(200, []);
+      return new Response("<html>", { status: 502 });
+    });
+    vi.stubGlobal("fetch", fetch);
+    const api = server("/api");
+    expect(await api.me()).toBeNull();
+    expect(await api.comparisons()).toEqual([]);
+    expect(await api.keep(c)).toMatchObject({ ...c, id: 3 });
+    expect(fetch.mock.calls[2]?.[1]).toMatchObject({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(c) });
+    expect(await api.comparison(3)).toMatchObject({ mine: true });
+    expect(await api.change(3, c)).toBeUndefined();
+    expect(await api.forget(3)).toBeUndefined();
+    expect(await api.pinned()).toBeNull();
+    expect(await api.pin(c)).toMatchObject({ id: 1 });
+    await expect(api.unpin()).rejects.toMatchObject({ status: 403, message: "this needs the role steward" });
+    expect(await api.changes()).toEqual([]);
+  });
 });

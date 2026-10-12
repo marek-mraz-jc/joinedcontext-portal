@@ -3,6 +3,8 @@ import { Card, Empty, Grid, Loading, Page, pointOf, Problem, useClient, useEntit
 import { ChartCard } from "../components/ChartCard";
 import { DistrictMap } from "../components/DistrictMap";
 import { History } from "../components/History";
+import { Saved } from "../components/Saved";
+import { useAccess } from "../access";
 import { useCompare } from "../compare";
 import type { DistrictOutput, Measure } from "../districts";
 import {
@@ -19,6 +21,7 @@ import {
 import type { Lang } from "../i18n";
 import { measureTitle, measureUnit, number, t, translateType } from "../i18n";
 import { useServer } from "../server";
+import type { Comparison, NewComparison } from "../server";
 
 const DISTRICT_QUERY = { attrs: ["name", "districtCode", "divisionLevel", "location"] };
 const EVENT_QUERY = { attrs: ["name", "startDate", "location"] };
@@ -123,6 +126,20 @@ export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
   });
   const initialized = useRef(false);
   const { select } = useEntitySelection();
+  const { me } = useAccess();
+  // What the page opens on (T-3828): a shared comparison its link names, else the districts the
+  // address names, else the one a steward pinned, else the largest districts. A reader's own
+  // choice is never overridden once made.
+  const touched = useRef(false);
+  const written = useRef<string | null>(null);
+  const [sharedId] = useState<number | null>(() => {
+    const id = Number(new URLSearchParams(window.location.search).get("comparison"));
+    return Number.isInteger(id) && id > 0 ? id : null;
+  });
+  const fromAddress = useRef(selectedCodes.length > 0 || sharedId !== null);
+  const [shared, setShared] = useState<Comparison | null>(null);
+  const [sharedProblem, setSharedProblem] = useState<string | null>(null);
+  const [pinned, setPinned] = useState<Comparison | null>(null);
 
   const districtRows = useMemo(
     () => districtsRes.rows.filter((r) => r.divisionLevel === "district"),
@@ -168,6 +185,9 @@ export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
 
   useEffect(() => {
     const onHashChange = () => {
+      // A hash without the comparison's state (the shell's own page), or the one this page wrote
+      // itself, leaves the choice as it is: only an address someone changed moves it.
+      if (!/[?&](d|m)=/.test(window.location.hash) || window.location.hash === written.current) return;
       const next = readHash(window.location.hash);
       if (next.selectedCodes.length > 0) {
         setSelectedCodes(next.selectedCodes);
@@ -192,6 +212,7 @@ export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
   // person's "bikes" read "events" again (T-3335, a slow CI runner).
   useEffect(() => {
     const next = writeHash({ selectedCodes, measure });
+    written.current = next;
     if (window.location.hash === next) return;
     try {
       window.history.replaceState(null, "", next);
@@ -200,9 +221,64 @@ export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
     }
   }, [selectedCodes, measure]);
 
-  const updateSelection = (codes: string[]) => setSelectedCodes(codes);
+  const updateSelection = (codes: string[]) => {
+    touched.current = true;
+    setSelectedCodes(codes);
+  };
 
-  const updateMeasure = (nextMeasure: Measure) => setMeasure(nextMeasure);
+  const updateMeasure = (nextMeasure: Measure) => {
+    touched.current = true;
+    setMeasure(nextMeasure);
+  };
+
+  const openComparison = (comparison: NewComparison) => {
+    touched.current = true;
+    initialized.current = true;
+    setSelectedCodes(comparison.codes);
+    setMeasure(comparison.measure);
+  };
+
+  useEffect(() => {
+    let current = true;
+    server.pinned().then(
+      (found) => {
+        if (!current) return;
+        setPinned(found);
+        if (found && !fromAddress.current && !touched.current) {
+          initialized.current = true;
+          setSelectedCodes(found.codes);
+          setMeasure(found.measure);
+        }
+      },
+      // Without the pin the page opens on the largest districts, as before.
+      () => undefined,
+    );
+    return () => {
+      current = false;
+    };
+  }, [server]);
+
+  useEffect(() => {
+    if (sharedId === null || me === undefined) return;
+    if (me === null) {
+      setSharedProblem(t(lang, "sharedSignIn"));
+      return;
+    }
+    let current = true;
+    server.comparison(sharedId).then(
+      (found) => {
+        if (!current) return;
+        setShared(found);
+        if (!touched.current) openComparison(found);
+      },
+      (error: unknown) => current && setSharedProblem(t(lang, "sharedFailed", { reason: error instanceof Error ? error.message : String(error) })),
+    );
+    return () => {
+      current = false;
+    };
+  }, [server, sharedId, me]);
+
+  const names = useMemo(() => new Map((output?.districts ?? []).map((d) => [d.code, d.name])), [output]);
 
   const toggleDistrict = (code: string) => {
     const next = selectedCodes.includes(code)
@@ -243,6 +319,13 @@ export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
     <Page label={t(lang, "page")}>
       <Problem error={districtsRes.error} onRetry={districtsRes.reload} />
       {compareError ? <Problem error={new Error(t(lang, "analysisFailed", { reason: compareError.message }))} /> : null}
+
+      {sharedProblem && <p className="app-error" role="alert">{sharedProblem}</p>}
+      {shared && !sharedProblem && (
+        <p className="app-note" role="status">
+          {t(lang, "sharedBy", { name: shared.name, owner: shared.ownerName })}
+        </p>
+      )}
 
       {failedTypes.length > 0 && !isDistrictsError && (
         <Problem error={new Error(t(lang, "partialFailed", { types: failedTypes.map((type) => translateType(type, lang)).join(", ") }))} />
@@ -399,6 +482,17 @@ export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
               )}
             </Card>
           </Grid>
+
+          <Saved
+            lang={lang}
+            server={server}
+            codes={selectedCodes}
+            measure={measure}
+            names={names}
+            pinned={pinned}
+            onPinned={setPinned}
+            onOpen={openComparison}
+          />
 
           <History lang={lang} server={server} codes={selectedCodes} measure={measure} />
         </>

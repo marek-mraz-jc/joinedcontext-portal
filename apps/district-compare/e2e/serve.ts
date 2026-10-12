@@ -43,7 +43,11 @@ function history(codes: string[]) {
 }
 
 /** Serves the built bundle at the root of the App's own host, with the SDK stub answering the endpoint. */
-export async function serve(page: Page, entities = ENTITIES): Promise<Served> {
+/** Who the App's server says is signed in (T-3828): a viewer unless a test names a steward. */
+export const VIEWER = { id: "u-1", name: "Vilja Viewer", roles: ["viewer"] };
+export const STEWARD = { id: "u-2", name: "Sami Steward", roles: ["viewer", "steward"] };
+
+export async function serve(page: Page, entities = ENTITIES, me: { id: string; name: string; roles: string[] } = VIEWER): Promise<Served> {
   const transport = stubTransport({
     entities,
     access: {
@@ -58,6 +62,11 @@ export async function serve(page: Page, entities = ENTITIES): Promise<Served> {
     },
   });
   const served: Served = { outside: [], missing: [], problems: [] };
+  // The App's server's comparisons, pins and history (T-3828), deciding by `me` as the real one does.
+  const kept: Record<string, unknown>[] = [];
+  const pins: Record<string, unknown>[] = [];
+  const changes: Record<string, unknown>[] = [];
+  let next = 1;
   page.on("pageerror", (error) => served.problems.push(error.message));
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
@@ -77,6 +86,32 @@ export async function serve(page: Page, entities = ENTITIES): Promise<Served> {
         contentType: "application/json",
         body: JSON.stringify(answer.body ?? null),
       });
+    }
+    const api = "/apps/district-compare/api";
+    const method = route.request().method();
+    const json = (status: number, body: unknown) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+    const log = (action: string, summary: string) =>
+      changes.unshift({ id: next++, at: "2030-10-21T06:00:00Z", actorName: me.name, action, target: "comparisons", summary });
+    if (url.pathname === `${api}/me`) return json(200, me);
+    if (url.pathname === `${api}/history`) return json(200, changes);
+    if (url.pathname === `${api}/comparisons` && method === "GET") return json(200, kept);
+    if (url.pathname === `${api}/comparisons` && method === "POST") {
+      const made = { ...JSON.parse(route.request().postData() ?? "{}"), id: next++, ownerName: me.name };
+      kept.unshift(made);
+      log("insert", `kept the comparison ${made.name}`);
+      return json(201, made);
+    }
+    if (url.pathname === `${api}/default` && method === "GET") return json(200, pins[0] ?? null);
+    if (url.pathname === `${api}/default`) {
+      if (!me.roles.includes("steward")) return json(403, { detail: "this needs the role steward" });
+      if (method === "PUT") {
+        const made = { ...JSON.parse(route.request().postData() ?? "{}"), id: next++, ownerName: me.name };
+        pins.unshift(made);
+        log("insert", `pinned ${made.name} for everyone`);
+        return json(200, made);
+      }
+      pins.shift();
+      return route.fulfill({ status: 204, body: "" });
     }
     if (url.pathname === "/apps/district-compare/api/metrics") {
       const codes = (url.searchParams.get("codes") ?? "").split(",").filter(Boolean);
