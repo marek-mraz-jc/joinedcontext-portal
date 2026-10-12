@@ -177,7 +177,7 @@ function renderInside(
       });
     }
     if (path.endsWith("/spaces/ovzdusie/usage")) {
-      const usage = seed.usage ?? { status: 200, body: { entities: 0, observedAt: "2026-09-25T11:40:00Z" } };
+      const usage = seed.usage ?? { status: 200, body: { entities: 0, broker: "main", observedAt: "2026-09-25T11:40:00Z" } };
       return json(usage.body, usage.status);
     }
     if (path.endsWith("/spaces/ovzdusie")) {
@@ -326,9 +326,11 @@ describe("space inside view", () => {
   // T-2889: the whole space's count, the broker's, above the per-type breakdown.
   it("says how many entities the whole space holds, and why when it cannot", async () => {
     renderInside({ status: 200, count: 42 }, { status: 200 }, {
-      usage: { status: 200, body: { entities: 14232, observedAt: "2026-09-25T11:40:00Z" } },
+      usage: { status: 200, body: { entities: 14232, broker: "canary", observedAt: "2026-09-25T11:40:00Z" } },
     });
     expect(await screen.findByTestId("space-total")).toHaveTextContent("The space holds 14,232 entities.");
+    // PF-116: the space's page names the broker it lives on.
+    expect(screen.getByTestId("space-broker")).toHaveTextContent("It lives on the context broker canary.");
   });
 
   it("names the reason instead of a count the broker could not give", async () => {

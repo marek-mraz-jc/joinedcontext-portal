@@ -156,10 +156,13 @@ impl AppState {
             .map(|o| Arc::new(BearerVerifier::new(&o.issuer, &o.client_id)));
         let draft_events = DraftHub::new();
         let drafts = DraftStore::new(None).with_hub(draft_events.clone());
-        let space_usage = Arc::new(crate::space_usage::Counter::new(
-            config.broker_url.clone(),
-            config.broker_admin_token_file.clone(),
-        ));
+        let space_usage = Arc::new(
+            crate::space_usage::Counter::new(
+                config.broker_url.clone(),
+                config.broker_admin_token_file.clone(),
+            )
+            .with_broker_template(config.broker_url_template.clone()),
+        );
         let activity_events = crate::activity::ActivityHub::new();
         let activity = crate::activity::ActivityStore::new(None).with_hub(activity_events.clone());
         Self {
@@ -822,7 +825,8 @@ impl AppState {
             match state.config.broker_url.clone() {
                 Some(broker) => {
                     syncer = syncer.with_registrations(Arc::new(
-                        crate::reconciler::registrations::RegistrationSync::new(broker),
+                        crate::reconciler::registrations::RegistrationSync::new(broker)
+                            .with_broker_template(state.config.broker_url_template.clone()),
                     ));
                 }
                 None => tracing::info!(
@@ -837,7 +841,8 @@ impl AppState {
                 state.config.broker_url.clone(),
                 state.config.broker_admin_token_file.clone(),
             ) {
-                let mut views = crate::reconciler::views::ViewSync::new(broker, token_file);
+                let mut views = crate::reconciler::views::ViewSync::new(broker, token_file)
+                    .with_broker_template(state.config.broker_url_template.clone());
                 if let Some(url) = state.config.model_tools_url.clone() {
                     views = views.with_model_tools(url);
                 }

@@ -45,11 +45,13 @@ pub enum RegistrationOutcome {
     Error(String),
 }
 
-/// One HTTP client and the broker's own address.
+/// One HTTP client and the brokers' addresses.
 pub struct RegistrationSync {
     http: reqwest::Client,
-    /// The broker as this Portal reaches it, without a trailing slash.
+    /// The `main` broker as this Portal reaches it, without a trailing slash.
     broker: String,
+    /// Every other broker's address, `{broker}` replaced by its name (PF-111).
+    template: Option<String>,
 }
 
 impl RegistrationSync {
@@ -61,13 +63,23 @@ impl RegistrationSync {
                 .build()
                 .unwrap_or_default(),
             broker: broker.into().trim_end_matches('/').to_owned(),
+            template: None,
         }
     }
 
-    /// The NGSI-LD base of the broker, which is also the address a member is read at: a hub
-    /// reads its members as tenants of the same broker (PF-48).
-    fn ngsi_ld(&self) -> String {
-        format!("{}/ngsi-ld/v1", self.broker)
+    /// Reaches a space on a broker other than `main` at `template` (`JC_PORTAL_BROKER_URL_TEMPLATE`).
+    pub fn with_broker_template(mut self, template: Option<String>) -> Self {
+        self.template = template;
+        self
+    }
+
+    /// The NGSI-LD base of the broker the space `name` of `project` lives on (PF-111), which is
+    /// where its registrations are written and where it is read as a member. `None` for a
+    /// broker this Portal cannot reach.
+    fn ngsi_ld(&self, mirror: &Mirror, project: &str, space: &str) -> Option<String> {
+        let broker = crate::spaces::broker(mirror, project, space);
+        crate::spaces::broker_address(&broker, Some(&self.broker), self.template.as_deref())
+            .map(|base| format!("{base}/ngsi-ld/v1"))
     }
 
     /// Brings every hub space's registrations to what the repository declares.
@@ -87,7 +99,7 @@ impl RegistrationSync {
         for (project, name, reason) in refused {
             outcomes.push((project, name, RegistrationOutcome::Error(reason)));
         }
-        for (project, name, space, manifest) in found {
+        for (project, name, space, hub, manifest) in found {
             let id = registration_id(&name);
             declared_ids
                 .entry(space.clone())
@@ -101,7 +113,15 @@ impl RegistrationSync {
                     continue;
                 }
             };
-            let outcome = match self.write(&space, &id, &body).await {
+            let Some(ngsi_ld) = self.ngsi_ld(mirror, &project, &hub) else {
+                let reason = format!(
+                    "the hub space '{hub}' lives on a broker this Portal has no address for, so \
+                     nothing is registered; check its brokerRef (PF-111)"
+                );
+                outcomes.push((project, name, RegistrationOutcome::Error(reason)));
+                continue;
+            };
+            let outcome = match self.write(&ngsi_ld, &space, &id, &body).await {
                 Ok(()) => RegistrationOutcome::Written,
                 Err(reason) => RegistrationOutcome::Error(reason),
             };
@@ -111,7 +131,7 @@ impl RegistrationSync {
         // A manifest that is gone takes its registration with it, and with it the exposure it
         // was: a member that stays registered after its manifest is deleted keeps answering
         // the hub's audience.
-        for (_, name, space, _) in declared(previous).0 {
+        for (project, name, space, hub, _) in declared(previous).0 {
             let id = registration_id(&name);
             if declared_ids
                 .get(&space)
@@ -119,7 +139,11 @@ impl RegistrationSync {
             {
                 continue;
             }
-            match self.delete(&space, &id).await {
+            let Some(ngsi_ld) = self.ngsi_ld(previous, &project, &hub) else {
+                tracing::warn!(%space, %id, "registration not removed: its broker has no address");
+                continue;
+            };
+            match self.delete(&ngsi_ld, &space, &id).await {
                 Ok(()) => tracing::info!(%space, %id, "registration removed with its manifest"),
                 Err(reason) => tracing::warn!(%space, %id, %reason, "registration not removed"),
             }
@@ -131,8 +155,7 @@ impl RegistrationSync {
     /// space is. A member of another project resolves to nothing, which is PF-48's boundary
     /// again after the manifest's own validation (`validate_scope`).
     fn members_of(&self, mirror: &Mirror, project: &str) -> impl Fn(&str) -> Option<MemberSource> {
-        let ngsi_ld = self.ngsi_ld();
-        let spaces: BTreeMap<String, String> = mirror
+        let spaces: BTreeMap<String, (String, String)> = mirror
             .list(project, "Endpoint", &crate::store::ListOptions::default())
             .items
             .into_iter()
@@ -144,23 +167,32 @@ impl RegistrationSync {
                     .to_owned();
                 Some((
                     envelope.metadata.name,
-                    crate::spaces::segment(mirror, project, &space),
+                    (
+                        self.ngsi_ld(mirror, project, &space)?,
+                        crate::spaces::segment(mirror, project, &space),
+                    ),
                 ))
             })
             .collect();
         move |name: &str| {
-            spaces.get(name).map(|space| MemberSource {
-                endpoint: ngsi_ld.clone(),
+            spaces.get(name).map(|(endpoint, space)| MemberSource {
+                endpoint: endpoint.clone(),
                 tenant: space.clone(),
             })
         }
     }
 
     /// Creates the registration, or patches the one that is already there.
-    async fn write(&self, space: &str, id: &str, body: &Value) -> Result<(), String> {
+    async fn write(
+        &self,
+        ngsi_ld: &str,
+        space: &str,
+        id: &str,
+        body: &Value,
+    ) -> Result<(), String> {
         let created = self
             .http
-            .post(format!("{}/csourceRegistrations", self.ngsi_ld()))
+            .post(format!("{ngsi_ld}/csourceRegistrations"))
             .header(TENANT_HEADER, space)
             .json(body)
             .send()
@@ -181,7 +213,7 @@ impl RegistrationSync {
         }
         let updated = self
             .http
-            .patch(format!("{}/csourceRegistrations/{id}", self.ngsi_ld()))
+            .patch(format!("{ngsi_ld}/csourceRegistrations/{id}"))
             .header(TENANT_HEADER, space)
             .json(&patch)
             .send()
@@ -193,10 +225,10 @@ impl RegistrationSync {
         }
     }
 
-    async fn delete(&self, space: &str, id: &str) -> Result<(), String> {
+    async fn delete(&self, ngsi_ld: &str, space: &str, id: &str) -> Result<(), String> {
         let response = self
             .http
-            .delete(format!("{}/csourceRegistrations/{id}", self.ngsi_ld()))
+            .delete(format!("{ngsi_ld}/csourceRegistrations/{id}"))
             .header(TENANT_HEADER, space)
             .send()
             .await
@@ -298,6 +330,7 @@ fn declared(mirror: &Mirror) -> (Vec<Declared>, Vec<Refused>) {
                 namespace.clone(),
                 name,
                 space,
+                spec.context_space_ref.name().to_owned(),
                 RawManifest {
                     api_version: envelope.api_version.clone(),
                     kind: envelope.kind.clone(),
@@ -311,8 +344,8 @@ fn declared(mirror: &Mirror) -> (Vec<Declared>, Vec<Refused>) {
     (found, refused)
 }
 
-/// A declared registration: `(project, name, hub space, manifest)`.
-type Declared = (String, String, String, RawManifest);
+/// A declared registration: `(project, name, hub tenant, hub space name, manifest)`.
+type Declared = (String, String, String, String, RawManifest);
 
 /// A declared registration that cannot be written: `(project, name, reason)`.
 type Refused = (String, String, String);
@@ -380,7 +413,7 @@ mod tests {
 
         let (declared, _) = declared(&mirror);
         assert_eq!(declared.len(), 1);
-        let (project, name, space, manifest) = &declared[0];
+        let (project, name, space, _, manifest) = &declared[0];
         assert_eq!(
             (project.as_str(), name.as_str(), space.as_str()),
             ("helsinki", "transport", "hub")
@@ -403,6 +436,40 @@ mod tests {
         }
     }
 
+    /// PF-111: a member on broker `canary` is read at the canary's address; one whose space
+    /// names no broker resolves to nothing rather than to `main`.
+    #[test]
+    fn a_member_is_read_on_the_broker_its_space_lives_on() {
+        let sync = RegistrationSync::new("http://context-broker:8080")
+            .with_broker_template(Some("http://broker-{broker}:8080".into()));
+        let image = format!("ghcr.io/x/antares@sha256:{}", "a".repeat(64));
+        let mirror = mirror_with(vec![
+            envelope(
+                "ContextBroker",
+                "main",
+                json!({ "default": true, "image": image }),
+            ),
+            envelope("ContextBroker", "canary", json!({ "image": image })),
+            envelope(
+                "ContextSpace",
+                "transport",
+                json!({ "brokerRef": "canary" }),
+            ),
+            envelope("ContextSpace", "lost", json!({ "brokerRef": "gone" })),
+            envelope(
+                "Endpoint",
+                "on-canary",
+                json!({ "contextSpaceRef": "transport" }),
+            ),
+            envelope("Endpoint", "on-lost", json!({ "contextSpaceRef": "lost" })),
+        ]);
+        let members = sync.members_of(&mirror, "helsinki");
+        let member = members("on-canary").expect("resolves");
+        assert_eq!(member.endpoint, "http://broker-canary:8080/ngsi-ld/v1");
+        assert_eq!(member.tenant, "helsinki-transport");
+        assert!(members("on-lost").is_none());
+    }
+
     #[test]
     fn an_endpoint_this_project_does_not_have_resolves_to_nothing() {
         let sync = RegistrationSync::new("http://context-broker:8080");
@@ -412,7 +479,7 @@ mod tests {
         )]);
 
         let (declared, _) = declared(&mirror);
-        let refused = registration(&declared[0].3, &sync.members_of(&mirror, "helsinki"))
+        let refused = registration(&declared[0].4, &sync.members_of(&mirror, "helsinki"))
             .expect_err("no such Endpoint in this project");
         assert!(refused.to_string().contains("somewhere-else"), "{refused}");
     }
