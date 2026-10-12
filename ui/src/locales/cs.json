@@ -135,7 +135,8 @@
     "uischemaProblems": "Manifest uspořádání tohoto formuláře žádá něco, co formulář neumí",
     "view": {
       "form": "Formulář",
-      "yaml": "YAML"
+      "yaml": "YAML",
+      "history": "Historie"
     },
     "yamlHint": "Celý manifest tak, jak se zapíše do Gitu. Přepnutí zpět na formulář jej znovu načte; obě podoby kontroluje totéž schéma.",
     "yamlError": "Opravte YAML: {message}",
@@ -965,6 +966,27 @@
       "removeOne": "Odstranit váš komentář z {when}",
       "unknown": "Bez upozornění, protože nemohou číst tento prostor: {names}",
       "writeFirst": "Nejprve napište komentář."
+    },
+    "upload": {
+      "open": "Nahrát CSV",
+      "title": "Nahrát CSV",
+      "lead": "Vyberte CSV do 50 MB. Porovná se s typy Smart Data Models; model, prostor, jeho Endpoint a vaše právo zapisovat řádky se navrhnou jako jedna změna a když je změna nasazená, řádky se zapíší přes bránu pod vaším jménem.",
+      "choose": "Vybrat soubor CSV",
+      "type": "Co řádky jsou",
+      "noMatch": "Žádný typ Smart Data Models nepojmenovává dost těchto sloupců: soubor dostane vlastní model.",
+      "match": "{name} ({score} % sloupců)",
+      "own": "Vlastní model",
+      "ownType": "Název typu",
+      "ownTypeHint": "Jedno slovo s velkým počátečním písmenem, například Garage.",
+      "space": "Název prostoru",
+      "notReady": "Nejprve vyberte soubor, typ a prostor.",
+      "propose": "Navrhnout změnu",
+      "proposing": "Navrhuje se…",
+      "afterApproval": "Když je změna schválená a nasazená, zapište řádky do {space} jako {type}. Opakovaný zápis stejného souboru aktualizuje tytéž entity.",
+      "noSlots": "Navržený model pro tento typ nedeklaruje žádná pole: není co zapsat.",
+      "write": "{count, plural, =0 {Není co zapsat} one {Zapsat # řádek} few {Zapsat # řádky} other {Zapsat # řádků}}",
+      "done": "{written, plural, =0 {Nezapsal se žádný řádek} one {Zapsán # řádek} few {Zapsány # řádky} other {Zapsáno # řádků}}, {refused, plural, =0 {žádný odmítnutý.} other {odmítnutých: #.}}",
+      "preview": "Náhled {count, plural, one {první # entity} few {prvních # entit} other {prvních # entit}} jako NGSI-LD"
     }
   },
   "endpoints": {
@@ -1153,6 +1175,8 @@
       "xlsx": "Excel (xlsx)",
       "zip": "ZIP ke stažení",
       "ogc-features": "OGC API Features",
+      "odata": "OData v4",
+      "websocket": "Oznámení přes WebSocket",
       "sta": "SensorThings API",
       "mcp": "MCP pro AI asistenty"
     },
@@ -2149,6 +2173,19 @@
     "canvasLoss": {
       "noSource": "Pipeline nemá první zdroj: nejdřív zvolte, odkud čte, jinak nelze zapsat její další zdroje, kroky ani výstupy.",
       "noTarget": "Pipeline nemá cílový endpoint: nejdřív zvolte, kam zapisuje, jinak nelze zapsat její další výstupy."
+    },
+    "templates": {
+      "title": "Uloženo v tomto projektu",
+      "by": "Uložil(a) {name}",
+      "use": "Použít",
+      "delete": "Smazat",
+      "deleteOf": "Smazat šablonu {title}",
+      "save": "Uložit jako šablonu",
+      "saveIt": "Uložit šablonu",
+      "titleField": "Název šablony",
+      "titleHelp": "Co ukazuje galerie. Šablona si ponechá kroky a mapování; přístupové údaje, zdroj a cíl vynechá.",
+      "titleNeeded": "Nejprve šabloně dejte název.",
+      "saved": "Uloženo jako šablona „{title}“."
     }
   },
   "dashboards": {
@@ -2509,6 +2546,42 @@
       "ckanInstance": "{project} / {name}",
       "ckanVia": "přes roli {role}",
       "appNotLoaded": "Aplikace se ještě načítá nebo ji nemůžete číst."
+    },
+    "explorer": {
+      "title": "Podívejte se, k čemu má kdo přístup",
+      "lead": "Vyberte osobu, skupinu, roli, servisní účet nebo veřejnost. Každý Endpoint tohoto projektu, ke kterému se dostanou, se zobrazí s tím, co tam smějí číst a dělat, jak rozhodla brána. Endpointy, ke kterým se nedostanou, se nezobrazí.",
+      "kind": "Kdo",
+      "search": "Hledat osoby",
+      "show": "Zobrazit přístup",
+      "failed": "Přístup se nepodařilo zobrazit. Zkuste to znovu za minutu; důvod je níže.",
+      "nothing": "Nedosáhne ničeho",
+      "nothingLead": "Žádný Endpoint tohoto projektu je nepřipouští ani jim nic neuděluje. Přístup udělíte politikou, skupinou nebo vazbou role.",
+      "space": "prostor {space}",
+      "through": "Uděleno přes",
+      "openEndpoint": "Otevřít Endpoint",
+      "may": "Smí",
+      "mayNot": "Nesmí",
+      "attributes": "Atributy:",
+      "allAttributes": "všechny",
+      "only": "Jen kde",
+      "copy": "Kopírovat URL {surface}",
+      "geoQ": "Oblast omezení: {shape}",
+      "mcp": "Jeden MCP konektor na všechno",
+      "mcpLead": "Hub pokrývá všechny Endpointy výše jedním konektorem; Endpoint se uvádí při každém volání.",
+      "connectAll": "Připojit vše (kopírovat URL hubu)",
+      "consents": "Připojení klienti",
+      "noConsents": "Žádní připojení klienti.",
+      "lastUsed": "naposledy použito {when}",
+      "revoke": "Odvolat",
+      "revokeTitle": "Odvolat souhlas pro {client}?",
+      "revokeLead": "Klient ztratí připojení a offline relace a musí požádat znovu. Žádné oprávnění se nemění.",
+      "revokeFailed": "Souhlas se nepodařilo odvolat. Zkuste to znovu; důvod je níže.",
+      "endpoints": "{count, plural, one {# dosažený Endpoint} few {# dosažené Endpointy} other {# dosažených Endpointů}}",
+      "pickFirst": "Nejprve vyberte, koho chcete vyhledat.",
+      "kindHelp": "Osoba, skupina, role nebo servisní účet: čí přístup stránka vypíše.",
+      "personHelp": "Lidé organizace podle e-mailu; vyhledávání výše seznam zúží.",
+      "accountHelp": "Servisní účty projektu, tedy programy, které volají endpointy.",
+      "nameHelp": "Název přesně tak, jak je zapsán v Keycloaku."
     }
   },
   "flows": {
@@ -3085,7 +3158,7 @@
       "noBuilder": "Toto nasazení nemá agenta pro stavbu aplikací, takže zde aplikaci vygenerovat nelze. Agent Runner je volitelný doplněk; požádejte správce o jeho instalaci.",
       "examplesHint": "Dvě aplikace dodávané s platformou jsou hotové příklady stejného tvaru:",
       "examples": {
-        "hsl-transport": "Autobusy živě: 30 vozidel na mapě, veřejné a jen ke čtení",
+        "hsl-transport": "HSL živě: až 90 vozidel všech druhů dopravy na mapě, odjezdy a dopravní hlášení, veřejné a jen ke čtení",
         "air-quality": "Kvalita ovzduší: stanice, denní historie a poznámka správce"
       },
       "needs": {
@@ -4526,7 +4599,8 @@
       },
       "access": {
         "denied": "Přístup odmítnut",
-        "simulated": "Pravidlo vyzkoušené na osobě"
+        "simulated": "Pravidlo vyzkoušené na osobě",
+        "explored": "Přístup zobrazen"
       },
       "mcp": {
         "tool": "Volání nástroje asistenta"
@@ -5615,7 +5689,8 @@
       "roles": "Role",
       "service-accounts": "Servisní účty",
       "access": "Váš přístup",
-      "danger": "Smazat nebo předat"
+      "danger": "Smazat nebo předat",
+      "explorer": "Přehled přístupu"
     },
     "field": {
       "title": "Název",
@@ -7086,5 +7161,13 @@
         "hint": "odpovědi modelů organizace"
       }
     }
+  },
+  "resourceHistory": {
+    "restore": "Obnovit tuto verzi",
+    "empty": "Žádná uzavřená změna se zatím {kind} {name} netýkala.",
+    "noneOnPage": "Žádná z těchto změn se tohoto zdroje netýkala. Starší možná ano.",
+    "when": "{at} · pruh {lane} · {id}",
+    "notWritten": "Tato změna nezapsala {kind} {name}, takže není co obnovit.",
+    "loaded": "Verze, kterou zapsala změna {id}, je ve formuláři. Zkontrolujte ji a navrhněte, abyste ji obnovili; dokud není schválena, nic se nemění."
   }
 }

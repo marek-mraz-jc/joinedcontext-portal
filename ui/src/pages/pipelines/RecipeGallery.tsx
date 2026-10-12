@@ -4,7 +4,7 @@
  * and tests it before anything is proposed.
  */
 import { useState } from "react";
-import type { JSX } from "react";
+import type { JSX, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Manifest } from "../../api/manifest";
 import { Button, Field, Input, Select } from "../../components/ui";
@@ -20,9 +20,11 @@ export interface RecipeGalleryProps {
   /** The Endpoints a load may write through, as the form offers them. */
   targets: { name: string; urn?: string }[];
   onUse: (form: PipelineForm) => void;
+  /** The project's own templates, listed under the recipes (T-3976). */
+  children?: ReactNode;
 }
 
-export function RecipeGallery({ project, orgDomain, dataSources, endpoints, targets, onUse }: RecipeGalleryProps): JSX.Element {
+export function RecipeGallery({ project, orgDomain, dataSources, endpoints, targets, onUse, children }: RecipeGalleryProps): JSX.Element {
   const { t } = useTranslation();
   const [picked, setPicked] = useState<Recipe | null>(null);
   const [source, setSource] = useState("");
@@ -128,6 +130,7 @@ export function RecipeGallery({ project, orgDomain, dataSources, endpoints, targ
           </div>
         </div>
       ) : null}
+      {children}
     </details>
   );
 }

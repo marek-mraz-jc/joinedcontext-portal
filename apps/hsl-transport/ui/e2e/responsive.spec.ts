@@ -12,11 +12,13 @@ for (const scheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
       await page.setViewportSize(size);
       await page.goto(BASE);
-      await expect(page.getByRole("status")).toContainText("6 buses");
+      await expect(page.getByRole("status")).toContainText("6 vehicles");
+      await expect(page.getByRole("list", { name: "Departures from Tapiola (M)" })).toBeVisible();
+      await expect(page.getByRole("list", { name: "Service alerts" })).toBeVisible();
       await expect(page.getByTestId("map").locator("canvas")).toHaveCount(1);
       await expect(page.getByRole("list", { name: "Lines on the map" }).getByText("1000N")).toBeVisible();
       // The two charts, coloured (T-2926): one bar per line in view, every speed band.
-      const perLine = page.getByRole("list", { name: "Buses per line" });
+      const perLine = page.getByRole("list", { name: "Vehicles per line" });
       await expect(perLine.getByRole("listitem").first()).toBeVisible();
       await expect(page.getByRole("list", { name: "Speed" }).getByRole("listitem")).toHaveCount(7);
       await expect(perLine.getByTestId("bar-fill").first()).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
@@ -37,7 +39,7 @@ for (const scheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
       await page.setViewportSize({ width, height: 900 });
       await page.goto(BASE);
-      await page.getByRole("combobox", { name: "Open a bus" }).selectOption("3");
+      await page.getByRole("combobox", { name: "Open a vehicle" }).selectOption("3");
       const panel = page.getByRole("dialog");
       await expect(panel.getByText("23", { exact: true })).toBeVisible();
       await expect(panel.getByRole("link", { name: "Open in the Portal" })).toBeVisible();

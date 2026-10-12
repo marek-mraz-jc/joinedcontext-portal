@@ -51,6 +51,13 @@ export const BATCH = 100;
 /** The most rows one import reads: a bigger file is a feed, a DataSource and a Pipeline. */
 export const MAX_ROWS = 10_000;
 
+/** The largest file an import reads (T-3840): refused by its size before a byte is read. */
+export const MAX_BYTES = 50 * 1024 * 1024;
+
+/** Mapping targets of two columns that together make the entity's point location (T-3840). */
+export const LATITUDE = "@latitude";
+export const LONGITUDE = "@longitude";
+
 /** The slots of one class of the space's model, with `required` from the class's own usage. */
 export function importSlotsOf(source: string | undefined, type: string): ImportSlot[] {
   if (source === undefined || !type) return [];
@@ -76,6 +83,7 @@ export function importSlotsOf(source: string | undefined, type: string): ImportS
 
 /** The file as rows, by its extension; an error names what could not be read. */
 export async function readTable(file: File): Promise<Table> {
+  if (file.size > MAX_BYTES) throw new Error(`a file of at most ${MAX_BYTES / 1024 / 1024} MB`);
   const name = file.name.toLowerCase();
   if (name.endsWith(".csv") || name.endsWith(".tsv") || name.endsWith(".txt")) {
     const { text, encoding } = decodeText(new Uint8Array(await file.arrayBuffer()));
@@ -353,7 +361,7 @@ export async function parseXlsx(bytes: Uint8Array): Promise<Table> {
 // Mapping columns to slots
 // ---------------------------------------------------------------------------------------------
 
-const SYNONYMS: Record<string, string[]> = {
+export const SYNONYMS: Record<string, string[]> = {
   // Smart Data Models' common names for what files call otherwise.
   name: ["title", "label", "nazov", "nimi", "nazev"],
   description: ["desc", "popis", "kuvaus", "notes"],
@@ -363,9 +371,13 @@ const SYNONYMS: Record<string, string[]> = {
 };
 
 /** A name without case, separators or diacritics, so `Date observed` meets `dateObserved`. */
-function normalized(name: string): string {
+export function normalized(name: string): string {
   return name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
+
+/** Column names that hold a latitude or a longitude, normalized. */
+export const LATITUDES = new Set(["lat", "latitude", "leveys", "sirka", "zemepisnasirka", "breite"]);
+export const LONGITUDES = new Set(["lon", "lng", "long", "longitude", "pituus", "dlzka", "delka", "zemepisnadlzka", "lange"]);
 
 /**
  * The slot each column most likely feeds: the same name up to case, separators and diacritics, or
@@ -378,7 +390,10 @@ export function suggestMapping(columns: string[], slots: ImportSlot[]): Mapping 
   for (const column of columns) {
     const key = normalized(column);
     let target = "";
+    const geo = slots.some((s) => s.kind === "GeoProperty");
     if (key === "id" || key === "urn" || key === "entityid") target = ID;
+    else if (geo && LATITUDES.has(key)) target = LATITUDE;
+    else if (geo && LONGITUDES.has(key)) target = LONGITUDE;
     else {
       const slot =
         slots.find((s) => normalized(s.name) === key) ??
@@ -468,6 +483,8 @@ function valueOf(text: string, slot: ImportSlot): unknown | Error {
     } catch {
       // A pair below.
     }
+    const wkt = /^POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)$/i.exec(text);
+    if (wkt) return { type: "Point", coordinates: [Number(wkt[1]), Number(wkt[2])] };
     const pair = text.split(/[,;\s]+/).map(Number);
     if (pair.length === 2 && pair.every(Number.isFinite)) return { type: "Point", coordinates: pair };
     return new Error(`${slot.name}: \`${text}\` is neither GeoJSON nor "longitude, latitude"`);
@@ -553,6 +570,18 @@ export function toEntities(
         entity[slot.name] = { type: "Property", value };
       }
     }
+    const latColumn = Object.keys(mapping).find((column) => mapping[column] === LATITUDE);
+    const lonColumn = Object.keys(mapping).find((column) => mapping[column] === LONGITUDE);
+    const geoSlot = slots.find((slot) => slot.name === "location" && slot.kind === "GeoProperty") ?? slots.find((slot) => slot.kind === "GeoProperty");
+    if (latColumn && lonColumn && geoSlot) {
+      const lat = numberOf((record[latColumn] ?? "").trim());
+      const lon = numberOf((record[lonColumn] ?? "").trim());
+      if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
+        entity[geoSlot.name] = { type: "GeoProperty", value: { type: "Point", coordinates: [lon, lat] } };
+      } else if ((record[latColumn] ?? "").trim() !== "" || (record[lonColumn] ?? "").trim() !== "") {
+        problems.push(`${geoSlot.name}: \`${record[latColumn] ?? ""}\`, \`${record[lonColumn] ?? ""}\` is not a latitude and a longitude`);
+      }
+    }
     for (const slot of slots) {
       if (slot.required && entity[slot.name] === undefined) problems.push(`${slot.name} is required`);
     }
@@ -590,10 +619,12 @@ export async function createInBatches(
   space: string,
   entities: { row: number; entity: Record<string, unknown> }[],
   onProgress: (sent: number) => void = () => {},
+  // `upsert` makes the same file imported twice the same entities, not a refusal (T-3840).
+  operation: "create" | "upsert" = "create",
 ): Promise<{ created: number; rejected: Rejected[] }> {
   let created = 0;
   const rejected: Rejected[] = [];
-  const path = `/cs/${encodeURIComponent(space)}/ngsi-ld/v1/entityOperations/create`;
+  const path = `/cs/${encodeURIComponent(space)}/ngsi-ld/v1/entityOperations/${operation}`;
   for (let at = 0; at < entities.length; at += BATCH) {
     const batch = entities.slice(at, at + BATCH);
     let answer: { status: number; body?: unknown };
@@ -625,7 +656,12 @@ export async function createInBatches(
 
 /** The rejected rows as CSV, for the person to fix and import again. */
 export function rejectedCsv(rejected: Rejected[]): string {
-  const quote = (text: string) => (/[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text);
+  // A cell a spreadsheet would run as a formula (`=`, `+`, `-`, `@`, tab, CR) is written as text.
+  const inert = (text: string) => (/^[=+\-@\t\r]/.test(text) ? `'${text}` : text);
+  const quote = (raw: string) => {
+    const text = inert(raw);
+    return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  };
   return ["row,id,reason", ...rejected.map((r) => [String(r.row), r.id ?? "", r.reason].map(quote).join(","))].join("\r\n");
 }
 

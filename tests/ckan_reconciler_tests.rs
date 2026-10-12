@@ -146,6 +146,7 @@ fn an_endpoint_becomes_a_dataset_with_the_sheet_it_declares() {
         dataset,
         outcome,
         rows,
+        ..
     } = published
     else {
         panic!("a publication, got {published:?}");
@@ -197,6 +198,7 @@ fn a_second_run_over_an_unchanged_endpoint_writes_nothing() {
             dataset: "helsinki-bikes".to_owned(),
             outcome: Outcome::Unchanged,
             rows: None,
+            no_linkml: false,
         }
     );
     assert_eq!(api.actions().len(), calls, "the second run wrote something");

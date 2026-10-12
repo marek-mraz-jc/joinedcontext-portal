@@ -334,6 +334,11 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
                 {t("spaces.complete.title")}
               </Link>
             </PermissionGuard>
+            <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+              <Link to="/projects/$project/spaces/upload" params={{ project }} className={buttonClass("secondary", "md")}>
+                {t("spaces.upload.open")}
+              </Link>
+            </PermissionGuard>
             {addButton}
           </div>
         }

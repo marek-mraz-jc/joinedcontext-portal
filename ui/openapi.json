@@ -2248,6 +2248,71 @@
         }
       }
     },
+    "/api/v1/organization/people/{id}/consents/{client}": {
+      "delete": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Revoke A Consent",
+        "description": "Revokes a person's consent to one client, the hub, an Endpoint's MCP client or an App, which also ends that client's offline sessions of theirs. No grant changes (API/01 §41, T-3792).",
+        "operationId": "revoke_consent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The Keycloak user id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "client",
+            "in": "path",
+            "description": "The client id the person consented to",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          },
+          "403": {
+            "description": "The caller lacks disable on Person, or a right the person holds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such person or consent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Keycloak admin client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organization/people/{id}/disable": {
       "post": {
         "tags": [
@@ -3122,6 +3187,106 @@
           },
           "503": {
             "description": "No git forge configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/access/explore": {
+      "post": {
+        "tags": [
+          "access"
+        ],
+        "summary": "See What Someone Can Access",
+        "description": "Every Endpoint of the project a person, a group or role member, a ServiceAccount or the public reaches, with the gateway's grant document for them on each, the McpServers covering them and, for a person, their consents (API/01 §41, EP-103). Organization administrators only; recorded as an `access.explored` activity event. Changes no data.",
+        "operationId": "explore_access",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Who.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExploreRequest"
+              },
+              "example": {
+                "subject": {
+                  "kind": "serviceAccount",
+                  "name": "etl"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The Endpoints the subject reaches",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Explored"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An unknown member or kind",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an organization administrator",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such person or ServiceAccount",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No gateway, no realm admin client, or one of them did not answer",
             "content": {
               "application/json": {
                 "schema": {
@@ -6150,6 +6315,98 @@
           },
           "404": {
             "description": "Change proposal not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Git forge unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/changes/{id}/manifests": {
+      "get": {
+        "tags": [
+          "changes"
+        ],
+        "summary": "Read the Manifests a Change Wrote",
+        "description": "The manifests a merged change wrote, each read at the change's own last commit: the version a resource's editor offers to restore through a new, checked Change. A kind the caller does not read, a native file and a deleted file are left out (T-3975).",
+        "operationId": "change_manifests",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The merged change: chg- + 8 hex digits",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The manifests it wrote",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a change id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such change the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not merged",
             "content": {
               "application/json": {
                 "schema": {
@@ -9940,6 +10197,251 @@
           },
           "503": {
             "description": "The log could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/pipelinetemplates": {
+      "get": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "List Pipeline Templates",
+        "description": "The pipelines this project saved to start from, newest first (T-3976).",
+        "operationId": "list_pipeline_templates",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project's templates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No project whose pipelines the caller reads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Save a Pipeline Template",
+        "description": "Keeps a Pipeline manifest's spec without its secretRefs, its source and target references and its space, as a template of the project. A credential written out is refused (T-3976).",
+        "operationId": "create_pipeline_template",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTemplate"
+              },
+              "example": {
+                "manifest": {
+                  "apiVersion": "joinedcontext.com/v1alpha2",
+                  "kind": "Pipeline",
+                  "metadata": {
+                    "name": "aq-mqtt-ingest",
+                    "namespace": "banskabystrica"
+                  },
+                  "spec": {
+                    "class": "resident",
+                    "outputs": [
+                      {
+                        "mode": "upsert",
+                        "targetEndpoint": "urn:ngsi-ld:Endpoint:banskabystrica.sk:ovzdusie:air",
+                        "type": "AirQualityObserved"
+                      }
+                    ],
+                    "secretRefs": [
+                      {
+                        "envVar": "MQTT_PASSWORD",
+                        "key": "password",
+                        "name": "mqtt-credentials"
+                      }
+                    ],
+                    "sources": [
+                      {
+                        "dataSourceRef": {
+                          "kind": "DataSource",
+                          "name": "aq-mqtt"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "title": "MQTT sensor feed"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The saved template",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineTemplate"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a Pipeline, a credential written out, no title or too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No `propose` on Pipeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No project whose pipelines the caller reads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The project holds the most templates it may",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/pipelinetemplates/{id}": {
+      "delete": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Delete a Pipeline Template",
+        "description": "Removes one template of the project; pipelines made from it are not touched (T-3976).",
+        "operationId": "delete_pipeline_template",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The template's id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No `propose` on Pipeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such template in a project the caller reads",
             "content": {
               "application/json": {
                 "schema": {
@@ -14136,6 +14638,15 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "description": "Comma-separated subjects, at most 8, whose model attribute names are filled first",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -17009,6 +17520,38 @@
           "rename"
         ]
       },
+      "Consent": {
+        "type": "object",
+        "description": "One client a person consented to (the hub, an Endpoint's MCP client, an App), as the realm's\nadmin API lists it (T-3792). Never a token: Keycloak keeps those to itself.",
+        "required": [
+          "clientId"
+        ],
+        "properties": {
+          "clientId": {
+            "type": "string"
+          },
+          "createdDate": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "grantedClientScopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "lastUpdatedDate": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "Consequence": {
         "type": "object",
         "description": "One thing that leaves with a removed resource (T-3247).",
@@ -17157,6 +17700,24 @@
           "visibility": {
             "type": "string",
             "description": "Who may reach the published application. `public` is refused (AP-42)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateTemplate": {
+        "type": "object",
+        "required": [
+          "title",
+          "manifest"
+        ],
+        "properties": {
+          "manifest": {
+            "type": "object",
+            "description": "A Pipeline manifest; only its `spec` is kept, without what belongs to the project."
+          },
+          "title": {
+            "type": "string",
+            "description": "What the gallery shows, 1 to 120 characters."
           }
         },
         "additionalProperties": false
@@ -17779,6 +18340,52 @@
           "seq": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "ExploreRequest": {
+        "type": "object",
+        "required": [
+          "subject"
+        ],
+        "properties": {
+          "subject": {
+            "$ref": "#/components/schemas/Who"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Explored": {
+        "type": "object",
+        "required": [
+          "subject",
+          "endpoints",
+          "mcpServers",
+          "consents"
+        ],
+        "properties": {
+          "consents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Consent"
+            },
+            "description": "A person's Keycloak consents; empty for every other kind."
+          },
+          "endpoints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Reached"
+            }
+          },
+          "mcpServers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The project's McpServers with a member among `endpoints`."
+          },
+          "subject": {
+            "$ref": "#/components/schemas/Resolved"
           }
         }
       },
@@ -20064,6 +20671,35 @@
           }
         }
       },
+      "PipelineTemplate": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "spec",
+          "createdBy",
+          "createdAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "spec": {
+            "type": "object",
+            "description": "The pipeline's spec without `secretRefs`, source and target references or a space."
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
       "PipelineTestSample": {
         "type": "object",
         "description": "The sample of one test as the route reads it and the OpenAPI document publishes it (UI-07).\njcctl's `Sample` carries no schema; this is its shape, turned into it by `From` below, so a\nfield jcctl gains or loses fails to compile here instead of drifting from the document.",
@@ -20847,6 +21483,63 @@
             "format": "int32",
             "description": "The manifest count for a countable dimension (PF-75); `null` for a runtime limit.",
             "minimum": 0
+          }
+        }
+      },
+      "Reached": {
+        "type": "object",
+        "description": "One Endpoint the subject reaches, with the gateway's grant document for them.",
+        "required": [
+          "name",
+          "slug",
+          "space",
+          "representations",
+          "policies",
+          "permissions",
+          "prohibitions"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "The AuthZEN permissions as the gateway answered them (types, actions, attributes,\nconstraints `q`, `scopeQ`, `geoQ`, `temporalQ`)."
+          },
+          "policies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The Policies in force for the subject here."
+          },
+          "prohibitions": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "representations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The surfaces the Endpoint serves; the page builds each URL under `/api/endpoint/{slug}`."
+          },
+          "slug": {
+            "type": "string"
+          },
+          "space": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -22259,6 +22952,21 @@
           },
           "title": {
             "type": "string"
+          }
+        }
+      },
+      "TemplateList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineTemplate"
+            },
+            "description": "The project's templates, newest first."
           }
         }
       },

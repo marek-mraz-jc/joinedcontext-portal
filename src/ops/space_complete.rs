@@ -48,6 +48,10 @@ pub struct SpaceCompleteInput {
     pub description: Option<String>,
     #[serde(default)]
     pub propose: bool,
+    /// The person uploads the sample's rows themselves (DM-81, T-3840): the space gets its
+    /// Endpoint when it has none, and the person a grant to write its type by batch.
+    #[serde(default)]
+    pub upload: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -104,7 +108,8 @@ pub fn input_schema() -> Value {
                 "maxLength": MAX_DESCRIPTION_CHARS,
                 "description": "What the data is, from the person's description and specification"
             },
-            "propose": { "type": "boolean", "description": "Propose all drafts as a single change if ready" }
+            "propose": { "type": "boolean", "description": "Propose all drafts as a single change if ready" },
+            "upload": { "type": "boolean", "description": "The person writes the sample file's rows through the space: draft its Endpoint when it has none and the person's write grant (DM-81)" }
         },
         "additionalProperties": false
     })
@@ -880,6 +885,35 @@ pub async fn run(
         inferred_pipeline = true;
     }
 
+    // 4a. A CSV the person uploads (DM-81, T-3840): no pipeline loads it, the person writes its
+    // rows through the space, so a space with no Endpoint gets one, granted as a fed one is.
+    let space_has_endpoint = state
+        .mirror
+        .list(project, "Endpoint", &crate::store::ListOptions::default())
+        .items
+        .iter()
+        .any(|ep| ep.spec.get("contextSpaceRef").and_then(Value::as_str) == Some(&space_name));
+    if input.upload && sample_bytes.is_some() && endpoint_manifest.is_none() && !space_has_endpoint
+    {
+        endpoint_manifest = Some(json!({
+            "apiVersion": API_VERSION,
+            "kind": "Endpoint",
+            "metadata": {
+                "name": format!("{space_name}-all"),
+                "namespace": project,
+                "title": { "en": format!("{} context, everything", words_capitalized(&space_name)) }
+            },
+            "spec": {
+                "contextSpaceRef": space_name,
+                "slug": crate::agents::share::slug(),
+                "audience": "organization",
+                "enabledRepresentations": ["ngsi-ld"],
+                "projection": { "classes": [class_name.clone()] }
+            }
+        }));
+        inferred_endpoint = true;
+    }
+
     // 4b. A type an App needs and no feed fills, described by its LinkML alone (T-3608, AP-22):
     // the space gets an Endpoint the app builder reads the type's schema through, for the
     // project only. No grant is drafted: nothing loads it, and the App's own Endpoint and Policy
@@ -1081,6 +1115,10 @@ pub async fn run(
         drafts.push(
             checked_draft(caller, state, project, m, inferred_endpoint || app_endpoint).await?,
         );
+    }
+    if input.upload && sample_bytes.is_some() {
+        let grant = upload_policy(project, &space_name, &class_name, &caller.identity.username);
+        drafts.push(checked_draft(caller, state, project, grant, true).await?);
     }
 
     // Save Pipeline draft
@@ -1367,6 +1405,27 @@ fn policies_for(
         true,
     ));
     drafted
+}
+
+/// The person's grant to write the uploaded type into the space by batch (DM-81, T-3840): upsert,
+/// so the same file uploaded again updates the same entities, and the read the upsert needs.
+fn upload_policy(project: &str, space: &str, class: &str, person: &str) -> Value {
+    json!({
+        "apiVersion": API_VERSION,
+        "kind": "Policy",
+        "metadata": {
+            "name": format!("{space}-upload"),
+            "namespace": project,
+            "title": { "en": format!("{person} uploads {class} into {space}") }
+        },
+        "spec": {
+            "contextSpaceRef": { "kind": "ContextSpace", "name": space },
+            "assigner": "did:web:{orgDomain}",
+            "assignee": { "kind": "user", "id": person },
+            "operations": ["upsertBatch", "createBatch", "queryBatch"],
+            "information": [{ "entities": [{ "type": class }] }]
+        }
+    })
 }
 
 /// The account a write grant is for, and the `ServiceAccount` to draft beside it when the project

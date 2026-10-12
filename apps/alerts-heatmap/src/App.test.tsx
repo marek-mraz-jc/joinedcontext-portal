@@ -79,15 +79,15 @@ describe("alerts-heatmap", () => {
   it("filters by kind over the whole set, and the address carries the choice", async () => {
     show();
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("checkbox", { name: "Liikennetiedote (3)" }));
+    await user.click(await screen.findByRole("checkbox", { name: "Onnettomuus (3)" }));
     expect(await screen.findByText(/^3 tiedotetta /)).toBeInTheDocument();
-    expect(window.location.search).toContain("kind=TRAFFIC_ANNOUNCEMENT");
+    expect(window.location.search).toContain("kind=carAccident");
     // The other kind stays offered, with its count.
     expect(screen.getByRole("checkbox", { name: "Tietyö (5)" })).not.toBeChecked();
     // Both kinds chosen is every alert again; the filter is still in the address.
     await user.click(screen.getByRole("checkbox", { name: "Tietyö (5)" }));
     expect(await screen.findByText(/^8 tiedotetta /)).toBeInTheDocument();
-    expect(window.location.search).toContain("ROAD_WORK");
+    expect(window.location.search).toContain("roadWorks");
     await user.click(screen.getByRole("button", { name: "Tyhjennä valinnat" }));
     expect(await screen.findByText(/^8 tiedotetta /)).toBeInTheDocument();
     expect(window.location.search).toBe("?lang=fi");
@@ -140,7 +140,7 @@ describe("alerts-heatmap", () => {
   });
 
   it("opens on the view its address names", async () => {
-    window.history.replaceState(null, "", "/?lang=en&kind=ROAD_WORK&day=0&hour=8");
+    window.history.replaceState(null, "", "/?lang=en&kind=roadWorks&day=0&hour=8");
     show();
     expect(await screen.findByText(/^4 alerts from 7 Oct 2030 to 21 Oct 2030\./)).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Show every hour, not only Monday 08:00–09:00" }));
@@ -160,7 +160,7 @@ describe("alerts-heatmap", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("checkbox", { name: "Road work (5)" }));
     expect(await screen.findByText(/^5 alerts /)).toBeInTheDocument();
-    await user.click(screen.getByRole("checkbox", { name: "Traffic announcement (3)" }));
+    await user.click(screen.getByRole("checkbox", { name: "Accident (3)" }));
     await user.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(await screen.findByText(/^8 alerts /)).toBeInTheDocument();
     await user.type(screen.getByLabelText("From"), "2030-10-01");
@@ -216,7 +216,7 @@ describe("alerts-heatmap", () => {
   // T-3351: the view saved on the App's server with its places and a picture of the map, and
   // shown again from the list, the address back as it was saved.
   it("saves the view as a report with its map picture, and shows it again from the list", async () => {
-    window.history.replaceState(null, "", "/?lang=fi&kind=ROAD_WORK");
+    window.history.replaceState(null, "", "/?lang=fi&kind=roadWorks");
     const server = fakeServer();
     show(undefined, server);
     const user = userEvent.setup();
@@ -227,7 +227,7 @@ describe("alerts-heatmap", () => {
     await user.type(screen.getByLabelText("Raportin nimi"), "  Tietyöt  ");
     await user.click(screen.getByRole("button", { name: "Tallenna näkymä" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Raportti tallennettu: Tietyöt.");
-    expect(server.saved[0]).toMatchObject({ title: "Tietyöt", view: "lang=fi&kind=ROAD_WORK" });
+    expect(server.saved[0]).toMatchObject({ title: "Tietyöt", view: "lang=fi&kind=roadWorks" });
     expect(server.saved[0]?.places.length).toBeGreaterThan(0);
     expect(server.pictures.get(1)?.type).toBe("image/png");
     expect(screen.getByLabelText("Raportin nimi")).toHaveValue("");
@@ -236,7 +236,7 @@ describe("alerts-heatmap", () => {
     await user.click(screen.getByRole("button", { name: "Tyhjennä valinnat" }));
     await waitFor(() => expect(window.location.search).not.toContain("kind="));
     await user.click(screen.getByRole("button", { name: "Näytä raportti Tietyöt" }));
-    await waitFor(() => expect(window.location.search).toContain("kind=ROAD_WORK"));
+    await waitFor(() => expect(window.location.search).toContain("kind=roadWorks"));
     expect(screen.getByRole("status")).toHaveTextContent("Näytetään raportti Tietyöt.");
 
     const open = vi.spyOn(window, "open").mockReturnValue(null);

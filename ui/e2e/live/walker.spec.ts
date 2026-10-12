@@ -85,6 +85,7 @@ async function visits(page: Page, who: string): Promise<Visit[]> {
     })),
     { route: "/projects/$project/workspaces/new", address: `${P}/workspaces/new` },
     { route: "/projects/$project/spaces/complete", address: `${P}/spaces/complete` },
+    { route: "/projects/$project/spaces/upload", address: `${P}/spaces/upload` },
     ...SETTINGS_TABS.map((tab) => ({ route: "/projects/$project/settings/$tab", address: `${P}/settings/${tab}` })),
     ...["members", "roles", "service-accounts"].map((tab) => ({
       route: "/projects/$project/settings/$tab/$",
