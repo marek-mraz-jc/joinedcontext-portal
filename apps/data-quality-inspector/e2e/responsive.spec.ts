@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { WIDTHS, layoutProblems } from "@joinedcontext/sdk/responsive";
-import { BASE, serve } from "./serve";
+import { BASE, serve, STEWARD, VIEWER } from "./serve";
 
 for (const scheme of ["light", "dark"] as const) {
   for (const lang of ["fi", "en"] as const) {
@@ -101,6 +101,47 @@ for (const scheme of ["light", "dark"] as const) {
       expect(await layoutProblems(page)).toEqual([]);
       await page.keyboard.press("Escape");
       await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
+    });
+  }
+}
+
+// T-3827: a viewer sees the steward's buttons closed with the reason; a steward corrects a value,
+// which resolves the finding, and finds it in the history. At a phone and a laptop, light and dark.
+for (const scheme of ["light", "dark"] as const) {
+  for (const width of [375, 1440]) {
+    test(`${scheme} at ${width} px: a viewer finds the steward's buttons closed, axe clean`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page, undefined, undefined, VIEWER);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${BASE}?lang=en#quality?type=BikeHireDockingStation`);
+      await expect(page.getByLabel("Your role: Viewer")).toBeVisible();
+      const resolve = page.getByRole("button", { name: "Resolve: availableBikeNumber fail-neg" });
+      await expect(resolve).toBeDisabled();
+      await expect(resolve).toHaveAttribute("title", "Only a steward resolves or corrects findings.");
+      expect(await layoutProblems(page)).toEqual([]);
+      expect(served).toEqual({ outside: [], missing: [], problems: [] });
+    });
+
+    test(`${scheme} at ${width} px: a steward corrects a value and finds it in the history, axe clean`, async ({ page }, testInfo) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const served = await serve(page, undefined, undefined, STEWARD);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${BASE}?lang=en#quality?type=BikeHireDockingStation`);
+      await expect(page.getByLabel("Your role: Steward")).toBeVisible();
+      await page.getByRole("button", { name: "Resolve: availableBikeNumber fail-neg" }).click();
+      const form = page.getByRole("form", { name: "Resolve: availableBikeNumber of fail-neg" });
+      await form.getByRole("textbox", { name: "Note" }).fill("Counted on site");
+      await form.getByRole("combobox", { name: "Kind of value" }).selectOption("number");
+      await form.getByRole("textbox", { name: "Correct value" }).fill("4");
+      await testInfo.attach(`correct-${scheme}-${width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      expect(await layoutProblems(page)).toEqual([]);
+      await form.getByRole("button", { name: "Correct the value" }).click();
+      await expect(page.getByText("Corrected by Sami Steward: Counted on site")).toBeVisible();
+      await expect(page.getByText("The value is corrected and the finding resolved.")).toBeVisible();
+      await page.getByRole("button", { name: "History" }).click();
+      await expect(page.getByText(/corrected availableBikeNumber: Counted on site/)).toBeVisible();
+      expect(await layoutProblems(page)).toEqual([]);
       expect(served).toEqual({ outside: [], missing: [], problems: [] });
     });
   }
