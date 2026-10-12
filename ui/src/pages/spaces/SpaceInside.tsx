@@ -434,7 +434,17 @@ function SpaceData({
   }, [space, type]);
 
   if (types.length === 0) {
-    return <p className="text-body text-fg-muted">{t("spaces.inside.dataNoTypes")}</p>;
+    return (
+      <div className="flex flex-col gap-2">
+        <p className="text-body text-fg-muted">{t("spaces.inside.dataNoTypes")}</p>
+        {/* A space with no type yet takes its first rows from a CSV (DM-81). */}
+        <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+          <Link to="/projects/$project/spaces/upload" params={{ project }} search={{ space }} className="focus-ring w-fit text-body text-primary-soft-fg underline-offset-2 hover:underline">
+            {t("spaces.upload.open")}
+          </Link>
+        </PermissionGuard>
+      </div>
+    );
   }
   return (
     <div className="flex flex-col gap-3">

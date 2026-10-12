@@ -256,6 +256,7 @@
       "tests": [
         "browser_security.test.tsx",
         "endpoint_reads_name_a_type.test.tsx",
+        "endpoint_representations.test.ts",
         "part_endpoint_links.test.tsx"
       ]
     },
@@ -1615,6 +1616,16 @@
         "type_api.test.tsx"
       ]
     },
+    "src/pages/spaces/UploadCsv.tsx": {
+      "controls": {
+        "Button": 3,
+        "FilePicker": 1,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "upload_csv.test.tsx"
+      ]
+    },
     "src/pages/sync/SyncSourcesPage.tsx": {
       "controls": {
         "Button": 5
@@ -1700,7 +1711,8 @@
         "edit_prefill.test.tsx",
         "editor_round_trip.test.ts",
         "endpoint_catalog.test.tsx",
-        "endpoint_open_data.test.tsx"
+        "endpoint_open_data.test.tsx",
+        "endpoint_representations.test.ts"
       ]
     },
     "src/routes/LoginPage.tsx": {

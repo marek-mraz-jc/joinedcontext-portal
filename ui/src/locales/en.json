@@ -1004,6 +1004,27 @@
         "entity": "{type}: {count, plural, one {# current value} other {# current values}}",
         "history": "{type}: {count, plural, one {# history record} other {# history records}}"
       }
+    },
+    "upload": {
+      "open": "Upload CSV",
+      "title": "Upload a CSV",
+      "lead": "Choose a CSV of up to 50 MB. It is matched against the Smart Data Models types, the model, the space, its Endpoint and your right to write the rows are proposed as one change, and once that change is live the rows are written through the gateway as you.",
+      "choose": "Choose a CSV file",
+      "type": "What the rows are",
+      "noMatch": "No Smart Data Models type names enough of these columns: the file gets its own model.",
+      "match": "{name} ({score} % of the columns)",
+      "own": "My own model",
+      "ownType": "Type name",
+      "ownTypeHint": "One word starting with a capital letter, such as Garage.",
+      "space": "Context Space",
+      "notReady": "Choose a file, a type and a space first.",
+      "propose": "Propose the change",
+      "proposing": "Proposing…",
+      "afterApproval": "Once the change is approved and live, write the rows into {space} as {type}. Writing the same file again updates the same entities.",
+      "noSlots": "The proposed model declares no fields for this type: there is nothing to write.",
+      "write": "{count, plural, =0 {Nothing to write} one {Write # row} other {Write # rows}}",
+      "done": "{written, plural, =0 {No row was written} one {# row written} other {# rows written}}, {refused, plural, =0 {none refused.} one {# refused.} other {# refused.}}",
+      "preview": "Preview the first {count, plural, one {# entity} other {# entities}} as NGSI-LD"
     }
   },
   "endpoints": {
@@ -1192,6 +1213,8 @@
       "xlsx": "Excel (xlsx)",
       "zip": "ZIP download",
       "ogc-features": "OGC API Features",
+      "odata": "OData v4",
+      "websocket": "WebSocket notifications",
       "sta": "SensorThings API",
       "mcp": "MCP for AI assistants"
     },

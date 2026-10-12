@@ -1408,7 +1408,7 @@ pub async fn list_organization_datamodels(
     let mut smart_data_models = Vec::new();
     let mut catalogue_unavailable = None;
     if needle.chars().count() >= 2 {
-        match crate::tools::model_tools::fetch_catalogue(&state, false).await {
+        match crate::tools::model_tools::fetch_catalogue(&state, false, None).await {
             Ok(catalogue) => {
                 smart_data_models = catalogue
                     .subjects

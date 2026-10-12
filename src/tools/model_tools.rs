@@ -86,6 +86,43 @@ pub struct Catalogue {
 pub struct CatalogueQuery {
     #[serde(default)]
     pub refresh: bool,
+    /// Comma-separated catalogue subjects (`dataModel.Parking`) whose models' attribute names
+    /// Model Tools fills before it answers, at most [`MAX_SUBJECTS`] (T-3840).
+    #[serde(default)]
+    pub subject: Option<String>,
+}
+
+/// The most subjects one catalogue request fills: each is one fetch upstream, once per replica.
+pub const MAX_SUBJECTS: usize = 8;
+
+/// The subjects a catalogue request names, each a `dataModel.<Name>` of the catalogue's own
+/// spelling; anything else is the caller's mistake and never reaches Model Tools (DM-10).
+fn subjects_of(raw: Option<&str>) -> Result<Vec<&str>, ApiError> {
+    let subjects: Vec<&str> = raw
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
+    if subjects.len() > MAX_SUBJECTS {
+        return Err(ApiError::BadRequest(format!(
+            "subject names at most {MAX_SUBJECTS} catalogue subjects"
+        )));
+    }
+    for subject in &subjects {
+        let name = subject.strip_prefix("dataModel.").unwrap_or_default();
+        if name.is_empty()
+            || name.len() > 64
+            || !name
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+        {
+            return Err(ApiError::BadRequest(format!(
+                "subject {subject:?} is not a catalogue subject such as 'dataModel.Parking'"
+            )));
+        }
+    }
+    Ok(subjects)
 }
 
 /// A model to import from the Smart Data Models catalogue.
@@ -292,7 +329,10 @@ pub async fn import_sdm(
     summary = "List Smart Data Models",
     description = "The Smart Data Models catalogue index, from the cache when a refresh did not reach the catalogue.",
     tag = "tools",
-    params(("refresh" = Option<bool>, Query, description = "Refresh the cached index now instead of waiting for the daily run")),
+    params(
+        ("refresh" = Option<bool>, Query, description = "Refresh the cached index now instead of waiting for the daily run"),
+        ("subject" = Option<String>, Query, description = "Comma-separated subjects, at most 8, whose model attribute names are filled first")
+    ),
     responses(
         (status = 200, description = "The catalogue index, from the cache when a refresh did not reach the catalogue", body = Catalogue),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
@@ -304,19 +344,38 @@ pub async fn sdm_catalog(
     State(state): State<AppState>,
     Query(query): Query<CatalogueQuery>,
 ) -> Result<Json<Catalogue>, ApiError> {
-    fetch_catalogue(&state, query.refresh).await.map(Json)
+    let subjects = subjects_of(query.subject.as_deref())?;
+    if subjects.is_empty() {
+        return fetch_catalogue(&state, query.refresh, None).await.map(Json);
+    }
+    // Model Tools fills one subject per request and keeps what it filled, so the last answer
+    // carries them all; a refresh is asked once, on the first.
+    let mut catalogue = Catalogue::default();
+    for (at, subject) in subjects.iter().enumerate() {
+        catalogue = fetch_catalogue(&state, query.refresh && at == 0, Some(subject)).await?;
+    }
+    Ok(Json(catalogue))
 }
 
 /// The catalogue index from Model Tools, which the wizard and the organization's model list
 /// (DM-63) both read.
-pub async fn fetch_catalogue(state: &AppState, refresh: bool) -> Result<Catalogue, ApiError> {
+pub async fn fetch_catalogue(
+    state: &AppState,
+    refresh: bool,
+    subject: Option<&str>,
+) -> Result<Catalogue, ApiError> {
     let route = "catalog";
     let url = model_tools_url(state, route)?;
+    let mut query = vec![("refresh", refresh.to_string())];
+    if let Some(subject) = subject {
+        query.push(("subject", subject.to_owned()));
+    }
     let response = http()
         .get(&url)
-        // The only thing a caller may steer here: whether the cache is refilled first. The
-        // catalogue itself is named by Model Tools' own allowlist, never by the request (DM-10).
-        .query(&[("refresh", refresh.to_string())])
+        // The only things a caller may steer here: whether the cache is refilled first and which
+        // listed subject is filled. The catalogue itself is named by Model Tools' own allowlist,
+        // never by the request (DM-10).
+        .query(&query)
         .send()
         .await
         .map_err(|err| unavailable(route, "unreachable", &err))?;
