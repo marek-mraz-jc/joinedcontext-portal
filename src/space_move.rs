@@ -237,7 +237,7 @@ impl Moves {
         &self,
         plan: &Plan,
         message: &str,
-        change: impl FnOnce(&mut serde_yaml_ng::Mapping),
+        change: impl FnOnce(&mut serde_norway::Mapping),
     ) -> Result<(), String> {
         let failed =
             |err: crate::git::GitError| format!("the repository refused the commit: {err}");
@@ -253,14 +253,14 @@ impl Moves {
                     plan.path
                 )
             })?;
-        let mut manifest: serde_yaml_ng::Mapping = serde_yaml_ng::from_str(&file.content)
+        let mut manifest: serde_norway::Mapping = serde_norway::from_str(&file.content)
             .map_err(|err| format!("the space's manifest does not parse: {err}"))?;
         let before = manifest.clone();
         change(&mut manifest);
         if manifest == before {
             return Ok(());
         }
-        let content = serde_yaml_ng::to_string(&manifest).map_err(|err| err.to_string())?;
+        let content = serde_norway::to_string(&manifest).map_err(|err| err.to_string())?;
         plan.forge
             .put_file(&FileWrite {
                 path: &plan.path,
@@ -400,22 +400,22 @@ async fn refusal(what: &str, answer: reqwest::Response) -> String {
     }
 }
 
-fn member<'a>(map: &'a mut serde_yaml_ng::Mapping, key: &str) -> &'a mut serde_yaml_ng::Mapping {
+fn member<'a>(map: &'a mut serde_norway::Mapping, key: &str) -> &'a mut serde_norway::Mapping {
     let value = map
         .entry(key.into())
-        .or_insert_with(|| serde_yaml_ng::Value::Mapping(Default::default()));
+        .or_insert_with(|| serde_norway::Value::Mapping(Default::default()));
     if !value.is_mapping() {
-        *value = serde_yaml_ng::Value::Mapping(Default::default());
+        *value = serde_norway::Value::Mapping(Default::default());
     }
     value.as_mapping_mut().expect("a mapping")
 }
 
-fn annotations(manifest: &mut serde_yaml_ng::Mapping) -> &mut serde_yaml_ng::Mapping {
+fn annotations(manifest: &mut serde_norway::Mapping) -> &mut serde_norway::Mapping {
     member(member(manifest, "metadata"), "annotations")
 }
 
 /// Drops the hold, and the annotations with it when it was the only one.
-fn release(manifest: &mut serde_yaml_ng::Mapping) {
+fn release(manifest: &mut serde_norway::Mapping) {
     let metadata = member(manifest, "metadata");
     let annotations = member(metadata, "annotations");
     annotations.remove(MOVING_TO);
@@ -424,6 +424,6 @@ fn release(manifest: &mut serde_yaml_ng::Mapping) {
     }
 }
 
-fn spec(manifest: &mut serde_yaml_ng::Mapping) -> &mut serde_yaml_ng::Mapping {
+fn spec(manifest: &mut serde_norway::Mapping) -> &mut serde_norway::Mapping {
     member(manifest, "spec")
 }
