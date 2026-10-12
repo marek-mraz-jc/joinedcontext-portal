@@ -257,7 +257,7 @@ describe("transit-reach", () => {
     expect(c.transport.calls.filter((call) => call.path.includes("/temporal/entities"))).toHaveLength(2);
     await user.selectOptions(screen.getByRole("combobox", { name: "Kieli" }), "sv");
     expect(await screen.findByRole("heading", { level: 1, name: "Hur långt kommer jag med kollektivtrafik" })).toBeInTheDocument();
-    await user.selectOptions(screen.getByRole("combobox", { name: "Language" }), "fi");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Språk" }), "fi");
     expect(document.documentElement.lang).toBe("fi");
     expect(window.location.search).toContain("lang=fi");
   });
