@@ -4,7 +4,7 @@
 # repository root: docker build -f builder/Dockerfile . (the Node runner), and with
 # --target rust the rust-1.90 runner of fullstack Apps (AP-106).
 
-FROM node:24-slim AS sdk
+FROM node:24-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS sdk
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 WORKDIR /sdk
 COPY sdk/package.json sdk/pnpm-lock.yaml ./
@@ -13,7 +13,7 @@ COPY sdk/ ./
 RUN pnpm pack --pack-destination /out && mv /out/*.tgz /out/sdk.tgz \
     && node -p 'require("./package.json").version' > /out/sdk-version
 
-FROM node:24-slim AS template
+FROM node:24-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS template
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 COPY --from=sdk /out/ /opt/sdk/
 # The SDK as this release built it, never a registry copy of the same version number, unpacked
@@ -38,7 +38,7 @@ RUN node /build/lane.mjs lock-manifest . \
 # with --checksum once a release ships go >= 1.27.2 and x/net >= 0.60.0 (T-3469). -buildvcs=false
 # stamps the module `(devel)` as the release does: a commit-only checkout would stamp a v0.0.0
 # pseudo-version that trivy reads as older than CVE-2026-73802's fix (34bfa19), which v3.5.0 holds.
-FROM golang:1.27.2-bookworm@sha256:5cf287a799e6b94384bad13d16b14904c531f51ba65792237e122ce42b392f61 AS runner
+FROM golang:1.27.2-trixie@sha256:e58d6f83b3416618d8bcac2b3dde1b7f7e3c4a77d25e88637f8bbae81536c48d AS runner
 ARG RUNNER_VERSION=3.5.0
 ARG RUNNER_COMMIT=699a97fc8cbd58e1381717710a7431aac70893a3
 WORKDIR /src
@@ -52,7 +52,7 @@ RUN git init -q . && git fetch -q --depth 1 https://gitea.com/gitea/runner.git $
 
 # The crate store of the rust-1.90 runner (AP-106): every crate this release's Cargo.lock names,
 # the reference applications' included, fetched once here so a fullstack build fetches none.
-FROM rust:1.90-slim-bookworm AS crates
+FROM rust:1.90-slim-trixie@sha256:7fa728f3678acf5980d5db70960cf8491aff9411976789086676bdf0c19db39e AS crates
 WORKDIR /src
 COPY . .
 # The SDK's React + Rust/WebAssembly example and the Apps with a WebAssembly part keep their own
@@ -71,9 +71,9 @@ RUN mkdir -p /opt/cargo/git && CARGO_HOME=/opt/cargo cargo fetch --locked \
 # installed here (T-3567).
 
 # The toolchain of the rust-1.90 runner. The tag pins the toolchain, not its Debian: upgrade the
-# base's packages so the image carries the security fixes bookworm has shipped since the tag was
+# base's packages so the image carries the security fixes trixie has shipped since the tag was
 # cut (the image lane's trivy gate).
-FROM rust:1.90-slim-bookworm AS toolchain
+FROM rust:1.90-slim-trixie@sha256:7fa728f3678acf5980d5db70960cf8491aff9411976789086676bdf0c19db39e AS toolchain
 RUN apt-get update && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends git curl ca-certificates musl-tools \
     && rm -rf /var/lib/apt/lists/* \
@@ -130,7 +130,7 @@ RUN set -eu; rm -rf /tmp/build/app /tmp/build/cargo /tmp/build/target; \
 # template for the interface, the crate store, the precompiled dependencies, and the same lane and
 # runner as the Node one. Built with `--target rust`; the last stage stays the Node runner.
 FROM toolchain AS rust
-COPY --from=node:24-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:24-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 /usr/local/bin/node /usr/local/bin/node
 COPY --from=template /opt/template/ /opt/template/
 COPY --from=crates /opt/cargo/registry/index /opt/cargo/registry/index
 COPY --from=crates /opt/cargo/registry/cache /opt/cargo/registry/cache
@@ -160,7 +160,7 @@ USER 1000:1000
 WORKDIR /tmp
 ENTRYPOINT ["/usr/local/bin/build-app"]
 
-FROM node:24-slim
+FROM node:24-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66
 # npm, npx and corepack ship in the base image and nothing here runs them: a build installs
 # nothing (AP-82). Removed, so their bundled packages are neither attack surface nor trivy findings.
 RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates \
