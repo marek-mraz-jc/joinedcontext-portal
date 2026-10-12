@@ -38,6 +38,19 @@ spec:
       - name: daily-forecasts
         schedule: "20 3 * * *"
         export: record-forecasts
+  # Who does what (T-3827): the server decides from the signed-in person, never from the page.
+  roles:
+    - name: viewer
+      title: { en: "Viewer", fi: "Katselija" }
+      description: "Follows indicators of their own and finds them first; reads every published forecast."
+    - name: steward
+      title: { en: "Steward", fi: "Ylläpitäjä" }
+      description: "What a viewer does, and publishes an indicator's forecast with the period and horizon they choose and a note, which every reader sees; withdraws one. Reads the whole history."
+  access:
+    - role: viewer
+      subjects: [{ group: kpi-forecast-viewer }]
+    - role: steward
+      subjects: [{ group: kpi-forecast-steward }]
   # The indicator endpoint of Helsinki is public: an anonymous reader gets what the public role
   # is granted and nothing more.
   visibility: public

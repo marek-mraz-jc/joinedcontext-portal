@@ -42,9 +42,11 @@ describe("Earlier", () => {
 
   it("maps every refusal to words a person can act on", () => {
     expect(problemText("en", new ServerProblem(401, ""))).toMatch(/Sign in again/);
-    expect(problemText("en", new ServerProblem(403, ""))).toMatch(/may not read/);
+    expect(problemText("en", new ServerProblem(403, ""))).toMatch(/may not do this/);
     expect(problemText("en", new ServerProblem(507, ""))).toMatch(/storage is full/);
     expect(problemText("en", new ServerProblem(400, "that month has not begun"))).toBe("The server refused: that month has not begun");
+    expect(problemText("en", new ServerProblem(409, "you follow this indicator already"))).toBe("The server refused: you follow this indicator already");
+    expect(problemText("en", new ServerProblem(404, ""))).toBe("It is no longer there, or it is not yours to change.");
     expect(problemText("en", new ServerProblem(502, ""))).toMatch(/did not answer/);
     expect(problemText("en", "odd")).toMatch(/did not answer/);
   });

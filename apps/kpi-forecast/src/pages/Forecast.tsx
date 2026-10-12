@@ -6,6 +6,8 @@ import type { AnalysisOutput, SeriesResult } from "../analysis";
 import { detailOption } from "../charts";
 import { ChartCard } from "../components/ChartCard";
 import { Earlier } from "../components/Earlier";
+import { FollowButton } from "../components/FollowButton";
+import { Published } from "../components/Published";
 import { Report } from "../components/Report";
 import { Empty, Loading } from "@joinedcontext/sdk";
 import { useHistory } from "../history";
@@ -189,9 +191,12 @@ export function Forecast({ lang, server }: { lang: Lang; server?: KpiApi }) {
                 height={320}
               />
               <Card title={nameOf(chosen)}>
-                <button type="button" className="jc-button app-open" onClick={() => select({ id: chosen.id, type: KPI })}>
-                  {t(lang, "details")}
-                </button>
+                <div className="app-actions">
+                  <button type="button" className="jc-button app-open" onClick={() => select({ id: chosen.id, type: KPI })}>
+                    {t(lang, "details")}
+                  </button>
+                  <FollowButton lang={lang} kpi={chosen.id} name={nameOf(chosen)} />
+                </div>
                 <dl className="app-facts">
                   {result && result.forecast.length > 0 && (
                     <>
@@ -247,6 +252,7 @@ export function Forecast({ lang, server }: { lang: Lang; server?: KpiApi }) {
                     )}
                   </>
                 )}
+                <Published lang={lang} api={api} kpi={chosen.id} days={view.days} />
                 <Earlier lang={lang} api={api} kpi={chosen.id} history={result?.history ?? []} now={now} />
               </Card>
             </div>
