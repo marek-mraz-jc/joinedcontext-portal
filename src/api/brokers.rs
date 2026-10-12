@@ -1,5 +1,5 @@
 //! `GET /api/v1/organization/brokers`: every context broker of the organization with its spaces,
-//! version, health and load (API/01 §43, PF-116, ADR-N-046). The Portal asks each broker; the
+//! version, health and load (API/01 §43, PF-116, ADR-N-047). The Portal asks each broker; the
 //! browser never reaches one.
 
 use axum::extract::State;

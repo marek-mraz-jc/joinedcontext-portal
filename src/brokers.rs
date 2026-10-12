@@ -1,4 +1,4 @@
-//! Admission for many context brokers (ADR-N-046, PF-110, PF-115, PF-116).
+//! Admission for many context brokers (ADR-N-047, PF-110, PF-115, PF-116).
 //!
 //! Three refusals, each before a Change exists so every door answers the same: a
 //! `ContextBroker` a space lives on is not deleted, a space holding entities does not change
@@ -27,7 +27,7 @@ pub fn spaces_on(mirror: &Mirror, name: &str) -> Vec<String> {
     spaces
 }
 
-/// A `ContextBroker` a space lives on stays (ADR-N-046 §2.6); the refusal lists the spaces.
+/// A `ContextBroker` a space lives on stays (ADR-N-047 §2.6); the refusal lists the spaces.
 pub fn check_delete(mirror: &Mirror, kind: &str, name: &str) -> Result<(), ApiError> {
     if kind != "ContextBroker" {
         return Ok(());
@@ -94,7 +94,7 @@ pub fn check_endpoint(
     )))
 }
 
-/// A space that holds entities changes broker only by the move job (ADR-N-046 §2.6, PF-115):
+/// A space that holds entities changes broker only by the move job (ADR-N-047 §2.6, PF-115):
 /// an edit of its `brokerRef` that would leave its entities behind is refused.
 pub async fn check_move(
     state: &AppState,

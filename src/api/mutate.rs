@@ -1046,7 +1046,7 @@ async fn propose_engine(
     }
 
     // 4e-broker. An Endpoint serves only what its space's broker serves (PF-110), and a space
-    //       holding entities changes broker only by the move job (PF-115, ADR-N-046).
+    //       holding entities changes broker only by the move job (PF-115, ADR-N-047).
     if operation != Operation::Delete {
         crate::brokers::check_endpoint(&state.mirror, project, kind_info.kind, &envelope.spec)?;
         crate::brokers::check_move(
