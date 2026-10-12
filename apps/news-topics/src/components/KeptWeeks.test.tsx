@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { KeptWeeks } from "./KeptWeeks";
 import { Problem } from "../server";
 import type { Kept, Server } from "../server";
+import { memory } from "../testing/server";
 
 const KEPT: Kept = {
   weeks: [
@@ -22,6 +23,7 @@ const KEPT: Kept = {
 
 function serverOf(kept: Kept | Error, corpus: string | Error = "https://store.test/corpus/2026-W42.json"): Server {
   return {
+    ...memory(),
     weeks: async () => {
       if (kept instanceof Error) throw kept;
       return kept;

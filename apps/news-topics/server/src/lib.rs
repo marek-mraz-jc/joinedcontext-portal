@@ -9,15 +9,32 @@
 //! |---|---|
 //! | `GET /api/weeks` | the topics of every kept week, the newest first; recomputed from the feed when older than six hours |
 //! | `GET /api/weeks/{week}/corpus` | a URL to download the week's articles from (`2026-W41`) |
+//!
+//! Roles (T-3828): a signed-in reader follows topics of their own, each by its top keyword; a
+//! steward names a topic by its top keyword and merges topics by giving them one name, which
+//! everyone sees. Every write leaves a row in `app_audit`.
+//!
+//! | Route | Who | What it does |
+//! |---|---|---|
+//! | `GET /api/me` | anyone | the caller's id, name and roles, `null` when signed out |
+//! | `GET /api/follows` | signed in | the caller's followed keywords, newest first |
+//! | `POST /api/follows` `{term}` | signed in | a keyword followed; 409 when followed already or past 30 |
+//! | `DELETE /api/follows/{id}` | owner | no longer followed |
+//! | `GET /api/names` | anyone | every topic name a steward gave |
+//! | `POST /api/names` `{term, name}` | steward | the topic of that top keyword named, or renamed |
+//! | `DELETE /api/names/{id}` | steward | the name taken back |
+//! | `GET /api/history` | signed in | the newest 100 changes; a viewer's own, a steward's every one |
 
 use std::collections::BTreeMap;
 
+use jc_app_sdk::access::Owned;
 use jc_app_sdk::blob::{self, Method};
 use jc_app_sdk::gateway;
 use jc_app_sdk::http::{Params, Request, Response, Router};
+use jc_app_sdk::identity::{self, Caller};
 use jc_app_sdk::sql::{self, Value};
 use news_topics_wasm::{iso_week, run_analyse, AnalysisOutput};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as Json};
 
 /// How long a presigned URL lives; the host allows at most 300 seconds.
@@ -29,6 +46,12 @@ const MOST: usize = 5000;
 const TOPICS: usize = 5;
 /// Weeks answered at most: two years.
 const WEEKS: i64 = 104;
+const STEWARD: &str = "steward";
+const FOLLOWS: Owned = Owned::new("follows", "");
+const NAMES: Owned = Owned::new("topic_names", STEWARD);
+/// Keywords a reader follows at most, and changes answered in History.
+const MOST_FOLLOWS: i64 = 30;
+const HISTORY: i64 = 100;
 
 /// One article of a week's corpus, as the file keeps it.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -77,6 +100,35 @@ pub fn by_week(entities: &[Json]) -> BTreeMap<String, Vec<Article>> {
         });
     }
     weeks
+}
+
+/// One line of 1 to `most` characters, trimmed.
+pub fn line(text: &str, most: usize, what: &str) -> Result<String, String> {
+    let text = text.trim();
+    if text.is_empty() || text.chars().count() > most || text.chars().any(char::is_control) {
+        return Err(format!("{what} is one line of 1 to {most} characters"));
+    }
+    Ok(text.to_owned())
+}
+
+/// A keyword a reader follows.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NewFollow {
+    pub term: String,
+}
+
+/// A topic's name: its top keyword and what everyone reads instead of its keywords.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NewName {
+    pub term: String,
+    pub name: String,
+}
+
+/// A keyword as kept: one line of at most 60 characters, in lower case as the model writes it.
+pub fn checked_term(term: &str) -> Result<String, String> {
+    line(term, 60, "a keyword").map(|term| term.to_lowercase())
 }
 
 /// The topic model of one week's articles, the largest topic first.
@@ -249,8 +301,233 @@ fn corpus(_: &Request, params: &Params) -> Response {
     }
 }
 
+fn me(_: &Request, _: &Params) -> Response {
+    match identity::caller() {
+        Some(caller) => Response::json(
+            200,
+            &json!({"id": caller.id, "name": caller.name, "roles": caller.roles}),
+        ),
+        None => Response::json(200, &Json::Null),
+    }
+}
+
+fn bad(why: &str) -> Response {
+    Response::problem(400, "Bad Request", why)
+}
+
+fn conflict(why: &str) -> Response {
+    Response::problem(409, "Conflict", why)
+}
+
+/// The first column of the first row as a number, as `count(*)` answers.
+fn count(statement: &str, params: &[Value]) -> Result<i64, Response> {
+    match sql::query(statement, params) {
+        Ok(rows) => match rows.values.first().and_then(|row| row.first()) {
+            Some(Value::Int(n)) => Ok(*n),
+            _ => Ok(0),
+        },
+        Err(err) => Err(Response::from_sql(err)),
+    }
+}
+
+fn follows(_: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    match sql::query(
+        "select id, term from follows where owner_id = $1 order by id desc limit $2",
+        &[Value::from(caller.id.as_str()), Value::Int(MOST_FOLLOWS)],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
+fn follow(request: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let new: NewFollow = match request.json() {
+        Ok(new) => new,
+        Err(answer) => return answer,
+    };
+    let term = match checked_term(&new.term) {
+        Ok(term) => term,
+        Err(why) => return bad(&why),
+    };
+    let owner = Value::from(caller.id.as_str());
+    match count(
+        "select count(*) from follows where owner_id = $1 and term = $2",
+        &[owner.clone(), Value::from(term.as_str())],
+    ) {
+        Ok(0) => {}
+        Ok(_) => return conflict("this keyword is followed already"),
+        Err(answer) => return answer,
+    }
+    match count("select count(*) from follows where owner_id = $1", &[owner]) {
+        Ok(n) if n >= MOST_FOLLOWS => {
+            return conflict(&format!(
+                "at most {MOST_FOLLOWS} keywords are followed; stop following one first"
+            ))
+        }
+        Ok(_) => {}
+        Err(answer) => return answer,
+    }
+    match FOLLOWS.insert(
+        &caller,
+        &["term"],
+        vec![Value::from(term.as_str())],
+        &format!("followed {term}"),
+    ) {
+        Ok(rows) => {
+            let row = sql::objects(&rows).into_iter().next().unwrap_or_default();
+            Response::json(201, &json!({"id": row.get("id"), "term": term}))
+        }
+        Err(answer) => answer,
+    }
+}
+
+fn unfollow(_: &Request, params: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let Ok(id) = params["id"].parse() else {
+        return Response::problem(404, "Not Found", "no such follow");
+    };
+    match FOLLOWS.delete(&caller, id, "stopped following a keyword") {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+fn names(_: &Request, _: &Params) -> Response {
+    match sql::query(
+        r#"select id, term, name, owner_name as "ownerName" from topic_names order by term"#,
+        &[],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
+fn steward() -> Result<Caller, Response> {
+    let caller = Caller::require()?;
+    caller.require_role(&[STEWARD])?;
+    Ok(caller)
+}
+
+fn name(request: &Request, _: &Params) -> Response {
+    // The role is checked before the body is read, so nothing in the body stands in for it.
+    let caller = match steward() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let new: NewName = match request.json() {
+        Ok(new) => new,
+        Err(answer) => return answer,
+    };
+    let (term, name) = match checked_term(&new.term)
+        .and_then(|term| Ok((term, line(&new.name, 80, "a topic's name")?)))
+    {
+        Ok(checked) => checked,
+        Err(why) => return bad(&why),
+    };
+    let existing = match sql::query(
+        "select id from topic_names where term = $1",
+        &[Value::from(term.as_str())],
+    ) {
+        Ok(rows) => rows.values.first().and_then(|row| match row.first() {
+            Some(Value::Int(id)) => Some(*id),
+            _ => None,
+        }),
+        Err(err) => return Response::from_sql(err),
+    };
+    let summary = format!("named the topic of {term} {name}");
+    let id = match existing {
+        Some(id) => match NAMES.update(
+            &caller,
+            id,
+            &["name", "owner_name"],
+            vec![
+                Value::from(name.as_str()),
+                Value::from(caller.name.as_str()),
+            ],
+            &summary,
+        ) {
+            Ok(()) => Json::from(id),
+            Err(answer) => return answer,
+        },
+        None => match NAMES.insert(
+            &caller,
+            &["term", "name", "owner_name"],
+            vec![
+                Value::from(term.as_str()),
+                Value::from(name.as_str()),
+                Value::from(caller.name.as_str()),
+            ],
+            &summary,
+        ) {
+            Ok(rows) => sql::objects(&rows)
+                .into_iter()
+                .next()
+                .and_then(|mut row| row.remove("id"))
+                .unwrap_or_default(),
+            Err(answer) => return answer,
+        },
+    };
+    Response::json(
+        if existing.is_some() { 200 } else { 201 },
+        &json!({"id": id, "term": term, "name": name, "ownerName": caller.name}),
+    )
+}
+
+fn unname(_: &Request, params: &Params) -> Response {
+    let caller = match steward() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    let Ok(id) = params["id"].parse() else {
+        return Response::problem(404, "Not Found", "no such name");
+    };
+    match NAMES.delete(&caller, id, "took back a topic's name") {
+        Ok(()) => Response::no_content(),
+        Err(answer) => answer,
+    }
+}
+
+/// The newest changes: a steward's every one, anyone else's their own.
+fn history(_: &Request, _: &Params) -> Response {
+    let caller = match Caller::require() {
+        Ok(caller) => caller,
+        Err(answer) => return answer,
+    };
+    match sql::query(
+        "select id, at, actor_name as \"actorName\", action, target, summary from app_audit \
+         where actor_id = $1 or $2::boolean order by at desc, id desc limit $3",
+        &[
+            Value::from(caller.id.as_str()),
+            Value::Boolean(caller.has_role(STEWARD)),
+            Value::Int(HISTORY),
+        ],
+    ) {
+        Ok(rows) => Response::json(200, &sql::objects(&rows)),
+        Err(err) => Response::from_sql(err),
+    }
+}
+
 pub fn handle(request: Request) -> Response {
     Router::new()
+        .get("/api/me", me)
+        .get("/api/follows", follows)
+        .post("/api/follows", follow)
+        .delete("/api/follows/{id}", unfollow)
+        .get("/api/names", names)
+        .post("/api/names", name)
+        .delete("/api/names/{id}", unname)
+        .get("/api/history", history)
         .get("/api/weeks", weeks)
         .get("/api/weeks/{week}/corpus", corpus)
         .handle(&request)
@@ -372,5 +649,24 @@ mod tests {
             ..Request::default()
         });
         assert_eq!(wrong.status, 405);
+    }
+
+    #[test]
+    fn a_keyword_and_a_name_are_one_trimmed_line() {
+        assert_eq!(checked_term("  Kirjasto "), Ok("kirjasto".into()));
+        assert!(checked_term("").is_err());
+        assert!(checked_term("a\nb").is_err());
+        assert!(checked_term(&"x".repeat(61)).is_err());
+        assert_eq!(
+            checked_term(&"ä".repeat(60)).map(|t| t.chars().count()),
+            Ok(60)
+        );
+        assert_eq!(line(" Libraries ", 80, "a name"), Ok("Libraries".into()));
+        assert_eq!(
+            line(" ", 80, "a topic's name"),
+            Err("a topic's name is one line of 1 to 80 characters".into())
+        );
+        assert!(serde_json::from_str::<NewName>(r#"{"term":"a","name":"b","owner":"x"}"#).is_err());
+        assert!(serde_json::from_str::<NewFollow>(r#"{"term":"a","id":1}"#).is_err());
     }
 }
