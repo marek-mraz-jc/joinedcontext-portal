@@ -36,6 +36,21 @@ spec:
   # role is granted and nothing more.
   visibility: public
   lifecycle: published
+  # Roles (T-3826): anyone plans and shares a day; a signed-in viewer keeps the days they shared;
+  # a steward also curates the featured events every visitor sees. The server decides from the
+  # caller the platform names, never from the request.
+  roles:
+    - name: viewer
+      title: { en: "Viewer", fi: "Katselija" }
+      description: "Plans a day, shares it and keeps the days they shared under My days, deleting their own."
+    - name: steward
+      title: { en: "Steward", fi: "Ylläpitäjä" }
+      description: "What a viewer does, and curates the featured events: adds, notes and removes them. Reads the whole history. The city's data is only read."
+  access:
+    - role: viewer
+      subjects: [{ group: event-day-planner-viewer }]
+    - role: steward
+      subjects: [{ group: event-day-planner-steward }]
   dataNeeds:
     - contextSpaceRef:
         kind: ContextSpace

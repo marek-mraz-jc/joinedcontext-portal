@@ -16,7 +16,8 @@
 //! ```
 //!
 //! `gateway[].path` is below the Endpoint (`/api/endpoint/<slug>`), a `file` relative to
-//! `server/`. A step's `{name}`, in its call and in a text it expects, is what an earlier step's
+//! `server/`; it answers a caller's token only, or with `anonymous: true` also a call with none,
+//! as an Endpoint's public role does. A step's `{name}`, in its call and in a text it expects, is what an earlier step's
 //! `save` took; `upload` puts bytes to the
 //! URL at that pointer and `download` reads them back, or with `downloaded` checks that what the
 //! App wrote holds that text; `as: "second"` calls as the second App, which every scenario must
@@ -72,12 +73,13 @@ async fn play(app: &str) {
         let file = text(&answer["file"], "gateway[].file");
         let body =
             std::fs::read(server.join(&file)).unwrap_or_else(|err| panic!("{app}: {file}: {err}"));
-        let mut mock = Mock::given(method("GET"))
-            .and(path(format!(
-                "/api/endpoint/{slug}{}",
-                text(&answer["path"], "gateway[].path")
-            )))
-            .and(header_regex("authorization", "^Bearer tok-"));
+        let mut mock = Mock::given(method("GET")).and(path(format!(
+            "/api/endpoint/{slug}{}",
+            text(&answer["path"], "gateway[].path")
+        )));
+        if answer["anonymous"] != Value::Bool(true) {
+            mock = mock.and(header_regex("authorization", "^Bearer tok-"));
+        }
         for (key, value) in answer["query"].as_object().into_iter().flatten() {
             mock = mock.and(query_param(key.as_str(), text(value, key).as_str()));
         }
