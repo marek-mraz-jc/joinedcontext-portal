@@ -68,8 +68,8 @@ pub(crate) const INBOX_WAIT_SECS: u64 = 25;
 pub(crate) const INBOX_KINDS: [&str; 2] = ["answer", "message"];
 /// The run one application came out of, on the `App` manifest a publish opens (AP-51).
 const AGENT_RUN_ANNOTATION: &str = "joinedcontext.com/agent-run";
-/// The digest of the prompt that run was started from.
-const PROMPT_DIGEST_ANNOTATION: &str = "joinedcontext.com/prompt-digest";
+/// The digest of the prompt that run was started from, under jc-core's name (MF-08).
+use jc_core::envelope::annotations::PROMPT_DIGEST as PROMPT_DIGEST_ANNOTATION;
 /// The toolchains a generated application is built with (AP-11), the same pins
 /// `Architecture/16` writes into its worked examples.
 const RUST_TOOLCHAIN: &str = "1.90";
