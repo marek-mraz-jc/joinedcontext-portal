@@ -2761,6 +2761,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/spaces/{space}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a Space's Move
+         * @description The last move of the space since the Portal started (API/01 §45). Organization administrators only.
+         */
+        get: operations["get_move"];
+        put?: never;
+        /**
+         * Move a Space to Another Broker
+         * @description Holds the space read-only, copies it with its history to the broker `to`, compares both digests and switches its brokerRef (API/01 §45, PF-115). Organization administrators only.
+         */
+        post: operations["start_move"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/spaces/{space}/quality": {
         parameters: {
             query?: never;
@@ -5218,6 +5242,31 @@ export interface components {
          * @enum {string}
          */
         ModelLevel: "organization" | "project";
+        /** @description One move, as `GET …/move` answers it. */
+        Move: {
+            /** Format: date-time */
+            endedAt?: string | null;
+            from: string;
+            reason?: string | null;
+            source?: null | components["schemas"]["TenantDigest"];
+            /** @description `project/space`. */
+            space: string;
+            /** Format: date-time */
+            startedAt: string;
+            state: components["schemas"]["MoveState"];
+            target?: null | components["schemas"]["TenantDigest"];
+            to: string;
+        };
+        /** @description Where the space goes. */
+        MoveRequest: {
+            /** @description A `ContextBroker` of the organization other than the one the space lives on. */
+            to: string;
+        };
+        /**
+         * @description Where a move is.
+         * @enum {string}
+         */
+        MoveState: "holding" | "copying" | "comparing" | "switching" | "done" | "failed";
         /** @description One thing a copy cannot carry (CC-84, API/01 §10). */
         Need: {
             /** @description `secret`, `person` or `host`. */
@@ -6498,6 +6547,14 @@ export interface components {
         TemplateList: {
             /** @description The project's templates, newest first. */
             items: components["schemas"]["PipelineTemplate"][];
+        };
+        /** @description A broker's digest of one tenant (Antares ADR-0030). */
+        TenantDigest: {
+            /** Format: int64 */
+            attrInstances: number;
+            /** Format: int64 */
+            entities: number;
+            sha256: string;
         };
         /** @description The request of API/01 §7a. */
         TestRequest: {
@@ -15680,6 +15737,125 @@ export interface operations {
             };
             /** @description No such space the caller may read */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_move: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The move */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Move"];
+                };
+            };
+            /** @description Not an organization administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No move of this space */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    start_move: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                space: string;
+            };
+            cookie?: never;
+        };
+        /** @description The broker the space goes to. */
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "to": "canary"
+                 *     }
+                 */
+                "application/json": components["schemas"]["MoveRequest"];
+            };
+        };
+        responses: {
+            /** @description The move started */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Move"];
+                };
+            };
+            /** @description No such broker, or the one the space lives on */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an organization administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The space is already moving */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A broker, the gateway or the forge is not configured */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

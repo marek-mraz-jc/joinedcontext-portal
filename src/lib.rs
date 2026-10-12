@@ -53,6 +53,7 @@ pub mod references;
 pub mod request_id;
 pub mod resource;
 pub mod server;
+pub mod space_move;
 pub mod space_usage;
 pub mod spaces;
 pub mod state;

@@ -106,6 +106,8 @@ pub struct AppState {
     pub quality_checks: Arc<crate::quality_checks::Readings>,
     /// How much each space holds, as the broker counts it (API/01 §29).
     pub space_usage: Arc<crate::space_usage::Counter>,
+    /// Moves of spaces between brokers (API/01 §45, PF-115).
+    pub space_moves: Arc<crate::space_move::Moves>,
     /// The space surface a resolution writes through (UI-26). `None` without a gateway address
     /// or a realm client: the two buttons answer 503 rather than writing nowhere.
     pub drift_watch: Option<Arc<crate::reconciler::drift::Watch>>,
@@ -198,6 +200,7 @@ impl AppState {
             quality: Arc::new(crate::quality::Store::default()),
             quality_checks,
             space_usage,
+            space_moves: Arc::default(),
             model_schemas: Arc::default(),
             rejected: Arc::new(crate::pipeline_outcomes::RejectedStore::new(None)),
             trash: Arc::new(crate::entity_trash::TrashStore::new(None)),
