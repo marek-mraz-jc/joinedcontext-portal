@@ -1045,6 +1045,20 @@ async fn propose_engine(
         )?;
     }
 
+    // 4e-broker. An Endpoint serves only what its space's broker serves (PF-110), and a space
+    //       holding entities changes broker only by the move job (PF-115, ADR-N-047).
+    if operation != Operation::Delete {
+        crate::brokers::check_endpoint(&state.mirror, project, kind_info.kind, &envelope.spec)?;
+        crate::brokers::check_move(
+            state,
+            project,
+            kind_info.kind,
+            &envelope.metadata.name,
+            &envelope.spec,
+        )
+        .await?;
+    }
+
     // 4f. An App name is one address for the organization (AP-14a): `/apps/{name}/` carries no
     //     project, so another project's App of the same name is refused before a Change exists.
     if operation != Operation::Delete {

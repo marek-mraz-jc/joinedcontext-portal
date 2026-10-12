@@ -552,29 +552,47 @@ export type NodeCounters = Record<
 >;
 
 /**
- * The flow painted from the running stream (PL-66): each node with the counters of its own
- * label, `input` for the sources, `step_{j}` for the `j`-th processor step, `compute` and
- * `output`. A node with errors since the runner started is failing; one the runner reports
- * nothing for is idle. `errorsSentence` says the count in the page's language.
+ * The runner's label of a node (PL-66): `input` for the sources, `step_{j}` for the `j`-th
+ * processor step, `compute`, and `output` for the fan-out, which is one broker whose outputs
+ * are not counted one by one.
  */
-/** The runner's label of a node, for its counters and its samples (PL-66, T-3974). */
-export function runnerLabelOf(id: FlowNodeId): string {
+export function liveLabelOf(id: FlowNodeId): string {
   if (isSource(id)) return "input";
-  // The fan-out is one broker labelled `output`; its outputs are not counted one by one.
   if (isOutput(id)) return "output";
   const step = stepIndexOf(id);
   return step !== undefined ? `step_${step}` : id;
 }
 
+/** What one node counted in each window of the stats route (API/01 §7, PL-68). */
+type Counted = { received?: number | null; sent?: number | null; errors?: number | null };
+export type NodeWindows = Record<string, { "1m": Counted; "5m": Counted; "15m": Counted }>;
+
+/**
+ * The canvas' live numbers from the stats route: received and sent in the last minute, and the
+ * errors of the last five, so a node turns red for five minutes after a failure, not for ever.
+ */
+export function countersOfStats(nodes: NodeWindows): NodeCounters {
+  return Object.fromEntries(
+    Object.entries(nodes).map(([label, windows]) => [
+      label,
+      { received: windows["1m"]?.received, sent: windows["1m"]?.sent, errors: windows["5m"]?.errors },
+    ]),
+  );
+}
+
+/**
+ * The flow painted from the running stream (PL-66): each node with the counters of its own
+ * label ([`liveLabelOf`]). A node with errors is failing; one the runner reports nothing for
+ * is idle. `errorsSentence` says the count in the page's language.
+ */
 export function paintOfCounters(
   counters: NodeCounters,
   nodes: FlowNode[],
   errorsSentence: (count: number) => string,
 ): Record<string, NodePaint> {
-  const labelOf = runnerLabelOf;
   return Object.fromEntries(
     nodes.map((node) => {
-      const counted = counters[labelOf(node.id)];
+      const counted = counters[liveLabelOf(node.id)];
       if (!counted) return [node.id, { state: "idle" } satisfies NodePaint];
       const errors = counted.errors ?? 0;
       const paint: NodePaint = {
@@ -1104,6 +1122,8 @@ export function PipelineFlow({
             const key = wireKey(edge);
             const count = trace && !showsLive ? wireCount(trace, nodes, edge) : undefined;
             const tapped = taps.includes(key);
+            // A wire into a node that failed in the last five minutes is red (PL-68).
+            const failing = showsLive && paint[edge.to]?.state === "error";
             const mx = (x1 + x2) / 2;
             const my = (y1 + y2) / 2;
             return (
@@ -1113,7 +1133,9 @@ export function PipelineFlow({
                   y1={y1}
                   x2={x2 - 4}
                   y2={y2}
-                  className={tapped ? "stroke-primary-soft-fg" : "stroke-border-strong"}
+                  className={tapped ? "stroke-primary-soft-fg" : failing ? "stroke-danger" : "stroke-border-strong"}
+                  data-failing={failing ? "true" : undefined}
+                  data-testid={`flow-edge-${key}`}
                   strokeWidth={2}
                   markerEnd="url(#flow-arrow)"
                 />
@@ -1301,7 +1323,9 @@ export function PipelineFlow({
                     y={y + 66}
                     className="select-none fill-fg-muted font-mono text-caption"
                   >
-                    ↓ {nodePaint.eventsIn}  ↑ {nodePaint.eventsOut ?? 0}
+                    ↓ {nodePaint.eventsIn}
+                    {showsLive ? t("pipelines.flow.perMinute") : ""}  ↑ {nodePaint.eventsOut ?? 0}
+                    {showsLive ? t("pipelines.flow.perMinute") : ""}
                   </text>
                 ) : null}
 

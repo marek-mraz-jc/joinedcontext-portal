@@ -1584,6 +1584,48 @@
         }
       }
     },
+    "/api/v1/organization/brokers": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "List Context Brokers",
+        "description": "Every context broker of the organization with its spaces, version, health and load (API/01 §43, PF-116). Organization administrators only.",
+        "operationId": "list_brokers",
+        "responses": {
+          "200": {
+            "description": "The brokers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Brokers"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an organization administrator",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organization/datamodels": {
       "get": {
         "tags": [
@@ -10270,6 +10312,78 @@
         }
       }
     },
+    "/api/v1/projects/{project}/pipelines/{name}/stats": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Read Pipeline Rates",
+        "description": "What each node of the pipeline received, sent and failed over the last 1, 5 and 15 minutes, from the runner's counters read at most every two seconds and kept 15 minutes (PL-68).",
+        "operationId": "get_stats",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Pipeline name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Counts per node and window",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineStats"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No runner configured, or it did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/pipelinetemplates": {
       "get": {
         "tags": [
@@ -16045,6 +16159,92 @@
           }
         }
       },
+      "Broker": {
+        "type": "object",
+        "description": "One broker as the Portal sees it.",
+        "required": [
+          "name",
+          "declared",
+          "default",
+          "features",
+          "health",
+          "spaces",
+          "entities",
+          "observedAt"
+        ],
+        "properties": {
+          "declared": {
+            "type": "boolean",
+            "description": "`false` for the implicit `main` of an organization that declares no broker."
+          },
+          "default": {
+            "type": "boolean"
+          },
+          "entities": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The load: the entities its spaces hold, as API/01 §29 counts them.",
+            "minimum": 0
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "health": {
+            "$ref": "#/components/schemas/Health"
+          },
+          "name": {
+            "type": "string"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the broker is `down` or `unknown`, or why a space's count is missing."
+          },
+          "size": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "spaces": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The spaces living on it, as `project/space`."
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Brokers": {
+        "type": "object",
+        "description": "The organization's brokers.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Broker"
+            }
+          }
+        }
+      },
       "BuildEntry": {
         "type": "object",
         "description": "One successful build of an App, as Restore offers it (AP-171).",
@@ -18887,23 +19087,13 @@
         }
       },
       "Health": {
-        "type": "object",
-        "required": [
-          "name",
-          "version",
-          "status"
-        ],
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "version": {
-            "type": "string"
-          }
-        }
+        "type": "string",
+        "description": "Whether a broker answered its health.",
+        "enum": [
+          "up",
+          "down",
+          "unknown"
+        ]
       },
       "Identity": {
         "type": "object",
@@ -19763,6 +19953,26 @@
           "degraded",
           "unknown"
         ]
+      },
+      "NodeWindows": {
+        "type": "object",
+        "description": "What one node counted in each window.",
+        "required": [
+          "1m",
+          "5m",
+          "15m"
+        ],
+        "properties": {
+          "15m": {
+            "$ref": "#/components/schemas/NodeCounters"
+          },
+          "1m": {
+            "$ref": "#/components/schemas/NodeCounters"
+          },
+          "5m": {
+            "$ref": "#/components/schemas/NodeCounters"
+          }
+        }
       },
       "Notification": {
         "type": "object",
@@ -20761,6 +20971,39 @@
           "withheld": {
             "type": "boolean",
             "description": "True when a target Endpoint hides attributes (or cannot be read): the nodes before the\nmapping carry the source's own field names, so only `output` is served."
+          }
+        }
+      },
+      "PipelineStats": {
+        "type": "object",
+        "required": [
+          "pipeline",
+          "scrapedAt",
+          "coveredSeconds",
+          "nodes"
+        ],
+        "properties": {
+          "coveredSeconds": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The age of the oldest reading kept, at most 900: a window longer than this holds what\nwas seen so far, not the whole window.",
+            "minimum": 0
+          },
+          "nodes": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NodeWindows"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "pipeline": {
+            "type": "string"
+          },
+          "scrapedAt": {
+            "type": "string",
+            "description": "When the newest reading was taken, RFC 3339."
           }
         }
       },
@@ -22727,9 +22970,14 @@
         "description": "What one space holds.",
         "required": [
           "entities",
+          "broker",
           "observedAt"
         ],
         "properties": {
+          "broker": {
+            "type": "string",
+            "description": "The `ContextBroker` the space lives on, which counted it (PF-111)."
+          },
           "entities": {
             "type": "integer",
             "format": "int64",

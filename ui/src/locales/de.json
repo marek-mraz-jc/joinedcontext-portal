@@ -518,7 +518,8 @@
       "modelCreate": "Datenmodell anlegen",
       "modelImport": "Smart Data Model importieren",
       "tooMany": "Der Endpoint ist ausgelastet (zu viele Lesezugriffe auf einmal).",
-      "lead": "Sein Datenmodell, seine Entitäten, wer sie liest und was mit ihm geschah."
+      "lead": "Sein Datenmodell, seine Entitäten, wer sie liest und was mit ihm geschah.",
+      "broker": "Er liegt auf dem Context-Broker {broker}."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -1807,8 +1808,8 @@
       "moduleHint": "Pfad oder Paket des Moduls, das der Schritt ausführt.",
       "functionHint": "Der Einstiegspunkt des Moduls, den der Schritt für jeden Datensatz aufruft.",
       "computeNotRun": "Die Plattform führt einen Schritt dieser Art noch nicht aus ({kind}): Die Pipeline wird angenommen und bleibt Pending, bis sie es tut. Ein Bloblang-Schritt läuft heute.",
-      "live": "Live-Zählungen des laufenden Streams seit dem Start seines Runners; ein Test zeigt stattdessen eine Stichprobe.",
-      "liveErrors": "{count, plural, one {# Fehler} other {# Fehler}} seit dem Start des Runners",
+      "live": "Live-Zahlen des laufenden Streams pro Minute, Fehler der letzten fünf Minuten; für ein Beispiel einen Test starten.",
+      "liveErrors": "{count, plural, one {# Fehler} other {# Fehler}} in den letzten 5 Minuten",
       "tools": "Graph-Werkzeuge",
       "undo": "Rückgängig",
       "redo": "Wiederholen",
@@ -1859,6 +1860,9 @@
       "routeWhenHint": "Eine Bloblang-Bedingung, etwa this.temperature.value > 30. Ein Datensatz nimmt den ersten Zweig, dessen Bedingung gilt; die übrigen gehen an die Ausgaben der Hauptlinie.",
       "routeAddOutput": "+ Ausgabe dieses Zweigs",
       "routeNoCondition": "noch keine Bedingung",
+      "perMinute": "/Min.",
+      "liveUnavailable": "Live-Zahlen nicht verfügbar: Der Pipeline-Runner antwortet nicht. Die Pipeline kann trotzdem laufen.",
+      "lastError": "Letzter Fehler um {at}: {message}. Den Schritt korrigieren und den Datensatz dann aus den abgelehnten Datensätzen der Pipeline erneut senden.",
       "queueShort": "{count} wartend",
       "queue": "{count, plural, one {# Nachricht wartet} other {# Nachrichten warten}} im Puffer vor der Ausgabe",
       "queueHigh": "{count, plural, one {# Nachricht wartet} other {# Nachrichten warten}} im Puffer vor der Ausgabe, mehr als {limit}: die Ausgabe kommt nicht nach",
@@ -5150,7 +5154,8 @@
       "environments": "Umgebungen",
       "health": "Prüfstatus",
       "endpoints": "Alle Endpunkte",
-      "mcp-servers": "MCP-Server der Organisation"
+      "mcp-servers": "MCP-Server der Organisation",
+      "brokers": "Broker"
     },
     "settings": {
       "title": "Einstellungen",
@@ -5680,6 +5685,27 @@
       "models": "Modelle, die der Assistent nutzen darf",
       "modelsHint": "Leer lassen, um jedes Modell der Installation zu erlauben.",
       "everyModel": "Jedes Modell der Installation"
+    },
+    "brokers": {
+      "title": "Context-Broker",
+      "lead": "Alle Broker der Organisation mit den Räumen, die sie halten. Das Portal fragt jeden Broker nach seinem Zustand; die Zahlen sind höchstens fünf Minuten alt.",
+      "hidden": "Nur eine Administratorin oder ein Administrator der Organisation sieht die Broker.",
+      "caption": "Context-Broker",
+      "name": "Broker-Name",
+      "health": "Zustand",
+      "version": "Fassung",
+      "spaces": "Räume",
+      "entities": "Entitäten",
+      "default": "Standard",
+      "size": "Größe: {size}",
+      "noSpaces": "Noch kein Raum",
+      "implicit": "Die Organisation deklariert keinen Broker, daher liegen alle Räume auf dem eingebauten Broker main. Um einen weiteren zu betreiben, deklarieren Sie ihn im Repository der Organisation.",
+      "down": "{count, plural, one {# Broker antwortet nicht. Prüfen Sie seinen Pod und den Grund in seiner Zeile.} other {# Broker antworten nicht. Prüfen Sie ihre Pods und die Gründe in ihren Zeilen.}}",
+      "states": {
+        "up": "Erreichbar",
+        "down": "Ausgefallen",
+        "unknown": "Keine Adresse"
+      }
     }
   },
   "projectDelete": {

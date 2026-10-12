@@ -34,6 +34,8 @@ const TIMEOUT: Duration = Duration::from_secs(5);
 pub struct SpaceUsage {
     /// The entities of the space's tenant, as the broker counts them.
     pub entities: u64,
+    /// The `ContextBroker` the space lives on, which counted it (PF-111).
+    pub broker: String,
     /// When the broker answered.
     #[schema(value_type = String, format = DateTime)]
     pub observed_at: DateTime<Utc>,
@@ -42,6 +44,7 @@ pub struct SpaceUsage {
 /// Asks the broker for a space's counts and keeps each answer for five minutes.
 pub struct Counter {
     broker: Option<String>,
+    template: Option<String>,
     token_file: Option<PathBuf>,
     http: reqwest::Client,
     cache: RwLock<HashMap<String, SpaceUsage>>,
@@ -53,6 +56,7 @@ impl Counter {
     pub fn new(broker: Option<String>, token_file: Option<PathBuf>) -> Self {
         Self {
             broker: broker.map(|url| url.trim_end_matches('/').to_owned()),
+            template: None,
             token_file,
             http: reqwest::Client::builder()
                 .timeout(TIMEOUT)
@@ -62,18 +66,39 @@ impl Counter {
         }
     }
 
-    /// The usage of the space whose broker tenant is `tenant` (its URN segment, PF-84), which
+    /// Counts a space on a broker other than `main` at `template` (`JC_PORTAL_BROKER_URL_TEMPLATE`).
+    pub fn with_broker_template(mut self, template: Option<String>) -> Self {
+        self.template = template;
+        self
+    }
+
+    /// The usage of the space whose broker tenant is `tenant` (its URN segment, PF-84) on the
+    /// broker named `broker` (PF-111, empty when its `brokerRef` resolves to none). `tenant`
     /// must already be a DNS-1123 name: it becomes a path segment.
-    pub async fn usage(&self, tenant: &str) -> Result<SpaceUsage, String> {
-        let Some(broker) = &self.broker else {
-            return Err("no broker address is configured (JC_PORTAL_BROKER_URL)".to_owned());
+    pub async fn usage(&self, broker_name: &str, tenant: &str) -> Result<SpaceUsage, String> {
+        let Some(broker) = crate::spaces::broker_address(
+            broker_name,
+            self.broker.as_deref(),
+            self.template.as_deref(),
+        ) else {
+            return Err(match broker_name {
+                "" => "the space's brokerRef names no ContextBroker; fix the space's manifest"
+                    .to_owned(),
+                jc_core::kinds::IMPLICIT_BROKER => {
+                    "no broker address is configured (JC_PORTAL_BROKER_URL)".to_owned()
+                }
+                name => {
+                    format!("the broker '{name}' has no address; set JC_PORTAL_BROKER_URL_TEMPLATE")
+                }
+            });
         };
+        let key = format!("{broker}/{tenant}");
         let now = Utc::now();
         if let Some(kept) = self
             .cache
             .read()
             .unwrap_or_else(|e| e.into_inner())
-            .get(tenant)
+            .get(&key)
             .filter(|kept| now - kept.observed_at < FRESH)
         {
             return Ok(kept.clone());
@@ -115,13 +140,54 @@ impl Counter {
         };
         let usage = SpaceUsage {
             entities,
+            broker: broker_name.to_owned(),
             observed_at: now,
         };
         self.cache
             .write()
             .unwrap_or_else(|e| e.into_inner())
-            .insert(tenant.to_owned(), usage.clone());
+            .insert(key, usage.clone());
         Ok(usage)
+    }
+
+    /// Whether the Portal has an address for broker `broker_name`.
+    pub fn reaches(&self, broker_name: &str) -> bool {
+        crate::spaces::broker_address(
+            broker_name,
+            self.broker.as_deref(),
+            self.template.as_deref(),
+        )
+        .is_some()
+    }
+
+    /// The version broker `broker_name` reports on `GET /q/health`, or why it is not up
+    /// (API/01 §43). Asked on every call: a health answer kept for minutes would hide an outage.
+    pub async fn health(&self, broker_name: &str) -> Result<String, String> {
+        let broker = crate::spaces::broker_address(
+            broker_name,
+            self.broker.as_deref(),
+            self.template.as_deref(),
+        )
+        .ok_or_else(|| {
+            "the Portal has no address for this broker (JC_PORTAL_BROKER_URL, \
+             JC_PORTAL_BROKER_URL_TEMPLATE)"
+                .to_owned()
+        })?;
+        let response = self
+            .http
+            .get(format!("{broker}/q/health"))
+            .send()
+            .await
+            .map_err(|err| {
+                tracing::warn!(broker_name, error = %err.without_url(), "a broker did not answer its health");
+                "the broker did not answer; try again in a minute".to_owned()
+            })?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(format!("the broker answered {status} for its health"));
+        }
+        let body: Value = response.json().await.unwrap_or(Value::Null);
+        Ok(body["version"].as_str().unwrap_or_default().to_owned())
     }
 }
 
@@ -153,7 +219,48 @@ mod tests {
 
     #[tokio::test]
     async fn without_a_broker_address_the_reason_is_answered() {
-        let err = Counter::new(None, None).usage("air").await.unwrap_err();
+        let err = Counter::new(None, None)
+            .usage("main", "air")
+            .await
+            .unwrap_err();
         assert!(err.contains("JC_PORTAL_BROKER_URL"), "{err}");
+    }
+
+    /// PF-111: each space is counted on its own broker, with the same tenant name on both.
+    #[tokio::test]
+    async fn each_space_is_counted_on_its_own_broker() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let main = MockServer::start().await;
+        let canary = MockServer::start().await;
+        for (server, count) in [(&main, 3), (&canary, 7)] {
+            Mock::given(method("GET"))
+                .and(path("/q/tenants/air"))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(json!({"counts": {"entities": count}})),
+                )
+                .expect(1)
+                .mount(server)
+                .await;
+        }
+        let file = std::env::temp_dir().join(format!("usage-token-{}", std::process::id()));
+        std::fs::write(&file, "t").expect("write the token");
+        let counter = Counter::new(Some(main.uri()), Some(file.clone()))
+            .with_broker_template(Some(canary.uri().replace("127.0.0.1", "{broker}")));
+        let on_main = counter.usage("main", "air").await;
+        let on_canary = counter.usage("127.0.0.1", "air").await;
+        let _ = std::fs::remove_file(&file);
+        assert_eq!(on_main.map(|u| u.entities), Ok(3));
+        assert_eq!(on_canary.map(|u| u.entities), Ok(7));
+    }
+
+    #[tokio::test]
+    async fn a_space_on_an_unreachable_broker_is_never_counted_on_main() {
+        let counter = Counter::new(Some("http://127.0.0.1:9".into()), None);
+        let err = counter.usage("canary", "air").await.unwrap_err();
+        assert!(err.contains("JC_PORTAL_BROKER_URL_TEMPLATE"), "{err}");
+        let err = counter.usage("", "air").await.unwrap_err();
+        assert!(err.contains("brokerRef"), "{err}");
     }
 }

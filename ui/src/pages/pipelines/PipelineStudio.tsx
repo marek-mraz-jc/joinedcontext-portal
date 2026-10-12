@@ -35,6 +35,8 @@ import {
   removeRouteNode,
   routeNodeOf,
   PipelineFlow,
+  countersOfStats,
+  liveLabelOf,
   SourceBlock,
   StepBlock,
   outputIndexOf,
@@ -316,10 +318,26 @@ export function PipelineStudio({
   // studio, never part of the manifest.
   const [taps, setTaps] = useState<string[]>([]);
   const [debugLog, setDebugLog] = useState<DebugEntry[]>([]);
-  // The running stream's counters per node (PL-66), for a pipeline that exists: a new one, a
-  // paused one or a runner that does not answer simply paints nothing live.
+  // The running stream's counts per node and minute (PL-66, PL-68), for a pipeline that
+  // exists: a new or paused one paints nothing live, a runner that does not answer says so.
+  // Every five seconds while the tab is visible; a hidden tab asks nothing.
   const pipelineName = draft?.name ?? "";
-  const liveCounters = useQuery({
+  const liveStats = useQuery({
+    queryKey: [...queryKeys.resource(project, "pipelines", pipelineName), "stats"],
+    enabled: pipelineName !== "",
+    retry: false,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/pipelines/{name}/stats", {
+          params: { path: { project, name: pipelineName } },
+        }),
+      ),
+  });
+  const liveCounters = liveStats.data?.nodes ? countersOfStats(liveStats.data.nodes) : undefined;
+  // The queue on the wire into the output (T-3973), from the runner's metrics.
+  const bufferQuery = useQuery({
     // Its own key: the pipelines list caches this route under `"metrics"` with a derived `rate`,
     // and a shared entry without it crashed that list's row (T-3090).
     queryKey: [...queryKeys.resource(project, "pipelines", pipelineName), "metrics", "nodes"],
@@ -333,6 +351,29 @@ export function PipelineStudio({
         }),
       ),
   });
+  const statsUnavailable = liveStats.error instanceof ApiError && liveStats.error.status === 503;
+  // A failing node's last refused record, by the step it failed at: its message only, never
+  // the record (PL-52).
+  const failingLabel =
+    selectedNode && (liveCounters?.[liveLabelOf(selectedNode)]?.errors ?? 0) > 0
+      ? liveLabelOf(selectedNode)
+      : undefined;
+  const lastError = useQuery({
+    queryKey: [...queryKeys.resource(project, "pipelines", pipelineName), "rejected", "last"],
+    enabled: failingLabel !== undefined && !flowTrace,
+    retry: false,
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/pipelines/{name}/rejected", {
+          params: { path: { project, name: pipelineName }, query: { limit: 20 } },
+        }),
+      ),
+    select: (page) => page.items,
+  });
+  const failingStep = failingLabel?.startsWith("step_") ? Number(failingLabel.slice(5)) : undefined;
+  const lastErrorOfNode = failingLabel
+    ? lastError.data?.find((item) => (item.step ?? undefined) === failingStep)
+    : undefined;
   const selectedStep = draft?.processors?.[stepIndexOf(selectedNode) ?? -1];
   const selectedSource = draft?.moreSources?.[sourceIndexOf(selectedNode) ?? -1];
   // The kind and the space are the author's choice until the form carries them: a chosen kind
@@ -942,8 +983,8 @@ export function PipelineStudio({
                   form={draft}
                   onChange={onChange}
                   trace={flowTrace}
-                  live={liveCounters.data?.nodes}
-                  bufferDepth={liveCounters.data?.bufferDepth}
+                  live={liveCounters}
+                  bufferDepth={bufferQuery.data?.bufferDepth}
                   selected={selectedNode}
                   onSelect={setSelectedNode}
                   onOpen={(id) => {
@@ -955,6 +996,16 @@ export function PipelineStudio({
                   dataSources={dataSources}
                   endpoints={endpoints}
                 />
+                {statsUnavailable && !flowTrace ? (
+                  <p className="text-caption text-fg-muted" data-testid="flow-live-unavailable">
+                    {t("pipelines.flow.liveUnavailable")}
+                  </p>
+                ) : null}
+                {lastErrorOfNode ? (
+                  <p className="text-caption text-danger-fg" data-testid="flow-last-error">
+                    {t("pipelines.flow.lastError", { at: lastErrorOfNode.at, message: lastErrorOfNode.message })}
+                  </p>
+                ) : null}
 
                 {selectedNode === "compute" ? (
                   <div

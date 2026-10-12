@@ -89,6 +89,8 @@ pub struct AppState {
     pub alerts: Arc<crate::alerts::AlertStore>,
     /// The live updates of open data views (API/01 §32, T-3105).
     pub live: Arc<crate::live::LiveHub>,
+    /// The runner readings behind each pipeline's stats, kept 15 minutes (PL-68).
+    pub pipeline_stats: Arc<crate::pipeline_stats::Samples>,
     /// Each pipeline's runs and their log (PL-62), durable with a database.
     pub pipeline_log: Arc<crate::pipeline_log::LogStore>,
     /// The last messages through each node of a running stream, in memory (T-3974).
@@ -156,10 +158,13 @@ impl AppState {
             .map(|o| Arc::new(BearerVerifier::new(&o.issuer, &o.client_id)));
         let draft_events = DraftHub::new();
         let drafts = DraftStore::new(None).with_hub(draft_events.clone());
-        let space_usage = Arc::new(crate::space_usage::Counter::new(
-            config.broker_url.clone(),
-            config.broker_admin_token_file.clone(),
-        ));
+        let space_usage = Arc::new(
+            crate::space_usage::Counter::new(
+                config.broker_url.clone(),
+                config.broker_admin_token_file.clone(),
+            )
+            .with_broker_template(config.broker_url_template.clone()),
+        );
         let activity_events = crate::activity::ActivityHub::new();
         let activity = crate::activity::ActivityStore::new(None).with_hub(activity_events.clone());
         Self {
@@ -195,6 +200,7 @@ impl AppState {
             live: Arc::new(crate::live::LiveHub::new(&public_base, None)),
             pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),
             pipeline_samples: Arc::default(),
+            pipeline_stats: Arc::default(),
             drift_watch: None,
             views: None,
             foreign_names: Arc::default(),
@@ -475,6 +481,25 @@ impl AppState {
                     (_, Ok(None)) => tracing::info!("no cluster: no WASM shard placement is written"),
                 }
             }
+            // Each MqttBroker's release, in the brokers' namespace, from the deployment's template
+            // (ADR-N-048, T-3994).
+            match (
+                state.config.mqtt_namespace.clone(),
+                crate::apps::kube::KubeClient::in_cluster(),
+            ) {
+                (Some(namespace), Ok(Some(kube))) => {
+                    syncer = syncer.with_mqtt_brokers(Arc::new(
+                        crate::reconciler::mqtt_brokers::MqttBrokers::new(kube, namespace),
+                    ));
+                }
+                (None, _) => tracing::info!(
+                    "JC_PORTAL_MQTT_NAMESPACE is not set: no MqttBroker gets a release"
+                ),
+                (_, Err(err)) => {
+                    tracing::warn!(error = %err, "the ServiceAccount mount is unreadable, so no MqttBroker gets a release")
+                }
+                (_, Ok(None)) => tracing::info!("no cluster: no MqttBroker release is applied"),
+            }
             // The Secrets this reconciler writes into its own namespace: an organization's
             // artifact-store reader (T-0925) and the pipeline runner's environment (T-0927).
             // Outside a cluster there is nowhere to write one, which is not an error.
@@ -668,6 +693,14 @@ impl AppState {
                 ) {
                     syncer = syncer.with_hub_scopes(Arc::new(scopes));
                 }
+                // Each MQTT broker's bearer-only client, its devices' audience (T-3994).
+                if let Some(clients) = crate::reconciler::mqtt_brokers::MqttClientSync::new(
+                    oidc.issuer.as_str(),
+                    oidc.client_id.clone(),
+                    oidc.auth.clone(),
+                ) {
+                    syncer = syncer.with_mqtt_clients(Arc::new(clients));
+                }
                 // Each named MCP server's sign-in client (EP-96, T-3156), by the same identity.
                 if let Some(clients) = crate::reconciler::mcp_clients::McpClientSync::new(
                     oidc.issuer.as_str(),
@@ -795,7 +828,8 @@ impl AppState {
             match state.config.broker_url.clone() {
                 Some(broker) => {
                     syncer = syncer.with_registrations(Arc::new(
-                        crate::reconciler::registrations::RegistrationSync::new(broker),
+                        crate::reconciler::registrations::RegistrationSync::new(broker)
+                            .with_broker_template(state.config.broker_url_template.clone()),
                     ));
                 }
                 None => tracing::info!(
@@ -810,7 +844,8 @@ impl AppState {
                 state.config.broker_url.clone(),
                 state.config.broker_admin_token_file.clone(),
             ) {
-                let mut views = crate::reconciler::views::ViewSync::new(broker, token_file);
+                let mut views = crate::reconciler::views::ViewSync::new(broker, token_file)
+                    .with_broker_template(state.config.broker_url_template.clone());
                 if let Some(url) = state.config.model_tools_url.clone() {
                     views = views.with_model_tools(url);
                 }

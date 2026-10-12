@@ -2,7 +2,7 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
-import { runnerLabelOf } from "./PipelineFlow";
+import { liveLabelOf } from "./PipelineFlow";
 import type { FlowNodeId } from "./PipelineFlow";
 
 /** How many of the kept samples the drawer shows; the route keeps up to 20 per node. */
@@ -35,7 +35,7 @@ export function LastSamples({
         }),
       ),
   });
-  const label = runnerLabelOf(node);
+  const label = liveLabelOf(node);
   const shown = (samples.data?.nodes?.[label] ?? []).slice(0, SHOWN);
   // Before the mapping a record names fields as the source does, so the route serves only the
   // output when a target Endpoint hides attributes.

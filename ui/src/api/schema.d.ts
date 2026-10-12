@@ -596,6 +596,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/brokers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Context Brokers
+         * @description Every context broker of the organization with its spaces, version, health and load (API/01 §43, PF-116). Organization administrators only.
+         */
+        get: operations["list_brokers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organization/datamodels": {
         parameters: {
             query?: never;
@@ -2461,6 +2481,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/pipelines/{name}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Pipeline Rates
+         * @description What each node of the pipeline received, sent and failed over the last 1, 5 and 15 minutes, from the runner's counters read at most every two seconds and kept 15 minutes (PL-68).
+         */
+        get: operations["get_stats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/pipelinetemplates": {
         parameters: {
             query?: never;
@@ -3785,6 +3825,32 @@ export interface components {
             /** @default strict */
             validation: components["schemas"]["Validation"];
         };
+        /** @description One broker as the Portal sees it. */
+        Broker: {
+            /** @description `false` for the implicit `main` of an organization that declares no broker. */
+            declared: boolean;
+            default: boolean;
+            /**
+             * Format: int64
+             * @description The load: the entities its spaces hold, as API/01 §29 counts them.
+             */
+            entities: number;
+            features: string[];
+            health: components["schemas"]["Health"];
+            name: string;
+            /** Format: date-time */
+            observedAt: string;
+            /** @description Why the broker is `down` or `unknown`, or why a space's count is missing. */
+            reason?: string | null;
+            size?: string | null;
+            /** @description The spaces living on it, as `project/space`. */
+            spaces: string[];
+            version?: string | null;
+        };
+        /** @description The organization's brokers. */
+        Brokers: {
+            items: components["schemas"]["Broker"][];
+        };
         /** @description One successful build of an App, as Restore offers it (AP-171). */
         BuildEntry: {
             commit: string;
@@ -4735,11 +4801,11 @@ export interface components {
         GroupRef: {
             name: string;
         };
-        Health: {
-            name: string;
-            status: string;
-            version: string;
-        };
+        /**
+         * @description Whether a broker answered its health.
+         * @enum {string}
+         */
+        Health: "up" | "down" | "unknown";
         /** @description Who is signed in. Returned by `GET /api/v1/auth/me` and used by every protected route. */
         Identity: {
             email?: string | null;
@@ -5088,6 +5154,12 @@ export interface components {
          * @enum {string}
          */
         NodeHealth: "ok" | "degraded" | "unknown";
+        /** @description What one node counted in each window. */
+        NodeWindows: {
+            "15m": components["schemas"]["NodeCounters"];
+            "1m": components["schemas"]["NodeCounters"];
+            "5m": components["schemas"]["NodeCounters"];
+        };
         /** @description One notification of a mention. */
         Notification: {
             author: string;
@@ -5406,6 +5478,20 @@ export interface components {
              *     mapping carry the source's own field names, so only `output` is served.
              */
             withheld: boolean;
+        };
+        PipelineStats: {
+            /**
+             * Format: int64
+             * @description The age of the oldest reading kept, at most 900: a window longer than this holds what
+             *     was seen so far, not the whole window.
+             */
+            coveredSeconds: number;
+            nodes: {
+                [key: string]: components["schemas"]["NodeWindows"];
+            };
+            pipeline: string;
+            /** @description When the newest reading was taken, RFC 3339. */
+            scrapedAt: string;
         };
         PipelineTemplate: {
             /** Format: date-time */
@@ -6107,6 +6193,8 @@ export interface components {
         };
         /** @description What one space holds. */
         SpaceUsage: {
+            /** @description The `ContextBroker` the space lives on, which counted it (PF-111). */
+            broker: string;
             /**
              * Format: int64
              * @description The entities of the space's tenant, as the broker counts them.
@@ -7721,6 +7809,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_brokers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The brokers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Brokers"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an organization administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
             };
         };
     };
@@ -14199,6 +14325,58 @@ export interface operations {
             };
             /** @description Pipeline not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_stats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Pipeline name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Counts per node and window */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PipelineStats"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Pipeline not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No runner configured, or it did not answer */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

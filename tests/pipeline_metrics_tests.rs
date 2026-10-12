@@ -286,3 +286,84 @@ async fn a_caller_with_no_grant_is_not_told_the_pipeline_runs() {
         "a project the caller may not read answers 404, never its counters"
     );
 }
+
+/// PL-68: the stats route answers per node and window from the same scrape.
+#[tokio::test]
+async fn stats_count_per_node_from_the_runner() {
+    let runner = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/ovzdusie/metrics"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(RUNNER_BODY))
+        .mount(&runner)
+        .await;
+    let mut config = Config::for_tests();
+    config.pipeline_runner_url = Some(format!("{}/{{project}}", runner.uri()));
+
+    let (status, body) = get(
+        config,
+        "/api/v1/projects/ovzdusie/pipelines/aq-mqtt-ingest/stats",
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["pipeline"], "aq-mqtt-ingest");
+    assert_eq!(body["coveredSeconds"], 0);
+    assert_eq!(
+        body["nodes"]["gw"]["1m"]["errors"], 0,
+        "one reading is no rate yet"
+    );
+    assert_eq!(body["nodes"]["mqtt"]["15m"]["received"], 0);
+    assert!(
+        body["nodes"]["mqtt"]["1m"].get("errors").is_none(),
+        "a counter the runner does not export stays absent"
+    );
+    assert_eq!(
+        body["nodes"].as_object().map(|n| n.len()),
+        Some(2),
+        "another project's stream of the same name is not ours"
+    );
+}
+
+#[tokio::test]
+async fn stats_of_a_runner_that_is_down_are_503_never_zeros() {
+    let runner = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(502))
+        .mount(&runner)
+        .await;
+    let mut config = Config::for_tests();
+    config.pipeline_runner_url = Some(runner.uri());
+
+    let (status, body) = get(
+        config,
+        "/api/v1/projects/ovzdusie/pipelines/aq-mqtt-ingest/stats",
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert!(body.get("nodes").is_none());
+}
+
+#[tokio::test]
+async fn stats_of_an_unknown_pipeline_are_404_before_any_scrape() {
+    let runner = MockServer::start().await;
+    let mut config = Config::for_tests();
+    config.pipeline_runner_url = Some(runner.uri());
+
+    let (status, _) = get(
+        config,
+        "/api/v1/projects/ovzdusie/pipelines/not-there/stats",
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = get(
+        Config::for_tests(),
+        "/api/v1/projects/praha/pipelines/aq-mqtt-ingest/stats",
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "another project's pipeline is not there"
+    );
+}

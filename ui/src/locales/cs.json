@@ -518,7 +518,8 @@
       "modelCreate": "Vytvořit datový model",
       "modelImport": "Importovat Smart Data Model",
       "tooMany": "Endpoint je zaneprázdněný (příliš mnoho čtení najednou).",
-      "lead": "Jeho datový model, entity, kdo je čte a co se s ním stalo."
+      "lead": "Jeho datový model, entity, kdo je čte a co se s ním stalo.",
+      "broker": "Běží na kontextovém brokeru {broker}."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -1807,8 +1808,8 @@
       "moduleHint": "Cesta nebo balík modulu, který krok spouští.",
       "functionHint": "Vstupní bod modulu, který krok volá pro každý záznam.",
       "computeNotRun": "Platforma krok tohoto druhu zatím nespouští ({kind}): pipeline se přijme a zůstane ve stavu Pending, dokud to nepůjde. Krok Bloblang běží už dnes.",
-      "live": "Živé počty běžícího proudu od spuštění jeho runneru; ukázku uvidíte po spuštění testu.",
-      "liveErrors": "{count, plural, one {# chyba} few {# chyby} other {# chyb}} od spuštění runneru",
+      "live": "Živé počty běžícího proudu za minutu, chyby za posledních pět minut; pro ukázku spusťte test.",
+      "liveErrors": "{count, plural, one {# chyba} few {# chyby} other {# chyb}} za posledních 5 minut",
       "tools": "Nástroje grafu",
       "undo": "Zpět",
       "redo": "Znovu",
@@ -1859,6 +1860,9 @@
       "routeWhenHint": "Podmínka v Bloblangu, například this.temperature.value > 30. Záznam jde do první větve, jejíž podmínka platí; ostatní jdou do výstupů hlavní linky.",
       "routeAddOutput": "+ Výstup této větve",
       "routeNoCondition": "zatím bez podmínky",
+      "perMinute": "/min",
+      "liveUnavailable": "Živé počty nejsou dostupné: spouštěč pipeline neodpovídá. Pipeline může stále běžet.",
+      "lastError": "Poslední chyba v {at}: {message}. Opravte krok a pak záznam znovu spusťte z odmítnutých záznamů pipeliny.",
       "queueShort": "{count} ve frontě",
       "queue": "{count, plural, one {# zpráva čeká} few {# zprávy čekají} other {# zpráv čeká}} v bufferu před výstupem",
       "queueHigh": "{count, plural, one {# zpráva čeká} few {# zprávy čekají} other {# zpráv čeká}} v bufferu před výstupem, víc než {limit}: výstup nestíhá",
@@ -5150,7 +5154,8 @@
       "environments": "Prostředí",
       "health": "Stav ověření",
       "endpoints": "Všechny koncové body",
-      "mcp-servers": "MCP servery organizace"
+      "mcp-servers": "MCP servery organizace",
+      "brokers": "Brokery"
     },
     "settings": {
       "title": "Nastavení",
@@ -5680,6 +5685,27 @@
       "models": "Modely, které smí asistent používat",
       "modelsHint": "Nechte prázdné, aby byly povoleny všechny modely instalace.",
       "everyModel": "Všechny modely instalace"
+    },
+    "brokers": {
+      "title": "Kontextové brokery",
+      "lead": "Všechny brokery organizace s prostory, které drží. Portál se každého brokeru ptá na jeho stav; počty jsou staré nejvýše pět minut.",
+      "hidden": "Brokery vidí pouze administrátor organizace.",
+      "caption": "Kontextové brokery",
+      "name": "Broker",
+      "health": "Stav",
+      "version": "Verze",
+      "spaces": "Prostory",
+      "entities": "Entity",
+      "default": "Výchozí",
+      "size": "Velikost: {size}",
+      "noSpaces": "Zatím žádný prostor",
+      "implicit": "Organizace nedeklaruje žádný broker, proto všechny prostory běží na vestavěném brokeru main. Chcete-li spustit další, deklarujte ho v repozitáři organizace.",
+      "down": "{count, plural, one {# broker neodpovídá. Zkontrolujte jeho pod a důvod v jeho řádku.} few {# brokery neodpovídají. Zkontrolujte jejich pody a důvody v jejich řádcích.} other {# brokerů neodpovídá. Zkontrolujte jejich pody a důvody v jejich řádcích.}}",
+      "states": {
+        "up": "Běží",
+        "down": "Nedostupný",
+        "unknown": "Bez adresy"
+      }
     }
   },
   "projectDelete": {
