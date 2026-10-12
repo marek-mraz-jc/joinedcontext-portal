@@ -525,3 +525,43 @@ fn the_measurements_are_the_spaces_pass_rate_and_freshness() {
     let measured = measurements(Some(&daily), &checks.report("air", &[]));
     assert_eq!(measured.pass_rate, Some(0.67));
 }
+
+/// DM-95, T-3903: a dataset's pass rate is its space's, read by the tenant segment the gateway
+/// labels its counters with (`helsinki-bikes` here), never by a namesake labelled `bikes`.
+#[test]
+fn a_datasets_measurements_are_read_by_its_spaces_segment() {
+    use std::sync::Arc;
+
+    use joinedcontext_portal::quality::Store;
+    use joinedcontext_portal::quality_checks::{Reading, Readings};
+
+    let checks = Arc::new(Readings::new(None));
+    for (at, ours, namesake) in [
+        ("2026-10-12T00:00:00Z", 0.0, 0.0),
+        ("2026-10-12T01:00:00Z", 3.0, 50.0),
+    ] {
+        let key = |space: &str, outcome: &str| {
+            (
+                space.to_owned(),
+                "Bike".to_owned(),
+                "speed".to_owned(),
+                outcome.to_owned(),
+            )
+        };
+        checks.record(Reading {
+            at: at.parse().expect("a time"),
+            counts: [
+                (key("helsinki-bikes", "pass"), ours),
+                (key("helsinki-bikes", "reject"), ours / 3.0),
+                (key("bikes", "reject"), namesake),
+            ]
+            .into(),
+        });
+    }
+    let sync = CkanSync::new(HOST).with_quality(Arc::new(Store::default()), checks);
+    let repository = std::env::temp_dir().join("jc-ckan-reconciler-measured");
+    std::fs::create_dir_all(&repository).expect("a scratch directory");
+    let repo = jcctl::loader::Repository::load(&repository).expect("an empty repository");
+    let measured = sync.measured(&repo, &target("helsinki-bikes", "public", dataset_only()));
+    assert_eq!(measured.pass_rate, Some(0.75));
+}

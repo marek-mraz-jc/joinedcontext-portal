@@ -116,20 +116,24 @@ impl CkanSync {
         self
     }
 
-    /// What was measured of the space an Endpoint serves.
-    fn measurements(&self, project: &str, target: &Target) -> Measurements {
+    /// What was measured of the space an Endpoint serves: the daily run by the space's name, the
+    /// gateway's counters by its tenant segment, which is how the gateway labels them.
+    pub fn measured(&self, repo: &Repository, target: &Target) -> Measurements {
         let Some((daily, checks)) = &self.quality else {
             return Measurements::default();
         };
-        let space = target
+        let project = target.id.namespace.as_deref().unwrap_or_default();
+        let Some(space) = target
             .manifest
             .spec
             .get("contextSpaceRef")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or_default();
+            .and_then(crate::resource::reference_name)
+        else {
+            return Measurements::default();
+        };
         measurements(
             daily.get(project, space).as_ref(),
-            &checks.report(space, &[]),
+            &checks.report(&repo.space_segment(project, space), &[]),
         )
     }
 
@@ -189,20 +193,27 @@ impl CkanSync {
             .collect();
 
         for target in wanted {
-            reports.push(self.one(&target, false, repository).await);
+            let measured = self.measured(repo, &target);
+            reports.push(self.one(&target, false, repository, measured).await);
         }
         for target in withdrawn(previous, &published) {
-            reports.push(self.one(&target, true, repository).await);
+            let measured = Measurements::default();
+            reports.push(self.one(&target, true, repository, measured).await);
         }
         reports
     }
 
     /// One Endpoint: resolve the token, then publish or withdraw on a blocking thread.
-    async fn one(&self, target: &Target, withdraw: bool, repository: &Path) -> Report {
+    async fn one(
+        &self,
+        target: &Target,
+        withdraw: bool,
+        repository: &Path,
+        measured: Measurements,
+    ) -> Report {
         let project = target.id.namespace.clone().unwrap_or_default();
         let endpoint = target.id.name.clone();
         let settings = self.settings.clone();
-        let measured = self.measurements(&project, target);
         let target = target.clone();
         let repository = repository.to_path_buf();
         let age_key_file = self.age_key_file.clone();

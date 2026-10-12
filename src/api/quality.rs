@@ -95,7 +95,9 @@ pub async fn get_checks(
         .map(|spec| spec.quality)
         .unwrap_or_default();
     state.quality_checks.refresh().await;
-    Ok(Json(state.quality_checks.report(&space, &rules)))
+    // The gateway labels its counters with the space's tenant segment, not its name.
+    let segment = crate::spaces::segment(&state.mirror, &project, &space);
+    Ok(Json(state.quality_checks.report(&segment, &rules)))
 }
 
 /// The counts are the space's; which entities they are, and the values they hold (a range, an
