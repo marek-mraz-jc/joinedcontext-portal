@@ -1384,6 +1384,7 @@
         "pipeline_flow_live.test.tsx",
         "pipeline_flow_outputs.test.tsx",
         "pipeline_flow_routes.test.tsx",
+        "pipeline_flow_stats.test.tsx",
         "pipeline_flow_steps.test.tsx",
         "pipeline_graph.test.ts",
         "pipeline_step_form.test.tsx"
@@ -1416,6 +1417,7 @@
         "pipeline_flow.test.tsx",
         "pipeline_flow_outputs.test.tsx",
         "pipeline_flow_routes.test.tsx",
+        "pipeline_flow_stats.test.tsx",
         "pipeline_flow_steps.test.tsx",
         "pipeline_kpi_preset.test.tsx",
         "pipeline_studio_debug.test.tsx",

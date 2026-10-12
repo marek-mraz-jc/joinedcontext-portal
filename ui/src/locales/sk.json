@@ -1772,8 +1772,8 @@
       "moduleHint": "Cesta alebo balík modulu, ktorý krok spúšťa.",
       "functionHint": "Vstupný bod modulu, ktorý krok volá pre každý záznam.",
       "computeNotRun": "Platforma krok tohto druhu zatiaľ nespúšťa ({kind}): pipeline sa prijme a zostane v stave Pending, kým to nebude možné. Krok Bloblang beží už dnes.",
-      "live": "Živé počty bežiaceho prúdu od spustenia jeho runnera; ukážku uvidíte po spustení testu.",
-      "liveErrors": "{count, plural, one {# chyba} few {# chyby} other {# chýb}} od spustenia runnera",
+      "live": "Živé počty bežiaceho prúdu za minútu, chyby za posledných päť minút; pre ukážku spustite test.",
+      "liveErrors": "{count, plural, one {# chyba} few {# chyby} other {# chýb}} za posledných 5 minút",
       "tools": "Nástroje grafu",
       "undo": "Späť",
       "redo": "Znova",
@@ -1823,7 +1823,10 @@
       "routeWhen": "Berie záznamy, kde",
       "routeWhenHint": "Podmienka v Bloblangu, napríklad this.temperature.value > 30. Záznam ide do prvej vetvy, ktorej podmienka platí; ostatné idú do výstupov hlavnej linky.",
       "routeAddOutput": "+ Výstup tejto vetvy",
-      "routeNoCondition": "zatiaľ bez podmienky"
+      "routeNoCondition": "zatiaľ bez podmienky",
+      "perMinute": "/min",
+      "liveUnavailable": "Živé počty nie sú dostupné: spúšťač pipeline neodpovedá. Pipeline môže stále bežať.",
+      "lastError": "Posledná chyba o {at}: {message}. Opravte krok a potom záznam znova spustite z odmietnutých záznamov pipeliny."
     },
     "emptyHint": "Pridajte zdroj údajov a pipeline tlačidlom, alebo požiadajte asistenta, aby ju postavil z toho, čo už máte.",
     "credentialsOfSource": "Drží ich jeho zdroj údajov {name}",

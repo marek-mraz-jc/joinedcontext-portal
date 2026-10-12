@@ -90,7 +90,8 @@
     "Čeština",
     "REST API (JSON)",
     "HTTP endpoint",
-    "1. Endpoint"
+    "1. Endpoint",
+    "/min"
   ],
   "cs": [
     "@context",
@@ -179,7 +180,8 @@
     "{ms} ms",
     "{seconds} s",
     "Čeština",
-    "REST API (JSON)"
+    "REST API (JSON)",
+    "/min"
   ],
   "de": [
     "@context",

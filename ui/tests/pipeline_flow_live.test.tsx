@@ -82,7 +82,7 @@ describe("the live flow", () => {
     renderFlow({ live: counters });
     expect(screen.getByTestId("flow-live")).toHaveTextContent(en.pipelines.flow.live);
     expect(screen.getByTestId("flow-node-step-0")).toHaveAttribute("data-state", "error");
-    expect(screen.getByTestId("flow-node-step-0")).toHaveTextContent("20 errors since the runner started");
+    expect(screen.getByTestId("flow-node-step-0")).toHaveTextContent("20 errors in the last 5 minutes");
     expect(screen.getByTestId("flow-node-compute")).toHaveAttribute("data-state", "ok");
   });
 
