@@ -252,17 +252,12 @@ test.describe("pipeline studio walk (CIVITAS/CORE comparison)", () => {
       await canvas.scrollIntoViewIfNeeded();
       await shot(page, `${walk.name}-1-empty-canvas`);
 
-      // The source: a DataSource of the project. The first source is edited in the studio's
-      // source section, not on its node; "+ Source" adds a second one, and with the first empty
-      // the manifest drops the rest of the lane (see the comparison page).
+      // The source: a DataSource of the project, picked on the source node itself (T-3978).
       await page.getByTestId("flow-node-source").dblclick();
-      await dialog.getByLabel(/^Read from/).selectOption({
-        label: "A data source of this project (external feed)",
-      });
-      await dialog
-        .getByTestId("pipeline-studio")
-        .getByLabel(/^Data source/)
-        .selectOption(walk.source);
+      await page
+        .getByTestId("flow-node-editor-source")
+        .getByTestId("flow-source-ref")
+        .selectOption(`DataSource:${walk.source}`);
       await shot(page, `${walk.name}-2-source`);
 
       // A processor found by search, dragged onto the canvas, and the compute step.
@@ -289,10 +284,11 @@ test.describe("pipeline studio walk (CIVITAS/CORE comparison)", () => {
       await canvas.scrollIntoViewIfNeeded();
       await shot(page, `${walk.name}-3-steps`);
 
-      // The output: the project's Endpoint, the pipeline's first output. The canvas palette's
-      // "Add output" adds a further one; the first is the target the form asks for.
-      await dialog
-        .getByLabel(/^Target endpoint/)
+      // The output: the project's Endpoint, picked on the output node itself (T-3978).
+      await page.getByTestId("flow-node-output").dblclick();
+      await page
+        .getByTestId("flow-node-editor-output")
+        .getByTestId("flow-output-target")
         .selectOption({ label: "transport" });
       await shot(page, `${walk.name}-4-output`);
 

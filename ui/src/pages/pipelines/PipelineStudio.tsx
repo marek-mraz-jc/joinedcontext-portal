@@ -1164,12 +1164,29 @@ export function PipelineStudio({
                       />
                     );
                   })()
-                ) : selectedNode === "source" || selectedNode === "output" ? (
-                  <p className="text-caption text-fg-muted">
-                    {t("pipelines.flow.selectedHint", {
-                      defaultValue: "Edit source and output in the sections below.",
-                    })}
-                  </p>
+                ) : selectedNode === "source" ? (
+                  // The first source opens the same block as the others (T-3978); it stays.
+                  <SourceBlock
+                    key="source"
+                    project={project}
+                    source={draft?.source ?? {}}
+                    dataSources={dataSources}
+                    endpoints={endpoints}
+                    locale={locale}
+                    onChange={(source) => {
+                      onChange({ ...draft, source });
+                      setKindChoice(sourceKindOf({ source }));
+                    }}
+                  />
+                ) : selectedNode === "output" ? (
+                  <OutputBlock
+                    key="output"
+                    project={project}
+                    output={{ targetEndpoint: draft?.targetEndpoint, ...draft?.output }}
+                    targets={endpoints.map((manifest) => ({ manifest, urn: endpointUrn(orgDomain, manifest) }))}
+                    locale={locale}
+                    onChange={({ targetEndpoint, ...output }) => onChange({ ...draft, targetEndpoint, output })}
+                  />
                 ) : null}
 
                 {flowTrace && selectedNode ? (

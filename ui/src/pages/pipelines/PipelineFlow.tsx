@@ -1669,14 +1669,15 @@ export interface SourceBlockProps {
   endpoints: Manifest[];
   locale: string;
   onChange: (source: SourceForm) => void;
-  onRemove: () => void;
+  /** Absent for the first source: a pipeline always reads one (T-3978). */
+  onRemove?: () => void;
 }
 
 /**
- * A source after the first (PL-52): one DataSource, or one Endpoint read through. The runner
- * merges it with the others through a `broker` input, so it needs nothing but what it reads;
- * the query, the sample and the access panel stay with the first source, which is the one the
- * studio's own section below edits.
+ * One source (PL-52): one DataSource, or one Endpoint read through. A source after the first is
+ * merged with the others through a `broker` input, so it needs nothing but what it reads; the
+ * first source's node opens the same block (T-3978), its sample and access panel stay in the
+ * studio's own section below.
  */
 export function SourceBlock({
   project,
@@ -1702,9 +1703,11 @@ export function SourceBlock({
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-caption font-semibold text-fg">{t("pipelines.flow.node.source")}</span>
-        <Button size="sm" variant="ghost" data-testid="flow-source-remove" onClick={onRemove}>
-          {t("pipelines.flow.removeSource")}
-        </Button>
+        {onRemove ? (
+          <Button size="sm" variant="ghost" data-testid="flow-source-remove" onClick={onRemove}>
+            {t("pipelines.flow.removeSource")}
+          </Button>
+        ) : null}
       </div>
       <Field
         id={id}
@@ -1831,13 +1834,14 @@ export interface OutputBlockProps {
   targets: { manifest: Manifest; urn: string | undefined }[];
   locale: string;
   onChange: (output: OutputForm) => void;
-  onRemove: () => void;
+  /** Absent for the first output: a pipeline always writes through one (T-3978). */
+  onRemove?: () => void;
 }
 
 /**
- * An output after the first (PL-55): the Endpoint it writes through, the type and the write mode.
- * The runner fans every message out to all outputs, so each is a target the pipeline writes as
- * well, not a route a message takes.
+ * One output (PL-55), the first one's node included (T-3978): the Endpoint it writes through,
+ * the type and the write mode. The runner fans every message out to all outputs, so each is a
+ * target the pipeline writes as well, not a route a message takes.
  */
 export function OutputBlock({ project, output, targets, locale, onChange, onRemove }: OutputBlockProps): JSX.Element {
   const { t } = useTranslation();
@@ -1849,9 +1853,11 @@ export function OutputBlock({ project, output, targets, locale, onChange, onRemo
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-caption font-semibold text-fg">{t("pipelines.flow.node.output")}</span>
-        <Button size="sm" variant="ghost" data-testid="flow-output-remove" onClick={onRemove}>
-          {t("pipelines.flow.removeOutput")}
-        </Button>
+        {onRemove ? (
+          <Button size="sm" variant="ghost" data-testid="flow-output-remove" onClick={onRemove}>
+            {t("pipelines.flow.removeOutput")}
+          </Button>
+        ) : null}
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <Field id="flow-output-target" label={t("pipelines.flow.outputWrites")} help={t("pipelines.flow.outputWritesHint")} required>

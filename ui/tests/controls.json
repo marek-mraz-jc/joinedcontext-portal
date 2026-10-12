@@ -1415,6 +1415,7 @@
       "tests": [
         "pipeline_editor.test.tsx",
         "pipeline_flow.test.tsx",
+        "pipeline_flow_first_nodes.test.tsx",
         "pipeline_flow_outputs.test.tsx",
         "pipeline_flow_routes.test.tsx",
         "pipeline_flow_steps.test.tsx",
