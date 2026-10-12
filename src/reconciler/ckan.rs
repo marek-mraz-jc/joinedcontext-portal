@@ -28,10 +28,11 @@ use jc_core::kinds::ckan::CkanInstanceSpec;
 use jc_core::kinds::EndpointSpec;
 use jcctl::commands::publish_ckan::{self as publisher, Target};
 use jcctl::loader::{RawManifest, RawMetadata, Repository, ResourceId};
-use jcctl::publish::ckan::{CkanApi, Outcome, Settings};
+use jcctl::publish::ckan::{CkanApi, Measurements, Outcome, Settings};
 use jcctl::publish::ckan_http::HttpCkan;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// What one run did with one Endpoint's publication.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,6 +88,12 @@ pub struct CkanSync {
     /// `apiTokenRef` is resolved (EP-67). `None` leaves the token to the variable the reference
     /// names, which is how a Job carries it.
     age_key_file: Option<PathBuf>,
+    /// Where the measurements of a dataset's data come from: the daily run's freshness and the
+    /// gateway's checks (DM-95). `None` publishes without measurements.
+    quality: Option<(
+        Arc<crate::quality::Store>,
+        Arc<crate::quality_checks::Readings>,
+    )>,
 }
 
 impl CkanSync {
@@ -95,7 +102,35 @@ impl CkanSync {
         Self {
             settings: Settings::new(host),
             age_key_file: None,
+            quality: None,
         }
+    }
+
+    /// Publishes each dataset with the pass rate and the freshness of its space (DM-95).
+    pub fn with_quality(
+        mut self,
+        daily: Arc<crate::quality::Store>,
+        checks: Arc<crate::quality_checks::Readings>,
+    ) -> Self {
+        self.quality = Some((daily, checks));
+        self
+    }
+
+    /// What was measured of the space an Endpoint serves.
+    fn measurements(&self, project: &str, target: &Target) -> Measurements {
+        let Some((daily, checks)) = &self.quality else {
+            return Measurements::default();
+        };
+        let space = target
+            .manifest
+            .spec
+            .get("contextSpaceRef")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default();
+        measurements(
+            daily.get(project, space).as_ref(),
+            &checks.report(space, &[]),
+        )
     }
 
     /// The age identity of this Portal's SOPS backend, so an `apiTokenRef` that lives in the
@@ -167,6 +202,7 @@ impl CkanSync {
         let project = target.id.namespace.clone().unwrap_or_default();
         let endpoint = target.id.name.clone();
         let settings = self.settings.clone();
+        let measured = self.measurements(&project, target);
         let target = target.clone();
         let repository = repository.to_path_buf();
         let age_key_file = self.age_key_file.clone();
@@ -185,7 +221,7 @@ impl CkanSync {
             if withdraw {
                 return withdraw_one(&mut api, &target);
             }
-            publish_one(&mut api, &target, &settings)
+            publish_one(&mut api, &target, &settings, &measured)
         })
         .await;
 
@@ -214,8 +250,10 @@ pub fn publish_one(
     api: &mut impl CkanApi,
     target: &Target,
     settings: &Settings,
+    measured: &Measurements,
 ) -> Result<Publication, String> {
     let record = publisher::record(target, settings).map_err(|err| err.to_string())?;
+    let record = jcctl::publish::ckan::measured(&record, measured);
     let rows = publisher::rows(target, settings).map_err(|err| err.to_string())?;
     publish_with(api, target, &record, rows.as_ref(), settings)
 }
@@ -239,6 +277,30 @@ pub fn publish_with(
         rows: line.mirror.map(|mirror| mirror.rows),
         no_linkml: line.no_linkml,
     })
+}
+
+/// The pass rate over seven days of every rule of the space, to a hundredth, and the age of
+/// its newest data when the daily run read it (DM-95). Both are steady between two readings, so
+/// an unchanged dataset is not written again every sync (CC-18).
+pub fn measurements(
+    daily: Option<&crate::quality::SpaceQuality>,
+    checks: &crate::quality_checks::SpaceChecks,
+) -> Measurements {
+    let (pass, all) = checks.rules.iter().fold((0, 0), |(pass, all), rule| {
+        let week = &rule.week;
+        (
+            pass + week.pass,
+            all + week.pass + week.reject + week.flag + week.quarantine,
+        )
+    });
+    let freshness_seconds = daily.and_then(|report| {
+        let newest = report.types.iter().filter_map(|kind| kind.newest).max()?;
+        Some((report.observed_at - newest).num_seconds().max(0))
+    });
+    Measurements {
+        pass_rate: (all > 0).then(|| (pass as f64 / all as f64 * 100.0).round() / 100.0),
+        freshness_seconds,
+    }
 }
 
 /// Withdraws one Endpoint's dataset, and its sheet with it (EP-62, CC-19).

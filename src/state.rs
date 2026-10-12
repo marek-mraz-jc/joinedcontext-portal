@@ -825,6 +825,11 @@ impl AppState {
                 if !branding.documentation_base_url.is_empty() {
                     catalogue = catalogue.documented_at(branding.documentation_base_url);
                 }
+                // Each dataset carries the pass rate and the freshness of its space (DM-95).
+                catalogue = catalogue.with_quality(
+                    Arc::clone(&state.quality),
+                    Arc::clone(&state.quality_checks),
+                );
                 syncer = syncer.with_ckan(Arc::new(catalogue));
             }
 

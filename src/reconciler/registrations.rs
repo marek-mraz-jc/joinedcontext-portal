@@ -178,6 +178,8 @@ impl RegistrationSync {
             spaces.get(name).map(|(endpoint, space)| MemberSource {
                 endpoint: endpoint.clone(),
                 tenant: space.clone(),
+                // T-4022 passes the member Endpoint's gateway URL; until it lands, unknown.
+                gateway: None,
             })
         }
     }

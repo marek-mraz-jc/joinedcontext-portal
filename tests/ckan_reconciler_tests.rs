@@ -460,3 +460,68 @@ fn a_slovak_endpoint_publishes_under_its_slovak_title_licence_and_organization()
         "{again:?}"
     );
 }
+
+/// T-3903, DM-95: a dataset's measurements are its space's 7-day pass rate, to a hundredth, and
+/// the age of the newest data when the daily run read it; nothing measured is no measurement.
+#[test]
+fn the_measurements_are_the_spaces_pass_rate_and_freshness() {
+    use joinedcontext_portal::quality::{SpaceQuality, TypeQuality};
+    use joinedcontext_portal::quality_checks::{Reading, Readings};
+    use joinedcontext_portal::reconciler::ckan::measurements;
+
+    let at = |text: &str| {
+        text.parse::<chrono::DateTime<chrono::Utc>>()
+            .expect("a time")
+    };
+    let checks = Readings::new(None);
+    assert_eq!(
+        measurements(None, &checks.report("air", &[])),
+        jcctl::publish::ckan::Measurements::default()
+    );
+
+    let key = |rule: &str, outcome: &str| {
+        (
+            "air".to_owned(),
+            "AirQualityObserved".to_owned(),
+            rule.to_owned(),
+            outcome.to_owned(),
+        )
+    };
+    checks.record(Reading {
+        at: at("2026-10-12T00:00:00Z"),
+        counts: [
+            (key("pm10", "pass"), 2.0),
+            (key("pm10", "reject"), 1.0),
+            (key("no2", "pass"), 0.0),
+        ]
+        .into(),
+    });
+    let daily = SpaceQuality {
+        observed_at: at("2026-10-12T02:00:00Z"),
+        checked: 3,
+        invalid: 0,
+        truncated: false,
+        rules: Vec::new(),
+        freshness: Vec::new(),
+        types: ["2026-10-12T01:56:00Z", "2026-10-12T01:00:00Z"]
+            .iter()
+            .map(|newest| TypeQuality {
+                entity_type: "AirQualityObserved".into(),
+                count: 1,
+                newest: Some(at(newest)),
+                attributes: Vec::new(),
+            })
+            .collect(),
+    };
+    let measured = measurements(Some(&daily), &checks.report("air", &[]));
+    // The first reading is its own base, so the week counts nothing yet: no rate, never 100 %.
+    assert_eq!(measured.pass_rate, None);
+    assert_eq!(measured.freshness_seconds, Some(240));
+
+    checks.record(Reading {
+        at: at("2026-10-12T01:00:00Z"),
+        counts: [(key("pm10", "pass"), 4.0), (key("pm10", "reject"), 2.0)].into(),
+    });
+    let measured = measurements(Some(&daily), &checks.report("air", &[]));
+    assert_eq!(measured.pass_rate, Some(0.67));
+}
