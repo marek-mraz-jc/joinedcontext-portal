@@ -2241,7 +2241,8 @@
       "discardConfirm": "Was Sie eingegeben haben, geht verloren und es wird nichts vorgeschlagen. Bereits vergebene Rollen bleiben unberührt.",
       "discard": "Vergabe verwerfen",
       "grants": "Diese Rolle darf: {rights}.",
-      "grantsNothing": "Diese Rolle gewährt noch nichts: sie hat keine Regeln."
+      "grantsNothing": "Diese Rolle gewährt noch nichts: sie hat keine Regeln.",
+      "hidden": "Ihre Rolle zeigt nicht, wer hier welche Rolle hat. Wer das Projekt verwaltet, kann sie Ihnen geben."
     },
     "projectRoles": {
       "title": "Rollen",
@@ -2263,7 +2264,8 @@
       },
       "beyondRights": "Eine Rolle gewährt nicht mehr, als Sie hier selbst halten: fehlt {missing}.",
       "propose": "Änderung vorschlagen",
-      "emptyHint": "Eine Rolle ist eine Menge von Verben auf einer Menge von Arten — einen Endpunkt vorschlagen, eine Änderung genehmigen, einen Raum lesen. Die Rollen der Plattform gelten überall; eine hier erklärte Rolle gilt in diesem Projekt."
+      "emptyHint": "Eine Rolle ist eine Menge von Verben auf einer Menge von Arten — einen Endpunkt vorschlagen, eine Änderung genehmigen, einen Raum lesen. Die Rollen der Plattform gelten überall; eine hier erklärte Rolle gilt in diesem Projekt.",
+      "hidden": "Ihre Rolle zeigt die hier geschriebenen Rollen nicht. Wer das Projekt verwaltet, kann sie Ihnen geben."
     },
     "accounts": {
       "title": "Dienstkonten",

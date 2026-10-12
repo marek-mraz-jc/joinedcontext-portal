@@ -2241,7 +2241,8 @@
       "discardConfirm": "What you typed is lost and nothing is proposed. The roles already held are not touched.",
       "discard": "Discard the grant",
       "grants": "This role may: {rights}.",
-      "grantsNothing": "This role grants nothing yet: its rules are empty."
+      "grantsNothing": "This role grants nothing yet: its rules are empty.",
+      "hidden": "Your role does not show who holds which role here. Whoever manages the project can grant it."
     },
     "projectRoles": {
       "title": "Roles",
@@ -2263,7 +2264,8 @@
       },
       "beyondRights": "A role may not grant more than you hold here: missing {missing}.",
       "propose": "Propose change",
-      "emptyHint": "A role is a set of verbs on a set of kinds — propose an endpoint, approve a change, read a space. The platform's own roles work everywhere; a role declared here works in this project."
+      "emptyHint": "A role is a set of verbs on a set of kinds — propose an endpoint, approve a change, read a space. The platform's own roles work everywhere; a role declared here works in this project.",
+      "hidden": "Your role does not show the roles written here. Whoever manages the project can grant it."
     },
     "accounts": {
       "title": "Service accounts",

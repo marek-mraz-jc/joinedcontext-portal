@@ -167,3 +167,34 @@ export function ownRights(effective: Effective | undefined): { kinds: string[]; 
   }
   return { kinds: [...kinds].sort(), verbs: [...verbs].sort() };
 }
+
+/**
+ * Whether to ask for a list of `kind`: `undefined` while the permissions are in flight, `false`
+ * once they deny reading it, and `true` otherwise — a document that never came (an error) leaves
+ * the API to decide, as `allows` does.
+ */
+export function readsOnceKnown(permissions: { data: Effective | undefined; isLoading: boolean }, kind: string) {
+  const reads = mayRead(permissions.data, kind);
+  return reads ?? (permissions.isLoading ? undefined : true);
+}
+
+/**
+ * A list of `kind` in `project`, asked for only once the permissions say the caller reads it: the
+ * API answers a list nobody granted with the 404 of an unknown one, which a page then showed as a
+ * failure (T-3852). `hidden` is that answer known in advance; an unasked query stays idle.
+ */
+export function useReadableList(project: string, plural: string, kind: string, enabled = true) {
+  const permissions = usePermissions(project);
+  const reads = readsOnceKnown(permissions, kind);
+  const query = useQuery({
+    queryKey: queryKeys.list(project, plural),
+    enabled: enabled && reads === true,
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/{plural}", {
+          params: { path: { project, plural } },
+        }),
+      ),
+  });
+  return { ...query, hidden: reads === false };
+}

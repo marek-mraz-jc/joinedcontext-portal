@@ -2241,7 +2241,8 @@
       "discardConfirm": "To, co jste napsali, se ztratí a nic se nenavrhne. Již přidělené role se nemění.",
       "discard": "Zahodit přidělení",
       "grants": "Tato role smí: {rights}.",
-      "grantsNothing": "Tato role zatím nic neuděluje: nemá pravidla."
+      "grantsNothing": "Tato role zatím nic neuděluje: nemá pravidla.",
+      "hidden": "Vaše role neukazuje, kdo zde má jakou roli. Může vám ji přidělit ten, kdo spravuje projekt."
     },
     "projectRoles": {
       "title": "Role",
@@ -2263,7 +2264,8 @@
       },
       "beyondRights": "Role nesmí udělit více, než zde držíte sami: chybí {missing}.",
       "propose": "Navrhnout změnu",
-      "emptyHint": "Role je množina činností nad množinou druhů — podat endpoint, schválit změnu, čist prostor. Role platformy fungují všude; role deklarovaná zde funguje v tomto projektu."
+      "emptyHint": "Role je množina činností nad množinou druhů — podat endpoint, schválit změnu, čist prostor. Role platformy fungují všude; role deklarovaná zde funguje v tomto projektu.",
+      "hidden": "Vaše role neukazuje role, které jsou zde napsané. Může vám ji přidělit ten, kdo spravuje projekt."
     },
     "accounts": {
       "title": "Servisní účty",
