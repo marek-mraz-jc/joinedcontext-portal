@@ -14,7 +14,7 @@ import type { OutputForm, PipelineForm, SourceForm, StepForm } from "./PipelineE
 import { spaceOf } from "../spaces/spaceFacts";
 import { sourceKindOf } from "./PipelineStudio";
 import type { Trace } from "./PipelineTest";
-import { errorAt, fromFormData, toFormData, useProcessorForms, withHelp } from "./processorForm";
+import { errorAt, fromFormData, toFormData, useProcessorForms, withHelp, withVariables } from "./processorForm";
 import { connect, laneOf, missingOf, move } from "./pipelineGraph";
 import { wireCount, wireKey } from "./pipelineDebug";
 import type { WireRefusal } from "./pipelineGraph";
@@ -1302,6 +1302,8 @@ export interface StepBlockProps {
   entry: StepForm;
   onChange: (entry: StepForm) => void;
   onRemove: () => void;
+  /** The pipeline's own runner variables, the `envVar` of each secretRef, offered on secret fields. */
+  variables?: string[];
 }
 
 /**
@@ -1314,7 +1316,7 @@ export interface StepBlockProps {
  */
 // ponytail: a textarea like the compute node's mapping, not Monaco; swap in MonacoSourceView
 // when authors ask for completion inside a processor's fields.
-export function StepBlock({ entry, onChange, onRemove }: StepBlockProps): JSX.Element {
+export function StepBlock({ entry, onChange, onRemove, variables = [] }: StepBlockProps): JSX.Element {
   const { t } = useTranslation();
   const processor = processorOf(entry.step);
   const [text, setText] = useState(() =>
@@ -1436,7 +1438,7 @@ export function StepBlock({ entry, onChange, onRemove }: StepBlockProps): JSX.El
           <SchemaForm<unknown>
             // Keyed on the seed, so reopening the form after a YAML edit starts from that edit.
             key={JSON.stringify(seed?.data ?? null)}
-            schema={form.schema}
+            schema={withVariables(form.schema, form.uiSchema, variables)}
             uiSchema={uiSchema}
             formData={seed?.data}
             extraErrors={boxError}
