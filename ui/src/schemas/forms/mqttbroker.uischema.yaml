@@ -1,0 +1,131 @@
+# Default form arrangement for MqttBroker (UI-02, T-3839, MF-54, ADR-N-048).
+# A broker is roles over ServiceAccounts; the examples are a camera publishing under its own id.
+apiVersion: joinedcontext.com/v1alpha1
+kind: UiSchema
+metadata:
+  name: mqttbroker
+spec:
+  for: MqttBroker
+  guide: User-Guide/04-pipelines
+  about:
+    en: >-
+      An MQTT broker of this project. Devices sign in as their own ServiceAccount with a short-lived
+      token, and each role says which topics its accounts may publish or subscribe to. A pipeline
+      reads the broker inside the platform; the broker holds no password of its own.
+    sk: >-
+      MQTT broker tohto projektu. Zariadenia sa prihlasujú ako vlastný ServiceAccount krátkodobým
+      tokenom a každá rola určuje, do ktorých tém smú jej účty publikovať alebo ich odoberať.
+      Pipeline číta broker vnútri platformy; broker nemá žiadne vlastné heslo.
+    cs: >-
+      MQTT broker tohoto projektu. Zařízení se přihlašují jako vlastní ServiceAccount krátkodobým
+      tokenem a každá role určuje, do kterých témat smějí její účty publikovat nebo je odebírat.
+      Pipeline čte broker uvnitř platformy; broker nemá žádné vlastní heslo.
+    de: >-
+      Ein MQTT-Broker dieses Projekts. Geräte melden sich als eigener ServiceAccount mit einem
+      kurzlebigen Token an, und jede Rolle sagt, in welche Topics ihre Accounts veröffentlichen oder
+      welche sie abonnieren dürfen. Eine Pipeline liest den Broker innerhalb der Plattform; der
+      Broker hat kein eigenes Passwort.
+  order: [name, roles, limits, port]
+  groups:
+    - title:
+        en: The broker
+        sk: Broker
+        cs: Broker
+        de: Der Broker
+      description:
+        en: Its name, which is part of the address devices connect to.
+        sk: Jeho názov, ktorý je súčasťou adresy, na ktorú sa zariadenia pripájajú.
+        cs: Jeho název, který je součástí adresy, na niž se zařízení připojují.
+        de: Sein Name, der Teil der Adresse ist, mit der sich Geräte verbinden.
+      fields: [name]
+    - title:
+        en: Who may do what
+        sk: Kto smie čo
+        cs: Kdo smí co
+        de: Wer was darf
+      description:
+        en: "One role per group of devices: the accounts that hold it and the topics they may use."
+        sk: "Jedna rola na skupinu zariadení: účty, ktoré ju majú, a témy, ktoré smú používať."
+        cs: "Jedna role na skupinu zařízení: účty, které ji mají, a témata, která smějí používat."
+        de: "Eine Rolle je Gerätegruppe: die Accounts mit dieser Rolle und die Topics, die sie nutzen dürfen."
+      fields: [roles]
+    - title:
+        en: Limits and port
+        sk: Limity a port
+        cs: Limity a port
+        de: Grenzen und Port
+      description:
+        en: Bounds against a flood, and a port of its own where a device cannot send a host name.
+        sk: Hranice proti záplave a vlastný port, kde zariadenie nevie poslať názov hostiteľa.
+        cs: Hranice proti záplavě a vlastní port, kde zařízení neumí poslat název hostitele.
+        de: Grenzen gegen eine Flut und ein eigener Port, wo ein Gerät keinen Hostnamen senden kann.
+      folded: true
+      fields: [limits, port]
+  fields:
+    name:
+      help:
+        en: The broker's name in this project; lowercase letters, digits and hyphens. It is part of its address.
+        sk: Názov brokera v tomto projekte; malé písmená, číslice a spojovníky. Je súčasťou jeho adresy.
+        cs: Název brokeru v tomto projektu; malá písmena, číslice a spojovníky. Je součástí jeho adresy.
+        de: Der Name des Brokers in diesem Projekt; Kleinbuchstaben, Ziffern, Bindestriche. Er ist Teil seiner Adresse.
+    roles:
+      help:
+        en: One role per group of devices that may do the same; at least one.
+        sk: Jedna rola na skupinu zariadení, ktoré smú to isté; aspoň jedna.
+        cs: Jedna role na skupinu zařízení, která smějí totéž; alespoň jedna.
+        de: Eine Rolle je Gruppe von Geräten, die dasselbe dürfen; mindestens eine.
+    roles[].name:
+      help:
+        en: The role's name; lowercase letters, digits and hyphens.
+        sk: Názov roly; malé písmená, číslice a spojovníky.
+        cs: Název role; malá písmena, číslice a spojovníky.
+        de: Der Name der Rolle; Kleinbuchstaben, Ziffern, Bindestriche.
+    roles[].serviceAccounts:
+      help:
+        en: The ServiceAccounts of this project that hold the role; removing one revokes that device alone.
+        sk: ServiceAccounty tohto projektu, ktoré majú rolu; odobratím jedného odvoláte len to zariadenie.
+        cs: ServiceAccounty tohoto projektu, které mají roli; odebráním jednoho odvoláte jen to zařízení.
+        de: Die ServiceAccounts dieses Projekts mit dieser Rolle; einen zu entfernen sperrt nur dieses Gerät.
+    roles[].publish:
+      placeholder: cameras/${clientid}/frames
+      help:
+        en: Topics the role may publish to; ${clientid} stands for the device's own id, + for one level, # for every level below.
+        sk: Témy, do ktorých smie rola publikovať; ${clientid} je vlastné id zariadenia, + jedna úroveň, # všetky úrovne pod ňou.
+        cs: Témata, do kterých smí role publikovat; ${clientid} je vlastní id zařízení, + jedna úroveň, # všechny úrovně pod ní.
+        de: Topics, in die die Rolle veröffentlichen darf; ${clientid} ist die eigene ID des Geräts, + eine Ebene, # alle Ebenen darunter.
+    roles[].subscribe:
+      help:
+        en: Topics the role may subscribe to, only under the device's own ${clientid}.
+        sk: Témy, ktoré smie rola odoberať, len pod vlastným ${clientid} zariadenia.
+        cs: Témata, která smí role odebírat, jen pod vlastním ${clientid} zařízení.
+        de: Topics, die die Rolle abonnieren darf, nur unter der eigenen ${clientid} des Geräts.
+    limits:
+      help:
+        en: Bounds that protect the broker from a flood; left empty, the platform's defaults hold.
+        sk: Hranice, ktoré chránia broker pred záplavou; prázdne ponechajú predvoľby platformy.
+        cs: Hranice, které chrání broker před záplavou; prázdné ponechají výchozí hodnoty platformy.
+        de: Grenzen, die den Broker vor einer Flut schützen; leer gelten die Vorgaben der Plattform.
+    limits.maxMessageBytes:
+      help:
+        en: The largest message a device may send, in bytes; at most 1 MiB.
+        sk: Najväčšia správa, ktorú smie zariadenie poslať, v bajtoch; najviac 1 MiB.
+        cs: Největší zpráva, kterou smí zařízení poslat, v bajtech; nejvýše 1 MiB.
+        de: Die größte Nachricht eines Geräts in Bytes; höchstens 1 MiB.
+    limits.messagesPerSecond:
+      help:
+        en: Messages each device may send per second; at most 1000.
+        sk: Počet správ za sekundu na jedno zariadenie; najviac 1000.
+        cs: Počet zpráv za sekundu na jedno zařízení; nejvýše 1000.
+        de: Nachrichten je Gerät und Sekunde; höchstens 1000.
+    limits.maxConnections:
+      help:
+        en: How many devices may be connected at once; at most 10000.
+        sk: Koľko zariadení smie byť pripojených naraz; najviac 10000.
+        cs: Kolik zařízení smí být připojeno najednou; nejvýše 10000.
+        de: Wie viele Geräte gleichzeitig verbunden sein dürfen; höchstens 10000.
+    port:
+      help:
+        en: A port of its own from 18830 to 18849, for devices that cannot send a host name; empty uses 8883 by name.
+        sk: Vlastný port od 18830 do 18849 pre zariadenia, ktoré nevedia poslať názov hostiteľa; prázdne použije 8883 podľa názvu.
+        cs: Vlastní port od 18830 do 18849 pro zařízení, která neumějí poslat název hostitele; prázdné použije 8883 podle názvu.
+        de: Ein eigener Port von 18830 bis 18849 für Geräte, die keinen Hostnamen senden können; leer gilt 8883 nach Namen.
