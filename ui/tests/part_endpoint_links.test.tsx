@@ -108,6 +108,10 @@ describe("the endpoint link pill", () => {
     expect(representationUrl(slug, "geojson", "dev.city.example")).toBe(
       `${window.location.origin}/api/endpoint/${slug}/file.geojson`,
     );
+    // T-4132: the WebSocket address is the one API/07 and the catalogue name, never the Portal's.
+    expect(representationUrl(slug, "websocket", "dev.city.example")).toBe(
+      `https://dev.city.example/api/endpoint/${slug}/ws`,
+    );
     expect(hubUrl("dev.city.example")).toBe("https://dev.city.example/api/mcp");
     expect(representationUrl("a/../b", "mcp", "dev.city.example")).toBe(
       "https://dev.city.example/api/endpoint/a%2F..%2Fb/mcp",
