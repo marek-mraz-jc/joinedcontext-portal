@@ -26,7 +26,7 @@ use jc_core::kinds::{
     ContextSpaceSpec, DataAgreementSpec, DataModelLifecycle, DataModelRef, DataModelSpec,
     DataOfferSpec, EndpointSpec, MappingSpec, ModelProjectionSpec, Operation, OperationRef,
     PolicySpec, PrincipalKind, ProjectedClass, Projection, ProjectionFilter, QualityKind,
-    QualityRule, RetentionRule,
+    QualityRule, Representation, RetentionRule,
 };
 use jcctl::loader::Repository;
 use serde_json::{json, Map, Value};
@@ -644,7 +644,13 @@ pub fn desired(sources: &Sources) -> Desired {
         out.quality.insert(tenant.clone(), (owner.clone(), swept));
         out.documents.insert(
             tenant.clone(),
-            (owner, with_gateway(rule_document(sources, project, name))),
+            (
+                owner,
+                with_gateway(
+                    rule_document(sources, project, name),
+                    &websocket_views(sources, project, name),
+                ),
+            ),
         );
     }
     out
@@ -1319,23 +1325,51 @@ const GATEWAY_CLIENT: &str = "context-gateway";
 
 /// The clauses those hops use: the unlinking's attribute patch, attribute delete and entity
 /// delete, the probes' retrieve and query, a download's type list (T-3790), the stored
-/// subscription's retrieve.
+/// subscription's retrieve, and the one subscription of an Endpoint's WebSocket fan-out
+/// (ADR-N-049), whose notifications the broker decides as a query.
 const GATEWAY_CLAUSES: &[&str] = &[
-    "5.6.4", "5.6.5", "5.6.6", "5.7.1", "5.7.2", "5.7.5", "5.8.3",
+    "5.6.4", "5.6.5", "5.6.6", "5.7.1", "5.7.2", "5.7.5", "5.8.1", "5.8.3",
 ];
 
 /// A rule document plus the one policy that admits the gateway's own hops; `@` keeps its id
-/// apart from every `{project}/{name}`.
-fn with_gateway(mut document: Value) -> Value {
+/// apart from every `{project}/{name}`. A listed view is decided by its listed policies alone,
+/// so the gateway is listed beside them on the views of `websocket` that grant something, where
+/// its fan-out reads (ADR-N-049); a view lists only what it serves, so that is all it reads there.
+fn with_gateway(mut document: Value, websocket: &BTreeSet<String>) -> Value {
+    let id = format!("@{GATEWAY_CLIENT}");
     if let Some(policies) = document["policies"].as_array_mut() {
         policies.push(json!({
-            "id": format!("@{GATEWAY_CLIENT}"),
+            "id": id,
             "effect": "permit",
             "assignee": {"kind": "serviceAccount", "id": GATEWAY_CLIENT},
             "operations": GATEWAY_CLAUSES,
         }));
     }
+    if let Some(views) = document.get_mut("views").and_then(Value::as_object_mut) {
+        for (slug, ids) in views.iter_mut() {
+            // a view that lists nothing grants nothing to anyone, so nobody would receive a change
+            let ids = ids.as_array_mut().filter(|ids| !ids.is_empty());
+            if let Some(ids) = ids.filter(|_| websocket.contains(slug)) {
+                ids.push(json!(id));
+            }
+        }
+    }
     document
+}
+
+/// The slugs of the space's Endpoints that serve `websocket` (EP-106).
+fn websocket_views(sources: &Sources, project: &str, space: &str) -> BTreeSet<String> {
+    sources
+        .endpoints
+        .iter()
+        .filter(|e| e.project == project && e.spec.context_space_ref.name() == space)
+        .filter(|e| {
+            e.spec
+                .served_representations()
+                .contains(&Representation::WebSocket)
+        })
+        .map(|e| e.spec.slug.to_string())
+        .collect()
 }
 
 /// Whether the writer owns a view of this id: an Endpoint slug or a space surface.
@@ -3087,6 +3121,46 @@ mod tests {
         );
     }
 
+    /// ADR-N-049: the gateway's fan-out subscribes through a listed view only where the Endpoint
+    /// serves `websocket`, and its account may create that one subscription.
+    #[test]
+    fn the_gateway_reads_a_listed_view_only_where_the_endpoint_serves_websocket() {
+        let mut s = sources(vec![
+            ("cars", cars()),
+            (
+                "buses",
+                policy(json!({"information": [{"entities": [{"type": "Bus"}]}]})),
+            ),
+        ]);
+        let bound = |name: &str, c: char, representations: Value| {
+            endpoint_named(
+                name,
+                json!({"slug": c.to_string().repeat(26),
+                       "policyRef": "urn:ngsi-ld:Policy:city.example:city-air:buses",
+                       "enabledRepresentations": representations}),
+            )
+        };
+        s.endpoints = vec![
+            bound("live", 'a', json!(["ngsi-ld", "websocket"])),
+            bound("rest", 'b', json!(["ngsi-ld"])),
+        ];
+        let document = &desired(&s).documents["city-air"].1;
+        assert_eq!(
+            document["views"],
+            json!({
+                "a".repeat(26): ["city/buses", "@context-gateway"],
+                "b".repeat(26): ["city/buses"],
+            })
+        );
+        let gateway = document["policies"]
+            .as_array()
+            .and_then(|all| all.iter().find(|p| p["id"] == "@context-gateway"))
+            .expect("the gateway's permit");
+        assert!(gateway["operations"]
+            .as_array()
+            .is_some_and(|ops| ops.contains(&json!("5.8.1"))));
+    }
+
     /// T-3788: the space view is the `*` form, every type and Attribute; the engine narrows
     /// it per subject. Its operations are the space's grants.
     #[test]
@@ -3117,7 +3191,7 @@ mod tests {
             json!({"policies": [
                 {"id": "@context-gateway", "effect": "permit",
                  "assignee": {"kind": "serviceAccount", "id": "context-gateway"},
-                 "operations": ["5.6.4", "5.6.5", "5.6.6", "5.7.1", "5.7.2", "5.7.5", "5.8.3"]}
+                 "operations": ["5.6.4", "5.6.5", "5.6.6", "5.7.1", "5.7.2", "5.7.5", "5.8.1", "5.8.3"]}
             ]})
         );
     }
@@ -3156,7 +3230,7 @@ mod tests {
                  "q": "weight>3", "scopeQ": "/city/#", "temporalQ": "timerel=after;timeAt=P-1D"},
                 {"id": "@context-gateway", "effect": "permit",
                  "assignee": {"kind": "serviceAccount", "id": "context-gateway"},
-                 "operations": ["5.6.4", "5.6.5", "5.6.6", "5.7.1", "5.7.2", "5.7.5", "5.8.3"]}
+                 "operations": ["5.6.4", "5.6.5", "5.6.6", "5.7.1", "5.7.2", "5.7.5", "5.8.1", "5.8.3"]}
             ]})
         );
         assert!(desired.views.contains_key(SLUG) || desired.views.contains_key("cs-city-air"));
@@ -4539,7 +4613,7 @@ mod tests {
         );
         assert_eq!(q("city/stewards"), Value::Null, "the steward acts on it");
         assert_eq!(q("city/deny"), Value::Null, "a prohibition never narrows");
-        let gateway = with_gateway(doc.clone());
+        let gateway = with_gateway(doc.clone(), &BTreeSet::new());
         assert!(gateway["policies"].as_array().is_some_and(|all| all
             .iter()
             .any(|p| p["id"] == "@context-gateway" && p.get("q").is_none())));
