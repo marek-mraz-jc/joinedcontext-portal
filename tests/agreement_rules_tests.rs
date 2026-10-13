@@ -136,7 +136,7 @@ async fn the_partner_reads_what_its_agreement_grants_and_writes_nothing() {
         .expect("operations")
         .clone();
     // Every grant carries the schema reads (T-3645); none of the pipeline's own clauses.
-    let schema = [json!("5.7.6"), json!("5.7.7"), json!("5.7.10")];
+    let schema = [json!("5.7.5"), json!("5.7.7"), json!("5.7.10")];
     for granted in partner[0]["operations"].as_array().expect("operations") {
         assert!(
             schema.contains(granted) || !writes.contains(granted),

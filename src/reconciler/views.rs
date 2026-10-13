@@ -103,10 +103,13 @@ fn operation(op: Operation) -> (&'static str, &'static [&'static str]) {
         O::RetrieveTemporal => ("5.7.3", &["temporal_retrieve"]),
         O::QueryTemporal => ("5.7.4", &["temporal_query", "temporal_query_post"]),
         O::RetrieveEntityTypes => ("5.7.5", &["retrieve_entity_types"]),
-        O::RetrieveEntityTypeDetails => ("5.7.6", &["retrieve_entity_type_details"]),
+        // The broker answers a type's details and the type list at one `/types`, and asks its
+        // engine 5.7.5 for both (Antares `OperationId::gate_clause`); 5.7.6 is never asked, so a
+        // permit naming it would grant nothing (T-3645). The same for the attributes' 5.7.8.
+        O::RetrieveEntityTypeDetails => ("5.7.5", &["retrieve_entity_type_details"]),
         O::RetrieveEntityTypeInfo => ("5.7.7", &["retrieve_entity_type_info"]),
         O::RetrieveAttrTypes => ("5.7.8", &["retrieve_attributes"]),
-        O::RetrieveAttrTypeDetails => ("5.7.9", &["retrieve_attribute_details"]),
+        O::RetrieveAttrTypeDetails => ("5.7.8", &["retrieve_attribute_details"]),
         O::RetrieveAttrTypeInfo => ("5.7.10", &["retrieve_attribute_info"]),
         O::CreateSubscription => ("5.8.1", &["create_subscription"]),
         O::UpdateSubscription => ("5.8.2", &["update_subscription"]),
@@ -123,7 +126,7 @@ fn operation(op: Operation) -> (&'static str, &'static [&'static str]) {
 }
 
 /// The reads of a type's schema (the broker's LinkML surface: the documents, one class, one
-/// slot). A Policy that permits anything on a type permits these too, as the gateway's schema
+/// slot; clauses 5.7.5, 5.7.7 and 5.7.10 as the broker asks them). A Policy that permits anything on a type permits these too, as the gateway's schema
 /// surface did before the broker served it (T-3645): whoever may read or write an Entity may
 /// read its shape, narrowed by the engine to the types and Attributes the Policy names.
 const SCHEMA_READS: [Operation; 3] = [
@@ -3084,22 +3087,38 @@ mod tests {
         };
         assert_eq!(
             clauses("city/writer"),
-            Some(json!(["5.6.1", "5.7.6", "5.7.7", "5.7.10"]))
+            Some(json!(["5.6.1", "5.7.5", "5.7.7", "5.7.10"]))
         );
         assert_eq!(clauses("city/no-delete"), Some(json!(["5.6.6"])));
     }
 
-    /// Every Table 4.20-1 name has its clause; only Query Entities has two names.
+    /// Every Table 4.20-1 name has the clause the broker asks its engine: Query Entities has two
+    /// names, and a type's or an attribute's details share the list's clause (one `/types`, one
+    /// `/attributes`, T-3645).
     #[test]
     fn every_operation_has_a_clause() {
         let mut clauses: BTreeMap<&str, Vec<Operation>> = BTreeMap::new();
         for op in Operation::ALL {
             clauses.entry(operation(*op).0).or_default().push(*op);
         }
-        assert_eq!(clauses.len(), Operation::ALL.len() - 1);
+        assert_eq!(clauses.len(), Operation::ALL.len() - 3);
         assert_eq!(
             clauses["5.7.2"],
             [Operation::QueryEntity, Operation::QueryBatch]
+        );
+        assert_eq!(
+            clauses["5.7.5"],
+            [
+                Operation::RetrieveEntityTypes,
+                Operation::RetrieveEntityTypeDetails
+            ]
+        );
+        assert_eq!(
+            clauses["5.7.8"],
+            [
+                Operation::RetrieveAttrTypes,
+                Operation::RetrieveAttrTypeDetails
+            ]
         );
     }
 
@@ -3297,7 +3316,7 @@ mod tests {
             document,
             &json!({"policies": [
                 {"id": "city/cars", "effect": "permit", "assignee": {"kind": "role", "id": "public"},
-                 "operations": ["5.7.1", "5.7.2", "5.7.6", "5.7.7", "5.7.10"],
+                 "operations": ["5.7.1", "5.7.2", "5.7.5", "5.7.7", "5.7.10"],
                  "information": [{"entities": [{"type": "Car"}], "propertyNames": ["speed"]}]},
                 {"id": "city/no-trucks", "effect": "prohibit", "assignee": {"kind": "group", "id": "drivers"},
                  "operations": ["5.6.2", "5.6.4", "5.6.18", "5.6.19"],
