@@ -106,9 +106,11 @@ fn family(name: &str) -> Option<Family> {
         Some(Family::Errors)
     } else if name.ends_with("buffer_backlog") {
         Some(Family::BufferDepth)
-    } else if name.ends_with("output_latency_ns") {
+    } else if name.ends_with("output_latency_ns") || name.ends_with("processor_latency_ns") {
         Some(Family::LatencyNs)
-    } else if name.ends_with("output_latency_ns_bucket") {
+    } else if name.ends_with("output_latency_ns_bucket")
+        || name.ends_with("processor_latency_ns_bucket")
+    {
         Some(Family::LatencyBucket)
     } else {
         None
@@ -170,7 +172,9 @@ pub struct NodeCounters {
 
 /// Folds every series of one stream into the counters the view shows. Series of the same family
 /// are summed (a stream may have several inputs or outputs); the latency takes the slowest
-/// output rather than a sum, which would mean nothing. `stream` is the runner's id of the
+/// output rather than a sum, which would mean nothing. Since the upsert is a processor
+/// (T-4056) the latency is its writes' ([`crate::reconciler::streams::is_write_label`]); a
+/// stream rendered before that still reports it on its output. `stream` is the runner's id of the
 /// stream, [`crate::reconciler::streams::stream_id`]: the project-qualified id is the `stream`
 /// label to select on (T-3002).
 pub(crate) fn scrape(body: &str, stream: &str, scraped_at: String) -> PipelineMetrics {
@@ -180,8 +184,10 @@ pub(crate) fn scrape(body: &str, stream: &str, scraped_at: String) -> PipelineMe
         ..PipelineMetrics::default()
     };
 
-    // Summed over labels per bound: the stream's one distribution.
-    let mut buckets: Vec<(f64, f64)> = Vec::new();
+    // Summed over labels per bound: the stream's one distribution. Index 0 is the output's,
+    // 1 the writes'; the writes win whenever they report.
+    let mut buckets: [Vec<(f64, f64)>; 2] = [Vec::new(), Vec::new()];
+    let mut p99: [Option<f64>; 2] = [None, None];
     for sample in body.lines().filter_map(parse_line) {
         if label(sample.labels, "stream") != Some(stream) {
             continue;
@@ -221,14 +227,19 @@ pub(crate) fn scrape(body: &str, stream: &str, scraped_at: String) -> PipelineMe
             Family::Errors if staged => add(&mut metrics.rejected),
             Family::Errors => add(&mut metrics.errors),
             Family::BufferDepth => add(&mut metrics.buffer_depth),
+            Family::LatencyNs | Family::LatencyBucket
+                if sample.name.contains("processor_latency")
+                    && !label(sample.labels, "label")
+                        .is_some_and(crate::reconciler::streams::is_write_label) => {}
             Family::LatencyNs => {
                 if label(sample.labels, "quantile") == Some("0.99") {
                     let ms = sample.value / 1_000_000.0;
-                    metrics.latency_p99_ms =
-                        Some(metrics.latency_p99_ms.map_or(ms, |seen| seen.max(ms)));
+                    let slot = &mut p99[usize::from(sample.name.contains("processor_latency"))];
+                    *slot = Some(slot.map_or(ms, |seen| seen.max(ms)));
                 }
             }
             Family::LatencyBucket => {
+                let buckets = &mut buckets[usize::from(sample.name.contains("processor_latency"))];
                 let bound = match label(sample.labels, "le") {
                     Some("+Inf") => Some(f64::INFINITY),
                     Some(le) => le.parse::<f64>().ok().filter(|le| le.is_finite()),
@@ -243,10 +254,13 @@ pub(crate) fn scrape(body: &str, stream: &str, scraped_at: String) -> PipelineMe
             }
         }
     }
-    // The summary first, so the Portal reads the runner before and after it switches.
-    if metrics.latency_p99_ms.is_none() {
-        metrics.latency_p99_ms = histogram_p99_ms(buckets);
-    }
+    // The writes first, then the output; the summary before the buckets, so the Portal reads
+    // the runner before and after it switches.
+    let [output_buckets, write_buckets] = buckets;
+    metrics.latency_p99_ms = p99[1]
+        .or_else(|| histogram_p99_ms(write_buckets))
+        .or(p99[0])
+        .or_else(|| histogram_p99_ms(output_buckets));
 
     metrics
 }
@@ -1113,6 +1127,36 @@ uptime_seconds 900
             .latency_p99_ms
             .expect("a latency");
         assert!((p99 - 820.0).abs() < 1e-6, "{p99}");
+    }
+
+    #[test]
+    fn the_writes_latency_wins_over_the_output_and_the_other_processors() {
+        let body = concat!(
+            "output_latency_ns{label=\"\",stream=\"aq\",quantile=\"0.99\"} 1000000\n",
+            "processor_latency_ns{label=\"write_0\",stream=\"aq\",quantile=\"0.99\"} 420000000\n",
+            "processor_latency_ns{label=\"route_1_write_0\",stream=\"aq\",quantile=\"0.99\"} 9000000\n",
+            "processor_latency_ns{label=\"write_refused\",stream=\"aq\",quantile=\"0.99\"} 900000000\n",
+            "processor_latency_ns{label=\"mapping_0\",stream=\"aq\",quantile=\"0.99\"} 800000000\n",
+        );
+        let metrics = scrape(body, "aq", String::new());
+        assert_eq!(metrics.latency_p99_ms, Some(420.0));
+
+        // A stream rendered before T-4056 has no write processor: its output says it.
+        let old = concat!(
+            "output_latency_ns{label=\"\",stream=\"aq\",quantile=\"0.99\"} 1000000\n",
+            "processor_latency_ns{label=\"mapping_0\",stream=\"aq\",quantile=\"0.99\"} 800000000\n",
+        );
+        assert_eq!(scrape(old, "aq", String::new()).latency_p99_ms, Some(1.0));
+
+        // Buckets of the writes beat the output's summary as well.
+        let buckets = HISTOGRAM
+            .replace("output_latency_ns", "processor_latency_ns")
+            .replace("label=\"a\"", "label=\"write_0\"");
+        let body = format!(
+            "{buckets}output_latency_ns{{label=\"\",stream=\"aq\",quantile=\"0.99\"}} 1000000\n"
+        );
+        let p99 = scrape(&body, "aq", String::new()).latency_p99_ms.unwrap();
+        assert!((p99 - 910.0).abs() < 1e-6, "{p99}");
     }
 
     #[test]
