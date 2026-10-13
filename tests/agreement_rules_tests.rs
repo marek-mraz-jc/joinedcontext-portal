@@ -135,8 +135,13 @@ async fn the_partner_reads_what_its_agreement_grants_and_writes_nothing() {
         .as_array()
         .expect("operations")
         .clone();
+    // Every grant carries the schema reads (T-3645); none of the pipeline's own clauses.
+    let schema = [json!("5.7.6"), json!("5.7.7"), json!("5.7.10")];
     for granted in partner[0]["operations"].as_array().expect("operations") {
-        assert!(!writes.contains(granted), "{granted} is the pipeline's");
+        assert!(
+            schema.contains(granted) || !writes.contains(granted),
+            "{granted} is the pipeline's"
+        );
     }
     let rule = partner[0].to_string();
     assert!(rule.contains("speed<130"), "the agreement's filter: {rule}");
