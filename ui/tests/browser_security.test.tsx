@@ -244,7 +244,9 @@ describe("a_javascript_url_from_a_manifest_is_text", () => {
   it("no page hands a raw value straight to an anchor", () => {
     // What an `href={…}` may be: a template the page builds from encoded parts, a call to one of
     // the URL builders that only ever return a path on this host, or a binding a guard returned.
-    const checked = /^`|^safeHref\(|^catalogueUrl\(|^endpointUrl\(|^(?:safe|preview)$/;
+    // `lines.vscode` and `lines.cursor` are mcpInstall()'s editor deep links: fixed schemes and
+    // every part URI-encoded (T-4114).
+    const checked = /^`|^safeHref\(|^catalogueUrl\(|^endpointUrl\(|^(?:safe|preview)$|^lines\.(?:vscode|cursor)$/;
     const raw: string[] = [];
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
