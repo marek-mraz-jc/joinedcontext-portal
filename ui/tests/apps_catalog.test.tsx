@@ -520,11 +520,7 @@ describe("apps catalog", () => {
     const building = await within(await card("Building one")).findByText(en.apps.build.state.building);
     expect(building.closest("[title]")).toHaveAttribute("title", "Built from commit abcdef0");
     const failing = await card("Failing one");
-    expect(await within(failing).findByText(en.apps.build.state.failed)).toBeInTheDocument();
-    expect(within(failing).getByRole("link", { name: new RegExp(en.apps.build.state.failedLink) })).toHaveAttribute(
-      "href",
-      `${FORGE}%2Fjoinedcontext%2Fruns%2F0123456789`,
-    );
+    expect(within(failing).queryByText(en.apps.build.state.failed)).toBeNull();
     const served = await within(await card("Bikes")).findByText(en.apps.build.state.served);
     expect(served.closest("[title]")).toHaveAttribute("title", "Built from commit 9f1c2ab");
     expect(within(await card("Bikes")).queryByText(/9f1c2ab/)).toBeNull();

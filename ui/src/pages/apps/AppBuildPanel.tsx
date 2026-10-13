@@ -86,14 +86,8 @@ export function AppBuildState({
       </Badge>
     );
   }
-  if (run && state === "failed" && run.commit !== served) {
-    return (
-      <span className="flex flex-wrap items-center justify-center gap-2 text-xs">
-        <Badge tone="danger">{t("apps.build.state.failed")}</Badge>
-        <ExternalLink href={run.url}>{t("apps.build.state.failedLink")}</ExternalLink>
-      </span>
-    );
-  }
+  // A failed build no longer flags the catalog card (owner, 2026-10-13): the card says what is
+  // served; the App's own page still links the failed run.
   return served ? (
     <Badge tone="success" title={t("apps.build.state.commit", { commit: served.slice(0, 7) })}>
       {t("apps.build.state.served")}
