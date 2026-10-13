@@ -1157,17 +1157,13 @@ pub fn render_stream(
     }
 
     processors.extend(batching());
-
-    let mut output = gateway_output(project, slug);
-    if source.terminates() {
-        bound_in_flight(&mut output);
-    }
+    processors.extend(writes(project, &[slug.to_owned()], "")?);
 
     // T-1125, PL-24: Bento reports its counters under the component's `label`, so an unlabelled
     // stream can only be read as one total. Labelling the input, the output and each processor
     // by its place is what lets the studio say which node a message stopped at. The labels are
     // the stream's own and never leave it, so they carry no name a caller chose.
-    Ok(serde_json::json!({
+    let mut stream = serde_json::json!({
         "input": labelled(input, "input"),
         "pipeline": {
             "processors": processors
@@ -1176,8 +1172,10 @@ pub fn render_stream(
                 .map(|(at, processor)| labelled(processor, &format!("processor_{at}")))
                 .collect::<Vec<_>>()
         },
-        "output": labelled(output, "output")
-    }))
+        "output": labelled(written(), "output")
+    });
+    bound_in_flight(&mut stream, source.terminates());
+    Ok(stream)
 }
 
 /// The label of a pipeline's compute step, the studio's `compute` node (PL-66).
@@ -1453,18 +1451,18 @@ pub fn render_endpoint_stream(
     ));
 
     processors.extend(batching());
+    processors.extend(writes(project, &[target_slug.to_owned()], "")?);
 
-    // An Endpoint source polls on a clock (`generate`), whatever its trigger.
-    let mut output = gateway_output(project, target_slug);
-    bound_in_flight(&mut output);
-
-    Ok(serde_json::json!({
+    let mut stream = serde_json::json!({
         "input": input,
         "pipeline": {
             "processors": processors
         },
-        "output": output
-    }))
+        "output": written()
+    });
+    // An Endpoint source polls on a clock (`generate`), whatever its trigger.
+    bound_in_flight(&mut stream, true);
+    Ok(stream)
 }
 
 /// The first compute step of either shape (PL-54): `v1alpha1`'s `compute`.
@@ -1808,31 +1806,31 @@ pub fn render_merged(
 
     // `outputs()` is the default lane's, then each route's in order (PL-73).
     let lane = pipeline.lane_outputs().len().min(target_slugs.len());
-    let mut output = fan_out(project, &target_slugs[..lane])?;
-    if !pipeline.routes.is_empty() {
+    let lane_writes = writes(project, &target_slugs[..lane], "")?;
+    let routed = if pipeline.routes.is_empty() {
+        None
+    } else {
         let (routing, cases) = routes(pipeline, project, &target_slugs[lane..])?;
         processors.extend(routing);
-        let mut cases = cases;
-        cases.push(serde_json::json!({ "output": labelled(output, "output") }));
-        output = labelled(
-            serde_json::json!({ "switch": {
-                "strict_mode": true,
-                "retry_until_success": false,
-                "cases": cases,
-            }}),
-            ROUTES_LABEL,
-        );
-    }
+        Some(cases)
+    };
     processors.extend(batching());
+    match routed {
+        None => processors.extend(lane_writes),
+        Some(mut cases) => {
+            cases.push(serde_json::json!({ "processors": lane_writes }));
+            processors.push(labelled(
+                serde_json::json!({ "switch": cases }),
+                ROUTES_LABEL,
+            ));
+        }
+    }
     let polled = sources.iter().all(|source| match source {
         ResolvedSource::Data { spec, .. } => spec.terminates(),
         ResolvedSource::Endpoint { .. } => true,
     });
-    if polled {
-        bound_in_flight(&mut output);
-    }
 
-    Ok(serde_json::json!({
+    let mut stream = serde_json::json!({
         "input": labelled(input, "input"),
         "pipeline": {
             "processors": processors
@@ -1841,8 +1839,10 @@ pub fn render_merged(
                 .map(|(at, processor)| labelled(processor, &format!("processor_{at}")))
                 .collect::<Vec<_>>()
         },
-        "output": labelled(output, "output")
-    }))
+        "output": labelled(written(), "output")
+    });
+    bound_in_flight(&mut stream, polled);
+    Ok(stream)
 }
 
 /// The label of the output that routes by condition (PL-73). A route's own components are
@@ -1865,35 +1865,15 @@ fn step_processor(step: Step) -> Result<Option<Value>, RenderError> {
     }
 }
 
-/// The writes through `slugs`: one output, or a broker fanning out to every one.
-fn fan_out(project: &str, slugs: &[String]) -> Result<Value, RenderError> {
-    let mut outputs: Vec<Value> = slugs
-        .iter()
-        .map(|slug| gateway_output(project, slug))
-        .collect();
-    match outputs.len() {
-        0 => Err(RenderError::Custom(
-            "a pipeline writes through at least one output".to_owned(),
-        )),
-        1 => Ok(outputs.remove(0)),
-        // Fail fast (PL-53, T-2983): a write that fails after its own retries is nacked back to
-        // the input, which replays it to every output, each an idempotent upsert. Plain
-        // `fan_out` retries it inside the broker without heeding a stop.
-        _ => Ok(
-            serde_json::json!({ "broker": { "pattern": "fan_out_fail_fast", "outputs": outputs } }),
-        ),
-    }
-}
-
 /// Routes by condition (PL-73): the processors that pick each record's route and run its steps,
-/// and the output cases that write each route's records through its own outputs; `slugs` are
-/// the routes' outputs in order.
+/// and the `switch` cases that write each route's records through its own outputs (T-4056);
+/// `slugs` are the routes' outputs in order.
 ///
 /// The batching archives records into arrays before the output, so the route is picked per
 /// record before it: the records are split one per message, `meta jc_route` names the first
 /// route whose `when` holds (empty for the default lane), a `switch` processor runs each route's
 /// steps, and `group_by_value` keeps every batch to one route, whose `archive` keeps the
-/// metadata the output `switch` reads.
+/// metadata the writes' `switch` reads.
 fn routes(
     pipeline: &PipelineSpec,
     project: &str,
@@ -1925,7 +1905,7 @@ fn routes(
         rest = tail;
         cases.push(serde_json::json!({
             "check": check,
-            "output": labelled(fan_out(project, written)?, &format!("route_{index}")),
+            "processors": writes(project, written, &format!("route_{index}_"))?,
         }));
     }
     pick.push_str("{ \"\" }");
@@ -2165,53 +2145,163 @@ pub(crate) fn own_credential(value: &mut Value, project: &str) {
 /// 64 pages while a slow gateway timed them out and they were retried, which grew the runner
 /// until it was OOMKilled. A polled source loses nothing by waiting: its input stops reading
 /// while the slots are full, and the next poll reads the newer state. A resident source (MQTT,
-/// WebSocket) keeps the default, since its messages arrive whether or not it reads them.
+/// WebSocket) keeps [`WRITES_IN_FLIGHT`], since its messages arrive whether or not it reads them.
 /// ponytail: one bound for every polled stream; size it per stream when one needs more.
 const POLLED_IN_FLIGHT: u64 = 4;
 
-/// Sets [`POLLED_IN_FLIGHT`] on every gateway write below `output`, a fan-out's and a route's
-/// included.
-fn bound_in_flight(output: &mut Value) {
-    match output {
-        Value::Object(fields) => {
-            if let Some(Value::Object(client)) = fields.get_mut("http_client") {
-                client.insert("max_in_flight".to_owned(), POLLED_IN_FLIGHT.into());
-            }
-            fields.values_mut().for_each(bound_in_flight);
-        }
-        Value::Array(items) => items.iter_mut().for_each(bound_in_flight),
-        _ => {}
+/// How many writes of a resident stream wait on the gateway at once: the 64 Bento's
+/// `http_client` output kept in flight when the write was the output (T-4036). The write is a
+/// processor now (T-4056), so the pipeline's threads are its window: one thread is one write
+/// waiting, and at the default (`GOMAXPROCS`, one on dev's runner) the HSL feed would be
+/// written one position at a time again. Measured with Bento 1.22 and a stub gateway: 64 threads
+/// write about 150 a second at 0.42 s a write and keep up with 500 a second at 30 ms, as the
+/// output did.
+const WRITES_IN_FLIGHT: u64 = 64;
+
+/// Sets the stream's write window: [`POLLED_IN_FLIGHT`] for a polled source,
+/// [`WRITES_IN_FLIGHT`] otherwise.
+fn bound_in_flight(stream: &mut Value, polled: bool) {
+    let threads = if polled {
+        POLLED_IN_FLIGHT
+    } else {
+        WRITES_IN_FLIGHT
+    };
+    if let Some(pipeline) = stream.get_mut("pipeline").and_then(Value::as_object_mut) {
+        pipeline.insert("threads".to_owned(), threads.into());
     }
 }
 
 /// Where every stream writes: the endpoint's batch upsert, as the pipeline's service account.
-/// It is the one output a stream has, so no pipeline answers a caller: a client-facing API is
-/// the Context Gateway's (PL-06, EP-05).
+/// No pipeline answers a caller: a client-facing API is the Context Gateway's (PL-06, EP-05).
 ///
-/// An answer no retry can fix (a malformed entity, a batch too large) drops the batch and counts
-/// it under the output's label instead of retrying it for good, which stalled the messages behind
-/// it and flooded the gateway's log (T-1465). A token, a policy or the gateway can recover, so
-/// 401, 403, 429 and 5xx stay retried.
-/// ponytail: the whole batch drops with its one bad entity; per-entity 207 handling is the upgrade.
-pub(crate) fn gateway_output(project: &str, slug: &str) -> serde_json::Value {
+/// An answer no retry can fix (a malformed entity, a batch too large) is not retried for good,
+/// which stalled the messages behind it and flooded the gateway's log (T-1465). A token, a
+/// policy or the gateway can recover, so 401, 403, 429 and 5xx stay retried.
+fn upsert(project: &str, slug: &str) -> Value {
     serde_json::json!({
-        "http_client": {
-            "url": format!("${{JC_GATEWAY_URL}}/api/endpoint/{slug}/ngsi-ld/v1/entityOperations/upsert?options=update"),
-            "verb": "POST",
-            "headers": {
-                "Content-Type": "application/json"
-            },
-            "oauth2": pipeline_oauth2(project),
-            "timeout": "30s",
-            "rate_limit": "pipeline_egress",
-            "drop_on": [400, 413, 422]
-        }
+        "url": format!("${{JC_GATEWAY_URL}}/api/endpoint/{slug}/ngsi-ld/v1/entityOperations/upsert?options=update"),
+        "verb": "POST",
+        "headers": {
+            "Content-Type": "application/json"
+        },
+        "oauth2": pipeline_oauth2(project),
+        "timeout": "30s",
+        "rate_limit": "pipeline_egress",
+        "drop_on": [400, 413, 422]
     })
+}
+
+/// The upsert as an output, for a replay of rejected records, whose answer no run log waits on.
+pub(crate) fn gateway_output(project: &str, slug: &str) -> serde_json::Value {
+    serde_json::json!({ "http_client": upsert(project, slug) })
+}
+
+/// The label of a stream's write to its `at`-th target, `prefix` naming the route it belongs to.
+fn write_label(prefix: &str, at: usize) -> String {
+    format!("{prefix}write_{at}")
+}
+
+/// Whether a component label is one of [`write_label`]'s: its latency is the stream's write
+/// latency (T-4056), the refusals switch beside it is not.
+pub(crate) fn is_write_label(label: &str) -> bool {
+    label.rsplit_once("write_").is_some_and(|(prefix, at)| {
+        (prefix.is_empty() || prefix.ends_with('_'))
+            && !at.is_empty()
+            && at.bytes().all(|b| b.is_ascii_digit())
+    })
+}
+
+/// The metadata key a write leaves the records its target refused in (T-4056), read by the
+/// outcome sink ([`crate::pipeline_log::REFUSED_PREFIX`]).
+fn refused_key(label: &str) -> String {
+    format!("{}{label}", crate::pipeline_log::REFUSED_PREFIX)
+}
+
+/// The writes to `slugs`, one after the other, each a `branch` around the upsert (T-4056).
+///
+/// Bento's `http_client` output never shows its answer to anything, so a `207` whose items the
+/// endpoint refused was logged as sent. As a processor the write keeps the answer: the branch's
+/// `result_map` leaves each refused item's id and the gateway's words for it in metadata, and
+/// the outcome sink logs those records `failed` instead of `sent`. A write that still fails after
+/// its retries leaves the message errored, and [`written`] nacks it back to the input, which
+/// replays it (T-2983) as the output's failure did.
+fn writes(project: &str, slugs: &[String], prefix: &str) -> Result<Vec<Value>, RenderError> {
+    if slugs.is_empty() {
+        return Err(RenderError::Custom(
+            "a pipeline writes through at least one output".to_owned(),
+        ));
+    }
+    let mut processors: Vec<Value> = slugs
+        .iter()
+        .enumerate()
+        .map(|(at, slug)| {
+            let label = write_label(prefix, at);
+            let key = refused_key(&label);
+            serde_json::json!({
+                "label": label,
+                "branch": {
+                    "processors": [{ "http": upsert(project, slug) }],
+                    "result_map": format!(
+                        "let errors = content().parse_json().catch({{}}).errors.or([])\n\
+                         meta {key} = $errors.map_each(e -> {{ \"id\": e.entityId.or(\"\"), \
+                         \"message\": e.error.detail.or(e.error.title).or(\"\") }}).format_json(no_indent: true)"
+                    ),
+                }
+            })
+        })
+        .collect();
+    processors.push(refusals(prefix));
+    Ok(processors)
+}
+
+/// A batch the gateway answered `400`, `413` or `422` is not retried (the upsert's `drop_on`):
+/// its error is cleared and every record of it is logged `failed` with the gateway's words, the
+/// problem's `detail` or `title` (T-4056). Any other failure stays an error for [`written`].
+fn refusals(prefix: &str) -> Value {
+    serde_json::json!({
+        "label": format!("{prefix}write_refused"),
+        "switch": [{
+            "check": r#"errored() && error().re_match("unexpected response code \\((400|413|422)\\)")"#,
+            "processors": [{ "catch": [{ "mutation": format!(
+                "let problem = error().re_replace_all(\"(?s)^.*?Error: \", \"\").parse_json().catch({{}})\n\
+                 meta {} = $problem.detail.or($problem.title).or(error())",
+                crate::pipeline_log::FAILED_KEY
+            ) }] }],
+        }],
+    })
+}
+
+/// The stream's output once its writes ran (T-4056): a message whose write failed is nacked back
+/// to the input, which replays it to every target, each an idempotent upsert (PL-53, T-2983); a
+/// written one goes on to the outcome sink, which the runner's deployer puts after it.
+fn written() -> Value {
+    serde_json::json!({ "switch": {
+        "retry_until_success": false,
+        "cases": [
+            { "check": "errored()", "output": { "reject": "${! error() }" } },
+            { "output": { "drop": {} } },
+        ],
+    }})
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The upsert of the write labelled `label` (T-4056): the `http` inside its branch.
+    fn upsert_at<'a>(stream: &'a Value, label: &str) -> &'a Value {
+        fn find<'a>(value: &'a Value, label: &str) -> Option<&'a Value> {
+            match value {
+                Value::Object(map) if map.get("label").and_then(Value::as_str) == Some(label) => {
+                    value.pointer("/branch/processors/0/http")
+                }
+                Value::Object(map) => map.values().find_map(|v| find(v, label)),
+                Value::Array(items) => items.iter().find_map(|v| find(v, label)),
+                _ => None,
+            }
+        }
+        find(stream, label).unwrap_or(&Value::Null)
+    }
     use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
 
     fn helsinki_pipeline_spec() -> PipelineSpec {
@@ -2351,7 +2441,7 @@ mod tests {
                 None,
             )
             .expect("rendered stream");
-            let oauth2 = &rendered["output"]["http_client"]["oauth2"];
+            let oauth2 = &upsert_at(&rendered, "write_0")["oauth2"];
             assert_eq!(oauth2["client_key"], client, "{project} write");
             assert_eq!(oauth2["client_secret"], secret, "{project} write");
             assert_eq!(oauth2["enabled"], true, "{project} write");
@@ -2370,7 +2460,8 @@ mod tests {
             assert_eq!(read["client_key"], client, "{project} read");
             assert_eq!(read["client_secret"], secret, "{project} read");
             assert_eq!(
-                rendered["output"]["http_client"]["oauth2"]["client_key"], client,
+                upsert_at(&rendered, "write_0")["oauth2"]["client_key"],
+                client,
                 "{project} write beside the read"
             );
 
@@ -2430,20 +2521,24 @@ mod tests {
                 .and_then(Value::as_str)
                 == Some("json_array")
         }));
-        assert!(processors.last().unwrap().get("archive").is_some());
+        // The batches, then the write and its refusals (T-4056).
+        let archive = processors.len() - 3;
+        assert!(processors[archive].get("archive").is_some());
         // A batch operation at the gateway takes 1000 entities at most.
         assert_eq!(
-            processors[processors.len() - 2]["split"]["size"],
+            processors[archive - 1]["split"]["size"],
             1000,
             "the batch is split before it is archived"
         );
+        assert_eq!(processors[archive + 1]["label"], "write_0");
+        assert_eq!(processors[archive + 2]["label"], "write_refused");
 
         assert_eq!(
-            rendered["output"]["http_client"]["url"],
+            upsert_at(&rendered, "write_0")["url"],
             "${JC_GATEWAY_URL}/api/endpoint/abc123/ngsi-ld/v1/entityOperations/upsert?options=update"
         );
         assert_eq!(
-            rendered["output"]["http_client"]["oauth2"]["client_secret"],
+            upsert_at(&rendered, "write_0")["oauth2"]["client_secret"],
             "${JC_CLIENT_SECRET_HELSINKI}"
         );
 
@@ -2584,11 +2679,11 @@ mod tests {
         // The write always carries the project's own identity: nothing is written anonymously,
         // and nothing is written with another project's client (T-2384).
         assert_eq!(
-            rendered["output"]["http_client"]["oauth2"]["client_key"],
+            upsert_at(&rendered, "write_0")["oauth2"]["client_key"],
             "helsinki-pipelines"
         );
         assert_eq!(
-            rendered["output"]["http_client"]["url"],
+            upsert_at(&rendered, "write_0")["url"],
             "${JC_GATEWAY_URL}/api/endpoint/target_slug_456/ngsi-ld/v1/entityOperations/upsert?options=update"
         );
     }
@@ -2627,8 +2722,10 @@ mod tests {
         let processors = rendered["pipeline"]["processors"]
             .as_array()
             .expect("processors");
+        // No change gate: the only branches are the write's own (T-4056).
         assert!(processors
             .iter()
+            .filter(|p| !p["label"].as_str().is_some_and(|l| l.starts_with("write")))
             .all(|p| p.get("cache").is_none() && p.get("branch").is_none()));
     }
 
@@ -2957,10 +3054,7 @@ output:
             None,
         )
         .expect("polled");
-        assert_eq!(
-            polled["output"]["http_client"]["max_in_flight"],
-            POLLED_IN_FLIGHT
-        );
+        assert_eq!(polled["pipeline"]["threads"], POLLED_IN_FLIGHT);
 
         let mqtt: DataSourceSpec = serde_json::from_value(serde_json::json!({
             "type": "mqtt",
@@ -2976,26 +3070,13 @@ output:
         .expect("resident pipeline");
         let resident =
             render_stream(&hfp, "hfp", "helsinki", &mqtt, "hfp", "abc123", None).expect("resident");
-        assert!(resident["output"]["http_client"]
-            .get("max_in_flight")
-            .is_none());
+        assert_eq!(resident["pipeline"]["threads"], WRITES_IN_FLIGHT);
 
         let spec = endpoint_pipeline_spec(Some("BikeHireDockingStation"), vec![], None, None);
         let endpoint =
             render_endpoint_stream(&spec, "helsinki", "helsinki/kpi", "src", true, "dst")
                 .expect("endpoint");
-        assert_eq!(
-            endpoint["output"]["http_client"]["max_in_flight"],
-            POLLED_IN_FLIGHT
-        );
-    }
-
-    #[test]
-    fn bound_in_flight_reaches_every_write_of_a_fan_out() {
-        let mut output = fan_out("helsinki", &["a".to_owned(), "b".to_owned()]).expect("fan out");
-        bound_in_flight(&mut output);
-        let text = output.to_string();
-        assert_eq!(text.matches("\"max_in_flight\":4").count(), 2, "{text}");
+        assert_eq!(endpoint["pipeline"]["threads"], POLLED_IN_FLIGHT);
     }
 
     #[test]
@@ -3039,8 +3120,8 @@ output:
         // The HTTP poll and its error guard first, the author's two, then the shared tail.
         assert_eq!(processors[2]["mapping"], "root = this.data.stations");
         assert_eq!(processors[3]["unarchive"]["format"], "json_array");
-        assert_eq!(processors.len(), 8);
-        let url = rendered["output"]["http_client"]["url"].as_str().unwrap();
+        assert_eq!(processors.len(), 10, "the shared tail and the write");
+        let url = upsert_at(&rendered, "write_0")["url"].as_str().unwrap();
         assert!(url.contains("/api/endpoint/abc123/"), "{url}");
         assert!(!url.contains("authored"));
     }
@@ -3254,13 +3335,14 @@ output:
                 "pipeline:\n  processors:\n    - mapping: root = this\n{output}"
             ))
             .expect("renders");
-            let written = rendered["output"].as_object().expect("an output");
             assert_eq!(
-                written.keys().filter(|k| *k != "label").collect::<Vec<_>>(),
-                vec!["http_client"],
+                rendered["output"],
+                labelled(written(), "output"),
                 "{output}"
             );
-            let url = written["http_client"]["url"].as_str().unwrap_or_default();
+            let url = upsert_at(&rendered, "write_0")["url"]
+                .as_str()
+                .unwrap_or_default();
             assert!(url.contains("/api/endpoint/abc123/"), "{url}");
             assert!(!rendered.to_string().contains("sync_response"), "{output}");
             assert!(!rendered.to_string().contains("/answer"), "{output}");
@@ -3616,9 +3698,11 @@ output:
             "fan_out_sequential_fail_fast"
         );
         assert_eq!(
-            outputs[0]["http_client"]["verb"], "POST",
+            upsert_at(&staged, "write_0")["verb"],
+            "POST",
             "the write is unchanged"
         );
+        assert_eq!(outputs[0]["switch"]["cases"][0]["check"], "errored()");
         assert_eq!(outputs[0]["label"], "output");
         assert_eq!(outputs[1]["label"], crate::pipeline_log::SINK_LABEL);
         assert_eq!(outputs[1]["fallback"][0]["http_client"]["retries"], 0);
@@ -4473,7 +4557,7 @@ output:
         );
         assert_eq!(rendered["input"]["nats"]["subject"], "city.bikes.updates");
         assert_eq!(
-            rendered["output"]["http_client"]["url"],
+            upsert_at(&rendered, "write_0")["url"],
             "${JC_GATEWAY_URL}/api/endpoint/abc123456789/ngsi-ld/v1/entityOperations/upsert?options=update"
         );
 
@@ -4525,6 +4609,10 @@ output:
             let compute = first_compute(&helsinki_pipeline_spec()).and_then(|c| c.bloblang);
             let expected = if processor["mapping"].as_str() == compute.as_deref() {
                 COMPUTE_LABEL.to_owned()
+            } else if processor.get("branch").is_some() {
+                "write_0".to_owned()
+            } else if processor.get("switch").is_some() {
+                "write_refused".to_owned()
             } else {
                 format!("processor_{at}")
             };
@@ -4634,6 +4722,24 @@ output:
     /// PL-73: each record takes the first route whose `when` holds, runs that route's steps, and
     /// is written through that route's outputs; the rest go through the default lane.
     #[test]
+    fn a_write_label_is_told_from_the_refusals_and_other_labels() {
+        for label in ["write_0", "write_12", "route_3_write_1"] {
+            assert!(is_write_label(label), "{label}");
+        }
+        for label in [
+            "write_refused",
+            "route_0_write_refused",
+            "write_",
+            "rewrite_0",
+            "mapping_0",
+        ] {
+            assert!(!is_write_label(label), "{label}");
+        }
+        assert_eq!(write_label("route_2_", 1), "route_2_write_1");
+        assert!(is_write_label(&write_label("route_2_", 1)));
+    }
+
+    #[test]
     fn routes_pick_a_route_per_record_and_write_through_its_own_outputs() {
         let spec = routed();
         assert!(is_merged(&spec) && eligible(&spec));
@@ -4669,33 +4775,30 @@ output:
             .expect("the batch split");
         assert!(group < split);
 
-        let routes = &stream["output"];
-        assert_eq!(routes["label"], ROUTES_LABEL);
-        assert_eq!(routes["switch"]["strict_mode"], true);
-        assert_eq!(routes["switch"]["retry_until_success"], false);
-        let cases = routes["switch"]["cases"].as_array().expect("cases");
+        // Each route's writes run in a `switch` after the batch split (T-4056).
+        let routes = &processors[at(ROUTES_LABEL)];
+        assert!(at(ROUTES_LABEL) > split);
+        let cases = routes["switch"].as_array().expect("cases");
         assert_eq!(cases.len(), 3);
-        assert_eq!(cases[0]["output"]["label"], "route_0");
-        assert!(cases[0]["output"]["http_client"]["url"]
+        assert_eq!(cases[0]["processors"][0]["label"], "route_0_write_0");
+        assert!(upsert_at(&stream, "route_0_write_0")["url"]
             .as_str()
             .is_some_and(|url| url.contains("/hotslug/")));
         assert_eq!(cases[1]["check"], "meta(\"jc_route\") == \"frost-warning\"");
-        assert_eq!(cases[1]["output"]["label"], "route_1");
-        assert_eq!(cases[1]["output"]["broker"]["pattern"], "fan_out_fail_fast");
         assert_eq!(
-            cases[1]["output"]["broker"]["outputs"]
-                .as_array()
-                .map(Vec::len),
-            Some(2)
+            cases[1]["processors"].as_array().map(Vec::len),
+            Some(3),
+            "two writes and their refusals"
         );
         assert!(
             cases[2].get("check").is_none(),
             "the default lane takes the rest"
         );
-        assert_eq!(cases[2]["output"]["label"], "output");
-        assert!(cases[2]["output"]["http_client"]["url"]
+        assert_eq!(cases[2]["processors"][0]["label"], "write_0");
+        assert!(upsert_at(&stream, "write_0")["url"]
             .as_str()
             .is_some_and(|url| url.contains("/opsslug/")));
+        assert_eq!(stream["output"], labelled(written(), "output"));
 
         // Bento refuses a repeated label and one outside [a-z0-9_].
         let mut all = Vec::new();
@@ -4712,7 +4815,12 @@ output:
         let mut spec = routed();
         spec.routes.clear();
         let stream = render_routed(&spec);
-        assert!(stream["output"]["switch"].is_null());
+        assert_eq!(stream["output"], labelled(written(), "output"));
+        assert!(!stream["pipeline"]["processors"]
+            .as_array()
+            .expect("processors")
+            .iter()
+            .any(|p| p["label"] == ROUTES_LABEL));
         assert!(!stream["pipeline"]["processors"]
             .as_array()
             .expect("processors")
@@ -4803,12 +4911,16 @@ output:
             .as_str()
             .is_some_and(|m| m.contains("array")));
 
-        // A failed write goes back to the input rather than round the broker forever (T-2983).
-        let output = &stream["output"]["broker"];
-        assert_eq!(output["pattern"], "fan_out_fail_fast");
-        let outputs = output["outputs"].as_array().expect("outputs");
-        assert_eq!(outputs.len(), 2);
-        assert!(outputs[1]["http_client"]["url"]
+        // Both targets are written in turn; a failed write goes back to the input rather than
+        // round the broker forever (T-2983, T-4056).
+        assert_eq!(
+            stream["output"]["switch"]["cases"][0]["output"]["reject"],
+            "${! error() }"
+        );
+        assert!(upsert_at(&stream, "write_0")["url"]
+            .as_str()
+            .is_some_and(|url| url.contains("/api/endpoint/opsslug/")));
+        assert!(upsert_at(&stream, "write_1")["url"]
             .as_str()
             .is_some_and(|url| url.contains("/api/endpoint/kpislug/")));
     }
@@ -4839,7 +4951,7 @@ output:
         .expect("renders");
         assert!(stream["input"]["broker"].is_null());
         assert!(stream["input"]["generate"].is_object());
-        assert!(stream["output"]["http_client"].is_object());
+        assert!(upsert_at(&stream, "write_0").is_object());
         assert_eq!(
             stream["pipeline"]["processors"][0]["log"]["message"],
             "seen"

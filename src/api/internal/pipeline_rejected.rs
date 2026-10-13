@@ -54,6 +54,19 @@ pub struct Sent {
     /// The hash of each record, beside its id (T-3304); empty from a stream rendered before.
     #[serde(default)]
     pub hashes: Vec<Value>,
+    /// The records of the batch the gateway refused: an item of a `207`, or every record of a
+    /// batch it answered `400`, `413` or `422` (T-4056).
+    #[serde(default)]
+    pub failed: Vec<Failed>,
+}
+
+/// One record the gateway refused, with its words for why.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Failed {
+    pub id: Value,
+    #[serde(default)]
+    pub message: String,
 }
 
 /// The largest batch the gateway takes, and so the most lines one report carries.
@@ -186,7 +199,7 @@ pub(crate) async fn log_sent(
     if state.mirror.get(project, "Pipeline", name).is_none() {
         return StatusCode::NOT_FOUND;
     }
-    if sent.sent.len() > BATCH {
+    if sent.sent.len() + sent.failed.len() > BATCH {
         return StatusCode::PAYLOAD_TOO_LARGE;
     }
     // A hash per id or none: a report whose two lists disagree says nothing of what changed.
@@ -202,6 +215,12 @@ pub(crate) async fn log_sent(
             outcome: Outcome::Sent,
             message: String::new(),
         })
+        .chain(sent.failed.iter().map(|failed| NewLine {
+            record_id: failed.id.as_str().unwrap_or_default().to_owned(),
+            step: None,
+            outcome: Outcome::Failed,
+            message: runner_error(Some(failed.message.as_str()).filter(|m| !m.trim().is_empty())),
+        }))
         .collect();
     let run = run_name(sent.run.as_deref());
     let written: Vec<(String, String)> = sent
@@ -522,6 +541,7 @@ mod tests {
         )
         .await;
         let sent = Sent {
+            failed: Vec::new(),
             hashes: Vec::new(),
             run: Some("2026-09-25T08:00:00Z".into()),
             sent: vec![json!("urn:a"), json!("urn:b"), json!(null)],
@@ -572,6 +592,7 @@ mod tests {
     async fn a_run_counts_what_its_records_created_updated_and_left_unchanged() {
         let state = world();
         let report = |run: &str, items: &[(&str, &str)]| Sent {
+            failed: Vec::new(),
             run: Some(run.into()),
             sent: items.iter().map(|(id, _)| json!(id)).collect(),
             hashes: items.iter().map(|(_, hash)| json!(hash)).collect(),
@@ -608,6 +629,7 @@ mod tests {
         assert_eq!(split(r2), (Some(1), Some(1), Some(1)));
 
         let old = Sent {
+            failed: Vec::new(),
             run: Some("r3".into()),
             sent: vec![json!("urn:a")],
             hashes: Vec::new(),
@@ -624,6 +646,7 @@ mod tests {
         assert_eq!((r3.sent, split(&r3)), (1, (None, None, None)));
 
         let lopsided = Sent {
+            failed: Vec::new(),
             run: Some("r4".into()),
             sent: vec![json!("urn:a"), json!("urn:b")],
             hashes: vec![json!("1")],
@@ -640,6 +663,7 @@ mod tests {
     async fn a_pass_that_wrote_nothing_is_a_run_with_its_counts_at_zero() {
         let state = world();
         let pass = Sent {
+            failed: Vec::new(),
             hashes: Vec::new(),
             run: Some("2026-09-26T01:00:00Z".into()),
             sent: Vec::new(),
@@ -668,6 +692,7 @@ mod tests {
     async fn a_report_for_an_unknown_pipeline_or_larger_than_a_batch_is_refused() {
         let state = world();
         let many = Sent {
+            failed: Vec::new(),
             hashes: Vec::new(),
             run: None,
             sent: vec![json!("urn:x"); BATCH + 1],
@@ -677,6 +702,7 @@ mod tests {
             StatusCode::PAYLOAD_TOO_LARGE
         );
         let unknown = Sent {
+            failed: Vec::new(),
             hashes: Vec::new(),
             run: None,
             sent: vec![json!("urn:x")],
@@ -691,5 +717,89 @@ mod tests {
             .await
             .expect("runs")
             .is_empty());
+    }
+
+    /// T-4056: what the gateway refused in a batch it took is a `failed` line of the run with the
+    /// gateway's words, masked; sent and failed together stay within one batch.
+    #[tokio::test]
+    async fn the_records_the_gateway_refused_are_failed_lines_of_their_run() {
+        let state = world();
+        let report = Sent {
+            failed: vec![
+                Failed {
+                    id: json!("urn:c"),
+                    message: "speed is not a number, Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2lnbmF0dXJl".into(),
+                },
+                Failed {
+                    id: json!("urn:d"),
+                    message: "  ".into(),
+                },
+            ],
+            hashes: vec![json!("1"), json!("2")],
+            run: Some("2026-10-13T02:00:00Z".into()),
+            sent: vec![json!("urn:a"), json!("urn:b")],
+        };
+        assert_eq!(
+            log_sent(&state, "ovzdusie", "stations", report).await,
+            StatusCode::NO_CONTENT
+        );
+        let runs = state
+            .pipeline_log
+            .runs("ovzdusie", "stations", 10)
+            .await
+            .expect("runs");
+        assert_eq!((runs[0].sent, runs[0].rejected, runs[0].failed), (2, 0, 2));
+        let lines = state
+            .pipeline_log
+            .lines("ovzdusie", "stations", "2026-10-13T02:00:00Z", 10, None)
+            .await
+            .expect("lines");
+        let failed: Vec<_> = lines
+            .iter()
+            .filter(|line| line.outcome == Outcome::Failed)
+            .collect();
+        let speed = failed
+            .iter()
+            .find(|line| line.record_id == "urn:c")
+            .expect("urn:c");
+        assert!(
+            speed.message.starts_with("speed is not a number"),
+            "{}",
+            speed.message
+        );
+        assert!(
+            !speed.message.contains("eyJhbGciOiJIUzI1NiJ9"),
+            "{}",
+            speed.message
+        );
+        let bare = failed
+            .iter()
+            .find(|line| line.record_id == "urn:d")
+            .expect("urn:d");
+        assert!(
+            bare.message.contains("without a reason"),
+            "{}",
+            bare.message
+        );
+
+        let over = Sent {
+            failed: (0..2)
+                .map(|_| Failed {
+                    id: json!("urn:x"),
+                    message: String::new(),
+                })
+                .collect(),
+            hashes: Vec::new(),
+            run: None,
+            sent: vec![json!("urn:y"); BATCH - 1],
+        };
+        assert_eq!(
+            log_sent(&state, "ovzdusie", "stations", over).await,
+            StatusCode::PAYLOAD_TOO_LARGE
+        );
+        let unknown = serde_json::from_value::<Sent>(json!({
+            "sent": [], "failed": [{ "id": "urn:x", "message": "m", "extra": 1 }]
+        }));
+        assert!(unknown.is_err(), "a failed item takes no other member");
     }
 }

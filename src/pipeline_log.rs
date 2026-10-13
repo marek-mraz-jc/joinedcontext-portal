@@ -37,6 +37,14 @@ pub const REPORTS_GATHERED: usize = 100;
 /// The most ids one outcome report carries: the outcome route's own limit.
 pub const BATCH_LINES: usize = 1000;
 
+/// The start of the metadata key each write leaves its refused items in (T-4056): a JSON array
+/// of `{id, message}`, one key per target, so a record refused by any target is logged `failed`.
+pub const REFUSED_PREFIX: &str = "jc_refused_";
+
+/// The metadata key that says the gateway refused a write's whole batch (`400`, `413`, `422`),
+/// in its own words (T-4056).
+pub const FAILED_KEY: &str = "jc_failed";
+
 /// The labels of the pass report and its request (T-3001), which the metrics leave out like the
 /// sink: a report the Portal did not take says nothing about the stream's own reads and writes.
 pub const PASS_LABELS: [&str; 2] = ["pass", "pass_report"];
@@ -240,12 +248,17 @@ pub fn with_outcomes(output: serde_json::Value, url: &str) -> serde_json::Value 
                         { "label": SINK_LABELS[4], "mapping": format!(
                             "let sent = this.map_each(report -> report.sent).flatten()\n\
                              let hashes = this.map_each(report -> report.hashes).flatten()\n\
+                             let failed = this.map_each(report -> report.failed.or([])).flatten()\n\
                              let run = this.index(0).run\n\
                              let n = $sent.length()\n\
+                             let f = $failed.length()\n\
                              root = range(0, [(($n + {last}) / {BATCH_LINES}).floor(), 1].max()).map_each(i -> {{ \
                              \"run\": $run, \
                              \"sent\": $sent.slice(i * {BATCH_LINES}, [i * {BATCH_LINES} + {BATCH_LINES}, $n].min()), \
-                             \"hashes\": $hashes.slice(i * {BATCH_LINES}, [i * {BATCH_LINES} + {BATCH_LINES}, $n].min()) }})",
+                             \"hashes\": $hashes.slice(i * {BATCH_LINES}, [i * {BATCH_LINES} + {BATCH_LINES}, $n].min()) }}).concat(\
+                             range(0, (($f + {last}) / {BATCH_LINES}).floor()).map_each(i -> {{ \
+                             \"run\": $run, \"sent\": [], \"hashes\": [], \
+                             \"failed\": $failed.slice(i * {BATCH_LINES}, [i * {BATCH_LINES} + {BATCH_LINES}, $f].min()) }}))",
                             last = BATCH_LINES - 1,
                         ) },
                         { "label": SINK_LABELS[5], "unarchive": { "format": "json_array" } },
@@ -254,10 +267,17 @@ pub fn with_outcomes(output: serde_json::Value, url: &str) -> serde_json::Value 
             }},
             { "label": SINK_LABELS[6], "drop": {} },
         ],
+        // A write's report: the records it wrote, and apart from them those its targets refused
+        // (T-4056): every record when the batch was refused whole, else each write's items.
         "processors": [{ "label": SINK_LABELS[7], "mapping": format!(
             "let records = if this.type() == \"array\" {{ this }} else {{ [this] }}\n\
-             root = {{ \"run\": {RUN}, \"sent\": $records.map_each(record -> record.id.or(\"\")), \
-             \"hashes\": $records.map_each(record -> record.format_json().hash(\"xxhash64\").string()) }}"
+             let refused = if @{FAILED_KEY} != null {{ $records.map_each(record -> {{ \"id\": record.id.or(\"\"), \"message\": @{FAILED_KEY} }}) }} \
+             else {{ @.keys().filter(key -> key.has_prefix(\"{REFUSED_PREFIX}\")).map_each(key -> @.get(key).parse_json().catch([])).flatten() }}\n\
+             let gone = $refused.map_each(item -> item.id)\n\
+             let written = $records.filter(record -> !$gone.contains(record.id.or(\"\")))\n\
+             root = {{ \"run\": {RUN}, \"sent\": $written.map_each(record -> record.id.or(\"\")), \
+             \"hashes\": $written.map_each(record -> record.format_json().hash(\"xxhash64\").string()), \
+             \"failed\": $refused }}"
         ) }],
     });
     serde_json::json!({ "broker": {
@@ -818,7 +838,7 @@ mod tests {
         );
         assert!(before[0]["mapping"]
             .as_str()
-            .is_some_and(|m| m.contains(r#""sent": $records.map_each"#)));
+            .is_some_and(|m| m.contains(r#""sent": $written.map_each"#)));
         let batching = &sink["fallback"][0]["http_client"]["batching"];
         assert_eq!(batching["count"], REPORTS_GATHERED);
         assert_eq!(batching["period"], "500ms");
@@ -883,11 +903,11 @@ mod tests {
             .expect("the sink's mapping");
         println!("{mapping}");
         assert!(
-            mapping.contains(r#""sent": $records.map_each(record -> record.id.or(""))"#),
+            mapping.contains(r#""sent": $written.map_each(record -> record.id.or(""))"#),
             "{mapping}"
         );
         assert!(
-            mapping.contains(r#""hashes": $records.map_each(record -> record.format_json().hash("xxhash64").string())"#),
+            mapping.contains(r#""hashes": $written.map_each(record -> record.format_json().hash("xxhash64").string())"#),
             "{mapping}"
         );
     }
