@@ -185,7 +185,12 @@ describe("the endpoints page", () => {
       .map((link) => link.getAttribute("href") ?? "")
       .filter((href) => /^[a-z][a-z0-9+.-]*:/i.test(href))
       .map((href) => href.slice(0, href.indexOf(":") + 1).toLowerCase());
-    expect([...new Set(schemes)].filter((scheme) => !["http:", "https:", "mailto:"].includes(scheme))).toEqual([]);
+    // `vscode:` and `cursor:` are the connector's two install links (T-4114, EP-113): constants
+    // ConnectAssistant builds from the hub's URL, never a value out of a manifest; they open an
+    // installed editor and run nothing in this page.
+    const allowed = ["http:", "https:", "mailto:", "vscode:", "cursor:"];
+    expect([...new Set(schemes)].filter((scheme) => !allowed.includes(scheme))).toEqual([]);
+    expect(container.querySelector('a[href^="javascript:"]')).toBeNull();
   });
 
   it("opens_the_editor_on_the_endpoint_the_url_names_and_only_once_the_list_has_it", async () => {

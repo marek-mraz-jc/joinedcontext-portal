@@ -1417,8 +1417,12 @@
       "window": "Entitäten {from} bis {to} von {total}"
     },
     "hub": {
-      "title": "Alle verbinden",
-      "lead": "Ein MCP-Connector für alle Endpunkte, die Sie lesen dürfen. Fügen Sie diese URL in eine KI-App ein, wählen Sie bei der Anmeldung die Endpunkte, und jeder Aufruf läuft unter der Richtlinie des jeweiligen Endpunkts."
+      "title": "KI-Assistenten verbinden",
+      "lead": "Eine MCP-Adresse für alle Endpunkte. Einmal in einem KI-Assistenten hinzugefügt, antworten offene Endpunkte ohne Anmeldung, und nach der Anmeldung kommen die hinzu, die Sie lesen dürfen. Der Assistent wählt den Endpunkt, liest seine Attribute, sein Modell und seinen Zugriff, und jeder Aufruf läuft unter der Richtlinie des jeweiligen Endpunkts.",
+      "claude": "Für Claude Code kopieren",
+      "json": "Für einen anderen MCP-Client kopieren",
+      "vscode": "Zu VS Code hinzufügen",
+      "cursor": "Zu Cursor hinzufügen"
     },
     "playground": {
       "title": "Ausprobieren",

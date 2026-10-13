@@ -1,5 +1,6 @@
 import { FormHeading, useFormRoute } from "../components/forms/FormRoute";
 import { CopyUrlButton } from "../components/endpoints/links";
+import { ConnectAssistant } from "../components/endpoints/ConnectAssistant";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -36,7 +37,6 @@ import {
   representationUrl,
   alwaysServed,
   servedRepresentations,
-  hubUrl,
 } from "../components/endpoints/links";
 import { useBranding } from "../branding";
 import {
@@ -1320,20 +1320,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
         })}
       </ResourceList>
 
-      {endpoints.length > 0 ? (
-        <section aria-labelledby="connect-all" className="flex flex-col gap-3">
-          <div>
-            <h2 id="connect-all" className="text-title font-semibold text-fg">
-              {t("endpoints.hub.title")}
-            </h2>
-            <p className="mt-1 text-body text-fg-muted">{t("endpoints.hub.lead")}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <code className="break-all font-mono text-caption">{hubUrl(domain)}</code>
-            <CopyUrlButton url={hubUrl(domain)} />
-          </div>
-        </section>
-      ) : null}
+      {endpoints.length > 0 ? <ConnectAssistant domain={domain} /> : null}
 
       <section aria-labelledby="shared-with-project" className="flex flex-col gap-3">
         <div>

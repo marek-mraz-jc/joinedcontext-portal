@@ -290,6 +290,15 @@ describe("the endpoint's own settings page", () => {
     expect(screen.getByText(en.endpoints.page.proposedNotice)).toBeInTheDocument();
   });
 
+  it("offers the one connector for every endpoint, never this endpoint's own slug in it (T-4114, EP-113)", async () => {
+    renderPage();
+    const panel = (await screen.findByRole("heading", { name: en.endpoints.hub.title })).closest(
+      "section",
+    ) as HTMLElement;
+    expect(within(panel).getByText(`${window.location.origin}/api/mcp`, { selector: "code" })).toBeInTheDocument();
+    expect(panel.textContent).not.toContain(SLUG);
+  });
+
   it("shows one first call a newcomer can make, with a token only where the endpoint needs one (T-3212)", async () => {
     renderPage();
 

@@ -1417,8 +1417,12 @@
       "window": "Entities {from} to {to} of {total}"
     },
     "hub": {
-      "title": "Connect all",
-      "lead": "One MCP connector over every endpoint you may read. Paste this URL into an AI app, pick the endpoints when you sign in, and each call runs under that endpoint's own policy."
+      "title": "Connect an AI assistant",
+      "lead": "One MCP address for every endpoint. Add it once to an AI assistant: open endpoints answer without signing in, and signing in adds the ones you may read. The assistant picks the endpoint, reads its attributes, model and access, and each call runs under that endpoint's own policy.",
+      "claude": "Copy for Claude Code",
+      "json": "Copy for another MCP client",
+      "vscode": "Add to VS Code",
+      "cursor": "Add to Cursor"
     },
     "playground": {
       "title": "Try it",
