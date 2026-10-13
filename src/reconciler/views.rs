@@ -122,6 +122,28 @@ fn operation(op: Operation) -> (&'static str, &'static [&'static str]) {
     }
 }
 
+/// The reads of a type's schema (the broker's LinkML surface: the documents, one class, one
+/// slot). A Policy that permits anything on a type permits these too, as the gateway's schema
+/// surface did before the broker served it (T-3645): whoever may read or write an Entity may
+/// read its shape, narrowed by the engine to the types and Attributes the Policy names.
+const SCHEMA_READS: [Operation; 3] = [
+    Operation::RetrieveEntityTypeDetails,
+    Operation::RetrieveEntityTypeInfo,
+    Operation::RetrieveAttrTypeInfo,
+];
+
+/// The operations a Policy grants: its own, groups expanded, and the schema reads when it
+/// permits any a view serves.
+fn permitted(policy: &PolicySpec) -> impl Iterator<Item = Operation> + '_ {
+    let own = || policy.operations.iter().flat_map(expand).copied();
+    let served = own().any(|op| !operation(op).1.is_empty());
+    let schema = (served && !policy.effect.is_prohibition())
+        .then_some(SCHEMA_READS)
+        .into_iter()
+        .flatten();
+    own().chain(schema)
+}
+
 /// The Table 4.20-1 operations a reference stands for, a Table 4.20-2 group expanded.
 fn expand(reference: &OperationRef) -> &[Operation] {
     match reference {
@@ -768,7 +790,13 @@ fn view_of(
             ));
         }
         operations.retain(|row| MAPPED_READS.contains(row));
-        if operations.is_empty() {
+        // The schema reads every grant brings serve no Entity: a view of another model still
+        // needs a read of its own.
+        let schema_rows: Vec<&str> = SCHEMA_READS
+            .iter()
+            .flat_map(|op| operation(*op).1.iter().copied())
+            .collect();
+        if operations.iter().all(|row| schema_rows.contains(row)) {
             return Err("its Policies grant no read a view of another model serves".into());
         }
         view.insert("mapping".into(), ir.clone());
@@ -1003,9 +1031,8 @@ fn rules(
 fn rows(permits: &[&PolicySpec]) -> Result<Vec<&'static str>, String> {
     let rows: BTreeSet<&'static str> = permits
         .iter()
-        .flat_map(|policy| &policy.operations)
-        .flat_map(expand)
-        .flat_map(|op| operation(*op).1.iter().copied())
+        .flat_map(|policy| permitted(policy))
+        .flat_map(|op| operation(op).1.iter().copied())
         .collect();
     if rows.is_empty() {
         return Err("its Policies grant no operation a view serves".into());
@@ -1278,8 +1305,8 @@ fn intersect(projection: &str, own: Option<&str>) -> Result<String, String> {
 /// `window` when one is given (already intersected with the Policy's own).
 fn policy_document(id: String, policy: &PolicySpec, window: Option<&str>) -> Value {
     let mut clauses: Vec<&str> = Vec::new();
-    for op in policy.operations.iter().flat_map(expand) {
-        let clause = operation(*op).0;
+    for op in permitted(policy) {
+        let clause = operation(op).0;
         if !clauses.contains(&clause) {
             clauses.push(clause);
         }
@@ -2311,7 +2338,7 @@ mod tests {
             view,
             json!({"id": SLUG, "tenant": "city-air", "selector": ["Car"],
                    "rules": [{"types": ["Car"], "attributes": ["speed"]}],
-                   "operations": ["query_entities", "retrieve_entity"]})
+                   "operations": ["query_entities", "retrieve_attribute_info", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info"]})
         );
     }
 
@@ -2738,7 +2765,7 @@ mod tests {
             view,
             json!({"id": SLUG, "tenant": "city-air", "selector": ["Car"],
                    "rules": [{"types": ["Car"], "attributes": ["speed"]}],
-                   "operations": ["query_entities", "retrieve_entity", "temporal_query"],
+                   "operations": ["query_entities", "retrieve_attribute_info", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info", "temporal_query"],
                    "mapping": vehicles_ir()})
         );
         for op in view["operations"].as_array().into_iter().flatten() {
@@ -2995,6 +3022,9 @@ mod tests {
             json!([
                 "partial_attribute_update",
                 "query_entities_post",
+                "retrieve_attribute_info",
+                "retrieve_entity_type_details",
+                "retrieve_entity_type_info",
                 "temporal_query",
                 "temporal_query_post"
             ])
@@ -3011,6 +3041,52 @@ mod tests {
         assert!(view_of(&none, &endpoint(json!({})))
             .expect_err("refused")
             .contains("no Policy"));
+    }
+
+    /// T-3645: a grant of anything a view serves brings the schema reads of the broker's LinkML
+    /// surface, a writer's too (the gateway's schema surface answered every grant); a
+    /// prohibition takes none of them back, and the rule document says the same.
+    #[test]
+    fn every_grant_brings_the_schema_reads_and_no_prohibition_takes_them() {
+        let s = sources(vec![
+            (
+                "writer",
+                policy(json!({"operations": ["createEntity"],
+                              "information": [{"entities": [{"type": "Car"}], "propertyNames": ["speed"]}]})),
+            ),
+            (
+                "no-delete",
+                policy(
+                    json!({"effect": "prohibition", "operations": ["deleteEntity"],
+                              "information": [{"entities": [{"type": "Car"}], "propertyNames": ["speed"]}]}),
+                ),
+            ),
+        ]);
+        let view = view_of(&s, &endpoint(json!({}))).expect("a view");
+        assert_eq!(
+            view["operations"],
+            json!([
+                "create_entity",
+                "retrieve_attribute_info",
+                "retrieve_entity_type_details",
+                "retrieve_entity_type_info"
+            ])
+        );
+        let desired = desired(&s);
+        let policies = &desired.documents["city-air"].1["policies"];
+        let clauses = |id: &str| {
+            policies
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find(|p| p["id"] == id)
+                .map(|p| p["operations"].clone())
+        };
+        assert_eq!(
+            clauses("city/writer"),
+            Some(json!(["5.6.1", "5.7.6", "5.7.7", "5.7.10"]))
+        );
+        assert_eq!(clauses("city/no-delete"), Some(json!(["5.6.6"])));
     }
 
     /// Every Table 4.20-1 name has its clause; only Query Entities has two names.
@@ -3171,7 +3247,7 @@ mod tests {
             view,
             json!({"id": "cs-city-air", "tenant": "city-air", "selector": ["*"],
                    "rules": [{"types": ["*"], "attributes": ["*"]}],
-                   "operations": ["query_entities", "retrieve_entity"]})
+                   "operations": ["query_entities", "retrieve_attribute_info", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info"]})
         );
         let long = "x".repeat(61);
         assert!(space_view(&s, "city", "air", &long).is_err());
@@ -3221,7 +3297,7 @@ mod tests {
             document,
             &json!({"policies": [
                 {"id": "city/cars", "effect": "permit", "assignee": {"kind": "role", "id": "public"},
-                 "operations": ["5.7.1", "5.7.2"],
+                 "operations": ["5.7.1", "5.7.2", "5.7.6", "5.7.7", "5.7.10"],
                  "information": [{"entities": [{"type": "Car"}], "propertyNames": ["speed"]}]},
                 {"id": "city/no-trucks", "effect": "prohibit", "assignee": {"kind": "group", "id": "drivers"},
                  "operations": ["5.6.2", "5.6.4", "5.6.18", "5.6.19"],
@@ -3833,7 +3909,7 @@ mod tests {
             .and(body_json(json!({
                 "id": SLUG, "tenant": "city-air", "selector": ["Stop"],
                 "rules": [{"types": ["Stop"], "attributes": ["location", "name"]}],
-                "operations": ["query_entities", "retrieve_entity"]
+                "operations": ["query_entities", "retrieve_attribute_info", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info"]
             })))
             .respond_with(ResponseTemplate::new(201))
             .expect(1)
