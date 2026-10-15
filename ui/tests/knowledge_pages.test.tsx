@@ -1,6 +1,7 @@
 // covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
 // src/pages/knowledge/KnowledgePage.tsx, src/pages/knowledge/SourcePage.tsx,
-// src/pages/knowledge/AssistantChat.tsx and src/pages/knowledge/knowledge.ts through the pages
+// src/pages/knowledge/AssistantChat.tsx, src/pages/knowledge/UploadedFiles.tsx and
+// src/pages/knowledge/knowledge.ts through the pages
 // they belong to; each was confirmed by
 // making the module throw and watching this file go red.
 import { render, screen, waitFor, within } from "@testing-library/react";
@@ -13,6 +14,7 @@ import { App } from "../src/App";
 import { bytesText, embedSnippet, readEvents, timeText } from "../src/pages/knowledge/knowledge";
 import { reasonOf } from "../src/pages/knowledge/KnowledgePage";
 import { InclusionBadge } from "../src/pages/knowledge/SourcePage";
+import { UploadedFiles } from "../src/pages/knowledge/UploadedFiles";
 import { EmbedSnippet } from "../src/pages/knowledge/AssistantChat";
 import { ApiError } from "../src/api/client";
 import { assistantDeploymentSchema, fromKindManifest, knowledgeSourceSchema, toKindManifest } from "../src/schemas/knowledge";
@@ -117,6 +119,7 @@ interface Stub {
   verbs?: string[];
   sources?: { code: number; body: unknown };
   chat?: { code: number; body: string };
+  upload?: { code: number; body: unknown };
 }
 
 const ANSWER = [
@@ -146,6 +149,18 @@ function renderAt(path: string, stub: Stub = {}) {
     if (url.pathname.endsWith("/auth/me")) return json(IDENTITY);
     if (url.pathname.endsWith("/branding")) return json({ instanceName: "joinedcontext", domain: "dev.example", languages: { default: "en", offered: ["en"] } });
     if (url.pathname.endsWith("/permissions/me")) return json(grants(stub.verbs ?? ["read", "propose"]));
+    if (url.pathname === `${base}/sources/bb-files/files` && request.method === "POST") {
+      writes.push({ path: `${url.pathname}${url.search}`, body: await request.text() });
+      const upload = stub.upload ?? { code: 201, body: { id: 8, name: "ziadosti.csv", mime: "text/csv", bytes: 8, passages: 3, status: "fetched" } };
+      return json(upload.body, upload.code);
+    }
+    if (url.pathname === `${base}/sources/bb-files/files`) {
+      return json({ items: [{ id: 7, name: "rozpocet-2026.xlsx", mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes: 48_000, passages: 12, status: "fetched" }] });
+    }
+    if (request.method === "DELETE") {
+      writes.push({ path: url.pathname, body: null });
+      return new Response(null, { status: 204 });
+    }
     if (request.method !== "GET") {
       writes.push({ path: url.pathname, body: request.body ? await request.json() : null });
       if (url.pathname.endsWith("/chat")) {
@@ -324,6 +339,77 @@ describe("one source's pages and documents (T-3057, AG-113)", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Pages" }));
     await userEvent.click(await screen.findByRole("button", { name: "Links of https://www.banskabystrica.sk/" }));
     expect(await within(await screen.findByRole("dialog")).findByText("Document")).toBeInTheDocument();
+  });
+});
+
+describe("the files of an upload source (T-4185)", () => {
+  const FILES = { items: [...SOURCES.items, { source: "bb-files", type: "upload", state: "not-crawled", startUrls: [], ckanInstanceRef: null, schedule: null, visibility: "public" }] };
+  const base = "/api/v1/projects/banskabystrica/knowledge/sources/bb-files/files";
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("opens from the sources list before its first file, with no crawl to start", async () => {
+    renderAt("/projects/banskabystrica/knowledge", { sources: { code: 200, body: FILES } });
+    const table = await screen.findByRole("table", { name: "Knowledge sources" });
+    expect(within(table).getByRole("link", { name: "bb-files" })).toBeInTheDocument();
+    expect(within(table).queryByRole("button", { name: "Crawl bb-files now" })).toBeNull();
+  });
+
+  it("lists the files, uploads the chosen ones as they are and removes one", async () => {
+    const { writes } = renderAt("/projects/banskabystrica/knowledge/bb-files", { sources: { code: 200, body: FILES } });
+    const table = await screen.findByRole("table", { name: "Files" });
+    expect(within(table).getByText("rozpocet-2026.xlsx")).toBeInTheDocument();
+    expect(within(table).getByText("48 kB")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Pages" })).toBeNull();
+
+    await userEvent.upload(screen.getByLabelText("Choose files to upload"), new File(["a,b\n1,2\n"], "ziadosti.csv", { type: "text/csv" }));
+    expect(await screen.findByText("1 file read into 3 passages.")).toBeInTheDocument();
+    expect(writes).toEqual([{ path: `${base}?name=ziadosti.csv`, body: "a,b\n1,2\n" }]);
+
+    await userEvent.click(within(table).getByRole("button", { name: "Remove rozpocet-2026.xlsx" }));
+    await waitFor(() => expect(writes.at(-1)).toEqual({ path: `${base}/7`, body: null }));
+  });
+
+  it("names the file a refusal is about, in the Portal's words", async () => {
+    const { writes } = renderAt("/projects/banskabystrica/knowledge/bb-files", {
+      sources: { code: 200, body: FILES },
+      upload: { code: 415, body: { status: 415, title: "Unsupported Media Type", detail: "this is not a PDF, a DOCX, an XLSX or UTF-8 text" } },
+    });
+    await userEvent.upload(await screen.findByLabelText("Choose files to upload"), new File(["\u0000\u0001"], "zoznam.csv", { type: "text/csv" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("zoznam.csv was not uploaded: this is not a PDF, a DOCX, an XLSX or UTF-8 text");
+    expect(writes).toHaveLength(1);
+  });
+
+  it("says what to send when the source holds no file yet", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL((input as Request).url);
+        const body = url.pathname.endsWith("/permissions/me") ? grants(["read", "propose"]) : { items: [] };
+        return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+      }),
+    );
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <I18nextProvider i18n={i18n}>
+          <UploadedFiles project="banskabystrica" source="bb-files" />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText("No file yet")).toBeInTheDocument();
+    expect(screen.getByText("Upload a PDF, a spreadsheet or a text file for the assistant to answer from.")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Choose files to upload")).toBeInTheDocument();
+  });
+
+  it("a viewer's upload button says why it is disabled", async () => {
+    renderAt("/projects/banskabystrica/knowledge/bb-files", { sources: { code: 200, body: FILES }, verbs: ["read"] });
+    const button = await screen.findByRole("button", { name: "Upload files" });
+    await waitFor(() => expect(button).toHaveAttribute("aria-disabled", "true"));
+    expect(screen.queryByLabelText("Choose files to upload")).toBeNull();
   });
 });
 

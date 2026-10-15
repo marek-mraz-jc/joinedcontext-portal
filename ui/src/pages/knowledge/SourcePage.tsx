@@ -31,11 +31,13 @@ import {
   listLinks,
   listPages,
   listPassages,
+  listSources,
   setInclusion,
   timeText,
 } from "./knowledge";
 import type { DocumentRow, InclusionCounts, PageRow } from "./knowledge";
 import { useUrlParam } from "../../navigation/urlState";
+import { UploadedFiles } from "./UploadedFiles";
 
 type View = "pages" | "documents";
 
@@ -87,18 +89,32 @@ export function SourcePage({ project, source }: { project: string; source: strin
     return next;
   };
   const selected = pages.size + documents.size;
+  // A `source: upload` holds files an administrator sends, not crawled pages (T-4185).
+  const sources = useQuery({ queryKey: knowledgeKeys.sources(project), queryFn: () => listSources(project) });
+  const upload = sources.data?.find((row) => row.source === source)?.type === "upload";
+  const header = (
+    <PageHeader
+      title={t("knowledge.source.title", { source })}
+      description={t(upload ? "knowledge.files.intro" : "knowledge.source.intro")}
+      actions={
+        <Link to="/projects/$project/knowledge" params={{ project }} className="focus-ring rounded-sm text-primary-soft-fg underline underline-offset-2">
+          {t("knowledge.source.back")}
+        </Link>
+      }
+    />
+  );
+  if (upload) {
+    return (
+      <section aria-label={t("knowledge.source.title", { source })} className="space-y-6">
+        {header}
+        <UploadedFiles project={project} source={source} />
+      </section>
+    );
+  }
 
   return (
     <section aria-label={t("knowledge.source.title", { source })} className="space-y-6">
-      <PageHeader
-        title={t("knowledge.source.title", { source })}
-        description={t("knowledge.source.intro")}
-        actions={
-          <Link to="/projects/$project/knowledge" params={{ project }} className="focus-ring rounded-sm text-primary-soft-fg underline underline-offset-2">
-            {t("knowledge.source.back")}
-          </Link>
-        }
-      />
+      {header}
       {change.isError ? (
         <Alert role="alert" tone="danger">
           {reasonOf(change.error, t("app.error.generic"))}

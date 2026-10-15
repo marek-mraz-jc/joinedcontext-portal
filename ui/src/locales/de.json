@@ -6680,7 +6680,22 @@
     },
     "everySpace": "jeder Raum des Projekts",
     "userGuide": "das Benutzerhandbuch der Plattform, mit Links in dieses Projekt",
-    "askFirst": "Geben Sie zuerst eine Frage ein."
+    "askFirst": "Geben Sie zuerst eine Frage ein.",
+    "files": {
+      "title": "Dateien",
+      "intro": "Dateien, die Sie hier hochladen: Der Assistent antwortet daraus, sobald er sie gelesen hat. Entfernen Sie eine Datei, um ihre Passagen aus allen Antworten zu nehmen.",
+      "upload": "Dateien hochladen",
+      "uploading": "Wird hochgeladen…",
+      "choose": "Dateien zum Hochladen wählen",
+      "accepts": "PDF, DOCX, XLSX, CSV, Markdown oder Text; je höchstens 50 MB.",
+      "added": "{count, plural, one {# Datei} other {# Dateien}} in {passages} Passagen gelesen.",
+      "failed": "{name} wurde nicht hochgeladen: {reason}. Korrigieren Sie die Datei und wählen Sie sie erneut.",
+      "none": "Noch keine Datei",
+      "noneHint": "Laden Sie ein PDF, eine Tabelle oder eine Textdatei hoch, aus der der Assistent antwortet.",
+      "name": "Datei",
+      "remove": "Entfernen",
+      "removeOf": "{name} entfernen"
+    }
   },
   "mcp": {
     "title": "MCP-Server",

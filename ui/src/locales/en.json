@@ -6680,7 +6680,22 @@
     },
     "everySpace": "every space of the project",
     "userGuide": "the platform's User Guide, with links into this project",
-    "askFirst": "Type a question first."
+    "askFirst": "Type a question first.",
+    "files": {
+      "title": "Files",
+      "intro": "Files you upload here: the assistant answers from them as soon as they are read. Remove a file to take its passages out of every answer.",
+      "upload": "Upload files",
+      "uploading": "Uploading…",
+      "choose": "Choose files to upload",
+      "accepts": "PDF, DOCX, XLSX, CSV, Markdown or text; at most 50 MB each.",
+      "added": "{count, plural, one {# file} other {# files}} read into {passages} passages.",
+      "failed": "{name} was not uploaded: {reason}. Fix the file and choose it again.",
+      "none": "No file yet",
+      "noneHint": "Upload a PDF, a spreadsheet or a text file for the assistant to answer from.",
+      "name": "File",
+      "remove": "Remove",
+      "removeOf": "Remove {name}"
+    }
   },
   "mcp": {
     "title": "MCP servers",

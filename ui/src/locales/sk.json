@@ -6680,7 +6680,22 @@
     },
     "everySpace": "každý priestor projektu",
     "userGuide": "používateľská príručka platformy s odkazmi do tohto projektu",
-    "askFirst": "Najprv napíšte otázku."
+    "askFirst": "Najprv napíšte otázku.",
+    "files": {
+      "title": "Súbory",
+      "intro": "Súbory, ktoré sem nahráte: asistent z nich odpovedá hneď, ako ich prečíta. Odstránením súboru vyberiete jeho pasáže zo všetkých odpovedí.",
+      "upload": "Nahrať súbory",
+      "uploading": "Nahráva sa…",
+      "choose": "Vyberte súbory na nahratie",
+      "accepts": "PDF, DOCX, XLSX, CSV, Markdown alebo text; každý najviac 50 MB.",
+      "added": "{count, plural, one {# súbor prečítaný} few {# súbory prečítané} other {# súborov prečítaných}} do {passages} pasáží.",
+      "failed": "{name} sa nenahral: {reason}. Opravte súbor a vyberte ho znova.",
+      "none": "Zatiaľ žiadny súbor",
+      "noneHint": "Nahrajte PDF, tabuľku alebo textový súbor, z ktorého bude asistent odpovedať.",
+      "name": "Súbor",
+      "remove": "Odstrániť",
+      "removeOf": "Odstrániť {name}"
+    }
   },
   "mcp": {
     "title": "MCP servery",

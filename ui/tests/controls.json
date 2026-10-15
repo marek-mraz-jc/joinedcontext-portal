@@ -1204,6 +1204,15 @@
         "knowledge_pages.test.tsx"
       ]
     },
+    "src/pages/knowledge/UploadedFiles.tsx": {
+      "controls": {
+        "Button": 2,
+        "FilePicker": 1
+      },
+      "tests": [
+        "knowledge_pages.test.tsx"
+      ]
+    },
     "src/pages/mcp/McpServerDialog.tsx": {
       "controls": {
         "Button": 3,
