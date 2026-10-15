@@ -29,14 +29,19 @@ spec:
       name,
       publicId,
       channel,
+      enabled,
       sources,
       connectors,
+      scope,
       allowedOrigins,
       rateLimit,
       budget,
       systemPrompt,
+      model,
       theme,
       languages,
+      suggestions,
+      disclaimer,
       sandbox,
     ]
   groups:
@@ -50,7 +55,7 @@ spec:
         sk: Kanál, zdroje, z ktorých odpovedá, a endpointy, ktorých dáta smie čítať.
         cs: Kanál, zdroje, ze kterých odpovídá, a endpointy, jejichž data smí číst.
         de: Der Kanal, die Quellen, aus denen er antwortet, und die Endpoints, deren Daten er liest.
-      fields: [name, publicId, channel, sources, connectors]
+      fields: [name, publicId, channel, enabled, sources, connectors, scope]
     - title:
         en: A public channel's limits
         sk: Limity verejného kanála
@@ -73,8 +78,44 @@ spec:
         cs: Co je mu řečeno před každým rozhovorem, jak vypadá, jeho jazyky a skripty.
         de: Was ihm vor jedem Gespräch gesagt wird, wie er aussieht, seine Sprachen und Skripte.
       folded: true
-      fields: [systemPrompt, theme, languages, sandbox]
+      fields: [systemPrompt, model, theme, languages, suggestions, disclaimer, sandbox]
   fields:
+    enabled:
+      help:
+        en: Off, every chat of this deployment answers that the assistant is resting; nothing is spent.
+        sk: "Vypnuté: každý chat tohto nasadenia odpovie, že asistent nie je dostupný; nič sa neminie."
+        cs: "Vypnuto: každý chat tohoto nasazení odpoví, že asistent není dostupný; nic se neutratí."
+        de: "Aus: jeder Chat dieses Einsatzes antwortet, dass der Assistent ruht; nichts wird ausgegeben."
+    scope.projects:
+      help:
+        en: Other projects whose public Endpoints its connectors may name, at most 10; never its own.
+        sk: Iné projekty, ktorých verejné endpointy smú jeho konektory uvádzať, najviac 10; nikdy vlastný.
+        cs: Jiné projekty, jejichž veřejné endpointy smějí jeho konektory uvádět, nejvýše 10; nikdy vlastní.
+        de: Andere Projekte, deren öffentliche Endpoints seine Connectoren nennen dürfen, höchstens 10; nie das eigene.
+    model.router:
+      help:
+        en: The model that picks the sources and searches of a question, as vendor/name; the service's default when empty.
+        sk: Model, ktorý vyberá zdroje a vyhľadávania otázky, ako dodávateľ/názov; prázdne je predvolený model služby.
+        cs: Model, který vybírá zdroje a vyhledávání otázky, jako dodavatel/název; prázdné je výchozí model služby.
+        de: Das Modell, das Quellen und Suchen einer Frage wählt, als Anbieter/Name; leer ist der Standard des Dienstes.
+    model.answer:
+      help:
+        en: The model that writes the answer, as vendor/name; the service's default when empty.
+        sk: Model, ktorý píše odpoveď, ako dodávateľ/názov; prázdne je predvolený model služby.
+        cs: Model, který píše odpověď, jako dodavatel/název; prázdné je výchozí model služby.
+        de: Das Modell, das die Antwort schreibt, als Anbieter/Name; leer ist der Standard des Dienstes.
+    suggestions:
+      help:
+        en: Questions the chat offers before the first one, per language code of its languages, at most 6 of 120 characters each.
+        sk: Otázky, ktoré chat ponúkne pred prvou, podľa kódu jazyka z jeho jazykov, najviac 6 po 120 znakov.
+        cs: Otázky, které chat nabídne před první, podle kódu jazyka z jeho jazyků, nejvýše 6 po 120 znacích.
+        de: Fragen, die der Chat vor der ersten anbietet, je Sprachcode seiner Sprachen, höchstens 6 mit je 120 Zeichen.
+    disclaimer:
+      help:
+        en: The line under the chat that says the answers are machine-written, per language code, at most 400 characters.
+        sk: Riadok pod chatom, ktorý hovorí, že odpovede píše stroj, podľa kódu jazyka, najviac 400 znakov.
+        cs: Řádek pod chatem, který říká, že odpovědi píše stroj, podle kódu jazyka, nejvýše 400 znaků.
+        de: Die Zeile unter dem Chat, die sagt, dass die Antworten maschinell geschrieben sind, je Sprachcode, höchstens 400 Zeichen.
     name:
       help:
         en: The short name the deployment is filed under in this project.
@@ -148,6 +189,48 @@ spec:
         sk: Tokeny modelu, ktoré smie minúť jeden rozhovor, nie viac ako za deň; potom človek začne nový.
         cs: Tokeny modelu, které smí utratit jeden rozhovor, ne víc než za den; potom člověk začne nový.
         de: Modell-Tokens pro Gespräch, nicht mehr als pro Tag; darüber beginnt man ein neues Gespräch.
+    rateLimit.perClientPerHour:
+      help:
+        en: Questions an hour from one visitor, up to 7,200, default 60.
+        sk: Počet otázok za hodinu od jedného návštevníka, najviac 7 200, predvolene 60.
+        cs: Počet otázek za hodinu od jednoho návštěvníka, nejvýše 7 200, výchozí 60.
+        de: Fragen pro Stunde eines Besuchers, bis 7.200, Standard 60.
+    rateLimit.perClientPerDay:
+      help:
+        en: Questions a day from one visitor, up to 100,000, default 200.
+        sk: Počet otázok za deň od jedného návštevníka, najviac 100 000, predvolene 200.
+        cs: Počet otázek za den od jednoho návštěvníka, nejvýše 100 000, výchozí 200.
+        de: Fragen pro Tag eines Besuchers, bis 100.000, Standard 200.
+    rateLimit.streamsPerClient:
+      help:
+        en: Answers one visitor may have streaming at once, 1 to 10, default 2.
+        sk: Koľko odpovedí smie mať jeden návštevník naraz, 1 až 10, predvolene 2.
+        cs: Kolik odpovědí smí mít jeden návštěvník najednou, 1 až 10, výchozí 2.
+        de: Antworten, die ein Besucher gleichzeitig streamen darf, 1 bis 10, Standard 2.
+    budget.costPerDayUsd:
+      help:
+        en: What its model calls may cost a day, in US dollars, 0.01 to 1,000, default 3; past it an answer lists the matching links only.
+        sk: Koľko smú stáť jeho volania modelu za deň, v amerických dolároch, 0,01 až 1 000, predvolene 3; potom odpoveď uvedie len zodpovedajúce odkazy.
+        cs: Kolik smějí stát jeho volání modelu za den, v amerických dolarech, 0,01 až 1 000, výchozí 3; potom odpověď uvede jen odpovídající odkazy.
+        de: Was seine Modellaufrufe pro Tag kosten dürfen, in US-Dollar, 0,01 bis 1.000, Standard 3; darüber nennt eine Antwort nur passende Links.
+    budget.outputTokensPerAnswer:
+      help:
+        en: The most tokens one answer may have, 100 to 4,000, default 700.
+        sk: Najviac tokenov jednej odpovede, 100 až 4 000, predvolene 700.
+        cs: Nejvíce tokenů jedné odpovědi, 100 až 4 000, výchozí 700.
+        de: Die meisten Tokens einer Antwort, 100 bis 4.000, Standard 700.
+    budget.messagesPerConversation:
+      help:
+        en: The most questions one conversation may ask, 1 to 200, default 30.
+        sk: Najviac otázok v jednom rozhovore, 1 až 200, predvolene 30.
+        cs: Nejvíce otázek v jednom rozhovoru, 1 až 200, výchozí 30.
+        de: Die meisten Fragen eines Gesprächs, 1 bis 200, Standard 30.
+    budget.questionChars:
+      help:
+        en: The longest question, in characters, 100 to 4,000, default 1,000.
+        sk: Najdlhšia otázka v znakoch, 100 až 4 000, predvolene 1 000.
+        cs: Nejdelší otázka ve znacích, 100 až 4 000, výchozí 1 000.
+        de: Die längste Frage in Zeichen, 100 bis 4.000, Standard 1.000.
     systemPrompt:
       help:
         en: What the assistant is told before every conversation, at most 8,000 characters; it never overrides its rules.

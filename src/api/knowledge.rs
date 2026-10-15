@@ -195,11 +195,14 @@ fn summary(name: &str, spec: &KnowledgeSourceSpec) -> Value {
             SourceType::Ckan => "ckan",
             SourceType::Catalogue => "catalogue",
             SourceType::Guide => "guide",
+            SourceType::Upload => "upload",
         },
         "startUrls": spec.start_urls,
         // The spaces a catalogue source reads; empty is every space of the project (AG-116).
         "contextSpaces": spec.context_spaces,
         "ckanInstanceRef": spec.ckan_instance_ref,
+        // The CKAN organizations a ckan source narrows to; empty is every one (MF-51).
+        "organizations": spec.organizations,
         "schedule": spec.schedule,
         "visibility": spec.visibility,
         "include": spec.include,

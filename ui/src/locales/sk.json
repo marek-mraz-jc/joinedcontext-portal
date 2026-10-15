@@ -6514,7 +6514,8 @@
       "website": "Web",
       "ckan": "Dátový katalóg",
       "catalogue": "Katalóg kontextových priestorov",
-      "guide": "Používateľská príručka"
+      "guide": "Používateľská príručka",
+      "upload": "Nahrané súbory"
     },
     "status": {
       "pending": "Ešte neprečítané",
@@ -6597,7 +6598,26 @@
       "theme": "Vzhľad",
       "primaryColor": "Farba zvýraznenia",
       "greeting": "Pozdrav",
-      "sandbox": "Skripty v sandboxe"
+      "sandbox": "Skripty v sandboxe",
+      "organizations": "Len tieto organizácie",
+      "upload": "Nahrané súbory",
+      "uploadMaxBytes": "Najväčší súbor (bajty)",
+      "uploadMaxFiles": "Najviac súborov",
+      "perClientPerHour": "Otázky za hodinu, jeden návštevník",
+      "perClientPerDay": "Otázky za deň, jeden návštevník",
+      "streamsPerClient": "Odpovede naraz, jeden návštevník",
+      "costPerDayUsd": "Náklady za deň (USD)",
+      "outputTokensPerAnswer": "Tokeny na odpoveď",
+      "messagesPerConversation": "Otázky v rozhovore",
+      "questionChars": "Najdlhšia otázka (znaky)",
+      "enabled": "Odpovedá",
+      "model": "Modely",
+      "routerModel": "Model, ktorý vyberá zdroje",
+      "answerModel": "Model, ktorý píše odpoveď",
+      "suggestions": "Navrhované otázky",
+      "disclaimer": "Upozornenie",
+      "scope": "Mimo tohto projektu",
+      "scopeProjects": "Projekty, ktorých verejné endpointy smie čítať"
     },
     "visibility": {
       "internal": "Interný: prihlásení zamestnanci",

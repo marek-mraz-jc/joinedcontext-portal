@@ -18,18 +18,23 @@ export const HEX_COLOR = "^#[0-9a-fA-F]{6}$";
 /** The channels that answer people nobody signed in: each names its origins, a rate limit and a budget (MF-52). */
 export const ANONYMOUS_CHANNELS = ["public", "ckan", "iframe"] as const;
 
-export const SOURCE_TYPES = ["website", "ckan"] as const;
+export const SOURCE_TYPES = ["website", "ckan", "upload"] as const;
+/** A CKAN organization name, as jc-core checks it. */
+export const CKAN_NAME = "^[a-z0-9_-]{2,100}$";
+/** A model as `jc-agent-proxy` is asked for it: `vendor/name`, lowercase. */
+export const MODEL_ID = "^[a-z0-9._:-]+/[a-z0-9._:/-]+$";
 export const VISIBILITIES = ["internal", "public"] as const;
 export const CHANNELS = ["public", "internal", "ckan", "iframe"] as const;
 export const PDF_POLICIES = ["include", "exclude"] as const;
-/** The tools of an Endpoint's MCP surface a connector may name (the gateway's endpoint façade). */
+/** The read-only tools of an Endpoint's MCP surface the assistant calls (jc-assistant's allowlist, T-4140). */
 export const ENDPOINT_TOOLS = [
   "list_types",
-  "list_attributes",
   "query_entities",
   "get_entity",
-  "query_temporal",
+  "get_attribute_value",
   "retrieve_temporal",
+  "describe_schema",
+  "describe_access",
 ] as const;
 
 export function knowledgeSourceSchema(t: (key: string) => string, catalogues: string[] = []): JsonSchema {
@@ -50,6 +55,21 @@ export function knowledgeSourceSchema(t: (key: string) => string, catalogues: st
         type: "string",
         title: t("knowledge.field.ckanInstanceRef"),
         ...(catalogues.length > 0 ? { enum: catalogues } : { pattern: DNS1123 }),
+      },
+      organizations: {
+        type: "array",
+        title: t("knowledge.field.organizations"),
+        items: { type: "string", pattern: CKAN_NAME },
+        maxItems: 10,
+        uniqueItems: true,
+      },
+      upload: {
+        type: "object",
+        title: t("knowledge.field.upload"),
+        properties: {
+          maxBytes: { type: "integer", title: t("knowledge.field.uploadMaxBytes"), minimum: 1, maximum: 50 * 1024 * 1024, default: 20 * 1024 * 1024 },
+          maxFiles: { type: "integer", title: t("knowledge.field.uploadMaxFiles"), minimum: 1, maximum: 500, default: 100 },
+        },
       },
       sitemap: { type: "boolean", title: t("knowledge.field.sitemap"), default: true },
       include: {
@@ -153,6 +173,9 @@ export function assistantDeploymentSchema(
         properties: {
           requestsPerMinute: { type: "integer", title: t("knowledge.field.requestsPerMinute"), minimum: 1, maximum: 600 },
           perClientPerMinute: { type: "integer", title: t("knowledge.field.perClientPerMinute"), minimum: 1, maximum: 120 },
+          perClientPerHour: { type: "integer", title: t("knowledge.field.perClientPerHour"), minimum: 1, maximum: 7_200, default: 60 },
+          perClientPerDay: { type: "integer", title: t("knowledge.field.perClientPerDay"), minimum: 1, maximum: 100_000, default: 200 },
+          streamsPerClient: { type: "integer", title: t("knowledge.field.streamsPerClient"), minimum: 1, maximum: 10, default: 2 },
         },
       },
       budget: {
@@ -161,6 +184,10 @@ export function assistantDeploymentSchema(
         properties: {
           tokensPerDay: { type: "integer", title: t("knowledge.field.tokensPerDay"), minimum: 1, maximum: 100_000_000 },
           tokensPerConversation: { type: "integer", title: t("knowledge.field.tokensPerConversation"), minimum: 1, maximum: 100_000_000 },
+          costPerDayUsd: { type: "number", title: t("knowledge.field.costPerDayUsd"), minimum: 0.01, maximum: 1_000, default: 3 },
+          outputTokensPerAnswer: { type: "integer", title: t("knowledge.field.outputTokensPerAnswer"), minimum: 100, maximum: 4_000, default: 700 },
+          messagesPerConversation: { type: "integer", title: t("knowledge.field.messagesPerConversation"), minimum: 1, maximum: 200, default: 30 },
+          questionChars: { type: "integer", title: t("knowledge.field.questionChars"), minimum: 100, maximum: 4_000, default: 1_000 },
         },
       },
       theme: {
@@ -178,6 +205,45 @@ export function assistantDeploymentSchema(
         uniqueItems: true,
       },
       sandbox: { type: "boolean", title: t("knowledge.field.sandbox"), default: false },
+      enabled: { type: "boolean", title: t("knowledge.field.enabled"), default: true },
+      model: {
+        type: "object",
+        title: t("knowledge.field.model"),
+        properties: {
+          router: { type: "string", title: t("knowledge.field.routerModel"), pattern: MODEL_ID, maxLength: 100 },
+          answer: { type: "string", title: t("knowledge.field.answerModel"), pattern: MODEL_ID, maxLength: 100 },
+        },
+      },
+      // Per language of `languages`, which jc-core checks (MF-52).
+      suggestions: {
+        type: "object",
+        title: t("knowledge.field.suggestions"),
+        propertyNames: { pattern: LANGUAGE },
+        additionalProperties: {
+          type: "array",
+          items: { type: "string", minLength: 1, maxLength: 120 },
+          maxItems: 6,
+        },
+      },
+      disclaimer: {
+        type: "object",
+        title: t("knowledge.field.disclaimer"),
+        propertyNames: { pattern: LANGUAGE },
+        additionalProperties: { type: "string", minLength: 1, maxLength: 400 },
+      },
+      scope: {
+        type: "object",
+        title: t("knowledge.field.scope"),
+        properties: {
+          projects: {
+            type: "array",
+            title: t("knowledge.field.scopeProjects"),
+            items: { type: "string", pattern: DNS1123 },
+            maxItems: 10,
+            uniqueItems: true,
+          },
+        },
+      },
     },
   };
 }

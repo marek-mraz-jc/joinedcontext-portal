@@ -6514,7 +6514,8 @@
       "website": "Website",
       "ckan": "Datenkatalog",
       "catalogue": "Katalog der Kontexträume",
-      "guide": "Benutzerhandbuch"
+      "guide": "Benutzerhandbuch",
+      "upload": "Hochgeladene Dateien"
     },
     "status": {
       "pending": "Noch nicht gelesen",
@@ -6597,7 +6598,26 @@
       "theme": "Aussehen",
       "primaryColor": "Akzentfarbe",
       "greeting": "Begrüßung",
-      "sandbox": "Skripte in der Sandbox"
+      "sandbox": "Skripte in der Sandbox",
+      "organizations": "Nur diese Organisationen",
+      "upload": "Hochgeladene Dateien",
+      "uploadMaxBytes": "Größte Datei (Bytes)",
+      "uploadMaxFiles": "Höchstens Dateien",
+      "perClientPerHour": "Fragen pro Stunde, ein Besucher",
+      "perClientPerDay": "Fragen pro Tag, ein Besucher",
+      "streamsPerClient": "Antworten gleichzeitig, ein Besucher",
+      "costPerDayUsd": "Kosten pro Tag (USD)",
+      "outputTokensPerAnswer": "Tokens pro Antwort",
+      "messagesPerConversation": "Fragen pro Gespräch",
+      "questionChars": "Längste Frage (Zeichen)",
+      "enabled": "Antwortet",
+      "model": "Modelle",
+      "routerModel": "Modell, das die Quellen wählt",
+      "answerModel": "Modell, das die Antwort schreibt",
+      "suggestions": "Vorgeschlagene Fragen",
+      "disclaimer": "Hinweis",
+      "scope": "Über dieses Projekt hinaus",
+      "scopeProjects": "Projekte, deren öffentliche Endpoints er lesen darf"
     },
     "visibility": {
       "internal": "Intern: angemeldete Mitarbeitende",
