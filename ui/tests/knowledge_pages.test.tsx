@@ -190,7 +190,7 @@ function renderAt(path: string, stub: Stub = {}) {
       return json({
         apiVersion: "joinedcontext.com/v1alpha1",
         kind: "List",
-        items: [{ apiVersion: "joinedcontext.com/v1alpha1", kind: "AssistantDeployment", metadata: { name: "obcania", namespace: "banskabystrica" }, spec: { publicId: "bb-obcania", channel: "public", sources: ["bb-web"], connectors: [{ endpoint: "ovzdusie-verejne", tools: ["query_entities"] }] } }],
+        items: [{ apiVersion: "joinedcontext.com/v1alpha1", kind: "AssistantDeployment", metadata: { name: "obcania", namespace: "banskabystrica" }, spec: { publicId: "bb-obcania", channel: "public", languages: ["sk"], sources: ["bb-web"], connectors: [{ endpoint: "ovzdusie-verejne", tools: ["query_entities"] }] } }],
       });
     }
     return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] });
@@ -494,6 +494,24 @@ describe("asking an assistant in the Portal (T-3058, AG-115)", () => {
     const dialog = await screen.findByRole("dialog", { name: "Embed obcania" });
     expect(within(dialog).getByText(/https:\/\/assistant\.dev\.example\/d\/bb-obcania\/widget/)).toBeInTheDocument();
     expect(within(dialog).getByText(/allowed origins/)).toBeInTheDocument();
+  });
+
+  it("gives the one launcher line, copies exactly it, and previews it in a sandboxed frame (T-4196)", async () => {
+    renderAt("/projects/banskabystrica/knowledge");
+    const writeText = vi.fn(async () => undefined);
+    const table = await screen.findByRole("table", { name: "Assistants" });
+    await userEvent.click(within(table).getByRole("button", { name: "Embed obcania" }));
+    const dialog = await screen.findByRole("dialog", { name: "Embed obcania" });
+    const line = '<script src="https://assistant.dev.example/d/bb-obcania/embed.js" data-lang="sk" defer></script>';
+    expect(within(dialog).getByLabelText("The launcher line")).toHaveTextContent(line);
+    // The line names the public deployment alone: no token, no key, no Portal address.
+    expect(line).not.toMatch(/token|key|secret|bearer|\/api\//i);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Copy The launcher line" }));
+    expect(writeText).toHaveBeenCalledWith(line);
+    const preview = within(dialog).getByTitle("Preview of the launcher on a blank page");
+    expect(preview).toHaveAttribute("sandbox", "allow-scripts");
+    expect(preview.getAttribute("srcdoc")).toContain(line);
   });
 });
 

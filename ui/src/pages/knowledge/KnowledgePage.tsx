@@ -220,6 +220,7 @@ interface DeploymentItem {
     channel?: string;
     sources?: string[];
     connectors?: { endpoint: string }[];
+    languages?: string[];
   };
 }
 
@@ -365,7 +366,7 @@ function Assistants({ project }: { project: string }): JSX.Element {
         title={t("knowledge.embed.of", { name: embedOf?.metadata.name ?? "" })}
         closeLabel={t("app.close")}
       >
-        {embedOf?.spec.publicId ? <EmbedSnippet publicId={embedOf.spec.publicId} title={embedOf.metadata.name} /> : null}
+        {embedOf?.spec.publicId ? <EmbedSnippet publicId={embedOf.spec.publicId} title={embedOf.metadata.name} language={embedOf.spec.languages?.[0]} /> : null}
       </Dialog>
     </section>
   );

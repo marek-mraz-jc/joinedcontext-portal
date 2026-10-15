@@ -3,7 +3,7 @@ import type { FormEvent, JSX, KeyboardEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Button, Checkbox, ExternalLink, Field, Textarea } from "../../components/ui";
 import { useBranding } from "../../branding";
-import { askAssistant, embedSnippet } from "./knowledge";
+import { askAssistant, embedSnippet, launcherSnippet } from "./knowledge";
 import type { ChatEvent, ChatTurn, Citation } from "./knowledge";
 import { reasonOf } from "../../components/forms/widgets/ListFailed";
 import { label, markdown, sources } from "./answerFormat";
@@ -288,32 +288,59 @@ export function AssistantChat({
   );
 }
 
-/** The iframe a site pastes, with a copy button; the site must be one of the allowed origins. */
-export function EmbedSnippet({ publicId, title }: { publicId: string; title: string }): JSX.Element {
+/** One snippet to paste, with the button that copies exactly it. */
+function Snippet({ label, code }: { label: string; code: string }): JSX.Element {
   const { t } = useTranslation();
-  const branding = useBranding();
   const [copied, setCopied] = useState(false);
-  if (!branding.domain) {
-    return <p>{t("knowledge.embed.noDomain")}</p>;
-  }
-  const snippet = embedSnippet(branding.domain, publicId, title);
   return (
-    <div className="space-y-3">
-      <p>{t("knowledge.embed.intro")}</p>
-      <pre aria-label={t("knowledge.embed.snippet")} className="overflow-x-auto whitespace-pre-wrap break-all rounded bg-surface-subtle p-3 text-caption">
-        {snippet}
+    <div className="space-y-2">
+      <pre aria-label={label} className="overflow-x-auto whitespace-pre-wrap break-all rounded bg-surface-subtle p-3 text-caption">
+        {code}
       </pre>
       <Button
         size="sm"
+        aria-label={t("knowledge.embed.copyOf", { what: label })}
         onClick={() => {
           void navigator.clipboard
-            ?.writeText(snippet)
+            ?.writeText(code)
             .then(() => setCopied(true))
             .catch(() => setCopied(false));
         }}
       >
         {copied ? t("knowledge.embed.copied") : t("knowledge.embed.copy")}
       </Button>
+    </div>
+  );
+}
+
+/**
+ * What a city site pastes to place a public assistant (T-4138, T-4196): the one-line launcher,
+ * shown live in a sandboxed frame, and the plain frame for a page that takes no script. Both
+ * name only the public deployment; the site must be one of its allowed origins.
+ */
+export function EmbedSnippet({ publicId, title, language }: { publicId: string; title: string; language?: string }): JSX.Element {
+  const { t } = useTranslation();
+  const branding = useBranding();
+  if (!branding.domain) {
+    return <p>{t("knowledge.embed.noDomain")}</p>;
+  }
+  const launcher = launcherSnippet(branding.domain, publicId, language);
+  // A blank page holding the launcher alone: scripts run, but the frame has no origin of its own,
+  // so nothing in it reaches the Portal's cookies or pages.
+  const preview = `<!doctype html><html lang="${language ?? "sk"}"><head><meta charset="utf-8"></head><body>${launcher}</body></html>`;
+  return (
+    <div className="space-y-4">
+      <p>{t("knowledge.embed.launcherIntro")}</p>
+      <Snippet label={t("knowledge.embed.launcher")} code={launcher} />
+      <iframe
+        title={t("knowledge.embed.preview")}
+        sandbox="allow-scripts"
+        srcDoc={preview}
+        className="h-80 w-full rounded border border-border bg-white"
+      />
+      <p className="text-caption text-fg-muted">{t("knowledge.embed.previewHint")}</p>
+      <p>{t("knowledge.embed.intro")}</p>
+      <Snippet label={t("knowledge.embed.snippet")} code={embedSnippet(branding.domain, publicId, title)} />
       <p className="text-caption text-fg-muted">{t("knowledge.embed.origins")}</p>
     </div>
   );

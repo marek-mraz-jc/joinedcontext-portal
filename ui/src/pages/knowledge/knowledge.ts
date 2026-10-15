@@ -412,6 +412,16 @@ export async function askAssistant(
   readEvents(`${buffer}${decoder.decode()}\n\n`).events.forEach(onEvent);
 }
 
+/**
+ * The one line a city site includes to get the assistant's corner button (T-4138, T-4196): the
+ * launcher of this deployment on the assistant's host, in the deployment's first language. It
+ * names only the public deployment; the chat answers on its allowed origins alone.
+ */
+export function launcherSnippet(domain: string, publicId: string, language?: string): string {
+  const lang = language && /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(language) ? ` data-lang="${language}"` : "";
+  return `<script src="https://assistant.${domain}/d/${publicId}/embed.js"${lang} defer></script>`;
+}
+
 /** The iframe a site pastes to place a public assistant (API/05 §1.6). */
 export function embedSnippet(domain: string, publicId: string, title: string): string {
   const escapedTitle = title.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
