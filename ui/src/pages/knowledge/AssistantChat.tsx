@@ -1,10 +1,10 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, JSX, KeyboardEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Button, Checkbox, ExternalLink, Field, Textarea } from "../../components/ui";
+import { Alert, Button, Checkbox, ExternalLink, Field, Table, Textarea } from "../../components/ui";
 import { useBranding } from "../../branding";
-import { askAssistant, embedSnippet, launcherSnippet } from "./knowledge";
-import type { ChatEvent, ChatTurn, Citation } from "./knowledge";
+import { askAssistant, cellText, dataChart, embedSnippet, launcherSnippet } from "./knowledge";
+import type { ChatEvent, ChatTurn, Citation, DataChart, DataTable } from "./knowledge";
 import { reasonOf } from "../../components/forms/widgets/ListFailed";
 import { label, markdown, sources } from "./answerFormat";
 import type { Block, Inline } from "./answerFormat";
@@ -17,6 +17,7 @@ interface Shown {
   tools: { tool: string; endpoint?: string; status: string }[];
   scripts: { code: string; result: string }[];
   citations: Citation[];
+  data: DataTable[];
   error?: string;
 }
 
@@ -98,6 +99,83 @@ function Answer({ text, citations, ids }: { text: string; citations: Citation[];
   );
 }
 
+/**
+ * A data round's one numeric column as a small line or bar chart (T-4198), the widget's drawing.
+ * The table above it is the text alternative, so the drawing is hidden from screen readers.
+ */
+function Chart({ chart }: { chart: DataChart }): JSX.Element {
+  const W = 300;
+  const H = 90;
+  const top = 14;
+  const base = top + H;
+  const values = chart.points.map((p) => p.value);
+  const low = Math.min(0, ...values);
+  const high = Math.max(0, ...values);
+  const span = high - low || 1;
+  const y = (v: number) => top + H - ((v - low) / span) * H;
+  const step = W / chart.points.length;
+  return (
+    <svg viewBox={`0 0 ${W} ${base + 14}`} aria-hidden="true" focusable="false" className="mt-2 block h-auto w-full" data-testid="assistant-chart">
+      <line x1={0} x2={W} y1={y(0)} y2={y(0)} className="stroke-border" />
+      {chart.kind === "line" ? (
+        <polyline
+          points={chart.points.map((p, i) => `${(i * step + step / 2).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ")}
+          className="fill-none stroke-accent"
+          strokeWidth={2}
+        />
+      ) : (
+        chart.points.map((p, i) => {
+          const a = y(Math.max(p.value, 0));
+          const b = y(Math.min(p.value, 0));
+          return <rect key={i} x={i * step + step * 0.1} width={step * 0.8} y={a} height={Math.max(b - a, 1)} className="fill-accent" />;
+        })
+      )}
+      <text x={0} y={10} className="fill-fg-muted text-[10px]">{`${chart.value} ${Number(high.toPrecision(4))}`}</text>
+      <text x={0} y={base + 12} className="fill-fg-muted text-[10px]">{chart.points[0].label}</text>
+      <text x={W} y={base + 12} textAnchor="end" className="fill-fg-muted text-[10px]">{chart.points[chart.points.length - 1].label}</text>
+    </svg>
+  );
+}
+
+/** A data round's rows as the widget shows them (T-4140): a table, its chart and its links. */
+function Data({ table }: { table: DataTable }): JSX.Element {
+  const { t } = useTranslation();
+  const chart = dataChart(table);
+  return (
+    <figure className="mt-2 text-caption">
+      <Table caption={table.caption || t("knowledge.chat.data")}>
+        <thead>
+          <tr>
+            {table.columns.map((c, i) => (
+              <th key={i} scope="col" className="whitespace-nowrap px-2 py-1 text-left">
+                {c}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {table.rows.map((row, r) => (
+            <tr key={r}>
+              {table.columns.map((_, c) => (
+                <td key={c} className="whitespace-nowrap border-t border-border px-2 py-1">
+                  {cellText(row[c])}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+      {chart ? <Chart chart={chart} /> : null}
+      {table.dataset || table.download ? (
+        <p className="mt-1 flex flex-wrap gap-3">
+          {table.dataset ? <ExternalLink href={table.dataset}>{t("knowledge.chat.dataset")}</ExternalLink> : null}
+          {table.download ? <ExternalLink href={table.download}>{t("knowledge.chat.download")}</ExternalLink> : null}
+        </p>
+      ) : null}
+    </figure>
+  );
+}
+
 /** The turns the next question sends back, as API/05 §1.1 bounds them. */
 const HISTORY = 6;
 const MAX_CHARS = 4_000;
@@ -116,6 +194,8 @@ function apply(turn: Shown, event: ChatEvent): Shown {
       return { ...turn, text: event.text, reading: undefined };
     case "citations":
       return { ...turn, citations: event.citations };
+    case "data":
+      return { ...turn, data: [...turn.data, event.data] };
     case "error":
       return { ...turn, error: event.detail, reading: undefined };
     default:
@@ -160,8 +240,8 @@ export function AssistantChat({
       .map((turn) => ({ role: turn.role, text: turn.text.slice(0, MAX_CHARS) }));
     setTurns((all) => [
       ...all,
-      { role: "user", text: message, tools: [], scripts: [], citations: [] },
-      { role: "assistant", text: "", tools: [], scripts: [], citations: [] },
+      { role: "user", text: message, tools: [], scripts: [], citations: [], data: [] },
+      { role: "assistant", text: "", tools: [], scripts: [], citations: [], data: [] },
     ]);
     setQuestion("");
     setFailure(null);
@@ -232,6 +312,9 @@ export function AssistantChat({
               </p>
             ) : null}
             {turn.text && turn.role === "user" ? <p className="whitespace-pre-wrap">{turn.text}</p> : null}
+            {turn.data.map((table, n) => (
+              <Data key={n} table={table} />
+            ))}
             {turn.text && turn.role === "assistant" ? <Answer text={turn.text} citations={turn.citations} ids={`${ids}-${index}`} /> : null}
             {turn.error ? (
               <Alert role="alert" tone="danger">

@@ -6666,7 +6666,10 @@
       "send": "Send",
       "failed": "The answer could not be loaded. Try again.",
       "liveData": "Live data",
-      "sourceNumber": "Source {n}"
+      "sourceNumber": "Source {n}",
+      "data": "Data the answer read",
+      "dataset": "Open the dataset",
+      "download": "Download the data"
     },
     "embed": {
       "title": "Embed",
