@@ -6514,7 +6514,8 @@
       "website": "Website",
       "ckan": "Datenkatalog",
       "catalogue": "Katalog der Kontexträume",
-      "guide": "Benutzerhandbuch"
+      "guide": "Benutzerhandbuch",
+      "upload": "Hochgeladene Dateien"
     },
     "status": {
       "pending": "Noch nicht gelesen",
@@ -6567,6 +6568,7 @@
       "startUrls": "Startadressen",
       "ckanInstanceRef": "Katalog",
       "sitemap": "Sitemap lesen",
+      "wordpressTypes": "WordPress-Inhaltstypen",
       "include": "Nur diese Pfade lesen",
       "exclude": "Diese Pfade überspringen",
       "maxDepth": "Verweistiefe",
@@ -6597,7 +6599,26 @@
       "theme": "Aussehen",
       "primaryColor": "Akzentfarbe",
       "greeting": "Begrüßung",
-      "sandbox": "Skripte in der Sandbox"
+      "sandbox": "Skripte in der Sandbox",
+      "organizations": "Nur diese Organisationen",
+      "upload": "Hochgeladene Dateien",
+      "uploadMaxBytes": "Größte Datei (Bytes)",
+      "uploadMaxFiles": "Höchstens Dateien",
+      "perClientPerHour": "Fragen pro Stunde, ein Besucher",
+      "perClientPerDay": "Fragen pro Tag, ein Besucher",
+      "streamsPerClient": "Antworten gleichzeitig, ein Besucher",
+      "costPerDayUsd": "Kosten pro Tag (USD)",
+      "outputTokensPerAnswer": "Tokens pro Antwort",
+      "messagesPerConversation": "Fragen pro Gespräch",
+      "questionChars": "Längste Frage (Zeichen)",
+      "enabled": "Antwortet",
+      "model": "Modelle",
+      "routerModel": "Modell, das die Quellen wählt",
+      "answerModel": "Modell, das die Antwort schreibt",
+      "suggestions": "Vorgeschlagene Fragen",
+      "disclaimer": "Hinweis",
+      "scope": "Über dieses Projekt hinaus",
+      "scopeProjects": "Projekte, deren öffentliche Endpoints er lesen darf"
     },
     "visibility": {
       "internal": "Intern: angemeldete Mitarbeitende",
@@ -6659,7 +6680,22 @@
     },
     "everySpace": "jeder Raum des Projekts",
     "userGuide": "das Benutzerhandbuch der Plattform, mit Links in dieses Projekt",
-    "askFirst": "Geben Sie zuerst eine Frage ein."
+    "askFirst": "Geben Sie zuerst eine Frage ein.",
+    "files": {
+      "title": "Dateien",
+      "intro": "Dateien, die Sie hier hochladen: Der Assistent antwortet daraus, sobald er sie gelesen hat. Entfernen Sie eine Datei, um ihre Passagen aus allen Antworten zu nehmen.",
+      "upload": "Dateien hochladen",
+      "uploading": "Wird hochgeladen…",
+      "choose": "Dateien zum Hochladen wählen",
+      "accepts": "PDF, DOCX, XLSX, CSV, Markdown oder Text; je höchstens 50 MB.",
+      "added": "{count, plural, one {# Datei} other {# Dateien}} in {passages} Passagen gelesen.",
+      "failed": "{name} wurde nicht hochgeladen: {reason}. Korrigieren Sie die Datei und wählen Sie sie erneut.",
+      "none": "Noch keine Datei",
+      "noneHint": "Laden Sie ein PDF, eine Tabelle oder eine Textdatei hoch, aus der der Assistent antwortet.",
+      "name": "Datei",
+      "remove": "Entfernen",
+      "removeOf": "{name} entfernen"
+    }
   },
   "mcp": {
     "title": "MCP-Server",

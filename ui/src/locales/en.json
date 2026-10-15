@@ -6514,7 +6514,8 @@
       "website": "Website",
       "ckan": "Data catalogue",
       "catalogue": "Context spaces' catalogue",
-      "guide": "User Guide"
+      "guide": "User Guide",
+      "upload": "Uploaded files"
     },
     "status": {
       "pending": "Not read yet",
@@ -6567,6 +6568,7 @@
       "startUrls": "Start addresses",
       "ckanInstanceRef": "Catalogue",
       "sitemap": "Read the sitemap",
+      "wordpressTypes": "WordPress content types",
       "include": "Read only these paths",
       "exclude": "Skip these paths",
       "maxDepth": "Link depth",
@@ -6597,7 +6599,26 @@
       "theme": "Look",
       "primaryColor": "Accent colour",
       "greeting": "Greeting",
-      "sandbox": "Scripts in the sandbox"
+      "sandbox": "Scripts in the sandbox",
+      "organizations": "Only these organizations",
+      "upload": "Uploaded files",
+      "uploadMaxBytes": "Largest file (bytes)",
+      "uploadMaxFiles": "Most files",
+      "perClientPerHour": "Questions an hour, one visitor",
+      "perClientPerDay": "Questions a day, one visitor",
+      "streamsPerClient": "Answers at once, one visitor",
+      "costPerDayUsd": "Cost a day (USD)",
+      "outputTokensPerAnswer": "Tokens an answer",
+      "messagesPerConversation": "Questions a conversation",
+      "questionChars": "Longest question (characters)",
+      "enabled": "Answers",
+      "model": "Models",
+      "routerModel": "Model that picks the sources",
+      "answerModel": "Model that writes the answer",
+      "suggestions": "Suggested questions",
+      "disclaimer": "Disclaimer",
+      "scope": "Beyond this project",
+      "scopeProjects": "Projects whose public Endpoints it may read"
     },
     "visibility": {
       "internal": "Internal: signed-in staff",
@@ -6659,7 +6680,22 @@
     },
     "everySpace": "every space of the project",
     "userGuide": "the platform's User Guide, with links into this project",
-    "askFirst": "Type a question first."
+    "askFirst": "Type a question first.",
+    "files": {
+      "title": "Files",
+      "intro": "Files you upload here: the assistant answers from them as soon as they are read. Remove a file to take its passages out of every answer.",
+      "upload": "Upload files",
+      "uploading": "Uploading…",
+      "choose": "Choose files to upload",
+      "accepts": "PDF, DOCX, XLSX, CSV, Markdown or text; at most 50 MB each.",
+      "added": "{count, plural, one {# file} other {# files}} read into {passages} passages.",
+      "failed": "{name} was not uploaded: {reason}. Fix the file and choose it again.",
+      "none": "No file yet",
+      "noneHint": "Upload a PDF, a spreadsheet or a text file for the assistant to answer from.",
+      "name": "File",
+      "remove": "Remove",
+      "removeOf": "Remove {name}"
+    }
   },
   "mcp": {
     "title": "MCP servers",

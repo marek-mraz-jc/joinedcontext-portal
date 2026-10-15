@@ -7,7 +7,19 @@
 import { describe, expect, it } from "vitest";
 import validator from "../src/components/forms/validator";
 import { errorMessageKey } from "../src/components/forms/errorMessages";
-import { CRON, HEX_COLOR, HTTPS_URL, LANGUAGE, ORIGIN, SITE_PATH, assistantDeploymentSchema } from "../src/schemas/knowledge";
+import {
+  CRON,
+  ENDPOINT_TOOLS,
+  HEX_COLOR,
+  HTTPS_URL,
+  LANGUAGE,
+  ORIGIN,
+  SITE_PATH,
+  assistantDeploymentSchema,
+  fromKindManifest,
+  knowledgeSourceSchema,
+  toKindManifest,
+} from "../src/schemas/knowledge";
 import en from "../src/locales/en.json";
 
 const t = (key: string) => key;
@@ -63,5 +75,92 @@ describe("the formats typed by hand", () => {
     for (const key of ["cron", "origin", "language", "sitePath", "color"] as const) {
       expect(en.form[key], key).toMatch(/such as/);
     }
+  });
+});
+
+// T-4142: the public assistant's fields of T-4166, bounded as jc-core bounds them.
+describe("the public assistant's settings", () => {
+  it("take models, suggestions and a disclaimer per language, and refuse what jc-core refuses", () => {
+    const good = {
+      ...base,
+      channel: "internal",
+      enabled: false,
+      model: { router: "google/gemini-3.8-flash", answer: "anthropic/claude-haiku-5-5" },
+      suggestions: { sk: ["Kedy je otvorený úrad?"], en: ["When is the office open?"] },
+      disclaimer: { sk: "Odpovede píše stroj." },
+      scope: { projects: ["bbsk"] },
+    };
+    expect(errorsOf(good)).toEqual([]);
+    expect(
+      errorsOf({
+        ...good,
+        model: { router: "Gemini Flash" },
+        suggestions: { english: ["?"], sk: Array.from({ length: 7 }, (_, i) => `q${i}`) },
+        disclaimer: { sk: "x".repeat(401) },
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        "model.router:pattern",
+        "suggestions.english:pattern",
+        "suggestions.sk:maxItems",
+        "disclaimer.sk:maxLength",
+      ]),
+    );
+  });
+
+  it("offer only the tools the assistant calls, none that writes", () => {
+    expect(ENDPOINT_TOOLS).toContain("query_entities");
+    expect(ENDPOINT_TOOLS.filter((tool) => /create|update|delete|upsert|append|batch/.test(tool))).toEqual([]);
+  });
+
+  it("keep the maps through the manifest and back", () => {
+    const form = { ...base, channel: "public", suggestions: { sk: ["Kde parkovať?"] }, disclaimer: { en: "Machine-written." } };
+    const manifest = toKindManifest("AssistantDeployment", "banskabystrica", form);
+    expect(manifest.spec).toMatchObject({ suggestions: { sk: ["Kde parkovať?"] }, disclaimer: { en: "Machine-written." } });
+    expect(fromKindManifest(manifest)).toMatchObject(form);
+  });
+});
+
+describe("a knowledge source's newer fields", () => {
+  const sourceErrors = (form: Record<string, unknown>) =>
+    validator
+      .validateFormData(form, knowledgeSourceSchema(t))
+      .errors.map((e) => `${String(e.property).replace(/^\./, "")}:${e.name}`);
+
+  it("an upload source within its limits passes; past them it is refused", () => {
+    expect(sourceErrors({ name: "files", source: "upload", visibility: "public", upload: { maxBytes: 1_000_000, maxFiles: 20 } })).toEqual([]);
+    expect(sourceErrors({ name: "files", source: "upload", visibility: "public", upload: { maxBytes: 51 * 1024 * 1024, maxFiles: 501 } })).toEqual(
+      expect.arrayContaining(["upload.maxBytes:maximum", "upload.maxFiles:maximum"]),
+    );
+  });
+
+  it("organizations are CKAN names, at most ten", () => {
+    expect(sourceErrors({ name: "data", source: "ckan", visibility: "public", organizations: ["banskabystrica", "bbsk"] })).toEqual([]);
+    expect(
+      sourceErrors({ name: "data", source: "ckan", visibility: "public", organizations: ["Banská Bystrica", ...Array.from({ length: 10 }, (_, i) => `org-${i}`)] }),
+    ).toEqual(expect.arrayContaining(["organizations.0:pattern", "organizations:maxItems"]));
+  });
+});
+
+describe("a website source's WordPress types (T-4154, MF-51)", () => {
+  const sourceErrors = (wordpressTypes: unknown) =>
+    validator
+      .validateFormData(
+        { name: "web", source: "website", visibility: "public", startUrls: ["https://www.banskabystrica.sk/"], wordpressTypes },
+        knowledgeSourceSchema(t),
+      )
+      .errors.map((e) => `${String(e.property).replace(/^\./, "")}:${e.name}`);
+
+  it("REST bases pass and anything a URL could be smuggled in is refused at the field", () => {
+    expect(sourceErrors(["pages", "office_announcements", "emergency-contacts"])).toEqual([]);
+    for (const bad of ["Pages", "pages/../users", "pages?per_page=100", "", "a".repeat(65)]) {
+      expect(sourceErrors([bad]), bad).toEqual(expect.arrayContaining([expect.stringMatching(/^wordpressTypes\.0:/)]));
+    }
+    expect(sourceErrors(Array.from({ length: 41 }, (_, i) => `t${i}`))).toContain("wordpressTypes:maxItems");
+    expect(sourceErrors(["pages", "pages"])).toContain("wordpressTypes:uniqueItems");
+  });
+
+  it("is named in every language", () => {
+    expect(en.knowledge.field.wordpressTypes).toBe("WordPress content types");
   });
 });

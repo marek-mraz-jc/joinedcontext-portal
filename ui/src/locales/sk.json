@@ -6514,7 +6514,8 @@
       "website": "Web",
       "ckan": "Dátový katalóg",
       "catalogue": "Katalóg kontextových priestorov",
-      "guide": "Používateľská príručka"
+      "guide": "Používateľská príručka",
+      "upload": "Nahrané súbory"
     },
     "status": {
       "pending": "Ešte neprečítané",
@@ -6567,6 +6568,7 @@
       "startUrls": "Začiatočné adresy",
       "ckanInstanceRef": "Katalóg",
       "sitemap": "Čítať mapu webu",
+      "wordpressTypes": "Typy obsahu WordPressu",
       "include": "Čítať len tieto cesty",
       "exclude": "Preskočiť tieto cesty",
       "maxDepth": "Hĺbka odkazov",
@@ -6597,7 +6599,26 @@
       "theme": "Vzhľad",
       "primaryColor": "Farba zvýraznenia",
       "greeting": "Pozdrav",
-      "sandbox": "Skripty v sandboxe"
+      "sandbox": "Skripty v sandboxe",
+      "organizations": "Len tieto organizácie",
+      "upload": "Nahrané súbory",
+      "uploadMaxBytes": "Najväčší súbor (bajty)",
+      "uploadMaxFiles": "Najviac súborov",
+      "perClientPerHour": "Otázky za hodinu, jeden návštevník",
+      "perClientPerDay": "Otázky za deň, jeden návštevník",
+      "streamsPerClient": "Odpovede naraz, jeden návštevník",
+      "costPerDayUsd": "Náklady za deň (USD)",
+      "outputTokensPerAnswer": "Tokeny na odpoveď",
+      "messagesPerConversation": "Otázky v rozhovore",
+      "questionChars": "Najdlhšia otázka (znaky)",
+      "enabled": "Odpovedá",
+      "model": "Modely",
+      "routerModel": "Model, ktorý vyberá zdroje",
+      "answerModel": "Model, ktorý píše odpoveď",
+      "suggestions": "Navrhované otázky",
+      "disclaimer": "Upozornenie",
+      "scope": "Mimo tohto projektu",
+      "scopeProjects": "Projekty, ktorých verejné endpointy smie čítať"
     },
     "visibility": {
       "internal": "Interný: prihlásení zamestnanci",
@@ -6659,7 +6680,22 @@
     },
     "everySpace": "každý priestor projektu",
     "userGuide": "používateľská príručka platformy s odkazmi do tohto projektu",
-    "askFirst": "Najprv napíšte otázku."
+    "askFirst": "Najprv napíšte otázku.",
+    "files": {
+      "title": "Súbory",
+      "intro": "Súbory, ktoré sem nahráte: asistent z nich odpovedá hneď, ako ich prečíta. Odstránením súboru vyberiete jeho pasáže zo všetkých odpovedí.",
+      "upload": "Nahrať súbory",
+      "uploading": "Nahráva sa…",
+      "choose": "Vyberte súbory na nahratie",
+      "accepts": "PDF, DOCX, XLSX, CSV, Markdown alebo text; každý najviac 50 MB.",
+      "added": "{count, plural, one {# súbor prečítaný} few {# súbory prečítané} other {# súborov prečítaných}} do {passages} pasáží.",
+      "failed": "{name} sa nenahral: {reason}. Opravte súbor a vyberte ho znova.",
+      "none": "Zatiaľ žiadny súbor",
+      "noneHint": "Nahrajte PDF, tabuľku alebo textový súbor, z ktorého bude asistent odpovedať.",
+      "name": "Súbor",
+      "remove": "Odstrániť",
+      "removeOf": "Odstrániť {name}"
+    }
   },
   "mcp": {
     "title": "MCP servery",

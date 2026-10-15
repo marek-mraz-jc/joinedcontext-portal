@@ -30,8 +30,11 @@ spec:
       source,
       startUrls,
       ckanInstanceRef,
+      organizations,
+      upload,
       visibility,
       sitemap,
+      wordpressTypes,
       include,
       exclude,
       maxDepth,
@@ -52,7 +55,7 @@ spec:
         sk: Web alebo katalóg a či z neho smie odpovedať verejný asistent.
         cs: Web nebo katalog a zda z něj smí odpovídat veřejný asistent.
         de: Die Website oder der Katalog, und ob ein öffentlicher Assistent daraus antworten darf.
-      fields: [name, source, startUrls, ckanInstanceRef, visibility]
+      fields: [name, source, startUrls, ckanInstanceRef, organizations, upload, visibility]
     - title:
         en: How far it reads
         sk: Ako ďaleko číta
@@ -64,7 +67,7 @@ spec:
         cs: Které stránky a dokumenty webu se čtou a jaké limity procházení dodržuje.
         de: Welche Seiten und Dokumente gelesen werden, und welche Grenzen ein Durchlauf einhält.
       folded: true
-      fields: [sitemap, include, exclude, maxDepth, maxPages, pdf, offDomainDocuments]
+      fields: [sitemap, wordpressTypes, include, exclude, maxDepth, maxPages, pdf, offDomainDocuments]
     - title:
         en: When and in which language
         sk: Kedy a v akom jazyku
@@ -78,6 +81,24 @@ spec:
       folded: true
       fields: [schedule, languages]
   fields:
+    organizations:
+      help:
+        en: The catalogue's organizations whose datasets are read, by name, at most 10; empty reads every one.
+        sk: Organizácie katalógu, ktorých datasety sa čítajú, podľa názvu, najviac 10; prázdne číta všetky.
+        cs: Organizace katalogu, jejichž datové sady se čtou, podle názvu, nejvýše 10; prázdné čte všechny.
+        de: Die Organisationen des Katalogs, deren Datensätze gelesen werden, höchstens 10; leer liest alle.
+    upload.maxBytes:
+      help:
+        en: The largest file an administrator may upload, in bytes, at most 50 MiB; PDF, DOCX, XLSX, CSV, Markdown or text, checked by content.
+        sk: Najväčší súbor, ktorý smie správca nahrať, v bajtoch, najviac 50 MiB; PDF, DOCX, XLSX, CSV, Markdown alebo text, overené podľa obsahu.
+        cs: Největší soubor, který smí správce nahrát, v bajtech, nejvýše 50 MiB; PDF, DOCX, XLSX, CSV, Markdown nebo text, ověřeno podle obsahu.
+        de: Die größte Datei, die eine Administratorin hochladen darf, in Bytes, höchstens 50 MiB; PDF, DOCX, XLSX, CSV, Markdown oder Text, nach Inhalt geprüft.
+    upload.maxFiles:
+      help:
+        en: The most files the source holds, from 1 to 500.
+        sk: Najviac súborov, ktoré zdroj drží, od 1 do 500.
+        cs: Nejvíce souborů, které zdroj drží, od 1 do 500.
+        de: Die meisten Dateien, die die Quelle hält, 1 bis 500.
     name:
       help:
         en: The short name the source is filed under; a deployment names it in its sources.
@@ -114,6 +135,12 @@ spec:
         sk: Najprv prečítať mapu webu, aby sa prečítali aj stránky, na ktoré nevedie žiadny odkaz.
         cs: Nejprve přečíst mapu webu, aby se přečetly i stránky, na které nevede žádný odkaz.
         de: Zuerst die Sitemap lesen, damit auch Seiten gelesen werden, auf die kein Verweis führt.
+    wordpressTypes:
+      help:
+        en: For a WordPress site, the content types whose pages are read first, newest change first, such as pages or newses. Empty reads none.
+        sk: Pri webe na WordPresse typy obsahu, ktorých stránky sa prečítajú najprv, od najnovšej zmeny, napríklad pages alebo newses. Prázdne nečíta žiadny.
+        cs: U webu na WordPressu typy obsahu, jejichž stránky se přečtou nejdříve, od nejnovější změny, například pages nebo newses. Prázdné nečte žádný.
+        de: Bei einer WordPress-Website die Inhaltstypen, deren Seiten zuerst gelesen werden, neueste Änderung zuerst, etwa pages oder newses. Leer liest keinen.
     include:
       help:
         en: Paths a page must match to be read, each starting with a slash; ** matches any depth. Empty reads all.

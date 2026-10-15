@@ -115,8 +115,16 @@ async fn rig_on(issuer: String, realm: Option<MockServer>) -> Rig {
         "catalogue",
         "helsinki",
         json!({
-            "source": "ckan", "ckanInstanceRef": "hel-fi", "visibility": "public"
+            "source": "ckan", "ckanInstanceRef": "hel-fi", "visibility": "public",
+            "organizations": ["helsinki"]
         }),
+    ));
+    // T-4142: the files an administrator uploads (MF-51).
+    mirror.upsert(common::envelope(
+        "KnowledgeSource",
+        "files",
+        "helsinki",
+        json!({ "source": "upload", "visibility": "internal", "upload": {"maxBytes": 1048576} }),
     ));
     mirror.upsert(common::envelope(
         "AssistantDeployment",
@@ -223,9 +231,19 @@ async fn the_sources_join_the_manifests_with_what_the_assistant_holds() {
         .find(|i| i["source"] == "catalogue")
         .expect("catalogue");
     assert_eq!(
-        (catalogue["state"].clone(), catalogue["type"].clone()),
-        (json!("not-crawled"), json!("ckan"))
+        (
+            catalogue["state"].clone(),
+            catalogue["type"].clone(),
+            catalogue["organizations"].clone()
+        ),
+        (json!("not-crawled"), json!("ckan"), json!(["helsinki"]))
     );
+    // A source of the newer kind fields is listed, never dropped by the parse (T-4142).
+    let files = items
+        .iter()
+        .find(|i| i["source"] == "files")
+        .expect("files");
+    assert_eq!(files["type"], "upload");
     let spaces = items
         .iter()
         .find(|i| i["source"] == "spaces")
@@ -594,4 +612,176 @@ async fn the_chat_refuses_before_the_assistant_is_asked_and_relays_its_refusals(
     .await;
     assert_eq!(busy.status, 429);
     assert!(busy.text.contains("Ask again in a moment"));
+}
+
+const FILES: &str = "/api/v1/projects/helsinki/knowledge/sources/files/files";
+
+/// T-4184, T-4185: a file's raw bytes and its name reach the assistant as they were sent, the
+/// list and the removal are forwarded, and each change lands in the project's activity.
+#[tokio::test]
+async fn a_file_is_forwarded_listed_and_removed() {
+    let r = rig().await;
+    Mock::given(method("POST"))
+        .and(path(format!("{ASSISTANT_PATH}/sources/files/files")))
+        .and(query_param("name", "rozpočet 2026.csv"))
+        .and(header("authorization", "Bearer the-portals-own-token"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+            "id": 7, "name": "rozpočet 2026.csv", "mime": "text/csv", "bytes": 8,
+            "passages": 1, "status": "indexed"
+        })))
+        .expect(1)
+        .mount(&r.assistant)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("{ASSISTANT_PATH}/sources/files/files")))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({"items": [{"id": 7, "name": "rozpočet 2026.csv"}]})),
+        )
+        .mount(&r.assistant)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path(format!("{ASSISTANT_PATH}/sources/files/files/7")))
+        .respond_with(ResponseTemplate::new(204))
+        .mount(&r.assistant)
+        .await;
+    let mut activity = r.state.activity_events.subscribe("helsinki").await;
+
+    let added = common::send_body(
+        &r.state,
+        admin(),
+        "POST",
+        &format!("{FILES}?name=rozpo%C4%8Det%202026.csv"),
+        "text/csv",
+        axum::body::Body::from("a,b\n1,2\n"),
+    )
+    .await;
+    assert_eq!(added.status, 201, "{}", added.text);
+    let file: Value = serde_json::from_str(&added.text).expect("json");
+    assert_eq!(file["passages"], 1);
+    let requests = r.assistant.received_requests().await.unwrap_or_default();
+    let sent = requests
+        .iter()
+        .find(|q| q.method.as_str() == "POST")
+        .expect("the upload was sent");
+    assert_eq!(sent.body, b"a,b\n1,2\n");
+    let event = activity.try_recv().expect("an activity event");
+    assert_eq!(event.kind, "knowledge.file.uploaded");
+    assert_eq!(event.details["name"], "rozpočet 2026.csv");
+    assert_eq!(event.details["bytes"], 8);
+
+    let listed = common::send(&r.state, admin(), "GET", FILES, None).await;
+    assert_eq!(listed.status, 200);
+    assert!(listed.text.contains("rozpočet 2026.csv"));
+
+    let removed = common::send(&r.state, admin(), "DELETE", &format!("{FILES}/7"), None).await;
+    assert_eq!(removed.status, 204, "{}", removed.text);
+    assert_eq!(
+        activity.try_recv().expect("a second event").kind,
+        "knowledge.file.removed"
+    );
+}
+
+/// Nobody without the permission reaches the assistant with a file, and the assistant's own
+/// refusals (too large, not a type it reads, a full source, no such file) come back as they are.
+#[tokio::test]
+async fn an_upload_is_refused_before_the_assistant_and_its_refusals_relayed() {
+    let r = rig().await;
+    let stranger = common::person("nobody");
+    for (http, uri) in [
+        ("GET", FILES.to_owned()),
+        ("POST", format!("{FILES}?name=a.csv")),
+        ("DELETE", format!("{FILES}/7")),
+    ] {
+        let answer = common::send_body(
+            &r.state,
+            stranger.clone(),
+            http,
+            &uri,
+            "text/csv",
+            axum::body::Body::from("a"),
+        )
+        .await;
+        assert_eq!(answer.status, 404, "{http} {uri}: {}", answer.text);
+    }
+    // AG-113: reading the sources is not steering them: a reader is told so, with 403.
+    r.state.mirror.upsert(common::envelope(
+        "Role",
+        "knowledge-reader",
+        joinedcontext_portal::permissions::ORG_NAMESPACE,
+        json!({ "rules": [{ "kinds": ["KnowledgeSource"], "verbs": ["read"] }] }),
+    ));
+    r.state.mirror.upsert(common::envelope(
+        "RoleBinding",
+        "jana-knowledge",
+        joinedcontext_portal::permissions::ORG_NAMESPACE,
+        json!({ "subjects": [{ "user": "jana@hel.fi" }], "role": "knowledge-reader", "scope": { "project": "helsinki" } }),
+    ));
+    let reader = common::person("jana");
+    for (http, uri) in [
+        ("POST", format!("{FILES}?name=a.csv")),
+        ("DELETE", format!("{FILES}/7")),
+    ] {
+        let answer = common::send_body(
+            &r.state,
+            reader.clone(),
+            http,
+            &uri,
+            "text/csv",
+            axum::body::Body::from("a"),
+        )
+        .await;
+        assert_eq!(answer.status, 403, "{http} {uri}: {}", answer.text);
+        assert!(answer.text.contains("KnowledgeSource"), "{}", answer.text);
+    }
+    // No name is the Portal's own 400, and a bad source name never leaves it.
+    let unnamed = common::send_body(&r.state, admin(), "POST", FILES, "text/csv", "a".into()).await;
+    assert_eq!(unnamed.status, 400);
+    let odd = common::send(
+        &r.state,
+        admin(),
+        "GET",
+        "/api/v1/projects/helsinki/knowledge/sources/Not_A_Name/files",
+        None,
+    )
+    .await;
+    assert_eq!(odd.status, 404);
+    assert_eq!(asked(&r.assistant).await, 0);
+
+    for (name, status, detail) in [
+        ("big.pdf", 413, "at most 1048576 bytes"),
+        ("x.exe", 415, "not a type this source reads"),
+        ("full.csv", 409, "already holds its 500 files"),
+    ] {
+        Mock::given(method("POST"))
+            .and(path(format!("{ASSISTANT_PATH}/sources/files/files")))
+            .and(query_param("name", name))
+            .respond_with(
+                ResponseTemplate::new(status)
+                    .set_body_json(json!({"status": status, "detail": detail})),
+            )
+            .mount(&r.assistant)
+            .await;
+        let answer = common::send_body(
+            &r.state,
+            admin(),
+            "POST",
+            &format!("{FILES}?name={name}"),
+            "application/octet-stream",
+            "bytes".into(),
+        )
+        .await;
+        assert_eq!(answer.status.as_u16(), status, "{name}: {}", answer.text);
+        assert!(answer.text.contains(detail), "{name}: {}", answer.text);
+    }
+    Mock::given(method("DELETE"))
+        .and(path(format!("{ASSISTANT_PATH}/sources/files/files/8")))
+        .respond_with(
+            ResponseTemplate::new(404)
+                .set_body_json(json!({"status": 404, "detail": "no such file of this source"})),
+        )
+        .mount(&r.assistant)
+        .await;
+    let gone = common::send(&r.state, admin(), "DELETE", &format!("{FILES}/8"), None).await;
+    assert_eq!(gone.status, 404);
 }

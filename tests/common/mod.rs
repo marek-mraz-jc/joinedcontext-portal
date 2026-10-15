@@ -106,6 +106,19 @@ pub async fn send(
     } else {
         "application/json"
     };
+    let body = body.map_or_else(Body::empty, |body| Body::from(body.to_string()));
+    send_body(state, identity, http, uri, content_type, body).await
+}
+
+/// [`send`] with a body of any type: an upload's raw bytes.
+pub async fn send_body(
+    state: &AppState,
+    identity: Identity,
+    http: &str,
+    uri: &str,
+    content_type: &str,
+    body: Body,
+) -> Answer {
     let config = state.config.clone();
     let response = server::app(state.clone())
         .oneshot(
@@ -115,7 +128,7 @@ pub async fn send(
                 .header(header::COOKIE, cookie(&config, identity))
                 .header(CSRF_HEADER, CSRF)
                 .header(header::CONTENT_TYPE, content_type)
-                .body(body.map_or_else(Body::empty, |body| Body::from(body.to_string())))
+                .body(body)
                 .expect("request"),
         )
         .await

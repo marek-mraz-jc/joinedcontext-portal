@@ -996,6 +996,14 @@
         "form_ckan_page.test.tsx"
       ]
     },
+    "src/pages/connect/ConnectPage.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "connect_page.test.tsx"
+      ]
+    },
     "src/pages/datasources/DataSourcesPage.tsx": {
       "controls": {
         "Button": 1
@@ -1191,6 +1199,15 @@
       "controls": {
         "Button": 6,
         "Checkbox": 3
+      },
+      "tests": [
+        "knowledge_pages.test.tsx"
+      ]
+    },
+    "src/pages/knowledge/UploadedFiles.tsx": {
+      "controls": {
+        "Button": 2,
+        "FilePicker": 1
       },
       "tests": [
         "knowledge_pages.test.tsx"

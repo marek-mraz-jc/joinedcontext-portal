@@ -137,7 +137,8 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
               return (
                 <TableRow key={row.source}>
                   <TableCell className="font-mono">
-                    {row.state === "crawled" ? (
+                    {/* An upload source opens before its first file: that page is where it is sent (T-4185). */}
+                    {row.state === "crawled" || row.type === "upload" ? (
                       <Link
                         to="/projects/$project/knowledge/$source"
                         params={{ project, source: row.source }}
@@ -182,6 +183,7 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
                       : "—"}
                   </TableCell>
                   <TableCell align="right">
+                    {row.type === "upload" ? null : (
                     <PermissionGuard project={project} kind="KnowledgeSource" verb="propose">
                       <Button
                         variant="secondary"
@@ -198,6 +200,7 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
                         {t("knowledge.recrawl")}
                       </Button>
                     </PermissionGuard>
+                    )}
                   </TableCell>
                 </TableRow>
               );
