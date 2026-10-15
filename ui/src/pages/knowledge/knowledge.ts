@@ -7,6 +7,9 @@ export interface SourceJob {
   state: "queued" | "running" | "done" | "failed";
   attempts: number;
   error: string | null;
+  /** When a worker took the job up, and when it ended (T-4197). */
+  startedAt?: string | null;
+  finishedAt?: string | null;
 }
 
 export interface KnowledgeSourceRow {
@@ -25,6 +28,10 @@ export interface KnowledgeSourceRow {
   documents?: number;
   passages?: number;
   embedded?: number;
+  /** Passages not searchable yet: stored, still waiting for their embedding (T-4197). */
+  pending?: number;
+  /** Pages and documents whose last read failed. */
+  failed?: number;
   job?: SourceJob | null;
 }
 
@@ -69,6 +76,13 @@ export interface LinkRow {
   kind: "page" | "document" | "external";
 }
 
+/** A page or document whose last read failed, and why (API/05 §3, T-4197). */
+export interface CrawlError {
+  url: string;
+  kind: "page" | "document";
+  reason: string;
+}
+
 export interface InclusionChange {
   pages: number[];
   documents: number[];
@@ -99,6 +113,7 @@ export const knowledgeKeys = {
   documents: (project: string, source: string) => ["projects", project, "knowledge", "sources", source, "documents"] as const,
   passages: (project: string, source: string, owner: { page?: number; document?: number }) =>
     ["projects", project, "knowledge", "sources", source, "passages", owner.page ?? null, owner.document ?? null] as const,
+  errors: (project: string, source: string) => ["projects", project, "knowledge", "sources", source, "errors"] as const,
   files: (project: string, source: string) => ["projects", project, "knowledge", "sources", source, "files"] as const,
   links: (project: string, source: string, page: number) =>
     ["projects", project, "knowledge", "sources", source, "links", page] as const,
@@ -163,6 +178,16 @@ export async function setInclusion(project: string, source: string, change: Incl
   );
   const counts = answer as Partial<InclusionCounts> | null;
   return { pages: counts?.pages ?? 0, documents: counts?.documents ?? 0, passagesRemoved: counts?.passagesRemoved ?? 0 };
+}
+
+export async function listErrors(project: string, source: string): Promise<CrawlError[]> {
+  return items<CrawlError>(
+    await unwrap(
+      await api.GET("/api/v1/projects/{project}/knowledge/sources/{source}/errors", {
+        params: { path: { project, source } },
+      }),
+    ),
+  );
 }
 
 export async function recrawl(project: string, source: string): Promise<void> {

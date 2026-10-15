@@ -119,6 +119,7 @@
     "src/pages/import/ImportPage.tsx": null,
     "src/pages/inbox/InboxPage.tsx": null,
     "src/pages/knowledge/AssistantChat.tsx": null,
+    "src/pages/knowledge/IndexStatus.tsx": null,
     "src/pages/knowledge/KnowledgePage.tsx": null,
     "src/pages/knowledge/SourcePage.tsx": null,
     "src/pages/knowledge/UploadedFiles.tsx": null,
