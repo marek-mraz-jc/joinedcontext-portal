@@ -16,7 +16,7 @@ import { BrandMark, Shell } from "./components/layout/Shell";
 import { isHiddenSection } from "./components/layout/navigation";
 import { useHiddenSections } from "./branding";
 import { EmptyState, PageFailed, PageLoading } from "./components/ui";
-import { ErrorPage, errorReference } from "./components/ErrorBoundary";
+import { ChunkFailed, ErrorPage, errorReference, isChunkLoadError } from "./components/ErrorBoundary";
 import { NotFoundState } from "./components/NotFoundState";
 import { LoginPage } from "./routes/LoginPage";
 import { hasEditForm, ResourceListPage } from "./routes/ResourceListPage";
@@ -1200,8 +1200,8 @@ export function createPortalRouter() {
     // What throws before a page is drawn — a loader, a `beforeLoad` — cannot be caught inside
     // the shell, because there is no shell yet. It gets the same words as the boundary at the
     // root rather than the router's own "Something went wrong!" (T-2426, UI-44).
-    defaultErrorComponent: function RouteFailed() {
-      return <ErrorPage reference={errorReference()} />;
+    defaultErrorComponent: function RouteFailed({ error }: { error: unknown }) {
+      return isChunkLoadError(error) ? <ChunkFailed /> : <ErrorPage reference={errorReference()} />;
     },
   });
 }

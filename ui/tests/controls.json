@@ -122,10 +122,11 @@
     },
     "src/components/ErrorBoundary.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "browser_security.test.tsx",
+        "error_boundary_chunk.test.tsx",
         "lazy_dialogs.test.tsx"
       ]
     },
