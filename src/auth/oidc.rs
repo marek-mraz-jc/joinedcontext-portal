@@ -366,6 +366,17 @@ pub struct LoginQuery {
     /// Optional in-app path to return to after the login.
     #[serde(default)]
     pub redirect_to: Option<String>,
+    /// The Portal's language, for the realm's sign-in page (`ui_locales`, T-4199).
+    #[serde(default)]
+    pub lang: Option<String>,
+}
+
+/// A language tag the realm may be handed: two or three ASCII letters, lower-cased; anything else
+/// is dropped rather than passed into the provider's URL.
+fn ui_locale(lang: Option<&str>) -> Option<String> {
+    let lang = lang?.trim();
+    ((2..=3).contains(&lang.len()) && lang.bytes().all(|b| b.is_ascii_alphabetic()))
+        .then(|| lang.to_ascii_lowercase())
 }
 
 #[derive(Debug, Deserialize)]
@@ -436,7 +447,9 @@ fn oidc(state: &AppState) -> Result<&OidcClient, ApiError> {
     tag = "auth",
     params(
         ("redirect_to" = Option<String>, Query,
-         description = "An in-app path to return to; honoured only when it is same-origin")
+         description = "An in-app path to return to; honoured only when it is same-origin"),
+        ("lang" = Option<String>, Query,
+         description = "The Portal's language (2-3 letters), handed to the realm as `ui_locales`")
     ),
     responses(
         (status = 303, description = "Redirect to the provider's authorization endpoint"),
@@ -451,7 +464,7 @@ pub async fn login(
 ) -> Result<Response, ApiError> {
     let client = oidc(&state)?;
     let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
-    let (auth_url, csrf_state, nonce) = client
+    let mut request = client
         .client
         .authorize_url(
             CoreAuthenticationFlow::AuthorizationCode,
@@ -461,8 +474,12 @@ pub async fn login(
         // `openid` is already in the request; the client adds it itself.
         .add_scope(Scope::new("profile".to_string()))
         .add_scope(Scope::new("email".to_string()))
-        .set_pkce_challenge(challenge)
-        .url();
+        .set_pkce_challenge(challenge);
+    // The sign-in page in the Portal's language: a Slovak Portal led to an English login (T-4199).
+    if let Some(locale) = ui_locale(query.lang.as_deref()) {
+        request = request.add_extra_param("ui_locales", locale);
+    }
+    let (auth_url, csrf_state, nonce) = request.url();
 
     let flow = FlowState {
         pkce_verifier: verifier.into_secret(),
