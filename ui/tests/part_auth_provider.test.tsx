@@ -12,6 +12,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider, useAuth } from "../src/auth/AuthProvider";
 import { expectNoViolations } from "./checks";
+import i18n from "../src/i18n";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -154,9 +155,16 @@ describe("the auth provider against the UI contract", () => {
       </QueryClientProvider>,
     );
 
-    await user.click(screen.getByRole("button", { name: "in" }));
+    // The realm's page in the Portal's language (T-4199): a Slovak Portal asks for Slovak.
+    const before = i18n.language;
+    await i18n.changeLanguage("sk");
+    try {
+      await user.click(screen.getByRole("button", { name: "in" }));
+    } finally {
+      await i18n.changeLanguage(before);
+    }
     expect(assign).toHaveBeenCalledWith(
-      "/api/v1/auth/login?redirect_to=%2Fprojects%2Fhelsinki",
+      "/api/v1/auth/login?redirect_to=%2Fprojects%2Fhelsinki&lang=sk",
     );
   });
 });

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, isPublicFormPath, queryKeys, unwrap } from "../api/client";
 import type { components } from "../api/schema";
 import { clearBrowserState } from "./browserState";
+import i18n from "../i18n";
 
 /** Who is signed in and through which front (`portal`, `edge` or `bearer`), from `/auth/me`. */
 export type Identity = components["schemas"]["Me"];
@@ -64,7 +65,9 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
 
   const signIn = useCallback((redirectTo?: string) => {
     const target = redirectTo ?? `${window.location.pathname}${window.location.search}`;
-    window.location.assign(`/api/v1/auth/login?redirect_to=${encodeURIComponent(target)}`);
+    // The realm's sign-in page in the Portal's language (`ui_locales`, T-4199).
+    const lang = (i18n.language || "").split("-")[0];
+    window.location.assign(`/api/v1/auth/login?redirect_to=${encodeURIComponent(target)}${lang ? `&lang=${encodeURIComponent(lang)}` : ""}`);
   }, []);
 
   const signOut = useCallback(async () => {

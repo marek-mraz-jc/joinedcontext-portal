@@ -172,6 +172,64 @@ pub fn refusal(
     response
 }
 
+/// The 404 a person's browser gets on an App's host (T-4200): a sentence in their language and the
+/// way to the App's start, instead of the problem body every other caller still gets. It names no
+/// App, so an unpublished one, one the person may not see and a name never created answer the
+/// same page as a missing file (AP-18). `None` when the request does not ask for a page.
+pub fn missing_page(
+    headers: &HeaderMap,
+    start: &str,
+    portal_origin: Option<&str>,
+) -> Option<Response> {
+    let wants_page = headers
+        .get(header::ACCEPT)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|accept| accept.contains("text/html"));
+    if !wants_page {
+        return None;
+    }
+    let locale = locale(headers);
+    let (heading, link) = match locale {
+        "sk" => (
+            "Táto stránka v aplikácii neexistuje.",
+            "Prejsť na úvod aplikácie",
+        ),
+        "cs" => (
+            "Tato stránka v aplikaci neexistuje.",
+            "Přejít na úvod aplikace",
+        ),
+        "de" => (
+            "Diese Seite gibt es in der Anwendung nicht.",
+            "Zum Anfang der Anwendung",
+        ),
+        _ => (
+            "This page does not exist in the application.",
+            "Go to the application's start",
+        ),
+    };
+    let page = format!(
+        "<!doctype html><html lang=\"{locale}\"><head><meta charset=\"utf-8\">\
+         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
+         <title>{heading}</title></head><body><main><h1>{heading}</h1>\
+         <p><a href=\"{}\">{link}</a></p></main></body></html>",
+        escape(start),
+    );
+    let mut response = (StatusCode::NOT_FOUND, page).into_response();
+    let headers = response.headers_mut();
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("text/html; charset=utf-8"),
+    );
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    if let Ok(csp) = HeaderValue::from_str(&format!(
+        "default-src 'none'; frame-ancestors {}",
+        portal_origin.unwrap_or("'none'")
+    )) {
+        headers.insert(header::CONTENT_SECURITY_POLICY, csp);
+    }
+    Some(response)
+}
+
 /// The two sentences of the refusal page per locale.
 fn sentences(locale: &str) -> (&'static str, &'static str) {
     match locale {

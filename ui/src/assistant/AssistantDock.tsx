@@ -719,6 +719,9 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
                 "fixed bottom-4 right-4 z-40 flex h-[min(40rem,calc(100vh-5rem))] w-[calc(100vw-2rem)] flex-col gap-2 rounded-lg border border-border bg-surface p-3 shadow-3",
                 // The app builder is a form: it gets the room a form needs.
                 building ? "max-w-176" : "max-w-104",
+                // On a phone a floating panel left the page showing round it (T-4204): below sm it
+                // covers the screen under the header, as the side layout does there.
+                "max-sm:inset-x-0 max-sm:bottom-0 max-sm:right-auto max-sm:top-14 max-sm:h-auto max-sm:w-full max-sm:max-w-none max-sm:rounded-none max-sm:border-0 max-sm:shadow-none",
               )
             : clsx(
                 // Below md there is no room for a column beside the page: the panel covers the

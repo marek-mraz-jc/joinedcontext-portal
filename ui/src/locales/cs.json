@@ -4712,7 +4712,8 @@
       "portal": "Portál"
     },
     "failed": "{what} selhalo",
-    "repeated": "{count, plural, one {# krát} few {# krát} other {# krát}} od {since}"
+    "repeated": "{count, plural, one {# krát} few {# krát} other {# krát}} od {since}",
+    "technical": "Technické podrobnosti"
   },
   "import": {
     "title": "Import konfigurace",
