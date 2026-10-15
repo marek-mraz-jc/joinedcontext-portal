@@ -120,19 +120,19 @@ function Chart({ chart }: { chart: DataChart }): JSX.Element {
       {chart.kind === "line" ? (
         <polyline
           points={chart.points.map((p, i) => `${(i * step + step / 2).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ")}
-          className="fill-none stroke-accent"
+          className="fill-none stroke-primary-soft-fg"
           strokeWidth={2}
         />
       ) : (
         chart.points.map((p, i) => {
           const a = y(Math.max(p.value, 0));
           const b = y(Math.min(p.value, 0));
-          return <rect key={i} x={i * step + step * 0.1} width={step * 0.8} y={a} height={Math.max(b - a, 1)} className="fill-accent" />;
+          return <rect key={i} x={i * step + step * 0.1} width={step * 0.8} y={a} height={Math.max(b - a, 1)} className="fill-primary-soft-fg" />;
         })
       )}
-      <text x={0} y={10} className="fill-fg-muted text-[10px]">{`${chart.value} ${Number(high.toPrecision(4))}`}</text>
-      <text x={0} y={base + 12} className="fill-fg-muted text-[10px]">{chart.points[0].label}</text>
-      <text x={W} y={base + 12} textAnchor="end" className="fill-fg-muted text-[10px]">{chart.points[chart.points.length - 1].label}</text>
+      <text x={0} y={10} fontSize={10} className="fill-fg-muted">{`${chart.value} ${Number(high.toPrecision(4))}`}</text>
+      <text x={0} y={base + 12} fontSize={10} className="fill-fg-muted">{chart.points[0].label}</text>
+      <text x={W} y={base + 12} textAnchor="end" fontSize={10} className="fill-fg-muted">{chart.points[chart.points.length - 1].label}</text>
     </svg>
   );
 }
@@ -418,8 +418,9 @@ export function EmbedSnippet({ publicId, title, language }: { publicId: string; 
       <iframe
         title={t("knowledge.embed.preview")}
         sandbox="allow-scripts"
+        referrerPolicy="no-referrer"
         srcDoc={preview}
-        className="h-80 w-full rounded border border-border bg-white"
+        className="h-80 w-full rounded border border-border bg-surface"
       />
       <p className="text-caption text-fg-muted">{t("knowledge.embed.previewHint")}</p>
       <p>{t("knowledge.embed.intro")}</p>
