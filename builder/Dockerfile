@@ -74,6 +74,9 @@ RUN mkdir -p /opt/cargo/git && CARGO_HOME=/opt/cargo cargo fetch --locked \
 # base's packages so the image carries the security fixes trixie has shipped since the tag was
 # cut (the image lane's trivy gate).
 FROM rust:1.90-slim-trixie@sha256:7fa728f3678acf5980d5db70960cf8491aff9411976789086676bdf0c19db39e AS toolchain
+# APT_REFRESH: the UTC day, set by image.yml, so the apt layer below leaves the build cache once a
+# day and picks up the Debian security fixes released since (vulnerabilities lane, T-3834).
+ARG APT_REFRESH
 RUN apt-get update && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends git curl ca-certificates musl-tools \
     && rm -rf /var/lib/apt/lists/* \
@@ -163,7 +166,9 @@ ENTRYPOINT ["/usr/local/bin/build-app"]
 FROM node:24-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66
 # npm, npx and corepack ship in the base image and nothing here runs them: a build installs
 # nothing (AP-82). Removed, so their bundled packages are neither attack surface nor trivy findings.
-RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates \
+ARG APT_REFRESH
+RUN apt-get update && apt-get upgrade -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends git curl ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
       /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
