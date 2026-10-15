@@ -774,6 +774,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "description": "The Portal's language (2-3 letters), handed to the realm as `ui_locales`",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
