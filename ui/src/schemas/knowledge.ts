@@ -72,6 +72,14 @@ export function knowledgeSourceSchema(t: (key: string) => string, catalogues: st
         },
       },
       sitemap: { type: "boolean", title: t("knowledge.field.sitemap"), default: true },
+      // WordPress REST bases whose items' links are read before the sitemap (MF-51, T-4154).
+      wordpressTypes: {
+        type: "array",
+        title: t("knowledge.field.wordpressTypes"),
+        items: { type: "string", pattern: "^[a-z0-9_-]{1,64}$", maxLength: 64 },
+        maxItems: 40,
+        uniqueItems: true,
+      },
       include: {
         type: "array",
         title: t("knowledge.field.include"),

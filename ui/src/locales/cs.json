@@ -6568,6 +6568,7 @@
       "startUrls": "Počáteční adresy",
       "ckanInstanceRef": "Katalog",
       "sitemap": "Číst mapu webu",
+      "wordpressTypes": "Typy obsahu WordPressu",
       "include": "Číst jen tyto cesty",
       "exclude": "Přeskočit tyto cesty",
       "maxDepth": "Hloubka odkazů",

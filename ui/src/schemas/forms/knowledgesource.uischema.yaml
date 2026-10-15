@@ -34,6 +34,7 @@ spec:
       upload,
       visibility,
       sitemap,
+      wordpressTypes,
       include,
       exclude,
       maxDepth,
@@ -66,7 +67,7 @@ spec:
         cs: Které stránky a dokumenty webu se čtou a jaké limity procházení dodržuje.
         de: Welche Seiten und Dokumente gelesen werden, und welche Grenzen ein Durchlauf einhält.
       folded: true
-      fields: [sitemap, include, exclude, maxDepth, maxPages, pdf, offDomainDocuments]
+      fields: [sitemap, wordpressTypes, include, exclude, maxDepth, maxPages, pdf, offDomainDocuments]
     - title:
         en: When and in which language
         sk: Kedy a v akom jazyku
@@ -134,6 +135,12 @@ spec:
         sk: Najprv prečítať mapu webu, aby sa prečítali aj stránky, na ktoré nevedie žiadny odkaz.
         cs: Nejprve přečíst mapu webu, aby se přečetly i stránky, na které nevede žádný odkaz.
         de: Zuerst die Sitemap lesen, damit auch Seiten gelesen werden, auf die kein Verweis führt.
+    wordpressTypes:
+      help:
+        en: For a WordPress site, the content types whose pages are read first, newest change first, such as pages or newses. Empty reads none.
+        sk: Pri webe na WordPresse typy obsahu, ktorých stránky sa prečítajú najprv, od najnovšej zmeny, napríklad pages alebo newses. Prázdne nečíta žiadny.
+        cs: U webu na WordPressu typy obsahu, jejichž stránky se přečtou nejdříve, od nejnovější změny, například pages nebo newses. Prázdné nečte žádný.
+        de: Bei einer WordPress-Website die Inhaltstypen, deren Seiten zuerst gelesen werden, neueste Änderung zuerst, etwa pages oder newses. Leer liest keinen.
     include:
       help:
         en: Paths a page must match to be read, each starting with a slash; ** matches any depth. Empty reads all.
