@@ -168,6 +168,25 @@ export function parseConfig(input: unknown): JcConfig {
   };
 }
 
+/**
+ * The language a visitor asked for (T-4199): `?lang=` on the address, then the browser's own
+ * languages, then the page's `lang`; the primary subtag, lower case, or undefined. The static host
+ * writes no language into `#jc-config`, so without this every App answered a Slovak visit in its
+ * English fallback.
+ */
+export function visitorLanguage(win?: { location?: { search?: string }; navigator?: { languages?: readonly string[]; language?: string }; document?: Document }): string | undefined {
+  const w = win ?? (typeof window !== "undefined" ? window : undefined);
+  if (!w) return undefined;
+  const tag = (value: unknown) => (typeof value === "string" && /^[A-Za-z]{2,3}(-|$)/.test(value) ? value.split("-")[0].toLowerCase() : undefined);
+  const asked = tag(new URLSearchParams(w.location?.search ?? "").get("lang"));
+  if (asked) return asked;
+  for (const language of w.navigator?.languages ?? [w.navigator?.language]) {
+    const found = tag(language);
+    if (found) return found;
+  }
+  return tag(w.document?.documentElement?.lang);
+}
+
 export function readConfig(doc?: Document): JcConfig {
   const d = doc ?? (typeof document !== "undefined" ? document : undefined);
   if (!d) {
@@ -183,5 +202,13 @@ export function readConfig(doc?: Document): JcConfig {
   } catch (err) {
     throw new ConfigError(`Invalid JSON in #jc-config: ${err instanceof Error ? err.message : String(err)}`);
   }
-  return parseConfig(parsed);
+  const config = parseConfig(parsed);
+  // `?lang=` is the visitor's own choice and wins; the browser's languages only fill a config that
+  // names none (T-4199).
+  const configured = typeof (parsed as Record<string, unknown>).language === "string" && (parsed as Record<string, unknown>).language !== "";
+  const view = d.defaultView ?? undefined;
+  const asked = visitorLanguage(view ? { location: view.location } : undefined);
+  const visitor = visitorLanguage(view ?? undefined);
+  const language = asked ?? (configured ? config.language : visitor);
+  return language ? { ...config, language } : config;
 }
