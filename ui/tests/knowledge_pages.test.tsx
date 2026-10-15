@@ -1,6 +1,7 @@
 // covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
 // src/pages/knowledge/KnowledgePage.tsx, src/pages/knowledge/SourcePage.tsx,
-// src/pages/knowledge/AssistantChat.tsx, src/pages/knowledge/UploadedFiles.tsx and
+// src/pages/knowledge/AssistantChat.tsx, src/pages/knowledge/UploadedFiles.tsx,
+// src/pages/knowledge/IndexStatus.tsx and
 // src/pages/knowledge/knowledge.ts through the pages
 // they belong to; each was confirmed by
 // making the module throw and watching this file go red.
@@ -15,6 +16,7 @@ import { bytesText, dataChart, embedSnippet, readEvents, timeText } from "../src
 import { reasonOf } from "../src/pages/knowledge/KnowledgePage";
 import { InclusionBadge } from "../src/pages/knowledge/SourcePage";
 import { UploadedFiles } from "../src/pages/knowledge/UploadedFiles";
+import { sum } from "../src/pages/knowledge/IndexStatus";
 import { EmbedSnippet } from "../src/pages/knowledge/AssistantChat";
 import { ApiError } from "../src/api/client";
 import { assistantDeploymentSchema, fromKindManifest, knowledgeSourceSchema, toKindManifest } from "../src/schemas/knowledge";
@@ -50,6 +52,8 @@ const SOURCES = {
       documents: 14,
       passages: 900,
       embedded: 850,
+      pending: 50,
+      failed: 0,
       job: { state: "done", attempts: 1, error: null },
     },
     {
@@ -94,7 +98,15 @@ const SOURCES = {
       documents: 0,
       passages: 10,
       embedded: 10,
-      job: { state: "failed", attempts: 3, error: "https://old.banskabystrica.sk/ answered 503" },
+      pending: 0,
+      failed: 2,
+      job: {
+        state: "failed",
+        attempts: 3,
+        error: "https://old.banskabystrica.sk/ answered 503",
+        startedAt: "2026-10-05T03:00:00Z",
+        finishedAt: "2026-10-05T03:04:00Z",
+      },
     },
   ],
 };
@@ -172,6 +184,13 @@ function renderAt(path: string, stub: Stub = {}) {
       }
       if (url.pathname.endsWith("/recrawl")) return json({ job: 7 }, 202);
       return json({ pages: 2, documents: 1, passagesRemoved: 30 });
+    }
+    if (url.pathname === `${base}/sources/bb-old/errors`) {
+      writes.push({ path: url.pathname, body: null });
+      return json({ items: [
+        { url: "https://old.banskabystrica.sk/gone", kind: "page", reason: "HTTP 404" },
+        { url: "https://old.banskabystrica.sk/vzn.pdf", kind: "document", reason: "connection refused" },
+      ] });
     }
     if (url.pathname === `${base}/sources`) return json(stub.sources?.body ?? SOURCES, stub.sources?.code ?? 200);
     if (url.pathname === `${base}/sources/bb-web/pages`) {
@@ -339,6 +358,65 @@ describe("one source's pages and documents (T-3057, AG-113)", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Pages" }));
     await userEvent.click(await screen.findByRole("button", { name: "Links of https://www.banskabystrica.sk/" }));
     expect(await within(await screen.findByRole("dialog")).findByText("Document")).toBeInTheDocument();
+  });
+});
+
+describe("a source's index status (T-4197)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("adds nothing for a source not crawled yet", () => {
+    const rows = SOURCES.items as unknown as Parameters<typeof sum>[0];
+    expect([sum(rows, "pending"), sum(rows, "failed"), sum([], "pages")]).toEqual([50, 2, 0]);
+  });
+
+  it("sums every source above the list", async () => {
+    renderAt("/projects/banskabystrica/knowledge");
+    expect(
+      await screen.findByText("All sources: 123 pages, 14 files, 860 of 910 passages searchable, 50 waiting, 2 not read"),
+    ).toBeInTheDocument();
+  });
+
+  it("counts what waits, and re-indexes without reading errors there are none of", async () => {
+    const { writes } = renderAt("/projects/banskabystrica/knowledge/bb-web");
+    const status = await screen.findByRole("region", { name: "Index status" });
+    expect(within(status).getByText("Waiting to index").nextSibling).toHaveTextContent("50");
+    expect(within(status).getByText("Searchable").nextSibling).toHaveTextContent("850");
+    await userEvent.click(within(status).getByRole("button", { name: "Re-index" }));
+    expect(await within(status).findByText("A crawl of bb-web is queued. It starts within a minute.")).toBeInTheDocument();
+    expect(writes.map((w) => w.path)).toEqual(["/api/v1/projects/banskabystrica/knowledge/sources/bb-web/recrawl"]);
+  });
+
+  it("holds the re-index while a run is going and says no run happened before the first", async () => {
+    const running = { ...SOURCES.items[0], job: { state: "running", attempts: 1, error: null, startedAt: "2026-10-06T03:00:00Z", finishedAt: null } };
+    renderAt("/projects/banskabystrica/knowledge/bb-web", { sources: { code: 200, body: { items: [running] } } });
+    const status = await screen.findByRole("region", { name: "Index status" });
+    expect(within(status).getByText("Crawling")).toBeInTheDocument();
+    expect(within(status).getByText(/ended —/)).toBeInTheDocument();
+    const button = within(status).getByRole("button", { name: "Re-index" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAccessibleDescription("A crawl of this source is already queued or running.");
+  });
+
+  it("lists each failed read with why to a person who may steer the source", async () => {
+    renderAt("/projects/banskabystrica/knowledge/bb-old");
+    const errors = await screen.findByRole("list", { name: "Pages and files not read" });
+    expect(within(errors).getByText("HTTP 404")).toBeInTheDocument();
+    expect(within(errors).getByText("connection refused")).toBeInTheDocument();
+    expect(within(errors).getByText("https://old.banskabystrica.sk/gone")).toBeInTheDocument();
+  });
+
+  it("shows a viewer the counts and never asks for the errors", async () => {
+    const { writes } = renderAt("/projects/banskabystrica/knowledge/bb-old", { verbs: ["read"] });
+    const status = await screen.findByRole("region", { name: "Index status" });
+    expect(within(status).getByText("Not read").nextSibling).toHaveTextContent("2");
+    await waitFor(() => expect(within(status).getByRole("button", { name: "Re-index" })).toHaveAttribute("aria-disabled", "true"));
+    expect(screen.queryByRole("list", { name: "Pages and files not read" })).toBeNull();
+    expect(writes).toEqual([]);
   });
 });
 

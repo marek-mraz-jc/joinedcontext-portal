@@ -26,6 +26,7 @@ import type { BadgeTone } from "../../components/ui";
 import { knowledgeKeys, listSources, listUsage, recrawl, timeText } from "./knowledge";
 import type { KnowledgeSourceRow } from "./knowledge";
 import { AssistantChat, EmbedSnippet } from "./AssistantChat";
+import { sum } from "./IndexStatus";
 
 /** The sentence an `ApiError` carries, or the generic one. */
 export function reasonOf(error: unknown, fallback: string): string {
@@ -33,7 +34,7 @@ export function reasonOf(error: unknown, fallback: string): string {
 }
 
 /** How a source stands: never crawled, waiting, being read, read, or failed with its reason. */
-function standing(row: KnowledgeSourceRow): { key: string; tone: BadgeTone } {
+export function standing(row: KnowledgeSourceRow): { key: string; tone: BadgeTone } {
   if (row.state === "not-crawled" && !row.job) return { key: "knowledge.state.notCrawled", tone: "neutral" };
   switch (row.job?.state) {
     case "queued":
@@ -116,6 +117,18 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
       {sources.isLoading ? <p role="status">{t("app.loading")}</p> : null}
       {!sources.isLoading && !sources.isError && rows.length === 0 ? (
         <EmptyState title={t("knowledge.empty")} description={t("knowledge.emptyHint")} icon="search" action={addSource} />
+      ) : null}
+      {rows.length > 0 ? (
+        <p role="status" className="text-caption text-fg-muted">
+          {t("knowledge.index.totals", {
+            pages: sum(rows, "pages"),
+            files: sum(rows, "documents"),
+            embedded: sum(rows, "embedded"),
+            passages: sum(rows, "passages"),
+            pending: sum(rows, "pending"),
+            failed: sum(rows, "failed"),
+          })}
+        </p>
       ) : null}
       {rows.length > 0 ? (
         <Table data-records="" caption={t("knowledge.sources")}>

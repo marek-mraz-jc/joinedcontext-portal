@@ -6704,6 +6704,21 @@
       "name": "Soubor",
       "remove": "Odstranit",
       "removeOf": "Odstranit {name}"
+    },
+    "index": {
+      "title": "Stav indexu",
+      "pages": "Stránky",
+      "files": "Soubory",
+      "passages": "Pasáže",
+      "embedded": "Vyhledatelné",
+      "pending": "Čeká na indexování",
+      "unread": "Nepřečtené",
+      "reindex": "Indexovat znovu",
+      "lastRun": "Poslední běh: začal {started}, skončil {finished}",
+      "noRun": "Ještě neběžel",
+      "unreadList": "Nepřečtené stránky a soubory",
+      "noneUnread": "Žádné neúspěšné čtení není zaznamenáno.",
+      "totals": "Všechny zdroje: {pages} stránek, {files} souborů, {embedded} z {passages} pasáží vyhledatelných, {pending} čeká, {failed} nepřečtených"
     }
   },
   "mcp": {

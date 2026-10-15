@@ -278,6 +278,8 @@ pub async fn list_sources(
                         "documents",
                         "passages",
                         "embedded",
+                        "pending",
+                        "failed",
                         "job",
                     ] {
                         item[key] = found.get(key).cloned().unwrap_or(Value::Null);
@@ -359,6 +361,41 @@ pub async fn list_documents(
         &state,
         reqwest::Method::GET,
         &format!("{project}/knowledge/sources/{source}/documents"),
+        None,
+    )
+    .await?;
+    Ok(Json(body))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/knowledge/sources/{source}/errors",
+    summary = "List A Source's Crawl Errors",
+    description = "The pages and documents whose last read failed, newest first, at most 50: url, kind (`page` or `document`) and reason (`HTTP 404`, a network error). Needs `propose` on KnowledgeSource; a viewer sees the counts alone (API/01 §34, T-4197).",
+    tag = "knowledge",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("source" = String, Path, description = "KnowledgeSource name"),
+    ),
+    responses(
+        (status = 200, description = "The errors", body = Object),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 403, description = "The caller may not propose a KnowledgeSource", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such project or crawled source", body = crate::error::ProblemDetails),
+        (status = 503, description = "The knowledge assistant is not reachable", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn list_errors(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, source)): Path<(String, String)>,
+) -> Result<Json<Value>, ApiError> {
+    writable(&state, &user, &project)?;
+    named("source", &source)?;
+    let (_, body) = ask(
+        &state,
+        reqwest::Method::GET,
+        &format!("{project}/knowledge/sources/{source}/errors"),
         None,
     )
     .await?;
@@ -903,6 +940,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/projects/{project}/knowledge/sources/{source}/documents",
             get(list_documents),
+        )
+        .route(
+            "/projects/{project}/knowledge/sources/{source}/errors",
+            get(list_errors),
         )
         .route(
             "/projects/{project}/knowledge/sources/{source}/pages/{page}/links",

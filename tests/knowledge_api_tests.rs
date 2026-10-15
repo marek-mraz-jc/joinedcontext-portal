@@ -785,3 +785,41 @@ async fn an_upload_is_refused_before_the_assistant_and_its_refusals_relayed() {
     let gone = common::send(&r.state, admin(), "DELETE", &format!("{FILES}/8"), None).await;
     assert_eq!(gone.status, 404);
 }
+
+/// T-4197: the crawl errors of a source reach a proposer as the assistant listed them; a
+/// reader who may not propose is told 403 and a stranger 404, neither reaching the assistant.
+#[tokio::test]
+async fn the_crawl_errors_reach_a_proposer_alone() {
+    let r = rig().await;
+    let errors = "/api/v1/projects/helsinki/knowledge/sources/web/errors";
+    let stranger = common::send(&r.state, common::person("nobody"), "GET", errors, None).await;
+    assert_eq!(stranger.status, 404, "{}", stranger.text);
+    r.state.mirror.upsert(common::envelope(
+        "Role",
+        "knowledge-reader",
+        joinedcontext_portal::permissions::ORG_NAMESPACE,
+        json!({ "rules": [{ "kinds": ["KnowledgeSource"], "verbs": ["read"] }] }),
+    ));
+    r.state.mirror.upsert(common::envelope(
+        "RoleBinding",
+        "jana-knowledge",
+        joinedcontext_portal::permissions::ORG_NAMESPACE,
+        json!({ "subjects": [{ "user": "jana@hel.fi" }], "role": "knowledge-reader", "scope": { "project": "helsinki" } }),
+    ));
+    let reader = common::send(&r.state, common::person("jana"), "GET", errors, None).await;
+    assert_eq!(reader.status, 403, "{}", reader.text);
+    assert_eq!(asked(&r.assistant).await, 0);
+
+    Mock::given(method("GET"))
+        .and(path(format!("{ASSISTANT_PATH}/sources/web/errors")))
+        .and(header("authorization", "Bearer the-portals-own-token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"items": [
+            {"url": "https://www.hel.fi/gone", "kind": "page", "reason": "HTTP 404"}
+        ]})))
+        .mount(&r.assistant)
+        .await;
+    let answer = common::send(&r.state, admin(), "GET", errors, None).await;
+    assert_eq!(answer.status, 200, "{}", answer.text);
+    let body: Value = serde_json::from_str(&answer.text).expect("json");
+    assert_eq!(body["items"][0]["reason"], "HTTP 404");
+}

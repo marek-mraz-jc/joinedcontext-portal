@@ -6704,6 +6704,21 @@
       "name": "File",
       "remove": "Remove",
       "removeOf": "Remove {name}"
+    },
+    "index": {
+      "title": "Index status",
+      "pages": "Pages",
+      "files": "Files",
+      "passages": "Passages",
+      "embedded": "Searchable",
+      "pending": "Waiting to index",
+      "unread": "Not read",
+      "reindex": "Re-index",
+      "lastRun": "Last run: started {started}, ended {finished}",
+      "noRun": "No run yet",
+      "unreadList": "Pages and files not read",
+      "noneUnread": "No failed read is recorded.",
+      "totals": "All sources: {pages} pages, {files} files, {embedded} of {passages} passages searchable, {pending} waiting, {failed} not read"
     }
   },
   "mcp": {

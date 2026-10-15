@@ -1187,6 +1187,14 @@
         "knowledge_pages.test.tsx"
       ]
     },
+    "src/pages/knowledge/IndexStatus.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "knowledge_pages.test.tsx"
+      ]
+    },
     "src/pages/knowledge/KnowledgePage.tsx": {
       "controls": {
         "Button": 6
