@@ -6671,12 +6671,17 @@
     "embed": {
       "title": "Einbetten",
       "of": "{name} einbetten",
-      "intro": "Fügen Sie diesen Rahmen in eine Seite einer Website ein, auf der der Assistent platziert ist.",
+      "intro": "Für eine Seite, die kein Skript erlaubt, fügen Sie stattdessen diesen Rahmen ein.",
       "snippet": "Code zum Einfügen",
       "copy": "Code kopieren",
       "copied": "Kopiert",
       "origins": "Die Adresse der Website muss zu den erlaubten Ursprüngen des Assistenten gehören; auf jeder anderen Website bleibt der Rahmen leer.",
-      "noDomain": "Dieses Portal kennt seine Domain nicht und kann daher die Adresse der Assistentenseite nicht schreiben."
+      "noDomain": "Dieses Portal kennt seine Domain nicht und kann daher die Adresse der Assistentenseite nicht schreiben.",
+      "launcher": "Die Startzeile",
+      "launcherIntro": "Bringen Sie den Assistenten auf Ihre Website: Fügen Sie diese eine Zeile in jede Seite vor </body> ein. Sie fügt in der Ecke eine runde Schaltfläche hinzu, die den Chat öffnet.",
+      "preview": "Vorschau der Startzeile auf einer leeren Seite",
+      "previewHint": "Die Vorschau zeigt die Schaltfläche so, wie Besucher sie sehen. Der Chat öffnet sich nur auf den erlaubten Adressen des Assistenten und kann hier leer bleiben.",
+      "copyOf": "{what} kopieren"
     },
     "everySpace": "jeder Raum des Projekts",
     "userGuide": "das Benutzerhandbuch der Plattform, mit Links in dieses Projekt",

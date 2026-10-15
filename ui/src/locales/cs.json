@@ -6671,12 +6671,17 @@
     "embed": {
       "title": "Vložit",
       "of": "Vložit {name}",
-      "intro": "Vložte tento rámec do stránky webu, na kterém je asistent umístěn.",
+      "intro": "Na stránku, která nepřijímá skript, vložte místo toho tento rámec.",
       "snippet": "Kód k vložení",
       "copy": "Kopírovat kód",
       "copied": "Zkopírováno",
       "origins": "Adresa webu musí být mezi povolenými původy asistenta; rámec na jiném webu zůstane prázdný.",
-      "noDomain": "Tento Portál nezná svou doménu, proto neumí napsat adresu stránky asistenta."
+      "noDomain": "Tento Portál nezná svou doménu, proto neumí napsat adresu stránky asistenta.",
+      "launcher": "Řádek spouštěče",
+      "launcherIntro": "Přidejte asistenta na svůj web: vložte tento jeden řádek do každé stránky před </body>. Přidá do rohu kulaté tlačítko, které otevře chat.",
+      "preview": "Náhled spouštěče na prázdné stránce",
+      "previewHint": "Náhled ukazuje tlačítko tak, jak ho vidí návštěvník. Chat se otevře jen na povolených adresách asistenta, proto tu může zůstat prázdný.",
+      "copyOf": "Kopírovat: {what}"
     },
     "everySpace": "každý prostor projektu",
     "userGuide": "uživatelská příručka platformy s odkazy do tohoto projektu",

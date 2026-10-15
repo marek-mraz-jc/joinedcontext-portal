@@ -6671,12 +6671,17 @@
     "embed": {
       "title": "Embed",
       "of": "Embed {name}",
-      "intro": "Paste this frame into a page of a site the assistant is placed on.",
+      "intro": "For a page that takes no script, paste this frame instead.",
       "snippet": "Code to paste",
       "copy": "Copy the code",
       "copied": "Copied",
       "origins": "The site's address must be one of the assistant's allowed origins; any other site's frame stays empty.",
-      "noDomain": "This Portal does not know its domain, so it cannot write the address of the assistant's page."
+      "noDomain": "This Portal does not know its domain, so it cannot write the address of the assistant's page.",
+      "launcher": "The launcher line",
+      "launcherIntro": "Put the assistant on your website: paste this one line into every page, before </body>. It adds a round button in the corner that opens the chat.",
+      "preview": "Preview of the launcher on a blank page",
+      "previewHint": "The preview shows the button as a visitor sees it. The chat itself opens only on the sites the assistant is placed on, so here it may stay empty.",
+      "copyOf": "Copy {what}"
     },
     "everySpace": "every space of the project",
     "userGuide": "the platform's User Guide, with links into this project",
