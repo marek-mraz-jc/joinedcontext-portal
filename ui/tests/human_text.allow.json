@@ -219,6 +219,12 @@
       ],
       "reason": "the glossary names a real entity type as its example"
     },
+    "knowledge.field.wordpressTypes": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "WordPress is the product the city site runs on; the field lists its content types"
+    },
     "knowledge.state.failed": {
       "rules": [
         "next-step"
