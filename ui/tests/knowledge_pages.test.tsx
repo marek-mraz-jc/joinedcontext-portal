@@ -12,7 +12,7 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
-import { bytesText, embedSnippet, readEvents, timeText } from "../src/pages/knowledge/knowledge";
+import { bytesText, dataChart, embedSnippet, readEvents, timeText } from "../src/pages/knowledge/knowledge";
 import { reasonOf } from "../src/pages/knowledge/KnowledgePage";
 import { InclusionBadge } from "../src/pages/knowledge/SourcePage";
 import { UploadedFiles } from "../src/pages/knowledge/UploadedFiles";
@@ -497,6 +497,41 @@ describe("asking an assistant in the Portal (T-3058, AG-115)", () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("shows a data round as a table with its chart and links, the chart hidden from a screen reader (T-4198)", async () => {
+    const data = {
+      endpoint: "ovzdusie-verejne",
+      type: "AirQualityObserved",
+      columns: ["dateObserved", "pm10"],
+      rows: [["2026-10-15T10:00:00Z", 21], ["2026-10-15T09:00:00Z", 18]],
+      dataset: "https://data.example.sk/dataset/ovzdusie",
+      download: "javascript:alert(1)",
+    };
+    const body = `event: data\ndata: ${JSON.stringify(data)}\n\nevent: answer\ndata: {"text":"PM10 je 21."}\n\nevent: done\ndata: {"tokens":9}\n\n`;
+    renderAt("/projects/banskabystrica/knowledge", { chat: { code: 200, body } });
+    const table = await screen.findByRole("table", { name: "Assistants" });
+    await userEvent.click(within(table).getByRole("button", { name: "Ask obcania" }));
+    const dialog = await screen.findByRole("dialog", { name: "Ask obcania" });
+    await userEvent.type(within(dialog).getByRole("textbox", { name: "Your question" }), "PM10?{Enter}");
+    const rows = await within(dialog).findByRole("table", { name: "AirQualityObserved" });
+    expect(within(rows).getByRole("cell", { name: "2026-10-15T10:00:00Z" })).toBeInTheDocument();
+    const chart = within(dialog).getByTestId("assistant-chart");
+    expect(chart).toHaveAttribute("aria-hidden", "true");
+    expect(chart.querySelector("polyline")?.getAttribute("points")?.split(" ")).toHaveLength(2);
+    expect(within(dialog).getByRole("link", { name: /Open the dataset/ })).toHaveAttribute("href", data.dataset);
+    expect(within(dialog).queryByRole("link", { name: /Download the data/ })).toBeNull();
+  });
+
+  it("charts one number over time or per name, and nothing else (T-4198, the widget's rule)", () => {
+    const table = (columns: string[], rows: unknown[][]) => ({ caption: "", columns, rows });
+    expect(dataChart(table(["t", "pm10"], [["2026-10-15T10:00:00Z", 2], ["2026-10-15T09:00:00Z", 1]]))?.points.map((p) => p.value)).toEqual([1, 2]);
+    expect(dataChart(table(["name", "pm10"], [["a", 2], ["b", 1]]))?.kind).toBe("bar");
+    expect(dataChart(table(["name", "pm10", "pm25"], [["a", 1, 2], ["b", 3, 4]]))).toBeNull();
+    expect(dataChart(table(["name", "street"], [["a", "x"], ["b", "y"]]))).toBeNull();
+    expect(dataChart(table(["name", "v"], [["a", 1]]))).toBeNull();
+    expect(dataChart(table(["name", "v"], Array.from({ length: 51 }, (_, i) => [`s${i}`, i])))?.points).toHaveLength(50);
+    expect(dataChart(table(["name", "v"], [["a", 1], ["b", Number.NaN], ["c", "7"], ["d", 2]]))?.points.map((p) => p.label)).toEqual(["a", "d"]);
   });
 
   it("streams the answer with its sources and script, and sends the conversation back with the connectors switched", async () => {

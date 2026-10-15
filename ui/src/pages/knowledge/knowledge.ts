@@ -316,11 +316,77 @@ export type ChatEvent =
   | { name: "script"; code: string; output?: string; error?: string }
   | { name: "answer"; text: string }
   | { name: "citations"; citations: Citation[] }
+  | { name: "data"; data: DataTable }
   | { name: "error"; detail: string }
   | { name: "done"; tokens: number };
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+/** A `data` event's rows (API/05 §1.3, T-4140): at most 50, its links only when http(s). */
+export interface DataTable {
+  caption: string;
+  columns: string[];
+  rows: unknown[][];
+  dataset?: string;
+  download?: string;
+}
+
+function webUrl(value: unknown): string | undefined {
+  return typeof value === "string" && /^https?:\/\//.test(value) ? value : undefined;
+}
+
+function dataTable(d: Record<string, unknown>): DataTable | null {
+  if (!Array.isArray(d.columns) || d.columns.length === 0) return null;
+  const columns = d.columns.map((c) => (typeof c === "string" ? c : JSON.stringify(c)));
+  const rows = (Array.isArray(d.rows) ? d.rows : []).filter(Array.isArray).slice(0, 50) as unknown[][];
+  return { caption: text(d.type), columns, rows, dataset: webUrl(d.dataset), download: webUrl(d.download) };
+}
+
+/** One cell as text: nothing for null, JSON for an object. */
+export function cellText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return typeof value === "object" ? JSON.stringify(value) : String(value);
+}
+
+export interface DataChart {
+  kind: "line" | "bar";
+  value: string;
+  by: string;
+  points: { label: string; value: number }[];
+}
+
+const TIME = /^\d{4}-\d{2}-\d{2}(?:[T ][\d:.]+(?:Z|[+-]\d{2}:?\d{2})?)?$/;
+
+/**
+ * The widget's chart rule (T-4198, crates/assistant/widget/render.js `chart`): exactly one column
+ * holds numbers and another names them; a line over time when every name is a date, else bars; at
+ * most 50 points, a value that is no finite number skipped; null otherwise and under two points.
+ */
+export function dataChart(table: DataTable): DataChart | null {
+  const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+  const numeric = table.columns.map((_, i) => {
+    const numbers = table.rows.filter((row) => finite(row[i])).length;
+    const words = table.rows.filter((row) => typeof row[i] === "string" && (row[i] as string).trim() !== "").length;
+    return numbers > 0 && numbers > words;
+  });
+  const values = numeric.flatMap((yes, i) => (yes ? [i] : []));
+  if (values.length !== 1) return null;
+  const named = table.columns.map((_, i) => i).filter((i) => !numeric[i]);
+  const time = named.find((i) =>
+    table.rows.every((row) => typeof row[i] === "string" && TIME.test(row[i] as string) && Number.isFinite(Date.parse(row[i] as string))),
+  );
+  const by = time ?? named[0];
+  if (by === undefined) return null;
+  const v = values[0];
+  const points = table.rows
+    .filter((row) => finite(row[v]))
+    .slice(0, 50)
+    .map((row) => ({ label: cellText(row[by]).slice(0, 40), value: row[v] as number }));
+  if (time !== undefined) points.sort((a, b) => Date.parse(a.label) - Date.parse(b.label));
+  if (points.length < 2) return null;
+  return { kind: time !== undefined ? "line" : "bar", value: table.columns[v], by: table.columns[by], points };
 }
 
 /** One event block's name and data as a `ChatEvent`; `null` for one this panel does not show. */
@@ -355,6 +421,10 @@ function chatEvent(name: string, data: unknown): ChatEvent | null {
             title: typeof c.title === "string" ? c.title : undefined,
           })),
       };
+    case "data": {
+      const table = dataTable(d);
+      return table ? { name, data: table } : null;
+    }
     case "error":
       return { name, detail: text(d.detail) };
     case "done":

@@ -6666,7 +6666,10 @@
       "send": "Odeslat",
       "failed": "Odpověď se nepodařilo načíst. Zkuste znovu.",
       "liveData": "Živá data",
-      "sourceNumber": "Zdroj {n}"
+      "sourceNumber": "Zdroj {n}",
+      "data": "Data, která odpověď přečetla",
+      "dataset": "Otevřít dataset",
+      "download": "Stáhnout data"
     },
     "embed": {
       "title": "Vložit",
