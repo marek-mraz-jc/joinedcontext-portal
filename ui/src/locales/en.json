@@ -7342,5 +7342,40 @@
       "noEndpoint": "No Endpoint {endpoint} in this project",
       "noPolicy": "No Policy {policy} in this project"
     }
+  },
+  "connect": {
+    "title": "Connect an AI assistant",
+    "loading": "Asking the connector for its tools…",
+    "missing": "This connector does not exist or is not public. Check the address you were given.",
+    "busy": "Too many requests from your network right now. Try again in {seconds} seconds.",
+    "failed": "The connector did not answer. Try again in a moment.",
+    "retry": "Try again",
+    "address": "Connector address",
+    "copyAddress": "Copy the address",
+    "copied": "Copied to the clipboard.",
+    "readOnly": "Read-only: an assistant can read and search the data, never change it.",
+    "noLogin": "No sign-in and no key: the address is all a client needs.",
+    "limit": "Up to {count} requests a minute from one network.",
+    "clients": "Set up your client",
+    "tryPrompt": "Then ask: “{prompt}”",
+    "prompt": "What data does {title} offer? Show me five records with a link to the source.",
+    "claudeCode": {
+      "steps": "Run this command in a terminal, then start Claude Code.",
+      "copy": "Copy the command"
+    },
+    "claudeDesktop": {
+      "steps": "In Settings, Connectors, choose Add custom connector and paste the address. Or add this to claude_desktop_config.json (needs Node.js) and restart Claude Desktop.",
+      "copy": "Copy the configuration"
+    },
+    "chatgpt": {
+      "steps": "In Settings, Apps and Connectors, turn on Developer mode, create a connector, paste the address and choose No authentication."
+    },
+    "generic": {
+      "title": "Other MCP clients",
+      "steps": "Any client that speaks MCP over Streamable HTTP (VS Code, Cursor, n8n…) takes the address. Many read this configuration:",
+      "copy": "Copy the configuration"
+    },
+    "tools": "{count, plural, one {# tool} other {# tools}}",
+    "noTools": "The connector offers no tools to anonymous callers right now."
   }
 }

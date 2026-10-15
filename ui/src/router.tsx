@@ -33,6 +33,7 @@ const ModelPage = lazy(() => import("./pages/models/ModelPage").then((module) =>
 const ExplorePage = lazy(() => import("./pages/explore/ExplorePage").then((module) => ({ default: module.ExplorePage })));
 const CkanPage = lazy(() => import("./pages/ckan/CkanPage").then((module) => ({ default: module.CkanPage })));
 import { GlossaryPage } from "./pages/glossary/GlossaryPage";
+import { ConnectPage } from "./pages/connect/ConnectPage";
 import { HomePage } from "./pages/home/HomePage";
 const KnowledgePage = lazy(() => import("./pages/knowledge/KnowledgePage").then((module) => ({ default: module.KnowledgePage })));
 const SourcePage = lazy(() => import("./pages/knowledge/SourcePage").then((module) => ({ default: module.SourcePage })));
@@ -285,6 +286,17 @@ const glossaryRoute = createRoute({
   path: "/glossary",
   component: function GlossaryRoute() {
     return <CatalogueFrame>{() => <GlossaryPage />}</CatalogueFrame>;
+  },
+});
+
+/** A public named MCP server's setup page (T-4169): its tools and a setup per AI client, no sign-in. */
+const connectRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/connect/$project/$name",
+  component: function ConnectRoute() {
+    const { project, name } = connectRoute.useParams();
+    // Anonymous for everyone: the page shows what a stranger's AI client reaches.
+    return <PublicFrame anonymous>{<ConnectPage project={project} name={name} />}</PublicFrame>;
   },
 });
 
@@ -1131,6 +1143,7 @@ export const routeTree = rootRoute.addChildren([
   publicFormRoute,
   endpointDocsRoute,
   glossaryRoute,
+  connectRoute,
   ...devRoutes,
   protectedRoute.addChildren([
     indexRoute,

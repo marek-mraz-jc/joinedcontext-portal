@@ -7342,5 +7342,40 @@
       "noEndpoint": "V projektu není Endpoint {endpoint}",
       "noPolicy": "V projektu není Policy {policy}"
     }
+  },
+  "connect": {
+    "title": "Připojte AI asistenta",
+    "loading": "Zjišťujeme nástroje konektoru…",
+    "missing": "Tento konektor neexistuje nebo není veřejný. Zkontrolujte adresu, kterou jste dostali.",
+    "busy": "Z vaší sítě přišlo právě příliš mnoho požadavků. Zkuste to znovu za {seconds} s.",
+    "failed": "Konektor neodpověděl. Zkuste to za chvíli znovu.",
+    "retry": "Zkusit znovu",
+    "address": "Adresa konektoru",
+    "copyAddress": "Kopírovat adresu",
+    "copied": "Zkopírováno do schránky.",
+    "readOnly": "Jen pro čtení: asistent může data číst a vyhledávat, nikdy je nezmění.",
+    "noLogin": "Bez přihlášení a bez klíče: klientovi stačí adresa.",
+    "limit": "Nejvýše {count} požadavků za minutu z jedné sítě.",
+    "clients": "Nastavte svého klienta",
+    "tryPrompt": "Pak se zeptejte: „{prompt}“",
+    "prompt": "Jaká data nabízí {title}? Ukaž mi pět záznamů s odkazem na zdroj.",
+    "claudeCode": {
+      "steps": "Spusťte tento příkaz v terminálu a pak spusťte Claude Code.",
+      "copy": "Kopírovat příkaz"
+    },
+    "claudeDesktop": {
+      "steps": "V Nastavení, část Konektory, zvolte Přidat vlastní konektor a vložte adresu. Nebo přidejte toto do claude_desktop_config.json (potřebuje Node.js) a restartujte Claude Desktop.",
+      "copy": "Kopírovat konfiguraci"
+    },
+    "chatgpt": {
+      "steps": "V Nastavení, část Aplikace a konektory, zapněte Režim vývojáře, vytvořte konektor, vložte adresu a zvolte Bez ověření."
+    },
+    "generic": {
+      "title": "Jiní klienti MCP",
+      "steps": "Adresu přijme každý klient, který mluví MCP přes Streamable HTTP (VS Code, Cursor, n8n…). Mnozí čtou tuto konfiguraci:",
+      "copy": "Kopírovat konfiguraci"
+    },
+    "tools": "{count, plural, one {# nástroj} few {# nástroje} other {# nástrojů}}",
+    "noTools": "Konektor teď nenabízí anonymním volajícím žádné nástroje."
   }
 }

@@ -7342,5 +7342,40 @@
       "noEndpoint": "V projekte nie je Endpoint {endpoint}",
       "noPolicy": "V projekte nie je Policy {policy}"
     }
+  },
+  "connect": {
+    "title": "Pripojte AI asistenta",
+    "loading": "Zisťujeme nástroje konektora…",
+    "missing": "Tento konektor neexistuje alebo nie je verejný. Skontrolujte adresu, ktorú ste dostali.",
+    "busy": "Z vašej siete prišlo práve priveľa požiadaviek. Skúste to znova o {seconds} s.",
+    "failed": "Konektor neodpovedal. Skúste to o chvíľu znova.",
+    "retry": "Skúsiť znova",
+    "address": "Adresa konektora",
+    "copyAddress": "Kopírovať adresu",
+    "copied": "Skopírované do schránky.",
+    "readOnly": "Len na čítanie: asistent môže údaje čítať a vyhľadávať, nikdy ich nezmení.",
+    "noLogin": "Bez prihlásenia a bez kľúča: klientovi stačí adresa.",
+    "limit": "Najviac {count} požiadaviek za minútu z jednej siete.",
+    "clients": "Nastavte svojho klienta",
+    "tryPrompt": "Potom sa opýtajte: „{prompt}“",
+    "prompt": "Aké údaje ponúka {title}? Ukáž mi päť záznamov s odkazom na zdroj.",
+    "claudeCode": {
+      "steps": "Spustite tento príkaz v termináli a potom spustite Claude Code.",
+      "copy": "Kopírovať príkaz"
+    },
+    "claudeDesktop": {
+      "steps": "V Nastaveniach, časť Konektory, zvoľte Pridať vlastný konektor a vložte adresu. Alebo pridajte toto do claude_desktop_config.json (potrebuje Node.js) a reštartujte Claude Desktop.",
+      "copy": "Kopírovať konfiguráciu"
+    },
+    "chatgpt": {
+      "steps": "V Nastaveniach, časť Aplikácie a konektory, zapnite Režim vývojára, vytvorte konektor, vložte adresu a zvoľte Bez overenia."
+    },
+    "generic": {
+      "title": "Iní klienti MCP",
+      "steps": "Adresu prijme každý klient, ktorý hovorí MCP cez Streamable HTTP (VS Code, Cursor, n8n…). Mnohí čítajú túto konfiguráciu:",
+      "copy": "Kopírovať konfiguráciu"
+    },
+    "tools": "{count, plural, one {# nástroj} few {# nástroje} other {# nástrojov}}",
+    "noTools": "Konektor teraz neponúka anonymným volajúcim žiadne nástroje."
   }
 }
