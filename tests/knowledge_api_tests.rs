@@ -115,8 +115,16 @@ async fn rig_on(issuer: String, realm: Option<MockServer>) -> Rig {
         "catalogue",
         "helsinki",
         json!({
-            "source": "ckan", "ckanInstanceRef": "hel-fi", "visibility": "public"
+            "source": "ckan", "ckanInstanceRef": "hel-fi", "visibility": "public",
+            "organizations": ["helsinki"]
         }),
+    ));
+    // T-4142: the files an administrator uploads (MF-51).
+    mirror.upsert(common::envelope(
+        "KnowledgeSource",
+        "files",
+        "helsinki",
+        json!({ "source": "upload", "visibility": "internal", "upload": {"maxBytes": 1048576} }),
     ));
     mirror.upsert(common::envelope(
         "AssistantDeployment",
@@ -223,9 +231,19 @@ async fn the_sources_join_the_manifests_with_what_the_assistant_holds() {
         .find(|i| i["source"] == "catalogue")
         .expect("catalogue");
     assert_eq!(
-        (catalogue["state"].clone(), catalogue["type"].clone()),
-        (json!("not-crawled"), json!("ckan"))
+        (
+            catalogue["state"].clone(),
+            catalogue["type"].clone(),
+            catalogue["organizations"].clone()
+        ),
+        (json!("not-crawled"), json!("ckan"), json!(["helsinki"]))
     );
+    // A source of the newer kind fields is listed, never dropped by the parse (T-4142).
+    let files = items
+        .iter()
+        .find(|i| i["source"] == "files")
+        .expect("files");
+    assert_eq!(files["type"], "upload");
     let spaces = items
         .iter()
         .find(|i| i["source"] == "spaces")

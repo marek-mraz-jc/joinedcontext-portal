@@ -6514,7 +6514,8 @@
       "website": "Website",
       "ckan": "Data catalogue",
       "catalogue": "Context spaces' catalogue",
-      "guide": "User Guide"
+      "guide": "User Guide",
+      "upload": "Uploaded files"
     },
     "status": {
       "pending": "Not read yet",
@@ -6597,7 +6598,26 @@
       "theme": "Look",
       "primaryColor": "Accent colour",
       "greeting": "Greeting",
-      "sandbox": "Scripts in the sandbox"
+      "sandbox": "Scripts in the sandbox",
+      "organizations": "Only these organizations",
+      "upload": "Uploaded files",
+      "uploadMaxBytes": "Largest file (bytes)",
+      "uploadMaxFiles": "Most files",
+      "perClientPerHour": "Questions an hour, one visitor",
+      "perClientPerDay": "Questions a day, one visitor",
+      "streamsPerClient": "Answers at once, one visitor",
+      "costPerDayUsd": "Cost a day (USD)",
+      "outputTokensPerAnswer": "Tokens an answer",
+      "messagesPerConversation": "Questions a conversation",
+      "questionChars": "Longest question (characters)",
+      "enabled": "Answers",
+      "model": "Models",
+      "routerModel": "Model that picks the sources",
+      "answerModel": "Model that writes the answer",
+      "suggestions": "Suggested questions",
+      "disclaimer": "Disclaimer",
+      "scope": "Beyond this project",
+      "scopeProjects": "Projects whose public Endpoints it may read"
     },
     "visibility": {
       "internal": "Internal: signed-in staff",
