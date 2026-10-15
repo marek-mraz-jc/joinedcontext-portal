@@ -97,7 +97,10 @@ fn operation(op: Operation) -> (&'static str, &'static [&'static str]) {
         O::ReplaceAttrs => ("5.6.19", &["replace_attribute"]),
         O::MergeBatch => ("5.6.20", &["batch_merge"]),
         O::PurgeEntity => ("5.6.21", &[]),
-        O::RetrieveEntity => ("5.7.1", &["retrieve_entity"]),
+        // One Attribute of one Entity is a read of that Entity: the broker asks 5.7.1 for both
+        // (Antares `OperationId::RetrieveAttributeValue`), and its MCP `get_attribute_value` is
+        // offered only where the view names the row (T-4191).
+        O::RetrieveEntity => ("5.7.1", &["retrieve_entity", "retrieve_attribute_value"]),
         O::QueryEntity => ("5.7.2", &["query_entities"]),
         O::QueryBatch => ("5.7.2", &["query_entities_post"]),
         O::RetrieveTemporal => ("5.7.3", &["temporal_retrieve"]),
@@ -2341,7 +2344,7 @@ mod tests {
             view,
             json!({"id": SLUG, "tenant": "city-air", "selector": ["Car"],
                    "rules": [{"types": ["Car"], "attributes": ["speed"]}],
-                   "operations": ["query_entities", "retrieve_attribute_info", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info"]})
+                   "operations": ["query_entities", "retrieve_attribute_info", "retrieve_attribute_value", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info"]})
         );
     }
 
@@ -2768,7 +2771,7 @@ mod tests {
             view,
             json!({"id": SLUG, "tenant": "city-air", "selector": ["Car"],
                    "rules": [{"types": ["Car"], "attributes": ["speed"]}],
-                   "operations": ["query_entities", "retrieve_attribute_info", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info", "temporal_query"],
+                   "operations": ["query_entities", "retrieve_attribute_info", "retrieve_attribute_value", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info", "temporal_query"],
                    "mapping": vehicles_ir()})
         );
         for op in view["operations"].as_array().into_iter().flatten() {
@@ -3266,7 +3269,7 @@ mod tests {
             view,
             json!({"id": "cs-city-air", "tenant": "city-air", "selector": ["*"],
                    "rules": [{"types": ["*"], "attributes": ["*"]}],
-                   "operations": ["query_entities", "retrieve_attribute_info", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info"]})
+                   "operations": ["query_entities", "retrieve_attribute_info", "retrieve_attribute_value", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info"]})
         );
         let long = "x".repeat(61);
         assert!(space_view(&s, "city", "air", &long).is_err());
@@ -3928,7 +3931,7 @@ mod tests {
             .and(body_json(json!({
                 "id": SLUG, "tenant": "city-air", "selector": ["Stop"],
                 "rules": [{"types": ["Stop"], "attributes": ["location", "name"]}],
-                "operations": ["query_entities", "retrieve_attribute_info", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info"]
+                "operations": ["query_entities", "retrieve_attribute_info", "retrieve_attribute_value", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info"]
             })))
             .respond_with(ResponseTemplate::new(201))
             .expect(1)
