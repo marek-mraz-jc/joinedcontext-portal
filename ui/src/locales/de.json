@@ -6666,7 +6666,10 @@
       "send": "Senden",
       "failed": "Die Antwort konnte nicht geladen werden. Bitte erneut versuchen.",
       "liveData": "Live-Daten",
-      "sourceNumber": "Quelle {n}"
+      "sourceNumber": "Quelle {n}",
+      "data": "Gelesene Daten der Antwort",
+      "dataset": "Datensatz öffnen",
+      "download": "Daten herunterladen"
     },
     "embed": {
       "title": "Einbetten",
