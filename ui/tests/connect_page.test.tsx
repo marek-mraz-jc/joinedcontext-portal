@@ -105,6 +105,8 @@ describe("the public MCP connect page (T-4169)", () => {
     fireEvent.click(await screen.findByRole("button", { name: en.connect.claudeCode.copy }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/^claude mcp add --transport http /)));
     expect(await screen.findByText(en.connect.copied)).toHaveAttribute("role", "status");
+    // A setup longer than the page scrolls sideways, so a keyboard reaches it (axe scrollable-region-focusable).
+    for (const block of document.querySelectorAll("pre")) expect(block).toHaveAttribute("tabindex", "0");
   });
 
   it("tells a visitor an unknown or private connector apart from a busy one", async () => {
