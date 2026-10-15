@@ -297,7 +297,7 @@ describe("AppOpenPage", () => {
     renderAt(`/projects/${PROJECT}/apps/city-bikes/open`);
     await userEvent.click(await screen.findByRole("button", { name: "Sign in again" }));
     expect(assign).toHaveBeenCalledWith(
-      `/api/v1/auth/login?redirect_to=${encodeURIComponent(`/projects/${PROJECT}/apps/city-bikes/open`)}`,
+      `/api/v1/auth/login?redirect_to=${encodeURIComponent(`/projects/${PROJECT}/apps/city-bikes/open`)}&lang=${i18n.language.split("-")[0]}`,
     );
   });
 });
@@ -370,7 +370,7 @@ describe("AppOpenPage when the App stays silent", () => {
     expect(document.body.contains(frame)).toBe(true);
     fireEvent.click(within(status).getByRole("button", { name: en.apps.openPage.signInAgain }));
     expect(assign).toHaveBeenCalledWith(
-      `/api/v1/auth/login?redirect_to=${encodeURIComponent(`/projects/${PROJECT}/apps/city-bikes/open`)}`,
+      `/api/v1/auth/login?redirect_to=${encodeURIComponent(`/projects/${PROJECT}/apps/city-bikes/open`)}&lang=${i18n.language.split("-")[0]}`,
     );
     fireEvent.click(within(status).getByRole("button", { name: en.apps.openPage.signedOutDismiss }));
     expect(prompt()).toBeNull();

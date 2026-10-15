@@ -244,6 +244,41 @@ fn set_cookie_values(response: &axum::response::Response) -> Vec<String> {
 }
 
 #[tokio::test]
+async fn login_hands_the_portal_s_language_to_the_realm_and_drops_anything_else() {
+    // T-4199: a Slovak Portal led to an English sign-in page.
+    let realm = realm().await;
+    let app = app_with_realm(&realm).await;
+    for (query, expected) in [
+        ("?lang=sk", Some("ui_locales=sk")),
+        ("?lang=CS&redirect_to=%2Fprojects", Some("ui_locales=cs")),
+        ("?lang=sk%26prompt%3Dnone", None),
+        ("?lang=s", None),
+        ("", None),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/api/v1/auth/login{query}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::SEE_OTHER, "{query}");
+        let location = response.headers()[header::LOCATION]
+            .to_str()
+            .unwrap()
+            .to_owned();
+        match expected {
+            Some(param) => assert!(location.contains(param), "{query}: {location}"),
+            None => assert!(!location.contains("ui_locales"), "{query}: {location}"),
+        }
+        assert!(!location.contains("prompt=none"), "{query}: {location}");
+    }
+}
+
+#[tokio::test]
 async fn login_starts_a_pkce_flow_and_parks_the_verifier_in_a_secure_cookie() {
     let realm = realm().await;
     let app = app_with_realm(&realm).await;

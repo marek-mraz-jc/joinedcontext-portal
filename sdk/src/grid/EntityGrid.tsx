@@ -460,7 +460,11 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       );
     }
 
-    return <>{text}</>;
+    // An enum's value reads as its label, the one its filter and its editor already offer (T-4200).
+    const options = column.attr ? hookOptions.enums?.[column.attr] : undefined;
+    const one = Array.isArray(cell) ? undefined : cell;
+    const option = options && one?.kind !== "relationship" ? options.find((o) => o.value === String(one?.value)) : undefined;
+    return <>{option ? optionLabel(option) : text}</>;
   }, [cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, isPrimary, rowName, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell, ruleProblems, rules, labels.yes, labels.no]);
 
   // Metadata menu toggle

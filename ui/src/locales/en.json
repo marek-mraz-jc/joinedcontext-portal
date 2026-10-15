@@ -4709,7 +4709,8 @@
       "portal": "Portal"
     },
     "failed": "{what} failed",
-    "repeated": "{count, plural, other {# times}} since {since}"
+    "repeated": "{count, plural, other {# times}} since {since}",
+    "technical": "Technical details"
   },
   "import": {
     "title": "Import configuration",

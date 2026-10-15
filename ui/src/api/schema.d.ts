@@ -7449,6 +7449,8 @@ export interface operations {
             query?: {
                 /** @description An in-app path to return to; honoured only when it is same-origin */
                 redirect_to?: string;
+                /** @description The Portal's language (2-3 letters), handed to the realm as `ui_locales` */
+                lang?: string;
             };
             header?: never;
             path?: never;
