@@ -460,6 +460,10 @@ routes:
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
     query: "page=1"
     note: "503 after the check: no knowledge assistant in the fixture"
+  - route: GET /projects/{project}/knowledge/sources/{source}/errors
+    rule: "project-verb:propose:KnowledgeSource"
+    expect: [401, 403, 403, 403, 403, allow, 404, 403]
+    note: "503 after the check: no knowledge assistant in the fixture"
   - route: POST /projects/{project}/knowledge/sources/{source}/inclusion
     rule: "project-verb:propose:KnowledgeSource"
     expect: [403, 403, 403, 403, 403, allow, 404, 403]

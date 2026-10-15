@@ -176,6 +176,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/projects/{project}/knowledge/sources", "what the knowledge assistant holds of the project's sources: jc-assistant's store beside the KnowledgeSource manifests (API/01 §34, T-3057)"),
 ("GET", "/projects/{project}/knowledge/sources/{source}/pages", "one level of a crawled source's page tree, from jc-assistant's store (API/01 §34)"),
 ("GET", "/projects/{project}/knowledge/sources/{source}/documents", "the documents a crawled source's pages link, from jc-assistant's store (API/01 §34)"),
+("GET", "/projects/{project}/knowledge/sources/{source}/errors", "the failed pages and documents of a source with why, for proposers (API/01 §34, T-4197)"),
 ("GET", "/projects/{project}/knowledge/sources/{source}/pages/{page}/links", "the links of one crawled page, from jc-assistant's store (API/01 §34)"),
 ("GET", "/projects/{project}/knowledge/sources/{source}/passages", "the passages the assistant answers from, of one page or document (API/01 §34)"),
 ("POST", "/projects/{project}/knowledge/sources/{source}/inclusion", "an administrator's include or exclude of crawled pages and documents: runtime state of jc-assistant, not configuration (API/01 §34, AG-113)"),

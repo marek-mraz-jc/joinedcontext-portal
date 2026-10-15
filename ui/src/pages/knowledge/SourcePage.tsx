@@ -38,6 +38,7 @@ import {
 import type { DocumentRow, InclusionCounts, PageRow } from "./knowledge";
 import { useUrlParam } from "../../navigation/urlState";
 import { UploadedFiles } from "./UploadedFiles";
+import { IndexStatus } from "./IndexStatus";
 
 type View = "pages" | "documents";
 
@@ -91,7 +92,9 @@ export function SourcePage({ project, source }: { project: string; source: strin
   const selected = pages.size + documents.size;
   // A `source: upload` holds files an administrator sends, not crawled pages (T-4185).
   const sources = useQuery({ queryKey: knowledgeKeys.sources(project), queryFn: () => listSources(project) });
-  const upload = sources.data?.find((row) => row.source === source)?.type === "upload";
+  const held = sources.data?.find((row) => row.source === source);
+  const upload = held?.type === "upload";
+  const status = held ? <IndexStatus project={project} row={held} /> : null;
   const header = (
     <PageHeader
       title={t("knowledge.source.title", { source })}
@@ -107,6 +110,7 @@ export function SourcePage({ project, source }: { project: string; source: strin
     return (
       <section aria-label={t("knowledge.source.title", { source })} className="space-y-6">
         {header}
+        {status}
         <UploadedFiles project={project} source={source} />
       </section>
     );
@@ -115,6 +119,7 @@ export function SourcePage({ project, source }: { project: string; source: strin
   return (
     <section aria-label={t("knowledge.source.title", { source })} className="space-y-6">
       {header}
+      {status}
       {change.isError ? (
         <Alert role="alert" tone="danger">
           {reasonOf(change.error, t("app.error.generic"))}

@@ -6703,6 +6703,21 @@
       "name": "Datei",
       "remove": "Entfernen",
       "removeOf": "{name} entfernen"
+    },
+    "index": {
+      "title": "Indexstatus",
+      "pages": "Seiten",
+      "files": "Dateien",
+      "passages": "Passagen",
+      "embedded": "Durchsuchbar",
+      "pending": "Wartet auf Indexierung",
+      "unread": "Nicht gelesen",
+      "reindex": "Neu indexieren",
+      "lastRun": "Letzter Lauf: gestartet {started}, beendet {finished}",
+      "noRun": "Noch kein Lauf",
+      "unreadList": "Nicht gelesene Seiten und Dateien",
+      "noneUnread": "Kein fehlgeschlagener Abruf ist verzeichnet.",
+      "totals": "Alle Quellen: {pages} Seiten, {files} Dateien, {embedded} von {passages} Passagen durchsuchbar, {pending} wartend, {failed} nicht gelesen"
     }
   },
   "mcp": {

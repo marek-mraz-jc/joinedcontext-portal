@@ -8954,6 +8954,88 @@
         }
       }
     },
+    "/api/v1/projects/{project}/knowledge/sources/{source}/errors": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "List A Source's Crawl Errors",
+        "description": "The pages and documents whose last read failed, newest first, at most 50: url, kind (`page` or `document`) and reason (`HTTP 404`, a network error). Needs `propose` on KnowledgeSource; a viewer sees the counts alone (API/01 §34, T-4197).",
+        "operationId": "list_errors",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "path",
+            "description": "KnowledgeSource name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not propose a KnowledgeSource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project or crawled source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The knowledge assistant is not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/knowledge/sources/{source}/files": {
       "get": {
         "tags": [
