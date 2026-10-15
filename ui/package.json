@@ -14,7 +14,8 @@
     "record:gates": "node scripts/record-gates.ts",
     "record:workflows": "node scripts/record-workflows.ts",
     "generate:api": "openapi-typescript ./openapi.json -o src/api/schema.d.ts",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "shoot:live": ": \"${SHOTS_DIR:?set SHOTS_DIR to /workspace/evidence/<agent>/<task id>}\" && playwright test --config playwright.live.config.ts"
   },
   "dependencies": {
     "@cfworker/json-schema": "^4.1.1",

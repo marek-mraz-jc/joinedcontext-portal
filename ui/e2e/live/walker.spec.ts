@@ -12,7 +12,9 @@
  * request answered >= 400 the person should not meet, axe with no serious or critical
  * violation. For the viewer, every write control is disabled and says why (UI-44).
  *
- * A screenshot is saved per page, width and person. The findings are attached as JSON; what is
+ * A screenshot is saved per page, width and person; with `SHOTS_DIR` set it also goes there under
+ * the UX photo audit's name, with a contact sheet (`shoot.ts`, T-4156), and `WALK_ONLY=<regex>`
+ * walks only the addresses it matches. The findings are attached as JSON; what is
  * known and owed is in `walker.allow.json`, each entry naming its task, and only shrinks. The
  * mocked copy of the same checks runs in the fast suite (`tests/walker_pages.test.tsx`).
  */
@@ -25,6 +27,7 @@ import { axeViolations } from "../axe";
 import { pageFindings, unexcused } from "../../tests/pageChecks";
 import type { Excused } from "../../tests/pageChecks";
 import { STEWARD, VIEWER, hiddenSections, inHiddenSection, signIn } from "./portal";
+import { shot, writeIndex } from "./shoot";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const NAMESPACES = Object.keys(JSON.parse(readFileSync(join(here, "../../src/locales/en.json"), "utf8")) as object);
@@ -39,6 +42,7 @@ const WIDTHS = (process.env.WALK_WIDTHS ?? "1440,2560")
   .filter((width) => width > 0)
   .map((width) => ({ width, height: width < 768 ? 812 : width <= 1440 ? 900 : 1300 }));
 const LANGS = (process.env.WALK_LANGS ?? "en").split(",").filter(Boolean);
+const ONLY = process.env.WALK_ONLY ? new RegExp(process.env.WALK_ONLY) : undefined;
 /** The sections that open a create and an edit form at their own address (`NEW_FORMS`). */
 const FORMS = ["spaces", "endpoints", "pipelines", "policies", "subscriptions", "csrs", "datasources", "syncsources"];
 const SECTIONS = ["flows", "spaces", "endpoints", "subscriptions", "datasources", "pipelines", "dashboards", "apps", "syncsources", "policies", "csrs"];
@@ -210,7 +214,7 @@ for (const [who, person] of [
     try {
       // A section the installation hides is no page to walk (T-2874).
       const hidden = await hiddenSections(page.request);
-      const all = (await visits(page, who)).filter((visit) => !inHiddenSection(visit.address, hidden));
+      const all = (await visits(page, who)).filter((visit) => !inHiddenSection(visit.address, hidden) && (!ONLY || ONLY.test(visit.address)));
       for (const lang of LANGS) for (const size of WIDTHS) {
         await page.setViewportSize(size);
         for (const visit of all) {
@@ -229,16 +233,18 @@ for (const [who, person] of [
           ];
           const screenshot = test.info().outputPath(`${who}-${lang}-${size.width}${visit.address.replace(/[^a-z0-9]+/gi, "-")}.png`);
           await page.screenshot({ path: screenshot, fullPage: true });
+          await shot(page, { area: "portal", route: visit.address, state: "open", who, lang });
           report.push({ ...visit, width: size.width, lang, findings: unexcused(visit.route, findings, allow.excused), screenshot });
         }
       }
       if (who === "viewer") refused = await endpointsRefused(page);
     } finally {
+      if (process.env.SHOTS_DIR) writeIndex(process.env.SHOTS_DIR);
       await test.info().attach(`walker-${who}.json`, { body: JSON.stringify(report, null, 2), contentType: "application/json" });
       await context.close();
     }
     expect(refused, "the cross-project Endpoints reach no one but an administrator").toEqual([]);
-    expect(report.length, "the walker opened the pages").toBeGreaterThan(40);
+    expect(report.length, "the walker opened the pages").toBeGreaterThan(ONLY ? 0 : 40);
     expect(
       report.filter((entry) => entry.findings.length > 0).map(({ address, width, lang, findings }) => ({ address, width, lang, findings })),
     ).toEqual([]);
