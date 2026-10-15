@@ -996,6 +996,14 @@
         "form_ckan_page.test.tsx"
       ]
     },
+    "src/pages/connect/ConnectPage.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "connect_page.test.tsx"
+      ]
+    },
     "src/pages/datasources/DataSourcesPage.tsx": {
       "controls": {
         "Button": 1
