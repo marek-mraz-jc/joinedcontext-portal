@@ -371,6 +371,83 @@ async fn an_unknown_path_inside_a_published_app_is_not_the_index() {
     assert_ne!(body, INDEX);
 }
 
+async fn page_from(
+    root: &std::path::Path,
+    spec: serde_json::Value,
+    uri: &str,
+    accept: &str,
+) -> (StatusCode, axum::http::HeaderMap, String) {
+    let config = Config {
+        apps_dir: Some(root.to_string_lossy().into_owned()),
+        ..Config::for_tests()
+    };
+    let app = server::app(AppState::new(config, None).with_mirror(mirror_with_app(spec)));
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri(uri)
+                .header(header::ACCEPT, accept)
+                .header(header::ACCEPT_LANGUAGE, "sk-SK,sk;q=0.9,en;q=0.8")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = response.status();
+    let headers = response.headers().clone();
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, String::from_utf8(body.to_vec()).unwrap())
+}
+
+#[tokio::test]
+async fn a_browser_on_an_unknown_path_gets_a_page_in_its_language_not_json() {
+    // T-4200: a sentence and the way to the App's start, still a 404 and still not the index.
+    let dir = app_root("missing-page", &[("index.html", INDEX)]);
+    let html = "text/html,application/xhtml+xml,*/*;q=0.8";
+
+    let (status, headers, body) = page_from(
+        dir.path(),
+        app_spec("published"),
+        "/apps/air-quality/no-such-page",
+        html,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(headers[header::CONTENT_TYPE]
+        .to_str()
+        .unwrap()
+        .starts_with("text/html"));
+    assert!(body.contains("<html lang=\"sk\">"), "{body}");
+    assert!(body.contains("Táto stránka v aplikácii neexistuje."));
+    assert!(body.contains("href=\"/apps/air-quality/\""));
+    assert!(!body.contains("not found") && !body.contains("\"type\""));
+
+    // An unpublished App answers the very same page: it names no App (AP-18).
+    let (status, _, hidden) = page_from(
+        dir.path(),
+        app_spec("draft"),
+        "/apps/air-quality/no-such-page",
+        html,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(hidden, body);
+
+    // A script or a fetch asks for no page and keeps the problem body.
+    let (status, headers, _) = page_from(
+        dir.path(),
+        app_spec("published"),
+        "/apps/air-quality/assets/missing.js",
+        "*/*",
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(headers[header::CONTENT_TYPE]
+        .to_str()
+        .unwrap()
+        .starts_with("application/problem+json"));
+}
+
 #[tokio::test]
 async fn without_an_apps_directory_the_host_answers_not_found() {
     let app = server::app(

@@ -41,11 +41,15 @@ class MockEventSource {
   }
 
   removeEventListener(name: string, handler: (event: MessageEvent) => void) {
-    this.listeners[name] = (this.listeners[name] || []).filter((h) => h !== handler);
+    this.listeners[name] = (this.listeners[name] || []).filter(
+      (h) => h !== handler,
+    );
   }
 
   close() {
-    MockEventSource.instances = MockEventSource.instances.filter((i) => i !== this);
+    MockEventSource.instances = MockEventSource.instances.filter(
+      (i) => i !== this,
+    );
   }
 
   emit(name: string, data: unknown) {
@@ -65,13 +69,20 @@ async function rows() {
   });
 }
 
-function renderFeed(items: ActivityEvent[], props: Record<string, unknown> = {}) {
+function renderFeed(
+  items: ActivityEvent[],
+  props: Record<string, unknown> = {},
+) {
   const urls: string[] = [];
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = input instanceof Request ? input.url : String(input);
     urls.push(url);
     const body = url.includes("/activity")
-      ? { apiVersion: "joinedcontext.com/v1alpha1", kind: "ActivityList", items }
+      ? {
+          apiVersion: "joinedcontext.com/v1alpha1",
+          kind: "ActivityList",
+          items,
+        }
       : {};
     return new Response(JSON.stringify(body), {
       status: 200,
@@ -79,7 +90,9 @@ function renderFeed(items: ActivityEvent[], props: Record<string, unknown> = {})
     });
   });
   vi.stubGlobal("fetch", fetchMock);
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   render(
     <QueryClientProvider client={client}>
       <I18nextProvider i18n={i18n}>
@@ -110,10 +123,44 @@ describe("the activity feed (UI-31)", () => {
     const shown = await rows();
     expect(shown).toHaveLength(2);
     expect(shown[0]).toHaveTextContent("The newer one.");
-    expect(within(shown[0]).getByRole("link", { name: "endpoints/public-air" })).toHaveAttribute(
-      "href",
-      "/projects/helsinki/endpoints/public-air",
+    expect(
+      within(shown[0]).getByRole("link", { name: "endpoints/public-air" }),
+    ).toHaveAttribute("href", "/projects/helsinki/endpoints/public-air");
+  });
+
+  it("says a failed publication's sentence and keeps its problem body behind a disclosure (T-4200)", async () => {
+    const reason =
+      'the dataset is unchanged, its sheet was not refreshed: GET https://portal.example/api/endpoint/x/file.csv: 503 {"type":"https://joinedcontext.com/errors/broker-failure","status":503}';
+    renderFeed([
+      event({
+        kind: "catalogue.published",
+        source: "ckan",
+        severity: "error",
+        summary: `Endpoint helsinki-events was not published: ${reason}`,
+        details: { reason, object: "endpoints/helsinki-events" },
+      }),
+      // A summary that does not end with its reason is shown as written.
+      event({
+        summary: "Endpoint helsinki-all is dataset helsinki-all.",
+        details: { reason: "elsewhere" },
+      }),
+    ]);
+
+    const [failed, other] = await rows();
+    expect(within(failed).getByTestId("activity-sentence")).toHaveTextContent(
+      /^Endpoint helsinki-events was not published\.$/,
     );
+    const disclosure = within(failed)
+      .getByText(en.activity.technical)
+      .closest("details")!;
+    expect(disclosure).not.toHaveAttribute("open");
+    expect(within(failed).getByTestId("activity-reason")).toHaveTextContent(
+      reason,
+    );
+    expect(other).toHaveTextContent(
+      "Endpoint helsinki-all is dataset helsinki-all.",
+    );
+    expect(within(other).queryByTestId("activity-reason")).toBeNull();
   });
 
   it("links a merged change to its own page and links nothing that is not a change id (T-3292)", async () => {
@@ -122,7 +169,8 @@ describe("the activity feed (UI-31)", () => {
         kind: "change.merged",
         source: "portal",
         severity: "info",
-        summary: "Change chg-0000001c merged: create Endpoint public-air, approved by eva.",
+        summary:
+          "Change chg-0000001c merged: create Endpoint public-air, approved by eva.",
         details: { change: "chg-0000001c", object: "endpoints/public-air" },
       }),
       event({
@@ -134,11 +182,12 @@ describe("the activity feed (UI-31)", () => {
       }),
     ]);
     const shown = await rows();
-    expect(within(shown[0]).getByRole("link", { name: "chg-0000001c" })).toHaveAttribute(
-      "href",
-      "/projects/helsinki/approvals/chg-0000001c",
-    );
-    expect(within(shown[0]).getByRole("link", { name: "endpoints/public-air" })).toBeInTheDocument();
+    expect(
+      within(shown[0]).getByRole("link", { name: "chg-0000001c" }),
+    ).toHaveAttribute("href", "/projects/helsinki/approvals/chg-0000001c");
+    expect(
+      within(shown[0]).getByRole("link", { name: "endpoints/public-air" }),
+    ).toBeInTheDocument();
     expect(within(shown[1]).queryByRole("link")).toBeNull();
   });
 
@@ -161,20 +210,27 @@ describe("the activity feed (UI-31)", () => {
 
     const source = MockEventSource.instances.at(-1);
     expect(source, "the tail is on by default").toBeDefined();
-    source?.emit("pipeline.error", event({
-      time: "2026-09-16T17:00:00Z",
-      kind: "pipeline.error",
-      severity: "error",
-      summary: "A mapping dropped a reading.",
-    }));
+    source?.emit(
+      "pipeline.error",
+      event({
+        time: "2026-09-16T17:00:00Z",
+        kind: "pipeline.error",
+        severity: "error",
+        summary: "A mapping dropped a reading.",
+      }),
+    );
 
     await waitFor(() => {
-      const shown = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+      const shown = within(screen.getByRole("table"))
+        .getAllByRole("row")
+        .slice(1);
       expect(shown[0]).toHaveTextContent("A mapping dropped a reading.");
     });
     // Only an error interrupts a reader; the live region says nothing else.
     await waitFor(() =>
-      expect(screen.getByTestId("activity-announce")).toHaveTextContent("1 new error"),
+      expect(screen.getByTestId("activity-announce")).toHaveTextContent(
+        "1 new error",
+      ),
     );
   });
 
@@ -183,12 +239,17 @@ describe("the activity feed (UI-31)", () => {
     await rows();
     expect(MockEventSource.instances).toHaveLength(1);
 
-    await userEvent.click(screen.getByRole("switch", { name: en.activity.tail }));
+    await userEvent.click(
+      screen.getByRole("switch", { name: en.activity.tail }),
+    );
     await waitFor(() => expect(MockEventSource.instances).toHaveLength(0));
   });
 
   it("an object panel offers no filters and no tail toggle", async () => {
-    renderFeed([event()], { compact: true, fixed: { object: "endpoints/public-air" } });
+    renderFeed([event()], {
+      compact: true,
+      fixed: { object: "endpoints/public-air" },
+    });
     await rows();
 
     expect(screen.queryByRole("switch")).toBeNull();
@@ -209,7 +270,10 @@ describe("the tail's reducer", () => {
 
   it("orders newest first and never grows past the window", () => {
     const many = Array.from({ length: TAIL_WINDOW + 20 }, (_, i) =>
-      event({ time: `2026-09-16T${String(i % 24).padStart(2, "0")}:00:0${i % 10}Z`, summary: `n${i}` }),
+      event({
+        time: `2026-09-16T${String(i % 24).padStart(2, "0")}:00:0${i % 10}Z`,
+        summary: `n${i}`,
+      }),
     );
     const merged = mergeActivity([], many);
     expect(merged).toHaveLength(TAIL_WINDOW);
@@ -218,7 +282,9 @@ describe("the tail's reducer", () => {
 
   it("reads the object an event belongs to, and nothing that is not one", () => {
     expect(objectOf(event())).toBe("endpoints/public-air");
-    expect(objectOf(event({ details: { object: "no-slash" } }))).toBeUndefined();
+    expect(
+      objectOf(event({ details: { object: "no-slash" } })),
+    ).toBeUndefined();
     expect(objectOf(event({ details: {} }))).toBeUndefined();
   });
 });
@@ -235,12 +301,20 @@ describe("the last hour strip", () => {
         event({ kind: "change.merged" }),
         event({ kind: "mcp.tool" }),
       ]),
-    ).toEqual({ messages: 1500, changes: 2, requests: 0, forwards: 0, denials: 2 });
+    ).toEqual({
+      messages: 1500,
+      changes: 2,
+      requests: 0,
+      forwards: 0,
+      denials: 2,
+    });
   });
 
   it("ignores a count that is not a number", () => {
     expect(
-      summarise([event({ kind: "endpoint.traffic", details: { count: "many" } })]).requests,
+      summarise([
+        event({ kind: "endpoint.traffic", details: { count: "many" } }),
+      ]).requests,
     ).toBe(1);
   });
 });
@@ -284,15 +358,20 @@ describe("a frame the tail cannot read", () => {
     const source = MockEventSource.instances.at(-1);
 
     source?.emit("message", { ...event(), time: "" });
-    source?.emit("pipeline.error", event({
-      time: "2026-09-16T17:00:00Z",
-      kind: "pipeline.error",
-      severity: "error",
-      summary: "A mapping dropped a reading.",
-    }));
+    source?.emit(
+      "pipeline.error",
+      event({
+        time: "2026-09-16T17:00:00Z",
+        kind: "pipeline.error",
+        severity: "error",
+        summary: "A mapping dropped a reading.",
+      }),
+    );
 
     await waitFor(() => {
-      const shown = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+      const shown = within(screen.getByRole("table"))
+        .getAllByRole("row")
+        .slice(1);
       expect(shown[0]).toHaveTextContent("A mapping dropped a reading.");
     });
   });
@@ -302,18 +381,25 @@ describe("a frame the tail cannot read", () => {
     await rows();
     const source = MockEventSource.instances.at(-1);
 
-    const { project: _project, ...noProject } = event({ summary: "Drawn all the same." });
+    const { project: _project, ...noProject } = event({
+      summary: "Drawn all the same.",
+    });
     source?.emit("message", noProject);
 
     await waitFor(() => {
-      const shown = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+      const shown = within(screen.getByRole("table"))
+        .getAllByRole("row")
+        .slice(1);
       expect(shown[0]).toHaveTextContent("Drawn all the same.");
     });
   });
 
   it("keeps a page the API answered with a broken row readable", () => {
     const merged = mergeActivity(
-      [{ ...event(), time: "yesterday" } as ActivityEvent, event({ summary: "Readable." })],
+      [
+        { ...event(), time: "yesterday" } as ActivityEvent,
+        event({ summary: "Readable." }),
+      ],
       [],
     );
     expect(merged.map((e) => e.summary)).toEqual(["Readable."]);
