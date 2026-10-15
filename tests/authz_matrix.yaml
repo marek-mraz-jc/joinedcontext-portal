@@ -469,6 +469,19 @@ routes:
     rule: "project-verb:propose:KnowledgeSource"
     expect: [403, 403, 403, 403, 403, allow, 404, 403]
     note: "503 after the check: no knowledge assistant in the fixture"
+  - route: GET /projects/{project}/knowledge/sources/{source}/files
+    rule: "project-verb:read:KnowledgeSource"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    note: "503 after the check: no knowledge assistant in the fixture"
+  - route: POST /projects/{project}/knowledge/sources/{source}/files
+    rule: "project-verb:propose:KnowledgeSource"
+    expect: [403, 403, 403, 403, 403, allow, 404, 403]
+    query: "name=bb.csv"
+    note: "503 after the check: no knowledge assistant in the fixture"
+  - route: DELETE /projects/{project}/knowledge/sources/{source}/files/{id}
+    rule: "project-verb:propose:KnowledgeSource"
+    expect: [403, 403, 403, 403, 403, allow, 404, 403]
+    note: "503 after the check: no knowledge assistant in the fixture"
   - route: GET /projects/{project}/knowledge/deployments/{deployment}/usage
     rule: "project-verb:read:AssistantDeployment"
     expect: [401, 404, 404, 404, 404, 404, 404, 404]
