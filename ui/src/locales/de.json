@@ -7342,5 +7342,40 @@
       "noEndpoint": "Kein Endpoint {endpoint} in diesem Projekt",
       "noPolicy": "Keine Policy {policy} in diesem Projekt"
     }
+  },
+  "connect": {
+    "title": "KI-Assistenten verbinden",
+    "loading": "Die Werkzeuge des Konnektors werden abgefragt…",
+    "missing": "Diesen Konnektor gibt es nicht, oder er ist nicht öffentlich. Prüfen Sie die Adresse, die Sie erhalten haben.",
+    "busy": "Aus Ihrem Netz kommen gerade zu viele Anfragen. Versuchen Sie es in {seconds} Sekunden erneut.",
+    "failed": "Der Konnektor hat nicht geantwortet. Versuchen Sie es gleich erneut.",
+    "retry": "Erneut versuchen",
+    "address": "Adresse des Konnektors",
+    "copyAddress": "Adresse kopieren",
+    "copied": "In die Zwischenablage kopiert.",
+    "readOnly": "Nur lesend: ein Assistent kann die Daten lesen und durchsuchen, nie ändern.",
+    "noLogin": "Keine Anmeldung und kein Schlüssel: ein Client braucht nur die Adresse.",
+    "limit": "Höchstens {count} Anfragen pro Minute aus einem Netz.",
+    "clients": "Ihren Client einrichten",
+    "tryPrompt": "Fragen Sie dann: „{prompt}“",
+    "prompt": "Welche Daten bietet {title}? Zeig mir fünf Datensätze mit einem Link zur Quelle.",
+    "claudeCode": {
+      "steps": "Führen Sie diesen Befehl in einem Terminal aus und starten Sie dann Claude Code.",
+      "copy": "Befehl kopieren"
+    },
+    "claudeDesktop": {
+      "steps": "Wählen Sie in den Einstellungen unter Konnektoren „Eigenen Konnektor hinzufügen“ und fügen Sie die Adresse ein. Oder tragen Sie dies in claude_desktop_config.json ein (braucht Node.js) und starten Sie Claude Desktop neu.",
+      "copy": "Konfiguration kopieren"
+    },
+    "chatgpt": {
+      "steps": "Schalten Sie in den Einstellungen unter Apps und Konnektoren den Entwicklermodus ein, legen Sie einen Konnektor an, fügen Sie die Adresse ein und wählen Sie „Keine Authentifizierung“."
+    },
+    "generic": {
+      "title": "Andere MCP-Clients",
+      "steps": "Jeder Client, der MCP über Streamable HTTP spricht (VS Code, Cursor, n8n…), nimmt die Adresse. Viele lesen diese Konfiguration:",
+      "copy": "Konfiguration kopieren"
+    },
+    "tools": "{count, plural, one {# Werkzeug} other {# Werkzeuge}}",
+    "noTools": "Der Konnektor bietet anonymen Aufrufern gerade keine Werkzeuge an."
   }
 }
