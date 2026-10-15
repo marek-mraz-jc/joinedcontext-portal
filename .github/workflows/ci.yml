@@ -19,6 +19,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: every action is a commit, and only a publishing job may publish (T-0851)
         run: python3 scripts/ci/check-workflow-pins.py
+      - name: every crate a Rust App's own lock names is fetched for the builder's seed (T-4150)
+        run: python3 scripts/ci/check-seed-locks.py
       # The checker itself; the statements run on a full `cg build --fg` before every merge, since
       # cg is not on the runner (T-3681, as Antares T-3587).
       - name: cg security invariants self-test
