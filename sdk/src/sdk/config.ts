@@ -178,7 +178,8 @@ export function visitorLanguage(win?: { location?: { search?: string }; navigato
   const w = win ?? (typeof window !== "undefined" ? window : undefined);
   if (!w) return undefined;
   const tag = (value: unknown) => (typeof value === "string" && /^[A-Za-z]{2,3}(-|$)/.test(value) ? value.split("-")[0].toLowerCase() : undefined);
-  const asked = tag(new URLSearchParams(w.location?.search ?? "").get("lang"));
+  // A plain match, not URLSearchParams: this file is in the server bundle, and QuickJS has none.
+  const asked = tag(/[?&]lang=([^&#]*)/.exec(w.location?.search ?? "")?.[1]);
   if (asked) return asked;
   for (const language of w.navigator?.languages ?? [w.navigator?.language]) {
     const found = tag(language);
