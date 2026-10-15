@@ -470,6 +470,10 @@ describe("the assistant dock", () => {
     expect(dock.className).not.toMatch(/\b2?xl:sticky\b/);
     // The theme's elevation token, not a Tailwind default (T-1749).
     expect(dock.className).toContain("shadow-3");
+    // On a phone the floating panel takes the screen under the header (T-4204).
+    expect(dock.className).toContain("max-sm:inset-x-0");
+    expect(dock.className).toContain("max-sm:top-14");
+    expect(dock.className).toContain("max-sm:max-w-none");
     expect(within(dock).getByRole("button", { name: en.assistant.floatView })).toHaveAttribute(
       "aria-pressed",
       "true",
