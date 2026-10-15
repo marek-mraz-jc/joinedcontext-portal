@@ -11,7 +11,7 @@ export interface SourceJob {
 
 export interface KnowledgeSourceRow {
   source: string;
-  type: "website" | "ckan" | "catalogue" | "guide";
+  type: "website" | "ckan" | "catalogue" | "guide" | "upload";
   state: "crawled" | "not-crawled";
   startUrls: string[];
   ckanInstanceRef: string | null;
@@ -99,6 +99,7 @@ export const knowledgeKeys = {
   documents: (project: string, source: string) => ["projects", project, "knowledge", "sources", source, "documents"] as const,
   passages: (project: string, source: string, owner: { page?: number; document?: number }) =>
     ["projects", project, "knowledge", "sources", source, "passages", owner.page ?? null, owner.document ?? null] as const,
+  files: (project: string, source: string) => ["projects", project, "knowledge", "sources", source, "files"] as const,
   links: (project: string, source: string, page: number) =>
     ["projects", project, "knowledge", "sources", source, "links", page] as const,
 };
@@ -168,6 +169,58 @@ export async function recrawl(project: string, source: string): Promise<void> {
   await unwrap(
     await api.POST("/api/v1/projects/{project}/knowledge/sources/{source}/recrawl", {
       params: { path: { project, source } },
+    }),
+  );
+}
+
+/** A file an administrator uploaded to a `source: upload` (API/05 §3, T-4184). */
+export interface UploadedFile {
+  id: number;
+  name: string;
+  mime: string | null;
+  bytes: number | null;
+  passages: number;
+  status: PageRow["status"];
+}
+
+/** The file types an upload source reads (API/05 §3): checked again by content on the server. */
+export const UPLOAD_ACCEPT = ".pdf,.docx,.xlsx,.csv,.md,.txt";
+
+export async function listFiles(project: string, source: string): Promise<UploadedFile[]> {
+  return items<UploadedFile>(
+    await unwrap(
+      await api.GET("/api/v1/projects/{project}/knowledge/sources/{source}/files", {
+        params: { path: { project, source } },
+      }),
+    ),
+  );
+}
+
+/** Sends the file's bytes as they are; the Portal's sentence comes back as an `ApiError`. */
+export async function uploadFile(project: string, source: string, file: Blob, name: string): Promise<UploadedFile> {
+  const headers: Record<string, string> = { "Content-Type": "application/octet-stream" };
+  const csrf = readCsrfToken();
+  if (csrf) headers["x-csrf-token"] = csrf;
+  const response = await globalThis.fetch(
+    new Request(
+      `${window.location.origin}/api/v1/projects/${encodeURIComponent(project)}/knowledge/sources/${encodeURIComponent(source)}/files?name=${encodeURIComponent(name)}`,
+      { method: "POST", credentials: "same-origin", headers, body: await file.arrayBuffer() },
+    ),
+  );
+  const answer: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const problem = answer as ProblemDetails | null;
+    const detail = typeof problem?.detail === "string" ? problem.detail : `HTTP ${response.status}`;
+    throw new ApiError(response.status, detail, problem ?? undefined, response.headers.get("x-request-id") ?? undefined);
+  }
+  if (!answer) throw new ApiError(response.status, "the upload answered nothing");
+  return answer as UploadedFile;
+}
+
+export async function removeFile(project: string, source: string, id: number): Promise<void> {
+  await unwrap(
+    await api.DELETE("/api/v1/projects/{project}/knowledge/sources/{source}/files/{id}", {
+      params: { path: { project, source, id } },
     }),
   );
 }
