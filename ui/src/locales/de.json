@@ -6568,6 +6568,7 @@
       "startUrls": "Startadressen",
       "ckanInstanceRef": "Katalog",
       "sitemap": "Sitemap lesen",
+      "wordpressTypes": "WordPress-Inhaltstypen",
       "include": "Nur diese Pfade lesen",
       "exclude": "Diese Pfade überspringen",
       "maxDepth": "Verweistiefe",

@@ -141,3 +141,26 @@ describe("a knowledge source's newer fields", () => {
     ).toEqual(expect.arrayContaining(["organizations.0:pattern", "organizations:maxItems"]));
   });
 });
+
+describe("a website source's WordPress types (T-4154, MF-51)", () => {
+  const sourceErrors = (wordpressTypes: unknown) =>
+    validator
+      .validateFormData(
+        { name: "web", source: "website", visibility: "public", startUrls: ["https://www.banskabystrica.sk/"], wordpressTypes },
+        knowledgeSourceSchema(t),
+      )
+      .errors.map((e) => `${String(e.property).replace(/^\./, "")}:${e.name}`);
+
+  it("REST bases pass and anything a URL could be smuggled in is refused at the field", () => {
+    expect(sourceErrors(["pages", "office_announcements", "emergency-contacts"])).toEqual([]);
+    for (const bad of ["Pages", "pages/../users", "pages?per_page=100", "", "a".repeat(65)]) {
+      expect(sourceErrors([bad]), bad).toEqual(expect.arrayContaining([expect.stringMatching(/^wordpressTypes\.0:/)]));
+    }
+    expect(sourceErrors(Array.from({ length: 41 }, (_, i) => `t${i}`))).toContain("wordpressTypes:maxItems");
+    expect(sourceErrors(["pages", "pages"])).toContain("wordpressTypes:uniqueItems");
+  });
+
+  it("is named in every language", () => {
+    expect(en.knowledge.field.wordpressTypes).toBe("WordPress content types");
+  });
+});
