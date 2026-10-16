@@ -39,8 +39,8 @@ const FIXED_TOPICS: TopicsOutput = {
         { term: "pupils", weight: 0.5 },
       ],
       articles: [
-        "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-1",
-        "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-2",
+        "urn:ngsi-ld:Article:hel.fi:helsinki:news-1",
+        "urn:ngsi-ld:Article:hel.fi:helsinki:news-2",
       ],
       share: 0.6,
     },
@@ -52,7 +52,7 @@ const FIXED_TOPICS: TopicsOutput = {
         { term: "construction", weight: 0.4 },
       ],
       articles: [
-        "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-3",
+        "urn:ngsi-ld:Article:hel.fi:helsinki:news-3",
       ],
       share: 0.4,
     },
@@ -84,8 +84,8 @@ vi.mock("../topics", async (importOriginal) => ({
 
 const ARTICLES: Row[] = [
   {
-    id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-1",
-    type: "NewsArticle",
+    id: "urn:ngsi-ld:Article:hel.fi:helsinki:news-1",
+    type: "Article",
     name: "New school opens in Kalasatama",
     description: "Modern learning spaces for 700 pupils in Kalasatama.",
     url: "https://www.hel.fi/en/news/new-school-kalasatama",
@@ -93,8 +93,8 @@ const ARTICLES: Row[] = [
     source: "https://www.hel.fi/en/news/rss",
   },
   {
-    id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-2",
-    type: "NewsArticle",
+    id: "urn:ngsi-ld:Article:hel.fi:helsinki:news-2",
+    type: "Article",
     name: "Education budget approved for next year",
     description: "City council approved funding for digital learning tools.",
     url: "https://www.hel.fi/en/news/education-budget",
@@ -102,8 +102,8 @@ const ARTICLES: Row[] = [
     source: "https://www.hel.fi/en/news/rss",
   },
   {
-    id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-3",
-    type: "NewsArticle",
+    id: "urn:ngsi-ld:Article:hel.fi:helsinki:news-3",
+    type: "Article",
     name: "Tram line extension starts construction",
     description: "Work on Crown Bridges tram connection advances to Hakaniemi.",
     url: "https://www.hel.fi/en/news/tram-construction",
@@ -113,7 +113,7 @@ const ARTICLES: Row[] = [
 ];
 
 const READ = {
-  permissions: [{ resource: { type: "NewsArticle" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const }],
+  permissions: [{ resource: { type: "Article" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const }],
   prohibitions: [],
 };
 
@@ -367,13 +367,13 @@ describe("the topics page", () => {
 
   // What the analysis or the feed may hand the page that it still shows.
   it("shows an undated and an unnamed article, a topic with no keyword and a week with no share", async () => {
-    const undated: Row = { id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-9", type: "NewsArticle" };
+    const undated: Row = { id: "urn:ngsi-ld:Article:hel.fi:helsinki:news-9", type: "Article" };
     mockTopicsState = {
       status: "ready",
       result: {
         topics: [
           { id: 0, keywords: [], articles: [undated.id, ARTICLES[0].id], share: 1 },
-          { id: 1, keywords: [{ term: "tram", weight: 1 }], articles: ["urn:ngsi-ld:NewsArticle:hel.fi:helsinki:gone"], share: 0 },
+          { id: 1, keywords: [{ term: "tram", weight: 1 }], articles: ["urn:ngsi-ld:Article:hel.fi:helsinki:gone"], share: 0 },
         ],
         weeks: [{ week: "2026-W41", shares: [1] }],
         unassigned: [],

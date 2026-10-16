@@ -36,7 +36,7 @@ vi.mock("echarts", () => ({ init: vi.fn(() => ({ setOption: vi.fn(), resize: vi.
 initSync({ module: Uint8Array.from(atob(wasm.slice(wasm.indexOf(",") + 1)), (c) => c.charCodeAt(0)) });
 const COMPARER: Comparer = async (input) => parseAnswer(compare(JSON.stringify(input)));
 
-const TYPES = ["CityDistrict", "Event", "BikeHireDockingStation", "Alert", "AirQualityObserved"];
+const TYPES = ["AdministrativeArea", "Event", "BikeHireDockingStation", "Alert", "AirQualityObserved"];
 const ACCESS = {
   permissions: TYPES.map((type) => ({ resource: { type }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const })),
   prohibitions: [],

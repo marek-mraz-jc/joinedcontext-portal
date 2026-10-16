@@ -19,8 +19,8 @@ import {
 describe("districtName", () => {
   it("uses formatted string name when available", () => {
     const row: Row = {
-      id: "urn:ngsi-ld:CityDistrict:102",
-      type: "CityDistrict",
+      id: "urn:ngsi-ld:AdministrativeArea:102",
+      type: "AdministrativeArea",
       districtCode: "102",
       name: "Kamppi",
     };
@@ -29,16 +29,16 @@ describe("districtName", () => {
 
   it("falls back to districtCode when name is missing or raw JSON/URN", () => {
     const rowWithUrnName: Row = {
-      id: "urn:ngsi-ld:CityDistrict:103",
-      type: "CityDistrict",
+      id: "urn:ngsi-ld:AdministrativeArea:103",
+      type: "AdministrativeArea",
       districtCode: "103",
-      name: "urn:ngsi-ld:CityDistrict:103",
+      name: "urn:ngsi-ld:AdministrativeArea:103",
     };
     expect(districtName(rowWithUrnName)).toBe("103");
 
     const rowWithEmptyName: Row = {
-      id: "urn:ngsi-ld:CityDistrict:104",
-      type: "CityDistrict",
+      id: "urn:ngsi-ld:AdministrativeArea:104",
+      type: "AdministrativeArea",
       districtCode: "104",
       name: null,
     };
@@ -47,11 +47,11 @@ describe("districtName", () => {
 
   it("falls back to id when neither name nor districtCode is provided", () => {
     const row: Row = {
-      id: "urn:ngsi-ld:CityDistrict:fallback-id",
-      type: "CityDistrict",
+      id: "urn:ngsi-ld:AdministrativeArea:fallback-id",
+      type: "AdministrativeArea",
       name: null,
     };
-    expect(districtName(row)).toBe("urn:ngsi-ld:CityDistrict:fallback-id");
+    expect(districtName(row)).toBe("urn:ngsi-ld:AdministrativeArea:fallback-id");
   });
 });
 
@@ -60,16 +60,16 @@ describe("toInput", () => {
     const rows: RowsByType = {
       districts: [
         {
-          id: "urn:ngsi-ld:CityDistrict:101",
-          type: "CityDistrict",
+          id: "urn:ngsi-ld:AdministrativeArea:101",
+          type: "AdministrativeArea",
           districtCode: "101",
           divisionLevel: "district",
           name: "Kallio",
           location: { type: "Point", coordinates: [24.95, 60.18] },
         },
         {
-          id: "urn:ngsi-ld:CityDistrict:201",
-          type: "CityDistrict",
+          id: "urn:ngsi-ld:AdministrativeArea:201",
+          type: "AdministrativeArea",
           districtCode: "201",
           divisionLevel: "subdistrict",
           name: "Alppiharju",
@@ -91,8 +91,8 @@ describe("toInput", () => {
     const rows: RowsByType = {
       districts: [
         {
-          id: "urn:ngsi-ld:CityDistrict:101",
-          type: "CityDistrict",
+          id: "urn:ngsi-ld:AdministrativeArea:101",
+          type: "AdministrativeArea",
           districtCode: "101",
           divisionLevel: "district",
           name: "Kallio",

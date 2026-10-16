@@ -37,7 +37,7 @@ export interface Served {
 const ACCESS = {
   permissions: [
     { resource: { type: "BikeHireDockingStation" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" },
-    { resource: { type: "CityDistrict" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" },
+    { resource: { type: "AdministrativeArea" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" },
     { resource: { type: "Event" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" },
     { resource: { type: "Vehicle" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" },
   ],

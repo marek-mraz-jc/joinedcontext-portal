@@ -7,13 +7,13 @@ const point = (lon: number, lat: number) => ({
 });
 
 /**
- * Three CityDistricts in Helsinki (Kamppi with a hole, Kallio with a MultiPolygon, Töölö simple polygon),
+ * Three AdministrativeAreas in Helsinki (Kamppi with a hole, Kallio with a MultiPolygon, Töölö simple polygon),
  * plus one subdistrict (Etu-Töölö) that must be filtered out by divisionLevel === "district".
  */
 const DISTRICT_ROWS: Row[] = [
   {
-    id: "urn:ngsi-ld:CityDistrict:hel.fi:helsinki:101",
-    type: "CityDistrict",
+    id: "urn:ngsi-ld:AdministrativeArea:hel.fi:helsinki:101",
+    type: "AdministrativeArea",
     districtCode: "101",
     divisionLevel: "district",
     name: "Kamppi",
@@ -40,8 +40,8 @@ const DISTRICT_ROWS: Row[] = [
     },
   },
   {
-    id: "urn:ngsi-ld:CityDistrict:hel.fi:helsinki:102",
-    type: "CityDistrict",
+    id: "urn:ngsi-ld:AdministrativeArea:hel.fi:helsinki:102",
+    type: "AdministrativeArea",
     districtCode: "102",
     divisionLevel: "district",
     name: "Kallio",
@@ -72,8 +72,8 @@ const DISTRICT_ROWS: Row[] = [
     },
   },
   {
-    id: "urn:ngsi-ld:CityDistrict:hel.fi:helsinki:103",
-    type: "CityDistrict",
+    id: "urn:ngsi-ld:AdministrativeArea:hel.fi:helsinki:103",
+    type: "AdministrativeArea",
     districtCode: "103",
     divisionLevel: "district",
     name: "Töölö",
@@ -92,8 +92,8 @@ const DISTRICT_ROWS: Row[] = [
     },
   },
   {
-    id: "urn:ngsi-ld:CityDistrict:hel.fi:helsinki:1031",
-    type: "CityDistrict",
+    id: "urn:ngsi-ld:AdministrativeArea:hel.fi:helsinki:1031",
+    type: "AdministrativeArea",
     districtCode: "1031",
     divisionLevel: "subdistrict",
     name: "Etu-Töölö",

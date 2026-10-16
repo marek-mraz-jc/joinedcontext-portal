@@ -77,7 +77,7 @@ pub fn text_of(value: Option<&Json>) -> String {
     }
 }
 
-/// The articles of each ISO week (`2026-W41`) of `entities` (keyValues NewsArticles); an article
+/// The articles of each ISO week (`2026-W41`) of `entities` (keyValues Articles); an article
 /// without a readable date is in no week.
 pub fn by_week(entities: &[Json]) -> BTreeMap<String, Vec<Article>> {
     let mut weeks: BTreeMap<String, Vec<Article>> = BTreeMap::new();
@@ -143,12 +143,12 @@ pub fn model(articles: &[Article]) -> Result<AnalysisOutput, String> {
         .map_err(|err| format!("the topic model answered no topics: {err}"))
 }
 
-/// Every NewsArticle the App's Endpoint lets the caller read, page by page, up to [`MOST`].
+/// Every Article the App's Endpoint lets the caller read, page by page, up to [`MOST`].
 fn articles() -> Result<Vec<Json>, gateway::Error> {
     let mut all = Vec::new();
     loop {
         let path = format!(
-            "/ngsi-ld/v1/entities?type=NewsArticle&options=keyValues&limit={PAGE}&offset={}&attrs={}",
+            "/ngsi-ld/v1/entities?type=Article&options=keyValues&limit={PAGE}&offset={}&attrs={}",
             all.len(),
             gateway::encode("name,description,url,datePublished"),
         );
@@ -540,7 +540,7 @@ mod tests {
     use super::*;
 
     fn article(id: &str, name: Json, published: Json) -> Json {
-        json!({"id": id, "type": "NewsArticle", "name": name, "description": "Kaupunki tiedottaa", "datePublished": published, "url": "https://www.hel.fi/x"})
+        json!({"id": id, "type": "Article", "name": name, "description": "Kaupunki tiedottaa", "datePublished": published, "url": "https://www.hel.fi/x"})
     }
 
     #[test]

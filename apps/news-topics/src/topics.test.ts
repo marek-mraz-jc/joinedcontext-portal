@@ -8,8 +8,8 @@ describe("toInput", () => {
   it("converts SDK rows with complete attributes to article inputs", () => {
     const rows: Row[] = [
       {
-        id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-1",
-        type: "NewsArticle",
+        id: "urn:ngsi-ld:Article:hel.fi:helsinki:news-1",
+        type: "Article",
         name: "School opening in Kalasatama",
         description: "Modern facilities for children",
         datePublished: "2026-10-05T08:00:00Z",
@@ -23,7 +23,7 @@ describe("toInput", () => {
     expect(input.seed).toBe(1);
     expect(input.articles).toEqual([
       {
-        id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-1",
+        id: "urn:ngsi-ld:Article:hel.fi:helsinki:news-1",
         title: "School opening in Kalasatama",
         summary: "Modern facilities for children",
         published: "2026-10-05T08:00:00Z",
@@ -34,21 +34,21 @@ describe("toInput", () => {
   it("omits summary when description is missing, undefined, null, or empty", () => {
     const rows: Row[] = [
       {
-        id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-no-desc",
-        type: "NewsArticle",
+        id: "urn:ngsi-ld:Article:hel.fi:helsinki:news-no-desc",
+        type: "Article",
         name: "Brief announcement",
         datePublished: "2026-10-06T10:00:00Z",
       },
       {
-        id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-null-desc",
-        type: "NewsArticle",
+        id: "urn:ngsi-ld:Article:hel.fi:helsinki:news-null-desc",
+        type: "Article",
         name: "Another notice",
         description: null,
         datePublished: "2026-10-06T11:00:00Z",
       },
       {
-        id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-empty-desc",
-        type: "NewsArticle",
+        id: "urn:ngsi-ld:Article:hel.fi:helsinki:news-empty-desc",
+        type: "Article",
         name: "Notice with blank summary",
         description: "   ",
         datePublished: "2026-10-06T12:00:00Z",
@@ -67,20 +67,20 @@ describe("toInput", () => {
   it("omits published when datePublished is missing, undefined, null, or empty", () => {
     const rows: Row[] = [
       {
-        id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-no-date",
-        type: "NewsArticle",
+        id: "urn:ngsi-ld:Article:hel.fi:helsinki:news-no-date",
+        type: "Article",
         name: "Undated story",
         description: "Some summary",
       },
       {
-        id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-null-date",
-        type: "NewsArticle",
+        id: "urn:ngsi-ld:Article:hel.fi:helsinki:news-null-date",
+        type: "Article",
         name: "Another undated story",
         datePublished: null,
       },
       {
-        id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-empty-date",
-        type: "NewsArticle",
+        id: "urn:ngsi-ld:Article:hel.fi:helsinki:news-empty-date",
+        type: "Article",
         name: "Story with blank date",
         datePublished: "   ",
       },
@@ -98,8 +98,8 @@ describe("toInput", () => {
   it("handles rows with both description and datePublished missing", () => {
     const rows: Row[] = [
       {
-        id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-minimal",
-        type: "NewsArticle",
+        id: "urn:ngsi-ld:Article:hel.fi:helsinki:news-minimal",
+        type: "Article",
         name: "Only title",
       },
     ];
@@ -108,7 +108,7 @@ describe("toInput", () => {
 
     expect(input.articles).toEqual([
       {
-        id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-minimal",
+        id: "urn:ngsi-ld:Article:hel.fi:helsinki:news-minimal",
         title: "Only title",
       },
     ]);
@@ -143,8 +143,8 @@ describe("useTopics", () => {
       this.terminated = true;
     }
   }
-  const ROW: Row = { id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:1", type: "NewsArticle", name: "Tram line opens" };
-  const ANSWER: AnalysisOutput = { topics: [], weeks: [], unassigned: ["urn:ngsi-ld:NewsArticle:hel.fi:helsinki:1"] };
+  const ROW: Row = { id: "urn:ngsi-ld:Article:hel.fi:helsinki:1", type: "Article", name: "Tram line opens" };
+  const ANSWER: AnalysisOutput = { topics: [], weeks: [], unassigned: ["urn:ngsi-ld:Article:hel.fi:helsinki:1"] };
 
   beforeEach(() => {
     started.length = 0;
@@ -214,7 +214,7 @@ describe("useTopics", () => {
         }
       },
     );
-    const view = renderHook(() => useTopics([{ id: "urn:ngsi-ld:NewsArticle:hel.fi:helsinki:2", type: "NewsArticle" }]));
+    const view = renderHook(() => useTopics([{ id: "urn:ngsi-ld:Article:hel.fi:helsinki:2", type: "Article" }]));
     expect(view.result.current.error?.message).toBe("refused");
   });
 });

@@ -3,7 +3,7 @@
     {
       "path": "/ngsi-ld/v1/entities",
       "query": {
-        "type": "NewsArticle",
+        "type": "Article",
         "offset": "0",
         "options": "keyValues"
       },

@@ -3,7 +3,7 @@
     {
       "path": "/ngsi-ld/v1/entities",
       "query": {
-        "type": "CityDistrict",
+        "type": "AdministrativeArea",
         "offset": "0"
       },
       "file": "host-test/districts.json"

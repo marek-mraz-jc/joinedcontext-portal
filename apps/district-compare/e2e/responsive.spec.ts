@@ -106,7 +106,7 @@ for (const scheme of ["light", "dark"] as const) {
       await page.goto(`${BASE}?lang=en`);
       await page.getByRole("button", { name: /^Details: / }).first().click();
       const panel = page.getByRole("dialog");
-      await expect(panel.getByText("CityDistrict")).toBeVisible();
+      await expect(panel.getByText("AdministrativeArea")).toBeVisible();
       await expect(panel.getByRole("link", { name: "Open in the Portal" })).toBeVisible();
       await expect(panel.getByRole("button", { name: "Edit" })).toHaveCount(0);
       expect(await layoutProblems(page)).toEqual([]);

@@ -1,5 +1,10 @@
 {
-  "address": "address",
+  "address": {
+    "addressCountry": "addressCountry",
+    "addressLocality": "addressLocality",
+    "postalCode": "postalCode",
+    "streetAddress": "streetAddress"
+  },
   "contactPoint": "contactPoint",
   "description": {
     "en": "description"

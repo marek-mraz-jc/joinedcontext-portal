@@ -55,7 +55,7 @@ spec:
     - contextSpaceRef:
         kind: ContextSpace
         name: helsinki
-      types: [NewsArticle]
+      types: [Article]
       attrs: [name, description, url, datePublished, source]
       operations: [queryEntity, retrieveEntity]
       representations: [ngsi-ld, ogc-features]
