@@ -3839,6 +3839,7 @@
     "showMetadata": "Zobrazit metadata pro",
     "error": "Nenačteno, zkuste znovu",
     "filter": "Filtr",
+    "noFilter": "Vše",
     "ops": {
       "contains": "obsahuje",
       "equals": "je",

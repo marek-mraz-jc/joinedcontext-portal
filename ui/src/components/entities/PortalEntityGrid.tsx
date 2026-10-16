@@ -70,6 +70,7 @@ export function gridLabels(t: (key: string) => string): GridLabels {
     showMetadata: t("entityGrid.showMetadata"),
     error: t("entityGrid.error"),
     filter: t("entityGrid.filter"),
+    noFilter: t("entityGrid.noFilter"),
     ops: {
       contains: t("entityGrid.ops.contains"),
       equals: t("entityGrid.ops.equals"),
