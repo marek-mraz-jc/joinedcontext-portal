@@ -145,6 +145,7 @@ const fi: Strings = {
     copyQuery: "Kopioi kysely",
     editAsText: "Muokkaa tekstinä",
     filterRow: "Suodattimet",
+    noFilter: "Kaikki",
     sortPage: "Lajittele tämä sivu sarakkeen mukaan",
     matching: "vastaa",
     history: "Historia",

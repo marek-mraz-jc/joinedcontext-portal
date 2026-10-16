@@ -475,6 +475,7 @@ describe("EntityGrid", () => {
       copyQuery: "Kopírovať dotaz",
       editAsText: "Upraviť ako text",
       filterRow: "Filtre",
+      noFilter: "Všetky",
       sortPage: "Zoradiť túto stranu podľa",
       matching: "vyhovujúcich",
     };
@@ -563,6 +564,22 @@ describe("EntityGrid", () => {
       });
       // And it says so under the grid, where a person can copy it.
       expect(screen.getByText("q=availableBikeNumber>4")).toBeInTheDocument();
+    });
+
+    // T-4222 (photo audit T-4162): an unset filter read as a bare "—"; it says it lets every row
+    // through, in the App's language.
+    it("names the unset filter in words, the App's own or the default", async () => {
+      const { source } = recordingSource(bikeEntities);
+      const { unmount } = render(<EntityGrid config={config} source={source} />);
+      await waitFor(() => expect(screen.getByText("Kamppi")).toBeInTheDocument());
+      const unset = (screen.getByLabelText("Filter: Bikes") as HTMLSelectElement).options[0];
+      expect(unset.value).toBe("");
+      expect(unset.textContent).toBe("All");
+      unmount();
+
+      render(<EntityGrid config={config} source={source} labels={{ noFilter: "Všetky" }} />);
+      await waitFor(() => expect(screen.getByText("Kamppi")).toBeInTheDocument());
+      expect((screen.getByLabelText("Filter: Bikes") as HTMLSelectElement).options[0].textContent).toBe("Všetky");
     });
 
     it("asks nothing until the filter is complete, and starts again at the first page", async () => {

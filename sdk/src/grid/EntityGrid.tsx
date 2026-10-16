@@ -1041,7 +1041,7 @@ function FilterCell({
 }: {
   column: FilterColumn;
   label: string;
-  labels: { filter: string; value: string; upperValue: string; ops: Record<string, string> };
+  labels: { filter: string; value: string; upperValue: string; noFilter: string; ops: Record<string, string> };
   filter: ColumnFilter | undefined;
   onChange: (next: ColumnFilter | undefined) => void;
 }): React.JSX.Element {
@@ -1065,7 +1065,7 @@ function FilterCell({
           onChange({ op: next, value: filter?.value ?? "", value2: filter?.value2 });
         }}
       >
-        <option value="">—</option>
+        <option value="">{labels.noFilter}</option>
         {ops.map((each) => (
           <option key={each} value={each}>
             {labels.ops[each] ?? each}
