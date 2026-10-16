@@ -6692,7 +6692,10 @@
       "perClientPerMonth": "Otázky za mesiac, jeden návštevník",
       "answer": "Spôsob odpovede",
       "answerRoutes": "Odpovedá z",
-      "feedback": "Pýtať sa návštevníkov, či odpoveď pomohla"
+      "feedback": "Pýtať sa návštevníkov, či odpoveď pomohla",
+      "widget": "Chat",
+      "widgetLanguage": "Jazyk, v ktorom sa chat otvorí",
+      "languageToggle": "Zobraziť prepínač jazyka"
     },
     "visibility": {
       "internal": "Interný: prihlásení zamestnanci",
@@ -6798,6 +6801,11 @@
       "unreadList": "Neprečítané stránky a súbory",
       "noneUnread": "Žiadne neúspešné čítanie nie je zaznamenané.",
       "totals": "Všetky zdroje: {pages} stránok, {files} súborov, {embedded} z {passages} pasáží vyhľadateľných, {pending} čaká, {failed} neprečítaných"
+    },
+    "widgetLanguage": {
+      "browser": "Jazyk prehliadača návštevníka",
+      "ask": "Opýtať sa pri prvom otvorení",
+      "fixed": "Vždy prvý jazyk"
     },
     "answerRoutes": {
       "both": "Znalosti aj živé dáta",
