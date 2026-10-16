@@ -137,7 +137,8 @@ function Input(
   props: WidgetProps & { hasErrors: boolean; isRange: boolean },
 ): React.JSX.Element {
   const { hasErrors, isRange, ...rest } = props;
-  const forwarded = rest as WidgetProps;
+  const required = useAsked(props.required);
+  const forwarded = { ...rest, required } as WidgetProps;
   // The schema's type, not `props.type`: rjsf works out the `type` attribute inside the default
   // template and leaves the prop undefined, so a number field was rendering in proportional
   // digits and a column of periods or thresholds did not line up (UI-15).
@@ -153,7 +154,7 @@ function Input(
       aria-invalid={hasErrors ? "true" : undefined}
       // Said to assistive technology in so many words, as `Field` says it for every hand-built
       // control: the star in the label is drawn, not read (UI-15, T-1753).
-      aria-required={props.required || undefined}
+      aria-required={required || undefined}
     />
   );
 }
@@ -186,11 +187,31 @@ function AskAboutField({ path, label }: { path: string; label: string }): React.
   );
 }
 
+/**
+ * Whether the form asks for what is inside: false under an optional object nobody has filled in,
+ * whose required fields the schema enforces only once it holds something. The star and
+ * `aria-required` follow it, so they mark the fields the footer counts (T-1607, T-4245).
+ */
+const AskedContext = createContext(true);
+
+function useAsked(required: boolean | undefined): boolean {
+  const asked = useContext(AskedContext);
+  return Boolean(required) && asked;
+}
+
+function emptyValue(value: unknown): boolean {
+  if (value === undefined || value === null || value === "") return true;
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === "object") return Object.values(value as object).every(emptyValue);
+  return false;
+}
+
 export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
   const { id, label, children, rawErrors, rawDescription, description, rawHelp, displayLabel, required, hidden, schema, fieldPathId } =
     props;
   const errors = useShownErrors(id, rawErrors);
   const listHint = useContext(ArrayHintContext);
+  const asked = useAsked(required);
 
   if (hidden) {
     // `hidden` rather than an inline `display: none`: the attribute is what the platform has for
@@ -220,7 +241,7 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
       id={id}
       label={label}
       hideLabel={!showLabel}
-      required={required}
+      required={asked}
       description={inherited ?? descText}
       help={inWidget ? undefined : forPeople === undefined || ownHeading ? rawHelp : undefined}
       errors={errors}
@@ -355,10 +376,17 @@ function itemTitle(
 }
 
 export function ObjectFieldTemplate(props: ObjectFieldTemplateProps): React.JSX.Element {
+  const asked = useContext(AskedContext);
+  const path = props.fieldPathId.path ?? [];
+  // An item of a list exists once somebody added it, so its required fields are asked for.
+  const item = typeof path[path.length - 1] === "number";
+  const optional = props.fieldPathId.$id !== "root" && !props.required && !item && emptyValue(props.formData);
   return (
-    <ArrayHintContext.Provider value={undefined}>
-      <ObjectFields {...props} />
-    </ArrayHintContext.Provider>
+    <AskedContext.Provider value={(asked || item) && !optional}>
+      <ArrayHintContext.Provider value={undefined}>
+        <ObjectFields {...props} />
+      </ArrayHintContext.Provider>
+    </AskedContext.Provider>
   );
 }
 
@@ -578,7 +606,7 @@ export function SelectWidget(props: WidgetProps): React.JSX.Element {
     id,
     options,
     value,
-    required,
+    required: requiredProp,
     disabled,
     readonly,
     multiple = false,
@@ -588,6 +616,7 @@ export function SelectWidget(props: WidgetProps): React.JSX.Element {
     htmlName,
     rawErrors,
   } = props;
+  const required = useAsked(requiredProp);
   const { t } = useTranslation();
   const { enumOptions, enumDisabled, emptyValue: optEmptyVal } = options;
   const emptyValue = multiple ? [] : "";
@@ -650,8 +679,9 @@ export function SelectWidget(props: WidgetProps): React.JSX.Element {
 }
 
 export function TextareaWidget(props: WidgetProps): React.JSX.Element {
-  const { id, options, placeholder, value, required, disabled, readonly, onChange, onBlur, onFocus, htmlName, rawErrors } =
+  const { id, options, placeholder, value, disabled, readonly, onChange, onBlur, onFocus, htmlName, rawErrors } =
     props;
+  const required = useAsked(props.required);
   const hasErrors = Boolean(useShownErrors(id, rawErrors));
   return (
     <Textarea
