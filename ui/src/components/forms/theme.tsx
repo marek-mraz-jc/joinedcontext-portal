@@ -466,7 +466,7 @@ function MapEntry(props: FieldTemplateProps): React.JSX.Element {
     // side, the value's first line and the key's input never lined up (T-4314).
     <div className="flex min-w-0 flex-col gap-2 rounded-md border border-border p-2 @md:p-3">
       {/* Remove sits beside the key it takes away, on the key's line (T-4311). */}
-      <div data-testid="map-key" className="flex items-end gap-2 @md:max-w-xs">
+      <div data-testid="map-key" className="flex items-end gap-2">
         <Field id={`${id}-key`} className="min-w-0 flex-1" label={keyedByLanguage ? t("form.mapLanguage") : t("form.mapKey")}>
           <UiInput
             id={`${id}-key`}
