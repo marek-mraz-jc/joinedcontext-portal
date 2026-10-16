@@ -516,8 +516,10 @@ function ObjectFields(props: ObjectFieldTemplateProps): React.JSX.Element {
       </div>
     ) : null;
   // An object with no title of its own (a title map asking for one language) reads as its
-  // fields, not as a boxed section around them.
-  if (!title)
+  // fields, not as a boxed section around them; so does one of a single field and no help, whose
+  // box only restated the field's own label ("Answer mode" around "Answers from", T-4311).
+  const single = properties.length === 1 && add === null && !(typeof help === "string" && help.trim() !== "");
+  if (!title || (single && itemTitle(props, t) === undefined))
     return (
       <>
         {typeof help === "string" && help.trim() !== "" ? <p className="text-caption text-fg-muted">{help}</p> : null}
@@ -527,7 +529,8 @@ function ObjectFields(props: ObjectFieldTemplateProps): React.JSX.Element {
     );
   return (
     <Fieldset title={itemTitle(props, t) ?? title} description={description}>
-      <Cells properties={properties} schema={props.schema} uiSchema={uiSchema} />
+      {/* A map with no entry yet is its help and its Add, not an empty band between them (T-4311). */}
+      {properties.length > 0 ? <Cells properties={properties} schema={props.schema} uiSchema={uiSchema} /> : null}
       {add}
     </Fieldset>
   );

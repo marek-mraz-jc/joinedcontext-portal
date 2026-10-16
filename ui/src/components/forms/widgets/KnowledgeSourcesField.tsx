@@ -93,7 +93,7 @@ export function KnowledgeSourcesField(props: FieldProps): JSX.Element {
   return (
     <fieldset id={id} data-testid="knowledge-sources" className="flex min-w-0 flex-col gap-3">
       <legend className="text-body font-medium text-fg">{schema.title}</legend>
-      {help ? <p id={`${id}__help`} className="-mt-2 text-caption text-fg-muted">{help}</p> : null}
+      {help ? <p id={`${id}__help`} className="text-caption text-fg-muted">{help}</p> : null}
       {anonymous ? <p id={`${id}-hint`} className="text-caption text-fg-muted">{t("knowledge.sourcesPicker.publicOnly")}</p> : null}
       {projects.isError ? <ListFailed what={t("nav.projects")} reason={reasonOf(projects.error, t("app.error"))} onRetry={() => void projects.refetch()} /> : null}
       {byProject.map(({ project, offered, query }) =>

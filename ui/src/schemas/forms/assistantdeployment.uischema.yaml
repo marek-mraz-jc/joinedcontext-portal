@@ -147,6 +147,30 @@ spec:
         de: "Wie oft ein Besucher fragen darf, was ein Tag kosten darf und welche Modelle er nutzt; öffentlich braucht Limit und Budget."
       fields: [rateLimit, budget, model]
   fields:
+    theme:
+      help:
+        en: Shown in the chat itself, on every page it is placed on.
+        sk: Zobrazuje sa v samotnom chate, na každej stránke, kde je umiestnený.
+        cs: Zobrazuje se v samotném chatu, na každé stránce, kde je umístěn.
+        de: Im Chat selbst zu sehen, auf jeder Seite, auf der er steht.
+    rateLimit:
+      help:
+        en: Each one counts the questions in its own window; the first one reached applies.
+        sk: Každý počíta otázky vo svojom okne; platí ten, ktorý sa dosiahne prvý.
+        cs: Každý počítá otázky ve svém okně; platí ten, který je dosažen první.
+        de: Jede zählt die Fragen in ihrem eigenen Zeitfenster; es gilt die zuerst erreichte.
+    budget:
+      help:
+        en: "The cost caps bind first: a day that reaches one answers with the sources' links alone."
+        sk: "Najprv platia limity nákladov: deň, ktorý jeden dosiahne, odpovedá len odkazmi na zdroje."
+        cs: "Nejdřív platí limity nákladů: den, který jeden dosáhne, odpovídá jen odkazy na zdroje."
+        de: "Die Kostengrenzen gelten zuerst: ein Tag, der eine erreicht, antwortet nur mit den Links der Quellen."
+    model:
+      help:
+        en: Each answer calls a router model first and an answer model after it.
+        sk: Každá odpoveď volá najprv model smerovača a po ňom model odpovede.
+        cs: Každá odpověď volá nejdřív model směrovače a po něm model odpovědi.
+        de: Jede Antwort ruft zuerst ein Router-Modell und danach ein Antwortmodell.
     answer.routes:
       help:
         en: "Knowledge and live data, knowledge alone (it never calls a tool), or live data alone."
