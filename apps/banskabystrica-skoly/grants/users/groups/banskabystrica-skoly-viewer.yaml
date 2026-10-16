@@ -6,7 +6,7 @@ metadata:
   annotations:
     joinedcontext.com/app: banskabystrica/banskabystrica-skoly
 spec:
-  description: The viewers of banskabystrica-skoly, its default group (AP-118).
+  description: The viewers of banskabystrica-skoly, its default group.
   members:
   - user: demo.viewer@hel.fi
   - user: demo.steward@hel.fi

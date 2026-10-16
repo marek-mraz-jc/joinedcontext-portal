@@ -6,6 +6,6 @@ metadata:
   annotations:
     joinedcontext.com/app: helsinki/kpi-forecast
 spec:
-  description: The stewards of kpi-forecast, its default group (AP-118).
+  description: The stewards of kpi-forecast, its default group.
   members:
   - user: demo.steward@hel.fi
