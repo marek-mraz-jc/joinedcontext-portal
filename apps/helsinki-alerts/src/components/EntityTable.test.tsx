@@ -65,8 +65,10 @@ describe("EntityTable", () => {
     const error = new ProblemError(403, { title: "Forbidden", detail: "Read denied" });
     render(<EntityTable rows={[]} error={error} />);
     expect(screen.getByRole("alert")).toBeInTheDocument();
-    expect(screen.getByText("Forbidden")).toBeInTheDocument();
-    expect(screen.getByText("Read denied")).toBeInTheDocument();
+    // A one-word title is a code, not a sentence: the SDK names the refusal and keeps the code's
+    // detail out (T-4200).
+    expect(screen.getByText("You do not have the right to do this.")).toBeInTheDocument();
+    expect(screen.queryByText("Read denied")).not.toBeInTheDocument();
   });
 
   it("renders Loading state when loading is true and rows are empty", () => {

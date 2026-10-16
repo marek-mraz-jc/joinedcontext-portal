@@ -588,11 +588,11 @@ pub fn bloblang(m: &Mapping) -> String {
         ),
         "root.updatedAt = { \"type\": \"Property\", \"value\": { \"@type\": \"DateTime\", \"@value\": $now } }".to_owned(),
         format!(
-            "root.derivedFrom = {{ \"type\": \"Relationship\", \"object\": \"urn:ngsi-ld:Endpoint:%v:{}:{}\".format($domain) }}",
+            "root.derivedFrom = {{ \"type\": \"Property\", \"value\": \"urn:ngsi-ld:Endpoint:%v:{}:{}\".format($domain) }}",
             m.source_space, m.source_endpoint
         ),
         format!(
-            "root.computedBy = {{ \"type\": \"Relationship\", \"object\": \"urn:ngsi-ld:Pipeline:%v:{}:{}\".format($domain) }}",
+            "root.computedBy = {{ \"type\": \"Property\", \"value\": \"urn:ngsi-ld:Pipeline:%v:{}:{}\".format($domain) }}",
             m.project, m.name
         ),
     ]);
@@ -875,6 +875,13 @@ mod tests {
         assert!(mapping(Agg::Avg).contains("s.get(\"pm10.value\")"));
         assert!(mapping(Agg::Avg).contains("\"unitCode\": \"GQ\""));
         assert!(mapping(Agg::Avg).contains("PT1H"));
+        // Provenance is a Property: a view refuses a Relationship to an Endpoint (T-4231).
+        assert!(mapping(Agg::Avg).contains(
+            "root.derivedFrom = { \"type\": \"Property\", \"value\": \"urn:ngsi-ld:Endpoint:"
+        ));
+        assert!(mapping(Agg::Avg).contains(
+            "root.computedBy = { \"type\": \"Property\", \"value\": \"urn:ngsi-ld:Pipeline:"
+        ));
     }
 
     fn write_policy(name: &str, space: &str, assignee: Value) -> Value {

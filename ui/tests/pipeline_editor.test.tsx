@@ -680,7 +680,7 @@ it("tells a feed from a space and reads the attributes of a class from an inline
       outputType: "AirQualityObservedAggregate",
     });
     expect(sum).toContain('"pm10Sum": { "type": "Property", "value": this.map_each(e -> e.pm10.value.number().catch(0)).sum()');
-    expect(sum).toContain('"derivedFrom": { "type": "Relationship", "object": this.map_each(e -> e.id) }');
+    expect(sum).toContain('"derivedFrom": { "type": "Property", "value": this.map_each(e -> e.id) }');
     expect(sum).toContain('"type": "AirQualityObservedAggregate"');
     expect(sum.trim().startsWith("#")).toBe(true);
     const count = aggregateBloblang("count", {

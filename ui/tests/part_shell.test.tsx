@@ -285,6 +285,17 @@ describe("the shell against the UI contract", () => {
     expect(link.getAttribute("href")).not.toMatch(/^javascript:/);
   });
 
+  // T-4236 (photo audit T-4163 #8): the footer under the whole shell made every page the window
+  // plus 41 px, so a scroll moved the window-tall sidebar up over the sticky header and hid the
+  // brand. The footer ends the page's own column, so a short page does not scroll at all.
+  it("ends the page's column with the footer, not the whole shell", async () => {
+    await shell();
+
+    const footer = document.querySelector("footer") as HTMLElement;
+    expect(footer.parentElement).toBe(document.getElementById("main")?.parentElement);
+    expect(footer.parentElement?.contains(document.getElementById("portal-sidebar"))).toBe(false);
+  });
+
   it("says nothing in the footer when the installation configured nothing", async () => {
     branding = { instanceName: "joinedcontext", shortName: "joinedcontext" };
     await shell();

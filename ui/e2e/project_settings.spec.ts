@@ -94,9 +94,10 @@ test.describe("Project settings", () => {
     // the header action and, on an empty list, the empty state's own: either opens the form
     await page.getByRole("button", { name: "New role" }).first().click();
     const form = page.getByTestId("form-page").or(page.getByRole("dialog")).first();
-    await expect(form.locator("option", { hasText: /^Pipeline$/ }).first()).toBeAttached();
+    // Kinds are checkboxes (T-4213).
+    await expect(form.getByRole("checkbox", { name: "Pipeline", exact: true }).first()).toBeAttached();
     for (const kind of ["Role", "RoleBinding", "Project"]) {
-      await expect(form.locator("option", { hasText: new RegExp(`^${kind}$`) })).toHaveCount(0);
+      await expect(form.getByRole("checkbox", { name: kind, exact: true })).toHaveCount(0);
     }
   });
 

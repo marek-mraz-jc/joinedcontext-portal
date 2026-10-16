@@ -706,6 +706,10 @@ export function Shell({
             </ErrorBoundary>
           </main>
         ) : (
+          // The footer ends the page's column and not the whole shell: under the shell it made
+          // every page the window plus its height, and a scroll slid the window-tall sidebar
+          // up over the header (T-4236).
+          <div className="flex min-w-0 flex-1 flex-col">
           <main id="main" className="min-w-0 flex-1">
             {/* `pb-24` keeps room under the page for the assistant's floating button (56 px at
                 16 px from the corner): it sat on the last column of a table at 1440 with nothing
@@ -816,6 +820,23 @@ export function Shell({
               </ErrorBoundary>
             </div>
           </main>
+          {branding.organisation || branding.contactEmail ? (
+            <footer className="border-t border-border bg-surface px-4 py-3 text-caption text-fg-muted sm:px-gutter">
+              {branding.organisation ? <span>{branding.organisation}</span> : null}
+              {branding.organisation && branding.contactEmail ? (
+                <span aria-hidden="true"> · </span>
+              ) : null}
+              {branding.contactEmail ? (
+                <a
+                  href={safeHref(`mailto:${branding.contactEmail}`)}
+                  className="focus-ring rounded-sm underline hover:text-fg hover:no-underline"
+                >
+                  {branding.contactEmail}
+                </a>
+              ) : null}
+            </footer>
+          ) : null}
+          </div>
         )}
         {/* The assistant is on the right of every page a run is remembered: a column beside
             the page, or a bubble at the bottom right when hidden (UI-45). */}
@@ -823,22 +844,6 @@ export function Shell({
         <CommandPalette project={project} />
       </div>
 
-      {!fill && (branding.organisation || branding.contactEmail) ? (
-        <footer className="border-t border-border bg-surface px-4 py-3 text-caption text-fg-muted sm:px-gutter">
-          {branding.organisation ? <span>{branding.organisation}</span> : null}
-          {branding.organisation && branding.contactEmail ? (
-            <span aria-hidden="true"> · </span>
-          ) : null}
-          {branding.contactEmail ? (
-            <a
-              href={safeHref(`mailto:${branding.contactEmail}`)}
-              className="focus-ring rounded-sm underline hover:text-fg hover:no-underline"
-            >
-              {branding.contactEmail}
-            </a>
-          ) : null}
-        </footer>
-      ) : null}
     </div>
   );
 }

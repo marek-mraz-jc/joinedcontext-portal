@@ -156,13 +156,22 @@ export function Problem({ error, onRetry }: { error: ProblemError | Error | null
   // A title that is a code (a broker's `ResourceNotFound`, `HTTP 404`) is no sentence for a
   // visitor: the status picks one, and the code's detail stays out with it (T-4200).
   const coded = error instanceof ProblemError && (!/\s/.test(error.title) || /^HTTP \d+$/.test(error.title));
+  // A refusal is the SDK's sentence whatever the title, since a save is refused as well as a read
+  // (T-4238): the gateway's Policy says "Access Denied by Policy" in English and no reason (GW6).
+  // The broker's AccessDenied detail is its own English; an App's own reason, a sentence, is kept.
+  const denied = error instanceof ProblemError && (error.status === 401 || error.status === 403);
   const title = !(error instanceof ProblemError)
     ? error.message
-    : coded
-      ? sdkWord(words, error.status === 404 ? "problem.notFound" : error.status === 401 || error.status === 403 ? "problem.denied" : "problem.failed")
+    : coded || denied
+      ? sdkWord(words, error.status === 404 ? "problem.notFound" : denied ? "problem.denied" : "problem.failed")
       : error.title;
   const detail =
-    error instanceof ProblemError && !coded && error.detail && error.detail !== error.title ? error.detail : undefined;
+    error instanceof ProblemError &&
+    (denied ? error.type !== "urn:antares:error:AccessDenied" && /\s.*[.!?]$/.test(error.detail ?? "") : !coded) &&
+    error.detail &&
+    error.detail !== error.title
+      ? error.detail
+      : undefined;
   return (
     <div className="jc-problem" role="alert">
       <strong>{title}</strong>
