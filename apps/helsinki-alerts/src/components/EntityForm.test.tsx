@@ -187,7 +187,7 @@ describe("EntityForm component", () => {
     expect(client.transport.calls.filter((c) => c.method === "POST")).toHaveLength(0);
   });
 
-  it("refuse fixture returning 403 shows detail with role alert and keeps typed text", async () => {
+  it("refuse fixture returning 403 says it is refused with role alert and keeps typed text", async () => {
     const row: Row = {
       id: "urn:ngsi-ld:Station:001",
       type: "Station",
@@ -222,7 +222,8 @@ describe("EntityForm component", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("You are not allowed to update this station.");
+    // "Forbidden" is a code, not a sentence: the SDK says the refusal and keeps the detail out (T-4200).
+    expect(alert).toHaveTextContent("You may not read this data.");
     expect(screen.getByLabelText("bikes")).toHaveValue(99);
   });
 
@@ -381,7 +382,8 @@ describe("EntityForm component", () => {
         </JcProvider>,
       );
 
-      expect(await screen.findByText(/no read of name/)).toBeInTheDocument();
+      expect(await screen.findByText("You may not read this data.")).toBeInTheDocument();
+      expect(screen.queryByText(/no read of name/)).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
       expect(screen.getByLabelText("name (en)")).toBeDisabled();
       expect(client.transport.calls.filter((c) => c.method !== "GET")).toEqual([]);
