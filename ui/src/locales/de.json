@@ -4983,7 +4983,7 @@
     },
     "operations": {
       "writes": "ändert Daten",
-      "covers": "{count, plural, one {deckt # Operation ab:} other {deckt # Operationen ab:}}",
+      "show": "{count, plural, one {Ihre Operation zeigen} other {Ihre # Operationen zeigen}}",
       "total": "{count, plural, =0 {noch nichts erlaubt} one {# Operation insgesamt} other {# Operationen insgesamt}}",
       "none": "Solange keine Operation angehakt ist, erlaubt die Richtlinie nichts.",
       "more": "Einzelne Operationen",

@@ -4983,7 +4983,7 @@
     },
     "operations": {
       "writes": "mení údaje",
-      "covers": "{count, plural, one {pokrýva # operáciu:} few {pokrýva # operácie:} other {pokrýva # operácií:}}",
+      "show": "{count, plural, one {Zobraziť jej operáciu} few {Zobraziť jej # operácie} other {Zobraziť jej # operácií}}",
       "total": "{count, plural, =0 {zatiaľ nič nie je povolené} one {# operácia spolu} few {# operácie spolu} other {# operácií spolu}}",
       "none": "Kým nezaškrtnete operáciu, politika nepovoľuje nič.",
       "more": "Jednotlivé operácie",

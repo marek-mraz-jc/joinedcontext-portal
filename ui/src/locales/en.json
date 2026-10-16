@@ -4983,7 +4983,7 @@
     },
     "operations": {
       "writes": "changes data",
-      "covers": "{count, plural, one {covers # operation:} other {covers # operations:}}",
+      "show": "{count, plural, one {Show its operation} other {Show its # operations}}",
       "total": "{count, plural, =0 {nothing granted yet} one {# operation in all} other {# operations in all}}",
       "none": "Nothing is granted until an operation is ticked.",
       "more": "Individual operations",
