@@ -462,9 +462,11 @@ function MapEntry(props: FieldTemplateProps): React.JSX.Element {
   const { RemoveButton } = registry.templates.ButtonTemplates;
   const frozen = Boolean(disabled || readonly);
   return (
-    <div className="flex min-w-0 flex-col gap-2 rounded-md border border-border p-2 @md:flex-row @md:items-start @md:p-3">
+    // The key and its Remove on one line, its value under them at the entry's whole width: side by
+    // side, the value's first line and the key's input never lined up (T-4314).
+    <div className="flex min-w-0 flex-col gap-2 rounded-md border border-border p-2 @md:p-3">
       {/* Remove sits beside the key it takes away, on the key's line (T-4311). */}
-      <div data-testid="map-key" className="flex items-end gap-2 @md:w-44 @md:shrink-0">
+      <div data-testid="map-key" className="flex items-end gap-2 @md:max-w-xs">
         <Field id={`${id}-key`} className="min-w-0 flex-1" label={keyedByLanguage ? t("form.mapLanguage") : t("form.mapKey")}>
           <UiInput
             id={`${id}-key`}
@@ -563,6 +565,21 @@ function ObjectFields(props: ObjectFieldTemplateProps): React.JSX.Element {
   // fields, not as a boxed section around them; so does one of a single field and no help, whose
   // box only restated the field's own label ("Answer mode" around "Answers from", T-4311).
   const single = properties.length === 1 && add === null && !(typeof help === "string" && help.trim() !== "");
+  // A map (suggestions, a disclaimer per language) is a list of entries: it is headed as one
+  // (T-4314), not as a box of fields.
+  const isMap = typeof props.schema.additionalProperties === "object" && props.schema.additionalProperties !== null;
+  if (title && isMap && itemTitle(props, t) === undefined) {
+    return (
+      <fieldset className={LIST_FIELDSET}>
+        <ListLegend heading={title} required={props.required} path={pathOf(fieldPathId)} />
+        <div className={LIST_BODY}>
+          {description ? <p className="text-caption text-fg-muted">{description}</p> : null}
+          {properties.map((prop) => prop.content)}
+          {add}
+        </div>
+      </fieldset>
+    );
+  }
   if (!title || (single && itemTitle(props, t) === undefined))
     return (
       <>

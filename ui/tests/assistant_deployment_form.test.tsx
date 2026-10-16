@@ -246,6 +246,9 @@ describe("the deployment form reads once and lines up (T-4311)", () => {
     await within(sites).findAllByLabelText(/^Allowed sites \d/);
     // The entries carry no link of their own: the list's is the one.
     expect(within(sites).getAllByRole("button", { name: "Ask about this field" })).toHaveLength(1);
+    // A map is headed as a list too.
+    const suggestions = screen.getByRole("group", { name: "Suggested questions" });
+    expect(within(suggestions).getAllByRole("button", { name: "Ask about this field" })).toHaveLength(1);
     const picker = screen.getByTestId("knowledge-sources");
     expect(picker).toHaveAccessibleName("Sources");
     expect(within(picker).getByRole("button", { name: "Ask about this field" })).toBeInTheDocument();
