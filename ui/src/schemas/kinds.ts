@@ -1838,19 +1838,6 @@ export const ROLE_VERBS = ["read", "propose", "approve", "delete"] as const;
 export const KIND_PATTERN = "^[A-Z][A-Za-z0-9]{1,63}$";
 
 /**
- * The `Role` a person authors: a list of rules, each a set of verbs on a set of kinds
- * (PF-49, PF-52, PF-68).
- *
- * `kinds` and `verbs` are offered as the caller's own rights, never as the whole catalogue:
- * nobody grants above what they hold, and a list that offers `approve` to somebody who cannot
- * approve is a form that walks a person into a refusal (PF-52). With no permissions document yet
- * — a fresh pod, or a bootstrap administrator — both fall back to free text under the pattern the
- * API validates, because the UI is never the point of enforcement (PF-51).
- *
- * `constraints` is not a field. A rule that carries them keeps them: the page passes the stored
- * manifest through, and the YAML view is where they are written.
- */
-/**
  * A role's kinds and verbs as checkboxes: a native multi-select showed four or five clipped rows on
  * a phone (T-4213). Kinds stay a list of typed names when the editor's own kinds are not known.
  */
@@ -1865,6 +1852,19 @@ export function roleUiSchema(kindsKnown: boolean): UiSchema {
   };
 }
 
+/**
+ * The `Role` a person authors: a list of rules, each a set of verbs on a set of kinds
+ * (PF-49, PF-52, PF-68).
+ *
+ * `kinds` and `verbs` are offered as the caller's own rights, never as the whole catalogue:
+ * nobody grants above what they hold, and a list that offers `approve` to somebody who cannot
+ * approve is a form that walks a person into a refusal (PF-52). With no permissions document yet
+ * — a fresh pod, or a bootstrap administrator — both fall back to free text under the pattern the
+ * API validates, because the UI is never the point of enforcement (PF-51).
+ *
+ * `constraints` is not a field. A rule that carries them keeps them: the page passes the stored
+ * manifest through, and the YAML view is where they are written.
+ */
 export function roleSchema(
   t: (key: string) => string,
   kinds: string[] = [],
