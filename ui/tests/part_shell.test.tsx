@@ -275,6 +275,47 @@ describe("the shell against the UI contract", () => {
     }
   });
 
+  // T-4243 (photo audit T-4157 #3): the switcher and the trail showed the slug alone, so a person
+  // read "banskabystrica" where the city's own name belongs.
+  it("names each project by its title, in the page's language, with the slug beside it", async () => {
+    await i18n.changeLanguage("sk");
+    const { user } = await shell("/projects/banskabystrica/spaces", {
+      "/api/v1/projects": {
+        ...PROJECTS,
+        items: [
+          { name: "helsinki", sample: false },
+          { name: "banskabystrica", sample: false, title: { sk: "Dáta mesta Banská Bystrica", en: "Banská Bystrica city data" } },
+        ],
+      },
+    });
+
+    const switcher = screen.getByRole("button", { name: i18n.t("nav.projects") });
+    await waitFor(() => expect(switcher).toHaveTextContent("Dáta mesta Banská Bystrica"));
+    expect(within(switcher).getByText("banskabystrica")).toBeInTheDocument();
+    const trail = screen.getByRole("navigation", { name: i18n.t("nav.breadcrumb") });
+    expect(within(trail).getByRole("link", { name: "Dáta mesta Banská Bystrica" })).toHaveAttribute(
+      "href",
+      "/projects/banskabystrica/spaces",
+    );
+
+    await user.click(switcher);
+    const menu = await screen.findByRole("menu");
+    const titled = within(menu).getByRole("menuitem", { name: /Dáta mesta Banská Bystrica/ });
+    expect(titled).toHaveTextContent("banskabystrica");
+    // No title: the slug alone, said once.
+    const bare = within(menu).getByRole("menuitem", { name: "helsinki" });
+    expect(bare.textContent?.match(/helsinki/g)).toHaveLength(1);
+  });
+
+  it("keeps the slug alone where the manifest names no title", async () => {
+    await shell();
+
+    const switcher = screen.getByRole("button", { name: i18n.t("nav.projects") });
+    expect(within(switcher).getAllByText("banskabystrica")).toHaveLength(1);
+    const trail = screen.getByRole("navigation", { name: i18n.t("nav.breadcrumb") });
+    expect(within(trail).getByRole("link", { name: "banskabystrica" })).toBeInTheDocument();
+  });
+
   it("writes the installation's address as a mail link, never as whatever the file said", async () => {
     // A branding file is edited by hand, so the footer's address is untrusted text (UI-48).
     branding = { ...BRANDING, contactEmail: "javascript:alert(1)" };

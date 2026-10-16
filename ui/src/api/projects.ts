@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api, queryKeys, unwrap } from "./client";
-import { asManifests } from "./manifest";
+import { asManifests, localized } from "./manifest";
+import { useTranslation } from "react-i18next";
 import { useBranding } from "../branding";
 
 /** The projects the configuration repository holds, as `GET /api/v1/projects` lists them (PF-05). */
@@ -23,6 +24,20 @@ export function useSampleProjects() {
     queryFn: async () => unwrap(await api.GET("/api/v1/projects")),
     select: (list) => list.items.filter((item) => item.sample).map((item) => item.name),
   });
+}
+
+/**
+ * The title a person reads for each project, in the page's language, the slug where its Project
+ * manifest names none (T-4243). Same request as [`useProjects`].
+ */
+export function useProjectTitles(): (project: string) => string {
+  const { i18n } = useTranslation();
+  const titles = useQuery({
+    queryKey: queryKeys.projects(),
+    queryFn: async () => unwrap(await api.GET("/api/v1/projects")),
+    select: (list) => new Map(list.items.map((item) => [item.name, item.title])),
+  }).data;
+  return (project) => localized(titles?.get(project), i18n.language, project);
 }
 
 /**

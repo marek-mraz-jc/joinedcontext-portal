@@ -533,8 +533,8 @@ use crate::tools::model_tools::{
 pub struct ApiDoc;
 
 /// jc-core's types describe themselves with schemars, the Portal's with utoipa. The fields typed
-/// by jc-core point at named components (so the generated TypeScript keeps `ObjectMeta`, `Phase`
-/// and `Condition` as it always had them) and this modifier fills those components in from the
+/// by jc-core point at named components (so the generated TypeScript keeps `ObjectMeta`, `Phase`,
+/// `Condition` and `Text` as it always had them) and this modifier fills those components in from the
 /// crate's own JSON Schema, so the document can never drift from the tagged contract.
 struct JcCoreSchemas;
 
@@ -548,6 +548,9 @@ impl Modify for JcCoreSchemas {
         components
             .schemas
             .insert("Phase".into(), schemars_schema::<jc_core::Phase>());
+        components
+            .schemas
+            .insert("Text".into(), schemars_schema::<jc_core::i18n::Text>());
         components
             .schemas
             .insert("Condition".into(), schemars_schema::<jc_core::Condition>());
@@ -617,6 +620,10 @@ fn schemars_schema<T: schemars::JsonSchema>() -> RefOr<Schema> {
 
 pub fn object_meta_ref() -> Ref {
     Ref::from_schema_name("ObjectMeta")
+}
+
+pub fn text_ref() -> Ref {
+    Ref::from_schema_name("Text")
 }
 
 pub fn phase_ref() -> Ref {

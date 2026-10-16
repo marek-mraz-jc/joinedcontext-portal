@@ -32,6 +32,11 @@ pub struct ProjectSummary {
     /// Whether its `Project` manifest carries [`SAMPLE_LABEL`]: real open data a newcomer may look
     /// around in (PF-109).
     pub sample: bool,
+    /// The `Project` manifest's `metadata.title`: one string, or the legacy map per locale;
+    /// absent when it names none (T-4243). The switcher shows it, the slug beside it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(schema_with = crate::openapi::text_ref)]
+    pub title: Option<jc_core::i18n::Text>,
 }
 
 /// The label that marks a project as the sample of real open data the first-run checklist offers
@@ -65,18 +70,23 @@ pub async fn list_projects(
             crate::permissions::for_request(&state, &user.0.identity, name).may_read_project()
         })
         .map(|name| {
-            let sample = state
+            let manifest = state
                 .mirror
-                .get(crate::permissions::ORG_NAMESPACE, "Project", &name)
-                .is_some_and(|project| {
-                    project
-                        .metadata
-                        .labels
-                        .get(SAMPLE_LABEL)
-                        .map(String::as_str)
-                        == Some("true")
-                });
-            ProjectSummary { name, sample }
+                .get(crate::permissions::ORG_NAMESPACE, "Project", &name);
+            let sample = manifest.as_ref().is_some_and(|project| {
+                project
+                    .metadata
+                    .labels
+                    .get(SAMPLE_LABEL)
+                    .map(String::as_str)
+                    == Some("true")
+            });
+            let title = manifest.and_then(|project| project.metadata.title);
+            ProjectSummary {
+                name,
+                sample,
+                title,
+            }
         })
         .collect();
     Ok(Json(ProjectList {

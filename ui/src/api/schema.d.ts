@@ -5981,6 +5981,7 @@ export interface components {
              *     around in (PF-109).
              */
             sample: boolean;
+            title?: components["schemas"]["Text"];
         };
         /** @description What one endpoint publishes, and where. */
         PublicationStatus: {
@@ -6626,6 +6627,10 @@ export interface components {
             pipeline: unknown;
             /** @description What the harness reads, read through `SampleRequest`, whose shape the document publishes. */
             sample: components["schemas"]["PipelineTestSample"];
+        };
+        /** @description A human label or description (UI-50): one plain string in the author's language. The legacy language map is still read, through release `v0.9`, and resolves to one string. */
+        Text: string | {
+            [key: string]: string;
         };
         /** @description One deleted entity, as its keeper read it. */
         TrashItem: {
