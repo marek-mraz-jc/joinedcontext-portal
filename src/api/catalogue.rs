@@ -10,9 +10,9 @@
 //! Facets are computed here and not by CKAN's Solr, because the extras the publisher writes
 //! (`theme`, `spatial_uri`, `temporal_start`) are free text to Solr and cannot be faceted there.
 
-use std::collections::{BTreeMap, HashMap};
-use std::sync::{LazyLock, Mutex};
-use std::time::{Duration, Instant};
+use std::collections::BTreeMap;
+use std::sync::{Arc, LazyLock, Mutex};
+use std::time::Duration;
 
 use axum::extract::{Path, RawQuery, State};
 use axum::http::header;
@@ -25,6 +25,7 @@ use serde_json::Value;
 use url::Url;
 use utoipa::ToSchema;
 
+use crate::cache::ByteLru;
 use crate::error::ApiError;
 use crate::state::AppState;
 use crate::store::ListOptions;
@@ -50,14 +51,20 @@ static HTTP: LazyLock<reqwest::Client> = LazyLock::new(|| {
 
 /// A catalogue's base URL and the search text.
 type SearchKey = (String, String);
-/// When a search was answered, and its datasets.
-type SearchAnswer = (Instant, Vec<Value>);
 
-/// One search answer per catalogue and query text, kept for [`MAX_AGE_SECONDS`], so a burst of
-/// anonymous visitors costs CKAN one search a minute.
+/// The bytes the search answers may hold together, as serialized JSON.
+const SEARCHES_MAX_BYTES: usize = 8 * 1024 * 1024;
+
+/// One search answer per catalogue and query text, cut to the fields a page reads and kept for
+/// [`MAX_AGE_SECONDS`], so a burst of anonymous visitors costs CKAN one search a minute and a
+/// burst of distinct queries costs at most [`SEARCHES_MAX_BYTES`] (T-4353).
 // ponytail: one replica's memory; share it only when the Portal runs more than one pod.
-static SEARCHES: LazyLock<Mutex<HashMap<SearchKey, SearchAnswer>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+static SEARCHES: LazyLock<Mutex<ByteLru<SearchKey, Arc<Vec<Value>>>>> = LazyLock::new(|| {
+    Mutex::new(ByteLru::new(
+        SEARCHES_MAX_BYTES,
+        Some(Duration::from_secs(MAX_AGE_SECONDS)),
+    ))
+});
 
 /// One page of the catalogue.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -661,12 +668,10 @@ async fn action(base: &str, action: &str, params: &[(&str, &str)]) -> Result<Val
     }
 }
 
-async fn search(base: &str, q: &str) -> Result<Vec<Value>, String> {
+async fn search(base: &str, q: &str) -> Result<Arc<Vec<Value>>, String> {
     let key = (base.to_owned(), q.to_owned());
-    if let Some((at, datasets)) = SEARCHES.lock().unwrap_or_else(|e| e.into_inner()).get(&key) {
-        if at.elapsed() < Duration::from_secs(MAX_AGE_SECONDS) {
-            return Ok(datasets.clone());
-        }
+    if let Some(datasets) = SEARCHES.lock().unwrap_or_else(|e| e.into_inner()).get(&key) {
+        return Ok(datasets);
     }
     let rows = ROWS.to_string();
     let result = action(
@@ -681,17 +686,81 @@ async fn search(base: &str, q: &str) -> Result<Vec<Value>, String> {
         Err(Failure::Refused) => Value::Null,
         Err(Failure::Unreachable(reason)) => return Err(reason),
     };
-    let datasets = result
+    let datasets: Vec<Value> = result
         .get("results")
         .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    let mut cache = SEARCHES.lock().unwrap_or_else(|e| e.into_inner());
-    if cache.len() > 256 {
-        cache.retain(|_, (at, _)| at.elapsed() < Duration::from_secs(MAX_AGE_SECONDS));
-    }
-    cache.insert(key, (Instant::now(), datasets.clone()));
+        .into_iter()
+        .flatten()
+        .map(slim)
+        .collect();
+    let bytes = serde_json::to_vec(&datasets).map_or(usize::MAX, |b| b.len());
+    let datasets = Arc::new(datasets);
+    SEARCHES
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(key, datasets.clone(), bytes);
     Ok(datasets)
+}
+
+/// The extras a page reads.
+const PAGE_EXTRAS: [&str; 5] = [
+    "theme",
+    "spatial_uri",
+    "spatial",
+    "temporal_start",
+    "temporal_end",
+];
+
+/// A searched dataset cut to the fields [`page_of`] reads: the resources' formats, the page's
+/// extras and the top-level fields of the summary. The detail reads `package_show`, not this.
+fn slim(dataset: &Value) -> Value {
+    let mut kept = serde_json::Map::new();
+    for key in [
+        "name",
+        "title",
+        "notes",
+        "private",
+        "license_id",
+        "license_title",
+        "license_url",
+        "metadata_modified",
+    ] {
+        if let Some(value) = dataset.get(key) {
+            kept.insert(key.to_owned(), value.clone());
+        }
+    }
+    if let Some(organization) = dataset.get("organization") {
+        let mut org = serde_json::Map::new();
+        for key in ["name", "title"] {
+            if let Some(value) = organization.get(key) {
+                org.insert(key.to_owned(), value.clone());
+            }
+        }
+        kept.insert("organization".to_owned(), Value::Object(org));
+    }
+    if let Some(resources) = dataset.get("resources").and_then(Value::as_array) {
+        let formats = resources
+            .iter()
+            .map(|r| match r.get("format") {
+                Some(format) => serde_json::json!({ "format": format }),
+                None => serde_json::json!({}),
+            })
+            .collect();
+        kept.insert("resources".to_owned(), Value::Array(formats));
+    }
+    if let Some(extras) = dataset.get("extras").and_then(Value::as_array) {
+        let page_extras = extras
+            .iter()
+            .filter(|e| {
+                e.get("key")
+                    .and_then(Value::as_str)
+                    .is_some_and(|k| PAGE_EXTRAS.contains(&k))
+            })
+            .cloned()
+            .collect();
+        kept.insert("extras".to_owned(), Value::Array(page_extras));
+    }
+    Value::Object(kept)
 }
 
 fn cached<T: Serialize>(body: T) -> Response {
@@ -736,7 +805,7 @@ pub async fn get_catalogue(
     let mut unavailable = Vec::new();
     for url in &urls {
         match search(url, &filters.q).await {
-            Ok(found) => datasets.extend(found),
+            Ok(found) => datasets.extend(found.iter().cloned()),
             Err(reason) => {
                 tracing::warn!(catalogue = %url, %reason, "catalogue search failed");
                 unavailable.push(url.clone());
@@ -1180,6 +1249,68 @@ mod tests {
             ),
             dataset("secret", "bbsk", json!([]), &["CSV"], true),
         ]
+    }
+
+    /// A searched dataset as CKAN sends it: the page's fields among many it never reads.
+    fn heavy(mut dataset: Value) -> Value {
+        let object = dataset.as_object_mut().unwrap();
+        object.insert("tags".into(), json!([{ "name": "ovzdusie" }]));
+        object.insert("author_email".into(), json!("a@b.sk"));
+        object["organization"]["description"] = json!("x".repeat(500));
+        object["organization"]["image_url"] = json!("https://img");
+        for resource in object["resources"].as_array_mut().unwrap() {
+            resource["url"] = json!("https://data/x.csv");
+            resource["description"] = json!("y".repeat(300));
+        }
+        object["extras"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({ "key": "contact_email", "value": "c@d.sk" }));
+        dataset
+    }
+
+    #[test]
+    fn a_slim_search_answer_pages_exactly_as_the_full_one() {
+        let full: Vec<Value> = fixture().into_iter().map(heavy).collect();
+        let slimmed: Vec<Value> = full.iter().map(slim).collect();
+        for query in [
+            None,
+            Some("year=2025"),
+            Some("publisher=bbsk"),
+            Some("format=CSV&theme=ENVI"),
+            Some("spatial=http://data.europa.eu/nuts/code/SK032"),
+            Some("page=2"),
+        ] {
+            let filters = Filters::parse(query);
+            assert_eq!(
+                page_of(&slimmed, &filters, 2026),
+                page_of(&full, &filters, 2026),
+                "{query:?}"
+            );
+        }
+        let (full_bytes, slim_bytes) = (
+            serde_json::to_vec(&full).unwrap().len(),
+            serde_json::to_vec(&slimmed).unwrap().len(),
+        );
+        assert!(slim_bytes * 2 < full_bytes, "{slim_bytes} of {full_bytes}");
+    }
+
+    #[test]
+    fn a_thousand_distinct_queries_keep_the_searches_under_their_byte_cap() {
+        let answer: Vec<Value> = (0..200)
+            .flat_map(|_| fixture())
+            .map(|d| slim(&heavy(d)))
+            .collect();
+        let bytes = serde_json::to_vec(&answer).unwrap().len();
+        let answer = Arc::new(answer);
+        for n in 0..1000 {
+            let key = ("https://ckan.test".to_owned(), format!("query {n}"));
+            let mut cache = SEARCHES.lock().unwrap();
+            cache.insert(key, answer.clone(), bytes);
+            assert!(cache.bytes() <= SEARCHES_MAX_BYTES);
+        }
+        let cache = SEARCHES.lock().unwrap();
+        assert!(cache.len() < 1000 && !cache.is_empty(), "{}", cache.len());
     }
 
     #[test]
