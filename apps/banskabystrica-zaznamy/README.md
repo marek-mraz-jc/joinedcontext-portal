@@ -6,7 +6,7 @@ own manifest.
 
 ## Why only one column opens
 
-Every figure of a `StatisticalObservation` is written by a pipeline: `observationValue`, `indicator`,
+Every figure of a `KeyPerformanceIndicator` is written by a pipeline: `kpiValue`, `indicator`,
 `refArea`, `refPeriod` and the rest come from the publisher's own table and are replaced on the
 next run. A screen that let a person correct one would lose what they typed, silently, the next
 time the pipeline ran. So the grid opens `stewardNote` — the one attribute of the model that no
@@ -17,7 +17,7 @@ The narrowing is in three places, and each one is the whole rule on its own:
 
 | where | what it refuses |
 |---|---|
-| the Policy `mesto-steward-note` | `updateAttrs` on `stewardNote` alone: a PATCH of `observationValue` is the gateway's own 403 |
+| the Policy `mesto-steward-note` | `updateAttrs` on `stewardNote` alone: a PATCH of `kpiValue` is the gateway's own 403 |
 | `spec.dataNeeds` | one type, one write operation, the listed attributes |
 | `records.ts` | the screen sends the note and nothing else, and refuses a note the model would refuse |
 

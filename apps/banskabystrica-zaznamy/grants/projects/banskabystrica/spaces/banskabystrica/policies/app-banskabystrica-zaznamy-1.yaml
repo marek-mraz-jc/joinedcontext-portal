@@ -15,12 +15,12 @@ spec:
     name: banskabystrica-mesto
   information:
   - entities:
-    - type: StatisticalObservation
+    - type: KeyPerformanceIndicator
     propertyNames:
     - indicator
     - refArea
     - refPeriod
-    - observationValue
+    - kpiValue
     - unitText
     - dateObserved
     - stewardNote
@@ -28,7 +28,7 @@ spec:
     - indicator
     - refArea
     - refPeriod
-    - observationValue
+    - kpiValue
     - unitText
     - dateObserved
     - stewardNote

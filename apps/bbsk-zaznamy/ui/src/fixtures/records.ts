@@ -20,13 +20,13 @@ export interface RecordFixture {
 
 export function record(one: RecordFixture, space: string, domain: string): Record<string, unknown> {
   const entity: Record<string, unknown> = {
-    id: `urn:ngsi-ld:StatisticalObservation:${domain}:${space}:${one.localId}`,
-    type: "StatisticalObservation",
+    id: `urn:ngsi-ld:KeyPerformanceIndicator:${domain}:${space}:${one.localId}`,
+    type: "KeyPerformanceIndicator",
     dataSet: { type: "Property", value: one.dataSet },
     indicator: { type: "Property", value: one.indicator },
     refArea: { type: "Property", value: one.refArea },
     refPeriod: { type: "Property", value: one.refPeriod },
-    observationValue: { type: "Property", value: one.value, unitCode: one.unitCode ?? "MTQ" },
+    kpiValue: { type: "Property", value: one.value, unitCode: one.unitCode ?? "MTQ" },
     source: { type: "Property", value: `https://data.statistics.sk/api/v2/dataset/${one.dataSet}` },
     dateObserved: { type: "Property", value: one.dateObserved },
   };

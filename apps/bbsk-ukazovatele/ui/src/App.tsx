@@ -227,7 +227,7 @@ function useTrends(): Trends {
       const rows: RichRow[] = [];
       for (let offset = 0; offset < RAW_MOST; offset += RAW_PAGE) {
         const page = await source.query(
-          { type: "StatisticalObservation", q: SERIES_QUERY, attrs: ["dataSet", "indicator", "refArea", "refPeriod", "dimensionKey", "observationValue"] },
+          { type: "KeyPerformanceIndicator", q: SERIES_QUERY, attrs: ["dataSet", "indicator", "refArea", "refPeriod", "dimensionKey", "kpiValue"] },
           { offset, limit: RAW_PAGE },
         );
         rows.push(...page.rows);

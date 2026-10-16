@@ -32,7 +32,7 @@ async function recordsOf(source: EntitySource, dataSet: string): Promise<Record<
   const rows: Record<string, unknown>[] = [];
   for (let page = 0; page < PAGES; page++) {
     const answer = await source.query(
-      { type: "StatisticalObservation", q: `dataSet==${JSON.stringify(dataSet)}` },
+      { type: "KeyPerformanceIndicator", q: `dataSet==${JSON.stringify(dataSet)}` },
       { offset: page * LIMIT, limit: LIMIT },
     );
     rows.push(...answer.rows.map((row) => row.raw));

@@ -13,14 +13,14 @@ import { answer, CITY } from "./fixtures/records";
 import { SPACE_OF } from "./locales";
 
 const READ: AccessDocument = {
-  permissions: [{ resource: { type: "StatisticalObservation" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }],
+  permissions: [{ resource: { type: "KeyPerformanceIndicator" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }],
   prohibitions: [],
 };
 /** What the Policy `mesto-steward-note` grants a steward: the note, and nothing else, writable. */
 const STEWARD: AccessDocument = {
   permissions: [
-    { resource: { type: "StatisticalObservation" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" },
-    { resource: { type: "StatisticalObservation" }, actions: ["updateAttrs"], attributes: ["stewardNote"] },
+    { resource: { type: "KeyPerformanceIndicator" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" },
+    { resource: { type: "KeyPerformanceIndicator" }, actions: ["updateAttrs"], attributes: ["stewardNote"] },
   ],
   prohibitions: [],
 };
@@ -61,7 +61,7 @@ async function openFirst() {
   const noted = (await screen.findByDisplayValue("Porovnané s ročenkou mesta, sedí.")).closest("tr") as HTMLElement;
   fireEvent.click(within(noted).getByRole("button", { name: "Otvoriť záznam" }));
   const panel = await screen.findByRole("dialog");
-  await within(panel).findByText("StatisticalObservation");
+  await within(panel).findByText("KeyPerformanceIndicator");
   return panel;
 }
 

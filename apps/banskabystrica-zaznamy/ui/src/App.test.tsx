@@ -125,7 +125,7 @@ describe("the records of one publisher", () => {
     await waitFor(() => expect(rows()).toHaveLength(CITY.length));
     // One text box per row, and it is the note's.
     expect(screen.getAllByRole("textbox", { name: `${sk.grid.edit} ${sk.column[NOTE]}` })).toHaveLength(CITY.length);
-    for (const column of ["observationValue", "indicator", "refArea", "refPeriod", "dateObserved"]) {
+    for (const column of ["kpiValue", "indicator", "refArea", "refPeriod", "dateObserved"]) {
       expect(
         screen.queryAllByRole("textbox", { name: `${sk.grid.edit} ${sk.column[column]}` }),
         column,
@@ -140,7 +140,7 @@ describe("the records of one publisher", () => {
     await waitFor(() => expect(calls.some((call) => call.path.includes("/entities") && !cubeOf(call.path))).toBe(true));
     const table = calls.find((call) => call.path.includes("/entities") && !cubeOf(call.path));
     const asked = new URL(table?.path ?? "", "http://localhost");
-    expect(asked.searchParams.get("type")).toBe("StatisticalObservation");
+    expect(asked.searchParams.get("type")).toBe("KeyPerformanceIndicator");
     expect(asked.searchParams.get("limit")).toBe("25");
     expect(asked.searchParams.get("count")).toBe("true");
   });
@@ -187,7 +187,7 @@ describe("the charts above the table (T-2966)", () => {
     await waitFor(() => expect(rows()).toHaveLength(CITY.length));
   });
 
-  it("reads the figure from observationValue in the table and the chart, and none from a value member (T-3966)", async () => {
+  it("reads the figure from kpiValue in the table and the chart, and none from a value member (T-3966)", async () => {
     const user = userEvent.setup();
     const figure = new Intl.NumberFormat(sk.chart.locale, { maximumFractionDigits: 2 }).format(4061.2);
     show();
@@ -200,7 +200,7 @@ describe("the charts above the table (T-2966)", () => {
 
   it("draws no figure for a record that names its number value, the member T-3964 renamed", async () => {
     const renamed = () =>
-      json(answer(CITY).map(({ observationValue, ...rest }) => ({ ...rest, value: observationValue })));
+      json(answer(CITY).map(({ kpiValue, ...rest }) => ({ ...rest, value: kpiValue })));
     show({ rows: renamed, cube: renamed });
     await waitFor(() => expect(rows()).toHaveLength(CITY.length));
     const figure = new Intl.NumberFormat(sk.chart.locale, { maximumFractionDigits: 2 }).format(4061.2);
