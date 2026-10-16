@@ -16,7 +16,7 @@ spec:
   information:
   - entities:
     - type: PointOfInterest
-    - type: PublicAreaPermit
+    - type: CityWork
     - type: Event
     - type: Alert
     - type: OnStreetParking

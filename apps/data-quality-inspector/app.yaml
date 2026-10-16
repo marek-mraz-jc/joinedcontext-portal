@@ -59,7 +59,7 @@ spec:
         - NewsArticle
         - OnStreetParking
         - PointOfInterest
-        - PublicAreaPermit
+        - CityWork
         - Vehicle
         - WaterQualityObserved
         - WeatherObserved
@@ -80,7 +80,7 @@ spec:
         - NewsArticle
         - OnStreetParking
         - PointOfInterest
-        - PublicAreaPermit
+        - CityWork
         - Vehicle
         - WaterQualityObserved
         - WeatherObserved

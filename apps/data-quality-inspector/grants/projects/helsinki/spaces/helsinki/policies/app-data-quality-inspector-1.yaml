@@ -23,7 +23,7 @@ spec:
     - type: NewsArticle
     - type: OnStreetParking
     - type: PointOfInterest
-    - type: PublicAreaPermit
+    - type: CityWork
     - type: Vehicle
     - type: WaterQualityObserved
     - type: WeatherObserved

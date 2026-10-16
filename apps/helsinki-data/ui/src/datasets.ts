@@ -12,7 +12,7 @@ export type Dataset = (typeof DATASETS)[number];
 
 export const TYPE_OF: Record<Dataset, string> = {
   services: "PointOfInterest",
-  permits: "PublicAreaPermit",
+  permits: "CityWork",
   events: "Event",
   alerts: "Alert",
   zones: "OnStreetParking",

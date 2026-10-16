@@ -22,7 +22,7 @@ export const WATER = [
 ];
 
 export const PERMITS = [
-  { id: URN("PublicAreaPermit", "kaivuu-1"), type: "PublicAreaPermit", name: { type: "LanguageProperty", languageMap: { fi: "Kaukolämpöputken korjaus" } }, permitKind: value("excavation"), permitStatus: value("ongoing"), permitNumber: value("KAI-2026-1234"), permitStart: value("2026-10-01"), permitEnd: value("2026-10-20"), address: value("Mannerheimintie 5") },
+  { id: URN("CityWork", "kaivuu-1"), type: "CityWork", name: { type: "LanguageProperty", languageMap: { fi: "Kaukolämpöputken korjaus" } }, permitKind: value("excavation"), permitStatus: value("ongoing"), permitNumber: value("KAI-2026-1234"), permitStart: value("2026-10-01"), permitEnd: value("2026-10-20"), address: value("Mannerheimintie 5") },
 ];
 
 const fi = (text: string) => ({ type: "LanguageProperty", languageMap: { fi: text } });
@@ -41,7 +41,7 @@ export const OTHERS: Record<string, unknown[]> = {
 export function answer(type: string | null): unknown[] {
   if (type === "PointOfInterest") return SERVICES;
   if (type === "WaterQualityObserved") return WATER;
-  if (type === "PublicAreaPermit") return PERMITS;
+  if (type === "CityWork") return PERMITS;
   return OTHERS[type ?? ""] ?? [];
 }
 
