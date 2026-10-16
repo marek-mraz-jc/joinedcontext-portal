@@ -10,6 +10,9 @@
       "crashReference": "Quote this when you report it:",
       "crashReload": "Load the page again",
       "crashHome": "Go to the start",
+      "chunkTitle": "Part of the Portal did not load",
+      "chunkBody": "The connection dropped or the Portal was just updated. Load the page again; nothing you were looking at was changed.",
+      "chunkReload": "Load the page again",
       "session": "Your session ended. Sign in again to see this.",
       "forbiddenHint": "A project owner or an organization administrator can give you access.",
       "reference": "Quote this when you report it:",
@@ -4709,7 +4712,8 @@
       "portal": "Portal"
     },
     "failed": "{what} failed",
-    "repeated": "{count, plural, other {# times}} since {since}"
+    "repeated": "{count, plural, other {# times}} since {since}",
+    "technical": "Technical details"
   },
   "import": {
     "title": "Import configuration",
@@ -6666,21 +6670,59 @@
       "send": "Send",
       "failed": "The answer could not be loaded. Try again.",
       "liveData": "Live data",
-      "sourceNumber": "Source {n}"
+      "sourceNumber": "Source {n}",
+      "data": "Data the answer read",
+      "dataset": "Open the dataset",
+      "download": "Download the data"
     },
     "embed": {
       "title": "Embed",
       "of": "Embed {name}",
-      "intro": "Paste this frame into a page of a site the assistant is placed on.",
+      "intro": "For a page that takes no script, paste this frame instead.",
       "snippet": "Code to paste",
       "copy": "Copy the code",
       "copied": "Copied",
       "origins": "The site's address must be one of the assistant's allowed origins; any other site's frame stays empty.",
-      "noDomain": "This Portal does not know its domain, so it cannot write the address of the assistant's page."
+      "noDomain": "This Portal does not know its domain, so it cannot write the address of the assistant's page.",
+      "launcher": "The launcher line",
+      "launcherIntro": "Put the assistant on your website: paste this one line into every page, before </body>. It adds a round button in the corner that opens the chat.",
+      "preview": "Preview of the launcher on a blank page",
+      "previewHint": "The preview shows the button as a visitor sees it. The chat itself opens only on the sites the assistant is placed on, so here it may stay empty.",
+      "copyOf": "Copy {what}"
     },
     "everySpace": "every space of the project",
     "userGuide": "the platform's User Guide, with links into this project",
-    "askFirst": "Type a question first."
+    "askFirst": "Type a question first.",
+    "files": {
+      "title": "Files",
+      "intro": "Files you upload here: the assistant answers from them as soon as they are read. Remove a file to take its passages out of every answer.",
+      "upload": "Upload files",
+      "uploading": "Uploading…",
+      "choose": "Choose files to upload",
+      "accepts": "PDF, DOCX, XLSX, CSV, Markdown or text; at most 50 MB each.",
+      "added": "{count, plural, one {# file} other {# files}} read into {passages} passages.",
+      "failed": "{name} was not uploaded: {reason}. Fix the file and choose it again.",
+      "none": "No file yet",
+      "noneHint": "Upload a PDF, a spreadsheet or a text file for the assistant to answer from.",
+      "name": "File",
+      "remove": "Remove",
+      "removeOf": "Remove {name}"
+    },
+    "index": {
+      "title": "Index status",
+      "pages": "Pages",
+      "files": "Files",
+      "passages": "Passages",
+      "embedded": "Searchable",
+      "pending": "Waiting to index",
+      "unread": "Not read",
+      "reindex": "Re-index",
+      "lastRun": "Last run: started {started}, ended {finished}",
+      "noRun": "No run yet",
+      "unreadList": "Pages and files not read",
+      "noneUnread": "No failed read is recorded.",
+      "totals": "All sources: {pages} pages, {files} files, {embedded} of {passages} passages searchable, {pending} waiting, {failed} not read"
+    }
   },
   "mcp": {
     "title": "MCP servers",

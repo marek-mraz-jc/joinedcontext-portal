@@ -71,7 +71,18 @@ async fn serve(
     // Every refusal below is the same 404. A draft app, a retired app, a name that was never
     // created and a caller who may not see it are indistinguishable from outside, so the host
     // never discloses what is being worked on (AP-18).
-    let not_found = || ApiError::NotFound(format!("app '{name}' not found")).into_response();
+    // A person's browser gets the same refusal as a page in their language (T-4200).
+    let start = if state.config.apps_url.is_some() {
+        "/".to_owned()
+    } else {
+        format!("/apps/{name}/")
+    };
+    let not_found = || {
+        super::roles::missing_page(&headers, &start, portal_origin(&state).as_deref())
+            .unwrap_or_else(|| {
+                ApiError::NotFound(format!("app '{name}' not found")).into_response()
+            })
+    };
 
     let Some((project, spec, build)) = published_app(&state, &name) else {
         return not_found();

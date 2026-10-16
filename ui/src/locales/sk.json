@@ -10,6 +10,9 @@
       "crashReference": "Pri hlásení uveďte toto:",
       "crashReload": "Načítať stránku znova",
       "crashHome": "Späť na začiatok",
+      "chunkTitle": "Časť Portálu sa nenačítala",
+      "chunkBody": "Spojenie vypadlo alebo bol Portál práve aktualizovaný. Načítajte stránku znova; nič z toho, na čo ste sa pozerali, sa nezmenilo.",
+      "chunkReload": "Načítať stránku znova",
       "session": "Vaše prihlásenie skončilo. Prihláste sa znova, aby ste to videli.",
       "forbiddenHint": "Prístup vám môže dať vlastník projektu alebo správca organizácie.",
       "reference": "Uveďte toto, keď to budete hlásiť:",
@@ -4709,7 +4712,8 @@
       "portal": "Portál"
     },
     "failed": "{what} zlyhalo",
-    "repeated": "{count, plural, one {# raz} few {# razy} other {# ráz}} od {since}"
+    "repeated": "{count, plural, one {# raz} few {# razy} other {# ráz}} od {since}",
+    "technical": "Technické podrobnosti"
   },
   "import": {
     "title": "Import konfigurácie",
@@ -6666,21 +6670,59 @@
       "send": "Odoslať",
       "failed": "Odpoveď sa nepodarilo načítať. Skúste znova.",
       "liveData": "Živé dáta",
-      "sourceNumber": "Zdroj {n}"
+      "sourceNumber": "Zdroj {n}",
+      "data": "Údaje, ktoré odpoveď prečítala",
+      "dataset": "Otvoriť dataset",
+      "download": "Stiahnuť údaje"
     },
     "embed": {
       "title": "Vložiť",
       "of": "Vložiť {name}",
-      "intro": "Vložte tento rámec do stránky webu, na ktorom je asistent umiestnený.",
+      "intro": "Na stránku, ktorá neprijíma skript, vložte namiesto toho tento rámec.",
       "snippet": "Kód na vloženie",
       "copy": "Kopírovať kód",
       "copied": "Skopírované",
       "origins": "Adresa webu musí byť medzi povolenými pôvodmi asistenta; rámec na inom webe zostane prázdny.",
-      "noDomain": "Tento Portál nepozná svoju doménu, preto nevie napísať adresu stránky asistenta."
+      "noDomain": "Tento Portál nepozná svoju doménu, preto nevie napísať adresu stránky asistenta.",
+      "launcher": "Riadok spúšťača",
+      "launcherIntro": "Pridajte asistenta na svoj web: vložte tento jeden riadok do každej stránky pred </body>. Pridá do rohu okrúhle tlačidlo, ktoré otvorí chat.",
+      "preview": "Ukážka spúšťača na prázdnej stránke",
+      "previewHint": "Ukážka zobrazuje tlačidlo tak, ako ho vidí návštevník. Chat sa otvorí len na povolených adresách asistenta, preto tu môže zostať prázdny.",
+      "copyOf": "Kopírovať: {what}"
     },
     "everySpace": "každý priestor projektu",
     "userGuide": "používateľská príručka platformy s odkazmi do tohto projektu",
-    "askFirst": "Najprv napíšte otázku."
+    "askFirst": "Najprv napíšte otázku.",
+    "files": {
+      "title": "Súbory",
+      "intro": "Súbory, ktoré sem nahráte: asistent z nich odpovedá hneď, ako ich prečíta. Odstránením súboru vyberiete jeho pasáže zo všetkých odpovedí.",
+      "upload": "Nahrať súbory",
+      "uploading": "Nahráva sa…",
+      "choose": "Vyberte súbory na nahratie",
+      "accepts": "PDF, DOCX, XLSX, CSV, Markdown alebo text; každý najviac 50 MB.",
+      "added": "{count, plural, one {# súbor prečítaný} few {# súbory prečítané} other {# súborov prečítaných}} do {passages} pasáží.",
+      "failed": "{name} sa nenahral: {reason}. Opravte súbor a vyberte ho znova.",
+      "none": "Zatiaľ žiadny súbor",
+      "noneHint": "Nahrajte PDF, tabuľku alebo textový súbor, z ktorého bude asistent odpovedať.",
+      "name": "Súbor",
+      "remove": "Odstrániť",
+      "removeOf": "Odstrániť {name}"
+    },
+    "index": {
+      "title": "Stav indexu",
+      "pages": "Stránky",
+      "files": "Súbory",
+      "passages": "Pasáže",
+      "embedded": "Vyhľadateľné",
+      "pending": "Čaká na indexovanie",
+      "unread": "Neprečítané",
+      "reindex": "Indexovať znova",
+      "lastRun": "Posledný beh: začal {started}, skončil {finished}",
+      "noRun": "Ešte nebežal",
+      "unreadList": "Neprečítané stránky a súbory",
+      "noneUnread": "Žiadne neúspešné čítanie nie je zaznamenané.",
+      "totals": "Všetky zdroje: {pages} stránok, {files} súborov, {embedded} z {passages} pasáží vyhľadateľných, {pending} čaká, {failed} neprečítaných"
+    }
   },
   "mcp": {
     "title": "MCP servery",

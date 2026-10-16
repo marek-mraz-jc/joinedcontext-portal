@@ -50,6 +50,23 @@ export function kindLabel(
     : what;
 }
 
+/**
+ * The event's sentence and, apart, the cause it was glued to (T-4200). A publisher writes "Endpoint
+ * x was not published: <reason>" and keeps the reason in `details.reason`, which may be a CKAN API
+ * name, a URL or a problem body: the row says the sentence, the cause waits behind a disclosure.
+ */
+export function sentenceOf(event: Pick<ActivityEvent, "summary" | "details">): {
+  sentence: string;
+  reason?: string;
+} {
+  const reason = (event.details as { reason?: unknown } | undefined)?.reason;
+  if (typeof reason !== "string" || !reason) return { sentence: event.summary };
+  const at = event.summary.lastIndexOf(`: ${reason}`);
+  if (at <= 0 || at + reason.length + 2 !== event.summary.length)
+    return { sentence: event.summary };
+  return { sentence: `${event.summary.slice(0, at)}.`, reason };
+}
+
 /** One row of the feed: an event, and how often the same thing happened again (T-2760). */
 export interface ActivityRow {
   event: ActivityEvent;
@@ -312,7 +329,9 @@ export function ActivityFeed({
         <EmptyState
           icon="refresh"
           title={compact ? t("activity.panelEmpty") : t("activity.empty")}
-          description={compact ? t("activity.panelEmptyHint") : t("activity.emptyHint")}
+          description={
+            compact ? t("activity.panelEmptyHint") : t("activity.emptyHint")
+          }
         />
       ) : (
         <Table caption={t("activity.title")}>
@@ -320,6 +339,7 @@ export function ActivityFeed({
           <TableBody>
             {groupRepeats(items).map(({ event, count, since }) => {
               const object = objectOf(event);
+              const { sentence, reason } = sentenceOf(event);
               const change = changeOf(event);
               return (
                 <TableRow key={`${event.time}-${event.kind}-${event.summary}`}>
@@ -335,7 +355,20 @@ export function ActivityFeed({
                     </Badge>
                   </TableCell>
                   <TableCell primary>
-                    {event.summary}
+                    <span data-testid="activity-sentence">{sentence}</span>
+                    {reason ? (
+                      <details className="mt-0.5 text-caption text-fg-muted">
+                        <summary className="cursor-pointer">
+                          {t("activity.technical")}
+                        </summary>
+                        <p
+                          className="mt-0.5 break-all font-mono"
+                          data-testid="activity-reason"
+                        >
+                          {reason}
+                        </p>
+                      </details>
+                    ) : null}
                     {count > 1 ? (
                       <div
                         className="mt-0.5 text-caption text-fg-muted"

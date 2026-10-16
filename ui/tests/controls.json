@@ -122,10 +122,11 @@
     },
     "src/components/ErrorBoundary.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "browser_security.test.tsx",
+        "error_boundary_chunk.test.tsx",
         "lazy_dialogs.test.tsx"
       ]
     },
@@ -1187,6 +1188,14 @@
         "knowledge_pages.test.tsx"
       ]
     },
+    "src/pages/knowledge/IndexStatus.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "knowledge_pages.test.tsx"
+      ]
+    },
     "src/pages/knowledge/KnowledgePage.tsx": {
       "controls": {
         "Button": 6
@@ -1199,6 +1208,15 @@
       "controls": {
         "Button": 6,
         "Checkbox": 3
+      },
+      "tests": [
+        "knowledge_pages.test.tsx"
+      ]
+    },
+    "src/pages/knowledge/UploadedFiles.tsx": {
+      "controls": {
+        "Button": 2,
+        "FilePicker": 1
       },
       "tests": [
         "knowledge_pages.test.tsx"
