@@ -27,6 +27,10 @@ function withSpaceList(inner: (input: RequestInfo | URL, init?: RequestInit) => 
     if (url.pathname === "/api/v1/projects/helsinki/spaces") {
       return Promise.resolve(Response.json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", metadata: {}, items: [] }));
     }
+    // The page asks whether the role may propose a space (T-4263); here it may.
+    if (url.pathname === "/api/v1/projects/helsinki/permissions/me") {
+      return Promise.resolve(Response.json({ project: "helsinki", bootstrap: true, grants: [] }));
+    }
     return inner(input, init);
   };
 }

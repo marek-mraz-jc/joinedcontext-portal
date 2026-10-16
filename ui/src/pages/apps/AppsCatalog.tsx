@@ -38,6 +38,7 @@ import {
   EmptyState,
   InlineError,
   PageFailed,
+  MayNotCreate,
   PageHeader,
   PageLoading,
   recordCard,
@@ -375,7 +376,11 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <PageHeader title={t("apps.title")} description={t("apps.subtitle")} />
+        <PageHeader
+          title={t("apps.title")}
+          description={t("apps.subtitle")}
+          note={<MayNotCreate project={project} kinds={["App"]} />}
+        />
         <PermissionGuard project={project} kind="App" verb="propose">
           <Button
             onClick={() => {

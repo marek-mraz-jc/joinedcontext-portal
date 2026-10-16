@@ -528,9 +528,12 @@ function SpaceData({
       {probe.isSuccess && view !== "api" ? (
         <div className="flex flex-wrap items-end gap-3">
           {importSlots.length > 0 ? (
-            <Button variant="secondary" onClick={() => setImporting(true)}>
-              {t("spaces.import.open")}
-            </Button>
+            // The same right as the upload link above: the space has no grant document of its own (T-4263).
+            <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+              <Button variant="secondary" onClick={() => setImporting(true)}>
+                {t("spaces.import.open")}
+              </Button>
+            </PermissionGuard>
           ) : null}
           <Button variant="ghost" onClick={() => setAlertingType(true)}>
             {t("alerts.forType", { type })}

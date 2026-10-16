@@ -4470,6 +4470,7 @@
     },
     "trail": "Seiten, die der Assistent geöffnet hat",
     "prefilledNotice": "Der Assistent hat das ausgefüllt. Prüfe es, bevor du es vorschlägst.",
+    "pathsDenied": "Einige Wege sind ausgegraut: Ihre Rolle erlaubt Ihnen das Ansehen, nicht das Anlegen. Ein Projektverantwortlicher oder eine Administration kann Ihnen dieses Recht geben.",
     "paths": {
       "integrate-pipeline": {
         "title": "Pipeline integrieren",

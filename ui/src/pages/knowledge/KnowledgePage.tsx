@@ -13,6 +13,7 @@ import {
   Dialog,
   EmptyState,
   PageFailed,
+  MayNotCreate,
   PageHeader,
   PermissionGuard,
   Table,
@@ -92,6 +93,7 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
       <PageHeader
         title={t("knowledge.title")}
         description={t("knowledge.intro")}
+        note={<MayNotCreate project={project} kinds={["KnowledgeSource", "AssistantDeployment"]} />}
         actions={addSource}
       />
       {sources.isError ? (

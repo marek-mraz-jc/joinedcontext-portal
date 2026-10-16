@@ -41,6 +41,18 @@ export function allows(effective: Effective | undefined, kind: string, verb: Ver
 }
 
 /**
+ * Whether any grant lets the caller propose something in the project (T-4263): a create address
+ * nothing opened tells a role without one that it may look, not create, instead of a warning that
+ * the address might be wrong. No document yet means yes, as `allows` reads it.
+ */
+export function proposesAnything(effective: Effective | undefined): boolean {
+  if (!effective || !Array.isArray(effective.grants) || effective.bootstrap === true) {
+    return true;
+  }
+  return effective.grants.some((grant) => Boolean((grant.rule as Rule).verbs?.includes("propose")));
+}
+
+/**
  * Whether a grant lets the caller read `kind` (PF-59): `read`, or `propose`, which implies it
  * (jc-core `Rule::grants`). `undefined` while no document has arrived: a page that must not
  * fetch a list for a caller who may not read it waits instead of guessing (T-2605).

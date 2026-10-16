@@ -15,6 +15,7 @@ import {
   Icon,
   Input,
   PageFailed,
+  MayNotCreate,
   PageHeader,
   PageLoading,
   PermissionGuard,
@@ -82,6 +83,7 @@ export function CataloguePage({
     <PageHeader
       title={t("catalogue.title")}
       description={t("catalogue.lead")}
+      note={project ? <MayNotCreate project={project} kinds={["Endpoint"]} /> : undefined}
       actions={
         project ? (
           <PermissionGuard project={project} kind="Endpoint" verb="propose">

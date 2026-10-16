@@ -60,8 +60,8 @@ class StubEventSource {
   }
 }
 
-/** The rule the caller holds: `propose` on everything, or read only. */
-function permissions(mayPropose: boolean) {
+/** The rule the caller holds: `propose` on everything, or read only; `all` proposes every path's kind. */
+function permissions(mayPropose: boolean, all = false) {
   return {
     project: PROJECT,
     bootstrap: false,
@@ -70,7 +70,10 @@ function permissions(mayPropose: boolean) {
         role: "reader",
         binding: "readers",
         scope: "project",
-        rule: { kinds: ["Endpoint", "Dashboard"], verbs: mayPropose ? ["read", "propose"] : ["read"] },
+        rule: {
+          kinds: all ? ["Endpoint", "Dashboard", "Pipeline", "ContextSpace", "App", "DataModel"] : ["Endpoint", "Dashboard"],
+          verbs: mayPropose ? ["read", "propose"] : ["read"],
+        },
       },
     ],
   };
@@ -78,8 +81,9 @@ function permissions(mayPropose: boolean) {
 
 function renderDock({
   mayPropose = true,
+  proposesAll = false,
   hiddenSections = [],
-}: { mayPropose?: boolean; hiddenSections?: string[] } = {}) {
+}: { mayPropose?: boolean; proposesAll?: boolean; hiddenSections?: string[] } = {}) {
   const messages: unknown[] = [];
   const started: unknown[] = [];
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
@@ -91,7 +95,7 @@ function renderDock({
       return json({ subject: "s", username: "demo.steward", roles: ["domain-editor"] });
     }
     if (url.pathname.endsWith("/permissions/me")) {
-      return json(permissions(mayPropose));
+      return json(permissions(mayPropose, proposesAll));
     }
     if (url.pathname === "/api/v1/branding") {
       return json({ hiddenSections });
@@ -321,6 +325,18 @@ describe("where the assistant's input sits", () => {
     // A refused path starts nothing.
     await person.click(within(paths).getByRole("button", { name: pathName("build-app") }));
     expect(started).toHaveLength(0);
+    // The reason is also on screen, once, not only in a tooltip (T-4263).
+    expect(screen.getByTestId("assistant-paths-denied")).toHaveTextContent(en.assistant.pathsDenied);
+  });
+
+  it("says nothing about greyed paths to a role that may take them all", async () => {
+    renderDock({ proposesAll: true });
+    await openDock();
+    const paths = await screen.findByTestId("assistant-paths");
+    await waitFor(() =>
+      expect(within(paths).getByRole("button", { name: pathName("build-app") })).not.toHaveAttribute("aria-disabled"),
+    );
+    expect(screen.queryByTestId("assistant-paths-denied")).toBeNull();
   });
 
   it("reaches the paths from the keyboard in the order they are listed", async () => {

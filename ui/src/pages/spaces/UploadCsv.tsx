@@ -14,6 +14,7 @@ import { useOrgDomain } from "../../api/projects";
 import type { Change } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
+import { usePermissions } from "../../api/permissions";
 import { Alert, Button, Card, Field, FilePicker, Input, PageHeader, RadioGroup } from "../../components/ui";
 import { CITY_SUBJECTS, SAMPLE_BYTES, modelsOf, rankModels, sampleOf, uploadInput } from "./csvUpload";
 import type { SdmMatch } from "./csvUpload";
@@ -32,6 +33,7 @@ type Proposed = { space: string; type: string; source: string | undefined; chang
 export function UploadCsv({ project, space: given = "" }: { project: string; space?: string }): JSX.Element {
   const { t } = useTranslation();
   const orgDomain = useOrgDomain(project);
+  const permissions = usePermissions(project);
   const [read, setRead] = useState<Read | null>(null);
   // The chosen Smart Data Models id, or "" for the person's own model.
   const [choice, setChoice] = useState("");
@@ -121,6 +123,18 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
     setProgress(null);
     setDone({ written: answer.created, rejected: [...checked.rejected, ...answer.rejected].sort((a, b) => a.row - b.row) });
   };
+
+  // A role that may not propose a space reads why, not a form whose every step ends in a 403 (T-4263).
+  if (permissions.data !== undefined && !permissions.can("ContextSpace", "propose")) {
+    return (
+      <div className="flex flex-col gap-section">
+        <PageHeader title={t("spaces.upload.title")} description={t("spaces.upload.lead")} />
+        <Alert role="status" tone="info">
+          {t("form.mayNotCreate")}
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-section">

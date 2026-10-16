@@ -27,6 +27,7 @@ import {
   Button,
   EmptyState,
   Icon,
+  MayNotCreate,
   PageHeader,
   TableCell,
   TableHead,
@@ -338,6 +339,7 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
       <PageHeader
         title={t("spaces.title")}
         description={t("spaces.lead")}
+        note={<MayNotCreate project={project} kinds={["ContextSpace"]} />}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <PermissionGuard project={project} kind="ContextSpace" verb="propose">
