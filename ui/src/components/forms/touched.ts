@@ -19,12 +19,15 @@ export const TouchedContext = createContext<Touched | null>(null);
 /** `errors` when the field `id` (or one inside it) was touched, else nothing. */
 export function useShownErrors(id: string, errors: string[] | undefined): string[] | undefined {
   const touched = useContext(TouchedContext);
-  if (!errors || errors.length === 0 || touched === null || touched.all) {
-    return errors;
+  // Each sentence once (T-4207): rjsf adds a Check's `extraErrors` to its own live verdict on
+  // the same field, and a choice of several branches fails once per branch.
+  const unique = errors && errors.length > 1 ? [...new Set(errors)] : errors;
+  if (!unique || unique.length === 0 || touched === null || touched.all) {
+    return unique;
   }
   for (const seen of touched.ids) {
     if (seen === id || seen.startsWith(`${id}_`)) {
-      return errors;
+      return unique;
     }
   }
   return undefined;
