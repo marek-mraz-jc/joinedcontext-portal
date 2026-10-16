@@ -4,6 +4,7 @@
     "loading": "Načítava sa...",
     "error": {
       "generic": "Portál neodpovedal. Skontrolujte pripojenie a skúste to znova.",
+      "server": "Portál to teraz nedokázal načítať. Skúste to znova; ak to opakovane zlyhá, povedzte to správcovi.",
       "retry": "Skúsiť znova",
       "crashTitle": "Táto stránka sa zastavila",
       "crashBody": "V Portáli zlyhalo niečo pri vykresľovaní tejto stránky. Na tom, čo ste si prezerali, sa nič nezmenilo.",

@@ -37,7 +37,9 @@ import {
   Dialog,
   EmptyState,
   InlineError,
+  PageFailed,
   PageHeader,
+  PageLoading,
   recordCard,
   safeHref,
 } from "../../components/ui";
@@ -300,26 +302,25 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
   });
 
   if (list.isPending) {
-    return <p role="status">{t("app.loading")}</p>;
+    return (
+      <div className="space-y-4">
+        <PageHeader title={t("apps.title")} description={t("apps.subtitle")} />
+        <PageLoading label={t("app.loading")} />
+      </div>
+    );
   }
 
+  // The page keeps its heading and says what failed in the box every list uses (T-4165).
   if (list.isError) {
-    const message =
-      list.error instanceof ApiError
-        ? (list.error.problem?.detail ?? list.error.message)
-        : t("app.error.generic");
     return (
-      <div role="alert">
-        <p className="text-danger">{message}</p>
-        <Button
-          size="sm"
-          onClick={() => {
+      <div className="space-y-4">
+        <PageHeader title={t("apps.title")} description={t("apps.subtitle")} />
+        <PageFailed
+          error={list.error}
+          onRetry={() => {
             void list.refetch();
           }}
-          className="mt-2"
-        >
-          {t("app.error.retry")}
-        </Button>
+        />
       </div>
     );
   }

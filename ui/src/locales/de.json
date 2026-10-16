@@ -4,6 +4,7 @@
     "loading": "Wird geladen...",
     "error": {
       "generic": "Das Portal hat nicht geantwortet. Prüfen Sie die Verbindung und versuchen Sie es erneut.",
+      "server": "Das Portal konnte das gerade nicht lesen. Versuchen Sie es erneut; wenn es weiter fehlschlägt, sagen Sie es Ihrer Administration.",
       "retry": "Erneut versuchen",
       "crashTitle": "Diese Seite ist stehen geblieben",
       "crashBody": "Im Portal ist beim Zeichnen dieser Seite etwas fehlgeschlagen. An dem, was Sie angesehen haben, wurde nichts geändert.",

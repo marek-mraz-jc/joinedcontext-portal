@@ -4,6 +4,7 @@
     "loading": "Loading...",
     "error": {
       "generic": "The Portal did not answer. Check the connection and try again.",
+      "server": "The Portal could not read this just now. Try again; if it keeps failing, tell your administrator.",
       "retry": "Retry",
       "crashTitle": "This page stopped",
       "crashBody": "Something in the Portal failed while drawing this page. Nothing you were looking at was changed.",

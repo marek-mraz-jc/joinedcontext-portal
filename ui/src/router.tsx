@@ -11,7 +11,7 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { preferredProject, useProjects } from "./api/projects";
+import { lastProject, preferredProject, useProjects } from "./api/projects";
 import { BrandMark, Shell } from "./components/layout/Shell";
 import { isHiddenSection } from "./components/layout/navigation";
 import { useHiddenSections } from "./branding";
@@ -100,9 +100,21 @@ function Bare({ children }: { children: React.ReactNode }): React.JSX.Element {
 function NoProject({
   projects,
 }: {
-  projects: Pick<ReturnType<typeof useProjects>, "isPending" | "isError" | "error" | "refetch">;
+  projects: Pick<ReturnType<typeof useProjects>, "isPending" | "isError" | "error" | "errorUpdateCount" | "refetch">;
 }): React.JSX.Element {
   const { t } = useTranslation();
+  // When the list failed, the project last worked in keeps the shell: the navigation, the
+  // person's menu and a way elsewhere stay (T-4165, photo audit T-4163). The shell stays while
+  // the list is asked again too: its project switcher asks on mount, and a shell that left for
+  // the wait would come back and ask again, for ever.
+  const last = projects.errorUpdateCount > 0 ? lastProject() : undefined;
+  if (projects.isPending && last) {
+    return (
+      <Shell project={last}>
+        <PageLoading label={t("projects.loading")} />
+      </Shell>
+    );
+  }
   if (projects.isPending) {
     return (
       <Bare>
@@ -113,16 +125,19 @@ function NoProject({
     );
   }
   if (projects.isError) {
-    return (
+    const failed = (
+      <PageFailed
+        error={projects.error}
+        onRetry={() => {
+          void projects.refetch();
+        }}
+      />
+    );
+    return last ? (
+      <Shell project={last}>{failed}</Shell>
+    ) : (
       <Bare>
-        <div className="w-full max-w-lg">
-          <PageFailed
-            error={projects.error}
-            onRetry={() => {
-              void projects.refetch();
-            }}
-          />
-        </div>
+        <div className="w-full max-w-lg">{failed}</div>
       </Bare>
     );
   }

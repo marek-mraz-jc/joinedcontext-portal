@@ -125,7 +125,11 @@ export function PageFailed({
         ? t("app.error.generic")
         : kind === "session"
           ? t("app.error.session")
-          : said);
+          : kind === "server"
+            ? // A failure that brings no sentence of its own is said in words, never as the HTTP
+              // status text ("Internal Server Error", T-4165).
+              ((error as ApiError).problem?.detail ?? t("app.error.server"))
+            : said);
   // After an ended session the sign-in dialog asks every read again itself.
   const retry = kind === "server" || kind === "network" ? onRetry : undefined;
   // Every answer the edge numbered can be quoted, a refusal as much as a failure (T-3244).
