@@ -165,5 +165,13 @@ describe("the inbox (T-3273)", () => {
     );
     expect((await screen.findAllByText(en.inbox.noMentions)).length).toBeGreaterThan(0);
   });
+
+  it("shows how to approve only while something waits, never to a person with nothing to decide (T-4165)", async () => {
+    show({ writes: [] });
+    const hint = await screen.findByText(en.inbox.decisionsHint);
+    // jsdom draws no CSS: the hint hides itself when the decisions list before it is empty.
+    expect(hint).toHaveClass("peer-empty:hidden");
+    expect(screen.getByTestId("inbox-decisions")).toHaveClass("peer");
+  });
 });
 
