@@ -9,13 +9,13 @@ import { ageMessage, ruleMessage } from "./i18n";
 
 /** The 12 entity types served in Helsinki context space on dev today. */
 export const KNOWN_TYPES = [
+  "AdministrativeArea",
   "AirQualityObserved",
   "Alert",
+  "Article",
   "BikeHireDockingStation",
-  "CityDistrict",
   "CityWork",
   "Event",
-  "NewsArticle",
   "OnStreetParking",
   "PointOfInterest",
   "Vehicle",

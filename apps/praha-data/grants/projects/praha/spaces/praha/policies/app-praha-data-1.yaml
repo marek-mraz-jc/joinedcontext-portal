@@ -21,7 +21,7 @@ spec:
     - type: OffStreetParking
     - type: BikeHireDockingStation
     - type: AirQualityObserved
-    - type: CityDistrict
+    - type: AdministrativeArea
     - type: BudgetLine
     propertyNames:
     - name

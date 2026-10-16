@@ -56,7 +56,7 @@ vi.mock("echarts", () => ({
 
 const ACCESS = {
   permissions: [
-    { resource: { type: "CityDistrict" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const },
+    { resource: { type: "AdministrativeArea" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const },
     { resource: { type: "Event" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const },
     { resource: { type: "BikeHireDockingStation" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const },
     { resource: { type: "Alert" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const },
@@ -428,7 +428,7 @@ describe("district-compare", () => {
     const all = client.entities.all.bind(client.entities);
     let failing = true;
     client.entities.all = (async (type: string, query?: Parameters<typeof all>[1]) => {
-      if (failing && type === "CityDistrict") {
+      if (failing && type === "AdministrativeArea") {
         throw new ProblemError(503, { title: "District service unavailable", status: 503 });
       }
       return all(type, query);
@@ -496,7 +496,7 @@ describe("district-compare", () => {
     for (const button of screen.getAllByRole("button", { name: new RegExp(`^${details}: `) })) {
       fireEvent.click(button);
       const panel = await screen.findByRole("dialog");
-      expect(within(panel).getByText("CityDistrict")).toBeInTheDocument();
+      expect(within(panel).getByText("AdministrativeArea")).toBeInTheDocument();
       const link = await within(panel).findByRole("link", { name: portal });
       expect(link.getAttribute("href")).toContain("https://portal.hel.fi/projects/helsinki/explore?");
       link.addEventListener("click", (event) => event.preventDefault());
@@ -560,7 +560,7 @@ describe("district-compare", () => {
   it("follows districts and a measure named in the address after the page opened", async () => {
     show();
     await screen.findByRole("table", { name: "Selected districts compared" });
-    const code = String(ENTITIES.find((row) => row.type === "CityDistrict" && row.divisionLevel === "district")?.districtCode);
+    const code = String(ENTITIES.find((row) => row.type === "AdministrativeArea" && row.divisionLevel === "district")?.districtCode);
     window.location.hash = `#compare?d=${code}&m=bikes`;
     window.dispatchEvent(new HashChangeEvent("hashchange"));
     await waitFor(() => expect(screen.getByRole("combobox", { name: "Measure" })).toHaveValue("bikes"));
@@ -618,8 +618,8 @@ describe("district-compare", () => {
   });
 
   it("says why the history could not be read", async () => {
-    show(undefined, defaultComparer, fakeServer({ history: "CityDistrict: the gateway could not answer right now; try again shortly (502)" }));
-    expect(await screen.findByText("The history could not be read: CityDistrict: the gateway could not answer right now; try again shortly (502)")).toBeInTheDocument();
+    show(undefined, defaultComparer, fakeServer({ history: "AdministrativeArea: the gateway could not answer right now; try again shortly (502)" }));
+    expect(await screen.findByText("The history could not be read: AdministrativeArea: the gateway could not answer right now; try again shortly (502)")).toBeInTheDocument();
   });
 
   it("opens the boundaries and their licence in Finnish too", async () => {

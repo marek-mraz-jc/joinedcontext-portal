@@ -77,7 +77,7 @@ describe("narrowed", () => {
 
 describe("what the repository writes otherwise", () => {
   const P = (value: unknown) => ({ type: "Property", value });
-  const work = (attrs: Record<string, unknown>) => workOf(toRichRow({ id: "urn:ngsi-ld:CreativeWork:x", type: "CreativeWork", ...attrs }));
+  const work = (attrs: Record<string, unknown>) => workOf(toRichRow({ id: "urn:ngsi-ld:Article:x", type: "Article", ...attrs }));
 
   it("keeps what a work does not carry as null, and reads the first of several values", () => {
     expect(work({})).toMatchObject({ title: null, language: null, kind: null, year: null, collection: null, series: null, licence: null, url: null });

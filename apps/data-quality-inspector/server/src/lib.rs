@@ -43,13 +43,13 @@ const MOST: usize = 5000;
 const RUNS: i64 = 100;
 /// The types the App's data need names, inspected without a schema when none is published.
 const KNOWN_TYPES: [&str; 12] = [
+    "AdministrativeArea",
     "AirQualityObserved",
     "Alert",
+    "Article",
     "BikeHireDockingStation",
-    "CityDistrict",
     "CityWork",
     "Event",
-    "NewsArticle",
     "OnStreetParking",
     "PointOfInterest",
     "Vehicle",
@@ -749,8 +749,8 @@ mod tests {
             json!({"type": "Point", "coordinates": [24.9, 60.1]})
         );
         assert_eq!(
-            cell(&json!({"object": "urn:ngsi-ld:CityDistrict:x"})),
-            json!("urn:ngsi-ld:CityDistrict:x")
+            cell(&json!({"object": "urn:ngsi-ld:AdministrativeArea:x"})),
+            json!("urn:ngsi-ld:AdministrativeArea:x")
         );
         assert_eq!(cell(&json!(["a", 1, null])), json!("a, 1, "));
         assert_eq!(cell(&json!({"n": 1})), json!("{\"n\":1}"));

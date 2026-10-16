@@ -41,7 +41,7 @@ spec:
     - contextSpaceRef:
         kind: ContextSpace
         name: zilina-uniza
-      types: [CreativeWork]
+      types: [Article]
       attrs: [name, workType, yearPublished, isPartOf, publisher, license, url]
       operations: [queryEntity, retrieveEntity]
       representations: [ngsi-ld]

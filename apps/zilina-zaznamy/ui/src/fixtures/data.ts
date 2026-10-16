@@ -440,7 +440,7 @@ export const WORKS = [
       "type": "Property",
       "value": "Žilinská univerzita v Žiline, DREPO"
     },
-    "id": "urn:ngsi-ld:CreativeWork:zilina.sk:zilina-uniza:hdluniza-936",
+    "id": "urn:ngsi-ld:Article:zilina.sk:zilina-uniza:hdluniza-936",
     "isPartOf": {
       "type": "Property",
       "value": "Práce a štúdie - Vydanie 13"
@@ -463,7 +463,7 @@ export const WORKS = [
       "type": "Property",
       "value": "https://dspace.uniza.sk/server/api/"
     },
-    "type": "CreativeWork",
+    "type": "Article",
     "url": {
       "type": "Property",
       "value": "http://drepo.uniza.sk/handle/hdluniza/936"
@@ -482,7 +482,7 @@ export const WORKS = [
       "type": "Property",
       "value": "Žilinská univerzita v Žiline, DREPO"
     },
-    "id": "urn:ngsi-ld:CreativeWork:zilina.sk:zilina-uniza:hdluniza-237",
+    "id": "urn:ngsi-ld:Article:zilina.sk:zilina-uniza:hdluniza-237",
     "isPartOf": {
       "type": "Property",
       "value": "Pošta, Telekomunikácie a Elektronický obchod - ročník 13.; číslo 2/2018"
@@ -505,7 +505,7 @@ export const WORKS = [
       "type": "Property",
       "value": "https://dspace.uniza.sk/server/api/"
     },
-    "type": "CreativeWork",
+    "type": "Article",
     "url": {
       "type": "Property",
       "value": "http://drepo.uniza.sk/handle/hdluniza/237"
@@ -524,7 +524,7 @@ export const WORKS = [
       "type": "Property",
       "value": "Žilinská univerzita v Žiline, DREPO"
     },
-    "id": "urn:ngsi-ld:CreativeWork:zilina.sk:zilina-uniza:hdluniza-95",
+    "id": "urn:ngsi-ld:Article:zilina.sk:zilina-uniza:hdluniza-95",
     "isPartOf": {
       "type": "Property",
       "value": "Pošta, Telekomunikácie a Elektronický obchod - ročník 11.; číslo 1/2016"
@@ -547,7 +547,7 @@ export const WORKS = [
       "type": "Property",
       "value": "https://dspace.uniza.sk/server/api/"
     },
-    "type": "CreativeWork",
+    "type": "Article",
     "url": {
       "type": "Property",
       "value": "http://drepo.uniza.sk/handle/hdluniza/95"
@@ -566,7 +566,7 @@ export const WORKS = [
       "type": "Property",
       "value": "Žilinská univerzita v Žiline, DREPO"
     },
-    "id": "urn:ngsi-ld:CreativeWork:zilina.sk:zilina-uniza:hdluniza-94",
+    "id": "urn:ngsi-ld:Article:zilina.sk:zilina-uniza:hdluniza-94",
     "isPartOf": {
       "type": "Property",
       "value": "Pošta, Telekomunikácie a Elektronický obchod - ročník 10.; číslo 2/2015"
@@ -589,7 +589,7 @@ export const WORKS = [
       "type": "Property",
       "value": "https://dspace.uniza.sk/server/api/"
     },
-    "type": "CreativeWork",
+    "type": "Article",
     "url": {
       "type": "Property",
       "value": "http://drepo.uniza.sk/handle/hdluniza/94"
@@ -608,7 +608,7 @@ export const WORKS = [
       "type": "Property",
       "value": "Žilinská univerzita v Žiline, DREPO"
     },
-    "id": "urn:ngsi-ld:CreativeWork:zilina.sk:zilina-uniza:hdluniza-157",
+    "id": "urn:ngsi-ld:Article:zilina.sk:zilina-uniza:hdluniza-157",
     "isPartOf": {
       "type": "Property",
       "value": "Práce a štúdie - Vydanie 07"
@@ -631,7 +631,7 @@ export const WORKS = [
       "type": "Property",
       "value": "https://dspace.uniza.sk/server/api/"
     },
-    "type": "CreativeWork",
+    "type": "Article",
     "url": {
       "type": "Property",
       "value": "http://drepo.uniza.sk/handle/hdluniza/157"
@@ -650,7 +650,7 @@ export const WORKS = [
       "type": "Property",
       "value": "Žilinská univerzita v Žiline, DREPO"
     },
-    "id": "urn:ngsi-ld:CreativeWork:zilina.sk:zilina-uniza:hdluniza-905",
+    "id": "urn:ngsi-ld:Article:zilina.sk:zilina-uniza:hdluniza-905",
     "isPartOf": {
       "type": "Property",
       "value": "Súčasné problémy v koľajových vozidlách – PRORAIL 2023  Diel I."
@@ -673,7 +673,7 @@ export const WORKS = [
       "type": "Property",
       "value": "https://dspace.uniza.sk/server/api/"
     },
-    "type": "CreativeWork",
+    "type": "Article",
     "url": {
       "type": "Property",
       "value": "http://drepo.uniza.sk/handle/hdluniza/905"
@@ -692,7 +692,7 @@ export const WORKS = [
       "type": "Property",
       "value": "Žilinská univerzita v Žiline, DREPO"
     },
-    "id": "urn:ngsi-ld:CreativeWork:zilina.sk:zilina-uniza:hdluniza-979",
+    "id": "urn:ngsi-ld:Article:zilina.sk:zilina-uniza:hdluniza-979",
     "isPartOf": {
       "type": "Property",
       "value": "Práce a štúdie - Vydanie 14"
@@ -715,7 +715,7 @@ export const WORKS = [
       "type": "Property",
       "value": "https://dspace.uniza.sk/server/api/"
     },
-    "type": "CreativeWork",
+    "type": "Article",
     "url": {
       "type": "Property",
       "value": "http://drepo.uniza.sk/handle/hdluniza/979"
@@ -734,7 +734,7 @@ export const WORKS = [
       "type": "Property",
       "value": "Žilinská univerzita v Žiline, DREPO"
     },
-    "id": "urn:ngsi-ld:CreativeWork:zilina.sk:zilina-uniza:hdluniza-524",
+    "id": "urn:ngsi-ld:Article:zilina.sk:zilina-uniza:hdluniza-524",
     "isPartOf": {
       "type": "Property",
       "value": "Pošta, Telekomunikácie a Elektronický obchod - ročník 15.; číslo 2/2020"
@@ -757,7 +757,7 @@ export const WORKS = [
       "type": "Property",
       "value": "https://dspace.uniza.sk/server/api/"
     },
-    "type": "CreativeWork",
+    "type": "Article",
     "url": {
       "type": "Property",
       "value": "http://drepo.uniza.sk/handle/hdluniza/524"
@@ -777,7 +777,7 @@ const BY_TYPE: Record<string, unknown[]> = {
   PointOfInterest: MONUMENTS,
   GtfsStop: STATIONS,
   AirQualityObserved: AIR,
-  CreativeWork: WORKS,
+  Article: WORKS,
 };
 
 /** An endpoint's answer to `?type=…`: every entity of that type, or none. */

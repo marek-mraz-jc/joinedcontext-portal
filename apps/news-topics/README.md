@@ -15,7 +15,7 @@ Text analysis and clustering run client-side in WebAssembly (`news-topics-wasm` 
 - keyword extraction from topic centroid weights;
 - ISO week bucketing and weekly topic share calculation.
 
-It is a `wasm` application on the joinedcontext App SDK (AP-148): React and Rust/WASM in the browser, read-only, one data need on Context Space `helsinki` (`NewsArticle`: `name`, `description`, `url`, `datePublished`, `source`). The Portal serves it under `/apps/news-topics/` and fills `#jc-config` with the endpoint configuration.
+It is a `wasm` application on the joinedcontext App SDK (AP-148): React and Rust/WASM in the browser, read-only, one data need on Context Space `helsinki` (`Article`: `name`, `description`, `url`, `datePublished`, `source`). The Portal serves it under `/apps/news-topics/` and fills `#jc-config` with the endpoint configuration.
 
 Its server component (`server/`, `wasm32-wasip2` on `jc-app-sdk`, T-3352) runs on the shared WASM host and keeps what the browser cannot: the feed holds only its recent articles, so the server reads them through the App's own Endpoint with the reader's token, fits the same topic model (`wasm/` without wasm-bindgen, five topics) to each ISO week, and keeps every week's topics and keywords in its tables `topic_runs` and `week_topics` (`migrations/`), recomputed when older than six hours. The week's articles go to the App's storage prefix as `corpus/<week>.json`; the page downloads them through a presigned URL.
 

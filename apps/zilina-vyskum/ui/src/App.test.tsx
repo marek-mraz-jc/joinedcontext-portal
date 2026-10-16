@@ -25,7 +25,7 @@ function show(respond?: (url: URL) => Response, withEndpoint = true, language = 
     }),
   );
   // The list reads through `fetch` above; the entity panel reads one work through the client (SDK-40).
-  const client = stubClient({ entities: answer("CreativeWork", 0, 1000) as Row[] }, {
+  const client = stubClient({ entities: answer("Article", 0, 1000) as Row[] }, {
     portal: "https://portal.zilina.sk/projects/zilina",
     slug: withEndpoint ? "os4quyrmvhijr3x7x4fno2jicej4ifv5" : "",
     orgDomain: "zilina.sk",
@@ -162,10 +162,10 @@ describe("the research screen", () => {
   it("lists a work the repository says little about, in Slovak when the reader's language is unknown", async () => {
     const P = (value: unknown) => ({ type: "Property", value });
     const rows = [
-      { id: "urn:ngsi-ld:CreativeWork:zilina.sk:zilina-uniza:bare", type: "CreativeWork" },
+      { id: "urn:ngsi-ld:Article:zilina.sk:zilina-uniza:bare", type: "Article" },
       {
-        id: "urn:ngsi-ld:CreativeWork:zilina.sk:zilina-uniza:odd",
-        type: "CreativeWork",
+        id: "urn:ngsi-ld:Article:zilina.sk:zilina-uniza:odd",
+        type: "Article",
         name: { type: "LanguageProperty", languageMap: { la: "Opus" } },
         workType: P("Thesis"),
         yearPublished: P(2020),
@@ -185,7 +185,7 @@ describe("the research screen", () => {
   });
 
   it("says how many it shows when the repository holds more than the screen reads", async () => {
-    const full = answer("CreativeWork", 0, 200);
+    const full = answer("Article", 0, 200);
     show(() => new Response(JSON.stringify(full), { status: 200, headers: { "content-type": "application/json" } }));
     expect(await screen.findByText(s.truncated(MOST))).toBeInTheDocument();
     touchList();

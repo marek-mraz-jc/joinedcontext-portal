@@ -34,7 +34,7 @@ spec:
     - contextSpaceRef:
         kind: ContextSpace
         name: praha-mesto
-      types: [PointOfInterest, WasteContainerIsle, WasteContainer, OffStreetParking, BikeHireDockingStation, AirQualityObserved, CityDistrict, BudgetLine]
+      types: [PointOfInterest, WasteContainerIsle, WasteContainer, OffStreetParking, BikeHireDockingStation, AirQualityObserved, AdministrativeArea, BudgetLine]
       attrs: [name, serviceCategory, facilityType, address, openingHours, wheelchairAccessible, capacity, pupilCount, url, stationCode, accessRestriction, containerCode, wasteKind, fillingLevel, dateModified, totalSpotNumber, availableSpotNumber, occupiedSpotNumber, totalSlotNumber, availableBikeNumber, freeSlotNumber, status, dateObserved, pm10, pm25, no2, o3, so2, co, districtCode, budgetItem, fiscalYear, budgetArea, budgetFunction, budgetPurpose, approvedAmount, adjustedAmount]
       operations: [queryEntity, retrieveEntity]
       representations: [ngsi-ld, csv, geojson, ogc-features]

@@ -36,7 +36,7 @@ export const OTHERS: Record<string, unknown[]> = {
   OffStreetParking: [{ id: URN("OffStreetParking", "pr-zlicin"), type: "OffStreetParking", name: name("P+R Zličín"), totalSpotNumber: value(470), availableSpotNumber: value(112), occupiedSpotNumber: value(358), dateModified: value("2026-10-06T07:40:00Z") }],
   BikeHireDockingStation: [{ id: URN("BikeHireDockingStation", "nextbike-1"), type: "BikeHireDockingStation", name: name("Václavské náměstí"), totalSlotNumber: value(20), availableBikeNumber: value(7), freeSlotNumber: value(13), status: value("working"), dateModified: value("2026-10-06T07:40:00Z") }],
   AirQualityObserved: [{ id: URN("AirQualityObserved", "legerova"), type: "AirQualityObserved", name: name("Praha 2 – Legerova"), dateObserved: value("2026-10-06T07:00:00Z"), pm10: value(21), pm25: value(12), no2: value(38), o3: value(41), so2: value(3), co: value(0.4) }],
-  CityDistrict: [{ id: URN("CityDistrict", "praha-1"), type: "CityDistrict", name: name("Praha 1"), districtCode: value("500054") }],
+  AdministrativeArea: [{ id: URN("AdministrativeArea", "praha-1"), type: "AdministrativeArea", name: name("Praha 1"), districtCode: value("500054") }],
 };
 
 /** The rows of one type, as `GET …/entities?type=…` answers them. */

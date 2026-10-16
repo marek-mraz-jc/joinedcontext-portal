@@ -16,11 +16,11 @@ import { LOCALES } from "./locales";
 const s = LOCALES.sk;
 const ENDPOINTS = [
   { name: "app-zilina-zaznamy", slug: "verejne-slug", space: "zilina-verejne", types: ["PointOfInterest", "GtfsStop", "AirQualityObserved"] },
-  { name: "app-zilina-zaznamy-uniza", slug: "uniza-slug", space: "zilina-uniza", types: ["CreativeWork"] },
+  { name: "app-zilina-zaznamy-uniza", slug: "uniza-slug", space: "zilina-uniza", types: ["Article"] },
 ];
 
 /** Every row the endpoints hold, for the entity panel's reads through the client (SDK-40). */
-const ROWS = ["PointOfInterest", "GtfsStop", "AirQualityObserved", "CreativeWork"].flatMap((type) => answer(type)) as Row[];
+const ROWS = ["PointOfInterest", "GtfsStop", "AirQualityObserved", "Article"].flatMap((type) => answer(type)) as Row[];
 
 /** What the endpoints answer from here on, where a test answers otherwise than the fixture. */
 let answering: ((path: string) => Promise<Response>) | null = null;
@@ -76,7 +76,7 @@ describe("the Žilina records", () => {
   it("reads each dataset through the endpoint of its own space", async () => {
     const { calls } = show();
     await choose(s.name.works);
-    await waitFor(() => expect(calls.some((call) => call.includes("/api/endpoint/uniza-slug/") && call.includes("type=CreativeWork"))).toBe(true));
+    await waitFor(() => expect(calls.some((call) => call.includes("/api/endpoint/uniza-slug/") && call.includes("type=Article"))).toBe(true));
     expect(await screen.findByRole("heading", { level: 2, name: s.name.works })).toBeInTheDocument();
     await choose(s.name.stations);
     await waitFor(() => expect(within(screen.getByRole("grid")).getByText("Brodno")).toBeInTheDocument());

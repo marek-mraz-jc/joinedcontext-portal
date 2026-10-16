@@ -7,7 +7,7 @@ export const NOW = 1_791_460_900;
  * Platform JSON schemas for three types:
  * - BikeHireDockingStation: LanguageProperty name, GeoProperty location with required [type, coordinates],
  *   integer availableBikeNumber min 0, status string, dateModified date-time.
- * - CityDistrict: districtCode pattern ^[0-9]{1,10}$, divisionLevel $ref.
+ * - AdministrativeArea: districtCode pattern ^[0-9]{1,10}$, divisionLevel $ref.
  * - Event: startDate date-time, url format uri.
  * All three carry additionalProperties: false and required: ["id", "type"].
  */
@@ -41,7 +41,7 @@ export const SCHEMA: Record<string, unknown> = {
     additionalProperties: false,
     required: ["id", "type"],
   },
-  CityDistrict: {
+  AdministrativeArea: {
     properties: {
       districtCode: {
         type: "string",
@@ -149,20 +149,20 @@ const BIKE_ROWS: Row[] = [
 ];
 
 /**
- * Two CityDistrict entities:
+ * Two AdministrativeArea entities:
  * - dist-1: clean (districtCode "001", divisionLevel "district")
  * - dist-fail: districtCode "12a" (pattern ^[0-9]{1,10}$ violation)
  */
 const DISTRICT_ROWS: Row[] = [
   {
-    id: "urn:ngsi-ld:CityDistrict:dist-1",
-    type: "CityDistrict",
+    id: "urn:ngsi-ld:AdministrativeArea:dist-1",
+    type: "AdministrativeArea",
     districtCode: "001",
     divisionLevel: "district",
   },
   {
-    id: "urn:ngsi-ld:CityDistrict:dist-fail",
-    type: "CityDistrict",
+    id: "urn:ngsi-ld:AdministrativeArea:dist-fail",
+    type: "AdministrativeArea",
     districtCode: "12a",
     divisionLevel: "district",
   },
@@ -209,7 +209,7 @@ const VEHICLE_ROWS: Row[] = [
 
 export const ROWS_BY_TYPE: Record<string, Row[]> = {
   BikeHireDockingStation: BIKE_ROWS,
-  CityDistrict: DISTRICT_ROWS,
+  AdministrativeArea: DISTRICT_ROWS,
   Event: EVENT_ROWS,
   Vehicle: VEHICLE_ROWS,
 };

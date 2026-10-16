@@ -20,7 +20,7 @@ spec:
     - type: Event
     - type: Alert
     - type: OnStreetParking
-    - type: CityDistrict
+    - type: AdministrativeArea
     - type: WaterQualityObserved
     - type: AirQualityObserved
     - type: WeatherObserved

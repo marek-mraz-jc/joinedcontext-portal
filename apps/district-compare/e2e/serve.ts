@@ -52,7 +52,7 @@ export async function serve(page: Page, entities = ENTITIES, me: { id: string; n
     entities,
     access: {
       permissions: [
-        { resource: { type: "CityDistrict" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" },
+        { resource: { type: "AdministrativeArea" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" },
         { resource: { type: "Event" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" },
         { resource: { type: "BikeHireDockingStation" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" },
         { resource: { type: "Alert" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" },

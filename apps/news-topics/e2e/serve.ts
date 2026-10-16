@@ -83,7 +83,7 @@ export async function serve(page: Page, me: Me = VIEWER): Promise<Served> {
   const roles = roleServer(me);
   const transport = stubTransport({
     entities: NEWS,
-    access: { permissions: [{ resource: { type: "NewsArticle" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }], prohibitions: [] },
+    access: { permissions: [{ resource: { type: "Article" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }], prohibitions: [] },
   });
   const served: Served = { outside: [], missing: [], problems: [] };
   page.on("pageerror", (error) => served.problems.push(error.message));

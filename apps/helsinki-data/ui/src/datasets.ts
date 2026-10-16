@@ -16,7 +16,7 @@ export const TYPE_OF: Record<Dataset, string> = {
   events: "Event",
   alerts: "Alert",
   zones: "OnStreetParking",
-  districts: "CityDistrict",
+  districts: "AdministrativeArea",
   water: "WaterQualityObserved",
   air: "AirQualityObserved",
   weather: "WeatherObserved",

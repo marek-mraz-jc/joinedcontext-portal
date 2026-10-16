@@ -31,7 +31,7 @@ const runInspector: Inspector = async (input) => parseAnswer(inspect(JSON.string
 vi.mock("echarts", () => ({ init: vi.fn(() => ({ setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn(), on: vi.fn() })) }));
 
 const ACCESS = {
-  permissions: ["BikeHireDockingStation", "CityDistrict", "Event", "Vehicle"].map((type) => ({ resource: { type }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const })),
+  permissions: ["BikeHireDockingStation", "AdministrativeArea", "Event", "Vehicle"].map((type) => ({ resource: { type }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const })),
   prohibitions: [],
 };
 const NEG = "urn:ngsi-ld:BikeHireDockingStation:fail-neg";
@@ -209,7 +209,7 @@ describe("a steward", () => {
       const main = () => container.querySelector<HTMLElement>("main") ?? container;
       // Each type's findings answered in turn: each one's form opened and every control of it used,
       // once as it opens and once with a yes-or-no value; a resolved one opened again.
-      for (const type of ["BikeHireDockingStation", "CityDistrict", "Event", "Vehicle"]) {
+      for (const type of ["BikeHireDockingStation", "AdministrativeArea", "Event", "Vehicle"]) {
         await act(async () => {
           window.location.hash = `#quality?type=${type}`;
           window.dispatchEvent(new HashChangeEvent("hashchange"));

@@ -1,7 +1,7 @@
 import type { Row } from "@joinedcontext/sdk";
 
 const article = (local: string, fields: Record<string, unknown>): Row =>
-  ({ id: `urn:ngsi-ld:NewsArticle:hel.fi:helsinki:${local}`, type: "NewsArticle", ...fields }) as Row;
+  ({ id: `urn:ngsi-ld:Article:hel.fi:helsinki:${local}`, type: "Article", ...fields }) as Row;
 
 const lang = (en: string) => ({ languageMap: { en } });
 

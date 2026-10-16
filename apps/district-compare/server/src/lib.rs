@@ -67,7 +67,7 @@ Source: City of Helsinki, the open WFS layer avoindata:Kaupunginosajako\n\
 catalogue as the package helsingin-piirijako.\n\
 Licence: Creative Commons Attribution 4.0 International (CC BY 4.0),\n\
 https://creativecommons.org/licenses/by/4.0/\n\n\
-This file holds the boundaries as the joinedcontext platform's CityDistrict entities carried them\n\
+This file holds the boundaries as the joinedcontext platform's AdministrativeArea entities carried them\n\
 on the day written below; the App district-compare wrote it.\n";
 
 /// A keyValues text as a person reads it: a string, the Finnish or English of a language map.
@@ -253,7 +253,7 @@ fn entities(kind: &str, attrs: &str) -> Result<Vec<Json>, gateway::Error> {
 /// Reads the feeds, compares, and keeps today's figures of every district and the boundaries.
 fn refresh() -> Result<(), Response> {
     let read = |kind: &str, attrs: &str| entities(kind, attrs).map_err(|err| refused(kind, err));
-    let districts = read("CityDistrict", "name,districtCode,divisionLevel,location")?;
+    let districts = read("AdministrativeArea", "name,districtCode,divisionLevel,location")?;
     let input = input(
         &districts,
         &read("Event", "location")?,
@@ -704,7 +704,7 @@ mod tests {
     ];
 
     fn district(code: Json, name: Json, level: &str) -> Json {
-        json!({"id": "urn:ngsi-ld:CityDistrict:d", "type": "CityDistrict", "districtCode": code, "name": name, "divisionLevel": level,
+        json!({"id": "urn:ngsi-ld:AdministrativeArea:d", "type": "AdministrativeArea", "districtCode": code, "name": name, "divisionLevel": level,
                "location": {"type": "Polygon", "coordinates": [SQUARE]}})
     }
 

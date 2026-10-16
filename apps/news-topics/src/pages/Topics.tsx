@@ -12,7 +12,7 @@ import { mergeNamed, topTerm, useTopics } from "../topics";
 import type { Topic, WeekShare } from "../topics";
 import { useServer } from "../server";
 
-const ENTITY_TYPE = "NewsArticle";
+const ENTITY_TYPE = "Article";
 
 interface HashState {
   weeks: string;

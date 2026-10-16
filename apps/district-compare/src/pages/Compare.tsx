@@ -109,7 +109,7 @@ export function barChartOption(
  * has its Details button; the App is public, so the panel links it to the Portal (AP-140).
  */
 export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
-  const districtsRes = useEntities("CityDistrict", DISTRICT_QUERY);
+  const districtsRes = useEntities("AdministrativeArea", DISTRICT_QUERY);
   const server = useServer(useClient().config.appName);
   const eventsRes = useEntities("Event", EVENT_QUERY);
   const bikesRes = useEntities("BikeHireDockingStation", BIKE_QUERY);
@@ -149,7 +149,7 @@ export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
   const idOf = useMemo(() => new Map(districtRows.map((r) => [String(r.districtCode ?? ""), r.id])), [districtRows]);
   const open = (code: string) => {
     const id = idOf.get(code);
-    if (id) select({ id, type: "CityDistrict" });
+    if (id) select({ id, type: "AdministrativeArea" });
   };
   const geometries = useMemo(
     () => new Map(districtRows.map((r) => [String(r.districtCode ?? ""), r.location])),
@@ -304,7 +304,7 @@ export function Compare({ lang }: { lang: Lang }): React.JSX.Element {
 
   const stillReading = useMemo(() => {
     const list: string[] = [];
-    if (districtsRes.loading) list.push(translateType("CityDistrict", lang));
+    if (districtsRes.loading) list.push(translateType("AdministrativeArea", lang));
     if (eventsRes.loading) list.push(translateType("Event", lang));
     if (bikesRes.loading) list.push(translateType("BikeHireDockingStation", lang));
     if (alertsRes.loading) list.push(translateType("Alert", lang));

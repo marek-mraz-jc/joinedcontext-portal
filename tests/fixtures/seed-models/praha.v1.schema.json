@@ -3,6 +3,100 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "definitions": {
+    "AdministrativeArea": {
+      "additionalProperties": false,
+      "description": "One of the 57 city districts (m\u011bstsk\u00e9 \u010d\u00e1sti) of Prague, its outline and its code, as the Smart Data Model extension AdministrativeArea (PointOfInterest base, T-4338).",
+      "properties": {
+        "dataProvider": {
+          "description": "Who publishes the data the entity was read from, with the credit its licence asks for, as an application shows it beside the data.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
+        "districtCode": {
+          "description": "The district's R\u00daIAN code, the key the national registers and the waste register use.",
+          "pattern": "^[0-9]{6}$",
+          "type": "string",
+          "x-ngsi-ld-kind": "Property"
+        },
+        "id": {
+          "description": "The entity id, urn:ngsi-ld:{Type}:{orgDomain}:{space}:{localId}.",
+          "type": "string",
+          "x-ngsi-ld-kind": "Property"
+        },
+        "location": {
+          "description": "Where the entity is, as GeoJSON geometry.",
+          "properties": {
+            "coordinates": {
+              "type": "array"
+            },
+            "type": {
+              "enum": [
+                "Point",
+                "MultiPoint",
+                "LineString",
+                "MultiLineString",
+                "Polygon",
+                "MultiPolygon"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "coordinates"
+          ],
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "GeoProperty"
+        },
+        "name": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "The name, per language, as the publisher writes it.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "LanguageProperty"
+        },
+        "observedAt": {
+          "description": "When the observation the entity reports was made.",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
+        "source": {
+          "description": "The open-data service the entity was read from.",
+          "format": "uri",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
+        "type": {
+          "description": "The entity type, one class of a published data model.",
+          "type": "string",
+          "x-ngsi-ld-kind": "Property"
+        }
+      },
+      "required": [
+        "districtCode",
+        "id",
+        "type"
+      ],
+      "title": "AdministrativeArea",
+      "type": "object"
+    },
     "AirQualityObserved": {
       "additionalProperties": false,
       "description": "One of \u010cHM\u00da's air quality stations in Prague and the hour's means it last published.",
@@ -301,7 +395,7 @@
     },
     "BudgetLine": {
       "additionalProperties": false,
-      "description": "One line of the city budget of the City of Prague (Magistr\u00e1t hl. m. Prahy), in the national budget classification, with the approved and the adjusted amount.",
+      "description": "One line of the city budget of the City of Prague (Magistr\u00e1t hl. m. Prahy), in the national budget classification, with the approved and the adjusted amount, as the Smart Data Model extension BudgetLine (CPSV-AP Cost base, T-4338).",
       "properties": {
         "adjustedAmount": {
           "description": "The amount after the year's budget changes so far, in the same unit as the approved one.",
@@ -357,6 +451,11 @@
           "type": "string",
           "x-ngsi-ld-kind": "Property"
         },
+        "identifier": {
+          "description": "The budget line's own key, the year and its codes of area, function, item and purpose (`mhmp-2026-00-612100-5011-000000000`), the identifier the BudgetLine extension requires.",
+          "type": "string",
+          "x-ngsi-ld-kind": "Property"
+        },
         "location": {
           "description": "Where the entity is, as GeoJSON geometry.",
           "properties": {
@@ -410,6 +509,7 @@
         }
       },
       "required": [
+        "identifier",
         "fiscalYear",
         "budgetFunction",
         "budgetItem",
@@ -419,100 +519,6 @@
         "type"
       ],
       "title": "BudgetLine",
-      "type": "object"
-    },
-    "CityDistrict": {
-      "additionalProperties": false,
-      "description": "One of the 57 city districts (m\u011bstsk\u00e9 \u010d\u00e1sti) of Prague, its outline and its code.",
-      "properties": {
-        "dataProvider": {
-          "description": "Who publishes the data the entity was read from, with the credit its licence asks for, as an application shows it beside the data.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "x-ngsi-ld-kind": "Property"
-        },
-        "districtCode": {
-          "description": "The district's R\u00daIAN code, the key the national registers and the waste register use.",
-          "pattern": "^[0-9]{6}$",
-          "type": "string",
-          "x-ngsi-ld-kind": "Property"
-        },
-        "id": {
-          "description": "The entity id, urn:ngsi-ld:{Type}:{orgDomain}:{space}:{localId}.",
-          "type": "string",
-          "x-ngsi-ld-kind": "Property"
-        },
-        "location": {
-          "description": "Where the entity is, as GeoJSON geometry.",
-          "properties": {
-            "coordinates": {
-              "type": "array"
-            },
-            "type": {
-              "enum": [
-                "Point",
-                "MultiPoint",
-                "LineString",
-                "MultiLineString",
-                "Polygon",
-                "MultiPolygon"
-              ],
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "coordinates"
-          ],
-          "type": [
-            "object",
-            "null"
-          ],
-          "x-ngsi-ld-kind": "GeoProperty"
-        },
-        "name": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "The name, per language, as the publisher writes it.",
-          "type": [
-            "object",
-            "null"
-          ],
-          "x-ngsi-ld-kind": "LanguageProperty"
-        },
-        "observedAt": {
-          "description": "When the observation the entity reports was made.",
-          "format": "date-time",
-          "type": [
-            "string",
-            "null"
-          ],
-          "x-ngsi-ld-kind": "Property"
-        },
-        "source": {
-          "description": "The open-data service the entity was read from.",
-          "format": "uri",
-          "type": [
-            "string",
-            "null"
-          ],
-          "x-ngsi-ld-kind": "Property"
-        },
-        "type": {
-          "description": "The entity type, one class of a published data model.",
-          "type": "string",
-          "x-ngsi-ld-kind": "Property"
-        }
-      },
-      "required": [
-        "districtCode",
-        "id",
-        "type"
-      ],
-      "title": "CityDistrict",
       "type": "object"
     },
     "Entity": {
@@ -1124,14 +1130,14 @@
         },
         "refDistrict": {
           "description": "The city district the record lies in.",
-          "pattern": "^urn:ngsi-ld:CityDistrict:",
+          "pattern": "^urn:ngsi-ld:AdministrativeArea:",
           "type": "string",
           "x-ngsi-ld-kind": "Relationship",
           "x-ngsi-ld-relationship": {
             "cardinality": "many-to-one",
             "inverse": "wasteContainerIsles",
             "onDelete": "restrict",
-            "target": "CityDistrict",
+            "target": "AdministrativeArea",
             "unique": false
           }
         },

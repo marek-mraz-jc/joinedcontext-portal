@@ -37,7 +37,7 @@ const ALL_WORDS: Word[] = [
   "noneSelected",
   "deselectDistrict",
   "selectDistrict",
-  "type_CityDistrict",
+  "type_AdministrativeArea",
   "type_Event",
   "type_BikeHireDockingStation",
   "type_Alert",
@@ -122,8 +122,8 @@ describe("measure titles and units", () => {
 
 describe("translateType", () => {
   it("translates known entity types and falls back to raw type name for unknown", () => {
-    expect(translateType("CityDistrict", "en")).toBe("City districts");
-    expect(translateType("CityDistrict", "fi")).toBe("Kaupunginosat");
+    expect(translateType("AdministrativeArea", "en")).toBe("City districts");
+    expect(translateType("AdministrativeArea", "fi")).toBe("Kaupunginosat");
     expect(translateType("Event", "en")).toBe("Events");
     expect(translateType("Event", "fi")).toBe("Tapahtumat");
     expect(translateType("BikeHireDockingStation", "en")).toBe("Bike stations");

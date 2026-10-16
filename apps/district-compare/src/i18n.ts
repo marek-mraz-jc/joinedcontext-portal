@@ -66,7 +66,7 @@ const WORDS = {
   details: { fi: "Tiedot: {name}", en: "Details: {name}", sv: "Detaljer: {name}" },
   deselectDistrict: { fi: "Poista valinta: {name}", en: "Deselect {name}", sv: "Avmarkera {name}" },
   selectDistrict: { fi: "Valitse {name}", en: "Select {name}", sv: "Välj {name}" },
-  type_CityDistrict: { fi: "Kaupunginosat", en: "City districts", sv: "Stadsdelar" },
+  type_AdministrativeArea: { fi: "Kaupunginosat", en: "City districts", sv: "Stadsdelar" },
   type_Event: { fi: "Tapahtumat", en: "Events", sv: "Evenemang" },
   type_BikeHireDockingStation: { fi: "Kaupunkipyöräasemat", en: "Bike stations", sv: "Cykelstationer" },
   type_Alert: { fi: "Liikennetiedotteet", en: "Alerts", sv: "Trafikmeddelanden" },

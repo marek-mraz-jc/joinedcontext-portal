@@ -3,9 +3,9 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "definitions": {
-    "CreativeWork": {
+    "Article": {
       "additionalProperties": false,
-      "description": "One openly licensed work of the University of \u017dilina's digital library.",
+      "description": "One openly licensed work of the University of \u017dilina's digital library, as the Smart Data Model extension Article (CPSV-AP Evidence base, T-4338).",
       "properties": {
         "dataProvider": {
           "description": "Who publishes the record, with the credit its licence asks for.",
@@ -17,6 +17,11 @@
         },
         "id": {
           "description": "The entity id, urn:ngsi-ld:{Type}:{orgDomain}:{space}:{localId}.",
+          "type": "string",
+          "x-ngsi-ld-kind": "Property"
+        },
+        "identifier": {
+          "description": "The work's handle in the repository (`hdluniza/936`), the identifier the Article extension requires.",
           "type": "string",
           "x-ngsi-ld-kind": "Property"
         },
@@ -132,11 +137,12 @@
         }
       },
       "required": [
+        "identifier",
         "license",
         "id",
         "type"
       ],
-      "title": "CreativeWork",
+      "title": "Article",
       "type": "object"
     },
     "Entity": {

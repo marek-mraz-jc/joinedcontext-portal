@@ -48,7 +48,7 @@ describe("wasm inspect on fixtures", () => {
     expect(bikeType!.valid!).toBeLessThan(1.0);
     expect(bikeType!.valid!).toBeGreaterThan(0);
 
-    const districtType = out.types.find((t) => t.type === "CityDistrict");
+    const districtType = out.types.find((t) => t.type === "AdministrativeArea");
     expect(districtType).toBeDefined();
     expect(districtType?.valid).not.toBeNull();
     expect(districtType!.valid!).toBeLessThan(1.0);
@@ -93,7 +93,7 @@ describe("wasm inspect on fixtures", () => {
     expect(reqFinding?.detail).toBe("coordinates");
 
     // 6. districtCode with invalid pattern -> pattern
-    const districtType = out.types.find((t) => t.type === "CityDistrict");
+    const districtType = out.types.find((t) => t.type === "AdministrativeArea");
     expect(districtType).toBeDefined();
     const patternFinding = districtType?.findings.find(
       (f) => f.attribute === "districtCode" && f.rule === "pattern",
@@ -103,7 +103,7 @@ describe("wasm inspect on fixtures", () => {
   });
 
   it("counts $ref properties in notChecked and never fails them", () => {
-    const districtType = out.types.find((t) => t.type === "CityDistrict");
+    const districtType = out.types.find((t) => t.type === "AdministrativeArea");
     expect(districtType).toBeDefined();
 
     const divisionAttr = districtType?.attributes.find((a) => a.name === "divisionLevel");
@@ -127,7 +127,7 @@ describe("wasm inspect on fixtures", () => {
     const vehicleType = out.types.find((t) => t.type === "Vehicle");
     expect(vehicleType?.freshness).toBeNull();
 
-    const districtType = out.types.find((t) => t.type === "CityDistrict");
+    const districtType = out.types.find((t) => t.type === "AdministrativeArea");
     expect(districtType?.freshness).toBeNull();
   });
 

@@ -1,5 +1,5 @@
 /**
- * The university's openly licensed works as the screen reads them (T-3140): one `CreativeWork` of
+ * The university's openly licensed works as the screen reads them (T-3140): one `Article` of
  * `zilina-uniza` each, written by the pipeline drepo from DREPO. No work carries an author, and the
  * screen asks for none. A value the entity does not carry stays `null`, never a zero or "".
  */

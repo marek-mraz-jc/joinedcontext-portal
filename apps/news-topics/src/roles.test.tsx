@@ -23,8 +23,8 @@ const SWEEP = 30_000;
 vi.mock("echarts", () => ({ init: () => ({ setOption: () => undefined, resize: () => undefined, dispose: () => undefined, on: () => undefined }) }));
 
 const article = (n: number, name: string): Row => ({
-  id: `urn:ngsi-ld:NewsArticle:hel.fi:helsinki:news-${n}`,
-  type: "NewsArticle",
+  id: `urn:ngsi-ld:Article:hel.fi:helsinki:news-${n}`,
+  type: "Article",
   name,
   datePublished: `2026-10-0${n}T08:00:00Z`,
 });
@@ -44,7 +44,7 @@ vi.mock("./topics", async (original) => ({
 }));
 
 const READ = {
-  permissions: [{ resource: { type: "NewsArticle" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const }],
+  permissions: [{ resource: { type: "Article" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const }],
   prohibitions: [],
 };
 

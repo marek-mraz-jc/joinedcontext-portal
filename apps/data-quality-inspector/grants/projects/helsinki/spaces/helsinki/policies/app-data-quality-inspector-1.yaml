@@ -18,9 +18,9 @@ spec:
     - type: AirQualityObserved
     - type: Alert
     - type: BikeHireDockingStation
-    - type: CityDistrict
+    - type: AdministrativeArea
     - type: Event
-    - type: NewsArticle
+    - type: Article
     - type: OnStreetParking
     - type: PointOfInterest
     - type: CityWork

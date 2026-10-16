@@ -36,7 +36,7 @@ vi.mock("echarts", () => ({
 const ACCESS = {
   permissions: [
     { resource: { type: "BikeHireDockingStation" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const },
-    { resource: { type: "CityDistrict" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const },
+    { resource: { type: "AdministrativeArea" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const },
     { resource: { type: "Event" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const },
     { resource: { type: "Vehicle" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" as const },
   ],
@@ -111,7 +111,7 @@ describe("data-quality-inspector", () => {
     // Type buttons bar contains all 4 types
     const typeList = await screen.findByRole("list", { name: "Entity types" });
     expect(within(typeList).getByRole("button", { name: "BikeHireDockingStation" })).toBeInTheDocument();
-    expect(within(typeList).getByRole("button", { name: "CityDistrict" })).toBeInTheDocument();
+    expect(within(typeList).getByRole("button", { name: "AdministrativeArea" })).toBeInTheDocument();
     expect(within(typeList).getByRole("button", { name: "Event" })).toBeInTheDocument();
     expect(within(typeList).getByRole("button", { name: "Vehicle" })).toBeInTheDocument();
 
@@ -121,7 +121,7 @@ describe("data-quality-inspector", () => {
     expect(within(bikeTile).getByText("33 %")).toBeInTheDocument(); // valid 2/6
     expect(within(bikeTile).getByText("5 min")).toBeInTheDocument(); // median age
 
-    const districtTile = screen.getByRole("button", { name: /^CityDistrict: 2 entities/i });
+    const districtTile = screen.getByRole("button", { name: /^AdministrativeArea: 2 entities/i });
     expect(within(districtTile).getByText("50 %")).toBeInTheDocument(); // valid 1/2
     expect(within(districtTile).getByText("no timestamp")).toBeInTheDocument();
 
@@ -219,7 +219,7 @@ describe("data-quality-inspector", () => {
 
     // Other tiles remain functional
     expect(await screen.findByRole("button", { name: /^BikeHireDockingStation: 6 entities/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^CityDistrict: 2 entities/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^AdministrativeArea: 2 entities/i })).toBeInTheDocument();
   });
 
   it("reads two types at a time, so the gateway's rate limit is not hit, and still reads every one", async () => {
@@ -334,7 +334,7 @@ describe("data-quality-inspector", () => {
 
   it("opens each failing entity in the SDK's panel, linked to the Portal, with no Edit on a public App", async () => {
     show();
-    for (const type of ["BikeHireDockingStation", "CityDistrict", "Event"]) {
+    for (const type of ["BikeHireDockingStation", "AdministrativeArea", "Event"]) {
     fireEvent.click(await screen.findByRole("button", { name: type }));
     const failing = await screen.findByRole("table", { name: "Failing entities" });
     // The ids open the panel; the state column's buttons are the steward's (T-3827).
