@@ -16,6 +16,7 @@ spec:
     name: helsinki-kpi
   enabledRepresentations:
   - ngsi-ld
+  - mcp
   - ogc-features
   roles:
   - name: viewer

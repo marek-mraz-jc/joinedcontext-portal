@@ -860,14 +860,16 @@ fn endpoint(
     slug: &EndpointSlug,
 ) -> RawManifest {
     let representations: Vec<&str> = {
-        let declared: BTreeSet<Representation> = spec.representations();
+        let mut declared: BTreeSet<Representation> = spec.representations();
         if declared.is_empty() {
             // An app that names no representation still needs one; NGSI-LD is the canonical
             // surface every other representation projects from (EP-05).
-            vec![Representation::NgsiLd.as_str()]
-        } else {
-            declared.iter().map(Representation::as_str).collect()
+            declared.insert(Representation::NgsiLd);
         }
+        // Every Endpoint answers MCP (T-4319, owner 2026-10-16); its audience and Policy still
+        // decide who may call it.
+        declared.insert(Representation::Mcp);
+        declared.iter().map(Representation::as_str).collect()
     };
 
     let (audience, allowed_projects) = match spec.visibility {

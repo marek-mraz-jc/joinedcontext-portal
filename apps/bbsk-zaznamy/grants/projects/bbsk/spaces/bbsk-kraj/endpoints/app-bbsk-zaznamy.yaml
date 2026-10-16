@@ -18,5 +18,6 @@ spec:
     name: bbsk-kraj
   enabledRepresentations:
   - ngsi-ld
+  - mcp
   - ogc-features
   slug: 66kkv3xr4lau6pjg2i5ef5lonc
