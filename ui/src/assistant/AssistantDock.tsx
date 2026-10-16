@@ -9,6 +9,7 @@ import { ASSISTANT_EVENT } from "../navigation/shortcuts";
 import { useHiddenSections } from "../branding";
 import { isHiddenSection } from "../components/layout/navigation";
 import { api, ApiError, unwrap } from "../api/client";
+import { usePermissions } from "../api/permissions";
 import { ConversationPanel } from "../pages/apps/ConversationPanel";
 import { TERMINAL_STATES, useAgentRun } from "../pages/apps/useAgentRun";
 import type { RunEvent } from "../pages/apps/useAgentRun";
@@ -130,56 +131,67 @@ function Paths({
     const section = PATH_SECTION[path];
     return section === undefined || !isHiddenSection(section, hiddenSections);
   });
+  // The reason a greyed path carries is a tooltip; one visible line says it for all of them (T-4263).
+  const permissions = usePermissions(project);
+  const denied =
+    permissions.data !== undefined && offered.some(([, , kind]) => kind !== null && !permissions.can(kind, "propose"));
   return (
-    <ul data-testid="assistant-paths" className="flex flex-col gap-2">
-      {offered.map(([path, icon, kind]) => {
-        // The shared Button, not a hand-made one: `PermissionGuard` hands it the reason through
-        // `disabledReason`, which only that control knows what to do with.
-        const left = capabilities !== null && !PRESET_PATHS[capabilities.preset].includes(path);
-        const button = (
-          <Button
-            size="sm"
-            disabled={disabled || left}
-            disabledReason={
-              left
-                ? t("assistant.capabilities.pathLeft", {
-                    preset: t(`assistant.capabilities.presets.${capabilities.preset}.title`),
-                  })
-                : undefined
-            }
-            data-path={path}
-            // The name is the title and its line, read with a pause between them; the
-            // description stays free for the reason a role may not take the path.
-            aria-labelledby={`assistant-path-${path} assistant-path-${path}-line`}
-            onClick={() => {
-              onPick(path);
-            }}
-            className="h-auto w-full items-start justify-start gap-2 whitespace-normal rounded-md bg-surface-subtle p-2 text-left"
-          >
-            <Icon name={icon} className="mt-0.5 size-4 shrink-0" />
-            <span className="flex flex-col">
-              <span id={`assistant-path-${path}`} className="text-body font-medium">
-                {t(`assistant.paths.${path}.title`)}
+    <>
+      {denied ? (
+        <p data-testid="assistant-paths-denied" className="text-caption text-fg-muted">
+          {t("assistant.paths.denied")}
+        </p>
+      ) : null}
+      <ul data-testid="assistant-paths" className="flex flex-col gap-2">
+        {offered.map(([path, icon, kind]) => {
+          // The shared Button, not a hand-made one: `PermissionGuard` hands it the reason through
+          // `disabledReason`, which only that control knows what to do with.
+          const left = capabilities !== null && !PRESET_PATHS[capabilities.preset].includes(path);
+          const button = (
+            <Button
+              size="sm"
+              disabled={disabled || left}
+              disabledReason={
+                left
+                  ? t("assistant.capabilities.pathLeft", {
+                      preset: t(`assistant.capabilities.presets.${capabilities.preset}.title`),
+                    })
+                  : undefined
+              }
+              data-path={path}
+              // The name is the title and its line, read with a pause between them; the
+              // description stays free for the reason a role may not take the path.
+              aria-labelledby={`assistant-path-${path} assistant-path-${path}-line`}
+              onClick={() => {
+                onPick(path);
+              }}
+              className="h-auto w-full items-start justify-start gap-2 whitespace-normal rounded-md bg-surface-subtle p-2 text-left"
+            >
+              <Icon name={icon} className="mt-0.5 size-4 shrink-0" />
+              <span className="flex flex-col">
+                <span id={`assistant-path-${path}`} className="text-body font-medium">
+                  {t(`assistant.paths.${path}.title`)}
+                </span>
+                <span id={`assistant-path-${path}-line`} className="text-caption text-fg-muted">
+                  {t(`assistant.paths.${path}.line`)}
+                </span>
               </span>
-              <span id={`assistant-path-${path}-line`} className="text-caption text-fg-muted">
-                {t(`assistant.paths.${path}.line`)}
-              </span>
-            </span>
-          </Button>
-        );
-        return (
-          <li key={path}>
-            {kind ? (
-              <PermissionGuard project={project} kind={kind} verb="propose">
-                {button}
-              </PermissionGuard>
-            ) : (
-              button
-            )}
-          </li>
-        );
-      })}
-    </ul>
+            </Button>
+          );
+          return (
+            <li key={path}>
+              {kind ? (
+                <PermissionGuard project={project} kind={kind} verb="propose">
+                  {button}
+                </PermissionGuard>
+              ) : (
+                button
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 }
 

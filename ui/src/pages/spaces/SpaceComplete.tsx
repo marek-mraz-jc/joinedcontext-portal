@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { forPeople } from "../../api/client";
 import { callOperation } from "../../api/operations";
+import { usePermissions } from "../../api/permissions";
 import { handPrefill, takePrefill } from "../../assistant/state";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { refName } from "../../api/manifest";
@@ -120,6 +121,7 @@ function handedOver(prefill: Record<string, unknown> | null): { result: Complete
 export function SpaceComplete({ project }: { project: string }): JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const permissions = usePermissions(project);
   const [spaceName, setSpaceName] = useState(() => {
     if (typeof window === "undefined") return "";
     return new URLSearchParams(window.location.search).get("space") ?? "";
@@ -200,6 +202,17 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
     }
   };
 
+  // A role that may not propose a space reads why, not a form whose every step ends in a 403 (T-4263).
+  if (permissions.data !== undefined && !permissions.can("ContextSpace", "propose")) {
+    return (
+      <div className="flex flex-col gap-section">
+        <PageHeader title={t("spaces.complete.title")} description={t("spaces.complete.lead")} />
+        <Alert role="status" tone="info">
+          {t("form.mayNotCreate")}
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-section">

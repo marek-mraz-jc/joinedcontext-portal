@@ -828,12 +828,16 @@ describe("the apps page's create address", () => {
     expect(screen.queryByText(en.form.notOpenNew)).toBeNull();
   });
 
-  it("opens nothing for a role that may not propose an App, and says so without an API word", async () => {
+  it("opens nothing for a role that may not propose an App, and says why without an API word", async () => {
     await renderRoute({
       path: "/projects/helsinki/apps/new",
       permissions: { project: "helsinki", bootstrap: false, grants: [] },
     });
-    expect(await screen.findByText(en.form.notOpenNew)).toBeInTheDocument();
+    // The role, not a red warning that the address might be wrong (T-4263).
+    await waitFor(() =>
+      expect(screen.getAllByRole("status").some((status) => status.textContent?.includes(en.form.mayNotCreate))).toBe(true),
+    );
+    expect(screen.queryByText(en.form.notOpenNew)).toBeNull();
     expect(screen.queryByRole("button", { name: en.assistant.backToChat })).toBeNull();
     expect(screen.queryByText(/called apps/)).toBeNull();
   });

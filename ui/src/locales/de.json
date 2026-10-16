@@ -4471,6 +4471,7 @@
     "trail": "Seiten, die der Assistent geöffnet hat",
     "prefilledNotice": "Der Assistent hat das ausgefüllt. Prüfe es, bevor du es vorschlägst.",
     "paths": {
+      "denied": "Einige Wege sind ausgegraut: Ihre Rolle erlaubt Ihnen das Ansehen, nicht das Anlegen. Ein Projektverantwortlicher oder eine Administration kann Ihnen dieses Recht geben.",
       "integrate-pipeline": {
         "title": "Pipeline integrieren",
         "line": "Einen Feed, eine Datei oder eine Datenquelle in einen Raum bringen"

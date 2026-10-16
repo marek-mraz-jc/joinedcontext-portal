@@ -4471,6 +4471,7 @@
     "trail": "Pages the assistant opened",
     "prefilledNotice": "The assistant filled this in. Check it before you propose.",
     "paths": {
+      "denied": "Some paths are greyed: your role lets you look, not create. A project steward or an administrator can give you that right.",
       "integrate-pipeline": {
         "title": "Integrate a pipeline",
         "line": "Bring a feed, a file or a data source into a space"
