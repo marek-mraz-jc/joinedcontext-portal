@@ -9,7 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /** What a click on the map hands the app, as MapLibre would. */
-let clickBus: (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => void = () => undefined;
+let clickBus: ((event: { features?: Array<{ properties?: Record<string, unknown> }> }) => void) | null = null;
 
 vi.mock("maplibre-gl", () => {
   class Map {
@@ -62,6 +62,8 @@ beforeEach(() => {
 afterEach(() => {
   document.getElementById("jc-config")?.remove();
   vi.unstubAllGlobals();
+  // The handler belongs to the map of the test that drew it; the next test waits for its own.
+  clickBus = null;
 });
 
 describe("a bus in the entity panel", () => {
@@ -69,9 +71,11 @@ describe("a bus in the entity panel", () => {
     page({ slug: "s", space: "helsinki", portal: "https://portal.test/projects/helsinki" });
     render(<App />);
     await screen.findByText(/^2 vehicles/);
-    act(() => clickBus({ features: [{ properties: {} }] }));
+    // The map binds its click in an effect that may run after the list is on screen (T-4257).
+    await waitFor(() => expect(clickBus).not.toBeNull());
+    act(() => clickBus?.({ features: [{ properties: {} }] }));
     expect(screen.queryByRole("dialog")).toBeNull();
-    act(() => clickBus({ features: [{ properties: { id: BUS } }] }));
+    act(() => clickBus?.({ features: [{ properties: { id: BUS } }] }));
     const panel = await screen.findByRole("dialog");
     expect(await within(panel).findByText("4570")).toBeInTheDocument();
     expect(within(panel).getByText(/13\.4/)).toBeInTheDocument();
