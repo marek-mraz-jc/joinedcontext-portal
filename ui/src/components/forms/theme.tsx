@@ -265,11 +265,15 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
       <span className="sr-only">{listHint}</span>
     ) : undefined;
 
+  // A list's one-value entry (a site, a code) is a line: its input and its Remove. Its name stays
+  // for a screen reader; the list's heading above says what it is (T-4314).
+  const lineEntry = typeof last === "number" && !ownHeading && !inWidget;
   return (
     <Field
       id={id}
       label={shown}
       hideLabel={!showLabel}
+      srLabel={lineEntry}
       required={asked}
       description={inherited ?? descText}
       // A list or an object our templates draw writes its help under its own heading, above its
@@ -277,7 +281,7 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
       help={inWidget || (ownHeading && !custom) ? undefined : forPeople === undefined || ownHeading ? rawHelp : undefined}
       errors={errors}
       aside={
-        ownHeading ? undefined : (
+        ownHeading || lineEntry ? undefined : (
           <AskAboutField path={pathOf(fieldPathId)} label={typeof shown === "string" ? shown : ""} />
         )
       }
@@ -288,10 +292,37 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
 }
 
 /**
+ * A list's heading laid out as a Field's label row: its name with the required mark, and "Ask
+ * about this field" beside it (T-4314). The fieldset around it is a wrapping row
+ * ([`LIST_FIELDSET`]) and its body a full line ([`LIST_BODY`]): a floated legend is laid out as
+ * a plain box, so it shares the row with the link, while it still names the fieldset alone.
+ */
+export function ListLegend({ heading, required, path }: { heading: string; required?: boolean; path: string }): React.JSX.Element {
+  return (
+    <>
+      <legend className="float-left min-w-0 grow basis-40 text-body font-medium text-fg">
+        {heading}
+        {required ? (
+          <span aria-hidden="true" className="ml-0.5 text-danger">
+            *
+          </span>
+        ) : null}
+      </legend>
+      <AskAboutField path={path} label={heading} />
+    </>
+  );
+}
+
+/** The fieldset of a list headed by [`ListLegend`]. */
+export const LIST_FIELDSET = "flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1.5";
+/** Everything under a [`ListLegend`]: one full line. */
+export const LIST_BODY = "flex min-w-0 basis-full flex-col gap-2";
+
+/**
  * The field's path as a manifest writes it: `spec.` and the names rjsf walked, with an array index
  * as rjsf numbered it. `root` itself is no field.
  */
-function pathOf(fieldPathId: FieldTemplateProps["fieldPathId"]): string {
+export function pathOf(fieldPathId: FieldTemplateProps["fieldPathId"]): string {
   const steps = (fieldPathId?.path ?? []).map((step) => String(step)).filter((step) => step !== "root");
   return steps.length === 0 ? "" : `spec.${steps.join(".")}`;
 }
@@ -431,9 +462,11 @@ function MapEntry(props: FieldTemplateProps): React.JSX.Element {
   const { RemoveButton } = registry.templates.ButtonTemplates;
   const frozen = Boolean(disabled || readonly);
   return (
-    <div className="flex min-w-0 flex-col gap-2 rounded-md border border-border p-2 @md:flex-row @md:items-start @md:p-3">
+    // The key and its Remove on one line, its value under them at the entry's whole width: side by
+    // side, the value's first line and the key's input never lined up (T-4314).
+    <div className="flex min-w-0 flex-col gap-2 rounded-md border border-border p-2 @md:p-3">
       {/* Remove sits beside the key it takes away, on the key's line (T-4311). */}
-      <div data-testid="map-key" className="flex items-end gap-2 @md:w-44 @md:shrink-0">
+      <div data-testid="map-key" className="flex items-end gap-2">
         <Field id={`${id}-key`} className="min-w-0 flex-1" label={keyedByLanguage ? t("form.mapLanguage") : t("form.mapKey")}>
           <UiInput
             id={`${id}-key`}
@@ -532,6 +565,21 @@ function ObjectFields(props: ObjectFieldTemplateProps): React.JSX.Element {
   // fields, not as a boxed section around them; so does one of a single field and no help, whose
   // box only restated the field's own label ("Answer mode" around "Answers from", T-4311).
   const single = properties.length === 1 && add === null && !(typeof help === "string" && help.trim() !== "");
+  // A map (suggestions, a disclaimer per language) is a list of entries: it is headed as one
+  // (T-4314), not as a box of fields.
+  const isMap = typeof props.schema.additionalProperties === "object" && props.schema.additionalProperties !== null;
+  if (title && isMap && itemTitle(props, t) === undefined) {
+    return (
+      <fieldset className={LIST_FIELDSET}>
+        <ListLegend heading={title} required={props.required} path={pathOf(fieldPathId)} />
+        <div className={LIST_BODY}>
+          {description ? <p className="text-caption text-fg-muted">{description}</p> : null}
+          {properties.map((prop) => prop.content)}
+          {add}
+        </div>
+      </fieldset>
+    );
+  }
   if (!title || (single && itemTitle(props, t) === undefined))
     return (
       <>
@@ -567,17 +615,10 @@ export function ArrayFieldTemplate(props: ArrayFieldTemplateProps): React.JSX.El
   const description = help ?? ((uiOptions.description as string | undefined) || schema.description);
   const listHint = description;
   return (
-    <fieldset id={fieldPathId.$id} className="flex flex-col gap-2">
-      {heading ? (
-        <legend className={keyed ? "sr-only" : "text-body font-medium text-fg"}>
-          {heading}
-          {required ? (
-            <span aria-hidden="true" className="ml-0.5 text-danger">
-              *
-            </span>
-          ) : null}
-        </legend>
-      ) : null}
+    <fieldset id={fieldPathId.$id} className={LIST_FIELDSET}>
+      {heading && keyed ? <legend className="sr-only">{heading}</legend> : null}
+      {heading && !keyed ? <ListLegend heading={heading} required={required} path={pathOf(fieldPathId)} /> : null}
+      <div className={LIST_BODY}>
       {description ? (
         <p id={`${fieldPathId.$id}__description`} className="text-caption text-fg-muted">
           {description}
@@ -601,6 +642,7 @@ export function ArrayFieldTemplate(props: ArrayFieldTemplateProps): React.JSX.El
           />
         </div>
       ) : null}
+      </div>
     </fieldset>
   );
 }
@@ -608,18 +650,18 @@ export function ArrayFieldTemplate(props: ArrayFieldTemplateProps): React.JSX.El
 export function ArrayFieldItemTemplate(props: ArrayFieldItemTemplateProps): React.JSX.Element {
   const { children, buttonsProps, hasToolbar, registry, uiSchema, schema } = props;
   const { ArrayFieldItemButtonsTemplate } = registry.templates;
-  // A one-line entry (a site, a code) reads as [input][remove] on one line, its input running to
-  // the buttons; an entry of several fields keeps them at its top corner (T-4311).
+  // A one-line entry (a site, a code) is [input][remove] on one line with no box of its own: its
+  // label is for a screen reader (FieldTemplate), so the buttons sit beside the input (T-4314).
   const oneLine = schema.type !== "object" && schema.type !== "array";
   // Inside a map entry's box the entry is a line, not a fourth box: at a phone's width the nested
   // borders and paddings left a question 15 letters wide (T-4311).
-  const boxed = useContext(MapKeyContext) === undefined;
+  const boxed = useContext(MapKeyContext) === undefined && !oneLine;
   return (
     <div
       className={clsx(
         "flex gap-2",
         boxed && "rounded-md border border-border bg-surface p-2",
-        oneLine ? "items-end" : "items-start",
+        "items-start",
       )}
     >
       <div className="min-w-0 flex-1 [&>div]:gap-1">{children}</div>

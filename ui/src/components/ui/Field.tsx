@@ -16,6 +16,8 @@ export interface FieldProps {
   errors?: string[];
   /** A label-less control (a checkbox carries its own) still gets the messages. */
   hideLabel?: boolean;
+  /** The label is for a screen reader only: the control's place says what it is (a list's entry). */
+  srLabel?: boolean;
   /** One small action on the label's line, such as asking the assistant about this field. */
   aside?: ReactNode;
   className?: string;
@@ -70,6 +72,7 @@ export function Field({
   help,
   errors,
   hideLabel,
+  srLabel,
   aside,
   className,
   children,
@@ -109,7 +112,12 @@ export function Field({
 
   return (
     <div className={clsx("flex flex-col gap-1.5", className)}>
-      {label && !hideLabel ? (
+      {label && !hideLabel && srLabel ? (
+        <label htmlFor={id} className="sr-only">
+          {label}
+        </label>
+      ) : null}
+      {label && !hideLabel && !srLabel ? (
         // The label keeps 10rem before anything beside it: at a phone's width the aside wraps under
         // it instead of stacking the label a word a line (T-4282).
         <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">

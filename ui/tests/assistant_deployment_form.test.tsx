@@ -233,8 +233,25 @@ describe("the deployment form reads once and lines up (T-4311)", () => {
     expect(screen.getAllByText(/^The sites a public chat may be placed on/)).toHaveLength(1);
     await userEvent.click(add);
     const input = await within(sites).findByLabelText(/^Allowed sites 1/);
-    const item = input.closest("div.rounded-md");
-    expect(item).toHaveClass("items-end");
+    // T-4314: a one-value entry is a line, its name for a screen reader, its Remove beside it.
+    expect(input.closest("div.rounded-md")).toBeNull();
+    expect(within(sites).getByText(/^Allowed sites 1/, { selector: "label" })).toHaveClass("sr-only");
+  });
+
+  it("a list's heading is a label row like a field's: its name alone, and Ask about this field (T-4314)", async () => {
+    await openForm();
+    const sites = screen.getByRole("group", { name: "Allowed sites" });
+    expect(within(sites).getAllByRole("button", { name: "Ask about this field" })).toHaveLength(1);
+    await userEvent.click(within(sites).getByRole("button", { name: "Add" }));
+    await within(sites).findAllByLabelText(/^Allowed sites \d/);
+    // The entries carry no link of their own: the list's is the one.
+    expect(within(sites).getAllByRole("button", { name: "Ask about this field" })).toHaveLength(1);
+    // A map is headed as a list too.
+    const suggestions = screen.getByRole("group", { name: "Suggested questions" });
+    expect(within(suggestions).getAllByRole("button", { name: "Ask about this field" })).toHaveLength(1);
+    const picker = screen.getByTestId("knowledge-sources");
+    expect(picker).toHaveAccessibleName("Sources");
+    expect(within(picker).getByRole("button", { name: "Ask about this field" })).toBeInTheDocument();
   });
 
   it("a source's box stays on its name's line when the badge wraps", async () => {
