@@ -13,7 +13,7 @@ import { FormRecordLink } from "../../components/RecordLink";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
 import { FormFrame, useCreateForm, useFormRoute } from "../../components/forms/FormRoute";
-import { ROLE_VERBS, roleSchema } from "../../schemas/kinds";
+import { ROLE_VERBS, roleSchema, roleUiSchema } from "../../schemas/kinds";
 import {
   Alert,
   Badge,
@@ -170,13 +170,10 @@ export function NewRoleDialog({
 
   const rights = ownRights(permissions.data);
   const inProject = project !== ORG_NAMESPACE;
-  const schema = roleSchema(
-    t,
-    inProject
-      ? rights.kinds.filter((kind) => !(NOT_IN_A_PROJECT as readonly string[]).includes(kind))
-      : rights.kinds,
-    rights.verbs.length > 0 ? rights.verbs : ROLE_VERBS,
-  );
+  const schemaKinds = inProject
+    ? rights.kinds.filter((kind) => !(NOT_IN_A_PROJECT as readonly string[]).includes(kind))
+    : rights.kinds;
+  const schema = roleSchema(t, schemaKinds, rights.verbs.length > 0 ? rights.verbs : ROLE_VERBS);
   // PF-52 as the form reads it: the rules of the role in hand against the grants the caller holds.
   // The server runs the same comparison; this one only says it before the proposal is sent.
   const missing = beyondOwnRights(permissions.data, form?.rules);
@@ -222,6 +219,7 @@ export function NewRoleDialog({
       title={t("access.projectRoles.newTitle")}
       description={inProject ? t("access.projectRoles.newLead", { project }) : t("access.projectRoles.newLeadOrganization")}
       schema={schema}
+      uiSchema={roleUiSchema(schemaKinds.length > 0)}
       formData={form}
       onChange={setForm}
       project={project}
@@ -384,6 +382,7 @@ export function Roles({
                           }
                           form={{
                             schema: editSchema,
+                            uiSchema: roleUiSchema(false),
                             fromManifest: (manifest) =>
                               fromRoleEnvelope(manifest) as unknown as Record<string, unknown>,
                             toManifest: (edited, stored) =>
