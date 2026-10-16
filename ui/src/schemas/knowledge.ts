@@ -35,9 +35,12 @@ export const PROJECT_REF = "^([a-z0-9]([-a-z0-9]*[a-z0-9])?/)?[a-z0-9]([-a-z0-9]
 /** The read-only tools of an Endpoint's MCP surface the assistant calls (jc-assistant's allowlist, T-4140). */
 export const ENDPOINT_TOOLS = [
   "list_types",
+  "get_type",
+  "list_attributes",
   "query_entities",
   "get_entity",
   "get_attribute_value",
+  "query_temporal",
   "retrieve_temporal",
   "describe_schema",
   "describe_access",

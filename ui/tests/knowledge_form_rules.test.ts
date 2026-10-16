@@ -113,6 +113,24 @@ describe("the public assistant's settings", () => {
     expect(ENDPOINT_TOOLS.filter((tool) => /create|update|delete|upsert|append|batch/.test(tool))).toEqual([]);
   });
 
+  it("offer every read the assistant calls, so a deployment with history and schema reads saves (T-4297)", () => {
+    // jc-assistant's READ_ONLY_TOOLS (platform crates/assistant/src/chat/mcp.rs), in its order:
+    // a tool the form lacks makes a T-4294 seed impossible to open and save unchanged.
+    expect([...ENDPOINT_TOOLS]).toEqual([
+      "list_types", "get_type", "list_attributes", "query_entities", "get_entity",
+      "get_attribute_value", "query_temporal", "retrieve_temporal", "describe_schema", "describe_access",
+    ]);
+    const connector = (tools: string[]) => ({
+      ...base,
+      channel: "internal",
+      answer: { routes: "data" },
+      connectors: [{ endpoint: "banskabystrica-verejne", tools, timeoutSeconds: 20 }],
+    });
+    const toolErrors = (tools: string[]) => errorsOf(connector(tools)).filter((e) => e.startsWith("connectors."));
+    expect(toolErrors(["list_types", "get_type", "list_attributes", "query_entities", "query_temporal"])).toEqual([]);
+    expect(toolErrors(["query_entities", "create_entity"])).toEqual(["connectors.0.tools.1:enum"]);
+  });
+
   it("keep the maps through the manifest and back", () => {
     const form = { ...base, channel: "public", suggestions: { sk: ["Kde parkovať?"] }, disclaimer: { en: "Machine-written." } };
     const manifest = toKindManifest("AssistantDeployment", "banskabystrica", form);

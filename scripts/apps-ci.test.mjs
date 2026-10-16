@@ -87,3 +87,12 @@ test("an install without a lockfile takes no release younger than a day (T-3527)
     }
   }
 });
+
+test("every App's test setup gives findBy*/waitFor 5 s, the lane runs them under coverage (T-4350)", () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+  const setups = execFileSync("git", ["-C", root, "ls-files", "--", "apps/**/test-setup.ts", "sdk/examples/**/test-setup.ts", "sdk/template/test-setup.ts"])
+    .toString().trim().split("\n").filter(Boolean);
+  assert.ok(setups.length >= 30, `found only ${setups.length} test setups`);
+  const short = setups.filter((path) => !/configure\(\{ asyncUtilTimeout: 5_000 \}\)/.test(execFileSync("cat", [join(root, path)]).toString()));
+  assert.deepEqual(short, [], "a test setup keeps the library's 1 s default");
+});
