@@ -281,3 +281,48 @@ mod tests {
             .is_some());
     }
 }
+
+/// What was last said about each pipeline the reconciler does not run, so a reason reaches the
+/// log once when it starts or changes and not on every sync (T-4373: slovensko/ovzdusie was never
+/// scheduled for hours and nothing in the log said why).
+#[derive(Default)]
+pub struct Unscheduled(std::sync::Mutex<std::collections::HashMap<(String, String), String>>);
+
+impl Unscheduled {
+    /// Whether `reason` is new for the pipeline; `None` means it runs again and is forgotten.
+    pub fn changed(&self, ns: &str, name: &str, reason: Option<&str>) -> bool {
+        let mut said = self.0.lock().unwrap_or_else(|p| p.into_inner());
+        let key = (ns.to_owned(), name.to_owned());
+        match reason {
+            None => {
+                said.remove(&key);
+                false
+            }
+            Some(reason) => said.insert(key, reason.to_owned()).as_deref() != Some(reason),
+        }
+    }
+}
+
+#[cfg(test)]
+mod unscheduled_tests {
+    use super::Unscheduled;
+
+    #[test]
+    fn a_reason_is_said_once_again_when_it_changes_and_after_the_pipeline_ran() {
+        let said = Unscheduled::default();
+        assert!(said.changed(
+            "slovensko",
+            "ovzdusie",
+            Some("data source x is not in the mirror")
+        ));
+        assert!(!said.changed(
+            "slovensko",
+            "ovzdusie",
+            Some("data source x is not in the mirror")
+        ));
+        assert!(said.changed("slovensko", "ovzdusie", Some("pipeline is disabled")));
+        assert!(said.changed("zilina", "ovzdusie", Some("pipeline is disabled")));
+        assert!(!said.changed("slovensko", "ovzdusie", None));
+        assert!(said.changed("slovensko", "ovzdusie", Some("pipeline is disabled")));
+    }
+}

@@ -197,6 +197,8 @@ pub struct Syncer {
     )>,
     /// Each Live stream's written count and when it last moved, across syncs (T-2967).
     stalls: super::stall::StallWatch,
+    /// The reason last logged for each pipeline that is not run (T-4373).
+    unscheduled: super::stall::Unscheduled,
     /// Whether the last run found the project teams the bootstrap's, so that is said once and
     /// not on every sync (T-3323).
     teams_left_to_bootstrap: Arc<std::sync::atomic::AtomicBool>,
@@ -221,6 +223,7 @@ impl Syncer {
             converger: None,
             streams: None,
             stalls: super::stall::StallWatch::default(),
+            unscheduled: super::stall::Unscheduled::default(),
             teams_left_to_bootstrap: Arc::default(),
             registrations: None,
             views: None,
@@ -1429,6 +1432,9 @@ impl Syncer {
                 .map(|s| is_stream_pipeline(&s))
                 .unwrap_or(false);
 
+                if matches!(outcome, StreamOutcome::Live | StreamOutcome::Scheduled(..)) {
+                    self.unscheduled.changed(&ns, &name, None);
+                }
                 match outcome {
                     StreamOutcome::Live => {
                         // Errors and nothing ever sent, else records in and nothing out for the
@@ -1452,6 +1458,9 @@ impl Syncer {
                         fresh_mirror.upsert(envelope);
                     }
                     StreamOutcome::Error(err) => {
+                        if self.unscheduled.changed(&ns, &name, Some(&err)) {
+                            tracing::warn!(project = %ns, pipeline = %name, reason = %err, "pipeline not run");
+                        }
                         if let Some(status) = envelope.status.as_mut() {
                             status.phase = crate::resource::Phase::Error;
                             status.conditions = vec![make_condition(
@@ -1473,6 +1482,9 @@ impl Syncer {
                         fresh_mirror.upsert(envelope);
                     }
                     StreamOutcome::Skipped(why) => {
+                        if is_stream && self.unscheduled.changed(&ns, &name, Some(why)) {
+                            tracing::info!(project = %ns, pipeline = %name, reason = %why, "pipeline not run");
+                        }
                         if is_stream {
                             if let Some(status) = envelope.status.as_mut() {
                                 status.phase = crate::resource::Phase::Pending;
