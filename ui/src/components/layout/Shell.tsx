@@ -14,7 +14,7 @@ import { AssistantDock } from "../../assistant/AssistantDock";
 import { CommandPalette } from "../../navigation/CommandPalette";
 import { PageTools } from "../../navigation/PageTools";
 import { useAuth } from "../../auth/AuthProvider";
-import { rememberProject, useProjects, useSampleProjects } from "../../api/projects";
+import { rememberProject, useProjects, useProjectTitles, useSampleProjects } from "../../api/projects";
 import { useAdministers } from "../../api/permissions";
 import { logoUrl, useBranding, useHiddenSections } from "../../branding";
 import {
@@ -47,6 +47,7 @@ function ProjectSelector({ active }: { active: string }) {
   const { t } = useTranslation();
   const known = useProjects().data ?? [];
   const samples = useSampleProjects().data ?? [];
+  const titleOf = useProjectTitles();
   const projects = known.includes(active) ? known : [active, ...known];
   // The page in hand, so the switch keeps it: a person comparing two projects' endpoints stays
   // in Endpoints instead of walking back from Spaces every time (T-2425, UI-05).
@@ -64,9 +65,13 @@ function ProjectSelector({ active }: { active: string }) {
             {active.slice(0, 2)}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-body font-semibold text-fg">{active}</span>
-            {samples.includes(active) ? (
-              <span className="block text-caption text-fg-muted"> {t("home.sample.badge")}</span>
+            <span className="block truncate text-body font-semibold text-fg">{titleOf(active)}</span>
+            {/* The slug under the title, the name every path and manifest uses (T-4243). */}
+            {titleOf(active) !== active || samples.includes(active) ? (
+              <span className="block truncate text-caption text-fg-muted">
+                {titleOf(active) !== active ? <span className="font-mono">{active}</span> : null}
+                {samples.includes(active) ? <> {t("home.sample.badge")}</> : null}
+              </span>
             ) : null}
           </span>
           <Icon name="chevronDown" className="size-4 text-fg-subtle" />
@@ -84,7 +89,12 @@ function ProjectSelector({ active }: { active: string }) {
               aria-current={project === active ? "true" : undefined}
             >
               {project === active ? <Icon name="check" className="size-4" /> : <span className="size-4" />}
-              {project}
+              <span className="min-w-0">
+                <span className="block truncate">{titleOf(project)}</span>
+                {titleOf(project) !== project ? (
+                  <span className="block truncate font-mono text-caption text-fg-muted">{project}</span>
+                ) : null}
+              </span>
               {/* A space, so the name is read as two words, not one ("banskabystricaSample"). */}
               {samples.includes(project) ? <> <Badge tone="info">{t("home.sample.badge")}</Badge></> : null}
             </Link>
@@ -346,6 +356,7 @@ export function Shell({
 }): JSX.Element {
   const { t } = useTranslation();
   const branding = useBranding();
+  const projectTitle = useProjectTitles();
   const hiddenSections = useHiddenSections();
   const matchRoute = useMatchRoute();
   // The organization's tabs, every endpoint and `/` open on this project next (T-2753).
@@ -746,7 +757,7 @@ export function Shell({
                       params={{ project, plural: "spaces" }}
                       className="focus-ring rounded-sm hover:text-fg hover:underline"
                     >
-                      {project}
+                      {projectTitle(project)}
                     </Link>
                   </li>
                   )}

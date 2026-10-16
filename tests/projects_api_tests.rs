@@ -999,3 +999,58 @@ async fn the_labelled_project_is_listed_as_the_sample_to_those_who_may_read_it()
         []
     );
 }
+
+/// T-4243: each item carries its Project manifest's title as the manifest wrote it, a legacy
+/// language map or one string, and none when the manifest names none or there is no manifest.
+#[tokio::test]
+async fn each_project_is_listed_with_the_title_its_manifest_gives_it() {
+    let mirror = two_project_mirror();
+    let mut city = project_manifest("banskabystrica", &[]);
+    city.metadata.title = Some(jc_core::i18n::Text::Localized(
+        serde_json::from_value(serde_json::json!({
+            "sk": "Mesto Banská Bystrica",
+            "en": "City of Banská Bystrica"
+        }))
+        .expect("a language map"),
+    ));
+    mirror.upsert(city);
+    let mut region = project_manifest("helsinki", &[]);
+    region.metadata.title = Some(jc_core::i18n::Text::Plain("Helsinki <b>".into()));
+    mirror.upsert(region);
+    mirror.upsert(manifest("zilina", "ContextSpace", "zilina"));
+    mirror.upsert(project_manifest("zilina", &[]));
+    let config = Config::for_tests();
+    let cookie = make_session_cookie(&config);
+    let response = server::app(AppState::new(config, None).with_mirror(mirror))
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/projects")
+                .header(header::COOKIE, cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let list: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let titles: Vec<(&str, Option<&serde_json::Value>)> = list["items"]
+        .as_array()
+        .expect("items")
+        .iter()
+        .map(|item| (item["name"].as_str().expect("name"), item.get("title")))
+        .collect();
+    assert_eq!(
+        titles,
+        [
+            (
+                "banskabystrica",
+                Some(
+                    &serde_json::json!({"sk": "Mesto Banská Bystrica", "en": "City of Banská Bystrica"})
+                )
+            ),
+            ("helsinki", Some(&serde_json::json!("Helsinki <b>"))),
+            ("zilina", None),
+        ]
+    );
+}
