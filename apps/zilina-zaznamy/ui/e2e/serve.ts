@@ -13,7 +13,7 @@ export const NOW = new Date("2026-10-06T19:00:00Z");
 /** The app's two endpoints, one per space it reads, the primary first. */
 export const ENDPOINTS = [
   { name: "app-zilina-zaznamy", slug: "zhu42lbyivllciy7pluenlhxmqn5hi7c", space: "zilina-verejne", types: ["PointOfInterest", "GtfsStop", "AirQualityObserved"] },
-  { name: "app-zilina-zaznamy-uniza", slug: "os4quyrmvhijr3x7x4fno2jicej4ifv5", space: "zilina-uniza", types: ["CreativeWork"] },
+  { name: "app-zilina-zaznamy-uniza", slug: "os4quyrmvhijr3x7x4fno2jicej4ifv5", space: "zilina-uniza", types: ["Article"] },
 ];
 const CONFIG = {
   slug: "zhu42lbyivllciy7pluenlhxmqn5hi7c",
@@ -61,7 +61,7 @@ export async function serve(page: Page): Promise<Served> {
       const one = /\/ngsi-ld\/v1\/entities\/([^/]+)$/.exec(url.pathname);
       if (one) {
         const id = decodeURIComponent(one[1]);
-        const row = ["PointOfInterest", "GtfsStop", "AirQualityObserved", "CreativeWork"].flatMap((type) => answer(type)).find((candidate) => (candidate as { id: string }).id === id);
+        const row = ["PointOfInterest", "GtfsStop", "AirQualityObserved", "Article"].flatMap((type) => answer(type)).find((candidate) => (candidate as { id: string }).id === id);
         return route.fulfill({ status: row ? 200 : 404, contentType: "application/ld+json", body: JSON.stringify(row ?? { title: "Not Found" }) });
       }
       if (url.pathname.endsWith("/access")) {

@@ -39,7 +39,7 @@ function useWorks(): Loaded | null {
     (async (): Promise<Loaded> => {
       const works: Work[] = [];
       for (let offset = 0; offset < MOST; offset += PAGE) {
-        const page = await source.query({ type: "CreativeWork" }, { offset, limit: PAGE });
+        const page = await source.query({ type: "Article" }, { offset, limit: PAGE });
         works.push(...page.rows.map(workOf));
         if (page.rows.length < PAGE) return { status: "ready", works, truncated: false };
       }
@@ -201,7 +201,7 @@ function Research({ works, truncated, s }: { works: Work[]; truncated: boolean; 
                     type="button"
                     className="opens"
                     aria-pressed={selected?.id === work.id}
-                    onClick={() => select({ id: work.id, type: "CreativeWork", endpoint })}
+                    onClick={() => select({ id: work.id, type: "Article", endpoint })}
                   >
                     {work.title ?? s.noTitle}
                   </button>

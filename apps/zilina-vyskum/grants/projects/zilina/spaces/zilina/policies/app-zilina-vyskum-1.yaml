@@ -15,7 +15,7 @@ spec:
     name: zilina-uniza
   information:
   - entities:
-    - type: CreativeWork
+    - type: Article
     propertyNames:
     - name
     - workType
