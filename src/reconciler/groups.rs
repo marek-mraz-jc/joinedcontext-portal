@@ -72,9 +72,18 @@ struct KcUser {
     email: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 struct KcToken {
     access_token: String,
+}
+
+/// The admin token stays out of every log line (T-4321).
+impl std::fmt::Debug for KcToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KcToken")
+            .field("access_token", &"[redacted]")
+            .finish()
+    }
 }
 
 /// The realm's groups, as this Portal's own client may write them.
@@ -503,6 +512,18 @@ pub fn record(mirror: &Mirror, outcomes: &[GroupOutcome]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_kc_token_debug_never_shows_the_admin_token() {
+        let token = KcToken {
+            access_token: "s3cr3t-test".into(),
+        };
+        let text = format!("{token:?}");
+        assert!(
+            !text.contains("s3cr3t-test") && text.contains("[redacted]"),
+            "{text}"
+        );
+    }
 
     #[test]
     fn the_admin_base_is_the_realm_url_with_admin_in_front_of_realms() {

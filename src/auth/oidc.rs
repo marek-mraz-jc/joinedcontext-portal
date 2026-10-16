@@ -392,10 +392,19 @@ pub struct CallbackQuery {
 }
 
 /// The provider's back-channel logout call: one signed token, no session and no bearer (AP-29).
-#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct BackChannelLogoutForm {
     /// The JWT the provider signed, carrying the `logout_events` claim.
     pub logout_token: String,
+}
+
+/// The signed token stays out of every log line (T-4321).
+impl std::fmt::Debug for BackChannelLogoutForm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BackChannelLogoutForm")
+            .field("logout_token", &"[redacted]")
+            .finish()
+    }
 }
 
 /// Only same-origin paths are accepted, so an open redirect cannot be smuggled through login.
@@ -944,6 +953,18 @@ pub(crate) fn safe_redirect_for_tests(candidate: Option<String>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_logout_form_debug_never_shows_the_token() {
+        let form = BackChannelLogoutForm {
+            logout_token: "s3cr3t-test".into(),
+        };
+        let text = format!("{form:?}");
+        assert!(
+            !text.contains("s3cr3t-test") && text.contains("[redacted]"),
+            "{text}"
+        );
+    }
 
     #[test]
     fn only_same_origin_paths_are_accepted_as_a_return_target() {
