@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom/vitest";
+import { configure } from "@testing-library/react";
 import { vi } from "vitest";
 
 // jsdom has no layout: the charts resize on nothing, and that is all a test needs of it.
@@ -37,3 +38,7 @@ vi.mock("maplibre-gl", () => {
 import { afterAll } from "vitest";
 import { recordControls } from "@joinedcontext/sdk/testing";
 recordControls(afterAll);
+
+// ci-full runs every App's suite under v8 coverage, where the library's 1 s default for
+// findBy*/waitFor gives way: a different test missed it on each run (T-4350, as ui/tests/setup.ts).
+configure({ asyncUtilTimeout: 5_000 });
