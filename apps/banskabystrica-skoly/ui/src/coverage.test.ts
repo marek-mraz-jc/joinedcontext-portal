@@ -68,6 +68,10 @@ describe("the CSV", () => {
 
 describe("a school's odd shapes", () => {
   const one = (attrs: Record<string, unknown>, locale = "en") => schoolOf(toRichRow({ id: "urn:ngsi-ld:School:x", type: "School", ...attrs }), locale);
+  it("reads the Smart Data Models PostalAddress as one line (T-4329)", () => {
+    const value = { streetAddress: "Havranské 9", postalCode: "97590", addressLocality: "Banská Bystrica", addressCountry: "SK" };
+    expect(one({ address: { type: "Property", value } }).address).toBe("Havranské 9, 97590 Banská Bystrica");
+  });
 
   it("reads a name in the reader's language, else Slovak, else the one written, and the first of several values", () => {
     expect(one({ name: { type: "LanguageProperty", languageMap: { sk: "Škola", en: "School" } } }).name).toBe("School");

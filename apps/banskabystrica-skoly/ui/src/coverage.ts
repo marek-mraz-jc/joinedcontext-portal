@@ -5,7 +5,8 @@
  * the ratio missing, never zero. What stands out is judged against the city's own schools (the
  * highest or lowest tenth), never against a threshold this application would have to invent.
  */
-import type { RichCell, RichRow } from "@joinedcontext/sdk";
+import { format } from "@joinedcontext/sdk";
+import type { Cell, RichCell, RichRow } from "@joinedcontext/sdk";
 
 export interface School {
   id: string;
@@ -35,6 +36,8 @@ function text(row: RichRow, attr: string, locale: string): string | null {
   const cell = first(row.cells[attr]);
   const map = cell?.languageMap;
   const value = map ? (map[locale] ?? map.sk ?? Object.values(map)[0]) : cell?.value;
+  // A Smart Data Models PostalAddress (T-4329) reads as its one line.
+  if (value && typeof value === "object" && !Array.isArray(value)) return format(value as Cell) || null;
   return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 }
 
