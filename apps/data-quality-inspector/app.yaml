@@ -57,8 +57,7 @@ spec:
         - CityDistrict
         - Event
         - NewsArticle
-        - ParkingArea
-        - ParkingZone
+        - OnStreetParking
         - PointOfInterest
         - PublicAreaPermit
         - Vehicle
@@ -79,8 +78,7 @@ spec:
         - CityDistrict
         - Event
         - NewsArticle
-        - ParkingArea
-        - ParkingZone
+        - OnStreetParking
         - PointOfInterest
         - PublicAreaPermit
         - Vehicle

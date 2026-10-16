@@ -21,8 +21,7 @@ spec:
     - type: CityDistrict
     - type: Event
     - type: NewsArticle
-    - type: ParkingArea
-    - type: ParkingZone
+    - type: OnStreetParking
     - type: PointOfInterest
     - type: PublicAreaPermit
     - type: Vehicle

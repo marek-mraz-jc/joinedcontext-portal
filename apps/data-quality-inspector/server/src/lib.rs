@@ -42,15 +42,14 @@ const MOST: usize = 5000;
 /// Runs answered at most, for the trend.
 const RUNS: i64 = 100;
 /// The types the App's data need names, inspected without a schema when none is published.
-const KNOWN_TYPES: [&str; 13] = [
+const KNOWN_TYPES: [&str; 12] = [
     "AirQualityObserved",
     "Alert",
     "BikeHireDockingStation",
     "CityDistrict",
     "Event",
     "NewsArticle",
-    "ParkingArea",
-    "ParkingZone",
+    "OnStreetParking",
     "PointOfInterest",
     "PublicAreaPermit",
     "Vehicle",

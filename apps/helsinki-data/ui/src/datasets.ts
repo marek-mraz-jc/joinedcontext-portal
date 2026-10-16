@@ -15,12 +15,18 @@ export const TYPE_OF: Record<Dataset, string> = {
   permits: "PublicAreaPermit",
   events: "Event",
   alerts: "Alert",
-  zones: "ParkingZone",
+  zones: "OnStreetParking",
   districts: "CityDistrict",
   water: "WaterQualityObserved",
   air: "AirQualityObserved",
   weather: "WeatherObserved",
 };
+
+/**
+ * The zones are the Smart Data Model OnStreetParking (T-4329), which also holds the parking guide's
+ * areas (`public`); the grid and its downloads read only the fee and resident zones.
+ */
+export const PRESET_Q: Partial<Record<Dataset, string>> = { zones: 'category=="feeCharged","forResidents"' };
 
 /** The columns of each grid, in the order a reader reads them, the primary field first. */
 export const COLUMNS: Record<Dataset, string[]> = {
@@ -28,7 +34,7 @@ export const COLUMNS: Record<Dataset, string[]> = {
   permits: ["name", "permitKind", "permitStatus", "permitNumber", "permitStart", "permitEnd", "address"],
   events: ["name", "startDate", "endDate", "eventStatus", "address"],
   alerts: ["name", "category", "subCategory", "address", "dateIssued", "validFrom", "validTo"],
-  zones: ["name", "zoneKind", "zoneCode", "url"],
+  zones: ["name", "category", "zoneCode", "url"],
   districts: ["name", "districtCode", "divisionLevel"],
   water: ["name", "temperature", "dateObserved"],
   air: ["name", "dateObserved", "pm10", "pm25", "airQualityIndex"],
@@ -40,7 +46,6 @@ export const ENUMS: Record<string, readonly string[]> = {
   serviceCategory: ["library", "healthStation", "swimmingHall", "beach", "school"],
   permitKind: ["excavation", "trafficArrangement", "event"],
   permitStatus: ["upcoming", "ongoing", "setup", "teardown"],
-  zoneKind: ["fee", "resident"],
   divisionLevel: ["district", "subDistrict"],
 };
 
@@ -51,7 +56,7 @@ export function gridConfig(slug: string, dataset: Dataset, labels: Record<string
     type: TYPE_OF[dataset],
     columns: COLUMNS[dataset].map((attr) => ({ attr, label: labels[attr] ?? attr, ...(attr === primary ? { pinned: true } : {}) })),
     // Every column is one the endpoint answers a `q` about, so a filter is the endpoint's own.
-    filters: { allowed: [...COLUMNS[dataset]] },
+    filters: { allowed: [...COLUMNS[dataset]], ...(PRESET_Q[dataset] ? { preset: { q: PRESET_Q[dataset] } } : {}) },
     pageSize: 25,
     mode: "view",
   });
@@ -67,6 +72,8 @@ export function gridConfig(slug: string, dataset: Dataset, labels: Record<string
  */
 export function exportUrl(slug: string, dataset: Dataset, format: "csv" | "geojson"): string {
   const query = new URLSearchParams({ type: TYPE_OF[dataset] });
+  const preset = PRESET_Q[dataset];
+  if (preset) query.set("q", preset);
   if (format === "csv") query.set("humanHeaders", "true");
   return `/api/endpoint/${encodeURIComponent(slug)}/file.${format}?${query.toString()}`;
 }

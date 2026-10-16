@@ -19,7 +19,7 @@ spec:
     - type: PublicAreaPermit
     - type: Event
     - type: Alert
-    - type: ParkingZone
+    - type: OnStreetParking
     - type: CityDistrict
     - type: WaterQualityObserved
     - type: AirQualityObserved
@@ -44,7 +44,6 @@ spec:
     - dateIssued
     - validFrom
     - validTo
-    - zoneKind
     - zoneCode
     - districtCode
     - divisionLevel
@@ -78,7 +77,6 @@ spec:
     - dateIssued
     - validFrom
     - validTo
-    - zoneKind
     - zoneCode
     - districtCode
     - divisionLevel

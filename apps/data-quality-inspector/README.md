@@ -22,7 +22,7 @@ A `wasm` App (AP-142, AP-148): React on the Joined Context App SDK, schema valid
   - `lib.rs`: `inspect` function (JSON in, JSON out).
 - Uses `regex` with `default-features = false` and `features = ["std"]` (no Unicode tables) instead of the `jsonschema` crate to keep the gzipped WebAssembly module under 300 KB (`jsonschema` measured 690 KB gzipped).
 - `src/inspect.worker.ts` loads the module once and answers each call; `src/inspect.ts` is the page's React hook.
-- Reads 13 entity types from Context Space `helsinki`: AirQualityObserved, Alert, BikeHireDockingStation, CityDistrict, Event, NewsArticle, ParkingArea, ParkingZone, PointOfInterest, PublicAreaPermit, Vehicle, WaterQualityObserved, WeatherObserved.
+- Reads 12 entity types from Context Space `helsinki`: AirQualityObserved, Alert, BikeHireDockingStation, CityDistrict, Event, NewsArticle, OnStreetParking, PointOfInterest, PublicAreaPermit, Vehicle, WaterQualityObserved, WeatherObserved.
 - `server/` is the server component (`wasm32-wasip2`, on `jc-app-sdk`), reusing `wasm/` without wasm-bindgen (`inspect_type_with` keeps every finding). Once a day, or when a reader presses Inspect now (at most once every ten minutes), it reads the Endpoint's published schema and its entities through the App's own Endpoint with the reader's token, rows flattened as the SDK flattens them, runs the same inspection and keeps the run's scores per type in `quality_runs` and `run_types` (`migrations/`), so the page shows the trend. The run's full report, every finding grouped by entity, goes to `runs/<id>/report.json` under the App's storage prefix and downloads through a presigned URL.
 
 | Route | What it does |
