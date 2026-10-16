@@ -6731,7 +6731,9 @@
       "sourceNumber": "Source {n}",
       "data": "Data the answer read",
       "dataset": "Open the dataset",
-      "download": "Download the data"
+      "download": "Download the data",
+      "again": "Try again",
+      "closest": "The sources that match your question best"
     },
     "embed": {
       "title": "Embed",

@@ -6731,7 +6731,9 @@
       "sourceNumber": "Quelle {n}",
       "data": "Gelesene Daten der Antwort",
       "dataset": "Datensatz öffnen",
-      "download": "Daten herunterladen"
+      "download": "Daten herunterladen",
+      "again": "Erneut versuchen",
+      "closest": "Die Quellen, die am besten zu Ihrer Frage passen"
     },
     "embed": {
       "title": "Einbetten",

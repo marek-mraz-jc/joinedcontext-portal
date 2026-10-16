@@ -82,8 +82,19 @@ function Answer({ text, citations, ids }: { text: string; citations: Citation[];
           ),
         )}
       </div>
+      <Sources citations={citations} ids={ids} label={t("knowledge.chat.sources")} />
+    </>
+  );
+}
+
+/** The sources under an answer, each marker's target, one per address (T-3325). */
+function Sources({ citations, ids, label: name }: { citations: Citation[]; ids: string; label: string }): JSX.Element | null {
+  const { t } = useTranslation();
+  const grouped = sources(citations);
+  return (
+    <>
       {grouped.list.length > 0 ? (
-        <ol aria-label={t("knowledge.chat.sources")} className="mt-2 list-decimal border-t border-border pl-6 pt-2 text-caption">
+        <ol aria-label={name} className="mt-2 list-decimal border-t border-border pl-6 pt-2 text-caption">
           {grouped.list.map((source, i) => {
             const name = (source.live ? `${t("knowledge.chat.liveData")}: ` : "") + label(source);
             return (
@@ -224,18 +235,20 @@ export function AssistantChat({
   const [on, setOn] = useState<string[]>(connectors);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const [last, setLast] = useState<string | null>(null);
   const conversation = useRef<string | undefined>(undefined);
   const abort = useRef<AbortController | null>(null);
   const input = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => () => abort.current?.abort(), []);
 
-  async function send(event?: FormEvent): Promise<void> {
+  async function send(event?: FormEvent, again?: string): Promise<void> {
     event?.preventDefault();
-    const message = question.trim();
+    const message = (again ?? question).trim();
     if (!message || busy) return;
     const history: ChatTurn[] = turns
-      .filter((turn) => turn.text && !turn.error)
+      // A question nothing answered is not history: asked again, it would be there twice.
+      .filter((turn, i, all) => turn.text && !turn.error && (turn.role !== "user" || (all[i + 1] !== undefined && !all[i + 1].error)))
       .slice(-HISTORY)
       .map((turn) => ({ role: turn.role, text: turn.text.slice(0, MAX_CHARS) }));
     setTurns((all) => [
@@ -245,6 +258,12 @@ export function AssistantChat({
     ]);
     setQuestion("");
     setFailure(null);
+    setLast(null);
+    // The question comes back into the box when no answer does, to resend or reword (T-4160, finding 122).
+    const missed = () => {
+      setQuestion((now) => (now === "" ? message : now));
+      setLast(message);
+    };
     setBusy(true);
     abort.current = new AbortController();
     try {
@@ -259,6 +278,7 @@ export function AssistantChat({
         },
         (streamed) => {
           if (streamed.name === "conversation") conversation.current = streamed.id;
+          if (streamed.name === "error") missed();
           setTurns((all) => [...all.slice(0, -1), apply(all[all.length - 1], streamed)]);
         },
         abort.current.signal,
@@ -266,6 +286,7 @@ export function AssistantChat({
     } catch (error) {
       if ((error as { name?: string }).name === "AbortError") return;
       setTurns((all) => all.slice(0, -1));
+      missed();
       setFailure(reasonOf(error, t("knowledge.chat.failed")));
     } finally {
       setBusy(false);
@@ -317,9 +338,14 @@ export function AssistantChat({
             ))}
             {turn.text && turn.role === "assistant" ? <Answer text={turn.text} citations={turn.citations} ids={`${ids}-${index}`} /> : null}
             {turn.error ? (
-              <Alert role="alert" tone="danger">
-                {turn.error}
-              </Alert>
+              <>
+                <Alert role="alert" tone="danger">
+                  {turn.error}
+                </Alert>
+                {!turn.text ? (
+                  <Sources citations={turn.citations} ids={`${ids}-${index}`} label={t("knowledge.chat.closest")} />
+                ) : null}
+              </>
             ) : null}
             {turn.tools.some((tool) => tool.status === "failed") ? (
               <p className="text-caption text-fg-muted">
@@ -345,6 +371,11 @@ export function AssistantChat({
         <Alert role="alert" tone="danger">
           {failure}
         </Alert>
+      ) : null}
+      {last && !busy ? (
+        <Button size="sm" onClick={() => void send(undefined, last)}>
+          {t("knowledge.chat.again")}
+        </Button>
       ) : null}
       <form onSubmit={(event) => void send(event)} className="space-y-2">
         <Field id={`knowledge-chat-${deployment}`} label={t("knowledge.chat.question")}>

@@ -6731,7 +6731,9 @@
       "sourceNumber": "Zdroj {n}",
       "data": "Data, která odpověď přečetla",
       "dataset": "Otevřít dataset",
-      "download": "Stáhnout data"
+      "download": "Stáhnout data",
+      "again": "Zkusit znovu",
+      "closest": "Zdroje, které nejlépe odpovídají vaší otázce"
     },
     "embed": {
       "title": "Vložit",
