@@ -147,8 +147,8 @@ export function kpiBloblang(params: {
     `}`,
     `root.calculationPeriod = { "type": "Property", "value": { "start": $now.ts_sub_iso8601("${isoDuration}"), "end": $now } }`,
     `root.updatedAt = { "type": "Property", "value": { "@type": "DateTime", "@value": $now } }`,
-    `root.derivedFrom = { "type": "Relationship", "object": "urn:ngsi-ld:Endpoint:%v:${sourceSpace}:${sourceEndpoint}".format($domain) }`,
-    `root.computedBy = { "type": "Relationship", "object": "urn:ngsi-ld:Pipeline:%v:${project}:${kpiName}".format($domain) }`,
+    `root.derivedFrom = { "type": "Property", "value": "urn:ngsi-ld:Endpoint:%v:${sourceSpace}:${sourceEndpoint}".format($domain) }`,
+    `root.computedBy = { "type": "Property", "value": "urn:ngsi-ld:Pipeline:%v:${project}:${kpiName}".format($domain) }`,
     "",
   ]
     .filter((line) => line !== "")
@@ -215,7 +215,7 @@ export function aggregateBloblang(
     `  "id": "urn:ngsi-ld:%v:%v:%v:%v".format("${outputType}", $domain, "${space}", "${attribute}-${aggregate}"),`,
     `  "type": "${outputType}",`,
     `  "${property}": { "type": "Property", "value": ${value}, "observedAt": $seen },`,
-    `  "derivedFrom": { "type": "Relationship", "object": this.map_each(e -> e.id) }`,
+    `  "derivedFrom": { "type": "Property", "value": this.map_each(e -> e.id) }`,
     `}]`,
     "",
   ].join("\n");
