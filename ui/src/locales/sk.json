@@ -4635,7 +4635,14 @@
       "propose": "Navrhnúť zmenu",
       "cancel": "Zrušiť",
       "yamlError": "Neplatný YAML, opravte ho: {message}",
-      "showOperations": "Zobraziť jeho operácie ({count})"
+      "showOperations": "Zobraziť jeho operácie ({count})",
+      "profileTitles": {
+        "chat": "Konverzácie s asistentom",
+        "app-builder": "Zostavovač aplikácií",
+        "app-from-prompt": "Aplikácia zo zadania"
+      },
+      "packageHosts": "balíčky pre stavbu aplikácií",
+      "ids": "Profil {name}, rola {role}"
     },
     "states": {
       "failed": "Nedokončilo sa",

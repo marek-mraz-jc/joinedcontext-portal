@@ -4635,7 +4635,14 @@
       "propose": "Änderung vorschlagen",
       "cancel": "Abbrechen",
       "yamlError": "Kein gültiges YAML, korrigieren Sie es: {message}",
-      "showOperations": "Seine {count} Operationen zeigen"
+      "showOperations": "Seine {count} Operationen zeigen",
+      "profileTitles": {
+        "chat": "Gespräche mit dem Assistenten",
+        "app-builder": "App-Builder",
+        "app-from-prompt": "Eine App aus einer Beschreibung"
+      },
+      "packageHosts": "Pakete zum Bauen von Apps",
+      "ids": "Profil {name}, Rolle {role}"
     },
     "states": {
       "failed": "Nicht beendet",

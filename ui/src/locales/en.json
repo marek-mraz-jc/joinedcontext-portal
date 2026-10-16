@@ -4635,7 +4635,14 @@
       "propose": "Propose change",
       "cancel": "Cancel",
       "yamlError": "Not valid YAML, correct it: {message}",
-      "showOperations": "Show its {count} operations"
+      "showOperations": "Show its {count} operations",
+      "profileTitles": {
+        "chat": "Assistant conversations",
+        "app-builder": "Application builder",
+        "app-from-prompt": "An application from a prompt"
+      },
+      "packageHosts": "packages for building apps",
+      "ids": "Profile {name}, role {role}"
     },
     "states": {
       "failed": "Did not finish",

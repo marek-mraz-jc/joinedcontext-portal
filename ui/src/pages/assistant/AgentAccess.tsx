@@ -151,9 +151,11 @@ function ProfileCard({ project, profile }: { project: string; profile: ProfileAc
     <article aria-labelledby={heading} className="space-y-3 rounded-md border border-border p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 id={heading} className="font-semibold text-fg">
-          {profile.title ?? profile.name}{" "}
-          <span className="font-mono text-caption text-fg-muted">
-            {profile.name} · {profile.role}
+          {/* The seeded profiles by their name in the page's language; the manifest's title
+              is English only, and the id is a quiet second line (T-4160 #31). */}
+          {t(`assistantPage.access.profileTitles.${profile.name}`, { defaultValue: profile.title ?? profile.name })}
+          <span className="block text-caption font-normal text-fg-muted">
+            {t("assistantPage.access.ids", { name: profile.name, role: profile.role })}
           </span>
         </h3>
         <span className="text-caption text-fg-muted">
@@ -165,7 +167,7 @@ function ProfileCard({ project, profile }: { project: string; profile: ProfileAc
       </p>
       <p className="text-caption">
         <span className="font-medium">{t("assistantPage.access.egress")}: </span>
-        {profile.egressHosts.length > 0 ? profile.egressHosts.join(", ") : t("assistantPage.access.noEgress")}
+        <span title={profile.egressHosts.join(", ") || undefined}>{egressWords(profile.egressHosts, t)}</span>
       </p>
 
       {/* Folded (T-2760): every profile's every operation, open at once, made the page ten
@@ -249,4 +251,25 @@ function ProfileCard({ project, profile }: { project: string; profile: ProfileAc
       )}
     </article>
   );
+}
+
+/** The package registries an app build installs from: one phrase, not a row of host names. */
+const PACKAGE_HOSTS = new Set([
+  "registry.npmjs.org",
+  "static.crates.io",
+  "index.crates.io",
+  "crates.io",
+  "pypi.org",
+  "files.pythonhosted.org",
+]);
+
+/**
+ * The hosts a profile may reach, in words where they have a purpose the page can name (T-4264,
+ * T-4160 #31): "balíčky pre stavbu aplikácií, api.example.org". Any other host stays as written.
+ */
+export function egressWords(hosts: string[], t: (key: string) => string): string {
+  if (hosts.length === 0) return t("assistantPage.access.noEgress");
+  const others = hosts.filter((host) => !PACKAGE_HOSTS.has(host));
+  const words = others.length < hosts.length ? [t("assistantPage.access.packageHosts")] : [];
+  return [...words, ...others].join(", ");
 }
