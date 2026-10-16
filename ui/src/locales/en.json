@@ -4634,7 +4634,7 @@
   },
   "activity": {
     "title": "Activity",
-    "lead": "What is happening in this project: the reconciler, the pipelines, the gateway, the broker and the catalogue, newest first.",
+    "lead": "What is happening in this project: changes, pipeline runs, requests and publishing to the catalogue, newest first.",
     "empty": "Nothing has happened here yet.",
     "time": "When",
     "kind": "What",

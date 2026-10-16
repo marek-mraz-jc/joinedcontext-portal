@@ -4634,7 +4634,7 @@
   },
   "activity": {
     "title": "Aktivita",
-    "lead": "Co se děje v tomto projektu: reconciler, pipelines, brána, broker a katalog, nejnovější nahoře.",
+    "lead": "Co se děje v tomto projektu: změny, běhy pipelin, požadavky a publikování do katalogu, nejnovější nahoře.",
     "empty": "Zatím se tu nic nestalo.",
     "time": "Kdy",
     "kind": "Co",

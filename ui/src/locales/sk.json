@@ -62,7 +62,7 @@
     "spaces": "Kontextové priestory",
     "endpoints": "Endpointy",
     "datasources": "Zdroje údajov",
-    "pipelines": "Pipelines",
+    "pipelines": "Pipeliny",
     "dashboards": "Dashboardy",
     "apps": "Aplikácie",
     "approvals": "Schvaľovania",
@@ -674,9 +674,9 @@
       "formula": {
         "expression": "Vzorec",
         "help": "Počíta sa z polí tejto entity každých päť minút a ukladá sa ako jej hodnota, napríklad {example}. Môžete použiť {slots}, čísla, text v úvodzovkách, + - * / %, porovnania, and, or, not, abs, round, min a max.",
-        "noEndpoint": "Žiadny endpoint tohto priestoru neodpovedá podľa všetkých politík priestoru, takže kanál vzorca nemá kde čítať a zapisovať. Najprv pridajte endpoint bez policyRef.",
-        "noAccount": "Tento projekt nemá servisný účet pipelines, ktorý spúšťa kanál vzorca. Najprv ho pridajte.",
-        "pipelineRefused": "Pole je navrhnuté, jeho kanál však nie: {reason}"
+        "noEndpoint": "Žiadny endpoint tohto priestoru neodpovedá podľa všetkých politík priestoru, takže pipelina vzorca nemá kde čítať a zapisovať. Najprv pridajte endpoint bez policyRef.",
+        "noAccount": "Tento projekt nemá servisný účet pipelines, ktorý spúšťa pipelinu vzorca. Najprv ho pridajte.",
+        "pipelineRefused": "Pole je navrhnuté, jeho pipelina však nie: {reason}"
       }
     },
     "views": {
@@ -3052,7 +3052,7 @@
       "usedKind": {
         "ContextSpace": "Kontextový priestor",
         "Endpoint": "Endpointy",
-        "Pipeline": "Pipelines",
+        "Pipeline": "Pipeliny",
         "Subscription": "Odbery",
         "App": "Aplikácie",
         "Dashboard": "Dashboardy",
@@ -4634,7 +4634,7 @@
   },
   "activity": {
     "title": "Aktivita",
-    "lead": "Čo sa deje v tomto projekte: reconciler, pipelines, brána, broker a katalóg, najnovšie navrchu.",
+    "lead": "Čo sa deje v tomto projekte: zmeny, behy pipelín, požiadavky a publikovanie do katalógu, najnovšie navrchu.",
     "empty": "Zatiaľ sa tu nič nestalo.",
     "time": "Kedy",
     "kind": "Čo",
@@ -4714,7 +4714,7 @@
     },
     "sources": {
       "reconciler": "Konfigurácia",
-      "pipeline": "Pipelines",
+      "pipeline": "Pipeliny",
       "gateway": "Brána",
       "broker": "Broker",
       "ckan": "Katalóg",
@@ -6946,14 +6946,14 @@
       "step": {
         "space": "Vytvorte kontextový priestor",
         "source": "Pripojte zdroj údajov",
-        "pipeline": "Spustite kanál",
+        "pipeline": "Spustite pipelinu",
         "data": "Pozrite si dáta",
         "share": "Zdieľajte ich cez endpoint"
       },
       "go": {
         "space": "Vytvoriť priestor",
         "source": "Pripojiť zdroj",
-        "pipeline": "Otvoriť kanály",
+        "pipeline": "Otvoriť pipeliny",
         "data": "Otvoriť priestor",
         "share": "Vytvoriť endpoint"
       }
@@ -6964,7 +6964,7 @@
         "action": "Posúdiť ich"
       },
       "failing": {
-        "title": "{count, plural, one {# kanál zlyháva} few {# kanály zlyhávajú} other {# kanálov zlyháva}}",
+        "title": "{count, plural, one {# pipelina zlyháva} few {# pipeliny zlyhávajú} other {# pipelín zlyháva}}",
         "action": "Pozrieť, čo sa pokazilo"
       },
       "invites": {
