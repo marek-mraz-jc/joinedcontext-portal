@@ -41,6 +41,14 @@ const TERMS: Record<string, Term[]> = {
       banned: /nástenk/iu,
       elsewhere: /^(spaces\.views\.|whatsNew\.entries\.dataViews\.)/,
     },
+    {
+      // T-4219 (photo audit T-4157): the navigation said "Pipelines" and Home "Spustite kanál".
+      // A "kanál" stays where it is a feed (GTFS Realtime), a channel or a way to send something.
+      concept: "pipeline",
+      nav: ["nav.pipelines", "Pipeliny"],
+      banned: /kanál|kanal|^Pipelines$/iu,
+      elsewhere: /^(datasources\.|workspaces\.emptyHint$|organization\.people\.password\.|knowledge\.)/,
+    },
   ],
   en: [
     { concept: "data source", nav: ["nav.datasources", "Data sources"], banned: /\bdatasources?\b/i },

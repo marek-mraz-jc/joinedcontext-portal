@@ -4634,7 +4634,7 @@
   },
   "activity": {
     "title": "Aktivität",
-    "lead": "Was in diesem Projekt geschieht: der Reconciler, die Pipelines, das Gateway, der Broker und der Katalog, das Neueste zuerst.",
+    "lead": "Was in diesem Projekt geschieht: Änderungen, Pipeline-Läufe, Anfragen und die Veröffentlichung im Katalog, das Neueste zuerst.",
     "empty": "Hier ist noch nichts passiert.",
     "time": "Wann",
     "kind": "Was",
