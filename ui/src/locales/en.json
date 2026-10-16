@@ -133,6 +133,13 @@
     "maxLength": "Value is too long",
     "pattern": "Value does not match pattern",
     "enum": "Value must be one of the allowed choices",
+    "button": {
+      "add": "Add",
+      "remove": "Remove",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "copy": "Copy"
+    },
     "minItems": "Choose at least one",
     "format": "Invalid format",
     "redacted": "Redacted",

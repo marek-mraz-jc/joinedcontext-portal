@@ -2,6 +2,7 @@ import React from "react";
 import type { ReactNode } from "react";
 import Form from "@rjsf/core";
 import validator from "./validator";
+import { TranslatableString, englishStringTranslator } from "@rjsf/utils";
 import type { ErrorSchema, RJSFValidationError } from "@rjsf/utils";
 import { useTranslation } from "react-i18next";
 import { requiredProgress } from "./uischema";
@@ -60,6 +61,19 @@ export interface SchemaFormProps<T> {
  * role and a project visibility nobody chose. A field that has a default says so with `default`.
  */
 const FORM_DEFAULTS = { constAsDefaults: "skipOneOf" } as const;
+
+/**
+ * The words of a list's buttons in the page's language: rjsf otherwise uses its English
+ * translator, and a Slovak page said "Add" (T-4212, UI-15). Its other strings are ones the Portal's
+ * templates do not show.
+ */
+const BUTTON_WORDS: Partial<Record<TranslatableString, string>> = {
+  [TranslatableString.AddButton]: "form.button.add",
+  [TranslatableString.RemoveButton]: "form.button.remove",
+  [TranslatableString.MoveUpButton]: "form.button.moveUp",
+  [TranslatableString.MoveDownButton]: "form.button.moveDown",
+  [TranslatableString.CopyButton]: "form.button.copy",
+};
 
 export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
   const {
@@ -173,6 +187,10 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
             noHtml5Validate
             experimental_defaultFormStateBehavior={FORM_DEFAULTS}
             transformErrors={transformErrors}
+            translateString={(string, params) => {
+              const key = BUTTON_WORDS[string];
+              return key ? t(key) : englishStringTranslator(string, params);
+            }}
             templates={portalTemplates}
             widgets={widgets}
             fields={portalFields}
