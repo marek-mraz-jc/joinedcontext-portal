@@ -20,20 +20,21 @@ import {
   TableHeaderCell,
   TableRow,
 } from "../../components/ui";
-import { fromIso, shortens, toIso, UNITS, written } from "./retention";
+import { fromIso, HISTORY_FOREVER, HISTORY_OFF, shortens, toIso, UNITS, written } from "./retention";
 import type { RetentionRule, Unit } from "./retention";
 
 type Count = components["schemas"]["RetentionCount"];
 
-/** One duration as the editor holds it: what the person typed, or forever. */
+/** One duration as the editor holds it: what the person typed, forever, or history off. */
 interface Cell {
   amount: string;
-  unit: Unit | "forever";
+  unit: Unit | "forever" | "off";
   /** The stored duration, written back as it was while the cell shows it unchanged. */
   stored?: string;
 }
 
 function cellOf(iso?: string): Cell {
+  if (iso === HISTORY_OFF) return { amount: "", unit: "off", stored: iso };
   const keep = iso === undefined ? undefined : fromIso(iso);
   return keep === undefined
     ? { amount: "", unit: "forever", stored: iso }
@@ -42,7 +43,9 @@ function cellOf(iso?: string): Cell {
 
 /** The manifest's duration of a cell; `null` when the person typed something the broker refuses. */
 function isoOf(cell: Cell): string | undefined | null {
-  if (cell.unit === "forever") return undefined;
+  if (cell.unit === "off") return HISTORY_OFF;
+  // A history the manifest keeps forever with its reason stays as written (T-4275).
+  if (cell.unit === "forever") return cell.stored === HISTORY_FOREVER ? HISTORY_FOREVER : undefined;
   const iso = toIso({ amount: Number(cell.amount), unit: cell.unit });
   if (iso === undefined) return null;
   const stored = cell.stored === undefined ? undefined : fromIso(cell.stored);
@@ -129,6 +132,8 @@ export function SpaceRetention({
 
   const ruleOf = (type: string) => held.find((rule) => rule.entityType === type);
   const plain = (iso?: string) => {
+    if (iso === HISTORY_OFF) return t("spaces.retention.offShown");
+    if (iso === HISTORY_FOREVER) return t("spaces.retention.forever");
     const keep = iso === undefined ? undefined : fromIso(iso);
     return keep === undefined
       ? iso === undefined
@@ -149,7 +154,7 @@ export function SpaceRetention({
       const current = isoOf(draft[type].current);
       const history = isoOf(draft[type].history);
       if (current === null || history === null) return null;
-      rules.push({ entityType: type, current, history });
+      rules.push({ entityType: type, current, history, reason: ruleOf(type)?.reason });
     }
     return written(rules);
   };
@@ -188,7 +193,7 @@ export function SpaceRetention({
     const label = t(`spaces.retention.${kind}`);
     return (
       <span className="flex gap-2">
-        {cell.unit !== "forever" && (
+        {cell.unit !== "forever" && cell.unit !== "off" && (
           <Input
             type="number"
             min={1}
@@ -203,7 +208,17 @@ export function SpaceRetention({
           value={cell.unit}
           onChange={(event) => set({ unit: event.target.value as Cell["unit"], amount: cell.amount || "1" })}
         >
-          <option value="forever">{t("spaces.retention.forever")}</option>
+          {/* History is Off or kept for a while; forever stays only where it already is (T-4275). */}
+          {kind === "current" ? (
+            <option value="forever">{t("spaces.retention.forever")}</option>
+          ) : (
+            <>
+              {(cell.stored === undefined || cell.stored === HISTORY_FOREVER) && (
+                <option value="forever">{t("spaces.retention.foreverAsNow")}</option>
+              )}
+              <option value="off">{t("spaces.retention.off")}</option>
+            </>
+          )}
           {UNITS.map((unit) => (
             <option key={unit} value={unit}>
               {t(`spaces.retention.unit.${unit}`)}
