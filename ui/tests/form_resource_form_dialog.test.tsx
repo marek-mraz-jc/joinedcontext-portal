@@ -297,6 +297,17 @@ describe("the verdict chip (UI-15, UI-30)", () => {
     expect(screen.getByTestId("draft-findings")).toHaveTextContent(message);
     expect(screen.getByRole("button", { name: "Propose space" })).not.toHaveAttribute("aria-disabled", "true");
   });
+
+  // T-4209 (UI-44, ui-writing rule 1): the server's refusal of a name says what to write, in the
+  // person's language, the way the field's own check does, never a regular expression.
+  it("words_the_servers_name_refusal_as_the_field_does", async () => {
+    const raw =
+      "invalid metadata.name ``: must match DNS-1123 label regex ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ and be 1 to 63 characters";
+    show({ draft: true, initial, verdict: verdict(false, [{ level: "error", path: "metadata.name", message: raw }]) });
+    const findings = await screen.findByTestId("draft-findings");
+    expect(findings).toHaveTextContent(en.form.dns1123);
+    expect(document.body.textContent).not.toMatch(/regex|DNS-1123/);
+  });
 });
 
 describe("the dialog meets the UI contract", () => {
