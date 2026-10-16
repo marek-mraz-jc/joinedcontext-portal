@@ -52,6 +52,8 @@ export interface GridLabels {
   copyQuery: string;
   editAsText: string;
   filterRow: string;
+  /** The unset choice of a column's filter: it lets every row through (T-4222). */
+  noFilter: string;
   /** Said on a sortable header, because the order is of the loaded page only (UI-66). */
   sortPage: string;
   /** What the footer calls the endpoint's own count of matching entities. */
@@ -151,6 +153,7 @@ export const DEFAULT_LABELS: GridLabels = {
   copyQuery: "Copy the query",
   editAsText: "Edit as text",
   filterRow: "Filters",
+  noFilter: "All",
   sortPage: "Sort this page by",
   matching: "matching",
   history: "History",

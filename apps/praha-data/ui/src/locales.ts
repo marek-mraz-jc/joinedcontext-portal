@@ -148,6 +148,7 @@ const cs: Strings = {
     copyQuery: "Kopírovat dotaz",
     editAsText: "Upravit jako text",
     filterRow: "Filtry",
+    noFilter: "Vše",
     sortPage: "Seřadit tuto stranu podle",
     matching: "odpovídá",
     history: "Historie",
