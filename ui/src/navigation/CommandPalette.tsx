@@ -183,7 +183,9 @@ export function CommandPalette({ project }: { project: string }): JSX.Element {
                       )}
                     >
                       <span className="min-w-0 truncate">{row.label}</span>
-                      {row.hint ? <span className="shrink-0 truncate text-caption text-fg-muted">{row.hint}</span> : null}
+                      {/* On a phone the hint (often the typed text again) gives its room to the label,
+                          which it used to cut to "Find entities m…" (T-4165, audit T-4157). */}
+                      {row.hint ? <span className="shrink-0 truncate text-caption text-fg-muted max-sm:hidden">{row.hint}</span> : null}
                     </div>
                   ))}
               </div>

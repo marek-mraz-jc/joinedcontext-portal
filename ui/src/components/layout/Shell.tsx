@@ -230,7 +230,11 @@ export function BrandMark({ short = false }: { short?: boolean }): JSX.Element {
           {name.trim().charAt(0).toUpperCase()}
         </span>
       )}
-      <span className="truncate font-heading font-semibold tracking-tight">{name}</span>
+      {/* Beside a logo the name is cut to "joi…" on a phone and at 200 % zoom; below md the logo
+          stands alone and the name stays for a screen reader (T-4165, audits T-4157, T-4163). */}
+      <span className={clsx("truncate font-heading font-semibold tracking-tight", logo && "max-md:sr-only")}>
+        {name}
+      </span>
     </span>
   );
 }

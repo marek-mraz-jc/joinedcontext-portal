@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -115,6 +115,8 @@ describe("runtime branding", () => {
     });
     const logo = header.querySelector("img");
     expect(logo).toHaveAttribute("src", "/api/v1/branding/logo");
+    // Below md the logo stands alone; the name, cut to "Hel…" there, stays for a screen reader (T-4165).
+    expect(within(header).getByText("Helsinki Context")).toHaveClass("max-md:sr-only");
     const footer = screen.getByRole("contentinfo");
     expect(footer).toHaveTextContent("City of Helsinki");
     expect(footer.querySelector("a")).toHaveAttribute("href", "mailto:opendata@hel.fi");
