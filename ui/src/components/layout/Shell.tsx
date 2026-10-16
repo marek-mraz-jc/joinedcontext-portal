@@ -411,6 +411,24 @@ export function Shell({
   const mcpActive = Boolean(matchRoute({ to: "/projects/$project/mcp", params: { project } }));
   const catalogueActive = Boolean(matchRoute({ to: "/catalogue", fuzzy: true }));
   const importActive = Boolean(matchRoute({ to: "/projects/$project/import", params: { project } }));
+  const inboxActive = Boolean(matchRoute({ to: "/projects/$project/inbox", params: { project } }));
+  // The pages below the section list end the trail with their own name too (T-4216): it stopped
+  // at the project, so a person on Explore or the inbox read only which project they were in.
+  const otherPage = modelsActive
+    ? "nav.models"
+    : exploreActive
+      ? "nav.explore"
+      : ckanActive
+        ? "nav.ckan"
+        : knowledgeActive
+          ? "nav.knowledge"
+          : mcpActive
+            ? "nav.mcp"
+            : importActive
+              ? "nav.import"
+              : inboxActive
+                ? "nav.inbox"
+                : null;
 
   // Project settings is one entry over six tab addresses (T-2606).
   const onSettings = Boolean(
@@ -756,6 +774,14 @@ export function Shell({
                           {t(activeSection.labelKey)}
                         </span>
                       )}
+                    </li>
+                  ) : null}
+                  {!activeSection && otherPage ? (
+                    <li className="flex items-center gap-1">
+                      <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
+                      <span aria-current="page" className="font-medium text-fg">
+                        {t(otherPage)}
+                      </span>
                     </li>
                   ) : null}
                 </ol>
