@@ -240,7 +240,8 @@ describe("data explorer (UI-33)", () => {
     await userEvent.selectOptions(screen.getByLabelText(en.entities.type), "AirQualityObserved");
 
     // The whole type first: two rows and the broker's count.
-    expect(await screen.findByText(ROWS[1].id)).toBeInTheDocument();
+    // The row shows its URN's end; the whole id is its button's name (T-4265).
+    expect(await screen.findByRole("button", { name: ROWS[1].id })).toBeInTheDocument();
     // The endpoint's own count, as the grid's footer says it (R22).
     expect(screen.getByText(`2 ${en.entityGrid.of} 2 ${en.entityGrid.loaded}`)).toBeInTheDocument();
 
@@ -251,7 +252,7 @@ describe("data explorer (UI-33)", () => {
     await userEvent.selectOptions(screen.getByLabelText(en.entities.operator), ">");
     await userEvent.type(value, "20");
     expect(screen.getByLabelText(en.entities.q)).toHaveValue("pm10>20");
-    await waitFor(() => expect(screen.queryByText(ROWS[0].id)).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("button", { name: ROWS[0].id })).not.toBeInTheDocument());
     const last = gatewayUrls(fetchMock).at(-1)!;
     expect(last.pathname).toContain("/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa/");
     expect(last.searchParams.get("q")).toBe("pm10>20");

@@ -132,14 +132,17 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
       ) : null}
       {rows.length > 0 ? (
         <Table data-records="" caption={t("knowledge.sources")}>
+          {/* A phone keeps the source, its state and the way to crawl it (UI-27): at 375 px eight
+              columns put the crawl time one letter a line and the button off the screen (T-4265,
+              photo audit T-4160 #23); the counts are on the source's page. */}
           <TableHead>
             <TableHeaderCell>{t("knowledge.column.source")}</TableHeaderCell>
-            <TableHeaderCell>{t("knowledge.column.type")}</TableHeaderCell>
+            <TableHeaderCell secondary>{t("knowledge.column.type")}</TableHeaderCell>
             <TableHeaderCell>{t("knowledge.column.state")}</TableHeaderCell>
-            <TableHeaderCell>{t("knowledge.column.lastCrawl")}</TableHeaderCell>
-            <TableHeaderCell align="right">{t("knowledge.column.pages")}</TableHeaderCell>
-            <TableHeaderCell align="right">{t("knowledge.column.documents")}</TableHeaderCell>
-            <TableHeaderCell align="right">{t("knowledge.column.passages")}</TableHeaderCell>
+            <TableHeaderCell secondary>{t("knowledge.column.lastCrawl")}</TableHeaderCell>
+            <TableHeaderCell align="right" secondary>{t("knowledge.column.pages")}</TableHeaderCell>
+            <TableHeaderCell align="right" secondary>{t("knowledge.column.documents")}</TableHeaderCell>
+            <TableHeaderCell align="right" secondary>{t("knowledge.column.passages")}</TableHeaderCell>
             <TableHeaderCell align="right">
               <span className="sr-only">{t("approvals.actions")}</span>
             </TableHeaderCell>
@@ -163,7 +166,7 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
                       row.source
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell secondary>
                     {t(`knowledge.type.${row.type}`)}
                     <span className="block text-caption text-fg-muted [overflow-wrap:anywhere]">
                       {row.type === "website"
@@ -183,14 +186,14 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
                       <span className="block text-caption text-fg-muted [overflow-wrap:anywhere]">{row.job.error}</span>
                     ) : null}
                   </TableCell>
-                  <TableCell>{timeText(row.lastCrawl, i18n.language)}</TableCell>
-                  <TableCell align="right">
+                  <TableCell secondary>{timeText(row.lastCrawl, i18n.language)}</TableCell>
+                  <TableCell align="right" secondary>
                     {row.state === "crawled"
                       ? t("knowledge.ofTotal", { part: row.pagesIncluded ?? 0, total: row.pages ?? 0 })
                       : "—"}
                   </TableCell>
-                  <TableCell align="right">{row.state === "crawled" ? (row.documents ?? 0) : "—"}</TableCell>
-                  <TableCell align="right">
+                  <TableCell align="right" secondary>{row.state === "crawled" ? (row.documents ?? 0) : "—"}</TableCell>
+                  <TableCell align="right" secondary>
                     {row.state === "crawled"
                       ? t("knowledge.embeddedOf", { embedded: row.embedded ?? 0, total: row.passages ?? 0 })
                       : "—"}
@@ -295,10 +298,10 @@ function Assistants({ project }: { project: string }): JSX.Element {
         <Table data-records="" caption={t("knowledge.assistants.title")}>
           <TableHead>
             <TableHeaderCell>{t("knowledge.field.name")}</TableHeaderCell>
-            <TableHeaderCell>{t("knowledge.field.publicId")}</TableHeaderCell>
-            <TableHeaderCell>{t("knowledge.field.channel")}</TableHeaderCell>
-            <TableHeaderCell>{t("knowledge.field.sources")}</TableHeaderCell>
-            <TableHeaderCell>{t("knowledge.field.connectors")}</TableHeaderCell>
+            <TableHeaderCell secondary>{t("knowledge.field.publicId")}</TableHeaderCell>
+            <TableHeaderCell secondary>{t("knowledge.field.channel")}</TableHeaderCell>
+            <TableHeaderCell secondary>{t("knowledge.field.sources")}</TableHeaderCell>
+            <TableHeaderCell secondary>{t("knowledge.field.connectors")}</TableHeaderCell>
             <TableHeaderCell align="right">
               <span className="sr-only">{t("approvals.actions")}</span>
             </TableHeaderCell>
@@ -309,10 +312,10 @@ function Assistants({ project }: { project: string }): JSX.Element {
                 <TableCell className="font-mono">
                   <RecordLink project={project} plural="assistantdeployments" name={item.metadata.name} />
                 </TableCell>
-                <TableCell className="font-mono">{item.spec.publicId ?? "—"}</TableCell>
-                <TableCell>{item.spec.channel ? t(`knowledge.channel.${item.spec.channel}`) : "—"}</TableCell>
-                <TableCell>{(item.spec.sources ?? []).join(", ") || "—"}</TableCell>
-                <TableCell>{(item.spec.connectors ?? []).map((c) => c.endpoint).join(", ") || "—"}</TableCell>
+                <TableCell secondary className="font-mono">{item.spec.publicId ?? "—"}</TableCell>
+                <TableCell secondary>{item.spec.channel ? t(`knowledge.channel.${item.spec.channel}`) : "—"}</TableCell>
+                <TableCell secondary>{(item.spec.sources ?? []).join(", ") || "—"}</TableCell>
+                <TableCell secondary>{(item.spec.connectors ?? []).map((c) => c.endpoint).join(", ") || "—"}</TableCell>
                 <TableCell align="right">
                   <div className="flex flex-wrap justify-end gap-1">
                     <Button

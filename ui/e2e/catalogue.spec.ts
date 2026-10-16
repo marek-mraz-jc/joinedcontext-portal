@@ -106,6 +106,37 @@ test.describe("the public catalogue", () => {
     expect(asked.filter((a) => a.startsWith("/api/v1/projects"))).toEqual([]);
   });
 
+  // T-4265 (photo audit T-4160 #15, #40): a curl line, a URL or a NUTS URI is one long word; it ran
+  // past its card and, at 768 px, made the whole page scroll sideways.
+  for (const width of [375, 768]) {
+    test(`a dataset's long values wrap inside their cards at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      // Registered after the stub, so it answers first: Playwright tries the newest route first.
+      await stubApi(page, []);
+      const curl = `curl -H 'Accept: application/ld+json' '${ENDPOINT}ngsi-ld/v1/entities?type=KeyPerformanceIndicator&limit=1000&options=keyValues'`;
+      // A predicate, not a glob: the route gate reads a glob's star and slash as the end of a comment.
+      await page.route((url) => url.pathname === "/api/v1/catalogue/datasets/bbsk-kpi", (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ...DETAIL,
+            spatial: ["http://data.europa.eu/nuts/code/SK032", "http://data.europa.eu/nuts/code/CZ010"],
+            resources: [{ name: "NGSI-LD API", format: "NGSI-LD", url: `${ENDPOINT}ngsi-ld/v1/entities`, description: curl }],
+          }),
+        }),
+      );
+      await page.goto("/catalogue/bbsk-kpi?lang=sk");
+      await expect(page.getByRole("heading", { level: 1, name: "Ukazovatele kraja" })).toBeVisible();
+      await expect(page.getByText(curl)).toBeVisible();
+      const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(sideways, "the page scrolls sideways").toBeLessThanOrEqual(0);
+      const frame = page.getByRole("group", { name: "Zdroje" });
+      const wider = await frame.evaluate((el) => el.scrollWidth - el.clientWidth);
+      expect(wider, "the resources table is wider than its frame").toBeLessThanOrEqual(1);
+    });
+  }
+
   test("a dataset the catalogue does not hold says so and leads back", async ({ page }) => {
     await stubApi(page, []);
     await page.goto("/catalogue/gone?lang=en");

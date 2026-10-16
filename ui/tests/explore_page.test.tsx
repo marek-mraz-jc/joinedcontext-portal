@@ -310,6 +310,16 @@ describe("removing an entity from the explorer (UI-60, T-0912)", () => {
   });
 });
 
+// T-4265 (photo audit T-4160 #19): every id of a type starts with the same `urn:ngsi-ld:Type:…`, so a
+// cell cut at a phone's width read the same on every row. The row is named by its URN's end, the
+// whole id its accessible name and its tooltip.
+it("names each row by the end of its URN, the whole id its accessible name", async () => {
+  await openDetail(() => new Response(null, { status: 204 }));
+  const open = screen.getByRole("button", { name: ROW.id });
+  expect(open).toHaveTextContent(/^001$/);
+  expect(open).toHaveAttribute("title", ROW.id);
+});
+
 /**
  * T-1021, UI-44 and EP-55: the endpoint's own grant decides whether this caller may remove an
  * entity. A grant that allows only reads leaves the button visible and disabled, with the

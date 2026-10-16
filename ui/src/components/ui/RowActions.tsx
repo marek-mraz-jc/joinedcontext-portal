@@ -52,7 +52,10 @@ export function RowActions({
     return <>{primary}</>;
   }
   return (
-    <div className="flex items-center justify-end gap-1.5">
+    // The buttons may shrink here (`!`: over their own `shrink-0`), so a label wraps rather than spilling: a `shrink-0` button whose
+    // label could wrap gave its table cell one word's width, and at 375 px "Pozrieť obsah" lay
+    // over the row's state badge (T-4265, photo audit T-4160 #0).
+    <div className="flex items-center justify-end gap-1.5 [&>*]:shrink!">
       {primary}
       <Menu>
         <MenuTrigger asChild>
