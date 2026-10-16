@@ -690,7 +690,7 @@ describe("a deployment's copy and its full page (T-4281, T-4282)", () => {
     await userEvent.click(within(table).getByRole("button", { name: "Embed obcania" }));
     const dialog = await screen.findByRole("dialog", { name: "Embed obcania" });
     const link = within(dialog).getByRole("link", { name: "Full-page chat" });
-    expect(link).toHaveAttribute("href", "https://assistant.dev.example/d/bb-obcania/widget");
+    expect(link).toHaveAttribute("href", "https://assistant.dev.example/d/bb-obcania");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 });

@@ -454,10 +454,10 @@ export function EmbedSnippet({ publicId, title, language }: { publicId: string; 
         className="h-80 w-full rounded border border-border bg-surface"
       />
       <p className="text-caption text-fg-muted">{t("knowledge.embed.previewHint")}</p>
-      {/* The deployment's chat as a page of its own, to link to or share: the widget's page opened whole (API/05 §1.6). */}
+      {/* The deployment's chat as a page of its own, to link to or share: jc-assistant's `/d/{publicId}` (T-4283). */}
       <p>
         {t("knowledge.embed.fullPageHint")}{" "}
-        <a href={`https://assistant.${branding.domain}/d/${encodeURIComponent(publicId)}/widget`} target="_blank" rel="noopener noreferrer" className="break-all text-primary-soft-fg underline">
+        <a href={`https://assistant.${branding.domain}/d/${encodeURIComponent(publicId)}`} target="_blank" rel="noopener noreferrer" className="break-all text-primary-soft-fg underline">
           {t("knowledge.embed.fullPage")}
         </a>
       </p>
