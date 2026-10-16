@@ -6,7 +6,7 @@ metadata:
   annotations:
     joinedcontext.com/app: praha/praha-odpad
 spec:
-  description: The viewers of praha-odpad, its default group (AP-118).
+  description: The viewers of praha-odpad, its default group.
   members:
   - user: demo.viewer@hel.fi
   - user: demo.steward@hel.fi

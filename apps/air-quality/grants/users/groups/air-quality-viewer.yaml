@@ -6,6 +6,6 @@ metadata:
   annotations:
     joinedcontext.com/app: helsinki/air-quality
 spec:
-  description: The viewers of air-quality, its default group (AP-118).
+  description: The viewers of air-quality, its default group.
   members:
   - user: demo.viewer@hel.fi

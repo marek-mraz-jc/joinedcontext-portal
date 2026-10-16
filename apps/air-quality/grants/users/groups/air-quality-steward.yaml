@@ -6,6 +6,6 @@ metadata:
   annotations:
     joinedcontext.com/app: helsinki/air-quality
 spec:
-  description: The stewards of air-quality, its default group (AP-118).
+  description: The stewards of air-quality, its default group.
   members:
   - user: demo.steward@hel.fi

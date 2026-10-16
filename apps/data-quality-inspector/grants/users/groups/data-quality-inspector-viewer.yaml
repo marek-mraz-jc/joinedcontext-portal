@@ -6,6 +6,6 @@ metadata:
   annotations:
     joinedcontext.com/app: helsinki/data-quality-inspector
 spec:
-  description: The viewers of data-quality-inspector, its default group (AP-118).
+  description: The viewers of data-quality-inspector, its default group.
   members:
   - user: demo.viewer@hel.fi

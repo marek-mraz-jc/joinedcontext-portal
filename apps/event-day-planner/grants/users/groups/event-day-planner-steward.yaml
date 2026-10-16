@@ -6,6 +6,6 @@ metadata:
   annotations:
     joinedcontext.com/app: helsinki/event-day-planner
 spec:
-  description: The stewards of event-day-planner, its default group (AP-118).
+  description: The stewards of event-day-planner, its default group.
   members:
   - user: demo.steward@hel.fi
