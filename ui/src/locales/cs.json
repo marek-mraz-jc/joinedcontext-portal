@@ -190,7 +190,8 @@
     "sitePath": "Cesta webu začínající lomítkem, jako /news/**.",
     "color": "Barva jako # a šest šestnáctkových číslic, jako #0b5394.",
     "notAnAttribute": "{name} není atribut typu {types} v modelech projektu; zkontrolujte pravopis.",
-    "missing": "{field} je povinné"
+    "missing": "{field} je povinné",
+    "mapKey": "Klíč"
   },
   "approvals": {
     "lead": "Každá změna projektu je zde návrhem, dokud ji schvalovatel nesloučí.",

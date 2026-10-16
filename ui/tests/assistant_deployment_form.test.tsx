@@ -95,6 +95,25 @@ describe("the deployment form's sources (T-4282)", () => {
     // What the form proposes is the pure function below; the form holds both references.
     expect(within(picker).getByRole("checkbox", { name: /^web/ })).toBeChecked();
   });
+
+  it("a suggestion per language is added, keyed and taken away, and a site is named in words", async () => {
+    await openForm();
+    const suggestions = screen.getByRole("group", { name: /^Suggested questions/ });
+    await userEvent.click(within(suggestions).getByRole("button", { name: "Add" }));
+    const key = await within(suggestions).findByLabelText("Key");
+    expect(key).toHaveValue("newKey");
+    await userEvent.clear(key);
+    await userEvent.type(key, "sk");
+    await userEvent.tab();
+    await waitFor(() => expect(within(suggestions).getByLabelText("Key")).toHaveValue("sk"));
+    await userEvent.click(within(suggestions).getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(within(suggestions).queryByLabelText("Key")).toBeNull());
+
+    const sites = screen.getByRole("group", { name: /^Allowed sites/ });
+    await userEvent.click(within(sites).getByRole("button", { name: "Add" }));
+    expect(await within(sites).findByLabelText(/^Allowed sites 1/)).toBeInTheDocument();
+    expect(within(sites).queryByText(/sites-1/)).toBeNull();
+  });
 });
 
 describe("the deployment manifest (T-4282)", () => {

@@ -130,10 +130,10 @@ spec:
         cs: "Kde se může zobrazit"
         de: "Wo er erscheinen darf"
       description:
-        en: "The sites that may place it, https only; a public, catalogue or embedded channel names at least one."
-        sk: "Weby, ktoré ho smú vložiť, len https; verejný, katalógový alebo vložený kanál uvedie aspoň jeden."
-        cs: "Weby, které jej smí vložit, jen https; veřejný, katalogový nebo vložený kanál uvede alespoň jeden."
-        de: "Die Websites, die ihn einbinden dürfen, nur https; ein öffentlicher, Katalog- oder eingebetteter Kanal nennt mindestens eine."
+        en: "The sites that may place the chat on their pages."
+        sk: "Weby, ktoré smú chat vložiť na svoje stránky."
+        cs: "Weby, které smí chat vložit na své stránky."
+        de: "Die Websites, die den Chat auf ihren Seiten einbinden dürfen."
       fields: [allowedOrigins]
     - title:
         en: "Limits and budget"

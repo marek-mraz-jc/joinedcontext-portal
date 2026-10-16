@@ -49,6 +49,11 @@ for (const width of [375, 1440]) {
     await picker.getByRole("checkbox", { name: /Region pages/ }).check();
     await picker.getByRole("checkbox", { name: /City pages/ }).check();
     await page.getByLabel(/^Answers from/).selectOption({ label: "Knowledge only" });
+    // A suggested question per language, as a steward writes the chips.
+    const chips = page.getByRole("group", { name: /^Suggested questions/ });
+    await chips.getByRole("button", { name: "Add" }).click();
+    await chips.getByLabel("Key").fill("en");
+    await chips.getByLabel("Key").blur();
     for (const group of ["Knowledge", "Live data", "How it answers", "Where it may appear"]) {
       await expect(page.getByRole("group", { name: group, exact: true })).toBeVisible();
     }
