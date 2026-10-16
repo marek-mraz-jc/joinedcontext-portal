@@ -112,7 +112,25 @@ describe("the pipeline graph", () => {
     expect(forms).toEqual([]);
   });
 
-  it("drops a wire let go anywhere but an input port", () => {
+  // T-4271: a source has no input port, so a wire let go on it used to fall to the canvas and
+  // vanish without a word.
+  it("says a source takes no wire when one is let go on it, and changes nothing", () => {
+    const { forms } = held(THREE);
+    fireEvent.pointerDown(screen.getByTestId("flow-port-out-compute"));
+    fireEvent.pointerUp(screen.getByTestId("flow-node-source"));
+    expect(screen.getByTestId("flow-said")).toHaveTextContent(flow.wire.intoSource);
+    expect(forms).toEqual([]);
+  });
+
+  it("ends a wire let go on a node's body as on its input port", () => {
+    const { last } = held(THREE);
+    fireEvent.pointerDown(screen.getByTestId("flow-port-out-compute"));
+    fireEvent.pointerUp(screen.getByTestId("flow-node-step-0"));
+    expect(run(last())).toEqual(["jq", "compute", "log"]);
+    expect(screen.getByTestId("flow-said")).toHaveTextContent(flow.wire.moved);
+  });
+
+  it("drops a wire let go on the canvas between nodes", () => {
     const { forms } = held(THREE);
     fireEvent.pointerDown(screen.getByTestId("flow-port-out-compute"));
     fireEvent.pointerUp(screen.getByTestId("flow-canvas"));
