@@ -6669,6 +6669,8 @@
       "themeTitle": "Name in the chat header",
       "primaryColor": "Accent colour",
       "greeting": "Greeting",
+      "oneText": "One text",
+      "perLanguage": "One per language",
       "sandbox": "Scripts in the sandbox",
       "organizations": "Only these organizations",
       "upload": "Uploaded files",

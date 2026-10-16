@@ -6669,6 +6669,8 @@
       "themeTitle": "Název v záhlaví chatu",
       "primaryColor": "Barva zvýraznění",
       "greeting": "Pozdrav",
+      "oneText": "Jeden text",
+      "perLanguage": "Pro každý jazyk",
       "sandbox": "Skripty v sandboxu",
       "organizations": "Jen tyto organizace",
       "upload": "Nahrané soubory",

@@ -6669,6 +6669,8 @@
       "themeTitle": "Name in der Chat-Kopfzeile",
       "primaryColor": "Akzentfarbe",
       "greeting": "Begrüßung",
+      "oneText": "Ein Text",
+      "perLanguage": "Je Sprache",
       "sandbox": "Skripte in der Sandbox",
       "organizations": "Nur diese Organisationen",
       "upload": "Hochgeladene Dateien",
