@@ -109,7 +109,7 @@ describe("the ScopeDefinitions page", () => {
     vi.unstubAllGlobals();
   });
 
-  const newLabel = en.resourceList.new.replace("{kind}", "ScopeDefinition");
+  const newLabel = en.kinds.ScopeDefinition.new;
 
   // UI-44, PF-57: New opens the form; the path is typed, checked, then proposed under its own plural.
   it("creates a scope definition through the form, checked before it is proposed", async () => {

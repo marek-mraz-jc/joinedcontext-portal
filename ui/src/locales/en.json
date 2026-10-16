@@ -6296,7 +6296,7 @@
         "json": "The data as JSON to download.",
         "zip": "All files in one ZIP archive.",
         "ogcfeat": "The data for GIS tools (OGC API – Features).",
-        "sta": "Sensor readings over the OGC SensorThings API.",
+        "sta": "Sensor readings over the OGC sensor API (STA).",
         "odata": "The data for Excel and Power BI (OData).",
         "websocket": "Live updates as the data changes.",
         "model": "The data model as {format}."

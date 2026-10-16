@@ -346,7 +346,7 @@ export function KindList({
             title={t("resourceList.empty")}
             // A page with no create action names none in its hint (T-2488).
             description={
-              newButton
+              newButton && createKind
                 ? t("resourceList.emptyHintCreate", { new: kindNew(createKind, t) })
                 : t(`resourceList.emptyHintFor.${plural}`, { defaultValue: t("resourceList.emptyHint") })
             }

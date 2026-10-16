@@ -1133,7 +1133,7 @@ export function ResourceFormDialogBody<T>({
               href={guideHref}
               className="text-primary-soft-fg underline-offset-2"
             >
-              {t("form.guideLink", { kind: kindPlural(kind, t) })}
+              {t("form.guideLink", { kind: kind ? kindPlural(kind, t) : "" })}
             </ExternalLink>
           </p>
         ) : null}
