@@ -222,8 +222,9 @@ describe("EntityForm component", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     const alert = await screen.findByRole("alert");
-    // "Forbidden" is a code, not a sentence: the SDK says the refusal and keeps the detail out (T-4200).
-    expect(alert).toHaveTextContent("You may not read this data.");
+    // A refusal is the SDK's sentence, and the App's own reason, a sentence, stays under it (T-4238).
+    expect(alert).toHaveTextContent("You do not have the right to do this.");
+    expect(alert).toHaveTextContent("You are not allowed to update this station.");
     expect(screen.getByLabelText("bikes")).toHaveValue(99);
   });
 
@@ -382,7 +383,7 @@ describe("EntityForm component", () => {
         </JcProvider>,
       );
 
-      expect(await screen.findByText("You may not read this data.")).toBeInTheDocument();
+      expect(await screen.findByText("You do not have the right to do this.")).toBeInTheDocument();
       expect(screen.queryByText(/no read of name/)).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
       expect(screen.getByLabelText("name (en)")).toBeDisabled();

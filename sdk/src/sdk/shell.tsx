@@ -158,7 +158,7 @@ export function Problem({ error, onRetry }: { error: ProblemError | Error | null
   const coded = error instanceof ProblemError && (!/\s/.test(error.title) || /^HTTP \d+$/.test(error.title));
   // A refusal is the SDK's sentence whatever the title, since a save is refused as well as a read
   // (T-4238): the gateway's Policy says "Access Denied by Policy" in English and no reason (GW6).
-  // The broker's AccessDenied detail is its own English; an App's own reason is kept.
+  // The broker's AccessDenied detail is its own English; an App's own reason, a sentence, is kept.
   const denied = error instanceof ProblemError && (error.status === 401 || error.status === 403);
   const title = !(error instanceof ProblemError)
     ? error.message
@@ -167,7 +167,7 @@ export function Problem({ error, onRetry }: { error: ProblemError | Error | null
       : error.title;
   const detail =
     error instanceof ProblemError &&
-    (denied ? error.type !== "urn:antares:error:AccessDenied" && /\s/.test(error.detail ?? "") : !coded) &&
+    (denied ? error.type !== "urn:antares:error:AccessDenied" && /\s.*[.!?]$/.test(error.detail ?? "") : !coded) &&
     error.detail &&
     error.detail !== error.title
       ? error.detail

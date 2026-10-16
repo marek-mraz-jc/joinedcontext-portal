@@ -62,7 +62,7 @@ describe("EntityTable", () => {
     expect(screen.getByRole("alert")).toBeInTheDocument();
     // A one-word title is a code, not a sentence: the SDK names the refusal and keeps the code's
     // detail out (T-4200).
-    expect(screen.getByText("You may not read this data.")).toBeInTheDocument();
+    expect(screen.getByText("You do not have the right to do this.")).toBeInTheDocument();
     expect(screen.queryByText("Read denied")).not.toBeInTheDocument();
   });
 
