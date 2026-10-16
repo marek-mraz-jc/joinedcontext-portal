@@ -54,13 +54,14 @@ fn manifest(kind: &str, name: &str, spec: serde_json::Value) -> ResourceEnvelope
     }
 }
 
-/// One http DataSource, the endpoint it writes into and the pipeline between them.
-fn mirror(period: &str) -> Mirror {
+/// One socket DataSource (resident, PL-78), the endpoint it writes into and the pipeline between
+/// them.
+fn mirror(open_message: &str) -> Mirror {
     let mirror = Mirror::new();
     mirror.upsert(manifest(
         "DataSource",
         "citybikes",
-        json!({ "type": "http", "http": { "url": "https://example.org/status.json", "timeout": "15s" } }),
+        json!({ "type": "websocket", "webSocket": { "url": "wss://example.org/status", "openMessage": open_message } }),
     ));
     mirror.upsert(manifest(
         "Endpoint",
@@ -76,8 +77,7 @@ fn mirror(period: &str) -> Mirror {
         "Pipeline",
         "citybikes-free",
         json!({
-            "class": "auto",
-            "period": period,
+            "class": "resident",
             "source": { "dataSourceRef": { "kind": "DataSource", "name": "citybikes" } },
             "compute": { "kind": "bloblang", "bloblang": "root = this.data.bikes" },
             "targetEndpoint": "urn:ngsi-ld:Endpoint:example.org:helsinki:helsinki-all"
@@ -117,7 +117,7 @@ async fn every_send_to_the_runner_is_logged_with_its_reason() {
     let (bentos, refused) = (Bentos::new(), Default::default());
 
     // A Portal that has not sent the stream, to a runner that does not run it as rendered.
-    let first = mirror("60s");
+    let first = mirror("subscribe");
     let outcomes = deployer.converge(&first, &bentos, &refused).await;
     assert_eq!(outcomes[0].2, StreamOutcome::Live);
     let said = log.take();
@@ -133,8 +133,10 @@ async fn every_send_to_the_runner_is_logged_with_its_reason() {
     let said = log.take();
     assert!(!said.contains("sending the stream"), "{said}");
 
-    // A changed period is a changed render.
-    deployer.converge(&mirror("120s"), &bentos, &refused).await;
+    // A changed opening message is a changed render.
+    deployer
+        .converge(&mirror("subscribe all"), &bentos, &refused)
+        .await;
     let said = log.take();
     assert!(said.contains("its render changed"), "{said}");
 }

@@ -14,6 +14,7 @@ use jc_core::Condition;
 use jcctl::bento::InputContext;
 use serde_json::Value;
 
+use super::run_queue::{self, Clock, Planned, RunQueue, RunState, Runner};
 use crate::store::Mirror;
 
 /// Timeout for requests sent to the runner's streams API.
@@ -87,6 +88,9 @@ pub enum StreamOutcome {
     Skipped(&'static str),
     /// The runner refused the stream, or an error occurred during render or network transport.
     Error(String),
+    /// A pipeline that does not wait for pushes, run from the queue and deleted after each run
+    /// (PL-78): the condition's reason (`Queued`, `Running`, `Waiting`) and what it says.
+    Scheduled(&'static str, String),
 }
 
 /// Deploys and retires streams on project-specific pipeline runners.
@@ -115,7 +119,12 @@ pub struct StreamDeployer {
     pipeline_identity: bool,
     /// [`REPLACE_TIMEOUT`], shorter in tests.
     replace_timeout: Duration,
+    /// The pipelines that do not wait for pushes, each loaded only for its run (PL-78).
+    queue: Mutex<RunQueue>,
 }
+
+/// How often the run queue looks at the runner.
+const QUEUE_TICK: Duration = Duration::from_secs(5);
 
 /// The runner's id of one project's stream. One runner may serve every project, and two
 /// projects may each have a pipeline of the same name: under the bare name the last PUT won and
@@ -201,7 +210,27 @@ impl StreamDeployer {
             unqualified_retired: Mutex::new(HashSet::new()),
             pipeline_identity: false,
             replace_timeout: REPLACE_TIMEOUT,
+            queue: Mutex::new(RunQueue::new(1, 1)),
         }
+    }
+
+    /// Runs at most `batch` batch-lane and `short` short-lane pipelines at once (PL-78).
+    pub fn with_concurrency(mut self, batch: usize, short: usize) -> Self {
+        self.queue = Mutex::new(RunQueue::new(batch, short));
+        self
+    }
+
+    /// Drives the run queue against the runner every [`QUEUE_TICK`]. The queue only holds what
+    /// [`Self::converge`] planned, so a Portal that does not lead starts nothing.
+    pub fn spawn_queue(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
+        tokio::spawn(async move {
+            let mut every = tokio::time::interval(QUEUE_TICK);
+            every.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+            loop {
+                every.tick().await;
+                run_queue::tick(&self.queue, &*self, chrono::Utc::now()).await;
+            }
+        })
     }
 
     /// The same deployer with other timeouts, so a test need not wait out the real ones.
@@ -359,6 +388,9 @@ impl StreamDeployer {
         // The streams to send, each with its place in `outcomes`: sent after the loop, a few at
         // once (T-4060).
         let mut sends: Vec<(usize, String, String, Value)> = Vec::new();
+        // The pipelines that do not wait for pushes, for the run queue (PL-78).
+        let mut queued: std::collections::BTreeMap<(String, String), Planned> =
+            std::collections::BTreeMap::new();
 
         for ns in mirror.namespaces() {
             // What the project may keep resident (PF-74): the ones beyond its quota are not
@@ -523,6 +555,14 @@ impl StreamDeployer {
                         .into_iter()
                         .map(|source| resolve_source(mirror, &ns, source))
                         .collect();
+                    let resident = resolved.as_ref().is_ok_and(|sources| {
+                        sources.iter().any(|source| match source {
+                            ResolvedSource::Data { spec, .. } => {
+                                run_queue::is_resident(&spec.source_type)
+                            }
+                            ResolvedSource::Endpoint { source, .. } => source.trigger.is_some(),
+                        })
+                    });
                     let rendered = resolved.and_then(|sources| {
                         render_merged(&spec, &name, &ns, &sources, &slugs)
                             .map_err(|err| err.to_string())
@@ -533,8 +573,14 @@ impl StreamDeployer {
                             self.identified(&mut stream_json, &ns, &name);
                             jcctl::bento::inject_space(&mut stream_json, &segments);
                             inject_source_space(&mut stream_json, &source_segments);
-                            sends.push((outcomes.len(), ns.clone(), name.clone(), stream_json));
-                            outcomes.push((ns.clone(), name, StreamOutcome::Live));
+                            place(
+                                (&ns, name, stream_json),
+                                resident,
+                                &spec,
+                                &mut sends,
+                                &mut outcomes,
+                                &mut queued,
+                            );
                         }
                         Err(reason) => {
                             outcomes.push((ns.clone(), name, StreamOutcome::Error(reason)))
@@ -543,6 +589,10 @@ impl StreamDeployer {
                     continue;
                 }
                 let target_slug = slugs[0].clone();
+                // An Endpoint read with a change trigger watches its source; one on a clock polls.
+                let mut resident = first
+                    .as_ref()
+                    .is_some_and(|source| source.trigger.is_some());
 
                 let stream_json = if let Some(ds_name) = ds_ref_name {
                     let ds_env = match mirror.get(&ns, "DataSource", &ds_name) {
@@ -572,6 +622,7 @@ impl StreamDeployer {
                         }
                     };
 
+                    resident = run_queue::is_resident(&ds_spec.source_type);
                     let bento = bentos.get(&(ns.clone(), name.clone())).map(String::as_str);
                     match render_stream(&spec, &name, &ns, &ds_spec, &ds_name, &target_slug, bento)
                     {
@@ -647,11 +698,30 @@ impl StreamDeployer {
                 self.identified(&mut stream_json, &ns, &name);
                 jcctl::bento::inject_space(&mut stream_json, &segments);
                 inject_source_space(&mut stream_json, &source_segments);
-                sends.push((outcomes.len(), ns.clone(), name.clone(), stream_json));
-                outcomes.push((ns.clone(), name, StreamOutcome::Live));
+                place(
+                    (&ns, name, stream_json),
+                    resident,
+                    &spec,
+                    &mut sends,
+                    &mut outcomes,
+                    &mut queued,
+                );
             }
         }
         self.send_all(sends, &mut outcomes, &mut current_live).await;
+        let queued_keys: HashSet<(String, String)> = queued.keys().cloned().collect();
+        {
+            let mut queue = self.queue.lock().unwrap_or_else(|p| p.into_inner());
+            queue.plan(queued, chrono::Utc::now());
+            for (ns, name, outcome) in outcomes.iter_mut() {
+                let key = (ns.clone(), name.clone());
+                if queued_keys.contains(&key) {
+                    if let Some(said) = queue.outcome(&key) {
+                        *outcome = said;
+                    }
+                }
+            }
+        }
         let mut sends: Vec<(usize, String, String, Value)> = Vec::new();
 
         // The sweeps of the pipelines that remove stale entities (PL-64), after every pipeline's
@@ -712,7 +782,12 @@ impl StreamDeployer {
         // Retire streams that were deployed previously but are no longer active or eligible.
         let to_retire: Vec<(String, String)> = {
             let deployed = self.deployed.lock().unwrap_or_else(|p| p.into_inner());
-            deployed.difference(&current_live).cloned().collect()
+            // A queued pipeline's stream is its run's, which the queue deletes itself.
+            deployed
+                .difference(&current_live)
+                .filter(|key| !queued_keys.contains(*key))
+                .cloned()
+                .collect()
         };
         let mut by_project: std::collections::HashMap<String, Vec<String>> =
             std::collections::HashMap::new();
@@ -952,11 +1027,24 @@ impl StreamDeployer {
             return;
         };
         for name in names {
+            self.remove(
+                &runner,
+                project,
+                name,
+                "it was live on the last pass and is not now",
+            )
+            .await;
+        }
+    }
+
+    /// DELETE one stream, a stream that is not there included, and forget it.
+    async fn remove(&self, runner: &str, project: &str, name: &str, why: &str) {
+        {
             let url = format!("{runner}/streams/{}", stream_id(project, name));
             tracing::info!(
                 project = %project,
                 pipeline = %name,
-                "removing the stream from the runner: it was live on the last pass and is not now"
+                "removing the stream from the runner: {why}"
             );
             match self
                 .http
@@ -986,14 +1074,15 @@ impl StreamDeployer {
                     );
                 }
             }
+            let key = (project.to_string(), name.to_string());
             if let Ok(mut deployed) = self.deployed.lock() {
-                deployed.remove(&(project.to_string(), name.clone()));
+                deployed.remove(&key);
             }
             if let Ok(mut rendered) = self.rendered.lock() {
-                rendered.remove(&(project.to_string(), name.clone()));
+                rendered.remove(&key);
             }
             if let Ok(mut backoff) = self.backoff.lock() {
-                backoff.remove(&(project.to_string(), name.clone()));
+                backoff.remove(&key);
             }
         }
     }
@@ -1118,6 +1207,77 @@ impl StreamDeployer {
             Ok(StreamOutcome::Error(format!(
                 "runner answered {status}: {truncated}"
             )))
+        }
+    }
+}
+
+/// Puts one rendered pipeline where it runs (PL-78): a resident one is sent to the runner on
+/// this pass, any other joins the run queue as one run on its clock.
+fn place(
+    (ns, name, mut stream): (&str, String, Value),
+    resident: bool,
+    spec: &PipelineSpec,
+    sends: &mut Vec<(usize, String, String, Value)>,
+    outcomes: &mut Vec<(String, String, StreamOutcome)>,
+    queued: &mut std::collections::BTreeMap<(String, String), Planned>,
+) {
+    if resident {
+        sends.push((outcomes.len(), ns.to_owned(), name.clone(), stream));
+        outcomes.push((ns.to_owned(), name, StreamOutcome::Live));
+        return;
+    }
+    match Clock::of(spec.period.as_deref(), spec.schedule.as_deref()) {
+        Ok(clock) => {
+            own_credential(&mut stream, ns);
+            let stream = run_queue::one_run(&stream);
+            queued.insert((ns.to_owned(), name.clone()), Planned { stream, clock });
+            outcomes.push((
+                ns.to_owned(),
+                name,
+                StreamOutcome::Scheduled("Waiting", String::new()),
+            ));
+        }
+        Err(reason) => outcomes.push((ns.to_owned(), name, StreamOutcome::Error(reason))),
+    }
+}
+
+impl Runner for StreamDeployer {
+    async fn start(&self, key: &run_queue::Key, stream: &Value) -> Result<(), String> {
+        tracing::info!(project = %key.0, pipeline = %key.1, "loading the pipeline's run into the runner (PL-78)");
+        match self.deploy_stream(&key.0, &key.1, stream).await? {
+            StreamOutcome::Live => Ok(()),
+            StreamOutcome::Error(reason) => Err(reason),
+            other => Err(format!("{other:?}")),
+        }
+    }
+
+    async fn state(&self, key: &run_queue::Key) -> RunState {
+        let Some(runner) = self.runner_for(&key.0) else {
+            return RunState::Gone;
+        };
+        let url = format!("{runner}/streams/{}", stream_id(&key.0, &key.1));
+        match self.http.get(&url).send().await {
+            Ok(answer) if answer.status() == reqwest::StatusCode::NOT_FOUND => RunState::Gone,
+            Ok(answer) if answer.status().is_success() => match answer.json::<Value>().await {
+                Ok(held) if held.get("active").and_then(Value::as_bool) == Some(false) => {
+                    RunState::Finished
+                }
+                _ => RunState::Running,
+            },
+            // A runner that does not answer keeps the run until its timeout.
+            _ => RunState::Running,
+        }
+    }
+
+    async fn delete(&self, key: &run_queue::Key) {
+        if let Some(runner) = self.runner_for(&key.0) {
+            self.remove(
+                &runner,
+                &key.0,
+                &key.1,
+                "its run ended or it is new to this Portal (PL-78)",
+            )
+            .await;
         }
     }
 }
@@ -1359,7 +1519,7 @@ const CHANGE_POLL: &str = "10s";
 const CHANGE_POLL_FLOOR: Duration = Duration::from_secs(5);
 
 /// `10s`, `2m`, `500ms`, `1h` as a duration; anything else is not one.
-fn duration_of(text: &str) -> Option<Duration> {
+pub(crate) fn duration_of(text: &str) -> Option<Duration> {
     let text = text.trim();
     let split = text.find(|c: char| !c.is_ascii_digit())?;
     let (number, unit) = text.split_at(split);
@@ -2339,14 +2499,12 @@ mod tests {
         .expect("valid DataSourceSpec")
     }
 
+    /// A resident pipeline (a socket, PL-78), so the runner keeps its stream between passes.
     fn helsinki_test_mirror() -> Mirror {
         let mirror = Mirror::new();
         let ds = serde_json::json!({
-            "type": "http",
-            "http": {
-                "url": "https://gbfs.theta.fifteen.eu/gbfs/2.2/helsinki/en/station_status.json",
-                "timeout": "15s"
-            }
+            "type": "websocket",
+            "webSocket": { "url": "wss://gbfs.theta.fifteen.eu/gbfs/2.2/helsinki/en/station_status" }
         });
         mirror.upsert(ResourceEnvelope {
             api_version: API_VERSION.to_string(),
@@ -2379,8 +2537,7 @@ mod tests {
         });
 
         let pipe = serde_json::json!({
-            "class": "auto",
-            "period": "60s",
+            "class": "resident",
             "source": {
                 "dataSourceRef": {
                     "kind": "DataSource",
@@ -2806,6 +2963,13 @@ mod tests {
             let (input, _) =
                 datasource_input(&spec, "k", "helsinki", &source, "src").expect("render");
             assert_eq!(input["generate"]["interval"], interval, "{extra}");
+            // Each tick is one run of the pipeline's log (PL-62).
+            assert!(
+                input["generate"]["mapping"]
+                    .as_str()
+                    .is_some_and(|mapping| mapping.contains("meta jc_run")),
+                "{input}"
+            );
         }
     }
 
@@ -3749,13 +3913,6 @@ output:
             outputs[1]["fallback"][0]["http_client"]["url"],
             "http://portal-internal:8081/internal/pipelines/helsinki/citybikes-free/outcomes"
         );
-        assert!(
-            staged["input"]["generate"]["mapping"]
-                .as_str()
-                .is_some_and(|mapping| mapping.contains("meta jc_run")),
-            "each tick is a run: {}",
-            staged["input"]
-        );
 
         // A changed model is a changed render: the stage the runner gets is the new one.
         let mut changed = (*air_model("1.1.0")).clone();
@@ -3834,7 +3991,6 @@ output:
             },
             spec: serde_json::json!({
                 "class": "scheduled",
-                "schedule": "7 * * * *",
                 "source": {
                     "endpointRef": { "kind": "Endpoint", "name": "helsinki-all" },
                     "query": { "type": "BikeHireDockingStation" }
@@ -3848,12 +4004,21 @@ output:
             status: None,
         });
 
-        let outcomes = StreamDeployer::new(server.uri())
+        // An Endpoint read on no clock runs once from the queue (PL-78): the run is PUT on the
+        // queue's next tick, not by the pass.
+        let deployer = StreamDeployer::new(server.uri());
+        let outcomes = deployer
             .converge(&mirror, &Bentos::new(), &Default::default())
             .await;
-        assert_eq!(outcomes[0].2, StreamOutcome::Live, "{outcomes:?}");
+        assert!(
+            matches!(
+                &outcomes[0].2,
+                StreamOutcome::Scheduled("Queued" | "Waiting", _)
+            ),
+            "{outcomes:?}"
+        );
+        run_queue::tick(&deployer.queue, &deployer, chrono::Utc::now()).await;
         let sent = server.received_requests().await.expect("recorded");
-        // The first request asks whether the runner already holds the stream (T-2891).
         let put = sent
             .iter()
             .find(|request| request.method.as_str() == "PUT")
@@ -4383,16 +4548,97 @@ output:
                 .await;
             assert_eq!(outcomes[0].2, StreamOutcome::Live);
         }
-        // A changed period renders differently: the second PUT.
+        // A changed mapping renders differently: the second PUT.
         let mut changed = mirror
             .get("helsinki", "Pipeline", "citybikes-free")
             .expect("the test pipeline");
-        changed.spec["period"] = serde_json::json!("120s");
+        changed.spec["compute"]["bloblang"] = serde_json::json!("root = this.data");
         mirror.upsert(changed);
         let outcomes = deployer
             .converge(&mirror, &Bentos::new(), &Default::default())
             .await;
         assert_eq!(outcomes[0].2, StreamOutcome::Live);
+    }
+
+    /// PL-78 (T-4348): a socket, a broker and a server stay loaded; a poll is never sent by the
+    /// pass, only planned, and its resident stream from an older Portal is not retired by it.
+    #[tokio::test]
+    async fn push_sources_stay_resident_and_a_poll_is_only_queued() {
+        let server = wiremock::MockServer::start().await;
+        for name in ["citybikes-free", "hfp", "webhook"] {
+            wiremock::Mock::given(wiremock::matchers::method("PUT"))
+                .and(wiremock::matchers::path(format!(
+                    "/streams/helsinki.{name}"
+                )))
+                .respond_with(wiremock::ResponseTemplate::new(200))
+                .expect(1)
+                .mount(&server)
+                .await;
+        }
+        wiremock::Mock::given(wiremock::matchers::path("/streams/helsinki.harvest"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&server)
+            .await;
+        let mirror = helsinki_test_mirror();
+        let template = mirror
+            .get("helsinki", "Pipeline", "citybikes-free")
+            .expect("the test pipeline");
+        for (name, class, extra, source) in [
+            (
+                "hfp",
+                "resident",
+                serde_json::json!({}),
+                serde_json::json!({ "type": "mqtt", "mqtt": { "urls": ["tcp://mqtt.hsl.fi:1883"], "topics": ["/hfp/#"] } }),
+            ),
+            (
+                "webhook",
+                "resident",
+                serde_json::json!({}),
+                serde_json::json!({ "type": "http_server", "input": { "path": "/hook" } }),
+            ),
+            (
+                "harvest",
+                "scheduled",
+                serde_json::json!({ "schedule": "0 5 * * *" }),
+                serde_json::json!({ "type": "http", "http": { "url": "https://example.org/data.json" } }),
+            ),
+        ] {
+            let mut source_env = mirror
+                .get("helsinki", "DataSource", "hsl-citybikes-free")
+                .expect("the test source");
+            source_env.metadata.name = name.to_owned();
+            source_env.spec = source;
+            mirror.upsert(source_env);
+            let mut pipe = template.clone();
+            pipe.metadata.name = name.to_owned();
+            pipe.spec["class"] = serde_json::json!(class);
+            pipe.spec["source"]["dataSourceRef"]["name"] = serde_json::json!(name);
+            pipe.spec
+                .as_object_mut()
+                .expect("object")
+                .extend(extra.as_object().expect("object").clone());
+            mirror.upsert(pipe);
+        }
+        let deployer = StreamDeployer::new(server.uri());
+        let outcomes = deployer
+            .converge(&mirror, &Bentos::new(), &Default::default())
+            .await;
+        let by_name: HashMap<&str, &StreamOutcome> = outcomes
+            .iter()
+            .map(|(_, name, outcome)| (name.as_str(), outcome))
+            .collect();
+        for resident in ["citybikes-free", "hfp", "webhook"] {
+            assert_eq!(by_name[resident], &StreamOutcome::Live, "{outcomes:?}");
+        }
+        assert!(
+            matches!(by_name["harvest"], StreamOutcome::Scheduled("Waiting", said) if said.starts_with("next run ")),
+            "{outcomes:?}"
+        );
+        // A second pass leaves the resident ones alone (one PUT each) and still sends no poll.
+        deployer
+            .converge(&mirror, &Bentos::new(), &Default::default())
+            .await;
     }
 
     #[tokio::test]
