@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { Card } from "@joinedcontext/sdk";
 import { useAccess } from "../access";
 import type { Lang } from "../i18n";
@@ -33,13 +33,17 @@ export function levelsOf(shown: Shown): Levels | null {
 export function LevelsCard({ lang }: { lang: Lang }) {
   const { levels, levelsKept, steward, saveLevels } = useAccess();
   const [shown, setShown] = useState<Shown>(() => shownOf(levels));
+  // The levels that `shown` was taken from. New ones replace it in the same render, not in an
+  // effect after it: the form opened one commit before the effect ran, and the first value a
+  // steward typed went under the kept levels (T-4277).
+  const [shownFrom, setShownFrom] = useState(levels);
+  if (shownFrom !== levels) {
+    setShownFrom(levels);
+    setShown(shownOf(levels));
+  }
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const why = useId();
-
-  useEffect(() => {
-    setShown(shownOf(levels));
-  }, [levels]);
 
   const wanted = levelsOf(shown);
   const closed = !steward || !levelsKept || busy;
