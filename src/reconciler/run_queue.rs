@@ -253,6 +253,8 @@ struct Entry {
     queued: Option<DateTime<Utc>>,
     /// In the runner since then.
     running: Option<DateTime<Utc>>,
+    /// The id of the run in the runner: its due time, as the pipeline's log names runs (PL-62).
+    run: Option<String>,
     /// Its stream is removed from the runner once before its first run: one an older Portal
     /// loaded as resident, or a run a restarted Portal no longer knows.
     sweep: bool,
@@ -348,6 +350,7 @@ impl RunQueue {
                             next: first,
                             queued: None,
                             running: None,
+                            run: None,
                             sweep: true,
                             last: None,
                         },
@@ -455,11 +458,13 @@ impl RunQueue {
                 .collect();
             waiting.sort();
             let room = if fresh { limit.saturating_sub(busy) } else { 0 };
-            for (_, key) in waiting.iter().take(room) {
+            for (due, key) in waiting.iter().take(room) {
                 if let Some(entry) = self.entries.get_mut(key) {
+                    let run = stamp(*due);
                     entry.queued = None;
                     entry.running = Some(now);
-                    starts.push((key.clone(), entry.stream.clone()));
+                    starts.push((key.clone(), with_run(&entry.stream, &run)));
+                    entry.run = Some(run);
                 }
             }
             crate::telemetry::pipeline_queue_depth(
@@ -468,6 +473,16 @@ impl RunQueue {
             );
         }
         (ended, starts)
+    }
+
+    /// Queues one run of `key` now, outside its clock (T-4349), and names it: an entry already
+    /// queued keeps its place and its run.
+    pub fn run_now(&mut self, key: &Key, now: DateTime<Utc>) -> Result<String, RunNow> {
+        let entry = self.entries.get_mut(key).ok_or(RunNow::NotQueued)?;
+        if entry.running.is_some() {
+            return Err(RunNow::Running(entry.run.clone().unwrap_or_default()));
+        }
+        Ok(stamp(*entry.queued.get_or_insert(now)))
     }
 
     fn failed_to_start(&mut self, key: &Key, reason: String, now: DateTime<Utc>) {
@@ -506,6 +521,35 @@ impl RunQueue {
         };
         Some(StreamOutcome::Scheduled(reason, format!("{now}{last}")))
     }
+}
+
+/// Why a run cannot be queued now.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RunNow {
+    /// The queue does not hold the pipeline: it waits for pushes and always runs, or it is not
+    /// deployed.
+    NotQueued,
+    /// Its run with this id is in the runner.
+    Running(String),
+}
+
+/// The stream of one run with its run id written in, in place of the clock's time, so the
+/// pipeline's log files the run under the id this Portal hands out (PL-62, T-4349).
+fn with_run(stream: &Value, run: &str) -> Value {
+    let named = format!("meta jc_run = {}", Value::from(run));
+    let mut stream = stream.clone();
+    fn walk(value: &mut Value, named: &str) {
+        match value {
+            Value::String(text) if text.contains(crate::pipeline_log::TICK) => {
+                *text = text.replace(crate::pipeline_log::TICK, named);
+            }
+            Value::Array(items) => items.iter_mut().for_each(|item| walk(item, named)),
+            Value::Object(fields) => fields.values_mut().for_each(|field| walk(field, named)),
+            _ => {}
+        }
+    }
+    walk(&mut stream, &named);
+    stream
 }
 
 fn stamp(t: DateTime<Utc>) -> String {
@@ -628,6 +672,7 @@ mod tests {
         held: Mutex<HashMap<Key, RunState>>,
         log: Mutex<Vec<String>>,
         refuse: Mutex<BTreeSet<String>>,
+        sent: Mutex<HashMap<String, Value>>,
     }
 
     impl Fake {
@@ -651,8 +696,12 @@ mod tests {
     }
 
     impl Runner for Fake {
-        async fn start(&self, key: &Key, _: &Value) -> Result<(), String> {
+        async fn start(&self, key: &Key, stream: &Value) -> Result<(), String> {
             self.log.lock().unwrap().push(format!("start {}", key.1));
+            self.sent
+                .lock()
+                .unwrap()
+                .insert(key.1.clone(), stream.clone());
             if self.refuse.lock().unwrap().contains(&key.1) {
                 return Err("400 bad config".to_owned());
             }
@@ -984,6 +1033,63 @@ mod tests {
             ["delete c", "delete b"],
             "the run ends; nothing starts without a fresh plan"
         );
+    }
+
+    #[tokio::test]
+    async fn a_run_now_joins_the_queue_once_and_is_named_by_its_due_time() {
+        let queue = Mutex::new(RunQueue::new(1, 1));
+        let fake = Fake::default();
+        let now = at("2026-10-16T14:00:00Z");
+        let tick_stream = serde_json::json!({"input": {"generate": {"count": 1, "mapping": format!("root = \"\"\n{}", crate::pipeline_log::TICK)}}});
+        let wanted = [(
+            key("a"),
+            Planned {
+                stream: tick_stream,
+                clock: daily_at_5(),
+            },
+        )];
+        queue
+            .lock()
+            .unwrap()
+            .plan(wanted.into_iter().collect(), now);
+        assert_eq!(
+            queue.lock().unwrap().run_now(&key("zz"), now),
+            Err(RunNow::NotQueued)
+        );
+        let run = queue
+            .lock()
+            .unwrap()
+            .run_now(&key("a"), now)
+            .expect("queued");
+        assert_eq!(run, "2026-10-16T14:00:00Z");
+        let later = now + Span::seconds(30);
+        assert_eq!(
+            queue.lock().unwrap().run_now(&key("a"), later),
+            Ok(run.clone()),
+            "one entry"
+        );
+
+        step(&queue, &fake, later).await;
+        step(&queue, &fake, later).await;
+        assert_eq!(
+            fake.held(),
+            ["a"],
+            "the run went to the runner tonight's clock aside"
+        );
+        assert_eq!(
+            queue.lock().unwrap().run_now(&key("a"), later),
+            Err(RunNow::Running(run.clone()))
+        );
+        let started = fake.sent.lock().unwrap()["a"].clone();
+        let mapping = started["input"]["generate"]["mapping"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert!(
+            mapping.ends_with("meta jc_run = \"2026-10-16T14:00:00Z\""),
+            "{mapping}"
+        );
+        assert!(!mapping.contains("now()"), "{mapping}");
     }
 
     #[test]

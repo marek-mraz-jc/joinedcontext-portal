@@ -1,9 +1,10 @@
 import { PageFailed } from "../../components/ui/PageState";
 import { useState } from "react";
 import type { JSX } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, queryKeys, unwrap } from "../../api/client";
+import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { usePermissions } from "../../api/permissions";
 import type { components } from "../../api/schema";
 import type { BadgeTone } from "../../components/ui/Badge";
 import {
@@ -66,12 +67,15 @@ export function PipelineRunsDialog({
   name,
   onClose,
   initialRun,
+  runsFromQueue = false,
 }: {
   project: string;
   name: string;
   onClose: () => void;
   /** The run to open first, as a rejected record names it (T-3252). */
   initialRun?: string;
+  /** The pipeline runs from the queue (PL-78), so a steward may start one run now (T-4349). */
+  runsFromQueue?: boolean;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
@@ -88,6 +92,32 @@ export function PipelineRunsDialog({
         }),
       ),
   });
+  const queryClient = useQueryClient();
+  const permissions = usePermissions(project);
+  const [started, setStarted] = useState<string | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
+  const runNow = useMutation({
+    mutationFn: async () => {
+      setRunError(null);
+      setStarted(null);
+      return unwrap(
+        await api.POST("/api/v1/projects/{project}/pipelines/{name}/runs", {
+          params: { path: { project, name } },
+        }),
+      );
+    },
+    onSuccess: (result) => {
+      setStarted(result.run);
+      void queryClient.invalidateQueries({ queryKey: runsKey });
+    },
+    onError: (err) => {
+      setRunError(err instanceof ApiError ? (err.problem?.detail ?? err.message) : t("app.error.generic"));
+    },
+  });
+  const runRefusal =
+    !permissions.can("Pipeline", "propose") || !permissions.can("Pipeline", "approve")
+      ? t("permissions.denied", { verb: "approve", kind: "Pipeline" })
+      : undefined;
   const items: Run[] = runs.data?.items ?? [];
   const facts = runFacts(items);
   const took = (seconds: number | undefined) =>
@@ -122,8 +152,30 @@ export function PipelineRunsDialog({
       description={t("pipelines.runs.lead")}
       size="xl"
       closeLabel={t("pipelines.runs.close")}
+      footer={
+        runsFromQueue ? (
+          <Button
+            variant="primary"
+            disabled={runRefusal !== undefined || runNow.isPending}
+            disabledReason={runRefusal}
+            onClick={() => runNow.mutate()}
+          >
+            {runNow.isPending ? t("pipelines.runs.starting") : t("pipelines.runs.runNow")}
+          </Button>
+        ) : undefined
+      }
     >
       <div className="flex flex-col gap-4">
+        {started !== null ? (
+          <Alert tone="success" role="status">
+            {t("pipelines.runs.started", { run: label(started) })}
+          </Alert>
+        ) : null}
+        {runError !== null ? (
+          <Alert tone="danger" role="alert">
+            {runError}
+          </Alert>
+        ) : null}
         {runs.isError ? (
           <PageFailed error={runs.error} onRetry={() => void runs.refetch()} />
         ) : runs.isPending ? (

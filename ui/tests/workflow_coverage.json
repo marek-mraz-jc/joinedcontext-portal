@@ -650,6 +650,16 @@
           "POST /api/v1/projects/{project}/pipelines/{name}/rejected/retry"
         ]
       },
+      "run-now": {
+        "live": {
+          "spec": "pipeline-run-now.spec.ts",
+          "test": "a steward runs a queued pipeline now and the run appears in its runs"
+        },
+        "personOnly": "a steward fills a new dataset without waiting for its night; an agent proposes the pipeline and its first run comes from the queue (PL-78)",
+        "routes": [
+          "POST /api/v1/projects/{project}/pipelines/{name}/runs"
+        ]
+      },
       "alerts": {
         "live": {
           "spec": "pipeline-alerts.spec.ts",

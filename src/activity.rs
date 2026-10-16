@@ -30,6 +30,7 @@ pub const KINDS: &[&str] = &[
     "pipeline.throughput",
     "pipeline.error",
     "pipeline.restarted",
+    "pipeline.run",
     "endpoint.traffic",
     "access.denied",
     "access.simulated",

@@ -1986,6 +1986,9 @@
     },
     "runs": {
       "open": "Běhy a záznam",
+      "runNow": "Spustit nyní",
+      "starting": "Spouští se…",
+      "started": "Běh {run} je ve frontě. Spustí se, až přijde na řadu, a objeví se zde, jakmile něco zapíše.",
       "title": "Běhy pipeline {name}",
       "lead": "Každý běh s počtem zapsaných záznamů, záznamů odmítnutých datovým modelem a záznamů, které selhaly v kroku. Otevřete běh a přečtěte si jeho záznam, jeden řádek na záznam.",
       "caption": "Běhy",
@@ -4714,7 +4717,8 @@
       "pipeline": {
         "throughput": "Propustnost pipeline",
         "error": "Chyba pipeline",
-        "restarted": "Pipeline restartována"
+        "restarted": "Pipeline restartována",
+        "run": "Spuštěn běh pipeline"
       },
       "endpoint": {
         "traffic": "Provoz endpointu"

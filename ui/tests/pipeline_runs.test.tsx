@@ -5,7 +5,7 @@
  * lines aged out keeps its counts and says so; a pass that wrote nothing is a run of zeros that
  * says so (T-3001); a list that could not be read says why.
  */
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -244,5 +244,78 @@ describe("a pipeline's runs and log", () => {
     );
     await userEvent.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalled();
+  });
+
+  /** The dialog alone, against `answer` for every request but the caller's permissions. */
+  function dialogOn(
+    answer: (path: string, request: Request) => Response,
+    grants: unknown[] | "all",
+    runsFromQueue: boolean,
+  ) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(new URL(String(input), window.location.origin), init);
+        const path = new URL(request.url, window.location.origin).pathname;
+        if (path.endsWith("/permissions/me")) {
+          return Promise.resolve(
+            jsonResponse(
+              grants === "all"
+                ? { project: "helsinki", bootstrap: true, grants: [] }
+                : { project: "helsinki", bootstrap: false, grants },
+            ),
+          );
+        }
+        return Promise.resolve(answer(path, request));
+      }),
+    );
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <I18nextProvider i18n={i18n}>
+          <PipelineRunsDialog project="helsinki" name="stations" onClose={() => {}} runsFromQueue={runsFromQueue} />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    return screen.findByRole("dialog");
+  }
+
+  it("a_steward_runs_a_queued_pipeline_now_and_is_told_which_run_was_queued", async () => {
+    const asked: string[] = [];
+    const dialog = await dialogOn(
+      (path, request) => {
+        asked.push(`${request.method} ${path}`);
+        return request.method === "POST"
+          ? jsonResponse({ run: "2026-10-16T14:00:00Z" }, 202)
+          : jsonResponse({ items: [] });
+      },
+      "all",
+      true,
+    );
+    await userEvent.click(await within(dialog).findByRole("button", { name: en.pipelines.runs.runNow }));
+    expect(await within(dialog).findByText(/^Run .+ is queued\. It starts when its turn comes/)).toBeInTheDocument();
+    expect(asked).toContain(`POST ${RUNS}`);
+  });
+
+  it("run_now_is_offered_only_for_a_queued_pipeline_needs_approve_and_shows_a_refusal", async () => {
+    const empty = () => jsonResponse({ items: [] });
+    const resident = await dialogOn(empty, "all", false);
+    await within(resident).findByText(en.pipelines.runs.empty);
+    expect(within(resident).queryByRole("button", { name: en.pipelines.runs.runNow })).toBeNull();
+    cleanup();
+
+    const editor = await dialogOn(empty, [{ rule: { kinds: ["Pipeline"], verbs: ["read", "propose"] } }], true);
+    expect(await within(editor).findByRole("button", { name: en.pipelines.runs.runNow })).toHaveAttribute("aria-disabled", "true");
+    cleanup();
+
+    const busy = await dialogOn(
+      (_, request) =>
+        request.method === "POST"
+          ? problem(409, "pipeline 'stations' is running (2026-10-16T05:00:00Z); start another once it ended")
+          : jsonResponse({ items: [] }),
+      "all",
+      true,
+    );
+    await userEvent.click(await within(busy).findByRole("button", { name: en.pipelines.runs.runNow }));
+    expect(await within(busy).findByRole("alert")).toHaveTextContent("is running (2026-10-16T05:00:00Z)");
   });
 });
