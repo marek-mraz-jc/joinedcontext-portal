@@ -13,8 +13,10 @@ use joinedcontext_portal::change::{Change, ChangePhase, Lane};
 use joinedcontext_portal::config::Config;
 use joinedcontext_portal::error::ProblemDetails;
 use joinedcontext_portal::git::GiteaClient;
+use joinedcontext_portal::reconciler::Syncer;
 use joinedcontext_portal::server;
 use joinedcontext_portal::state::AppState;
+use joinedcontext_portal::store::Mirror;
 use serde_json::{json, Value};
 use tower::ServiceExt;
 use wiremock::matchers::{method, path, query_param};
@@ -1019,7 +1021,13 @@ async fn successful_approve_answers_202_deploying() {
         GiteaClient::new(base_url, "test-owner", "test-repo", "token-xyz").expect("client");
 
     let config = Config::for_tests();
-    let state = AppState::new(config.clone(), None).with_gitea(Arc::new(client));
+    let client = Arc::new(client);
+    // A syncer whose periodic loop never starts: only the approval can bring the merge in.
+    let mirror = Arc::new(Mirror::new());
+    let syncer = Arc::new(Syncer::new(Arc::clone(&client), Arc::clone(&mirror)));
+    let state = AppState::new(config.clone(), None)
+        .with_gitea(client)
+        .with_syncer(syncer);
     let app = server::app(state.clone());
 
     // Green lane change proposal: create sandbox ContextSpace
@@ -1081,6 +1089,38 @@ spec:
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
         .mount(&server)
         .await;
+    // `main` after the merge, as the sync reads it.
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/test-owner/test-repo"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"default_branch": "main"})))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/test-owner/test-repo/branches/main"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({"name": "main", "commit": {"id": "merged0000000003"}})),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/test-owner/test-repo/git/trees/merged0000000003"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"truncated": false, "tree": [
+            {"path": "projects/ovzdusie/spaces/sandbox-space/space.yaml", "type": "blob", "sha": "t4270-blob-sandbox"}
+        ]})))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(
+            "/api/v1/repos/test-owner/test-repo/contents/projects/ovzdusie/spaces/sandbox-space/space.yaml",
+        ))
+        .and(query_param("ref", "merged0000000003"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "sha": "blob-1",
+            "content": encode_b64(space_yaml)
+        })))
+        .mount(&server)
+        .await;
 
     let response = app
         .oneshot(
@@ -1108,6 +1148,20 @@ spec:
     assert_eq!(change.metadata.name, "chg-00000003");
     assert_eq!(change.status.phase, ChangePhase::Deploying);
     assert_eq!(change.status.lane, Lane::Green);
+
+    // The merge schedules a sync itself, so what it merged is Live without the periodic tick
+    // (PL-61, T-4270).
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    while mirror
+        .get("ovzdusie", "ContextSpace", "sandbox-space")
+        .is_none()
+    {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the approval did not bring the merge into the mirror"
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
 
     // T-3292: the feed names the change, its resource and who approved it, on the object's page
     // too, instead of only the commit the reconciler later applies.

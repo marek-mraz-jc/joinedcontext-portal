@@ -556,9 +556,19 @@ impl Syncer {
         }
 
         let before = self.status();
+        let started = std::time::Instant::now();
         match self.do_sync(leader).await {
             Ok((count, revision)) => {
                 let landed = before.revision.as_deref() != Some(revision.as_str());
+                // How long a merge waits for the mirror is this run's length, and a run in
+                // flight before it (PL-61, T-4270).
+                tracing::info!(
+                    %revision,
+                    manifests = count,
+                    leader,
+                    elapsed_ms = started.elapsed().as_millis() as u64,
+                    "sync run finished"
+                );
                 {
                     let now = crate::auth::session::now_unix();
                     let mut status = self.status.write().unwrap_or_else(|p| p.into_inner());
@@ -809,7 +819,12 @@ impl Syncer {
         // 2, 3. The repository as files on disk, this run's own; in layout 2 the organization
         //       with every registered project mounted at `projects/{slug}/` (CC-86).
         // 4. Load and validate the whole repository the way `jcctl plan` does (CC-08, MF-05).
+        let staging = std::time::Instant::now();
         let (scratch, repository) = self.render(stage(&self.gitea, &revision).await?).await?;
+        tracing::info!(
+            elapsed_ms = staging.elapsed().as_millis() as u64,
+            "repository staged and loaded"
+        );
         for (id, path, expected) in repository.misplaced() {
             tracing::warn!(resource = %id, path = %path.display(), %expected, "manifest is not at the path its kind declares");
         }
@@ -2341,10 +2356,10 @@ async fn stage_repository(
     revision: &str,
     project: bool,
 ) -> Result<Scratch, SyncError> {
-    let tree_paths = gitea.list_tree(revision).await?;
-    let candidate_paths: Vec<String> = tree_paths
+    let tree_blobs = gitea.list_tree_blobs(revision).await?;
+    let candidates: Vec<(String, String)> = tree_blobs
         .into_iter()
-        .filter(|p| {
+        .filter(|(p, _)| {
             p == jc_core::project::LAYOUT_FILE
                 || if project {
                     // The project's own tree is what lay under `projects/{slug}/`; the slug
@@ -2356,7 +2371,7 @@ async fn stage_repository(
         })
         .collect();
 
-    if candidate_paths.is_empty() {
+    if candidates.is_empty() {
         return Err(SyncError::Empty(
             "no manifests found in repository".to_string(),
         ));
@@ -2366,33 +2381,30 @@ async fn stage_repository(
     // ends.
     let scratch = Scratch::new(revision)?;
     let mut staged = 0usize;
-    for path in &candidate_paths {
-        let file = match gitea.get_file(path, revision).await {
-            Ok(Some(f)) => f,
-            Ok(None) => {
-                // The tree listed it and the contents call does not have it: a race with a
-                // force-push, not a broken manifest. The next run reads a consistent tree.
-                tracing::warn!(path = %path, "candidate manifest listed in git tree not found");
-                continue;
-            }
-            Err(err) => return Err(SyncError::Git(err)),
+    for (path, file) in fetch_blobs(gitea, revision, &candidates).await? {
+        let Some(file) = file else {
+            // The tree listed it and the contents call does not have it: a race with a
+            // force-push, not a broken manifest. The next run reads a consistent tree.
+            tracing::warn!(path = %path, "candidate manifest listed in git tree not found");
+            continue;
         };
+        let path = &path;
         if path == jc_core::project::LAYOUT_FILE {
             // Which layout the repository follows (CC-85): read by the assembly, not a manifest.
-            scratch.write(path, &file.content)?;
+            scratch.write(path, &file)?;
             continue;
         }
         if path.ends_with("/bento.yaml") {
             // Not a manifest: the author's Bento mapping beside a Pipeline (PL-03), staged as
             // written so the streams can render it; the loader skips it by name.
-            scratch.write(path, &file.content)?;
+            scratch.write(path, &file)?;
             continue;
         }
         if path.ends_with(".linkml.yaml") {
             // Not a manifest: a DataModel's LinkML source (`spec.linkml` names only such a file,
             // DM-76), which the view writer compiles into the space's broker schema. Dropped
             // here, no space on the forge ever had its schema written (T-3781).
-            scratch.write(path, &file.content)?;
+            scratch.write(path, &file)?;
             continue;
         }
         if is_encrypted_secrets_file(path) {
@@ -2401,10 +2413,10 @@ async fn stage_repository(
             // because the resolver reads this tree and nothing else; dropping it here is how
             // `demo-feed` came back as "not declared in any encrypted secrets file" while the
             // file sat in the repository. The loader skips it by name.
-            scratch.write(path, &file.content)?;
+            scratch.write(path, &file)?;
             continue;
         }
-        match stageable(&file.content) {
+        match stageable(&file) {
             Ok(Some(text)) => {
                 scratch.write(path, &text)?;
                 staged += 1;
@@ -2422,10 +2434,78 @@ async fn stage_repository(
     if staged == 0 {
         return Err(SyncError::Empty(format!(
             "none of the {} candidate files holds a manifest",
-            candidate_paths.len()
+            candidates.len()
         )));
     }
     Ok(scratch)
+}
+
+/// How many contents calls one staging has in flight.
+const FETCHES_AT_ONCE: usize = 8;
+
+/// The contents of `candidates` (path, blob id) at `revision`, in their order; `None` for one
+/// the forge lists and does not serve.
+///
+/// A blob id names its content for good, so a file this process read before is not read again:
+/// a run after one merge fetches the files that merge changed, not the whole repository, and the
+/// mirror catches up in seconds rather than minutes (PL-61, T-4270). The rest go
+/// [`FETCHES_AT_ONCE`] at a time.
+async fn fetch_blobs(
+    gitea: &GiteaClient,
+    revision: &str,
+    candidates: &[(String, String)],
+) -> Result<Vec<(String, Option<Arc<str>>)>, SyncError> {
+    use futures_util::{StreamExt, TryStreamExt};
+    let fetches = candidates.iter().cloned().map(|(path, sha)| {
+        let gitea = gitea.clone();
+        let revision = revision.to_owned();
+        async move {
+            if let Some(content) = known_blob(&sha) {
+                return Ok::<_, SyncError>((path, Some(content)));
+            }
+            let content: Option<Arc<str>> = gitea
+                .get_file(&path, &revision)
+                .await?
+                .map(|file| file.content.into());
+            if let Some(content) = &content {
+                keep_blob(sha, content.clone());
+            }
+            Ok((path, content))
+        }
+    });
+    futures_util::stream::iter(fetches)
+        .buffered(FETCHES_AT_ONCE)
+        .try_collect()
+        .await
+}
+
+// ponytail: one process-wide map, emptied when it grows past BLOBS_KEPT; an LRU if a
+// repository ever holds more manifests than that.
+const BLOBS_KEPT: usize = 50_000;
+static BLOBS: std::sync::LazyLock<std::sync::Mutex<HashMap<String, Arc<str>>>> =
+    std::sync::LazyLock::new(Default::default);
+
+/// The content of blob `sha`, when this process has read it; a tree entry without an id has none.
+fn known_blob(sha: &str) -> Option<Arc<str>> {
+    if sha.is_empty() {
+        return None;
+    }
+    BLOBS
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .get(sha)
+        .cloned()
+}
+
+fn keep_blob(sha: String, content: Arc<str>) {
+    if sha.is_empty() {
+        return;
+    }
+    let mut blobs = BLOBS.lock().unwrap_or_else(|p| p.into_inner());
+    if blobs.len() >= BLOBS_KEPT {
+        blobs.clear();
+    }
+    blobs.insert(sha, content);
 }
 
 /// The tree one sync loads: the staged organization in layout 1, the assembly in layout 2, with
