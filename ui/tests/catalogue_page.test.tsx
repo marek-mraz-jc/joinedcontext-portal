@@ -221,7 +221,7 @@ describe("the catalogue (EP-81, EP-82)", () => {
     renderAt("/catalogue/bbsk-kpi");
     expect(await screen.findByRole("heading", { level: 1, name: "Ukazovatele kraja" })).toBeInTheDocument();
     expect(screen.getByText("monthly")).toBeInTheDocument();
-    expect(screen.getByText("SK032")).toBeInTheDocument();
+    expect(screen.getByText("Banskobystrický kraj")).toHaveAttribute("title", "SK032");
     expect(screen.getByRole("link", { name: /Creative Commons Attribution/ })).toHaveAttribute(
       "href",
       "https://creativecommons.org/licenses/by/4.0/",

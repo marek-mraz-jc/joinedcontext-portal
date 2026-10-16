@@ -26,6 +26,7 @@ import {
 import { problemOf, useThemeLabel } from "./CataloguePage";
 import { snippets } from "./snippets";
 import type { Snippet } from "./snippets";
+import { areaLabel } from "./nuts";
 
 type DatasetDetail = components["schemas"]["CatalogueDatasetDetail"];
 
@@ -120,7 +121,18 @@ function Dataset({ detail, back }: { detail: DatasetDetail; back: JSX.Element })
       t("catalogue.dataset.frequency"),
       frequency ? t(`catalogue.frequency.${frequency}`, { defaultValue: frequency }) : null,
     ],
-    [t("catalogue.facets.spatial"), detail.spatial.length > 0 ? detail.spatial.join(", ") : null],
+    [
+      t("catalogue.facets.spatial"),
+      detail.spatial.length > 0 ? (
+        <ul className="flex flex-wrap gap-x-2">
+          {detail.spatial.map((area) => (
+            <li key={area} title={area}>
+              {areaLabel(area)}
+            </li>
+          ))}
+        </ul>
+      ) : null,
+    ],
     [t("catalogue.facets.year"), temporal],
     [
       t("catalogue.dataset.contact"),
