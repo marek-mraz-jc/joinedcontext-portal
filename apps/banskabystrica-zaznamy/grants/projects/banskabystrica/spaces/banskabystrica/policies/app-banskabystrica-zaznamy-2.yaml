@@ -9,7 +9,7 @@ spec:
   assignee:
     id: endpoint:banskabystrica/app-banskabystrica-zaznamy
     kind: role
-  assigner: did:web:hel.fi
+  assigner: did:web:banskabystrica.sk
   contextSpaceRef:
     kind: ContextSpace
     name: banskabystrica-mesto

@@ -599,15 +599,25 @@ fn a_fullstack_samples_lock_names_only_crates_the_runners_store_carries() {
     );
 }
 
-/// The one Organization of the dev seed, whose domain every seeded project's ids carry.
-const SEED_ORG_DOMAIN: &str = "hel.fi";
+/// The publisher each seeded project names in its `spec.domain` (PF-108; the deployment's
+/// `components/context-gateway/seed/*` Projects), else the dev seed's one Organization, hel.fi.
+fn seed_publisher(project: &str) -> &'static str {
+    match project {
+        "zilina" => "zilina.sk",
+        "banskabystrica" => "banskabystrica.sk",
+        "bbsk" => "bbsk.sk",
+        "praha" => "praha.eu",
+        _ => "hel.fi",
+    }
+}
 
 /// The Endpoint and Policies each sample app compiles to, as `(repository path, yaml)` in the
 /// layout-1 tree (`projects/{project}/…`), with `slug` for its Endpoint. `None` for an app that
 /// runs nowhere (a draft or a retired one grants nothing).
 fn compiled_grants(yaml: &str, slug: &EndpointSlug) -> Option<Vec<(String, String)>> {
     let manifest: RawManifest = serde_norway::from_str(yaml).expect("a manifest");
-    let (endpoint, policies) = match grants(&manifest, slug, SEED_ORG_DOMAIN) {
+    let publisher = seed_publisher(manifest.metadata.namespace.as_deref().unwrap_or_default());
+    let (endpoint, policies) = match grants(&manifest, slug, publisher) {
         Ok(compiled) => compiled,
         Err(RenderError::NotDeployable { .. }) => return None,
         Err(error) => panic!("{}: {error}", manifest.metadata.name),
