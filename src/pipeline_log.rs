@@ -256,9 +256,10 @@ pub fn with_outcomes(output: serde_json::Value, url: &str) -> serde_json::Value 
                              \"run\": $run, \
                              \"sent\": $sent.slice(i * {BATCH_LINES}, [i * {BATCH_LINES} + {BATCH_LINES}, $n].min()), \
                              \"hashes\": $hashes.slice(i * {BATCH_LINES}, [i * {BATCH_LINES} + {BATCH_LINES}, $n].min()) }}).concat(\
+                             if $f == 0 {{ [] }} else {{ \
                              range(0, (($f + {last}) / {BATCH_LINES}).floor()).map_each(i -> {{ \
                              \"run\": $run, \"sent\": [], \"hashes\": [], \
-                             \"failed\": $failed.slice(i * {BATCH_LINES}, [i * {BATCH_LINES} + {BATCH_LINES}, $f].min()) }}))",
+                             \"failed\": $failed.slice(i * {BATCH_LINES}, [i * {BATCH_LINES} + {BATCH_LINES}, $f].min()) }}) }})",
                             last = BATCH_LINES - 1,
                         ) },
                         { "label": SINK_LABELS[5], "unarchive": { "format": "json_array" } },
@@ -864,6 +865,9 @@ mod tests {
         // Bento's `range` with a step drops a last partial step (1.22.0: range(0, 5, 2) is
         // [0, 2]), so the chunks are counted with a step of one.
         assert!(!chunks.contains(&format!(", {BATCH_LINES})")), "{chunks}");
+        // Bento refuses an empty `range(0, 0)`, so a run with no refused record, the usual one,
+        // threw here and reached the Portal with no report at all (dev, 2026-10-16).
+        assert!(chunks.contains("if $f == 0 { [] } else {"), "{chunks}");
     }
 
     /// T-4036: every part of the sink is labelled, so none of its counters is the stream's.
