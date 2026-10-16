@@ -3841,6 +3841,7 @@
     "showMetadata": "Metadaten anzeigen für",
     "error": "Nicht geladen, versuchen Sie es erneut",
     "filter": "Filter",
+    "noFilter": "Alle",
     "ops": {
       "contains": "enthält",
       "equals": "ist",

@@ -3841,6 +3841,7 @@
     "showMetadata": "Show metadata for",
     "error": "Not loaded, try again",
     "filter": "Filter",
+    "noFilter": "All",
     "ops": {
       "contains": "contains",
       "equals": "is",

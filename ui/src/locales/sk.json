@@ -3841,6 +3841,7 @@
     "showMetadata": "Zobraziť metadáta pre",
     "error": "Nenačítané, skúste znova",
     "filter": "Filter",
+    "noFilter": "Všetko",
     "ops": {
       "contains": "obsahuje",
       "equals": "je",
