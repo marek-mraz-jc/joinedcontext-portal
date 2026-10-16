@@ -1,7 +1,7 @@
 /**
  * T-1545 — UI-44, PF-50, CC-73, CC-75: an Environment, end to end on dev by a person.
  *
- * Created on Organization → Environments through its form ("New Environment": a name and the
+ * Created on Organization → Environments through its form ("New environment": a name and the
  * organization's domain there; Check, then Propose change) by `demo.steward`, approved by
  * `demo.approver`, its domain changed through the row's Edit, removed. The assistant opens the same
  * form; a viewer finds the tab's write controls disabled with a reason.
@@ -19,7 +19,7 @@ kindJourney({
   page: "/organization/environments",
   organization: true,
   create: async (page, name) => {
-    await page.getByRole("main").getByRole("button", { name: "New Environment" }).first().click();
+    await page.getByRole("main").getByRole("button", { name: "New environment" }).first().click();
     const form = await openedForm(page);
     await form.locator("#root_name").fill(name);
     await form.locator("#root_orgDomain").fill(`${name}.example.org`);

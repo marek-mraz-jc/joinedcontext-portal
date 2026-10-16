@@ -1,7 +1,7 @@
 /**
  * T-1537 — UI-44, PF-50, CC-23…CC-27, CC-59: a Blueprint, end to end on dev by a person.
  *
- * Created on Organization → Blueprints through its form ("New Blueprint": a name, a version, one
+ * Created on Organization → Blueprints through its form ("New blueprint": a name, a version, one
  * role, a parameter schema and one template; Check, then Propose change) by `demo.steward`, who
  * administers the organization, approved by `demo.approver`, who approves across it; its version
  * raised through the row's Edit; removed. The assistant opens the same form; a viewer finds the
@@ -19,7 +19,7 @@ kindJourney({
   page: "/organization/blueprints",
   organization: true,
   create: async (page, name) => {
-    await page.getByRole("main").getByRole("button", { name: "New Blueprint" }).first().click();
+    await page.getByRole("main").getByRole("button", { name: "New blueprint" }).first().click();
     const form = await openedForm(page);
     await form.locator("#root_name").fill(name);
     await form.locator("#root_version").fill("1.0.0");

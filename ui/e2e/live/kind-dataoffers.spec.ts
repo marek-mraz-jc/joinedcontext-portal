@@ -1,7 +1,7 @@
 /**
  * T-1543 — UI-44, PF-50, DS-07, DS-14: a DataOffer, end to end on dev by a person.
  *
- * Created on the DataOffers list through its form ("New DataOffer": a name, the helsinki space, the
+ * Created on the DataOffers list through its form ("New data offer": a name, the helsinki space, the
  * seeded weather endpoint; the open offer the form fills; Check, then Propose change), approved,
  * given a purpose through the row's Edit, removed; the assistant opens the same form; a viewer finds
  * the page's write controls disabled with a reason.
@@ -18,7 +18,7 @@ kindJourney({
   plural: "dataoffers",
   page: `/projects/${PROJECT}/dataoffers`,
   create: async (page, name) => {
-    await page.getByRole("main").getByRole("button", { name: "New DataOffer" }).first().click();
+    await page.getByRole("main").getByRole("button", { name: "New data offer" }).first().click();
     const form = await openedForm(page);
     await form.locator("#root_name").fill(name);
     await form.locator("#root_contextSpaceRef").fill(PROJECT);
@@ -36,6 +36,6 @@ kindJourney({
   },
   assistant: {
     ask: (name) => `Create a DataOffer called ${name}`,
-    opened: (page) => page.getByTestId("form-page").or(page.getByRole("dialog", { name: "New DataOffer" })),
+    opened: (page) => page.getByTestId("form-page").or(page.getByRole("dialog", { name: "New data offer" })),
   },
 });
