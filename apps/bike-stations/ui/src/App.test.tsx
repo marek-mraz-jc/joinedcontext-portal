@@ -79,6 +79,8 @@ function show({ refuse = false, endpoints = [OWN, SHARED], language = "en" } = {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  // The handler belongs to the map of the test that drew it; the next test waits for its own.
+  clickStation = null;
 });
 
 const results = () => screen.getByRole("region", { name: /station|asem/ });
@@ -138,6 +140,9 @@ describe("the city bike stations of the mobility project", () => {
   it("opens a station clicked on the map, and ignores a click on nothing", async () => {
     show();
     await waitFor(() => expect(names()).toContain("Kaivopuisto"));
+    // The map binds its click in an effect that may run after the list is on screen: clicking
+    // before it would call the last test's map, whose panel is gone (ci-full 38846230558, T-4257).
+    await waitFor(() => expect(clickStation).not.toBeNull());
     act(() => clickStation?.({ features: [] }));
     expect(screen.queryByRole("dialog")).toBeNull();
     act(() => clickStation?.({ features: [{ properties: { id: STATIONS[0].id } }] }));

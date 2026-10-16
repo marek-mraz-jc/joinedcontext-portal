@@ -15,7 +15,7 @@ import { stubClient } from "@joinedcontext/sdk/testing";
 const setData = vi.fn();
 const addSource = vi.fn();
 /** What a click on a place of the map hands the App, as MapLibre would. */
-let clickPlace: (event: { features?: Array<{ properties?: Record<string, unknown> }> }) => void = () => undefined;
+let clickPlace: ((event: { features?: Array<{ properties?: Record<string, unknown> }> }) => void) | null = null;
 
 vi.mock("maplibre-gl", () => {
   class Map {
@@ -85,6 +85,8 @@ function keyValues(entity: Record<string, unknown>): Row {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  // The handler belongs to the map of the test that drew it; the next test waits for its own.
+  clickPlace = null;
 });
 
 const results = () => screen.getByRole("region", { name: /paikka/ });
@@ -144,10 +146,12 @@ describe("the Helsinki service map", () => {
   it("opens a place clicked on the map, and ignores a click on nothing it knows", async () => {
     show();
     await waitFor(() => expect(names()).toContain("Keskustakirjasto Oodi"));
-    act(() => clickPlace({ features: [{ properties: { id: "urn:ngsi-ld:PointOfInterest:hel.fi:helsinki:nowhere" } }] }));
-    act(() => clickPlace({ features: [] }));
+    // The map binds its click in an effect that may run after the list is on screen (T-4257).
+    await waitFor(() => expect(clickPlace).not.toBeNull());
+    act(() => clickPlace?.({ features: [{ properties: { id: "urn:ngsi-ld:PointOfInterest:hel.fi:helsinki:nowhere" } }] }));
+    act(() => clickPlace?.({ features: [] }));
     expect(screen.queryByRole("dialog")).toBeNull();
-    act(() => clickPlace({ features: [{ properties: { id: SERVICES[0].id } }] }));
+    act(() => clickPlace?.({ features: [{ properties: { id: SERVICES[0].id } }] }));
     expect(await screen.findByRole("dialog", { name: "Keskustakirjasto Oodi" })).toBeInTheDocument();
     expect(within(results()).getByRole("button", { name: "Keskustakirjasto Oodi" })).toHaveAttribute("aria-pressed", "true");
   });

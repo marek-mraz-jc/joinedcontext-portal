@@ -86,6 +86,8 @@ function show(
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  // The handler belongs to the map of the test that drew it; the next test waits for its own.
+  clickPlace = null;
 });
 
 const results = () => screen.getByRole("region", { name: /miest/ });
@@ -159,6 +161,8 @@ describe("the region map", () => {
   it("opens a place clicked on the map, through the endpoint the Portal lists, and ignores a click on nothing", async () => {
     show(undefined, false, [{ name: "registre", slug: SLUG, space: "bbsk-registre", types: [] }]);
     await waitFor(() => expect(names()).toContain("Nemocnica Zvolen"));
+    // The map binds its click in an effect that may run after the list is on screen (T-4257).
+    await waitFor(() => expect(clickPlace).not.toBeNull());
     act(() => clickPlace?.({ features: [] }));
     act(() => clickPlace?.({ features: [{ properties: { id: "urn:ngsi-ld:Hospital:gone" } }] }));
     expect(screen.queryByRole("dialog")).toBeNull();

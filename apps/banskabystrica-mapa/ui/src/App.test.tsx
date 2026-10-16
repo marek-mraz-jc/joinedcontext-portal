@@ -204,6 +204,8 @@ describe("the city map", () => {
   it("opens a place picked on the map, and a click beside every place picks nothing", async () => {
     show();
     await waitFor(() => expect(names()).toContain("Gymnázium Jozefa Gregora Tajovského"));
+    // The map binds its click in an effect that may run after the list is on screen (T-4257).
+    await waitFor(() => expect(clicks.length).toBeGreaterThan(0));
     const school = SCHOOLS.find((one) => (one.name as { languageMap: { sk: string } }).languageMap.sk.startsWith("Gymnázium"))!;
     act(() => clicks.at(-1)?.({ features: [{ properties: { id: school.id } }] }));
     expect(await screen.findByRole("dialog", { name: "Gymnázium Jozefa Gregora Tajovského" })).toBeInTheDocument();
