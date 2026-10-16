@@ -1,5 +1,6 @@
 import { EntityPicker } from "./EntityPicker";
 import { EntitySelectorField, FormDataContext } from "./EntitySelectorField";
+import { KnowledgeSourcesField } from "./KnowledgeSourcesField";
 import { DataModelPickerWidget, FormProjectContext, TypePickerWidget } from "./ModelWidgets";
 import { OperationsPicker } from "./OperationsPicker";
 import { ResourcePicker } from "./ResourcePicker";
@@ -33,4 +34,5 @@ export const portalWidgets = {
 /** The Portal's own fields, which a uiSchema names with `ui:field`. */
 export const portalFields = {
   entitySelector: EntitySelectorField,
+  knowledgeSources: KnowledgeSourcesField,
 };

@@ -339,6 +339,14 @@
         "form_examples_fill.test.tsx"
       ]
     },
+    "src/components/forms/widgets/KnowledgeSourcesField.tsx": {
+      "controls": {
+        "Checkbox": 1
+      },
+      "tests": [
+        "assistant_deployment_form.test.tsx"
+      ]
+    },
     "src/components/forms/widgets/ListFailed.tsx": {
       "controls": {
         "Button": 1
@@ -1198,7 +1206,7 @@
     },
     "src/pages/knowledge/KnowledgePage.tsx": {
       "controls": {
-        "Button": 6
+        "Button": 7
       },
       "tests": [
         "knowledge_pages.test.tsx"

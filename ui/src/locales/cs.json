@@ -190,7 +190,9 @@
     "sitePath": "Cesta webu začínající lomítkem, jako /news/**.",
     "color": "Barva jako # a šest šestnáctkových číslic, jako #0b5394.",
     "notAnAttribute": "{name} není atribut typu {types} v modelech projektu; zkontrolujte pravopis.",
-    "missing": "{field} je povinné"
+    "missing": "{field} je povinné",
+    "mapKey": "Klíč",
+    "mapLanguage": "Jazyk"
   },
   "approvals": {
     "lead": "Každá změna projektu je zde návrhem, dokud ji schvalovatel nesloučí.",
@@ -6682,8 +6684,11 @@
       "suggestions": "Navrhované otázky",
       "disclaimer": "Upozornění",
       "scope": "Mimo tento projekt",
-      "scopeProjects": "Projekty, jejichž veřejné endpointy smí číst",
-      "perClientPerMonth": "Otázky za měsíc, jeden návštěvník"
+      "scopeProjects": "Projekty, jejichž veřejné Endpointy a zdroje znalostí smí číst",
+      "perClientPerMonth": "Otázky za měsíc, jeden návštěvník",
+      "answer": "Způsob odpovědi",
+      "answerRoutes": "Odpovídá z",
+      "feedback": "Ptát se návštěvníků, zda odpověď pomohla"
     },
     "visibility": {
       "internal": "Interní: přihlášení zaměstnanci",
@@ -6711,7 +6716,9 @@
       "day": "Den",
       "requests": "Otázky",
       "tokensIn": "Přečtené tokeny",
-      "tokensOut": "Napsané tokeny"
+      "tokensOut": "Napsané tokeny",
+      "duplicate": "Duplikovat",
+      "duplicateOf": "Duplikovat {name}"
     },
     "chat": {
       "ask": "Zeptat se",
@@ -6751,7 +6758,9 @@
       "launcherIntro": "Přidejte asistenta na svůj web: vložte tento jeden řádek do každé stránky před </body>. Přidá do rohu kulaté tlačítko, které otevře chat.",
       "preview": "Náhled spouštěče na prázdné stránce",
       "previewHint": "Náhled ukazuje tlačítko tak, jak ho vidí návštěvník. Chat se otevře jen na povolených adresách asistenta, proto tu může zůstat prázdný.",
-      "copyOf": "Kopírovat: {what}"
+      "copyOf": "Kopírovat: {what}",
+      "fullPage": "Chat na celou stránku",
+      "fullPageHint": "Samostatná stránka: odkažte na ni z webu nebo ji sdílejte."
     },
     "everySpace": "každý prostor projektu",
     "userGuide": "uživatelská příručka platformy s odkazy do tohoto projektu",
@@ -6785,6 +6794,18 @@
       "unreadList": "Nepřečtené stránky a soubory",
       "noneUnread": "Žádné neúspěšné čtení není zaznamenáno.",
       "totals": "Všechny zdroje: {pages} stránek, {files} souborů, {embedded} z {passages} pasáží vyhledatelných, {pending} čeká, {failed} nepřečtených"
+    },
+    "answerRoutes": {
+      "both": "Znalosti i živá data",
+      "rag": "Jen znalosti",
+      "data": "Jen živá data"
+    },
+    "sourcesPicker": {
+      "publicOnly": "Tento kanál odpovídá nepřihlášeným lidem, proto čte jen veřejné zdroje.",
+      "of": "Zdroje projektu {project}",
+      "own": "{project} (tento projekt)",
+      "unknown": "Uvedené, ale vám nenabídnuté",
+      "none": "Žádný projekt, který můžete číst, zatím nemá zdroj znalostí."
     }
   },
   "mcp": {

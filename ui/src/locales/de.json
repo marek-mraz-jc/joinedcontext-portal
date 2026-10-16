@@ -190,7 +190,9 @@
     "sitePath": "Ein Pfad der Website, der mit einem Schrägstrich beginnt, wie /news/**.",
     "color": "Eine Farbe als # und sechs Hexadezimalziffern, wie #0b5394.",
     "notAnAttribute": "{name} ist kein Attribut von {types} in den Modellen des Projekts; prüfen Sie die Schreibweise.",
-    "missing": "{field} ist erforderlich"
+    "missing": "{field} ist erforderlich",
+    "mapKey": "Schlüssel",
+    "mapLanguage": "Sprache"
   },
   "approvals": {
     "lead": "Jede Änderung am Projekt ist hier ein Vorschlag, bis eine freigebende Person sie zusammenführt.",
@@ -6682,8 +6684,11 @@
       "suggestions": "Vorgeschlagene Fragen",
       "disclaimer": "Hinweis",
       "scope": "Über dieses Projekt hinaus",
-      "scopeProjects": "Projekte, deren öffentliche Endpoints er lesen darf",
-      "perClientPerMonth": "Fragen pro Monat, ein Besucher"
+      "scopeProjects": "Projekte, deren öffentliche Endpoints und Wissensquellen es lesen darf",
+      "perClientPerMonth": "Fragen pro Monat, ein Besucher",
+      "answer": "Antwortmodus",
+      "answerRoutes": "Antwortet aus",
+      "feedback": "Besucher fragen, ob eine Antwort geholfen hat"
     },
     "visibility": {
       "internal": "Intern: angemeldete Mitarbeitende",
@@ -6711,7 +6716,9 @@
       "day": "Tag",
       "requests": "Fragen",
       "tokensIn": "Gelesene Tokens",
-      "tokensOut": "Geschriebene Tokens"
+      "tokensOut": "Geschriebene Tokens",
+      "duplicate": "Duplizieren",
+      "duplicateOf": "{name} duplizieren"
     },
     "chat": {
       "ask": "Fragen",
@@ -6751,7 +6758,9 @@
       "launcherIntro": "Bringen Sie den Assistenten auf Ihre Website: Fügen Sie diese eine Zeile in jede Seite vor </body> ein. Sie fügt in der Ecke eine runde Schaltfläche hinzu, die den Chat öffnet.",
       "preview": "Vorschau der Startzeile auf einer leeren Seite",
       "previewHint": "Die Vorschau zeigt die Schaltfläche so, wie Besucher sie sehen. Der Chat öffnet sich nur auf den erlaubten Adressen des Assistenten und kann hier leer bleiben.",
-      "copyOf": "{what} kopieren"
+      "copyOf": "{what} kopieren",
+      "fullPage": "Chat als ganze Seite",
+      "fullPageHint": "Eine eigene Seite: von einer Website verlinken oder teilen."
     },
     "everySpace": "jeder Raum des Projekts",
     "userGuide": "das Benutzerhandbuch der Plattform, mit Links in dieses Projekt",
@@ -6785,6 +6794,18 @@
       "unreadList": "Nicht gelesene Seiten und Dateien",
       "noneUnread": "Kein fehlgeschlagener Abruf ist verzeichnet.",
       "totals": "Alle Quellen: {pages} Seiten, {files} Dateien, {embedded} von {passages} Passagen durchsuchbar, {pending} wartend, {failed} nicht gelesen"
+    },
+    "answerRoutes": {
+      "both": "Wissen und Live-Daten",
+      "rag": "Nur Wissen",
+      "data": "Nur Live-Daten"
+    },
+    "sourcesPicker": {
+      "publicOnly": "Dieser Kanal antwortet nicht angemeldeten Personen und liest daher nur öffentliche Quellen.",
+      "of": "Quellen von {project}",
+      "own": "{project} (dieses Projekt)",
+      "unknown": "Genannt, aber Ihnen nicht angeboten",
+      "none": "Noch kein Projekt, das Sie lesen dürfen, hat eine Wissensquelle."
     }
   },
   "mcp": {

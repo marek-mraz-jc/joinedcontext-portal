@@ -24,7 +24,8 @@ import {
   TableRow,
 } from "../../components/ui";
 import type { BadgeTone } from "../../components/ui";
-import { knowledgeKeys, listSources, listUsage, recrawl, timeText } from "./knowledge";
+import { putDraft } from "../../api/drafts";
+import { duplicateDeployment, knowledgeKeys, listSources, listUsage, recrawl, timeText } from "./knowledge";
 import type { KnowledgeSourceRow } from "./knowledge";
 import { AssistantChat, EmbedSnippet } from "./AssistantChat";
 import { sum } from "./IndexStatus";
@@ -232,8 +233,8 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
 }
 
 interface DeploymentItem {
-  metadata: { name: string };
-  spec: {
+  metadata: { name: string; namespace?: string };
+  spec: Record<string, unknown> & {
     publicId?: string;
     channel?: string;
     sources?: string[];
@@ -259,6 +260,16 @@ function Assistants({ project }: { project: string }): JSX.Element {
       unwrap(await api.GET("/api/v1/projects/{project}/{plural}", { params: { path: { project, plural: "assistantdeployments" } } })),
   });
   const items = (list.data?.items ?? []) as unknown as DeploymentItem[];
+  // A copy with a new name and publicId, kept as a draft and opened in the create form (T-4281).
+  const duplicate = useMutation({
+    mutationFn: async (item: DeploymentItem) => {
+      const copy = duplicateDeployment(item, items);
+      await putDraft(project, "AssistantDeployment", copy.metadata.name, copy);
+      return copy.metadata.name;
+    },
+    onSuccess: (name) =>
+      void navigate({ href: `/projects/${encodeURIComponent(project)}/assistantdeployments?draft=${encodeURIComponent(name)}` }),
+  });
   const addAssistant = (
     <PermissionGuard project={project} kind="AssistantDeployment" verb="propose">
       <Button
@@ -296,6 +307,7 @@ function Assistants({ project }: { project: string }): JSX.Element {
           action={addAssistant}
         />
       ) : null}
+      {duplicate.isError ? <PageFailed error={duplicate.error} onRetry={() => duplicate.reset()} /> : null}
       {items.length > 0 ? (
         <Table data-records="" caption={t("knowledge.assistants.title")}>
           <TableHead>
@@ -338,6 +350,16 @@ function Assistants({ project }: { project: string }): JSX.Element {
                         {t("knowledge.embed.title")}
                       </Button>
                     ) : null}
+                    <PermissionGuard project={project} kind="AssistantDeployment" verb="propose">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={t("knowledge.assistants.duplicateOf", { name: item.metadata.name })}
+                        onClick={() => duplicate.mutate(item)}
+                      >
+                        {t("knowledge.assistants.duplicate")}
+                      </Button>
+                    </PermissionGuard>
                     <Button
                       variant="ghost"
                       size="sm"

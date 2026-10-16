@@ -10,7 +10,10 @@ import { createContext, useCallback, useContext } from "react";
 import type { ChangeEvent, FocusEvent, ReactNode } from "react";
 import { getDefaultRegistry } from "@rjsf/core";
 import {
+  ADDITIONAL_PROPERTY_FLAG,
   ariaDescribedByIds,
+  buttonId,
+  canExpand,
   enumOptionSelectedValue,
   enumOptionValueDecoder,
   enumOptionValueEncoder,
@@ -35,7 +38,7 @@ import type {
 } from "@rjsf/utils";
 import { clsx } from "clsx";
 import { useTranslation } from "react-i18next";
-import { Button, Checkbox, CONTROL, Field, Icon, Select, Textarea } from "../ui";
+import { Button, Checkbox, CONTROL, Field, Icon, Input as UiInput, Select, Textarea } from "../ui";
 import { askAbout, formContext, inField } from "../../assistant/state";
 import { useShownErrors } from "./touched";
 
@@ -219,7 +222,18 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
     return <div hidden>{children}</div>;
   }
 
+  // An entry of a map (`additionalProperties`, such as a deployment's suggestions per language):
+  // its key is typed beside its value and it can be taken away (T-4282); rjsf's own template
+  // for it is Bootstrap markup the Portal does not style.
+  if (ADDITIONAL_PROPERTY_FLAG in schema) {
+    return <MapEntry {...props} />;
+  }
+
   const showLabel = displayLabel !== false && Boolean(label);
+  // rjsf names a list's plain item `{list}-{n}`, which reads like an id: `{list} {n}`, as an
+  // object item is titled (itemTitle).
+  const last = fieldPathId?.path?.[fieldPathId.path.length - 1];
+  const shown = typeof last === "number" && typeof label === "string" ? label.replace(new RegExp(`-${last + 1}$`), ` ${last + 1}`) : label;
   // An array or an object template writes its own heading and description; once is enough.
   const ownHeading = schema.type === "array" || schema.type === "object";
   // What a person reads under the label is written for them: the UiSchema's `help`, in their own
@@ -239,7 +253,7 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
   return (
     <Field
       id={id}
-      label={label}
+      label={shown}
       hideLabel={!showLabel}
       required={asked}
       description={inherited ?? descText}
@@ -247,7 +261,7 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
       errors={errors}
       aside={
         ownHeading ? undefined : (
-          <AskAboutField path={pathOf(fieldPathId)} label={typeof label === "string" ? label : ""} />
+          <AskAboutField path={pathOf(fieldPathId)} label={typeof shown === "string" ? shown : ""} />
         )
       }
     >
@@ -379,6 +393,40 @@ function itemTitle(
   return own ? `${own} ${last + 1}` : t("form.entry", { number: last + 1 });
 }
 
+/** One entry of a map: the key, its value, and Remove. */
+function MapEntry(props: FieldTemplateProps): React.JSX.Element {
+  const { id, label, children, disabled, readonly, onKeyRenameBlur, onRemoveProperty, registry, uiSchema, fieldPathId } = props;
+  const { t } = useTranslation();
+  // A map keyed by language (a two-letter `propertyNames`) names its key as a language.
+  const parent = (fieldPathId?.path ?? []).slice(0, -1).reduce<Record<string, unknown> | undefined>(
+    (node, step) => (node?.properties as Record<string, Record<string, unknown>> | undefined)?.[String(step)],
+    registry.rootSchema as Record<string, unknown>,
+  );
+  const byLanguage = (parent?.propertyNames as { pattern?: unknown } | undefined)?.pattern === "^[a-z]{2}$";
+  const { RemoveButton } = registry.templates.ButtonTemplates;
+  const frozen = Boolean(disabled || readonly);
+  return (
+    <div className="flex min-w-0 flex-col gap-2 rounded-md border border-border p-3 @md:flex-row @md:items-start">
+      <div className="@md:w-32 @md:shrink-0">
+        <Field id={`${id}-key`} label={byLanguage ? t("form.mapLanguage") : t("form.mapKey")}>
+          <UiInput
+            id={`${id}-key`}
+            key={label}
+            defaultValue={label}
+            readOnly={frozen}
+            onBlur={onKeyRenameBlur}
+            className="font-mono"
+          />
+        </Field>
+      </div>
+      <div className="min-w-0 flex-1">{children}</div>
+      {frozen ? null : (
+        <RemoveButton id={buttonId(id, "remove")} className="self-end" onClick={onRemoveProperty} uiSchema={uiSchema} registry={registry} />
+      )}
+    </div>
+  );
+}
+
 export function ObjectFieldTemplate(props: ObjectFieldTemplateProps): React.JSX.Element {
   const asked = useContext(AskedContext);
   const path = props.fieldPathId.path ?? [];
@@ -432,12 +480,21 @@ function ObjectFields(props: ObjectFieldTemplateProps): React.JSX.Element {
     );
   }
 
+  // A map (`additionalProperties`) grows by Add; without it a map with no entry was an empty box.
+  const { AddButton } = props.registry.templates.ButtonTemplates;
+  const add =
+    canExpand(props.schema, uiSchema, props.formData) && !props.disabled && !props.readonly ? (
+      <div>
+        <AddButton id={buttonId(fieldPathId.$id, "add")} onClick={props.onAddProperty} uiSchema={uiSchema} registry={props.registry} />
+      </div>
+    ) : null;
   // An object with no title of its own (a title map asking for one language) reads as its
   // fields, not as a boxed section around them.
-  if (!title) return <>{properties.map((prop) => prop.content)}</>;
+  if (!title) return <>{properties.map((prop) => prop.content)}{add}</>;
   return (
     <Fieldset title={itemTitle(props, t) ?? title} description={description}>
       <Cells properties={properties} schema={props.schema} uiSchema={uiSchema} />
+      {add}
     </Fieldset>
   );
 }

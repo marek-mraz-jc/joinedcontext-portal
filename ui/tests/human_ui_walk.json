@@ -41,6 +41,7 @@
     "src/components/export/ExportModal.tsx": null,
     "src/components/forms/FormRoute.tsx": null,
     "src/components/forms/theme.tsx": null,
+    "src/components/forms/widgets/KnowledgeSourcesField.tsx": null,
     "src/components/forms/widgets/ListFailed.tsx": null,
     "src/components/forms/widgets/OperationsPicker.tsx": null,
     "src/components/forms/widgets/ResourcePicker.tsx": null,

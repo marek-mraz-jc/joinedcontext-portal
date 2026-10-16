@@ -26,6 +26,10 @@ export const MODEL_ID = "^[a-z0-9._:-]+/[a-z0-9._:/-]+$";
 export const VISIBILITIES = ["internal", "public"] as const;
 export const CHANNELS = ["public", "internal", "ckan", "iframe"] as const;
 export const PDF_POLICIES = ["include", "exclude"] as const;
+/** What one answer may use: the sources and the connectors, the sources alone, or the connectors alone (MF-52, T-4281). */
+export const ANSWER_ROUTES = ["both", "rag", "data"] as const;
+/** A source or an Endpoint of the own project by its name, or of a project in `scope.projects` as `{project}/{name}` (MF-52). */
+export const PROJECT_REF = "^([a-z0-9]([-a-z0-9]*[a-z0-9])?/)?[a-z0-9]([-a-z0-9]*[a-z0-9])?$";
 /** The read-only tools of an Endpoint's MCP surface the assistant calls (jc-assistant's allowlist, T-4140). */
 export const ENDPOINT_TOOLS = [
   "list_types",
@@ -135,6 +139,17 @@ export function assistantDeploymentSchema(
         budget: { required: ["tokensPerDay", "tokensPerConversation"] },
       },
     },
+    // An answer from the sources alone needs a source, one from the connectors alone a connector (MF-52, T-4281).
+    allOf: [
+      {
+        if: { properties: { answer: { properties: { routes: { const: "rag" } }, required: ["routes"] } }, required: ["answer"] },
+        then: { required: ["sources"], properties: { sources: { minItems: 1 } } },
+      },
+      {
+        if: { properties: { answer: { properties: { routes: { const: "data" } }, required: ["routes"] } }, required: ["answer"] },
+        then: { required: ["connectors"], properties: { connectors: { minItems: 1 } } },
+      },
+    ],
     properties: {
       name: { type: "string", title: t("knowledge.field.name"), pattern: DNS1123, maxLength: 63 },
       publicId: { type: "string", title: t("knowledge.field.publicId"), pattern: DNS1123, maxLength: 63 },
@@ -143,7 +158,7 @@ export function assistantDeploymentSchema(
       sources: {
         type: "array",
         title: t("knowledge.field.sources"),
-        items: sources.length > 0 ? { type: "string", enum: sources } : { type: "string", pattern: DNS1123 },
+        items: sources.length > 0 ? { type: "string", enum: sources } : { type: "string", pattern: PROJECT_REF },
         uniqueItems: true,
       },
       connectors: {
@@ -156,7 +171,7 @@ export function assistantDeploymentSchema(
             endpoint: {
               type: "string",
               title: t("knowledge.field.connectorEndpoint"),
-              ...(endpoints.length > 0 ? { enum: endpoints } : { pattern: DNS1123 }),
+              ...(endpoints.length > 0 ? { enum: endpoints } : { pattern: PROJECT_REF }),
             },
             tools: {
               type: "array",
@@ -169,6 +184,14 @@ export function assistantDeploymentSchema(
           },
         },
       },
+      answer: {
+        type: "object",
+        title: t("knowledge.field.answer"),
+        properties: {
+          routes: { type: "string", title: t("knowledge.field.answerRoutes"), default: "both", ...words(t, "knowledge.answerRoutes", ANSWER_ROUTES) },
+        },
+      },
+      feedback: { type: "boolean", title: t("knowledge.field.feedback"), default: true },
       allowedOrigins: {
         type: "array",
         title: t("knowledge.field.allowedOrigins"),
@@ -258,6 +281,18 @@ export function assistantDeploymentSchema(
   };
 }
 
+/** The deployment's sources are picked from every project the person reads (`knowledgeSources`, T-4282); its groups are its UiSchema's. */
+export const assistantDeploymentUiSchema = { sources: { "ui:field": "knowledgeSources" } };
+
+/** The projects a deployment's `{project}/{name}` sources and connectors reach, which `scope.projects` must name (MF-52). */
+export function projectsNamed(spec: Record<string, unknown>): string[] {
+  const refs = [
+    ...(Array.isArray(spec.sources) ? spec.sources : []),
+    ...(Array.isArray(spec.connectors) ? spec.connectors.map((c) => (c as { endpoint?: unknown } | null)?.endpoint) : []),
+  ];
+  return [...new Set(refs.filter((ref): ref is string => typeof ref === "string" && ref.includes("/")).map((ref) => ref.split("/")[0]))];
+}
+
 /** What a form holds: the name beside the spec's own fields. */
 export type KindForm = Record<string, unknown> & { name?: string };
 
@@ -292,6 +327,14 @@ export function toKindManifest(
   stored?: unknown,
 ): ResourceProposal {
   const { name, ...spec } = form;
+  if (kind === "AssistantDeployment") {
+    // A source or connector of another project is read only while that project is in scope:
+    // picking it puts the project there, so the form never proposes what jc-core refuses (T-4281).
+    const scope = (spec.scope ?? {}) as { projects?: unknown };
+    const listed = Array.isArray(scope.projects) ? scope.projects.filter((p): p is string => typeof p === "string") : [];
+    const needed = projectsNamed(spec).filter((p) => p !== project && !listed.includes(p));
+    if (needed.length > 0) spec.scope = { ...scope, projects: [...listed, ...needed] };
+  }
   const kept = (stored as { metadata?: Record<string, unknown> } | null | undefined)?.metadata ?? {};
   return {
     apiVersion: "joinedcontext.com/v1alpha1",

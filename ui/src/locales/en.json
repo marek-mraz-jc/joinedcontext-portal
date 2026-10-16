@@ -190,7 +190,9 @@
     "sitePath": "A path of the site starting with a slash, such as /news/**.",
     "color": "A colour as # and six hexadecimal digits, such as #0b5394.",
     "notAnAttribute": "{name} is not an attribute of {types} in the project's models; check the spelling.",
-    "missing": "{field} is required"
+    "missing": "{field} is required",
+    "mapKey": "Key",
+    "mapLanguage": "Language"
   },
   "approvals": {
     "lead": "Every change to the project is a proposal here until an approver merges it.",
@@ -6682,8 +6684,11 @@
       "suggestions": "Suggested questions",
       "disclaimer": "Disclaimer",
       "scope": "Beyond this project",
-      "scopeProjects": "Projects whose public Endpoints it may read",
-      "perClientPerMonth": "Questions a month, one visitor"
+      "scopeProjects": "Projects whose public Endpoints and knowledge sources it may read",
+      "perClientPerMonth": "Questions a month, one visitor",
+      "answer": "Answer mode",
+      "answerRoutes": "Answers from",
+      "feedback": "Ask visitors whether an answer helped"
     },
     "visibility": {
       "internal": "Internal: signed-in staff",
@@ -6711,7 +6716,9 @@
       "day": "Day",
       "requests": "Questions",
       "tokensIn": "Tokens read",
-      "tokensOut": "Tokens written"
+      "tokensOut": "Tokens written",
+      "duplicate": "Duplicate",
+      "duplicateOf": "Duplicate {name}"
     },
     "chat": {
       "ask": "Ask",
@@ -6751,7 +6758,9 @@
       "launcherIntro": "Put the assistant on your website: paste this one line into every page, before </body>. It adds a round button in the corner that opens the chat.",
       "preview": "Preview of the launcher on a blank page",
       "previewHint": "The preview shows the button as a visitor sees it. The chat itself opens only on the sites the assistant is placed on, so here it may stay empty.",
-      "copyOf": "Copy {what}"
+      "copyOf": "Copy {what}",
+      "fullPage": "Full-page chat",
+      "fullPageHint": "A page of its own: link to it from a site or share it."
     },
     "everySpace": "every space of the project",
     "userGuide": "the platform's User Guide, with links into this project",
@@ -6785,6 +6794,18 @@
       "unreadList": "Pages and files not read",
       "noneUnread": "No failed read is recorded.",
       "totals": "All sources: {pages} pages, {files} files, {embedded} of {passages} passages searchable, {pending} waiting, {failed} not read"
+    },
+    "answerRoutes": {
+      "both": "Knowledge and live data",
+      "rag": "Knowledge only",
+      "data": "Live data only"
+    },
+    "sourcesPicker": {
+      "publicOnly": "This channel answers people nobody signed in, so it reads public sources only.",
+      "of": "Sources of {project}",
+      "own": "{project} (this project)",
+      "unknown": "Named, but not offered to you",
+      "none": "No project you can read has a knowledge source yet."
     }
   },
   "mcp": {

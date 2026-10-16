@@ -1,0 +1,71 @@
+import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+
+// T-4282 (T-4281 items 8, 9): the deployment form picks the region's and the city's pages and is
+// laid out in capabilities, at a phone's and a desktop's width. `vite preview` has no Portal API
+// behind it, so the API is answered in the browser.
+
+const PROJECT = "bbsk";
+
+const source = (project: string, name: string, title: string, visibility: string) => ({
+  apiVersion: "joinedcontext.com/v1alpha1",
+  kind: "KnowledgeSource",
+  metadata: { name, namespace: project, title: { en: title, sk: title } },
+  spec: { source: "website", startUrls: [`https://www.${project}.sk/`], visibility },
+});
+
+const SOURCES: Record<string, unknown[]> = {
+  bbsk: [source("bbsk", "web", "Region pages", "public"), source("bbsk", "intranet", "Region intranet", "internal")],
+  banskabystrica: [source("banskabystrica", "web", "City pages", "public")],
+};
+
+async function stubApi(page: Page): Promise<void> {
+  await page.route(
+    (url) => url.pathname.startsWith("/api/"),
+    async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      const json = (body: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+      const list = (items: unknown[]) => json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
+      if (path.endsWith("/auth/me")) return json({ subject: "s1", username: "jana", name: "Jana Kováčová", roles: ["portal-editor"] });
+      if (path.endsWith("/permissions/me")) return json({ project: PROJECT, bootstrap: true, grants: [] });
+      if (path === "/api/v1/projects") return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ProjectList", items: [{ name: PROJECT }, { name: "banskabystrica" }] });
+      if (path.endsWith("/events")) return route.fulfill({ status: 200, contentType: "text/event-stream", body: "" });
+      const sources = /^\/api\/v1\/projects\/([^/]+)\/knowledgesources$/.exec(path);
+      if (sources) return list(SOURCES[sources[1]] ?? []);
+      return list([]);
+    },
+  );
+}
+
+for (const width of [375, 1440]) {
+  test(`at ${width} px the form picks both projects' pages and keeps internal ones off a public channel`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width < 768 ? 812 : 1000 });
+    await stubApi(page);
+    await page.goto(`/projects/${PROJECT}/assistantdeployments/new?lang=en`);
+    const picker = page.getByTestId("knowledge-sources");
+    await expect(picker.getByRole("checkbox", { name: /City pages/ })).toBeVisible();
+    await page.getByLabel(/^Channel/).selectOption({ label: "Public" });
+    await expect(picker.getByRole("checkbox", { name: /Region intranet/ })).toBeDisabled();
+    await picker.getByRole("checkbox", { name: /Region pages/ }).check();
+    await picker.getByRole("checkbox", { name: /City pages/ }).check();
+    await page.getByLabel(/^Answers from/).selectOption({ label: "Knowledge only" });
+    // A suggested question per language, as a steward writes the chips.
+    const chips = page.getByRole("group", { name: /^Suggested questions/ });
+    await chips.getByRole("button", { name: "Add" }).click();
+    await chips.getByLabel("Language").fill("en");
+    await chips.getByLabel("Language").blur();
+    for (const group of ["Knowledge", "Live data", "How it answers", "Where it may appear"]) {
+      await expect(page.getByRole("group", { name: group, exact: true })).toBeVisible();
+    }
+    const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(sideways, "the page scrolls sideways").toBeLessThanOrEqual(0);
+    // The page as a visitor scrolls it, a screen at a time: a full-page shot paints a sticky header
+    // and the assistant's bubble once, over whatever sits there.
+    const height = await page.evaluate(() => document.documentElement.scrollHeight);
+    const screen = page.viewportSize()?.height ?? 800;
+    for (let y = 0, at = 0; y < height; y += screen - 120, at++) {
+      await page.evaluate((top) => window.scrollTo(0, top), y);
+      await page.screenshot({ path: `test-results/t4282-form-${width}-${String(at).padStart(2, "0")}.png` });
+    }
+  });
+}

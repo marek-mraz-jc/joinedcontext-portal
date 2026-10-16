@@ -110,8 +110,10 @@ export function Field({
   return (
     <div className={clsx("flex flex-col gap-1.5", className)}>
       {label && !hideLabel ? (
-        <div className="flex items-baseline justify-between gap-2">
-          <label htmlFor={id} className="text-body font-medium text-fg">
+        // The label keeps 10rem before anything beside it: at a phone's width the aside wraps under
+        // it instead of stacking the label a word a line (T-4282).
+        <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+          <label htmlFor={id} className="min-w-0 grow basis-40 text-body font-medium text-fg">
             {label}
             {required ? (
               // Decoration only. A screen reader learns the field is required from the
