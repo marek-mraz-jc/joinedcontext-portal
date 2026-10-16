@@ -183,6 +183,7 @@ export function assistantDeploymentSchema(
           perClientPerMinute: { type: "integer", title: t("knowledge.field.perClientPerMinute"), minimum: 1, maximum: 120 },
           perClientPerHour: { type: "integer", title: t("knowledge.field.perClientPerHour"), minimum: 1, maximum: 7_200, default: 60 },
           perClientPerDay: { type: "integer", title: t("knowledge.field.perClientPerDay"), minimum: 1, maximum: 100_000, default: 200 },
+          perClientPerMonth: { type: "integer", title: t("knowledge.field.perClientPerMonth"), minimum: 1, maximum: 100_000, default: 300 },
           streamsPerClient: { type: "integer", title: t("knowledge.field.streamsPerClient"), minimum: 1, maximum: 10, default: 2 },
         },
       },
@@ -202,6 +203,7 @@ export function assistantDeploymentSchema(
         type: "object",
         title: t("knowledge.field.theme"),
         properties: {
+          title: { type: "string", title: t("knowledge.field.themeTitle"), minLength: 1, maxLength: 60 },
           primaryColor: { type: "string", title: t("knowledge.field.primaryColor"), pattern: HEX_COLOR },
           greeting: { type: "string", title: t("knowledge.field.greeting"), maxLength: 500 },
         },

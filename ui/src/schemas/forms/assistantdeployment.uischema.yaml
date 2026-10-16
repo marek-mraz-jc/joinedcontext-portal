@@ -179,10 +179,10 @@ spec:
         de: Fragen pro Minute eines Besuchers, bis 120, damit niemand ihn für andere aufbraucht.
     budget.tokensPerDay:
       help:
-        en: Model tokens it may spend a day across all conversations; past them it answers again after midnight UTC.
-        sk: Tokeny modelu, ktoré smie minúť za deň vo všetkých rozhovoroch; potom odpovie znova po polnoci UTC.
-        cs: Tokeny modelu, které smí utratit za den ve všech rozhovorech; potom odpoví znovu po půlnoci UTC.
-        de: Modell-Tokens pro Tag über alle Gespräche; darüber antwortet er erst nach Mitternacht UTC.
+        en: A ceiling on model tokens a day for the whole assistant; set it well above what the cost a day buys, so the cost limit is the one that applies. Past it answers are links to the matching pages.
+        sk: Strop tokenov modelu za deň pre celého asistenta; nastavte ho vysoko nad to, čo kúpi denná útrata, aby platil limit útraty. Potom sú odpoveďou odkazy na zodpovedajúce stránky.
+        cs: Strop tokenů modelu za den pro celého asistenta; nastavte jej vysoko nad to, co koupí denní útrata, aby platil limit útraty. Potom jsou odpovědí odkazy na odpovídající stránky.
+        de: Eine Obergrenze für Modell-Tokens pro Tag für den ganzen Assistenten; setzen Sie sie weit über das, was die Tageskosten kaufen, damit die Kostengrenze gilt. Darüber sind Antworten Links zu passenden Seiten.
     budget.tokensPerConversation:
       help:
         en: Model tokens one conversation may spend, no more than a day's; past them the person starts a new one.
@@ -201,6 +201,12 @@ spec:
         sk: Počet otázok za deň od jedného návštevníka, najviac 100 000, predvolene 200.
         cs: Počet otázek za den od jednoho návštěvníka, nejvýše 100 000, výchozí 200.
         de: Fragen pro Tag eines Besuchers, bis 100.000, Standard 200.
+    rateLimit.perClientPerMonth:
+      help:
+        en: Questions per visitor per calendar month, up to 100,000, default 300; past them that visitor gets links to the matching pages until the 1st, everyone else is answered as before.
+        sk: Otázky jedného návštevníka za kalendárny mesiac, najviac 100 000, predvolene 300; potom tento návštevník dostáva odkazy na zodpovedajúce stránky až do 1. dňa mesiaca, ostatným odpovedá ako predtým.
+        cs: Otázky jednoho návštěvníka za kalendářní měsíc, nejvýše 100 000, výchozí 300; potom tento návštěvník dostává odkazy na odpovídající stránky až do 1. dne měsíce, ostatním odpovídá jako dřív.
+        de: Fragen eines Besuchers pro Kalendermonat, bis 100.000, Standard 300; darüber erhält dieser Besucher bis zum 1. Links zu passenden Seiten, alle anderen werden wie bisher beantwortet.
     rateLimit.streamsPerClient:
       help:
         en: Answers one visitor may have streaming at once, 1 to 10, default 2.
@@ -209,7 +215,7 @@ spec:
         de: Antworten, die ein Besucher gleichzeitig streamen darf, 1 bis 10, Standard 2.
     budget.costPerDayUsd:
       help:
-        en: What its model calls may cost a day, in US dollars, 0.01 to 1,000, default 3; past it an answer lists the matching links only.
+        en: What its model calls may cost a day for the whole assistant, in US dollars, 0.01 to 1,000, default 3; past it every answer lists the matching links only, until midnight UTC.
         sk: Koľko smú stáť jeho volania modelu za deň, v amerických dolároch, 0,01 až 1 000, predvolene 3; potom odpoveď uvedie len zodpovedajúce odkazy.
         cs: Kolik smějí stát jeho volání modelu za den, v amerických dolarech, 0,01 až 1 000, výchozí 3; potom odpověď uvede jen odpovídající odkazy.
         de: Was seine Modellaufrufe pro Tag kosten dürfen, in US-Dollar, 0,01 bis 1.000, Standard 3; darüber nennt eine Antwort nur passende Links.
@@ -237,6 +243,12 @@ spec:
         sk: Čo je asistentovi povedané pred každým rozhovorom, najviac 8 000 znakov; nikdy neprepíše jeho pravidlá.
         cs: Co je asistentovi řečeno před každým rozhovorem, nejvýše 8 000 znaků; nikdy nepřepíše jeho pravidla.
         de: Was dem Assistenten vor jedem Gespräch gesagt wird, bis 8.000 Zeichen; es hebt seine Regeln nie auf.
+    theme.title:
+      help:
+        en: The body's name in the chat's header beside its monogram, at most 60 characters.
+        sk: Názov inštitúcie v hlavičke chatu vedľa jej monogramu, najviac 60 znakov.
+        cs: Název instituce v záhlaví chatu vedle jejího monogramu, nejvýše 60 znaků.
+        de: Der Name der Stelle in der Kopfzeile des Chats neben ihrem Monogramm, bis 60 Zeichen.
     theme.primaryColor:
       help:
         en: The chat's accent colour where it is placed, as #rrggbb.

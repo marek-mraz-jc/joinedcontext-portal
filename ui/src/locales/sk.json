@@ -6663,6 +6663,7 @@
       "tokensPerDay": "Tokeny za deň",
       "tokensPerConversation": "Tokeny za rozhovor",
       "theme": "Vzhľad",
+      "themeTitle": "Názov v hlavičke chatu",
       "primaryColor": "Farba zvýraznenia",
       "greeting": "Pozdrav",
       "sandbox": "Skripty v sandboxe",
@@ -6684,7 +6685,8 @@
       "suggestions": "Navrhované otázky",
       "disclaimer": "Upozornenie",
       "scope": "Mimo tohto projektu",
-      "scopeProjects": "Projekty, ktorých verejné endpointy smie čítať"
+      "scopeProjects": "Projekty, ktorých verejné endpointy smie čítať",
+      "perClientPerMonth": "Otázky za mesiac, jeden návštevník"
     },
     "visibility": {
       "internal": "Interný: prihlásení zamestnanci",

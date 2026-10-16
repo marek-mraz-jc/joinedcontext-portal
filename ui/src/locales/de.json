@@ -6663,6 +6663,7 @@
       "tokensPerDay": "Tokens pro Tag",
       "tokensPerConversation": "Tokens pro Gespräch",
       "theme": "Aussehen",
+      "themeTitle": "Name in der Chat-Kopfzeile",
       "primaryColor": "Akzentfarbe",
       "greeting": "Begrüßung",
       "sandbox": "Skripte in der Sandbox",
@@ -6684,7 +6685,8 @@
       "suggestions": "Vorgeschlagene Fragen",
       "disclaimer": "Hinweis",
       "scope": "Über dieses Projekt hinaus",
-      "scopeProjects": "Projekte, deren öffentliche Endpoints er lesen darf"
+      "scopeProjects": "Projekte, deren öffentliche Endpoints er lesen darf",
+      "perClientPerMonth": "Fragen pro Monat, ein Besucher"
     },
     "visibility": {
       "internal": "Intern: angemeldete Mitarbeitende",
