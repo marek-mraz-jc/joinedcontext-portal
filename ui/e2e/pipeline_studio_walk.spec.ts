@@ -349,6 +349,13 @@ test.describe("pipeline studio walk (CIVITAS/CORE comparison)", () => {
     await expect(page.getByTestId("flow-node-source")).toBeVisible();
     await expect(page.getByTestId("flow-port-out-source")).toHaveCount(1);
     await expect(page.getByTestId("flow-port-in-source")).toHaveCount(0);
+    // A wire dragged onto the source anyway says why it takes none (T-4271).
+    await page.getByTestId("palette-bloblang").click();
+    await page.getByTestId("flow-port-out-compute").dispatchEvent("pointerdown");
+    await page.getByTestId("flow-node-source").dispatchEvent("pointerup");
+    await expect(page.getByTestId("flow-said")).toHaveText(
+      "A source reads from outside the pipeline; nothing wires into it.",
+    );
   });
 
   // A required field left empty proposes nothing: the check is not sent, the form counts what is

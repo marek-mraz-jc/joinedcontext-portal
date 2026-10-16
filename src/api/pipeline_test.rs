@@ -582,6 +582,37 @@ mod tests {
         assert!(text["pipeline"]["processors"][0].get("http").is_none());
     }
 
+    /// T-4268: a live stream reads a CSV file through Bento's csv input, one message per row, so
+    /// the pinned harness splits a CSV sample before the mapping; a per-row mapping that passed
+    /// Live failed the test on one array of rows. Red here while the pin is behind that change.
+    #[test]
+    fn a_csv_sample_reaches_the_mapping_one_row_each() {
+        let csv = harness_for(Sample {
+            text: Some("zone_id,name\n1,Kallio\n2,Töölö\n3,Pasila\n".into()),
+            url: None,
+            format: SampleFormat::Csv,
+        });
+        let processors = csv["pipeline"]["processors"]
+            .as_array()
+            .expect("processors");
+        let split = processors
+            .iter()
+            .position(|p| p["unarchive"]["format"] == "json_array")
+            .expect("a split");
+        let input = processors
+            .iter()
+            .position(|p| {
+                p["mapping"]
+                    .as_str()
+                    .is_some_and(|m| m.contains("meta jc_input"))
+            })
+            .expect("the input's record");
+        assert!(
+            split < input,
+            "the rows are split before the mapping: {processors:?}"
+        );
+    }
+
     /// The capture route refuses a call with no bearer (T-2271), so the harness the Portal sends
     /// must carry the runner's own credential. `harness` comes from jcctl through a **pinned tag**,
     /// and a pin behind that change is a Portal that demands a token from a harness which sends
