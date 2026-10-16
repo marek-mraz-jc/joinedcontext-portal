@@ -64,6 +64,20 @@ describe("the operations a Policy grants", () => {
     }
   });
 
+  // T-4211 (photo audit T-4158, rule 1): a group reads as a sentence, and its CIM 009 operation
+  // names wait behind a closed disclosure that says how many there are, so a phone does not
+  // scroll through two screens of identifiers.
+  it("keeps each group's operation names behind a closed disclosure that counts them", () => {
+    show([]);
+    for (const group of Object.values(OPERATION_GROUPS)) {
+      const names = screen.getByText(group.operations.join(", "));
+      const fold = names.closest("details");
+      expect(fold).not.toBeNull();
+      expect(fold).not.toHaveAttribute("open");
+      expect(within(fold as HTMLElement).getByText(`Show its ${group.operations.length} operations`)).toBeInTheDocument();
+    }
+  });
+
   it("marks the groups that change context data, and only those", () => {
     const { container } = show([]);
     const marked = [...container.querySelectorAll("label")]
