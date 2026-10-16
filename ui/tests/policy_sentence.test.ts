@@ -33,7 +33,16 @@ describe("a Policy in words (T-3276)", () => {
     expect(policySentence({ effect: "prohibition", contextSpaceRef: "s", assignee: { kind: "role", id: "viewer" }, operations: ["deleteEntity"] }, t, "en")).toBe(
       "Holders of the role viewer may not delete entity on every type in the space s.",
     );
-    expect(policySentence({}, t, "en")).toBe("Nobody yet may nothing yet on every type in the space —.");
+  });
+
+  // T-4215 (photo audit T-4163, rule 1): an empty form says what to pick, and a grant without a
+  // space says so in words, never "may nothing yet … in the space —".
+  it("asks for the choices on an empty form and names a space not chosen yet in words", () => {
+    expect(policySentence({}, t, "en")).toBe("Pick who, what and which space, and the grant reads here as a sentence.");
+    expect(policySentence({ assignee: { kind: "role", id: "viewer" }, operations: ["deleteEntity"] }, t, "en")).toBe(
+      "Holders of the role viewer may delete entity on every type, in a space not chosen yet.",
+    );
+    expect(policySentence({ effect: "prohibition", operations: ["deleteEntity"] }, t, "en")).not.toContain("—");
   });
 
   it("speaks the person's language", async () => {
