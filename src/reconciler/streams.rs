@@ -1510,7 +1510,12 @@ fn datasource_input(
     let input_json: Value = serde_json::to_value(&input_yaml)?;
 
     let (input, mut processors) = if matches!(source.source_type, DataSourceType::Http) {
-        let interval = pipeline.period.as_deref().unwrap_or("60s");
+        // A scheduled pipeline's clock is its cron `schedule`; without it the 60 s default
+        // ran 92 daily, weekly and monthly open-data pipelines every minute (T-4255).
+        let interval = [&pipeline.period, &pipeline.schedule]
+            .into_iter()
+            .find_map(|v| v.as_deref().filter(|s| !s.trim().is_empty()))
+            .unwrap_or("60s");
         let http_client = match input_json {
             Value::Object(mut map) => map
                 .remove("http_client")
@@ -2769,6 +2774,39 @@ mod tests {
         assert_eq!(processors[6]["cache"]["key"], "helsinki/bikes-kpi");
         // The compute comes after the gate.
         assert_eq!(processors[7]["mapping"], "root = this");
+    }
+
+    #[test]
+    fn an_http_source_runs_on_its_schedule_and_a_period_still_wins() {
+        let pipe = |extra: serde_json::Value| -> PipelineSpec {
+            let mut v = serde_json::json!({
+                "class": "scheduled",
+                "source": { "dataSourceRef": { "kind": "DataSource", "name": "src" } },
+                "targetEndpoint": "urn:ngsi-ld:Endpoint:example.org:helsinki:helsinki-all"
+            });
+            v.as_object_mut()
+                .expect("object")
+                .extend(extra.as_object().expect("object").clone());
+            serde_json::from_value(v).expect("valid PipelineSpec")
+        };
+        let source = helsinki_datasource_spec();
+        for (extra, interval) in [
+            (
+                serde_json::json!({ "schedule": "49 1 * * *" }),
+                "49 1 * * *",
+            ),
+            (serde_json::json!({ "schedule": " " }), "60s"),
+            (
+                serde_json::json!({ "period": "5m", "schedule": "49 1 * * *" }),
+                "5m",
+            ),
+            (serde_json::json!({}), "60s"),
+        ] {
+            let spec = pipe(extra.clone());
+            let (input, _) =
+                datasource_input(&spec, "k", "helsinki", &source, "src").expect("render");
+            assert_eq!(input["generate"]["interval"], interval, "{extra}");
+        }
     }
 
     #[test]
