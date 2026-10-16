@@ -51,7 +51,7 @@ for (const width of [375, 1440]) {
     await page.getByLabel(/^Answers from/).selectOption({ label: "Knowledge only" });
     // A suggested question per language, as a steward writes the chips.
     const chips = page.getByRole("group", { name: /^Suggested questions/ });
-    await chips.getByRole("button", { name: "Add" }).click();
+    await chips.getByRole("button", { name: "Add a language" }).click();
     await chips.getByLabel("Language").fill("en");
     await chips.getByLabel("Language").blur();
     // T-4311: an entry's question and a site, so the judge sees a filled entry of each kind.

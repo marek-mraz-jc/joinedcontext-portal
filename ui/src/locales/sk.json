@@ -192,7 +192,8 @@
     "notAnAttribute": "{name} nie je atribút typu {types} v modeloch projektu; skontrolujte pravopis.",
     "missing": "{field} je povinné",
     "mapKey": "Kľúč",
-    "mapLanguage": "Jazyk"
+    "mapLanguage": "Jazyk",
+    "mapAddLanguage": "Pridať jazyk"
   },
   "approvals": {
     "lead": "Každá zmena projektu je tu návrhom, kým ju schvaľovateľ nezlúči.",

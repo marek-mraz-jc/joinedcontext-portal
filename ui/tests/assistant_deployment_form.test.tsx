@@ -107,7 +107,7 @@ describe("the deployment form's sources (T-4282)", () => {
   it("a suggestion per language is added, keyed and taken away, and a site is named in words", async () => {
     await openForm();
     const suggestions = screen.getByRole("group", { name: /^Suggested questions/ });
-    await userEvent.click(within(suggestions).getByRole("button", { name: "Add" }));
+    await userEvent.click(within(suggestions).getByRole("button", { name: "Add a language" }));
     const key = await within(suggestions).findByLabelText("Language");
     expect(key).toHaveValue("newKey");
     await userEvent.clear(key);
@@ -205,7 +205,7 @@ describe("the deployment form reads once and lines up (T-4311)", () => {
     await openForm();
     const suggestions = screen.getByRole("group", { name: /^Suggested questions/ });
     const help = within(suggestions).getByText(/^Questions the chat offers before the first one/);
-    const add = within(suggestions).getByRole("button", { name: "Add" });
+    const add = within(suggestions).getByRole("button", { name: "Add a language" });
     expect(help.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await userEvent.click(add);
     const key = await within(suggestions).findByLabelText("Language");

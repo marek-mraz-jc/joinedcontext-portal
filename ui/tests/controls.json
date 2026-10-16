@@ -332,7 +332,7 @@
     },
     "src/components/forms/theme.tsx": {
       "controls": {
-        "Button": 4,
+        "Button": 5,
         "Checkbox": 2
       },
       "tests": [

@@ -161,10 +161,10 @@ spec:
         de: Jede zählt die Fragen in ihrem eigenen Zeitfenster; es gilt die zuerst erreichte.
     budget:
       help:
-        en: "The cost caps bind first: a day that reaches one answers with the sources' links alone."
-        sk: "Najprv platia limity nákladov: deň, ktorý jeden dosiahne, odpovedá len odkazmi na zdroje."
-        cs: "Nejdřív platí limity nákladů: den, který jeden dosáhne, odpovídá jen odkazy na zdroje."
-        de: "Die Kostengrenzen gelten zuerst: ein Tag, der eine erreicht, antwortet nur mit den Links der Quellen."
+        en: What it may spend, counted in model tokens and in US dollars.
+        sk: Koľko smie minúť, počítané v tokenoch modelu a v amerických dolároch.
+        cs: Kolik smí utratit, počítáno v tokenech modelu a v amerických dolarech.
+        de: Was er ausgeben darf, gezählt in Modell-Tokens und in US-Dollar.
     model:
       help:
         en: Each answer calls a router model first and an answer model after it.
@@ -197,10 +197,10 @@ spec:
         de: Andere Projekte, aus denen er lesen darf, höchstens 10, nie das eigene; eine gewählte Quelle eines anderen Projekts fügt es hier hinzu.
     model.router:
       help:
-        en: The model that picks the sources and searches of a question, as vendor/name; the service's default when empty.
-        sk: Model, ktorý vyberá zdroje a vyhľadávania otázky, ako dodávateľ/názov; prázdne je predvolený model služby.
-        cs: Model, který vybírá zdroje a vyhledávání otázky, jako dodavatel/název; prázdné je výchozí model služby.
-        de: Das Modell, das Quellen und Suchen einer Frage wählt, als Anbieter/Name; leer ist der Standard des Dienstes.
+        en: The model that decides which sources and Endpoints a question reads, as vendor/name; the service's default when empty.
+        sk: Model, ktorý rozhodne, ktoré zdroje a endpointy otázka číta, ako dodávateľ/názov; prázdne je predvolený model služby.
+        cs: Model, který rozhodne, které zdroje a endpointy otázka čte, jako dodavatel/název; prázdné je výchozí model služby.
+        de: Das Modell, das entscheidet, welche Quellen und Endpoints eine Frage liest, als Anbieter/Name; leer ist der Standard des Dienstes.
     model.answer:
       help:
         en: The model that writes the answer, as vendor/name; the service's default when empty.

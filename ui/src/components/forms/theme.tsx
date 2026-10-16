@@ -412,6 +412,12 @@ function itemTitle(
   return own ? `${own} ${last + 1}` : t("form.entry", { number: last + 1 });
 }
 
+/** Whether a map is keyed by language: a two-letter `propertyNames`. */
+function byLanguage(schema: unknown): boolean {
+  const names = (schema as { propertyNames?: { pattern?: unknown } } | undefined)?.propertyNames;
+  return names?.pattern === "^[a-z]{2}$";
+}
+
 /** One entry of a map: the key, its value, and Remove. */
 function MapEntry(props: FieldTemplateProps): React.JSX.Element {
   const { id, label, children, disabled, readonly, onKeyRenameBlur, onRemoveProperty, registry, uiSchema, fieldPathId } = props;
@@ -421,14 +427,14 @@ function MapEntry(props: FieldTemplateProps): React.JSX.Element {
     (node, step) => (node?.properties as Record<string, Record<string, unknown>> | undefined)?.[String(step)],
     registry.rootSchema as Record<string, unknown>,
   );
-  const byLanguage = (parent?.propertyNames as { pattern?: unknown } | undefined)?.pattern === "^[a-z]{2}$";
+  const keyedByLanguage = byLanguage(parent);
   const { RemoveButton } = registry.templates.ButtonTemplates;
   const frozen = Boolean(disabled || readonly);
   return (
     <div className="flex min-w-0 flex-col gap-2 rounded-md border border-border p-2 @md:flex-row @md:items-start @md:p-3">
       {/* Remove sits beside the key it takes away, on the key's line (T-4311). */}
       <div data-testid="map-key" className="flex items-end gap-2 @md:w-44 @md:shrink-0">
-        <Field id={`${id}-key`} className="min-w-0 flex-1" label={byLanguage ? t("form.mapLanguage") : t("form.mapKey")}>
+        <Field id={`${id}-key`} className="min-w-0 flex-1" label={keyedByLanguage ? t("form.mapLanguage") : t("form.mapKey")}>
           <UiInput
             id={`${id}-key`}
             key={label}
@@ -512,7 +518,14 @@ function ObjectFields(props: ObjectFieldTemplateProps): React.JSX.Element {
   const add =
     canExpand(props.schema, uiSchema, props.formData) && !props.disabled && !props.readonly ? (
       <div>
-        <AddButton id={buttonId(fieldPathId.$id, "add")} onClick={props.onAddProperty} uiSchema={uiSchema} registry={props.registry} />
+        {byLanguage(props.schema) ? (
+          // Beside a language's own Add (its questions), the map's says what it adds (T-4311).
+          <Button id={buttonId(fieldPathId.$id, "add")} type="button" variant="secondary" size="sm" onClick={props.onAddProperty} icon={<Icon name="plus" className="size-4" />}>
+            {t("form.mapAddLanguage")}
+          </Button>
+        ) : (
+          <AddButton id={buttonId(fieldPathId.$id, "add")} onClick={props.onAddProperty} uiSchema={uiSchema} registry={props.registry} />
+        )}
       </div>
     ) : null;
   // An object with no title of its own (a title map asking for one language) reads as its
