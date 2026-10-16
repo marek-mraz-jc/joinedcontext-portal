@@ -3832,7 +3832,11 @@
     "q": "Dopyt (q)",
     "qHint": "NGSI-LD q, ktoré riadky skladajú; upravte ho tu alebo v YAML.",
     "attrs": "Čítané atribúty",
-    "typeNotGranted": "{name} (cez tento endpoint neudelené)"
+    "typeNotGranted": "{name} (cez tento endpoint neudelené)",
+    "qProblem": {
+      "shape": "Každú podmienku napíšte ako atribút, porovnanie a hodnotu bez medzier, napr. name==\"Nemocnica\"; podmienky spájajte znakom ; (a zároveň) alebo | (alebo).",
+      "unquoted": "Text patrí do úvodzoviek: {fix}"
+    }
   },
   "entityGrid": {
     "id": "ID",
@@ -4077,7 +4081,8 @@
       "gone": "Ten dashboard už v projekte nie je; vyberte iný.",
       "pickEntity": "Vyberte entitu, ktorej priebeh sa má zobraziť."
     },
-    "pickSpaceFirst": "Najprv vyberte priestor."
+    "pickSpaceFirst": "Najprv vyberte priestor.",
+    "noMatch": "Dopytu nič nezodpovedá; zmeňte alebo odstráňte filter."
   },
   "agentRun": {
     "title": "Beh aplikácie",

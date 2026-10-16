@@ -3832,7 +3832,11 @@
     "q": "Dotaz (q)",
     "qHint": "NGSI-LD q, které řádky skládají; upravte ho zde nebo v YAML.",
     "attrs": "Čtené atributy",
-    "typeNotGranted": "{name} (přes tento endpoint neuděleno)"
+    "typeNotGranted": "{name} (přes tento endpoint neuděleno)",
+    "qProblem": {
+      "shape": "Každou podmínku napište jako atribut, porovnání a hodnotu bez mezer, např. name==\"Nemocnice\"; podmínky spojujte znakem ; (a zároveň) nebo | (nebo).",
+      "unquoted": "Text patří do uvozovek: {fix}"
+    }
   },
   "entityGrid": {
     "id": "ID",
@@ -4077,7 +4081,8 @@
       "gone": "Ten dashboard už v projektu není; vyberte jiný.",
       "pickEntity": "Vyberte entitu, jejíž průběh se má zobrazit."
     },
-    "pickSpaceFirst": "Nejprve vyberte prostor."
+    "pickSpaceFirst": "Nejprve vyberte prostor.",
+    "noMatch": "Dotazu nic neodpovídá; změňte nebo odstraňte filtr."
   },
   "agentRun": {
     "title": "Běh aplikace",

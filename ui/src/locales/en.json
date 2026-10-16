@@ -3832,7 +3832,11 @@
     "q": "Query (q)",
     "qHint": "The NGSI-LD q the rows compose; edit it here or in YAML.",
     "attrs": "Attributes to read",
-    "typeNotGranted": "{name} (not granted through this endpoint)"
+    "typeNotGranted": "{name} (not granted through this endpoint)",
+    "qProblem": {
+      "shape": "Write each condition as an attribute, a comparison and a value with no spaces, e.g. name==\"Hospital\"; join conditions with ; (and) or | (or).",
+      "unquoted": "Text goes in double quotes: {fix}"
+    }
   },
   "entityGrid": {
     "id": "ID",
@@ -4077,7 +4081,8 @@
       "gone": "That dashboard is no longer in the project; pick another.",
       "pickEntity": "Pick the entity to chart over time."
     },
-    "pickSpaceFirst": "Pick a space first."
+    "pickSpaceFirst": "Pick a space first.",
+    "noMatch": "Nothing matches this query; change or remove a filter."
   },
   "agentRun": {
     "title": "Application run",

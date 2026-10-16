@@ -3832,7 +3832,11 @@
     "q": "Abfrage (q)",
     "qHint": "Das NGSI-LD q, das die Zeilen bilden; hier oder im YAML bearbeiten.",
     "attrs": "Gelesene Attribute",
-    "typeNotGranted": "{name} (über diesen Endpoint nicht gewährt)"
+    "typeNotGranted": "{name} (über diesen Endpoint nicht gewährt)",
+    "qProblem": {
+      "shape": "Schreiben Sie jede Bedingung als Attribut, Vergleich und Wert ohne Leerzeichen, z. B. name==\"Klinikum\"; verbinden Sie Bedingungen mit ; (und) oder | (oder).",
+      "unquoted": "Text steht in Anführungszeichen: {fix}"
+    }
   },
   "entityGrid": {
     "id": "ID",
@@ -4077,7 +4081,8 @@
       "gone": "Dieses Dashboard ist nicht mehr im Projekt; wählen Sie ein anderes.",
       "pickEntity": "Wählen Sie die Entität für den zeitlichen Verlauf."
     },
-    "pickSpaceFirst": "Wählen Sie zuerst einen Raum."
+    "pickSpaceFirst": "Wählen Sie zuerst einen Raum.",
+    "noMatch": "Nichts passt zu dieser Abfrage; ändern oder entfernen Sie einen Filter."
   },
   "agentRun": {
     "title": "Anwendungslauf",
