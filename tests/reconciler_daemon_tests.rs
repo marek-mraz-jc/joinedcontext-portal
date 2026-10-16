@@ -307,6 +307,84 @@ async fn without_a_database_the_only_replica_leads() {
     assert!(syncer.status().leader);
 }
 
+/// A merge waits for the run after it, so a run must not read the whole repository again: a
+/// file whose blob id the process has read is staged from memory, and only a file the tree
+/// names without an id is fetched every time (PL-61, T-4270).
+#[tokio::test]
+async fn a_second_run_reads_only_the_files_whose_blob_it_has_not_read() {
+    let server = forge(&[]).await;
+    let files = [
+        (
+            "projects/ovzdusie/spaces/t4270-kept.yaml",
+            space("t4270-kept"),
+            "t4270-blob-kept",
+        ),
+        (
+            "projects/ovzdusie/spaces/t4270-anon.yaml",
+            space("t4270-anon"),
+            "",
+        ),
+    ];
+    let tree: Vec<serde_json::Value> = files
+        .iter()
+        .map(|(p, _, sha)| json!({"path": p, "type": "blob", "sha": sha}))
+        .collect();
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "/api/v1/repos/test-owner/test-repo/git/trees/{REVISION}"
+        )))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({"sha": "tree-sha", "truncated": false, "tree": tree})),
+        )
+        .with_priority(1)
+        .mount(&server)
+        .await;
+    for (file_path, content, _) in &files {
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/api/v1/repos/test-owner/test-repo/contents/{file_path}"
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "sha": "blob-sha",
+                "content": STANDARD.encode(content.as_bytes()),
+            })))
+            .mount(&server)
+            .await;
+    }
+    let reads = |name: &'static str| {
+        let server = &server;
+        async move {
+            server
+                .received_requests()
+                .await
+                .unwrap_or_default()
+                .iter()
+                .filter(|r| r.url.path().ends_with(name))
+                .count()
+        }
+    };
+    let mirror = Arc::new(Mirror::new());
+    let syncer = Syncer::new(client(&server), Arc::clone(&mirror));
+
+    assert_eq!(syncer.sync_once().await.expect("first run"), 2);
+    assert_eq!(syncer.sync_once().await.expect("second run"), 2);
+
+    assert_eq!(
+        reads("t4270-kept.yaml").await,
+        1,
+        "a known blob is not fetched again"
+    );
+    assert_eq!(
+        reads("t4270-anon.yaml").await,
+        2,
+        "a file without a blob id is read every run"
+    );
+    assert!(mirror
+        .get("ovzdusie", "ContextSpace", "t4270-kept")
+        .is_some());
+}
+
 #[tokio::test]
 async fn a_file_of_several_documents_contributes_every_one_of_them() {
     let both = format!("{}---\n{}", space("mobility"), space("air"));
