@@ -240,6 +240,69 @@ describe("a blueprint that asks for parameters", () => {
   });
 });
 
+describe("a blueprint in the page's language", () => {
+  // T-4244 (T-4159 #6): a Slovak page reads the blueprint in Slovak, its parameters' labels, help
+  // and choices included, and falls back to the plain string where no Slovak text is written.
+  const LOCALIZED = {
+    ...blueprint({
+      parameterSchema: {
+        type: "object",
+        required: ["name"],
+        properties: {
+          name: {
+            type: "string",
+            title: "App name",
+            "x-jc-title": { sk: "Názov aplikácie" },
+            description: "The address the app opens at.",
+            "x-jc-description": { sk: "Adresa, na ktorej sa aplikácia otvorí." },
+          },
+          kind: {
+            type: "string",
+            title: "How it is built",
+            "x-jc-title": { sk: "Ako sa zostaví" },
+            oneOf: [
+              { const: "static", title: "Static", "x-jc-title": { sk: "Statická" } },
+              { const: "service", title: "Service" },
+            ],
+          },
+          notes: { type: "string", title: "Notes" },
+        },
+      },
+    }),
+  } as Manifest;
+  LOCALIZED.metadata = {
+    ...LOCALIZED.metadata,
+    title: { en: "An application from a prompt", sk: "Aplikácia zo zadania" },
+    description: { en: "Describe the app.", sk: "Opíšte aplikáciu." },
+  };
+
+  it("shows the Slovak title, description, labels, help and choices", async () => {
+    await i18n.changeLanguage("sk");
+    form(LOCALIZED);
+
+    expect(await screen.findByText("Opíšte aplikáciu.")).toBeInTheDocument();
+    expect(await screen.findByLabelText(/Názov aplikácie/)).toBeInTheDocument();
+    expect(screen.getByText("Adresa, na ktorej sa aplikácia otvorí.")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Ako sa zostaví/)).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Statická" })).toBeInTheDocument();
+    // No Slovak written: the plain string stands.
+    expect(screen.getByRole("option", { name: "Service" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Notes/)).toBeInTheDocument();
+    expect(screen.queryByText("App name")).not.toBeInTheDocument();
+  });
+
+  it("keeps the plain strings on an English page and sends the chosen value, not its label", async () => {
+    const user = userEvent.setup();
+    const { sent } = form(LOCALIZED);
+
+    await user.type(await screen.findByLabelText(/App name/), "air-app");
+    await user.click(screen.getByRole("button", { name: en.flows.instantiate.submit }));
+
+    await waitFor(() => expect(sent.length).toBe(1));
+    expect(sent.at(-1)).toMatchObject({ parameters: { name: "air-app" } });
+  });
+});
+
 describe("a blueprint that asks for nothing", () => {
   // The page used to end with `noSchema` and no control at all: a blueprint the gallery offers
   // and the Portal cannot start.
