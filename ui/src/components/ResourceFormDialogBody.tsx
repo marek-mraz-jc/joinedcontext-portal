@@ -236,7 +236,7 @@ export function ResourceFormDialogBody<T>({
   const kind = ownKind ?? draftKind;
   // A role that may not propose the kind reads the form and is told why it cannot send it, as
   // `PermissionGuard` says it of a button (UI-44, PF-51); the API refuses the same proposal anyway.
-  const { can } = usePermissions(project ?? "");
+  const { can, isLoading: permissionsLoading } = usePermissions(project ?? "");
   const deniedReason =
     kind && project && !can(kind, "propose") ? t("permissions.denied", { verb: "propose", kind }) : undefined;
   // A proposal in flight closes the form as surely as a caller's own `disabled` does; what it
@@ -1056,6 +1056,25 @@ export function ResourceFormDialogBody<T>({
       {isLax ? t("drafts.laxWarning") : proposeReason}
     </span>
   ) : null;
+
+  // A person who may not create the kind is told so at the top, in words, instead of a whole
+  // form greyed out with the reason in API terms under its last field (T-4165, audit T-4158).
+  if (deniedReason !== undefined && lockedName === undefined && !permissionsLoading) {
+    return (
+      <FormFrame
+        open={open}
+        onOpenChange={handleOpenChange}
+        title={title}
+        description={description}
+        size={size}
+        closeLabel={t("resourceDelete.close")}
+      >
+        <Alert role="status" tone="info">
+          {t("form.mayNotCreate")}
+        </Alert>
+      </FormFrame>
+    );
+  }
 
   return (
     // A page at its own address where a route hosts it, the dialog elsewhere (T-2474).

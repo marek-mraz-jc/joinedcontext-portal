@@ -120,6 +120,7 @@
     "opening": "Otevírá se formulář…",
     "notOpen": "Tento formulář nelze otevřít: nic s názvem {name} tu není, nebo to nesmíte měnit.",
     "notOpenNew": "Na této adrese není formulář pro vytvoření, nebo tu nesmíte nic vytvářet.",
+    "mayNotCreate": "Vaše role vám dovoluje tyto položky prohlížet, ne tu nějakou vytvořit. Toto právo vám může dát správce projektu nebo administrátor.",
     "required": "Toto pole je povinné",
     "invalid": "Neplatná hodnota",
     "choose": "Vyberte…",

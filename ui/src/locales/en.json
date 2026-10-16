@@ -120,6 +120,7 @@
     "opening": "Opening the form…",
     "notOpen": "This form cannot be opened: there is nothing called {name} here, or you may not change it.",
     "notOpenNew": "This page has no create form at this address, or you may not create anything here.",
+    "mayNotCreate": "Your role lets you look at these, not create one here. A project steward or an administrator can give you that right.",
     "required": "This field is required",
     "invalid": "Invalid value",
     "choose": "Choose…",

@@ -120,6 +120,7 @@
     "opening": "Das Formular wird geöffnet…",
     "notOpen": "Dieses Formular lässt sich nicht öffnen: Hier gibt es nichts namens {name}, oder Sie dürfen es nicht ändern.",
     "notOpenNew": "Unter dieser Adresse gibt es kein Formular zum Anlegen, oder Sie dürfen hier nichts anlegen.",
+    "mayNotCreate": "Ihre Rolle erlaubt Ihnen, diese anzusehen, aber hier keine anzulegen. Ein Projektverantwortlicher oder eine Administration kann Ihnen dieses Recht geben.",
     "required": "Dieses Feld ist erforderlich",
     "invalid": "Ungültiger Wert",
     "choose": "Auswählen…",

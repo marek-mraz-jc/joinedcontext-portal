@@ -115,7 +115,10 @@ export function HomePage({
   const counting = counted.some((query) => query.isLoading);
   // Offered while the person keeps the first-run guidance (PF-109): inside the checklist while it
   // is open, on its own once every step is done, and nowhere after it was put away.
-  const checklistOpen = firstRun.shown && !failed && !counting && doneCount < steps.length;
+  // A viewer may do none of the steps (make a space, connect a source, run a pipeline): their
+  // home offers what they can open instead (T-4165, photo audit T-4157).
+  const builds = role === "steward" || role === "editor";
+  const checklistOpen = builds && firstRun.shown && !failed && !counting && doneCount < steps.length;
   const sampleLine =
     firstRun.shown && trySample ? (
       <p className="text-body text-fg-muted">
