@@ -101,6 +101,7 @@ export function PipelineRejectedDialog({
       return next;
     });
   const allOnPage = items.length > 0 && items.every((item) => selected.has(item.id));
+  const listed = page.isSuccess && (items.length > 0 || before !== undefined);
   const mayRetry = permissions.can("Pipeline", "propose");
   const retryRefusal = !mayRetry
     ? t("permissions.denied", { verb: "propose", kind: "Pipeline" })
@@ -122,17 +123,20 @@ export function PipelineRejectedDialog({
       description={t("pipelines.rejected.lead")}
       size="xl"
       closeLabel={t("pipelines.rejected.close")}
+      // Retry only beside records: an empty or unread list has nothing to retry (T-4240).
       footer={
-        <Button
-          variant="primary"
-          disabled={retryRefusal !== undefined || retry.isPending}
-          disabledReason={retryRefusal}
-          onClick={() => retry.mutate([...selected])}
-        >
-          {retry.isPending
-            ? t("pipelines.rejected.retrying")
-            : t("pipelines.rejected.retry", { count: selected.size })}
-        </Button>
+        listed ? (
+          <Button
+            variant="primary"
+            disabled={retryRefusal !== undefined || retry.isPending}
+            disabledReason={retryRefusal}
+            onClick={() => retry.mutate([...selected])}
+          >
+            {retry.isPending
+              ? t("pipelines.rejected.retrying")
+              : t("pipelines.rejected.retry", { count: selected.size })}
+          </Button>
+        ) : undefined
       }
     >
       <div className="flex flex-col gap-4">
