@@ -6692,7 +6692,10 @@
       "perClientPerMonth": "Fragen pro Monat, ein Besucher",
       "answer": "Antwortmodus",
       "answerRoutes": "Antwortet aus",
-      "feedback": "Besucher fragen, ob eine Antwort geholfen hat"
+      "feedback": "Besucher fragen, ob eine Antwort geholfen hat",
+      "widget": "Der Chat",
+      "widgetLanguage": "Sprache, in der der Chat öffnet",
+      "languageToggle": "Sprachumschalter zeigen"
     },
     "visibility": {
       "internal": "Intern: angemeldete Mitarbeitende",
@@ -6798,6 +6801,11 @@
       "unreadList": "Nicht gelesene Seiten und Dateien",
       "noneUnread": "Kein fehlgeschlagener Abruf ist verzeichnet.",
       "totals": "Alle Quellen: {pages} Seiten, {files} Dateien, {embedded} von {passages} Passagen durchsuchbar, {pending} wartend, {failed} nicht gelesen"
+    },
+    "widgetLanguage": {
+      "browser": "Die Browsersprache des Besuchers",
+      "ask": "Beim ersten Öffnen fragen",
+      "fixed": "Immer die erste Sprache"
     },
     "answerRoutes": {
       "both": "Wissen und Live-Daten",

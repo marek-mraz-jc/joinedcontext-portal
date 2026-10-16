@@ -33,13 +33,14 @@ spec:
       sources,
       scope,
       connectors,
-      answer,
       systemPrompt,
       sandbox,
       languages,
       theme,
+      widget,
       suggestions,
       disclaimer,
+      answer,
       feedback,
       allowedOrigins,
       rateLimit,
@@ -90,7 +91,7 @@ spec:
         sk: "Tón a dosah odpovede; vlastné pravidlá platformy majú vždy prednosť."
         cs: "Tón a dosah odpovědi; vlastní pravidla platformy mají vždy přednost."
         de: "Ton und Reichweite einer Antwort; die eigenen Regeln der Plattform gehen immer vor."
-      fields: [answer, systemPrompt, sandbox]
+      fields: [systemPrompt, sandbox]
     - title:
         en: "Language"
         sk: "Jazyk"
@@ -103,27 +104,16 @@ spec:
         de: "Jede hier genannte Sprache kann unten eigene Vorschläge und einen eigenen Hinweis bekommen."
       fields: [languages]
     - title:
-        en: "Greeting and suggestions"
-        sk: "Privítanie a návrhy"
-        cs: "Přivítání a návrhy"
-        de: "Begrüßung und Vorschläge"
+        en: "Widget"
+        sk: "Widget"
+        cs: "Widget"
+        de: "Widget"
       description:
-        en: "How the chat looks and greets before anyone has asked."
-        sk: "Ako chat vyzerá a víta, kým sa niekto spýta."
-        cs: "Jak chat vypadá a vítá, než se někdo zeptá."
-        de: "Wie der Chat aussieht und begrüßt, bevor jemand fragt."
-      fields: [theme, suggestions, disclaimer]
-    - title:
-        en: "Feedback"
-        sk: "Spätná väzba"
-        cs: "Zpětná vazba"
-        de: "Rückmeldung"
-      description:
-        en: "The helpful and unhelpful buttons under each answer."
-        sk: "Tlačidlá užitočné a neužitočné pod každou odpoveďou."
-        cs: "Tlačítka užitečné a neužitečné pod každou odpovědí."
-        de: "Die Knöpfe hilfreich und nicht hilfreich unter jeder Antwort."
-      fields: [feedback]
+        en: "How the chat looks, greets and picks its language, what it answers from, and the helpful buttons under each answer; a change reaches the chat without a deploy."
+        sk: "Ako chat vyzerá, víta a vyberá jazyk, z čoho odpovedá a tlačidlá užitočnosti pod každou odpoveďou; zmena sa do chatu dostane bez nasadenia."
+        cs: "Jak chat vypadá, vítá a vybírá jazyk, z čeho odpovídá a tlačítka užitečnosti pod každou odpovědí; změna se do chatu dostane bez nasazení."
+        de: "Wie der Chat aussieht, begrüßt und seine Sprache wählt, woraus er antwortet und die Hilfreich-Knöpfe unter jeder Antwort; eine Änderung erreicht den Chat ohne Deployment."
+      fields: [theme, widget, suggestions, disclaimer, answer, feedback]
     - title:
         en: "Where it may appear"
         sk: "Kde sa môže zobraziť"
@@ -177,6 +167,18 @@ spec:
         sk: "Znalosti aj živé dáta, len znalosti (nikdy nevolá nástroj), alebo len živé dáta."
         cs: "Znalosti i živá data, jen znalosti (nikdy nevolá nástroj), nebo jen živá data."
         de: "Wissen und Live-Daten, nur Wissen (er ruft nie ein Werkzeug), oder nur Live-Daten."
+    widget.language:
+      help:
+        en: "The visitor's browser language (the default: no question, the first of its languages this deployment offers), ask on the first open, or always the first of the languages."
+        sk: "Jazyk prehliadača návštevníka (predvolené: bez otázky, prvý z jeho jazykov, ktorý toto nasadenie ponúka), opýtať sa pri prvom otvorení, alebo vždy prvý z jazykov."
+        cs: "Jazyk prohlížeče návštěvníka (výchozí: bez otázky, první z jeho jazyků, který toto nasazení nabízí), zeptat se při prvním otevření, nebo vždy první z jazyků."
+        de: "Die Browsersprache des Besuchers (Standard: ohne Frage, die erste seiner Sprachen, die dieser Einsatz anbietet), beim ersten Öffnen fragen, oder immer die erste der Sprachen."
+    widget.languageToggle:
+      help:
+        en: "On, the chat's header shows SK | EN to switch the language; off, it stays in the one it opened in."
+        sk: "Zapnuté: hlavička chatu zobrazí SK | EN na prepnutie jazyka; vypnuté: zostane v jazyku, v ktorom sa otvoril."
+        cs: "Zapnuto: záhlaví chatu zobrazí SK | EN pro přepnutí jazyka; vypnuto: zůstane v jazyce, ve kterém se otevřel."
+        de: "An: die Kopfzeile des Chats zeigt SK | EN zum Umschalten; aus: er bleibt in der Sprache, in der er öffnete."
     feedback:
       help:
         en: "On, each answer asks the visitor whether it helped; off, no buttons are shown."

@@ -28,6 +28,8 @@ export const CHANNELS = ["public", "internal", "ckan", "iframe"] as const;
 export const PDF_POLICIES = ["include", "exclude"] as const;
 /** What one answer may use: the sources and the connectors, the sources alone, or the connectors alone (MF-52, T-4281). */
 export const ANSWER_ROUTES = ["both", "rag", "data"] as const;
+/** How the chat picks its language (`widget.language`, MF-52, T-4343); `browser` is the default. */
+export const WIDGET_LANGUAGES = ["browser", "ask", "fixed"] as const;
 /** A source or an Endpoint of the own project by its name, or of a project in `scope.projects` as `{project}/{name}` (MF-52). */
 export const PROJECT_REF = "^([a-z0-9]([-a-z0-9]*[a-z0-9])?/)?[a-z0-9]([-a-z0-9]*[a-z0-9])?$";
 /** The read-only tools of an Endpoint's MCP surface the assistant calls (jc-assistant's allowlist, T-4140). */
@@ -192,6 +194,14 @@ export function assistantDeploymentSchema(
         },
       },
       feedback: { type: "boolean", title: t("knowledge.field.feedback"), default: true },
+      widget: {
+        type: "object",
+        title: t("knowledge.field.widget"),
+        properties: {
+          language: { type: "string", title: t("knowledge.field.widgetLanguage"), default: "browser", ...words(t, "knowledge.widgetLanguage", WIDGET_LANGUAGES) },
+          languageToggle: { type: "boolean", title: t("knowledge.field.languageToggle"), default: true },
+        },
+      },
       allowedOrigins: {
         type: "array",
         title: t("knowledge.field.allowedOrigins"),

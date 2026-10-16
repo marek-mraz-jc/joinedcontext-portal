@@ -11,7 +11,7 @@ import { portalFields } from "../src/components/forms/widgets";
 import { KnowledgeSourcesField } from "../src/components/forms/widgets/KnowledgeSourcesField";
 import { duplicateDeployment } from "../src/pages/knowledge/knowledge";
 import { shippedForms } from "../src/schemas/forms";
-import { PROJECT_REF, assistantDeploymentSchema, projectsNamed, toKindManifest } from "../src/schemas/knowledge";
+import { PROJECT_REF, assistantDeploymentSchema, fromKindManifest, projectsNamed, toKindManifest } from "../src/schemas/knowledge";
 import { jsonResponse, list, renderRoute } from "./pageHarness";
 
 const source = (project: string, name: string, visibility: string, title?: string) => ({
@@ -89,10 +89,30 @@ describe("the deployment form's sources (T-4282)", () => {
 
   it("lays the form out in the capabilities, live data apart from knowledge", async () => {
     await openForm();
-    for (const group of ["Deployment", "Knowledge", "Live data", "How it answers", "Language", "Greeting and suggestions", "Feedback", "Where it may appear", "Limits and budget"]) {
+    for (const group of ["Deployment", "Knowledge", "Live data", "How it answers", "Language", "Widget", "Where it may appear", "Limits and budget"]) {
       expect(screen.getAllByRole("group", { name: group }).length, group).toBeGreaterThan(0);
     }
     expect(screen.getByLabelText(/^Answers from/)).toHaveDisplayValue("Knowledge and live data");
+  });
+
+  // T-4343: the chat's behaviour is set in one group, Widget: the look, the language mode and its
+  // toggle, the suggestions, what it answers from and the feedback buttons.
+  it("the Widget group holds the language mode, its toggle and the chat's other settings", async () => {
+    await openForm();
+    const widget = screen.getByRole("group", { name: "Widget" });
+    const mode = within(widget).getByLabelText(/^Language the chat opens in/);
+    expect(mode).toHaveDisplayValue("The visitor's browser language");
+    expect(within(mode as HTMLElement).getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "The visitor's browser language",
+      "Ask on the first open",
+      "Always the first language",
+    ]);
+    await userEvent.selectOptions(mode, "Ask on the first open");
+    expect(mode).toHaveDisplayValue("Ask on the first open");
+    expect(within(widget).getByLabelText(/^Show the language switch/)).toBeChecked();
+    for (const field of [/^Answers from/, /^Ask visitors whether an answer helped/, /^Greeting/]) {
+      expect(within(widget).getByLabelText(field)).toBeInTheDocument();
+    }
   });
 
   it("ticking another project's source names it {project}/{source} and puts the project in scope", async () => {
@@ -126,6 +146,17 @@ describe("the deployment form's sources (T-4282)", () => {
 
 describe("the deployment manifest (T-4282)", () => {
   const t = (key: string) => key;
+
+  it("widget.language and widget.languageToggle are saved and read back as the form shows them (T-4343)", () => {
+    for (const widget of [{ language: "ask", languageToggle: false }, { language: "fixed", languageToggle: true }, { language: "browser" }]) {
+      const manifest = toKindManifest("AssistantDeployment", "bbsk", { name: "kraj", publicId: "kraj", sources: ["web"], widget });
+      expect((manifest as unknown as { spec: { widget: unknown } }).spec.widget).toEqual(widget);
+      expect(fromKindManifest(manifest).widget).toEqual(widget);
+    }
+    const schema = assistantDeploymentSchema(t) as unknown as { properties: { widget: { properties: { language: { oneOf: { const: string }[]; default: string } } } } };
+    expect(schema.properties.widget.properties.language.oneOf.map((o) => o.const)).toEqual(["browser", "ask", "fixed"]);
+    expect(schema.properties.widget.properties.language.default).toBe("browser");
+  });
 
   it("a cross-project source or connector puts its project in scope.projects, once, never the own project", () => {
     const manifest = toKindManifest("AssistantDeployment", "bbsk", {
