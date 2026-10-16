@@ -7,8 +7,8 @@
 //! this every scheduled poll was a resident stream with its cron as the clock; 92 of them fired
 //! together and the runner ran out of memory (2026-10-16 09:50Z).
 //!
-//! [`RunQueue`] is the state alone, read with a clock the caller passes in; [`tick`] drives it
-//! against a [`Runner`].
+//! [`RunQueue`] is the state alone, read with a clock the caller passes in; `tick` drives it
+//! against a `Runner`.
 
 use std::collections::BTreeMap;
 use std::sync::Mutex;

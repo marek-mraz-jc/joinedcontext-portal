@@ -220,7 +220,7 @@ impl StreamDeployer {
         self
     }
 
-    /// Drives the run queue against the runner every [`QUEUE_TICK`]. The queue only holds what
+    /// Drives the run queue against the runner every `QUEUE_TICK`. The queue only holds what
     /// [`Self::converge`] planned, so a Portal that does not lead starts nothing.
     pub fn spawn_queue(self: Arc<Self>) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
