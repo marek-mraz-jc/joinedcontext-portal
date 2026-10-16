@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { COLUMNS, DATASETS, ENUMS, exportUrl, gridConfig } from "./datasets";
 import { LOCALES, stringsFor } from "./locales";
-import { answer } from "./fixtures/registre";
+import { answer, keyOf } from "./fixtures/registre";
 
 const SLUG = "tw3jx6pcam2qzk7nre5bdv4yfh";
 
@@ -24,11 +24,21 @@ describe("the grids", () => {
   it("are read from fixtures that answer nothing for a type the space does not hold", () => {
     expect(answer("Unknown")).toEqual([]);
     expect(answer(null)).toEqual([]);
+    // T-4329: hospitals and social services are one PointOfInterest, told apart by `category`.
+    const read = (query: string) => answer(keyOf(new URL(`http://portal.test/e?${query}`)));
+    expect(read('type=PointOfInterest&q=category=="hospital"').every((r) => (r as { category: { value: string[] } }).category.value[0] === "hospital")).toBe(true);
+    expect(read("type=PointOfInterest")).toHaveLength(4);
+  });
+
+  it("narrow the hospitals and the social services to their category, and no other register", () => {
+    expect(gridConfig(SLUG, "hospitals", {}).filters.preset).toEqual({ q: 'category=="hospital"' });
+    expect(gridConfig(SLUG, "social", {}).filters.preset).toEqual({ q: 'category=="socialService"' });
+    expect(gridConfig(SLUG, "bridges", {}).filters.preset).toBeUndefined();
   });
 
   it("downloads a whole register from the endpoint's own files", () => {
     expect(exportUrl(SLUG, "bridges", "csv")).toBe(`/api/endpoint/${SLUG}/file.csv?type=Bridge&humanHeaders=true`);
-    expect(exportUrl(SLUG, "hospitals", "geojson")).toBe(`/api/endpoint/${SLUG}/file.geojson?type=Hospital`);
+    expect(exportUrl(SLUG, "hospitals", "geojson")).toBe(`/api/endpoint/${SLUG}/file.geojson?type=PointOfInterest&q=category%3D%3D%22hospital%22`);
   });
 });
 

@@ -11,7 +11,7 @@ gains no write grant, so the panel offers no Edit (AP-140).
 
 ## How it reads
 
-- Each kind (Event, School, AirQualityObserved) loads on its own, page by page up to 1 000: a kind
+- Each kind (Event, Organization for the schools, AirQualityObserved) loads on its own, page by page up to 1 000: a kind
   the endpoint refuses becomes a sentence saying why, and the others stay; a kind cut at 1 000 says
   so.
 - The map is a picture of the list beside it. The list carries every place in text, is what a

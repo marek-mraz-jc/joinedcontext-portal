@@ -5,7 +5,7 @@
   "definitions": {
     "AirQualityObserved": {
       "additionalProperties": false,
-      "description": "One of ČHMÚ's air quality stations in Prague and the hour's means it last published.",
+      "description": "One of \u010cHM\u00da's air quality stations in Prague and the hour's means it last published.",
       "properties": {
         "co": {
           "description": "Carbon monoxide, the hour's mean at the station.",
@@ -114,7 +114,7 @@
           "x-ngsi-ld-kind": "Property"
         },
         "pm10": {
-          "description": "Particulate matter up to 10 µm, the hour's mean at the station.",
+          "description": "Particulate matter up to 10 \u00b5m, the hour's mean at the station.",
           "minimum": 0,
           "type": [
             "number",
@@ -126,7 +126,7 @@
           }
         },
         "pm25": {
-          "description": "Particulate matter up to 2.5 µm, the hour's mean at the station.",
+          "description": "Particulate matter up to 2.5 \u00b5m, the hour's mean at the station.",
           "minimum": 0,
           "type": [
             "number",
@@ -301,7 +301,7 @@
     },
     "BudgetLine": {
       "additionalProperties": false,
-      "description": "One line of the city budget of the City of Prague (Magistrát hl. m. Prahy), in the national budget classification, with the approved and the adjusted amount.",
+      "description": "One line of the city budget of the City of Prague (Magistr\u00e1t hl. m. Prahy), in the national budget classification, with the approved and the adjusted amount.",
       "properties": {
         "adjustedAmount": {
           "description": "The amount after the year's budget changes so far, in the same unit as the approved one.",
@@ -314,7 +314,7 @@
           "x-ngsi-ld-kind": "Property"
         },
         "budgetArea": {
-          "description": "The city's own area of the line (oblast), its code and name joined, such as 09 Školství; absent on a correction line the city files under none.",
+          "description": "The city's own area of the line (oblast), its code and name joined, such as 09 \u0160kolstv\u00ed; absent on a correction line the city files under none.",
           "type": [
             "string",
             "null"
@@ -327,12 +327,12 @@
           "x-ngsi-ld-kind": "Property"
         },
         "budgetItem": {
-          "description": "The item of the national budget classification (položka), code and name. Items 1xxx to 4xxx are revenue, 5xxx and 6xxx expenditure, 8xxx financing.",
+          "description": "The item of the national budget classification (polo\u017eka), code and name. Items 1xxx to 4xxx are revenue, 5xxx and 6xxx expenditure, 8xxx financing.",
           "type": "string",
           "x-ngsi-ld-kind": "Property"
         },
         "budgetPurpose": {
-          "description": "The earmark of the line (účelový znak), code and name.",
+          "description": "The earmark of the line (\u00fa\u010delov\u00fd znak), code and name.",
           "type": [
             "string",
             "null"
@@ -423,7 +423,7 @@
     },
     "CityDistrict": {
       "additionalProperties": false,
-      "description": "One of the 57 city districts (městské části) of Prague, its outline and its code.",
+      "description": "One of the 57 city districts (m\u011bstsk\u00e9 \u010d\u00e1sti) of Prague, its outline and its code.",
       "properties": {
         "dataProvider": {
           "description": "Who publishes the data the entity was read from, with the credit its licence asks for, as an application shows it beside the data.",
@@ -434,7 +434,7 @@
           "x-ngsi-ld-kind": "Property"
         },
         "districtCode": {
-          "description": "The district's RÚIAN code, the key the national registers and the waste register use.",
+          "description": "The district's R\u00daIAN code, the key the national registers and the waste register use.",
           "pattern": "^[0-9]{6}$",
           "type": "string",
           "x-ngsi-ld-kind": "Property"
@@ -702,11 +702,15 @@
       "description": "One place a resident goes to: a school, a cultural venue, a public toilet or a public transport ticket point.",
       "properties": {
         "address": {
-          "description": "The street address, one line, as the publisher writes it.",
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PostalAddress"
+            },
+            {
+              "type": "null"
+            }
           ],
+          "description": "The Smart Data Models PostalAddress (T-4329): the street address as the publisher writes it, one line, in `streetAddress`, and the city and country every Prague source shares.",
           "x-ngsi-ld-kind": "Property"
         },
         "capacity": {
@@ -727,7 +731,7 @@
           "x-ngsi-ld-kind": "Property"
         },
         "facilityType": {
-          "description": "The publisher's own word for the kind of place, such as Mateřská škola or ticketMachine.",
+          "description": "The publisher's own word for the kind of place, such as Mate\u0159sk\u00e1 \u0161kola or ticketMachine.",
           "type": [
             "string",
             "null"
@@ -852,6 +856,38 @@
       "title": "PointOfInterest",
       "type": "object"
     },
+    "PostalAddress": {
+      "additionalProperties": false,
+      "description": "The value of `address`: a postal address, never an entity of its own (Smart Data Models' common schema).",
+      "properties": {
+        "addressCountry": {
+          "description": "The country, as an ISO 3166-1 alpha-2 code.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
+        "addressLocality": {
+          "description": "The town, Praha.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
+        "streetAddress": {
+          "description": "The street address line as the publisher writes it.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        }
+      },
+      "title": "PostalAddress",
+      "type": "object"
+    },
     "ServiceCategory": {
       "description": "",
       "enum": [
@@ -891,8 +927,8 @@
       "title": "WasteAccess",
       "type": "string",
       "x-enum-descriptions": {
-        "public": "Anyone may use it (volně).",
-        "residents": "Only the residents of the house may use it (obyvatelům domu)."
+        "public": "Anyone may use it (voln\u011b).",
+        "residents": "Only the residents of the house may use it (obyvatel\u016fm domu)."
       }
     },
     "WasteContainer": {
@@ -1143,14 +1179,14 @@
       "title": "WasteKind",
       "type": "string",
       "x-enum-descriptions": {
-        "beverageCartons": "Beverage cartons (nápojové kartony).",
-        "clearGlass": "Clear glass (čiré sklo).",
-        "colouredGlass": "Coloured glass (barevné sklo).",
-        "edibleOil": "Edible fats and oils (jedlé tuky a oleje).",
-        "electronics": "Small electrical appliances (elektrozařízení).",
+        "beverageCartons": "Beverage cartons (n\u00e1pojov\u00e9 kartony).",
+        "clearGlass": "Clear glass (\u010dir\u00e9 sklo).",
+        "colouredGlass": "Coloured glass (barevn\u00e9 sklo).",
+        "edibleOil": "Edible fats and oils (jedl\u00e9 tuky a oleje).",
+        "electronics": "Small electrical appliances (elektroza\u0159\u00edzen\u00ed).",
         "metal": "Metal (kovy).",
-        "mixedRecyclables": "Paper, plastic and cartons in one container (multikomoditní sběr).",
-        "paper": "Paper (papír).",
+        "mixedRecyclables": "Paper, plastic and cartons in one container (multikomoditn\u00ed sb\u011br).",
+        "paper": "Paper (pap\u00edr).",
         "plastic": "Plastic (plast)."
       }
     }

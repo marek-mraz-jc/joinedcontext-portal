@@ -4,13 +4,14 @@
  * `banskabystrica-verejne`. A value the entity does not carry stays `null` and is said as missing,
  * never turned into a zero or an empty string that reads like data.
  */
-import type { RichCell, RichRow } from "@joinedcontext/sdk";
+import { format } from "@joinedcontext/sdk";
+import type { Cell, RichCell, RichRow } from "@joinedcontext/sdk";
 
 export const KINDS = ["event", "school", "air"] as const;
 export type Kind = (typeof KINDS)[number];
 
 /** The NGSI-LD type each kind is read from. */
-export const TYPE_OF: Record<Kind, string> = { event: "Event", school: "School", air: "AirQualityObserved" };
+export const TYPE_OF: Record<Kind, string> = { event: "Event", school: "Organization", air: "AirQualityObserved" };
 
 /** One colour and one shape per kind: the shape is what tells them apart without colour. */
 export const KIND_COLOUR: Record<Kind, string> = { event: "#9d2a6e", school: "#1f5fa8", air: "#2f7d32" };
@@ -36,6 +37,8 @@ function text(row: RichRow, attr: string): string | null {
   const value = first(row.cells[attr])?.value;
   if (typeof value === "string") return value.trim() === "" ? null : value.trim();
   if (typeof value === "number") return String(value);
+  // A Smart Data Models PostalAddress (T-4329) reads as its one line.
+  if (value && typeof value === "object" && !Array.isArray(value)) return format(value as Cell) || null;
   return null;
 }
 

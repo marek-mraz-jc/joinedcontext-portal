@@ -70,6 +70,10 @@ describe("the edges of a row", () => {
     expect(placeOf(withCell("address", { type: "Property", value: 12 }), "school", "cs").address).toBe("12");
     expect(placeOf(withCell("address", { type: "Property", value: "   " }), "school", "cs").address).toBeNull();
     expect(placeOf(withCell("address", { type: "Property", value: true }), "school", "cs").address).toBeNull();
+    // T-4329: the city writes the Smart Data Models PostalAddress; it reads as one line.
+    const postal = { streetAddress: "Na Příkopě 1", addressLocality: "Praha", addressCountry: "CZ" };
+    expect(placeOf(withCell("address", { type: "Property", value: postal }), "school", "cs").address).toBe("Na Příkopě 1, Praha");
+    expect(placeOf(withCell("address", { type: "Property", value: {} }), "school", "cs").address).toBeNull();
     expect(placeOf(withCell("address", [{ type: "Property", value: "Na Příkopě 1", datasetId: "urn:a" }, { type: "Property", value: "B", datasetId: "urn:b" }]), "school", "cs").address).toBe("Na Příkopě 1");
   });
 

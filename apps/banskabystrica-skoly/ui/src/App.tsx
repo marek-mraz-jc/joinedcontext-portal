@@ -30,7 +30,7 @@ function folded(text: string): string {
 export async function loadSchools(source: EntitySource, locale: string): Promise<{ schools: School[]; truncated: boolean }> {
   const schools: School[] = [];
   for (let offset = 0; offset < MOST; offset += PAGE) {
-    const page = await source.query({ type: "School" }, { offset, limit: PAGE });
+    const page = await source.query({ type: "Organization" }, { offset, limit: PAGE });
     schools.push(...page.rows.map((row) => schoolOf(row, locale)));
     if (page.rows.length < PAGE) return { schools: withShared(schools), truncated: false };
   }
@@ -149,7 +149,7 @@ function Desk() {
             number={number}
             s={s}
             selected={selected?.id ?? null}
-            onOpen={(id) => select({ id, type: "School", endpoint: listed?.name })}
+            onOpen={(id) => select({ id, type: "Organization", endpoint: listed?.name })}
           />
         </>
       )}

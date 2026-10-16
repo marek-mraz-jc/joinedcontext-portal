@@ -81,11 +81,16 @@
         },
         "refParentArea": {
           "description": "The district a municipality lies in; absent on a district.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "x-ngsi-ld-kind": "Relationship"
+          "pattern": "^urn:ngsi-ld:AdministrativeArea:",
+          "type": "string",
+          "x-ngsi-ld-kind": "Relationship",
+          "x-ngsi-ld-relationship": {
+            "cardinality": "many-to-one",
+            "inverse": "childAreas",
+            "onDelete": "restrict",
+            "target": "AdministrativeArea",
+            "unique": false
+          }
         },
         "source": {
           "description": "The open-data service the entity was read from.",
@@ -128,7 +133,7 @@
       "description": "One bridge of the road network in the region, its road, its age, its size and who manages it.",
       "properties": {
         "bridgeCode": {
-          "description": "The bridge's number in the national road databank (Cestná databanka), such as `M9673`.",
+          "description": "The bridge's number in the national road databank (Cestn\u00e1 databanka), such as `M9673`.",
           "pattern": "^M[0-9]+$",
           "type": "string",
           "x-ngsi-ld-kind": "Property"
@@ -259,7 +264,7 @@
           "x-ngsi-ld-kind": "Property"
         },
         "structureKind": {
-          "description": "The kind of load-bearing structure, in the databank's words, such as `dosková`.",
+          "description": "The kind of load-bearing structure, in the databank's words, such as `doskov\u00e1`.",
           "type": [
             "string",
             "null"
@@ -304,7 +309,11 @@
         "municipality"
       ],
       "title": "DivisionLevel",
-      "type": "string"
+      "type": "string",
+      "x-enum-descriptions": {
+        "district": "A district (okres), LAU 1.",
+        "municipality": "A municipality or town (obec, mesto), LAU 2."
+      }
     },
     "Entity": {
       "additionalProperties": false,
@@ -373,22 +382,99 @@
         "culturalAndTechnical"
       ],
       "title": "HeritageStatus",
-      "type": "string"
+      "type": "string",
+      "x-enum-descriptions": {
+        "cultural": "The bridge is a listed cultural monument.",
+        "culturalAndTechnical": "The bridge is listed as a cultural and a technical monument.",
+        "notListed": "The bridge is not a listed monument."
+      }
     },
-    "Hospital": {
+    "HospitalKind": {
+      "description": "",
+      "enum": [
+        "general",
+        "specialised"
+      ],
+      "title": "HospitalKind",
+      "type": "string",
+      "x-enum-descriptions": {
+        "general": "A general hospital (v\u0161eobecn\u00e1 nemocnica).",
+        "specialised": "A specialised hospital (\u0161pecializovan\u00e1 nemocnica)."
+      }
+    },
+    "OrganizationCategory": {
+      "description": "",
+      "enum": [
+        "school",
+        "socialCare",
+        "culture",
+        "office"
+      ],
+      "title": "OrganizationCategory",
+      "type": "string",
+      "x-enum-descriptions": {
+        "culture": "A theatre, a museum, a gallery, a library or an education centre (kult\u00fara).",
+        "office": "An office or an agency of the region (\u00farad).",
+        "school": "A secondary school or a school facility (\u0161koly).",
+        "socialCare": "A social-care facility (soci\u00e1lne)."
+      }
+    },
+    "PlaceCategory": {
+      "description": "",
+      "enum": [
+        "hospital",
+        "socialService"
+      ],
+      "title": "PlaceCategory",
+      "type": "string",
+      "x-enum-descriptions": {
+        "hospital": "A general or specialised hospital.",
+        "socialService": "A registered social service."
+      }
+    },
+    "PointOfInterest": {
       "additionalProperties": false,
-      "description": "One general or specialised hospital in the region, by its facility number in the health-care register.",
+      "description": "One hospital (by its facility number in the health-care register) or one registered social service a municipality, a town or the region provides; `category` says which. The FIWARE Smart Data Model PointOfInterest (T-4329): no published model is a hospital or a social service. Private providers of social services are not in the space.",
       "properties": {
         "address": {
-          "description": "The street address, one line, as the publisher writes it.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PostalAddress"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The postal address as the register publishes it, field by field (Smart Data Models' common PostalAddress, T-4329); a field the register leaves out is absent, never guessed.",
+          "x-ngsi-ld-kind": "Property"
+        },
+        "capacity": {
+          "description": "How many people the service may take at once, as registered; absent for a service registered without one.",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
+        "category": {
+          "description": "What kind of place it is: `hospital` or `socialService`. The two registers share the Smart Data Model PointOfInterest, and an application asks for one with `q=category==\"hospital\"` (T-4329).",
+          "items": {
+            "$ref": "#/definitions/PlaceCategory"
+          },
+          "type": "array",
+          "x-ngsi-ld-kind": "Property"
+        },
+        "dataProvider": {
+          "description": "Who publishes the data the entity was read from, with the credit its licence asks for, as an application shows it beside the data.",
           "type": [
             "string",
             "null"
           ],
           "x-ngsi-ld-kind": "Property"
         },
-        "dataProvider": {
-          "description": "Who publishes the data the entity was read from, with the credit its licence asks for, as an application shows it beside the data.",
+        "districtName": {
+          "description": "The district the record lies in, by name, as the publisher writes it.",
           "type": [
             "string",
             "null"
@@ -406,7 +492,7 @@
           "x-ngsi-ld-kind": "Property"
         },
         "legalId": {
-          "description": "The body's identification number (IČO) in the Slovak register of legal persons.",
+          "description": "The body's identification number (I\u010cO) in the Slovak register of legal persons.",
           "pattern": "^[0-9]{8}$",
           "type": [
             "string",
@@ -478,9 +564,35 @@
           ],
           "x-ngsi-ld-kind": "Property"
         },
+        "providerKind": {
+          "$ref": "#/definitions/ProviderKind",
+          "description": "Which public body provides the service.",
+          "x-ngsi-ld-kind": "Property"
+        },
+        "serviceForm": {
+          "$ref": "#/definitions/ServiceForm",
+          "description": "How the service reaches the person it serves.",
+          "x-ngsi-ld-kind": "Property"
+        },
+        "serviceKind": {
+          "description": "The kind of social service in the words of Act 448/2008 Z. z., such as `zariadenie pre seniorov` or `opatrovate\u013esk\u00e1 slu\u017eba`.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
         "source": {
           "description": "The open-data service the entity was read from.",
           "format": "uri",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
+        "targetGroup": {
+          "description": "Whom the service is for, as the provisions of the Act the register cites.",
           "type": [
             "string",
             "null"
@@ -491,35 +603,63 @@
           "description": "The entity type, one class of a published data model.",
           "type": "string",
           "x-ngsi-ld-kind": "Property"
+        },
+        "url": {
+          "description": "The web page the publisher gives for it.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
         }
       },
       "required": [
-        "hospitalKind",
+        "category",
         "id",
         "type"
       ],
-      "title": "Hospital",
+      "title": "PointOfInterest",
       "type": "object"
     },
-    "HospitalKind": {
-      "description": "",
-      "enum": [
-        "general",
-        "specialised"
-      ],
-      "title": "HospitalKind",
-      "type": "string"
-    },
-    "OrganizationCategory": {
-      "description": "",
-      "enum": [
-        "school",
-        "socialCare",
-        "culture",
-        "office"
-      ],
-      "title": "OrganizationCategory",
-      "type": "string"
+    "PostalAddress": {
+      "additionalProperties": false,
+      "description": "The value of `address`: a postal address, never an entity of its own (Smart Data Models' common schema).",
+      "properties": {
+        "addressCountry": {
+          "description": "The country, as an ISO 3166-1 alpha-2 code.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
+        "addressLocality": {
+          "description": "The town or the municipality.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
+        "postalCode": {
+          "description": "The postal code.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
+        "streetAddress": {
+          "description": "The street and the house number, or the venue.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        }
+      },
+      "title": "PostalAddress",
+      "type": "object"
     },
     "ProviderKind": {
       "description": "",
@@ -529,18 +669,27 @@
         "regionFounded"
       ],
       "title": "ProviderKind",
-      "type": "string"
+      "type": "string",
+      "x-enum-descriptions": {
+        "municipality": "A municipality or a town itself (obec/mesto).",
+        "municipalityFounded": "A legal person a municipality or a town founded.",
+        "regionFounded": "A legal person the self-governing region founded."
+      }
     },
     "PublicOrganization": {
       "additionalProperties": false,
-      "description": "One organisation the region founded: a secondary school, a social-care home, a theatre, a museum or an office.",
+      "description": "One organisation the region founded: a secondary school, a social-care home, a theatre, a museum or an office. The FIWARE Smart Data Model CPSV-AP PublicOrganization (T-4329).",
       "properties": {
         "address": {
-          "description": "The street address, one line, as the publisher writes it.",
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PostalAddress"
+            },
+            {
+              "type": "null"
+            }
           ],
+          "description": "The postal address as the register publishes it, field by field (Smart Data Models' common PostalAddress, T-4329); a field the register leaves out is absent, never guessed.",
           "x-ngsi-ld-kind": "Property"
         },
         "alternateName": {
@@ -565,7 +714,7 @@
           "x-ngsi-ld-kind": "Property"
         },
         "legalId": {
-          "description": "The body's identification number (IČO) in the Slovak register of legal persons.",
+          "description": "The body's identification number (I\u010cO) in the Slovak register of legal persons.",
           "pattern": "^[0-9]{8}$",
           "type": [
             "string",
@@ -626,19 +775,43 @@
           "description": "The field the region founded the organisation for.",
           "x-ngsi-ld-kind": "Property"
         },
-        "refMunicipality": {
-          "description": "The municipality the record lies in.",
+        "preferredLabel": {
+          "description": "The organisation's official name, as CPSV-AP's PublicOrganization requires it.",
           "type": [
             "string",
             "null"
           ],
-          "x-ngsi-ld-kind": "Relationship"
+          "x-ngsi-ld-kind": "Property"
+        },
+        "refMunicipality": {
+          "description": "The municipality the record lies in.",
+          "pattern": "^urn:ngsi-ld:AdministrativeArea:",
+          "type": "string",
+          "x-ngsi-ld-kind": "Relationship",
+          "x-ngsi-ld-relationship": {
+            "cardinality": "many-to-one",
+            "inverse": "publicOrganizations",
+            "onDelete": "restrict",
+            "target": "AdministrativeArea",
+            "unique": false
+          }
         },
         "source": {
           "description": "The open-data service the entity was read from.",
           "format": "uri",
           "type": [
             "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
+        "spatial": {
+          "description": "The municipality the organisation is in, by name, as CPSV-AP's PublicOrganization requires it.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
             "null"
           ],
           "x-ngsi-ld-kind": "Property"
@@ -668,7 +841,15 @@
         "service"
       ],
       "title": "RoadClass",
-      "type": "string"
+      "type": "string",
+      "x-enum-descriptions": {
+        "firstClass": "A first-class road (cesta I. triedy).",
+        "local": "A local road of no stated class (miestna neur\u010den\u00e1).",
+        "motorway": "A motorway or an expressway (dia\u013enica).",
+        "secondClass": "A second-class road (cesta II. triedy).",
+        "service": "A service road (\u00fa\u010delov\u00e1 cesta).",
+        "thirdClass": "A third-class road (cesta III. triedy)."
+      }
     },
     "ServiceForm": {
       "description": "",
@@ -680,161 +861,14 @@
         "remote"
       ],
       "title": "ServiceForm",
-      "type": "string"
-    },
-    "SocialService": {
-      "additionalProperties": false,
-      "description": "One registered social service a municipality, a town or the region provides, where it is provided and for whom. Private providers are not in the space.",
-      "properties": {
-        "address": {
-          "description": "The street address, one line, as the publisher writes it.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "x-ngsi-ld-kind": "Property"
-        },
-        "capacity": {
-          "description": "How many people the service may take at once, as registered; absent for a service registered without one.",
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ],
-          "x-ngsi-ld-kind": "Property"
-        },
-        "dataProvider": {
-          "description": "Who publishes the data the entity was read from, with the credit its licence asks for, as an application shows it beside the data.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "x-ngsi-ld-kind": "Property"
-        },
-        "districtName": {
-          "description": "The district the record lies in, by name, as the publisher writes it.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "x-ngsi-ld-kind": "Property"
-        },
-        "id": {
-          "description": "The entity id, urn:ngsi-ld:{Type}:{orgDomain}:{space}:{localId}.",
-          "type": "string",
-          "x-ngsi-ld-kind": "Property"
-        },
-        "legalId": {
-          "description": "The body's identification number (IČO) in the Slovak register of legal persons.",
-          "pattern": "^[0-9]{8}$",
-          "type": [
-            "string",
-            "null"
-          ],
-          "x-ngsi-ld-kind": "Property"
-        },
-        "location": {
-          "description": "Where the entity is, as GeoJSON geometry.",
-          "properties": {
-            "coordinates": {
-              "type": "array"
-            },
-            "type": {
-              "enum": [
-                "Point",
-                "MultiPoint",
-                "LineString",
-                "MultiLineString",
-                "Polygon",
-                "MultiPolygon"
-              ],
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "coordinates"
-          ],
-          "type": [
-            "object",
-            "null"
-          ],
-          "x-ngsi-ld-kind": "GeoProperty"
-        },
-        "name": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "The name, per language, as the publisher writes it.",
-          "type": [
-            "object",
-            "null"
-          ],
-          "x-ngsi-ld-kind": "LanguageProperty"
-        },
-        "observedAt": {
-          "description": "When the observation the entity reports was made.",
-          "format": "date-time",
-          "type": [
-            "string",
-            "null"
-          ],
-          "x-ngsi-ld-kind": "Property"
-        },
-        "providerKind": {
-          "$ref": "#/definitions/ProviderKind",
-          "description": "Which public body provides the service.",
-          "x-ngsi-ld-kind": "Property"
-        },
-        "serviceForm": {
-          "$ref": "#/definitions/ServiceForm",
-          "description": "How the service reaches the person it serves.",
-          "x-ngsi-ld-kind": "Property"
-        },
-        "serviceKind": {
-          "description": "The kind of social service in the words of Act 448/2008 Z. z., such as `zariadenie pre seniorov` or `opatrovateľská služba`.",
-          "type": "string",
-          "x-ngsi-ld-kind": "Property"
-        },
-        "source": {
-          "description": "The open-data service the entity was read from.",
-          "format": "uri",
-          "type": [
-            "string",
-            "null"
-          ],
-          "x-ngsi-ld-kind": "Property"
-        },
-        "targetGroup": {
-          "description": "Whom the service is for, as the provisions of the Act the register cites.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "x-ngsi-ld-kind": "Property"
-        },
-        "type": {
-          "description": "The entity type, one class of a published data model.",
-          "type": "string",
-          "x-ngsi-ld-kind": "Property"
-        },
-        "url": {
-          "description": "The web page the publisher gives for it.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "x-ngsi-ld-kind": "Property"
-        }
-      },
-      "required": [
-        "serviceKind",
-        "providerKind",
-        "id",
-        "type"
-      ],
-      "title": "SocialService",
-      "type": "object"
+      "type": "string",
+      "x-enum-descriptions": {
+        "field": "Provided where the person lives (ter\u00e9nna).",
+        "outpatient": "The person comes to it (ambulantn\u00e1).",
+        "remote": "By telephone or another telecommunication means (in\u00e1 forma).",
+        "residentialWeekly": "The person lives there during the week (pobytov\u00e1 - t\u00fd\u017edenn\u00e1).",
+        "residentialYearRound": "The person lives there all year (pobytov\u00e1 - ro\u010dn\u00e1)."
+      }
     }
   },
   "metamodel_version": "1.11.0",

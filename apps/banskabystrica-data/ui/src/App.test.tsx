@@ -77,7 +77,7 @@ describe("the city's datasets", () => {
     await waitFor(() => expect(within(panel).getByText("Základná škola, Moyzesova 18")).toBeInTheDocument());
     expect(within(panel).getByRole("link", { name: `${s.csv} ${s.dataset.schools}` })).toHaveAttribute(
       "href",
-      `/api/endpoint/${SLUG}/file.csv?type=School&humanHeaders=true`,
+      `/api/endpoint/${SLUG}/file.csv?type=Organization&humanHeaders=true`,
     );
     await userEvent.keyboard("{End}");
     expect(screen.getByRole("tab", { name: s.dataset.air })).toHaveFocus();
@@ -127,7 +127,7 @@ describe("the city's datasets", () => {
   it("finds its endpoint among several the Portal hands it, and speaks English when asked", async () => {
     show(false, { endpoints: [
         { slug: "other", space: "elsewhere", name: "other", types: [] },
-        { slug: SLUG, space: "banskabystrica-verejne", name: "verejne", types: ["Event", "School", "AirQualityObserved"] },
+        { slug: SLUG, space: "banskabystrica-verejne", name: "verejne", types: ["Event", "Organization", "AirQualityObserved"] },
       ],
       language: "en",
     });

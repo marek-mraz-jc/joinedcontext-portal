@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
-import { ALL, answer } from "../src/fixtures/registre";
+import { ALL, answer, keyOf } from "../src/fixtures/registre";
 
 const DIST = fileURLToPath(new URL("../dist/", import.meta.url));
 const NAME = "bbsk-data";
@@ -61,7 +61,7 @@ export async function serve(page: Page): Promise<Served> {
       });
     }
     if (url.pathname.includes("/api/endpoint/")) {
-      const body = answer(url.searchParams.get("type"));
+      const body = answer(keyOf(url));
       return route.fulfill({
         status: 200,
         contentType: "application/ld+json",

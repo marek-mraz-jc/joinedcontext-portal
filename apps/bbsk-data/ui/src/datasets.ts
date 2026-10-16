@@ -10,11 +10,20 @@ export const DATASETS = ["hospitals", "social", "bridges", "organizations", "are
 export type Dataset = (typeof DATASETS)[number];
 
 export const TYPE_OF: Record<Dataset, string> = {
-  hospitals: "Hospital",
-  social: "SocialService",
+  hospitals: "PointOfInterest",
+  social: "PointOfInterest",
   bridges: "Bridge",
   organizations: "PublicOrganization",
   areas: "AdministrativeArea",
+};
+
+/**
+ * Hospitals and social services are both the Smart Data Model PointOfInterest (T-4329); the
+ * register's `category` says which, and every read of either grid carries it.
+ */
+export const CATEGORY_Q: Partial<Record<Dataset, string>> = {
+  hospitals: 'category=="hospital"',
+  social: 'category=="socialService"',
 };
 
 /** The columns of each grid, in the order a reader reads them, the primary field first. */
@@ -43,7 +52,7 @@ export function gridConfig(slug: string, dataset: Dataset, labels: Record<string
     type: TYPE_OF[dataset],
     columns: COLUMNS[dataset].map((attr) => ({ attr, label: labels[attr] ?? attr, ...(attr === "name" ? { pinned: true } : {}) })),
     // Every column is one the endpoint answers a `q` about, so a filter is the endpoint's own.
-    filters: { allowed: [...COLUMNS[dataset]] },
+    filters: { allowed: [...COLUMNS[dataset]], ...(CATEGORY_Q[dataset] ? { preset: { q: CATEGORY_Q[dataset] } } : {}) },
     pageSize: 25,
     mode: "view",
   });
@@ -59,6 +68,8 @@ export function gridConfig(slug: string, dataset: Dataset, labels: Record<string
  */
 export function exportUrl(slug: string, dataset: Dataset, format: "csv" | "geojson"): string {
   const query = new URLSearchParams({ type: TYPE_OF[dataset] });
+  const category = CATEGORY_Q[dataset];
+  if (category) query.set("q", category);
   if (format === "csv") query.set("humanHeaders", "true");
   return `/api/endpoint/${encodeURIComponent(slug)}/file.${format}?${query.toString()}`;
 }

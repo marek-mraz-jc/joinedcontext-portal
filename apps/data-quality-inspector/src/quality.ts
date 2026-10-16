@@ -7,18 +7,17 @@ import type { Row } from "@joinedcontext/sdk";
 import type { Lang } from "./i18n";
 import { ageMessage, ruleMessage } from "./i18n";
 
-/** The 13 entity types served in Helsinki context space on dev today. */
+/** The 12 entity types served in Helsinki context space on dev today. */
 export const KNOWN_TYPES = [
   "AirQualityObserved",
   "Alert",
   "BikeHireDockingStation",
   "CityDistrict",
+  "CityWork",
   "Event",
   "NewsArticle",
-  "ParkingArea",
-  "ParkingZone",
+  "OnStreetParking",
   "PointOfInterest",
-  "PublicAreaPermit",
   "Vehicle",
   "WaterQualityObserved",
   "WeatherObserved",

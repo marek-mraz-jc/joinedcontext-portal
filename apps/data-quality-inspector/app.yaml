@@ -57,10 +57,9 @@ spec:
         - CityDistrict
         - Event
         - NewsArticle
-        - ParkingArea
-        - ParkingZone
+        - OnStreetParking
         - PointOfInterest
-        - PublicAreaPermit
+        - CityWork
         - Vehicle
         - WaterQualityObserved
         - WeatherObserved
@@ -79,10 +78,9 @@ spec:
         - CityDistrict
         - Event
         - NewsArticle
-        - ParkingArea
-        - ParkingZone
+        - OnStreetParking
         - PointOfInterest
-        - PublicAreaPermit
+        - CityWork
         - Vehicle
         - WaterQualityObserved
         - WeatherObserved

@@ -19,7 +19,7 @@ const s = LOCALES.sk;
 const ENDPOINTS = [
   { name: "bbsk-kpi", slug: "region", space: "bbsk-kpi", types: ["KeyPerformanceIndicator"] },
   { name: "mesto-kpi", slug: "city", space: "banskabystrica-kpi", types: ["KeyPerformanceIndicator"] },
-  { name: "bbsk-kraj-verejne", slug: "kraj", space: "bbsk-kraj", types: ["StatisticalObservation"] },
+  { name: "bbsk-kraj-verejne", slug: "kraj", space: "bbsk-kraj", types: ["KeyPerformanceIndicator"] },
 ];
 
 type Row = (typeof raw)[number];
@@ -95,12 +95,12 @@ describe("seriesOf", () => {
     const other = (patch: Record<string, unknown>) => toRichRow({ ...row, ...patch });
     expect(seriesOf([other({ dimensionKey: { type: "Property", value: "2" } })]).size).toBe(0);
     expect(seriesOf([other({ refArea: { type: "Property", value: "SK010" } })]).size).toBe(0);
-    expect(seriesOf([other({ observationValue: { type: "Property", value: "n/a" } })]).size).toBe(0);
+    expect(seriesOf([other({ kpiValue: { type: "Property", value: "n/a" } })]).size).toBe(0);
     expect(seriesOf([other({ refPeriod: { type: "Property", value: "2023Q1" } })]).size).toBe(0);
     expect(seriesOf([other({ refArea: undefined })]).size).toBe(0);
-    expect(seriesOf([other({ type: "KeyPerformanceIndicator" })]).size).toBe(0);
+    expect(seriesOf([other({ type: "PointOfInterest" })]).size).toBe(0);
     // Several values of one attribute: the first is the one read.
-    const twice = other({ observationValue: [{ type: "Property", value: 4, datasetId: "urn:a" }, { type: "Property", value: 9, datasetId: "urn:b" }] });
+    const twice = other({ kpiValue: [{ type: "Property", value: 4, datasetId: "urn:a" }, { type: "Property", value: 9, datasetId: "urn:b" }] });
     expect([...seriesOf([twice]).values()][0]).toEqual([{ period: String(row.refPeriod.value), value: 4 }]);
   });
 

@@ -28,7 +28,7 @@ for (const scheme of ["light", "dark"] as const) {
       await page.goto(BASE);
       await page.getByRole("table").getByRole("button", { name: "Základná škola, Tatranská 10" }).click();
       const panel = page.getByRole("dialog", { name: "Základná škola, Tatranská 10" });
-      await expect(panel.getByText("School", { exact: true })).toBeVisible();
+      await expect(panel.getByText("Organization", { exact: true })).toBeVisible();
       await expect(panel.getByRole("link", { name: "Otvoriť v Portáli" })).toBeVisible();
       await expect(panel.getByRole("button", { name: "Upraviť" })).toHaveCount(0);
       expect(await layoutProblems(page, LIVE_BLOCKS)).toEqual([]);

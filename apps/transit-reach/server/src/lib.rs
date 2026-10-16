@@ -517,7 +517,10 @@ fn retire(version: &str) -> Result<bool, Response> {
 fn refresh(_: &Request, _: &Params) -> Response {
     let (stops, routes) = match (
         all("GtfsStop", "name,stopCode,location"),
-        all("TransitRoute", "routeShortName,transportMode,stopSequence"),
+        all(
+            "PublicTransportRoute",
+            "routeShortName,transportMode,stopSequence",
+        ),
     ) {
         (Ok(s), Ok(r)) => (s, r),
         (Err(answer), _) | (_, Err(answer)) => return answer,

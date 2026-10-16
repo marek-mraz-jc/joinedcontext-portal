@@ -4,13 +4,16 @@
  * register space `bbsk-registre`. A place opened is the SDK's entity panel's, which reads it whole;
  * this keeps what the list shows and searches. A value the entity does not carry stays `null`.
  */
-import type { RichCell, RichRow } from "@joinedcontext/sdk";
+import { format } from "@joinedcontext/sdk";
+import type { Cell, RichCell, RichRow } from "@joinedcontext/sdk";
 
 export const KINDS = ["hospital", "social", "organization"] as const;
 export type Kind = (typeof KINDS)[number];
 
 /** The NGSI-LD type each kind is read from. */
-export const TYPE_OF: Record<Kind, string> = { hospital: "Hospital", social: "SocialService", organization: "PublicOrganization" };
+export const TYPE_OF: Record<Kind, string> = { hospital: "PointOfInterest", social: "PointOfInterest", organization: "PublicOrganization" };
+/** Hospitals and social services share the Smart Data Model PointOfInterest; `category` says which (T-4329). */
+export const CATEGORY_Q: Partial<Record<Kind, string>> = { hospital: 'category=="hospital"', social: 'category=="socialService"' };
 
 /** One colour and one shape per kind: the shape is what tells them apart without colour. */
 export const KIND_COLOUR: Record<Kind, string> = { hospital: "#b42318", social: "#6941c6", organization: "#1f5fa8" };
@@ -35,6 +38,8 @@ function first(cell: RichCell | RichCell[] | undefined): RichCell | undefined {
 function text(row: RichRow, attr: string): string | null {
   const value = first(row.cells[attr])?.value;
   if (typeof value === "string") return value.trim() === "" ? null : value.trim();
+  // A Smart Data Models PostalAddress (T-4329) reads as its one line.
+  if (value && typeof value === "object" && !Array.isArray(value)) return format(value as Cell) || null;
   return null;
 }
 

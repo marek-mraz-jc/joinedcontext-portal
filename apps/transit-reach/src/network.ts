@@ -1,5 +1,5 @@
 /**
- * HSL's stops and lines as the page reads them (T-3356): the GtfsStop and TransitRoute entities of
+ * HSL's stops and lines as the page reads them (T-3356): the GtfsStop and PublicTransportRoute entities of
  * the space, turned into the network the module routes over. A row carries a list as one text
  * joined by commas, so a line's stops are split back out of it.
  */
@@ -9,7 +9,7 @@ import type { DataClient, Row } from "@joinedcontext/sdk";
 import type { NetworkInput } from "./analysis";
 
 export const STOP = "GtfsStop";
-export const ROUTE = "TransitRoute";
+export const ROUTE = "PublicTransportRoute";
 /** What the stops carry: where they are, their name and sign code. */
 export const STOP_ATTRS = ["name", "stopCode", "location"];
 /** What the lines carry: their number, what runs them, their stops in order. */

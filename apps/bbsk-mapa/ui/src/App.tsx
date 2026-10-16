@@ -16,7 +16,7 @@ import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { AppShell, Empty, endpointSource, Loading, Page, SourceError, styleFor, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
 import type { EntitySource } from "@joinedcontext/sdk";
-import { byOrder, featuresOf, KIND_COLOUR, KIND_SHAPE, KINDS, matches, placeOf, TYPE_OF } from "./places";
+import { byOrder, CATEGORY_Q, featuresOf, KIND_COLOUR, KIND_SHAPE, KINDS, matches, placeOf, TYPE_OF } from "./places";
 import type { Kind, Place } from "./places";
 import { stringsFor } from "./locales";
 import type { Strings } from "./locales";
@@ -52,7 +52,7 @@ function reasonOf(cause: unknown): string {
 export async function loadKind(source: EntitySource, kind: Kind, locale: string): Promise<Layer> {
   const places: Place[] = [];
   for (let offset = 0; offset < MOST; offset += PAGE) {
-    const page = await source.query({ type: TYPE_OF[kind] }, { offset, limit: PAGE });
+    const page = await source.query({ type: TYPE_OF[kind], q: CATEGORY_Q[kind] }, { offset, limit: PAGE });
     places.push(...page.rows.map((row) => placeOf(row, kind, locale)));
     if (page.rows.length < PAGE) return { status: "ready", places, truncated: false };
   }

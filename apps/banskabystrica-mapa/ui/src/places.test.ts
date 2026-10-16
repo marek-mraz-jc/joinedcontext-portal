@@ -26,6 +26,10 @@ describe("placeOf", () => {
     expect(placeOf(row({ name: { type: "LanguageProperty", languageMap: { sk: "  " } } }), "event", "sk").name).toBeNull();
     expect(placeOf(row({ name: { type: "Property", value: "  " }, address: { type: "Property", value: 12 } }), "event", "sk")).toMatchObject({ name: null, address: "12" });
     expect(placeOf(row({ address: { type: "Property", value: true } }), "event", "sk").address).toBeNull();
+    // T-4329: the city now writes the Smart Data Models PostalAddress; it reads as one line.
+    const postal = { streetAddress: "Námestie SNP 1", postalCode: "97401", addressLocality: "Banská Bystrica", addressCountry: "SK" };
+    expect(placeOf(row({ address: { type: "Property", value: postal } }), "event", "sk").address).toBe("Námestie SNP 1, 97401 Banská Bystrica");
+    expect(placeOf(row({ address: { type: "Property", value: {} } }), "event", "sk").address).toBeNull();
   });
 
   it("puts on the map only a point inside the world", () => {

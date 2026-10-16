@@ -9,7 +9,7 @@ import type { ResolvedGridConfig } from "@joinedcontext/sdk";
 export const DATASETS = ["events", "schools", "air"] as const;
 export type Dataset = (typeof DATASETS)[number];
 
-export const TYPE_OF: Record<Dataset, string> = { events: "Event", schools: "School", air: "AirQualityObserved" };
+export const TYPE_OF: Record<Dataset, string> = { events: "Event", schools: "Organization", air: "AirQualityObserved" };
 
 /** The columns of each grid, in the order a reader reads them, the primary field first. */
 export const COLUMNS: Record<Dataset, string[]> = {
