@@ -128,6 +128,8 @@ test.describe("the public catalogue", () => {
       );
       await page.goto("/catalogue/bbsk-kpi?lang=sk");
       await expect(page.getByRole("heading", { level: 1, name: "Ukazovatele kraja" })).toBeVisible();
+      // The publisher's text waits behind its disclosure (T-4264); opened, it wraps in its card.
+      await page.getByText("Pre vývojárov").click();
       await expect(page.getByText(curl)).toBeVisible();
       const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(sideways, "the page scrolls sideways").toBeLessThanOrEqual(0);
