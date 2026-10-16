@@ -184,7 +184,7 @@ function useSignInNeeded(address: string) {
 }
 
 /** The one App manifest, shared with every page that reads it. */
-function useApp(project: string, name: string) {
+export function useApp(project: string, name: string) {
   return useQuery({
     queryKey: queryKeys.resource(project, "apps", name),
     retry: false,

@@ -3580,7 +3580,8 @@
       "inARow": "{count, plural, one {# failed run in a row} other {# failed runs in a row}}",
       "ms": "{count} ms",
       "note": "A job runs as the App's own identity and writes only through the App's Endpoint. The list shows runs since the host last started."
-    }
+    },
+    "editWithAssistant": "Edit with the assistant"
   },
   "appLifecycle": {
     "draft": "Draft",

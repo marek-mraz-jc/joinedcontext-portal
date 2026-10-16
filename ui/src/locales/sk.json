@@ -3580,7 +3580,8 @@
       "inARow": "{count, plural, one {# neúspešný beh za sebou} few {# neúspešné behy za sebou} other {# neúspešných behov za sebou}}",
       "ms": "{count} ms",
       "note": "Úloha beží pod vlastnou identitou aplikácie a zapisuje len cez jej Endpoint. Zoznam ukazuje behy od posledného spustenia hostiteľa."
-    }
+    },
+    "editWithAssistant": "Upraviť pomocou asistenta"
   },
   "appLifecycle": {
     "draft": "Návrh",

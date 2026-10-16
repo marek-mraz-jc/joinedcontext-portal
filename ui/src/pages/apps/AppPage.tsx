@@ -11,7 +11,10 @@ import { AppCheckChip, useAppChecks } from "./AppCheckChip";
 import { AppGenerator } from "./AppGenerator";
 import { AppJobRuns } from "./AppJobRuns";
 import { AppServices } from "./AppServices";
-import { OpenAppButton } from "./AppOpenPage";
+import { OpenAppButton, useApp } from "./AppOpenPage";
+import { appSpec, visibilityLabel } from "./AppsCatalog";
+import { localized } from "../../api/manifest";
+import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import { appDisplayName } from "./appTitle";
 import { RolesAndMembers } from "./RolesAndMembers";
 import type { AgentRun } from "./useAgentRun";
@@ -104,6 +107,7 @@ export function AppPage({ project, name }: { project: string; name: string }): J
 
   return (
     <div className="space-y-3">
+      <AppHeading project={project} name={name} />
       <div className="flex flex-wrap justify-between gap-2">
         <Button onClick={back}>{t("apps.back")}</Button>
         <span className="flex items-center gap-3">
@@ -114,8 +118,49 @@ export function AppPage({ project, name }: { project: string; name: string }): J
       <AppBuildPanel project={project} name={name} />
       <AppJobRuns project={project} name={name} />
       <RolesAndMembers project={project} name={name} />
-      <AppGenerator project={project} initialName={name} />
+      <GeneratorFor project={project} name={name} />
       <AppServices project={project} name={name} />
     </div>
+  );
+}
+
+/**
+ * The App's title, state, audience and description above everything else (T-4264, T-4160 #35):
+ * a published App with no run of its own used to open on "Generate your own app". Nothing for a
+ * name no App holds yet, whose page is the generator.
+ */
+function AppHeading({ project, name }: { project: string; name: string }): JSX.Element | null {
+  const { t, i18n } = useTranslation();
+  const app = useApp(project, name);
+  if (app.data?.kind !== "App") return null;
+  const spec = appSpec(app.data);
+  return (
+    <div className="space-y-2">
+      <PageHeader
+        title={localized(app.data.metadata.title, i18n.language, "") || appDisplayName({ appName: name })}
+        description={localized(app.data.metadata.description, i18n.language, "") || undefined}
+      />
+      <p className="flex flex-wrap items-center gap-2 text-caption text-fg-muted">
+        <LifecycleBadge kind="appLifecycle" value={spec.lifecycle ?? "draft"} />
+        {spec.visibility ? t("apps.visibility", { visibility: visibilityLabel(spec.visibility, t) }) : null}
+      </p>
+    </div>
+  );
+}
+
+/** The generator, open for a name no App holds yet and behind its action for one that exists. */
+function GeneratorFor({ project, name }: { project: string; name: string }): JSX.Element {
+  const { t } = useTranslation();
+  const app = useApp(project, name);
+  if (app.data?.kind !== "App") return <AppGenerator project={project} initialName={name} />;
+  return (
+    <details className="group rounded-md border border-border p-3">
+      <summary className="focus-ring cursor-pointer rounded-sm font-medium text-primary-soft-fg">
+        {t("apps.editWithAssistant")}
+      </summary>
+      <div className="mt-3">
+        <AppGenerator project={project} initialName={name} embedded />
+      </div>
+    </details>
   );
 }

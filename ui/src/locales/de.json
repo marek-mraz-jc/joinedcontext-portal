@@ -3580,7 +3580,8 @@
       "inARow": "{count, plural, one {# fehlgeschlagener Lauf in Folge} other {# fehlgeschlagene Läufe in Folge}}",
       "ms": "{count} ms",
       "note": "Eine Aufgabe läuft mit der eigenen Identität der App und schreibt nur über deren Endpoint. Die Liste zeigt Läufe seit dem letzten Start des Hosts."
-    }
+    },
+    "editWithAssistant": "Mit dem Assistenten bearbeiten"
   },
   "appLifecycle": {
     "draft": "Entwurf",
