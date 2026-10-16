@@ -15,13 +15,13 @@ spec:
     name: bbsk-registre
   information:
   - entities:
-    - type: Hospital
-    - type: SocialService
+    - type: PointOfInterest
     - type: Bridge
     - type: PublicOrganization
     - type: AdministrativeArea
     propertyNames:
     - name
+    - category
     - hospitalKind
     - operatorName
     - medicalSpecialties
@@ -50,6 +50,7 @@ spec:
     - surfaceArea
     relationshipNames:
     - name
+    - category
     - hospitalKind
     - operatorName
     - medicalSpecialties

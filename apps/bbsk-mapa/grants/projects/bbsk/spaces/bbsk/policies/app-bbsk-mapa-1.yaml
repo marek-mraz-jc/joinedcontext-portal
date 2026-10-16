@@ -15,11 +15,11 @@ spec:
     name: bbsk-registre
   information:
   - entities:
-    - type: Hospital
-    - type: SocialService
+    - type: PointOfInterest
     - type: PublicOrganization
     propertyNames:
     - name
+    - category
     - location
     - address
     - districtName
@@ -35,6 +35,7 @@ spec:
     - providerKind
     relationshipNames:
     - name
+    - category
     - location
     - address
     - districtName

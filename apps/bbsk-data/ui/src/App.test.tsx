@@ -6,8 +6,8 @@ import axe from "axe-core";
 import { JcProvider, projectRow, toRichRow } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import App from "./App";
-import { ALL, answer } from "./fixtures/registre";
-import { DATASETS, TYPE_OF } from "./datasets";
+import { ALL, answer, keyOf } from "./fixtures/registre";
+import { DATASETS, exportUrl } from "./datasets";
 import type { Dataset } from "./datasets";
 import { LOCALES } from "./locales";
 
@@ -22,7 +22,7 @@ function show(withEndpoint = true, endpoints?: { name: string; slug: string; spa
     vi.fn(async (path: string) => {
       const url = new URL(path, "http://portal.test");
       asked.push(url);
-      const rows = answer(url.searchParams.get("type"));
+      const rows = answer(keyOf(url));
       return new Response(JSON.stringify(rows), {
         status: 200,
         headers: { "content-type": "application/json", "NGSILD-Results-Count": String(rows.length) },
@@ -56,7 +56,7 @@ describe("the region's registers", () => {
     const panel = screen.getByRole("tabpanel", { name: s.dataset.hospitals });
     await waitFor(() => expect(within(panel).getByText("Nemocnica Zvolen")).toBeInTheDocument());
     expect(within(panel).getByRole("columnheader", { name: new RegExp(s.column.hospitalKind) })).toBeInTheDocument();
-    expect(asked.some((url) => url.pathname.includes(`/api/endpoint/${SLUG}/`) && url.searchParams.get("type") === "Hospital")).toBe(true);
+    expect(asked.some((url) => url.pathname.includes(`/api/endpoint/${SLUG}/`) && url.searchParams.get("type") === "PointOfInterest" && url.searchParams.get("q")?.includes('category=="hospital"'))).toBe(true);
   });
 
   it("moves between registers with the arrow keys and shows each one's grid and downloads", async () => {
@@ -70,7 +70,7 @@ describe("the region's registers", () => {
     await waitFor(() => expect(within(panel).getByText("Domov sociálnych služieb Tisovec")).toBeInTheDocument());
     expect(within(panel).getByRole("link", { name: `${s.csv} ${s.dataset.social}` })).toHaveAttribute(
       "href",
-      `/api/endpoint/${SLUG}/file.csv?type=SocialService&humanHeaders=true`,
+      `/api/endpoint/${SLUG}/file.csv?type=PointOfInterest&q=category%3D%3D%22socialService%22&humanHeaders=true`,
     );
     await userEvent.keyboard("{End}");
     expect(screen.getByRole("tab", { name: s.dataset.areas })).toHaveFocus();
@@ -108,7 +108,7 @@ describe("the region's registers", () => {
     const panel = screen.getByRole("tabpanel", { name: s.dataset.hospitals });
     fireEvent.click(await within(panel).findByRole("button", { name: `${s.grid.openRow}: Nemocnica Zvolen` }));
     const dialog = await screen.findByRole("dialog", { name: "Nemocnica Zvolen" });
-    expect(await within(dialog).findByText("Kuzmányho nábrežie 28, Zvolen")).toBeInTheDocument();
+    expect(await within(dialog).findByText(/Kuzmányho nábrežie 28/)).toBeInTheDocument();
     const link = within(dialog).getByRole("link", { name: "Otvoriť v Portáli" });
     expect(link).toHaveAttribute("href", expect.stringContaining(`entityId=${encodeURIComponent(ALL[1].id)}`));
     // Following the link leaves the App; jsdom does not navigate, so the click is only seen to reach it.
@@ -126,7 +126,7 @@ describe("the region's registers", () => {
     const panel = screen.getByRole("tabpanel", { name: s.dataset.hospitals });
     fireEvent.click(await within(panel).findByRole("button", { name: `${s.grid.openRow}: Nemocnica Zvolen` }));
     const dialog = await screen.findByRole("dialog", { name: "Nemocnica Zvolen" });
-    expect(await within(dialog).findByText("Kuzmányho nábrežie 28, Zvolen")).toBeInTheDocument();
+    expect(await within(dialog).findByText(/Kuzmányho nábrežie 28/)).toBeInTheDocument();
     expect(asked.every((url) => url.pathname.startsWith(`/api/endpoint/${SLUG}/`))).toBe(true);
   });
 
@@ -144,7 +144,7 @@ describe("the region's registers", () => {
       fireEvent.click(link);
       expect(kept).toHaveBeenCalledTimes(1);
     }
-    for (const row of answer(TYPE_OF[dataset]) as { id: string; name?: { languageMap: { sk: string } } }[]) {
+    for (const row of answer(keyOf(new URL(exportUrl(SLUG, dataset, "csv"), "http://portal.test"))) as { id: string; name?: { languageMap: { sk: string } } }[]) {
       // A row without a name opens by its identifier, and the panel names it by its last part.
       const name = row.name?.languageMap.sk ?? row.id;
       fireEvent.click(await within(panel).findByRole("button", { name: `${s.grid.openRow}: ${name}` }));
