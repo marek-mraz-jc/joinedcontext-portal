@@ -4979,6 +4979,12 @@
   },
   "policies": {
     "title": "Politiky",
+    "filter": {
+      "label": "Najít politiku",
+      "placeholder": "Název, prostor nebo pro koho platí",
+      "count": "{shown} z {total} politik",
+      "none": "Žádná politika neodpovídá „{query}“. Zkuste jiné slovo nebo pole vymažte."
+    },
     "lead": "Kdo smí číst a zapisovat kontextová data prostorů tohoto projektu a na kterých entitách.",
     "empty": "Tento projekt zatím nemá žádnou politiku.",
     "add": "Nová politika",

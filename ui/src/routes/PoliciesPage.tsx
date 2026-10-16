@@ -22,7 +22,9 @@ import {
   Badge,
   Button,
   EmptyState,
+  Field,
   Icon,
+  Input,
   PageHeader,
   TableCell,
   TableHead,
@@ -146,6 +148,7 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
   const [form, setForm] = useState<PolicyForm | undefined>(undefined);
   const [formError, setFormError] = useState<string | null>(null);
   const [change, setChange] = useState<Change | null>(null);
+  const [search, setSearch] = useState("");
 
   const list = useQuery({
     queryKey: queryKeys.list(project, "policies"),
@@ -218,12 +221,50 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
   );
 
   const policies = asManifests(list.data?.items ?? []);
+  // About sixty rows on a demo project, most of them an App's (T-4221): every word typed has to
+  // appear in the name, the title, the space or the grantee.
+  const words = search.trim().toLocaleLowerCase(locale).split(/\s+/).filter(Boolean);
+  const shown =
+    words.length === 0
+      ? policies
+      : policies.filter((policy) => {
+          const spec = (policy.spec ?? {}) as { contextSpaceRef?: string; assignee?: { id?: string } };
+          const haystack = [
+            policy.metadata.name,
+            localized(policy.metadata.title, locale, ""),
+            spec.contextSpaceRef ?? "",
+            spec.assignee?.id ?? "",
+          ]
+            .join(" ")
+            .toLocaleLowerCase(locale);
+          return words.every((word) => haystack.includes(word));
+        });
 
   return (
     <div className="flex flex-col gap-section">
       <PageHeader title={t("policies.title")} description={t("policies.lead")} actions={addButton} />
 
       {change ? <ChangeNotice change={change} project={project} /> : null}
+
+      {policies.length > 0 ? (
+        <div className="flex flex-wrap items-end gap-3">
+          <Field id="policies-filter" label={t("policies.filter.label")}>
+            <Input
+              id="policies-filter"
+              type="search"
+              value={search}
+              placeholder={t("policies.filter.placeholder")}
+              autoComplete="off"
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </Field>
+          {words.length > 0 ? (
+            <p role="status" className="pb-2 text-caption text-fg-muted">
+              {t("policies.filter.count", { shown: shown.length, total: policies.length })}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       <ResourceList
         query={list}
@@ -241,17 +282,21 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
           </TableHead>
         }
         columns={COLUMNS}
-        count={policies.length}
+        count={shown.length}
         empty={
+          words.length > 0 ? (
+            <p className="text-body text-fg-muted">{t("policies.filter.none", { query: search.trim() })}</p>
+          ) : (
           <EmptyState
             bare
             title={t("policies.empty")}
             description={t("policies.addHint")}
             action={addButton}
           />
+          )
         }
       >
-        {policies.map((policy: Manifest) => {
+        {shown.map((policy: Manifest) => {
           const spec = policy.spec as Record<string, unknown>;
           const shape = fromPolicyEnvelope(policy);
           const title = localized(policy.metadata.title, locale, policy.metadata.name);
@@ -274,7 +319,7 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
                   ) : null}
                 </div>
                 {/* What the policy grants, as a sentence (T-3276). */}
-                <p className="mt-0.5 max-w-prose text-caption text-fg-muted">{policySentence(shape, t, locale)}</p>
+                <p className="mt-0.5 line-clamp-2 max-w-prose text-caption text-fg-muted">{policySentence(shape, t, locale)}</p>
               </TableCell>
               <TableCell>
                 <span className="font-mono text-caption">{shape.contextSpaceRef || "—"}</span>

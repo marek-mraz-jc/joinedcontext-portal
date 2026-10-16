@@ -4979,6 +4979,12 @@
   },
   "policies": {
     "title": "Policies",
+    "filter": {
+      "label": "Find a policy",
+      "placeholder": "Name, space or who it is for",
+      "count": "{shown} of {total} policies",
+      "none": "No policy matches “{query}”. Try another word or clear the box."
+    },
     "lead": "Who may read and write the context data of this project's spaces, and on which entities.",
     "empty": "This project has no Policy yet.",
     "add": "New Policy",
