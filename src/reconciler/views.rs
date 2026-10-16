@@ -22,6 +22,7 @@
 
 use jc_core::envelope::ORG_NAMESPACE;
 use jc_core::kinds::data_model::ModelImport;
+use jc_core::kinds::space::HISTORY_FOREVER;
 use jc_core::kinds::{
     ContextSpaceSpec, DataAgreementSpec, DataModelLifecycle, DataModelRef, DataModelSpec,
     DataOfferSpec, EndpointSpec, MappingSpec, ModelProjectionSpec, Operation, OperationRef,
@@ -2131,7 +2132,9 @@ fn retention_document(rules: &[RetentionRule], context: Option<&Value>) -> Value
                 if let Some(current) = &rule.current {
                     one["current"] = json!(current);
                 }
-                if let Some(history) = &rule.history {
+                // `forever` is the manifest's word for the broker's default, a type with no
+                // history rule; the broker reads only a duration or `off` (DM-82, T-4275).
+                if let Some(history) = rule.history.as_deref().filter(|h| *h != HISTORY_FOREVER) {
                     one["history"] = json!(history);
                 }
                 out.push(one);
@@ -4155,6 +4158,7 @@ mod tests {
                 entity_type: "Vehicle".into(),
                 current: Some("PT5M".into()),
                 history: None,
+                reason: None,
             }],
         );
         let context = json!({"@context": {"sdm": "https://smartdatamodels.org/",
@@ -4214,6 +4218,7 @@ mod tests {
             entity_type: "Bus".into(),
             current: None,
             history: Some("PT8H".into()),
+            reason: None,
         }];
         Mock::given(method("POST"))
             .and(path("/q/retention/city-air/preview"))
@@ -4385,17 +4390,45 @@ mod tests {
                 entity_type: "Bus".into(),
                 current: None,
                 history: Some("PT8H".into()),
+                reason: None,
             },
             RetentionRule {
                 entity_type: "Bus".into(),
                 current: Some("PT1M".into()),
                 history: None,
+                reason: None,
             },
         ];
         assert_eq!(
             retention_document(&rules, None),
             json!({"rules": [{"type": core, "history": "PT8H"}]}),
             "one rule per IRI, the first wins"
+        );
+    }
+
+    /// A history kept forever reaches the broker as no history rule, which keeps it all; `off`
+    /// and a duration go as written (DM-82, T-4275).
+    #[test]
+    fn a_history_kept_forever_is_sent_as_no_history_rule() {
+        let rule = |entity_type: &str, history: &str| RetentionRule {
+            entity_type: entity_type.into(),
+            current: Some("P1D".into()),
+            history: Some(history.into()),
+            reason: (history == HISTORY_FOREVER).then(|| "the archive is the record".into()),
+        };
+        let rules = [
+            rule("Bus", "forever"),
+            rule("Stop", "off"),
+            rule("Air", "P30D"),
+        ];
+        let core = |name: &str| format!("https://uri.etsi.org/ngsi-ld/default-context/{name}");
+        assert_eq!(
+            retention_document(&rules, None),
+            json!({"rules": [
+                {"type": core("Bus"), "current": "P1D"},
+                {"type": core("Stop"), "current": "P1D", "history": "off"},
+                {"type": core("Air"), "current": "P1D", "history": "P30D"},
+            ]})
         );
     }
 

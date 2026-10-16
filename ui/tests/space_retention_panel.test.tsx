@@ -127,4 +127,65 @@ describe("the Retention section (DM-82, DM-85)", () => {
     expect(sent).toEqual([`${BASE}?dryRun=All`, BASE]);
     expect(screen.queryByRole("alertdialog")).toBeNull();
   });
+
+  it("offers history Off or a duration, never a new Forever, and confirms what Off deletes (T-4275)", async () => {
+    const sent: { method: string; path: string; body: unknown }[] = [];
+    renderRetention(async (url, request) => {
+      if (url.pathname === `${BASE}/retention/deleted`) return json(DELETED);
+      if (request.method === "POST" || request.method === "PUT") {
+        sent.push({ method: request.method, path: url.pathname + url.search, body: await request.clone().json() });
+        if (url.pathname === `${BASE}/retention/preview`) {
+          return json({ counts: [{ entityType: "Stop", kind: "history", count: 1200 }] });
+        }
+        return json({ ...MANIFEST, status: {} });
+      }
+      return undefined;
+    });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: en.spaces.retention.edit }));
+    const options = (name: string) =>
+      within(screen.getByRole("combobox", { name })).getAllByRole("option").map((option) => option.textContent);
+    // A type with a history duration cannot be moved to forever; one kept forever today keeps
+    // that as its present value only.
+    expect(options("History of Vehicle: unit")).toEqual([
+      en.spaces.retention.off,
+      en.spaces.retention.unit.minutes,
+      en.spaces.retention.unit.hours,
+      en.spaces.retention.unit.days,
+    ]);
+    expect(options("History of Stop: unit")).toEqual([
+      en.spaces.retention.foreverAsNow,
+      en.spaces.retention.off,
+      en.spaces.retention.unit.minutes,
+      en.spaces.retention.unit.hours,
+      en.spaces.retention.unit.days,
+    ]);
+    expect(options("Current values of Stop: unit")).toContain(en.spaces.retention.forever);
+    await user.selectOptions(screen.getByRole("combobox", { name: "History of Stop: unit" }), "off");
+    expect(screen.queryByRole("spinbutton", { name: "History of Stop: how many" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: en.spaces.retention.save }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText("Stop: 1,200 history records")).toBeInTheDocument();
+    expect(sent[0].body).toEqual({
+      retention: [
+        { entityType: "Stop", history: "off" },
+        { entityType: "Vehicle", current: "PT5M", history: "PT8H" },
+      ],
+    });
+  });
+
+  it("shows a type whose history is off as Off", async () => {
+    renderPage(
+      <SpaceRetention
+        project="helsinki"
+        space="bikes"
+        manifest={{ ...MANIFEST, spec: { retention: [{ entityType: "Stop", history: "off" }] } } as unknown as Manifest}
+        types={["Stop"]}
+      />,
+      { path: "/projects/helsinki/spaces/bikes", answer: (url) => (url.pathname.endsWith("/deleted") ? json(DELETED) : undefined) },
+    );
+    const row = (await screen.findByRole("cell", { name: "Stop" })).closest("tr") as HTMLElement;
+    expect(within(row).getByText(en.spaces.retention.offShown)).toBeInTheDocument();
+  });
 });
+

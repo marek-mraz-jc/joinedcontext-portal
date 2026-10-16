@@ -1000,7 +1000,7 @@
     },
     "retention": {
       "title": "Uchovávanie",
-      "lead": "Ako dlho tento priestor uchováva údaje každého typu. Typ bez pravidla sa uchováva navždy; kratšie pravidlo údaje natrvalo vymaže.",
+      "lead": "Ako dlho tento priestor uchováva údaje každého typu. Typ bez pravidla sa uchováva navždy; kratšie pravidlo alebo vypnutá história údaje natrvalo vymaže.",
       "noTypes": "Model priestoru zatiaľ nemenuje žiadne typy.",
       "caption": "Ako dlho sa uchovávajú údaje každého typu",
       "type": "Typ",
@@ -1034,7 +1034,10 @@
       "wouldDelete": {
         "entity": "{type}: {count, plural, one {# aktuálna hodnota} few {# aktuálne hodnoty} other {# aktuálnych hodnôt}}",
         "history": "{type}: {count, plural, one {# záznam histórie} few {# záznamy histórie} other {# záznamov histórie}}"
-      }
+      },
+      "off": "Vypnutá: bez histórie",
+      "offShown": "Vypnutá",
+      "foreverAsNow": "Uchovať navždy (ako teraz)"
     },
     "upload": {
       "open": "Nahrať CSV",
