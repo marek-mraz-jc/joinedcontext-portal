@@ -95,18 +95,18 @@ function form(schema: ReturnType<typeof groupSchema>, formData?: unknown, onChan
 }
 
 /** The role dialog with a permissions document already in hand. */
-function roleDialog(document?: Effective) {
+function roleDialog(document?: Effective, project = PROJECT) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   // Both the document in hand and the one the API answers with: a dialog opened on a warm cache
   // and one opened cold offer the same lists.
   if (document) {
-    client.setQueryData(queryKeys.permissions(PROJECT), document);
+    client.setQueryData(queryKeys.permissions(project), document);
     stubFetch(document);
   }
   return render(
     <QueryClientProvider client={client}>
       <I18nextProvider i18n={i18n}>
-        <NewRoleDialog project={PROJECT} open onOpenChange={() => {}} />
+        <NewRoleDialog project={project} open onOpenChange={() => {}} />
       </I18nextProvider>
     </QueryClientProvider>,
   );
@@ -506,5 +506,20 @@ describe("the Role form", () => {
     });
     const results = await axe.run(container);
     expect(results.violations.map((violation) => violation.id)).toEqual([]);
+  });
+});
+
+describe("the new role's lead (T-4208)", () => {
+  const STEWARD = effective([{ kinds: ["Endpoint"], verbs: ["get", "list"] }]);
+
+  it("names the organization on the Organization page, not a project called org", async () => {
+    roleDialog(STEWARD, ORG);
+    expect(await screen.findByText(/^A role of the organization\./)).toBeInTheDocument();
+    expect(screen.queryByText(/project org/)).toBeNull();
+  });
+
+  it("names the project in a project", async () => {
+    roleDialog(STEWARD);
+    expect(await screen.findByText(new RegExp(`^A role of project ${PROJECT}\\.`))).toBeInTheDocument();
   });
 });

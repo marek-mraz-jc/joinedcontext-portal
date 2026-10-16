@@ -205,7 +205,7 @@ export function NewRoleDialog({
         onOpenChange={close}
         size="lg"
         title={t("access.projectRoles.newTitle")}
-        description={t("access.projectRoles.newLead", { project })}
+        description={inProject ? t("access.projectRoles.newLead", { project }) : t("access.projectRoles.newLeadOrganization")}
         closeLabel={t("resourceDelete.close")}
         footer={<Button onClick={() => close(false)}>{t("resourceDelete.close")}</Button>}
       >
@@ -220,7 +220,7 @@ export function NewRoleDialog({
       open={open}
       onOpenChange={close}
       title={t("access.projectRoles.newTitle")}
-      description={t("access.projectRoles.newLead", { project })}
+      description={inProject ? t("access.projectRoles.newLead", { project }) : t("access.projectRoles.newLeadOrganization")}
       schema={schema}
       formData={form}
       onChange={setForm}

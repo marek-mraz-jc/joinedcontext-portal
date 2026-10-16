@@ -2391,6 +2391,7 @@
       "new": "New role",
       "newTitle": "New role",
       "newLead": "A role of project {project}. It may name the project's own kinds, and only the verbs you hold here yourself; the change is approved by someone else.",
+      "newLeadOrganization": "A role of the organization. It may name only the verbs you hold yourself; someone else approves the change.",
       "field": {
         "name": "Role name",
         "rules": "Rules",
