@@ -258,6 +258,9 @@ describe("the import wizard", () => {
     renderPage();
     expect(await screen.findByText(en.import.noUrl)).toBeInTheDocument();
     expect(screen.queryByLabelText(/URL/i)).toBeNull();
+    // It says what to do, not why the Portal is built so (photo audit T-4159, T-4165).
+    expect(en.import.noUrl).toMatch(/^Upload/);
+    expect(en.import.noUrl).not.toMatch(/policy|host|connection/i);
   });
 
   describe("the pre-check itself", () => {

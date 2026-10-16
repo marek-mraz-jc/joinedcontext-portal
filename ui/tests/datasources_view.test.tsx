@@ -606,7 +606,9 @@ describe("the manifest a data source form describes", () => {
     await userEvent.click(await screen.findByRole("button", { name: en.datasources.add }));
     const dialog = await findFormPage();
     await userEvent.selectOptions(within(dialog).getByLabelText(en.datasources.field.type), "http_client");
-    await userEvent.type(within(dialog).getByLabelText(/^Name/), "feed-csv");
+    // The data source's own name comes first; the runner's negotiate › user › name is labelled
+    // "Name" too since its fields read as words (T-4165).
+    await userEvent.type(within(dialog).getAllByLabelText(/^Name/)[0], "feed-csv");
     const headers = await waitFor(() => {
       const box = dialog.querySelector<HTMLTextAreaElement>("#root_headers");
       expect(box).not.toBeNull();

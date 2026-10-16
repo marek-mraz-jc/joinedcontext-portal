@@ -2041,7 +2041,9 @@
         "empty": "Zdroj nevrátil žádný záznam.",
         "count": "{count, plural, one {# záznam} few {# záznamy} other {# záznamů}} s {fields, plural, one {# polem} other {# poli}}",
         "countFirst": "Prvních {count, plural, one {# záznam} few {# záznamy} other {# záznamů}} s {fields, plural, one {# polem} other {# poli}}; zdroj má více",
-        "caption": "Záznamy vzorku"
+        "caption": "Záznamy vzorku",
+        "notJson": "Zdroj vrátil webovou stránku, ne data. Zkontrolujte adresu jeho datového zdroje.",
+        "details": "Zpráva nástroje"
       },
       "mapping": {
         "title": "Mapování",
@@ -4736,7 +4738,7 @@
     "fileHelp": "ZIP z exportu, nebo YAML proud či JSON manifest.",
     "fileMissing": "Nejprve vyberte soubor.",
     "noFile": "Nejprve vyberte soubor.",
-    "noUrl": "Balík se nahrává, nestahuje: import z URL by znamenal, že tento Portál otevře spojení na hostitele, kterého jste zadali, a pravidlo, které rozhoduje o povolených hostitelích, ještě není napsané.",
+    "noUrl": "Nahrajte balík jako soubor; Portál ho ze zadané adresy nestahuje.",
     "pastedSecret": "Tento balík má přihlašovací údaj napsaný přímo ({keys}). Nahraďte jej odkazem secretRef a vyberte soubor znovu; import jej stejně odmítne.",
     "namespace": "Projekt, do kterého se importuje",
     "namespaceHelp": "Každý importovaný manifest se do něj přepíše.",

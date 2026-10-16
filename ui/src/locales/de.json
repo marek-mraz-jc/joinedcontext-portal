@@ -2041,7 +2041,9 @@
         "empty": "Die Quelle hat keine Datensätze geliefert.",
         "count": "{count, plural, one {# Datensatz} other {# Datensätze}} mit {fields, plural, one {# Feld} other {# Feldern}}",
         "countFirst": "Die ersten {count, plural, one {# Datensatz} other {# Datensätze}} mit {fields, plural, one {# Feld} other {# Feldern}}; die Quelle hat mehr",
-        "caption": "Datensätze der Stichprobe"
+        "caption": "Datensätze der Stichprobe",
+        "notJson": "Die Quelle hat eine Webseite geliefert, keine Daten. Prüfen Sie die Adresse ihrer Datenquelle.",
+        "details": "Meldung der Engine"
       },
       "mapping": {
         "title": "Abbildung",
@@ -4736,7 +4738,7 @@
     "fileHelp": "Ein ZIP aus einem Export, oder ein YAML-Strom bzw. ein JSON-Manifest.",
     "fileMissing": "Wählen Sie zuerst eine Datei.",
     "noFile": "Wählen Sie zuerst eine Datei.",
-    "noUrl": "Ein Bündel wird hochgeladen, nicht geholt: ein Import per URL hieße, dass dieses Portal eine Verbindung zu einem von Ihnen genannten Host öffnet, und die Regel, welche Hosts erlaubt sind, ist noch nicht geschrieben.",
+    "noUrl": "Laden Sie das Bündel als Datei hoch; das Portal holt keines von einer Adresse.",
     "pastedSecret": "Dieses Bündel schreibt ein Geheimnis im Klartext ({keys}). Ersetzen Sie es durch einen secretRef und wählen Sie die Datei erneut; der Import lehnt es ohnehin ab.",
     "namespace": "Projekt, in das importiert wird",
     "namespaceHelp": "Jedes importierte Manifest wird darauf umgeschrieben.",

@@ -17,7 +17,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import type { Manifest } from "../src/api/manifest";
 import type { PipelineForm } from "../src/pages/pipelines/PipelineEditor";
-import { PipelineWorkbench, classOfMapping, exampleOf, readSample, readValidation } from "../src/pages/pipelines/PipelineWorkbench";
+import { PipelineWorkbench, answeredHtml, classOfMapping, exampleOf, readSample, readValidation } from "../src/pages/pipelines/PipelineWorkbench";
 import { expectAxeClean, jsonResponse, problem } from "./pageHarness";
 
 const URN = "urn:ngsi-ld:Endpoint:banskabystrica.sk:ovzdusie:air-write";
@@ -451,5 +451,17 @@ describe("what the workbench reads from an answer", () => {
     expect(exampleOf({ range: "Station", kind: "Relationship" })).toBe('"urn:ngsi-ld:Station:…"');
     expect(exampleOf({ range: "Course", kind: "Relationship", multivalued: true })).toBe('["urn:ngsi-ld:Course:…"]');
     expect(exampleOf({ range: "Level", kind: "Property" }, "good")).toBe('"good"');
+  });
+});
+
+describe("a sample the source answered as a web page (T-4165, photo audit T-4159)", () => {
+  it("is told apart from any other engine failure", () => {
+    expect(
+      answeredHtml(
+        "failed assignment (line 1): function content: failed to parse value as JSON: invalid character '<' looking for beginning of value",
+      ),
+    ).toBe(true);
+    expect(answeredHtml("Unexpected token '<', \"<!doctype \"... is not valid JSON")).toBe(true);
+    expect(answeredHtml("failed assignment (line 3): expected number value, got string")).toBe(false);
   });
 });

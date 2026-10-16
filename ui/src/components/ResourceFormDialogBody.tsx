@@ -332,6 +332,12 @@ export function ResourceFormDialogBody<T>({
     } as UiSchema;
   }, [effectiveUiSchema, lockedName]);
   const formProblems = arranged?.problems ?? [];
+  // A manifest that asks for what the form cannot do is a defect for whoever wrote it, said in
+  // the console, never to the person filling the form in (T-4165, photo audit T-4159).
+  const problemsSaid = formProblems.join("\n");
+  useEffect(() => {
+    if (problemsSaid !== "") console.warn(`${kind}: ${t("form.uischemaProblems")}:\n${problemsSaid}`);
+  }, [kind, problemsSaid, t]);
   const isLax = (branding as { validation?: string })?.validation === "lax";
   // The base comes from the installation's branding, which an administrator writes, so a
   // `javascript:` there would otherwise reach the anchor below (T-2252, T-2409). It is checked
@@ -1201,17 +1207,6 @@ export function ResourceFormDialogBody<T>({
             ) : null}
             {children ? (
               <div className="flex flex-col gap-3">{children}</div>
-            ) : null}
-
-            {formProblems.length > 0 ? (
-              <Alert role="status" tone="warning">
-                <p>{t("form.uischemaProblems")}</p>
-                <ul className="mt-1 list-disc pl-5">
-                  {formProblems.map((problem) => (
-                    <li key={problem}>{problem}</li>
-                  ))}
-                </ul>
-              </Alert>
             ) : null}
 
             <Suspense fallback={<PageLoading label={t("app.loading")} lines={2} />}>

@@ -243,6 +243,11 @@ export class StepFailed extends Error {
 /** A target space that names no model answers 409: nothing narrows what lands there (DM-61). */
 const unmodelled = (error: unknown): boolean => error instanceof StepFailed && error.status === 409;
 
+/** The engine's JSON read hit markup: the source answered a web page, not data (T-4165). */
+export function answeredHtml(message: string): boolean {
+  return /invalid character '<'|unexpected token '?</i.test(message);
+}
+
 function cell(value: unknown): string {
   const text = typeof value === "string" ? value : JSON.stringify(value);
   return text === undefined ? "" : text.length > 60 ? `${text.slice(0, 59)}…` : text;
@@ -607,7 +612,20 @@ export function PipelineWorkbench({
           </Alert>
         ) : sampled.data.errors.length > 0 ? (
           <Alert role="alert" tone="danger">
-            {sampled.data.errors[0].message}
+            {/* A source that answered a web page fails the engine's JSON read with "invalid
+                character '<'": said in words, the engine's line kept behind a disclosure
+                (T-4165, photo audit T-4159). */}
+            {answeredHtml(sampled.data.errors[0].message) ? (
+              <>
+                {t("pipelines.workbench.sample.notJson")}
+                <details className="mt-1 text-caption">
+                  <summary className="cursor-pointer">{t("pipelines.workbench.sample.details")}</summary>
+                  <p className="mt-0.5 break-all font-mono">{sampled.data.errors[0].message}</p>
+                </details>
+              </>
+            ) : (
+              sampled.data.errors[0].message
+            )}
           </Alert>
         ) : sampled.data.count === 0 ? (
           <p className="text-caption text-fg-subtle">{t("pipelines.workbench.sample.empty")}</p>

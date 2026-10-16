@@ -803,6 +803,20 @@ const SCALAR_TYPES: Record<string, "string" | "integer" | "number" | "boolean"> 
   bool: "boolean",
 };
 
+/** A runner field's key as a label: `nak_delay` reads "Nak delay", not the raw key (T-4165). */
+export function runnerFieldTitle(key: string): string {
+  const words = key.replace(/_/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
+ * A runner field's upstream help as plain text: a markdown link keeps its words and loses an
+ * address that points into the runner's own documentation, and code ticks go (T-4165).
+ */
+export function runnerFieldHelp(text: string): string {
+  return text.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/`([^`]*)`/g, "$1");
+}
+
 /**
  * Generates JSON Schema and UiSchema from a runner input's field tree (PL-50).
  *
@@ -840,6 +854,7 @@ export function runnerInputSchema(input: CatalogInput): { schema: JsonSchema; ui
       if (!currSchema.properties[seg]) {
         currSchema.properties[seg] = {
           type: "object",
+          title: runnerFieldTitle(seg),
           properties: {},
           required: [],
         };
@@ -858,7 +873,7 @@ export function runnerInputSchema(input: CatalogInput): { schema: JsonSchema; ui
       const parts = f.path.split(".");
       const { objSchema, objUi } = getContainer(parts);
       if (f.description) {
-        objSchema.description = f.description;
+        objSchema.description = runnerFieldHelp(f.description);
       }
       if (f.advanced) {
         objUi["ui:options"] = {
@@ -897,8 +912,9 @@ export function runnerInputSchema(input: CatalogInput): { schema: JsonSchema; ui
     if (f.default !== null && f.default !== undefined && !yamlDefault) {
       propSchema.default = f.default as JsonSchema["default"];
     }
+    propSchema.title = runnerFieldTitle(leafKey);
     if (f.description) {
-      propSchema.description = f.description;
+      propSchema.description = runnerFieldHelp(f.description);
     }
 
     if (f.advanced) {
