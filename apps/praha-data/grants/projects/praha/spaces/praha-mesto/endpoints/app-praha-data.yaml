@@ -16,6 +16,7 @@ spec:
     name: praha-mesto
   enabledRepresentations:
   - ngsi-ld
+  - mcp
   - geojson
   - csv
   - ogc-features

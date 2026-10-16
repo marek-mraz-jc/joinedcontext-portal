@@ -539,8 +539,8 @@ fn the_endpoint_is_the_union_of_what_the_needs_asked_for() {
     assert_eq!(endpoint.spec["slug"], slug.as_str());
     assert_eq!(
         endpoint.spec["enabledRepresentations"],
-        json!(["ngsi-ld", "geojson"]),
-        "the union of the needs' representations (AP-05)"
+        json!(["ngsi-ld", "mcp", "geojson"]),
+        "the union of the needs' representations (AP-05), and MCP on every Endpoint (T-4319)"
     );
     assert_eq!(endpoint.spec["audience"], "project-list");
     assert_eq!(endpoint.spec["allowedProjects"], json!(["ovzdusie"]));
@@ -831,8 +831,8 @@ fn a_ui_apps_further_space_compiles_into_no_grant() {
     assert_eq!(endpoint.context_space_ref.name(), "ovzdusie");
     assert_eq!(
         rendered.endpoint.spec["enabledRepresentations"],
-        json!(["ngsi-ld"]),
-        "the further need's representations are not the own endpoint's"
+        json!(["ngsi-ld", "mcp"]),
+        "the further need's representations are not the own endpoint's; MCP is every Endpoint's (T-4319)"
     );
     let names: Vec<&str> = rendered
         .policies

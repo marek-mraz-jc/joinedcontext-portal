@@ -16,6 +16,7 @@ spec:
     name: helsinki
   enabledRepresentations:
   - ngsi-ld
+  - mcp
   - geojson
   - csv
   - ogc-features
