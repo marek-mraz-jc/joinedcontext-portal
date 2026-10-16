@@ -61,3 +61,12 @@ describe("a failed read", () => {
     expect(screen.queryByText(en.form.opening)).not.toBeInTheDocument();
   });
 });
+
+describe("an address that leads nowhere (T-4165, photo audit T-4157)", () => {
+  it("keeps the shell for a signed-in person, so the navigation is the way on", async () => {
+    window.localStorage.setItem("jc.lastProject", "helsinki");
+    await renderRoute({ path: "/no-such-page" });
+    expect(await screen.findByRole("heading", { level: 1, name: en.app.notFound.title })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: en.nav.projects })).toBeInTheDocument();
+  });
+});

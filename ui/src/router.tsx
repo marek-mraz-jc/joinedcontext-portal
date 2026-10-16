@@ -8,6 +8,7 @@ import {
   Outlet,
   redirect,
   useChildMatches,
+  useRouteContext,
   useNavigate,
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -160,7 +161,17 @@ function NoProject({
  * an outdated link led to.
  */
 function NotFound(): React.JSX.Element {
-  return (
+  // From the router's context, which every page has, rather than `useAuth`, which a page drawn
+  // outside the AuthProvider has not.
+  const status = (useRouteContext({ strict: false }) as Partial<RouterContext>).auth?.status;
+  // A signed-in person keeps the shell of the project last worked in: its navigation, search and
+  // menu are the ways on that a bare card left out (T-4165, photo audit T-4157).
+  const last = status === "authenticated" ? lastProject() : undefined;
+  return last ? (
+    <Shell project={last}>
+      <NotFoundState />
+    </Shell>
+  ) : (
     <Bare>
       <NotFoundState />
     </Bare>
