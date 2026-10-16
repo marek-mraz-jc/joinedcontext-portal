@@ -1,8 +1,13 @@
 {
-  "address": "address",
+  "address": {
+    "addressCountry": "addressCountry",
+    "addressLocality": "addressLocality",
+    "postalCode": "postalCode",
+    "streetAddress": "streetAddress"
+  },
   "dataProvider": "dataProvider",
   "dateModified": "2026-01-01T00:00:00Z",
-  "endDate": "2026-01-01",
+  "endDate": "2026-01-01T00:00:00Z",
   "endTime": "19:00",
   "eventCategory": "musicDanceTheatre",
   "id": "urn:ngsi-ld:Event:joinedcontext.com:example:1",
@@ -18,7 +23,7 @@
   },
   "observedAt": "2026-01-01T00:00:00Z",
   "source": "source",
-  "startDate": "2026-01-01",
+  "startDate": "2026-01-01T00:00:00Z",
   "startTime": "16:00",
   "type": "Event",
   "url": "url"

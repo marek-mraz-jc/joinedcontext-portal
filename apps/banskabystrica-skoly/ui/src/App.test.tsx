@@ -15,7 +15,7 @@ const SLUG = "hm6ypd3qzv2xcnr7wtb4kaf5je";
 
 /** What the gateway answers a signed-in member of staff on this App's endpoint: reading only (README). */
 const READS: AccessDocument = {
-  permissions: [{ resource: { type: "School" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }],
+  permissions: [{ resource: { type: "Organization" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }],
   prohibitions: [],
 };
 
@@ -184,7 +184,7 @@ describe("the school desk", () => {
   });
 
   it("names a school the map publishes without a name or an address in words", async () => {
-    const bare = { id: "urn:ngsi-ld:School:banskabystrica.sk:banskabystrica-verejne:bare", type: "School" };
+    const bare = { id: "urn:ngsi-ld:Organization:banskabystrica.sk:banskabystrica-verejne:bare", type: "Organization" };
     show(() => new Response(JSON.stringify([bare]), { status: 200, headers: { "content-type": "application/json" } }));
     const row = (await screen.findByRole("button", { name: s.noValue })).closest("tr") as HTMLElement;
     expect(row.querySelector(".address")).toBeNull();

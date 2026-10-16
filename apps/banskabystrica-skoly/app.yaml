@@ -40,7 +40,7 @@ spec:
     - contextSpaceRef:
         kind: ContextSpace
         name: banskabystrica-verejne
-      types: [School]
+      types: [Organization]
       attrs: [name, address, pupilCount, teachingStaff, nonTeachingStaff, annualBudget, budgetYear]
       operations: [queryEntity, retrieveEntity]
       representations: [ngsi-ld, ogc-features]

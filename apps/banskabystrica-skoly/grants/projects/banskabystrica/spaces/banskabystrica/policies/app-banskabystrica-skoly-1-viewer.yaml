@@ -15,7 +15,7 @@ spec:
     name: banskabystrica-verejne
   information:
   - entities:
-    - type: School
+    - type: Organization
     propertyNames:
     - name
     - address

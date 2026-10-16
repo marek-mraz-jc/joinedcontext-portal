@@ -14,7 +14,7 @@ describe("a school's ratios", () => {
   });
 
   it("are never a division by zero", () => {
-    const empty = schoolOf(toRichRow({ id: "urn:ngsi-ld:School:x:y:z", type: "School", pupilCount: { type: "Property", value: 0 }, teachingStaff: { type: "Property", value: 0 } }), "sk");
+    const empty = schoolOf(toRichRow({ id: "urn:ngsi-ld:Organization:x:y:z", type: "Organization", pupilCount: { type: "Property", value: 0 }, teachingStaff: { type: "Property", value: 0 } }), "sk");
     expect(empty.pupilsPerTeacher).toBeNull();
     expect(empty.budgetPerPupil).toBeNull();
   });
@@ -67,14 +67,14 @@ describe("the CSV", () => {
 });
 
 describe("a school's odd shapes", () => {
-  const one = (attrs: Record<string, unknown>, locale = "en") => schoolOf(toRichRow({ id: "urn:ngsi-ld:School:x", type: "School", ...attrs }), locale);
+  const one = (attrs: Record<string, unknown>, locale = "en") => schoolOf(toRichRow({ id: "urn:ngsi-ld:Organization:x", type: "Organization", ...attrs }), locale);
   it("reads the Smart Data Models PostalAddress as one line (T-4329)", () => {
     const value = { streetAddress: "Havranské 9", postalCode: "97590", addressLocality: "Banská Bystrica", addressCountry: "SK" };
     expect(one({ address: { type: "Property", value } }).address).toBe("Havranské 9, 97590 Banská Bystrica");
   });
 
   it("reads a name in the reader's language, else Slovak, else the one written, and the first of several values", () => {
-    expect(one({ name: { type: "LanguageProperty", languageMap: { sk: "Škola", en: "School" } } }).name).toBe("School");
+    expect(one({ name: { type: "LanguageProperty", languageMap: { sk: "Škola", en: "Organization" } } }).name).toBe("Organization");
     expect(one({ name: { type: "LanguageProperty", languageMap: { sk: "Škola" } } }).name).toBe("Škola");
     expect(one({ name: { type: "LanguageProperty", languageMap: { hu: "Iskola" } } }).name).toBe("Iskola");
     expect(one({ name: [{ type: "Property", value: "Prvá", datasetId: "urn:a" }, { type: "Property", value: "Druhá", datasetId: "urn:b" }] }).name).toBe("Prvá");
@@ -94,8 +94,8 @@ describe("staff and budget several schools publish identically", () => {
   const kindergarten = (id: string, pupils: number | null) =>
     schoolOf(
       toRichRow({
-        id: `urn:ngsi-ld:School:x:y:${id}`,
-        type: "School",
+        id: `urn:ngsi-ld:Organization:x:y:${id}`,
+        type: "Organization",
         ...(pupils === null ? {} : { pupilCount: { type: "Property", value: pupils } }),
         teachingStaff: { type: "Property", value: 225 },
         nonTeachingStaff: { type: "Property", value: 153.8 },
@@ -104,7 +104,7 @@ describe("staff and budget several schools publish identically", () => {
       "sk",
     );
   const own = schoolOf(
-    toRichRow({ id: "urn:ngsi-ld:School:x:y:zs", type: "School", pupilCount: { type: "Property", value: 300 }, teachingStaff: { type: "Property", value: 20 }, annualBudget: { type: "Property", value: 900000 } }),
+    toRichRow({ id: "urn:ngsi-ld:Organization:x:y:zs", type: "Organization", pupilCount: { type: "Property", value: 300 }, teachingStaff: { type: "Property", value: 20 }, annualBudget: { type: "Property", value: 900000 } }),
     "sk",
   );
   const marked = withShared([kindergarten("a", 96), kindergarten("b", 88), kindergarten("c", null), own]);
@@ -126,7 +126,7 @@ describe("staff and budget several schools publish identically", () => {
   });
 
   it("leave a zero or a missing count alone: nothing is shared by not publishing", () => {
-    const zero = (id: string) => schoolOf(toRichRow({ id: `urn:ngsi-ld:School:x:y:${id}`, type: "School", teachingStaff: { type: "Property", value: 0 } }), "sk");
+    const zero = (id: string) => schoolOf(toRichRow({ id: `urn:ngsi-ld:Organization:x:y:${id}`, type: "Organization", teachingStaff: { type: "Property", value: 0 } }), "sk");
     expect(withShared([zero("a"), zero("b")]).map((one) => one.sharedWith)).toEqual([1, 1]);
   });
 });

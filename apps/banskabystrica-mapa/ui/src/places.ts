@@ -11,7 +11,7 @@ export const KINDS = ["event", "school", "air"] as const;
 export type Kind = (typeof KINDS)[number];
 
 /** The NGSI-LD type each kind is read from. */
-export const TYPE_OF: Record<Kind, string> = { event: "Event", school: "School", air: "AirQualityObserved" };
+export const TYPE_OF: Record<Kind, string> = { event: "Event", school: "Organization", air: "AirQualityObserved" };
 
 /** One colour and one shape per kind: the shape is what tells them apart without colour. */
 export const KIND_COLOUR: Record<Kind, string> = { event: "#9d2a6e", school: "#1f5fa8", air: "#2f7d32" };

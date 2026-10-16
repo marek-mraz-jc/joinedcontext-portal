@@ -35,7 +35,7 @@ spec:
     - contextSpaceRef:
         kind: ContextSpace
         name: banskabystrica-verejne
-      types: [Event, School, AirQualityObserved]
+      types: [Event, Organization, AirQualityObserved]
       attrs: [name, location, address, url, startDate, endDate, startTime, eventCategory, pupilCount, teachingLanguage, dateObserved, pm10, pm25]
       operations: [queryEntity, retrieveEntity]
       representations: [ngsi-ld, ogc-features]

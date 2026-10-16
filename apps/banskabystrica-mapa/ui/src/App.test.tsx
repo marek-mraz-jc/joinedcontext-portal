@@ -210,7 +210,7 @@ describe("the city map", () => {
     act(() => clicks.at(-1)?.({ features: [{ properties: { id: school.id } }] }));
     expect(await screen.findByRole("dialog", { name: "Gymnázium Jozefa Gregora Tajovského" })).toBeInTheDocument();
     act(() => clicks.at(-1)?.({ features: [] }));
-    act(() => clicks.at(-1)?.({ features: [{ properties: { id: "urn:ngsi-ld:School:gone" } }] }));
+    act(() => clicks.at(-1)?.({ features: [{ properties: { id: "urn:ngsi-ld:Organization:gone" } }] }));
     expect(screen.getByRole("dialog", { name: "Gymnázium Jozefa Gregora Tajovského" })).toBeInTheDocument();
   });
 
@@ -229,7 +229,7 @@ describe("the city map", () => {
   });
 
   it("says why a kind the endpoint refuses is missing and keeps the others", async () => {
-    show("School");
+    show("Organization");
     expect(await screen.findByRole("alert")).toHaveTextContent(s.refused(s.kind.school, "the policy does not grant this type"));
     await waitFor(() => expect(names()).toContain("Radvanský jarmok"));
     expect(names()).not.toContain("Základná škola, Moyzesova 18");
@@ -269,7 +269,7 @@ describe("the city map", () => {
 
   it("says why a kind is missing when nothing answered, or something that is not an error", async () => {
     showWith(async (type) => {
-      if (type === "School") throw new TypeError("Failed to fetch");
+      if (type === "Organization") throw new TypeError("Failed to fetch");
       if (type === "Event") return Promise.reject("offline");
       return json(answer(type));
     });

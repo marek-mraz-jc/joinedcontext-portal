@@ -16,7 +16,7 @@
           "x-ngsi-ld-kind": "Property"
         },
         "dateObserved": {
-          "description": "The end of the latest hour a reading of the entity covers.",
+          "description": "When the latest reading of the entity was taken: the end of the hour for an air-quality mean, the minute for a weather reading.",
           "format": "date-time",
           "type": [
             "string",
@@ -68,6 +68,30 @@
           ],
           "x-ngsi-ld-kind": "LanguageProperty"
         },
+        "no2": {
+          "description": "Nitrogen dioxide, the hour's mean at the station.",
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property",
+          "x-unit": {
+            "ucumCode": "ug/m3"
+          }
+        },
+        "o3": {
+          "description": "Ozone, the hour's mean at the station.",
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property",
+          "x-unit": {
+            "ucumCode": "ug/m3"
+          }
+        },
         "observedAt": {
           "description": "When the observation the entity reports was made.",
           "format": "date-time",
@@ -78,7 +102,7 @@
           "x-ngsi-ld-kind": "Property"
         },
         "pm10": {
-          "description": "Particulate matter up to 10 µm, the hour's mean at the station.",
+          "description": "Particulate matter up to 10 \u00b5m, the hour's mean at the station.",
           "minimum": 0,
           "type": [
             "number",
@@ -90,7 +114,7 @@
           }
         },
         "pm25": {
-          "description": "Particulate matter up to 2.5 µm, the hour's mean at the station.",
+          "description": "Particulate matter up to 2.5 \u00b5m, the hour's mean at the station.",
           "minimum": 0,
           "type": [
             "number",
@@ -194,11 +218,15 @@
       "description": "One event the city announces on its web site, where and when it takes place.",
       "properties": {
         "address": {
-          "description": "The street address or the venue, one line, as the publisher writes it.",
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PostalAddress"
+            },
+            {
+              "type": "null"
+            }
           ],
+          "description": "The postal address as the source publishes it, field by field (Smart Data Models' common PostalAddress, T-4329); a field the source leaves out is absent, never guessed.",
           "x-ngsi-ld-kind": "Property"
         },
         "dataProvider": {
@@ -219,8 +247,8 @@
           "x-ngsi-ld-kind": "Property"
         },
         "endDate": {
-          "description": "The day the event ends, in the city's local calendar.",
-          "format": "date",
+          "description": "When the event ends, as `startDate`: the published last day at its end time, or at local midnight when no time is published.",
+          "format": "date-time",
           "type": [
             "string",
             "null"
@@ -228,7 +256,7 @@
           "x-ngsi-ld-kind": "Property"
         },
         "endTime": {
-          "description": "The time the event ends, local time in Banská Bystrica (Europe/Bratislava), `HH:MM`.",
+          "description": "The time the event ends, local time in Bansk\u00e1 Bystrica (Europe/Bratislava), `HH:MM`.",
           "pattern": "^[0-2][0-9]:[0-5][0-9]$",
           "type": [
             "string",
@@ -304,13 +332,13 @@
           "x-ngsi-ld-kind": "Property"
         },
         "startDate": {
-          "description": "The day the event starts, in the city's local calendar.",
-          "format": "date",
+          "description": "When the event starts, an instant with the city's offset: the published day at its start time, or at local midnight when no time is published (`startTime` is then absent).",
+          "format": "date-time",
           "type": "string",
           "x-ngsi-ld-kind": "Property"
         },
         "startTime": {
-          "description": "The time the event starts, local time in Banská Bystrica (Europe/Bratislava), `HH:MM`.",
+          "description": "The time the event starts, local time in Bansk\u00e1 Bystrica (Europe/Bratislava), `HH:MM`.",
           "pattern": "^[0-2][0-9]:[0-5][0-9]$",
           "type": [
             "string",
@@ -351,18 +379,29 @@
         "other"
       ],
       "title": "EventCategory",
-      "type": "string"
+      "type": "string",
+      "x-enum-descriptions": {
+        "exhibition": "Exhibitions (V\u00fdstavy).",
+        "museumsGalleriesLibraries": "Museums, galleries and libraries (M\u00faze\u00e1, gal\u00e9rie, kni\u017enice).",
+        "musicDanceTheatre": "Music, dance and theatre (Hudba, tanec, divadlo).",
+        "other": "Any other event (In\u00e9 podujatia).",
+        "sport": "Sport (\u0160portov\u00e9)."
+      }
     },
-    "School": {
+    "Organization": {
       "additionalProperties": false,
-      "description": "One school or school facility in the city, from the national school map: its pupils, its staff and its budget, counts only.",
+      "description": "One school or school facility in the city, from the national school map: its pupils, its staff and its budget, counts only. The FIWARE Smart Data Model Organization (T-4329): no published model is a school.",
       "properties": {
         "address": {
-          "description": "The street address or the venue, one line, as the publisher writes it.",
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PostalAddress"
+            },
+            {
+              "type": "null"
+            }
           ],
+          "description": "The postal address as the source publishes it, field by field (Smart Data Models' common PostalAddress, T-4329); a field the source leaves out is absent, never guessed.",
           "x-ngsi-ld-kind": "Property"
         },
         "annualBudget": {
@@ -513,7 +552,213 @@
         "id",
         "type"
       ],
-      "title": "School",
+      "title": "Organization",
+      "type": "object"
+    },
+    "PostalAddress": {
+      "additionalProperties": false,
+      "description": "The value of `address`: a postal address, never an entity of its own (Smart Data Models' common schema).",
+      "properties": {
+        "addressCountry": {
+          "description": "The country, as an ISO 3166-1 alpha-2 code.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
+        "addressLocality": {
+          "description": "The town or the municipality.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
+        "postalCode": {
+          "description": "The postal code.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
+        "streetAddress": {
+          "description": "The street and the house number, or the venue.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        }
+      },
+      "title": "PostalAddress",
+      "type": "object"
+    },
+    "WeatherObserved": {
+      "additionalProperties": false,
+      "description": "One automatic weather station of SHM\u00da in or near the city and the latest minute it reported.",
+      "properties": {
+        "atmosphericPressure": {
+          "description": "Air pressure at the station, the minute's mean.",
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property",
+          "x-unit": {
+            "ucumCode": "hPa"
+          }
+        },
+        "dataProvider": {
+          "description": "Who publishes the data the entity was read from, with the credit its licence asks for, as an application shows it beside the data.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
+        "dateObserved": {
+          "description": "When the latest reading of the entity was taken: the end of the hour for an air-quality mean, the minute for a weather reading.",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
+        "id": {
+          "description": "The entity id, urn:ngsi-ld:{Type}:{orgDomain}:{space}:{localId}.",
+          "type": "string",
+          "x-ngsi-ld-kind": "Property"
+        },
+        "location": {
+          "description": "Where the entity is, as GeoJSON geometry.",
+          "properties": {
+            "coordinates": {
+              "type": "array"
+            },
+            "type": {
+              "enum": [
+                "Point",
+                "MultiPoint",
+                "LineString",
+                "MultiLineString",
+                "Polygon",
+                "MultiPolygon"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "coordinates"
+          ],
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "GeoProperty"
+        },
+        "name": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "The name, per language, as the publisher writes it.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "LanguageProperty"
+        },
+        "observedAt": {
+          "description": "When the observation the entity reports was made.",
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
+        "precipitation": {
+          "description": "Rain and melted snow over the ten minutes up to `dateObserved`.",
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property",
+          "x-unit": {
+            "ucumCode": "mm"
+          }
+        },
+        "relativeHumidity": {
+          "description": "Relative humidity of the air, 0 to 1, the minute's mean.",
+          "maximum": 1,
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
+        "source": {
+          "description": "The open-data service the entity was read from.",
+          "format": "uri",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property"
+        },
+        "temperature": {
+          "description": "Air temperature 2 m above the ground, the minute's mean.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property",
+          "x-unit": {
+            "ucumCode": "Cel"
+          }
+        },
+        "type": {
+          "description": "The entity type, one class of a published data model.",
+          "type": "string",
+          "x-ngsi-ld-kind": "Property"
+        },
+        "windDirection": {
+          "description": "Where the wind comes from, degrees clockwise from north, the minute's vector mean.",
+          "maximum": 360,
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property",
+          "x-unit": {
+            "ucumCode": "deg"
+          }
+        },
+        "windSpeed": {
+          "description": "Wind speed, the minute's scalar mean.",
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-ngsi-ld-kind": "Property",
+          "x-unit": {
+            "ucumCode": "m/s"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "title": "WeatherObserved",
       "type": "object"
     }
   },

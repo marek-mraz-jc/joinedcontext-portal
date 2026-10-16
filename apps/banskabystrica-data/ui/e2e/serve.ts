@@ -54,7 +54,7 @@ export async function serve(page: Page): Promise<Served> {
     const one = /\/ngsi-ld\/v1\/entities\/([^/]+)$/.exec(url.pathname);
     if (one) {
       const id = decodeURIComponent(one[1]);
-      const entity = ["Event", "School", "AirQualityObserved"].flatMap((type) => answer(type)).find((each) => (each as { id: string }).id === id);
+      const entity = ["Event", "Organization", "AirQualityObserved"].flatMap((type) => answer(type)).find((each) => (each as { id: string }).id === id);
       return entity
         ? route.fulfill({ status: 200, contentType: "application/ld+json", body: JSON.stringify(entity) })
         : route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ title: "Not Found", status: 404 }) });
