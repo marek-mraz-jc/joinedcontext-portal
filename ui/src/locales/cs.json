@@ -6793,11 +6793,10 @@
     },
     "answerRoutes": {
       "both": "Znalosti i živá data",
-      "rag": "Jen znalosti (nikdy nevolá nástroj)",
+      "rag": "Jen znalosti",
       "data": "Jen živá data"
     },
     "sourcesPicker": {
-      "hint": "Vyberte zdroje tohoto projektu a kteréhokoli projektu, který můžete číst. Zdroj jiného projektu přidá ten projekt do rozsahu.",
       "publicOnly": "Tento kanál odpovídá nepřihlášeným lidem, proto čte jen veřejné zdroje. Zdroj jiného projektu přidá ten projekt do rozsahu.",
       "of": "Zdroje projektu {project}",
       "own": "{project} (tento projekt)",

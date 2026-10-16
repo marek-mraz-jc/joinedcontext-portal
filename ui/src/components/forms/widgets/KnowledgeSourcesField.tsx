@@ -77,8 +77,8 @@ export function KnowledgeSourcesField(props: FieldProps): JSX.Element {
       key={ref}
       id={`${id}-${ref.replace("/", "--")}`}
       checked={chosen.includes(ref)}
-      // The hint says why an internal source cannot be ticked on a public channel.
-      aria-describedby={`${id}-hint`}
+      // On a public channel the hint says why an internal source cannot be ticked.
+      aria-describedby={anonymous ? `${id}-hint` : undefined}
       // An internal source on a public channel can be taken away, never added.
       disabled={frozen || (refused && !chosen.includes(ref))}
       onChange={(event) => toggle(ref, event.currentTarget.checked)}
@@ -89,7 +89,7 @@ export function KnowledgeSourcesField(props: FieldProps): JSX.Element {
   return (
     <fieldset id={id} data-testid="knowledge-sources" className="flex min-w-0 flex-col gap-3">
       <legend className="text-body font-medium text-fg">{schema.title}</legend>
-      <p id={`${id}-hint`} className="text-caption text-fg-muted">{anonymous ? t("knowledge.sourcesPicker.publicOnly") : t("knowledge.sourcesPicker.hint")}</p>
+      {anonymous ? <p id={`${id}-hint`} className="text-caption text-fg-muted">{t("knowledge.sourcesPicker.publicOnly")}</p> : null}
       {projects.isError ? <ListFailed what={t("nav.projects")} reason={reasonOf(projects.error, t("app.error"))} onRetry={() => void projects.refetch()} /> : null}
       {byProject.map(({ project, offered, query }) =>
         query?.isError || offered.length > 0 ? (
@@ -104,8 +104,7 @@ export function KnowledgeSourcesField(props: FieldProps): JSX.Element {
               box(
                 o.ref,
                 <span className="flex flex-wrap items-center gap-2">
-                  <span>{o.label}</span>
-                  {o.label !== o.name ? <span className="font-mono text-caption text-fg-muted">{o.name}</span> : null}
+                  <span title={o.ref}>{o.label}</span>
                   {!o.public ? <Badge tone={anonymous ? "warning" : "neutral"}>{t("knowledge.visibility.internal")}</Badge> : null}
                 </span>,
                 anonymous && !o.public,

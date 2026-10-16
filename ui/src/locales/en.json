@@ -6793,11 +6793,10 @@
     },
     "answerRoutes": {
       "both": "Knowledge and live data",
-      "rag": "Knowledge only (never calls a tool)",
+      "rag": "Knowledge only",
       "data": "Live data only"
     },
     "sourcesPicker": {
-      "hint": "Pick sources of this project and of any project you can read. A source of another project adds that project to the scope.",
       "publicOnly": "This channel answers people nobody signed in, so it reads public sources only. A source of another project adds that project to the scope.",
       "of": "Sources of {project}",
       "own": "{project} (this project)",

@@ -6793,11 +6793,10 @@
     },
     "answerRoutes": {
       "both": "Wissen und Live-Daten",
-      "rag": "Nur Wissen (ruft nie ein Werkzeug auf)",
+      "rag": "Nur Wissen",
       "data": "Nur Live-Daten"
     },
     "sourcesPicker": {
-      "hint": "Wählen Sie Quellen dieses Projekts und jedes Projekts, das Sie lesen dürfen. Eine Quelle eines anderen Projekts nimmt dieses Projekt in den Umfang auf.",
       "publicOnly": "Dieser Kanal antwortet nicht angemeldeten Personen und liest daher nur öffentliche Quellen. Eine Quelle eines anderen Projekts nimmt dieses Projekt in den Umfang auf.",
       "of": "Quellen von {project}",
       "own": "{project} (dieses Projekt)",

@@ -48,13 +48,19 @@ for (const width of [375, 1440]) {
     await expect(picker.getByRole("checkbox", { name: /Region intranet/ })).toBeDisabled();
     await picker.getByRole("checkbox", { name: /Region pages/ }).check();
     await picker.getByRole("checkbox", { name: /City pages/ }).check();
-    await page.getByLabel(/^Answers from/).selectOption({ label: "Knowledge only (never calls a tool)" });
+    await page.getByLabel(/^Answers from/).selectOption({ label: "Knowledge only" });
     for (const group of ["Knowledge", "Live data", "How it answers", "Where it may appear"]) {
       await expect(page.getByRole("group", { name: group, exact: true })).toBeVisible();
     }
     const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(sideways, "the page scrolls sideways").toBeLessThanOrEqual(0);
-    await picker.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: `test-results/t4282-form-${width}.png`, fullPage: true });
+    // The page as a visitor scrolls it, a screen at a time: a full-page shot paints a sticky header
+    // and the assistant's bubble once, over whatever sits there.
+    const height = await page.evaluate(() => document.documentElement.scrollHeight);
+    const screen = page.viewportSize()?.height ?? 800;
+    for (let y = 0, at = 0; y < height; y += screen - 120, at++) {
+      await page.evaluate((top) => window.scrollTo(0, top), y);
+      await page.screenshot({ path: `test-results/t4282-form-${width}-${String(at).padStart(2, "0")}.png` });
+    }
   });
 }

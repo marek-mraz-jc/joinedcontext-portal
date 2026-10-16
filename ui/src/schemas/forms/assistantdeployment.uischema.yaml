@@ -97,10 +97,10 @@ spec:
         cs: "Jazyk"
         de: "Sprache"
       description:
-        en: "The languages it answers in; the chat opens in the first."
-        sk: "Jazyky, v ktorých odpovedá; chat sa otvorí v prvom."
-        cs: "Jazyky, ve kterých odpovídá; chat se otevře v prvním."
-        de: "Die Sprachen, in denen er antwortet; der Chat öffnet in der ersten."
+        en: "What a visitor meets first and what else it speaks."
+        sk: "Čo návštevník stretne najprv a čo ešte ovláda."
+        cs: "Co návštěvník potká nejdřív a čím ještě mluví."
+        de: "Was ein Besucher zuerst trifft und was er sonst spricht."
       fields: [languages]
     - title:
         en: "Greeting and suggestions"
@@ -311,6 +311,7 @@ spec:
         cs: Nejdelší otázka ve znacích, 100 až 4 000, výchozí 1 000.
         de: Die längste Frage in Zeichen, 100 bis 4.000, Standard 1.000.
     systemPrompt:
+      widget: textarea
       help:
         en: What the assistant is told before every conversation, at most 8,000 characters; it never overrides its rules.
         sk: Čo je asistentovi povedané pred každým rozhovorom, najviac 8 000 znakov; nikdy neprepíše jeho pravidlá.

@@ -65,8 +65,7 @@ describe("the deployment form's sources (T-4282)", () => {
     expect(within(own).getByRole("checkbox", { name: /^web/ })).toBeEnabled();
     expect(within(own).getByRole("checkbox", { name: /intranet/ })).toBeEnabled();
     const other = within(picker).getByRole("group", { name: "Sources of espoo" });
-    // The title, and the name the manifest writes under the project.
-    expect(within(other).getByRole("checkbox", { name: /Espoo city pages\s*espoo-web/ })).toBeEnabled();
+    expect(within(other).getByRole("checkbox", { name: "Espoo city pages" })).toBeEnabled();
   });
 
   it("a public channel takes public sources alone: an internal one cannot be ticked", async () => {
@@ -74,7 +73,9 @@ describe("the deployment form's sources (T-4282)", () => {
     await userEvent.selectOptions(screen.getByLabelText(/^Channel/), "Public");
     await waitFor(() => expect(within(picker).getByRole("checkbox", { name: /intranet/ })).toBeDisabled());
     expect(within(picker).getByRole("checkbox", { name: /^web/ })).toBeEnabled();
-    expect(within(picker).getByText(/reads public sources only/)).toBeInTheDocument();
+    const why = within(picker).getByText(/reads public sources only/);
+    // The disabled box is described by the sentence that says why.
+    expect(within(picker).getByRole("checkbox", { name: /intranet/ })).toHaveAttribute("aria-describedby", why.id);
   });
 
   it("lays the form out in the capabilities, live data apart from knowledge", async () => {
