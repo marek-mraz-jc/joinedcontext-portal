@@ -243,6 +243,12 @@ spec:
         sk: Čo je asistentovi povedané pred každým rozhovorom, najviac 8 000 znakov; nikdy neprepíše jeho pravidlá.
         cs: Co je asistentovi řečeno před každým rozhovorem, nejvýše 8 000 znaků; nikdy nepřepíše jeho pravidla.
         de: Was dem Assistenten vor jedem Gespräch gesagt wird, bis 8.000 Zeichen; es hebt seine Regeln nie auf.
+    theme.title:
+      help:
+        en: The body's name in the chat's header beside its monogram, at most 60 characters.
+        sk: Názov inštitúcie v hlavičke chatu vedľa jej monogramu, najviac 60 znakov.
+        cs: Název instituce v záhlaví chatu vedle jejího monogramu, nejvýše 60 znaků.
+        de: Der Name der Stelle in der Kopfzeile des Chats neben ihrem Monogramm, bis 60 Zeichen.
     theme.primaryColor:
       help:
         en: The chat's accent colour where it is placed, as #rrggbb.

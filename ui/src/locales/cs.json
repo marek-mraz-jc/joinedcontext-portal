@@ -6660,6 +6660,7 @@
       "tokensPerDay": "Tokeny za den",
       "tokensPerConversation": "Tokeny za rozhovor",
       "theme": "Vzhled",
+      "themeTitle": "Název v záhlaví chatu",
       "primaryColor": "Barva zvýraznění",
       "greeting": "Pozdrav",
       "sandbox": "Skripty v sandboxu",
