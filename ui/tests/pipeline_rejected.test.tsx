@@ -171,6 +171,9 @@ describe("a pipeline's rejected records", () => {
     const dialog = await openRejected();
     expect(await within(dialog).findByText(en.pipelines.rejected.empty)).toBeInTheDocument();
     expect(within(dialog).queryByRole("table")).toBeNull();
+    // T-4240 (photo audit T-4159 #11): with nothing refused there is nothing to retry, and a
+    // coloured Retry button beside "every record passed" read as an action still to take.
+    expect(within(dialog).queryByRole("button", { name: /Retry/ })).toBeNull();
   });
 
   it("a_reader_sees_the_list_and_is_told_why_they_cannot_retry", async () => {
@@ -220,10 +223,7 @@ describe("a pipeline's rejected records", () => {
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
       "The rejected list could not be read; try again.",
     );
-    expect(within(dialog).getByRole("button", { name: "Retry after fix" })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
+    expect(within(dialog).queryByRole("button", { name: /Retry/ })).toBeNull();
     await userEvent.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalled();
   });
