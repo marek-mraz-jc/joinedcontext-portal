@@ -133,6 +133,13 @@
     "maxLength": "Hodnota je příliš dlouhá",
     "pattern": "Hodnota neodpovídá požadovanému vzoru",
     "enum": "Hodnota musí být jedna z povolených možností",
+    "button": {
+      "add": "Přidat",
+      "remove": "Odebrat",
+      "moveUp": "Posunout výš",
+      "moveDown": "Posunout níž",
+      "copy": "Kopírovat"
+    },
     "minItems": "Vyberte alespoň jednu možnost",
     "format": "Neplatný formát",
     "redacted": "Skryto",
