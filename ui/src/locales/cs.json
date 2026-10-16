@@ -2391,6 +2391,7 @@
       "new": "Nová role",
       "newTitle": "Nová role",
       "newLead": "Role projektu {project}. Může jmenovat jen druhy tohoto projektu a jen slovesa, která zde sami máte; změnu schvaluje někdo jiný.",
+      "newLeadOrganization": "Role organizace. Může jmenovat jen slovesa, která sami máte; změnu schvaluje někdo jiný.",
       "field": {
         "name": "Název role",
         "rules": "Pravidla",

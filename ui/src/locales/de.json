@@ -2391,6 +2391,7 @@
       "new": "Neue Rolle",
       "newTitle": "Neue Rolle",
       "newLead": "Eine Rolle des Projekts {project}. Sie darf nur die Arten dieses Projekts nennen und nur die Verben, die Sie hier selbst halten; die Änderung genehmigt jemand anderes.",
+      "newLeadOrganization": "Eine Rolle der Organisation. Sie darf nur die Verben nennen, die Sie selbst halten; die Änderung genehmigt jemand anderes.",
       "field": {
         "name": "Name der Rolle",
         "rules": "Regeln",

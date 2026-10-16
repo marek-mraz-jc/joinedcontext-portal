@@ -4,15 +4,29 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ApiError, queryKeys } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
-import { asManifests, isChange, ORG_NAMESPACE, storedMetadata } from "../../api/manifest";
+import {
+  asManifests,
+  isChange,
+  ORG_NAMESPACE,
+  storedMetadata,
+} from "../../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
-import { beyondOwnRights, ownRights, usePermissions, useReadableList } from "../../api/permissions";
+import {
+  beyondOwnRights,
+  ownRights,
+  usePermissions,
+  useReadableList,
+} from "../../api/permissions";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { FormRecordLink } from "../../components/RecordLink";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
-import { FormFrame, useCreateForm, useFormRoute } from "../../components/forms/FormRoute";
+import {
+  FormFrame,
+  useCreateForm,
+  useFormRoute,
+} from "../../components/forms/FormRoute";
 import { ROLE_VERBS, roleSchema } from "../../schemas/kinds";
 import {
   Alert,
@@ -51,7 +65,11 @@ export interface RoleForm {
 }
 
 /** The form as the manifest the API stores. A rule keeps the constraints it came with (PF-49). */
-export function toRoleEnvelope(namespace: string, form: RoleForm, stored?: unknown): unknown {
+export function toRoleEnvelope(
+  namespace: string,
+  form: RoleForm,
+  stored?: unknown,
+): unknown {
   return {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "Role",
@@ -101,10 +119,18 @@ export const SEEDED_ROLES = [
  * roles. jc-core refuses them at validation; the form leaves them out of its list and says so
  * before the door does. The door stays the authority for any other organization kind.
  */
-export const NOT_IN_A_PROJECT = ["Role", "RoleBinding", "Group", "Organization", "Project"] as const;
+export const NOT_IN_A_PROJECT = [
+  "Role",
+  "RoleBinding",
+  "Group",
+  "Organization",
+  "Project",
+] as const;
 
 /** The kinds of `rules` a project role may not name, each once (PF-68). */
-export function organizationKindsIn(rules: { kinds?: string[] }[] | undefined): string[] {
+export function organizationKindsIn(
+  rules: { kinds?: string[] }[] | undefined,
+): string[] {
   const named = new Set((rules ?? []).flatMap((rule) => rule.kinds ?? []));
   return NOT_IN_A_PROJECT.filter((kind) => named.has(kind));
 }
@@ -163,8 +189,12 @@ export function NewRoleDialog({
           setChange(result);
         }
       }
-      void queryClient.invalidateQueries({ queryKey: queryKeys.list(project, "roles") });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.changes(project) });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.list(project, "roles"),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.changes(project),
+      });
     },
   });
 
@@ -173,7 +203,9 @@ export function NewRoleDialog({
   const schema = roleSchema(
     t,
     inProject
-      ? rights.kinds.filter((kind) => !(NOT_IN_A_PROJECT as readonly string[]).includes(kind))
+      ? rights.kinds.filter(
+          (kind) => !(NOT_IN_A_PROJECT as readonly string[]).includes(kind),
+        )
       : rights.kinds,
     rights.verbs.length > 0 ? rights.verbs : ROLE_VERBS,
   );
@@ -205,9 +237,17 @@ export function NewRoleDialog({
         onOpenChange={close}
         size="lg"
         title={t("access.projectRoles.newTitle")}
-        description={t("access.projectRoles.newLead", { project })}
+        description={
+          inProject
+            ? t("access.projectRoles.newLead", { project })
+            : t("access.projectRoles.newLeadOrganization")
+        }
         closeLabel={t("resourceDelete.close")}
-        footer={<Button onClick={() => close(false)}>{t("resourceDelete.close")}</Button>}
+        footer={
+          <Button onClick={() => close(false)}>
+            {t("resourceDelete.close")}
+          </Button>
+        }
       >
         <ChangeNotice change={change} project={project} />
       </FormFrame>
@@ -220,7 +260,11 @@ export function NewRoleDialog({
       open={open}
       onOpenChange={close}
       title={t("access.projectRoles.newTitle")}
-      description={t("access.projectRoles.newLead", { project })}
+      description={
+        inProject
+          ? t("access.projectRoles.newLead", { project })
+          : t("access.projectRoles.newLeadOrganization")
+      }
       schema={schema}
       formData={form}
       onChange={setForm}
@@ -235,9 +279,13 @@ export function NewRoleDialog({
       submitting={propose.isPending}
       submitDisabledReason={
         outOfPlace.length > 0
-          ? t("projectSettings.roles.organizationKinds", { kinds: outOfPlace.join(", ") })
+          ? t("projectSettings.roles.organizationKinds", {
+              kinds: outOfPlace.join(", "),
+            })
           : missing.length > 0
-            ? t("access.projectRoles.beyondRights", { missing: missing.join(", ") })
+            ? t("access.projectRoles.beyondRights", {
+                missing: missing.join(", "),
+              })
             : undefined
       }
       error={failure}
@@ -270,11 +318,13 @@ export function Roles({
   const editSchema = roleSchema(t, [], ROLE_VERBS);
 
   const rows: Row[] = [
-    ...asManifests((ownRoles ? here.data?.items : undefined) ?? []).map((role: Manifest) => ({
-      name: role.metadata.name,
-      home: project,
-      rules: ((role.spec ?? {}) as { rules?: Rule[] }).rules ?? [],
-    })),
+    ...asManifests((ownRoles ? here.data?.items : undefined) ?? []).map(
+      (role: Manifest) => ({
+        name: role.metadata.name,
+        home: project,
+        rules: ((role.spec ?? {}) as { rules?: Rule[] }).rules ?? [],
+      }),
+    ),
     ...asManifests(organization.data?.items ?? []).map((role: Manifest) => ({
       name: role.metadata.name,
       home: ORG_NAMESPACE,
@@ -285,7 +335,10 @@ export function Roles({
   /** What a role grants, in one line: `propose, approve on Pipeline, DataSource`. */
   const grants = (rules: Rule[]) =>
     rules
-      .map((rule) => `${(rule.verbs ?? []).join(", ")} ${t("access.projectRoles.on")} ${(rule.kinds ?? []).join(", ")}`)
+      .map(
+        (rule) =>
+          `${(rule.verbs ?? []).join(", ")} ${t("access.projectRoles.on")} ${(rule.kinds ?? []).join(", ")}`,
+      )
       .join("; ");
 
   const error = organization.error ?? here.error;
@@ -298,10 +351,15 @@ export function Roles({
     <section className="space-y-4" aria-labelledby="project-roles-heading">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 id="project-roles-heading" className="text-title font-semibold text-fg">
+          <h2
+            id="project-roles-heading"
+            className="text-title font-semibold text-fg"
+          >
             {t("access.projectRoles.title")}
           </h2>
-          <p className="text-body text-fg-muted">{t("access.projectRoles.lead")}</p>
+          <p className="text-body text-fg-muted">
+            {t("access.projectRoles.lead")}
+          </p>
         </div>
         <PermissionGuard project={project} kind="Role" verb="propose">
           {/* One primary per view: the Access page's own action is "Grant a role" (T-1731). */}
@@ -324,12 +382,18 @@ export function Roles({
           }}
         />
       ) : (
-        <Table data-records="" caption={t("access.projectRoles.caption", { project })} status={pending ? t("app.loading") : undefined}>
+        <Table
+          data-records=""
+          caption={t("access.projectRoles.caption", { project })}
+          status={pending ? t("app.loading") : undefined}
+        >
           <TableHead>
             <TableHeaderCell>{t("access.projectRoles.role")}</TableHeaderCell>
             <TableHeaderCell>{t("access.projectRoles.where")}</TableHeaderCell>
             <TableHeaderCell>{t("access.projectRoles.grants")}</TableHeaderCell>
-            <TableHeaderCell align="right">{t("approvals.actions")}</TableHeaderCell>
+            <TableHeaderCell align="right">
+              {t("approvals.actions")}
+            </TableHeaderCell>
           </TableHead>
           {pending ? (
             <TableSkeleton columns={4} />
@@ -337,16 +401,25 @@ export function Roles({
             <TableBody>
               {rows.length === 0 ? (
                 <TableEmpty columns={4}>
-                  <EmptyState bare
+                  <EmptyState
+                    bare
                     title={t("access.projectRoles.empty")}
                     description={t("access.projectRoles.emptyHint")}
                     action={
-                      <PermissionGuard project={project} kind="Role" verb="propose">
-                        <Button variant="secondary" onClick={() => setWriting(true)}>
+                      <PermissionGuard
+                        project={project}
+                        kind="Role"
+                        verb="propose"
+                      >
+                        <Button
+                          variant="secondary"
+                          onClick={() => setWriting(true)}
+                        >
                           {t("access.projectRoles.new")}
                         </Button>
                       </PermissionGuard>
-                    } />
+                    }
+                  />
                 </TableEmpty>
               ) : (
                 rows.map((row) => (
@@ -355,8 +428,12 @@ export function Roles({
                       <span className="inline-flex items-center gap-2">
                         <FormRecordLink name={row.name} />
                         {row.home === ORG_NAMESPACE &&
-                        (SEEDED_ROLES as readonly string[]).includes(row.name) ? (
-                          <Badge tone="neutral">{t("organization.roles.seeded")}</Badge>
+                        (SEEDED_ROLES as readonly string[]).includes(
+                          row.name,
+                        ) ? (
+                          <Badge tone="neutral">
+                            {t("organization.roles.seeded")}
+                          </Badge>
                         ) : null}
                       </span>
                     </TableCell>
@@ -380,14 +457,25 @@ export function Roles({
                           // A role of this project wins its name's address over the organization's.
                           addressed={
                             row.home === project ||
-                            !rows.some((other) => other.home === project && other.name === row.name)
+                            !rows.some(
+                              (other) =>
+                                other.home === project &&
+                                other.name === row.name,
+                            )
                           }
                           form={{
                             schema: editSchema,
                             fromManifest: (manifest) =>
-                              fromRoleEnvelope(manifest) as unknown as Record<string, unknown>,
+                              fromRoleEnvelope(manifest) as unknown as Record<
+                                string,
+                                unknown
+                              >,
                             toManifest: (edited, stored) =>
-                              toRoleEnvelope(row.home, edited as unknown as RoleForm, stored),
+                              toRoleEnvelope(
+                                row.home,
+                                edited as unknown as RoleForm,
+                                stored,
+                              ),
                           }}
                         />
                         <DeleteResourceAction
@@ -410,7 +498,11 @@ export function Roles({
         </Table>
       )}
 
-      <NewRoleDialog project={project} open={writing} onOpenChange={setWriting} />
+      <NewRoleDialog
+        project={project}
+        open={writing}
+        onOpenChange={setWriting}
+      />
     </section>
   );
 }
