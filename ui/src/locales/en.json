@@ -475,6 +475,8 @@
   },
   "spaces": {
     "entitiesUnknown": "The count is not available: {reason}",
+    "entitiesCounting": "Counting the entities...",
+    "entitiesSlow": "The broker did not count this space in time; the count comes back on the next visit.",
     "lead": "The named collections of context data this project holds; every entity lives in exactly one.",
     "title": "Context Spaces",
     "empty": "This project has no Context Space yet.",
@@ -575,7 +577,7 @@
       "noDrafts": "No drafts completed yet.",
       "needInput": "Give an endpoint URL or add a file first."
     },
-    "segment": "ids: {segment}",
+    "segment": "in entity ids: {segment}",
     "quality": {
       "title": "Data quality",
       "notYet": "Not checked yet: the platform checks this space's data once a day.",

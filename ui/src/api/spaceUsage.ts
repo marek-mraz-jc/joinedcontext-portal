@@ -9,17 +9,32 @@ export type SpaceUsage = components["schemas"]["SpaceUsage"];
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 
+/** A count the broker has not given in this time is not coming: the page says so (T-4225). */
+export const USAGE_TIMEOUT_MS = 15_000;
+
 export function spaceUsageQuery(project: string, space: string) {
   return {
     queryKey: ["space-usage", project, space] as const,
     staleTime: FIVE_MINUTES,
     retry: false,
-    queryFn: async (): Promise<SpaceUsage> =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/spaces/{space}/usage", {
-          params: { path: { project, space } },
-        }),
-      ),
+    queryFn: async ({ signal }: { signal: AbortSignal }): Promise<SpaceUsage> => {
+      const call = new AbortController();
+      const timer = setTimeout(
+        () => call.abort(new DOMException("the count did not come", "TimeoutError")),
+        USAGE_TIMEOUT_MS,
+      );
+      signal.addEventListener("abort", () => call.abort(signal.reason));
+      try {
+        return unwrap(
+          await api.GET("/api/v1/projects/{project}/spaces/{space}/usage", {
+            params: { path: { project, space } },
+            signal: call.signal,
+          }),
+        );
+      } finally {
+        clearTimeout(timer);
+      }
+    },
   };
 }
 
