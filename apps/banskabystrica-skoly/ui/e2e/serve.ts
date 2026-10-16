@@ -22,7 +22,7 @@ const CONFIG = {
   portal: "https://portal.banskabystrica.sk/projects/banskabystrica",
 };
 /** What the gateway answers this App's reader: reading only (README). */
-const ACCESS = { permissions: [{ resource: { type: "School" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }], prohibitions: [] };
+const ACCESS = { permissions: [{ resource: { type: "Organization" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }], prohibitions: [] };
 // What src/apps/static_host.rs sends for an embeddable app with no other origin to reach.
 const CSP =
   "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self'; " +
@@ -67,7 +67,7 @@ export async function serve(page: Page): Promise<Served> {
       });
     }
     if (url.pathname.includes("/api/endpoint/")) {
-      const body = url.searchParams.get("type") === "School" ? SCHOOLS : [];
+      const body = url.searchParams.get("type") === "Organization" ? SCHOOLS : [];
       return route.fulfill({
         status: 200,
         contentType: "application/ld+json",

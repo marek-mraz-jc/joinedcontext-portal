@@ -43,8 +43,8 @@ export const EVENTS = [
 
 export const SCHOOLS = [
   {
-    id: URN("School", "zs-moyzesova"),
-    type: "School",
+    id: URN("Organization", "zs-moyzesova"),
+    type: "Organization",
     name: name("Základná škola, Moyzesova 18"),
     address: value("Moyzesova 18, Banská Bystrica"),
     pupilCount: value(512),
@@ -52,8 +52,8 @@ export const SCHOOLS = [
     location: point(19.1531, 48.7392),
   },
   {
-    id: URN("School", "gymnazium-tajovskeho"),
-    type: "School",
+    id: URN("Organization", "gymnazium-tajovskeho"),
+    type: "Organization",
     name: name("Gymnázium Jozefa Gregora Tajovského"),
     address: value("Tajovského 25, Banská Bystrica"),
     location: point(19.1302, 48.7352),
@@ -75,7 +75,7 @@ export const AIR = [
 /** The rows of one type, as `GET …/entities?type=…` answers them. */
 export function answer(type: string | null): unknown[] {
   if (type === "Event") return EVENTS;
-  if (type === "School") return SCHOOLS;
+  if (type === "Organization") return SCHOOLS;
   if (type === "AirQualityObserved") return AIR;
   return [];
 }

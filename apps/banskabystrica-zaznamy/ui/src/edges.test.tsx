@@ -20,7 +20,7 @@ import type { Chart } from "./series";
 const WORDS = { locale: "en", showId: "Identifier", openRecord: "Open the record" };
 
 function cell(renderers: ReturnType<typeof recordRenderers>, attr: string, row: Record<string, unknown>) {
-  const rich = toRichRow({ id: "urn:ngsi-ld:StatisticalObservation:x", type: "StatisticalObservation", ...row }, "en");
+  const rich = toRichRow({ id: "urn:ngsi-ld:KeyPerformanceIndicator:x", type: "KeyPerformanceIndicator", ...row }, "en");
   const view = render(<div data-testid="cell">{renderers[attr](rich.cells[attr] as RichCell | RichCell[] | undefined, rich)}</div>);
   const text = view.getByTestId("cell").textContent;
   view.unmount();
@@ -43,10 +43,10 @@ describe("the table's cells", () => {
   });
 
   it("draw a value that is no number as written, and a number without a unit alone", () => {
-    expect(cell(renderers, "observationValue", { observationValue: { type: "Property", value: "n/a" } })).toBe("n/a");
-    expect(cell(renderers, "observationValue", {})).toBe("");
-    expect(cell(renderers, "observationValue", { observationValue: { type: "Property", value: 12.5 } })).toBe("12.5");
-    expect(cell(renderers, "observationValue", { observationValue: { type: "Property", value: 3 }, unitText: { type: "Property", value: 7 } })).toBe("3");
+    expect(cell(renderers, "kpiValue", { kpiValue: { type: "Property", value: "n/a" } })).toBe("n/a");
+    expect(cell(renderers, "kpiValue", {})).toBe("");
+    expect(cell(renderers, "kpiValue", { kpiValue: { type: "Property", value: 12.5 } })).toBe("12.5");
+    expect(cell(renderers, "kpiValue", { kpiValue: { type: "Property", value: 3 }, unitText: { type: "Property", value: 7 } })).toBe("3");
   });
 
   it("draw a date that is no date as written", () => {
@@ -57,7 +57,7 @@ describe("the table's cells", () => {
 
   it("open a record by its button", () => {
     const open = vi.fn();
-    const rich: RichRow = toRichRow({ id: "urn:ngsi-ld:StatisticalObservation:x", type: "StatisticalObservation" }, "en");
+    const rich: RichRow = toRichRow({ id: "urn:ngsi-ld:KeyPerformanceIndicator:x", type: "KeyPerformanceIndicator" }, "en");
     render(<div>{recordRenderers("en", WORDS, open).id(undefined, rich)}</div>);
     fireEvent.click(screen.getByRole("button", { name: "Open the record" }));
     expect(open).toHaveBeenCalledWith(rich);

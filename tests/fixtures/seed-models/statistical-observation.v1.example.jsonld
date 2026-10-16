@@ -3,19 +3,19 @@
     "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.8.jsonld",
     "statistical-observation.v1.context.jsonld"
   ],
-  "id": "urn:ngsi-ld:StatisticalObservation:zilina.sk:zilina-mesto:om7101qr-SK031B517402-2026Q2-IN010115-SPOLU",
-  "type": "StatisticalObservation",
-  "dataSet": { "type": "Property", "value": "om7101qr" },
-  "indicator": { "type": "Property", "value": "IN010115" },
-  "refArea": { "type": "Property", "value": "SK031B517402" },
-  "refPeriod": { "type": "Property", "value": "2026Q2" },
-  "dimensionKey": { "type": "Property", "value": "SPOLU" },
-  "value": { "type": "Property", "value": 79617, "unitCode": "C62" },
-  "unitText": { "type": "Property", "value": "osoba" },
+  "id": "urn:ngsi-ld:KeyPerformanceIndicator:bbsk.sk:bbsk-kraj:zp3803rs-SK032-2023-PROD_TONY-1",
+  "type": "KeyPerformanceIndicator",
+  "dataSet": { "type": "Property", "value": "zp3803rs" },
+  "indicator": { "type": "Property", "value": "PROD_TONY" },
+  "refArea": { "type": "Property", "value": "SK032" },
+  "refPeriod": { "type": "Property", "value": "2023" },
+  "dimensionKey": { "type": "Property", "value": "1" },
+  "kpiValue": { "type": "Property", "value": 5354.3, "unitCode": "TNE" },
+  "unitText": { "type": "Property", "value": "v tonách" },
   "source": {
     "type": "Property",
-    "value": "https://data.statistics.sk/api/v2/dataset/om7101qr/SK031B517402/2026Q2/IN010115/SPOLU?lang=sk&type=json"
+    "value": "https://data.statistics.sk/api/v2/dataset/zp3803rs/SK032/2023/PROD_TONY/1?lang=sk&type=json"
   },
-  "dateObserved": { "type": "Property", "value": "2026-08-31T00:00:00Z" },
-  "observedAt": { "type": "Property", "value": "2026-08-31T00:00:00Z" }
+  "dateObserved": { "type": "Property", "value": "2025-10-31T00:00:00Z" },
+  "observedAt": { "type": "Property", "value": "2025-10-31T00:00:00Z" }
 }

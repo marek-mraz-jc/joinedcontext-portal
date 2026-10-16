@@ -14,7 +14,7 @@ describe("reading HSL's network", () => {
       name: `Stop ${i}`,
       location: { type: "Point", coordinates: [24.9 + i / 1e5, 60.17] },
     })) as Row[];
-    const line = { id: "urn:ngsi-ld:TransitRoute:hel.fi:helsinki:1-1", type: "TransitRoute", routeShortName: "1", stopSequence: "1000000, 1002499" } as Row;
+    const line = { id: "urn:ngsi-ld:PublicTransportRoute:hel.fi:helsinki:1-1", type: "PublicTransportRoute", routeShortName: "1", stopSequence: "1000000, 1002499" } as Row;
     const client = stubClient(
       { entities: [...stops, line], access: { permissions: [{ resource: { type: "*" }, actions: ["queryEntity"], attributes: "*" }], prohibitions: [] } },
       { appName: "transit-reach" },

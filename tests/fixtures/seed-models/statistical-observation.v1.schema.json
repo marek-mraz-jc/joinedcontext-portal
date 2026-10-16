@@ -62,7 +62,7 @@
       "title": "Entity",
       "type": "object"
     },
-    "StatisticalObservation": {
+    "KeyPerformanceIndicator": {
       "additionalProperties": false,
       "description": "One cell of one published statistical table.",
       "properties": {
@@ -93,6 +93,11 @@
         "indicator": {
           "description": "The publisher's own code for the measure, such as `ODPAD_TONY_KM2`.",
           "type": "string",
+          "x-ngsi-ld-kind": "Property"
+        },
+        "kpiValue": {
+          "description": "The number, exactly as published. Its unit varies with the indicator and travels on the Property as `unitCode`, a UN/CEFACT common code, beside `unitText`.",
+          "type": "number",
           "x-ngsi-ld-kind": "Property"
         },
         "location": {
@@ -168,11 +173,6 @@
             "null"
           ],
           "x-ngsi-ld-kind": "Property"
-        },
-        "value": {
-          "description": "The number, exactly as published. Its unit varies with the indicator and travels on the Property as `unitCode`, a UN/CEFACT common code, beside `unitText`.",
-          "type": "number",
-          "x-ngsi-ld-kind": "Property"
         }
       },
       "required": [
@@ -180,13 +180,13 @@
         "indicator",
         "refArea",
         "refPeriod",
-        "value",
+        "kpiValue",
         "source",
         "dateObserved",
         "id",
         "type"
       ],
-      "title": "StatisticalObservation",
+      "title": "KeyPerformanceIndicator",
       "type": "object"
     }
   },

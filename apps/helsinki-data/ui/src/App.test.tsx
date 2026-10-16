@@ -72,7 +72,7 @@ describe("Helsinki's datasets", () => {
     await waitFor(() => expect(within(panel).getByText("Kaukolämpöputken korjaus")).toBeInTheDocument());
     expect(within(panel).getByRole("link", { name: `${s.csv} ${s.dataset.permits}` })).toHaveAttribute(
       "href",
-      `/api/endpoint/${SLUG}/file.csv?type=PublicAreaPermit&humanHeaders=true`,
+      `/api/endpoint/${SLUG}/file.csv?type=CityWork&humanHeaders=true`,
     );
     await userEvent.keyboard("{End}");
     expect(screen.getByRole("tab", { name: s.dataset.weather })).toHaveFocus();

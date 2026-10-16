@@ -12,7 +12,7 @@ import { LOCALES, noteWords } from "./locales";
 
 const words = noteWords(LOCALES.en);
 const SLUG = "ovr4ttzywhad2oiogf67n7zyn2g2elfc";
-const ID = "urn:ngsi-ld:StatisticalObservation:banskabystrica.sk:banskabystrica-mesto:vh5003rr-SK0321508438-2023-U03084";
+const ID = "urn:ngsi-ld:KeyPerformanceIndicator:banskabystrica.sk:banskabystrica-mesto:vh5003rr-SK0321508438-2023-U03084";
 
 function stub(): EntitySource & { patched: Array<[string, Record<string, unknown>]> } {
   const patched: Array<[string, Record<string, unknown>]> = [];
@@ -93,7 +93,7 @@ describe("the grid this application is", () => {
 
   it("reads one type through its own endpoint, by slug and never by URL", () => {
     expect(config.source).toEqual({ kind: "endpoint", slug: SLUG });
-    expect(config.type).toBe("StatisticalObservation");
+    expect(config.type).toBe("KeyPerformanceIndicator");
   });
 
   it("opens the note and nothing else", () => {
@@ -107,7 +107,7 @@ describe("the grid this application is", () => {
     expect(config.columns.map((column) => column.attr)).toEqual([...COLUMNS]);
     // The unit is drawn beside the number from the publisher's text (cells.tsx), not as a
     // column of UN/CEFACT codes (T-2966).
-    expect(config.columns.find((column) => column.attr === "observationValue")?.show).toBeUndefined();
+    expect(config.columns.find((column) => column.attr === "kpiValue")?.show).toBeUndefined();
     for (const column of config.columns) {
       expect(column.label, column.attr).toBe(LOCALES.sk.column[column.attr]);
     }

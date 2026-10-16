@@ -74,7 +74,7 @@ const en: Strings = {
   search: "Search a school by name or address",
   completeOnly: "Only schools with complete figures",
   column: {
-    name: "School",
+    name: "Organization",
     pupils: "Pupils",
     teachers: "Teachers",
     pupilsPerTeacher: "Pupils per teacher",
@@ -90,7 +90,7 @@ const en: Strings = {
   tenthUnavailable: "Comparing with the city's tenth needs at least ten schools with figures.",
   noValue: "not given",
   download: "Download the table (CSV)",
-  csvHeader: ["School", "Address", "Pupils", "Teachers", "Pupils per teacher", "Non-teaching", "Budget (€)", "Budget year", "Budget per pupil (€)"],
+  csvHeader: ["Organization", "Address", "Pupils", "Teachers", "Pupils per teacher", "Non-teaching", "Budget (€)", "Budget year", "Budget per pupil (€)"],
   csvName: "schools-banska-bystrica.csv",
   truncated: (count) => `The first ${count} schools are shown.`,
   source: "Source: Slovak Ministry of Education, school map, through the city of Banská Bystrica's public space.",

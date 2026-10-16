@@ -16,13 +16,13 @@ function cell(
 ): Record<string, unknown> {
   n += 1;
   const entity: Record<string, unknown> = {
-    id: `urn:ngsi-ld:StatisticalObservation:banskabystrica.sk:banskabystrica-mesto:${n}`,
-    type: "StatisticalObservation",
+    id: `urn:ngsi-ld:KeyPerformanceIndicator:banskabystrica.sk:banskabystrica-mesto:${n}`,
+    type: "KeyPerformanceIndicator",
     dataSet: { type: "Property", value: dataSet },
     indicator: { type: "Property", value: indicator },
     refArea: { type: "Property", value: extra.refArea ?? "SK0321508438" },
     refPeriod: { type: "Property", value: refPeriod },
-    observationValue: { type: "Property", value, unitCode: "C62" },
+    kpiValue: { type: "Property", value, unitCode: "C62" },
     unitText: { type: "Property", value: extra.unitText ?? "počet" },
   };
   if (extra.dimensionKey) entity.dimensionKey = { type: "Property", value: extra.dimensionKey };

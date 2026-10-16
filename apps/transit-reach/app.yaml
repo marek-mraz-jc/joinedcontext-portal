@@ -75,7 +75,7 @@ spec:
     - contextSpaceRef:
         kind: ContextSpace
         name: helsinki
-      types: [TransitRoute]
+      types: [PublicTransportRoute]
       attrs: [routeShortName, transportMode, stopSequence]
       operations: [queryEntity]
       representations: [ngsi-ld]

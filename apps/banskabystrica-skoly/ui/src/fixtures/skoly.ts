@@ -2,13 +2,13 @@
  * Schools as the pipeline skoly writes them into `banskabystrica-verejne` (T-2781): counts as
  * Properties, the name as a LanguageProperty, a count the school map did not publish missing.
  */
-const URN = (id: string) => `urn:ngsi-ld:School:banskabystrica.sk:banskabystrica-verejne:${id}`;
+const URN = (id: string) => `urn:ngsi-ld:Organization:banskabystrica.sk:banskabystrica-verejne:${id}`;
 const v = (value: unknown) => ({ type: "Property", value });
 
 function school(id: string, name: string, pupils?: number, teachers?: number, budget?: number) {
   const entity: Record<string, unknown> = {
     id: URN(id),
-    type: "School",
+    type: "Organization",
     name: { type: "LanguageProperty", languageMap: { sk: name } },
     address: v(`${name.split(",").pop()?.trim() ?? name}, Banská Bystrica`),
   };

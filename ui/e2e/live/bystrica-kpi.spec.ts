@@ -33,14 +33,14 @@ const BODIES = [
   {
     body: "bbsk",
     project: "bbsk",
-    raw: { space: "bbsk-kraj", type: "StatisticalObservation" },
+    raw: { space: "bbsk-kraj", type: "KeyPerformanceIndicator" },
     kpi: { space: "bbsk-kpi", count: 28 },
     domain: "bbsk.sk",
   },
   {
     body: "banskabystrica",
     project: "banskabystrica",
-    raw: { space: "banskabystrica-mesto", type: "StatisticalObservation" },
+    raw: { space: "banskabystrica-mesto", type: "KeyPerformanceIndicator" },
     kpi: { space: "banskabystrica-kpi", count: 3 },
     domain: "banskabystrica.sk",
   },
@@ -139,7 +139,7 @@ test("both bodies ingest, compute and publish their own indicators, each into it
     });
     // Inside the "Entity types" table, not anywhere on the page: the space page also lists the
     // policies of the space, and a policy that says what a steward may write to a
-    // `StatisticalObservation` is a row whose text holds the type name too (T-2453).
+    // `KeyPerformanceIndicator` is a row whose text holds the type name too (T-2453).
     const types = page.getByRole("table", { name: "Entity types" });
     const rawRow = types.getByRole("row").filter({ hasText: body.raw.type });
     await expect(

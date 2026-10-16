@@ -67,7 +67,7 @@ export function seriesKey(key: string, territory: string): string {
 export function seriesOf(rows: RichRow[]): Map<string, Point[]> {
   const out = new Map<string, Point[]>();
   for (const row of rows) {
-    if (row.type !== "StatisticalObservation") continue;
+    if (row.type !== "KeyPerformanceIndicator") continue;
     const cube = text(row, "dataSet");
     const indicator = text(row, "indicator");
     const key = text(row, "dimensionKey");
@@ -77,7 +77,7 @@ export function seriesOf(rows: RichRow[]): Map<string, Point[]> {
     const area = text(row, "refArea");
     const territory = area === null ? undefined : TERRITORY_OF_AREA[area];
     const period = text(row, "refPeriod");
-    const value = one(row, "observationValue")?.value;
+    const value = one(row, "kpiValue")?.value;
     if (!entry || !territory || period === null || !/^\d{4}$/.test(period) || typeof value !== "number" || !Number.isFinite(value)) continue;
     const id = seriesKey(entry[0], territory);
     const points = out.get(id) ?? [];

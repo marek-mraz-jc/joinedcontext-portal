@@ -16,8 +16,8 @@ const stop = (id: string, name: string, code: string | null, lon: number, lat: n
 
 // A row carries the list as the endpoint's rows do: one text, joined by commas.
 const line = (id: string, name: string, mode: string, stops: string[]): Row => ({
-  id: `urn:ngsi-ld:TransitRoute:hel.fi:helsinki:${id}`,
-  type: "TransitRoute",
+  id: `urn:ngsi-ld:PublicTransportRoute:hel.fi:helsinki:${id}`,
+  type: "PublicTransportRoute",
   routeShortName: name,
   transportMode: mode,
   stopSequence: stops.join(", "),

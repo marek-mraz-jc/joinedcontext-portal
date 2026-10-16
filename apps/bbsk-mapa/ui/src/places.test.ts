@@ -11,10 +11,15 @@ describe("placeOf", () => {
   it("reads a place's name in the reader's language, its position, district and kind of service", () => {
     expect(hospital(0)).toMatchObject({ name: "Fakultná nemocnica s poliklinikou F. D. Roosevelta", coordinates: [19.1386, 48.7432] });
     expect(social(0)).toMatchObject({ district: "Rimavská Sobota", serviceKind: "domov sociálnych služieb" });
+    // T-4329: the register writes the Smart Data Models PostalAddress; it reads as one line.
+    expect(hospital(1).address).toBe("Kuzmányho nábrežie 28, Zvolen");
+    const at = (value: unknown) => placeOf(toRichRow({ id: "urn:ngsi-ld:PointOfInterest:x", type: "PointOfInterest", address: { type: "Property", value } }), "hospital", "sk").address;
+    expect(at({})).toBeNull();
+    expect(at(["a"])).toBeNull();
   });
 
   it("reads a name in the reader's language, else Slovak, else the one written, and a plain text name too", () => {
-    const named = (name: unknown) => placeOf(toRichRow({ id: "urn:ngsi-ld:Hospital:x", type: "Hospital", name }), "hospital", "en").name;
+    const named = (name: unknown) => placeOf(toRichRow({ id: "urn:ngsi-ld:PointOfInterest:x", type: "PointOfInterest", name }), "hospital", "en").name;
     expect(named({ type: "LanguageProperty", languageMap: { sk: "Nemocnica", en: "Hospital" } })).toBe("Hospital");
     expect(named({ type: "LanguageProperty", languageMap: { sk: "Nemocnica" } })).toBe("Nemocnica");
     expect(named({ type: "LanguageProperty", languageMap: { de: "Krankenhaus" } })).toBe("Krankenhaus");
@@ -25,7 +30,7 @@ describe("placeOf", () => {
   });
 
   it("draws only a point inside the world", () => {
-    const at = (value: unknown) => placeOf(toRichRow({ id: "urn:ngsi-ld:Hospital:x", type: "Hospital", location: { type: "GeoProperty", value } }), "hospital", "sk").coordinates;
+    const at = (value: unknown) => placeOf(toRichRow({ id: "urn:ngsi-ld:PointOfInterest:x", type: "PointOfInterest", location: { type: "GeoProperty", value } }), "hospital", "sk").coordinates;
     expect(at({ type: "Point", coordinates: [19.1, 48.7] })).toEqual([19.1, 48.7]);
     expect(at({ type: "Point", coordinates: [190, 48.7] })).toBeNull();
     expect(at({ type: "Point", coordinates: [19.1, -91] })).toBeNull();

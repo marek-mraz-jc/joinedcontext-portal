@@ -443,7 +443,7 @@ describe("what the cards make of an odd answer", () => {
     const all = [
       ...ENDPOINTS,
       { name: "bbsk-registre", slug: "register", space: "bbsk-registre", types: ["AdministrativeArea"] },
-      { name: "bbsk-kraj", slug: "kraj", space: "bbsk-kraj", types: ["StatisticalObservation"] },
+      { name: "bbsk-kraj", slug: "kraj", space: "bbsk-kraj", types: ["KeyPerformanceIndicator"] },
     ];
     for (const fails of [false, true]) {
       const answers: Array<() => void> = [];

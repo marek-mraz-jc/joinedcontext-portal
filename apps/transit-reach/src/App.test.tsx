@@ -66,7 +66,7 @@ describe("transit-reach", () => {
     expect(screen.getByRole("application", { name: /^Kartta: saavutettava alue\./ })).toBeInTheDocument();
     expect(c.transport.calls.every((call) => call.method === "GET" && call.path.includes("/api/endpoint/"))).toBe(true);
     // HSL's stops and lines are read first; this space has none, so the vehicles' history follows.
-    expect(c.transport.calls.filter((call) => /type=(GtfsStop|TransitRoute)/.test(call.path))).toHaveLength(2);
+    expect(c.transport.calls.filter((call) => /type=(GtfsStop|PublicTransportRoute)/.test(call.path))).toHaveLength(2);
     const temporal = c.transport.calls.find((call) => call.path.includes("/temporal/entities"));
     expect(temporal?.path).toContain("attrs=location%2Cspeed%2Croute");
   });

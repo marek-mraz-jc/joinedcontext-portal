@@ -33,7 +33,7 @@ vi.mock("maplibre-gl", () => {
 vi.mock("maplibre-gl/dist/maplibre-gl.css", () => ({}));
 
 const { default: App, LayerNotes, loadKind, MOST } = await import("./App");
-const { answer, HOSPITALS, ORGANIZATIONS, SOCIAL } = await import("./fixtures/registre");
+const { answer, HOSPITALS, keyOf, ORGANIZATIONS, SOCIAL } = await import("./fixtures/registre");
 const { LOCALES } = await import("./locales");
 const s = LOCALES.sk;
 
@@ -53,7 +53,7 @@ function show(
   vi.stubGlobal(
     "fetch",
     vi.fn(async (path: string) => {
-      const type = new URL(path, "http://portal.test").searchParams.get("type");
+      const type = keyOf(new URL(path, "http://portal.test"));
       const special = answerOf(type);
       if (special instanceof Error || typeof special === "string") throw special;
       if (type === refuse) {
@@ -132,7 +132,7 @@ describe("the region map", () => {
     await userEvent.click(item);
     expect(item).toHaveAttribute("aria-pressed", "true");
     const panel = await screen.findByRole("dialog", { name: "Domov sociálnych služieb Tisovec" });
-    expect(await within(panel).findByText("Jesenského 869, Tisovec")).toBeInTheDocument();
+    expect(await within(panel).findByText(/Jesenského 869/)).toBeInTheDocument();
     expect(within(panel).getByText("48")).toBeInTheDocument();
     const link = within(panel).getByRole("link", { name: "Otvoriť v Portáli" });
     expect(link).toHaveAttribute("href", expect.stringContaining(`entityId=${encodeURIComponent(SOCIAL[0].id)}`));
@@ -164,11 +164,11 @@ describe("the region map", () => {
     // The map binds its click in an effect that may run after the list is on screen (T-4257).
     await waitFor(() => expect(clickPlace).not.toBeNull());
     act(() => clickPlace?.({ features: [] }));
-    act(() => clickPlace?.({ features: [{ properties: { id: "urn:ngsi-ld:Hospital:gone" } }] }));
+    act(() => clickPlace?.({ features: [{ properties: { id: "urn:ngsi-ld:PointOfInterest:gone" } }] }));
     expect(screen.queryByRole("dialog")).toBeNull();
     act(() => clickPlace?.({ features: [{ properties: { id: HOSPITALS[1].id } }] }));
     const panel = await screen.findByRole("dialog", { name: "Nemocnica Zvolen" });
-    expect(await within(panel).findByText("Kuzmányho nábrežie 28, Zvolen")).toBeInTheDocument();
+    expect(await within(panel).findByText(/Kuzmányho nábrežie 28/)).toBeInTheDocument();
     expect(within(results()).getByRole("button", { name: /Nemocnica Zvolen/ })).toHaveAttribute("aria-pressed", "true");
   });
 
@@ -205,14 +205,14 @@ describe("the region map", () => {
   });
 
   it("says why a kind the endpoint refuses is missing and keeps the others", async () => {
-    show("Hospital");
+    show("hospital");
     expect(await screen.findByRole("alert")).toHaveTextContent(s.refused(s.kind.hospital, "the policy does not grant this type"));
     await waitFor(() => expect(names()).toContain("Stredoslovenské múzeum"));
     expect(names()).not.toContain("Nemocnica Zvolen");
   });
 
   it("says why a kind failed when the request itself fails, in its own words", async () => {
-    show(undefined, true, undefined, (type) => (type === "Hospital" ? new TypeError("offline") : type === "SocialService" ? "down" : answer(type)));
+    show(undefined, true, undefined, (type) => (type === "hospital" ? new TypeError("offline") : type === "socialService" ? "down" : answer(type)));
     await waitFor(() => expect(screen.getAllByRole("alert")).toHaveLength(2));
     const said = screen.getAllByRole("alert").map((alert) => alert.textContent);
     expect(said[0]).toContain(s.kind.hospital);

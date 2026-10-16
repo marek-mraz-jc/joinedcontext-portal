@@ -39,7 +39,7 @@ to its notification arriving here.
 
 Every 30 s the app reads, in the simplified representation: the GtfsStops that carry
 `departures` (`q=departures`, the curated set of T-3891), the headsign of each line and direction
-from TransitRoute (read again hourly), HSL's Alerts (the space's Digitraffic road alerts are left
+from PublicTransportRoute (read again hourly), HSL's Alerts (the space's Digitraffic road alerts are left
 out by their `source`) and the GtfsStops those alerts name, for their place on the map. The
 browser reads them from `{JC_BASE_PATH}api/departures` and `{JC_BASE_PATH}api/alerts` (503 before
 the first read), every 30 s; a failed read keeps what was shown. Alert text is HSL's and the page

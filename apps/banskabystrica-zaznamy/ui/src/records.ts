@@ -2,7 +2,7 @@
  * What a record is on this screen, and the one thing a person may change about it (T-2436,
  * T-2437, AP-62, EP-14).
  *
- * Every figure of a `StatisticalObservation` belongs to the publisher and is written by a
+ * Every figure of a `KeyPerformanceIndicator` belongs to the publisher and is written by a
  * pipeline: the next run replaces it, so a screen that let a person correct one would lose what
  * they typed without telling them. `stewardNote` is the one attribute no pipeline writes
  * (`statistical-observation` 1.1.0), and it is the one attribute this application sends.
@@ -27,7 +27,7 @@ export const COLUMNS: readonly string[] = [
   "indicator",
   "refArea",
   "refPeriod",
-  "observationValue",
+  "kpiValue",
   "dateObserved",
   NOTE,
 ];
@@ -92,7 +92,7 @@ export function gridConfig(slug: string, labels: Record<string, string>): Resolv
   }));
   return {
     source: { kind: "endpoint", slug },
-    type: "StatisticalObservation",
+    type: "KeyPerformanceIndicator",
     columns,
     entityTimestamps: false,
     // Every column the grid shows is one the endpoint can answer a `q` about, so a filter is

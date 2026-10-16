@@ -22,7 +22,7 @@ const CONFIG = {
     { name: "bbsk-kpi", slug: "7u4ns3cdg2mqlx5gmxhk7rqai6pmokdj", space: "bbsk-kpi", types: ["KeyPerformanceIndicator"] },
     { name: "mesto-kpi", slug: "qfhhh5no5wz4lk3rfjisdtx3chiyfig3", space: "banskabystrica-kpi", types: ["KeyPerformanceIndicator"] },
     // The region's raw rows through bbsk-kraj's public endpoint, for the trend lines (T-2934).
-    { name: "bbsk-kraj-verejne", slug: "krajverejne", space: "bbsk-kraj", types: ["StatisticalObservation"] },
+    { name: "bbsk-kraj-verejne", slug: "krajverejne", space: "bbsk-kraj", types: ["KeyPerformanceIndicator"] },
   ],
 };
 /** What the gateway answers this App's reader on each endpoint: reading only (README). */
