@@ -1838,6 +1838,21 @@ export const ROLE_VERBS = ["read", "propose", "approve", "delete"] as const;
 export const KIND_PATTERN = "^[A-Z][A-Za-z0-9]{1,63}$";
 
 /**
+ * A role's kinds and verbs as checkboxes: a native multi-select showed four or five clipped rows on
+ * a phone (T-4213). Kinds stay a list of typed names when the editor's own kinds are not known.
+ */
+export function roleUiSchema(kindsKnown: boolean): UiSchema {
+  return {
+    rules: {
+      items: {
+        ...(kindsKnown ? { kinds: { "ui:widget": "checkboxes" } } : {}),
+        verbs: { "ui:widget": "checkboxes" },
+      },
+    },
+  };
+}
+
+/**
  * The `Role` a person authors: a list of rules, each a set of verbs on a set of kinds
  * (PF-49, PF-52, PF-68).
  *

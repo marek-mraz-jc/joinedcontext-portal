@@ -6,6 +6,6 @@ metadata:
   annotations:
     joinedcontext.com/app: helsinki/bike-weather-demand
 spec:
-  description: The stewards of bike-weather-demand, its default group (AP-118).
+  description: The stewards of bike-weather-demand, its default group.
   members:
   - user: demo.steward@hel.fi

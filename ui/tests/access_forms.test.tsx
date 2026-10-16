@@ -95,18 +95,18 @@ function form(schema: ReturnType<typeof groupSchema>, formData?: unknown, onChan
 }
 
 /** The role dialog with a permissions document already in hand. */
-function roleDialog(document?: Effective) {
+function roleDialog(document?: Effective, project = PROJECT) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   // Both the document in hand and the one the API answers with: a dialog opened on a warm cache
   // and one opened cold offer the same lists.
   if (document) {
-    client.setQueryData(queryKeys.permissions(PROJECT), document);
+    client.setQueryData(queryKeys.permissions(project), document);
     stubFetch(document);
   }
   return render(
     <QueryClientProvider client={client}>
       <I18nextProvider i18n={i18n}>
-        <NewRoleDialog project={PROJECT} open onOpenChange={() => {}} />
+        <NewRoleDialog project={project} open onOpenChange={() => {}} />
       </I18nextProvider>
     </QueryClientProvider>,
   );
@@ -377,15 +377,17 @@ describe("the Role form", () => {
       within(dialog).getByLabelText(new RegExp(en.access.projectRoles.field.name)),
       "pipeline-approver",
     );
+    // The kinds of a rule are a list of what the author holds, ticked one by one (T-4213).
     const kindsField = await waitFor(() => {
-      const found = window.document.querySelector<HTMLSelectElement>("select#root_rules_0_kinds");
+      const found = window.document.querySelector<HTMLElement>("#root_rules_0_kinds");
       expect(found, "the kinds of a rule are a list of what the author holds").not.toBeNull();
-      return found as HTMLSelectElement;
+      return found as HTMLElement;
     });
-    await user.selectOptions(kindsField, ["Pipeline"]);
-    await user.selectOptions(
-      window.document.querySelector("select#root_rules_0_verbs") as HTMLSelectElement,
-      [en.choice.verb.approve],
+    await user.click(within(kindsField).getByRole("checkbox", { name: "Pipeline" }));
+    await user.click(
+      within(window.document.querySelector("#root_rules_0_verbs") as HTMLElement).getByRole("checkbox", {
+        name: en.choice.verb.approve,
+      }),
     );
 
     // The button says which verb on which kind is missing, in the person's own language, and the
@@ -398,9 +400,9 @@ describe("the Role form", () => {
 
     // And the pair the author does hold is proposable: the refusal is about the rights, not
     // about the form.
-    const verbs = window.document.querySelector("select#root_rules_0_verbs") as HTMLSelectElement;
-    await user.deselectOptions(verbs, [en.choice.verb.approve]);
-    await user.selectOptions(verbs, [en.choice.verb.propose]);
+    const verbs = window.document.querySelector("#root_rules_0_verbs") as HTMLElement;
+    await user.click(within(verbs).getByRole("checkbox", { name: en.choice.verb.approve }));
+    await user.click(within(verbs).getByRole("checkbox", { name: en.choice.verb.propose }));
     // The pair the author does hold leaves the rights refusal behind. What the button says next is
     // the Check this form asks of every kind, not a word about the rules.
     await waitFor(() => {
@@ -506,5 +508,32 @@ describe("the Role form", () => {
     });
     const results = await axe.run(container);
     expect(results.violations.map((violation) => violation.id)).toEqual([]);
+  });
+});
+
+describe("the new role's lead (T-4208)", () => {
+  const STEWARD = effective([{ kinds: ["Endpoint"], verbs: ["get", "list"] }]);
+
+  it("names the organization on the Organization page, not a project called org", async () => {
+    roleDialog(STEWARD, ORG);
+    expect(await screen.findByText(/^A role of the organization\./)).toBeInTheDocument();
+    expect(screen.queryByText(/project org/)).toBeNull();
+  });
+
+  it("names the project in a project", async () => {
+    roleDialog(STEWARD);
+    expect(await screen.findByText(new RegExp(`^A role of project ${PROJECT}\\.`))).toBeInTheDocument();
+  });
+});
+
+describe("the role form on a phone (T-4213)", () => {
+  // A native multi-select shows four or five clipped rows at 375 px; a role's kinds and verbs are
+  // a short known list, ticked one by one (photo audit T-4158).
+  it("offers the kinds and the verbs as checkboxes, not a multi-select", async () => {
+    roleDialog(effective([{ kinds: ["Endpoint", "Pipeline"], verbs: ["read", "propose"] }]));
+    expect(await screen.findByRole("checkbox", { name: "Endpoint" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Pipeline" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Propose changes" })).toBeInTheDocument();
+    expect(screen.queryByRole("listbox")).toBeNull();
   });
 });

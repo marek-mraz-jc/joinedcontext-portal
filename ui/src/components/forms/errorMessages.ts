@@ -46,6 +46,11 @@ const ajvErrorKeyMap: Record<string, string> = {
   maxLength: "form.maxLength",
   pattern: "form.pattern",
   enum: "form.enum",
+  // A choice whose every branch failed says what a person does, not "invalid" (T-4207, rule 3).
+  oneOf: "form.enum",
+  anyOf: "form.enum",
+  const: "form.enum",
+  minItems: "form.minItems",
   format: "form.format",
   not: "form.exclusive",
   dependencies: "form.dependency",

@@ -10,6 +10,9 @@
       "crashReference": "Pri hlásení uveďte toto:",
       "crashReload": "Načítať stránku znova",
       "crashHome": "Späť na začiatok",
+      "chunkTitle": "Časť Portálu sa nenačítala",
+      "chunkBody": "Spojenie vypadlo alebo bol Portál práve aktualizovaný. Načítajte stránku znova; nič z toho, na čo ste sa pozerali, sa nezmenilo.",
+      "chunkReload": "Načítať stránku znova",
       "session": "Vaše prihlásenie skončilo. Prihláste sa znova, aby ste to videli.",
       "forbiddenHint": "Prístup vám môže dať vlastník projektu alebo správca organizácie.",
       "reference": "Uveďte toto, keď to budete hlásiť:",
@@ -59,7 +62,7 @@
     "spaces": "Kontextové priestory",
     "endpoints": "Endpointy",
     "datasources": "Zdroje údajov",
-    "pipelines": "Pipelines",
+    "pipelines": "Pipeliny",
     "dashboards": "Dashboardy",
     "apps": "Aplikácie",
     "approvals": "Schvaľovania",
@@ -130,6 +133,14 @@
     "maxLength": "Hodnota je príliš dlhá",
     "pattern": "Hodnota nezodpovedá požadovanému vzoru",
     "enum": "Hodnota musí byť jedna z povolených možností",
+    "button": {
+      "add": "Pridať",
+      "remove": "Odstrániť",
+      "moveUp": "Posunúť vyššie",
+      "moveDown": "Posunúť nižšie",
+      "copy": "Kopírovať"
+    },
+    "minItems": "Vyberte aspoň jednu možnosť",
     "format": "Neplatný formát",
     "redacted": "Zabezpečené",
     "advancedMode": "Zobraziť rozšírené polia",
@@ -663,9 +674,9 @@
       "formula": {
         "expression": "Vzorec",
         "help": "Počíta sa z polí tejto entity každých päť minút a ukladá sa ako jej hodnota, napríklad {example}. Môžete použiť {slots}, čísla, text v úvodzovkách, + - * / %, porovnania, and, or, not, abs, round, min a max.",
-        "noEndpoint": "Žiadny endpoint tohto priestoru neodpovedá podľa všetkých politík priestoru, takže kanál vzorca nemá kde čítať a zapisovať. Najprv pridajte endpoint bez policyRef.",
-        "noAccount": "Tento projekt nemá servisný účet pipelines, ktorý spúšťa kanál vzorca. Najprv ho pridajte.",
-        "pipelineRefused": "Pole je navrhnuté, jeho kanál však nie: {reason}"
+        "noEndpoint": "Žiadny endpoint tohto priestoru neodpovedá podľa všetkých politík priestoru, takže pipelina vzorca nemá kde čítať a zapisovať. Najprv pridajte endpoint bez policyRef.",
+        "noAccount": "Tento projekt nemá servisný účet pipelines, ktorý spúšťa pipelinu vzorca. Najprv ho pridajte.",
+        "pipelineRefused": "Pole je navrhnuté, jeho pipelina však nie: {reason}"
       }
     },
     "views": {
@@ -2387,6 +2398,7 @@
       "new": "Nová rola",
       "newTitle": "Nová rola",
       "newLead": "Rola projektu {project}. Môže menovať iba druhy tohto projektu a iba slovesá, ktoré tu sami máte; zmenu schvaľuje niekto iný.",
+      "newLeadOrganization": "Rola organizácie. Môže menovať iba slovesá, ktoré sami máte; zmenu schvaľuje niekto iný.",
       "field": {
         "name": "Názov roly",
         "rules": "Pravidlá",
@@ -3040,7 +3052,7 @@
       "usedKind": {
         "ContextSpace": "Kontextový priestor",
         "Endpoint": "Endpointy",
-        "Pipeline": "Pipelines",
+        "Pipeline": "Pipeliny",
         "Subscription": "Odbery",
         "App": "Aplikácie",
         "Dashboard": "Dashboardy",
@@ -4622,7 +4634,7 @@
   },
   "activity": {
     "title": "Aktivita",
-    "lead": "Čo sa deje v tomto projekte: reconciler, pipelines, brána, broker a katalóg, najnovšie navrchu.",
+    "lead": "Čo sa deje v tomto projekte: zmeny, behy pipelín, požiadavky a publikovanie do katalógu, najnovšie navrchu.",
     "empty": "Zatiaľ sa tu nič nestalo.",
     "time": "Kedy",
     "kind": "Čo",
@@ -4702,14 +4714,15 @@
     },
     "sources": {
       "reconciler": "Konfigurácia",
-      "pipeline": "Pipelines",
+      "pipeline": "Pipeliny",
       "gateway": "Brána",
       "broker": "Broker",
       "ckan": "Katalóg",
       "portal": "Portál"
     },
     "failed": "{what} zlyhalo",
-    "repeated": "{count, plural, one {# raz} few {# razy} other {# ráz}} od {since}"
+    "repeated": "{count, plural, one {# raz} few {# razy} other {# ráz}} od {since}",
+    "technical": "Technické podrobnosti"
   },
   "import": {
     "title": "Import konfigurácie",
@@ -4966,6 +4979,12 @@
   },
   "policies": {
     "title": "Politiky",
+    "filter": {
+      "label": "Nájsť politiku",
+      "placeholder": "Názov, priestor alebo pre koho platí",
+      "count": "{shown} z {total} politík",
+      "none": "Žiadna politika nezodpovedá „{query}“. Skúste iné slovo alebo pole vymažte."
+    },
     "lead": "Kto smie čítať a zapisovať kontextové údaje priestorov tohto projektu a na ktorých entitách.",
     "empty": "Tento projekt zatiaľ nemá žiadnu politiku.",
     "add": "Nová politika",
@@ -4977,7 +4996,7 @@
     },
     "operations": {
       "writes": "mení údaje",
-      "covers": "{count, plural, one {pokrýva # operáciu:} few {pokrýva # operácie:} other {pokrýva # operácií:}}",
+      "show": "{count, plural, one {Zobraziť jej operáciu} few {Zobraziť jej # operácie} other {Zobraziť jej # operácií}}",
       "total": "{count, plural, =0 {zatiaľ nič nie je povolené} one {# operácia spolu} few {# operácie spolu} other {# operácií spolu}}",
       "none": "Kým nezaškrtnete operáciu, politika nepovoľuje nič.",
       "more": "Jednotlivé operácie",
@@ -5021,6 +5040,9 @@
       "everyType": "každý typ",
       "may": "{who} smú {what} na {types} v priestore {space}",
       "mayNot": "{who} nesmú {what} na {types} v priestore {space}",
+      "mayNoSpace": "{who} smú {what} na {types}, v priestore, ktorý ešte nie je vybraný",
+      "mayNotNoSpace": "{who} nesmú {what} na {types}, v priestore, ktorý ešte nie je vybraný",
+      "empty": "Vyberte, kto, čo a v ktorom priestore, a pravidlo sa tu prečíta ako veta.",
       "attributes": "len atribúty {attributes}",
       "q": "kde {q}",
       "scope": "v rámci rozsahu {scope}",
@@ -6666,21 +6688,59 @@
       "send": "Odoslať",
       "failed": "Odpoveď sa nepodarilo načítať. Skúste znova.",
       "liveData": "Živé dáta",
-      "sourceNumber": "Zdroj {n}"
+      "sourceNumber": "Zdroj {n}",
+      "data": "Údaje, ktoré odpoveď prečítala",
+      "dataset": "Otvoriť dataset",
+      "download": "Stiahnuť údaje"
     },
     "embed": {
       "title": "Vložiť",
       "of": "Vložiť {name}",
-      "intro": "Vložte tento rámec do stránky webu, na ktorom je asistent umiestnený.",
+      "intro": "Na stránku, ktorá neprijíma skript, vložte namiesto toho tento rámec.",
       "snippet": "Kód na vloženie",
       "copy": "Kopírovať kód",
       "copied": "Skopírované",
       "origins": "Adresa webu musí byť medzi povolenými pôvodmi asistenta; rámec na inom webe zostane prázdny.",
-      "noDomain": "Tento Portál nepozná svoju doménu, preto nevie napísať adresu stránky asistenta."
+      "noDomain": "Tento Portál nepozná svoju doménu, preto nevie napísať adresu stránky asistenta.",
+      "launcher": "Riadok spúšťača",
+      "launcherIntro": "Pridajte asistenta na svoj web: vložte tento jeden riadok do každej stránky pred </body>. Pridá do rohu okrúhle tlačidlo, ktoré otvorí chat.",
+      "preview": "Ukážka spúšťača na prázdnej stránke",
+      "previewHint": "Ukážka zobrazuje tlačidlo tak, ako ho vidí návštevník. Chat sa otvorí len na povolených adresách asistenta, preto tu môže zostať prázdny.",
+      "copyOf": "Kopírovať: {what}"
     },
     "everySpace": "každý priestor projektu",
     "userGuide": "používateľská príručka platformy s odkazmi do tohto projektu",
-    "askFirst": "Najprv napíšte otázku."
+    "askFirst": "Najprv napíšte otázku.",
+    "files": {
+      "title": "Súbory",
+      "intro": "Súbory, ktoré sem nahráte: asistent z nich odpovedá hneď, ako ich prečíta. Odstránením súboru vyberiete jeho pasáže zo všetkých odpovedí.",
+      "upload": "Nahrať súbory",
+      "uploading": "Nahráva sa…",
+      "choose": "Vyberte súbory na nahratie",
+      "accepts": "PDF, DOCX, XLSX, CSV, Markdown alebo text; každý najviac 50 MB.",
+      "added": "{count, plural, one {# súbor prečítaný} few {# súbory prečítané} other {# súborov prečítaných}} do {passages} pasáží.",
+      "failed": "{name} sa nenahral: {reason}. Opravte súbor a vyberte ho znova.",
+      "none": "Zatiaľ žiadny súbor",
+      "noneHint": "Nahrajte PDF, tabuľku alebo textový súbor, z ktorého bude asistent odpovedať.",
+      "name": "Súbor",
+      "remove": "Odstrániť",
+      "removeOf": "Odstrániť {name}"
+    },
+    "index": {
+      "title": "Stav indexu",
+      "pages": "Stránky",
+      "files": "Súbory",
+      "passages": "Pasáže",
+      "embedded": "Vyhľadateľné",
+      "pending": "Čaká na indexovanie",
+      "unread": "Neprečítané",
+      "reindex": "Indexovať znova",
+      "lastRun": "Posledný beh: začal {started}, skončil {finished}",
+      "noRun": "Ešte nebežal",
+      "unreadList": "Neprečítané stránky a súbory",
+      "noneUnread": "Žiadne neúspešné čítanie nie je zaznamenané.",
+      "totals": "Všetky zdroje: {pages} stránok, {files} súborov, {embedded} z {passages} pasáží vyhľadateľných, {pending} čaká, {failed} neprečítaných"
+    }
   },
   "mcp": {
     "title": "MCP servery",
@@ -6892,14 +6952,14 @@
       "step": {
         "space": "Vytvorte kontextový priestor",
         "source": "Pripojte zdroj údajov",
-        "pipeline": "Spustite kanál",
+        "pipeline": "Spustite pipelinu",
         "data": "Pozrite si dáta",
         "share": "Zdieľajte ich cez endpoint"
       },
       "go": {
         "space": "Vytvoriť priestor",
         "source": "Pripojiť zdroj",
-        "pipeline": "Otvoriť kanály",
+        "pipeline": "Otvoriť pipeliny",
         "data": "Otvoriť priestor",
         "share": "Vytvoriť endpoint"
       }
@@ -6910,7 +6970,7 @@
         "action": "Posúdiť ich"
       },
       "failing": {
-        "title": "{count, plural, one {# kanál zlyháva} few {# kanály zlyhávajú} other {# kanálov zlyháva}}",
+        "title": "{count, plural, one {# pipelina zlyháva} few {# pipeliny zlyhávajú} other {# pipelín zlyháva}}",
         "action": "Pozrieť, čo sa pokazilo"
       },
       "invites": {

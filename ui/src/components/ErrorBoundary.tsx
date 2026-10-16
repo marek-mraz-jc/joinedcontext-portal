@@ -34,8 +34,24 @@ export function errorReference(): string {
   }
 }
 
+/**
+ * T-4201: a code-split chunk that would not load. After a deploy the old chunk names are gone,
+ * and a dropped or rate-limited request looks the same to the browser. Loading the page again
+ * is the cure, so the panel says that instead of "this page stopped".
+ */
+export function isChunkLoadError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.name === "ChunkLoadError" ||
+    /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|Unable to preload CSS/i.test(
+      error.message,
+    )
+  );
+}
+
 interface State {
   reference: string | null;
+  chunk: boolean;
 }
 
 export interface ErrorBoundaryProps {
@@ -54,10 +70,10 @@ export interface ErrorBoundaryProps {
 }
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, State> {
-  override state: State = { reference: null };
+  override state: State = { reference: null, chunk: false };
 
-  static getDerivedStateFromError(): State {
-    return { reference: errorReference() };
+  static getDerivedStateFromError(error: unknown): State {
+    return { reference: errorReference(), chunk: isChunkLoadError(error) };
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
@@ -73,13 +89,16 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, State> {
   }
 
   private readonly retry = (): void => {
-    this.setState({ reference: null });
+    this.setState({ reference: null, chunk: false });
   };
 
   override render(): ReactNode {
-    const { reference: id } = this.state;
+    const { reference: id, chunk } = this.state;
     if (id === null) {
       return this.props.children;
+    }
+    if (chunk) {
+      return <ChunkFailed />;
     }
     return this.props.fallback ? this.props.fallback(id, this.retry) : <ErrorPage reference={id} />;
   }
@@ -112,6 +131,31 @@ export function ErrorPage({ reference: id }: { reference: string }): JSX.Element
         <a className={buttonClass("secondary")} href="/">
           {say("app.error.crashHome", "Go to the start")}
         </a>
+      </div>
+    </main>
+  );
+}
+
+/** A part of the Portal did not load: nothing failed in it, the page only needs loading again. */
+export function ChunkFailed(): JSX.Element {
+  return (
+    <main className="mx-auto flex max-w-lg flex-col gap-4 p-8" role="alert" aria-live="assertive">
+      <h1 className="text-xl font-semibold">{say("app.error.chunkTitle", "Part of the Portal did not load")}</h1>
+      <p className="text-fg-muted">
+        {say(
+          "app.error.chunkBody",
+          "The connection dropped or the Portal was just updated. Load the page again; nothing you were looking at was changed.",
+        )}
+      </p>
+      <div>
+        <Button
+          variant="primary"
+          onClick={() => {
+            window.location.reload();
+          }}
+        >
+          {say("app.error.chunkReload", "Load the page again")}
+        </Button>
       </div>
     </main>
   );

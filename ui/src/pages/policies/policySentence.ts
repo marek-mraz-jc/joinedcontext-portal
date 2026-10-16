@@ -38,12 +38,17 @@ export function policySentence(policy: Partial<PolicyForm>, t: T, language: stri
   const attributes = [
     ...new Set((policy.information ?? []).flatMap((item) => [...(item.propertyNames ?? []), ...(item.relationshipNames ?? [])])),
   ];
+  // An empty form is a request for choices, not a grant of nothing to nobody (T-4215).
+  if (!assignee.id && operations.length === 0 && !policy.contextSpaceRef && types.length === 0) {
+    return t("policies.sentence.empty");
+  }
+  const verdict = policy.effect === "prohibition" ? "mayNot" : "may";
   const parts = [
-    t(policy.effect === "prohibition" ? "policies.sentence.mayNot" : "policies.sentence.may", {
+    t(`policies.sentence.${verdict}${policy.contextSpaceRef ? "" : "NoSpace"}`, {
       who,
       what,
       types: types.length > 0 ? listed(types, language) : t("policies.sentence.everyType"),
-      space: policy.contextSpaceRef || "—",
+      space: policy.contextSpaceRef,
     }),
   ];
   if (attributes.length > 0) parts.push(t("policies.sentence.attributes", { attributes: listed(attributes, language) }));

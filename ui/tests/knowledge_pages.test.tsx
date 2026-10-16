@@ -1,6 +1,8 @@
 // covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
 // src/pages/knowledge/KnowledgePage.tsx, src/pages/knowledge/SourcePage.tsx,
-// src/pages/knowledge/AssistantChat.tsx and src/pages/knowledge/knowledge.ts through the pages
+// src/pages/knowledge/AssistantChat.tsx, src/pages/knowledge/UploadedFiles.tsx,
+// src/pages/knowledge/IndexStatus.tsx and
+// src/pages/knowledge/knowledge.ts through the pages
 // they belong to; each was confirmed by
 // making the module throw and watching this file go red.
 import { render, screen, waitFor, within } from "@testing-library/react";
@@ -10,9 +12,11 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
-import { bytesText, embedSnippet, readEvents, timeText } from "../src/pages/knowledge/knowledge";
+import { bytesText, dataChart, embedSnippet, readEvents, timeText } from "../src/pages/knowledge/knowledge";
 import { reasonOf } from "../src/pages/knowledge/KnowledgePage";
 import { InclusionBadge } from "../src/pages/knowledge/SourcePage";
+import { UploadedFiles } from "../src/pages/knowledge/UploadedFiles";
+import { sum } from "../src/pages/knowledge/IndexStatus";
 import { EmbedSnippet } from "../src/pages/knowledge/AssistantChat";
 import { ApiError } from "../src/api/client";
 import { assistantDeploymentSchema, fromKindManifest, knowledgeSourceSchema, toKindManifest } from "../src/schemas/knowledge";
@@ -48,6 +52,8 @@ const SOURCES = {
       documents: 14,
       passages: 900,
       embedded: 850,
+      pending: 50,
+      failed: 0,
       job: { state: "done", attempts: 1, error: null },
     },
     {
@@ -92,7 +98,15 @@ const SOURCES = {
       documents: 0,
       passages: 10,
       embedded: 10,
-      job: { state: "failed", attempts: 3, error: "https://old.banskabystrica.sk/ answered 503" },
+      pending: 0,
+      failed: 2,
+      job: {
+        state: "failed",
+        attempts: 3,
+        error: "https://old.banskabystrica.sk/ answered 503",
+        startedAt: "2026-10-05T03:00:00Z",
+        finishedAt: "2026-10-05T03:04:00Z",
+      },
     },
   ],
 };
@@ -117,6 +131,7 @@ interface Stub {
   verbs?: string[];
   sources?: { code: number; body: unknown };
   chat?: { code: number; body: string };
+  upload?: { code: number; body: unknown };
 }
 
 const ANSWER = [
@@ -146,6 +161,18 @@ function renderAt(path: string, stub: Stub = {}) {
     if (url.pathname.endsWith("/auth/me")) return json(IDENTITY);
     if (url.pathname.endsWith("/branding")) return json({ instanceName: "joinedcontext", domain: "dev.example", languages: { default: "en", offered: ["en"] } });
     if (url.pathname.endsWith("/permissions/me")) return json(grants(stub.verbs ?? ["read", "propose"]));
+    if (url.pathname === `${base}/sources/bb-files/files` && request.method === "POST") {
+      writes.push({ path: `${url.pathname}${url.search}`, body: await request.text() });
+      const upload = stub.upload ?? { code: 201, body: { id: 8, name: "ziadosti.csv", mime: "text/csv", bytes: 8, passages: 3, status: "fetched" } };
+      return json(upload.body, upload.code);
+    }
+    if (url.pathname === `${base}/sources/bb-files/files`) {
+      return json({ items: [{ id: 7, name: "rozpocet-2026.xlsx", mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes: 48_000, passages: 12, status: "fetched" }] });
+    }
+    if (request.method === "DELETE") {
+      writes.push({ path: url.pathname, body: null });
+      return new Response(null, { status: 204 });
+    }
     if (request.method !== "GET") {
       writes.push({ path: url.pathname, body: request.body ? await request.json() : null });
       if (url.pathname.endsWith("/chat")) {
@@ -157,6 +184,13 @@ function renderAt(path: string, stub: Stub = {}) {
       }
       if (url.pathname.endsWith("/recrawl")) return json({ job: 7 }, 202);
       return json({ pages: 2, documents: 1, passagesRemoved: 30 });
+    }
+    if (url.pathname === `${base}/sources/bb-old/errors`) {
+      writes.push({ path: url.pathname, body: null });
+      return json({ items: [
+        { url: "https://old.banskabystrica.sk/gone", kind: "page", reason: "HTTP 404" },
+        { url: "https://old.banskabystrica.sk/vzn.pdf", kind: "document", reason: "connection refused" },
+      ] });
     }
     if (url.pathname === `${base}/sources`) return json(stub.sources?.body ?? SOURCES, stub.sources?.code ?? 200);
     if (url.pathname === `${base}/sources/bb-web/pages`) {
@@ -175,7 +209,7 @@ function renderAt(path: string, stub: Stub = {}) {
       return json({
         apiVersion: "joinedcontext.com/v1alpha1",
         kind: "List",
-        items: [{ apiVersion: "joinedcontext.com/v1alpha1", kind: "AssistantDeployment", metadata: { name: "obcania", namespace: "banskabystrica" }, spec: { publicId: "bb-obcania", channel: "public", sources: ["bb-web"], connectors: [{ endpoint: "ovzdusie-verejne", tools: ["query_entities"] }] } }],
+        items: [{ apiVersion: "joinedcontext.com/v1alpha1", kind: "AssistantDeployment", metadata: { name: "obcania", namespace: "banskabystrica" }, spec: { publicId: "bb-obcania", channel: "public", languages: ["sk"], sources: ["bb-web"], connectors: [{ endpoint: "ovzdusie-verejne", tools: ["query_entities"] }] } }],
       });
     }
     return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] });
@@ -327,12 +361,177 @@ describe("one source's pages and documents (T-3057, AG-113)", () => {
   });
 });
 
+describe("a source's index status (T-4197)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("adds nothing for a source not crawled yet", () => {
+    const rows = SOURCES.items as unknown as Parameters<typeof sum>[0];
+    expect([sum(rows, "pending"), sum(rows, "failed"), sum([], "pages")]).toEqual([50, 2, 0]);
+  });
+
+  it("sums every source above the list", async () => {
+    renderAt("/projects/banskabystrica/knowledge");
+    expect(
+      await screen.findByText("All sources: 123 pages, 14 files, 860 of 910 passages searchable, 50 waiting, 2 not read"),
+    ).toBeInTheDocument();
+  });
+
+  it("counts what waits, and re-indexes without reading errors there are none of", async () => {
+    const { writes } = renderAt("/projects/banskabystrica/knowledge/bb-web");
+    const status = await screen.findByRole("region", { name: "Index status" });
+    expect(within(status).getByText("Waiting to index").nextSibling).toHaveTextContent("50");
+    expect(within(status).getByText("Searchable").nextSibling).toHaveTextContent("850");
+    await userEvent.click(within(status).getByRole("button", { name: "Re-index" }));
+    expect(await within(status).findByText("A crawl of bb-web is queued. It starts within a minute.")).toBeInTheDocument();
+    expect(writes.map((w) => w.path)).toEqual(["/api/v1/projects/banskabystrica/knowledge/sources/bb-web/recrawl"]);
+  });
+
+  it("holds the re-index while a run is going and says no run happened before the first", async () => {
+    const running = { ...SOURCES.items[0], job: { state: "running", attempts: 1, error: null, startedAt: "2026-10-06T03:00:00Z", finishedAt: null } };
+    renderAt("/projects/banskabystrica/knowledge/bb-web", { sources: { code: 200, body: { items: [running] } } });
+    const status = await screen.findByRole("region", { name: "Index status" });
+    expect(within(status).getByText("Crawling")).toBeInTheDocument();
+    expect(within(status).getByText(/ended —/)).toBeInTheDocument();
+    const button = within(status).getByRole("button", { name: "Re-index" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAccessibleDescription("A crawl of this source is already queued or running.");
+  });
+
+  it("lists each failed read with why to a person who may steer the source", async () => {
+    renderAt("/projects/banskabystrica/knowledge/bb-old");
+    const errors = await screen.findByRole("list", { name: "Pages and files not read" });
+    expect(within(errors).getByText("HTTP 404")).toBeInTheDocument();
+    expect(within(errors).getByText("connection refused")).toBeInTheDocument();
+    expect(within(errors).getByText("https://old.banskabystrica.sk/gone")).toBeInTheDocument();
+  });
+
+  it("shows a viewer the counts and never asks for the errors", async () => {
+    const { writes } = renderAt("/projects/banskabystrica/knowledge/bb-old", { verbs: ["read"] });
+    const status = await screen.findByRole("region", { name: "Index status" });
+    expect(within(status).getByText("Not read").nextSibling).toHaveTextContent("2");
+    await waitFor(() => expect(within(status).getByRole("button", { name: "Re-index" })).toHaveAttribute("aria-disabled", "true"));
+    expect(screen.queryByRole("list", { name: "Pages and files not read" })).toBeNull();
+    expect(writes).toEqual([]);
+  });
+});
+
+describe("the files of an upload source (T-4185)", () => {
+  const FILES = { items: [...SOURCES.items, { source: "bb-files", type: "upload", state: "not-crawled", startUrls: [], ckanInstanceRef: null, schedule: null, visibility: "public" }] };
+  const base = "/api/v1/projects/banskabystrica/knowledge/sources/bb-files/files";
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("opens from the sources list before its first file, with no crawl to start", async () => {
+    renderAt("/projects/banskabystrica/knowledge", { sources: { code: 200, body: FILES } });
+    const table = await screen.findByRole("table", { name: "Knowledge sources" });
+    expect(within(table).getByRole("link", { name: "bb-files" })).toBeInTheDocument();
+    expect(within(table).queryByRole("button", { name: "Crawl bb-files now" })).toBeNull();
+  });
+
+  it("lists the files, uploads the chosen ones as they are and removes one", async () => {
+    const { writes } = renderAt("/projects/banskabystrica/knowledge/bb-files", { sources: { code: 200, body: FILES } });
+    const table = await screen.findByRole("table", { name: "Files" });
+    expect(within(table).getByText("rozpocet-2026.xlsx")).toBeInTheDocument();
+    expect(within(table).getByText("48 kB")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Pages" })).toBeNull();
+
+    await userEvent.upload(screen.getByLabelText("Choose files to upload"), new File(["a,b\n1,2\n"], "ziadosti.csv", { type: "text/csv" }));
+    expect(await screen.findByText("1 file read into 3 passages.")).toBeInTheDocument();
+    expect(writes).toEqual([{ path: `${base}?name=ziadosti.csv`, body: "a,b\n1,2\n" }]);
+
+    await userEvent.click(within(table).getByRole("button", { name: "Remove rozpocet-2026.xlsx" }));
+    await waitFor(() => expect(writes.at(-1)).toEqual({ path: `${base}/7`, body: null }));
+  });
+
+  it("names the file a refusal is about, in the Portal's words", async () => {
+    const { writes } = renderAt("/projects/banskabystrica/knowledge/bb-files", {
+      sources: { code: 200, body: FILES },
+      upload: { code: 415, body: { status: 415, title: "Unsupported Media Type", detail: "this is not a PDF, a DOCX, an XLSX or UTF-8 text" } },
+    });
+    await userEvent.upload(await screen.findByLabelText("Choose files to upload"), new File(["\u0000\u0001"], "zoznam.csv", { type: "text/csv" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("zoznam.csv was not uploaded: this is not a PDF, a DOCX, an XLSX or UTF-8 text");
+    expect(writes).toHaveLength(1);
+  });
+
+  it("says what to send when the source holds no file yet", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL((input as Request).url);
+        const body = url.pathname.endsWith("/permissions/me") ? grants(["read", "propose"]) : { items: [] };
+        return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+      }),
+    );
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <I18nextProvider i18n={i18n}>
+          <UploadedFiles project="banskabystrica" source="bb-files" />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText("No file yet")).toBeInTheDocument();
+    expect(screen.getByText("Upload a PDF, a spreadsheet or a text file for the assistant to answer from.")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Choose files to upload")).toBeInTheDocument();
+  });
+
+  it("a viewer's upload button says why it is disabled", async () => {
+    renderAt("/projects/banskabystrica/knowledge/bb-files", { sources: { code: 200, body: FILES }, verbs: ["read"] });
+    const button = await screen.findByRole("button", { name: "Upload files" });
+    await waitFor(() => expect(button).toHaveAttribute("aria-disabled", "true"));
+    expect(screen.queryByLabelText("Choose files to upload")).toBeNull();
+  });
+});
+
 describe("asking an assistant in the Portal (T-3058, AG-115)", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
   });
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("shows a data round as a table with its chart and links, the chart hidden from a screen reader (T-4198)", async () => {
+    const data = {
+      endpoint: "ovzdusie-verejne",
+      type: "AirQualityObserved",
+      columns: ["dateObserved", "pm10"],
+      rows: [["2026-10-15T10:00:00Z", 21], ["2026-10-15T09:00:00Z", 18]],
+      dataset: "https://data.example.sk/dataset/ovzdusie",
+      download: "javascript:alert(1)",
+    };
+    const body = `event: data\ndata: ${JSON.stringify(data)}\n\nevent: answer\ndata: {"text":"PM10 je 21."}\n\nevent: done\ndata: {"tokens":9}\n\n`;
+    renderAt("/projects/banskabystrica/knowledge", { chat: { code: 200, body } });
+    const table = await screen.findByRole("table", { name: "Assistants" });
+    await userEvent.click(within(table).getByRole("button", { name: "Ask obcania" }));
+    const dialog = await screen.findByRole("dialog", { name: "Ask obcania" });
+    await userEvent.type(within(dialog).getByRole("textbox", { name: "Your question" }), "PM10?{Enter}");
+    const rows = await within(dialog).findByRole("table", { name: "AirQualityObserved" });
+    expect(within(rows).getByRole("cell", { name: "2026-10-15T10:00:00Z" })).toBeInTheDocument();
+    const chart = within(dialog).getByTestId("assistant-chart");
+    expect(chart).toHaveAttribute("aria-hidden", "true");
+    expect(chart.querySelector("polyline")?.getAttribute("points")?.split(" ")).toHaveLength(2);
+    expect(within(dialog).getByRole("link", { name: /Open the dataset/ })).toHaveAttribute("href", data.dataset);
+    expect(within(dialog).queryByRole("link", { name: /Download the data/ })).toBeNull();
+  });
+
+  it("charts one number over time or per name, and nothing else (T-4198, the widget's rule)", () => {
+    const table = (columns: string[], rows: unknown[][]) => ({ caption: "", columns, rows });
+    expect(dataChart(table(["t", "pm10"], [["2026-10-15T10:00:00Z", 2], ["2026-10-15T09:00:00Z", 1]]))?.points.map((p) => p.value)).toEqual([1, 2]);
+    expect(dataChart(table(["name", "pm10"], [["a", 2], ["b", 1]]))?.kind).toBe("bar");
+    expect(dataChart(table(["name", "pm10", "pm25"], [["a", 1, 2], ["b", 3, 4]]))).toBeNull();
+    expect(dataChart(table(["name", "street"], [["a", "x"], ["b", "y"]]))).toBeNull();
+    expect(dataChart(table(["name", "v"], [["a", 1]]))).toBeNull();
+    expect(dataChart(table(["name", "v"], Array.from({ length: 51 }, (_, i) => [`s${i}`, i])))?.points).toHaveLength(50);
+    expect(dataChart(table(["name", "v"], [["a", 1], ["b", Number.NaN], ["c", "7"], ["d", 2]]))?.points.map((p) => p.label)).toEqual(["a", "d"]);
   });
 
   it("streams the answer with its sources and script, and sends the conversation back with the connectors switched", async () => {
@@ -408,6 +607,24 @@ describe("asking an assistant in the Portal (T-3058, AG-115)", () => {
     const dialog = await screen.findByRole("dialog", { name: "Embed obcania" });
     expect(within(dialog).getByText(/https:\/\/assistant\.dev\.example\/d\/bb-obcania\/widget/)).toBeInTheDocument();
     expect(within(dialog).getByText(/allowed origins/)).toBeInTheDocument();
+  });
+
+  it("gives the one launcher line, copies exactly it, and previews it in a sandboxed frame (T-4196)", async () => {
+    renderAt("/projects/banskabystrica/knowledge");
+    const writeText = vi.fn(async () => undefined);
+    const table = await screen.findByRole("table", { name: "Assistants" });
+    await userEvent.click(within(table).getByRole("button", { name: "Embed obcania" }));
+    const dialog = await screen.findByRole("dialog", { name: "Embed obcania" });
+    const line = '<script src="https://assistant.dev.example/d/bb-obcania/embed.js" data-lang="sk" defer></script>';
+    expect(within(dialog).getByLabelText("The launcher line")).toHaveTextContent(line);
+    // The line names the public deployment alone: no token, no key, no Portal address.
+    expect(line).not.toMatch(/token|key|secret|bearer|\/api\//i);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Copy The launcher line" }));
+    expect(writeText).toHaveBeenCalledWith(line);
+    const preview = within(dialog).getByTitle("Preview of the launcher on a blank page");
+    expect(preview).toHaveAttribute("sandbox", "allow-scripts");
+    expect(preview.getAttribute("srcdoc")).toContain(line);
   });
 });
 

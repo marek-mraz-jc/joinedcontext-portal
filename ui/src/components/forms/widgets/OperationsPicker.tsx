@@ -91,12 +91,15 @@ export function OperationsPicker(props: WidgetProps): JSX.Element {
                 </span>
               }
             />
-            {/* The members, always: a group is exactly the operations the table lists for it. */}
-            <p className="pl-6 text-caption text-fg-muted">
-              {t(`endpoints.page.group.${name}`)}{" "}
-              {t("policies.operations.covers", { count: group.operations.length })}{" "}
-              <span className="font-mono">{group.operations.join(", ")}</span>
-            </p>
+            <p className="pl-6 text-caption text-fg-muted">{t(`endpoints.page.group.${name}`)}</p>
+            {/* The members, one tap away: a group is exactly the operations the table lists for
+                it, and up to 22 identifiers in the body filled two phone screens (T-4211). */}
+            <details className="pl-6 text-caption text-fg-muted">
+              <summary className="cursor-pointer">
+                {t("policies.operations.show", { count: group.operations.length })}
+              </summary>
+              <p className="mt-1 font-mono break-words">{group.operations.join(", ")}</p>
+            </details>
           </div>
         );
       })}

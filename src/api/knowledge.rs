@@ -9,7 +9,7 @@ use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use jc_core::kinds::assistant::{KnowledgeSourceSpec, SourceType};
 use jc_core::kinds::Verb;
@@ -87,6 +87,8 @@ pub struct ChatRequest {
 
 /// The largest question body (API/05 §1.1).
 const MAX_CHAT_BODY: usize = 64 * 1024;
+/// The largest upload: the most any source's `upload.maxBytes` allows (T-4184).
+const MAX_UPLOAD_BODY: usize = jc_core::kinds::assistant::MAX_UPLOAD_BYTES as usize;
 /// The longest an answer may take: six model calls and their tools (AG-107).
 const CHAT_TIMEOUT: Duration = Duration::from_secs(300);
 
@@ -139,6 +141,21 @@ async fn ask(
     path: &str,
     body: Option<Value>,
 ) -> Result<(StatusCode, Value), ApiError> {
+    let with = move |request: reqwest::RequestBuilder| match body {
+        Some(body) => request.json(&body),
+        None => request,
+    };
+    ask_with(state, method, path, Duration::from_secs(20), with).await
+}
+
+/// [`ask`] with the request's body and time limit chosen by the caller: an upload's raw bytes.
+async fn ask_with(
+    state: &AppState,
+    method: reqwest::Method,
+    path: &str,
+    timeout: Duration,
+    with: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
+) -> Result<(StatusCode, Value), ApiError> {
     let base = state.config.knowledge_url.as_deref().ok_or_else(|| {
         ApiError::Unavailable(
             "this Portal has no knowledge assistant address (JC_PORTAL_KNOWLEDGE_URL)".into(),
@@ -150,14 +167,11 @@ async fn ask(
     let token = oidc.service_token().await.map_err(|err| {
         ApiError::Unavailable(format!("no token for the knowledge assistant: {err}"))
     })?;
-    let mut request = http()
+    let request = http()
         .request(method, format!("{base}/internal/v1/projects/{path}"))
         .bearer_auth(token)
-        .timeout(Duration::from_secs(20));
-    if let Some(body) = body {
-        request = request.json(&body);
-    }
-    let answer = request.send().await.map_err(|err| {
+        .timeout(timeout);
+    let answer = with(request).send().await.map_err(|err| {
         tracing::warn!(error = %err.without_url(), "the knowledge assistant did not answer");
         ApiError::Unavailable("the knowledge assistant did not answer; try again shortly".into())
     })?;
@@ -174,6 +188,8 @@ async fn ask(
         400 => Err(ApiError::BadRequest(detail())),
         404 => Err(ApiError::NotFound(detail())),
         409 => Err(ApiError::Conflict(detail())),
+        413 => Err(ApiError::TooLarge(detail())),
+        415 => Err(ApiError::UnsupportedMediaType(detail())),
         401 | 403 => {
             tracing::error!("the knowledge assistant refused the Portal's own token");
             Err(ApiError::Unavailable(
@@ -262,6 +278,8 @@ pub async fn list_sources(
                         "documents",
                         "passages",
                         "embedded",
+                        "pending",
+                        "failed",
                         "job",
                     ] {
                         item[key] = found.get(key).cloned().unwrap_or(Value::Null);
@@ -343,6 +361,41 @@ pub async fn list_documents(
         &state,
         reqwest::Method::GET,
         &format!("{project}/knowledge/sources/{source}/documents"),
+        None,
+    )
+    .await?;
+    Ok(Json(body))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/knowledge/sources/{source}/errors",
+    summary = "List A Source's Crawl Errors",
+    description = "The pages and documents whose last read failed, newest first, at most 50: url, kind (`page` or `document`) and reason (`HTTP 404`, a network error). Needs `propose` on KnowledgeSource; a viewer sees the counts alone (API/01 §34, T-4197).",
+    tag = "knowledge",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("source" = String, Path, description = "KnowledgeSource name"),
+    ),
+    responses(
+        (status = 200, description = "The errors", body = Object),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 403, description = "The caller may not propose a KnowledgeSource", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such project or crawled source", body = crate::error::ProblemDetails),
+        (status = 503, description = "The knowledge assistant is not reachable", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn list_errors(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, source)): Path<(String, String)>,
+) -> Result<Json<Value>, ApiError> {
+    writable(&state, &user, &project)?;
+    named("source", &source)?;
+    let (_, body) = ask(
+        &state,
+        reqwest::Method::GET,
+        &format!("{project}/knowledge/sources/{source}/errors"),
         None,
     )
     .await?;
@@ -518,6 +571,185 @@ pub async fn recrawl(
     )
     .await?;
     Ok((status, Json(job)))
+}
+
+/// The file an upload names (API/01 §34): `jc-assistant` holds the rules for it.
+#[derive(Debug, Deserialize, IntoParams)]
+#[serde(deny_unknown_fields)]
+pub struct FileName {
+    /// The file's name, its extension saying what it is: 1 to 200 characters, no `/` or `\\`.
+    pub name: String,
+}
+
+/// The longest an upload may take: 50 MiB sent on and read into passages.
+const UPLOAD_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// One upload or removal in the project's activity, beside the crawls it replaces.
+async fn record(state: &AppState, project: &str, kind: &str, summary: String, details: Value) {
+    let event = crate::activity::ActivityEvent {
+        time: chrono::Utc::now(),
+        project: project.to_owned(),
+        space: None,
+        kind: kind.to_owned(),
+        source: "portal".to_owned(),
+        summary,
+        severity: "info".to_owned(),
+        correlation_id: None,
+        details,
+    };
+    if let Err(err) = state.activity.append(&[event]).await {
+        tracing::warn!(error = %err, kind, "the knowledge file change was not recorded");
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/knowledge/sources/{source}/files",
+    summary = "List A Source's Files",
+    description = "The files uploaded to a `source: upload`, newest first, with the passages each was read into (API/01 §34, T-4184).",
+    tag = "knowledge",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("source" = String, Path, description = "KnowledgeSource name"),
+    ),
+    responses(
+        (status = 200, description = "`items`: id, name, mime, bytes, passages, status", body = Object),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such project or declared source", body = crate::error::ProblemDetails),
+        (status = 409, description = "The source is not a `source: upload`", body = crate::error::ProblemDetails),
+        (status = 503, description = "The knowledge assistant is not reachable", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn list_files(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, source)): Path<(String, String)>,
+) -> Result<Json<Value>, ApiError> {
+    readable(&state, &user, &project)?;
+    named("source", &source)?;
+    let (_, files) = ask(
+        &state,
+        reqwest::Method::GET,
+        &format!("{project}/knowledge/sources/{source}/files"),
+        None,
+    )
+    .await?;
+    Ok(Json(files))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/projects/{project}/knowledge/sources/{source}/files",
+    summary = "Upload A File To A Source",
+    description = "Reads the raw body, a PDF, DOCX, XLSX or UTF-8 text file (CSV, Markdown), into the source's passages; the assistant answers from it at once. At most the source's `upload.maxBytes` (50 MiB) and `upload.maxFiles`. Needs `propose` on KnowledgeSource (AG-113, T-4184).",
+    tag = "knowledge",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("source" = String, Path, description = "KnowledgeSource name"),
+        FileName,
+    ),
+    request_body(content = String, content_type = "application/octet-stream", description = "The file's bytes", example = json!("Obec,Obyvatelia\nBanská Bystrica,75000\n")),
+    responses(
+        (status = 201, description = "The file: id, name, mime, bytes, passages, status", body = Object),
+        (status = 400, description = "No usable file name", body = crate::error::ProblemDetails),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 403, description = "The caller may not propose a KnowledgeSource", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such project or declared source", body = crate::error::ProblemDetails),
+        (status = 409, description = "Not a `source: upload`, or it holds its `maxFiles` already", body = crate::error::ProblemDetails),
+        (status = 413, description = "Larger than the source's `upload.maxBytes`", body = crate::error::ProblemDetails),
+        (status = 415, description = "Not a PDF, DOCX, XLSX or UTF-8 text file", body = crate::error::ProblemDetails),
+        (status = 503, description = "The knowledge assistant is not reachable", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn upload_file(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, source)): Path<(String, String)>,
+    Query(file): Query<FileName>,
+    body: axum::body::Bytes,
+) -> Result<(StatusCode, Json<Value>), ApiError> {
+    writable(&state, &user, &project)?;
+    named("source", &source)?;
+    let bytes = body.len();
+    let name = file.name;
+    let query = [("name", name.clone())];
+    let (status, added) = ask_with(
+        &state,
+        reqwest::Method::POST,
+        &format!("{project}/knowledge/sources/{source}/files"),
+        UPLOAD_TIMEOUT,
+        move |request| {
+            request
+                .query(&query)
+                .header(header::CONTENT_TYPE, "application/octet-stream")
+                .body(body)
+        },
+    )
+    .await?;
+    record(
+        &state,
+        &project,
+        "knowledge.file.uploaded",
+        format!("{} uploaded {name} to {source}", user.0.identity.username),
+        json!({
+            "actor": user.0.identity.username,
+            "source": source,
+            "name": name,
+            "bytes": bytes,
+            "id": added.get("id"),
+            "passages": added.get("passages"),
+        }),
+    )
+    .await;
+    Ok((status, Json(added)))
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/v1/projects/{project}/knowledge/sources/{source}/files/{id}",
+    summary = "Remove A File From A Source",
+    description = "Removes the uploaded file and its passages at once. Needs `propose` on KnowledgeSource (AG-113, T-4184).",
+    tag = "knowledge",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("source" = String, Path, description = "KnowledgeSource name"),
+        ("id" = i64, Path, description = "The file's id"),
+    ),
+    responses(
+        (status = 204, description = "Removed"),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 403, description = "The caller may not propose a KnowledgeSource", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such project, source or file", body = crate::error::ProblemDetails),
+        (status = 409, description = "The source is not a `source: upload`", body = crate::error::ProblemDetails),
+        (status = 503, description = "The knowledge assistant is not reachable", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn remove_file(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, source, id)): Path<(String, String, i64)>,
+) -> Result<StatusCode, ApiError> {
+    writable(&state, &user, &project)?;
+    named("source", &source)?;
+    ask(
+        &state,
+        reqwest::Method::DELETE,
+        &format!("{project}/knowledge/sources/{source}/files/{id}"),
+        None,
+    )
+    .await?;
+    record(
+        &state,
+        &project,
+        "knowledge.file.removed",
+        format!(
+            "{} removed file {id} from {source}",
+            user.0.identity.username
+        ),
+        json!({ "actor": user.0.identity.username, "source": source, "id": id }),
+    )
+    .await;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[utoipa::path(
@@ -710,6 +942,10 @@ pub fn router() -> Router<AppState> {
             get(list_documents),
         )
         .route(
+            "/projects/{project}/knowledge/sources/{source}/errors",
+            get(list_errors),
+        )
+        .route(
             "/projects/{project}/knowledge/sources/{source}/pages/{page}/links",
             get(list_links),
         )
@@ -724,6 +960,16 @@ pub fn router() -> Router<AppState> {
         .route(
             "/projects/{project}/knowledge/sources/{source}/recrawl",
             post(recrawl),
+        )
+        .route(
+            "/projects/{project}/knowledge/sources/{source}/files",
+            get(list_files)
+                .post(upload_file)
+                .layer(DefaultBodyLimit::max(MAX_UPLOAD_BODY)),
+        )
+        .route(
+            "/projects/{project}/knowledge/sources/{source}/files/{id}",
+            delete(remove_file),
         )
         .route(
             "/projects/{project}/knowledge/deployments/{deployment}/usage",

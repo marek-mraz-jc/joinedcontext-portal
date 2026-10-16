@@ -10,6 +10,9 @@
       "crashReference": "Nennen Sie das hier, wenn Sie es melden:",
       "crashReload": "Seite neu laden",
       "crashHome": "Zum Anfang",
+      "chunkTitle": "Ein Teil des Portals wurde nicht geladen",
+      "chunkBody": "Die Verbindung ist abgebrochen oder das Portal wurde gerade aktualisiert. Laden Sie die Seite neu; nichts, was Sie angesehen haben, wurde geändert.",
+      "chunkReload": "Seite neu laden",
       "session": "Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an, um das zu sehen.",
       "forbiddenHint": "Wer das Projekt verantwortet oder die Organisation verwaltet, kann Ihnen Zugriff geben.",
       "reference": "Nennen Sie das, wenn Sie es melden:",
@@ -130,6 +133,14 @@
     "maxLength": "Der Wert ist zu lang",
     "pattern": "Der Wert entspricht nicht dem geforderten Muster",
     "enum": "Der Wert muss einer der zulässigen Werte sein",
+    "button": {
+      "add": "Hinzufügen",
+      "remove": "Entfernen",
+      "moveUp": "Nach oben",
+      "moveDown": "Nach unten",
+      "copy": "Kopieren"
+    },
+    "minItems": "Wählen Sie mindestens eine Möglichkeit aus",
     "format": "Ungültiges Format",
     "redacted": "Ausgeblendet",
     "advancedMode": "Erweiterte Felder anzeigen",
@@ -2387,6 +2398,7 @@
       "new": "Neue Rolle",
       "newTitle": "Neue Rolle",
       "newLead": "Eine Rolle des Projekts {project}. Sie darf nur die Arten dieses Projekts nennen und nur die Verben, die Sie hier selbst halten; die Änderung genehmigt jemand anderes.",
+      "newLeadOrganization": "Eine Rolle der Organisation. Sie darf nur die Verben nennen, die Sie selbst halten; die Änderung genehmigt jemand anderes.",
       "field": {
         "name": "Name der Rolle",
         "rules": "Regeln",
@@ -4622,7 +4634,7 @@
   },
   "activity": {
     "title": "Aktivität",
-    "lead": "Was in diesem Projekt geschieht: der Reconciler, die Pipelines, das Gateway, der Broker und der Katalog, das Neueste zuerst.",
+    "lead": "Was in diesem Projekt geschieht: Änderungen, Pipeline-Läufe, Anfragen und die Veröffentlichung im Katalog, das Neueste zuerst.",
     "empty": "Hier ist noch nichts passiert.",
     "time": "Wann",
     "kind": "Was",
@@ -4709,7 +4721,8 @@
       "portal": "Portal"
     },
     "failed": "{what} fehlgeschlagen",
-    "repeated": "{count, plural, one {# Mal} other {# Mal}} seit {since}"
+    "repeated": "{count, plural, one {# Mal} other {# Mal}} seit {since}",
+    "technical": "Technische Details"
   },
   "import": {
     "title": "Konfiguration importieren",
@@ -4966,6 +4979,12 @@
   },
   "policies": {
     "title": "Richtlinien",
+    "filter": {
+      "label": "Richtlinie finden",
+      "placeholder": "Name, Raum oder für wen sie gilt",
+      "count": "{shown} von {total} Richtlinien",
+      "none": "Keine Richtlinie passt zu „{query}“. Versuchen Sie ein anderes Wort oder leeren Sie das Feld."
+    },
     "lead": "Wer die Kontextdaten der Räume dieses Projekts lesen und schreiben darf, und auf welchen Entitäten.",
     "empty": "Dieses Projekt hat noch keine Richtlinie.",
     "add": "Neue Richtlinie",
@@ -4977,7 +4996,7 @@
     },
     "operations": {
       "writes": "ändert Daten",
-      "covers": "{count, plural, one {deckt # Operation ab:} other {deckt # Operationen ab:}}",
+      "show": "{count, plural, one {Ihre Operation zeigen} other {Ihre # Operationen zeigen}}",
       "total": "{count, plural, =0 {noch nichts erlaubt} one {# Operation insgesamt} other {# Operationen insgesamt}}",
       "none": "Solange keine Operation angehakt ist, erlaubt die Richtlinie nichts.",
       "more": "Einzelne Operationen",
@@ -5021,6 +5040,9 @@
       "everyType": "jeden Typ",
       "may": "{who} dürfen {what} auf {types} im Raum {space}",
       "mayNot": "{who} dürfen nicht {what} auf {types} im Raum {space}",
+      "mayNoSpace": "{who} dürfen {what} auf {types}, in einem noch nicht gewählten Raum",
+      "mayNotNoSpace": "{who} dürfen nicht {what} auf {types}, in einem noch nicht gewählten Raum",
+      "empty": "Wählen Sie, wer, was und in welchem Raum, dann steht die Regel hier als Satz.",
       "attributes": "nur die Attribute {attributes}",
       "q": "wo {q}",
       "scope": "im Bereich {scope}",
@@ -6666,21 +6688,59 @@
       "send": "Senden",
       "failed": "Die Antwort konnte nicht geladen werden. Bitte erneut versuchen.",
       "liveData": "Live-Daten",
-      "sourceNumber": "Quelle {n}"
+      "sourceNumber": "Quelle {n}",
+      "data": "Gelesene Daten der Antwort",
+      "dataset": "Datensatz öffnen",
+      "download": "Daten herunterladen"
     },
     "embed": {
       "title": "Einbetten",
       "of": "{name} einbetten",
-      "intro": "Fügen Sie diesen Rahmen in eine Seite einer Website ein, auf der der Assistent platziert ist.",
+      "intro": "Für eine Seite, die kein Skript erlaubt, fügen Sie stattdessen diesen Rahmen ein.",
       "snippet": "Code zum Einfügen",
       "copy": "Code kopieren",
       "copied": "Kopiert",
       "origins": "Die Adresse der Website muss zu den erlaubten Ursprüngen des Assistenten gehören; auf jeder anderen Website bleibt der Rahmen leer.",
-      "noDomain": "Dieses Portal kennt seine Domain nicht und kann daher die Adresse der Assistentenseite nicht schreiben."
+      "noDomain": "Dieses Portal kennt seine Domain nicht und kann daher die Adresse der Assistentenseite nicht schreiben.",
+      "launcher": "Die Startzeile",
+      "launcherIntro": "Bringen Sie den Assistenten auf Ihre Website: Fügen Sie diese eine Zeile in jede Seite vor </body> ein. Sie fügt in der Ecke eine runde Schaltfläche hinzu, die den Chat öffnet.",
+      "preview": "Vorschau der Startzeile auf einer leeren Seite",
+      "previewHint": "Die Vorschau zeigt die Schaltfläche so, wie Besucher sie sehen. Der Chat öffnet sich nur auf den erlaubten Adressen des Assistenten und kann hier leer bleiben.",
+      "copyOf": "{what} kopieren"
     },
     "everySpace": "jeder Raum des Projekts",
     "userGuide": "das Benutzerhandbuch der Plattform, mit Links in dieses Projekt",
-    "askFirst": "Geben Sie zuerst eine Frage ein."
+    "askFirst": "Geben Sie zuerst eine Frage ein.",
+    "files": {
+      "title": "Dateien",
+      "intro": "Dateien, die Sie hier hochladen: Der Assistent antwortet daraus, sobald er sie gelesen hat. Entfernen Sie eine Datei, um ihre Passagen aus allen Antworten zu nehmen.",
+      "upload": "Dateien hochladen",
+      "uploading": "Wird hochgeladen…",
+      "choose": "Dateien zum Hochladen wählen",
+      "accepts": "PDF, DOCX, XLSX, CSV, Markdown oder Text; je höchstens 50 MB.",
+      "added": "{count, plural, one {# Datei} other {# Dateien}} in {passages} Passagen gelesen.",
+      "failed": "{name} wurde nicht hochgeladen: {reason}. Korrigieren Sie die Datei und wählen Sie sie erneut.",
+      "none": "Noch keine Datei",
+      "noneHint": "Laden Sie ein PDF, eine Tabelle oder eine Textdatei hoch, aus der der Assistent antwortet.",
+      "name": "Datei",
+      "remove": "Entfernen",
+      "removeOf": "{name} entfernen"
+    },
+    "index": {
+      "title": "Indexstatus",
+      "pages": "Seiten",
+      "files": "Dateien",
+      "passages": "Passagen",
+      "embedded": "Durchsuchbar",
+      "pending": "Wartet auf Indexierung",
+      "unread": "Nicht gelesen",
+      "reindex": "Neu indexieren",
+      "lastRun": "Letzter Lauf: gestartet {started}, beendet {finished}",
+      "noRun": "Noch kein Lauf",
+      "unreadList": "Nicht gelesene Seiten und Dateien",
+      "noneUnread": "Kein fehlgeschlagener Abruf ist verzeichnet.",
+      "totals": "Alle Quellen: {pages} Seiten, {files} Dateien, {embedded} von {passages} Passagen durchsuchbar, {pending} wartend, {failed} nicht gelesen"
+    }
   },
   "mcp": {
     "title": "MCP-Server",

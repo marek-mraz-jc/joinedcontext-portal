@@ -148,6 +148,33 @@ describe("portal shell", () => {
     expect(within(crumbs()).queryByText("Home")).not.toBeInTheDocument();
   });
 
+  // T-4216 (photo audit T-4157, T-4163): the pages below the section list end the trail with
+  // their own name, like every section does, not at the project.
+  it("ends the trail with the page's own name on the pages below the section list", async () => {
+    const crumbs = () => screen.getByRole("navigation", { name: "Breadcrumb" });
+    // A route change remounts the shell: the navigation is looked up again for each page.
+    const nav = () => screen.getByRole("navigation", { name: "Main navigation" });
+    for (const label of [i18n.t("nav.models"), i18n.t("nav.explore")]) {
+      await userEvent.click(within(nav()).getByRole("link", { name: label }));
+      await waitFor(() => {
+        expect(within(crumbs()).getByText(label)).toHaveAttribute("aria-current", "page");
+      });
+    }
+  });
+
+  // T-4223 (photo audit T-4157): Administration is the organization's page, not a project's;
+  // its trail named the project the person came from.
+  it("trails the Administration page from the organization, without a project", async () => {
+    const admin = await within(screen.getByRole("banner")).findByRole("link", { name: "Administration" });
+    await userEvent.click(admin);
+    await waitFor(() => {
+      const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+      expect(within(crumbs).getByText("Administration")).toHaveAttribute("aria-current", "page");
+    });
+    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(within(crumbs).queryByRole("link", { name: "helsinki" })).toBeNull();
+  });
+
   // T-2760: the floating assistant button covered a table's last column with nothing to scroll.
   it("leaves room under the page for the floating assistant button", () => {
     const page = screen.getByRole("main").firstElementChild as HTMLElement;

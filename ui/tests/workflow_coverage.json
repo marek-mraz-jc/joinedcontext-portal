@@ -1510,6 +1510,17 @@
           "POST /api/v1/projects/{project}/knowledge/sources/{source}/recrawl"
         ]
       },
+      "upload-files": {
+        "live": {
+          "spec": "knowledge.spec.ts",
+          "test": "a viewer may not upload a file, and a steward's file is read, listed and removed"
+        },
+        "personOnly": "an uploaded file becomes what the city's assistant answers from; the administrator who owns the document decides that it is published there, not an agent (AG-113, MF-51)",
+        "routes": [
+          "POST /api/v1/projects/{project}/knowledge/sources/{source}/files",
+          "DELETE /api/v1/projects/{project}/knowledge/sources/{source}/files/{id}"
+        ]
+      },
       "ask": {
         "live": {
           "spec": "knowledge.spec.ts",

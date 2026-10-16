@@ -10,6 +10,9 @@
       "crashReference": "Quote this when you report it:",
       "crashReload": "Load the page again",
       "crashHome": "Go to the start",
+      "chunkTitle": "Part of the Portal did not load",
+      "chunkBody": "The connection dropped or the Portal was just updated. Load the page again; nothing you were looking at was changed.",
+      "chunkReload": "Load the page again",
       "session": "Your session ended. Sign in again to see this.",
       "forbiddenHint": "A project owner or an organization administrator can give you access.",
       "reference": "Quote this when you report it:",
@@ -130,6 +133,14 @@
     "maxLength": "Value is too long",
     "pattern": "Value does not match pattern",
     "enum": "Value must be one of the allowed choices",
+    "button": {
+      "add": "Add",
+      "remove": "Remove",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "copy": "Copy"
+    },
+    "minItems": "Choose at least one",
     "format": "Invalid format",
     "redacted": "Redacted",
     "advancedMode": "Show advanced fields",
@@ -2387,6 +2398,7 @@
       "new": "New role",
       "newTitle": "New role",
       "newLead": "A role of project {project}. It may name the project's own kinds, and only the verbs you hold here yourself; the change is approved by someone else.",
+      "newLeadOrganization": "A role of the organization. It may name only the verbs you hold yourself; someone else approves the change.",
       "field": {
         "name": "Role name",
         "rules": "Rules",
@@ -4622,7 +4634,7 @@
   },
   "activity": {
     "title": "Activity",
-    "lead": "What is happening in this project: the reconciler, the pipelines, the gateway, the broker and the catalogue, newest first.",
+    "lead": "What is happening in this project: changes, pipeline runs, requests and publishing to the catalogue, newest first.",
     "empty": "Nothing has happened here yet.",
     "time": "When",
     "kind": "What",
@@ -4709,7 +4721,8 @@
       "portal": "Portal"
     },
     "failed": "{what} failed",
-    "repeated": "{count, plural, other {# times}} since {since}"
+    "repeated": "{count, plural, other {# times}} since {since}",
+    "technical": "Technical details"
   },
   "import": {
     "title": "Import configuration",
@@ -4966,6 +4979,12 @@
   },
   "policies": {
     "title": "Policies",
+    "filter": {
+      "label": "Find a policy",
+      "placeholder": "Name, space or who it is for",
+      "count": "{shown} of {total} policies",
+      "none": "No policy matches “{query}”. Try another word or clear the box."
+    },
     "lead": "Who may read and write the context data of this project's spaces, and on which entities.",
     "empty": "This project has no Policy yet.",
     "add": "New Policy",
@@ -4977,7 +4996,7 @@
     },
     "operations": {
       "writes": "changes data",
-      "covers": "{count, plural, one {covers # operation:} other {covers # operations:}}",
+      "show": "{count, plural, one {Show its operation} other {Show its # operations}}",
       "total": "{count, plural, =0 {nothing granted yet} one {# operation in all} other {# operations in all}}",
       "none": "Nothing is granted until an operation is ticked.",
       "more": "Individual operations",
@@ -5021,6 +5040,9 @@
       "everyType": "every type",
       "may": "{who} may {what} on {types} in the space {space}",
       "mayNot": "{who} may not {what} on {types} in the space {space}",
+      "mayNoSpace": "{who} may {what} on {types}, in a space not chosen yet",
+      "mayNotNoSpace": "{who} may not {what} on {types}, in a space not chosen yet",
+      "empty": "Pick who, what and which space, and the grant reads here as a sentence.",
       "attributes": "only the attributes {attributes}",
       "q": "where {q}",
       "scope": "within the scope {scope}",
@@ -6666,21 +6688,59 @@
       "send": "Send",
       "failed": "The answer could not be loaded. Try again.",
       "liveData": "Live data",
-      "sourceNumber": "Source {n}"
+      "sourceNumber": "Source {n}",
+      "data": "Data the answer read",
+      "dataset": "Open the dataset",
+      "download": "Download the data"
     },
     "embed": {
       "title": "Embed",
       "of": "Embed {name}",
-      "intro": "Paste this frame into a page of a site the assistant is placed on.",
+      "intro": "For a page that takes no script, paste this frame instead.",
       "snippet": "Code to paste",
       "copy": "Copy the code",
       "copied": "Copied",
       "origins": "The site's address must be one of the assistant's allowed origins; any other site's frame stays empty.",
-      "noDomain": "This Portal does not know its domain, so it cannot write the address of the assistant's page."
+      "noDomain": "This Portal does not know its domain, so it cannot write the address of the assistant's page.",
+      "launcher": "The launcher line",
+      "launcherIntro": "Put the assistant on your website: paste this one line into every page, before </body>. It adds a round button in the corner that opens the chat.",
+      "preview": "Preview of the launcher on a blank page",
+      "previewHint": "The preview shows the button as a visitor sees it. The chat itself opens only on the sites the assistant is placed on, so here it may stay empty.",
+      "copyOf": "Copy {what}"
     },
     "everySpace": "every space of the project",
     "userGuide": "the platform's User Guide, with links into this project",
-    "askFirst": "Type a question first."
+    "askFirst": "Type a question first.",
+    "files": {
+      "title": "Files",
+      "intro": "Files you upload here: the assistant answers from them as soon as they are read. Remove a file to take its passages out of every answer.",
+      "upload": "Upload files",
+      "uploading": "Uploading…",
+      "choose": "Choose files to upload",
+      "accepts": "PDF, DOCX, XLSX, CSV, Markdown or text; at most 50 MB each.",
+      "added": "{count, plural, one {# file} other {# files}} read into {passages} passages.",
+      "failed": "{name} was not uploaded: {reason}. Fix the file and choose it again.",
+      "none": "No file yet",
+      "noneHint": "Upload a PDF, a spreadsheet or a text file for the assistant to answer from.",
+      "name": "File",
+      "remove": "Remove",
+      "removeOf": "Remove {name}"
+    },
+    "index": {
+      "title": "Index status",
+      "pages": "Pages",
+      "files": "Files",
+      "passages": "Passages",
+      "embedded": "Searchable",
+      "pending": "Waiting to index",
+      "unread": "Not read",
+      "reindex": "Re-index",
+      "lastRun": "Last run: started {started}, ended {finished}",
+      "noRun": "No run yet",
+      "unreadList": "Pages and files not read",
+      "noneUnread": "No failed read is recorded.",
+      "totals": "All sources: {pages} pages, {files} files, {embedded} of {passages} passages searchable, {pending} waiting, {failed} not read"
+    }
   },
   "mcp": {
     "title": "MCP servers",
