@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { JSX, ReactNode } from "react";
+import type { TFunction } from "i18next";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import validator from "./forms/validator";
 import { useTranslation } from "react-i18next";
@@ -186,6 +187,15 @@ function fieldPath(path: string, schema: JsonSchema): string[] {
   const segments = path.replace(/^metadata\./, "").split(".");
   const flat = segments[0] === "spec" && !(schema.properties && "spec" in schema.properties);
   return flat ? segments.slice(1) : segments;
+}
+
+/**
+ * A finding's sentence. The server refuses a name with the regular expression it failed (jc-core
+ * `validate_dns1123_label`); a person gets the field's own sentence in their language instead
+ * (T-4209, UI-44).
+ */
+function findingSentence(message: string, t: TFunction): string {
+  return /DNS-1123 label regex/.test(message) ? t("form.dns1123") : forPeople(message);
 }
 
 /** One frame for every manifest form: the schema decides the fields, the caller the kind. */
@@ -860,10 +870,10 @@ export function ResourceFormDialogBody<T>({
     }
     const marked: ErrorSchema = {};
     for (const finding of located) {
-      atPath(marked, fieldPath(finding.path, schema)).push(forPeople(finding.message));
+      atPath(marked, fieldPath(finding.path, schema)).push(findingSentence(finding.message, t));
     }
     return marked;
-  }, [internalVerdict, schema]);
+  }, [internalVerdict, schema, t]);
 
   /**
    * What the fields say: the browser's own refusals and the server's findings together. The
@@ -1158,7 +1168,7 @@ export function ResourceFormDialogBody<T>({
                   {f.path ? (
                     <span className="font-mono">{f.path}: </span>
                   ) : null}
-                  <span>{forPeople(f.message)}</span>
+                  <span>{findingSentence(f.message, t)}</span>
                 </li>
               ))}
             </ul>
