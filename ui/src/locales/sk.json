@@ -2542,7 +2542,12 @@
       "mayNot": "Nesmiete {action} {type}",
       "attrDenied": "mimo vášho oprávnenia",
       "attrProhibited": "výslovne zakázaný",
-      "checkFailed": "Tieto oprávnenia sa nepodarilo overiť: {reason}. Obnovte stránku a skúste to znova."
+      "checkFailed": "Tieto oprávnenia sa nepodarilo overiť: {reason}. Obnovte stránku a skúste to znova.",
+      "actions": {
+        "queryEntity": "čítať",
+        "updateAttrs": "meniť"
+      },
+      "technical": "Technické podrobnosti"
     },
     "groups": {
       "title": "Skupiny",

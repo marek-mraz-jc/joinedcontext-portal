@@ -2538,11 +2538,16 @@
       "typeNotGranted": "Kein Grant nennt {type} für Sie über diesen Endpunkt.",
       "checks": "Probeentscheidungen",
       "checking": "{action}: wird geprüft…",
-      "may": "Sie dürfen {action} {type}",
-      "mayNot": "Sie dürfen nicht {action} {type}",
+      "may": "Sie dürfen {type} {action}",
+      "mayNot": "Sie dürfen {type} nicht {action}",
       "attrDenied": "nicht in Ihrem Grant",
       "attrProhibited": "ausdrücklich verweigert",
-      "checkFailed": "Diese Berechtigungen konnten nicht geprüft werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen."
+      "checkFailed": "Diese Berechtigungen konnten nicht geprüft werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen.",
+      "actions": {
+        "queryEntity": "lesen",
+        "updateAttrs": "ändern"
+      },
+      "technical": "Technische Details"
     },
     "groups": {
       "title": "Gruppen",

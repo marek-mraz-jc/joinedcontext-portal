@@ -2542,7 +2542,12 @@
       "mayNot": "You may not {action} {type}",
       "attrDenied": "not in your grant",
       "attrProhibited": "explicitly denied",
-      "checkFailed": "These permissions could not be checked: {reason}. Reload the page to try again."
+      "checkFailed": "These permissions could not be checked: {reason}. Reload the page to try again.",
+      "actions": {
+        "queryEntity": "read",
+        "updateAttrs": "change"
+      },
+      "technical": "Technical details"
     },
     "groups": {
       "title": "Groups",

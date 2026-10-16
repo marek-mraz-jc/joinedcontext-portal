@@ -6,8 +6,11 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
+import sk from "../src/locales/sk.json";
+import cs from "../src/locales/cs.json";
+import de from "../src/locales/de.json";
 import { App } from "../src/App";
-import { deniedAttributes } from "../src/components/entities/AccessPanel";
+import { CHECKED_ACTIONS, deniedAttributes } from "../src/components/entities/AccessPanel";
 
 const IDENTITY = { subject: "b7c1e0f4", username: "demo.viewer", name: "Demo Viewer", roles: [] };
 const list = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
@@ -113,8 +116,10 @@ describe("your access in the explorer", () => {
     expect(await within(panel).findByText(/retrieveEntity, queryEntity/)).toBeInTheDocument();
     expect(within(panel).getByText(/scopeQ=\/helsinki\/#/)).toBeInTheDocument();
     // One check per action, with the user's session, answered before the query runs.
-    expect(await within(panel).findByText("You may queryEntity BikeHireDockingStation")).toBeInTheDocument();
-    expect(within(panel).getByText("You may not updateAttrs BikeHireDockingStation")).toBeInTheDocument();
+    expect(await within(panel).findByText("You may read BikeHireDockingStation")).toBeInTheDocument();
+    expect(within(panel).getByText("You may not change BikeHireDockingStation")).toBeInTheDocument();
+    // T-4264: the operation names wait behind the disclosure, closed.
+    expect(within(panel).getByText(/retrieveEntity, queryEntity/).closest("details")).not.toHaveAttribute("open");
     const checks = fetchMock.mock.calls
       .map((call) => call[0] as Request)
       .filter((request) => request instanceof Request && request.url.endsWith("/access/check"));
@@ -215,5 +220,19 @@ describe("your access in the explorer", () => {
     expect(deniedAttributes({ permissions: [{ resource: { type: "T" }, attributes: "*" }] }, "T", slots, t)).toEqual({});
     expect(deniedAttributes({ permissions: [{ resource: { type: "Other" }, attributes: ["a"] }] }, "T", slots, t)).toEqual({});
     expect(deniedAttributes(undefined, "T", slots, t)).toEqual({});
+  });
+});
+
+/// T-4264, T-4160 #18: every action the panel checks is a word in each language, never the
+/// operation name, which the Slovak page used to show as "Smiete queryEntity".
+describe("the checked actions in words", () => {
+  it("names each checked action in every catalogue", () => {
+    for (const catalogue of [en, sk, cs, de]) {
+      for (const action of CHECKED_ACTIONS) {
+        const word = (catalogue.access.panel.actions as Record<string, string>)[action];
+        expect(word, action).toBeTruthy();
+        expect(word).not.toBe(action);
+      }
+    }
   });
 });
