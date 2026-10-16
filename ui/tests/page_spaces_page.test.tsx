@@ -11,6 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
+import { USAGE_TIMEOUT_MS } from "../src/api/spaceUsage";
 import { expectDenied } from "./checks";
 import {
   expectAxeClean,
@@ -163,6 +164,35 @@ describe("the Context Spaces page", () => {
     const reason = i18n.t("spaces.entitiesUnknown", { reason: "the broker did not answer; try again in a minute" });
     expect(await within(table).findByText(reason)).toBeInTheDocument();
     expect(within(table).queryByTestId("space-entities")).toBeNull();
+  });
+
+  it("counts_with_a_quiet_bar_and_gives_up_on_a_count_that_never_comes", async () => {
+    // T-4225 (photo audit T-4163 #9): "Loading..." stood in monospace in the column for 20 s.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await renderRoute({
+        path: PATH,
+        answer: (path, request) =>
+          path.endsWith("/usage")
+            ? new Promise<Response>((_, reject) =>
+                request.signal.addEventListener("abort", () => reject(request.signal.reason)),
+              )
+            : answering([space("air")])(path),
+      });
+      const table = await screen.findByRole("table");
+      await waitFor(() => expect(within(table).getByText(en.spaces.entitiesCounting)).toBeInTheDocument());
+      expect(within(table).queryByText(en.app.loading)).toBeNull();
+      await vi.advanceTimersByTimeAsync(USAGE_TIMEOUT_MS + 10);
+      expect(await within(table).findByText(i18n.t("spaces.entitiesSlow"))).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("names_the_count_column_in_the_same_case_as_the_others", async () => {
+    await renderRoute({ path: PATH, answer: answering([space("air")]) });
+    const sort = await screen.findByRole("button", { name: en.spaces.field.entities });
+    expect(sort.className).toMatch(/\buppercase\b/);
   });
 
   it("survives_0_1_and_500_rows", async () => {

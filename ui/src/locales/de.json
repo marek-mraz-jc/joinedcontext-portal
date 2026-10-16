@@ -475,6 +475,8 @@
   },
   "spaces": {
     "entitiesUnknown": "Die Anzahl ist nicht verfügbar: {reason}",
+    "entitiesCounting": "Die Entitäten werden gezählt...",
+    "entitiesSlow": "Der Broker hat diesen Bereich nicht rechtzeitig gezählt; beim nächsten Besuch steht die Anzahl wieder da.",
     "lead": "Die benannten Sammlungen von Kontextdaten dieses Projekts; jede Entität liegt in genau einer.",
     "title": "Kontexträume",
     "empty": "Dieses Projekt hat noch keinen Kontextraum.",
@@ -575,7 +577,7 @@
       "noDrafts": "Noch keine Entwürfe vervollständigt.",
       "needInput": "Geben Sie eine Endpunkt-URL ein oder fügen Sie eine Datei hinzu."
     },
-    "segment": "IDs: {segment}",
+    "segment": "in Entitäts-IDs: {segment}",
     "quality": {
       "title": "Datenqualität",
       "notYet": "Noch nicht geprüft: Die Plattform prüft die Daten dieses Raums einmal täglich.",

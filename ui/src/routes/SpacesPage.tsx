@@ -2,6 +2,7 @@ import { useCreateForm } from "../components/forms/FormRoute";
 import { RecordLink } from "../components/RecordLink";
 import { useState } from "react";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
+import { Skeleton } from "../components/ui/Skeleton";
 import type { JSX } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -166,9 +167,17 @@ function EntityCount({
     return <span data-testid="space-entities">{numbers.format(usage.data.entities)}</span>;
   }
   if (usage === undefined || usage.isPending) {
-    return <span className="text-fg-subtle">{t("app.loading")}</span>;
+    return (
+      <span role="status" className="inline-block">
+        <Skeleton className="ml-auto h-3 w-12" />
+        <span className="sr-only">{t("spaces.entitiesCounting")}</span>
+      </span>
+    );
   }
-  const reason = t("spaces.entitiesUnknown", { reason: usageRefusal(usage.error) });
+  const reason =
+    usage.error instanceof DOMException && usage.error.name === "TimeoutError"
+      ? t("spaces.entitiesSlow")
+      : t("spaces.entitiesUnknown", { reason: usageRefusal(usage.error) });
   return (
     <span className="text-fg-subtle" title={reason}>
       <span aria-hidden="true">—</span>
@@ -266,7 +275,13 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
       {/* A phone keeps the name, the state and the way inside (UI-27): the count is on the space's page. */}
       <TableHeaderCell align="right" secondary aria-sort={bySize ? "descending" : "none"}>
         {/* The biggest space is one click away (T-2889); a second click puts the list back. */}
-        <Button size="sm" variant="ghost" aria-pressed={bySize} onClick={() => setBySize(!bySize)}>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="uppercase tracking-wide"
+          aria-pressed={bySize}
+          onClick={() => setBySize(!bySize)}
+        >
           {t("spaces.field.entities")}
           <span aria-hidden="true">{bySize ? " ↓" : ""}</span>
         </Button>
@@ -423,7 +438,7 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
               <TableCell>
                 <LifecycleBadge kind="phase" value={space.status?.phase} />
               </TableCell>
-              <TableCell align="right" secondary className="font-mono">
+              <TableCell align="right" secondary className="tabular-nums">
                 <EntityCount usage={usageOf(space.metadata.name)} numbers={numbers} />
               </TableCell>
               <TableCell align="right">

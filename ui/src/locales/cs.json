@@ -475,6 +475,8 @@
   },
   "spaces": {
     "entitiesUnknown": "Počet není k dispozici: {reason}",
+    "entitiesCounting": "Počítají se entity...",
+    "entitiesSlow": "Broker tento prostor nespočítal včas; počet se ukáže při další návštěvě.",
     "lead": "Pojmenované kolekce kontextových dat tohoto projektu; každá entita patří právě do jedné.",
     "title": "Kontextové prostory",
     "empty": "Projekt zatím nemá kontextový prostor.",
@@ -575,7 +577,7 @@
       "noDrafts": "Zatím nejsou doplněny žádné návrhy.",
       "needInput": "Zadejte URL endpointu nebo přidejte soubor."
     },
-    "segment": "identifikátory: {segment}",
+    "segment": "v identifikátorech entit: {segment}",
     "quality": {
       "title": "Kvalita dat",
       "notYet": "Zatím nekontrolováno: platforma kontroluje data tohoto prostoru jednou denně.",
