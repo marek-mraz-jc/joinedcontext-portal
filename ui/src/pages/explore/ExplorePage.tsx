@@ -16,6 +16,7 @@ import { Alert, Button, Dialog, EmptyState, Field, PageHeader, Select, Tabs, tab
 import { TypeQuality } from "./TypeQuality";
 import { writesOf } from "../access/EffectivePermissions";
 import { TypeLink } from "../models/ModelLinks";
+import { localId } from "../apps/QueryResultCard";
 import { ExportView } from "./ExportView";
 import { UseThisData } from "./UseThisData";
 import { ChartFromView } from "./ChartFromView";
@@ -247,13 +248,18 @@ export function ExplorePage({
       id: (_cell: unknown, row: RichRow) => (
         // `xs` with no side padding: the id has to sit on the row's own line rather than in a
         // button-shaped box, and that is the one size of the shared control that fits a cell.
+        // Every id of the type starts `urn:ngsi-ld:Type:…`, so the cell shows the URN's end and
+        // the whole id is the name and the tooltip: cut at a phone's width, each row read the
+        // same (T-4265, photo audit T-4160 #19).
         <Button
           variant="ghost"
           size="xs"
           className="px-0 font-mono text-primary-soft-fg underline-offset-2 hover:bg-transparent hover:underline"
+          aria-label={row.id}
+          title={row.id}
           onClick={() => setSelected(row.id)}
         >
-          {row.id}
+          {localId(row.id)}
         </Button>
       ),
     }),

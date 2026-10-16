@@ -145,9 +145,11 @@ function Dataset({ detail, back }: { detail: DatasetDetail; back: JSX.Element })
           {facts
             .filter(([, value]) => value !== null && value !== undefined && value !== "")
             .map(([label, value]) => (
-              <div key={label} className="flex flex-col gap-0.5">
+              <div key={label} className="flex min-w-0 flex-col gap-0.5">
                 <dt className="text-caption font-semibold text-fg-muted">{label}</dt>
-                <dd className="text-body text-fg">{value}</dd>
+                {/* A NUTS URI is one long word: it breaks where it must instead of widening the
+                    page (T-4265, photo audit T-4160 #40). */}
+                <dd className="text-body text-fg [overflow-wrap:anywhere]">{value}</dd>
               </div>
             ))}
         </dl>
@@ -206,7 +208,9 @@ function Resources({ detail }: { detail: DatasetDetail }): JSX.Element {
                 <TableCell primary>
                   <div>{resource.name}</div>
                   {resource.description ? (
-                    <div className="mt-0.5 text-caption text-fg-muted">{resource.description}</div>
+                    // A curl line or an address is one long word: it breaks inside the cell, so the
+                    // column does not grow to it (T-4265, photo audit T-4160 #15).
+                    <div className="mt-0.5 text-caption text-fg-muted [overflow-wrap:anywhere]">{resource.description}</div>
                   ) : null}
                 </TableCell>
                 <TableCell>
