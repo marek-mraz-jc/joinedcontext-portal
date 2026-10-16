@@ -6682,7 +6682,8 @@
       "suggestions": "Suggested questions",
       "disclaimer": "Disclaimer",
       "scope": "Beyond this project",
-      "scopeProjects": "Projects whose public Endpoints it may read"
+      "scopeProjects": "Projects whose public Endpoints it may read",
+      "perClientPerMonth": "Questions a month, one visitor"
     },
     "visibility": {
       "internal": "Internal: signed-in staff",

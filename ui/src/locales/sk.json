@@ -6682,7 +6682,8 @@
       "suggestions": "Navrhované otázky",
       "disclaimer": "Upozornenie",
       "scope": "Mimo tohto projektu",
-      "scopeProjects": "Projekty, ktorých verejné endpointy smie čítať"
+      "scopeProjects": "Projekty, ktorých verejné endpointy smie čítať",
+      "perClientPerMonth": "Otázky za mesiac, jeden návštevník"
     },
     "visibility": {
       "internal": "Interný: prihlásení zamestnanci",

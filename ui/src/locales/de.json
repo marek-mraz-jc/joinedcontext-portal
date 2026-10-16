@@ -6682,7 +6682,8 @@
       "suggestions": "Vorgeschlagene Fragen",
       "disclaimer": "Hinweis",
       "scope": "Über dieses Projekt hinaus",
-      "scopeProjects": "Projekte, deren öffentliche Endpoints er lesen darf"
+      "scopeProjects": "Projekte, deren öffentliche Endpoints er lesen darf",
+      "perClientPerMonth": "Fragen pro Monat, ein Besucher"
     },
     "visibility": {
       "internal": "Intern: angemeldete Mitarbeitende",
