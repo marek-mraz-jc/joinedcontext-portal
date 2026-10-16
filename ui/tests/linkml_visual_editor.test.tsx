@@ -1,4 +1,5 @@
 /** T-0218: authoring classes, slots and enums without leaving the document (DM-04…DM-06, DM-13, DM-16). */
+import en from "../src/locales/en.json";
 import { useState } from "react";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -58,6 +59,17 @@ function renderEditor(initial?: string) {
 describe("LinkML visual editor", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
+  });
+
+  it("keeps a phone page 375 px wide: the attribute table scrolls in its own frame, the editor's column does not grow to it (T-4165)", () => {
+    renderEditor();
+    const frame = screen.getByRole("group", { name: en.models.slots });
+    // The outermost grid of the editor: its one column below lg is minmax(0, 1fr), never auto.
+    let grid: HTMLElement | null = frame.parentElement;
+    while (grid && !grid.className.split(" ").includes("grid")) grid = grid.parentElement;
+    while (grid?.parentElement?.closest(".grid")) grid = grid.parentElement.closest(".grid") as HTMLElement;
+    expect(grid).toHaveClass("grid-cols-1");
+    expect(grid?.className).not.toMatch(/grid-cols-\[[^\]]*_1fr\]/);
   });
 
   it("creates a class, and the YAML keeps the comment that was already there", async () => {
