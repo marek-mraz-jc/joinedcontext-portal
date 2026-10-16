@@ -10,6 +10,7 @@ import validator from "../src/components/forms/validator";
 import { portalFields } from "../src/components/forms/widgets";
 import { KnowledgeSourcesField } from "../src/components/forms/widgets/KnowledgeSourcesField";
 import { duplicateDeployment } from "../src/pages/knowledge/knowledge";
+import { shippedForms } from "../src/schemas/forms";
 import { PROJECT_REF, assistantDeploymentSchema, projectsNamed, toKindManifest } from "../src/schemas/knowledge";
 import { jsonResponse, list, renderRoute } from "./pageHarness";
 
@@ -131,6 +132,12 @@ describe("the deployment manifest (T-4282)", () => {
     expect(errorsOf({ answer: { routes: "both" } })).toEqual([]);
     expect(errorsOf({ answer: { routes: "everything" } }).length).toBeGreaterThan(0);
     expect(errorsOf({ feedback: false })).toEqual([]);
+  });
+
+  it("a help text with a colour keeps its colour: an unquoted ` #` in YAML is a comment", () => {
+    const form = shippedForms.find((one) => one.spec?.for === "AssistantDeployment");
+    const help = form?.spec.fields?.["theme.primaryColor"]?.help as Record<string, string> | undefined;
+    for (const locale of ["en", "sk", "cs", "de"]) expect(help?.[locale], locale).toMatch(/#rrggbb, .+ #1a5fb4\.$/);
   });
 
   it("a copy keeps the spec under a free name and publicId, cut to a DNS label", () => {

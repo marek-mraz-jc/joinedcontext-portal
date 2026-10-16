@@ -35,13 +35,13 @@ spec:
       connectors,
       answer,
       systemPrompt,
+      sandbox,
       languages,
       theme,
       suggestions,
       disclaimer,
       feedback,
       allowedOrigins,
-      sandbox,
       rateLimit,
       budget,
       model,
@@ -90,7 +90,7 @@ spec:
         sk: "Čo smie jedna odpoveď použiť a čo mu je povedané pred každým rozhovorom."
         cs: "Co smí jedna odpověď použít a co je mu řečeno před každým rozhovorem."
         de: "Was eine Antwort nutzen darf und was ihm vor jedem Gespräch gesagt wird."
-      fields: [answer, systemPrompt]
+      fields: [answer, systemPrompt, sandbox]
     - title:
         en: "Language"
         sk: "Jazyk"
@@ -134,7 +134,7 @@ spec:
         sk: "Weby, ktoré ho smú vložiť, len https; verejný, katalógový alebo vložený kanál uvedie aspoň jeden."
         cs: "Weby, které jej smí vložit, jen https; veřejný, katalogový nebo vložený kanál uvede alespoň jeden."
         de: "Die Websites, die ihn einbinden dürfen, nur https; ein öffentlicher, Katalog- oder eingebetteter Kanal nennt mindestens eine."
-      fields: [allowedOrigins, sandbox]
+      fields: [allowedOrigins]
     - title:
         en: "Limits and budget"
         sk: "Limity a rozpočet"
@@ -167,10 +167,10 @@ spec:
         de: "Aus: jeder Chat dieses Einsatzes antwortet, dass der Assistent ruht; nichts wird ausgegeben."
     scope.projects:
       help:
-        en: Other projects whose public Endpoints and knowledge sources it may name, at most 10; never its own. A source picked from another project adds it.
-        sk: Iné projekty, ktorých verejné endpointy a zdroje znalostí smie uvádzať, najviac 10; nikdy vlastný. Vybraný zdroj iného projektu ho pridá.
-        cs: Jiné projekty, jejichž veřejné endpointy a zdroje znalostí smí uvádět, nejvýše 10; nikdy vlastní. Vybraný zdroj jiného projektu jej přidá.
-        de: Andere Projekte, deren öffentliche Endpoints und Wissensquellen er nennen darf, höchstens 10; nie das eigene. Eine gewählte Quelle fügt es hinzu.
+        en: Other projects it may read from, at most 10, never its own; picking another project's source adds that project here.
+        sk: Iné projekty, z ktorých smie čítať, najviac 10, nikdy vlastný; výber zdroja iného projektu ho sem pridá.
+        cs: Jiné projekty, ze kterých smí číst, nejvýše 10, nikdy vlastní; výběr zdroje jiného projektu jej sem přidá.
+        de: Andere Projekte, aus denen er lesen darf, höchstens 10, nie das eigene; eine gewählte Quelle eines anderen Projekts fügt es hier hinzu.
     model.router:
       help:
         en: The model that picks the sources and searches of a question, as vendor/name; the service's default when empty.
@@ -216,10 +216,10 @@ spec:
         de: Öffentlich, Katalog und eingebettet antworten allen; intern nur angemeldeten Mitarbeitenden.
     sources:
       help:
-        en: The knowledge sources it answers from, of this project or of another project you read; a public channel takes public sources only.
-        sk: Zdroje znalostí, z ktorých odpovedá, z tohto alebo iného projektu, ktorý čítate; verejný kanál berie len verejné zdroje.
-        cs: Zdroje znalostí, ze kterých odpovídá, z tohoto nebo jiného projektu, který čtete; veřejný kanál bere jen veřejné zdroje.
-        de: Die Wissensquellen, aus denen er antwortet, aus diesem oder einem anderen Projekt, das Sie lesen; öffentlich nur öffentliche.
+        en: Tick the sources it answers from; each sits under the project it belongs to.
+        sk: Zaškrtnite zdroje, z ktorých odpovedá; každý je pod projektom, ktorému patrí.
+        cs: Zaškrtněte zdroje, ze kterých odpovídá; každý je pod projektem, kterému patří.
+        de: Haken Sie die Quellen an, aus denen er antwortet; jede steht unter ihrem Projekt.
     connectors[].endpoint:
       help:
         en: An Endpoint of this project whose live data the assistant may read; a public channel reads public Endpoints only.
@@ -319,10 +319,10 @@ spec:
         de: Was dem Assistenten vor jedem Gespräch gesagt wird, bis 8.000 Zeichen; es hebt seine Regeln nie auf.
     theme.primaryColor:
       help:
-        en: The chat's accent colour where it is placed, as #rrggbb.
-        sk: Farba zvýraznenia chatu na mieste, kde je umiestnený, ako #rrggbb.
-        cs: Barva zvýraznění chatu na místě, kde je umístěn, jako #rrggbb.
-        de: Die Akzentfarbe des Chats dort, wo er steht, als #rrggbb.
+        en: "The chat's accent colour where it is placed, as #rrggbb, such as #1a5fb4."
+        sk: "Farba zvýraznenia chatu na mieste, kde je umiestnený, ako #rrggbb, napríklad #1a5fb4."
+        cs: "Barva zvýraznění chatu na místě, kde je umístěn, jako #rrggbb, například #1a5fb4."
+        de: "Die Akzentfarbe des Chats dort, wo er steht, als #rrggbb, etwa #1a5fb4."
     theme.greeting:
       help:
         en: The first line the chat shows, at most 500 characters.

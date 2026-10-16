@@ -6797,7 +6797,7 @@
       "data": "Live data only"
     },
     "sourcesPicker": {
-      "publicOnly": "This channel answers people nobody signed in, so it reads public sources only. A source of another project adds that project to the scope.",
+      "publicOnly": "This channel answers people nobody signed in, so it reads public sources only.",
       "of": "Sources of {project}",
       "own": "{project} (this project)",
       "unknown": "Named, but not offered to you",

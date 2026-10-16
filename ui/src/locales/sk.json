@@ -6797,7 +6797,7 @@
       "data": "Iba živé dáta"
     },
     "sourcesPicker": {
-      "publicOnly": "Tento kanál odpovedá neprihláseným ľuďom, preto číta iba verejné zdroje. Zdroj iného projektu pridá ten projekt do rozsahu.",
+      "publicOnly": "Tento kanál odpovedá neprihláseným ľuďom, preto číta iba verejné zdroje.",
       "of": "Zdroje projektu {project}",
       "own": "{project} (tento projekt)",
       "unknown": "Uvedené, ale vám neponúknuté",
