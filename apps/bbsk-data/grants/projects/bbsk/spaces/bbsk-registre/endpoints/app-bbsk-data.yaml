@@ -16,6 +16,7 @@ spec:
     name: bbsk-registre
   enabledRepresentations:
   - ngsi-ld
+  - mcp
   - geojson
   - csv
   - ogc-features

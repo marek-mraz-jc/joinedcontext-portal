@@ -18,6 +18,7 @@ spec:
     name: bbsk-registre
   enabledRepresentations:
   - ngsi-ld
+  - mcp
   - ogc-features
   roles:
   - name: viewer

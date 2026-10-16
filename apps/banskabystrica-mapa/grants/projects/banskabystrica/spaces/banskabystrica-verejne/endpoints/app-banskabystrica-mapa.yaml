@@ -16,5 +16,6 @@ spec:
     name: banskabystrica-verejne
   enabledRepresentations:
   - ngsi-ld
+  - mcp
   - ogc-features
   slug: kz3c7bq2mxa6wdr4tnyh5pje7f
