@@ -20,7 +20,8 @@ describe("ChartCard", () => {
 
   it("says what went wrong, that it is reading, or that there is nothing to chart, in place of the chart", () => {
     const view = render(<ChartCard title="Share" option={{}} error={new ProblemError(503, { title: "Unavailable" })} />);
-    expect(screen.getByRole("alert")).toHaveTextContent("Unavailable");
+    // A one-word title is a code, not a sentence: the SDK says what failed instead (T-4200).
+    expect(screen.getByRole("alert")).toHaveTextContent("The data could not be read. Try again later.");
     view.rerender(<ChartCard title="Share" option={{}} loading />);
     expect(screen.getByRole("status")).toBeInTheDocument();
     view.rerender(<ChartCard title="Share" option={null} />);
