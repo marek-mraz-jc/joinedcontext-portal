@@ -6278,7 +6278,22 @@
       "sampleLoading": "Čte se deset řádků přes endpoint…",
       "noSample": "Tato datová sada nemá endpoint této instalace, který poskytuje NGSI-LD, proto nemá ukázku.",
       "sampleEmpty": "Endpoint zatím neobsahuje žádné {type}.",
-      "sampleCaption": "Nejvýše deset {type} přečtených přes endpoint"
+      "sampleCaption": "Nejvýše deset {type} přečtených přes endpoint",
+      "says": {
+        "ngsild": "Dotazování a filtrování entit přes rozhraní NGSI-LD.",
+        "mcp": "Připojení AI asistenta k těmto datům (MCP).",
+        "geojson": "Mapová data ke stažení (GeoJSON).",
+        "csv": "Tabulka CSV ke stažení.",
+        "xlsx": "Tabulka Excel ke stažení.",
+        "json": "Data ve formátu JSON ke stažení.",
+        "zip": "Všechny soubory v jednom archivu ZIP.",
+        "ogcfeat": "Data pro nástroje GIS (OGC API – Features).",
+        "sta": "Měření senzorů přes OGC SensorThings API.",
+        "odata": "Data pro Excel a Power BI (OData).",
+        "websocket": "Živé aktualizace při každé změně dat.",
+        "model": "Datový model ve formátu {format}."
+      },
+      "forDevelopers": "Pro vývojáře"
     },
     "use": {
       "title": "Použít tato data",

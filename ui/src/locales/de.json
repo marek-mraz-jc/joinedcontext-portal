@@ -6278,7 +6278,22 @@
       "sampleLoading": "Zehn Zeilen werden über den Endpunkt gelesen…",
       "noSample": "Dieser Datensatz hat keinen Endpunkt dieser Installation, der NGSI-LD liefert, daher gibt es keine Stichprobe.",
       "sampleEmpty": "Der Endpunkt enthält noch kein {type}.",
-      "sampleCaption": "Höchstens zehn {type}, über den Endpunkt gelesen"
+      "sampleCaption": "Höchstens zehn {type}, über den Endpunkt gelesen",
+      "says": {
+        "ngsild": "Entitäten über die NGSI-LD-Schnittstelle abfragen und filtern.",
+        "mcp": "Einen KI-Assistenten mit diesen Daten verbinden (MCP).",
+        "geojson": "Kartendaten zum Herunterladen (GeoJSON).",
+        "csv": "Eine CSV-Tabelle zum Herunterladen.",
+        "xlsx": "Eine Excel-Tabelle zum Herunterladen.",
+        "json": "Die Daten als JSON zum Herunterladen.",
+        "zip": "Alle Dateien in einem ZIP-Archiv.",
+        "ogcfeat": "Die Daten für GIS-Werkzeuge (OGC API – Features).",
+        "sta": "Sensormesswerte über die OGC SensorThings API.",
+        "odata": "Die Daten für Excel und Power BI (OData).",
+        "websocket": "Live-Aktualisierungen bei jeder Datenänderung.",
+        "model": "Das Datenmodell als {format}."
+      },
+      "forDevelopers": "Für Entwickler"
     },
     "use": {
       "title": "Diese Daten nutzen",

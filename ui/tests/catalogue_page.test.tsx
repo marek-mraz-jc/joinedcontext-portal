@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
 import { catalogueKey } from "../src/pages/catalogue/CataloguePage";
-import { datasetKey } from "../src/pages/catalogue/DatasetPage";
+import { datasetKey, resourceSays } from "../src/pages/catalogue/DatasetPage";
 import { narrowed, parseCatalogueSearch, toggled } from "../src/pages/catalogue/search";
 import { snippets } from "../src/pages/catalogue/snippets";
 
@@ -73,6 +73,7 @@ const DETAIL = {
       format: "CSV",
       url: `${ENDPOINT}file.csv`,
       previewUrl: "https://data.dev.joinedcontext.com/dataset/bbsk-kpi/resource/r1",
+      description: "CSV, generated on each download.\n\n    curl -o file.csv 'https://x/file.csv'",
     },
     { name: "Hostile", format: "HTML", url: "javascript:alert(1)" },
   ],
@@ -233,6 +234,9 @@ describe("the catalogue (EP-81, EP-82)", () => {
       "https://data.dev.joinedcontext.com/dataset/bbsk-kpi/resource/r1",
     );
     // A resource URL the catalogue holds is checked before it becomes a link.
+    // T-4160 #16: a sentence in the page's language; the publisher's commands behind a disclosure.
+    expect(within(resources).getByText("A CSV table to download.")).toBeInTheDocument();
+    expect(within(resources).getByText(/curl -o file\.csv/).closest("details")).not.toHaveAttribute("open");
     const hostile = within(resources).getByText("Hostile").closest("tr") as HTMLTableRowElement;
     expect(within(hostile).queryByRole("link")).toBeNull();
 
@@ -330,5 +334,18 @@ describe("use this data", () => {
     expect(snippets("https://h/it's/", ["csv"], undefined, "d")[0].code).toBe(
       `curl -o data.csv 'https://h/it'"'"'s/file.csv'`,
     );
+  });
+});
+
+describe("what a resource is, in words (T-4264, T-4160 #16)", () => {
+  it("says each published format in the page's language, a model formalism by name, nothing for an unknown one", async () => {
+    await i18n.changeLanguage("sk");
+    const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, options);
+    expect(resourceSays("CSV", t)).toBe("Tabuľka CSV na stiahnutie.");
+    expect(resourceSays("NGSI-LD", t)).toBe("Dopytovanie a filtrovanie entít cez NGSI-LD API.");
+    expect(resourceSays("JSON Schema", t)).toBe("Dátový model vo formáte JSON Schema.");
+    expect(resourceSays("HTML", t)).toBeNull();
+    expect(resourceSays("", t)).toBeNull();
+    await i18n.changeLanguage("en");
   });
 });

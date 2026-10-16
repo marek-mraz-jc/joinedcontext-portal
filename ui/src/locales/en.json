@@ -6278,7 +6278,22 @@
       "sampleLoading": "Reading ten rows through the endpoint…",
       "noSample": "This dataset has no endpoint of this installation that serves NGSI-LD, so there is no sample.",
       "sampleEmpty": "The endpoint holds no {type} yet.",
-      "sampleCaption": "Up to ten {type} read through the endpoint"
+      "sampleCaption": "Up to ten {type} read through the endpoint",
+      "says": {
+        "ngsild": "Query and filter the entities over the NGSI-LD API.",
+        "mcp": "Connect an AI assistant to this data (MCP).",
+        "geojson": "Map data to download (GeoJSON).",
+        "csv": "A CSV table to download.",
+        "xlsx": "An Excel spreadsheet to download.",
+        "json": "The data as JSON to download.",
+        "zip": "All files in one ZIP archive.",
+        "ogcfeat": "The data for GIS tools (OGC API – Features).",
+        "sta": "Sensor readings over the OGC SensorThings API.",
+        "odata": "The data for Excel and Power BI (OData).",
+        "websocket": "Live updates as the data changes.",
+        "model": "The data model as {format}."
+      },
+      "forDevelopers": "For developers"
     },
     "use": {
       "title": "Use this data",

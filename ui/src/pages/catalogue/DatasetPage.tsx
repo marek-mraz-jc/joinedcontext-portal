@@ -217,8 +217,14 @@ function Resources({ detail }: { detail: DatasetDetail }): JSX.Element {
               <TableRow key={`${resource.format}-${resource.url}`}>
                 <TableCell primary>
                   <div>{resource.name}</div>
+                  <ResourceSays format={resource.format} />
+                  {/* The publisher's text is commands and digests for a developer, in English: it
+                      waits behind a disclosure, the sentence above says what the file is (T-4160 #16). */}
                   {resource.description ? (
-                    <div className="mt-0.5 text-caption text-fg-muted">{resource.description}</div>
+                    <details className="mt-0.5 text-caption">
+                      <summary className="cursor-pointer text-fg-muted">{t("catalogue.dataset.forDevelopers")}</summary>
+                      <div className="mt-1 whitespace-pre-wrap break-words text-fg-muted">{resource.description}</div>
+                    </details>
                   ) : null}
                 </TableCell>
                 <TableCell>
@@ -243,6 +249,25 @@ function Resources({ detail }: { detail: DatasetDetail }): JSX.Element {
       )}
     </section>
   );
+}
+
+/** The formats a schema artifact is published in (jcctl `format_of`). */
+const MODEL_FORMATS = new Set(["linkml", "jsonschema", "jsonld", "shacl", "owl", "rdf", "markdown"]);
+
+/**
+ * One sentence in the page's language of what a resource is, by its CKAN format (T-4264, T-4160
+ * #16): "Tabuľka CSV na stiahnutie". A format the catalogue has no sentence for says nothing.
+ */
+export function resourceSays(format: string, t: (key: string, options?: Record<string, unknown>) => string): string | null {
+  const key = format.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (MODEL_FORMATS.has(key)) return t("catalogue.dataset.says.model", { format });
+  return key && key !== "model" ? t(`catalogue.dataset.says.${key}`, { defaultValue: "" }) || null : null;
+}
+
+function ResourceSays({ format }: { format: string }): JSX.Element | null {
+  const { t } = useTranslation();
+  const says = resourceSays(format, t);
+  return says ? <div className="mt-0.5 text-caption text-fg-muted">{says}</div> : null;
 }
 
 function Model({ model }: { model: NonNullable<DatasetDetail["model"]> }): JSX.Element {

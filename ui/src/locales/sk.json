@@ -6278,7 +6278,22 @@
       "sampleLoading": "Číta sa desať riadkov cez endpoint…",
       "noSample": "Tento dataset nemá endpoint tejto inštalácie, ktorý poskytuje NGSI-LD, preto nemá ukážku.",
       "sampleEmpty": "Endpoint zatiaľ neobsahuje žiadne {type}.",
-      "sampleCaption": "Najviac desať {type} prečítaných cez endpoint"
+      "sampleCaption": "Najviac desať {type} prečítaných cez endpoint",
+      "says": {
+        "ngsild": "Dopytovanie a filtrovanie entít cez NGSI-LD API.",
+        "mcp": "Pripojenie AI asistenta k týmto dátam (MCP).",
+        "geojson": "Mapové dáta na stiahnutie (GeoJSON).",
+        "csv": "Tabuľka CSV na stiahnutie.",
+        "xlsx": "Tabuľka Excel na stiahnutie.",
+        "json": "Dáta vo formáte JSON na stiahnutie.",
+        "zip": "Všetky súbory v jednom archíve ZIP.",
+        "ogcfeat": "Dáta pre nástroje GIS (OGC API – Features).",
+        "sta": "Merania senzorov cez OGC SensorThings API.",
+        "odata": "Dáta pre Excel a Power BI (OData).",
+        "websocket": "Živé aktualizácie pri každej zmene dát.",
+        "model": "Dátový model vo formáte {format}."
+      },
+      "forDevelopers": "Pre vývojárov"
     },
     "use": {
       "title": "Použiť tieto dáta",
