@@ -12,7 +12,7 @@ function CopyBlock({ label, code }: { label: string; code: string }): JSX.Elemen
   const [copied, setCopied] = useState(false);
   return (
     <div className="flex flex-col gap-1">
-      <pre id={id} className="overflow-x-auto whitespace-pre rounded bg-surface-muted p-3 font-mono text-caption">
+      <pre id={id} tabIndex={0} className="focus-ring overflow-x-auto whitespace-pre rounded bg-surface-muted p-3 font-mono text-caption">
         {code}
       </pre>
       <div className="flex items-center gap-2">

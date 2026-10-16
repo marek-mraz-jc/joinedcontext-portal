@@ -113,6 +113,42 @@ test("a viewer may not queue a crawl, and a steward's crawl now is queued once",
   }
 });
 
+// T-4185: a file of a `source: upload`, uploaded, listed and removed again, so dev keeps what it had.
+test("a viewer may not upload a file, and a steward's file is read, listed and removed", async ({ browser }) => {
+  const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/knowledge?lang=en`);
+  const viewer = await signIn(browser, VIEWER, `/projects/${PROJECT}/knowledge?lang=en`);
+  try {
+    const sources = await steward.page.request.get(`/api/v1/projects/${PROJECT}/knowledge/sources`);
+    const listed = sources.ok() ? ((await sources.json()) as { items: { source: string; type: string }[] }).items : [];
+    const source = listed.find((item) => item.type === "upload")?.source ?? "files";
+    const files = `/api/v1/projects/${PROJECT}/knowledge/sources/${source}/files`;
+    const name = `e2e-${Date.now()}.md`;
+    const body = Buffer.from("# Odvoz odpadu\n\nKomunálny odpad vyvážame v utorok.\n");
+    const send = (page: Page, token: string) =>
+      page.request.post(`${files}?name=${encodeURIComponent(name)}`, {
+        headers: { "x-csrf-token": token, "content-type": "application/octet-stream" },
+        data: body,
+      });
+    expect([403, 404]).toContain((await send(viewer.page, await csrf(viewer.context))).status());
+    if (!sources.ok() || !listed.some((item) => item.type === "upload")) return;
+    const token = await csrf(steward.context);
+    const added = await send(steward.page, token);
+    expect(added.status()).toBe(201);
+    const file = (await added.json()) as { id: number; name: string; passages: number };
+    expect(file).toMatchObject({ name });
+    expect(file.passages).toBeGreaterThan(0);
+    const after = (await (await steward.page.request.get(files)).json()) as { items: { id: number }[] };
+    expect(after.items.map((item) => item.id)).toContain(file.id);
+    const removed = await steward.page.request.delete(`${files}/${file.id}`, { headers: { "x-csrf-token": token } });
+    expect(removed.status()).toBe(204);
+    const gone = (await (await steward.page.request.get(files)).json()) as { items: { id: number }[] };
+    expect(gone.items.map((item) => item.id)).not.toContain(file.id);
+  } finally {
+    await steward.context.close();
+    await viewer.context.close();
+  }
+});
+
 test("a question outside the contract and an unknown assistant are refused before anything is spent", async ({ browser }) => {
   const { context, page } = await signIn(browser, VIEWER, `/projects/${PROJECT}/knowledge?lang=en`);
   try {

@@ -128,6 +128,15 @@ function grid(mode: "view" | "edit") {
 }
 
 describe("an enum column in the grid", () => {
+  it("reads a stored value as its title, and one outside the enum as written (T-4200)", async () => {
+    grid("view");
+    // The filter row's options say the titles too; the cells are what is asked about here.
+    const cell = { ignore: "option, script, style" };
+    expect(await screen.findByText("Traffic", cell)).toBeInTheDocument();
+    expect(screen.queryByText("traffic", cell)).toBeNull();
+    expect(screen.getByText("roadworks", cell)).toBeInTheDocument();
+  });
+
   it("edits by picking exactly the permissible values, showing titles and storing the value", async () => {
     const { written } = grid("edit");
     const cells = await screen.findAllByLabelText(`${DEFAULT_LABELS.edit} Category`);
@@ -177,7 +186,7 @@ describe("an enum column in the grid", () => {
 
   it("filters with a multi-select that asks the endpoint for any of the picked values", async () => {
     const { asked } = grid("view");
-    await screen.findByText("traffic");
+    await screen.findByText("roadworks");
     fireEvent.change(screen.getByLabelText(`${DEFAULT_LABELS.filter}: Category`), { target: { value: "anyOf" } });
     const picker = screen.getByLabelText(`${DEFAULT_LABELS.value}: Category`) as HTMLSelectElement;
     expect(picker.multiple).toBe(true);

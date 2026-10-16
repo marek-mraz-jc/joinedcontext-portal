@@ -26,6 +26,7 @@ import type { BadgeTone } from "../../components/ui";
 import { knowledgeKeys, listSources, listUsage, recrawl, timeText } from "./knowledge";
 import type { KnowledgeSourceRow } from "./knowledge";
 import { AssistantChat, EmbedSnippet } from "./AssistantChat";
+import { sum } from "./IndexStatus";
 
 /** The sentence an `ApiError` carries, or the generic one. */
 export function reasonOf(error: unknown, fallback: string): string {
@@ -33,7 +34,7 @@ export function reasonOf(error: unknown, fallback: string): string {
 }
 
 /** How a source stands: never crawled, waiting, being read, read, or failed with its reason. */
-function standing(row: KnowledgeSourceRow): { key: string; tone: BadgeTone } {
+export function standing(row: KnowledgeSourceRow): { key: string; tone: BadgeTone } {
   if (row.state === "not-crawled" && !row.job) return { key: "knowledge.state.notCrawled", tone: "neutral" };
   switch (row.job?.state) {
     case "queued":
@@ -118,6 +119,18 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
         <EmptyState title={t("knowledge.empty")} description={t("knowledge.emptyHint")} icon="search" action={addSource} />
       ) : null}
       {rows.length > 0 ? (
+        <p role="status" className="text-caption text-fg-muted">
+          {t("knowledge.index.totals", {
+            pages: sum(rows, "pages"),
+            files: sum(rows, "documents"),
+            embedded: sum(rows, "embedded"),
+            passages: sum(rows, "passages"),
+            pending: sum(rows, "pending"),
+            failed: sum(rows, "failed"),
+          })}
+        </p>
+      ) : null}
+      {rows.length > 0 ? (
         <Table data-records="" caption={t("knowledge.sources")}>
           <TableHead>
             <TableHeaderCell>{t("knowledge.column.source")}</TableHeaderCell>
@@ -137,7 +150,8 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
               return (
                 <TableRow key={row.source}>
                   <TableCell className="font-mono">
-                    {row.state === "crawled" ? (
+                    {/* An upload source opens before its first file: that page is where it is sent (T-4185). */}
+                    {row.state === "crawled" || row.type === "upload" ? (
                       <Link
                         to="/projects/$project/knowledge/$source"
                         params={{ project, source: row.source }}
@@ -182,6 +196,7 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
                       : "—"}
                   </TableCell>
                   <TableCell align="right">
+                    {row.type === "upload" ? null : (
                     <PermissionGuard project={project} kind="KnowledgeSource" verb="propose">
                       <Button
                         variant="secondary"
@@ -198,6 +213,7 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
                         {t("knowledge.recrawl")}
                       </Button>
                     </PermissionGuard>
+                    )}
                   </TableCell>
                 </TableRow>
               );
@@ -217,6 +233,7 @@ interface DeploymentItem {
     channel?: string;
     sources?: string[];
     connectors?: { endpoint: string }[];
+    languages?: string[];
   };
 }
 
@@ -362,7 +379,7 @@ function Assistants({ project }: { project: string }): JSX.Element {
         title={t("knowledge.embed.of", { name: embedOf?.metadata.name ?? "" })}
         closeLabel={t("app.close")}
       >
-        {embedOf?.spec.publicId ? <EmbedSnippet publicId={embedOf.spec.publicId} title={embedOf.metadata.name} /> : null}
+        {embedOf?.spec.publicId ? <EmbedSnippet publicId={embedOf.spec.publicId} title={embedOf.metadata.name} language={embedOf.spec.languages?.[0]} /> : null}
       </Dialog>
     </section>
   );

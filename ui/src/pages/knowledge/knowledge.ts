@@ -7,11 +7,14 @@ export interface SourceJob {
   state: "queued" | "running" | "done" | "failed";
   attempts: number;
   error: string | null;
+  /** When a worker took the job up, and when it ended (T-4197). */
+  startedAt?: string | null;
+  finishedAt?: string | null;
 }
 
 export interface KnowledgeSourceRow {
   source: string;
-  type: "website" | "ckan" | "catalogue" | "guide";
+  type: "website" | "ckan" | "catalogue" | "guide" | "upload";
   state: "crawled" | "not-crawled";
   startUrls: string[];
   ckanInstanceRef: string | null;
@@ -25,6 +28,10 @@ export interface KnowledgeSourceRow {
   documents?: number;
   passages?: number;
   embedded?: number;
+  /** Passages not searchable yet: stored, still waiting for their embedding (T-4197). */
+  pending?: number;
+  /** Pages and documents whose last read failed. */
+  failed?: number;
   job?: SourceJob | null;
 }
 
@@ -69,6 +76,13 @@ export interface LinkRow {
   kind: "page" | "document" | "external";
 }
 
+/** A page or document whose last read failed, and why (API/05 §3, T-4197). */
+export interface CrawlError {
+  url: string;
+  kind: "page" | "document";
+  reason: string;
+}
+
 export interface InclusionChange {
   pages: number[];
   documents: number[];
@@ -99,6 +113,8 @@ export const knowledgeKeys = {
   documents: (project: string, source: string) => ["projects", project, "knowledge", "sources", source, "documents"] as const,
   passages: (project: string, source: string, owner: { page?: number; document?: number }) =>
     ["projects", project, "knowledge", "sources", source, "passages", owner.page ?? null, owner.document ?? null] as const,
+  errors: (project: string, source: string) => ["projects", project, "knowledge", "sources", source, "errors"] as const,
+  files: (project: string, source: string) => ["projects", project, "knowledge", "sources", source, "files"] as const,
   links: (project: string, source: string, page: number) =>
     ["projects", project, "knowledge", "sources", source, "links", page] as const,
 };
@@ -164,10 +180,72 @@ export async function setInclusion(project: string, source: string, change: Incl
   return { pages: counts?.pages ?? 0, documents: counts?.documents ?? 0, passagesRemoved: counts?.passagesRemoved ?? 0 };
 }
 
+export async function listErrors(project: string, source: string): Promise<CrawlError[]> {
+  return items<CrawlError>(
+    await unwrap(
+      await api.GET("/api/v1/projects/{project}/knowledge/sources/{source}/errors", {
+        params: { path: { project, source } },
+      }),
+    ),
+  );
+}
+
 export async function recrawl(project: string, source: string): Promise<void> {
   await unwrap(
     await api.POST("/api/v1/projects/{project}/knowledge/sources/{source}/recrawl", {
       params: { path: { project, source } },
+    }),
+  );
+}
+
+/** A file an administrator uploaded to a `source: upload` (API/05 §3, T-4184). */
+export interface UploadedFile {
+  id: number;
+  name: string;
+  mime: string | null;
+  bytes: number | null;
+  passages: number;
+  status: PageRow["status"];
+}
+
+/** The file types an upload source reads (API/05 §3): checked again by content on the server. */
+export const UPLOAD_ACCEPT = ".pdf,.docx,.xlsx,.csv,.md,.txt";
+
+export async function listFiles(project: string, source: string): Promise<UploadedFile[]> {
+  return items<UploadedFile>(
+    await unwrap(
+      await api.GET("/api/v1/projects/{project}/knowledge/sources/{source}/files", {
+        params: { path: { project, source } },
+      }),
+    ),
+  );
+}
+
+/** Sends the file's bytes as they are; the Portal's sentence comes back as an `ApiError`. */
+export async function uploadFile(project: string, source: string, file: Blob, name: string): Promise<UploadedFile> {
+  const headers: Record<string, string> = { "Content-Type": "application/octet-stream" };
+  const csrf = readCsrfToken();
+  if (csrf) headers["x-csrf-token"] = csrf;
+  const response = await globalThis.fetch(
+    new Request(
+      `${window.location.origin}/api/v1/projects/${encodeURIComponent(project)}/knowledge/sources/${encodeURIComponent(source)}/files?name=${encodeURIComponent(name)}`,
+      { method: "POST", credentials: "same-origin", headers, body: await file.arrayBuffer() },
+    ),
+  );
+  const answer: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const problem = answer as ProblemDetails | null;
+    const detail = typeof problem?.detail === "string" ? problem.detail : `HTTP ${response.status}`;
+    throw new ApiError(response.status, detail, problem ?? undefined, response.headers.get("x-request-id") ?? undefined);
+  }
+  if (!answer) throw new ApiError(response.status, "the upload answered nothing");
+  return answer as UploadedFile;
+}
+
+export async function removeFile(project: string, source: string, id: number): Promise<void> {
+  await unwrap(
+    await api.DELETE("/api/v1/projects/{project}/knowledge/sources/{source}/files/{id}", {
+      params: { path: { project, source, id } },
     }),
   );
 }
@@ -238,11 +316,77 @@ export type ChatEvent =
   | { name: "script"; code: string; output?: string; error?: string }
   | { name: "answer"; text: string }
   | { name: "citations"; citations: Citation[] }
+  | { name: "data"; data: DataTable }
   | { name: "error"; detail: string }
   | { name: "done"; tokens: number };
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+/** A `data` event's rows (API/05 §1.3, T-4140): at most 50, its links only when http(s). */
+export interface DataTable {
+  caption: string;
+  columns: string[];
+  rows: unknown[][];
+  dataset?: string;
+  download?: string;
+}
+
+function webUrl(value: unknown): string | undefined {
+  return typeof value === "string" && /^https?:\/\//.test(value) ? value : undefined;
+}
+
+function dataTable(d: Record<string, unknown>): DataTable | null {
+  if (!Array.isArray(d.columns) || d.columns.length === 0) return null;
+  const columns = d.columns.map((c) => (typeof c === "string" ? c : JSON.stringify(c)));
+  const rows = (Array.isArray(d.rows) ? d.rows : []).filter(Array.isArray).slice(0, 50) as unknown[][];
+  return { caption: text(d.type), columns, rows, dataset: webUrl(d.dataset), download: webUrl(d.download) };
+}
+
+/** One cell as text: nothing for null, JSON for an object. */
+export function cellText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return typeof value === "object" ? JSON.stringify(value) : String(value);
+}
+
+export interface DataChart {
+  kind: "line" | "bar";
+  value: string;
+  by: string;
+  points: { label: string; value: number }[];
+}
+
+const TIME = /^\d{4}-\d{2}-\d{2}(?:[T ][\d:.]+(?:Z|[+-]\d{2}:?\d{2})?)?$/;
+
+/**
+ * The widget's chart rule (T-4198, crates/assistant/widget/render.js `chart`): exactly one column
+ * holds numbers and another names them; a line over time when every name is a date, else bars; at
+ * most 50 points, a value that is no finite number skipped; null otherwise and under two points.
+ */
+export function dataChart(table: DataTable): DataChart | null {
+  const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+  const numeric = table.columns.map((_, i) => {
+    const numbers = table.rows.filter((row) => finite(row[i])).length;
+    const words = table.rows.filter((row) => typeof row[i] === "string" && (row[i] as string).trim() !== "").length;
+    return numbers > 0 && numbers > words;
+  });
+  const values = numeric.flatMap((yes, i) => (yes ? [i] : []));
+  if (values.length !== 1) return null;
+  const named = table.columns.map((_, i) => i).filter((i) => !numeric[i]);
+  const time = named.find((i) =>
+    table.rows.every((row) => typeof row[i] === "string" && TIME.test(row[i] as string) && Number.isFinite(Date.parse(row[i] as string))),
+  );
+  const by = time ?? named[0];
+  if (by === undefined) return null;
+  const v = values[0];
+  const points = table.rows
+    .filter((row) => finite(row[v]))
+    .slice(0, 50)
+    .map((row) => ({ label: cellText(row[by]).slice(0, 40), value: row[v] as number }));
+  if (time !== undefined) points.sort((a, b) => Date.parse(a.label) - Date.parse(b.label));
+  if (points.length < 2) return null;
+  return { kind: time !== undefined ? "line" : "bar", value: table.columns[v], by: table.columns[by], points };
 }
 
 /** One event block's name and data as a `ChatEvent`; `null` for one this panel does not show. */
@@ -277,6 +421,10 @@ function chatEvent(name: string, data: unknown): ChatEvent | null {
             title: typeof c.title === "string" ? c.title : undefined,
           })),
       };
+    case "data": {
+      const table = dataTable(d);
+      return table ? { name, data: table } : null;
+    }
     case "error":
       return { name, detail: text(d.detail) };
     case "done":
@@ -357,6 +505,16 @@ export async function askAssistant(
     events.forEach(onEvent);
   }
   readEvents(`${buffer}${decoder.decode()}\n\n`).events.forEach(onEvent);
+}
+
+/**
+ * The one line a city site includes to get the assistant's corner button (T-4138, T-4196): the
+ * launcher of this deployment on the assistant's host, in the deployment's first language. It
+ * names only the public deployment; the chat answers on its allowed origins alone.
+ */
+export function launcherSnippet(domain: string, publicId: string, language?: string): string {
+  const lang = language && /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(language) ? ` data-lang="${language}"` : "";
+  return `<script src="https://assistant.${domain}/d/${publicId}/embed.js"${lang} defer></script>`;
 }
 
 /** The iframe a site pastes to place a public assistant (API/05 §1.6). */

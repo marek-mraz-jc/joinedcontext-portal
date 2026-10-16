@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { ConfigError, parseConfig, readConfig } from "../src/sdk/config";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ConfigError, parseConfig, readConfig, visitorLanguage } from "../src/sdk/config";
 
 describe("sdk config", () => {
   it("parses valid config with all options and defaults", () => {
@@ -83,6 +83,42 @@ describe("sdk config", () => {
     expect(cfg.slug).toBe("demo");
     expect(cfg.endpointName).toBe("demo");
     expect(cfg.language).toBe("en");
+  });
+
+  describe("the visitor's language (T-4199)", () => {
+    const page = (config: Record<string, unknown>) => {
+      document.getElementById("jc-config")?.remove();
+      const script = document.createElement("script");
+      script.id = "jc-config";
+      script.type = "application/json";
+      script.textContent = JSON.stringify({ slug: "demo", orgDomain: "example.org", space: "main", transport: "bridge", ...config });
+      document.head.appendChild(script);
+      return document;
+    };
+    afterEach(() => {
+      window.history.replaceState(null, "", "/");
+      vi.restoreAllMocks();
+      document.getElementById("jc-config")?.remove();
+    });
+
+    it("takes ?lang= first, then the browser's languages, then the page's lang", () => {
+      const nav = (languages: string[]) => ({ languages, language: languages[0] });
+      expect(visitorLanguage({ location: { search: "?lang=sk" }, navigator: nav(["en-US"]) })).toBe("sk");
+      expect(visitorLanguage({ location: { search: "" }, navigator: nav(["sk-SK", "en"]) })).toBe("sk");
+      expect(visitorLanguage({ location: { search: "?lang=<x>" }, navigator: nav(["cs"]) })).toBe("cs");
+      const doc = document.implementation.createHTMLDocument();
+      doc.documentElement.lang = "fi";
+      expect(visitorLanguage({ location: { search: "" }, navigator: nav([]), document: doc })).toBe("fi");
+      expect(visitorLanguage({ location: { search: "" }, navigator: nav([]) })).toBeUndefined();
+    });
+
+    it("a config with no language speaks the visitor's, a configured one yields only to ?lang=", () => {
+      vi.spyOn(window.navigator, "languages", "get").mockReturnValue(["sk-SK", "en"]);
+      expect(readConfig(page({})).language).toBe("sk");
+      expect(readConfig(page({ language: "en" })).language).toBe("en");
+      window.history.replaceState(null, "", "/?lang=cs");
+      expect(readConfig(page({ language: "en" })).language).toBe("cs");
+    });
   });
 
   it("throws ConfigError when #jc-config element is missing", () => {

@@ -47,6 +47,8 @@ pub enum ApiError {
     VerdictRequired(serde_json::Value),
     #[error("unsupported media type: {0}")]
     UnsupportedMediaType(String),
+    #[error("payload too large: {0}")]
+    TooLarge(String),
     #[error("too many requests: {0}")]
     TooManyRequests(String),
     #[error("service unavailable: {0}")]
@@ -122,6 +124,12 @@ impl IntoResponse for ApiError {
                 StatusCode::UNSUPPORTED_MEDIA_TYPE,
                 "unsupported-media-type",
                 "Unsupported Media Type",
+                Some(msg),
+            ),
+            Self::TooLarge(msg) => (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "payload-too-large",
+                "Payload Too Large",
                 Some(msg),
             ),
             Self::TooManyRequests(msg) => (
