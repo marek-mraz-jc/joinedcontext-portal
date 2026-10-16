@@ -212,9 +212,9 @@ describe("Roles (PF-68)", () => {
     renderTab("roles");
     await user.click(await screen.findByRole("button", { name: en.access.projectRoles.new }));
     const dialog = await screen.findByRole("dialog", { name: en.access.projectRoles.newTitle });
-    await waitFor(() => expect(within(dialog).getAllByRole("option", { name: "Pipeline" }).length).toBeGreaterThan(0));
+    await waitFor(() => expect(within(dialog).getAllByRole("checkbox", { name: "Pipeline" }).length).toBeGreaterThan(0));
     for (const kind of NOT_IN_A_PROJECT) {
-      expect(within(dialog).queryByRole("option", { name: kind })).not.toBeInTheDocument();
+      expect(within(dialog).queryByRole("checkbox", { name: kind })).not.toBeInTheDocument();
     }
   });
 });

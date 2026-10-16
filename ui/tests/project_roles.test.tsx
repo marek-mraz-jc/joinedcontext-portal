@@ -117,14 +117,9 @@ async function fillTheRole(
     within(dialog).getByLabelText(new RegExp(en.access.projectRoles.field.name)),
     "air-steward",
   );
-  await user.selectOptions(
-    within(dialog).getByLabelText(new RegExp(en.access.projectRoles.field.kinds)),
-    ["Pipeline"],
-  );
-  await user.selectOptions(
-    within(dialog).getByLabelText(new RegExp(en.access.projectRoles.field.verbs)),
-    [en.choice.verb.propose],
-  );
+  // Kinds and verbs are checkboxes, ticked one by one (T-4213).
+  await user.click(within(dialog).getByRole("checkbox", { name: "Pipeline" }));
+  await user.click(within(dialog).getByRole("checkbox", { name: en.choice.verb.propose }));
 }
 
 describe("the roles of a project on the Access page", () => {
