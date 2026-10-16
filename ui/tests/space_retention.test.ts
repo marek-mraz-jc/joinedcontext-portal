@@ -41,4 +41,20 @@ describe("retention durations (DM-82)", () => {
       ]),
     ).toEqual([{ entityType: "Vehicle", history: "PT8H" }]);
   });
+
+  it("counts history off as the shortest history, and keeps off, forever and its reason as written (T-4275)", () => {
+    const held = [{ entityType: "Vehicle", history: "P30D" }];
+    expect(shortens(held, [{ entityType: "Vehicle", history: "off" }])).toBe(true);
+    expect(shortens([], [{ entityType: "Stop", history: "off" }])).toBe(true);
+    expect(shortens([{ entityType: "Stop", history: "off" }], [{ entityType: "Stop", history: "PT1M" }])).toBe(false);
+    expect(
+      written([
+        { entityType: "Vehicle", history: "off" },
+        { entityType: "Stop", history: "forever", reason: "the archive is the dataset" },
+      ]),
+    ).toEqual([
+      { entityType: "Vehicle", history: "off" },
+      { entityType: "Stop", history: "forever", reason: "the archive is the dataset" },
+    ]);
+  });
 });

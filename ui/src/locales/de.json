@@ -998,7 +998,7 @@
     },
     "retention": {
       "title": "Aufbewahrung",
-      "lead": "Wie lange dieser Raum die Daten jedes Typs aufbewahrt. Ein Typ ohne Regel wird für immer aufbewahrt; eine kürzere Regel löscht Daten endgültig.",
+      "lead": "Wie lange dieser Raum die Daten jedes Typs aufbewahrt. Ein Typ ohne Regel wird für immer aufbewahrt; eine kürzere Regel oder ein ausgeschalteter Verlauf löscht Daten endgültig.",
       "noTypes": "Das Modell des Raums nennt noch keine Typen.",
       "caption": "Wie lange die Daten jedes Typs aufbewahrt werden",
       "type": "Typ",
@@ -1032,7 +1032,10 @@
       "wouldDelete": {
         "entity": "{type}: {count, plural, one {# aktueller Wert} other {# aktuelle Werte}}",
         "history": "{type}: {count, plural, one {# Verlaufseintrag} other {# Verlaufseinträge}}"
-      }
+      },
+      "off": "Aus: kein Verlauf",
+      "offShown": "Aus",
+      "foreverAsNow": "Für immer behalten (wie bisher)"
     },
     "upload": {
       "open": "CSV hochladen",

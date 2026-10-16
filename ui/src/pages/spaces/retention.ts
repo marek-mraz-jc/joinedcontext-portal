@@ -17,8 +17,16 @@ export interface Keep {
 export interface RetentionRule {
   entityType: string;
   current?: string;
+  /** A duration, `off` (current state only, T-4275) or `forever` with a `reason`. */
   history?: string;
+  /** Why the type keeps its whole history: only with `history: forever`. */
+  reason?: string;
 }
+
+/** The history of a type that keeps its current state only (T-4275). */
+export const HISTORY_OFF = "off";
+/** The history of a type that keeps it all, which the manifest states with a reason. */
+export const HISTORY_FOREVER = "forever";
 
 const SECONDS: Record<Unit, number> = { minutes: 60, hours: 3600, days: 86_400 };
 const LONGEST = 3650 * 86_400;
@@ -51,7 +59,8 @@ export function fromIso(iso: string): Keep | undefined {
 /** Whether `draft` keeps anything shorter than `held` does: a confirmation is owed (DM-85). */
 export function shortens(held: RetentionRule[], draft: RetentionRule[]): boolean {
   const forever = Number.POSITIVE_INFINITY;
-  const length = (iso?: string) => (iso === undefined ? forever : (seconds(iso) ?? forever));
+  const length = (iso?: string) =>
+    iso === HISTORY_OFF ? 0 : iso === undefined ? forever : (seconds(iso) ?? forever);
   return draft.some((rule) => {
     const before = held.find((one) => one.entityType === rule.entityType);
     return (
@@ -64,9 +73,10 @@ export function shortens(held: RetentionRule[], draft: RetentionRule[]): boolean
 export function written(rules: RetentionRule[]): RetentionRule[] {
   return rules
     .filter((rule) => rule.current !== undefined || rule.history !== undefined)
-    .map(({ entityType, current, history }) => ({
+    .map(({ entityType, current, history, reason }) => ({
       entityType,
       ...(current === undefined ? {} : { current }),
       ...(history === undefined ? {} : { history }),
+      ...(history === HISTORY_FOREVER && reason !== undefined ? { reason } : {}),
     }));
 }

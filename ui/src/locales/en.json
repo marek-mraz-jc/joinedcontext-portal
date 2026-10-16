@@ -998,7 +998,7 @@
     },
     "retention": {
       "title": "Retention",
-      "lead": "How long this space keeps each type's data. A type without a rule is kept forever; a shorter rule deletes data for good.",
+      "lead": "How long this space keeps each type's data. A type without a rule is kept forever; a shorter rule, or history turned off, deletes data for good.",
       "noTypes": "The space's model names no types yet.",
       "caption": "How long each type's data is kept",
       "type": "Type",
@@ -1032,7 +1032,10 @@
       "wouldDelete": {
         "entity": "{type}: {count, plural, one {# current value} other {# current values}}",
         "history": "{type}: {count, plural, one {# history record} other {# history records}}"
-      }
+      },
+      "off": "Off: no history",
+      "offShown": "Off",
+      "foreverAsNow": "Keep forever (as now)"
     },
     "upload": {
       "open": "Upload CSV",
