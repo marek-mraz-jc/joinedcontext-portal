@@ -27,11 +27,22 @@ const ATTRIBUTES: [&str; 5] = ["location", "heading", "speed", "route", "transpo
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
 /// Where the last socket left off, so the next one resumes instead of starting over.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 struct Resume {
     connection: String,
     token: String,
     seq: u64,
+}
+
+/// The resume secret stays out of every log line.
+impl std::fmt::Debug for Resume {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Resume")
+            .field("connection", &self.connection)
+            .field("token", &"[redacted]")
+            .field("seq", &self.seq)
+            .finish()
+    }
 }
 
 /// `{endpoint}ws`, with the scheme a WebSocket client speaks.
@@ -268,6 +279,19 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_resume_debug_never_shows_the_token() {
+        let resume = Resume {
+            token: "s3cr3t-test".into(),
+            ..Resume::default()
+        };
+        let text = format!("{resume:?}");
+        assert!(
+            !text.contains("s3cr3t-test") && text.contains("[redacted]"),
+            "{text}"
+        );
+    }
 
     #[test]
     fn the_socket_url_follows_the_endpoints_scheme() {

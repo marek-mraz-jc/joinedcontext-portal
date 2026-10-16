@@ -65,7 +65,7 @@ pub struct RotateRequest {
 }
 
 /// A minted key. The only place a raw token ever appears (PF-36).
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MintedKey {
     pub key_id: String,
@@ -74,6 +74,18 @@ pub struct MintedKey {
     pub credential: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<String>,
+}
+
+/// Serialize carries the token to its one reader; Debug never does (T-4321).
+impl std::fmt::Debug for MintedKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MintedKey")
+            .field("key_id", &self.key_id)
+            .field("token", &"[redacted]")
+            .field("credential", &self.credential)
+            .field("expires_at", &self.expires_at)
+            .finish()
+    }
 }
 
 /// What a key claim will do once its person confirms it (PF-104).
@@ -838,6 +850,19 @@ pub fn router() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_minted_key_debug_never_shows_the_token() {
+        let key = MintedKey {
+            key_id: "k1".into(),
+            token: "jc_k1_s3cr3t-test".into(),
+            credential: "c1".into(),
+            expires_at: None,
+        };
+        let text = format!("{key:?}");
+        assert!(!text.contains("s3cr3t-test"), "{text}");
+        assert!(text.contains("k1") && text.contains("[redacted]"), "{text}");
+    }
     use argon2::password_hash::{PasswordHash, PasswordVerifier};
 
     fn spec() -> serde_json::Value {

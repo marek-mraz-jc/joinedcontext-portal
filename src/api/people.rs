@@ -134,7 +134,7 @@ pub struct EditPerson {
 }
 
 /// The one answer that may carry a temporary password, once (PF-92).
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreatedPerson {
     pub person: Person,
@@ -143,12 +143,36 @@ pub struct CreatedPerson {
     pub temporary_password: Option<String>,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PasswordReset {
     pub email_sent: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temporary_password: Option<String>,
+}
+
+/// Whether a temporary password was set, never which (T-4321).
+fn redacted(password: &Option<String>) -> Option<&'static str> {
+    password.as_ref().map(|_| "[redacted]")
+}
+
+impl std::fmt::Debug for CreatedPerson {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CreatedPerson")
+            .field("person", &self.person)
+            .field("email_sent", &self.email_sent)
+            .field("temporary_password", &redacted(&self.temporary_password))
+            .finish()
+    }
+}
+
+impl std::fmt::Debug for PasswordReset {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PasswordReset")
+            .field("email_sent", &self.email_sent)
+            .field("temporary_password", &redacted(&self.temporary_password))
+            .finish()
+    }
 }
 
 fn people(state: &AppState) -> Result<&People, ApiError> {
@@ -1409,6 +1433,26 @@ pub fn router() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_created_person_and_a_reset_never_show_the_temporary_password() {
+        let user: KcUser = serde_json::from_value(serde_json::json!({"id": "p1"})).unwrap();
+        let created = CreatedPerson {
+            person: person(&user, None, None),
+            email_sent: false,
+            temporary_password: Some("s3cr3t-test".into()),
+        };
+        let reset = PasswordReset {
+            email_sent: false,
+            temporary_password: Some("s3cr3t-test".into()),
+        };
+        for text in [format!("{created:?}"), format!("{reset:?}")] {
+            assert!(
+                !text.contains("s3cr3t-test") && text.contains("[redacted]"),
+                "{text}"
+            );
+        }
+    }
 
     #[test]
     fn an_email_is_trimmed_lowered_and_shaped() {

@@ -244,6 +244,12 @@ spec:
         sk: Zaškrtnite zdroje, z ktorých odpovedá; každý je pod projektom, ktorému patrí.
         cs: Zaškrtněte zdroje, ze kterých odpovídá; každý je pod projektem, kterému patří.
         de: Haken Sie die Quellen an, aus denen er antwortet; jede steht unter ihrem Projekt.
+    connectors:
+      help:
+        en: One entry per Endpoint, with the tools allowed on it and a time limit for each call.
+        sk: Jedna položka na endpoint, s povolenými nástrojmi a časovým limitom každého volania.
+        cs: Jedna položka na endpoint, s povolenými nástroji a časovým limitem každého volání.
+        de: Ein Eintrag je Endpoint, mit den erlaubten Werkzeugen und einer Zeitgrenze je Aufruf.
     connectors[].endpoint:
       help:
         en: An Endpoint of this project whose live data the assistant may read; a public channel reads public Endpoints only.
