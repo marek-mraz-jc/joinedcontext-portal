@@ -125,6 +125,23 @@ export function knowledgeSourceSchema(t: (key: string) => string, catalogues: st
   };
 }
 
+/** One text, or one per language of `languages`, as jc-core takes `theme.title` and `theme.greeting` (T-4365). */
+function localised(t: (key: string) => string, title: string, minLength: number, maxLength: number): JsonSchema {
+  return {
+    title,
+    anyOf: [
+      { type: "string", title: t("knowledge.field.oneText"), minLength, maxLength },
+      {
+        type: "object",
+        title: t("knowledge.field.perLanguage"),
+        propertyNames: { pattern: LANGUAGE },
+        additionalProperties: { type: "string", minLength: 1, maxLength },
+        minProperties: 1,
+      },
+    ],
+  };
+}
+
 export function assistantDeploymentSchema(
   t: (key: string) => string,
   sources: string[] = [],
@@ -239,9 +256,9 @@ export function assistantDeploymentSchema(
         type: "object",
         title: t("knowledge.field.theme"),
         properties: {
-          title: { type: "string", title: t("knowledge.field.themeTitle"), minLength: 1, maxLength: 60 },
+          title: localised(t, t("knowledge.field.themeTitle"), 1, 60),
           primaryColor: { type: "string", title: t("knowledge.field.primaryColor"), pattern: HEX_COLOR },
-          greeting: { type: "string", title: t("knowledge.field.greeting"), maxLength: 500 },
+          greeting: localised(t, t("knowledge.field.greeting"), 0, 500),
         },
       },
       languages: {

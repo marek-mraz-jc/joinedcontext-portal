@@ -108,6 +108,18 @@ describe("the public assistant's settings", () => {
     );
   });
 
+  // T-4365: the header's title and the greeting, one text or one per language.
+  it("take the title and the greeting as one text or one per language", () => {
+    const theme = (value: Record<string, unknown>) => errorsOf({ ...base, channel: "internal", theme: value });
+    expect(theme({ title: "data.dev", greeting: "Dobrý deň!" })).toEqual([]);
+    expect(theme({ title: { sk: "Mesto", en: "City" }, greeting: { sk: "Dobrý deň!", en: "Hello!" } })).toEqual([]);
+    expect(theme({ greeting: "" })).toEqual([]);
+    expect(theme({ greeting: { english: "Hello!" } })).not.toEqual([]);
+    expect(theme({ greeting: { en: "x".repeat(501) } })).not.toEqual([]);
+    expect(theme({ title: {} })).not.toEqual([]);
+    expect(theme({ title: "x".repeat(61) })).not.toEqual([]);
+  });
+
   it("offer only the tools the assistant calls, none that writes", () => {
     expect(ENDPOINT_TOOLS).toContain("query_entities");
     expect(ENDPOINT_TOOLS.filter((tool) => /create|update|delete|upsert|append|batch/.test(tool))).toEqual([]);
