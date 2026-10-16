@@ -79,6 +79,13 @@ const MODEL_KEY_VALID: &str = "jc_model_key_valid";
 const MODEL_KEY_LIMIT: &str = "jc_model_key_limit";
 const MODEL_KEY_REMAINING: &str = "jc_model_key_remaining";
 
+/// Run-and-delete pipelines waiting in the run queue, by lane (PL-78).
+const PIPELINE_QUEUE_DEPTH: &str = "jc_pipeline_queue_depth";
+/// Seconds one queued pipeline run held the runner, by outcome (PL-78).
+const PIPELINE_RUN_SECONDS: &str = "jc_pipeline_run_seconds";
+/// Up to the 15 min a run may take.
+const PIPELINE_RUN_BUCKETS: &[f64] = &[1.0, 5.0, 15.0, 30.0, 60.0, 120.0, 300.0, 600.0, 900.0];
+
 /// The paths that describe the process rather than the traffic.
 const UNCOUNTED: &[&str] = &["/metrics", "/api/v1/health"];
 
@@ -114,6 +121,11 @@ fn handle() -> &'static PrometheusHandle {
             .expect("the bucket list is not empty")
             .set_buckets_for_metric(Matcher::Full(MODEL_CALL_SECONDS.to_owned()), ANSWER_BUCKETS)
             .expect("the bucket list is not empty")
+            .set_buckets_for_metric(
+                Matcher::Full(PIPELINE_RUN_SECONDS.to_owned()),
+                PIPELINE_RUN_BUCKETS,
+            )
+            .expect("the bucket list is not empty")
             .install_recorder()
             .expect("this process installs the one recorder");
         metrics::describe_counter!(REQUESTS, "requests answered by the Portal");
@@ -132,6 +144,11 @@ fn handle() -> &'static PrometheusHandle {
         metrics::describe_counter!(MODEL_TOKENS, "model tokens, by run kind and part");
         metrics::describe_counter!(RUNS_FINISHED, "agent runs ended, by kind and status");
         metrics::describe_counter!(TOOL_STEPS, "assistant tool steps, by tool and outcome");
+        metrics::describe_gauge!(PIPELINE_QUEUE_DEPTH, "pipeline runs waiting, by lane");
+        metrics::describe_histogram!(
+            PIPELINE_RUN_SECONDS,
+            "seconds one pipeline run held the runner"
+        );
         metrics::describe_gauge!(MODEL_KEY_VALID, "1 when the model key works, 0 when not");
         metrics::describe_gauge!(
             MODEL_KEY_LIMIT,
@@ -222,6 +239,16 @@ pub fn model_call(kind: &str, usage: &serde_json::Value) {
 
 /// The model key's state as the proxy reported it (AG-96). A figure the provider did not give
 /// leaves its gauge as it was; a key without a limit has none to compare with.
+/// The run queue's waiting runs in one lane (PL-78).
+pub fn pipeline_queue_depth(lane: &'static str, waiting: usize) {
+    metrics::gauge!(PIPELINE_QUEUE_DEPTH, "lane" => lane).set(waiting as f64);
+}
+
+/// One queued pipeline run ended: `finished`, `failed` or `timeout` (PL-78).
+pub fn pipeline_run(outcome: &'static str, seconds: f64) {
+    metrics::histogram!(PIPELINE_RUN_SECONDS, "outcome" => outcome).record(seconds);
+}
+
 pub fn model_key(valid: bool, limit: Option<f64>, remaining: Option<f64>) {
     metrics::gauge!(MODEL_KEY_VALID).set(if valid { 1.0 } else { 0.0 });
     if let Some(limit) = limit {

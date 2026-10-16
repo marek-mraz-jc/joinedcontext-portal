@@ -23,6 +23,7 @@ pub mod mqtt_brokers;
 pub mod project_teams;
 pub mod realm;
 pub mod registrations;
+pub mod run_queue;
 pub mod stall;
 pub mod streams;
 pub mod subscriptions;

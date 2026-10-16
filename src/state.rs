@@ -756,8 +756,10 @@ impl AppState {
                 ),
             }
             if let Some(url) = state.config.pipeline_runner_url.clone() {
-                let deployer =
-                    StreamDeployer::new(url).with_pipeline_identity(state.config.pipeline_identity);
+                let (batch, short) = state.config.pipelines_concurrency;
+                let deployer = StreamDeployer::new(url)
+                    .with_pipeline_identity(state.config.pipeline_identity)
+                    .with_concurrency(batch, short);
                 // A refused record reaches the Portal on the listener the test harness reaches
                 // (PL-61); without that address the stream writes as it did, unvalidated.
                 let deployer = match state.config.pipeline_test_capture_url.clone() {
@@ -769,7 +771,10 @@ impl AppState {
                         deployer
                     }
                 };
-                syncer = syncer.with_streams(Arc::new(deployer));
+                let deployer = Arc::new(deployer);
+                // The run-and-delete pipelines run from the queue (PL-78).
+                Arc::clone(&deployer).spawn_queue();
+                syncer = syncer.with_streams(deployer);
             } else {
                 tracing::info!("no pipeline runner: DataSource pipelines stay Pending");
             }

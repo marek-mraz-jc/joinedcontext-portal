@@ -1458,6 +1458,15 @@ impl Syncer {
                         }
                         fresh_mirror.upsert(envelope);
                     }
+                    // Loaded only for its runs (PL-78): no counters to watch between them.
+                    StreamOutcome::Scheduled(reason, said) => {
+                        if let Some(status) = envelope.status.as_mut() {
+                            status.phase = crate::resource::Phase::Live;
+                            status.conditions =
+                                vec![make_condition("Scheduled", "True", reason, &said)];
+                        }
+                        fresh_mirror.upsert(envelope);
+                    }
                     StreamOutcome::Skipped(why) => {
                         if is_stream {
                             if let Some(status) = envelope.status.as_mut() {

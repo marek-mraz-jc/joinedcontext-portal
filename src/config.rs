@@ -74,6 +74,10 @@ pub struct Config {
     /// sidecar (`JC_PORTAL_PIPELINE_IDENTITY=pipeline`) rather than its project's `pipelines`
     /// account (`project`, the default), PL-19. Set once the federated mechanism is seen working.
     pub pipeline_identity: bool,
+    /// How many batch-lane and short-lane pipeline runs the runner holds at once
+    /// (`JC_PORTAL_PIPELINES_BATCH_CONCURRENCY`, `JC_PORTAL_PIPELINES_SHORT_CONCURRENCY`, default 1
+    /// each, PL-78).
+    pub pipelines_concurrency: (usize, usize),
     /// The namespace the pipelines' own Kubernetes ServiceAccounts live in
     /// (`JC_PORTAL_PIPELINE_NAMESPACE`, `{instance}-pipeline-identities`): set, the reconciler
     /// keeps one there per Pipeline and gives each derived account its federated client (PL-19,
@@ -305,6 +309,7 @@ impl std::fmt::Debug for Config {
             .field("smtp_url", &self.smtp_url.as_ref().map(|_| "[redacted]"))
             .field("mail_from", &self.mail_from)
             .field("pipeline_identity", &self.pipeline_identity)
+            .field("pipelines_concurrency", &self.pipelines_concurrency)
             .field("pipeline_namespace", &self.pipeline_namespace)
             .field("app_identity_namespace", &self.app_identity_namespace)
             .field("mqtt_namespace", &self.mqtt_namespace)
@@ -1340,6 +1345,23 @@ impl Config {
             }
         };
 
+        // PL-78: a lane runs at least one pipeline at a time; anything else stops the start-up.
+        let lane = |var: &'static str| match lookup(var).as_deref().map(str::trim) {
+            None | Some("") => Ok(1),
+            Some(text) => text
+                .parse::<usize>()
+                .ok()
+                .filter(|n| *n >= 1)
+                .ok_or_else(|| ConfigError::Invalid {
+                    var,
+                    reason: format!("`{text}` is not a whole number of at least 1"),
+                }),
+        };
+        let pipelines_concurrency = (
+            lane("JC_PORTAL_PIPELINES_BATCH_CONCURRENCY")?,
+            lane("JC_PORTAL_PIPELINES_SHORT_CONCURRENCY")?,
+        );
+
         let pipeline_namespace = lookup("JC_PORTAL_PIPELINE_NAMESPACE")
             .map(|v| v.trim().to_owned())
             .filter(|v| !v.is_empty());
@@ -1607,6 +1629,7 @@ impl Config {
             gitea_webhook_secret_previous,
             pipeline_runner_url,
             pipeline_identity,
+            pipelines_concurrency,
             pipeline_namespace,
             app_identity_namespace,
             mqtt_namespace,
@@ -1672,6 +1695,7 @@ impl Config {
             gitea_webhook_secret_previous: None,
             pipeline_runner_url: None,
             pipeline_identity: false,
+            pipelines_concurrency: (1, 1),
             pipeline_namespace: None,
             app_identity_namespace: None,
             mqtt_namespace: None,
@@ -1985,6 +2009,36 @@ mod tests {
             .expect_err("a typo is refused")
             .to_string();
         assert!(err.contains("JC_PORTAL_PIPELINE_IDENTITY"), "{err}");
+    }
+
+    /// PL-78: each lane runs one pipeline at a time until configured, and a count below one or a
+    /// word stops the start-up.
+    #[test]
+    fn each_pipeline_lane_runs_one_at_a_time_unless_configured() {
+        let with = |batch: Option<&str>, short: Option<&str>| {
+            Config::from_vars(|k| match k {
+                "JC_PORTAL_PIPELINES_BATCH_CONCURRENCY" => batch.map(str::to_owned),
+                "JC_PORTAL_PIPELINES_SHORT_CONCURRENCY" => short.map(str::to_owned),
+                _ => None,
+            })
+        };
+        assert_eq!(
+            with(None, None).expect("default").pipelines_concurrency,
+            (1, 1)
+        );
+        assert_eq!(
+            with(Some("2"), Some(" 3 "))
+                .expect("set")
+                .pipelines_concurrency,
+            (2, 3)
+        );
+        for bad in ["0", "-1", "two"] {
+            let err = with(None, Some(bad)).expect_err(bad).to_string();
+            assert!(
+                err.contains("JC_PORTAL_PIPELINES_SHORT_CONCURRENCY"),
+                "{err}"
+            );
+        }
     }
 
     /// T-1508: the switch needs the namespace its accounts are made in, and the namespace is a
