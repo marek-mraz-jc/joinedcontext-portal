@@ -1256,6 +1256,15 @@ export function PipelineFlow({
                 className="focus-ring cursor-pointer"
                 onClick={() => onSelect(node.id)}
                 onDoubleClick={() => open(node.id)}
+                // A wire let go on a node ends there, as on its input port: a source has no
+                // port, and `connect` says why it takes no wire instead of the canvas
+                // dropping it without a word (T-4271).
+                onPointerUp={(e) => {
+                  if (!wiring) return;
+                  e.stopPropagation();
+                  wire(wiring.from, node.id);
+                  setWiring(null);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
