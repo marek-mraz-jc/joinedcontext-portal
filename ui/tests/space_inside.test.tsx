@@ -630,6 +630,42 @@ describe("the space's own data", () => {
     expect(screen.queryByRole("columnheader", { name: /no2/ })).toBeNull();
   });
 
+  // T-4264, T-4160 #6: the grid leads with the entity's name, its URN the button's tooltip, and the
+  // headers and the alerts button say what the model titles them.
+  it("leads the data with each entity's name and the model's titles, not the URN and the keys", async () => {
+    const rows = [
+      {
+        id: "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:1",
+        type: "AirQualityObserved",
+        name: { type: "Property", value: "Námestie SNP" },
+        pm10: { type: "Property", value: 12 },
+      },
+    ];
+    const source = [
+      "id: https://banskabystrica.sk/models/air",
+      "name: bb-air-quality",
+      "classes:",
+      "  AirQualityObserved:",
+      "    title: { en: Air quality reading }",
+      "    slots: [name, pm10]",
+      "slots:",
+      "  name: { range: string, title: { en: Station } }",
+      "  pm10: { range: float, title: { en: Particles PM10 } }",
+      "",
+    ].join("\n");
+    renderInside({ status: 200, count: 1 }, { status: 200, rows }, { source });
+
+    const station = await screen.findByRole("columnheader", { name: /Station/ });
+    // First in the grid's own header row, where the URN used to lead.
+    const row = station.closest("tr") as HTMLTableRowElement;
+    expect(within(row).getAllByRole("columnheader")[0]).toBe(station);
+    expect(within(row).getByRole("columnheader", { name: /Particles PM10/ })).toBeInTheDocument();
+    expect(within(row).queryByRole("columnheader", { name: /^(pm10|ID)$/ })).toBeNull();
+    const open = screen.getByRole("button", { name: `${en.entityGrid.openRow}: Námestie SNP` });
+    expect(open).toHaveAttribute("title", rows[0].id);
+    expect(screen.getByRole("button", { name: en.alerts.forType.replace("{type}", "Air quality reading") })).toBeInTheDocument();
+  });
+
   it("says nothing has been written to an empty space", async () => {
     renderInside({ status: 200, count: 0 }, { status: 200, rows: [] });
 
