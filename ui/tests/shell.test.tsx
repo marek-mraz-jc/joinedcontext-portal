@@ -162,6 +162,19 @@ describe("portal shell", () => {
     }
   });
 
+  // T-4223 (photo audit T-4157): Administration is the organization's page, not a project's;
+  // its trail named the project the person came from.
+  it("trails the Administration page from the organization, without a project", async () => {
+    const admin = await within(screen.getByRole("banner")).findByRole("link", { name: "Administration" });
+    await userEvent.click(admin);
+    await waitFor(() => {
+      const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+      expect(within(crumbs).getByText("Administration")).toHaveAttribute("aria-current", "page");
+    });
+    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(within(crumbs).queryByRole("link", { name: "helsinki" })).toBeNull();
+  });
+
   // T-2760: the floating assistant button covered a table's last column with nothing to scroll.
   it("leaves room under the page for the floating assistant button", () => {
     const page = screen.getByRole("main").firstElementChild as HTMLElement;
