@@ -724,6 +724,14 @@ export function Shell({
                       <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
                     </li>
                   ) : null}
+                  {/* Administration is the organization's page: its trail names no project (T-4223). */}
+                  {organizationActive ? (
+                    <li>
+                      <span aria-current="page" className="font-medium text-fg">
+                        {t("nav.organization")}
+                      </span>
+                    </li>
+                  ) : (
                   <li>
                     <Link
                       to="/projects/$project/$plural"
@@ -733,6 +741,7 @@ export function Shell({
                       {project}
                     </Link>
                   </li>
+                  )}
                   {activeSection ? (
                     <li className="flex items-center gap-1">
                       <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
