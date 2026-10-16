@@ -343,7 +343,9 @@ test.describe.configure({ mode: "serial" });
 // One test per person and width, so a slow width cannot starve the rest of their hour; and a
 // control that never becomes clickable costs ten seconds, not thirty.
 test.setTimeout(3_600_000);
-test.use({ actionTimeout: 10_000 });
+// A hung navigation fails its one state in 45 s, not the test's hour (T-4285: T-4160's viewer
+// 768 waited 20 min in one page.goto).
+test.use({ actionTimeout: 10_000, navigationTimeout: 45_000 });
 
 for (const [who, person] of [
   ["steward", STEWARD],
