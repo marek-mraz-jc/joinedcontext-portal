@@ -50,7 +50,7 @@ test("a steward exports helsinki, imports one agreement from it into helsinki-mo
   let imported = false;
   try {
     // The thing to carry: one agreement, created through its form and approved by another person.
-    await steward.page.getByRole("main").getByRole("button", { name: "New DataAgreement" }).first().click();
+    await steward.page.getByRole("main").getByRole("button", { name: "New data agreement" }).first().click();
     const form = await openedForm(steward.page);
     await form.locator("#root_name").fill(name);
     await form.locator("#root_remoteParticipant").fill("did:web:partner.example.org");

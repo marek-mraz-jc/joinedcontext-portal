@@ -4,7 +4,7 @@ import { formValidationSuite } from "./formValidation";
 formValidationSuite({
   kind: "KnowledgeSource",
   address: "/projects/helsinki/knowledgesources",
-  button: "New KnowledgeSource",
+  button: "New knowledge source",
   lists: { "/ckaninstances": [{ apiVersion: "joinedcontext.com/v1alpha1", kind: "CkanInstance", metadata: { name: "open-data", namespace: "helsinki" }, spec: {} }] },
   reference: { path: "spec.ckanInstanceRef", field: "root_ckanInstanceRef" },
 });

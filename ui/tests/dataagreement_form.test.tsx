@@ -170,13 +170,13 @@ describe("the DataAgreements page", () => {
     vi.unstubAllGlobals();
   });
 
-  const newLabel = en.resourceList.new.replace("{kind}", "DataAgreement");
+  const newLabel = en.kinds.DataAgreement.new;
 
   // UI-01, PF-57: New opens the form; it is checked, then proposed as the manifest jc-core reads.
   it("creates an agreement through the form, checked before it is proposed", async () => {
     const user = userEvent.setup();
     const { sent } = page(["read", "propose"]);
-    expect(await screen.findByText(en.resourceList.emptyHintCreate.replace("{kind}", "DataAgreement"))).toBeInTheDocument();
+    expect(await screen.findByText(en.resourceList.emptyHintCreate.replace("{new}", en.kinds.DataAgreement.new))).toBeInTheDocument();
     await user.click(screen.getAllByRole("button", { name: newLabel })[0]);
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText(new RegExp(`^${en.dataagreements.field.name}`)), "partner-air");

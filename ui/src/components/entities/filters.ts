@@ -250,6 +250,69 @@ export function qFromFilters(rows: Filter[], slots: FilterSlot[] = []): string {
 
 const TERM = /^([A-Za-z_][A-Za-z0-9_.]*(?:\[[^\]]+\])?)(==|!=|>=|<=|~=|!~=|>|<)(.+)$/;
 
+/** What is wrong with a typed `q`, before the broker is asked (T-4264, T-4160 #22). */
+export type QProblem = { kind: "shape" } | { kind: "unquoted"; fix: string };
+
+const PATH = "[A-Za-z_][A-Za-z0-9_.]*(?:\\[[^\\]]+\\])?";
+const LOOSE_TERM = new RegExp(`^(${PATH})(==|!=|>=|<=|~=|!~=|>|<)(.+)$`);
+const BARE_TERM = new RegExp(`^!?${PATH}$`);
+const NUMBER = /^-?\d+(\.\d+)?([eE][-+]?\d+)?$/;
+/** A date, a time or a date-time, as the broker compares them unquoted. */
+const TIME_VALUE = /^(\d{4}-\d{2}-\d{2}(T[\d:.]+(Z|[+-]\d{2}:\d{2})?)?|\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z)?)$/;
+
+function plainValue(value: string): boolean {
+  if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) return true;
+  return NUMBER.test(value) || TIME_VALUE.test(value) || value === "true" || value === "false";
+}
+
+function validValue(value: string): boolean {
+  if (plainValue(value)) return true;
+  const range = value.split("..");
+  if (range.length === 2) return range.every(plainValue);
+  // A list is split outside quotes, so a comma inside "a, b" stays one value.
+  const items = splitOutside(value, ",");
+  return items.length > 1 && items.every(plainValue);
+}
+
+function splitOutside(text: string, separators: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  let quoted = false;
+  for (const char of text) {
+    if (char === '"') quoted = !quoted;
+    if (!quoted && separators.includes(char)) {
+      parts.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  parts.push(current);
+  return parts;
+}
+
+/**
+ * The first thing in `q` the broker would refuse with a parser error, said so the field can tell
+ * the person how to fix it: a term that is not `attribute`, a comparison and a value, or a text
+ * value without its double quotes. A `q` with brackets is left to the broker; empty is fine.
+ */
+export function qProblem(q: string | undefined): QProblem | undefined {
+  const text = (q ?? "").trim();
+  if (text === "" || /[()]/.test(text.replace(/"[^"]*"/g, '""'))) return undefined;
+  for (const raw of splitOutside(text, ";|")) {
+    const term = raw.trim();
+    if (BARE_TERM.test(term)) continue;
+    const match = LOOSE_TERM.exec(term);
+    if (!match) return { kind: "shape" };
+    const [, attribute, op, value] = match;
+    if (!validValue(value)) {
+      if (value !== value.trim()) return { kind: "shape" };
+      return { kind: "unquoted", fix: `${attribute}${op}"${value.replace(/["\\]/g, "\\$&")}"` };
+    }
+  }
+  return undefined;
+}
+
 /** The rows of a `q` in the simple grammar; `undefined` for `|`, brackets or anything else the rows cannot show. */
 export function filtersFromQ(q: string | undefined): Filter[] | undefined {
   const text = (q ?? "").trim();

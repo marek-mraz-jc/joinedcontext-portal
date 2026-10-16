@@ -419,6 +419,22 @@ function SpaceData({
     },
   });
 
+  // The type and its attributes as the model titles them, the key where it gives no title; an
+  // entity is led by its name, its URN the open button's tooltip (T-4264, T-4160 #6).
+  const typeTitle = useMemo(() => {
+    const cls = modelSource === undefined ? undefined : parseModel(modelSource).classes.find((c) => c.name === type);
+    return localized(cls?.title, i18n.language, type);
+  }, [modelSource, type, i18n.language]);
+  const columns = useMemo(() => {
+    const titled = (attr: string) => localized(typeSlots.find((slot) => slot.name === attr)?.title, i18n.language, attr);
+    const named = attributes.includes("name");
+    if (!named && !typeSlots.some((slot) => slot.title)) return undefined;
+    return [
+      ...(named ? [{ attr: "name", pinned: true, label: titled("name") }] : []),
+      ...attributes.filter((attr) => attr !== "name").map((attr) => ({ attr, label: titled(attr) })),
+    ];
+  }, [attributes, typeSlots, i18n.language]);
+
   const config = useMemo(() => {
     if (type === "") {
       return null;
@@ -427,12 +443,13 @@ function SpaceData({
       parseGridConfig({
         source: { kind: "space", space },
         type,
+        ...(columns ? { columns } : {}),
         pageSize: 100,
         mode: "view",
         history: { enabled: true },
       }).config ?? null
     );
-  }, [space, type]);
+  }, [space, type, columns]);
 
   if (types.length === 0) {
     return (
@@ -536,7 +553,7 @@ function SpaceData({
             </PermissionGuard>
           ) : null}
           <Button variant="ghost" onClick={() => setAlertingType(true)}>
-            {t("alerts.forType", { type })}
+            {t("alerts.forType", { type: typeTitle })}
           </Button>
           {alertingType ? (
             <AlertDialog

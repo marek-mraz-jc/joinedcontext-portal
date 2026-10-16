@@ -1,7 +1,7 @@
 /**
  * T-1544 — UI-44, PF-50, DS-04, DS-07: the organization's DataSpaceParticipant, end to end on dev.
  *
- * Created on Organization → Data space through its form ("New DataSpaceParticipant": a name, a
+ * Created on Organization → Data space through its form ("New data space membership": a name, a
  * did:web identifier, the credential issuer and the connector address; Check, then Propose change) by
  * `demo.steward`, approved by `demo.approver`, its engine changed through the row's Edit, removed. The
  * assistant opens the same form; a viewer finds the tab's write controls disabled with a reason.
@@ -19,7 +19,7 @@ kindJourney({
   page: "/organization/dataspaceparticipants",
   organization: true,
   create: async (page, name) => {
-    await page.getByRole("main").getByRole("button", { name: "New DataSpaceParticipant" }).first().click();
+    await page.getByRole("main").getByRole("button", { name: "New data space membership" }).first().click();
     const form = await openedForm(page);
     await form.locator("#root_name").fill(name);
     await form.locator("#root_did").fill("did:web:participant.example.org");

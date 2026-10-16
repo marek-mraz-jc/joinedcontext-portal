@@ -166,7 +166,7 @@ describe("the access panel", () => {
     const checks = await screen.findByRole("list", { name: en.access.panel.checks });
     await waitFor(() =>
       expect(checks.textContent).toContain(
-        en.access.panel.may.replace("{action}", "queryEntity").replace("{type}", "AirQualityObserved"),
+        en.access.panel.may.replace("{action}", en.access.panel.actions.queryEntity).replace("{type}", "AirQualityObserved"),
       ),
     );
     expect(screen.queryByRole("alert")).toBeNull();

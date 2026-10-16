@@ -21,6 +21,7 @@ import {
   OpenAppButton,
   SSO_CHECK_MS,
   SSO_CHECK_PATH,
+  inLanguage,
   ssoAnswer,
 } from "../src/pages/apps/AppOpenPage";
 
@@ -133,7 +134,7 @@ describe("AppOpenPage", () => {
     renderAt(`/projects/${PROJECT}/apps/city-bikes/open`);
     const frame = await screen.findByTitle("City bikes, the application");
     expect(frame.tagName).toBe("IFRAME");
-    expect(frame.getAttribute("src")).toBe("/apps/city-bikes/");
+    expect(frame.getAttribute("src")).toBe("/apps/city-bikes/?lang=en");
     expect(frame.getAttribute("sandbox")).toBe(
       "allow-scripts allow-forms allow-popups allow-downloads",
     );
@@ -219,7 +220,7 @@ describe("AppOpenPage", () => {
     renderAt(`/projects/${PROJECT}/apps/city-bikes/open`, { appsOrigin: "https://example.org" });
     await waitFor(() =>
       expect(screen.getByTitle("City bikes, the application").getAttribute("src")).toBe(
-        "https://city-bikes.apps.example.org/",
+        "https://city-bikes.apps.example.org/?lang=en",
       ),
     );
     const frame = screen.getByTitle("City bikes, the application");
@@ -227,14 +228,14 @@ describe("AppOpenPage", () => {
       "allow-scripts allow-forms allow-popups allow-downloads allow-same-origin",
     );
     expect(screen.getByRole("link", { name: /new window/i }).getAttribute("href")).toBe(
-      "https://city-bikes.apps.example.org/",
+      "https://city-bikes.apps.example.org/?lang=en",
     );
   });
 
   it("opens the same address in a new window with no opener", async () => {
     renderAt(`/projects/${PROJECT}/apps/city-bikes/open`);
     const link = await screen.findByRole("link", { name: /Open in new window/ });
-    expect(link.getAttribute("href")).toBe("/apps/city-bikes/");
+    expect(link.getAttribute("href")).toBe("/apps/city-bikes/?lang=en");
     expect(link.getAttribute("target")).toBe("_blank");
     expect(link.getAttribute("rel")).toBe("noopener noreferrer");
   });
@@ -266,7 +267,7 @@ describe("AppOpenPage", () => {
   it("escapes a name into the address instead of leaving the apps path", async () => {
     renderAt(`/projects/${PROJECT}/apps/${encodeURIComponent("a/../../x")}/open`);
     const frame = await screen.findByTitle("City bikes, the application");
-    expect(frame.getAttribute("src")).toBe("/apps/a%2F..%2F..%2Fx/");
+    expect(frame.getAttribute("src")).toBe("/apps/a%2F..%2F..%2Fx/?lang=en");
   });
 
   it("shows a retired App's state and no frame", async () => {
@@ -481,3 +482,14 @@ describe("OpenAppButton", () => {
     expect(screen.queryByRole("button", { name: "Open app" })).toBeNull();
   });
 });
+
+describe("the framed App in the Portal's language (T-4264, T-4160 #39)", () => {
+  it("adds the language the SDK reads first, and keeps the address otherwise as it was", () => {
+    expect(inLanguage("/apps/bbsk-data/", "sk")).toBe("/apps/bbsk-data/?lang=sk");
+    expect(inLanguage("https://bbsk-data.apps.example.org/", "sk-SK")).toBe("https://bbsk-data.apps.example.org/?lang=sk");
+    expect(inLanguage("/apps/x/?page=2#top", "cs")).toBe("/apps/x/?page=2&lang=cs#top");
+    expect(inLanguage("/apps/x/", undefined)).toBe("/apps/x/");
+    expect(inLanguage("/apps/x/", "x&y=1")).toBe("/apps/x/");
+  });
+});
+

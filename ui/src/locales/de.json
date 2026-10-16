@@ -171,7 +171,7 @@
     "askAboutFieldQuestion": "Im {kind}-Formular: Was gehört in „{label}“, und was passiert, wenn es leer bleibt?",
     "fillFromSentence": "Aus einem Satz ausfüllen",
     "fillFromSentenceQuestion": "Füll das offene {kind}-Formular hieraus aus: ",
-    "guideLink": "Über {kind} im Benutzerhandbuch lesen",
+    "guideLink": "Im Benutzerhandbuch: {kind}",
     "entry": "Eintrag {number}",
     "dropOne": "Datei hierher ziehen oder auswählen",
     "dropMany": "Dateien hierher ziehen oder auswählen",
@@ -472,7 +472,7 @@
     "new": "Neu: {kind}",
     "newHint": "Füllen Sie das Formular aus, prüfen Sie es und schlagen Sie es vor; eine freigebende Person prüft die Änderung.",
     "propose": "Änderung vorschlagen",
-    "emptyHintCreate": "Von dieser Art ist noch nichts im Projekt. Neu: {kind} öffnet das Formular.",
+    "emptyHintCreate": "Von dieser Art ist noch nichts im Projekt. {new} öffnet das Formular.",
     "askAssistant": "Den Assistenten um einen Vorschlag bitten"
   },
   "spaces": {
@@ -2538,11 +2538,16 @@
       "typeNotGranted": "Kein Grant nennt {type} für Sie über diesen Endpunkt.",
       "checks": "Probeentscheidungen",
       "checking": "{action}: wird geprüft…",
-      "may": "Sie dürfen {action} {type}",
-      "mayNot": "Sie dürfen nicht {action} {type}",
+      "may": "Sie dürfen {type} {action}",
+      "mayNot": "Sie dürfen {type} nicht {action}",
       "attrDenied": "nicht in Ihrem Grant",
       "attrProhibited": "ausdrücklich verweigert",
-      "checkFailed": "Diese Berechtigungen konnten nicht geprüft werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen."
+      "checkFailed": "Diese Berechtigungen konnten nicht geprüft werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen.",
+      "actions": {
+        "queryEntity": "lesen",
+        "updateAttrs": "ändern"
+      },
+      "technical": "Technische Details"
     },
     "groups": {
       "title": "Gruppen",
@@ -3575,7 +3580,8 @@
       "inARow": "{count, plural, one {# fehlgeschlagener Lauf in Folge} other {# fehlgeschlagene Läufe in Folge}}",
       "ms": "{count} ms",
       "note": "Eine Aufgabe läuft mit der eigenen Identität der App und schreibt nur über deren Endpoint. Die Liste zeigt Läufe seit dem letzten Start des Hosts."
-    }
+    },
+    "editWithAssistant": "Mit dem Assistenten bearbeiten"
   },
   "appLifecycle": {
     "draft": "Entwurf",
@@ -3827,7 +3833,11 @@
     "q": "Abfrage (q)",
     "qHint": "Das NGSI-LD q, das die Zeilen bilden; hier oder im YAML bearbeiten.",
     "attrs": "Gelesene Attribute",
-    "typeNotGranted": "{name} (über diesen Endpoint nicht gewährt)"
+    "typeNotGranted": "{name} (über diesen Endpoint nicht gewährt)",
+    "qProblem": {
+      "shape": "Schreiben Sie jede Bedingung als Attribut, Vergleich und Wert ohne Leerzeichen, z. B. name==\"Klinikum\"; verbinden Sie Bedingungen mit ; (und) oder | (oder).",
+      "unquoted": "Text steht in Anführungszeichen: {fix}"
+    }
   },
   "entityGrid": {
     "id": "ID",
@@ -4072,7 +4082,8 @@
       "gone": "Dieses Dashboard ist nicht mehr im Projekt; wählen Sie ein anderes.",
       "pickEntity": "Wählen Sie die Entität für den zeitlichen Verlauf."
     },
-    "pickSpaceFirst": "Wählen Sie zuerst einen Raum."
+    "pickSpaceFirst": "Wählen Sie zuerst einen Raum.",
+    "noMatch": "Nichts passt zu dieser Abfrage; ändern oder entfernen Sie einen Filter."
   },
   "agentRun": {
     "title": "Anwendungslauf",
@@ -4626,7 +4637,14 @@
       "propose": "Änderung vorschlagen",
       "cancel": "Abbrechen",
       "yamlError": "Kein gültiges YAML, korrigieren Sie es: {message}",
-      "showOperations": "Seine {count} Operationen zeigen"
+      "showOperations": "Seine {count} Operationen zeigen",
+      "profileTitles": {
+        "chat": "Gespräche mit dem Assistenten",
+        "app-builder": "App-Builder",
+        "app-from-prompt": "Eine App aus einer Beschreibung"
+      },
+      "packageHosts": "Pakete zum Bauen von Apps",
+      "ids": "Profil {name}, Rolle {role}"
     },
     "states": {
       "failed": "Nicht beendet",
@@ -6269,7 +6287,22 @@
       "sampleLoading": "Zehn Zeilen werden über den Endpunkt gelesen…",
       "noSample": "Dieser Datensatz hat keinen Endpunkt dieser Installation, der NGSI-LD liefert, daher gibt es keine Stichprobe.",
       "sampleEmpty": "Der Endpunkt enthält noch kein {type}.",
-      "sampleCaption": "Höchstens zehn {type}, über den Endpunkt gelesen"
+      "sampleCaption": "Höchstens zehn {type}, über den Endpunkt gelesen",
+      "says": {
+        "ngsild": "Entitäten über die NGSI-LD-Schnittstelle abfragen und filtern.",
+        "mcp": "Einen KI-Assistenten mit diesen Daten verbinden (MCP).",
+        "geojson": "Kartendaten zum Herunterladen (GeoJSON).",
+        "csv": "Eine CSV-Tabelle zum Herunterladen.",
+        "xlsx": "Eine Excel-Tabelle zum Herunterladen.",
+        "json": "Die Daten als JSON zum Herunterladen.",
+        "zip": "Alle Dateien in einem ZIP-Archiv.",
+        "ogcfeat": "Die Daten für GIS-Werkzeuge (OGC API – Features).",
+        "sta": "Sensormesswerte über die OGC SensorThings API.",
+        "odata": "Die Daten für Excel und Power BI (OData).",
+        "websocket": "Live-Aktualisierungen bei jeder Datenänderung.",
+        "model": "Das Datenmodell als {format}."
+      },
+      "forDevelopers": "Für Entwickler"
     },
     "use": {
       "title": "Diese Daten nutzen",
@@ -6699,7 +6732,9 @@
       "sourceNumber": "Quelle {n}",
       "data": "Gelesene Daten der Antwort",
       "dataset": "Datensatz öffnen",
-      "download": "Daten herunterladen"
+      "download": "Daten herunterladen",
+      "again": "Erneut versuchen",
+      "closest": "Die Quellen, die am besten zu Ihrer Frage passen"
     },
     "embed": {
       "title": "Einbetten",
@@ -7466,5 +7501,135 @@
     },
     "tools": "{count, plural, one {# Werkzeug} other {# Werkzeuge}}",
     "noTools": "Der Konnektor bietet anonymen Aufrufern gerade keine Werkzeuge an."
+  },
+  "kinds": {
+    "AgentProfile": {
+      "other": "Agentenprofile",
+      "new": "Neues Agentenprofil"
+    },
+    "App": {
+      "other": "Anwendungen",
+      "new": "Neue Anwendung"
+    },
+    "AssistantDeployment": {
+      "other": "Assistenten-Bereitstellungen",
+      "new": "Neue Assistenten-Bereitstellung"
+    },
+    "Blueprint": {
+      "other": "Vorlagen",
+      "new": "Neue Vorlage"
+    },
+    "CkanInstance": {
+      "other": "CKAN-Portale",
+      "new": "Neues CKAN-Portal"
+    },
+    "ContextSpace": {
+      "other": "Kontexträume",
+      "new": "Neuer Kontextraum"
+    },
+    "Dashboard": {
+      "other": "Dashboards",
+      "new": "Neues Dashboard"
+    },
+    "DataAgreement": {
+      "other": "Datenvereinbarungen",
+      "new": "Neue Datenvereinbarung"
+    },
+    "DataModel": {
+      "other": "Datenmodelle",
+      "new": "Neues Datenmodell"
+    },
+    "DataOffer": {
+      "other": "Datenangebote",
+      "new": "Neues Datenangebot"
+    },
+    "DataSource": {
+      "other": "Datenquellen",
+      "new": "Neue Datenquelle"
+    },
+    "DataSpaceParticipant": {
+      "other": "Datenraum-Mitgliedschaften",
+      "new": "Neue Datenraum-Mitgliedschaft"
+    },
+    "Endpoint": {
+      "other": "Endpunkte",
+      "new": "Neuer Endpunkt"
+    },
+    "Environment": {
+      "other": "Umgebungen",
+      "new": "Neue Umgebung"
+    },
+    "Group": {
+      "other": "Gruppen",
+      "new": "Neue Gruppe"
+    },
+    "KnowledgeSource": {
+      "other": "Wissensquellen",
+      "new": "Neue Wissensquelle"
+    },
+    "Mapping": {
+      "other": "Zuordnungen",
+      "new": "Neue Zuordnung"
+    },
+    "McpServer": {
+      "other": "MCP-Server",
+      "new": "Neuer MCP-Server"
+    },
+    "ModelProjection": {
+      "other": "Modellprojektionen",
+      "new": "Neue Modellprojektion"
+    },
+    "MqttBroker": {
+      "other": "MQTT-Broker",
+      "new": "Neuer MQTT-Broker"
+    },
+    "Organization": {
+      "other": "Organisationen",
+      "new": "Neue Organisation"
+    },
+    "Pipeline": {
+      "other": "Pipelines",
+      "new": "Neue Pipeline"
+    },
+    "Policy": {
+      "other": "Richtlinien",
+      "new": "Neue Richtlinie"
+    },
+    "Project": {
+      "other": "Projekte",
+      "new": "Neues Projekt"
+    },
+    "Role": {
+      "other": "Rollen",
+      "new": "Neue Rolle"
+    },
+    "RoleBinding": {
+      "other": "Rollenzuweisungen",
+      "new": "Neue Rollenzuweisung"
+    },
+    "ScopeDefinition": {
+      "other": "Bereichsdefinitionen",
+      "new": "Neue Bereichsdefinition"
+    },
+    "ServiceAccount": {
+      "other": "Dienstkonten",
+      "new": "Neues Dienstkonto"
+    },
+    "SharedSpaceReference": {
+      "other": "geteilte Räume",
+      "new": "Neuer geteilter Raum"
+    },
+    "Subscription": {
+      "other": "Abonnements",
+      "new": "Neues Abonnement"
+    },
+    "SyncSource": {
+      "other": "Sync-Quellen",
+      "new": "Neue Sync-Quelle"
+    },
+    "UiSchema": {
+      "other": "Formularlayouts",
+      "new": "Neues Formularlayout"
+    }
   }
 }

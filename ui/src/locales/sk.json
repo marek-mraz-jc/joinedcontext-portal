@@ -171,7 +171,7 @@
     "askAboutFieldQuestion": "Vo formulári {kind}: čo patrí do „{label}“ a čo sa stane, keď to zostane prázdne?",
     "fillFromSentence": "Vyplniť z jednej vety",
     "fillFromSentenceQuestion": "Vyplň otvorený formulár {kind} z tohto: ",
-    "guideLink": "Prečítajte si o {kind} v používateľskej príručke",
+    "guideLink": "Používateľská príručka: {kind}",
     "entry": "Položka {number}",
     "dropOne": "Pretiahnite sem súbor alebo ho vyberte",
     "dropMany": "Pretiahnite sem súbory alebo ich vyberte",
@@ -472,7 +472,7 @@
     "new": "Nový {kind}",
     "newHint": "Vyplňte formulár, skontrolujte ho a navrhnite; zmenu posúdi schvaľovateľ.",
     "propose": "Navrhnúť zmenu",
-    "emptyHintCreate": "V projekte zatiaľ nič z tohto druhu nie je. Nový {kind} otvorí formulár.",
+    "emptyHintCreate": "V projekte zatiaľ nič z tohto druhu nie je. {new} otvorí formulár.",
     "askAssistant": "Požiadať asistenta o návrh"
   },
   "spaces": {
@@ -2542,7 +2542,12 @@
       "mayNot": "Nesmiete {action} {type}",
       "attrDenied": "mimo vášho oprávnenia",
       "attrProhibited": "výslovne zakázaný",
-      "checkFailed": "Tieto oprávnenia sa nepodarilo overiť: {reason}. Obnovte stránku a skúste to znova."
+      "checkFailed": "Tieto oprávnenia sa nepodarilo overiť: {reason}. Obnovte stránku a skúste to znova.",
+      "actions": {
+        "queryEntity": "čítať",
+        "updateAttrs": "meniť"
+      },
+      "technical": "Technické podrobnosti"
     },
     "groups": {
       "title": "Skupiny",
@@ -3575,7 +3580,8 @@
       "inARow": "{count, plural, one {# neúspešný beh za sebou} few {# neúspešné behy za sebou} other {# neúspešných behov za sebou}}",
       "ms": "{count} ms",
       "note": "Úloha beží pod vlastnou identitou aplikácie a zapisuje len cez jej Endpoint. Zoznam ukazuje behy od posledného spustenia hostiteľa."
-    }
+    },
+    "editWithAssistant": "Upraviť pomocou asistenta"
   },
   "appLifecycle": {
     "draft": "Návrh",
@@ -3827,7 +3833,11 @@
     "q": "Dopyt (q)",
     "qHint": "NGSI-LD q, ktoré riadky skladajú; upravte ho tu alebo v YAML.",
     "attrs": "Čítané atribúty",
-    "typeNotGranted": "{name} (cez tento endpoint neudelené)"
+    "typeNotGranted": "{name} (cez tento endpoint neudelené)",
+    "qProblem": {
+      "shape": "Každú podmienku napíšte ako atribút, porovnanie a hodnotu bez medzier, napr. name==\"Nemocnica\"; podmienky spájajte znakom ; (a zároveň) alebo | (alebo).",
+      "unquoted": "Text patrí do úvodzoviek: {fix}"
+    }
   },
   "entityGrid": {
     "id": "ID",
@@ -4072,7 +4082,8 @@
       "gone": "Ten dashboard už v projekte nie je; vyberte iný.",
       "pickEntity": "Vyberte entitu, ktorej priebeh sa má zobraziť."
     },
-    "pickSpaceFirst": "Najprv vyberte priestor."
+    "pickSpaceFirst": "Najprv vyberte priestor.",
+    "noMatch": "Dopytu nič nezodpovedá; zmeňte alebo odstráňte filter."
   },
   "agentRun": {
     "title": "Beh aplikácie",
@@ -4626,7 +4637,14 @@
       "propose": "Navrhnúť zmenu",
       "cancel": "Zrušiť",
       "yamlError": "Neplatný YAML, opravte ho: {message}",
-      "showOperations": "Zobraziť jeho operácie ({count})"
+      "showOperations": "Zobraziť jeho operácie ({count})",
+      "profileTitles": {
+        "chat": "Konverzácie s asistentom",
+        "app-builder": "Zostavovač aplikácií",
+        "app-from-prompt": "Aplikácia zo zadania"
+      },
+      "packageHosts": "balíčky pre stavbu aplikácií",
+      "ids": "Profil {name}, rola {role}"
     },
     "states": {
       "failed": "Nedokončilo sa",
@@ -6269,7 +6287,22 @@
       "sampleLoading": "Číta sa desať riadkov cez endpoint…",
       "noSample": "Tento dataset nemá endpoint tejto inštalácie, ktorý poskytuje NGSI-LD, preto nemá ukážku.",
       "sampleEmpty": "Endpoint zatiaľ neobsahuje žiadne {type}.",
-      "sampleCaption": "Najviac desať {type} prečítaných cez endpoint"
+      "sampleCaption": "Najviac desať {type} prečítaných cez endpoint",
+      "says": {
+        "ngsild": "Dopytovanie a filtrovanie entít cez NGSI-LD API.",
+        "mcp": "Pripojenie AI asistenta k týmto dátam (MCP).",
+        "geojson": "Mapové dáta na stiahnutie (GeoJSON).",
+        "csv": "Tabuľka CSV na stiahnutie.",
+        "xlsx": "Tabuľka Excel na stiahnutie.",
+        "json": "Dáta vo formáte JSON na stiahnutie.",
+        "zip": "Všetky súbory v jednom archíve ZIP.",
+        "ogcfeat": "Dáta pre nástroje GIS (OGC API – Features).",
+        "sta": "Merania senzorov cez OGC SensorThings API.",
+        "odata": "Dáta pre Excel a Power BI (OData).",
+        "websocket": "Živé aktualizácie pri každej zmene dát.",
+        "model": "Dátový model vo formáte {format}."
+      },
+      "forDevelopers": "Pre vývojárov"
     },
     "use": {
       "title": "Použiť tieto dáta",
@@ -6699,7 +6732,9 @@
       "sourceNumber": "Zdroj {n}",
       "data": "Údaje, ktoré odpoveď prečítala",
       "dataset": "Otvoriť dataset",
-      "download": "Stiahnuť údaje"
+      "download": "Stiahnuť údaje",
+      "again": "Skúsiť znova",
+      "closest": "Zdroje, ktoré najlepšie zodpovedajú vašej otázke"
     },
     "embed": {
       "title": "Vložiť",
@@ -7466,5 +7501,135 @@
     },
     "tools": "{count, plural, one {# nástroj} few {# nástroje} other {# nástrojov}}",
     "noTools": "Konektor teraz neponúka anonymným volajúcim žiadne nástroje."
+  },
+  "kinds": {
+    "AgentProfile": {
+      "other": "profily agentov",
+      "new": "Nový profil agenta"
+    },
+    "App": {
+      "other": "aplikácie",
+      "new": "Nová aplikácia"
+    },
+    "AssistantDeployment": {
+      "other": "nasadenia asistenta",
+      "new": "Nové nasadenie asistenta"
+    },
+    "Blueprint": {
+      "other": "šablóny",
+      "new": "Nová šablóna"
+    },
+    "CkanInstance": {
+      "other": "portály CKAN",
+      "new": "Nový portál CKAN"
+    },
+    "ContextSpace": {
+      "other": "kontextové priestory",
+      "new": "Nový kontextový priestor"
+    },
+    "Dashboard": {
+      "other": "dashboardy",
+      "new": "Nový dashboard"
+    },
+    "DataAgreement": {
+      "other": "dátové dohody",
+      "new": "Nová dátová dohoda"
+    },
+    "DataModel": {
+      "other": "dátové modely",
+      "new": "Nový dátový model"
+    },
+    "DataOffer": {
+      "other": "dátové ponuky",
+      "new": "Nová dátová ponuka"
+    },
+    "DataSource": {
+      "other": "zdroje údajov",
+      "new": "Nový zdroj údajov"
+    },
+    "DataSpaceParticipant": {
+      "other": "členstvá v dátovom priestore",
+      "new": "Nové členstvo v dátovom priestore"
+    },
+    "Endpoint": {
+      "other": "endpointy",
+      "new": "Nový endpoint"
+    },
+    "Environment": {
+      "other": "prostredia",
+      "new": "Nové prostredie"
+    },
+    "Group": {
+      "other": "skupiny",
+      "new": "Nová skupina"
+    },
+    "KnowledgeSource": {
+      "other": "zdroje znalostí",
+      "new": "Nový zdroj znalostí"
+    },
+    "Mapping": {
+      "other": "mapovania",
+      "new": "Nové mapovanie"
+    },
+    "McpServer": {
+      "other": "MCP servery",
+      "new": "Nový MCP server"
+    },
+    "ModelProjection": {
+      "other": "projekcie modelov",
+      "new": "Nová projekcia modelu"
+    },
+    "MqttBroker": {
+      "other": "MQTT brokery",
+      "new": "Nový MQTT broker"
+    },
+    "Organization": {
+      "other": "organizácie",
+      "new": "Nová organizácia"
+    },
+    "Pipeline": {
+      "other": "pipeliny",
+      "new": "Nový pipeline"
+    },
+    "Policy": {
+      "other": "politiky",
+      "new": "Nová politika"
+    },
+    "Project": {
+      "other": "projekty",
+      "new": "Nový projekt"
+    },
+    "Role": {
+      "other": "roly",
+      "new": "Nová rola"
+    },
+    "RoleBinding": {
+      "other": "priradenia rolí",
+      "new": "Nové priradenie roly"
+    },
+    "ScopeDefinition": {
+      "other": "definície rozsahov",
+      "new": "Nová definícia rozsahu"
+    },
+    "ServiceAccount": {
+      "other": "servisné účty",
+      "new": "Nový servisný účet"
+    },
+    "SharedSpaceReference": {
+      "other": "zdieľané priestory",
+      "new": "Nový zdieľaný priestor"
+    },
+    "Subscription": {
+      "other": "odbery",
+      "new": "Nový odber"
+    },
+    "SyncSource": {
+      "other": "zdroje synchronizácie",
+      "new": "Nový zdroj synchronizácie"
+    },
+    "UiSchema": {
+      "other": "rozloženia formulárov",
+      "new": "Nové rozloženie formulára"
+    }
   }
 }

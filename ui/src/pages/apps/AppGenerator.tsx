@@ -28,6 +28,7 @@ import {
 import { guideUrl, useBranding } from "../../branding";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { takePrefill } from "../../assistant/state";
+import { kindPlural } from "../../kindWords";
 
 /** The blueprint that turns a description into an app (AP-22, Architecture/16 §3). */
 export const BLUEPRINT = "app-from-prompt";
@@ -330,9 +331,12 @@ export function AppGenerator({
   initialName,
   initialPrompt,
   onStarted,
+  embedded = false,
 }: {
   project: string;
   initialName?: string;
+  /** Inside another page whose H1 names the App: the generator's heading is an H2 (T-4264). */
+  embedded?: boolean;
   /** What the app should do, already written: a template's purpose naming the template (T-3263). */
   initialPrompt?: string;
   /** Called with the new run before the page moves to the app, so the assistant can follow it. */
@@ -476,7 +480,7 @@ export function AppGenerator({
   }
 
   if (!available) {
-    return <NoBuilder />;
+    return <NoBuilder embedded={embedded} />;
   }
 
   // A name is needed for the URL the app is served at, not for the conversation: it is derived
@@ -512,11 +516,11 @@ export function AppGenerator({
         generate.mutate();
       }}
     >
-      <PageHeader title={t("apps.generate.title")} description={t("apps.generate.subtitle")} />
+      <GeneratorHeading embedded={embedded} />
       {guideHref ? (
         <p className="text-body">
           <ExternalLink data-testid="form-guide" href={guideHref} className="text-primary-soft-fg underline-offset-2">
-            {t("form.guideLink", { kind: "App" })}
+            {t("form.guideLink", { kind: kindPlural("App", t) })}
           </ExternalLink>
         </p>
       ) : null}
@@ -892,11 +896,11 @@ function NeedsChecklist({
  * button that opens a merge request nothing will ever pick up, and the reference apps are
  * the worked examples a reader wanted anyway.
  */
-function NoBuilder(): JSX.Element {
+function NoBuilder({ embedded }: { embedded: boolean }): JSX.Element {
   const { t } = useTranslation();
   return (
     <div className="space-y-3">
-      <PageHeader title={t("apps.generate.title")} description={t("apps.generate.subtitle")} />
+      <GeneratorHeading embedded={embedded} />
       <Alert tone="info">{t("apps.generate.noBuilder")}</Alert>
       <p className="text-sm">{t("apps.generate.examplesHint")}</p>
       <ul className="list-disc pl-5 text-sm">
@@ -911,6 +915,18 @@ function NoBuilder(): JSX.Element {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/** The generator's own page header, or an H2 under the page of the App it edits. */
+function GeneratorHeading({ embedded }: { embedded: boolean }): JSX.Element {
+  const { t } = useTranslation();
+  if (!embedded) return <PageHeader title={t("apps.generate.title")} description={t("apps.generate.subtitle")} />;
+  return (
+    <div className="space-y-1">
+      <h2 className="font-heading text-title font-semibold">{t("apps.generate.title")}</h2>
+      <p className="text-body text-fg-muted">{t("apps.generate.subtitle")}</p>
     </div>
   );
 }

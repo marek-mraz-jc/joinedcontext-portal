@@ -19,7 +19,7 @@ test.setTimeout(240_000);
 test("a steward reads what each assistant and settings form needs, and proposes nothing", async ({ browser }) => {
   const { context, page } = await signIn(browser, STEWARD, `/projects/${PROJECT}/knowledgesources?lang=en`);
   try {
-    await page.getByRole("main").getByRole("button", { name: "New KnowledgeSource" }).first().click();
+    await page.getByRole("main").getByRole("button", { name: "New knowledge source" }).first().click();
     let form = await openedForm(page);
     await expect(form.getByText("The address of a PDF or another document is read as that document.")).toBeVisible();
     await form.locator("#root_schedule").fill("every night");
@@ -28,7 +28,7 @@ test("a steward reads what each assistant and settings form needs, and proposes 
     await page.keyboard.press("Escape");
 
     await page.goto(`/projects/${PROJECT}/assistantdeployments?lang=en`, { waitUntil: "load" });
-    await page.getByRole("main").getByRole("button", { name: "New AssistantDeployment" }).first().click();
+    await page.getByRole("main").getByRole("button", { name: "New assistant deployment" }).first().click();
     form = await openedForm(page);
     await form.locator("#root_name").fill("town-help-check");
     await form.locator("#root_publicId").fill("town-help-check");

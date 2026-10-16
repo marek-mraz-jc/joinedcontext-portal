@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
 import { Button, Checkbox, Field, Input, Select } from "../ui";
-import { filtersFromQ, opsFor, qFromFilters } from "./filters";
+import { filtersFromQ, opsFor, qFromFilters, qProblem } from "./filters";
 import type { EntityQuery, Filter, FilterSlot } from "./filters";
 
 export interface EntityFiltersProps {
@@ -40,6 +40,7 @@ export function EntityFilters({ id, types, slots, value, onChange, denied = {}, 
     setState({ q, rows: filtersFromQ(q) });
   }
   const rows = q === state.q ? state.rows : filtersFromQ(q);
+  const problem = qProblem(q);
 
   function setRows(next: Filter[]) {
     const composed = qFromFilters(next, slots);
@@ -146,9 +147,9 @@ export function EntityFilters({ id, types, slots, value, onChange, denied = {}, 
                 </div>
               );
             })
-          ) : (
+          ) : /[|()]/.test(q) ? (
             <p className="text-caption text-fg-muted">{t("entities.advanced")}</p>
-          )}
+          ) : null}
           {rows ? (
             <div>
               <Button
@@ -160,7 +161,16 @@ export function EntityFilters({ id, types, slots, value, onChange, denied = {}, 
               </Button>
             </div>
           ) : null}
-          <Field id={`${id}-q`} label={t("entities.q")} description={t("entities.qHint")}>
+          <Field
+            id={`${id}-q`}
+            label={t("entities.q")}
+            description={t("entities.qHint")}
+            errors={
+              problem
+                ? [problem.kind === "unquoted" ? t("entities.qProblem.unquoted", { fix: problem.fix }) : t("entities.qProblem.shape")]
+                : undefined
+            }
+          >
             <Input
               id={`${id}-q`}
               value={q}

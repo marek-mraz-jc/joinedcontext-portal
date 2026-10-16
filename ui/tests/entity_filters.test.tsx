@@ -11,7 +11,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import type { Manifest } from "../src/api/manifest";
-import { filterSlotsOf, filtersFromQ, opsFor, qFromFilters } from "../src/components/entities/filters";
+import { filterSlotsOf, filtersFromQ, opsFor, qFromFilters, qProblem } from "../src/components/entities/filters";
 
 const IDENTITY = { subject: "b7c1e0f4", username: "jana.kovacova", name: "Jana Kováčová", roles: [] };
 const BRANDING = {
@@ -133,6 +133,36 @@ describe("filters from the model", () => {
     );
   });
 
+  /// T-4264, T-4160 #22: what the broker would refuse with an English parser error is caught in
+  /// the field, with the fix; what it takes passes.
+  it("finds the q the broker would refuse, and says how to fix text without quotes", () => {
+    for (const fine of [
+      undefined,
+      "",
+      'name=="Nemocnica"',
+      "pm10>20;active==true",
+      "pm10>10|pm10<1",
+      "dateObserved>=2026-10-01T00:00:00Z",
+      "pm10==1..5",
+      'level=="good","bad"',
+      "address[streetAddress]==\"Hlavná 1\"",
+      "refDistrict",
+      "!refDistrict",
+      "(pm10>1|pm10<0);active==true",
+      'name~="^Nem.*"',
+    ]) {
+      expect(qProblem(fine), String(fine)).toBeUndefined();
+    }
+    expect(qProblem("name==qzxwv-nothing-is-called-this")).toEqual({
+      kind: "unquoted",
+      fix: 'name=="qzxwv-nothing-is-called-this"',
+    });
+    expect(qProblem('pm10>1;name==a"b')).toEqual({ kind: "unquoted", fix: 'name=="a\\"b"' });
+    for (const broken of ['name == "x"', "pm10>", "==5", "pm10>1;;", 'name=="unclosed']) {
+      expect(qProblem(broken), broken).toBeDefined();
+    }
+  });
+
   it("leaves q the rows cannot show as text", () => {
     expect(filtersFromQ("")).toEqual([]);
     expect(filtersFromQ(undefined)).toEqual([]);
@@ -233,6 +263,15 @@ describe("data explorer (UI-33)", () => {
     await userEvent.clear(screen.getByLabelText(en.entities.q));
     await userEvent.type(screen.getByLabelText(en.entities.q), "pm10>10|pm10<1");
     expect(screen.getByText(en.entities.advanced)).toBeInTheDocument();
+
+    // Text without its quotes is caught on the field with the fix, and never sent (T-4160 #22).
+    const sent = gatewayUrls(fetchMock).length;
+    await userEvent.clear(screen.getByLabelText(en.entities.q));
+    await userEvent.type(screen.getByLabelText(en.entities.q), "name==qzxwv");
+    expect(screen.getByText(en.entities.qProblem.unquoted.replace("{fix}", 'name=="qzxwv"'))).toBeInTheDocument();
+    expect(screen.queryByText(en.entities.advanced)).toBeNull();
+    expect(gatewayUrls(fetchMock).slice(sent).some((url) => url.searchParams.get("q")?.includes("qzxwv"))).toBe(false);
+    await userEvent.clear(screen.getByLabelText(en.entities.q));
 
     // One entity in full, read by id.
     await userEvent.click(await screen.findByRole("button", { name: ROWS[1].id }));

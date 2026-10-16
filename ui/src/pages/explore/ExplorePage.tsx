@@ -10,7 +10,7 @@ import { asManifests, localized, refName } from "../../api/manifest";
 import { AccessPanel, deniedAttributes, useAccess } from "../../components/entities/AccessPanel";
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
-import { deleteEntity, enumsOfModel, fetchEntity, filterSlotsOf, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
+import { deleteEntity, enumsOfModel, fetchEntity, filterSlotsOf, qProblem, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import type { EntityQuery } from "../../components/entities/filters";
 import { Alert, Button, Dialog, EmptyState, Field, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
 import { TypeQuality } from "./TypeQuality";
@@ -214,7 +214,8 @@ export function ExplorePage({
    * narrows what the page already asked for rather than replacing it.
    */
   const config: ResolvedGridConfig | null = useMemo(() => {
-    if (!slug || !query.type) {
+    // A q the broker would refuse is not sent: the field says how to fix it (T-4264, T-4160 #22).
+    if (!slug || !query.type || qProblem(query.q)) {
       return null;
     }
     const parsed = parseGridConfig({
@@ -434,6 +435,8 @@ export function ExplorePage({
             onOpenRelationship={setSelected}
             onQuery={onQuery}
             onGridState={onGridState}
+            // A filter that excludes everything says so, and how to get rows back (T-4160 #22).
+            emptyText={query.q ? t("explore.noMatch") : undefined}
             renderers={renderers}
             toolbar={
               slug ? (

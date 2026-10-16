@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
 import en from "../src/locales/en.json";
-import { AgentAccess } from "../src/pages/assistant/AgentAccess";
+import { AgentAccess, egressWords } from "../src/pages/assistant/AgentAccess";
 import { expectNoAxeViolations, json, problem, renderPart } from "./page_contract";
 import { answeringChecks, checksSoFar } from "./checks";
 
@@ -104,7 +104,8 @@ describe("Agent access on the Assistant page (UI-56)", () => {
     expect(cells("jc_endpoint_propose")).toEqual(["jc_endpoint_propose", "yes", "no", "no role grants propose on Endpoint"]);
     expect(cells("jc_space_complete")[1]).toBe("no");
     expect(screen.getByText(i18n.t("assistantPage.access.available", { count: 1, total: 3 }))).toBeInTheDocument();
-    expect(screen.getByText("registry.npmjs.org")).toBeInTheDocument();
+    // T-4160 #31: the registry in words, the host a hover away; the title in the page's language.
+    expect(screen.getByText(en.assistantPage.access.packageHosts)).toHaveAttribute("title", "registry.npmjs.org");
   });
 
   // T-2760: every profile's operations open at once made the Assistant page 10,276 px tall.
@@ -186,3 +187,16 @@ describe("the agent access panel, mounted on its own", () => {
     await expectNoAxeViolations(empty.container);
   });
 });
+
+describe("an agent profile in the page's words (T-4264, T-4160 #31)", () => {
+  it("names the package registries in words and keeps any other host as written", async () => {
+    await i18n.changeLanguage("sk");
+    const t = (key: string) => i18n.t(key);
+    expect(egressWords(["registry.npmjs.org", "static.crates.io"], t)).toBe("balíčky pre stavbu aplikácií");
+    expect(egressWords(["registry.npmjs.org", "api.example.org"], t)).toBe("balíčky pre stavbu aplikácií, api.example.org");
+    expect(egressWords([], t)).toBe(i18n.t("assistantPage.access.noEgress"));
+    expect(i18n.t("assistantPage.access.profileTitles.app-builder")).toBe("Zostavovač aplikácií");
+    await i18n.changeLanguage("en");
+  });
+});
+

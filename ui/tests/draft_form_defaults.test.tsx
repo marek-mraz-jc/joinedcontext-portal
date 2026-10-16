@@ -180,14 +180,14 @@ describe("what proposing leads to, said in the dialog", () => {
   it("an administrator of the kind hears the change is approved when they propose", async () => {
     withVerbs(["propose", "approve", "delete"]);
     expect(await screen.findByTestId("propose-standing")).toHaveTextContent(
-      en.changes.approvedOnPropose.replace("{kind}", "ContextSpace"),
+      en.changes.approvedOnPropose.replace("{kind}", en.kinds.ContextSpace.other),
     );
   });
 
   it("a steward hears the change waits and why", async () => {
     withVerbs(["propose", "approve"]);
     expect(await screen.findByTestId("propose-standing")).toHaveTextContent(
-      en.changes.approveNotDelete.replace("{kind}", "ContextSpace"),
+      en.changes.approveNotDelete.replace("{kind}", en.kinds.ContextSpace.other),
     );
   });
 

@@ -107,7 +107,7 @@ describe("Organization → Blueprints", () => {
     vi.unstubAllGlobals();
   });
 
-  const newLabel = en.resourceList.new.replace("{kind}", "Blueprint");
+  const newLabel = en.kinds.Blueprint.new;
 
   // UI-01, PF-57: New opens the form under a heading of the tab's level; checked, then proposed.
   it("creates a blueprint through the form, checked before it is proposed", async () => {

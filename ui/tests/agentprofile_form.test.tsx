@@ -149,7 +149,7 @@ describe("Organization → Agent profiles", () => {
     vi.unstubAllGlobals();
   });
 
-  const newLabel = en.resourceList.new.replace("{kind}", "AgentProfile");
+  const newLabel = en.kinds.AgentProfile.new;
 
   // UI-01, PF-57: New opens the form with the reference limits filled; checked, then proposed.
   it("creates a steward profile through the form, checked before it is proposed", async () => {
