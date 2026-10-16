@@ -192,10 +192,12 @@ export function ActivityFeed({
 
   const head = (
     <TableHead>
-      <TableHeaderCell>{t("activity.time")}</TableHeaderCell>
-      <TableHeaderCell>{t("activity.kind")}</TableHeaderCell>
+      {/* On a phone the time, kind and source are one line above the sentence, so the sentence
+          gets the row's width (T-4165, photo audit T-4157). */}
+      <TableHeaderCell secondary>{t("activity.time")}</TableHeaderCell>
+      <TableHeaderCell secondary>{t("activity.kind")}</TableHeaderCell>
       <TableHeaderCell>{t("activity.summary")}</TableHeaderCell>
-      <TableHeaderCell>{t("activity.source")}</TableHeaderCell>
+      <TableHeaderCell secondary>{t("activity.source")}</TableHeaderCell>
     </TableHead>
   );
 
@@ -343,10 +345,10 @@ export function ActivityFeed({
               const change = changeOf(event);
               return (
                 <TableRow key={`${event.time}-${event.kind}-${event.summary}`}>
-                  <TableCell className="whitespace-nowrap text-fg-muted">
+                  <TableCell secondary className="whitespace-nowrap text-fg-muted">
                     {time.format(new Date(event.time))}
                   </TableCell>
-                  <TableCell>
+                  <TableCell secondary>
                     <Badge
                       tone={SEVERITY_TONE[event.severity] ?? "neutral"}
                       data-testid="activity-kind"
@@ -355,6 +357,17 @@ export function ActivityFeed({
                     </Badge>
                   </TableCell>
                   <TableCell primary>
+                    <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-fg-muted sm:hidden">
+                      <span>{time.format(new Date(event.time))}</span>
+                      <Badge tone={SEVERITY_TONE[event.severity] ?? "neutral"}>
+                        {kindLabel(event, t)}
+                      </Badge>
+                      <span>
+                        {t(`activity.sources.${event.source}`, {
+                          defaultValue: event.source,
+                        })}
+                      </span>
+                    </div>
                     <span data-testid="activity-sentence">{sentence}</span>
                     {reason ? (
                       <details className="mt-0.5 text-caption text-fg-muted">
@@ -402,7 +415,7 @@ export function ActivityFeed({
                       </div>
                     ) : null}
                   </TableCell>
-                  <TableCell className="text-fg-muted">
+                  <TableCell secondary className="text-fg-muted">
                     {t(`activity.sources.${event.source}`, {
                       defaultValue: event.source,
                     })}

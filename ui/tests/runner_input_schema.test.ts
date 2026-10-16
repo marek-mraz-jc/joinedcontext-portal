@@ -297,3 +297,36 @@ describe("every field the catalog calls a secret renders as a reference (T-2239)
     }
   });
 });
+
+describe("a runner field in a person's words (T-4165, photo audit T-4159)", () => {
+  const nats = (bentoInputs as { inputs: CatalogInput[] }).inputs.find((input) => input.name === "nats");
+
+  it("is labelled from its key, never the raw key", () => {
+    const { schema } = runnerInputSchema(nats as CatalogInput);
+    const props = schema.properties as Record<string, { title?: string }>;
+    expect(props.nak_delay.title).toBe("Nak delay");
+    expect(props.prefetch_count.title).toBe("Prefetch count");
+    for (const [key, prop] of Object.entries(props)) expect(prop.title, key).not.toMatch(/_/);
+  });
+
+  it("keeps a markdown link's words and drops its address in the help", () => {
+    const { schema } = runnerInputSchema({
+      name: "x",
+      group: "brokers",
+      summary: "",
+      fields: [
+        {
+          path: "extract_tracing_map",
+          type: "string",
+          kind: "scalar",
+          secret: false,
+          advanced: false,
+          default: null,
+          description: "EXPERIMENTAL: A [Bloblang mapping](/docs/guides/bloblang/about) that uses `meta`.",
+        },
+      ],
+    } as CatalogInput);
+    const prop = (schema.properties as Record<string, { description?: string }>).extract_tracing_map;
+    expect(prop.description).toBe("EXPERIMENTAL: A Bloblang mapping that uses meta.");
+  });
+});

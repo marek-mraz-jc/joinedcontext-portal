@@ -61,6 +61,8 @@ export interface RouteOptions {
   /** The page's own requests never settle, so it stays in its loading state for the assertion. */
   pending?: boolean;
   locale?: (typeof LOCALES)[number];
+  /** What the project list answers, when not the one project `helsinki`. */
+  projects?: () => Response;
   /** A brand that is not the default, to catch a colour written as a literal (UI-15). */
   brand?: Record<string, unknown>;
 }
@@ -124,7 +126,7 @@ export async function renderRoute(options: RouteOptions): Promise<Rendered> {
       );
     }
     if (path === "/api/v1/projects") {
-      return Promise.resolve(jsonResponse(list([{ name: "helsinki" }])));
+      return Promise.resolve(options.projects?.() ?? jsonResponse(list([{ name: "helsinki" }])));
     }
     // `pending` holds the page's own data, never the shell's: an identity that never arrives
     // renders the login page instead of the page under test.

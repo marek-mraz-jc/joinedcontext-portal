@@ -11,7 +11,7 @@ import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { mayRead, usePermissions } from "../../api/permissions";
 import { spaceUsageQuery } from "../../api/spaceUsage";
 import { useSampleProjects } from "../../api/projects";
-import { Alert, Badge, Button, PageHeader } from "../../components/ui";
+import { Alert, Badge, Button, PageFailed, PageHeader } from "../../components/ui";
 import { cardsFor, draftPage, firstRunSteps, roleOf, sampleToTry, welcomeStep } from "./home";
 import type { Facts } from "./home";
 import { useFirstRun } from "./firstRun";
@@ -108,9 +108,17 @@ export function HomePage({
   const samples = useSampleProjects().data ?? [];
   const isSample = samples.includes(project);
   const trySample = sampleToTry(project, samples);
+  // The checklist counts what the project holds, so it waits for the lists it counts: a read that
+  // failed would count as nothing made yet and send the person to make what they have (T-4165).
+  const counted = [spaces, datasources, pipelines, endpoints];
+  const failed = counted.find((query) => query.isError);
+  const counting = counted.some((query) => query.isLoading);
   // Offered while the person keeps the first-run guidance (PF-109): inside the checklist while it
   // is open, on its own once every step is done, and nowhere after it was put away.
-  const checklistOpen = firstRun.shown && doneCount < steps.length;
+  // A viewer may do none of the steps (make a space, connect a source, run a pipeline): their
+  // home offers what they can open instead (T-4165, photo audit T-4157).
+  const builds = role === "steward" || role === "editor";
+  const checklistOpen = builds && firstRun.shown && !failed && !counting && doneCount < steps.length;
   const sampleLine =
     firstRun.shown && trySample ? (
       <p className="text-body text-fg-muted">
@@ -150,6 +158,15 @@ export function HomePage({
             ) : null}
           </div>
         </section>
+      ) : null}
+
+      {failed ? (
+        <PageFailed
+          error={failed.error}
+          onRetry={() => {
+            for (const query of counted) if (query.isError) void query.refetch();
+          }}
+        />
       ) : null}
 
       {checklistOpen ? null : sampleLine}

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
+import en from "../src/locales/en.json";
 import { ResourceFormDialog } from "../src/components/ResourceFormDialog";
 import { BrandingProvider, NEUTRAL_BRANDING } from "../src/branding";
 import type { JsonSchema } from "../src/components/forms/types";
@@ -299,7 +300,8 @@ describe("a manifest form", () => {
     }
   });
 
-  it("says so when a manifest asks for something the form cannot do", async () => {
+  it("says so in the console, not to the person, when a manifest asks for something the form cannot do (T-4165)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     stubFetch([
       {
         ...ENDPOINT_FORM,
@@ -308,9 +310,12 @@ describe("a manifest form", () => {
     ]);
     renderDialog("Endpoint");
 
-    // A manifest silently ignored is the failure this whole path exists to avoid.
-    const status = await screen.findByRole("status");
-    expect(status.textContent).toContain("nosuchfield");
+    // A manifest silently ignored is the failure this whole path exists to avoid; a steward
+    // reading "the schema has no field" is the other one (photo audit T-4159).
+    await waitFor(() => expect(warn.mock.calls.flat().join(" ")).toContain("nosuchfield"));
+    expect(screen.queryByText(/nosuchfield/)).toBeNull();
+    expect(screen.queryByText(en.form.uischemaProblems)).toBeNull();
+    warn.mockRestore();
   });
 });
 

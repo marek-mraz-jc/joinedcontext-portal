@@ -180,6 +180,21 @@ describe("the page's failed state", () => {
     expect(retry).toHaveBeenCalledTimes(1);
   });
 
+  it("T-4165: a server failure with no sentence of its own says what failed in words, not the HTTP status text", () => {
+    // T-4163 audit: Policies, Context Spaces and Organization showed only 'Internal Server Error'.
+    for (const error of [
+      new ApiError(500, "Internal Server Error"),
+      new ApiError(500, "Internal Server Error", { type: "about:blank", status: 500, title: "Internal Server Error" }),
+      new ApiError(503, "Service Unavailable"),
+    ]) {
+      const { unmount } = show(<PageFailed error={error} onRetry={vi.fn()} />);
+      expect(screen.getByText(en.app.error.server)).toBeInTheDocument();
+      expect(screen.queryByText(/Internal Server Error|Service Unavailable/)).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
+      unmount();
+    }
+  });
+
   it("T-2747: a lost connection says so and offers Retry", () => {
     show(<PageFailed error={new TypeError("Failed to fetch")} onRetry={vi.fn()} />);
     expect(screen.getByText(en.app.error.generic)).toBeInTheDocument();

@@ -62,6 +62,15 @@ export function rememberProject(project: string): void {
   }
 }
 
+/** The project last worked in, whether or not the list of projects has come back (T-4165). */
+export function lastProject(): string | undefined {
+  try {
+    return window.localStorage.getItem(LAST_PROJECT) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * The project a page that belongs to none opens on: the one last worked in while the person may
  * still read it, else the first they may read (T-2753).
@@ -70,11 +79,6 @@ export function preferredProject(projects: readonly string[] | undefined): strin
   if (!projects || projects.length === 0) {
     return undefined;
   }
-  let last: string | null = null;
-  try {
-    last = window.localStorage.getItem(LAST_PROJECT);
-  } catch {
-    last = null;
-  }
-  return last !== null && projects.includes(last) ? last : projects[0];
+  const last = lastProject();
+  return last !== undefined && projects.includes(last) ? last : projects[0];
 }

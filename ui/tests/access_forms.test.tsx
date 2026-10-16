@@ -414,18 +414,15 @@ describe("the Role form", () => {
   it("a reader's form says why it cannot be proposed and offers no list control to press", async () => {
     // demo.viewer on the walk (T-3852): every create form offered Add, Remove and Propose change
     // to a role that may only read, and the API's 403 was the first word of it (UI-44, PF-51).
+    // T-4165 (photo audit T-4158): the refusal stands at the top in words, and no greyed form of
+    // 4,000 px follows it with the reason in API terms under its last field.
     roleDialog(effective([{ kinds: ["Role"], verbs: ["read"] }]));
 
     const dialog = await screen.findByRole("dialog");
-    const submit = await waitFor(() => {
-      const found = within(dialog).getByRole("button", { name: en.access.projectRoles.propose });
-      expect(found).toHaveAttribute("aria-disabled", "true");
-      return found;
-    });
-    expect(submit.getAttribute("title")).toBe(
-      i18n.t("permissions.denied", { verb: "propose", kind: "Role" }),
-    );
+    expect(await within(dialog).findByText(en.form.mayNotCreate)).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: en.access.projectRoles.propose })).toBeNull();
     expect(within(dialog).queryByRole("button", { name: /^(Add|Remove)\b/ })).toBeNull();
+    expect(within(dialog).queryByRole("textbox")).toBeNull();
   });
 
   it("refuses the same role typed into the YAML view, where the lists do not reach", async () => {
@@ -530,7 +527,12 @@ describe("the role form on a phone (T-4213)", () => {
   // A native multi-select shows four or five clipped rows at 375 px; a role's kinds and verbs are
   // a short known list, ticked one by one (photo audit T-4158).
   it("offers the kinds and the verbs as checkboxes, not a multi-select", async () => {
-    roleDialog(effective([{ kinds: ["Endpoint", "Pipeline"], verbs: ["read", "propose"] }]));
+    roleDialog(
+      effective([
+        { kinds: ["Endpoint", "Pipeline"], verbs: ["read", "propose"] },
+        { kinds: ["Role"], verbs: ["propose"] },
+      ]),
+    );
     expect(await screen.findByRole("checkbox", { name: "Endpoint" })).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Pipeline" })).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Propose changes" })).toBeInTheDocument();

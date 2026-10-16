@@ -160,6 +160,9 @@ describe("the command palette (T-3238)", () => {
     await waitFor(() => expect(screen.getByRole("group", { name: en.palette.groups.projects })).toHaveTextContent("ovzdusie"));
     await person.type(search, "urn:ngsi-ld:Station:7");
     expect(options()[0]).toBe("Open the entity urn:ngsi-ld:Station:7urn:ngsi-ld:Station:7");
+    // The echo beside the label gives way on a phone, where it cut the label short (T-4165).
+    const echo = within(screen.getAllByRole("option")[0]).getAllByText("urn:ngsi-ld:Station:7")[0];
+    expect(echo).toHaveClass("max-sm:hidden");
     await person.keyboard("{Enter}");
     await waitFor(() => expect(router.state.location.pathname).toBe("/projects/helsinki/explore"));
     expect(router.state.location.search).toEqual({ entityId: "urn:ngsi-ld:Station:7" });

@@ -35,6 +35,26 @@ describe("a phone-wide page", () => {
     expect(frame).toHaveClass("relative");
   });
 
+  it("keeps a table's first column, the row's name, at the left edge while a phone scrolls the frame (T-4165)", () => {
+    render(
+      <Table caption="Pipelines">
+        <TableBody>
+          <TableRow>
+            <TableCell primary>kpi-compute</TableCell>
+            <TableCell>Runs on its schedule</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>,
+    );
+    const table = screen.getByRole("table");
+    // jsdom lays nothing out: the classes are what the browser needs.
+    for (const name of ["sticky", "left-0", "bg-inherit"]) {
+      expect(table.className).toContain(`max-md:[&_tr>:first-child]:${name}`);
+    }
+    // The sticky cell takes its row's colour, so the row needs one behind the scrolled cells.
+    expect(table.className).toContain("max-md:[&_tbody>tr]:bg-surface");
+  });
+
   it("wraps an error's URL anywhere rather than widening the page", () => {
     render(
       <I18nextProvider i18n={i18n}>

@@ -4,6 +4,7 @@
     "loading": "Loading...",
     "error": {
       "generic": "The Portal did not answer. Check the connection and try again.",
+      "server": "The Portal could not read this just now. Try again; if it keeps failing, tell your administrator.",
       "retry": "Retry",
       "crashTitle": "This page stopped",
       "crashBody": "Something in the Portal failed while drawing this page. Nothing you were looking at was changed.",
@@ -119,6 +120,7 @@
     "opening": "Opening the form…",
     "notOpen": "This form cannot be opened: there is nothing called {name} here, or you may not change it.",
     "notOpenNew": "This page has no create form at this address, or you may not create anything here.",
+    "mayNotCreate": "Your role lets you look at these, not create one here. A project steward or an administrator can give you that right.",
     "required": "This field is required",
     "invalid": "Invalid value",
     "choose": "Choose…",
@@ -2040,7 +2042,9 @@
         "empty": "The source answered no records.",
         "count": "{count, plural, one {# record} other {# records}} with {fields, plural, one {# field} other {# fields}}",
         "countFirst": "The first {count, plural, one {# record} other {# records}} with {fields, plural, one {# field} other {# fields}}; the source has more",
-        "caption": "Sample records"
+        "caption": "Sample records",
+        "notJson": "The source answered a web page, not data. Check the address of its data source.",
+        "details": "Engine message"
       },
       "mapping": {
         "title": "Mapping",
@@ -4735,7 +4739,7 @@
     "fileHelp": "A ZIP an export produced, or a YAML stream or JSON manifest.",
     "fileMissing": "Choose a file first.",
     "noFile": "Choose a file first.",
-    "noUrl": "A bundle is uploaded, not fetched: importing from a URL would have this Portal open a connection to a host you name, and the policy that decides which hosts is not written yet.",
+    "noUrl": "Upload the bundle as a file; the Portal does not fetch one from an address.",
     "pastedSecret": "This bundle writes a credential in the open ({keys}). Replace it with a secretRef and choose the file again; the import refuses it either way.",
     "namespace": "Project to import into",
     "namespaceHelp": "Every imported manifest is rewritten into it.",

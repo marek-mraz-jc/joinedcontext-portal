@@ -67,6 +67,11 @@ export function Table({
           // rule — two selectors deep, so more specific than the row's own `hover:` — won an
           // even row's background outright and hovering half the table did nothing.
           zebra && "[&>tbody>tr:nth-child(even):not(:hover)]:bg-surface-subtle/70",
+          // Below md the first column, the row's name, stays at the left edge while the frame
+          // scrolls sideways: a row scrolled to its actions still says which record it is
+          // (T-4165, photo audit T-4159). It takes its row's background, zebra and hover too.
+          "max-md:[&_tr>:first-child]:sticky max-md:[&_tr>:first-child]:left-0 max-md:[&_tr>:first-child]:z-10",
+          "max-md:[&_tr>:first-child]:bg-inherit max-md:[&_tbody>tr]:bg-surface max-md:[&_thead>tr]:bg-surface-subtle",
           className,
         )}
         {...rest}

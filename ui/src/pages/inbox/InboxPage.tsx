@@ -177,7 +177,9 @@ export function InboxPage({ project }: { project: string }): JSX.Element {
           ))}
         </ul>
         <p className="hidden text-body text-fg-muted peer-empty:block">{t("inbox.noDecisions")}</p>
-        <p className="text-caption text-fg-muted">{t("inbox.decisionsHint")}</p>
+        {/* How to approve, only while something waits: the list holds only what this person may
+            decide, so a viewer never reads a hint about an action they cannot take (T-4165). */}
+        <p className="text-caption text-fg-muted peer-empty:hidden">{t("inbox.decisionsHint")}</p>
       </section>
       <section aria-labelledby="inbox-mentions" className="space-y-3">
         <h2 id="inbox-mentions" className="text-title font-semibold text-fg">

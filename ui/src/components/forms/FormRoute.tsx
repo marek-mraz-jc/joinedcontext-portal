@@ -1,11 +1,12 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { HTMLAttributes, JSX, ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { useIsFetching } from "@tanstack/react-query";
+import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Alert, Button, Dialog, Icon, PageHeader, PageLoading } from "../ui";
 import type { DialogSize } from "../ui";
+import { failureKind } from "../ui/PageState";
 
 /**
  * A bigger form is a page with an address of its own, not a popup (T-2474, UI-27).
@@ -323,6 +324,7 @@ export function FormRouteHost({
   const [open, setOpen] = useState(0);
   const [notice, setNotice] = useState<ReactNode>(null);
   const fetching = useIsFetching();
+  const queryClient = useQueryClient();
   // What had the focus when a form opened over the list, given it back once the list is shown.
   // Taken as the form is asked for, while the control that asked still holds the focus: once
   // the list is hidden a browser moves the focus off it.
@@ -382,17 +384,32 @@ export function FormRouteHost({
   // the commit is done, when every registration of that commit has been counted.
   const formKey = form === null ? null : form.mode === "new" ? "new" : `edit:${form.name}`;
   const [settledFor, setSettledFor] = useState<string | null>(null);
+  // A read the page needed failed (a server error, a lost connection): the page says so itself
+  // with its Retry, and "no create form here" would be a second, wrong story (T-4165).
+  const [readFailed, setReadFailed] = useState(false);
   useEffect(() => {
     // After this commit, the children's registrations included; a later change drops the verdict.
     let live = true;
     queueMicrotask(() => {
-      if (live) setSettledFor(fetching === 0 ? formKey : null);
+      if (!live) return;
+      setSettledFor(fetching === 0 ? formKey : null);
+      setReadFailed(
+        fetching === 0 &&
+          queryClient
+            .getQueryCache()
+            .findAll({ type: "active" })
+            .some((query) => {
+              if (query.state.status !== "error") return false;
+              const kind = failureKind(query.state.error);
+              return kind === "server" || kind === "network";
+            }),
+      );
     });
     return () => {
       live = false;
     };
-  }, [fetching, formKey]);
-  const unopened = form !== null && !showing && fetching === 0 && settledFor === formKey;
+  }, [fetching, formKey, queryClient]);
+  const unopened = form !== null && !showing && !readFailed && fetching === 0 && settledFor === formKey;
   // The last form closed, by its back control, its Cancel, a saved proposal or a page that
   // dropped its editor: the address leaves the form too, so a reload or the back button does
   // not land on a form that is no longer there. (The browser's back button leaves the address
@@ -435,9 +452,11 @@ export function FormRouteHost({
             </div>
           </div>
         ) : null}
-        <div hidden={showing || (form !== null && !unopened)}>{children}</div>
+        <div hidden={showing || (form !== null && !unopened && !readFailed)}>{children}</div>
         <div ref={setSlot} />
-        {form !== null && !showing && !unopened ? <PageLoading label={t("form.opening")} lines={2} /> : null}
+        {form !== null && !showing && !unopened && !readFailed ? (
+          <PageLoading label={t("form.opening")} lines={2} />
+        ) : null}
       </div>
     </FormRouteContext.Provider>
   );

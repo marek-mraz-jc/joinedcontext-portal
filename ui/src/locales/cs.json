@@ -4,6 +4,7 @@
     "loading": "Načítá se...",
     "error": {
       "generic": "Portál neodpověděl. Zkontrolujte připojení a zkuste to znovu.",
+      "server": "Portál to teď nedokázal načíst. Zkuste to znovu; pokud to opakovaně selže, řekněte to správci.",
       "retry": "Zkusit znovu",
       "crashTitle": "Tato stránka se zastavila",
       "crashBody": "V Portálu selhalo něco při vykreslování této stránky. Na tom, co jste si prohlíželi, se nic nezměnilo.",
@@ -119,6 +120,7 @@
     "opening": "Otevírá se formulář…",
     "notOpen": "Tento formulář nelze otevřít: nic s názvem {name} tu není, nebo to nesmíte měnit.",
     "notOpenNew": "Na této adrese není formulář pro vytvoření, nebo tu nesmíte nic vytvářet.",
+    "mayNotCreate": "Vaše role vám dovoluje tyto položky prohlížet, ne tu nějakou vytvořit. Toto právo vám může dát správce projektu nebo administrátor.",
     "required": "Toto pole je povinné",
     "invalid": "Neplatná hodnota",
     "choose": "Vyberte…",
@@ -2040,7 +2042,9 @@
         "empty": "Zdroj nevrátil žádný záznam.",
         "count": "{count, plural, one {# záznam} few {# záznamy} other {# záznamů}} s {fields, plural, one {# polem} other {# poli}}",
         "countFirst": "Prvních {count, plural, one {# záznam} few {# záznamy} other {# záznamů}} s {fields, plural, one {# polem} other {# poli}}; zdroj má více",
-        "caption": "Záznamy vzorku"
+        "caption": "Záznamy vzorku",
+        "notJson": "Zdroj vrátil webovou stránku, ne data. Zkontrolujte adresu jeho datového zdroje.",
+        "details": "Zpráva nástroje"
       },
       "mapping": {
         "title": "Mapování",
@@ -4735,7 +4739,7 @@
     "fileHelp": "ZIP z exportu, nebo YAML proud či JSON manifest.",
     "fileMissing": "Nejprve vyberte soubor.",
     "noFile": "Nejprve vyberte soubor.",
-    "noUrl": "Balík se nahrává, nestahuje: import z URL by znamenal, že tento Portál otevře spojení na hostitele, kterého jste zadali, a pravidlo, které rozhoduje o povolených hostitelích, ještě není napsané.",
+    "noUrl": "Nahrajte balík jako soubor; Portál ho ze zadané adresy nestahuje.",
     "pastedSecret": "Tento balík má přihlašovací údaj napsaný přímo ({keys}). Nahraďte jej odkazem secretRef a vyberte soubor znovu; import jej stejně odmítne.",
     "namespace": "Projekt, do kterého se importuje",
     "namespaceHelp": "Každý importovaný manifest se do něj přepíše.",

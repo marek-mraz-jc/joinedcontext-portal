@@ -8,10 +8,11 @@ import {
   Outlet,
   redirect,
   useChildMatches,
+  useRouteContext,
   useNavigate,
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { preferredProject, useProjects } from "./api/projects";
+import { lastProject, preferredProject, useProjects } from "./api/projects";
 import { BrandMark, Shell } from "./components/layout/Shell";
 import { isHiddenSection } from "./components/layout/navigation";
 import { useHiddenSections } from "./branding";
@@ -100,9 +101,21 @@ function Bare({ children }: { children: React.ReactNode }): React.JSX.Element {
 function NoProject({
   projects,
 }: {
-  projects: Pick<ReturnType<typeof useProjects>, "isPending" | "isError" | "error" | "refetch">;
+  projects: Pick<ReturnType<typeof useProjects>, "isPending" | "isError" | "error" | "errorUpdateCount" | "refetch">;
 }): React.JSX.Element {
   const { t } = useTranslation();
+  // When the list failed, the project last worked in keeps the shell: the navigation, the
+  // person's menu and a way elsewhere stay (T-4165, photo audit T-4163). The shell stays while
+  // the list is asked again too: its project switcher asks on mount, and a shell that left for
+  // the wait would come back and ask again, for ever.
+  const last = projects.errorUpdateCount > 0 ? lastProject() : undefined;
+  if (projects.isPending && last) {
+    return (
+      <Shell project={last}>
+        <PageLoading label={t("projects.loading")} />
+      </Shell>
+    );
+  }
   if (projects.isPending) {
     return (
       <Bare>
@@ -113,16 +126,19 @@ function NoProject({
     );
   }
   if (projects.isError) {
-    return (
+    const failed = (
+      <PageFailed
+        error={projects.error}
+        onRetry={() => {
+          void projects.refetch();
+        }}
+      />
+    );
+    return last ? (
+      <Shell project={last}>{failed}</Shell>
+    ) : (
       <Bare>
-        <div className="w-full max-w-lg">
-          <PageFailed
-            error={projects.error}
-            onRetry={() => {
-              void projects.refetch();
-            }}
-          />
-        </div>
+        <div className="w-full max-w-lg">{failed}</div>
       </Bare>
     );
   }
@@ -145,7 +161,17 @@ function NoProject({
  * an outdated link led to.
  */
 function NotFound(): React.JSX.Element {
-  return (
+  // From the router's context, which every page has, rather than `useAuth`, which a page drawn
+  // outside the AuthProvider has not.
+  const status = (useRouteContext({ strict: false }) as Partial<RouterContext>).auth?.status;
+  // A signed-in person keeps the shell of the project last worked in: its navigation, search and
+  // menu are the ways on that a bare card left out (T-4165, photo audit T-4157).
+  const last = status === "authenticated" ? lastProject() : undefined;
+  return last ? (
+    <Shell project={last}>
+      <NotFoundState />
+    </Shell>
+  ) : (
     <Bare>
       <NotFoundState />
     </Bare>

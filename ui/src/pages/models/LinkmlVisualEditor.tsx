@@ -179,7 +179,9 @@ export function LinkmlVisualEditor({
     diagnostics.filter((diagnostic) => diagnostic.path === path);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
+    // `minmax(0, 1fr)`, not `auto`: an auto column grew to the attribute table's width and the
+    // page scrolled sideways at 375 px; the table scrolls in its own frame (T-4165, audit T-4159).
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
       {/* A model with no class yet, and one that parses (a broken one says why elsewhere): the
           three ways to start, so an empty page is not the first thing a steward meets (T-2720). */}
       {model !== EMPTY_MODEL && model.classes.length === 0 ? (

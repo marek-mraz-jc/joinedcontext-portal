@@ -100,6 +100,13 @@ describe("the project home (T-3233, T-3235)", () => {
     expect(within(next).getByRole("link", { name: /1 pipeline is failing/ })).toHaveAttribute("href", "/projects/helsinki/pipelines");
   });
 
+  it("shows a viewer no builder's checklist: they may make no space, source or pipeline (T-4165)", async () => {
+    show({ verbs: ["read"] });
+    await screen.findByText(en.home.lead.viewer);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole("region", { name: en.home.firstRun.title })).toBeNull();
+  });
+
   it("shows a viewer nothing to count when there is nothing to read yet", async () => {
     show({ verbs: ["read"], dismissed: true });
     await screen.findByText(en.home.lead.viewer);
@@ -146,7 +153,8 @@ describe("the welcome an invitation leads to (PF-108)", () => {
 describe("the sample project (PF-109, T-3234)", () => {
   it("offers a newcomer's checklist the sample to look around in first, one click away", async () => {
     const { container } = show({
-      verbs: ["read"],
+      // The checklist is a builder's (T-4165); a viewer gets the sample line on its own.
+      verbs: ["read", "propose"],
       projects: [
         { name: "banskabystrica", sample: true },
         { name: "helsinki", sample: false },
@@ -183,7 +191,7 @@ describe("the sample project (PF-109, T-3234)", () => {
   });
 
   it("offers no sample the person may not read: none listed, none named", async () => {
-    show({ verbs: ["read"], projects: [{ name: "helsinki", sample: false }] });
+    show({ verbs: ["read", "propose"], projects: [{ name: "helsinki", sample: false }] });
     await screen.findByRole("region", { name: en.home.firstRun.title });
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(screen.queryByRole("link", { name: en.home.sample.try })).toBeNull();
