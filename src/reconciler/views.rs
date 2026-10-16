@@ -226,6 +226,25 @@ pub struct ModelSource {
     pub imports: BTreeMap<String, String>,
 }
 
+impl ModelSource {
+    /// What tells an unchanged model from a changed one: every field, length-prefixed.
+    fn digest(&self) -> [u8; 32] {
+        use sha2::{Digest, Sha256};
+        let mut hash = Sha256::new();
+        let mut field = |text: &str| {
+            hash.update((text.len() as u64).to_le_bytes());
+            hash.update(text.as_bytes());
+        };
+        field(&self.model);
+        field(&self.source);
+        for (name, source) in &self.imports {
+            field(name);
+            field(source);
+        }
+        hash.finalize().into()
+    }
+}
+
 impl Sources {
     /// Reads the kinds the views are made of. A manifest whose spec does not parse is left
     /// out: the load already reported it.
@@ -1424,8 +1443,9 @@ pub enum ViewOutcome {
     Failed(String),
 }
 
-/// A model as Model Tools compiled it: the source, its `brokerSchema` and its JSON-LD `context`.
-type Compiled = (ModelSource, Value, Option<Value>);
+/// A model as Model Tools compiled it: the digest of its source, its `brokerSchema` and its
+/// JSON-LD `context`. The digest, not the source and its imports, is held (T-4353).
+type Compiled = ([u8; 32], Value, Option<Value>);
 
 /// One HTTP client, the broker's address and where its admin token is mounted.
 pub struct ViewSync {
@@ -1626,6 +1646,8 @@ impl ViewSync {
     }
 
     async fn apply(&self, desired: Desired) -> Vec<(Owner, ViewOutcome)> {
+        // A tenant whose space lost its model, or is gone, keeps no compiled schema (T-4353).
+        lock(&self.compiled).retain(|tenant, _| desired.schemas.contains_key(tenant));
         let mut outcomes: BTreeMap<Owner, ViewOutcome> = BTreeMap::new();
         for (owner, reason) in &desired.refused {
             outcomes.insert(owner.clone(), ViewOutcome::Refused(reason.clone()));
@@ -1907,8 +1929,9 @@ impl ViewSync {
     /// The `brokerSchema` Model Tools compiles from a space's data model, or what the space's
     /// condition says instead: a model that does not compile is refused with its messages.
     async fn broker_schema(&self, tenant: &str, model: &ModelSource) -> Result<Value, ViewOutcome> {
+        let digest = model.digest();
         if let Some((held, schema, _)) = lock(&self.compiled).get(tenant) {
-            if held == model {
+            if *held == digest {
                 return Ok(schema.clone());
             }
         }
@@ -1948,7 +1971,7 @@ impl ViewSync {
             Some(schema) => {
                 lock(&self.compiled).insert(
                     tenant.to_owned(),
-                    (model.clone(), schema.clone(), artifacts.context),
+                    (digest, schema.clone(), artifacts.context),
                 );
                 Ok(schema)
             }
@@ -4094,6 +4117,25 @@ mod tests {
         );
     }
 
+    /// A model's digest changes with its name, its source or any import, and with nothing else.
+    #[test]
+    fn a_models_digest_tells_every_change() {
+        let model = air_model();
+        assert_eq!(model.digest(), air_model().digest());
+        let mut renamed = air_model();
+        renamed.model.push('x');
+        let mut edited = air_model();
+        edited.source.push(' ');
+        let mut imported = air_model();
+        imported.imports.insert("org.x.v1".into(), String::new());
+        let mut moved = air_model();
+        // The same bytes split differently between name and source are another model.
+        moved.source = format!("{}{}", moved.model.pop().unwrap_or('a'), moved.source);
+        for other in [renamed, edited, imported, moved] {
+            assert_ne!(model.digest(), other.digest(), "{other:?}");
+        }
+    }
+
     /// The space's model is compiled once and written as its tenant's schema; an unchanged one
     /// is neither compiled nor sent again; a space that loses its model loses the schema.
     #[tokio::test]
@@ -4134,8 +4176,12 @@ mod tests {
         let first = sync.apply(desired(&s)).await;
         let second = sync.apply(desired(&s)).await;
         let held = lock(&sync.written_schemas).clone();
+        let compiled = lock(&sync.compiled).keys().cloned().collect::<Vec<_>>();
         let third = sync.apply(desired(&sources(vec![("cars", cars())]))).await;
         let _ = std::fs::remove_file(&file);
+        // The compiled schema leaves with the model, after one run (T-4353).
+        assert_eq!(compiled, ["city-air"]);
+        assert!(lock(&sync.compiled).is_empty());
 
         for outcomes in [&first, &second, &third] {
             assert!(
@@ -4248,7 +4294,7 @@ mod tests {
         lock(&sync.compiled).insert(
             "city-air".into(),
             (
-                air_model(),
+                air_model().digest(),
                 json!({}),
                 Some(json!({"@context": {"Bus": "https://e.org/Bus"}})),
             ),

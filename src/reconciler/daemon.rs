@@ -2479,33 +2479,32 @@ async fn fetch_blobs(
         .await
 }
 
-// ponytail: one process-wide map, emptied when it grows past BLOBS_KEPT; an LRU if a
-// repository ever holds more manifests than that.
-const BLOBS_KEPT: usize = 50_000;
-static BLOBS: std::sync::LazyLock<std::sync::Mutex<HashMap<String, Arc<str>>>> =
-    std::sync::LazyLock::new(Default::default);
+/// The bytes the blobs this process read may hold together (T-4353).
+const BLOBS_MAX_BYTES: usize = 64 * 1024 * 1024;
+// ponytail: one process-wide LRU by bytes; a repository larger than the cap is read again in part
+// on every sync.
+static BLOBS: std::sync::LazyLock<std::sync::Mutex<crate::cache::ByteLru<String, Arc<str>>>> =
+    std::sync::LazyLock::new(|| {
+        std::sync::Mutex::new(crate::cache::ByteLru::new(BLOBS_MAX_BYTES, None))
+    });
 
 /// The content of blob `sha`, when this process has read it; a tree entry without an id has none.
 fn known_blob(sha: &str) -> Option<Arc<str>> {
     if sha.is_empty() {
         return None;
     }
-    BLOBS
-        .lock()
-        .unwrap_or_else(|p| p.into_inner())
-        .get(sha)
-        .cloned()
+    BLOBS.lock().unwrap_or_else(|p| p.into_inner()).get(sha)
 }
 
 fn keep_blob(sha: String, content: Arc<str>) {
     if sha.is_empty() {
         return;
     }
-    let mut blobs = BLOBS.lock().unwrap_or_else(|p| p.into_inner());
-    if blobs.len() >= BLOBS_KEPT {
-        blobs.clear();
-    }
-    blobs.insert(sha, content);
+    let bytes = sha.len() + content.len();
+    BLOBS
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .insert(sha, content, bytes);
 }
 
 /// The tree one sync loads: the staged organization in layout 1, the assembly in layout 2, with
