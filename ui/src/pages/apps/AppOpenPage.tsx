@@ -44,6 +44,18 @@ export function appAddress(name: string, appsOrigin?: string | null): string {
   }
 }
 
+/**
+ * The App's address in the Portal's language (T-4264, T-4160 #39): the SDK reads `?lang=` before
+ * the browser's languages (T-4199), so an App framed in the Slovak Portal answers in Slovak.
+ */
+export function inLanguage(address: string, language: string | undefined): string {
+  const lang = language?.split("-")[0].toLowerCase();
+  if (!lang || !/^[a-z]{2,3}$/.test(lang)) return address;
+  const [path, hash = ""] = address.split("#", 2);
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}lang=${lang}${hash ? `#${hash}` : ""}`;
+}
+
 const FRAME_SANDBOX = "allow-scripts allow-forms allow-popups allow-downloads";
 
 /**
@@ -264,7 +276,7 @@ export function AppOpenPage({ project, name }: { project: string; name: string }
   const build = useAppBuild(project, name);
   const [frameArea, fullscreen] = useFullscreen();
   const [fullscreenFailed, setFullscreenFailed] = useState<string | null>(null);
-  const address = appAddress(name, appsOrigin);
+  const address = inLanguage(appAddress(name, appsOrigin), i18n.language);
   const [frame, session] = useSignInNeeded(address);
   const signInAgain = () => {
     signIn(`${window.location.pathname}${window.location.search}`);
