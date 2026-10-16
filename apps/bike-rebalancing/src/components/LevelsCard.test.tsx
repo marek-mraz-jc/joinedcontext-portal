@@ -42,6 +42,24 @@ describe("LevelsCard", () => {
     expect(field("About to run empty below (%)")).toHaveValue(20);
   });
 
+  // T-4277: the form opened one commit before the kept levels were copied into it, so the first
+  // value a steward typed could be overwritten by them (ci-full 38862786573 saved low 0.15).
+  it("opens the form already holding the kept levels, never the defaults first", async () => {
+    const api = memory(STEWARD);
+    vi.mocked(api.levels).mockResolvedValue({ low: 0.1, target: 0.6, high: 0.9 });
+    const seen: string[] = [];
+    // Read in the commit that enables the field, before any effect after it runs.
+    const watch = new MutationObserver(() => {
+      const input = screen.queryByRole("spinbutton", { name: "About to run empty below (%)" }) as HTMLInputElement | null;
+      if (input && !input.disabled && seen.length === 0) seen.push(input.value);
+    });
+    watch.observe(document.body, { subtree: true, attributes: true, childList: true });
+    show(STEWARD, api);
+    await waitFor(() => expect(seen).toHaveLength(1));
+    watch.disconnect();
+    expect(seen).toEqual(["10"]);
+  });
+
   it("refuses levels out of order before anything is sent, and says the rule", async () => {
     const api = show(STEWARD);
     await waitFor(() => expect(field("About to run empty below (%)")).toBeEnabled());
