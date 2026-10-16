@@ -31,8 +31,15 @@ const CSRF_TTL_SECS: i64 = 12 * 60 * 60;
 /// response header. `cookie` used to take a `String`, which invited exactly that; no caller ever
 /// passed one, because they all mint here, and this type is what keeps it that way — the value comes
 /// from the CSPRNG and nothing else can build one.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Token(String);
+
+/// The value stays out of every log line (T-4321).
+impl std::fmt::Debug for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Token").field(&"[redacted]").finish()
+    }
+}
 
 impl Token {
     /// Fresh token, minted with the same CSPRNG the OIDC state uses.
@@ -116,6 +123,16 @@ pub fn issue(jar: CookieJar) -> (CookieJar, String) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_token_debug_never_shows_the_value() {
+        let token = Token::mint();
+        let text = format!("{token:?}");
+        assert!(
+            !text.contains(&token.0) && text.contains("[redacted]"),
+            "{text}"
+        );
+    }
 
     fn headers_with(cookie_value: Option<&str>, header_value: Option<&str>) -> HeaderMap {
         let mut headers = HeaderMap::new();

@@ -350,9 +350,18 @@ pub(crate) fn managed(client: &Value) -> bool {
         == Some(MANAGED_VALUE)
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 struct KcToken {
     access_token: String,
+}
+
+/// The admin token stays out of every log line (T-4321).
+impl std::fmt::Debug for KcToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KcToken")
+            .field("access_token", &"[redacted]")
+            .finish()
+    }
 }
 
 /// A role, or a group, as the admin API lists one.
@@ -1132,6 +1141,18 @@ pub fn record(mirror: &Mirror, outcomes: &[ClientOutcome]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_kc_token_debug_never_shows_the_admin_token() {
+        let token = KcToken {
+            access_token: "s3cr3t-test".into(),
+        };
+        let text = format!("{token:?}");
+        assert!(
+            !text.contains("s3cr3t-test") && text.contains("[redacted]"),
+            "{text}"
+        );
+    }
 
     /// PF-90: the login page reads "Sign in to {client name} · {organization}", so the client is
     /// named after the App's title, and an App without one after its name, never `project/app`.

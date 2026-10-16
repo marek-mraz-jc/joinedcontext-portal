@@ -158,11 +158,22 @@ pub fn router(app: Arc<App>) -> Router {
 /// What the edge says about the caller (AP-28). None of it is trusted for a decision: the
 /// token is forwarded to the gateway, which is what actually decides; the userinfo is shown
 /// on the page and nowhere else.
-#[derive(Debug, Default)]
+#[derive(Default)]
 struct Caller {
     token: Option<String>,
     email: Option<String>,
     user: Option<String>,
+}
+
+/// The forwarded token stays out of every log line.
+impl std::fmt::Debug for Caller {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Caller")
+            .field("token", &self.token.as_ref().map(|_| "[redacted]"))
+            .field("email", &self.email)
+            .field("user", &self.user)
+            .finish()
+    }
 }
 
 impl Caller {
@@ -678,6 +689,19 @@ fn format_utc(seconds: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_caller_debug_never_shows_the_token() {
+        let caller = Caller {
+            token: Some("s3cr3t-test".into()),
+            ..Caller::default()
+        };
+        let text = format!("{caller:?}");
+        assert!(
+            !text.contains("s3cr3t-test") && text.contains("[redacted]"),
+            "{text}"
+        );
+    }
 
     #[test]
     fn only_ngsi_ld_urns_reach_the_upstream_path() {
