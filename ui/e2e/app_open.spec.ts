@@ -47,8 +47,9 @@ async function stub(page: Page, realm = "error=login_required"): Promise<void> {
     if (path.endsWith("/apps/old-map")) return json(app("old-map", "retired"));
     return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] });
   });
-  // The App's own address, as the edge serves it: framed only by the Portal.
-  await page.route("**/apps/city-bikes/", (route) =>
+  // The App's own address, as the edge serves it: framed only by the Portal. A predicate, not a
+  // glob: the frame asks with `?lang=` (T-4264), which a glob ending in `/` never matches.
+  await page.route((url) => url.pathname === "/apps/city-bikes/", (route) =>
     route.fulfill({
       status: 200,
       contentType: "text/html",
@@ -75,7 +76,7 @@ test.describe("an App inside the Portal (AP-122)", () => {
     await expect(page.frameLocator("iframe").getByRole("heading", { name: "Stations" })).toBeVisible();
 
     const own = page.getByRole("link", { name: /Open in new window/ });
-    await expect(own).toHaveAttribute("href", "/apps/city-bikes/");
+    await expect(own).toHaveAttribute("href", "/apps/city-bikes/?lang=en");
     await expect(own).toHaveAttribute("target", "_blank");
     await expect(own).toHaveAttribute("rel", "noopener noreferrer");
 
