@@ -1469,7 +1469,7 @@
     },
     "src/pages/pipelines/PipelineRuns.tsx": {
       "controls": {
-        "Button": 3
+        "Button": 4
       },
       "tests": [
         "pipeline_runs.test.tsx"
