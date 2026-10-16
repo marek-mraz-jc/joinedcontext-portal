@@ -30,6 +30,7 @@ import { usePermissions } from "../api/permissions";
 import type { Effective } from "../api/permissions";
 import { proposeStanding } from "../api/approval";
 import type { Draft, Verdict } from "../api/drafts";
+import { kindPlural } from "../kindWords";
 
 // Monaco is loaded when the YAML view is opened and not before: it is the heaviest thing in
 // the Portal and a dialog that never shows its manifest would otherwise pay for it.
@@ -1132,7 +1133,7 @@ export function ResourceFormDialogBody<T>({
               href={guideHref}
               className="text-primary-soft-fg underline-offset-2"
             >
-              {t("form.guideLink", { kind })}
+              {t("form.guideLink", { kind: kindPlural(kind, t) })}
             </ExternalLink>
           </p>
         ) : null}
@@ -1410,7 +1411,7 @@ function ProposeStandingNote({ project, kind }: { project: string; kind: string 
   if (!standing) return null;
   return (
     <p role="status" data-testid="propose-standing" className="text-caption text-fg-muted">
-      {t(`changes.${standing}`, { kind })}
+      {t(`changes.${standing}`, { kind: kindPlural(kind, t) })}
     </p>
   );
 }

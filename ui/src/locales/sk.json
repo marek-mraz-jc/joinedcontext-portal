@@ -171,7 +171,7 @@
     "askAboutFieldQuestion": "Vo formulári {kind}: čo patrí do „{label}“ a čo sa stane, keď to zostane prázdne?",
     "fillFromSentence": "Vyplniť z jednej vety",
     "fillFromSentenceQuestion": "Vyplň otvorený formulár {kind} z tohto: ",
-    "guideLink": "Prečítajte si o {kind} v používateľskej príručke",
+    "guideLink": "Používateľská príručka: {kind}",
     "entry": "Položka {number}",
     "dropOne": "Pretiahnite sem súbor alebo ho vyberte",
     "dropMany": "Pretiahnite sem súbory alebo ich vyberte",
@@ -472,7 +472,7 @@
     "new": "Nový {kind}",
     "newHint": "Vyplňte formulár, skontrolujte ho a navrhnite; zmenu posúdi schvaľovateľ.",
     "propose": "Navrhnúť zmenu",
-    "emptyHintCreate": "V projekte zatiaľ nič z tohto druhu nie je. Nový {kind} otvorí formulár.",
+    "emptyHintCreate": "V projekte zatiaľ nič z tohto druhu nie je. {new} otvorí formulár.",
     "askAssistant": "Požiadať asistenta o návrh"
   },
   "spaces": {
@@ -7465,5 +7465,135 @@
     },
     "tools": "{count, plural, one {# nástroj} few {# nástroje} other {# nástrojov}}",
     "noTools": "Konektor teraz neponúka anonymným volajúcim žiadne nástroje."
+  },
+  "kinds": {
+    "AgentProfile": {
+      "other": "profily agentov",
+      "new": "Nový profil agenta"
+    },
+    "App": {
+      "other": "aplikácie",
+      "new": "Nová aplikácia"
+    },
+    "AssistantDeployment": {
+      "other": "nasadenia asistenta",
+      "new": "Nové nasadenie asistenta"
+    },
+    "Blueprint": {
+      "other": "šablóny",
+      "new": "Nová šablóna"
+    },
+    "CkanInstance": {
+      "other": "portály CKAN",
+      "new": "Nový portál CKAN"
+    },
+    "ContextSpace": {
+      "other": "kontextové priestory",
+      "new": "Nový kontextový priestor"
+    },
+    "Dashboard": {
+      "other": "dashboardy",
+      "new": "Nový dashboard"
+    },
+    "DataAgreement": {
+      "other": "dátové dohody",
+      "new": "Nová dátová dohoda"
+    },
+    "DataModel": {
+      "other": "dátové modely",
+      "new": "Nový dátový model"
+    },
+    "DataOffer": {
+      "other": "dátové ponuky",
+      "new": "Nová dátová ponuka"
+    },
+    "DataSource": {
+      "other": "zdroje údajov",
+      "new": "Nový zdroj údajov"
+    },
+    "DataSpaceParticipant": {
+      "other": "členstvá v dátovom priestore",
+      "new": "Nové členstvo v dátovom priestore"
+    },
+    "Endpoint": {
+      "other": "endpointy",
+      "new": "Nový endpoint"
+    },
+    "Environment": {
+      "other": "prostredia",
+      "new": "Nové prostredie"
+    },
+    "Group": {
+      "other": "skupiny",
+      "new": "Nová skupina"
+    },
+    "KnowledgeSource": {
+      "other": "zdroje znalostí",
+      "new": "Nový zdroj znalostí"
+    },
+    "Mapping": {
+      "other": "mapovania",
+      "new": "Nové mapovanie"
+    },
+    "McpServer": {
+      "other": "MCP servery",
+      "new": "Nový MCP server"
+    },
+    "ModelProjection": {
+      "other": "projekcie modelov",
+      "new": "Nová projekcia modelu"
+    },
+    "MqttBroker": {
+      "other": "MQTT brokery",
+      "new": "Nový MQTT broker"
+    },
+    "Organization": {
+      "other": "organizácie",
+      "new": "Nová organizácia"
+    },
+    "Pipeline": {
+      "other": "pipeliny",
+      "new": "Nový pipeline"
+    },
+    "Policy": {
+      "other": "politiky",
+      "new": "Nová politika"
+    },
+    "Project": {
+      "other": "projekty",
+      "new": "Nový projekt"
+    },
+    "Role": {
+      "other": "roly",
+      "new": "Nová rola"
+    },
+    "RoleBinding": {
+      "other": "priradenia rolí",
+      "new": "Nové priradenie roly"
+    },
+    "ScopeDefinition": {
+      "other": "definície rozsahov",
+      "new": "Nová definícia rozsahu"
+    },
+    "ServiceAccount": {
+      "other": "servisné účty",
+      "new": "Nový servisný účet"
+    },
+    "SharedSpaceReference": {
+      "other": "zdieľané priestory",
+      "new": "Nový zdieľaný priestor"
+    },
+    "Subscription": {
+      "other": "odbery",
+      "new": "Nový odber"
+    },
+    "SyncSource": {
+      "other": "zdroje synchronizácie",
+      "new": "Nový zdroj synchronizácie"
+    },
+    "UiSchema": {
+      "other": "rozloženia formulárov",
+      "new": "Nové rozloženie formulára"
+    }
   }
 }

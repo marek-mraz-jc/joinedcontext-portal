@@ -28,6 +28,7 @@ import {
 import { guideUrl, useBranding } from "../../branding";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { takePrefill } from "../../assistant/state";
+import { kindPlural } from "../../kindWords";
 
 /** The blueprint that turns a description into an app (AP-22, Architecture/16 §3). */
 export const BLUEPRINT = "app-from-prompt";
@@ -516,7 +517,7 @@ export function AppGenerator({
       {guideHref ? (
         <p className="text-body">
           <ExternalLink data-testid="form-guide" href={guideHref} className="text-primary-soft-fg underline-offset-2">
-            {t("form.guideLink", { kind: "App" })}
+            {t("form.guideLink", { kind: kindPlural("App", t) })}
           </ExternalLink>
         </p>
       ) : null}

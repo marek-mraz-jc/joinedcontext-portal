@@ -171,7 +171,7 @@
     "askAboutFieldQuestion": "Im {kind}-Formular: Was gehört in „{label}“, und was passiert, wenn es leer bleibt?",
     "fillFromSentence": "Aus einem Satz ausfüllen",
     "fillFromSentenceQuestion": "Füll das offene {kind}-Formular hieraus aus: ",
-    "guideLink": "Über {kind} im Benutzerhandbuch lesen",
+    "guideLink": "Im Benutzerhandbuch: {kind}",
     "entry": "Eintrag {number}",
     "dropOne": "Datei hierher ziehen oder auswählen",
     "dropMany": "Dateien hierher ziehen oder auswählen",
@@ -472,7 +472,7 @@
     "new": "Neu: {kind}",
     "newHint": "Füllen Sie das Formular aus, prüfen Sie es und schlagen Sie es vor; eine freigebende Person prüft die Änderung.",
     "propose": "Änderung vorschlagen",
-    "emptyHintCreate": "Von dieser Art ist noch nichts im Projekt. Neu: {kind} öffnet das Formular.",
+    "emptyHintCreate": "Von dieser Art ist noch nichts im Projekt. {new} öffnet das Formular.",
     "askAssistant": "Den Assistenten um einen Vorschlag bitten"
   },
   "spaces": {
@@ -7465,5 +7465,135 @@
     },
     "tools": "{count, plural, one {# Werkzeug} other {# Werkzeuge}}",
     "noTools": "Der Konnektor bietet anonymen Aufrufern gerade keine Werkzeuge an."
+  },
+  "kinds": {
+    "AgentProfile": {
+      "other": "Agentenprofile",
+      "new": "Neues Agentenprofil"
+    },
+    "App": {
+      "other": "Anwendungen",
+      "new": "Neue Anwendung"
+    },
+    "AssistantDeployment": {
+      "other": "Assistenten-Bereitstellungen",
+      "new": "Neue Assistenten-Bereitstellung"
+    },
+    "Blueprint": {
+      "other": "Vorlagen",
+      "new": "Neue Vorlage"
+    },
+    "CkanInstance": {
+      "other": "CKAN-Portale",
+      "new": "Neues CKAN-Portal"
+    },
+    "ContextSpace": {
+      "other": "Kontexträume",
+      "new": "Neuer Kontextraum"
+    },
+    "Dashboard": {
+      "other": "Dashboards",
+      "new": "Neues Dashboard"
+    },
+    "DataAgreement": {
+      "other": "Datenvereinbarungen",
+      "new": "Neue Datenvereinbarung"
+    },
+    "DataModel": {
+      "other": "Datenmodelle",
+      "new": "Neues Datenmodell"
+    },
+    "DataOffer": {
+      "other": "Datenangebote",
+      "new": "Neues Datenangebot"
+    },
+    "DataSource": {
+      "other": "Datenquellen",
+      "new": "Neue Datenquelle"
+    },
+    "DataSpaceParticipant": {
+      "other": "Datenraum-Mitgliedschaften",
+      "new": "Neue Datenraum-Mitgliedschaft"
+    },
+    "Endpoint": {
+      "other": "Endpunkte",
+      "new": "Neuer Endpunkt"
+    },
+    "Environment": {
+      "other": "Umgebungen",
+      "new": "Neue Umgebung"
+    },
+    "Group": {
+      "other": "Gruppen",
+      "new": "Neue Gruppe"
+    },
+    "KnowledgeSource": {
+      "other": "Wissensquellen",
+      "new": "Neue Wissensquelle"
+    },
+    "Mapping": {
+      "other": "Zuordnungen",
+      "new": "Neue Zuordnung"
+    },
+    "McpServer": {
+      "other": "MCP-Server",
+      "new": "Neuer MCP-Server"
+    },
+    "ModelProjection": {
+      "other": "Modellprojektionen",
+      "new": "Neue Modellprojektion"
+    },
+    "MqttBroker": {
+      "other": "MQTT-Broker",
+      "new": "Neuer MQTT-Broker"
+    },
+    "Organization": {
+      "other": "Organisationen",
+      "new": "Neue Organisation"
+    },
+    "Pipeline": {
+      "other": "Pipelines",
+      "new": "Neue Pipeline"
+    },
+    "Policy": {
+      "other": "Richtlinien",
+      "new": "Neue Richtlinie"
+    },
+    "Project": {
+      "other": "Projekte",
+      "new": "Neues Projekt"
+    },
+    "Role": {
+      "other": "Rollen",
+      "new": "Neue Rolle"
+    },
+    "RoleBinding": {
+      "other": "Rollenzuweisungen",
+      "new": "Neue Rollenzuweisung"
+    },
+    "ScopeDefinition": {
+      "other": "Bereichsdefinitionen",
+      "new": "Neue Bereichsdefinition"
+    },
+    "ServiceAccount": {
+      "other": "Dienstkonten",
+      "new": "Neues Dienstkonto"
+    },
+    "SharedSpaceReference": {
+      "other": "geteilte Räume",
+      "new": "Neuer geteilter Raum"
+    },
+    "Subscription": {
+      "other": "Abonnements",
+      "new": "Neues Abonnement"
+    },
+    "SyncSource": {
+      "other": "Sync-Quellen",
+      "new": "Neue Sync-Quelle"
+    },
+    "UiSchema": {
+      "other": "Formularlayouts",
+      "new": "Neues Formularlayout"
+    }
   }
 }

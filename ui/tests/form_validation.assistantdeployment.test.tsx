@@ -4,6 +4,6 @@ import { formValidationSuite } from "./formValidation";
 formValidationSuite({
   kind: "AssistantDeployment",
   address: "/projects/helsinki/assistantdeployments",
-  button: "New AssistantDeployment",
+  button: "New assistant deployment",
   reference: { path: "spec.publicId", field: "root_publicId" },
 });

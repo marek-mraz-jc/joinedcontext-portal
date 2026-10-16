@@ -171,7 +171,7 @@
     "askAboutFieldQuestion": "Ve formuláři {kind}: co patří do „{label}“ a co se stane, když to zůstane prázdné?",
     "fillFromSentence": "Vyplnit z jedné věty",
     "fillFromSentenceQuestion": "Vyplň otevřený formulář {kind} z tohoto: ",
-    "guideLink": "Přečtěte si o {kind} v uživatelské příručce",
+    "guideLink": "Uživatelská příručka: {kind}",
     "entry": "Položka {number}",
     "dropOne": "Přetáhněte sem soubor nebo jej vyberte",
     "dropMany": "Přetáhněte sem soubory nebo je vyberte",
@@ -472,7 +472,7 @@
     "new": "Nový {kind}",
     "newHint": "Vyplňte formulář, zkontrolujte jej a navrhněte; změnu posoudí schvalovatel.",
     "propose": "Navrhnout změnu",
-    "emptyHintCreate": "V projektu zatím nic tohoto druhu není. Nový {kind} otevře formulář.",
+    "emptyHintCreate": "V projektu zatím nic tohoto druhu není. {new} otevře formulář.",
     "askAssistant": "Požádat asistenta o návrh"
   },
   "spaces": {
@@ -7465,5 +7465,135 @@
     },
     "tools": "{count, plural, one {# nástroj} few {# nástroje} other {# nástrojů}}",
     "noTools": "Konektor teď nenabízí anonymním volajícím žádné nástroje."
+  },
+  "kinds": {
+    "AgentProfile": {
+      "other": "profily agentů",
+      "new": "Nový profil agenta"
+    },
+    "App": {
+      "other": "aplikace",
+      "new": "Nová aplikace"
+    },
+    "AssistantDeployment": {
+      "other": "nasazení asistenta",
+      "new": "Nové nasazení asistenta"
+    },
+    "Blueprint": {
+      "other": "šablony",
+      "new": "Nová šablona"
+    },
+    "CkanInstance": {
+      "other": "portály CKAN",
+      "new": "Nový portál CKAN"
+    },
+    "ContextSpace": {
+      "other": "kontextové prostory",
+      "new": "Nový kontextový prostor"
+    },
+    "Dashboard": {
+      "other": "přehledy",
+      "new": "Nový přehled"
+    },
+    "DataAgreement": {
+      "other": "datové dohody",
+      "new": "Nová datová dohoda"
+    },
+    "DataModel": {
+      "other": "datové modely",
+      "new": "Nový datový model"
+    },
+    "DataOffer": {
+      "other": "datové nabídky",
+      "new": "Nová datová nabídka"
+    },
+    "DataSource": {
+      "other": "zdroje dat",
+      "new": "Nový zdroj dat"
+    },
+    "DataSpaceParticipant": {
+      "other": "členství v datovém prostoru",
+      "new": "Nové členství v datovém prostoru"
+    },
+    "Endpoint": {
+      "other": "koncové body",
+      "new": "Nový koncový bod"
+    },
+    "Environment": {
+      "other": "prostředí",
+      "new": "Nové prostředí"
+    },
+    "Group": {
+      "other": "skupiny",
+      "new": "Nová skupina"
+    },
+    "KnowledgeSource": {
+      "other": "zdroje znalostí",
+      "new": "Nový zdroj znalostí"
+    },
+    "Mapping": {
+      "other": "mapování",
+      "new": "Nové mapování"
+    },
+    "McpServer": {
+      "other": "MCP servery",
+      "new": "Nový MCP server"
+    },
+    "ModelProjection": {
+      "other": "projekce modelů",
+      "new": "Nová projekce modelu"
+    },
+    "MqttBroker": {
+      "other": "MQTT brokery",
+      "new": "Nový MQTT broker"
+    },
+    "Organization": {
+      "other": "organizace",
+      "new": "Nová organizace"
+    },
+    "Pipeline": {
+      "other": "pipeliny",
+      "new": "Nová pipeline"
+    },
+    "Policy": {
+      "other": "politiky",
+      "new": "Nová politika"
+    },
+    "Project": {
+      "other": "projekty",
+      "new": "Nový projekt"
+    },
+    "Role": {
+      "other": "role",
+      "new": "Nová role"
+    },
+    "RoleBinding": {
+      "other": "přiřazení rolí",
+      "new": "Nové přiřazení role"
+    },
+    "ScopeDefinition": {
+      "other": "definice rozsahů",
+      "new": "Nová definice rozsahu"
+    },
+    "ServiceAccount": {
+      "other": "servisní účty",
+      "new": "Nový servisní účet"
+    },
+    "SharedSpaceReference": {
+      "other": "sdílené prostory",
+      "new": "Nový sdílený prostor"
+    },
+    "Subscription": {
+      "other": "odběry",
+      "new": "Nový odběr"
+    },
+    "SyncSource": {
+      "other": "zdroje synchronizace",
+      "new": "Nový zdroj synchronizace"
+    },
+    "UiSchema": {
+      "other": "rozvržení formulářů",
+      "new": "Nové rozvržení formuláře"
+    }
   }
 }
