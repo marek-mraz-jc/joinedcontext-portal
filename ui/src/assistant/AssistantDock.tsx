@@ -139,7 +139,7 @@ function Paths({
     <>
       {denied ? (
         <p data-testid="assistant-paths-denied" className="text-caption text-fg-muted">
-          {t("assistant.paths.denied")}
+          {t("assistant.pathsDenied")}
         </p>
       ) : null}
       <ul data-testid="assistant-paths" className="flex flex-col gap-2">

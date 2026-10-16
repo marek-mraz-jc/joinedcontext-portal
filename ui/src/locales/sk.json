@@ -4470,8 +4470,8 @@
     },
     "trail": "Stránky, ktoré asistent otvoril",
     "prefilledNotice": "Toto vyplnil asistent. Skontroluj to pred návrhom.",
+    "pathsDenied": "Niektoré cesty sú sivé: vaša rola vám dovoľuje prezerať, nie vytvárať. Toto právo vám môže dať správca projektu alebo administrátor.",
     "paths": {
-      "denied": "Niektoré cesty sú sivé: vaša rola vám dovoľuje prezerať, nie vytvárať. Toto právo vám môže dať správca projektu alebo administrátor.",
       "integrate-pipeline": {
         "title": "Integrovať pipeline",
         "line": "Priveďte do priestoru feed, súbor alebo zdroj údajov"

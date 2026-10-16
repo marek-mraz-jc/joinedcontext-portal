@@ -326,7 +326,7 @@ describe("where the assistant's input sits", () => {
     await person.click(within(paths).getByRole("button", { name: pathName("build-app") }));
     expect(started).toHaveLength(0);
     // The reason is also on screen, once, not only in a tooltip (T-4263).
-    expect(screen.getByTestId("assistant-paths-denied")).toHaveTextContent(en.assistant.paths.denied);
+    expect(screen.getByTestId("assistant-paths-denied")).toHaveTextContent(en.assistant.pathsDenied);
   });
 
   it("says nothing about greyed paths to a role that may take them all", async () => {
