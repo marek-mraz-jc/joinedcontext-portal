@@ -1850,6 +1850,21 @@ export const KIND_PATTERN = "^[A-Z][A-Za-z0-9]{1,63}$";
  * `constraints` is not a field. A rule that carries them keeps them: the page passes the stored
  * manifest through, and the YAML view is where they are written.
  */
+/**
+ * A role's kinds and verbs as checkboxes: a native multi-select showed four or five clipped rows on
+ * a phone (T-4213). Kinds stay a list of typed names when the editor's own kinds are not known.
+ */
+export function roleUiSchema(kindsKnown: boolean): UiSchema {
+  return {
+    rules: {
+      items: {
+        ...(kindsKnown ? { kinds: { "ui:widget": "checkboxes" } } : {}),
+        verbs: { "ui:widget": "checkboxes" },
+      },
+    },
+  };
+}
+
 export function roleSchema(
   t: (key: string) => string,
   kinds: string[] = [],
