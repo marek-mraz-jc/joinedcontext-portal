@@ -64,9 +64,12 @@ describe("form columns on a big screen (T-2755)", () => {
     );
     const cellOf = (label: string) => screen.getByLabelText(label).closest(".min-w-0") as HTMLElement;
     const grid = cellOf("Alpha").parentElement as HTMLElement;
-    expect(grid.className).toContain("md:grid-cols-2");
-    expect(grid.className).toContain("3xl:grid-cols-3");
+    // The columns follow the card's width, not the screen's (T-4265): two from a 36rem card,
+    // three from a 72rem one, in the container the grid sits in.
+    expect(grid.parentElement?.className).toContain("@container");
+    expect(grid.className).toContain("@xl:grid-cols-2");
+    expect(grid.className).toContain("@6xl:grid-cols-3");
     expect(cellOf("Alpha").className).not.toContain("col-span-full");
-    expect(cellOf("Delta").className).toContain("md:col-span-full");
+    expect(cellOf("Delta").className).toContain("col-span-full");
   });
 });
