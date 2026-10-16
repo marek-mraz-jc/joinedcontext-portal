@@ -6,7 +6,7 @@ import { entitiesOf, pointKey, stopIdOf, toNetwork } from "./network";
 describe("HSL's network as the module takes it", () => {
   it("keeps placed stops with their name and code, and lines with a number and two stops", () => {
     const stops = NETWORK_ROWS.filter((r) => r.type === "GtfsStop");
-    const routes = NETWORK_ROWS.filter((r) => r.type === "TransitRoute");
+    const routes = NETWORK_ROWS.filter((r) => r.type === "PublicTransportRoute");
     const network = toNetwork(stops, routes);
     expect(network.stops[0]).toEqual({ id: "1020601", lon: 24.9414, lat: 60.171, name: "Rautatientori", code: "H0019" });
     expect(network.stops[3]).toEqual({ id: "1111602", lon: 24.9561, lat: 60.1755, name: "Kaisaniemenranta" });
@@ -20,9 +20,9 @@ describe("HSL's network as the module takes it", () => {
     const network = toNetwork(
       [{ id: "urn:x:1", type: "GtfsStop", name: "Nowhere", location: { type: "LineString", coordinates: [] } } as Row, { id: "urn:x:2", type: "GtfsStop" } as Row],
       [
-        { id: "urn:y:1", type: "TransitRoute", routeShortName: "", stopSequence: "1, 2" } as Row,
-        { id: "urn:y:2", type: "TransitRoute", routeShortName: "7", stopSequence: "1" } as Row,
-        { id: "urn:y:3", type: "TransitRoute", routeShortName: "8", stopSequence: " 1 , ,2" } as Row,
+        { id: "urn:y:1", type: "PublicTransportRoute", routeShortName: "", stopSequence: "1, 2" } as Row,
+        { id: "urn:y:2", type: "PublicTransportRoute", routeShortName: "7", stopSequence: "1" } as Row,
+        { id: "urn:y:3", type: "PublicTransportRoute", routeShortName: "8", stopSequence: " 1 , ,2" } as Row,
       ],
     );
     expect(network.stops).toEqual([]);

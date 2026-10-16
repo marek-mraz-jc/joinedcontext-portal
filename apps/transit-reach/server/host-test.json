@@ -11,7 +11,7 @@
     {
       "path": "/ngsi-ld/v1/entities",
       "query": {
-        "type": "TransitRoute",
+        "type": "PublicTransportRoute",
         "offset": "0"
       },
       "file": "host-test/routes.json"

@@ -482,9 +482,9 @@ const SPACE: &str = "hel.fi:helsinki";
 
 async fn board_endpoint() -> MockServer {
     let endpoint = MockServer::start().await;
-    board_serving(&endpoint, "TransitRoute", json!([
-        { "id": "urn:ngsi-ld:TransitRoute:x:550-1", "route": "2550", "directionId": 1, "headsign": "Itäkeskus" },
-        { "id": "urn:ngsi-ld:TransitRoute:x:550-2", "route": "2550", "directionId": "2", "headsign": "Westendinasema" }
+    board_serving(&endpoint, "PublicTransportRoute", json!([
+        { "id": "urn:ngsi-ld:PublicTransportRoute:x:550-1", "route": "2550", "directionId": 1, "headsign": "Itäkeskus" },
+        { "id": "urn:ngsi-ld:PublicTransportRoute:x:550-2", "route": "2550", "directionId": "2", "headsign": "Westendinasema" }
     ])).await;
     // Only stops that carry departures are asked for; the endpoint is told so.
     Mock::given(method("GET"))

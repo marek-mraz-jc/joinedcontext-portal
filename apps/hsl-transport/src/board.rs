@@ -2,7 +2,7 @@
 //!
 //! Read from the same Endpoint as the fleet, every [`BOARD_SECONDS`], in the simplified
 //! representation: the stops that carry departures (T-3891, a curated set of about 230), the
-//! headsign of each line and direction from TransitRoute, HSL's service alerts (T-3892) and the
+//! headsign of each line and direction from PublicTransportRoute, HSL's service alerts (T-3892) and the
 //! stops those alerts name, so the map can place them. A read that fails keeps the last board,
 //! as a failed fleet poll keeps the last positions.
 
@@ -94,7 +94,7 @@ pub async fn read(
             &list(
                 http,
                 endpoint,
-                "TransitRoute",
+                "PublicTransportRoute",
                 "route,directionId,headsign",
                 &[],
             )
@@ -185,7 +185,7 @@ async fn list(
     Ok(all)
 }
 
-/// `(line, GTFS direction 0 or 1)` to the headsign. TransitRoute counts directions from 1, as
+/// `(line, GTFS direction 0 or 1)` to the headsign. PublicTransportRoute counts directions from 1, as
 /// HSL does; GTFS-RT from 0.
 pub fn headsigns_of(routes: &[Value]) -> Headsigns {
     routes

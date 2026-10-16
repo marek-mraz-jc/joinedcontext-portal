@@ -48,7 +48,7 @@ export async function serve(page: Page, temporal: unknown[] = HISTORY, entities:
       permissions: [
         { resource: { type: "Vehicle" }, actions: ["retrieveTemporal"], attributes: "*" },
         { resource: { type: "GtfsStop" }, actions: ["queryEntity"], attributes: "*" },
-        { resource: { type: "TransitRoute" }, actions: ["queryEntity"], attributes: "*" },
+        { resource: { type: "PublicTransportRoute" }, actions: ["queryEntity"], attributes: "*" },
       ],
       prohibitions: [],
     },
