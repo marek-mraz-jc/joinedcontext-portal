@@ -6662,6 +6662,7 @@
       "tokensPerDay": "Tokeny za den",
       "tokensPerConversation": "Tokeny za rozhovor",
       "theme": "Vzhled",
+      "themeTitle": "Název v záhlaví chatu",
       "primaryColor": "Barva zvýraznění",
       "greeting": "Pozdrav",
       "sandbox": "Skripty v sandboxu",
@@ -6684,6 +6685,7 @@
       "disclaimer": "Upozornění",
       "scope": "Mimo tento projekt",
       "scopeProjects": "Projekty, jejichž veřejné Endpointy a zdroje znalostí smí číst",
+      "perClientPerMonth": "Otázky za měsíc, jeden návštěvník",
       "answer": "Způsob odpovědi",
       "answerRoutes": "Odpovídá z",
       "feedback": "Ptát se návštěvníků, zda odpověď pomohla"

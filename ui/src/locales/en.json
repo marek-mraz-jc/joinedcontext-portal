@@ -6662,6 +6662,7 @@
       "tokensPerDay": "Tokens a day",
       "tokensPerConversation": "Tokens a conversation",
       "theme": "Look",
+      "themeTitle": "Name in the chat header",
       "primaryColor": "Accent colour",
       "greeting": "Greeting",
       "sandbox": "Scripts in the sandbox",
@@ -6684,6 +6685,7 @@
       "disclaimer": "Disclaimer",
       "scope": "Beyond this project",
       "scopeProjects": "Projects whose public Endpoints and knowledge sources it may read",
+      "perClientPerMonth": "Questions a month, one visitor",
       "answer": "Answer mode",
       "answerRoutes": "Answers from",
       "feedback": "Ask visitors whether an answer helped"
