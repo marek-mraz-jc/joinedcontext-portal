@@ -6660,6 +6660,7 @@
       "tokensPerDay": "Tokens a day",
       "tokensPerConversation": "Tokens a conversation",
       "theme": "Look",
+      "themeTitle": "Name in the chat header",
       "primaryColor": "Accent colour",
       "greeting": "Greeting",
       "sandbox": "Scripts in the sandbox",

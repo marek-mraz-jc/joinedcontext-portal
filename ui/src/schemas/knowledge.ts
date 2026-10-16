@@ -202,6 +202,7 @@ export function assistantDeploymentSchema(
         type: "object",
         title: t("knowledge.field.theme"),
         properties: {
+          title: { type: "string", title: t("knowledge.field.themeTitle"), minLength: 1, maxLength: 60 },
           primaryColor: { type: "string", title: t("knowledge.field.primaryColor"), pattern: HEX_COLOR },
           greeting: { type: "string", title: t("knowledge.field.greeting"), maxLength: 500 },
         },
