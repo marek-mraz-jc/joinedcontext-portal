@@ -30,6 +30,11 @@
   overflow-x: auto;
   overflow-y: auto;
   max-height: 100%;
+  /* A shadow at the right edge while columns wait beyond it; the cover scrolls with the table
+     and hides it at the end (T-4242). */
+  background:
+    linear-gradient(to left, var(--jc-color-surface, #ffffff) 40%, transparent) right / 2rem 100% no-repeat local,
+    linear-gradient(to left, rgb(0 0 0 / 18%), transparent) right / 0.75rem 100% no-repeat scroll;
 }
 
 .jc-grid table {
@@ -701,4 +706,12 @@
 .jc-grid-tr--warning,
 .jc-grid-tr--danger {
   background: color-mix(in srgb, var(--jc-tone) 10%, transparent);
+}
+
+/* On a phone the pinned name keeps a column to read in: a name may wrap anywhere, so without a
+   floor the table squeezes it to a few letters a line (T-4162 #6); the other columns scroll. */
+@media (width <= 640px) {
+  .jc-grid td.jc-grid-pinned {
+    min-width: min(45vw, 12rem);
+  }
 }
