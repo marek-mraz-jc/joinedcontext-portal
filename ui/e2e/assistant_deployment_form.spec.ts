@@ -54,6 +54,11 @@ for (const width of [375, 1440]) {
     await chips.getByRole("button", { name: "Add" }).click();
     await chips.getByLabel("Language").fill("en");
     await chips.getByLabel("Language").blur();
+    // T-4311: an entry's question and a site, so the judge sees a filled entry of each kind.
+    await chips.getByRole("group", { name: "en" }).getByRole("button", { name: "Add" }).click();
+    await chips.getByRole("group", { name: "en" }).getByRole("textbox").first().fill("When is the waste collected?");
+    const sites = page.getByRole("group", { name: /^Allowed sites/ });
+    await sites.getByLabel(/^Allowed sites 1/).fill("https://www.bbsk.sk");
     for (const group of ["Knowledge", "Live data", "How it answers", "Where it may appear"]) {
       await expect(page.getByRole("group", { name: group, exact: true })).toBeVisible();
     }
@@ -65,7 +70,7 @@ for (const width of [375, 1440]) {
     const screen = page.viewportSize()?.height ?? 800;
     for (let y = 0, at = 0; y < height; y += screen - 120, at++) {
       await page.evaluate((top) => window.scrollTo(0, top), y);
-      await page.screenshot({ path: `test-results/t4282-form-${width}-${String(at).padStart(2, "0")}.png` });
+      await page.screenshot({ path: `${process.env.SHOTS_DIR ?? "test-results"}/t4282-form-${width}-${String(at).padStart(2, "0")}.png` });
     }
   });
 }

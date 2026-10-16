@@ -28,6 +28,8 @@ interface Offered {
  */
 export function KnowledgeSourcesField(props: FieldProps): JSX.Element {
   const { formData, onChange, disabled, readonly, schema, rawErrors, fieldPathId } = props;
+  // Its help sits under its legend, above the sources, as every field's does (T-4311).
+  const help = typeof props.uiSchema?.["ui:help"] === "string" ? props.uiSchema["ui:help"] : undefined;
   const id = fieldPathId.$id;
   const { t, i18n } = useTranslation();
   const errors = useShownErrors(id, rawErrors);
@@ -82,6 +84,8 @@ export function KnowledgeSourcesField(props: FieldProps): JSX.Element {
       // An internal source on a public channel can be taken away, never added.
       disabled={frozen || (refused && !chosen.includes(ref))}
       onChange={(event) => toggle(ref, event.currentTarget.checked)}
+      // A name and its badge wrap to two lines at a phone's width: the box stays on the name's (T-4311).
+      className="items-start [&>input]:mt-1"
       label={label}
     />
   );
@@ -89,6 +93,7 @@ export function KnowledgeSourcesField(props: FieldProps): JSX.Element {
   return (
     <fieldset id={id} data-testid="knowledge-sources" className="flex min-w-0 flex-col gap-3">
       <legend className="text-body font-medium text-fg">{schema.title}</legend>
+      {help ? <p id={`${id}__help`} className="-mt-2 text-caption text-fg-muted">{help}</p> : null}
       {anonymous ? <p id={`${id}-hint`} className="text-caption text-fg-muted">{t("knowledge.sourcesPicker.publicOnly")}</p> : null}
       {projects.isError ? <ListFailed what={t("nav.projects")} reason={reasonOf(projects.error, t("app.error"))} onRetry={() => void projects.refetch()} /> : null}
       {byProject.map(({ project, offered, query }) =>
