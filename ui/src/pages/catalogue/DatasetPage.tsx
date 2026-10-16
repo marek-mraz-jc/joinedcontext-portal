@@ -157,9 +157,11 @@ function Dataset({ detail, back }: { detail: DatasetDetail; back: JSX.Element })
           {facts
             .filter(([, value]) => value !== null && value !== undefined && value !== "")
             .map(([label, value]) => (
-              <div key={label} className="flex flex-col gap-0.5">
+              <div key={label} className="flex min-w-0 flex-col gap-0.5">
                 <dt className="text-caption font-semibold text-fg-muted">{label}</dt>
-                <dd className="text-body text-fg">{value}</dd>
+                {/* A NUTS URI is one long word: it breaks where it must instead of widening the
+                    page (T-4265, photo audit T-4160 #40). */}
+                <dd className="text-body text-fg [overflow-wrap:anywhere]">{value}</dd>
               </div>
             ))}
         </dl>
@@ -223,7 +225,7 @@ function Resources({ detail }: { detail: DatasetDetail }): JSX.Element {
                   {resource.description ? (
                     <details className="mt-0.5 text-caption">
                       <summary className="cursor-pointer text-fg-muted">{t("catalogue.dataset.forDevelopers")}</summary>
-                      <div className="mt-1 whitespace-pre-wrap break-words text-fg-muted">{resource.description}</div>
+                      <div className="mt-1 whitespace-pre-wrap text-fg-muted [overflow-wrap:anywhere]">{resource.description}</div>
                     </details>
                   ) : null}
                 </TableCell>
