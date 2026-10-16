@@ -53,6 +53,8 @@ export const FormAfterFieldsContext = createContext<ReactNode>(null);
  * with each item; an object item's own fields are described by their own schema, never by this.
  */
 const ArrayHintContext = createContext<string | undefined>(undefined);
+/** The key of the map entry a value sits in: its list or object does not title itself with it again (T-4311). */
+const MapKeyContext = createContext<string | undefined>(undefined);
 
 /**
  * The state of the submit button itself: in flight, and why it is closed (T-2322, PL-49, UI-44).
@@ -179,7 +181,9 @@ function AskAboutField({ path, label }: { path: string; label: string }): React.
     <Button
       variant="ghost"
       size="xs"
-      className="px-0 text-fg-muted underline decoration-dotted hover:text-fg"
+      // The size's own padding stays, for the hit area; the margin takes it back so the words line
+      // up with the label they wrap under, and with the field's right edge beside it (T-4311).
+      className="-mx-2 text-fg-muted underline decoration-dotted hover:text-fg"
       onClick={() => {
         inField(path);
         askAbout(t("form.askAboutFieldQuestion", { kind: open.kind, label }));
@@ -214,6 +218,8 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
     props;
   const errors = useShownErrors(id, rawErrors);
   const listHint = useContext(ArrayHintContext);
+  const mapKey = useContext(MapKeyContext);
+  const { t } = useTranslation();
   const asked = useAsked(required);
 
   if (hidden) {
@@ -233,9 +239,18 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
   // rjsf names a list's plain item `{list}-{n}`, which reads like an id: `{list} {n}`, as an
   // object item is titled (itemTitle).
   const last = fieldPathId?.path?.[fieldPathId.path.length - 1];
-  const shown = typeof last === "number" && typeof label === "string" ? label.replace(new RegExp(`-${last + 1}$`), ` ${last + 1}`) : label;
+  // An item of a list that is a map entry's value would read "en 1": it is the entry's (T-4311).
+  const shown =
+    typeof last === "number" && typeof label === "string"
+      ? mapKey !== undefined && label === `${mapKey}-${last + 1}`
+        ? t("form.entry", { number: last + 1 })
+        : label.replace(new RegExp(`-${last + 1}$`), ` ${last + 1}`)
+      : label;
   // An array or an object template writes its own heading and description; once is enough.
   const ownHeading = schema.type === "array" || schema.type === "object";
+  // A widget draws only its control, so its help stays here; a `ui:field` draws its own heading
+  // and help, as the templates do (KnowledgeSourcesField, EntitySelectorField's object).
+  const custom = Boolean(props.uiSchema?.["ui:widget"]) && !props.uiSchema?.["ui:field"];
   // What a person reads under the label is written for them: the UiSchema's `help`, in their own
   // language. The schema's description is the field's rustdoc — carried into the API and MCP for
   // engineers — so it is the fallback, never the first thing shown (T-1604, Architecture/09 §2).
@@ -257,7 +272,9 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
       hideLabel={!showLabel}
       required={asked}
       description={inherited ?? descText}
-      help={inWidget ? undefined : forPeople === undefined || ownHeading ? rawHelp : undefined}
+      // A list or an object our templates draw writes its help under its own heading, above its
+      // entries, where every other field has it (T-4311); a custom widget or field keeps it here.
+      help={inWidget || (ownHeading && !custom) ? undefined : forPeople === undefined || ownHeading ? rawHelp : undefined}
       errors={errors}
       aside={
         ownHeading ? undefined : (
@@ -327,7 +344,9 @@ function Cells({
   );
 }
 
-/** A one-line field (text, number, a switch, a select) shares its row; lists, objects and text areas do not. */
+/** A one-line field (text, number, a select) shares its row; lists, objects, text areas and
+ * checkboxes do not: a checkbox's sentence wrapped at half the card's width beside one that ran
+ * the whole width (T-4311). */
 function scalar(
   schema: ObjectFieldTemplateProps["schema"],
   uiSchema: ObjectFieldTemplateProps["uiSchema"],
@@ -338,7 +357,7 @@ function scalar(
   const type = (property as { type?: unknown }).type;
   const widget = (uiSchema?.[name] as { "ui:widget"?: unknown } | undefined)?.["ui:widget"];
   return (
-    (type === "string" || type === "number" || type === "integer" || type === "boolean") &&
+    (type === "string" || type === "number" || type === "integer") &&
     widget !== "textarea" &&
     widget !== "checkboxes"
   );
@@ -393,6 +412,12 @@ function itemTitle(
   return own ? `${own} ${last + 1}` : t("form.entry", { number: last + 1 });
 }
 
+/** Whether a map is keyed by language: a two-letter `propertyNames`. */
+function byLanguage(schema: unknown): boolean {
+  const names = (schema as { propertyNames?: { pattern?: unknown } } | undefined)?.propertyNames;
+  return names?.pattern === "^[a-z]{2}$";
+}
+
 /** One entry of a map: the key, its value, and Remove. */
 function MapEntry(props: FieldTemplateProps): React.JSX.Element {
   const { id, label, children, disabled, readonly, onKeyRenameBlur, onRemoveProperty, registry, uiSchema, fieldPathId } = props;
@@ -402,13 +427,14 @@ function MapEntry(props: FieldTemplateProps): React.JSX.Element {
     (node, step) => (node?.properties as Record<string, Record<string, unknown>> | undefined)?.[String(step)],
     registry.rootSchema as Record<string, unknown>,
   );
-  const byLanguage = (parent?.propertyNames as { pattern?: unknown } | undefined)?.pattern === "^[a-z]{2}$";
+  const keyedByLanguage = byLanguage(parent);
   const { RemoveButton } = registry.templates.ButtonTemplates;
   const frozen = Boolean(disabled || readonly);
   return (
-    <div className="flex min-w-0 flex-col gap-2 rounded-md border border-border p-3 @md:flex-row @md:items-start">
-      <div className="@md:w-32 @md:shrink-0">
-        <Field id={`${id}-key`} label={byLanguage ? t("form.mapLanguage") : t("form.mapKey")}>
+    <div className="flex min-w-0 flex-col gap-2 rounded-md border border-border p-2 @md:flex-row @md:items-start @md:p-3">
+      {/* Remove sits beside the key it takes away, on the key's line (T-4311). */}
+      <div data-testid="map-key" className="flex items-end gap-2 @md:w-44 @md:shrink-0">
+        <Field id={`${id}-key`} className="min-w-0 flex-1" label={keyedByLanguage ? t("form.mapLanguage") : t("form.mapKey")}>
           <UiInput
             id={`${id}-key`}
             key={label}
@@ -418,11 +444,13 @@ function MapEntry(props: FieldTemplateProps): React.JSX.Element {
             className="font-mono"
           />
         </Field>
+        {frozen ? null : (
+          <RemoveButton id={buttonId(id, "remove")} className="mb-0.5" onClick={onRemoveProperty} uiSchema={uiSchema} registry={registry} />
+        )}
       </div>
-      <div className="min-w-0 flex-1">{children}</div>
-      {frozen ? null : (
-        <RemoveButton id={buttonId(id, "remove")} className="self-end" onClick={onRemoveProperty} uiSchema={uiSchema} registry={registry} />
-      )}
+      <MapKeyContext.Provider value={typeof label === "string" ? label : undefined}>
+        <div className="min-w-0 flex-1">{children}</div>
+      </MapKeyContext.Provider>
     </div>
   );
 }
@@ -444,7 +472,12 @@ export function ObjectFieldTemplate(props: ObjectFieldTemplateProps): React.JSX.
 
 function ObjectFields(props: ObjectFieldTemplateProps): React.JSX.Element {
   const { t } = useTranslation();
-  const { title, description, properties, fieldPathId, uiSchema } = props;
+  const { properties, fieldPathId, uiSchema } = props;
+  const mapKey = useContext(MapKeyContext);
+  const title = props.title === mapKey ? undefined : props.title;
+  // The words written for people first, under the heading (T-4311); the rustdoc is the fallback.
+  const help = getUiOptions(uiSchema).help;
+  const description = typeof help === "string" && help.trim() !== "" ? help : props.description;
   const isRoot = fieldPathId.$id === "root";
 
   if (isRoot) {
@@ -485,15 +518,32 @@ function ObjectFields(props: ObjectFieldTemplateProps): React.JSX.Element {
   const add =
     canExpand(props.schema, uiSchema, props.formData) && !props.disabled && !props.readonly ? (
       <div>
-        <AddButton id={buttonId(fieldPathId.$id, "add")} onClick={props.onAddProperty} uiSchema={uiSchema} registry={props.registry} />
+        {byLanguage(props.schema) ? (
+          // Beside a language's own Add (its questions), the map's says what it adds (T-4311).
+          <Button id={buttonId(fieldPathId.$id, "add")} type="button" variant="secondary" size="sm" onClick={props.onAddProperty} icon={<Icon name="plus" className="size-4" />}>
+            {t("form.mapAddLanguage")}
+          </Button>
+        ) : (
+          <AddButton id={buttonId(fieldPathId.$id, "add")} onClick={props.onAddProperty} uiSchema={uiSchema} registry={props.registry} />
+        )}
       </div>
     ) : null;
   // An object with no title of its own (a title map asking for one language) reads as its
-  // fields, not as a boxed section around them.
-  if (!title) return <>{properties.map((prop) => prop.content)}{add}</>;
+  // fields, not as a boxed section around them; so does one of a single field and no help, whose
+  // box only restated the field's own label ("Answer mode" around "Answers from", T-4311).
+  const single = properties.length === 1 && add === null && !(typeof help === "string" && help.trim() !== "");
+  if (!title || (single && itemTitle(props, t) === undefined))
+    return (
+      <>
+        {typeof help === "string" && help.trim() !== "" ? <p className="text-caption text-fg-muted">{help}</p> : null}
+        {properties.map((prop) => prop.content)}
+        {add}
+      </>
+    );
   return (
     <Fieldset title={itemTitle(props, t) ?? title} description={description}>
-      <Cells properties={properties} schema={props.schema} uiSchema={uiSchema} />
+      {/* A map with no entry yet is its help and its Add, not an empty band between them (T-4311). */}
+      {properties.length > 0 ? <Cells properties={properties} schema={props.schema} uiSchema={uiSchema} /> : null}
       {add}
     </Fieldset>
   );
@@ -506,16 +556,20 @@ export function ArrayFieldTemplate(props: ArrayFieldTemplateProps): React.JSX.El
   const {
     ButtonTemplates: { AddButton },
   } = registry.templates;
+  const mapKey = useContext(MapKeyContext);
   const heading = (uiOptions.title as string | undefined) || title;
-  const description = (uiOptions.description as string | undefined) || schema.description;
-  // The words written for people first, as FieldTemplate reads them; the list's FieldTemplate
-  // shows its `help` under the list, and each item reads it as its own hint.
+  // A list that is a map entry's value is named by the key beside it; its legend stays for a
+  // screen reader only (T-4311).
+  const keyed = Boolean(heading) && heading === mapKey;
+  // The words written for people first, as FieldTemplate reads them, under the legend and above
+  // the entries (T-4311); each item reads them as its own hint.
   const help = typeof uiOptions.help === "string" && uiOptions.help.trim() !== "" ? uiOptions.help : undefined;
-  const listHint = help ?? description;
+  const description = help ?? ((uiOptions.description as string | undefined) || schema.description);
+  const listHint = description;
   return (
     <fieldset id={fieldPathId.$id} className="flex flex-col gap-2">
       {heading ? (
-        <legend className="text-body font-medium text-fg">
+        <legend className={keyed ? "sr-only" : "text-body font-medium text-fg"}>
           {heading}
           {required ? (
             <span aria-hidden="true" className="ml-0.5 text-danger">
@@ -552,13 +606,25 @@ export function ArrayFieldTemplate(props: ArrayFieldTemplateProps): React.JSX.El
 }
 
 export function ArrayFieldItemTemplate(props: ArrayFieldItemTemplateProps): React.JSX.Element {
-  const { children, buttonsProps, hasToolbar, registry, uiSchema } = props;
+  const { children, buttonsProps, hasToolbar, registry, uiSchema, schema } = props;
   const { ArrayFieldItemButtonsTemplate } = registry.templates;
+  // A one-line entry (a site, a code) reads as [input][remove] on one line, its input running to
+  // the buttons; an entry of several fields keeps them at its top corner (T-4311).
+  const oneLine = schema.type !== "object" && schema.type !== "array";
+  // Inside a map entry's box the entry is a line, not a fourth box: at a phone's width the nested
+  // borders and paddings left a question 15 letters wide (T-4311).
+  const boxed = useContext(MapKeyContext) === undefined;
   return (
-    <div className="flex items-start gap-2 rounded-md border border-border bg-surface p-2">
+    <div
+      className={clsx(
+        "flex gap-2",
+        boxed && "rounded-md border border-border bg-surface p-2",
+        oneLine ? "items-end" : "items-start",
+      )}
+    >
       <div className="min-w-0 flex-1 [&>div]:gap-1">{children}</div>
       {hasToolbar && !buttonsProps.disabled && !buttonsProps.readonly ? (
-        <div className="flex shrink-0 items-center gap-1">
+        <div data-testid="item-buttons" className="flex h-9 shrink-0 items-center gap-1">
           <ArrayFieldItemButtonsTemplate {...buttonsProps} uiSchema={uiSchema} registry={registry} />
         </div>
       ) : null}

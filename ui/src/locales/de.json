@@ -192,7 +192,8 @@
     "notAnAttribute": "{name} ist kein Attribut von {types} in den Modellen des Projekts; prüfen Sie die Schreibweise.",
     "missing": "{field} ist erforderlich",
     "mapKey": "Schlüssel",
-    "mapLanguage": "Sprache"
+    "mapLanguage": "Sprache",
+    "mapAddLanguage": "Sprache hinzufügen"
   },
   "approvals": {
     "lead": "Jede Änderung am Projekt ist hier ein Vorschlag, bis eine freigebende Person sie zusammenführt.",

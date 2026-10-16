@@ -107,7 +107,7 @@ describe("the deployment form's sources (T-4282)", () => {
   it("a suggestion per language is added, keyed and taken away, and a site is named in words", async () => {
     await openForm();
     const suggestions = screen.getByRole("group", { name: /^Suggested questions/ });
-    await userEvent.click(within(suggestions).getByRole("button", { name: "Add" }));
+    await userEvent.click(within(suggestions).getByRole("button", { name: "Add a language" }));
     const key = await within(suggestions).findByLabelText("Language");
     expect(key).toHaveValue("newKey");
     await userEvent.clear(key);
@@ -180,5 +180,71 @@ describe("the deployment manifest (T-4282)", () => {
     expect(cut.metadata.name).toHaveLength(63);
     expect(cut.metadata.name.endsWith("-copy")).toBe(true);
     expect(cut.spec.publicId).toBe(cut.metadata.name);
+  });
+});
+
+describe("the deployment form reads once and lines up (T-4311)", () => {
+  it("a group's description and its fields' help say different things", () => {
+    const form = shippedForms.find((one) => one.spec?.for === "AssistantDeployment");
+    const words = (text: string) => text.toLowerCase().match(/[\p{L}]+/gu) ?? [];
+    // Three words in a row both sides share is the same sentence twice ("the sites that…").
+    const runs = (text: string) => new Set(words(text).slice(2).map((_, at) => words(text).slice(at, at + 3).join(" ")));
+    for (const group of form?.spec.groups ?? []) {
+      for (const locale of ["en", "sk", "cs", "de"]) {
+        const said = runs((group.description as Record<string, string> | undefined)?.[locale] ?? "");
+        for (const field of group.fields) {
+          const help = (form?.spec.fields?.[field]?.help as Record<string, string> | undefined)?.[locale] ?? "";
+          const shared = [...runs(help)].filter((run) => said.has(run));
+          expect(shared, `${JSON.stringify(group.title)} / ${field} / ${locale}`).toEqual([]);
+        }
+      }
+    }
+  });
+
+  it("a map entry names its language once, Remove beside it, and the map's help above its entries", async () => {
+    await openForm();
+    const suggestions = screen.getByRole("group", { name: /^Suggested questions/ });
+    const help = within(suggestions).getByText(/^Questions the chat offers before the first one/);
+    const add = within(suggestions).getByRole("button", { name: "Add a language" });
+    expect(help.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.click(add);
+    const key = await within(suggestions).findByLabelText("Language");
+    await userEvent.clear(key);
+    await userEvent.type(key, "sk");
+    await userEvent.tab();
+    await waitFor(() => expect(within(suggestions).getByLabelText("Language")).toHaveValue("sk"));
+    const row = within(suggestions).getByTestId("map-key");
+    expect(within(row).getByRole("button", { name: "Remove" })).toBeInTheDocument();
+    // The inner list keeps its name for a screen reader, not a second visible "sk".
+    const inner = within(suggestions).getByRole("group", { name: "sk" });
+    expect(inner.querySelector("legend")).toHaveClass("sr-only");
+    await userEvent.click(within(inner).getByRole("button", { name: "Add" }));
+    expect(await within(inner).findByLabelText(/^Entry 1/)).toBeInTheDocument();
+    expect(within(inner).queryByText(/^sk 1/)).toBeNull();
+  });
+
+  it("a list's help sits above its entries, a one-line entry has its Remove on the input's line", async () => {
+    await openForm();
+    const sites = screen.getByRole("group", { name: /^Allowed sites/ });
+    const add = within(sites).getByRole("button", { name: "Add" });
+    const help = within(sites).getByText(/^The sites a public chat may be placed on/);
+    expect(help.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Said once: not again under the list.
+    expect(screen.getAllByText(/^The sites a public chat may be placed on/)).toHaveLength(1);
+    await userEvent.click(add);
+    const input = await within(sites).findByLabelText(/^Allowed sites 1/);
+    const item = input.closest("div.rounded-md");
+    expect(item).toHaveClass("items-end");
+  });
+
+  it("a source's box stays on its name's line when the badge wraps", async () => {
+    const { picker } = await openForm();
+    // Its help is said once, above the sources.
+    const help = within(picker).getByText(/^Tick the sources it answers from/);
+    const first = within(picker).getByRole("checkbox", { name: /^web/ });
+    expect(help.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getAllByText(/^Tick the sources it answers from/)).toHaveLength(1);
+    const box = within(picker).getByRole("checkbox", { name: /intranet/ });
+    expect(box.closest("label")).toHaveClass("items-start");
   });
 });
