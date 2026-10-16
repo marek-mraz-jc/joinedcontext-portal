@@ -39,7 +39,10 @@ export function Instantiate({
 
   const spec = blueprintSpec(blueprint);
   const name = localized(blueprint.metadata.title, i18n.language, blueprint.metadata.name);
-  const schema = spec.parameterSchema as JsonSchema | undefined;
+  const schema = useMemo(
+    () => inLanguage(spec.parameterSchema, i18n.language) as JsonSchema | undefined,
+    [spec.parameterSchema, i18n.language],
+  );
   // A parameter may ask for a picker over the platform's own state rather than a fixed enum
   // (CC-24). The project comes from the page, never from the blueprint.
   const uiSchema = useMemo(() => pickers(schema, { project }), [schema, project]);
@@ -139,4 +142,26 @@ export function Instantiate({
       )}
     </div>
   );
+}
+
+/**
+ * The parameter schema in `locale` (T-4244): a `title` or `description` gives way to the entry of
+ * the `x-jc-title`/`x-jc-description` map beside it, at every depth, `oneOf` choices included.
+ * Without an entry the plain string stands. Values (`const`, `default`, `enum`, `examples`) are
+ * what gets submitted and stay as written.
+ */
+export function inLanguage(node: unknown, locale: string): unknown {
+  if (Array.isArray(node)) return node.map((item) => inLanguage(item, locale));
+  if (!node || typeof node !== "object") return node;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(node)) {
+    out[key] = ["const", "default", "enum", "examples"].includes(key) ? value : inLanguage(value, locale);
+  }
+  for (const key of ["title", "description"]) {
+    const texts = out[`x-jc-${key}`];
+    if (!texts || typeof texts !== "object" || Array.isArray(texts)) continue;
+    const text = (texts as Record<string, unknown>)[locale] ?? (texts as Record<string, unknown>)[locale.split("-")[0]];
+    if (typeof text === "string" && text.trim() !== "") out[key] = text;
+  }
+  return out;
 }
