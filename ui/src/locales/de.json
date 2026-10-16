@@ -133,6 +133,7 @@
     "maxLength": "Der Wert ist zu lang",
     "pattern": "Der Wert entspricht nicht dem geforderten Muster",
     "enum": "Der Wert muss einer der zulässigen Werte sein",
+    "minItems": "Wählen Sie mindestens eine Möglichkeit aus",
     "format": "Ungültiges Format",
     "redacted": "Ausgeblendet",
     "advancedMode": "Erweiterte Felder anzeigen",

@@ -133,6 +133,7 @@
     "maxLength": "Value is too long",
     "pattern": "Value does not match pattern",
     "enum": "Value must be one of the allowed choices",
+    "minItems": "Choose at least one",
     "format": "Invalid format",
     "redacted": "Redacted",
     "advancedMode": "Show advanced fields",

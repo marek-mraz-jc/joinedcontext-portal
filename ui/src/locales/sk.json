@@ -133,6 +133,7 @@
     "maxLength": "Hodnota je príliš dlhá",
     "pattern": "Hodnota nezodpovedá požadovanému vzoru",
     "enum": "Hodnota musí byť jedna z povolených možností",
+    "minItems": "Vyberte aspoň jednu možnosť",
     "format": "Neplatný formát",
     "redacted": "Zabezpečené",
     "advancedMode": "Zobraziť rozšírené polia",
