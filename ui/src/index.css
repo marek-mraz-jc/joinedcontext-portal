@@ -126,6 +126,16 @@
   }
 }
 
+/* A scrolling frame's right edge shadowed while content waits beyond it: the cover scrolls with the
+   content and hides the shadow at its end, so a table cut at a phone's width says it goes on
+   (T-4265, photo audit T-4160; the SDK grid does the same, T-4242). */
+@utility scroll-hint-x {
+  background:
+    linear-gradient(to left, var(--color-surface) 40%, transparent) right / 2rem 100% no-repeat local,
+    linear-gradient(to left, rgb(0 0 0 / 18%), transparent) right / 0.75rem 100% no-repeat scroll,
+    var(--color-surface);
+}
+
 /* MapLibre writes its own attribution into the map: a link inside a line of text, told apart
    from that text by its colour alone, which axe reports as `link-in-text-block` on every
    dashboard (T-1493, UI-16, UI-30). The control is the library's own DOM, so the underline is

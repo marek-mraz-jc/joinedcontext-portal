@@ -105,6 +105,22 @@ test.describe("the knowledge sources", () => {
     expect(await axeViolations(p)).toEqual([]);
   });
 
+  // T-4265 (photo audit T-4160 #23): at 375 px both tables ran past their cards, the crawl time one
+  // letter a line and the row's Ask off the screen. A phone keeps the name, the state and the actions.
+  test("both tables fit a phone in Slovak, their actions on the screen", async ({ page: p }) => {
+    await p.setViewportSize({ width: 375, height: 812 });
+    await stubApi(p);
+    await p.goto("/projects/helsinki/knowledge?lang=sk");
+    for (const name of ["Zdroje znalostí", "Asistenti"]) {
+      const frame = p.getByRole("group", { name });
+      await expect(frame).toBeVisible();
+      const wider = await frame.evaluate((el) => el.scrollWidth - el.clientWidth);
+      expect(wider, `${name} is wider than its frame`).toBeLessThanOrEqual(1);
+    }
+    const sideways = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(sideways, "the page scrolls sideways").toBeLessThanOrEqual(0);
+  });
+
   test("opens a branch of the tree and leaves it out of answers with everything below it", async ({ page: p }) => {
     const { writes } = await stubApi(p);
     await p.goto("/projects/helsinki/knowledge/hel-web?lang=en");

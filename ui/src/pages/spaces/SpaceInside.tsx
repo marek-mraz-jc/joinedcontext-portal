@@ -242,7 +242,7 @@ function TypeRow({
         <TypeLink project={project} type={type} space={space} />
       </TableCell>
       <TableCell align="right" className="font-mono">{count}</TableCell>
-      <TableCell>
+      <TableCell secondary>
         {inside.isSuccess && inside.data.samples.length > 0 ? (
           <ul className="space-y-1">
             {inside.data.samples.map((entity) => (
@@ -1092,7 +1092,9 @@ export function SpaceInside({ project, name }: { project: string; name: string }
               <TableHead>
                 <TableHeaderCell>{t("spaces.inside.type")}</TableHeaderCell>
                 <TableHeaderCell align="right">{t("spaces.inside.count")}</TableHeaderCell>
-                <TableHeaderCell>{t("spaces.inside.samples")}</TableHeaderCell>
+                {/* A phone keeps the type and its count (UI-27): the samples squeezed to a letter
+                    a line ran 800 px down the page (T-4265, photo audit T-4160 #5). */}
+                <TableHeaderCell secondary>{t("spaces.inside.samples")}</TableHeaderCell>
               </TableHead>
               <TableBody>
                 {types.map((type) => (
@@ -1189,8 +1191,8 @@ export function SpaceInside({ project, name }: { project: string; name: string }
             <TableHead>
               <TableHeaderCell>{t("spaces.field.name")}</TableHeaderCell>
               <TableHeaderCell>{t("spaces.inside.assignee")}</TableHeaderCell>
-              <TableHeaderCell>{t("spaces.inside.operations")}</TableHeaderCell>
-              <TableHeaderCell>{t("spaces.inside.type")}</TableHeaderCell>
+              <TableHeaderCell secondary>{t("spaces.inside.operations")}</TableHeaderCell>
+              <TableHeaderCell secondary>{t("spaces.inside.type")}</TableHeaderCell>
             </TableHead>
             <TableBody>
               {spacePolicies.map((policy) => {
@@ -1220,10 +1222,10 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                         ? `${spec.assignee.kind ?? ""}${spec.assignee.kind ? ":" : ""}${spec.assignee.id ?? ""}`
                         : "—"}
                     </TableCell>
-                    <TableCell className="font-mono text-caption">
+                    <TableCell secondary className="font-mono text-caption">
                       {(spec.operations ?? []).join(", ") || "—"}
                     </TableCell>
-                    <TableCell className="font-mono text-caption">
+                    <TableCell secondary className="font-mono text-caption">
                       {policyTypes.join(", ") || "—"}
                     </TableCell>
                   </TableRow>
