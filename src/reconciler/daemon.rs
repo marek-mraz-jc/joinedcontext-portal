@@ -448,6 +448,11 @@ impl Syncer {
         Arc::clone(&self.app_client_secrets)
     }
 
+    /// The stream deployer, when this Portal has a runner.
+    pub fn streams(&self) -> Option<&Arc<StreamDeployer>> {
+        self.streams.as_ref()
+    }
+
     pub fn with_streams(mut self, deployer: Arc<StreamDeployer>) -> Self {
         self.streams = Some(deployer);
         self

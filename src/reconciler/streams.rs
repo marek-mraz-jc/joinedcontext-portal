@@ -228,9 +228,23 @@ impl StreamDeployer {
             every.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
             loop {
                 every.tick().await;
-                run_queue::tick(&self.queue, &*self, chrono::Utc::now()).await;
+                self.tick_queue(chrono::Utc::now()).await;
             }
         })
+    }
+
+    /// One step of the run queue at `now`: what [`Self::spawn_queue`] does every few seconds.
+    pub async fn tick_queue(&self, now: chrono::DateTime<chrono::Utc>) {
+        run_queue::tick(&self.queue, self, now).await;
+    }
+
+    /// Queues one run of a run-and-delete pipeline now (T-4349) and returns its id, the one its
+    /// log lists it under.
+    pub fn run_now(&self, project: &str, name: &str) -> Result<String, run_queue::RunNow> {
+        self.queue
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .run_now(&(project.to_owned(), name.to_owned()), chrono::Utc::now())
     }
 
     /// The same deployer with other timeouts, so a test need not wait out the real ones.

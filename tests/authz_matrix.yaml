@@ -719,6 +719,10 @@ routes:
   - route: GET /projects/{project}/pipelines/{name}/runs
     rule: "project-verb:read:Pipeline"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/pipelines/{name}/runs
+    rule: "project-verb:propose:Pipeline, project-verb:approve:Pipeline"
+    expect: [403, 403, 503, 503, 403, 503, 404, 403]
+    note: "the fixture runs no pipeline runner (T-4349): 503 once the caller is let through"
   - route: GET /projects/{project}/pipelines/{name}/runs/{run}/log
     rule: "project-verb:read:Pipeline"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

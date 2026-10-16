@@ -10612,6 +10612,96 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Run a Pipeline Now",
+        "description": "Queues one run of a pipeline that runs from the queue (PL-78), now and outside its schedule, and answers its id: the run the run list shows once it wrote. The run waits its turn in its lane, so runs started for many pipelines go one after another. A pipeline whose run is in the runner, and one that waits for pushes and so always runs, answer 409. Needs propose and approve on Pipeline (a steward), and each run is an activity event `pipeline.run`.",
+        "operationId": "post_run",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Pipeline name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "The run is queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineRunStarted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not run the pipeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A run is in progress, or the pipeline always runs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No pipeline runner is configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/projects/{project}/pipelines/{name}/runs/{run}/log": {
@@ -21992,6 +22082,19 @@
               "$ref": "#/components/schemas/PipelineRun"
             },
             "description": "The run with the latest line first, at most 200."
+          }
+        }
+      },
+      "PipelineRunStarted": {
+        "type": "object",
+        "description": "The run a run-now queued (T-4349).",
+        "required": [
+          "run"
+        ],
+        "properties": {
+          "run": {
+            "type": "string",
+            "description": "The run's id, as the run list names it once it wrote: its due time."
           }
         }
       },

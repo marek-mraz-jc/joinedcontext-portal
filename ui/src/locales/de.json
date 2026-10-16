@@ -1986,6 +1986,9 @@
     },
     "runs": {
       "open": "Läufe und Protokoll",
+      "runNow": "Jetzt ausführen",
+      "starting": "Wird gestartet…",
+      "started": "Lauf {run} steht in der Warteschlange. Er startet, sobald er an der Reihe ist, und erscheint hier, sobald er geschrieben hat.",
       "title": "Läufe von {name}",
       "lead": "Jeder Lauf mit der Zahl der geschriebenen, vom Datenmodell abgelehnten und in einem Schritt gescheiterten Datensätze. Öffnen Sie einen Lauf, um sein Protokoll zu lesen, eine Zeile pro Datensatz.",
       "caption": "Läufe",
@@ -4714,7 +4717,8 @@
       "pipeline": {
         "throughput": "Pipeline-Durchsatz",
         "error": "Pipeline-Fehler",
-        "restarted": "Pipeline neu gestartet"
+        "restarted": "Pipeline neu gestartet",
+        "run": "Pipeline-Lauf gestartet"
       },
       "endpoint": {
         "traffic": "Endpunkt-Verkehr"

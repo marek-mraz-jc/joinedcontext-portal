@@ -13,6 +13,7 @@ export const ACTIVITY_KINDS = [
   "pipeline.throughput",
   "pipeline.error",
   "pipeline.restarted",
+  "pipeline.run",
   "endpoint.traffic",
   "access.denied",
   "access.simulated",

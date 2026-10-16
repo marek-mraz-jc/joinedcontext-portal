@@ -612,6 +612,10 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
           project={project}
           name={runsOf}
           initialRun={runOpened ?? undefined}
+          // A pipeline the queue runs says so in its status (PL-78); it alone can run now (T-4349).
+          runsFromQueue={pipelines
+            .find((pipeline) => pipeline.metadata.name === runsOf)
+            ?.status?.conditions?.some((condition) => condition.type === "Scheduled")}
           onClose={() => {
             setRunsOf(null);
             setRunOpened(null);

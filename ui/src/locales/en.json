@@ -1986,6 +1986,9 @@
     },
     "runs": {
       "open": "Runs and log",
+      "runNow": "Run now",
+      "starting": "Starting…",
+      "started": "Run {run} is queued. It starts when its turn comes and appears here once it wrote.",
       "title": "Runs of {name}",
       "lead": "Each run with how many records it wrote, how many the data model rejected and how many failed in a step. Open a run to read its log, one line per record.",
       "caption": "Runs",
@@ -4714,7 +4717,8 @@
       "pipeline": {
         "throughput": "Pipeline throughput",
         "error": "Pipeline error",
-        "restarted": "Pipeline restarted"
+        "restarted": "Pipeline restarted",
+        "run": "Pipeline run started"
       },
       "endpoint": {
         "traffic": "Endpoint traffic"

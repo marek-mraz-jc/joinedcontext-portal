@@ -702,6 +702,88 @@ pub async fn get_run_log(
     Ok(Json(LogPage { items, next }))
 }
 
+/// The run a run-now queued (T-4349).
+#[derive(Debug, Serialize, ToSchema)]
+#[schema(as = PipelineRunStarted)]
+pub struct RunStarted {
+    /// The run's id, as the run list names it once it wrote: its due time.
+    pub run: String,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/projects/{project}/pipelines/{name}/runs",
+    summary = "Run a Pipeline Now",
+    description = "Queues one run of a pipeline that runs from the queue (PL-78), now and outside its schedule, and answers its id: the run the run list shows once it wrote. The run waits its turn in its lane, so runs started for many pipelines go one after another. A pipeline whose run is in the runner, and one that waits for pushes and so always runs, answer 409. Needs propose and approve on Pipeline (a steward), and each run is an activity event `pipeline.run`.",
+    tag = "pipelines",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("name" = String, Path, description = "Pipeline name"),
+    ),
+    responses(
+        (status = 202, description = "The run is queued", body = RunStarted),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 403, description = "The caller may not run the pipeline", body = ProblemDetails),
+        (status = 404, description = "Pipeline not found", body = ProblemDetails),
+        (status = 409, description = "A run is in progress, or the pipeline always runs", body = ProblemDetails),
+        (status = 503, description = "No pipeline runner is configured", body = ProblemDetails)
+    )
+)]
+pub async fn post_run(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+) -> Result<(axum::http::StatusCode, Json<RunStarted>), ApiError> {
+    readable_pipeline(&state, &user, &project, &name)?;
+    let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
+    if !effective.may("Pipeline", jc_core::kinds::Verb::Propose)
+        || !effective.may("Pipeline", jc_core::kinds::Verb::Approve)
+    {
+        return Err(ApiError::Denied(format!(
+            "a run outside the schedule writes through the approved pipeline, which needs propose \
+             and approve on Pipeline in project {project}"
+        )));
+    }
+    let deployer = state
+        .syncer
+        .as_ref()
+        .and_then(|syncer| syncer.streams())
+        .ok_or_else(|| ApiError::Unavailable("no pipeline runner is configured".into()))?;
+    let run = deployer
+        .run_now(&project, &name)
+        .map_err(|refusal| match refusal {
+            crate::reconciler::run_queue::RunNow::Running(run) => ApiError::Conflict(format!(
+                "pipeline '{name}' is running ({run}); start another once it ended"
+            )),
+            crate::reconciler::run_queue::RunNow::NotQueued => ApiError::Conflict(format!(
+            "pipeline '{name}' does not run from the queue: it waits for pushes and always runs, \
+             or it is not deployed (its status says why)"
+        )),
+        })?;
+    let event = crate::activity::ActivityEvent {
+        time: chrono::Utc::now(),
+        project: project.clone(),
+        space: None,
+        kind: "pipeline.run".to_owned(),
+        source: "portal".to_owned(),
+        summary: format!(
+            "{} started run {run} of pipeline {name}",
+            user.0.identity.username
+        ),
+        severity: "info".to_owned(),
+        correlation_id: None,
+        details: serde_json::json!({
+            "object": format!("pipelines/{name}"),
+            "run": run,
+            "actor": user.0.identity.username,
+        }),
+    };
+    if let Err(error) = state.activity.append(&[event]).await {
+        tracing::warn!(%project, pipeline = %name, %error, "the run is not on the activity feed");
+    }
+    Ok((axum::http::StatusCode::ACCEPTED, Json(RunStarted { run })))
+}
+
 /// Which rejected records to replay.
 #[derive(Debug, serde::Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
@@ -944,7 +1026,10 @@ pub fn router() -> Router<AppState> {
             "/projects/{project}/pipelines/{name}/rejected/retry",
             axum::routing::post(retry_rejected),
         )
-        .route("/projects/{project}/pipelines/{name}/runs", get(get_runs))
+        .route(
+            "/projects/{project}/pipelines/{name}/runs",
+            get(get_runs).post(post_run),
+        )
         .route(
             "/projects/{project}/pipelines/{name}/runs/{run}/log",
             get(get_run_log),

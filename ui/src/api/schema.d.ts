@@ -2518,7 +2518,11 @@ export interface paths {
          */
         get: operations["get_runs"];
         put?: never;
-        post?: never;
+        /**
+         * Run a Pipeline Now
+         * @description Queues one run of a pipeline that runs from the queue (PL-78), now and outside its schedule, and answers its id: the run the run list shows once it wrote. The run waits its turn in its lane, so runs started for many pipelines go one after another. A pipeline whose run is in the runner, and one that waits for pushes and so always runs, answer 409. Needs propose and approve on Pipeline (a steward), and each run is an activity event `pipeline.run`.
+         */
+        post: operations["post_run"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5699,6 +5703,11 @@ export interface components {
         PipelineRunList: {
             /** @description The run with the latest line first, at most 200. */
             items: components["schemas"]["PipelineRun"][];
+        };
+        /** @description The run a run-now queued (T-4349). */
+        PipelineRunStarted: {
+            /** @description The run's id, as the run list names it once it wrote: its due time. */
+            run: string;
         };
         /** @description What last crossed each node of a running stream (T-3974, API/01 §7b). */
         PipelineSamples: {
@@ -14873,6 +14882,76 @@ export interface operations {
                 };
             };
             /** @description The runs could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    post_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Pipeline name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The run is queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PipelineRunStarted"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not run the pipeline */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Pipeline not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A run is in progress, or the pipeline always runs */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No pipeline runner is configured */
             503: {
                 headers: {
                     [name: string]: unknown;
