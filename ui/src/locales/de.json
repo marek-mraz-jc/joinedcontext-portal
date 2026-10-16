@@ -6681,7 +6681,10 @@
       "suggestions": "Vorgeschlagene Fragen",
       "disclaimer": "Hinweis",
       "scope": "Über dieses Projekt hinaus",
-      "scopeProjects": "Projekte, deren öffentliche Endpoints er lesen darf"
+      "scopeProjects": "Projekte, deren öffentliche Endpoints und Wissensquellen es lesen darf",
+      "answer": "Antwortmodus",
+      "answerRoutes": "Antwortet aus",
+      "feedback": "Besucher fragen, ob eine Antwort geholfen hat"
     },
     "visibility": {
       "internal": "Intern: angemeldete Mitarbeitende",
@@ -6709,7 +6712,9 @@
       "day": "Tag",
       "requests": "Fragen",
       "tokensIn": "Gelesene Tokens",
-      "tokensOut": "Geschriebene Tokens"
+      "tokensOut": "Geschriebene Tokens",
+      "duplicate": "Duplizieren",
+      "duplicateOf": "{name} duplizieren"
     },
     "chat": {
       "ask": "Fragen",
@@ -6749,7 +6754,9 @@
       "launcherIntro": "Bringen Sie den Assistenten auf Ihre Website: Fügen Sie diese eine Zeile in jede Seite vor </body> ein. Sie fügt in der Ecke eine runde Schaltfläche hinzu, die den Chat öffnet.",
       "preview": "Vorschau der Startzeile auf einer leeren Seite",
       "previewHint": "Die Vorschau zeigt die Schaltfläche so, wie Besucher sie sehen. Der Chat öffnet sich nur auf den erlaubten Adressen des Assistenten und kann hier leer bleiben.",
-      "copyOf": "{what} kopieren"
+      "copyOf": "{what} kopieren",
+      "fullPage": "Chat als ganze Seite",
+      "fullPageHint": "Eine eigene Seite: von einer Website verlinken oder teilen."
     },
     "everySpace": "jeder Raum des Projekts",
     "userGuide": "das Benutzerhandbuch der Plattform, mit Links in dieses Projekt",
@@ -6783,6 +6790,19 @@
       "unreadList": "Nicht gelesene Seiten und Dateien",
       "noneUnread": "Kein fehlgeschlagener Abruf ist verzeichnet.",
       "totals": "Alle Quellen: {pages} Seiten, {files} Dateien, {embedded} von {passages} Passagen durchsuchbar, {pending} wartend, {failed} nicht gelesen"
+    },
+    "answerRoutes": {
+      "both": "Wissen und Live-Daten",
+      "rag": "Nur Wissen (ruft nie ein Werkzeug auf)",
+      "data": "Nur Live-Daten"
+    },
+    "sourcesPicker": {
+      "hint": "Wählen Sie Quellen dieses Projekts und jedes Projekts, das Sie lesen dürfen. Eine Quelle eines anderen Projekts nimmt dieses Projekt in den Umfang auf.",
+      "publicOnly": "Dieser Kanal antwortet nicht angemeldeten Personen und liest daher nur öffentliche Quellen. Eine Quelle eines anderen Projekts nimmt dieses Projekt in den Umfang auf.",
+      "of": "Quellen von {project}",
+      "own": "{project} (dieses Projekt)",
+      "unknown": "Genannt, aber Ihnen nicht angeboten",
+      "none": "Noch kein Projekt, das Sie lesen dürfen, hat eine Wissensquelle."
     }
   },
   "mcp": {

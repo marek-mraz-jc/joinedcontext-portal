@@ -522,3 +522,32 @@ export function embedSnippet(domain: string, publicId: string, title: string): s
   const escapedTitle = title.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
   return `<iframe src="https://assistant.${domain}/d/${publicId}/widget" title="${escapedTitle}" width="400" height="600" loading="lazy"></iframe>`;
 }
+
+/** `{base}-copy`, then `{base}-copy-2`, … : the first that `taken` does not hold, cut to a DNS label. */
+function freeName(base: string, taken: Set<string>): string {
+  for (let n = 1; ; n++) {
+    const suffix = n === 1 ? "-copy" : `-copy-${n}`;
+    const name = `${base.slice(0, 63 - suffix.length).replace(/-+$/, "")}${suffix}`;
+    if (!taken.has(name)) return name;
+  }
+}
+
+/**
+ * A deployment's copy, to open as a create form (T-4281 item 9): every capability kept, a new name
+ * and a new `publicId`, because two deployments that declare one are both refused (MF-52, T-3283).
+ * Labels and annotations stay with the original.
+ */
+export function duplicateDeployment(
+  manifest: { metadata: { name: string; namespace?: string }; spec?: Record<string, unknown> },
+  existing: { metadata: { name: string }; spec?: { publicId?: unknown } }[],
+): { apiVersion: string; kind: string; metadata: { name: string; namespace?: string }; spec: Record<string, unknown> } {
+  const names = new Set(existing.map((item) => item.metadata.name));
+  const ids = new Set(existing.map((item) => item.spec?.publicId).filter((id): id is string => typeof id === "string"));
+  const publicId = typeof manifest.spec?.publicId === "string" ? manifest.spec.publicId : manifest.metadata.name;
+  return {
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "AssistantDeployment",
+    metadata: { name: freeName(manifest.metadata.name, names), namespace: manifest.metadata.namespace },
+    spec: { ...structuredClone(manifest.spec ?? {}), publicId: freeName(publicId, ids) },
+  };
+}

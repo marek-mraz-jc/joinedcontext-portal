@@ -79,7 +79,7 @@ const FlowGallery = lazy(() => import("../pages/flows/Gallery").then((module) =>
 const AppsCatalog = lazy(() => import("../pages/apps/AppsCatalog").then((module) => ({ default: module.AppsCatalog })));
 const MqttBrokersPage = lazy(() => import("../pages/mqttbrokers/MqttBrokersPage").then((module) => ({ default: module.MqttBrokersPage })));
 const SyncSourcesPage = lazy(() => import("../pages/sync/SyncSourcesPage").then((module) => ({ default: module.SyncSourcesPage })));
-import { assistantDeploymentSchema, fromKindManifest, knowledgeSourceSchema, toKindManifest } from "../schemas/knowledge";
+import { assistantDeploymentSchema, assistantDeploymentUiSchema, fromKindManifest, knowledgeSourceSchema, toKindManifest } from "../schemas/knowledge";
 import { kindNew } from "../kindWords";
 
 const VIEWS: Record<string, ComponentType<{ project: string; edit?: string }>> = {
@@ -180,6 +180,7 @@ const EDIT_FORMS: Record<string, (t: (key: string) => string, project: string) =
   }),
   assistantdeployments: (t, project) => ({
     schema: assistantDeploymentSchema(t),
+    uiSchema: assistantDeploymentUiSchema,
     fromManifest: (manifest) => fromKindManifest(manifest),
     toManifest: (form, stored) => toKindManifest("AssistantDeployment", project, form, stored),
   }),

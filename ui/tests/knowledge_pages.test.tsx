@@ -183,6 +183,7 @@ function renderAt(path: string, stub: Stub = {}) {
         });
       }
       if (url.pathname.endsWith("/recrawl")) return json({ job: 7 }, 202);
+      if (url.pathname.includes("/drafts/")) return json({ version: 1 });
       return json({ pages: 2, documents: 1, passagesRemoved: 30 });
     }
     if (url.pathname === `${base}/sources/bb-old/errors`) {
@@ -647,6 +648,50 @@ describe("asking an assistant in the Portal (T-3058, AG-115)", () => {
     const preview = within(dialog).getByTitle("Preview of the launcher on a blank page");
     expect(preview).toHaveAttribute("sandbox", "allow-scripts");
     expect(preview.getAttribute("srcdoc")).toContain(line);
+  });
+});
+
+describe("a deployment's copy and its full page (T-4281, T-4282)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("Duplicate keeps every capability under a new name and publicId and opens it as a create form", async () => {
+    const { writes } = renderAt("/projects/banskabystrica/knowledge");
+    const table = await screen.findByRole("table", { name: "Assistants" });
+    await userEvent.click(within(table).getByRole("button", { name: "Duplicate obcania" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/projects/banskabystrica/assistantdeployments"));
+    expect(new URLSearchParams(window.location.search).get("draft")).toBe("obcania-copy");
+    const put = writes.find((w) => w.path === "/api/v1/projects/banskabystrica/drafts/AssistantDeployment/obcania-copy");
+    expect(put?.body).toMatchObject({
+      manifest: {
+        kind: "AssistantDeployment",
+        metadata: { name: "obcania-copy", namespace: "banskabystrica" },
+        spec: { publicId: "bb-obcania-copy", channel: "public", sources: ["bb-web"], connectors: [{ endpoint: "ovzdusie-verejne" }] },
+      },
+    });
+  });
+
+  it("a viewer's Duplicate says why it is disabled and writes no draft", async () => {
+    const { writes } = renderAt("/projects/banskabystrica/knowledge", { verbs: ["read"] });
+    const table = await screen.findByRole("table", { name: "Assistants" });
+    const copy = within(table).getByRole("button", { name: "Duplicate obcania" });
+    await waitFor(() => expect(copy).toHaveAttribute("aria-disabled", "true"));
+    await userEvent.click(copy);
+    expect(writes).toEqual([]);
+  });
+
+  it("the embed dialog links the full-page chat of the deployment alone", async () => {
+    renderAt("/projects/banskabystrica/knowledge");
+    const table = await screen.findByRole("table", { name: "Assistants" });
+    await userEvent.click(within(table).getByRole("button", { name: "Embed obcania" }));
+    const dialog = await screen.findByRole("dialog", { name: "Embed obcania" });
+    const link = within(dialog).getByRole("link", { name: "Full-page chat" });
+    expect(link).toHaveAttribute("href", "https://assistant.dev.example/d/bb-obcania/widget");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 });
 

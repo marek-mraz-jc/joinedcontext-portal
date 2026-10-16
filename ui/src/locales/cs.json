@@ -6681,7 +6681,10 @@
       "suggestions": "Navrhované otázky",
       "disclaimer": "Upozornění",
       "scope": "Mimo tento projekt",
-      "scopeProjects": "Projekty, jejichž veřejné endpointy smí číst"
+      "scopeProjects": "Projekty, jejichž veřejné Endpointy a zdroje znalostí smí číst",
+      "answer": "Způsob odpovědi",
+      "answerRoutes": "Odpovídá z",
+      "feedback": "Ptát se návštěvníků, zda odpověď pomohla"
     },
     "visibility": {
       "internal": "Interní: přihlášení zaměstnanci",
@@ -6709,7 +6712,9 @@
       "day": "Den",
       "requests": "Otázky",
       "tokensIn": "Přečtené tokeny",
-      "tokensOut": "Napsané tokeny"
+      "tokensOut": "Napsané tokeny",
+      "duplicate": "Duplikovat",
+      "duplicateOf": "Duplikovat {name}"
     },
     "chat": {
       "ask": "Zeptat se",
@@ -6749,7 +6754,9 @@
       "launcherIntro": "Přidejte asistenta na svůj web: vložte tento jeden řádek do každé stránky před </body>. Přidá do rohu kulaté tlačítko, které otevře chat.",
       "preview": "Náhled spouštěče na prázdné stránce",
       "previewHint": "Náhled ukazuje tlačítko tak, jak ho vidí návštěvník. Chat se otevře jen na povolených adresách asistenta, proto tu může zůstat prázdný.",
-      "copyOf": "Kopírovat: {what}"
+      "copyOf": "Kopírovat: {what}",
+      "fullPage": "Chat na celou stránku",
+      "fullPageHint": "Samostatná stránka: odkažte na ni z webu nebo ji sdílejte."
     },
     "everySpace": "každý prostor projektu",
     "userGuide": "uživatelská příručka platformy s odkazy do tohoto projektu",
@@ -6783,6 +6790,19 @@
       "unreadList": "Nepřečtené stránky a soubory",
       "noneUnread": "Žádné neúspěšné čtení není zaznamenáno.",
       "totals": "Všechny zdroje: {pages} stránek, {files} souborů, {embedded} z {passages} pasáží vyhledatelných, {pending} čeká, {failed} nepřečtených"
+    },
+    "answerRoutes": {
+      "both": "Znalosti i živá data",
+      "rag": "Jen znalosti (nikdy nevolá nástroj)",
+      "data": "Jen živá data"
+    },
+    "sourcesPicker": {
+      "hint": "Vyberte zdroje tohoto projektu a kteréhokoli projektu, který můžete číst. Zdroj jiného projektu přidá ten projekt do rozsahu.",
+      "publicOnly": "Tento kanál odpovídá nepřihlášeným lidem, proto čte jen veřejné zdroje. Zdroj jiného projektu přidá ten projekt do rozsahu.",
+      "of": "Zdroje projektu {project}",
+      "own": "{project} (tento projekt)",
+      "unknown": "Uvedené, ale vám nenabídnuté",
+      "none": "Žádný projekt, který můžete číst, zatím nemá zdroj znalostí."
     }
   },
   "mcp": {
