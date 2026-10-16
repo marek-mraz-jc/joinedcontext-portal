@@ -1,7 +1,7 @@
 /**
  * T-1542 — UI-44, PF-50, DS-09: a DataAgreement, end to end on dev by a person.
  *
- * Created on the DataAgreements list through its routed form ("New DataAgreement": a name, the other
+ * Created on the DataAgreements list through its routed form ("New data agreement": a name, the other
  * participant, the agreement identifier; consumer and requested by default; Check, then Propose
  * change), approved, its state moved to offered through the row's Edit, removed; the assistant opens
  * the same form; a viewer finds the page's write controls disabled with a reason.
@@ -17,7 +17,7 @@ kindJourney({
   plural: "dataagreements",
   page: `/projects/${PROJECT}/dataagreements`,
   create: async (page, name) => {
-    await page.getByRole("main").getByRole("button", { name: "New DataAgreement" }).first().click();
+    await page.getByRole("main").getByRole("button", { name: "New data agreement" }).first().click();
     const form = await openedForm(page);
     await form.locator("#root_name").fill(name);
     await form.locator("#root_remoteParticipant").fill("did:web:partner.example.org");

@@ -1181,7 +1181,7 @@
     },
     "src/pages/knowledge/AssistantChat.tsx": {
       "controls": {
-        "Button": 2,
+        "Button": 3,
         "Checkbox": 1
       },
       "tests": [

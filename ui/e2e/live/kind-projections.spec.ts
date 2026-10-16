@@ -1,7 +1,7 @@
 /**
  * T-1548 — UI-44, PF-50, MP-01: a ModelProjection, end to end on dev by a person.
  *
- * Created on the Model projections list through its form ("New ModelProjection": a name, the helsinki
+ * Created on the Model projections list through its form ("New model projection": a name, the helsinki
  * space, its seeded helsinki model at major 1, the WeatherObserved class with identity only; Check,
  * then Propose change), approved, given a scope filter through the row's Edit, removed; the
  * assistant opens the same form; a viewer finds the page's write controls disabled with a reason.
@@ -16,7 +16,7 @@ kindJourney({
   plural: "projections",
   page: `/projects/${PROJECT}/projections`,
   create: async (page, name) => {
-    await page.getByRole("main").getByRole("button", { name: "New ModelProjection" }).first().click();
+    await page.getByRole("main").getByRole("button", { name: "New model projection" }).first().click();
     const form = await openedForm(page);
     await form.locator("#root_name").fill(name);
     await form.locator("#root_contextSpaceRef").fill(PROJECT);
@@ -35,6 +35,6 @@ kindJourney({
   },
   assistant: {
     ask: (name) => `Create a ModelProjection called ${name}`,
-    opened: (page) => page.getByTestId("form-page").or(page.getByRole("dialog", { name: "New ModelProjection" })),
+    opened: (page) => page.getByTestId("form-page").or(page.getByRole("dialog", { name: "New model projection" })),
   },
 });

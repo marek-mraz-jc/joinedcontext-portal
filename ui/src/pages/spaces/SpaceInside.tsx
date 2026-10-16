@@ -242,7 +242,7 @@ function TypeRow({
         <TypeLink project={project} type={type} space={space} />
       </TableCell>
       <TableCell align="right" className="font-mono">{count}</TableCell>
-      <TableCell>
+      <TableCell secondary>
         {inside.isSuccess && inside.data.samples.length > 0 ? (
           <ul className="space-y-1">
             {inside.data.samples.map((entity) => (
@@ -419,6 +419,22 @@ function SpaceData({
     },
   });
 
+  // The type and its attributes as the model titles them, the key where it gives no title; an
+  // entity is led by its name, its URN the open button's tooltip (T-4264, T-4160 #6).
+  const typeTitle = useMemo(() => {
+    const cls = modelSource === undefined ? undefined : parseModel(modelSource).classes.find((c) => c.name === type);
+    return localized(cls?.title, i18n.language, type);
+  }, [modelSource, type, i18n.language]);
+  const columns = useMemo(() => {
+    const titled = (attr: string) => localized(typeSlots.find((slot) => slot.name === attr)?.title, i18n.language, attr);
+    const named = attributes.includes("name");
+    if (!named && !typeSlots.some((slot) => slot.title)) return undefined;
+    return [
+      ...(named ? [{ attr: "name", pinned: true, label: titled("name") }] : []),
+      ...attributes.filter((attr) => attr !== "name").map((attr) => ({ attr, label: titled(attr) })),
+    ];
+  }, [attributes, typeSlots, i18n.language]);
+
   const config = useMemo(() => {
     if (type === "") {
       return null;
@@ -427,12 +443,13 @@ function SpaceData({
       parseGridConfig({
         source: { kind: "space", space },
         type,
+        ...(columns ? { columns } : {}),
         pageSize: 100,
         mode: "view",
         history: { enabled: true },
       }).config ?? null
     );
-  }, [space, type]);
+  }, [space, type, columns]);
 
   if (types.length === 0) {
     return (
@@ -528,12 +545,15 @@ function SpaceData({
       {probe.isSuccess && view !== "api" ? (
         <div className="flex flex-wrap items-end gap-3">
           {importSlots.length > 0 ? (
-            <Button variant="secondary" onClick={() => setImporting(true)}>
-              {t("spaces.import.open")}
-            </Button>
+            // The same right as the upload link above: the space has no grant document of its own (T-4263).
+            <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+              <Button variant="secondary" onClick={() => setImporting(true)}>
+                {t("spaces.import.open")}
+              </Button>
+            </PermissionGuard>
           ) : null}
           <Button variant="ghost" onClick={() => setAlertingType(true)}>
-            {t("alerts.forType", { type })}
+            {t("alerts.forType", { type: typeTitle })}
           </Button>
           {alertingType ? (
             <AlertDialog
@@ -1092,7 +1112,9 @@ export function SpaceInside({ project, name }: { project: string; name: string }
               <TableHead>
                 <TableHeaderCell>{t("spaces.inside.type")}</TableHeaderCell>
                 <TableHeaderCell align="right">{t("spaces.inside.count")}</TableHeaderCell>
-                <TableHeaderCell>{t("spaces.inside.samples")}</TableHeaderCell>
+                {/* A phone keeps the type and its count (UI-27): the samples squeezed to a letter
+                    a line ran 800 px down the page (T-4265, photo audit T-4160 #5). */}
+                <TableHeaderCell secondary>{t("spaces.inside.samples")}</TableHeaderCell>
               </TableHead>
               <TableBody>
                 {types.map((type) => (
@@ -1189,8 +1211,8 @@ export function SpaceInside({ project, name }: { project: string; name: string }
             <TableHead>
               <TableHeaderCell>{t("spaces.field.name")}</TableHeaderCell>
               <TableHeaderCell>{t("spaces.inside.assignee")}</TableHeaderCell>
-              <TableHeaderCell>{t("spaces.inside.operations")}</TableHeaderCell>
-              <TableHeaderCell>{t("spaces.inside.type")}</TableHeaderCell>
+              <TableHeaderCell secondary>{t("spaces.inside.operations")}</TableHeaderCell>
+              <TableHeaderCell secondary>{t("spaces.inside.type")}</TableHeaderCell>
             </TableHead>
             <TableBody>
               {spacePolicies.map((policy) => {
@@ -1220,10 +1242,10 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                         ? `${spec.assignee.kind ?? ""}${spec.assignee.kind ? ":" : ""}${spec.assignee.id ?? ""}`
                         : "—"}
                     </TableCell>
-                    <TableCell className="font-mono text-caption">
+                    <TableCell secondary className="font-mono text-caption">
                       {(spec.operations ?? []).join(", ") || "—"}
                     </TableCell>
-                    <TableCell className="font-mono text-caption">
+                    <TableCell secondary className="font-mono text-caption">
                       {policyTypes.join(", ") || "—"}
                     </TableCell>
                   </TableRow>

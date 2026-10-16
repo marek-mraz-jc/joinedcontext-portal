@@ -121,7 +121,7 @@ describe("the Model projections page", () => {
     vi.unstubAllGlobals();
   });
 
-  const newLabel = en.resourceList.new.replace("{kind}", "ModelProjection");
+  const newLabel = en.kinds.ModelProjection.new;
 
   // UI-01, PF-57: New opens the form; checked, then proposed.
   it("creates a projection through the form, checked before it is proposed", async () => {

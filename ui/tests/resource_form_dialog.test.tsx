@@ -249,7 +249,7 @@ describe("a manifest form", () => {
     // `noopener` as well as `noreferrer`: the tab it opens must not keep a handle on the form.
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
     // It says where it goes, so a screen reader announces the destination and not "link".
-    expect(link.textContent ?? "").toContain("Endpoint");
+    expect(link.textContent ?? "").toContain(en.kinds.Endpoint.other);
     expect(link.textContent ?? "").toContain("User Guide");
   });
 
@@ -295,7 +295,7 @@ describe("a manifest form", () => {
       const shown = await screen.findByTestId("form-guide");
       // The words stay — a person still reads that a guide page exists — and the link does not.
       expect(shown.tagName, base).toBe("SPAN");
-      expect(shown.textContent ?? "").toContain("Endpoint");
+      expect(shown.textContent ?? "").toContain(en.kinds.Endpoint.other);
       cleanup();
     }
   });

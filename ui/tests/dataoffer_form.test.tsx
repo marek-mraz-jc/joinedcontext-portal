@@ -123,7 +123,7 @@ describe("the DataOffers page", () => {
     vi.unstubAllGlobals();
   });
 
-  const newLabel = en.resourceList.new.replace("{kind}", "DataOffer");
+  const newLabel = en.kinds.DataOffer.new;
 
   // UI-01, PF-57: New opens the form with the open offer filled; checked, then proposed.
   it("creates an offer through the form, checked before it is proposed", async () => {

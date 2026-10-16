@@ -35,7 +35,7 @@ describe("a phone-wide page", () => {
     expect(frame).toHaveClass("relative");
   });
 
-  it("keeps a table's first column, the row's name, at the left edge while a phone scrolls the frame (T-4165)", () => {
+  it("keeps a table's first column, the row's name, at the left edge while a phone or a tablet scrolls the frame (T-4165, T-4265)", () => {
     render(
       <Table caption="Pipelines">
         <TableBody>
@@ -48,11 +48,15 @@ describe("a phone-wide page", () => {
     );
     const table = screen.getByRole("table");
     // jsdom lays nothing out: the classes are what the browser needs.
-    for (const name of ["sticky", "left-0", "bg-inherit"]) {
-      expect(table.className).toContain(`max-md:[&_tr>:first-child]:${name}`);
+    for (const name of ["sticky", "left-0"]) {
+      expect(table.className).toContain(`max-lg:[&_tr>:first-child]:${name}`);
     }
-    // The sticky cell takes its row's colour, so the row needs one behind the scrolled cells.
-    expect(table.className).toContain("max-md:[&_tbody>tr]:bg-surface");
+    // Below lg, at a tablet's width too (T-4265). Only the sticky cell is opaque, in its row's
+    // zebra and hover, so the frame's edge shadow shows through the cells that scroll.
+    expect(table.className).toContain("max-lg:[&_tbody>tr>:first-child]:bg-surface");
+    expect(table.className).toContain("max-lg:[&_tbody>tr:nth-child(even)>:first-child]:bg-surface-subtle");
+    expect(table.className).not.toContain("[&_tbody>tr]:bg-surface");
+    expect(screen.getByRole("group", { name: "Pipelines" }).className).toContain("scroll-hint-x");
   });
 
   it("wraps an error's URL anywhere rather than widening the page", () => {

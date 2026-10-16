@@ -494,7 +494,7 @@ export function Shell({
           ref={menuButton}
           variant="ghost"
           size="sm"
-          className={fill ? undefined : "md:hidden"}
+          className={fill ? undefined : "lg:hidden"}
           aria-label={t("nav.menu")}
           // An icon-only control says what it is to a pointer as well as to a screen reader
           // (T-1731): the glyph alone is a guess for everybody.
@@ -545,7 +545,7 @@ export function Shell({
           <div
             aria-hidden="true"
             onClick={closeNav}
-            className={clsx("fixed inset-0 top-14 z-30 bg-overlay", !fill && "md:hidden")}
+            className={clsx("fixed inset-0 top-14 z-30 bg-overlay", !fill && "lg:hidden")}
           />
         ) : null}
         <nav
@@ -554,7 +554,9 @@ export function Shell({
           className={clsx(
             "z-40 w-sidebar shrink-0 flex-col gap-4 overflow-y-auto border-r border-border bg-surface p-3",
             // The viewport minus the 14 (3.5rem) header: a computed height, so it stays inline.
-            !fill && "md:sticky md:top-14 md:flex md:h-[calc(100vh-3.5rem)]",
+            // From lg only: at 768 px the open sidebar left a table 460 px and cut its actions,
+            // so a tablet opens it from the menu button like a phone (T-4265, photo audit T-4160 #41).
+            !fill && "lg:sticky lg:top-14 lg:flex lg:h-[calc(100vh-3.5rem)]",
             navOpen ? "fixed bottom-0 left-0 top-14 flex shadow-3" : "hidden",
           )}
         >

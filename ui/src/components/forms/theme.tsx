@@ -280,9 +280,11 @@ function groupsOf(uiSchema: ObjectFieldTemplateProps["uiSchema"]): RenderedGroup
   return Array.isArray(options?.groups) ? options.groups : [];
 }
 
-/** The fields of one object laid out in cells: one column on a phone, two on a wide screen, three
- * on a big one; a field that is not a scalar takes the whole row, and so does a field alone in
- * its group, which otherwise sat in a third of it (T-2755). */
+/** The fields of one object laid out in cells: one column in a narrow card, two in a wide one,
+ * three in a big one; a field that is not a scalar takes the whole row, and so does a field alone
+ * in its group, which otherwise sat in a third of it (T-2755). The columns follow the card's own
+ * width, not the screen's: at 768 px two columns in a 410 px card cut every value to a few letters,
+ * and a nested group is narrower than its form (T-4265, photo audit T-4160 #42). */
 function Cells({
   properties,
   schema,
@@ -293,18 +295,20 @@ function Cells({
   uiSchema: ObjectFieldTemplateProps["uiSchema"];
 }): React.JSX.Element {
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 3xl:grid-cols-3">
+    <div className="@container">
+    <div className="grid grid-cols-1 gap-4 @xl:grid-cols-2 @6xl:grid-cols-3">
       {properties.map((prop) => (
         <div
           key={prop.name}
           className={clsx(
             "min-w-0",
-            (properties.length === 1 || !scalar(schema, uiSchema, prop.name)) && "md:col-span-full",
+            (properties.length === 1 || !scalar(schema, uiSchema, prop.name)) && "col-span-full",
           )}
         >
           {prop.content}
         </div>
       ))}
+    </div>
     </div>
   );
 }

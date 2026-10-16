@@ -80,6 +80,7 @@ const AppsCatalog = lazy(() => import("../pages/apps/AppsCatalog").then((module)
 const MqttBrokersPage = lazy(() => import("../pages/mqttbrokers/MqttBrokersPage").then((module) => ({ default: module.MqttBrokersPage })));
 const SyncSourcesPage = lazy(() => import("../pages/sync/SyncSourcesPage").then((module) => ({ default: module.SyncSourcesPage })));
 import { assistantDeploymentSchema, fromKindManifest, knowledgeSourceSchema, toKindManifest } from "../schemas/knowledge";
+import { kindNew } from "../kindWords";
 
 const VIEWS: Record<string, ComponentType<{ project: string; edit?: string }>> = {
   spaces: SpacesPage,
@@ -311,7 +312,7 @@ export function KindList({
             setDialogOpen(true);
           }}
         >
-          {t("resourceList.new", { kind: createKind })}
+          {kindNew(createKind, t)}
         </Button>
       </PermissionGuard>
     ) : undefined;
@@ -345,8 +346,8 @@ export function KindList({
             title={t("resourceList.empty")}
             // A page with no create action names none in its hint (T-2488).
             description={
-              newButton
-                ? t("resourceList.emptyHintCreate", { kind: createKind })
+              newButton && createKind
+                ? t("resourceList.emptyHintCreate", { new: kindNew(createKind, t) })
                 : t(`resourceList.emptyHintFor.${plural}`, { defaultValue: t("resourceList.emptyHint") })
             }
             action={
@@ -391,7 +392,7 @@ export function KindList({
           kind={createKind}
           open={dialogOpen}
           onOpenChange={setDialogOpen}
-          title={t("resourceList.new", { kind: createKind })}
+          title={kindNew(createKind, t)}
           description={t("resourceList.newHint", { kind: createKind })}
           schema={form.schema}
           uiSchema={form.uiSchema}

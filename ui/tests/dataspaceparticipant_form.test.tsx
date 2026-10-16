@@ -110,7 +110,7 @@ describe("Organization → Data space", () => {
     vi.unstubAllGlobals();
   });
 
-  const newLabel = en.resourceList.new.replace("{kind}", "DataSpaceParticipant");
+  const newLabel = en.kinds.DataSpaceParticipant.new;
 
   // UI-01, PF-57: with none yet, New opens the form; checked, then proposed.
   it("creates the participant through the form while the organization has none", async () => {

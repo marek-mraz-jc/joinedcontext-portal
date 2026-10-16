@@ -119,7 +119,7 @@ describe("Organization → Environments", () => {
     vi.unstubAllGlobals();
   });
 
-  const newLabel = en.resourceList.new.replace("{kind}", "Environment");
+  const newLabel = en.kinds.Environment.new;
 
   // UI-01, PF-57: New opens the form; checked, then proposed.
   it("creates an environment through the form, checked before it is proposed", async () => {

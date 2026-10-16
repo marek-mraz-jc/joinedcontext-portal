@@ -39,3 +39,18 @@ export function PermissionGuard({
     disabledReason: t("permissions.denied", { verb, kind }),
   });
 }
+
+/**
+ * The reason, said where one sees it (T-4263, UI-44): the guard's reason sits in a tooltip and
+ * screen-reader text only, so a viewer before a row of greyed create buttons read nothing on why.
+ * One line under the header names it once, for the kinds the page creates, when the document says
+ * the role may propose none of them. Nothing while the document is unknown, as with the guard.
+ */
+export function MayNotCreate({ project, kinds }: { project: string; kinds: string[] }): JSX.Element | null {
+  const { t } = useTranslation();
+  const { data, can } = usePermissions(project);
+  if (data === undefined || kinds.some((kind) => can(kind, "propose"))) {
+    return null;
+  }
+  return <p className="mt-1 max-w-prose text-caption text-fg-muted">{t("form.mayNotCreate")}</p>;
+}

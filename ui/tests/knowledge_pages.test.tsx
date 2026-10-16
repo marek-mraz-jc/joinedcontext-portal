@@ -595,9 +595,31 @@ describe("asking an assistant in the Portal (T-3058, AG-115)", () => {
     const box = within(dialog).getByRole("textbox", { name: "Your question" });
     await userEvent.type(box, "Ahoj{Enter}");
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("an administrator sets budget.tokensPerDay");
-    expect(within(dialog).getByRole("button", { name: "Send" })).toHaveAttribute("aria-disabled", "true");
-    await userEvent.type(box, "Znova");
+    // The question stays in the box to send again or reword (T-4160 #122).
+    expect(box).toHaveValue("Ahoj");
     expect(within(dialog).getByRole("button", { name: "Send" })).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("keeps the question when the model does not answer, lists the closest sources and asks again (T-4160 #122)", async () => {
+    const failed = [
+      'event: citations\ndata: [{"n":1,"url":"https://www.banskabystrica.sk/odpad","title":"Odvoz odpadu"}]',
+      'event: error\ndata: {"status":503,"title":"Model Unavailable","detail":"Model asistenta neodpovedal. Skúste to o minútu znova."}',
+      'event: done\ndata: {"tokens":0}',
+    ].join("\n\n") + "\n\n";
+    const { writes } = renderAt("/projects/banskabystrica/knowledge", { chat: { code: 200, body: failed } });
+    const table = await screen.findByRole("table", { name: "Assistants" });
+    await userEvent.click(within(table).getByRole("button", { name: "Ask obcania" }));
+    const dialog = await screen.findByRole("dialog", { name: "Ask obcania" });
+    const box = within(dialog).getByRole("textbox", { name: "Your question" });
+    await userEvent.type(box, "Kedy vyvážajú odpad?{Enter}");
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Model asistenta neodpovedal");
+    expect(box).toHaveValue("Kedy vyvážajú odpad?");
+    const closest = within(dialog).getByRole("list", { name: "The sources that match your question best" });
+    expect(within(closest).getByRole("link", { name: /Odvoz odpadu/ })).toHaveAttribute("href", "https://www.banskabystrica.sk/odpad");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(writes).toHaveLength(2));
+    // A failed turn is not history the model is shown again.
+    expect(writes[1].body).toMatchObject({ message: "Kedy vyvážajú odpad?", history: [] });
   });
 
   it("gives the frame to paste for a public assistant", async () => {

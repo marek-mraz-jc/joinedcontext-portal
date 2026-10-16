@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { Alert, Button, Dialog, Icon, PageHeader, PageLoading } from "../ui";
 import type { DialogSize } from "../ui";
 import { failureKind } from "../ui/PageState";
+import { proposesAnything, usePermissions } from "../../api/permissions";
 
 /**
  * A bigger form is a page with an address of its own, not a popup (T-2474, UI-27).
@@ -320,6 +321,7 @@ export function FormRouteHost({
 }): JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const mayPropose = proposesAnything(usePermissions(project).data);
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(0);
   const [notice, setNotice] = useState<ReactNode>(null);
@@ -442,11 +444,18 @@ export function FormRouteHost({
             keeps its heading and what does exist is one glance away (UI-16, T-2730). */}
         {unopened && form !== null ? (
           <div className="mb-4 flex flex-col gap-3">
-            <Alert tone="warning" role="alert">
-              {/* A create address names no resource, and the list's plural is an API word, not
-                  one a person reads (T-2750). */}
-              {form.mode === "edit" ? t("form.notOpen", { name: form.name }) : t("form.notOpenNew")}
-            </Alert>
+            {/* A role that may propose nothing here reads why, not a red warning (T-4263). */}
+            {form.mode === "new" && !mayPropose ? (
+              <Alert tone="info" role="status">
+                {t("form.mayNotCreate")}
+              </Alert>
+            ) : (
+              <Alert tone="warning" role="alert">
+                {/* A create address names no resource, and the list's plural is an API word, not
+                    one a person reads (T-2750). */}
+                {form.mode === "edit" ? t("form.notOpen", { name: form.name }) : t("form.notOpenNew")}
+              </Alert>
+            )}
             <div>
               <Button onClick={value.close}>{t("form.backToList")}</Button>
             </div>

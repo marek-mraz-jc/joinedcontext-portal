@@ -141,39 +141,49 @@ export function AccessPanel({
         <div className="flex flex-col gap-2">
           {entries.length === 0 ? (
             <p className="text-fg-muted">{t("access.panel.typeNotGranted", { type })}</p>
-          ) : (
-            <ul className="flex flex-col gap-1">
-              {entries.map((entry, index) => (
-                <li key={index} className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono">{entry.resource?.type}</span>
-                  <span>
-                    {t("access.matrix.read")}: {readsOf(entry.actions ?? []).join(", ") || t("access.matrix.none")}
-                  </span>
-                  <span>
-                    {t("access.matrix.write")}: {writesOf(entry.actions ?? []).join(", ") || t("access.matrix.none")}
-                  </span>
-                  <span>
-                    {t("access.matrix.attributes")}:{" "}
-                    {Array.isArray(entry.attributes) ? entry.attributes.join(", ") : t("access.matrix.allAttributes")}
-                  </span>
-                  {Object.entries(entry.constraints ?? {})
-                    .filter(([, value]) => Boolean(value))
-                    .map(([name, value]) => (
-                      <span key={name} className="font-mono text-fg-muted">
-                        {name}={value}
-                      </span>
+          ) : null}
+          {/* The decisions say it in words; the operation names of the grant are for whoever
+              writes the Policy, behind a disclosure (T-4264, T-4160 #18). */}
+          {entries.length > 0 || prohibited.length > 0 ? (
+            <details className="order-last">
+              <summary className="cursor-pointer text-fg-muted">{t("access.panel.technical")}</summary>
+              <div className="mt-1 flex flex-col gap-1">
+                {entries.length === 0 ? null : (
+                  <ul className="flex flex-col gap-1">
+                    {entries.map((entry, index) => (
+                      <li key={index} className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono">{entry.resource?.type}</span>
+                        <span>
+                          {t("access.matrix.read")}: {readsOf(entry.actions ?? []).join(", ") || t("access.matrix.none")}
+                        </span>
+                        <span>
+                          {t("access.matrix.write")}: {writesOf(entry.actions ?? []).join(", ") || t("access.matrix.none")}
+                        </span>
+                        <span>
+                          {t("access.matrix.attributes")}:{" "}
+                          {Array.isArray(entry.attributes) ? entry.attributes.join(", ") : t("access.matrix.allAttributes")}
+                        </span>
+                        {Object.entries(entry.constraints ?? {})
+                          .filter(([, value]) => Boolean(value))
+                          .map(([name, value]) => (
+                            <span key={name} className="font-mono text-fg-muted">
+                              {name}={value}
+                            </span>
+                          ))}
+                      </li>
                     ))}
-                </li>
-              ))}
-            </ul>
-          )}
-          {prohibited.length > 0 ? (
-            <p className="text-fg-muted">
-              {t("access.matrix.prohibitions")}:{" "}
-              {prohibited
-                .map((entry) => `${entry.resource?.type ?? "*"} ${(entry.actions ?? []).join(", ")}`)
-                .join("; ")}
-            </p>
+                  </ul>
+                )}
+                {prohibited.length > 0 ? (
+                  <p className="text-fg-muted">
+                    {t("access.matrix.prohibitions")}:{" "}
+                    {prohibited
+                      .map((entry) => `${entry.resource?.type ?? "*"} ${(entry.actions ?? []).join(", ")}`)
+                      .join("; ")}
+                  </p>
+                ) : null}
+              </div>
+            </details>
           ) : null}
           {/* A check that could not be made is not a check still running (T-1763): the chips
               used to sit on "checking…" for good when the gateway refused the question, which
@@ -191,14 +201,13 @@ export function AccessPanel({
                 (check) => (
                   <li key={check.action}>
                     <Badge
-                      mono
                       tone={check.decision === undefined ? "neutral" : check.decision ? "success" : "danger"}
                     >
                       {check.decision === undefined
-                        ? t("access.panel.checking", { action: check.action })
+                        ? t("access.panel.checking", { action: t(`access.panel.actions.${check.action}`) })
                         : check.decision
-                          ? t("access.panel.may", { action: check.action, type })
-                          : t("access.panel.mayNot", { action: check.action, type })}
+                          ? t("access.panel.may", { action: t(`access.panel.actions.${check.action}`), type })
+                          : t("access.panel.mayNot", { action: t(`access.panel.actions.${check.action}`), type })}
                     </Badge>
                   </li>
                 ),

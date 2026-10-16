@@ -60,7 +60,7 @@ import {
   Term,
   Textarea,
 } from "../../components/ui";
-import { PermissionGuard } from "../../components/ui/PermissionGuard";
+import { MayNotCreate, PermissionGuard } from "../../components/ui/PermissionGuard";
 
 /**
  * A label of sixty characters, in German, where the words are longest. Every control is shown
@@ -449,7 +449,7 @@ export function Gallery(): JSX.Element {
         </State>
       </Specimen>
 
-      <Specimen name="Icon, Term, SourceLink, ExternalLink, FilePicker, FileDropZone, PermissionGuard">
+      <Specimen name="Icon, Term, SourceLink, ExternalLink, FilePicker, FileDropZone, PermissionGuard, MayNotCreate">
         <State is="decorative and named">
           <span className="flex items-center gap-2">
             <Icon name="spaces" className="size-5" />
@@ -485,6 +485,9 @@ export function Gallery(): JSX.Element {
           <PermissionGuard project="helsinki" kind="Endpoint" verb="propose">
             <Button variant="primary">Propose the change</Button>
           </PermissionGuard>
+        </State>
+        <State is="why a role sees its create actions greyed">
+          <MayNotCreate project="helsinki" kinds={["Endpoint"]} />
         </State>
       </Specimen>
     </main>

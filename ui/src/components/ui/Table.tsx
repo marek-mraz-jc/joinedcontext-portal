@@ -50,7 +50,9 @@ export function Table({
       aria-label={caption}
       tabIndex={0}
       className={clsx(
-        "focus-ring relative overflow-x-auto rounded-lg border border-border bg-surface shadow-1",
+        // `scroll-hint-x` is the frame's surface with a shadow at its right edge while columns
+        // wait beyond it (T-4265, photo audit T-4160).
+        "focus-ring scroll-hint-x relative overflow-x-auto rounded-lg border border-border shadow-1",
         maxHeight && ["overflow-y-auto", maxHeight],
       )}
     >
@@ -67,11 +69,15 @@ export function Table({
           // rule — two selectors deep, so more specific than the row's own `hover:` — won an
           // even row's background outright and hovering half the table did nothing.
           zebra && "[&>tbody>tr:nth-child(even):not(:hover)]:bg-surface-subtle/70",
-          // Below md the first column, the row's name, stays at the left edge while the frame
+          // Below lg the first column, the row's name, stays at the left edge while the frame
           // scrolls sideways: a row scrolled to its actions still says which record it is
-          // (T-4165, photo audit T-4159). It takes its row's background, zebra and hover too.
-          "max-md:[&_tr>:first-child]:sticky max-md:[&_tr>:first-child]:left-0 max-md:[&_tr>:first-child]:z-10",
-          "max-md:[&_tr>:first-child]:bg-inherit max-md:[&_tbody>tr]:bg-surface max-md:[&_thead>tr]:bg-surface-subtle",
+          // (T-4165, photo audit T-4159), at a tablet's width too (T-4265, photo audit T-4160
+          // #44). Only that cell is opaque, in its row's zebra and hover, so the frame's edge
+          // shadow shows through the rest of the row.
+          "max-lg:[&_tr>:first-child]:sticky max-lg:[&_tr>:first-child]:left-0 max-lg:[&_tr>:first-child]:z-10",
+          "max-lg:[&_tbody>tr>:first-child]:bg-surface max-lg:[&_thead>tr>:first-child]:bg-surface-subtle",
+          zebra && "max-lg:[&_tbody>tr:nth-child(even)>:first-child]:bg-surface-subtle",
+          "max-lg:[&_tbody>tr:hover>:first-child]:bg-primary-50",
           className,
         )}
         {...rest}

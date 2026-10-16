@@ -420,8 +420,8 @@
   "changes": {
     "accepted": "Proposed as a change:",
     "review": "Review it in Approvals",
-    "approvedOnPropose": "Will be approved when you propose: you hold approve and delete on {kind}.",
-    "approveNotDelete": "Waits for an approver: you hold approve but not delete on {kind}.",
+    "approvedOnPropose": "Approved as soon as you propose it: you may approve and remove {kind}.",
+    "approveNotDelete": "Waits for an approver: you may approve {kind} but not remove them.",
     "approvedAsProposed": "Approved as you proposed it, applying:",
     "open": "Open the change"
   },
@@ -472,7 +472,7 @@
     "new": "New {kind}",
     "newHint": "Fill the form, check it, then propose it; an approver reviews the change.",
     "propose": "Propose change",
-    "emptyHintCreate": "Nothing of this kind is in the project yet. New {kind} opens the form.",
+    "emptyHintCreate": "Nothing of this kind is in the project yet. {new} opens the form.",
     "askAssistant": "Ask the assistant for one"
   },
   "spaces": {
@@ -2545,7 +2545,12 @@
       "mayNot": "You may not {action} {type}",
       "attrDenied": "not in your grant",
       "attrProhibited": "explicitly denied",
-      "checkFailed": "These permissions could not be checked: {reason}. Reload the page to try again."
+      "checkFailed": "These permissions could not be checked: {reason}. Reload the page to try again.",
+      "actions": {
+        "queryEntity": "read",
+        "updateAttrs": "change"
+      },
+      "technical": "Technical details"
     },
     "groups": {
       "title": "Groups",
@@ -3578,7 +3583,8 @@
       "inARow": "{count, plural, one {# failed run in a row} other {# failed runs in a row}}",
       "ms": "{count} ms",
       "note": "A job runs as the App's own identity and writes only through the App's Endpoint. The list shows runs since the host last started."
-    }
+    },
+    "editWithAssistant": "Edit with the assistant"
   },
   "appLifecycle": {
     "draft": "Draft",
@@ -3830,7 +3836,11 @@
     "q": "Query (q)",
     "qHint": "The NGSI-LD q the rows compose; edit it here or in YAML.",
     "attrs": "Attributes to read",
-    "typeNotGranted": "{name} (not granted through this endpoint)"
+    "typeNotGranted": "{name} (not granted through this endpoint)",
+    "qProblem": {
+      "shape": "Write each condition as an attribute, a comparison and a value with no spaces, e.g. name==\"Hospital\"; join conditions with ; (and) or | (or).",
+      "unquoted": "Text goes in double quotes: {fix}"
+    }
   },
   "entityGrid": {
     "id": "ID",
@@ -4075,7 +4085,8 @@
       "gone": "That dashboard is no longer in the project; pick another.",
       "pickEntity": "Pick the entity to chart over time."
     },
-    "pickSpaceFirst": "Pick a space first."
+    "pickSpaceFirst": "Pick a space first.",
+    "noMatch": "Nothing matches this query; change or remove a filter."
   },
   "agentRun": {
     "title": "Application run",
@@ -4473,6 +4484,7 @@
     },
     "trail": "Pages the assistant opened",
     "prefilledNotice": "The assistant filled this in. Check it before you propose.",
+    "pathsDenied": "Some paths are greyed: your role lets you look, not create. A project steward or an administrator can give you that right.",
     "paths": {
       "integrate-pipeline": {
         "title": "Integrate a pipeline",
@@ -4628,7 +4640,14 @@
       "propose": "Propose change",
       "cancel": "Cancel",
       "yamlError": "Not valid YAML, correct it: {message}",
-      "showOperations": "Show its {count} operations"
+      "showOperations": "Show its {count} operations",
+      "profileTitles": {
+        "chat": "Assistant conversations",
+        "app-builder": "Application builder",
+        "app-from-prompt": "An application from a prompt"
+      },
+      "packageHosts": "packages for building apps",
+      "ids": "Profile {name}, role {role}"
     },
     "states": {
       "failed": "Did not finish",
@@ -6271,7 +6290,22 @@
       "sampleLoading": "Reading ten rows through the endpoint…",
       "noSample": "This dataset has no endpoint of this installation that serves NGSI-LD, so there is no sample.",
       "sampleEmpty": "The endpoint holds no {type} yet.",
-      "sampleCaption": "Up to ten {type} read through the endpoint"
+      "sampleCaption": "Up to ten {type} read through the endpoint",
+      "says": {
+        "ngsild": "Query and filter the entities over the NGSI-LD API.",
+        "mcp": "Connect an AI assistant to this data (MCP).",
+        "geojson": "Map data to download (GeoJSON).",
+        "csv": "A CSV table to download.",
+        "xlsx": "An Excel spreadsheet to download.",
+        "json": "The data as JSON to download.",
+        "zip": "All files in one ZIP archive.",
+        "ogcfeat": "The data for GIS tools (OGC API – Features).",
+        "sta": "Sensor readings over the OGC sensor API (STA).",
+        "odata": "The data for Excel and Power BI (OData).",
+        "websocket": "Live updates as the data changes.",
+        "model": "The data model as {format}."
+      },
+      "forDevelopers": "For developers"
     },
     "use": {
       "title": "Use this data",
@@ -6701,7 +6735,9 @@
       "sourceNumber": "Source {n}",
       "data": "Data the answer read",
       "dataset": "Open the dataset",
-      "download": "Download the data"
+      "download": "Download the data",
+      "again": "Try again",
+      "closest": "The sources that match your question best"
     },
     "embed": {
       "title": "Embed",
@@ -7468,5 +7504,135 @@
     },
     "tools": "{count, plural, one {# tool} other {# tools}}",
     "noTools": "The connector offers no tools to anonymous callers right now."
+  },
+  "kinds": {
+    "AgentProfile": {
+      "other": "agent profiles",
+      "new": "New agent profile"
+    },
+    "App": {
+      "other": "applications",
+      "new": "New application"
+    },
+    "AssistantDeployment": {
+      "other": "assistant deployments",
+      "new": "New assistant deployment"
+    },
+    "Blueprint": {
+      "other": "blueprints",
+      "new": "New blueprint"
+    },
+    "CkanInstance": {
+      "other": "CKAN portals",
+      "new": "New CKAN portal"
+    },
+    "ContextSpace": {
+      "other": "Context Spaces",
+      "new": "New Context Space"
+    },
+    "Dashboard": {
+      "other": "dashboards",
+      "new": "New dashboard"
+    },
+    "DataAgreement": {
+      "other": "data agreements",
+      "new": "New data agreement"
+    },
+    "DataModel": {
+      "other": "data models",
+      "new": "New data model"
+    },
+    "DataOffer": {
+      "other": "data offers",
+      "new": "New data offer"
+    },
+    "DataSource": {
+      "other": "data sources",
+      "new": "New data source"
+    },
+    "DataSpaceParticipant": {
+      "other": "data space memberships",
+      "new": "New data space membership"
+    },
+    "Endpoint": {
+      "other": "endpoints",
+      "new": "New endpoint"
+    },
+    "Environment": {
+      "other": "environments",
+      "new": "New environment"
+    },
+    "Group": {
+      "other": "groups",
+      "new": "New group"
+    },
+    "KnowledgeSource": {
+      "other": "knowledge sources",
+      "new": "New knowledge source"
+    },
+    "Mapping": {
+      "other": "mappings",
+      "new": "New mapping"
+    },
+    "McpServer": {
+      "other": "MCP servers",
+      "new": "New MCP server"
+    },
+    "ModelProjection": {
+      "other": "model projections",
+      "new": "New model projection"
+    },
+    "MqttBroker": {
+      "other": "MQTT brokers",
+      "new": "New MQTT broker"
+    },
+    "Organization": {
+      "other": "organizations",
+      "new": "New organization"
+    },
+    "Pipeline": {
+      "other": "pipelines",
+      "new": "New pipeline"
+    },
+    "Policy": {
+      "other": "policies",
+      "new": "New policy"
+    },
+    "Project": {
+      "other": "projects",
+      "new": "New project"
+    },
+    "Role": {
+      "other": "roles",
+      "new": "New role"
+    },
+    "RoleBinding": {
+      "other": "role assignments",
+      "new": "New role assignment"
+    },
+    "ScopeDefinition": {
+      "other": "scope definitions",
+      "new": "New scope definition"
+    },
+    "ServiceAccount": {
+      "other": "service accounts",
+      "new": "New service account"
+    },
+    "SharedSpaceReference": {
+      "other": "shared spaces",
+      "new": "New shared space"
+    },
+    "Subscription": {
+      "other": "subscriptions",
+      "new": "New subscription"
+    },
+    "SyncSource": {
+      "other": "sync sources",
+      "new": "New sync source"
+    },
+    "UiSchema": {
+      "other": "form layouts",
+      "new": "New form layout"
+    }
   }
 }

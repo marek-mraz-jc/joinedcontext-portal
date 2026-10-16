@@ -216,17 +216,19 @@ export interface PortalEntityGridProps extends Omit<EntityGridProps, "labels" | 
   view?: Pick<GridState, "filterText" | "sort">;
   /** Every change of the grid's state, for the host that holds `view`. */
   onGridState?: (next: GridState) => void;
+  /** What an empty answer says instead of "No entities here", e.g. that a filter excluded all. */
+  emptyText?: string;
 }
 
 /**
  * The grid as the Portal renders it. The source comes from the config — an endpoint's slug or a
  * space's name, never a URL (EP-55) — over the Portal's own origin transport.
  */
-export function PortalEntityGrid({ project, config, source, view, onGridState, ...rest }: PortalEntityGridProps): JSX.Element {
+export function PortalEntityGrid({ project, config, source, view, onGridState, emptyText, ...rest }: PortalEntityGridProps): JSX.Element {
   const { t, i18n } = useTranslation();
   // `t` changes identity on a language change, which is what rebuilds the labels; the language
   // itself is read below, for the source's own locale.
-  const labels = useMemo(() => gridLabels(t), [t]);
+  const labels = useMemo(() => ({ ...gridLabels(t), ...(emptyText ? { empty: emptyText } : {}) }), [t, emptyText]);
   const mapLabels = useMemo(() => gridMapLabels(t), [t]);
   const geoLabels = useMemo(() => geoEditorLabels(t), [t]);
 

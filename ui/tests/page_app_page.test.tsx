@@ -36,18 +36,33 @@ const BLUEPRINT = {
   spec: { version: "1.4.0", riskClass: "yellow" },
 };
 
+/** A published App the platform shipped, with no build run of its own (T-4160 #35). */
+const PUBLISHED = {
+  apiVersion: "joinedcontext.com/v1alpha1",
+  kind: "App",
+  metadata: {
+    name: APP,
+    namespace: PROJECT,
+    title: { en: "Air today", sk: "Ovzdušie dnes" },
+    description: { en: "Today's PM10 at every station." },
+  },
+  spec: { lifecycle: "published", visibility: "public" },
+};
+
 interface World {
+  app?: unknown;
   runs?: number;
   fails?: { status: number; detail: string };
   pending?: boolean;
 }
 
 function renderApp(world: World = {}) {
-  const { runs = 0, fails, pending = false } = world;
+  const { app, runs = 0, fails, pending = false } = world;
   return renderPage(<AppPage project={PROJECT} name={APP} />, {
     path: `/projects/${PROJECT}/apps/${APP}`,
     answer: (url, request) => {
       if (url.pathname.endsWith("/blueprints")) return json(list([BLUEPRINT]));
+      if (app && url.pathname.endsWith(`/apps/${APP}`)) return json(app);
       if (!url.pathname.endsWith("/agent-runs") || request.method !== "GET") return undefined;
       if (pending) return new Promise<Response>(() => undefined);
       if (fails) return problem(fails.status, fails.detail);
@@ -191,3 +206,18 @@ describe("an application's page", () => {
     await expectNoAxeViolations(container);
   });
 });
+
+describe("a published App with no run of its own (T-4264, T-4160 #35)", () => {
+  it("opens on the App's title, state and audience, with the generator behind its action", async () => {
+    renderApp({ app: PUBLISHED });
+    expect(await screen.findByRole("heading", { level: 1, name: "Air today" })).toBeInTheDocument();
+    expect(screen.getByText("Today's PM10 at every station.")).toBeInTheDocument();
+    expect(screen.getByText(en.apps.visibility.replace("{visibility}", en.apps.audience.public))).toBeInTheDocument();
+    const action = screen.getByText(en.apps.editWithAssistant);
+    expect(action.closest("details")).not.toHaveAttribute("open");
+    // One H1: the generator under it is a section of the App's page.
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 2, name: en.apps.generate.title, hidden: true })).toBeInTheDocument();
+  });
+});
+

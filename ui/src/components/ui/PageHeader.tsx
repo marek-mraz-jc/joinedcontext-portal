@@ -21,6 +21,8 @@ export interface PageHeaderProps {
   actions?: ReactNode;
   /** Anything that sits beside the actions: a quota bar, a filter. */
   aside?: ReactNode;
+  /** A line under the description, such as why the actions are greyed (T-4263). */
+  note?: ReactNode;
   className?: string;
 }
 
@@ -31,6 +33,7 @@ export function PageHeader({
   breadcrumb,
   actions,
   aside,
+  note,
   className,
 }: PageHeaderProps): React.JSX.Element {
   const heading = useRef<HTMLHeadingElement>(null);
@@ -63,6 +66,7 @@ export function PageHeader({
         <div className="min-w-0">
           <h1 ref={heading} tabIndex={-1} className="focus-ring rounded-sm text-display font-semibold tracking-tight text-fg">{title}</h1>
           {description ? <p className="mt-1 max-w-prose text-body text-fg-muted">{description}</p> : null}
+          {note}
         </div>
         {actions || aside ? (
           <div className="flex flex-wrap items-end gap-x-6 gap-y-3">

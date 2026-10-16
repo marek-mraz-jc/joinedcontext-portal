@@ -1,7 +1,7 @@
 /**
  * T-1549 — UI-44, PF-50, R19: a ScopeDefinition, end to end on dev by a person.
  *
- * Created on the ScopeDefinitions list through its form ("New ScopeDefinition": a name and a path
+ * Created on the ScopeDefinitions list through its form ("New scope definition": a name and a path
  * under /admin that only this journey uses; Check, then Propose change), approved, moved to another
  * path through the row's Edit, removed; the assistant opens the same form; a viewer finds the page's
  * write controls disabled with a reason.
@@ -19,7 +19,7 @@ kindJourney({
   plural: "scopedefinitions",
   page: `/projects/${PROJECT}/scopedefinitions`,
   create: async (page, name) => {
-    await page.getByRole("main").getByRole("button", { name: "New ScopeDefinition" }).first().click();
+    await page.getByRole("main").getByRole("button", { name: "New scope definition" }).first().click();
     const form = await openedForm(page);
     await form.locator("#root_name").fill(name);
     await form.locator("#root_scopeString").fill(path(name));
@@ -37,6 +37,6 @@ kindJourney({
   },
   assistant: {
     ask: (name) => `Create a ScopeDefinition called ${name}`,
-    opened: (page) => page.getByTestId("form-page").or(page.getByRole("dialog", { name: "New ScopeDefinition" })),
+    opened: (page) => page.getByTestId("form-page").or(page.getByRole("dialog", { name: "New scope definition" })),
   },
 });

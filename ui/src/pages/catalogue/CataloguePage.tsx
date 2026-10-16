@@ -15,6 +15,7 @@ import {
   Icon,
   Input,
   PageFailed,
+  MayNotCreate,
   PageHeader,
   PageLoading,
   PermissionGuard,
@@ -22,6 +23,7 @@ import {
 import { PublishDatasetDialog } from "./PublishDataset";
 import { FACETS, narrowed, toggled } from "./search";
 import type { CatalogueSearch, FacetName } from "./search";
+import { areaLabel } from "./nuts";
 
 type CataloguePageAnswer = components["schemas"]["CataloguePage"];
 type CatalogueDataset = components["schemas"]["CatalogueDataset"];
@@ -82,6 +84,7 @@ export function CataloguePage({
     <PageHeader
       title={t("catalogue.title")}
       description={t("catalogue.lead")}
+      note={project ? <MayNotCreate project={project} kinds={["Endpoint"]} /> : undefined}
       actions={
         project ? (
           <PermissionGuard project={project} kind="Endpoint" verb="propose">
@@ -289,7 +292,16 @@ function FacetGroup({
             key={value.value}
             checked={selected.includes(value.value)}
             onChange={() => onToggle(value.value)}
-            label={facet === "theme" ? themeLabel(value.value, value.label) : value.label}
+            label={
+              facet === "theme" ? (
+                themeLabel(value.value, value.label)
+              ) : facet === "spatial" ? (
+                // The region's name, the code a hover away (T-4160 #13).
+                <span title={value.value}>{areaLabel(value.value)}</span>
+              ) : (
+                value.label
+              )
+            }
             hint={`(${value.count})`}
           />
         ))}
