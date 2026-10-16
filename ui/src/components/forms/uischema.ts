@@ -231,6 +231,34 @@ export function paths(schema: { properties?: Record<string, unknown> } | undefin
   return found;
 }
 
+type Requiring = {
+  properties?: Record<string, unknown>;
+  required?: string[];
+  if?: unknown;
+  then?: Requiring;
+  allOf?: Requiring[];
+};
+
+/**
+ * A node with the `then` of every `if` its value meets folded in, so a field a branch asks for
+ * (a public channel's origins) is counted as the form marks it (T-4282). `holds` is the form's
+ * validator; without it the branches are not read.
+ */
+function withBranches(node: Requiring | undefined, value: unknown, holds?: (condition: unknown, value: unknown) => boolean): Requiring | undefined {
+  if (!node || !holds) return node;
+  const active = [node, ...(node.allOf ?? [])].filter((one) => one.if !== undefined && one.then && holds(one.if, value)).map((one) => one.then as Requiring);
+  if (active.length === 0) return node;
+  const properties: Record<string, unknown> = { ...(node.properties ?? {}) };
+  for (const branch of active) {
+    for (const [name, extra] of Object.entries(branch.properties ?? {})) {
+      const own = (properties[name] ?? {}) as Requiring;
+      const more = (extra ?? {}) as Requiring;
+      properties[name] = more.required ? { ...own, required: [...new Set([...(own.required ?? []), ...more.required])] } : own;
+    }
+  }
+  return { ...node, properties, required: [...new Set([...(node.required ?? []), ...active.flatMap((one) => one.required ?? [])])] };
+}
+
 /**
  * How much of what the form must have is in it: the required fields it still wants, counted from the
  * schema and the data in hand (T-1607).
@@ -243,15 +271,15 @@ export function paths(schema: { properties?: Record<string, unknown> } | undefin
 export function requiredProgress(
   schema: { properties?: Record<string, unknown>; required?: string[] } | undefined,
   data: unknown,
+  holds?: (condition: unknown, value: unknown) => boolean,
 ): { filled: number; total: number } {
   let filled = 0;
   let total = 0;
-  const walk = (node: typeof schema, value: unknown): void => {
+  const walk = (given: Requiring | undefined, value: unknown): void => {
+    const node = withBranches(given, value, holds);
     const properties = node?.properties ?? {};
     for (const name of node?.required ?? []) {
-      const definition = properties[name] as
-        | { properties?: Record<string, unknown>; required?: string[]; type?: string }
-        | undefined;
+      const definition = properties[name] as (Requiring & { type?: string }) | undefined;
       const held = (value as Record<string, unknown> | undefined)?.[name];
       if (definition?.properties) {
         // A required object: the form renders its fields at once, so they are being asked for.
@@ -269,7 +297,7 @@ export function requiredProgress(
       }
     }
   };
-  walk(schema, data);
+  walk(schema as Requiring | undefined, data);
   return { filled, total };
 }
 

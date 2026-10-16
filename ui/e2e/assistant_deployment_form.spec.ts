@@ -52,8 +52,8 @@ for (const width of [375, 1440]) {
     // A suggested question per language, as a steward writes the chips.
     const chips = page.getByRole("group", { name: /^Suggested questions/ });
     await chips.getByRole("button", { name: "Add" }).click();
-    await chips.getByLabel("Key").fill("en");
-    await chips.getByLabel("Key").blur();
+    await chips.getByLabel("Language").fill("en");
+    await chips.getByLabel("Language").blur();
     for (const group of ["Knowledge", "Live data", "How it answers", "Where it may appear"]) {
       await expect(page.getByRole("group", { name: group, exact: true })).toBeVisible();
     }

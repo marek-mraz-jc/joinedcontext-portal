@@ -395,14 +395,20 @@ function itemTitle(
 
 /** One entry of a map: the key, its value, and Remove. */
 function MapEntry(props: FieldTemplateProps): React.JSX.Element {
-  const { id, label, children, disabled, readonly, onKeyRenameBlur, onRemoveProperty, registry, uiSchema } = props;
+  const { id, label, children, disabled, readonly, onKeyRenameBlur, onRemoveProperty, registry, uiSchema, fieldPathId } = props;
   const { t } = useTranslation();
+  // A map keyed by language (a two-letter `propertyNames`) names its key as a language.
+  const parent = (fieldPathId?.path ?? []).slice(0, -1).reduce<Record<string, unknown> | undefined>(
+    (node, step) => (node?.properties as Record<string, Record<string, unknown>> | undefined)?.[String(step)],
+    registry.rootSchema as Record<string, unknown>,
+  );
+  const byLanguage = (parent?.propertyNames as { pattern?: unknown } | undefined)?.pattern === "^[a-z]{2}$";
   const { RemoveButton } = registry.templates.ButtonTemplates;
   const frozen = Boolean(disabled || readonly);
   return (
     <div className="flex min-w-0 flex-col gap-2 rounded-md border border-border p-3 @md:flex-row @md:items-start">
       <div className="@md:w-32 @md:shrink-0">
-        <Field id={`${id}-key`} label={t("form.mapKey")}>
+        <Field id={`${id}-key`} label={byLanguage ? t("form.mapLanguage") : t("form.mapKey")}>
           <UiInput
             id={`${id}-key`}
             key={label}

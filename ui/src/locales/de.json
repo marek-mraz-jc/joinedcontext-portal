@@ -191,7 +191,8 @@
     "color": "Eine Farbe als # und sechs Hexadezimalziffern, wie #0b5394.",
     "notAnAttribute": "{name} ist kein Attribut von {types} in den Modellen des Projekts; prüfen Sie die Schreibweise.",
     "missing": "{field} ist erforderlich",
-    "mapKey": "Schlüssel"
+    "mapKey": "Schlüssel",
+    "mapLanguage": "Sprache"
   },
   "approvals": {
     "lead": "Jede Änderung am Projekt ist hier ein Vorschlag, bis eine freigebende Person sie zusammenführt.",

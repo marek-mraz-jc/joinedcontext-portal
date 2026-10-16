@@ -191,7 +191,8 @@
     "color": "Farba ako # a šesť šestnástkových číslic, ako #0b5394.",
     "notAnAttribute": "{name} nie je atribút typu {types} v modeloch projektu; skontrolujte pravopis.",
     "missing": "{field} je povinné",
-    "mapKey": "Kľúč"
+    "mapKey": "Kľúč",
+    "mapLanguage": "Jazyk"
   },
   "approvals": {
     "lead": "Každá zmena projektu je tu návrhom, kým ju schvaľovateľ nezlúči.",

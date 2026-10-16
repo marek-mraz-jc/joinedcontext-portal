@@ -79,6 +79,14 @@ describe("the deployment form's sources (T-4282)", () => {
     expect(within(picker).getByRole("checkbox", { name: /intranet/ })).toHaveAttribute("aria-describedby", why.id);
   });
 
+  it("counts what a public channel asks for: its sites, rate limit and budget", async () => {
+    await openForm();
+    const count = screen.getByTestId("required-count");
+    const before = Number(/of (\d+)/.exec(count.textContent ?? "")?.[1]);
+    await userEvent.selectOptions(screen.getByLabelText(/^Channel/), "Public");
+    await waitFor(() => expect(Number(/of (\d+)/.exec(count.textContent ?? "")?.[1])).toBeGreaterThan(before));
+  });
+
   it("lays the form out in the capabilities, live data apart from knowledge", async () => {
     await openForm();
     for (const group of ["Deployment", "Knowledge", "Live data", "How it answers", "Language", "Greeting and suggestions", "Feedback", "Where it may appear", "Limits and budget"]) {
@@ -100,14 +108,14 @@ describe("the deployment form's sources (T-4282)", () => {
     await openForm();
     const suggestions = screen.getByRole("group", { name: /^Suggested questions/ });
     await userEvent.click(within(suggestions).getByRole("button", { name: "Add" }));
-    const key = await within(suggestions).findByLabelText("Key");
+    const key = await within(suggestions).findByLabelText("Language");
     expect(key).toHaveValue("newKey");
     await userEvent.clear(key);
     await userEvent.type(key, "sk");
     await userEvent.tab();
-    await waitFor(() => expect(within(suggestions).getByLabelText("Key")).toHaveValue("sk"));
+    await waitFor(() => expect(within(suggestions).getByLabelText("Language")).toHaveValue("sk"));
     await userEvent.click(within(suggestions).getByRole("button", { name: "Remove" }));
-    await waitFor(() => expect(within(suggestions).queryByLabelText("Key")).toBeNull());
+    await waitFor(() => expect(within(suggestions).queryByLabelText("Language")).toBeNull());
 
     const sites = screen.getByRole("group", { name: /^Allowed sites/ });
     await userEvent.click(within(sites).getByRole("button", { name: "Add" }));

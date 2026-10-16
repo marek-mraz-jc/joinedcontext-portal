@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import Form from "@rjsf/core";
 import validator from "./validator";
 import { TranslatableString, englishStringTranslator } from "@rjsf/utils";
-import type { ErrorSchema, RJSFValidationError } from "@rjsf/utils";
+import type { ErrorSchema, RJSFSchema, RJSFValidationError } from "@rjsf/utils";
 import { useTranslation } from "react-i18next";
 import { requiredProgress } from "./uischema";
 import type { JsonSchema, UiSchema } from "./types";
@@ -115,6 +115,7 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
   const progress = requiredProgress(
     schema as Parameters<typeof requiredProgress>[0],
     held ?? shown,
+    (condition, value) => validator.isValid(condition as RJSFSchema, value, schema as RJSFSchema),
   );
 
   const effectiveUiSchema = React.useMemo(
