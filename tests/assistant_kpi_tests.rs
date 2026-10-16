@@ -50,7 +50,7 @@ fn a_count_with_a_filter_becomes_an_entity_the_platform_accepts() {
     );
     assert_eq!(json["currentValue"]["unitCode"], "C62");
     assert_eq!(
-        json["computedBy"]["object"],
+        json["computedBy"]["value"],
         "urn:ngsi-ld:AgentRun:hel.fi:helsinki:run-1"
     );
     assert!(json["@context"].is_array(), "the card posts it as JSON-LD");

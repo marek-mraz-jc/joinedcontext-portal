@@ -5,9 +5,7 @@
 //! and hands it to the person as a card. The Portal writes nothing: the person writes the
 //! indicator through the indicator space's Endpoint with their own session (AG-20).
 
-use jc_core::kpi::{
-    indicator_urn, kpi_space, IndicatorValue, KeyPerformanceIndicator, Period, Relationship,
-};
+use jc_core::kpi::{indicator_urn, kpi_space, IndicatorValue, KeyPerformanceIndicator, Period};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -176,8 +174,8 @@ pub fn entity(
             end: provenance.now.to_owned(),
         },
         provenance.now,
-        Relationship::to(source.to_string()),
-        Relationship::to(computed_by.to_string()),
+        jc_core::kpi::Provenance::to(source.to_string()),
+        jc_core::kpi::Provenance::to(computed_by.to_string()),
     );
     indicator.validate().map_err(|e| e.to_string())?;
     Ok(indicator)
@@ -282,11 +280,11 @@ mod tests {
         assert_eq!(json["currentValue"]["value"], 18.4);
         assert_eq!(json["currentValue"]["unitCode"], "GQ");
         assert_eq!(
-            json["derivedFrom"]["object"],
+            json["derivedFrom"]["value"],
             "urn:ngsi-ld:Endpoint:hel.fi:helsinki:helsinki-all"
         );
         assert_eq!(
-            json["computedBy"]["object"],
+            json["computedBy"]["value"],
             "urn:ngsi-ld:AgentRun:hel.fi:helsinki:3f9c2a1e"
         );
         let mut bad = params(Agg::Avg);

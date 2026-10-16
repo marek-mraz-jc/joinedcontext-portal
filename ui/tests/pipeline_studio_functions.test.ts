@@ -67,8 +67,8 @@ describe("the KPI mapping (Architecture/08)", () => {
       'root.id = "urn:ngsi-ld:KeyPerformanceIndicator:%v:helsinki-kpi:bike-availability".format($domain)',
     );
     expect(mapping).toContain('"unitCode": "C62"');
-    expect(mapping).toContain('root.derivedFrom = { "type": "Relationship"');
-    expect(mapping).toContain('root.computedBy = { "type": "Relationship"');
+    expect(mapping).toContain('root.derivedFrom = { "type": "Property", "value"');
+    expect(mapping).toContain('root.computedBy = { "type": "Property", "value"');
     // The observedAt is whole seconds: the broker refuses a nanosecond fraction.
     expect(mapping).toContain('ts_format("2006-01-02T15:04:05Z")');
     expect(mapping).toContain('ts_sub_iso8601("PT15M")');
@@ -114,7 +114,7 @@ describe("the aggregate snippet over a fetched page (PL-41)", () => {
   });
 
   it("says which entities the number came from", () => {
-    expect(aggregateBloblang("sum", input)).toContain('"derivedFrom": { "type": "Relationship", "object": this.map_each(e -> e.id) }');
+    expect(aggregateBloblang("sum", input)).toContain('"derivedFrom": { "type": "Property", "value": this.map_each(e -> e.id) }');
   });
 });
 
