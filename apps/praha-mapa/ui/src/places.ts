@@ -4,7 +4,8 @@
  * the sorting isles (`WasteContainerIsle`), all from the public space `praha-mesto`. A value the
  * entity does not carry stays `null` and is said as missing, never a zero or an empty string.
  */
-import type { RichCell, RichRow } from "@joinedcontext/sdk";
+import { format } from "@joinedcontext/sdk";
+import type { Cell, RichCell, RichRow } from "@joinedcontext/sdk";
 
 export const KINDS = ["school", "culture", "publicToilet", "ticketSale", "waste"] as const;
 export type Kind = (typeof KINDS)[number];
@@ -52,6 +53,8 @@ function text(row: RichRow, attr: string): string | null {
   const value = first(row.cells[attr])?.value;
   if (typeof value === "string") return value.trim() === "" ? null : value.trim();
   if (typeof value === "number") return String(value);
+  // A Smart Data Models PostalAddress (T-4329) reads as its one line.
+  if (value && typeof value === "object" && !Array.isArray(value)) return format(value as Cell) || null;
   return null;
 }
 
