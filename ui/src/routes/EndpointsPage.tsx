@@ -1249,15 +1249,17 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                 >
                   {localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
                 </Link>
+                {/* Below `sm` a row is the title, the state and the action (UI-27): these two
+                    lines wrapped word by word in the narrow column, eight lines a row (T-4214). */}
                 {endpoint.metadata.title ? (
-                  <div className="mt-0.5 font-mono text-caption text-fg-subtle">
+                  <div className="mt-0.5 hidden font-mono text-caption text-fg-subtle sm:block">
                     {endpoint.metadata.name}
                   </div>
                 ) : null}
                 {/* An App's own endpoint, written by the Portal beside it (T-2759): said so, since
                     nobody created it on this page and editing it here is undone by the App. */}
                 {endpoint.metadata.annotations?.["joinedcontext.com/generated-by"] === "portal/app-reconciler" ? (
-                  <div className="mt-0.5 text-caption text-fg-subtle">
+                  <div className="mt-0.5 hidden text-caption text-fg-subtle sm:block">
                     {t("endpoints.ofApp", { app: endpoint.metadata.name.replace(/^app-/, "") })}
                   </div>
                 ) : null}

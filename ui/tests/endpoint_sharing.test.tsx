@@ -195,6 +195,26 @@ describe("endpoint sharing", () => {
     expect(body.spec.allowedProjects).toEqual(["espoo", "vantaa"]);
   });
 
+  // T-4214 (UI-27, photo audit T-4158): at 375 px a row is the name, the state and the action.
+  // The manifest name and the App line under a title wrapped word by word in the narrow first
+  // column, eight lines a row; they wait for a wider screen.
+  it("keeps a row to its title on a phone, the manifest name and the App line from sm up", async () => {
+    const app = endpoint("helsinki", "liikenne", "app-air-quality", AIR_SLUG, "organization") as {
+      metadata: Record<string, unknown>;
+    };
+    app.metadata.title = { en: "Air quality" };
+    app.metadata.annotations = { "joinedcontext.com/generated-by": "portal/app-reconciler" };
+    byPath["/api/v1/projects/helsinki/endpoints"] = list([app]);
+    renderAt("/projects/helsinki/endpoints");
+
+    const row = (await screen.findByRole("link", { name: "Air quality" })).closest("tr") as HTMLElement;
+    for (const text of ["app-air-quality", i18n.t("endpoints.ofApp", { app: "air-quality" })]) {
+      const line = within(row).getByText(text);
+      expect(line.className).toMatch(/(^| )hidden( |$)/);
+      expect(line.className).toContain("sm:block");
+    }
+  });
+
   it("shows the owner who each endpoint is shared with", async () => {
     renderAt("/projects/helsinki/endpoints");
 
