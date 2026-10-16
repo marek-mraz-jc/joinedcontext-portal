@@ -4979,6 +4979,12 @@
   },
   "policies": {
     "title": "Richtlinien",
+    "filter": {
+      "label": "Richtlinie finden",
+      "placeholder": "Name, Raum oder für wen sie gilt",
+      "count": "{shown} von {total} Richtlinien",
+      "none": "Keine Richtlinie passt zu „{query}“. Versuchen Sie ein anderes Wort oder leeren Sie das Feld."
+    },
     "lead": "Wer die Kontextdaten der Räume dieses Projekts lesen und schreiben darf, und auf welchen Entitäten.",
     "empty": "Dieses Projekt hat noch keine Richtlinie.",
     "add": "Neue Richtlinie",
