@@ -1721,7 +1721,8 @@
         "container": "Container-Job"
       },
       "modeChoice": {
-        "upsert": "Anlegen oder ersetzen",
+        "upsert": "Anlegen oder zusammenführen",
+        "replace": "Ganze Entität ersetzen",
         "update-attrs": "Nur Attribute aktualisieren"
       }
     },
