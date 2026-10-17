@@ -1386,6 +1386,15 @@ impl Syncer {
                     scratch.path(),
                 ));
             }
+            // A scheduled pipeline that never ran gets its first run now, not at 03:00 (T-4421).
+            if let Some((_, log)) = self.pipeline_outcomes.as_ref() {
+                match log.ran().await {
+                    Ok(ran) => deployer.ran(ran),
+                    Err(error) => {
+                        tracing::warn!(%error, "the run log was not read: new scheduled pipelines wait for their clock")
+                    }
+                }
+            }
             let outcomes = deployer.converge(&fresh_mirror, &bentos, &refused).await;
             // A Live stream that reads nothing is the failure nobody sees: the runner keeps the
             // stream, the Portal says Live, and the counters are the only witness (T-0914). One

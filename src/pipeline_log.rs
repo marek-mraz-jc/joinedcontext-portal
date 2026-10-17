@@ -635,6 +635,26 @@ impl LogStore {
         }
     }
 
+    /// Every (project, pipeline) with at least one run kept (T-4421).
+    pub async fn ran(&self) -> Result<HashSet<Key>, sqlx::Error> {
+        match &self.inner {
+            Inner::Postgres(pool) => Ok(sqlx::query_as::<_, (String, String)>(
+                "SELECT DISTINCT project, pipeline FROM pipeline_runs",
+            )
+            .fetch_all(pool)
+            .await?
+            .into_iter()
+            .collect()),
+            Inner::Memory(map) => Ok(map
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .iter()
+                .filter(|(_, memory)| !memory.runs.is_empty())
+                .map(|(key, _)| key.clone())
+                .collect()),
+        }
+    }
+
     /// The pipeline's runs, the one with the latest line first, at most `limit`.
     pub async fn runs(
         &self,
@@ -965,6 +985,25 @@ mod tests {
             .await
             .expect("lines")
             .is_empty());
+    }
+
+    /// T-4421: a pass that wrote nothing still counts as a run, so the queue does not run the
+    /// pipeline again as if it were new.
+    #[tokio::test]
+    async fn ran_lists_every_pipeline_with_a_run_and_only_those() {
+        let store = LogStore::new(None);
+        assert!(store.ran().await.expect("read").is_empty());
+        store
+            .append("slovensko", "susr-as", "2026-10-17T17:00Z", &[])
+            .await
+            .expect("append");
+        let ran = store.ran().await.expect("read");
+        assert_eq!(
+            ran,
+            [("slovensko".to_owned(), "susr-as".to_owned())]
+                .into_iter()
+                .collect()
+        );
     }
 
     #[tokio::test]
