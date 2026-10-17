@@ -306,6 +306,50 @@ async fn a_hand_written_endpoint_with_the_apps_name_is_refused_not_overwritten()
     assert!(committed(&gitea).await.is_empty(), "nothing was committed");
 }
 
+/// The assigner of every committed Policy: one `did:web:` line per Policy file.
+fn assigners(files: &[(String, String, String)]) -> Vec<String> {
+    files
+        .iter()
+        .filter(|(op, path, _)| op == "upload" && path.contains("polic"))
+        .flat_map(|(_, _, yaml)| {
+            yaml.lines()
+                .filter_map(|line| line.trim().strip_prefix("assigner: "))
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+/// PF-108, T-4375: an App's Policies name its project's publisher as their assigner, the
+/// Project's `spec.domain`; a project that names none falls back to the organization's domain.
+#[tokio::test]
+async fn an_apps_policies_name_the_projects_publisher_else_the_organization() {
+    for domain in [Some("kaupunki.hel.fi"), None] {
+        let gitea = forge().await;
+        let state = state_with(&gitea);
+        let mut spec = json!({ "organizationRef": { "kind": "Organization", "name": "helsinki" } });
+        if let Some(domain) = domain {
+            spec["domain"] = json!(domain);
+        }
+        state
+            .mirror
+            .upsert(envelope("Project", "helsinki", ORG_NAMESPACE, spec));
+        let want = format!(
+            "did:web:{}",
+            domain.map_or_else(
+                || joinedcontext_portal::api::assistant::org_domain(&state, "helsinki"),
+                str::to_owned
+            )
+        );
+
+        let accepted = send(&state, person("jana"), "POST", APPS, Some(app("published"))).await;
+        assert_eq!(accepted.status, StatusCode::ACCEPTED, "{}", accepted.text);
+        let found = assigners(&committed(&gitea).await);
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert!(found.iter().all(|a| *a == want), "{want}: {found:?}");
+    }
+}
+
 #[tokio::test]
 async fn deleting_an_app_removes_its_endpoint_and_policies_in_the_same_commit() {
     let gitea = forge().await;

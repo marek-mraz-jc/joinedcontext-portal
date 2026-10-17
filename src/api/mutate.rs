@@ -1528,7 +1528,8 @@ fn app_grants(
         serde_json::to_value(envelope).map_err(|e| ApiError::Internal(e.to_string()))?,
     )
     .map_err(|e| ApiError::Internal(format!("the App as a manifest: {e}")))?;
-    let domain = crate::api::assistant::org_domain(state, project);
+    // The assigner of the App's Policies is the project's publisher (PF-108).
+    let domain = crate::api::assistant::publisher_domain(state, project);
     let compiled = match grants(&manifest, &slug, &domain) {
         Ok((endpoint, policies)) => std::iter::once(endpoint).chain(policies).collect(),
         // A draft or a retired App grants nothing (AP-18, AP-21).

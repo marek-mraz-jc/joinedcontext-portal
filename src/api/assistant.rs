@@ -498,6 +498,18 @@ pub fn org_domain(state: &AppState, fallback: &str) -> String {
         .unwrap_or_else(|| fallback.to_owned())
 }
 
+/// The domain of the body that publishes `project`'s data: the Project's `spec.domain`, else
+/// the organization's ([`org_domain`]) (PF-108). It names who publishes, as the `did:web`
+/// assigner of the project's App grants, and nothing derives a right from it (ADR-N-041).
+pub fn publisher_domain(state: &AppState, project: &str) -> String {
+    state
+        .mirror
+        .get(crate::api::blueprints::ORG_NAMESPACE, "Project", project)
+        .and_then(|env| env.spec["domain"].as_str().map(str::to_owned))
+        .filter(|domain| !domain.is_empty())
+        .unwrap_or_else(|| org_domain(state, project))
+}
+
 /// Executes an endpoint proposal rendering and permission check (EP-72, API/01 §19).
 pub async fn execute_propose_endpoint(
     identity: &crate::auth::session::Identity,
