@@ -432,3 +432,80 @@ async fn revoking_a_consent_deletes_it_in_the_realm() {
     .await;
     assert_eq!(odd.status, 404, "{}", odd.text);
 }
+
+/// T-4446: a project of 500 Endpoints is explored with at most EXPLORE_AT_ONCE questions in
+/// flight, and every one that grants is still listed, in the Endpoints' order.
+#[tokio::test]
+async fn a_large_project_is_explored_a_bounded_number_at_a_time() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let r = rig().await;
+    let (now, most) = (Arc::new(AtomicUsize::new(0)), Arc::new(AtomicUsize::new(0)));
+    let (in_flight, peak) = (Arc::clone(&now), Arc::clone(&most));
+    let gateway = axum::Router::new().route(
+        "/api/endpoint/{slug}/access/simulate",
+        axum::routing::post(
+            move |axum::extract::Path(slug): axum::extract::Path<String>| {
+                let (in_flight, peak) = (Arc::clone(&in_flight), Arc::clone(&peak));
+                async move {
+                    let at = in_flight.fetch_add(1, Ordering::SeqCst) + 1;
+                    peak.fetch_max(at, Ordering::SeqCst);
+                    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+                    in_flight.fetch_sub(1, Ordering::SeqCst);
+                    axum::Json(json!({
+                        "admitted": true, "policies": ["read"],
+                        "resource": { "type": "endpoint", "id": slug, "space": "air" },
+                        "permissions": [{ "resource": { "type": "AirQualityObserved" }, "actions": ["queryEntity"] }],
+                        "prohibitions": []
+                    }))
+                }
+            },
+        ),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("a port");
+    let address = listener.local_addr().expect("an address");
+    tokio::spawn(async move { axum::serve(listener, gateway).await });
+
+    let mirror = Mirror::new();
+    for i in 0..500 {
+        mirror.upsert(common::envelope(
+            "Endpoint",
+            &format!("e{i:03}"),
+            "helsinki",
+            json!({ "slug": format!("s{i:03}"), "enabledRepresentations": ["ogc-features"] }),
+        ));
+    }
+    mirror.upsert(common::envelope(
+        "ServiceAccount",
+        "sensors",
+        "helsinki",
+        json!({ "description": "the sensor feed" }),
+    ));
+    let mut state = r.state.clone().with_mirror(Arc::new(mirror));
+    let mut config = (*state.config).clone();
+    config.gateway_url = Some(format!("http://{address}"));
+    state.config = Arc::new(config);
+
+    let answer = explore(
+        &state,
+        admin(),
+        json!({ "kind": "serviceAccount", "name": "sensors" }),
+    )
+    .await;
+    assert_eq!(answer.status, 200, "{}", answer.text);
+    let names: Vec<String> = body(&answer)["endpoints"]
+        .as_array()
+        .expect("endpoints")
+        .iter()
+        .map(|row| row["name"].as_str().expect("a name").to_owned())
+        .collect();
+    let all: Vec<String> = (0..500).map(|i| format!("e{i:03}")).collect();
+    assert_eq!(names, all);
+    let peak = most.load(Ordering::SeqCst);
+    assert!(
+        (2..=joinedcontext_portal::api::access_explore::EXPLORE_AT_ONCE).contains(&peak),
+        "{peak} questions in flight at once"
+    );
+}
