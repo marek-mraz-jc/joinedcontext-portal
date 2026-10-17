@@ -341,7 +341,7 @@ impl AppState {
                 Some(Arc::new(
                     crate::reconciler::subscriptions::SubscriptionSync::new(
                         base,
-                        oidc.issuer.as_str(),
+                        &oidc.backchannel(),
                         id,
                         secret,
                         domain,
@@ -391,7 +391,7 @@ impl AppState {
             state.config.keycloak_admin.clone(),
         ) {
             state.people =
-                crate::people::People::new(oidc.issuer.as_str(), id, secret).map(Arc::new);
+                crate::people::People::new(&oidc.backchannel(), id, secret).map(Arc::new);
         }
         // The wasm Apps' database and bucket (AP-149, AP-151): both or neither, the pool connects
         // on first use and jc_apps's schema is applied in the background.
@@ -619,11 +619,8 @@ impl AppState {
                 state.config.keycloak_admin.clone(),
             ) {
                 (Some(oidc), Some((id, secret))) => {
-                    match crate::reconciler::groups::GroupSync::new(
-                        oidc.issuer.as_str(),
-                        id,
-                        secret,
-                    ) {
+                    match crate::reconciler::groups::GroupSync::new(&oidc.backchannel(), id, secret)
+                    {
                         Some(groups) => {
                             syncer = syncer.with_groups(Arc::new(
                                 groups.with_foreign(Arc::clone(&state.foreign_names)),
@@ -652,7 +649,7 @@ impl AppState {
             ) {
                 (Some(oidc), Some(host)) => {
                     match crate::reconciler::app_clients::AppClientSync::new(
-                        oidc.issuer.as_str(),
+                        &oidc.backchannel(),
                         oidc.client_id.clone(),
                         oidc.auth.clone(),
                         host,
@@ -676,7 +673,7 @@ impl AppState {
             // by the same identity as the App clients.
             if let Some(oidc) = state.config.oidc.as_ref() {
                 match crate::reconciler::workload_clients::WorkloadClientSync::new(
-                    oidc.issuer.as_str(),
+                    &oidc.backchannel(),
                     oidc.client_id.clone(),
                     oidc.auth.clone(),
                 ) {
@@ -697,7 +694,7 @@ impl AppState {
                 }
                 // The MCP hub's `endpoint:{slug}` scopes (T-2490), by the same identity.
                 if let Some(scopes) = crate::reconciler::hub_scopes::HubScopeSync::new(
-                    oidc.issuer.as_str(),
+                    &oidc.backchannel(),
                     oidc.client_id.clone(),
                     oidc.auth.clone(),
                 ) {
@@ -705,7 +702,7 @@ impl AppState {
                 }
                 // Each MQTT broker's bearer-only client, its devices' audience (T-3994).
                 if let Some(clients) = crate::reconciler::mqtt_brokers::MqttClientSync::new(
-                    oidc.issuer.as_str(),
+                    &oidc.backchannel(),
                     oidc.client_id.clone(),
                     oidc.auth.clone(),
                 ) {
@@ -713,7 +710,7 @@ impl AppState {
                 }
                 // Each named MCP server's sign-in client (EP-96, T-3156), by the same identity.
                 if let Some(clients) = crate::reconciler::mcp_clients::McpClientSync::new(
-                    oidc.issuer.as_str(),
+                    &oidc.backchannel(),
                     oidc.client_id.clone(),
                     oidc.auth.clone(),
                 ) {
@@ -792,7 +789,7 @@ impl AppState {
                     syncer = syncer.with_subscriptions(Arc::new(
                         crate::reconciler::subscriptions::SubscriptionSync::new(
                             base,
-                            oidc.issuer.as_str(),
+                            &oidc.backchannel(),
                             id,
                             secret,
                             domain,
@@ -887,7 +884,7 @@ impl AppState {
                 (Some(base), Some(oidc), Some((id, secret))) => {
                     let watch = Arc::new(crate::reconciler::drift::Watch::new(
                         base,
-                        oidc.issuer.as_str(),
+                        &oidc.backchannel(),
                         id,
                         secret,
                     ));

@@ -1127,6 +1127,28 @@ pub struct OidcConfig {
     /// alone, so no mounted file or `SSL_CERT_FILE` is consulted. Verification stays on;
     /// this only widens what a valid chain may end in.
     pub extra_ca_pem: Option<Vec<u8>>,
+    /// Where the Portal itself reaches Keycloak for tokens and the admin API
+    /// (`JC_KEYCLOAK_ADMIN_URL`, e.g. `http://keycloak.keycloak.svc:8080`; unset, the issuer's
+    /// origin). In the cluster it is the Service, so the reconciler's calls do not pass the
+    /// public edge and its per-address limit (T-4432). Tokens are still checked against the
+    /// issuer.
+    pub admin_url: Option<Url>,
+}
+
+impl OidcConfig {
+    /// The realm URL the Portal posts to: the issuer's path on `admin_url`'s origin, or the
+    /// issuer itself when it is unset. No trailing slash.
+    pub fn backchannel(&self) -> String {
+        let issuer = self.issuer.as_str().trim_end_matches('/');
+        match &self.admin_url {
+            None => issuer.to_owned(),
+            Some(admin) => format!(
+                "{}{}",
+                admin.as_str().trim_end_matches('/'),
+                self.issuer.path().trim_end_matches('/')
+            ),
+        }
+    }
 }
 
 impl std::fmt::Debug for OidcConfig {
@@ -1135,6 +1157,7 @@ impl std::fmt::Debug for OidcConfig {
             .field("issuer", &self.issuer.as_str())
             .field("client_id", &self.client_id)
             .field("auth", &self.auth)
+            .field("admin_url", &self.admin_url.as_ref().map(Url::as_str))
             .finish()
     }
 }
@@ -1211,6 +1234,33 @@ impl Config {
                         var: "JC_OIDC_CA_FILE",
                         reason: format!("{path}: {e}"),
                     })?),
+                },
+                admin_url: match lookup("JC_KEYCLOAK_ADMIN_URL").filter(|v| !v.trim().is_empty()) {
+                    None => None,
+                    Some(raw) => {
+                        let url: Url = raw.trim().parse().map_err(|e: url::ParseError| {
+                            ConfigError::Invalid {
+                                var: "JC_KEYCLOAK_ADMIN_URL",
+                                reason: e.to_string(),
+                            }
+                        })?;
+                        // An origin only: a path, query or user info would be pasted into every
+                        // admin call, and a credential in it would reach the logs.
+                        if !matches!(url.scheme(), "http" | "https")
+                            || !url.username().is_empty()
+                            || url.password().is_some()
+                            || url.path() != "/"
+                            || url.query().is_some()
+                        {
+                            return Err(ConfigError::Invalid {
+                                var: "JC_KEYCLOAK_ADMIN_URL",
+                                reason:
+                                    "an http(s) origin, such as http://keycloak.keycloak.svc:8080"
+                                        .to_string(),
+                            });
+                        }
+                        Some(url)
+                    }
                 },
             }),
             _ => {
