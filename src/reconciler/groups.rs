@@ -128,17 +128,19 @@ impl GroupSync {
     }
 
     async fn token(&self) -> Result<String, String> {
-        let form = self
-            .auth
-            .form(&self.client_id, &[("grant_type", "client_credentials")])
-            .await?;
-        let response = self
-            .http
-            .post(format!("{}/protocol/openid-connect/token", self.issuer))
-            .form(&form)
-            .send()
-            .await
-            .map_err(|err| err.to_string())?;
+        let response = crate::auth::client_auth::paced(|| async {
+            let form = self
+                .auth
+                .form(&self.client_id, &[("grant_type", "client_credentials")])
+                .await?;
+            self.http
+                .post(format!("{}/protocol/openid-connect/token", self.issuer))
+                .form(&form)
+                .send()
+                .await
+                .map_err(|err| err.to_string())
+        })
+        .await?;
         if !response.status().is_success() {
             return Err(format!(
                 "the realm refused the reconciler's client: {}",
@@ -150,13 +152,14 @@ impl GroupSync {
     }
 
     async fn get(&self, token: &str, path: &str) -> Result<Value, String> {
-        let response = self
-            .http
-            .get(format!("{}{path}", self.admin))
-            .bearer_auth(token)
-            .send()
-            .await
-            .map_err(|err| err.to_string())?;
+        let response = crate::auth::client_auth::paced(|| {
+            let request = self
+                .http
+                .get(format!("{}{path}", self.admin))
+                .bearer_auth(token);
+            async { request.send().await.map_err(|err| err.to_string()) }
+        })
+        .await?;
         if !response.status().is_success() {
             return Err(format!("GET {path}: {}", response.status()));
         }
@@ -170,14 +173,17 @@ impl GroupSync {
         path: &str,
         body: Option<Value>,
     ) -> Result<(), String> {
-        let mut request = self
-            .http
-            .request(method.clone(), format!("{}{path}", self.admin))
-            .bearer_auth(token);
-        if let Some(body) = body {
-            request = request.json(&body);
-        }
-        let response = request.send().await.map_err(|err| err.to_string())?;
+        let response = crate::auth::client_auth::paced(|| {
+            let mut request = self
+                .http
+                .request(method.clone(), format!("{}{path}", self.admin))
+                .bearer_auth(token);
+            if let Some(body) = &body {
+                request = request.json(body);
+            }
+            async { request.send().await.map_err(|err| err.to_string()) }
+        })
+        .await?;
         if !response.status().is_success() {
             return Err(format!("{method} {path}: {}", response.status()));
         }

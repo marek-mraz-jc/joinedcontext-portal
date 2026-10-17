@@ -27,6 +27,54 @@ pub fn realm_http(timeout: std::time::Duration) -> Option<reqwest::Client> {
         .ok()
 }
 
+/// How many times a realm call answered 429 is made again before its 429 stands (T-4424).
+const PACED_RETRIES: u32 = 5;
+/// The longest wait for one retry: the edge's limit-count window is 60 s.
+const PACED_MAX_WAIT: std::time::Duration = std::time::Duration::from_secs(60);
+/// The wait when a 429 names none.
+const PACED_DEFAULT_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// One realm call, made again while it answers 429 Too Many Requests (T-4424): the realm sits
+/// behind the edge's `limit-count`, and a reconciler wave that writes many clients ran into it
+/// and left them for the next run. Each retry waits what the answer asks (`Retry-After` in
+/// seconds, else APISIX's `X-RateLimit-Reset`, else 5 s; at most 60 s), up to [`PACED_RETRIES`]
+/// times; then the 429 is the answer. `attempt` builds the request anew each time, so a client
+/// assertion is minted fresh rather than replayed. For the reconciler only: a person's request
+/// is never held this long.
+pub async fn paced<F, Fut>(mut attempt: F) -> Result<reqwest::Response, String>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<reqwest::Response, String>>,
+{
+    let mut retries = 0;
+    loop {
+        let response = attempt().await?;
+        if response.status() != reqwest::StatusCode::TOO_MANY_REQUESTS || retries == PACED_RETRIES {
+            return Ok(response);
+        }
+        retries += 1;
+        tokio::time::sleep(paced_wait(response.headers())).await;
+    }
+}
+
+/// The wait a 429's headers ask for, bounded by [`PACED_MAX_WAIT`].
+fn paced_wait(headers: &reqwest::header::HeaderMap) -> std::time::Duration {
+    ["retry-after", "x-ratelimit-reset"]
+        .iter()
+        .find_map(|name| {
+            headers
+                .get(*name)?
+                .to_str()
+                .ok()?
+                .trim()
+                .parse::<u64>()
+                .ok()
+        })
+        .map(std::time::Duration::from_secs)
+        .unwrap_or(PACED_DEFAULT_WAIT)
+        .min(PACED_MAX_WAIT)
+}
+
 #[derive(Clone)]
 pub enum ClientAuth {
     /// `client_id` and `client_secret` in the request body.
@@ -157,6 +205,71 @@ impl std::fmt::Debug for ClientAuth {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-4424: the wait a 429 asks for, the edge's header when it gives no `Retry-After`, a
+    /// default when it names none, never more than the window.
+    #[test]
+    fn a_429_waits_what_it_asks_and_never_past_the_window() {
+        let wait = |pairs: &[(&'static str, &'static str)]| {
+            let mut headers = reqwest::header::HeaderMap::new();
+            for (name, value) in pairs {
+                headers.insert(*name, reqwest::header::HeaderValue::from_static(value));
+            }
+            paced_wait(&headers).as_secs()
+        };
+        assert_eq!(wait(&[("retry-after", "7")]), 7);
+        assert_eq!(
+            wait(&[("retry-after", "2"), ("x-ratelimit-reset", "40")]),
+            2
+        );
+        assert_eq!(wait(&[("x-ratelimit-reset", "12")]), 12);
+        assert_eq!(wait(&[]), 5);
+        assert_eq!(wait(&[("retry-after", "Wed, 21 Oct 2026 07:28:00 GMT")]), 5);
+        assert_eq!(wait(&[("retry-after", "3600")]), 60);
+    }
+
+    /// T-4424: a call answered 429 is made again, built anew each time, and after five retries
+    /// the 429 is the answer rather than a wait without end.
+    #[tokio::test]
+    async fn a_call_answered_429_is_made_again_and_then_given_up() {
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let realm = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(429).insert_header("retry-after", "0"))
+            .up_to_n_times(2)
+            .with_priority(1)
+            .mount(&realm)
+            .await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&realm)
+            .await;
+        let http = realm_http(std::time::Duration::from_secs(5)).expect("a client");
+        let mut built = 0;
+        let answer = paced(|| {
+            built += 1;
+            let request = http.get(realm.uri());
+            async { request.send().await.map_err(|err| err.to_string()) }
+        })
+        .await
+        .expect("an answer");
+        assert_eq!((answer.status().as_u16(), built), (200, 3));
+
+        let busy = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(429).insert_header("retry-after", "0"))
+            .mount(&busy)
+            .await;
+        let answer = paced(|| {
+            let request = http.get(busy.uri());
+            async { request.send().await.map_err(|err| err.to_string()) }
+        })
+        .await
+        .expect("an answer");
+        assert_eq!(answer.status().as_u16(), 429);
+        assert_eq!(busy.received_requests().await.map(|r| r.len()), Some(6));
+    }
 
     #[tokio::test]
     async fn the_realm_client_resends_no_grant_to_the_host_a_redirect_names() {
