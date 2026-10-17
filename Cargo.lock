@@ -217,15 +217,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "arbitrary"
-version = "1.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3d036a3c4ab069c7b410a2ce876bd74808d2d0888a82667669f8e783a898bf1"
-dependencies = [
- "derive_arbitrary",
-]
-
-[[package]]
 name = "arc-swap"
 version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -704,7 +695,7 @@ checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
 [[package]]
 name = "context-gateway"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=0069530d691bd35438d6eac0c3367e8adb2c0a8c#0069530d691bd35438d6eac0c3367e8adb2c0a8c"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=40a184b0f928bac7f885bae051a7512726c4dbae#40a184b0f928bac7f885bae051a7512726c4dbae"
 dependencies = [
  "antares-jsonld",
  "antares-matcher",
@@ -738,7 +729,7 @@ dependencies = [
  "tower",
  "tower-http 0.6.11",
  "tracing",
- "zip 2.4.2",
+ "zip",
 ]
 
 [[package]]
@@ -1062,17 +1053,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7cd812cc2bc1d69d4764bd80df88b4317eaef9e773c75226407d9bc0876b211c"
 dependencies = [
  "serde_core",
-]
-
-[[package]]
-name = "derive_arbitrary"
-version = "1.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e567bd82dcff979e4b03460c307b3cdc9e96fde3d73bed1496d2bc75d9dd62a"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
 ]
 
 [[package]]
@@ -2537,7 +2517,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "jc-core"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=0069530d691bd35438d6eac0c3367e8adb2c0a8c#0069530d691bd35438d6eac0c3367e8adb2c0a8c"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=40a184b0f928bac7f885bae051a7512726c4dbae#40a184b0f928bac7f885bae051a7512726c4dbae"
 dependencies = [
  "axum",
  "chrono",
@@ -2556,7 +2536,7 @@ dependencies = [
 [[package]]
 name = "jcctl"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=0069530d691bd35438d6eac0c3367e8adb2c0a8c#0069530d691bd35438d6eac0c3367e8adb2c0a8c"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=40a184b0f928bac7f885bae051a7512726c4dbae#40a184b0f928bac7f885bae051a7512726c4dbae"
 dependencies = [
  "aes-gcm",
  "age",
@@ -2730,7 +2710,7 @@ dependencies = [
  "url",
  "utoipa",
  "wiremock",
- "zip 9.0.1",
+ "zip",
 ]
 
 [[package]]
@@ -3271,7 +3251,7 @@ version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.21.7",
  "chrono",
  "getrandom 0.2.17",
  "http",
@@ -6636,23 +6616,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.5",
-]
-
-[[package]]
-name = "zip"
-version = "2.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fabe6324e908f85a1c52063ce7aa26b68dcb7eb6dbc83a2d148403c9bc3eba50"
-dependencies = [
- "arbitrary",
- "crc32fast",
- "crossbeam-utils",
- "displaydoc",
- "flate2",
- "indexmap 2.14.2",
- "memchr",
- "thiserror 2.0.20",
- "zopfli",
 ]
 
 [[package]]
