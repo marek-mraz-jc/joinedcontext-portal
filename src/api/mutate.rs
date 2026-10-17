@@ -979,6 +979,13 @@ async fn propose_engine(
         }
     }
 
+    // 4b'''. A Pipeline in replace drops what another Pipeline writes into the same space and
+    //        type (PL-79, T-4409): the rule `jcctl validate` runs, over the project's Pipelines
+    //        with this proposal in place of its own.
+    if kind_info.kind == "Pipeline" && operation != Operation::Delete {
+        check_replace(state, project, &envelope.metadata.name, &envelope.spec)?;
+    }
+
     // 4b'. A public dashboard reads only through public Endpoints (UI-19, T-0528): the one
     //      rule that spans three manifests, so it is checked against the mirror here.
     crate::dashboards::check(
@@ -1782,6 +1789,49 @@ pub(crate) fn public_app_allowed(
         )));
     }
     Ok(())
+}
+
+/// Refuses a Pipeline proposal that, with the project's other Pipelines, makes a replace output
+/// meet another Pipeline's writes into its space and type (PL-79), whichever side it is on. A
+/// spec or an Endpoint that does not parse is judged elsewhere.
+fn check_replace(
+    state: &AppState,
+    project: &str,
+    name: &str,
+    spec: &Value,
+) -> Result<(), ApiError> {
+    use jc_core::kinds::{replace_conflicts, EndpointSpec, PipelineSpec};
+    let Ok(proposed) = serde_json::from_value::<PipelineSpec>(spec.clone()) else {
+        return Ok(());
+    };
+    let options = crate::store::ListOptions::default();
+    let others: Vec<(String, PipelineSpec)> = state
+        .mirror
+        .list(project, "Pipeline", &options)
+        .items
+        .into_iter()
+        .filter(|p| p.metadata.name != name)
+        .filter_map(|p| Some((p.metadata.name, serde_json::from_value(p.spec).ok()?)))
+        .collect();
+    let spaces: std::collections::BTreeMap<String, String> = state
+        .mirror
+        .list(project, "Endpoint", &options)
+        .items
+        .into_iter()
+        .filter_map(|e| {
+            let spec = serde_json::from_value::<EndpointSpec>(e.spec).ok()?;
+            Some((e.metadata.name, spec.context_space_ref.name().to_owned()))
+        })
+        .collect();
+    let mut specs: Vec<(&str, &PipelineSpec)> = vec![(name, &proposed)];
+    specs.extend(others.iter().map(|(n, s)| (n.as_str(), s)));
+    let conflict = replace_conflicts(&specs, |endpoint| spaces.get(endpoint).cloned())
+        .into_iter()
+        .find(|c| c.pipeline == name || c.others.iter().any(|o| o == name));
+    match conflict {
+        Some(conflict) => Err(ApiError::BadRequest(conflict.to_string())),
+        None => Ok(()),
+    }
 }
 
 async fn check_projection(state: &AppState, project: &str, spec: &Value) -> Result<(), ApiError> {
@@ -2959,6 +3009,84 @@ mod tests {
         assert_eq!(result.plan.fields[0].path, "spec.isSandbox");
         assert_eq!(result.plan.fields[0].from, Some(json!(false)));
         assert_eq!(result.plan.fields[0].to, Some(json!(true)));
+    }
+
+    /// PL-79, T-4409: a replace beside another writer of the same space and type is refused
+    /// naming both, from either side; a replace alone, or into another space, is accepted.
+    #[test]
+    fn a_replace_beside_another_writer_of_its_type_is_refused_naming_both() {
+        let state = AppState::new(Config::for_tests(), None);
+        let envelope = |kind: &str, name: &str, spec: Value| ResourceEnvelope {
+            api_version: resource::API_VERSION.into(),
+            kind: kind.into(),
+            metadata: ObjectMeta {
+                name: name.into(),
+                namespace: Some("ovzdusie".into()),
+                ..Default::default()
+            },
+            spec,
+            status: None,
+        };
+        let pipeline = |endpoint: &str, mode: &str| {
+            json!({
+                "class": "scheduled", "schedule": "0 * * * *",
+                "source": { "dataSourceRef": "feed" },
+                "targetEndpoint": format!("urn:ngsi-ld:Endpoint:banskabystrica.sk:ovzdusie:{endpoint}"),
+                "output": { "type": "AirQualityObserved", "mode": mode }
+            })
+        };
+        for (endpoint, space) in [("public-air", "ovzdusie"), ("verejne-air", "verejne")] {
+            state.mirror.upsert(envelope(
+                "Endpoint",
+                endpoint,
+                json!({
+                    "contextSpaceRef": space, "slug": "zt4qm7ge2xdv6ksb3ncf5arw2y",
+                    "audience": "public", "enabledRepresentations": ["ngsi-ld"]
+                }),
+            ));
+        }
+        let check = |name: &str, spec: Value| check_replace(&state, "ovzdusie", name, &spec);
+
+        assert!(
+            check("stations", pipeline("public-air", "replace")).is_ok(),
+            "alone"
+        );
+        state.mirror.upsert(envelope(
+            "Pipeline",
+            "enrich",
+            pipeline("public-air", "upsert"),
+        ));
+        let Err(ApiError::BadRequest(why)) = check("stations", pipeline("public-air", "replace"))
+        else {
+            panic!("a replace beside an upsert writer is refused");
+        };
+        assert!(
+            why.contains("Pipeline stations")
+                && why.contains("Pipeline enrich")
+                && why.contains("PL-79"),
+            "{why}"
+        );
+        assert!(
+            check("stations", pipeline("verejne-air", "replace")).is_ok(),
+            "another space"
+        );
+        assert!(
+            check("enrich", pipeline("public-air", "upsert")).is_ok(),
+            "its own old self is no other"
+        );
+
+        state.mirror.upsert(envelope(
+            "Pipeline",
+            "stations",
+            pipeline("public-air", "replace"),
+        ));
+        assert!(
+            matches!(
+                check("enrich", pipeline("public-air", "upsert")),
+                Err(ApiError::BadRequest(_))
+            ),
+            "an upsert beside an existing replace writer is refused"
+        );
     }
 }
 
