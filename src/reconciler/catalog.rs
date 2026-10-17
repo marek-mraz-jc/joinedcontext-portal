@@ -20,9 +20,10 @@
 use super::drift::Watch;
 pub use super::ngsi_catalog::{entities, fold, Place};
 use crate::resource::reference_name;
+use futures_util::StreamExt as _;
 use jcctl::loader::Repository;
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -32,6 +33,9 @@ pub const CATALOG: &str = "catalog";
 const BATCH: usize = 100;
 /// How long the memory of the last write is trusted before the catalogue is listed again.
 const RELIST: Duration = Duration::from_secs(3600);
+
+/// An Endpoint's entity types, each with how many entities it holds, most first.
+type Counts = Vec<(String, u64)>;
 
 /// What one run wrote.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -47,6 +51,9 @@ pub struct CatalogSync {
     watch: Arc<Watch>,
     /// What the last run left in the catalogue, by id, and when it was last listed.
     written: Mutex<Option<(Instant, BTreeMap<String, Value>)>>,
+    /// Per public Endpoint slug, its entity types and their counts as an anonymous caller reads
+    /// them, and when they were read (T-4526).
+    counts: Mutex<HashMap<String, (Instant, Counts)>>,
 }
 
 impl CatalogSync {
@@ -55,6 +62,7 @@ impl CatalogSync {
         Self {
             watch,
             written: Mutex::new(None),
+            counts: Mutex::new(HashMap::new()),
         }
     }
 
@@ -79,7 +87,9 @@ impl CatalogSync {
             .get("@included")
             .and_then(Value::as_array)
             .map_or(&[][..], Vec::as_slice);
-        let wanted = entities(nodes, &places(repo));
+        let mut wanted = entities(nodes, &places(repo));
+        let counted = self.counted(http, base, &wanted).await;
+        with_types(&mut wanted, &counted);
 
         let token = self.watch.scan_token().await?;
         let surface = format!("{base}/api/endpoint/{slug}/ngsi-ld/v1");
@@ -118,6 +128,150 @@ impl CatalogSync {
             *written = Some((listed, wanted));
         }
         Ok(Some(run))
+    }
+}
+
+impl CatalogSync {
+    /// Per DataService of `wanted`, its types and counts: from memory while younger than
+    /// [`RELIST`], else read anonymously from the Endpoint itself, eight Endpoints at a time. A
+    /// read that fails keeps what was read before, or leaves the Endpoint without types.
+    async fn counted(
+        &self,
+        http: &reqwest::Client,
+        base: &str,
+        wanted: &BTreeMap<String, Value>,
+    ) -> HashMap<String, Counts> {
+        let slugs: Vec<String> = wanted
+            .keys()
+            .filter_map(|id| id.strip_prefix("urn:ngsi-ld:DataService:"))
+            .map(str::to_owned)
+            .collect();
+        let mut held = match self.counts.lock() {
+            Ok(mut counts) => std::mem::take(&mut *counts),
+            Err(_) => HashMap::new(),
+        };
+        held.retain(|slug, _| slugs.contains(slug));
+        let stale: Vec<String> = slugs
+            .iter()
+            .filter(|slug| {
+                held.get(*slug)
+                    .is_none_or(|(read, _)| read.elapsed() >= RELIST)
+            })
+            .cloned()
+            .collect();
+        let read: Vec<(String, Result<Counts, String>)> = futures_util::stream::iter(stale)
+            .map(|slug| async move {
+                let types = types_of(http, base, &slug).await;
+                (slug, types)
+            })
+            .buffer_unordered(8)
+            .collect()
+            .await;
+        for (slug, types) in read {
+            match types {
+                Ok(types) => {
+                    held.insert(slug, (Instant::now(), types));
+                }
+                Err(why) => tracing::warn!(endpoint = %slug, %why, "catalogue counts not read"),
+            }
+        }
+        let out = held
+            .iter()
+            .map(|(slug, (_, types))| (slug.clone(), types.clone()))
+            .collect();
+        if let Ok(mut counts) = self.counts.lock() {
+            *counts = held;
+        }
+        out
+    }
+}
+
+/// An Endpoint's entity types and their counts, read as the anonymous caller: its `/types`, then
+/// per type `count=true&limit=0`.
+async fn types_of(http: &reqwest::Client, base: &str, slug: &str) -> Result<Counts, String> {
+    let surface = format!("{base}/api/endpoint/{slug}/ngsi-ld/v1");
+    let list: Value = http
+        .get(format!("{surface}/types"))
+        .header("Accept", "application/json")
+        .send()
+        .await
+        .and_then(reqwest::Response::error_for_status)
+        .map_err(|err| format!("/types did not read: {err}"))?
+        .json()
+        .await
+        .map_err(|err| format!("/types is not JSON: {err}"))?;
+    let names: Vec<String> = list
+        .get("typeList")
+        .and_then(Value::as_array)
+        .map(|names| {
+            names
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut out = Vec::with_capacity(names.len());
+    for name in names {
+        let answer = http
+            .get(format!("{surface}/entities"))
+            .query(&[("type", name.as_str()), ("count", "true"), ("limit", "0")])
+            .header("Accept", "application/json")
+            .send()
+            .await
+            .and_then(reqwest::Response::error_for_status)
+            .map_err(|err| format!("the count of {name} did not read: {err}"))?;
+        let count = answer
+            .headers()
+            .get("NGSILD-Results-Count")
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok())
+            .ok_or_else(|| format!("the count of {name} came without NGSILD-Results-Count"))?;
+        // A type outside the core @context comes back as its IRI; the catalogue names its term.
+        let term = name.rsplit(['/', '#']).next().unwrap_or(&name).to_owned();
+        out.push((term, count));
+    }
+    out.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    Ok(out)
+}
+
+/// Puts each DataService's `entityTypes` and `nextQuery` on it, and the type names in its
+/// Dataset's `searchText` (T-4526).
+pub fn with_types(
+    wanted: &mut BTreeMap<String, Value>,
+    counted: &HashMap<String, Vec<(String, u64)>>,
+) {
+    let mut words: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (id, entity) in wanted.iter_mut() {
+        let Some(slug) = id.strip_prefix("urn:ngsi-ld:DataService:") else {
+            continue;
+        };
+        let Some(types) = counted.get(slug).filter(|types| !types.is_empty()) else {
+            continue;
+        };
+        entity["entityTypes"] = json!({ "type": "Property", "value": types
+            .iter()
+            .map(|(name, count)| json!({ "type": name, "count": count }))
+            .collect::<Vec<_>>() });
+        entity["nextQuery"] = json!({ "type": "Property", "value": {
+            "tool": "query_entities",
+            "arguments": { "endpoint": slug, "type": types[0].0, "limit": 10 },
+        }});
+        if let Some(dataset) = entity["servesDataset"]["object"].as_str() {
+            words
+                .entry(dataset.to_owned())
+                .or_default()
+                .extend(types.iter().map(|(name, _)| name.clone()));
+        }
+    }
+    for (dataset, names) in words {
+        if let Some(entity) = wanted.get_mut(&dataset) {
+            let text = entity["searchText"]["value"]
+                .as_str()
+                .unwrap_or("")
+                .to_owned();
+            entity["searchText"]["value"] = json!(format!("{text} {}", fold(&names.join(" "))));
+        }
     }
 }
 
