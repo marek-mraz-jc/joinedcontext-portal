@@ -14,6 +14,7 @@ const EVERY_BUT_STA = [
   "csv",
   "json",
   "xlsx",
+  "parquet",
   "zip",
   "ogc-features",
   "odata",
@@ -39,6 +40,7 @@ describe("the Endpoint's standards", () => {
       "geojson",
       "csv",
       "xlsx",
+      "parquet",
       "json",
       "zip",
       "ogc-features",
@@ -49,6 +51,7 @@ describe("the Endpoint's standards", () => {
       "ngsi-ld",
       "geojson",
       "xlsx",
+      "parquet",
       "json",
       "zip",
       "ogc-features",
@@ -74,13 +77,13 @@ describe("the Endpoint's standards", () => {
 
   it("never writes an always-on standard as disabled, even unchecked", () => {
     expect(representationSpec(["csv"])).toEqual({
-      disabledRepresentations: ["json", "xlsx", "zip", "ogc-features", "odata", "websocket"],
+      disabledRepresentations: ["json", "xlsx", "parquet", "zip", "ogc-features", "odata", "websocket"],
     });
   });
 
   it("turns sta on with a list, since only a list serves it", () => {
     expect(representationSpec([...EVERY_BUT_STA, "sta"])).toEqual({
-      enabledRepresentations: ["csv", "json", "xlsx", "zip", "ogc-features", "odata", "websocket", "sta"],
+      enabledRepresentations: ["csv", "json", "xlsx", "parquet", "zip", "ogc-features", "odata", "websocket", "sta"],
     });
   });
 

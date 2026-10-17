@@ -1721,7 +1721,8 @@
         "container": "Container job"
       },
       "modeChoice": {
-        "upsert": "Create or replace",
+        "upsert": "Create or merge",
+        "replace": "Replace the whole entity",
         "update-attrs": "Update attributes only"
       }
     },

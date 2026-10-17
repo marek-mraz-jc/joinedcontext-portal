@@ -1104,8 +1104,8 @@ export const PIPELINE_CLASSES = ["auto", "resident", "scheduled"] as const;
 /** The compute engines a pipeline step may run on, lightest first (PL-33). */
 export const COMPUTE_KINDS = ["bloblang", "mapping", "wasm", "container"] as const;
 
-/** How a derived pipeline writes its result (PL-32). */
-export const OUTPUT_MODES = ["upsert", "update-attrs"] as const;
+/** How a pipeline writes its result: merge, replace the entity, update attributes (PL-79). */
+export const OUTPUT_MODES = ["upsert", "replace", "update-attrs"] as const;
 
 /** A Bento duration: a positive count and one of the units Bento accepts (PL-26, PL-27). */
 export const PERIOD_PATTERN = "^[1-9][0-9]*(ms|s|m|h)$";

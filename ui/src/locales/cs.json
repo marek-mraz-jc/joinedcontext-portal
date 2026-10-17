@@ -1721,7 +1721,8 @@
         "container": "Úloha v kontejneru"
       },
       "modeChoice": {
-        "upsert": "Vytvořit nebo nahradit",
+        "upsert": "Vytvořit nebo sloučit",
+        "replace": "Nahradit celou entitu",
         "update-attrs": "Pouze aktualizovat atributy"
       }
     },
