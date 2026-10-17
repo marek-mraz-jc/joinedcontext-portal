@@ -13,12 +13,13 @@ use crate::change::{self, Lane, Operation};
 use crate::resource::{is_dns1123, API_VERSION};
 
 /// The representations an Endpoint may serve (jc-core `Representation`).
-pub const REPRESENTATIONS: [&str; 9] = [
+pub const REPRESENTATIONS: [&str; 10] = [
     "ngsi-ld",
     "mcp",
     "geojson",
     "csv",
     "xlsx",
+    "parquet",
     "json",
     "zip",
     "ogc-features",
