@@ -2732,10 +2732,16 @@ impl Scratch {
 }
 
 impl Drop for Scratch {
+    /// The staged tree goes on a thread of its own: removing 31,401 files took 1.7 s at 10,000
+    /// Endpoints, every wave, after the mirror was already swapped (T-4482). The directory is
+    /// this run's alone (`new`), so nothing else reads or writes it meanwhile.
     fn drop(&mut self) {
-        if let Err(err) = std::fs::remove_dir_all(&self.0) {
-            tracing::warn!(path = %self.0.display(), error = %err, "could not remove the sync staging directory");
-        }
+        let path = std::mem::take(&mut self.0);
+        std::thread::spawn(move || {
+            if let Err(err) = std::fs::remove_dir_all(&path) {
+                tracing::warn!(path = %path.display(), error = %err, "could not remove the sync staging directory");
+            }
+        });
     }
 }
 
@@ -2911,6 +2917,24 @@ fn published_events(reports: &[super::ckan::Report]) -> Vec<ActivityEvent> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-4482: the staged tree is removed off the wave's path, and still removed.
+    #[test]
+    fn a_dropped_scratch_directory_is_removed_in_the_background() {
+        let scratch = Scratch::new("t4482-drop").expect("scratch");
+        for n in 0..200 {
+            scratch
+                .write(&format!("projects/p{}/m{n}.yaml", n % 10), "kind: X\n")
+                .expect("written");
+        }
+        let path = scratch.path().to_path_buf();
+        drop(scratch);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while path.exists() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(!path.exists(), "{} is still there", path.display());
+    }
 
     /// T-4039: a repository path stays inside the run's directory or refuses the sync.
     #[test]
