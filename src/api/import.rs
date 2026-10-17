@@ -56,6 +56,20 @@ const UNIX_SYMLINK: u32 = 0o120_000;
 /// The file-type half of a unix mode.
 const UNIX_FILE_TYPE: u32 = 0o170_000;
 
+/// The path of an archive entry inside the archive, or `None` for one that climbs out of it or
+/// is absolute. zip 9 strips a leading `/`, `\` or drive and calls the rest enclosed; a name that
+/// says `/etc/cron.d/x` was written to go there, so it is refused rather than read as `etc/cron.d/x`.
+pub(crate) fn enclosed_path<R: Read + ?Sized>(
+    entry: &zip::read::ZipFile<'_, R>,
+) -> Option<std::path::PathBuf> {
+    let raw = entry.name_raw();
+    let absolute = matches!(raw.first(), Some(b'/' | b'\\')) || raw.get(1) == Some(&b':');
+    if absolute {
+        return None;
+    }
+    entry.enclosed_name()
+}
+
 /// The index an exported archive carries. It describes the bundle rather than belonging to the
 /// project, so it is read for provenance and never written (MF-17).
 const BUNDLE_KIND: &str = "Bundle";
@@ -412,8 +426,7 @@ fn parse_archive(bytes: &[u8]) -> Result<Vec<Incoming>, ApiError> {
         }
         // `enclosed_name` is None for a path that escapes the archive root, which is the
         // zip-slip a bundle from another instance could carry.
-        let name = entry
-            .enclosed_name()
+        let name = enclosed_path(&entry)
             .ok_or_else(|| ApiError::BadRequest("the archive holds an escaping path".into()))?
             .to_string_lossy()
             .into_owned();
@@ -2402,6 +2415,36 @@ mod upload_gate_tests {
             let why = refusal(&zipped(&[(name, SPACE.as_bytes())]));
             assert!(why.contains("escaping path"), "{name}: {why}");
         }
+    }
+
+    /// T-4382: zip 9 reads `/etc/x` as the enclosed `etc/x`; every caller of `enclosed_path`
+    /// (bundle import, git import, sync checkout) still refuses an absolute or escaping name.
+    #[test]
+    fn an_absolute_or_escaping_entry_name_has_no_enclosed_path() {
+        let archive = zipped(&[
+            ("/etc/cron.d/x", b"x"),
+            ("\\etc\\x", b"x"),
+            ("C:/x", b"x"),
+            ("a/../../x", b"x"),
+            ("projects/helsinki/space.yaml", b"x"),
+        ]);
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(archive)).expect("a zip");
+        let paths: Vec<Option<String>> = (0..archive.len())
+            .map(|i| {
+                let entry = archive.by_index(i).expect("an entry");
+                enclosed_path(&entry).map(|p| p.to_string_lossy().into_owned())
+            })
+            .collect();
+        assert_eq!(
+            paths,
+            [
+                None,
+                None,
+                None,
+                None,
+                Some("projects/helsinki/space.yaml".to_owned())
+            ]
+        );
     }
 
     /// CC-08 (T-1704): ten thousand files are refused on the count, before any of them is opened.

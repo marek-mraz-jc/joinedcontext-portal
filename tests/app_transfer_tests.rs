@@ -303,7 +303,7 @@ fn unzip(bytes: &[u8]) -> BTreeMap<String, Vec<u8>> {
             let mut file = archive.by_index(index).expect("an entry");
             let mut content = Vec::new();
             file.read_to_end(&mut content).expect("readable");
-            (file.name().to_owned(), content)
+            (file.name().expect("a text name").into_owned(), content)
         })
         .collect()
 }
