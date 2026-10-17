@@ -18470,6 +18470,72 @@
           "rename"
         ]
       },
+      "Connector": {
+        "type": "object",
+        "description": "One personal MCP connector, served at `/api/mcp/me/{name}` to its owner alone (UI-98, EP-123).",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "A DNS label, unique among the person's connectors."
+          },
+          "select": {
+            "$ref": "#/components/schemas/ConnectorSelect"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConnectorSelect": {
+        "type": "object",
+        "description": "What a personal connector reaches: the McpServer selector fields (MF-55) and the person's\nfavourite Endpoints. An Endpoint is selected when it matches every field given; the gateway\nonly ever narrows the caller's own reach with it (ADR-N-043 §7.2).",
+        "properties": {
+          "accessLevel": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`public`, `organization`, `project` or `grant`."
+          },
+          "domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Smart Data Models domains of the Endpoint's classification."
+          },
+          "endpoints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Favourite Endpoints by slug, each one the person could read when it was starred."
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Project names."
+          },
+          "spaces": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`{project}/{space}`."
+          },
+          "themes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "EU data-theme codes (`ENVI`, `TRAN`, …)."
+          }
+        },
+        "additionalProperties": false
+      },
       "Consent": {
         "type": "object",
         "description": "One client a person consented to (the hub, an Endpoint's MCP client, an App), as the realm's\nadmin API lists it (T-3792). Never a token: Keycloak keeps those to itself.",
@@ -22044,6 +22110,13 @@
               "null"
             ],
             "description": "Whether manifest forms show the fields a `UiSchema` marks `advanced` (CC-29, UI-02).\n\nAbsent means off, so a person who has never chosen gets the view CC-29 asks for. It is a\ndisplay preference: it changes what a form shows, never what a write may do."
+          },
+          "connectors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Connector"
+            },
+            "description": "The person's own MCP connectors, at most 10 (UI-98)."
           },
           "dashboardLayouts": {
             "type": "object",

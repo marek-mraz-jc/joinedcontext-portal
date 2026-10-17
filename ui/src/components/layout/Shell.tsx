@@ -149,6 +149,12 @@ function UserMenu() {
             </Link>
           </MenuItem>
         ) : null}
+        <MenuItem asChild>
+          <Link to="/connectors">
+            <Icon name="endpoints" className="size-4" />
+            {t("connectors.title")}
+          </Link>
+        </MenuItem>
         {/* The way back to what the first run offered (T-3233, T-3236). */}
         <MenuItem
           onSelect={() => {

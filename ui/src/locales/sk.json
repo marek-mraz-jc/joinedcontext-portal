@@ -7678,5 +7678,60 @@
       "other": "rozloženia formulárov",
       "new": "Nové rozloženie formulára"
     }
+  },
+  "connectors": {
+    "title": "Moje MCP konektory",
+    "lead": "Vaše vlastné MCP adresy, najviac {max}. Otvorí ich len vaše prihlásenie a každá siaha len na Endpointy, ktoré smiete čítať.",
+    "new": "Nový konektor",
+    "empty": "Zatiaľ žiadne konektory",
+    "emptyHint": "Vytvorte konektor, alebo označte Endpoint hviezdičkou na jeho stránke a vznikne konektor favourites.",
+    "edit": "Upraviť",
+    "editOf": "Upraviť konektor {name}",
+    "remove": "Zmazať",
+    "removeOf": "Zmazať konektor {name}",
+    "reach": "Teraz siaha na: {count}",
+    "reachOf": "Kam siaha {name}",
+    "narrowedAtGateway": "Domény a témy to ešte zúžia, keď konektor obslúži brána.",
+    "organization": "Servery organizácie",
+    "organizationLead": "Pripojiť sa k nim môže ktokoľvek v organizácii; každý aj tak odpovie len tým, čo smiete čítať.",
+    "all": "Všetko, čo smiete čítať (org/all)",
+    "newTitle": "Nový konektor",
+    "editTitle": "Upraviť konektor {name}",
+    "formLead": "Endpoint patrí do konektora, keď zodpovedá každému vyplnenému poľu. Prázdne polia zodpovedajú všetkému, čo smiete čítať.",
+    "save": "Uložiť",
+    "field": {
+      "name": "Názov",
+      "projects": "Projekty",
+      "spaces": "Kontextové priestory",
+      "domains": "Domény",
+      "themes": "Témy",
+      "accessLevel": "Prístup",
+      "endpoints": "Obľúbené Endpointy: {count}"
+    },
+    "help": {
+      "name": "Malé písmená, číslice a pomlčky; posledná časť adresy.",
+      "projects": "Názvy projektov oddelené čiarkou.",
+      "spaces": "projekt/priestor, oddelené čiarkou.",
+      "domains": "Domény Smart Data Models: Environment, Transportation, …",
+      "themes": "Dátové témy EÚ, napríklad ENVI alebo TRAN.",
+      "endpoints": "Endpoint sem pridáte hviezdičkou na jeho stránke."
+    },
+    "level": {
+      "public": "Verejné",
+      "organization": "Celá organizácia",
+      "project": "Moje projekty",
+      "grant": "Zdieľané so mnou"
+    },
+    "problem": {
+      "name": "Použite malé písmená, číslice a pomlčky, najviac 63 znakov.",
+      "taken": "Konektor s týmto názvom už máte.",
+      "projects": "Názov projektu tvoria malé písmená, číslice a pomlčky.",
+      "spaces": "Každý priestor zapíšte ako projekt/priestor.",
+      "tooMany": "Pole má najviac 50 hodnôt."
+    },
+    "star": {
+      "add": "Pridať do mojich konektorov",
+      "in": "V konektore: {names}"
+    }
   }
 }
