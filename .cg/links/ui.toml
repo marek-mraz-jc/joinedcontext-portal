@@ -138,6 +138,11 @@ channel = "http"
 role = "uses"
 key = "POST /api/v1/projects/{p}/knowledge/deployments/{d}/chat"
 symbol = "ui/src/pages/knowledge/knowledge.ts::askAssistant"
+[[endpoint]]
+channel = "http"
+role = "uses"
+key = "POST /api/v1/projects/{p}/knowledge/sources/{s}/files"
+symbol = "ui/src/pages/knowledge/knowledge.ts::uploadFile"
 
 # the App SDK's runtime client: paths under the App's own /apps/{name} base
 [[endpoint]]

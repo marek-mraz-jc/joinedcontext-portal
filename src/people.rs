@@ -160,7 +160,7 @@ impl People {
         let (root, realm) = issuer.rsplit_once("/realms/")?;
         let admin = format!("{root}/admin/realms/{realm}");
         Some(Self {
-            http: reqwest::Client::builder().timeout(TIMEOUT).build().ok()?,
+            http: crate::auth::client_auth::realm_http(TIMEOUT)?,
             issuer,
             admin,
             client_id,

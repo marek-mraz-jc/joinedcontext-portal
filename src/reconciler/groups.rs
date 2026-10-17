@@ -118,7 +118,7 @@ impl GroupSync {
     /// and written nowhere, which is what a Portal without the credential does.
     pub fn new(issuer: &str, client_id: String, auth: ClientAuth) -> Option<Self> {
         Some(Self {
-            http: reqwest::Client::builder().timeout(TIMEOUT).build().ok()?,
+            http: crate::auth::client_auth::realm_http(TIMEOUT)?,
             issuer: issuer.trim_end_matches('/').to_owned(),
             admin: Self::admin_base(issuer)?,
             client_id,
