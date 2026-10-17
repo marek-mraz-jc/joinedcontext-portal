@@ -81,12 +81,18 @@ A client that reads the status code and then `type` or `error` handles all of th
 
 Humans reach the portal through the browser, never with a bearer token of their own. The
 authorization code flow with PKCE runs server-side and the result is an encrypted session cookie
-(`jc_session`, `Secure`, `HttpOnly`, `SameSite=Lax`); a second, deliberately readable cookie
-(`jc_csrf`) carries the double-submit token the SPA echoes in `x-csrf-token` on every mutation.
+(`__Host-jc_session`, `Secure`, `HttpOnly`, `SameSite=Lax`); a second, deliberately readable
+cookie (`__Host-jc_csrf`) carries the double-submit token the SPA echoes in `x-csrf-token` on
+every mutation. Every Portal cookie (`__Host-jc_session`, `__Host-jc_refresh`,
+`__Host-jc_oidc_flow`, `__Host-jc_csrf`) and every edge session cookie carries the `__Host-`
+prefix, `Secure` and `Path=/` and no `Domain`, removals included: an App on
+`{name}.apps.{domain}` may set a cookie for `{domain}`, and the browser keeps none of those under
+a `__Host-` name, so a planted cookie never rides beside the real one under its name (AP-29,
+T-4395).
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/v1/auth/login?redirect_to=<in-app path>` | starts the code flow; `redirect_to` is honoured only when it is a same-origin path |
+| `GET` | `/api/v1/auth/login?redirect_to=<in-app path>&lang=<language>` | starts the code flow; `redirect_to` is honoured only when it is a same-origin path; `lang` (a 2–3 letter language tag, the Portal's current language) goes to the realm as `ui_locales`, so the sign-in page speaks it (T-4199) |
 | `GET` | `/api/v1/auth/callback` | consumes the code, verifies the ID token against the stored nonce, issues the session |
 | `GET` | `/api/v1/auth/me` | the signed-in identity, or `401` `application/problem+json` when there is no live session |
 | `GET` | `/api/v1/auth/sso-check` | a redirect into the realm with `prompt=none` for the public `portal-ui` client, answered to `/api/v1/auth/sso-check/done` in the fragment: `#error=login_required` when the person must sign in, `#code=…` when the realm session lives; the Open page reads it from a hidden frame of its own origin to decide whether a silent App means "sign in again" (AP-122); the code is never redeemed |
@@ -249,10 +255,25 @@ workspace's own door (CC-76), and so is `revision` beside `workspace`. A commit 
 not know is the caller's own `404`, the same as a resource the commit did not hold (R20). The read
 grants are the caller's current ones.
 
-`GET /api/v1/projects` answers a `kind: List` whose items carry `name` and nothing else, the
-projects the caller may read (PF-59). A project no binding covers is not in it, which is the same
-answer as `404` on its routes and discloses no department's project list to a session that may not
-see it.
+`GET /api/v1/projects` answers a `kind: List` of the projects the caller may read (PF-59). Each
+item carries `name` (the slug, the `{project}` of every other path), `sample` (whether its
+`Project` manifest is labelled `joinedcontext.com/sample`, PF-109) and `title`, the Project
+manifest's `metadata.title`: one string, or the legacy map per locale, absent when the manifest
+names none (T-4243). The project switcher and the breadcrumb show the title in the person's
+language and the slug beside it, without one request per project. A project no binding covers is
+not in the list, which is the same answer as `404` on its routes and discloses no department's
+project list to a session that may not see it.
+
+```json
+{
+  "apiVersion": "joinedcontext.com/v1alpha1",
+  "kind": "List",
+  "items": [
+    { "name": "banskabystrica", "sample": false, "title": { "sk": "Mesto Banská Bystrica", "en": "City of Banská Bystrica" } },
+    { "name": "helsinki-mobility", "sample": true }
+  ]
+}
+```
 
 `{plural}` is the kind's plural from the catalogue in
 [Development/04-manifest-kinds.md §2](../Development/04-manifest-kinds.md#2-standard-kind-catalog),
@@ -823,6 +844,21 @@ rejected sink; the Portal keeps the newest 20 per node in memory, each at most 8
   holds `output` alone and `withheld` is `true`; the Studio says so on the earlier steps.
 - An empty `nodes` is a stream that has not run since the runner started, or a Portal that
   restarted; it is not an error.
+
+### 7c. Runs, and one run now (PL-62, PL-78, T-4349)
+
+```text
+GET  /api/v1/projects/{project}/pipelines/{name}/runs    the latest runs with their counts (read on Pipeline)
+POST /api/v1/projects/{project}/pipelines/{name}/runs    queue one run now (propose and approve on Pipeline)
+```
+
+A run is named by its due time, `2026-10-17T05:00:00Z`, and its log files every record under that name. The `POST` takes no body. It queues one run of a pipeline that runs from the queue (Architecture/08 §1, PL-78), outside its schedule, and answers `202` with the run it queued:
+
+```json
+{ "run": "2026-10-16T14:02:11Z" }
+```
+
+The run waits its turn in its lane, so runs started for 97 pipelines go one after another. A second `POST` while the run waits answers the same run. A pipeline whose run is in the runner answers `409` and names that run. A pipeline that waits for pushes, and so always runs, answers `409` too, as does one the reconciler has not deployed. A caller without propose and approve on Pipeline gets `403`, and one who may not read the pipeline gets `404`. Each accepted `POST` writes one `pipeline.run` activity event with the actor, the run and `object: pipelines/{name}`.
 
 ### 7a. Testing a candidate pipeline (PL-43, MF-38)
 
@@ -1588,8 +1624,10 @@ to the Context Gateway, for the App's own endpoints only (Deployment/10, AP-133)
   app that is not published or not the caller's to read, and a build with no such function are
   `404`; a body that is not JSON is `400`, one over 256 KiB `413`, a full runtime `429` with
   `Retry-After`. A call that carries the edge's token also carries `X-CSRF-Token` matching the
-  `jc_csrf` cookie, or it is `403`: the edge sets the token from a cookie a cross-site form would
-  send too. The host sets that cookie on the apps origin with a signed-in person's first index.
+  `__Host-jc_csrf` cookie, or it is `403`: the edge sets the token from a cookie a cross-site form
+  would send too. The host sets that cookie on the apps origin with a signed-in person's first
+  index, and a copy of the same token as `jc_csrf` for an App built on an SDK before T-4395; only
+  `__Host-jc_csrf` is compared.
 
 ### 12a. The build of an application (AP-100, AP-103, ADR-N-028)
 
@@ -3293,6 +3331,7 @@ GET  /api/v1/projects/{project}/knowledge/sources/{source}/pages/{page}/links
 GET  /api/v1/projects/{project}/knowledge/sources/{source}/passages?page=|document=
 POST /api/v1/projects/{project}/knowledge/sources/{source}/inclusion       include or exclude pages, subtrees, documents
 POST /api/v1/projects/{project}/knowledge/sources/{source}/recrawl         queue a crawl now
+GET  /api/v1/projects/{project}/knowledge/sources/{source}/errors          the pages and documents the last crawls could not read
 GET  /api/v1/projects/{project}/knowledge/deployments/{deployment}/usage   requests and tokens per day, 30 days
 POST /api/v1/projects/{project}/knowledge/deployments/{deployment}/chat    ask the assistant as the signed-in person
 ```
@@ -3310,6 +3349,12 @@ POST /api/v1/projects/{project}/knowledge/deployments/{deployment}/chat    ask t
   person's own access token on for an `internal` deployment's connectors and keeps no copy
   ([API/05 §1.7](05-knowledge-assistant.md#17-in-the-portal), AG-115).
 - `recrawl` answers `202` with the queued job, or `409` when one is already queued or running.
+- The index status of a source is in its row of `sources`: `passages`, `embedded` and `pending`
+  (passages not embedded yet), `failed` (pages and documents that could not be read), and the last
+  job with its `startedAt` and `finishedAt`. `errors` lists at most 50 of the failed pages and
+  documents, newest first, each `{"url", "kind": "page"|"document", "reason"}`: the URL and the
+  HTTP status or network reason, never what a page holds. It needs `propose` on `KnowledgeSource`
+  and answers `403` naming it, so a viewer sees the counts and not the list (T-4197).
 - A source the manifests declare and `jc-assistant` has not crawled yet is listed with
   `state: "not-crawled"`; a page, a document or a source of another project is `404`.
 
@@ -3748,6 +3793,53 @@ GET /api/v1/projects/{project}/mqttbrokers/{name}/measured          → 200
 - Who may read: whoever may read the project's MqttBroker manifests. Anybody else gets `404`, the
   same answer as a broker the project does not declare (PF-59). No token, topic or client address
   is part of the answer.
+
+## 45. Moving a space to another broker (T-4000, PF-115, ADR-N-047 §2.6)
+
+One job moves one space, with its history, from the broker it lives on to another `ContextBroker`
+of the organization. Editing `brokerRef` by hand is refused for a space that holds entities
+(§43's admission); this is the way.
+
+```text
+POST /api/v1/projects/{project}/spaces/{space}/move                → 202
+GET  /api/v1/projects/{project}/spaces/{space}/move                → 200
+```
+
+```json
+{"to": "canary"}
+```
+
+```json
+{"space": "ovzdusie/air", "from": "main", "to": "canary", "state": "done", "reason": null,
+ "source": {"entities": 14232, "attrInstances": 90311, "sha256": "4f0c…"},
+ "target": {"entities": 14232, "attrInstances": 90311, "sha256": "4f0c…"},
+ "startedAt": "2026-10-12T08:00:00Z", "endedAt": "2026-10-12T08:03:12Z"}
+```
+
+- The job, in order: commits the annotation `joinedcontext.com/moving-to: {to}` on the space's
+  `ContextSpace` as the Portal (state `holding`); waits until the gateway's scrape reports
+  `jc_gateway_space_held{space="{tenant}"} 1`, at most ten minutes; streams the source broker's
+  `GET /q/tenants/{tenant}/export` into the target's `POST /q/tenants/{tenant}/import`
+  (`copying`); reads `GET /q/tenants/{tenant}/digest` on both (`comparing`); then commits
+  `spec.brokerRef: {to}` and removes the annotation in one commit (`switching`), and is `done`.
+- `failed` with `reason` when any step does not finish: the annotation is removed so the space
+  is read-write again on its source broker, and a target that took part of the copy is purged
+  (it held nothing before: the import refuses a tenant that does). A digest that differs fails
+  with both digests in the answer.
+- The source keeps its copy of the tenant after a move. Nothing routes to it; an operator purges
+  it with the broker's `DELETE /q/tenants/{tenant}` once the move is checked.
+- A broker refuses the export of a tenant holding Subscriptions, registrations or snapshots
+  (`409`, Antares ADR-0030 §5): the job fails with the broker's counts, and the space stays.
+- `400` for a `to` that names no `ContextBroker`, or the broker the space already lives on.
+  `409` while another move of the same space runs. `503` when the Portal has no address for
+  either broker, no broker admin token, no gateway address or no forge.
+- `GET …/move` answers the last move of the space since the Portal started, `404` when there was
+  none. A Portal that restarts mid-move forgets the job; the annotation stays, the space stays
+  read-only, and starting the move again to the same broker resumes from the hold. A target left
+  holding part of a copy refuses the import, and the job fails saying so.
+- Who may move: organization administrators only; anybody else is `403`. The job's commits are
+  the Portal's and name the administrator who started it. No address or token is part of an
+  answer.
 
 ## Related
 

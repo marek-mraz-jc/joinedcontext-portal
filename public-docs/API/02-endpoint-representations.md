@@ -226,7 +226,7 @@ Converts spatial NGSI-LD entities into standard RFC 7946 GeoJSON.
 ## 4. Tabular CSV Representation
 
 Path: `/api/endpoint/{endpointSlug}/file.csv` (also `file.geojson`, `file.json`, `file.xlsx`,
-`file.zip`; EP-41…EP-45)
+`file.parquet`, `file.zip`; EP-41…EP-45, EP-119)
 
 Which of them an Endpoint answers is `spec.enabledRepresentations`, plus `ngsi-ld`, `geojson` and
 `mcp`, which every Endpoint serves whether or not it lists them (EP-10, EP-24); a manifest that omits the
@@ -354,6 +354,29 @@ advertises is therefore also the memory one download may claim, which is why the
 A type whose schema the caller may not read in full contributes the granted projection of that
 schema, the same document `schema/` would serve, so a bundle never widens what the endpoint
 narrows (EP-47).
+
+---
+
+## 5b. Apache Parquet
+
+Path: `/api/endpoint/{endpointSlug}/file.parquet` (`Representation` `parquet`, EP-119)
+
+The rows of `file.csv` (§4) as one Apache Parquet file, the format a data scientist loads into
+pandas, Polars, DuckDB or Spark without parsing text. `Content-Type: application/vnd.apache.parquet`
+and `Content-Disposition: attachment; filename="{slug}.parquet"`.
+
+- One column per flattened path of §4, in the same order, under the same name; `humanHeaders=true`
+  renames them as it renames the CSV header.
+- A column is typed by its values: `INT64` when every value it holds is a JSON integer, `DOUBLE`
+  when every one is a number, `BOOLEAN` when every one is a boolean, and a UTF-8 string otherwise.
+  A column that mixes kinds is a string column, each value written as the CSV writes it.
+- Every column is optional: a row whose entity has no value at that path holds null, never an empty
+  string.
+- The file's key-value metadata carries what the `metadata` sheet of the workbook carries (§5): the
+  space, the endpoint slug, the export instant, the query and the row count.
+- One row group, no compression. The limits of §4 apply: the file is assembled in a buffer
+  `spec.fileLimits.maxFileBytes` bounds, because a Parquet footer is written last, and a file past
+  either limit is refused whole with `413`.
 
 ---
 
@@ -600,6 +623,23 @@ representations chosen by `Accept`, read in the order the caller wrote them: `ap
 surface does not serve is answered with the AuthZEN document rather than a `406`: the caller asked
 what they may do, and there is always an answer to that.
 
+Who answers (plan 5.6, **T-3649**): the gateway admits the caller as on the data paths (`404` for an
+unknown slug, `401`/`403` from the audience) and then reads the Endpoint's broker view, `GET
+/x/views/{view}/access` and `POST /x/views/{view}/access/check`, under the tenant and the verified
+caller (`x-jc-*`) and nothing else of the request. The broker writes the document and decides the
+check from the rule table its engine enforces with, so the description cannot drift from the
+enforcement (EP-60). The gateway adds what belongs to the Endpoint and not to the grants: the
+`resource` (slug and space), `limits`, the licence's duties on every ODRL permission (EP-79) and the
+ODRL `uid` on its own public access URL, over the rules with those duties; it writes the Turtle from
+that ODRL document. Through a view, `actions` lists only the operations the view serves, and a
+Policy with no `information` is one entry of type `"*"`. An answer the gateway cannot read, or a
+broker failure, is `502`/`5xx` `broker-failure` naming nothing the broker said; the broker's own
+refusal (`404` for a view it does not hold) is passed on. The gateway keeps no document or decision
+of its own (T-3650): an Endpoint the broker can hold no view of (a slug longer than a view id, which
+the Portal's view writer refuses and names in the Endpoint's status) answers `503` `no-view` on
+`access`, `access/check` and `access/simulate`, and nothing is decided for it. The MCP
+`describe_access` tool and the `access://{slug}` resource read the same document.
+
 The default, `application/json`, is the AuthZEN permissions document: one entry per entity type the caller may touch, and nothing about the types it may not (EP-59, [R20](../Requirements/policy-firewall.md)).
 
 ```http
@@ -653,7 +693,9 @@ A prohibition covering the action ends it, whatever any permission says, and ans
 
 `POST …/access/simulate` answers the same question for someone else (EP-103, T-3311): the decision
 `access/check` would give a named subject on this Endpoint, from the same admission and the same
-evaluator, so the two cannot disagree. It answers the Portal's own client alone: a token minted for the
+decider, so the two cannot disagree. Through a view the broker's engine decides: the gateway asks the
+view's `access/explain` (Antares `addons/joinedcontext-policy/README.md` section 4) under the `x-jc-*`
+headers the subject's own token would pin (T-3881). It answers the Portal's own client alone: a token minted for the
 audience `context-gateway-simulate` (which no data path accepts), whose `azp` is the client the
 deployment names (`portal-api` by default) and whose user is that
 client's service account, so a person's token of the same client is refused. Any other token is
@@ -686,7 +728,9 @@ Unlike `access/check`, the answer names why in every case, because its reader is
 who may read every Policy: `policy_grant_matched` with the granting `policy`, `prohibited` with the
 refusing `policy`, `no_grant` when no Policy grants the action on the type, and `not_admitted` when
 the Endpoint's audience refuses the subject before any Policy is read (EP-14). `policy` is the
-Policy's manifest name.
+Policy's manifest name: the engine's `{project}/{name}` and `{project}/{name}@{endpoint}` ids are
+answered as `{name}`, and an id of any other shape is left out. A broker that does not know the
+view, or fails, is the answer itself (its `404`, the gateway's `502`), never a decision.
 
 With no `action`, the question is everything the subject is granted here (T-3792, the Portal's
 Access explorer): the answer is the AuthZEN document of `GET /access` as a token of theirs would
@@ -859,8 +903,48 @@ Three answers are worth knowing before writing a client:
 - An argument that is not in the tool's schema, and any attempt to pass `space`, `tenant`, `contextspace`, `slug` or `endpoint`, is refused before a broker request exists (AG-05, AG-31).
 - A tool that writes answers the first call with an `InputRequiredResult` and writes nothing; the client asks the person and repeats the same call with `inputResponses` and the `requestState` it was given, which is sealed to the view, the caller, the tool and these arguments, expires after ten minutes and is spent once ([AG-08](../Requirements/agents.md), Antares `docs/src/mcp.md` §3). On the gateway's own tools (the fallbacks above) the older `params.elicitation` round trip stays until T-3648 ([Architecture/07 §3](../Architecture/07-agents-and-mcp.md#3-human-in-the-loop-elicitation--confirmation-flow)). A value outside its schema is refused the same way: a `type` that is not an NGSI-LD type name is a tool error naming the parameter, never an empty result a caller would read as "there is nothing there" (AG-21). The refusal names the parameter and the rule it broke — the pattern, the length, the formalisms `format` accepts — and never repeats the value that was sent: a tool result is read by a model, so a refusal that quotes the argument carries whatever was typed into the next prompt ([GW31](../Requirements/gateway-firewall.md), [AG-21](../Requirements/agents.md)).
 - **`structuredContent` is an object, never a bare list** (MCP's own rule and the tool's output schema): the entities sit under `entities`, and `restricted: true` sits beside them when the policy narrowed the answer (AG-13, R22). The marker says that something was removed, never what. Unlike the REST header it is not opt-in: a tool result is read by a model, which has no way to ask for it first, and the field is what AG-13 makes the agent's own signal.
+- **A unit beside its code.** Every object of a tool result that carries a `unitCode` the UN/CEFACT Recommendation 20 list knows also carries `unit`, the symbol a person reads (`"unitCode": "GQ", "unit": "µg/m³"`), or the unit's name where Rec 20 gives no symbol, in `structuredContent` and in the JSON text item alike; an unknown code and an object that already has `unit` are left as they are. A model reads a bare `GQ` as no unit. The gateway adds it to the broker's answer; the stored entity and the NGSI-LD representation are unchanged (T-4373, DM-06).
 
 Unauthenticated access follows the Endpoint's audience: a `public` Endpoint answers `tools/list` and every read tool with no token, everything else answers `401` with `WWW-Authenticate: Bearer resource_metadata="https://{host}/api/endpoint/{endpointSlug}/.well-known/oauth-protected-resource"` (AG-32).
+
+### The hub (`/api/mcp`)
+
+One address over every Endpoint ([EP-87](../Requirements/endpoints.md), [ADR-N-025](../Decisions/adr-n-025-one-mcp-connector-several-endpoints.md)). Without a token it answers over the `public` Endpoints that serve `mcp`; with a token over those plus the ones the token reaches (`endpoint:*` reaches every Endpoint the person may read, EP-88). `list_endpoints` takes `q`, `type`, `attribute`, `space`, `access`, `limit` and `cursor` (EP-111); every other tool is the Endpoint's own tool with one more argument, `endpoint`, a slug `list_endpoints` answered (EP-112).
+
+```bash
+curl -sS -X POST "https://{host}/api/mcp" \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_endpoints","arguments":{"type":"AirQualityObserved","limit":1}}}'
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "isError": false,
+    "content": [{ "type": "text", "text": "the same rows, serialised as JSON for a model that reads text" }],
+    "structuredContent": {
+      "endpoints": [
+        {
+          "slug": "k4y7pq2mzt6vhx3nbwrs5cjd8f",
+          "title": { "en": "Air quality" },
+          "description": { "en": "Hourly air quality of the city's stations" },
+          "space": "ovzdusie",
+          "access": "public",
+          "types": ["AirQualityObserved"],
+          "attributes": { "AirQualityObserved": ["dateObserved", "location", "no2", "pm10"] },
+          "temporal": true,
+          "dcat": "https://{host}/api/endpoint/k4y7pq2mzt6vhx3nbwrs5cjd8f/",
+          "mcp": "https://{host}/api/endpoint/k4y7pq2mzt6vhx3nbwrs5cjd8f/mcp",
+          "schema": "https://{host}/api/endpoint/k4y7pq2mzt6vhx3nbwrs5cjd8f/schema/v1/model.linkml.yaml"
+        }
+      ],
+      "total": 1
+    }
+  }
+}
+```
 
 ## 8a. WebSocket (`ws`)
 
@@ -872,7 +956,7 @@ One connection carries NGSI-LD Subscriptions made over the socket and the Notifi
 
 Path: `/api/endpoints`, on the gateway's host, outside any one Endpoint.
 
-The REST twin of the hub's `list_endpoints` ([EP-105](../Requirements/endpoints.md), [ADR-N-025 §4a](../Decisions/adr-n-025-one-mcp-connector-several-endpoints.md)): the Endpoints this token reaches and may read something through, whatever they serve. A person's token, a hub token with `endpoint:` scopes, and a ServiceAccount's `client_credentials` token each get the list their token opens (EP-88). Without a token the answer is `401`; nothing is listed anonymously, and a `public` Endpoint's own URL still answers without one.
+The REST twin of the hub's `list_endpoints` ([EP-105](../Requirements/endpoints.md), [ADR-N-025 §4a](../Decisions/adr-n-025-one-mcp-connector-several-endpoints.md)): the Endpoints this token reaches and may read something through, whatever they serve. A person's token, a hub token with `endpoint:` scopes, and a ServiceAccount's `client_credentials` token each get the list their token opens (EP-88). Without a token the answer lists the `public` Endpoints only, as the hub does (EP-87); nothing internal is named. The filters and the row fields are the hub's (EP-111).
 
 ```bash
 curl -sS "https://{host}/api/endpoints?limit=2" -H "authorization: Bearer $TOKEN"
@@ -901,7 +985,7 @@ curl -sS "https://{host}/api/endpoints?limit=2" -H "authorization: Bearer $TOKEN
 }
 ```
 
-`limit` is 1 to 100 (default 50); `cursor` is the previous page's `nextCursor`. Any other parameter, or a value outside those, is `400`. `types` are the entity types this caller may read there, not every type the Endpoint serves. The list is computed from the token on every request, so a revoked grant is gone on the next call. Each call spends one request of the hub's per-subject bucket (EP-87) and writes one audit line naming the principal and the count.
+`limit` is 1 to 100 (default 50); `cursor` is the previous page's `nextCursor`; `q`, `type`, `attribute`, `space` and `access` narrow the list (EP-111). Any other parameter, or a value outside those, is `400`; a filter that matches nothing is an empty list. `types` are the entity types this caller may read there, not every type the Endpoint serves. The list is computed from the token on every request, so a revoked grant is gone on the next call. Each call spends one request of the hub's per-subject bucket (EP-87) and writes one audit line naming the principal and the count.
 
 ## 10. In the open data portal
 
@@ -916,6 +1000,8 @@ A published Endpoint (`spec.publish.ckan`) is one CKAN dataset with one resource
 | OData v4 | `OData` | Excel: Data, Get Data, From OData Feed; Power BI: Get data, OData feed; the service URL |
 | GeoJSON, CSV, XLSX, JSON, ZIP | their own | that the file is generated on each download from live data |
 | Schema index and artifacts | `JSON`, `LinkML`, `SHACL`, … | the model version and the sha256 (EP-68) |
+
+Above the resources, the dataset page shows the "Connect an AI assistant" panel (EP-113): the hub's URL and copy buttons for Claude, VS Code, Cursor and a plain `mcpServers` entry. The panel names the hub, never this dataset's slug, so one installation serves the whole catalogue and the agent picks the Endpoint with `list_endpoints`. The catalogue's home page and the Portal's Endpoint page show the same panel.
 
 Publishing widens discovery and never data: every URL is the Endpoint's own, answers under its Policy, and carries no token (EP-110). A restricted Endpoint's resources are links a person without a grant cannot open.
 
