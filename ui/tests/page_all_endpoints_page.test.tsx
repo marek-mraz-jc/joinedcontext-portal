@@ -177,9 +177,9 @@ describe("all endpoints", () => {
   });
 
   it("shows a representation it has no address for as a word, not a link", async () => {
-    renderAll({ items: [endpoint(0, { enabledRepresentations: ["parquet"] })] });
-    expect(await screen.findByText("parquet")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "parquet" })).not.toBeInTheDocument();
+    renderAll({ items: [endpoint(0, { enabledRepresentations: ["odata"] })] });
+    expect(await screen.findByText("odata")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "odata" })).not.toBeInTheDocument();
   });
 
   // EP-24, T-2901: MCP is served by every Endpoint that does not opt out, listed or not, so its

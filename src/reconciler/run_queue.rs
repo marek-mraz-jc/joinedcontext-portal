@@ -10,7 +10,7 @@
 //! [`RunQueue`] is the state alone, read with a clock the caller passes in; `tick` drives it
 //! against a `Runner`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -292,6 +292,10 @@ pub struct RunQueue {
     /// Runs whose pipeline went away while they ran: deleted on the next tick.
     gone: Vec<Key>,
     planned_at: Option<DateTime<Utc>>,
+    /// The pipelines with a run in the durable log (T-4421): a scheduled one new to this queue
+    /// and not among them never ran, so it runs at once instead of waiting a day for its clock.
+    /// `None` until the log has been read: a restart then never runs every pipeline at once.
+    ran: Option<HashSet<Key>>,
 }
 
 impl RunQueue {
@@ -303,12 +307,19 @@ impl RunQueue {
             entries: BTreeMap::new(),
             gone: Vec::new(),
             planned_at: None,
+            ran: None,
         }
     }
 
+    /// The pipelines the run log holds a run of, read before each [`RunQueue::plan`].
+    pub fn ran(&mut self, ran: HashSet<Key>) {
+        self.ran = Some(ran);
+    }
+
     /// Takes the reconciler's whole set of run-and-delete pipelines: a new one or one whose
-    /// stream or clock changed is due by its clock (a run-once one at once), one no longer in
-    /// the set leaves the queue and its run is deleted.
+    /// stream or clock changed is due by its clock (a run-once one at once, and a scheduled one
+    /// that never ran at once too), one no longer in the set leaves the queue and its run is
+    /// deleted.
     pub fn plan(&mut self, wanted: BTreeMap<Key, Planned>, now: DateTime<Utc>) {
         self.planned_at = Some(now);
         let dropped: Vec<Key> = self
@@ -341,6 +352,8 @@ impl RunQueue {
                     entry.next = first;
                 }
                 None => {
+                    let never_ran = self.ran.as_ref().is_some_and(|ran| !ran.contains(&key));
+                    let first = if never_ran { Some(now) } else { first };
                     self.entries.insert(
                         key,
                         Entry {
@@ -1090,6 +1103,70 @@ mod tests {
             "{mapping}"
         );
         assert!(!mapping.contains("now()"), "{mapping}");
+    }
+
+    #[tokio::test]
+    async fn a_scheduled_pipeline_that_never_ran_runs_once_on_create_and_then_by_its_clock() {
+        let queue = Mutex::new(RunQueue::new(2, 1));
+        let fake = Fake::default();
+        let now = at("2026-10-17T17:00:00Z");
+        let wanted = || {
+            [
+                (key("fresh"), planned(daily_at_5())),
+                (key("old"), planned(daily_at_5())),
+            ]
+            .into_iter()
+            .collect::<BTreeMap<_, _>>()
+        };
+        {
+            let mut q = queue.lock().unwrap();
+            q.ran([key("old")].into_iter().collect());
+            q.plan(wanted(), now);
+        }
+        step(&queue, &fake, now).await;
+        assert_eq!(
+            fake.held(),
+            ["fresh"],
+            "the one that ran before waits for 05:00"
+        );
+        fake.end("fresh", RunState::Finished);
+        // Reconciler passes go on while the log has not caught up: still one run, not one each.
+        for minutes in 1..4 {
+            let later = now + Span::minutes(minutes);
+            queue.lock().unwrap().plan(wanted(), later);
+            step(&queue, &fake, later).await;
+        }
+        let starts: Vec<String> = fake
+            .log()
+            .into_iter()
+            .filter(|l| l.starts_with("start"))
+            .collect();
+        assert_eq!(starts, ["start fresh"], "one run on create");
+        assert!(fake.held().is_empty(), "{:?}", fake.held());
+        let five = at("2026-10-18T05:00:00Z");
+        queue.lock().unwrap().plan(wanted(), five);
+        step(&queue, &fake, five).await;
+        assert_eq!(
+            fake.held(),
+            ["fresh", "old"],
+            "both by their clock from then on"
+        );
+    }
+
+    #[tokio::test]
+    async fn without_the_run_log_a_new_scheduled_pipeline_waits_for_its_clock() {
+        let queue = Mutex::new(RunQueue::new(1, 1));
+        let fake = Fake::default();
+        let now = at("2026-10-17T17:00:00Z");
+        queue.lock().unwrap().plan(
+            [(key("a"), planned(daily_at_5()))].into_iter().collect(),
+            now,
+        );
+        step(&queue, &fake, now).await;
+        assert!(
+            fake.held().is_empty(),
+            "a restart without the log runs nothing early"
+        );
     }
 
     #[test]

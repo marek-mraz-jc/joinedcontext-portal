@@ -24,7 +24,7 @@ for (const view of VIEWS) {
       if (view.pick) {
         await results.getByRole("button", { name: new RegExp(view.pick) }).click();
         const panel = page.getByRole("dialog", { name: view.pick });
-        await expect(panel.getByRole("link", { name: "Otvoriť v Portáli" })).toHaveAttribute("href", /entityId=urn%3Angsi-ld%3ASchool/);
+        await expect(panel.getByRole("link", { name: "Otvoriť v Portáli" })).toHaveAttribute("href", /entityId=urn%3Angsi-ld%3AOrganization%3A[^&]*%3Azs-moyzesova/);
         await expect(panel.getByRole("button", { name: "Upraviť" })).toHaveCount(0);
       }
       await testInfo.attach(`${view.name}-${scheme}-${size.width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
