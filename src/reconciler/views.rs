@@ -1018,7 +1018,10 @@ fn listed(
 type Rule = (Vec<String>, Vec<String>);
 
 /// The rules of a view: the types that show the same Attributes share one. A type whose every
-/// Attribute is hidden shows nothing and is left out.
+/// Attribute is hidden shows nothing and is left out. A list longer than a rule holds is split
+/// over several rules of the same types: none has a condition, so an Entity of those types
+/// matches them all and shows their union (ADR-0023 rule 11), the whole list (T-4378: a census
+/// table of the open data shows 497 Attributes).
 fn rules(
     shown: BTreeMap<String, BTreeSet<String>>,
     hidden: &BTreeSet<String>,
@@ -1029,12 +1032,6 @@ fn rules(
         if attributes.is_empty() {
             continue;
         }
-        if attributes.len() > MAX_NAMES {
-            return Err(format!(
-                "{entity_type} shows {} Attributes and a view rule at most {MAX_NAMES}",
-                attributes.len()
-            ));
-        }
         by_attributes
             .entry(attributes)
             .or_default()
@@ -1043,14 +1040,23 @@ fn rules(
     if by_attributes.is_empty() {
         return Err("it shows no Attribute of any type".into());
     }
-    if by_attributes.len() > MAX_RULES {
+    let rules: Vec<Rule> = by_attributes
+        .into_iter()
+        .flat_map(|(attributes, types)| {
+            attributes
+                .chunks(MAX_NAMES)
+                .map(|part| (part.to_vec(), types.clone()))
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    if rules.len() > MAX_RULES {
         return Err(format!(
-            "its types show {} different Attribute lists and a view holds at most {MAX_RULES} \
-             rules",
-            by_attributes.len()
+            "its types need {} rules for their Attribute lists and a view holds at most \
+             {MAX_RULES} rules of {MAX_NAMES} Attributes",
+            rules.len()
         ));
     }
-    Ok(by_attributes.into_iter().collect())
+    Ok(rules)
 }
 
 /// The matrix rows the permissions grant, in name order.
@@ -2904,6 +2910,50 @@ mod tests {
             json!([{"types": ["Stop"], "attributes": ["location", "name"]},
                    {"types": ["Car"], "attributes": ["ownedBy", "speed"]},
                    {"types": ["Bus"], "attributes": ["speed"]}])
+        );
+    }
+
+    /// T-4378: a list longer than a rule holds is split over rules of the same types, whose
+    /// union is the whole list less the hidden Attributes (ADR-0023 rule 11); 256 is one rule,
+    /// and only more rules than a view holds are refused.
+    #[test]
+    fn a_long_attribute_list_is_split_over_rules_of_the_same_types() {
+        let names = |n: usize| -> BTreeSet<String> { (0..n).map(|i| format!("a{i:05}")).collect() };
+        let shown = |n: usize| -> BTreeMap<String, BTreeSet<String>> {
+            [
+                ("Census".to_owned(), names(n)),
+                ("Table".to_owned(), names(n)),
+            ]
+            .into()
+        };
+        let hidden: BTreeSet<String> = ["a00007".to_owned()].into();
+
+        let split = rules(shown(498), &hidden).expect("rules");
+        assert_eq!(split.len(), 2);
+        assert!(split
+            .iter()
+            .all(|(attributes, types)| attributes.len() <= MAX_NAMES
+                && types == &["Census".to_owned(), "Table".to_owned()]));
+        let union: BTreeSet<String> = split.iter().flat_map(|(a, _)| a.iter().cloned()).collect();
+        assert_eq!(union, names(498).difference(&hidden).cloned().collect());
+        assert_eq!(
+            split[0].0.len() + split[1].0.len(),
+            497,
+            "no Attribute twice"
+        );
+
+        assert_eq!(
+            rules(shown(MAX_NAMES), &BTreeSet::new())
+                .expect("rules")
+                .len(),
+            1
+        );
+        assert!(rules(shown(MAX_NAMES * MAX_RULES), &BTreeSet::new()).is_ok());
+        let reason =
+            rules(shown(MAX_NAMES * MAX_RULES + 1), &BTreeSet::new()).expect_err("refused");
+        assert!(
+            reason.contains("65 rules") && reason.contains("at most 64"),
+            "{reason}"
         );
     }
 
