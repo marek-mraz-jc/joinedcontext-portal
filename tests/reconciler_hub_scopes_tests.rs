@@ -332,3 +332,47 @@ async fn without_the_hub_client_nothing_is_written() {
         "no hub, no condition"
     );
 }
+
+/// T-4445: a converged realm of 10,000 Endpoints and their 10,000 scopes is one linear wave
+/// that writes nothing. Before, each Endpoint searched the whole listing, and each scope the
+/// whole link list: 10^8 comparisons a wave.
+#[tokio::test]
+async fn ten_thousand_converged_scopes_take_one_quick_wave_and_no_write() {
+    let mirror = Mirror::new();
+    let mut listed = Vec::new();
+    for i in 0..10_000 {
+        // An opaque 26-letter slug, like the generated ones.
+        let slug: String = format!("{i:05}")
+            .bytes()
+            .map(|digit| char::from(b'a' + digit - b'0'))
+            .chain(std::iter::repeat_n('q', 21))
+            .collect();
+        let name = format!("e{i:05}");
+        mirror.upsert(endpoint(
+            "p",
+            &name,
+            json!({ "contextSpaceRef": "p", "slug": slug, "audience": "public",
+                    "enabledRepresentations": ["ngsi-ld"] }),
+        ));
+        let one = HubEndpoint {
+            project: "p".to_owned(),
+            name,
+            slug,
+        };
+        listed.push(held(&format!("s-{i}"), desired(&one)));
+    }
+    assert_eq!(serving(&mirror).len(), 10_000);
+    let keycloak = realm(Some(json!({ "id": "hub-1", "clientId": "mcp-hub" }))).await;
+    let listed = Value::Array(listed);
+    scopes(&keycloak, listed.clone(), listed.clone()).await;
+    links(&keycloak, "default-client-scopes", json!([])).await;
+    links(&keycloak, "optional-client-scopes", listed).await;
+
+    let started = std::time::Instant::now();
+    let outcomes = sync(&keycloak).converge(&mirror).await;
+    let took = started.elapsed();
+    assert!(outcomes.is_empty(), "{:?}", outcomes.first());
+    assert!(writes(&keycloak).await.is_empty());
+    eprintln!("a converged wave over 10,000 scopes took {took:?}");
+    assert!(took < std::time::Duration::from_secs(2), "{took:?}");
+}

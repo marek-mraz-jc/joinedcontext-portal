@@ -16,7 +16,7 @@
 //! person asking. This wave reads the links and reports a scope that waits for that run.
 
 use crate::config::ClientAuth;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde_json::{json, Value};
 
@@ -148,14 +148,25 @@ impl HubScopeSync {
 
         let wanted = serving(mirror);
         let mut outcomes = Vec::new();
+        // Keycloak lists every client scope of the realm in one answer (the endpoint takes no
+        // paging); indexed by name once, so a wave is linear in the Endpoints (T-4445). The first
+        // of two scopes with one name is the one a linear search found.
         let listed: Vec<Value> = self.admin.get(&token, "/client-scopes").await?;
+        let mut by_name: HashMap<&str, &Value> = HashMap::with_capacity(listed.len());
+        for scope in &listed {
+            if let Some(name) = scope["name"].as_str() {
+                by_name.entry(name).or_insert(scope);
+            }
+        }
 
         // Create or write back each wanted scope; a foreign one of that name is left alone.
         let mut created = false;
         for endpoint in &wanted {
             let want = desired(endpoint);
-            let held = listed.iter().find(|scope| scope["name"] == want["name"]);
-            match held {
+            match want["name"]
+                .as_str()
+                .and_then(|name| by_name.get(name).copied())
+            {
                 None => {
                     self.admin
                         .send(&token, Method::POST, "/client-scopes", Some(&want))
@@ -260,6 +271,10 @@ impl HubScopeSync {
         let client = format!("/clients/{hub}");
         for kind in ["default-client-scopes", "optional-client-scopes"] {
             let linked: Vec<Value> = self.admin.get(&token, &format!("{client}/{kind}")).await?;
+            let linked_ids: HashSet<&str> = linked
+                .iter()
+                .filter_map(|scope| scope["id"].as_str())
+                .collect();
             for scope in &linked {
                 let (Some(id), Some(name)) = (scope["id"].as_str(), scope["name"].as_str()) else {
                     continue;
@@ -282,7 +297,7 @@ impl HubScopeSync {
             if kind == "optional-client-scopes" {
                 for name in linkable
                     .iter()
-                    .filter(|(id, _)| !linked.iter().any(|scope| scope["id"] == id.as_str()))
+                    .filter(|(id, _)| !linked_ids.contains(id.as_str()))
                     .map(|(_, name)| name)
                 {
                     let mut outcome = ClientOutcome::of(name);
