@@ -299,7 +299,7 @@ describe("removing an entity from the explorer (UI-60, T-0912)", () => {
 
   it("removes the entity through the endpoint that showed it and closes the detail", async () => {
     await i18n.changeLanguage("en");
-    document.cookie = "jc_csrf=token-for-the-session";
+    document.cookie = "__Host-jc_csrf=token-for-the-session; Secure; path=/";
     const calls = await openDetail(() => new Response(null, { status: 204 }));
     await userEvent.click(screen.getByTestId("explore-delete"));
     await userEvent.click(screen.getByTestId("explore-delete-confirm"));

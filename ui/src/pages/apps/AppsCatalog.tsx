@@ -168,7 +168,7 @@ export function previewUrl(app: Manifest): string {
  * `sandbox` deliberately does NOT carry `allow-same-origin`. A static app is served from
  * `https://{host}/apps/{name}/` (AP-14), which is the Portal's own origin, and the pair
  * `allow-scripts allow-same-origin` on a same-origin frame is not a sandbox at all: the
- * framed document could reach into the Portal, read the deliberately readable `jc_csrf`
+ * framed document could reach into the Portal, read the deliberately readable `__Host-jc_csrf`
  * cookie and issue writes as the signed-in reviewer, whose session cookie the browser would
  * attach. With `allow-scripts` alone the frame runs its code in an opaque origin, which is
  * what makes previewing somebody else's generated app safe to do while signed in.

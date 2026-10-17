@@ -56,7 +56,7 @@ const runButton = () => screen.getByRole("button", { name: en.pipelines.test.run
 describe("the pipeline sample test against the UI contract", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
-    document.cookie = "jc_csrf=csrf-token-1";
+    document.cookie = "__Host-jc_csrf=csrf-token-1; Secure; path=/";
   });
 
   afterEach(() => {

@@ -133,7 +133,7 @@ async fn the_metadata_document_is_public_well_formed_and_the_same_at_both_paths(
                 "an installation with no realm named one: {doc}",
             );
             // Nothing of the installation beyond those two facts, and no session.
-            for leaked in ["client_secret", "cookie", "jc_session", "password"] {
+            for leaked in ["client_secret", "cookie", "__Host-jc_session", "password"] {
                 assert!(
                     !doc.to_string().contains(leaked),
                     "{uri} carries {leaked:?}: {doc}",
@@ -184,7 +184,7 @@ async fn one_401_for_every_shape_that_is_not_a_bearer() {
         ),
         (
             "a session cookie instead",
-            vec![(header::COOKIE.as_str(), "jc_session=whatever")],
+            vec![(header::COOKIE.as_str(), "__Host-jc_session=whatever")],
         ),
         (
             "a token that verifies against nothing",

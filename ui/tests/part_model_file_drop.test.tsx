@@ -89,7 +89,7 @@ const chooser = () => screen.getByLabelText(en.models.infer.chooseFile);
 describe("the model file drop against the UI contract", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
-    document.cookie = "jc_csrf=csrf-token-1";
+    document.cookie = "__Host-jc_csrf=csrf-token-1; Secure; path=/";
   });
 
   afterEach(() => {

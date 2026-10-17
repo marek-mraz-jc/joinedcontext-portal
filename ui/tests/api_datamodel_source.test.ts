@@ -36,7 +36,7 @@ describe("the model source (UI-07)", () => {
 
   // UI-07: the body is the YAML as typed, sent as text/yaml, with the csrf token the client adds.
   it("checks the YAML as typed, not as a JSON string", async () => {
-    document.cookie = "jc_csrf=t0k";
+    document.cookie = "__Host-jc_csrf=t0k; Secure; path=/";
     answer(200, JSON.stringify({ severity: "minor", version: "1.1.0", changes: [], artifacts: {} }));
     const verdict = await writeModelSource({ project: "helsinki", name: "air", source: YAML, dryRun: true });
     expect(verdict).toMatchObject({ kind: "checked", result: { severity: "minor", version: "1.1.0" } });
@@ -46,7 +46,7 @@ describe("the model source (UI-07)", () => {
     expect(request.headers.get("content-type")).toBe("text/yaml; charset=utf-8");
     expect(request.headers.get("x-csrf-token")).toBe("t0k");
     expect(await request.text()).toBe(YAML);
-    document.cookie = "jc_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    document.cookie = "__Host-jc_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; path=/";
   });
 
   it("proposes a new model in the space it names, and only then sends the space", async () => {

@@ -49,9 +49,14 @@ async fn serve_index(
     )
     .await;
     if needs_csrf && response.status().is_success() {
-        let cookie = crate::auth::csrf::cookie(&crate::auth::csrf::Token::mint());
-        if let Ok(value) = HeaderValue::from_str(&cookie.to_string()) {
-            response.headers_mut().append(header::SET_COOKIE, value);
+        let token = crate::auth::csrf::Token::mint();
+        for cookie in [
+            crate::auth::csrf::cookie(&token),
+            crate::auth::csrf::legacy_app_cookie(&token),
+        ] {
+            if let Ok(value) = HeaderValue::from_str(&cookie.to_string()) {
+                response.headers_mut().append(header::SET_COOKIE, value);
+            }
         }
     }
     response

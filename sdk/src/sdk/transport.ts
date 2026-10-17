@@ -26,7 +26,7 @@ export interface JcResponse {
 
 export type Transport = (request: JcRequest) => Promise<JcResponse>;
 
-export const CSRF_COOKIE = "jc_csrf";
+export const CSRF_COOKIE = "__Host-jc_csrf";
 export const CSRF_HEADER = "x-csrf-token";
 
 function getCookie(doc: Document | undefined, name: string): string {

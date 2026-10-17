@@ -35,8 +35,8 @@ test.setTimeout(1_800_000);
 
 /** The double-submit token of the apps origin, which the index set there (AP-84). */
 async function appsCsrf(context: BrowserContext): Promise<string> {
-  const cookie = (await context.cookies(APPS_URL)).find((each) => each.name === "jc_csrf");
-  if (!cookie) throw new Error("the app's index set no jc_csrf cookie on the apps origin");
+  const cookie = (await context.cookies(APPS_URL)).find((each) => each.name === "__Host-jc_csrf");
+  if (!cookie) throw new Error("the app's index set no __Host-jc_csrf cookie on the apps origin");
   return cookie.value;
 }
 

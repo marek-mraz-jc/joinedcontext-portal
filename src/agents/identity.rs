@@ -169,7 +169,7 @@ mod tests {
             );
         }
         assert_eq!(
-            persons_token(&headers(&[("cookie", "jc_session=x")]), true),
+            persons_token(&headers(&[("cookie", "__Host-jc_session=x")]), true),
             None
         );
     }

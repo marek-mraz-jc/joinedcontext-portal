@@ -55,7 +55,7 @@ test.use({ trace: "off" });
  * is a person's, and the sweep stops on it.
  */
 async function proposeDelete(page: Page, context: BrowserContext, plural: string, name: string): Promise<string> {
-  const csrf = (await context.cookies()).find((cookie) => cookie.name === "jc_csrf")?.value ?? "";
+  const csrf = (await context.cookies()).find((cookie) => cookie.name === "__Host-jc_csrf")?.value ?? "";
   const answer = await page.request.delete(`/api/v1/projects/${PROJECT}/${plural}/${name}`, {
     headers: { "x-csrf-token": csrf },
   });
@@ -101,8 +101,8 @@ test("no copy of a take or a journey is left in helsinki", async ({ browser }) =
   try {
     const found = (await listedCopies(page)).filter(copyResidue).map((copy) => copy.name);
     test.info().annotations.push({ type: "copies", description: found.join(", ") || "none" });
-    const token = (await context.cookies()).find((each) => each.name === "jc_csrf")?.value ?? "";
-    expect(token, "no jc_csrf cookie: the session did not complete").not.toBe("");
+    const token = (await context.cookies()).find((each) => each.name === "__Host-jc_csrf")?.value ?? "";
+    expect(token, "no __Host-jc_csrf cookie: the session did not complete").not.toBe("");
     for (const name of found) {
       // A copy is discarded, not proposed away: no Change, no approval, and its branch goes with
       // it (`discarding_removes_the_branch_and_the_record`).

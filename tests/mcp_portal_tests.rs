@@ -733,7 +733,7 @@ async fn mcp_session_cookie_only_returns_401() {
             Request::builder()
                 .method("POST")
                 .uri("/api/v1/mcp")
-                .header(header::COOKIE, "jc_session=some_session_value")
+                .header(header::COOKIE, "__Host-jc_session=some_session_value")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(serde_json::to_vec(&call_req).unwrap()))
                 .unwrap(),
@@ -1766,7 +1766,10 @@ async fn no_cookie_and_no_origin_opens_the_mcp_door_a_failed_token_closed() {
         ("nothing at all", vec![]),
         (
             "a session cookie only",
-            vec![(header::COOKIE.as_str(), "jc_session=whatever".to_owned())],
+            vec![(
+                header::COOKIE.as_str(),
+                "__Host-jc_session=whatever".to_owned(),
+            )],
         ),
         (
             "the gateway's audience",
@@ -1782,13 +1785,19 @@ async fn no_cookie_and_no_origin_opens_the_mcp_door_a_failed_token_closed() {
                     header::AUTHORIZATION.as_str(),
                     format!("Bearer {for_the_gateway}"),
                 ),
-                (header::COOKIE.as_str(), "jc_session=whatever".to_owned()),
+                (
+                    header::COOKIE.as_str(),
+                    "__Host-jc_session=whatever".to_owned(),
+                ),
             ],
         ),
         (
             "a session cookie from a browser origin",
             vec![
-                (header::COOKIE.as_str(), "jc_session=whatever".to_owned()),
+                (
+                    header::COOKIE.as_str(),
+                    "__Host-jc_session=whatever".to_owned(),
+                ),
                 (header::ORIGIN.as_str(), "https://evil.example".to_owned()),
             ],
         ),
@@ -1800,7 +1809,10 @@ async fn no_cookie_and_no_origin_opens_the_mcp_door_a_failed_token_closed() {
                     format!("Bearer {for_the_gateway}"),
                 ),
                 (header::ORIGIN.as_str(), "https://evil.example".to_owned()),
-                (header::COOKIE.as_str(), "jc_session=whatever".to_owned()),
+                (
+                    header::COOKIE.as_str(),
+                    "__Host-jc_session=whatever".to_owned(),
+                ),
             ],
         ),
     ];
@@ -1872,7 +1884,7 @@ async fn a_verified_token_is_the_caller_whatever_cookie_travels_with_it() {
     let call = json!({ "jsonrpc": "2.0", "id": 91, "method": "tools/list" });
 
     let mut answers = Vec::new();
-    for cookie in ["", "jc_session=whatever", "jc_session="] {
+    for cookie in ["", "__Host-jc_session=whatever", "__Host-jc_session="] {
         let mut request = Request::builder()
             .method("POST")
             .uri("/api/v1/mcp")
