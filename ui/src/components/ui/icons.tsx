@@ -64,11 +64,6 @@ const PATHS = {
  */
 export type IconName = keyof typeof PATHS;
 
-/** Whether a value out of a manifest, a catalogue or a tool answer names an icon of this set. */
-export function isIconName(name: unknown): name is IconName {
-  return typeof name === "string" && Object.hasOwn(PATHS, name);
-}
-
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, "name"> {
   name: IconName;
   /** An accessible name; without one the icon is decorative. */

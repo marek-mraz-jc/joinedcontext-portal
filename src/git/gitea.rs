@@ -1205,13 +1205,6 @@ impl GiteaClient {
         ))
     }
 
-    /// `GET /actions/runs?limit=1` — the newest workflow run of the repository, `None` before
-    /// the first one. The link is built from the public URL, never Gitea's own `html_url`,
-    /// which carries the cluster-internal ROOT_URL (PF-81).
-    pub async fn latest_run(&self) -> Result<Option<WorkflowRun>, GitError> {
-        Ok(self.latest_runs(1).await?.into_iter().next())
-    }
-
     /// `GET /actions/runs?limit={limit}` — the newest workflow runs of the repository, newest
     /// first; what a build's estimate is read from (T-3245).
     pub async fn latest_runs(&self, limit: u32) -> Result<Vec<WorkflowRun>, GitError> {

@@ -7,8 +7,6 @@
 //! a SCRAM verifier for that run only and `NOLOGIN` again after it, so a migration has no role to
 //! switch to but its own.
 
-use std::time::Duration;
-
 use argon2::password_hash::rand_core::{OsRng, RngCore};
 use base64::Engine;
 use hmac::{Hmac, Mac};
@@ -586,9 +584,6 @@ fn scram_verifier_with(password: &str, salt: &[u8], iterations: u32) -> String {
         b64.encode(server_key)
     )
 }
-
-/// How long the reconciler waits for the apps database before it says so.
-pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[cfg(test)]
 mod tests {

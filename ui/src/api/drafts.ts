@@ -3,7 +3,6 @@ import type { components } from "./schema";
 export { canonicalizeJson, digestOf } from "./digest";
 
 // UI-07: the draft shapes are the Portal API's own, from the generated schema, never a copy.
-export type FindingLevel = components["schemas"]["Level"];
 export type Finding = components["schemas"]["Finding"];
 export type Verdict = components["schemas"]["Verdict"];
 export type Draft = components["schemas"]["Draft"];

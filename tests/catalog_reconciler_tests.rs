@@ -154,7 +154,8 @@ fn a_dataset_per_space_and_a_service_per_public_endpoint_agree_with_the_record()
     let dir = scratch("1");
     let places = places(&city(&dir, true));
     assert!(!places.contains_key(INNER) && !places.contains_key(CATALOG_SLUG));
-    let built = entities(&air_feed("Air quality in Banská Bystrica"), &places);
+    let feed = air_feed("Air quality in Banská Bystrica");
+    let built = entities(feed["@included"].as_array().expect("nodes"), &places);
     let ids: Vec<&str> = built.keys().map(String::as_str).collect();
     assert_eq!(
         ids,
@@ -162,8 +163,8 @@ fn a_dataset_per_space_and_a_service_per_public_endpoint_agree_with_the_record()
             format!("urn:ngsi-ld:DataService:{AIR}").as_str(),
             &format!("urn:ngsi-ld:DataService:{AIR_HISTORY}"),
             &format!("urn:ngsi-ld:DataService:{BIKES}"),
-            "urn:ngsi-ld:Dataset:mesto:doprava",
-            "urn:ngsi-ld:Dataset:mesto:ovzdusie",
+            "urn:ngsi-ld:Dataset:mesto-doprava",
+            "urn:ngsi-ld:Dataset:mesto-ovzdusie",
         ]
     );
     assert!(!serde_json::to_string(&built)
@@ -208,10 +209,10 @@ fn a_dataset_per_space_and_a_service_per_public_endpoint_agree_with_the_record()
     assert_eq!(service["license"]["value"], record["dct:license"]);
     assert_eq!(
         service["servesDataset"]["object"],
-        "urn:ngsi-ld:Dataset:mesto:ovzdusie"
+        "urn:ngsi-ld:Dataset:mesto-ovzdusie"
     );
 
-    let dataset = &built["urn:ngsi-ld:Dataset:mesto:ovzdusie"];
+    let dataset = &built["urn:ngsi-ld:Dataset:mesto-ovzdusie"];
     // The space's first public Endpoint by slug names it.
     assert_eq!(
         dataset["title"]["languageMap"]["en"],
@@ -258,7 +259,7 @@ fn a_dataset_per_space_and_a_service_per_public_endpoint_agree_with_the_record()
         "{search}"
     );
     // No area declared: no location written, not an empty one.
-    assert!(built["urn:ngsi-ld:Dataset:mesto:doprava"]
+    assert!(built["urn:ngsi-ld:Dataset:mesto-doprava"]
         .get("location")
         .is_none());
 }
@@ -399,7 +400,7 @@ async fn an_endpoint_created_renamed_and_deleted_shows_in_the_catalog_within_one
         sent["upsert"],
         [
             format!("urn:ngsi-ld:DataService:{AIR}"),
-            "urn:ngsi-ld:Dataset:mesto:ovzdusie".to_owned()
+            "urn:ngsi-ld:Dataset:mesto-ovzdusie".to_owned()
         ]
     );
 
@@ -418,7 +419,7 @@ async fn an_endpoint_created_renamed_and_deleted_shows_in_the_catalog_within_one
         sent["delete"],
         [
             format!("urn:ngsi-ld:DataService:{BIKES}"),
-            "urn:ngsi-ld:Dataset:mesto:doprava".to_owned(),
+            "urn:ngsi-ld:Dataset:mesto-doprava".to_owned(),
         ]
     );
 }
@@ -504,11 +505,97 @@ fn places_names_only_public_endpoints_and_their_space_area() {
     let places = places(&city(&dir, false));
     assert_eq!(
         places.get(AIR),
-        Some(&Place {
-            project: PROJECT.to_owned(),
-            space: "ovzdusie".to_owned(),
-            bbox: Some([19.05, 48.68, 19.25, 48.8]),
-        })
+        Some(&Place::public(
+            "mesto-ovzdusie",
+            Some([19.05, 48.68, 19.25, 48.8])
+        ))
     );
     assert_eq!(places.len(), 2);
+}
+
+/// T-4526: each DataService names the types its Endpoint holds with their counts, as the
+/// anonymous caller reads them, and the call that reads it; the Dataset's searchText names the
+/// types. A wave within the hour reads no count again.
+#[tokio::test]
+async fn a_service_lists_its_types_with_counts_and_the_next_query() {
+    let dir = scratch("6");
+    let gateway = Gateway::start(air_feed("Air quality in Banská Bystrica")).await;
+    let surface = format!("/api/endpoint/{AIR}/ngsi-ld/v1");
+    Mock::given(method("GET"))
+        .and(path(format!("{surface}/types")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(
+            json!({ "id": "urn:ngsi-ld:EntityTypeList:1", "type": "EntityTypeList",
+                    "typeList": ["AirQualityObserved", "https://example.org/Station"] }),
+        ))
+        .mount(&gateway.server)
+        .await;
+    for (name, count) in [
+        ("AirQualityObserved", "53"),
+        ("https://example.org/Station", "7"),
+    ] {
+        Mock::given(method("GET"))
+            .and(path(format!("{surface}/entities")))
+            .and(wiremock::matchers::query_param("type", name))
+            .and(wiremock::matchers::query_param("count", "true"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("NGSILD-Results-Count", count)
+                    .set_body_json(json!([])),
+            )
+            .mount(&gateway.server)
+            .await;
+    }
+    let sync = gateway.sync();
+    sync.converge(&city(&dir, true)).await.expect("a wave");
+
+    let requests = gateway.server.received_requests().await.expect("recorded");
+    let anonymous = requests
+        .iter()
+        .filter(|r| r.url.path().starts_with(&surface))
+        .all(|r| !r.headers.contains_key("authorization"));
+    assert!(anonymous, "the counts are read as the anonymous caller");
+    let written: Vec<Value> = requests
+        .iter()
+        .filter(|r| r.url.path().ends_with("entityOperations/upsert"))
+        .flat_map(|r| serde_json::from_slice::<Vec<Value>>(&r.body).expect("a batch"))
+        .collect();
+    let service = written
+        .iter()
+        .find(|e| e["id"] == format!("urn:ngsi-ld:DataService:{AIR}"))
+        .expect("the air service");
+    assert_eq!(
+        service["entityTypes"]["value"],
+        json!([{ "type": "AirQualityObserved", "count": 53 }, { "type": "Station", "count": 7 }])
+    );
+    assert_eq!(
+        service["nextQuery"]["value"],
+        json!({ "tool": "query_entities", "arguments": { "endpoint": AIR, "type": "AirQualityObserved", "limit": 10 } })
+    );
+    let dataset = written
+        .iter()
+        .find(|e| e["id"] == "urn:ngsi-ld:Dataset:mesto-ovzdusie")
+        .expect("the air dataset");
+    assert!(
+        dataset["searchText"]["value"]
+            .as_str()
+            .is_some_and(|t| t.contains("airqualityobserved")),
+        "{dataset}"
+    );
+    // A bikes service whose counts did not read has no types, and the wave still wrote it.
+    assert!(written
+        .iter()
+        .any(|e| e["id"] == format!("urn:ngsi-ld:DataService:{BIKES}")
+            && e.get("entityTypes").is_none()));
+
+    let from = requests.len();
+    sync.converge(&city(&dir, true))
+        .await
+        .expect("a second wave");
+    let again = gateway.server.received_requests().await.expect("recorded");
+    assert!(
+        !again[from..]
+            .iter()
+            .any(|r| r.url.path().starts_with(&surface)),
+        "counts are read once an hour"
+    );
 }

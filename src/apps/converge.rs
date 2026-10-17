@@ -33,12 +33,6 @@ use super::reconciler::{generate_slug, render, RenderError, Settings};
 /// runs is `status.build`, written back by the build lane.
 pub const BUILT_ANNOTATIONS: [&str; 2] = jc_core::kinds::app::BUILT_ANNOTATIONS;
 
-/// A digest somebody wrote into an annotation instead of letting the build lane publish one.
-pub const IMAGE_ANNOTATION: &str = BUILT_ANNOTATIONS[0];
-
-/// The same for a compiled module.
-pub const MODULE_ANNOTATION: &str = BUILT_ANNOTATIONS[1];
-
 /// The slug of the Endpoint the door committed with this App (T-2632): `app-{name}` in the App's
 /// project, written by the reconciler. A hand-written Endpoint of that name is not the App's.
 pub fn committed_slug(repository: &Repository, app: &RawManifest) -> Option<EndpointSlug> {
