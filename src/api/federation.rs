@@ -1,12 +1,12 @@
-//! `GET /api/v1/projects/{project}/federation-graph`: who reads whose data, as a graph
-//! (T-0304, UI-27, EP-71, PF-48).
+//! The `jc_federation_graph` operation: who reads whose data, as a graph
+//! (T-0304, UI-27, EP-71, PF-48; T-4453 removed the route beside it).
 //!
 //! Managing a registration is not a second write path. A `ContextSourceRegistration` is a
 //! manifest like every other one, so it is listed, created and removed through
 //! `/api/v1/projects/{project}/csrs`, which means a new federation link arrives as a change
 //! proposal a steward approves rather than as a setting somebody flips (CC-03, CC-08).
 //!
-//! What only this route can answer is the picture across five kinds at once. It is a
+//! What only this operation can answer is the picture across five kinds at once. It is a
 //! projection and holds no state: every node and every edge comes from a manifest in the
 //! mirror plus the phase that manifest last reported, so the graph cannot become a second
 //! opinion about who talks to whom.
@@ -18,8 +18,6 @@
 //! (UI-27, EP-71).
 
 use crate::resource::reference_name;
-use axum::extract::{Path, State};
-use axum::Json;
 use jc_core::Urn;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -27,8 +25,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::str::FromStr;
 use utoipa::ToSchema;
 
-use crate::auth::session::CurrentUser;
-use crate::error::ApiError;
 use crate::resource::{phase_str, ResourceEnvelope};
 use crate::state::AppState;
 use crate::store::ListOptions;
@@ -124,32 +120,7 @@ pub enum EdgeKind {
     Publishes,
 }
 
-#[utoipa::path(
-    get,
-    path = "/api/v1/projects/{project}/federation-graph",
-    summary = "Read Federation",
-    description = "The project's spaces, endpoints, pipelines and apps, and what links them.",
-    tag = "federation",
-    params(("project" = String, Path, description = "Project name")),
-    responses(
-        (status = 200, description = "The federation of this project", body = FederationGraph),
-        (status = 401, description = "Unauthorized", body = crate::error::ProblemDetails),
-    )
-)]
-pub async fn get_graph(
-    State(state): State<AppState>,
-    user: CurrentUser,
-    Path(project): Path<String>,
-) -> Result<Json<FederationGraph>, ApiError> {
-    // The topology of a project is a read of it (PF-59, R20, T-1401).
-    if !crate::permissions::for_request(&state, &user.0.identity, &project).may_read_project() {
-        return Err(ApiError::NotFound(format!("project '{project}' not found")));
-    }
-    Ok(Json(graph_of(&state, &project)))
-}
-
-/// The federation of one project, as the route and the `jc_federation_graph` operation both
-/// answer it (AG-59, T-0840).
+/// The federation of one project, as the `jc_federation_graph` operation answers it (AG-59, T-0840).
 pub fn graph_of(state: &AppState, project: &str) -> FederationGraph {
     let project = project.to_owned();
     let opts = ListOptions::default();
@@ -393,11 +364,4 @@ fn health(status: &Option<crate::resource::Status>) -> NodeHealth {
         Some("Error") => NodeHealth::Degraded,
         _ => NodeHealth::Unknown,
     }
-}
-
-pub fn router() -> axum::Router<AppState> {
-    axum::Router::new().route(
-        "/projects/{project}/federation-graph",
-        axum::routing::get(get_graph),
-    )
 }

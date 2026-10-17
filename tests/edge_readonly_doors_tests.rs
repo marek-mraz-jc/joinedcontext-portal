@@ -146,6 +146,41 @@ async fn get(state: &AppState, email: Option<&str>, uri: &str) -> (StatusCode, V
     )
 }
 
+/// The federation graph of `project`, through `jc_federation_graph` (its one door since T-4453).
+async fn federation_graph(
+    state: &AppState,
+    email: Option<&str>,
+    project: &str,
+) -> (StatusCode, Value) {
+    let csrf = format!("{CSRF_COOKIE}={CSRF}");
+    let cookies = email.map_or(csrf, |email| cookie(&state.config, email));
+    let request = Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/api/v1/projects/{project}/ops/jc_federation_graph"
+        ))
+        .header(header::COOKIE, cookies)
+        .header("x-csrf-token", CSRF)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from("{}"))
+        .expect("a request");
+    let response = server::app(state.clone())
+        .oneshot(request)
+        .await
+        .expect("a response");
+    let status = response.status();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("a body")
+        .to_bytes();
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
 // -------------------------------------------------------------------------------------------------
 // T-2013 `revisions`
 // -------------------------------------------------------------------------------------------------
@@ -241,7 +276,7 @@ async fn a_history_is_a_read_of_one_project_and_of_as_many_commits_as_it_serves(
 }
 
 // -------------------------------------------------------------------------------------------------
-// T-2014 `get_graph`
+// T-2014 `jc_federation_graph` (the route `get_graph` until T-4453)
 // -------------------------------------------------------------------------------------------------
 
 /// AG-59, PF-59: the federation graph is a project's topology, so it is a read of the project and it
@@ -251,24 +286,14 @@ async fn a_history_is_a_read_of_one_project_and_of_as_many_commits_as_it_serves(
 async fn a_federation_graph_draws_one_project_and_is_read_by_its_members() {
     let state = state_with_two_projects();
 
-    let (status, body) = get(
-        &state,
-        Some(STRANGER),
-        &format!("/api/v1/projects/{PROJECT}/federation-graph"),
-    )
-    .await;
+    let (status, body) = federation_graph(&state, Some(STRANGER), PROJECT).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
     assert!(
         !body.to_string().contains("helsinki-bikes"),
         "the 404 carried a node of the graph: {body}",
     );
 
-    let (status, graph) = get(
-        &state,
-        Some(MEMBER),
-        &format!("/api/v1/projects/{PROJECT}/federation-graph"),
-    )
-    .await;
+    let (status, graph) = federation_graph(&state, Some(MEMBER), PROJECT).await;
     assert_eq!(status, StatusCode::OK, "{graph}");
     let text = graph.to_string();
     assert!(text.contains("helsinki-bikes"), "{graph}");
@@ -278,21 +303,11 @@ async fn a_federation_graph_draws_one_project_and_is_read_by_its_members() {
     );
 
     // The project next door, which this reader holds nothing in.
-    let (status, body) = get(
-        &state,
-        Some(MEMBER),
-        &format!("/api/v1/projects/{ELSEWHERE}/federation-graph"),
-    )
-    .await;
+    let (status, body) = federation_graph(&state, Some(MEMBER), ELSEWHERE).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
 
     // And no session at all: the graph is behind the same session as every other read.
-    let (status, _) = get(
-        &state,
-        None,
-        &format!("/api/v1/projects/{PROJECT}/federation-graph"),
-    )
-    .await;
+    let (status, _) = federation_graph(&state, None, PROJECT).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 

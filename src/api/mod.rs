@@ -57,7 +57,6 @@ pub mod setup;
 pub mod space_move;
 pub mod space_retention;
 pub mod space_usage;
-pub mod sync;
 pub mod sync_sources;
 pub mod type_attributes;
 pub mod validation;
@@ -98,7 +97,6 @@ pub fn router() -> Router<AppState> {
         .merge(drift::router())
         .merge(export::router())
         .merge(app_transfer::router())
-        .merge(federation::router())
         .merge(forms::router())
         .merge(import::router())
         .merge(resources::router())
@@ -124,7 +122,6 @@ pub fn router() -> Router<AppState> {
         .merge(knowledge::router())
         .merge(live::router())
         .merge(service_accounts::router())
-        .merge(sync::router())
         .merge(sync_sources::router())
         .merge(validation::router())
         .merge(organization_limits::router())

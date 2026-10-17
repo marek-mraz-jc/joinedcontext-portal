@@ -1,6 +1,6 @@
 //! Every read of a project answers `404` to a caller who may not read it, the one answer for
 //! "missing" and "not yours" (PF-59, R20): the catalogue status, the federation graph, the
-//! assistant's catalog search, a sync source's status, the agent-run list and the activity
+//! catalog search (both operations since T-4453), a sync source's status, the agent-run list and the activity
 //! operation (T-1401, T-1361, T-1368, T-1340). A reader of the project is answered.
 
 mod common;
@@ -13,8 +13,8 @@ use joinedcontext_portal::state::AppState;
 
 const READS: &[(&str, &str)] = &[
     ("GET", "/api/v1/projects/ovzdusie/ckan/status"),
-    ("GET", "/api/v1/projects/ovzdusie/federation-graph"),
-    ("GET", "/api/v1/projects/ovzdusie/assistant/catalog?q=air"),
+    ("POST", "/api/v1/projects/ovzdusie/ops/jc_federation_graph"),
+    ("POST", "/api/v1/projects/ovzdusie/ops/jc_catalog_search"),
     (
         "GET",
         "/api/v1/projects/ovzdusie/syncsources/upstream/status",
@@ -51,15 +51,29 @@ async fn state() -> AppState {
     state
 }
 
-fn body(http: &str) -> Option<serde_json::Value> {
-    (http == "POST").then(|| json!({}))
+/// An operation's input: the search asks one word, every other read nothing.
+fn body(http: &str, uri: &str) -> Option<serde_json::Value> {
+    (http == "POST").then(|| {
+        if uri.ends_with("jc_catalog_search") {
+            json!({ "q": "air" })
+        } else {
+            json!({})
+        }
+    })
 }
 
 #[tokio::test]
 async fn a_project_the_caller_may_not_read_is_not_there() {
     let state = state().await;
     for (http, uri) in READS {
-        let answer = common::send(&state, common::person("stranger"), http, uri, body(http)).await;
+        let answer = common::send(
+            &state,
+            common::person("stranger"),
+            http,
+            uri,
+            body(http, uri),
+        )
+        .await;
         assert_eq!(
             answer.status,
             StatusCode::NOT_FOUND,
@@ -71,7 +85,7 @@ async fn a_project_the_caller_may_not_read_is_not_there() {
             common::person("stranger"),
             http,
             &uri.replace("ovzdusie", "no-such-project"),
-            body(http),
+            body(http, uri),
         )
         .await;
         assert_eq!(
@@ -89,7 +103,8 @@ async fn a_project_the_caller_may_not_read_is_not_there() {
 async fn a_reader_of_the_project_is_answered() {
     let state = state().await;
     for (http, uri) in READS {
-        let answer = common::send(&state, common::person("reader"), http, uri, body(http)).await;
+        let answer =
+            common::send(&state, common::person("reader"), http, uri, body(http, uri)).await;
         assert_ne!(
             answer.status,
             StatusCode::NOT_FOUND,

@@ -1,54 +1,14 @@
 use std::sync::Arc;
 
-use axum::body::Body;
-use axum::http::{header, Request, StatusCode};
-use axum_extra::extract::cookie::PrivateCookieJar;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
-use http_body_util::BodyExt;
-use joinedcontext_portal::auth::session::{self, Identity, Session};
-use joinedcontext_portal::config::Config;
 use joinedcontext_portal::git::GiteaClient;
-use joinedcontext_portal::reconciler::{SyncStatus, Syncer};
+use joinedcontext_portal::reconciler::Syncer;
 use joinedcontext_portal::resource::{ObjectMeta, Phase, ResourceEnvelope, Status, API_VERSION};
-use joinedcontext_portal::server;
-use joinedcontext_portal::state::AppState;
 use joinedcontext_portal::store::Mirror;
 use serde_json::json;
-use tower::ServiceExt;
 use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
-
-fn make_session_cookie(config: &Config) -> String {
-    use axum::response::IntoResponse;
-    let now = session::now_unix();
-    let s = Session {
-        identity: Identity {
-            client: None,
-            subject: "f:1:demo.steward".into(),
-            username: "demo.steward".into(),
-            email: Some("demo.steward@banskabystrica.sk".into()),
-            name: Some("Demo Steward".into()),
-            roles: Vec::new(),
-            groups: vec!["portal-approver".into()],
-        },
-        expires_at: now + 3600,
-        issued_at: now,
-        id_token: "id-token-placeholder".into(),
-        access_expires_at: now + 3600,
-        refresh_token: None,
-    };
-    let jar = PrivateCookieJar::new(config.cookie_key.clone());
-    let jar = session::store(jar, &s).expect("store session");
-    let response = (jar, StatusCode::OK).into_response();
-    let mut parts = Vec::new();
-    for value in response.headers().get_all(header::SET_COOKIE) {
-        let raw = value.to_str().expect("cookie header");
-        let pair = raw.split(';').next().unwrap_or_default();
-        parts.push(pair.to_string());
-    }
-    parts.join("; ")
-}
 
 /// UI-08: every read of configuration state is served from a mirror the sync fills from the
 /// repository's default branch, never from Git per request.
@@ -407,12 +367,6 @@ async fn failed_tree_listing_preserves_mirror_and_records_error_in_sync_status()
     assert_eq!(mirror.len(), 1);
 
     let syncer = Arc::new(Syncer::new(Arc::clone(&client), Arc::clone(&mirror)));
-    let config = Config::for_tests();
-    let state = AppState::new(config.clone(), None)
-        .with_gitea(client)
-        .with_mirror(Arc::clone(&mirror))
-        .with_syncer(Arc::clone(&syncer));
-    let app = server::app(state);
 
     Mock::given(method("GET"))
         .and(path("/api/v1/repos/test-owner/test-repo"))
@@ -449,85 +403,12 @@ async fn failed_tree_listing_preserves_mirror_and_records_error_in_sync_status()
         .get("ovzdusie", "ContextSpace", "existing-space")
         .is_some());
 
-    // GET /api/v1/sync reports the error
-    let cookie = make_session_cookie(&config);
-    let response = app
-        .oneshot(
-            Request::builder()
-                .uri("/api/v1/sync")
-                .header(header::COOKIE, &cookie)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-    let bytes = response.into_body().collect().await.unwrap().to_bytes();
-    let sync_status: SyncStatus = serde_json::from_slice(&bytes).unwrap();
-    let recorded_error = sync_status.last_error.expect("last_error must be present");
+    // The sync status records the error
+    let recorded_error = syncer
+        .status()
+        .last_error
+        .expect("last_error must be present");
     assert!(recorded_error.contains("tree database corrupted") || recorded_error.contains("500"));
-}
-
-#[tokio::test]
-async fn get_sync_status_requires_session_and_answers_status_when_authenticated() {
-    let config = Config::for_tests();
-    let mirror = Arc::new(Mirror::new());
-    let client = Arc::new(
-        GiteaClient::new(
-            "http://localhost:3000".parse().unwrap(),
-            "test-owner",
-            "test-repo",
-            "token",
-        )
-        .unwrap(),
-    );
-    let syncer = Arc::new(Syncer::new(client, Arc::clone(&mirror)));
-    let state = AppState::new(config.clone(), None).with_syncer(syncer);
-    let app = server::app(state);
-
-    // Anonymous call returns 401 ProblemDetails
-    let anon_res = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .uri("/api/v1/sync")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(anon_res.status(), StatusCode::UNAUTHORIZED);
-    assert_eq!(
-        anon_res.headers().get(header::CONTENT_TYPE).unwrap(),
-        "application/problem+json"
-    );
-
-    // Authenticated call returns 200 SyncStatus
-    let cookie = make_session_cookie(&config);
-    let auth_res = app
-        .oneshot(
-            Request::builder()
-                .uri("/api/v1/sync")
-                .header(header::COOKIE, &cookie)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(auth_res.status(), StatusCode::OK);
-    assert_eq!(
-        auth_res.headers().get(header::CONTENT_TYPE).unwrap(),
-        "application/json"
-    );
-    let body = auth_res.into_body().collect().await.unwrap().to_bytes();
-    let status: SyncStatus = serde_json::from_slice(&body).unwrap();
-    assert_eq!(status.manifests, 0);
-    assert!(status.last_sync.is_none());
-    assert!(status.revision.is_none());
-    assert!(status.last_error.is_none());
 }
 
 /// PF-62, PF-63, AP-118 (T-3031): a `Group` lives at `users/groups/{name}.yaml`, and a sync

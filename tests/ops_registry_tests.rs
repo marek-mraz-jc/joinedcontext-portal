@@ -315,7 +315,7 @@ async fn principal_without_binding_reads_a_project_that_is_not_there() {
 }
 
 #[tokio::test]
-async fn jc_catalog_search_matches_assistant_route() {
+async fn jc_catalog_search_finds_the_public_endpoint() {
     let config = Config::for_tests();
     let mirror = std::sync::Arc::new(Mirror::new());
 
@@ -351,29 +351,6 @@ async fn jc_catalog_search_matches_assistant_route() {
         vec![],
     );
 
-    // 1. Call assistant catalog route
-    let resp_assistant = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri("/api/v1/projects/ovzdusie/assistant/catalog?q=air")
-                .header(header::COOKIE, &steward_cookie)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp_assistant.status(), StatusCode::OK);
-    let bytes_asst = resp_assistant
-        .into_body()
-        .collect()
-        .await
-        .unwrap()
-        .to_bytes();
-    let asst_json: Value = serde_json::from_slice(&bytes_asst).unwrap();
-
-    // 2. Call ops registry generic route
     let resp_ops = app
         .oneshot(
             Request::builder()
@@ -391,12 +368,7 @@ async fn jc_catalog_search_matches_assistant_route() {
     let bytes_ops = resp_ops.into_body().collect().await.unwrap().to_bytes();
     let ops_json: Value = serde_json::from_slice(&bytes_ops).unwrap();
 
-    // Both should return catalog item "public-air"
-    let asst_items = asst_json["items"].as_array().expect("items array");
     let ops_items = ops_json["items"].as_array().expect("items array");
-
-    assert_eq!(asst_items.len(), ops_items.len());
-    assert_eq!(asst_items[0]["name"], ops_items[0]["name"]);
     assert_eq!(ops_items[0]["name"], "public-air");
 }
 
