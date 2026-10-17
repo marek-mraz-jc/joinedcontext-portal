@@ -9,7 +9,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use jc_core::kinds::data_source::{check_class, DataSourceSpec, DataSourceType};
-use jc_core::kinds::pipeline::{Compute, ComputeKind, PipelineSource, PipelineSpec, Step};
+use jc_core::kinds::pipeline::{
+    Compute, ComputeKind, OutputMode, PipelineSource, PipelineSpec, Step,
+};
 use jc_core::Condition;
 use jcctl::bento::InputContext;
 use serde_json::Value;
@@ -1331,7 +1333,11 @@ pub fn render_stream(
     }
 
     processors.extend(batching());
-    processors.extend(writes(project, &[slug.to_owned()], "")?);
+    processors.extend(writes(
+        project,
+        &[(slug.to_owned(), replaces(pipeline, 0))],
+        "",
+    )?);
 
     // T-1125, PL-24: Bento reports its counters under the component's `label`, so an unlabelled
     // stream can only be read as one total. Labelling the input, the output and each processor
@@ -1625,7 +1631,11 @@ pub fn render_endpoint_stream(
     ));
 
     processors.extend(batching());
-    processors.extend(writes(project, &[target_slug.to_owned()], "")?);
+    processors.extend(writes(
+        project,
+        &[(target_slug.to_owned(), replaces(pipeline, 0))],
+        "",
+    )?);
 
     let mut stream = serde_json::json!({
         "input": input,
@@ -1984,12 +1994,18 @@ pub fn render_merged(
     }
 
     // `outputs()` is the default lane's, then each route's in order (PL-73).
-    let lane = pipeline.lane_outputs().len().min(target_slugs.len());
-    let lane_writes = writes(project, &target_slugs[..lane], "")?;
+    // The slugs follow `outputs()`, so the n-th slug is written in the n-th output's mode.
+    let targets: Vec<(String, bool)> = target_slugs
+        .iter()
+        .enumerate()
+        .map(|(at, slug)| (slug.clone(), replaces(pipeline, at)))
+        .collect();
+    let lane = pipeline.lane_outputs().len().min(targets.len());
+    let lane_writes = writes(project, &targets[..lane], "")?;
     let routed = if pipeline.routes.is_empty() {
         None
     } else {
-        let (routing, cases) = routes(pipeline, project, &target_slugs[lane..])?;
+        let (routing, cases) = routes(pipeline, project, &targets[lane..])?;
         processors.extend(routing);
         Some(cases)
     };
@@ -2056,7 +2072,7 @@ fn step_processor(step: Step) -> Result<Option<Value>, RenderError> {
 fn routes(
     pipeline: &PipelineSpec,
     project: &str,
-    slugs: &[String],
+    slugs: &[(String, bool)],
 ) -> Result<(Vec<Value>, Vec<Value>), RenderError> {
     let mut processors: Vec<Value> = batching().into_iter().take(2).collect();
     let mut pick = String::from("meta jc_route = ");
@@ -2352,13 +2368,16 @@ fn bound_in_flight(stream: &mut Value, polled: bool) {
 
 /// Where every stream writes: the endpoint's batch upsert, as the pipeline's service account.
 /// No pipeline answers a caller: a client-facing API is the Context Gateway's (PL-06, EP-05).
+/// `replace` drops `options=update`, so the entity becomes exactly the record (PL-79); every
+/// other write merges the attributes it names into what is there.
 ///
 /// An answer no retry can fix (a malformed entity, a batch too large) is not retried for good,
 /// which stalled the messages behind it and flooded the gateway's log (T-1465). A token, a
 /// policy or the gateway can recover, so 401, 403, 429 and 5xx stay retried.
-fn upsert(project: &str, slug: &str) -> Value {
+fn upsert(project: &str, slug: &str, replace: bool) -> Value {
+    let options = if replace { "" } else { "?options=update" };
     serde_json::json!({
-        "url": format!("${{JC_GATEWAY_URL}}/api/endpoint/{slug}/ngsi-ld/v1/entityOperations/upsert?options=update"),
+        "url": format!("${{JC_GATEWAY_URL}}/api/endpoint/{slug}/ngsi-ld/v1/entityOperations/upsert{options}"),
         "verb": "POST",
         "headers": {
             "Content-Type": "application/json"
@@ -2372,7 +2391,7 @@ fn upsert(project: &str, slug: &str) -> Value {
 
 /// The upsert as an output, for a replay of rejected records, whose answer no run log waits on.
 pub(crate) fn gateway_output(project: &str, slug: &str) -> serde_json::Value {
-    serde_json::json!({ "http_client": upsert(project, slug) })
+    serde_json::json!({ "http_client": upsert(project, slug, false) })
 }
 
 /// The label of a stream's write to its `at`-th target, `prefix` naming the route it belongs to.
@@ -2396,7 +2415,16 @@ fn refused_key(label: &str) -> String {
     format!("{}{label}", crate::pipeline_log::REFUSED_PREFIX)
 }
 
-/// The writes to `slugs`, one after the other, each a `branch` around the upsert (T-4056).
+/// Whether the `at`-th output of `outputs()` replaces its entities (PL-79).
+fn replaces(pipeline: &PipelineSpec, at: usize) -> bool {
+    pipeline
+        .outputs()
+        .get(at)
+        .is_some_and(|output| output.mode == Some(OutputMode::Replace))
+}
+
+/// The writes to `targets` (an Endpoint slug and whether its output replaces the entity, PL-79),
+/// one after the other, each a `branch` around the upsert (T-4056).
 ///
 /// Bento's `http_client` output never shows its answer to anything, so a `207` whose items the
 /// endpoint refused was logged as sent. As a processor the write keeps the answer: the branch's
@@ -2404,22 +2432,26 @@ fn refused_key(label: &str) -> String {
 /// the outcome sink logs those records `failed` instead of `sent`. A write that still fails after
 /// its retries leaves the message errored, and [`written`] nacks it back to the input, which
 /// replays it (T-2983) as the output's failure did.
-fn writes(project: &str, slugs: &[String], prefix: &str) -> Result<Vec<Value>, RenderError> {
-    if slugs.is_empty() {
+fn writes(
+    project: &str,
+    targets: &[(String, bool)],
+    prefix: &str,
+) -> Result<Vec<Value>, RenderError> {
+    if targets.is_empty() {
         return Err(RenderError::Custom(
             "a pipeline writes through at least one output".to_owned(),
         ));
     }
-    let mut processors: Vec<Value> = slugs
+    let mut processors: Vec<Value> = targets
         .iter()
         .enumerate()
-        .map(|(at, slug)| {
+        .map(|(at, (slug, replace))| {
             let label = write_label(prefix, at);
             let key = refused_key(&label);
             serde_json::json!({
                 "label": label,
                 "branch": {
-                    "processors": [{ "http": upsert(project, slug) }],
+                    "processors": [{ "http": upsert(project, slug, *replace) }],
                     "result_map": format!(
                         "let errors = content().parse_json().catch({{}}).errors.or([])\n\
                          meta {key} = $errors.map_each(e -> {{ \"id\": e.entityId.or(\"\"), \
@@ -5015,6 +5047,53 @@ output:
             Value::Array(items) => items.iter().for_each(|item| labels(item, into)),
             _ => {}
         }
+    }
+
+    /// PL-79: each output is written in its own mode: `replace` posts the upsert without
+    /// options, so the entity is exactly the record; `upsert` and `update-attrs` merge.
+    #[test]
+    fn each_output_writes_in_its_own_mode() {
+        let spec = second_shape(serde_json::json!({
+            "class": "resident",
+            "period": "30s",
+            "sources": [{ "dataSourceRef": { "kind": "DataSource", "name": "gbfs" } }],
+            "steps": [{ "kind": "bloblang", "bloblang": "root = this" }],
+            "routes": [
+                { "name": "hot", "when": "this.t > 30",
+                  "outputs": [{ "targetEndpoint": "urn:ngsi-ld:Endpoint:example.org:alerts:hot" }] },
+                { "name": "frost-warning", "when": "this.t < 0",
+                  "outputs": [
+                      { "targetEndpoint": "urn:ngsi-ld:Endpoint:example.org:alerts:cold", "mode": "replace" },
+                      { "targetEndpoint": "urn:ngsi-ld:Endpoint:example.org:kpi:cold-kpi", "mode": "update-attrs" }
+                  ] }
+            ],
+            "outputs": [{ "targetEndpoint": "urn:ngsi-ld:Endpoint:example.org:helsinki:ops", "mode": "replace" }]
+        }));
+        let stream = render_routed(&spec);
+        let url = |label: &str| {
+            upsert_at(&stream, label)["url"]
+                .as_str()
+                .map(str::to_owned)
+                .unwrap_or_default()
+        };
+        let merged = "/ngsi-ld/v1/entityOperations/upsert?options=update";
+        let replaced = "/ngsi-ld/v1/entityOperations/upsert";
+        assert!(
+            url("write_0").ends_with(&format!("/opsslug{replaced}")),
+            "{}",
+            url("write_0")
+        );
+        assert!(url("route_0_write_0").ends_with(&format!("/hotslug{merged}")));
+        assert!(url("route_1_write_0").ends_with(&format!("/coldslug{replaced}")));
+        assert!(url("route_1_write_1").ends_with(&format!("/coldkpislug{merged}")));
+        // A v1alpha1 pipeline with no mode keeps the merge it always had.
+        let plain = endpoint_pipeline_spec(Some("T"), vec![], Some("15m"), None);
+        let rendered =
+            render_endpoint_stream(&plain, "helsinki", "helsinki/kpi", "src", true, "dst")
+                .expect("renders");
+        assert!(upsert_at(&rendered, "write_0")["url"]
+            .as_str()
+            .is_some_and(|u| u.ends_with(&format!("/dst{merged}"))));
     }
 
     /// PL-73: each record takes the first route whose `when` holds, runs that route's steps, and

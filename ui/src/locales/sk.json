@@ -1721,7 +1721,8 @@
         "container": "Úloha v kontajneri"
       },
       "modeChoice": {
-        "upsert": "Vytvoriť alebo nahradiť",
+        "upsert": "Vytvoriť alebo zlúčiť",
+        "replace": "Nahradiť celú entitu",
         "update-attrs": "Iba aktualizovať atribúty"
       }
     },
