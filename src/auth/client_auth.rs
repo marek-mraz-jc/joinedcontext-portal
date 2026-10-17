@@ -37,7 +37,7 @@ const PACED_DEFAULT_WAIT: std::time::Duration = std::time::Duration::from_secs(5
 /// One realm call, made again while it answers 429 Too Many Requests (T-4424): the realm sits
 /// behind the edge's `limit-count`, and a reconciler wave that writes many clients ran into it
 /// and left them for the next run. Each retry waits what the answer asks (`Retry-After` in
-/// seconds, else APISIX's `X-RateLimit-Reset`, else 5 s; at most 60 s), up to [`PACED_RETRIES`]
+/// seconds, else APISIX's `X-RateLimit-Reset`, else 5 s; at most 60 s), up to five
 /// times; then the 429 is the answer. `attempt` builds the request anew each time, so a client
 /// assertion is minted fresh rather than replayed. For the reconciler only: a person's request
 /// is never held this long.
