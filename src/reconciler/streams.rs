@@ -249,6 +249,15 @@ impl StreamDeployer {
             .ran(ran);
     }
 
+    /// Tells the run queue which workload accounts (`project/name`) have no Keycloak client
+    /// after this reconcile, so their pipelines are not started into a 401 loop (T-4426).
+    pub fn unbound(&self, accounts: HashSet<String>) {
+        self.queue
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unbound(accounts);
+    }
+
     /// Queues one run of a run-and-delete pipeline now (T-4349) and returns its id, the one its
     /// log lists it under.
     pub fn run_now(&self, project: &str, name: &str) -> Result<String, run_queue::RunNow> {

@@ -296,6 +296,10 @@ pub struct RunQueue {
     /// and not among them never ran, so it runs at once instead of waiting a day for its clock.
     /// `None` until the log has been read: a restart then never runs every pipeline at once.
     ran: Option<HashSet<Key>>,
+    /// The workload accounts (`project/name`) whose Keycloak client the last reconcile could not
+    /// converge (T-4426): a pipeline of one is not started, since every write it made would be
+    /// refused 401 and replayed until [`RUN_TIMEOUT`], holding its lane.
+    unbound: HashSet<String>,
 }
 
 impl RunQueue {
@@ -308,7 +312,24 @@ impl RunQueue {
             gone: Vec::new(),
             planned_at: None,
             ran: None,
+            unbound: HashSet::new(),
         }
+    }
+
+    /// The workload accounts the last reconcile left without a client, as `project/name`
+    /// (T-4426); an empty set once they all converged.
+    pub fn unbound(&mut self, accounts: HashSet<String>) {
+        self.unbound = accounts;
+    }
+
+    /// Whether `key`'s own pipeline account is one the realm has no client for.
+    fn is_unbound(&self, key: &Key) -> bool {
+        !self.unbound.is_empty()
+            && self.unbound.contains(&format!(
+                "{}/{}",
+                key.0,
+                jc_core::kinds::pipeline_identity::account_name(&key.1)
+            ))
     }
 
     /// The pipelines the run log holds a run of, read before each [`RunQueue::plan`].
@@ -470,6 +491,27 @@ impl RunQueue {
                 .filter_map(|(k, e)| Some((e.queued?, k.clone())))
                 .collect();
             waiting.sort();
+            // A run whose account has no client would only be refused: it ends failed here, with
+            // its reason, and leaves its slot to the next (T-4426).
+            if fresh {
+                let (refused, rest): (Vec<_>, Vec<_>) = waiting
+                    .into_iter()
+                    .partition(|(_, key)| self.is_unbound(key));
+                waiting = rest;
+                for (_, key) in refused {
+                    if let Some(entry) = self.entries.get_mut(&key) {
+                        crate::telemetry::pipeline_run("failed", 0.0);
+                        entry.queued = None;
+                        entry.last = Some(Last::Failed {
+                            at: now,
+                            reason: "not started: the realm holds no client for its account \
+                                     yet, so the gateway would refuse its writes (401); it runs \
+                                     at its next due time once the client is there"
+                                .to_owned(),
+                        });
+                    }
+                }
+            }
             let room = if fresh { limit.saturating_sub(busy) } else { 0 };
             for (due, key) in waiting.iter().take(room) {
                 if let Some(entry) = self.entries.get_mut(key) {
@@ -833,6 +875,50 @@ mod tests {
         assert_eq!(Clock::Every(SHORT_BELOW).lane(now), Lane::Batch);
         assert_eq!(daily_at_5().lane(now), Lane::Batch);
         assert_eq!(Clock::Once.lane(now), Lane::Batch);
+    }
+
+    #[tokio::test]
+    async fn a_pipeline_whose_account_has_no_client_fails_unstarted_and_frees_its_lane() {
+        let queue = Mutex::new(RunQueue::new(1, 1));
+        let fake = Fake::default();
+        let now = at("2026-10-17T04:59:00Z");
+        let wanted = ["a", "b"]
+            .map(|n| (key(n), planned(daily_at_5())))
+            .into_iter()
+            .collect();
+        queue.lock().unwrap().plan(wanted, now);
+        step(&queue, &fake, now).await;
+        fake.log();
+        // a's account is `p/pl-a`; the reconcile could not make its client (T-4426). `*` (a
+        // whole wave that failed) and another project's account hold nobody back.
+        queue.lock().unwrap().unbound(
+            ["p/pl-a", "*", "q/pl-b"]
+                .map(str::to_owned)
+                .into_iter()
+                .collect(),
+        );
+
+        let five = at("2026-10-17T05:00:00Z");
+        step(&queue, &fake, five).await;
+        assert_eq!(fake.log(), ["start b"], "a never takes the one batch slot");
+        match queue.lock().unwrap().outcome(&key("a")) {
+            Some(StreamOutcome::Error(said)) => {
+                assert!(said.contains("no client for its account"), "{said}");
+                assert!(said.contains("401"), "{said}");
+            }
+            other => panic!("a failed run, not {other:?}"),
+        }
+
+        // Once the client is there, a run of a starts like any other.
+        queue.lock().unwrap().unbound(HashSet::new());
+        fake.end("b", RunState::Finished);
+        queue
+            .lock()
+            .unwrap()
+            .run_now(&key("a"), five)
+            .expect("queued");
+        step(&queue, &fake, five + Span::seconds(60)).await;
+        assert_eq!(fake.log(), ["delete b", "start a"]);
     }
 
     #[tokio::test]
