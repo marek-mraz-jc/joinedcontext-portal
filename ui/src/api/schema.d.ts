@@ -1489,26 +1489,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{project}/assistant/catalog": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Search Catalog
-         * @description Find spaces, endpoints, and data models matching search keywords.
-         */
-        get: operations["get_catalog"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/projects/{project}/assistant/conversations": {
         parameters: {
             query?: never;
@@ -2033,26 +2013,6 @@ export interface paths {
          * @description The project's manifests as one bundle, narrowed to the kinds and names asked for; the whole project is for organization administrators.
          */
         get: operations["export"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/projects/{project}/federation-graph": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Read Federation
-         * @description The project's spaces, endpoints, pipelines and apps, and what links them.
-         */
-        get: operations["get_graph"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3048,11 +3008,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Read A Data View
-         * @description One saved view. A personal view of someone else answers like no view.
-         */
-        get: operations["get_view"];
+        get?: never;
         /**
          * Change A Data View
          * @description Renames a view or changes its kind, mode or settings. A locked view is changed by its owner or a steward of the space, and so is any view's mode. With `expectedVersion`, a save against a newer view is refused.
@@ -3361,26 +3317,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/sync": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Read Mirror Sync
-         * @description Where the Portal's mirror of the configuration repository stands: the revision it holds and when it last synchronized. The instance's state, not a project's.
-         */
-        get: operations["get_sync_status"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/tools/generate": {
         parameters: {
             query?: never;
@@ -3509,12 +3445,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** @description Whether the caller may read the item, and why. */
-        Access: {
-            reason: string;
-            /** @description `allowed` or `restricted`. */
-            verdict: string;
-        };
         /** @description One ServiceAccount of the broker's roles and its connected clients. */
         AccountSeen: {
             /** Format: int32 */
@@ -4052,27 +3982,6 @@ export interface components {
                 [key: string]: components["schemas"]["EndpointAccess"];
             };
             preset: components["schemas"]["Preset"];
-        };
-        /** @description What a search of the project's own catalogue answered (API/01 §18, AG-58). */
-        Catalog: {
-            items: components["schemas"]["CatalogItem"][];
-            /** @description The words the search ran on, with the function words removed. */
-            q: string;
-        };
-        /**
-         * @description One manifest the search matched. A restricted item carries its kind and name and nothing
-         *     else: what the caller may not read is not described to them (AG-58).
-         */
-        CatalogItem: {
-            access: components["schemas"]["Access"];
-            endpointSlug?: string | null;
-            freshness?: null | components["schemas"]["Freshness"];
-            kind: string;
-            matchReason: string[];
-            name: string;
-            owner: string;
-            space: string;
-            title?: string | null;
         };
         /** @description The catalogue index Model Tools caches and refreshes daily (DM-12). */
         Catalogue: {
@@ -11123,52 +11032,6 @@ export interface operations {
             };
         };
     };
-    get_catalog: {
-        parameters: {
-            query: {
-                /** @description What to look for; the function words are dropped */
-                q: string;
-                /** @description One kind to search, from the kinds the catalogue holds */
-                scope?: string;
-            };
-            header?: never;
-            path: {
-                /** @description The project the search runs in */
-                project: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description What the search matched, restricted items included */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Catalog"];
-                };
-            };
-            /** @description `q` is empty, or `scope` names no kind */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description No such project, or the caller may not read it */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProblemDetails"];
-                };
-            };
-        };
-    };
     start_conversation: {
         parameters: {
             query?: never;
@@ -13172,38 +13035,6 @@ export interface operations {
             };
             /** @description No repository configured */
             503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProblemDetails"];
-                };
-            };
-        };
-    };
-    get_graph: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Project name */
-                project: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The federation of this project */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FederationGraph"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -16973,51 +16804,6 @@ export interface operations {
             };
         };
     };
-    get_view: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Project name */
-                project: string;
-                /** @description Context Space name */
-                space: string;
-                /** @description The view's id */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The view */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DataView"];
-                };
-            };
-            /** @description Not signed in */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description No such view the caller sees */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProblemDetails"];
-                };
-            };
-        };
-    };
     update_view: {
         parameters: {
             query?: never;
@@ -18427,35 +18213,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Readiness"];
-                };
-            };
-        };
-    };
-    get_sync_status: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Status of the background Git mirror synchronization */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SyncStatus"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
         };

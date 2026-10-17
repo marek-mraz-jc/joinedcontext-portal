@@ -8,7 +8,7 @@ use axum::body::Bytes;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{get, put};
 use axum::{Json, Router};
 use jc_core::kinds::Verb;
 use serde::de::DeserializeOwned;
@@ -186,32 +186,6 @@ pub async fn create_view(
 }
 
 #[utoipa::path(
-    get,
-    path = "/api/v1/projects/{project}/spaces/{space}/views/{id}",
-    summary = "Read A Data View",
-    description = "One saved view. A personal view of someone else answers like no view.",
-    tag = "spaces",
-    params(
-        ("project" = String, Path, description = "Project name"),
-        ("space" = String, Path, description = "Context Space name"),
-        ("id" = String, Path, description = "The view's id"),
-    ),
-    responses(
-        (status = 200, description = "The view", body = DataView),
-        (status = 401, description = "Not signed in", body = ProblemDetails),
-        (status = 404, description = "No such view the caller sees", body = ProblemDetails),
-    )
-)]
-pub async fn get_view(
-    user: CurrentUser,
-    State(state): State<AppState>,
-    Path((project, space, id)): Path<(String, String, String)>,
-) -> Result<Json<DataView>, ApiError> {
-    let (view, _) = visible(&state, &user.0.identity, &project, &space, &id).await?;
-    Ok(Json(view))
-}
-
-#[utoipa::path(
     put,
     path = "/api/v1/projects/{project}/spaces/{space}/views/{id}",
     summary = "Change A Data View",
@@ -302,6 +276,6 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/projects/{project}/spaces/{space}/views/{id}",
-            get(get_view).put(update_view).delete(delete_view),
+            put(update_view).delete(delete_view),
         )
 }

@@ -216,35 +216,46 @@ async fn post(app: &axum::Router, cookie: &str, uri: &str, body: &Value) -> (Sta
     )
 }
 
-fn catalog(project: &str, query: &str) -> String {
-    format!("/api/v1/projects/{project}/assistant/catalog?{query}")
+/// Asks `jc_catalog_search` (T-4453: the one door the search has) what `query`, written as the
+/// old route's query string, asked.
+async fn search(
+    app: &axum::Router,
+    cookie: &str,
+    project: &str,
+    query: &str,
+) -> (StatusCode, Value) {
+    let input: serde_json::Map<String, Value> = url::form_urlencoded::parse(query.as_bytes())
+        .map(|(k, v)| (k.into_owned(), Value::String(v.into_owned())))
+        .collect();
+    let uri = format!("/api/v1/projects/{project}/ops/jc_catalog_search");
+    post(app, cookie, &uri, &Value::Object(input)).await
 }
 
 // -------------------------------------------------------------------------------------------------
-// T-1986 `get_catalog`
+// T-1986 `jc_catalog_search` (the route `get_catalog` until T-4453)
 // -------------------------------------------------------------------------------------------------
 
-/// AG-58: a question with no words is refused before a project is looked at, so the same 400 answers a
-/// member and a stranger — an empty `q` is not a way to ask which projects exist.
+/// AG-58, PF-59: a question with no words is a 400 to a reader of the project and the plain 404 to
+/// a stranger, the answer a stranger gets for any question, so an empty `q` is not a way to ask
+/// which projects exist (the registry checks the project before the input, T-4453).
 #[tokio::test]
-async fn a_question_with_no_words_is_refused_before_any_project_is_looked_at() {
+async fn a_question_with_no_words_tells_a_stranger_nothing_a_real_question_does_not() {
     let (_, app, _, member, stranger) = world();
+    let (_, real) = search(&app, &stranger, PROJECT, "q=bikes").await;
 
     for query in ["", "q=", "q=%20%20", "q=%09", "scope=Endpoint", "q=&scope="] {
-        let (mine, my_body) = get(&app, &member, &catalog(PROJECT, query)).await;
-        let (theirs, their_body) = get(&app, &stranger, &catalog(PROJECT, query)).await;
+        let (mine, my_body) = search(&app, &member, PROJECT, query).await;
+        let (theirs, their_body) = search(&app, &stranger, PROJECT, query).await;
         assert_eq!(mine, StatusCode::BAD_REQUEST, "{query}: {my_body}");
-        assert_eq!(theirs, StatusCode::BAD_REQUEST, "{query}: {their_body}");
+        assert_eq!(theirs, StatusCode::NOT_FOUND, "{query}: {their_body}");
         assert_eq!(
-            my_body["detail"], their_body["detail"],
-            "{query} told a stranger something a member is told differently",
+            their_body, real,
+            "{query} told a stranger more than a question does"
         );
     }
 
-    // And the same question against a project this installation does not have: still the same 400,
-    // because the words are checked first.
-    let (status, body) = get(&app, &member, &catalog("no-such-project", "q=")).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    let (status, body) = search(&app, &member, "no-such-project", "q=").await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
 }
 
 /// PF-59, R20: a catalogue of a project a caller cannot read is a `404`, like a project that is not
@@ -254,7 +265,7 @@ async fn a_catalogue_of_a_project_a_caller_cannot_read_names_nothing_of_it() {
     let (_, app, _, member, stranger) = world();
 
     // A real project, a real question, a caller with no binding in it.
-    let (status, body) = get(&app, &stranger, &catalog(PROJECT, "q=bikes")).await;
+    let (status, body) = search(&app, &stranger, PROJECT, "q=bikes").await;
     assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
     let text = body.to_string();
     for leaked in [
@@ -267,9 +278,9 @@ async fn a_catalogue_of_a_project_a_caller_cannot_read_names_nothing_of_it() {
 
     // The member's own project answers, and the project next door — which they hold nothing in — does
     // not: one binding, one catalogue.
-    let (status, body) = get(&app, &member, &catalog(PROJECT, "q=bikes")).await;
+    let (status, body) = search(&app, &member, PROJECT, "q=bikes").await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    let (status, body) = get(&app, &member, &catalog(ELSEWHERE, "q=bikes")).await;
+    let (status, body) = search(&app, &member, ELSEWHERE, "q=bikes").await;
     assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
     assert!(
         !body.to_string().contains("espoo-bikes"),
@@ -286,7 +297,7 @@ async fn a_catalogue_of_a_project_a_caller_cannot_read_names_nothing_of_it() {
         "-helsinki",
         too_long.as_str(),
     ] {
-        let (status, body) = get(&app, &member, &catalog(name, "q=bikes")).await;
+        let (status, body) = search(&app, &member, name, "q=bikes").await;
         assert_eq!(status, StatusCode::NOT_FOUND, "{name}: {body}");
     }
 }
@@ -307,12 +318,8 @@ async fn a_scope_is_one_of_the_three_kinds_the_catalogue_holds() {
         "App",
         "Endpoint,DataModel",
     ] {
-        let (status, body) = get(
-            &app,
-            &member,
-            &catalog(PROJECT, &format!("q=bikes&scope={scope}")),
-        )
-        .await;
+        let (status, body) =
+            search(&app, &member, PROJECT, &format!("q=bikes&scope={scope}")).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{scope}: {body}");
         let detail = body["detail"].as_str().unwrap_or_default();
         for known in ["Endpoint", "ContextSpace", "DataModel"] {
@@ -324,15 +331,15 @@ async fn a_scope_is_one_of_the_three_kinds_the_catalogue_holds() {
     }
 
     // A stranger's bad scope is the project's 404: the read is checked first.
-    let (status, _) = get(&app, &stranger, &catalog(PROJECT, "q=bikes&scope=Pipeline")).await;
+    let (status, _) = search(&app, &stranger, PROJECT, "q=bikes&scope=Pipeline").await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 
     // No scope, an empty scope and a legal one: all answered, and the legal one narrows to its kind.
     for query in ["q=bikes", "q=bikes&scope=", "q=bikes&scope=Endpoint"] {
-        let (status, body) = get(&app, &member, &catalog(PROJECT, query)).await;
+        let (status, body) = search(&app, &member, PROJECT, query).await;
         assert_eq!(status, StatusCode::OK, "{query}: {body}");
     }
-    let (_, narrowed) = get(&app, &member, &catalog(PROJECT, "q=bikes&scope=DataModel")).await;
+    let (_, narrowed) = search(&app, &member, PROJECT, "q=bikes&scope=DataModel").await;
     for item in narrowed["items"].as_array().into_iter().flatten() {
         assert_eq!(item["kind"], json!("DataModel"), "{narrowed}");
     }

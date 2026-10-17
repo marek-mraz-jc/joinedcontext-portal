@@ -278,6 +278,12 @@ pub fn operations() -> Vec<Operation> {
                         .as_deref()
                         .map(str::trim)
                         .filter(|s| !s.is_empty());
+                    if let Some(other) = scope.filter(|kind| !assistant::KINDS.contains(kind)) {
+                        return Err(OpError::Api(ApiError::BadRequest(format!(
+                            "scope '{other}' is not one of {}",
+                            assistant::KINDS.join(", ")
+                        ))));
+                    }
                     let res = assistant::search(state, project, q, scope).await;
                     Ok(serde_json::to_value(res)?)
                 })

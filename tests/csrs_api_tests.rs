@@ -213,13 +213,7 @@ async fn get_as(
 ) -> (StatusCode, Value) {
     let app = server::app(AppState::new(config, None).with_mirror(mirror));
     let response = app
-        .oneshot(
-            Request::builder()
-                .uri(uri)
-                .header(header::COOKIE, cookie)
-                .body(Body::empty())
-                .expect("request"),
-        )
+        .oneshot(request(uri, Some(cookie)))
         .await
         .expect("response");
     let status = response.status();
@@ -235,6 +229,27 @@ async fn get_as(
         serde_json::from_slice(&bytes).expect("json body")
     };
     (status, value)
+}
+
+/// A read: a GET of a route, or a POST of a registry operation (`…/ops/{name}`, T-4453).
+fn request(uri: &str, cookie: Option<String>) -> Request<Body> {
+    let csrf = format!("{CSRF_COOKIE}={CSRF_TOKEN}");
+    let builder = Request::builder().uri(uri);
+    let builder = if uri.contains("/ops/") {
+        let cookie = cookie.map_or(csrf.clone(), |c| format!("{c}; {csrf}"));
+        builder
+            .method("POST")
+            .header(header::COOKIE, cookie)
+            .header(CSRF_HEADER, CSRF_TOKEN)
+            .header(header::CONTENT_TYPE, "application/json")
+    } else {
+        match cookie {
+            Some(cookie) => builder.header(header::COOKIE, cookie),
+            None => builder,
+        }
+    };
+    let body = if uri.contains("/ops/") { "{}" } else { "" };
+    builder.body(Body::from(body)).expect("request")
 }
 
 fn node<'a>(graph: &'a Value, id: &str) -> &'a Value {
@@ -488,7 +503,11 @@ async fn a_registration_with_no_selector_is_refused_before_anything_is_written()
 /// came from so a reader can open it.
 #[tokio::test]
 async fn the_graph_draws_every_object_and_names_the_manifest_behind_each_edge() {
-    let (status, graph) = get("/api/v1/projects/ovzdusie/federation-graph", seeded()).await;
+    let (status, graph) = get(
+        "/api/v1/projects/ovzdusie/ops/jc_federation_graph",
+        seeded(),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
 
     let ids: Vec<&str> = graph["nodes"]
@@ -565,7 +584,11 @@ async fn the_graph_draws_every_object_and_names_the_manifest_behind_each_edge() 
 /// `unknown` rather than green.
 #[tokio::test]
 async fn health_is_what_the_object_reported_and_never_a_guess() {
-    let (_, graph) = get("/api/v1/projects/ovzdusie/federation-graph", seeded()).await;
+    let (_, graph) = get(
+        "/api/v1/projects/ovzdusie/ops/jc_federation_graph",
+        seeded(),
+    )
+    .await;
 
     assert_eq!(node(&graph, "ContextSpace/hub")["health"], json!("ok"));
     assert_eq!(
@@ -588,7 +611,11 @@ async fn health_is_what_the_object_reported_and_never_a_guess() {
 /// after its address.
 #[tokio::test]
 async fn no_address_and_no_credential_is_anywhere_in_the_graph() {
-    let (_, graph) = get("/api/v1/projects/ovzdusie/federation-graph", seeded()).await;
+    let (_, graph) = get(
+        "/api/v1/projects/ovzdusie/ops/jc_federation_graph",
+        seeded(),
+    )
+    .await;
     let text = serde_json::to_string(&graph).expect("serialises");
 
     for leaked in [
@@ -651,7 +678,7 @@ async fn a_registration_onto_a_missing_endpoint_still_draws_its_edge() {
         None,
     ));
 
-    let (_, graph) = get("/api/v1/projects/ovzdusie/federation-graph", mirror).await;
+    let (_, graph) = get("/api/v1/projects/ovzdusie/ops/jc_federation_graph", mirror).await;
     assert!(edges(&graph).contains(&(
         "ContextSourceRegistration/dangling".into(),
         "Endpoint/gone".into(),
@@ -689,7 +716,7 @@ async fn a_viewer_reads_the_topology_and_a_stranger_does_not() {
     ));
     for uri in [
         "/api/v1/projects/ovzdusie/csrs",
-        "/api/v1/projects/ovzdusie/federation-graph",
+        "/api/v1/projects/ovzdusie/ops/jc_federation_graph",
     ] {
         let (steward, as_steward) = get(uri, mirror.clone()).await;
         assert_eq!(steward, StatusCode::OK, "{uri}: {as_steward}");
@@ -716,18 +743,10 @@ async fn a_viewer_reads_the_topology_and_a_stranger_does_not() {
 async fn neither_route_answers_without_a_session() {
     for uri in [
         "/api/v1/projects/ovzdusie/csrs",
-        "/api/v1/projects/ovzdusie/federation-graph",
+        "/api/v1/projects/ovzdusie/ops/jc_federation_graph",
     ] {
         let app = server::app(AppState::new(Config::for_tests(), None).with_mirror(seeded()));
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri(uri)
-                    .body(Body::empty())
-                    .expect("request"),
-            )
-            .await
-            .expect("response");
+        let response = app.oneshot(request(uri, None)).await.expect("response");
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "{uri}");
     }
 }
@@ -765,7 +784,7 @@ async fn a_published_endpoint_draws_its_catalogue_and_every_node_its_phase() {
         ));
     }
 
-    let (status, graph) = get("/api/v1/projects/ovzdusie/federation-graph", mirror).await;
+    let (status, graph) = get("/api/v1/projects/ovzdusie/ops/jc_federation_graph", mirror).await;
     assert_eq!(status, StatusCode::OK);
 
     assert!(edges(&graph).contains(&(

@@ -365,10 +365,6 @@ routes:
     rule: "space-read"
     expect: [403, allow, allow, allow, allow, allow, 404, allow]
     body: {"type": "Station", "kind": "grid", "mode": "personal", "title": "x"}
-  - route: GET /projects/{project}/spaces/{space}/views/{id}
-    rule: "space-read, then the view's mode"
-    expect: [401, 404, 404, 404, 404, 404, 404, 404]
-    note: "the fixture holds no view 0000000000000000; who sees and changes a view is its mode's (tests/data_views_api_tests.rs)"
   - route: PUT /projects/{project}/spaces/{space}/views/{id}
     rule: "space-read, then the view's mode"
     expect: [403, 404, 404, 404, 404, 404, 404, 404]
@@ -569,10 +565,6 @@ routes:
   - route: GET /projects/{project}/assistant/access
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]
-  - route: GET /projects/{project}/assistant/catalog
-    rule: "project-read"
-    expect: [401, allow, allow, allow, allow, allow, 404, allow]
-    query: "q=air"
   - route: POST /projects/{project}/assistant/conversations
     rule: "project-verb:propose:App"
     expect: [403, 403, 403, allow, 403, allow, 403, 403]
@@ -669,9 +661,6 @@ routes:
     rule: "project-read, and org-admin (PF-03) (UI-87)"
     expect: [401, 403, 403, 403, 403, allow, 404, 403]
     note: "one App is an organization administrator's to export (UI-87); the administrator passes the checks, and the fixture's App names no source.git repository to bundle, which is 409 (app_transfer_tests)"
-  - route: GET /projects/{project}/federation-graph
-    rule: "project-read"
-    expect: [401, allow, allow, allow, allow, allow, 404, allow]
   - route: POST /projects/{project}/flows
     rule: "project-verb:propose:*"
     expect: [403, 404, 404, 404, 404, 404, 404, 404]
@@ -833,9 +822,6 @@ routes:
   - route: GET /ready
     rule: "public"
     expect: [allow, allow, allow, allow, allow, allow, allow, allow]
-  - route: GET /sync
-    rule: "signed-in"
-    expect: [401, allow, allow, allow, allow, allow, allow, allow]
   - route: POST /tools/generate
     rule: "signed-in"
     expect: [403, allow, allow, allow, allow, allow, allow, allow]
