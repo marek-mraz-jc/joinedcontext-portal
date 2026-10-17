@@ -58,7 +58,7 @@ beforeEach(() => {
   HTMLDialogElement.prototype.close = function () {
     this.removeAttribute("open");
   };
-  document.cookie = "jc_csrf=token-123";
+  document.cookie = "__Host-jc_csrf=token-123; Secure; path=/";
 });
 afterEach(() => {
   vi.unstubAllGlobals();

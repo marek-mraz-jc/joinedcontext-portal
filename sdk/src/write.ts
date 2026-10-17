@@ -137,7 +137,7 @@ export interface Write {
   patch?: Record<string, Cell | RelationshipObject>;
 }
 
-export const CSRF_COOKIE = "jc_csrf";
+export const CSRF_COOKIE = "__Host-jc_csrf";
 export const CSRF_HEADER = "x-csrf-token";
 /** How long a preview waits for its host page to answer a write. */
 export const BRIDGE_TIMEOUT_MS = 15000;

@@ -1,7 +1,7 @@
 //! Double-submit CSRF protection for every mutating Portal API call.
 //!
 //! `SameSite=Lax` already keeps the session cookie off cross-site POSTs; this is the second
-//! lock: the UI reads the readable `jc_csrf` cookie and echoes it in `X-CSRF-Token`.
+//! lock: the UI reads the readable `__Host-jc_csrf` cookie and echoes it in `X-CSRF-Token`.
 
 use axum::extract::Request;
 use axum::http::{HeaderMap, Method};
@@ -11,12 +11,23 @@ use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use openidconnect::CsrfToken;
 
 /// Readable by the UI on purpose: the double-submit token is not a secret to the page.
-pub const CSRF_COOKIE: &str = "jc_csrf";
+pub const CSRF_COOKIE: &str = "__Host-jc_csrf";
 
-/// A cookie that tells the browser to drop the CSRF token: same path, `Max-Age=0`, expired.
-/// Unconditional like the session's own removal (AP-29).
+/// The name an App built before T-4395 reads its token from: its bundle carries the SDK it was
+/// built with until it is rebuilt. The apps origin hands it a copy of the same token; nothing
+/// reads it back, `verify` compares the header with `CSRF_COOKIE` alone, so a planted copy can
+/// make an old App's write fail but never pass one.
+// ponytail: dropped once every App is rebuilt on an SDK that reads `CSRF_COOKIE`.
+pub const LEGACY_APP_CSRF_COOKIE: &str = "jc_csrf";
+
+/// A cookie that tells the browser to drop the CSRF token: same path, `Secure` (a browser ignores
+/// a `__Host-` removal without it), `Max-Age=0`, expired. Unconditional like the session's own
+/// removal (AP-29).
 pub fn removal() -> Cookie<'static> {
-    let mut cookie = Cookie::build((CSRF_COOKIE, "")).path("/").build();
+    let mut cookie = Cookie::build((CSRF_COOKIE, ""))
+        .path("/")
+        .secure(true)
+        .build();
     cookie.make_removal();
     cookie
 }
@@ -60,7 +71,16 @@ pub fn new_token() -> String {
 
 /// The cookie the UI reads; `HttpOnly` is deliberately off, `Secure` and `Lax` are not.
 pub fn cookie(token: &Token) -> Cookie<'static> {
-    Cookie::build((CSRF_COOKIE, token.0.clone()))
+    named(CSRF_COOKIE, token)
+}
+
+/// `cookie` under `LEGACY_APP_CSRF_COOKIE`, for an App built before T-4395.
+pub fn legacy_app_cookie(token: &Token) -> Cookie<'static> {
+    named(LEGACY_APP_CSRF_COOKIE, token)
+}
+
+fn named(name: &'static str, token: &Token) -> Cookie<'static> {
+    Cookie::build((name, token.0.clone()))
         .path("/")
         .http_only(false)
         .secure(true)

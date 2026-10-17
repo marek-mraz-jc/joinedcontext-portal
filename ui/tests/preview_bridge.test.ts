@@ -122,7 +122,7 @@ describe("handleBridgeMessage", () => {
   });
 
   it("performs a granted write with the CSRF header and hands back the endpoint's answer", async () => {
-    document.cookie = "jc_csrf=csrf-abc";
+    document.cookie = "__Host-jc_csrf=csrf-abc; Secure; path=/";
     const problem = { type: "about:blank", title: "Forbidden", status: 403, detail: "no policy grants this write" };
     const fetchImpl = vi
       .fn()
@@ -142,7 +142,7 @@ describe("handleBridgeMessage", () => {
   });
 
   it("calls the run's function with the session and hands back its answer", async () => {
-    document.cookie = "jc_csrf=csrf-fn";
+    document.cookie = "__Host-jc_csrf=csrf-fn; Secure; path=/";
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ types: [] }), { status: 201, headers: { "content-type": "application/json" } }));
     const { outcome, source } = await send(request({ method: "POST", path: "/functions/summary", body: { types: ["A"] } }), { fetchImpl });
     expect(outcome).toBe("forwarded");

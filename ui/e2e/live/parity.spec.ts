@@ -124,7 +124,7 @@ async function pendingFor(page: Page, c: Case): Promise<string[]> {
 
 /** The double-submit token the Portal's write routes want beside the session cookie. */
 async function csrf(context: BrowserContext): Promise<Record<string, string>> {
-  const token = (await context.cookies()).find((cookie) => cookie.name === "jc_csrf")?.value ?? "";
+  const token = (await context.cookies()).find((cookie) => cookie.name === "__Host-jc_csrf")?.value ?? "";
   expect(token, "the session carries a CSRF cookie").not.toBe("");
   return { "x-csrf-token": token };
 }

@@ -206,7 +206,7 @@ async fn a_published_function_runs_the_served_build_with_the_callers_token() {
         return;
     }
     let rig = rig("fn-served").await;
-    let cookie = format!("jc_csrf={CSRF}");
+    let cookie = format!("__Host-jc_csrf={CSRF}");
     let (status, body) = post(
         &rig,
         "/apps/open-data/api/functions/near-me?lat=60.17",

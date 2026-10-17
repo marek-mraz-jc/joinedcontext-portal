@@ -336,9 +336,9 @@ export async function listedNames(page: Page, project: string, plural: string): 
  * reads that refusal as the rule it meant to test proves nothing (T-1585).
  */
 export async function csrf(context: BrowserContext): Promise<string> {
-  const cookie = (await context.cookies()).find((each) => each.name === "jc_csrf");
+  const cookie = (await context.cookies()).find((each) => each.name === "__Host-jc_csrf");
   if (!cookie) {
-    throw new Error("no jc_csrf cookie in this context: the session did not complete");
+    throw new Error("no __Host-jc_csrf cookie in this context: the session did not complete");
   }
   return cookie.value;
 }

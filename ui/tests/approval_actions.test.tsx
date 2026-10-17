@@ -113,7 +113,7 @@ function posts(fetchMock: ReturnType<typeof vi.fn>): Request[] {
 describe("approval actions", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
-    document.cookie = "jc_csrf=csrf-token-value";
+    document.cookie = "__Host-jc_csrf=csrf-token-value; Secure; path=/";
     window.history.pushState({}, "", "/projects/banskabystrica/approvals/chg-1a2b3c4d");
   });
 
@@ -363,7 +363,7 @@ describe("approval actions", () => {
 describe("the files of a bundle (T-0861)", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
-    document.cookie = "jc_csrf=csrf-token-value";
+    document.cookie = "__Host-jc_csrf=csrf-token-value; Secure; path=/";
     window.history.pushState({}, "", "/projects/banskabystrica/approvals/chg-1a2b3c4d");
   });
 

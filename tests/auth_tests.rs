@@ -316,7 +316,7 @@ async fn login_starts_a_pkce_flow_and_parks_the_verifier_in_a_secure_cookie() {
     let cookies = set_cookie_values(&response);
     let flow = cookies
         .iter()
-        .find(|c| c.starts_with("jc_oidc_flow="))
+        .find(|c| c.starts_with("__Host-jc_oidc_flow="))
         .expect("flow cookie");
     assert!(flow.contains("HttpOnly"), "{flow}");
     assert!(flow.contains("Secure"), "{flow}");
@@ -362,7 +362,7 @@ async fn callback_with_a_foreign_state_is_refused() {
         .unwrap();
     let flow_cookie = set_cookie_values(&started)
         .into_iter()
-        .find(|c| c.starts_with("jc_oidc_flow="))
+        .find(|c| c.starts_with("__Host-jc_oidc_flow="))
         .map(|c| c.split(';').next().unwrap_or_default().to_string())
         .expect("flow cookie");
 
@@ -476,7 +476,7 @@ async fn a_mutation_with_a_matching_csrf_token_passes_the_gate() {
             Request::builder()
                 .method("POST")
                 .uri("/api/v1/auth/logout")
-                .header(header::COOKIE, format!("jc_csrf={token}"))
+                .header(header::COOKIE, format!("__Host-jc_csrf={token}"))
                 .header("x-csrf-token", token)
                 .body(Body::empty())
                 .unwrap(),
@@ -497,7 +497,7 @@ async fn a_mutation_with_a_matching_csrf_token_passes_the_gate() {
     // ADR-N-019, AP-29: no session cookie came with the request, and all three Portal cookies
     // are still told to go, because the edge's own logout never reaches this handler.
     let cookies = set_cookie_values(&response);
-    for name in ["jc_session", "jc_refresh", "jc_csrf"] {
+    for name in ["__Host-jc_session", "__Host-jc_refresh", "__Host-jc_csrf"] {
         assert!(
             cookies
                 .iter()
@@ -567,6 +567,15 @@ fn session_cookies(access_in: i64) -> String {
 /// [`session_cookies`], for a session that started `issued_ago` seconds ago. Two sessions of one
 /// person that started at different moments is what a logout has to tell apart (T-1678).
 fn session_cookies_issued(access_in: i64, issued_ago: i64) -> String {
+    stored_session(access_in, issued_ago)
+        .iter()
+        .filter_map(|c| c.split(';').next().map(str::to_string))
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+/// The `Set-Cookie` lines `session::store` writes for a session, attributes and all.
+fn stored_session(access_in: i64, issued_ago: i64) -> Vec<String> {
     use axum::response::IntoResponse;
     use axum_extra::extract::cookie::{Key, PrivateCookieJar};
     use joinedcontext_portal::auth::session::{now_unix, store, Identity, Session};
@@ -592,10 +601,6 @@ fn session_cookies_issued(access_in: i64, issued_ago: i64) -> String {
     let jar = store(PrivateCookieJar::new(key), &session).expect("store");
     let response = (jar, StatusCode::OK).into_response();
     set_cookie_values(&response)
-        .iter()
-        .filter_map(|c| c.split(';').next().map(str::to_string))
-        .collect::<Vec<_>>()
-        .join("; ")
 }
 
 async fn mount_token_endpoint(realm: &MockServer, template: ResponseTemplate, expected: u64) {
@@ -653,11 +658,11 @@ async fn a_session_near_access_expiry_is_refreshed_and_both_cookies_rotate() {
     let cookies = set_cookie_values(&response);
     let session = cookies
         .iter()
-        .find(|c| c.starts_with("jc_session="))
+        .find(|c| c.starts_with("__Host-jc_session="))
         .expect("rotated session cookie");
     let refresh = cookies
         .iter()
-        .find(|c| c.starts_with("jc_refresh="))
+        .find(|c| c.starts_with("__Host-jc_refresh="))
         .expect("rotated refresh cookie");
     for cookie in [session, refresh] {
         assert!(cookie.contains("HttpOnly"), "{cookie}");
@@ -717,13 +722,13 @@ async fn a_refused_refresh_ends_the_session_with_401_for_fetch_and_login_for_nav
     assert!(
         cookies
             .iter()
-            .any(|c| c.starts_with("jc_session=") && c.contains("Max-Age=0")),
+            .any(|c| c.starts_with("__Host-jc_session=") && c.contains("Max-Age=0")),
         "the session cookie is cleared: {cookies:?}"
     );
     assert!(
         cookies
             .iter()
-            .any(|c| c.starts_with("jc_refresh=") && c.contains("Max-Age=0")),
+            .any(|c| c.starts_with("__Host-jc_refresh=") && c.contains("Max-Age=0")),
         "the refresh cookie is cleared: {cookies:?}"
     );
 
@@ -819,7 +824,7 @@ async fn me_issues_the_csrf_cookie_to_an_edge_session_that_lacks_one() {
     let cookies = set_cookie_values(&response);
     let csrf = cookies
         .iter()
-        .find(|c| c.starts_with("jc_csrf="))
+        .find(|c| c.starts_with("__Host-jc_csrf="))
         .unwrap_or_else(|| panic!("an edge session is handed the CSRF cookie: {cookies:?}"));
     assert!(csrf.contains("Secure") && csrf.contains("Path=/"), "{csrf}");
     assert!(!csrf.contains("HttpOnly"), "the UI must read it: {csrf}");
@@ -1230,7 +1235,7 @@ async fn login_parks_the_return_path_in_the_cookie_and_never_in_the_url() {
         // The flow cookie is the browser's only copy, and it is not readable by a script.
         let flow = cookies
             .iter()
-            .find(|cookie| cookie.starts_with("jc_oidc_flow="))
+            .find(|cookie| cookie.starts_with("__Host-jc_oidc_flow="))
             .unwrap_or_else(|| panic!("{query}: no flow cookie: {cookies:?}"));
         for attribute in [
             "HttpOnly",
@@ -1257,7 +1262,7 @@ async fn login_parks_the_return_path_in_the_cookie_and_never_in_the_url() {
     assert!(
         cookies
             .iter()
-            .all(|cookie| !cookie.starts_with("jc_oidc_flow=")),
+            .all(|cookie| !cookie.starts_with("__Host-jc_oidc_flow=")),
         "a refused login parked a flow: {cookies:?}",
     );
 
@@ -1272,7 +1277,7 @@ async fn login_parks_the_return_path_in_the_cookie_and_never_in_the_url() {
     let flow_of = |cookies: &[String]| {
         cookies
             .iter()
-            .find(|cookie| cookie.starts_with("jc_oidc_flow="))
+            .find(|cookie| cookie.starts_with("__Host-jc_oidc_flow="))
             .cloned()
             .unwrap_or_default()
     };
@@ -1337,7 +1342,7 @@ async fn a_refused_callback_never_mints_a_session() {
             response.headers().get("set-cookie").is_none()
                 || set_cookie_values(&response)
                     .iter()
-                    .all(|cookie| !cookie.starts_with("jc_session=")),
+                    .all(|cookie| !cookie.starts_with("__Host-jc_session=")),
             "{what} minted a session: {:?}",
             set_cookie_values(&response),
         );
@@ -1381,7 +1386,7 @@ async fn me_answers_the_identity_and_never_a_token() {
     assert!(
         set_cookie_values(&response)
             .iter()
-            .all(|cookie| !cookie.starts_with("jc_csrf=")),
+            .all(|cookie| !cookie.starts_with("__Host-jc_csrf=")),
         "a Portal session was issued a new CSRF cookie: {:?}",
         set_cookie_values(&response),
     );
@@ -1442,9 +1447,9 @@ async fn logout_clears_the_cookies_without_a_session_and_hints_at_no_token() {
     };
 
     // Nobody signed in: the cookies still go, and the end-session URL hints at no token.
-    let (status, cookies, target) = out(format!("jc_csrf={token}")).await;
+    let (status, cookies, target) = out(format!("__Host-jc_csrf={token}")).await;
     assert_eq!(status, StatusCode::OK, "{target}");
-    for name in ["jc_session", "jc_refresh", "jc_csrf"] {
+    for name in ["__Host-jc_session", "__Host-jc_refresh", "__Host-jc_csrf"] {
         assert!(
             cookies
                 .iter()
@@ -1463,7 +1468,7 @@ async fn logout_clears_the_cookies_without_a_session_and_hints_at_no_token() {
 
     // Signed in: the same, with the hint the provider needs to end the right SSO session.
     let (status, _cookies, target) =
-        out(format!("{}; jc_csrf={token}", session_cookies(300))).await;
+        out(format!("{}; __Host-jc_csrf={token}", session_cookies(300))).await;
     assert_eq!(status, StatusCode::OK, "{target}");
     let url = target["endSessionUrl"].as_str().unwrap_or_default();
     assert!(
@@ -1478,7 +1483,7 @@ async fn logout_clears_the_cookies_without_a_session_and_hints_at_no_token() {
             Request::builder()
                 .method("POST")
                 .uri("/api/v1/auth/logout")
-                .header(header::COOKIE, format!("jc_csrf={token}"))
+                .header(header::COOKIE, format!("__Host-jc_csrf={token}"))
                 .header("x-csrf-token", token)
                 .body(Body::empty())
                 .unwrap(),
@@ -1652,7 +1657,10 @@ async fn logout_with(app: axum::Router, cookies: &str) -> StatusCode {
         Request::builder()
             .method("POST")
             .uri("/api/v1/auth/logout")
-            .header(header::COOKIE, format!("{cookies}; jc_csrf={LOGOUT_CSRF}"))
+            .header(
+                header::COOKIE,
+                format!("{cookies}; __Host-jc_csrf={LOGOUT_CSRF}"),
+            )
             .header("x-csrf-token", LOGOUT_CSRF)
             .body(Body::empty())
             .unwrap(),
@@ -1746,7 +1754,7 @@ fn tamper_middle(value: &str) -> String {
 /// Session fixation is handing somebody a session identifier and waiting for them to sign in
 /// under it. There is no identifier to hand over here — the cookie *is* the session, sealed with
 /// a key only the Portal holds — and this is the case that says so: every shape an attacker can
-/// put in front of `jc_session` is unreadable, and none of them is treated as a session.
+/// put in front of `__Host-jc_session` is unreadable, and none of them is treated as a session.
 #[tokio::test]
 async fn a_cookie_planted_before_a_login_is_never_a_session() {
     let realm = realm().await;
@@ -1754,7 +1762,7 @@ async fn a_cookie_planted_before_a_login_is_never_a_session() {
 
     let honest = session_cookies(300);
     let sealed = honest
-        .split("jc_session=")
+        .split("__Host-jc_session=")
         .nth(1)
         .and_then(|rest| rest.split(';').next())
         .expect("the session cookie")
@@ -1762,20 +1770,20 @@ async fn a_cookie_planted_before_a_login_is_never_a_session() {
 
     for planted in [
         // The value an attacker would like to fix: a plain identifier.
-        "jc_session=attacker-chosen-session-id".to_string(),
+        "__Host-jc_session=attacker-chosen-session-id".to_string(),
         // The session as JSON, unsealed: this is what the cookie decrypts to, and presenting it
         // directly is the shortcut the encryption exists to close.
         format!(
-            "jc_session={}",
+            "__Host-jc_session={}",
             r#"{"identity":{"subject":"f:1:admin","username":"admin","roles":["portal-admin"],"groups":[]},"expires_at":9999999999,"issued_at":0,"id_token":"","access_expires_at":9999999999}"#
         ),
-        "jc_session=".to_string(),
+        "__Host-jc_session=".to_string(),
         // A sealed value with one byte changed: the authentication tag is what refuses it. The
         // change is in the middle: the last base64 character may carry only padding bits, so
         // swapping it can leave the bytes as they were and the cookie still valid.
-        format!("jc_session={}", tamper_middle(&sealed)),
+        format!("__Host-jc_session={}", tamper_middle(&sealed)),
         // Somebody else's cookie name, hoping the Portal reads the first thing it finds.
-        format!("jc_sess={sealed}; jc_session=attacker-chosen-session-id"),
+        format!("jc_sess={sealed}; __Host-jc_session=attacker-chosen-session-id"),
     ] {
         let (status, body) = me_with(app.clone(), &[("cookie", planted.clone())]).await;
         assert_eq!(
@@ -1811,13 +1819,15 @@ fn parked_flow(set_cookies: &[String]) -> (serde_json::Value, String) {
 
     let raw = set_cookies
         .iter()
-        .find(|cookie| cookie.starts_with("jc_oidc_flow="))
+        .find(|cookie| cookie.starts_with("__Host-jc_oidc_flow="))
         .and_then(|cookie| cookie.split(';').next())
         .expect("the flow cookie");
     let mut headers = axum::http::HeaderMap::new();
     headers.insert(header::COOKIE, raw.parse().expect("a cookie header"));
     let jar = PrivateCookieJar::from_headers(&headers, Key::from("k".repeat(64).as_bytes()));
-    let flow = jar.get("jc_oidc_flow").expect("the Portal's own seal");
+    let flow = jar
+        .get("__Host-jc_oidc_flow")
+        .expect("the Portal's own seal");
     (
         serde_json::from_str(flow.value()).expect("the parked flow"),
         raw.to_owned(),
@@ -1991,7 +2001,7 @@ async fn a_completed_login_lands_on_this_portal_and_never_where_the_caller_asked
         assert!(
             set_cookie_values(&response)
                 .iter()
-                .any(|cookie| cookie.starts_with("jc_session=")),
+                .any(|cookie| cookie.starts_with("__Host-jc_session=")),
             "{asked}: no session was minted",
         );
     }
@@ -2021,7 +2031,7 @@ async fn an_authorization_code_replayed_after_it_bought_a_session_buys_nothing()
     let (flow_cookie, csrf_state) = flow_and_state.split_once('|').expect("both parked values");
     let session_cookie = set_cookie_values(&first)
         .into_iter()
-        .find(|cookie| cookie.starts_with("jc_session="))
+        .find(|cookie| cookie.starts_with("__Host-jc_session="))
         .and_then(|cookie| cookie.split(';').next().map(str::to_owned))
         .expect("the session the first callback minted");
 
@@ -2055,7 +2065,9 @@ async fn an_authorization_code_replayed_after_it_bought_a_session_buys_nothing()
         );
         let minted: Vec<String> = set_cookie_values(&replay)
             .into_iter()
-            .filter(|cookie| cookie.starts_with("jc_session=") && !cookie.contains("Max-Age=0"))
+            .filter(|cookie| {
+                cookie.starts_with("__Host-jc_session=") && !cookie.contains("Max-Age=0")
+            })
             .collect();
         assert!(
             minted.is_empty(),
@@ -2168,4 +2180,117 @@ async fn the_sso_check_without_a_configured_realm_is_unavailable() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+}
+
+/// One `Set-Cookie` line a browser keeps as `__Host-`: the prefix, `Secure`, `Path=/` and no
+/// `Domain`; a line missing any of them is dropped, removals included (T-4395).
+fn assert_host_only(line: &str) {
+    let attributes: Vec<String> = line
+        .split(';')
+        .map(|a| a.trim().to_ascii_lowercase())
+        .collect();
+    assert!(line.starts_with("__Host-"), "{line}");
+    assert!(
+        attributes.iter().any(|a| a == "secure"),
+        "no Secure: {line}"
+    );
+    assert!(
+        attributes.iter().any(|a| a == "path=/"),
+        "not on Path=/: {line}"
+    );
+    assert!(
+        !attributes.iter().any(|a| a.starts_with("domain=")),
+        "a Domain: {line}"
+    );
+}
+
+/// T-4395, AP-29: an App may set a cookie for the shared parent domain, so every cookie the
+/// Portal sets, live or removal, is one the browser keeps only as the Portal host's own.
+#[tokio::test]
+async fn every_cookie_the_portal_sets_is_host_prefixed() {
+    let realm = realm().await;
+    let login = app_with_realm(&realm)
+        .await
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/auth/login")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let logout = server::app(AppState::new(Config::for_tests(), None))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/auth/logout")
+                .header(header::COOKIE, "__Host-jc_csrf=t")
+                .header("x-csrf-token", "t")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let refreshed = {
+        use axum::response::IntoResponse;
+        use axum_extra::extract::cookie::{Key, PrivateCookieJar};
+        let jar = PrivateCookieJar::new(Key::from("k".repeat(64).as_bytes()));
+        let jar = joinedcontext_portal::auth::session::clear(jar);
+        (jar, StatusCode::OK).into_response()
+    };
+
+    let mut lines = set_cookie_values(&login);
+    lines.extend(set_cookie_values(&logout));
+    lines.extend(set_cookie_values(&refreshed));
+    lines.extend(stored_session(300, -600));
+    for name in [
+        "__Host-jc_oidc_flow",
+        "__Host-jc_session",
+        "__Host-jc_refresh",
+        "__Host-jc_csrf",
+    ] {
+        assert!(
+            lines.iter().any(|l| l.starts_with(&format!("{name}="))),
+            "{name} never set: {lines:?}"
+        );
+    }
+    for line in &lines {
+        assert_host_only(line);
+    }
+}
+
+/// T-4395: a cookie an App planted under an old, unprefixed name rides beside the real ones. It
+/// neither replaces the session nor passes CSRF; only the `__Host-` token does.
+#[tokio::test]
+async fn a_planted_unprefixed_cookie_neither_is_the_session_nor_passes_csrf() {
+    let realm = realm().await;
+    let app = app_behind(&realm, true).await;
+    let cookies = format!(
+        "jc_session=planted; {}; jc_session=planted-again; jc_refresh=planted",
+        session_cookies(300)
+    );
+    let (status, me) = me_with(app, &[("cookie", cookies)]).await;
+    assert_eq!(status, StatusCode::OK, "{me}");
+    assert_eq!(me["username"], "demo.steward");
+
+    let logout = |header_token: &'static str| async move {
+        server::app(AppState::new(Config::for_tests(), None))
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/auth/logout")
+                    .header(
+                        header::COOKIE,
+                        "jc_csrf=planted; __Host-jc_csrf=real; jc_csrf=planted",
+                    )
+                    .header("x-csrf-token", header_token)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+            .status()
+    };
+    assert_eq!(logout("planted").await, StatusCode::FORBIDDEN);
+    assert_eq!(logout("real").await, StatusCode::OK);
 }

@@ -59,7 +59,7 @@ function stubFetch(status: number, body: unknown = null) {
 describe("the indicator card", () => {
   beforeEach(async () => {
     window.history.pushState({}, "", "/");
-    document.cookie = "jc_csrf=csrf-xyz";
+    document.cookie = "__Host-jc_csrf=csrf-xyz; Secure; path=/";
     await i18n.changeLanguage("en");
   });
   afterEach(() => {

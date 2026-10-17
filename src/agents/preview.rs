@@ -347,7 +347,7 @@ mod tests {
         // The runtime's own code names the cookie its same-origin transport reads; the rest of
         // the document must name no credential at all.
         let around = html.replace(map_json, "");
-        for secret in ["jc_csrf", "Bearer", "access_token", "Set-Cookie"] {
+        for secret in ["__Host-jc_csrf", "Bearer", "access_token", "Set-Cookie"] {
             assert!(!around.contains(secret), "{secret} in the document");
         }
         if let Ok(dir) = std::env::var("JC_PREVIEW_OUT") {

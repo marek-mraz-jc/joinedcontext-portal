@@ -106,11 +106,14 @@ async function stub(page: Page): Promise<Seen> {
   return seen;
 }
 
-test("the preview writes through the run page, only what the data needs grant", async ({ page, context, baseURL }) => {
+test("the preview writes through the run page, only what the data needs grant", async ({ page }) => {
   const seen = await stub(page);
-  await context.addCookies([{ name: "jc_csrf", value: "csrf-e2e", url: baseURL ?? "http://127.0.0.1:4173" }]);
-
   await page.goto("/projects/helsinki/apps/bikes?lang=en");
+  // A `__Host-` cookie is Secure: CDP refuses one for an http URL, the page on 127.0.0.1 (a
+  // secure context) may write it, as the Portal's Set-Cookie does over https (T-4395).
+  await page.evaluate(() => {
+    document.cookie = "__Host-jc_csrf=csrf-e2e; Secure; Path=/";
+  });
   const frame = page.frameLocator('iframe[title="Preview of Bikes"]');
 
   await frame.getByRole("button", { name: "Save" }).click();

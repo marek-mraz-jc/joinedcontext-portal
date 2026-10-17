@@ -27,14 +27,14 @@ afterEach(() => {
 
 describe("callOperation", () => {
   it("posts the input to the named operation with the csrf token and hands back its output", async () => {
-    document.cookie = "jc_csrf=t0k";
+    document.cookie = "__Host-jc_csrf=t0k; Secure; path=/";
     answer(200, { spaces: ["air"] });
     const answered = await callOperation("helsinki", "jc_space_complete", { propose: false });
     expect(answered).toEqual({ ok: true, status: 200, output: { spaces: ["air"] } });
     expect(new URL(seen[0].url).pathname).toBe("/api/v1/projects/helsinki/ops/jc_space_complete");
     expect(seen[0].headers.get("x-csrf-token")).toBe("t0k");
     expect(await seen[0].json()).toEqual({ propose: false });
-    document.cookie = "jc_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    document.cookie = "__Host-jc_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; path=/";
   });
 
   it("gives the operation's own reason when it refuses", async () => {

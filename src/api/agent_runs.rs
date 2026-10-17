@@ -3109,7 +3109,7 @@ mod tests {
             None
         );
         assert_eq!(
-            caller_token(&state, &edge(&[("cookie", "jc_session=x")])),
+            caller_token(&state, &edge(&[("cookie", "__Host-jc_session=x")])),
             None
         );
         assert_eq!(

@@ -61,7 +61,7 @@ export function readCsrfToken(): string | undefined {
       continue;
     }
     const name = cookie.slice(0, eqIdx);
-    if (name === "jc_csrf") {
+    if (name === "__Host-jc_csrf") {
       const rawValue = cookie.slice(eqIdx + 1);
       try {
         return decodeURIComponent(rawValue);

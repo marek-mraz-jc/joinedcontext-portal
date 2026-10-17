@@ -253,7 +253,8 @@ fn session_secret(app: &str, secret: &ClientSecret) -> String {
 }
 
 /// The base's `openid-connect` login made the App's own, on its own host (ADR-N-030, AP-29):
-/// the cookie is host-only on `/`, because the plugin sets no `Domain` on it.
+/// the cookie is `__Host-`, host-only on `/` and `Secure`, so another App, which may set a
+/// cookie for the shared parent domain, cannot plant one of the same name beside it (T-4395).
 fn login(template: &Value, host: &str, app: &EdgeApp, unauth_action: &str) -> Value {
     let name = app.name.as_str();
     let mut plugin = template.clone();
@@ -267,8 +268,9 @@ fn login(template: &Value, host: &str, app: &EdgeApp, unauth_action: &str) -> Va
         plugin["session"] = json!({});
     }
     plugin["session"]["secret"] = json!(session_secret(name, &app.secret));
-    plugin["session"]["cookie_name"] = json!(format!("jc_app_{}", name.replace('-', "_")));
+    plugin["session"]["cookie_name"] = json!(format!("__Host-jc_app_{}", name.replace('-', "_")));
     plugin["session"]["cookie_path"] = json!("/");
+    plugin["session"]["cookie_secure"] = json!(true);
     if let Some(session) = plugin["session"].as_object_mut() {
         session.remove("cookie_domain");
     }
@@ -807,8 +809,8 @@ mod tests {
         logout_path: /apps/logout
         session:
           secret: ${{OIDC_SESSION_SECRET}}
-          cookie_name: jc_edge_apps
-          cookie_path: /apps/
+          cookie_name: __Host-jc_edge_apps
+          cookie_path: /
           idling_timeout: 3600
           absolute_timeout: 36000
       response-rewrite:
@@ -929,8 +931,11 @@ routes:
             oidc["post_logout_redirect_uri"],
             "https://air-quality.apps.city.example/"
         );
-        assert_eq!(oidc["session"]["cookie_name"], "jc_app_air_quality");
+        assert_eq!(oidc["session"]["cookie_name"], "__Host-jc_app_air_quality");
         assert_eq!(oidc["session"]["cookie_path"], "/");
+        // T-4395: what a `__Host-` cookie needs, whatever the base's template said.
+        assert_eq!(oidc["session"]["cookie_secure"], true);
+        assert!(oidc["session"].get("cookie_domain").is_none());
         let session = oidc["session"]["secret"]
             .as_str()
             .expect("a session secret");
@@ -979,7 +984,7 @@ routes:
         );
         assert_eq!(
             plugins["openid-connect"]["session"]["cookie_name"],
-            "jc_app_air_quality"
+            "__Host-jc_app_air_quality"
         );
 
         let services =

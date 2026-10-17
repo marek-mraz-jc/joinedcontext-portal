@@ -57,7 +57,7 @@ fn session_cookie(config: &Config, username: &str, roles: &[&str]) -> String {
         .filter_map(|value| value.to_str().ok())
         .map(|raw| raw.split(';').next().unwrap_or_default().to_string())
         .collect();
-    parts.push(format!("jc_csrf={CSRF}"));
+    parts.push(format!("__Host-jc_csrf={CSRF}"));
     parts.join("; ")
 }
 

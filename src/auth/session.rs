@@ -15,13 +15,19 @@ use crate::error::ApiError;
 use crate::state::AppState;
 
 /// Encrypted cookie holding the whole session; nothing about the user is kept server-side.
-pub const SESSION_COOKIE: &str = "jc_session";
+///
+/// Every Portal cookie is `__Host-` (T-4395, AP-29): an App on `{name}.apps.{domain}` can set a
+/// cookie with `Domain={domain}`, and without the prefix a planted cookie of the same name rides
+/// beside the real one. The browser refuses a `__Host-` cookie that has a `Domain`, lacks
+/// `Secure` or is not on `Path=/`, so every one of them, removals included, is built by
+/// `secure_cookie` or `removal` below.
+pub const SESSION_COOKIE: &str = "__Host-jc_session";
 /// Short-lived encrypted cookie holding the in-flight PKCE verifier, state and nonce.
-pub const FLOW_COOKIE: &str = "jc_oidc_flow";
+pub const FLOW_COOKIE: &str = "__Host-jc_oidc_flow";
 /// Encrypted cookie holding the Keycloak refresh token alone. Its own cookie, not a field of the
 /// session one: an id token plus a refresh token would push a single cookie past the 4 KB a
 /// browser keeps, and each of them alone stays well under it.
-pub const REFRESH_COOKIE: &str = "jc_refresh";
+pub const REFRESH_COOKIE: &str = "__Host-jc_refresh";
 /// How long before the access token expires the next request refreshes it.
 pub const REFRESH_LEEWAY_SECS: i64 = 60;
 /// The user's access token as the APISIX `openid-connect` plugin hands it to its upstream
@@ -174,7 +180,7 @@ pub fn store(jar: PrivateCookieJar, session: &Session) -> Result<PrivateCookieJa
     let jar = jar.add(secure_cookie(SESSION_COOKIE, value, ttl));
     Ok(match &session.refresh_token {
         Some(token) => jar.add(secure_cookie(REFRESH_COOKIE, token.clone(), ttl)),
-        None => jar.remove(Cookie::build(REFRESH_COOKIE).path("/").build()),
+        None => jar.remove(removal(REFRESH_COOKIE)),
     })
 }
 
@@ -339,7 +345,7 @@ mod tests {
         // Nothing at all is the browser, and so is a cookie on its own.
         assert_eq!(Front::of(&HeaderMap::new(), true), Front::Portal);
         assert_eq!(
-            Front::of(&header("cookie", "jc_session=x"), true),
+            Front::of(&header("cookie", "__Host-jc_session=x"), true),
             Front::Portal,
         );
     }
