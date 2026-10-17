@@ -164,6 +164,75 @@ fn managed_client(uuid: &str, project: &str, name: &str, namespace: &str, sa: &s
     client
 }
 
+/// T-4424: the realm behind the edge's rate limit answers 429 to the token and to the lookup
+/// once each; the wave waits as asked and converges the client in the same run.
+#[tokio::test]
+async fn a_realm_that_answers_429_once_still_converges_the_client_in_one_run() {
+    let keycloak = realm(json!([])).await;
+    for (verb, at) in [
+        (
+            "POST",
+            "/realms/bb/protocol/openid-connect/token".to_owned(),
+        ),
+        ("GET", format!("{REALM}/clients")),
+    ] {
+        Mock::given(method(verb))
+            .and(path(at))
+            .respond_with(ResponseTemplate::new(429).insert_header("retry-after", "0"))
+            .up_to_n_times(1)
+            .with_priority(1)
+            .mount(&keycloak)
+            .await;
+    }
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/clients")))
+        .and(query_param("clientId", "helsinki-air-adapter"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .up_to_n_times(1)
+        .mount(&keycloak)
+        .await;
+    client_lookup(
+        &keycloak,
+        "helsinki-air-adapter",
+        json!([managed_client(
+            "uuid-air",
+            "helsinki",
+            "air-adapter",
+            "env-dept",
+            "adapter"
+        )]),
+    )
+    .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{REALM}/clients")))
+        .respond_with(ResponseTemplate::new(201))
+        .mount(&keycloak)
+        .await;
+    mappers(&keycloak, "uuid-air", json!([])).await;
+
+    let outcomes = sync(&keycloak)
+        .converge(&mirror_with(vec![
+            account(
+                "helsinki",
+                "air-adapter",
+                Some(("env-dept", "adapter")),
+                "space-writer",
+            ),
+            endpoint("helsinki", "air-all", "air", SLUG),
+        ]))
+        .await;
+
+    assert_eq!(outcomes.len(), 1, "{outcomes:?}");
+    assert_eq!(outcomes[0].error, None, "{outcomes:?}");
+    assert_eq!(
+        wrote(&keycloak).await,
+        vec![
+            format!("POST {REALM}/clients"),
+            format!("POST {REALM}/clients/uuid-air/protocol-mappers/models"),
+        ]
+    );
+}
+
 /// PF-47: a workload-bound account gets a federated client for its one subject, audienced to the
 /// Endpoints of the space its role scopes, and no secret is read or written.
 #[tokio::test]

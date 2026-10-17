@@ -20,15 +20,17 @@ pub async fn token(
     client_id: &str,
     auth: &ClientAuth,
 ) -> Result<String, String> {
-    let form = auth
-        .form(client_id, &[("grant_type", "client_credentials")])
-        .await?;
-    let response = http
-        .post(format!("{issuer}/protocol/openid-connect/token"))
-        .form(&form)
-        .send()
-        .await
-        .map_err(|err| err.to_string())?;
+    let response = crate::auth::client_auth::paced(|| async {
+        let form = auth
+            .form(client_id, &[("grant_type", "client_credentials")])
+            .await?;
+        http.post(format!("{issuer}/protocol/openid-connect/token"))
+            .form(&form)
+            .send()
+            .await
+            .map_err(|err| err.to_string())
+    })
+    .await?;
     if !response.status().is_success() {
         // The status and nothing else: a realm's error body repeats the client id, and a
         // failed token call is a configuration problem, not something to quote back.
