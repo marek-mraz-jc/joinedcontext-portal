@@ -240,6 +240,15 @@ impl StreamDeployer {
         run_queue::tick(&self.queue, self, now).await;
     }
 
+    /// Tells the run queue which pipelines have ever run, so a scheduled one that never did runs
+    /// on its first plan instead of at its next clock (T-4421).
+    pub fn ran(&self, ran: HashSet<(String, String)>) {
+        self.queue
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .ran(ran);
+    }
+
     /// Queues one run of a run-and-delete pipeline now (T-4349) and returns its id, the one its
     /// log lists it under.
     pub fn run_now(&self, project: &str, name: &str) -> Result<String, run_queue::RunNow> {
