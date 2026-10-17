@@ -784,10 +784,15 @@ export function SelectWidget(props: WidgetProps): React.JSX.Element {
     onFocus,
     htmlName,
     rawErrors,
+    label,
+    hideLabel,
   } = props;
   const required = useAsked(requiredProp);
   const { t } = useTranslation();
   const { enumOptions, enumDisabled, emptyValue: optEmptyVal } = options;
+  // rjsf draws the chooser of an anyOf/oneOf field with this widget outside any FieldTemplate, so
+  // nothing labels it: it names itself after its field, or a screen reader hears a bare select.
+  const chooser = /__(any|one)of_select$/.test(id);
   const emptyValue = multiple ? [] : "";
   const optionValueFormat = getOptionValueFormat(options);
   const hasErrors = Boolean(useShownErrors(id, rawErrors));
@@ -811,7 +816,7 @@ export function SelectWidget(props: WidgetProps): React.JSX.Element {
   const selected = enumOptionSelectedValue(value, enumOptions, multiple, optionValueFormat, emptyValue);
   const showPlaceholder = !multiple && schema.default === undefined;
 
-  return (
+  const select = (
     <Select
       id={id}
       name={htmlName || id}
@@ -844,6 +849,13 @@ export function SelectWidget(props: WidgetProps): React.JSX.Element {
           ))
         : null}
     </Select>
+  );
+  return chooser ? (
+    <Field id={id} label={t("form.chooseVariant", { label })} srLabel={hideLabel}>
+      {select}
+    </Field>
+  ) : (
+    select
   );
 }
 

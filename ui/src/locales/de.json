@@ -124,6 +124,7 @@
     "required": "Dieses Feld ist erforderlich",
     "invalid": "Ungültiger Wert",
     "choose": "Auswählen…",
+    "chooseVariant": "{label}: angegeben als",
     "useExample": "Beispiel übernehmen",
     "noResults": "Keine Ergebnisse",
     "entityPickerPending": "Wählen Sie zuerst den Raum und den Entitätstyp, dann listet dieses Feld deren Entitäten; eine Entitäts-ID können Sie auch einfügen.",

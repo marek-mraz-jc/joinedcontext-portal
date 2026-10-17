@@ -211,6 +211,28 @@ describe("the form theme against the UI contract", () => {
     await expectNoViolations(container);
   });
 
+  it("names the chooser of an anyOf field after its field, and it passes axe (T-4380)", async () => {
+    const schema: JsonSchema = {
+      type: "object",
+      properties: {
+        title: {
+          title: "Header title",
+          anyOf: [
+            { type: "string", title: "One text" },
+            { type: "object", title: "One per language", additionalProperties: { type: "string" } },
+          ],
+        },
+      },
+    };
+    const { container, user } = form({ schema, uiSchema: {} });
+
+    const chooser = screen.getByRole("combobox", { name: "Header title: given as" });
+    expect(within(chooser).getByRole("option", { name: "One text" })).toBeInTheDocument();
+    await expectNoViolations(container);
+    await user.selectOptions(chooser, "One per language");
+    await expectNoViolations(container);
+  });
+
   it.each(SUPPORTED_LOCALES)("writes the theme's own words in %s", async (locale) => {
     await i18n.changeLanguage(locale);
     const { container } = form({ formData: { name: "air", keywords: ["pm10"] } });

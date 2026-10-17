@@ -124,6 +124,7 @@
     "required": "Toto pole je povinné",
     "invalid": "Neplatná hodnota",
     "choose": "Vyberte…",
+    "chooseVariant": "{label}: zadáno jako",
     "useExample": "Použít příklad",
     "noResults": "Žádné výsledky",
     "entityPickerPending": "Nejprve vyberte prostor a typ entity a zde se zobrazí jejich entity; identifikátor entity sem můžete také vložit.",
