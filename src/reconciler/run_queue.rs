@@ -647,20 +647,43 @@ pub(crate) async fn tick<R: Runner>(queue: &Mutex<RunQueue>, runner: &R, now: Da
 /// feed) polls without end, so it becomes the one tick and the `http` processor an `http`
 /// DataSource is rendered with (PL-47).
 pub fn one_run(stream: &Value) -> Value {
+    let report = outcome_url(stream);
     let mut stream = stream.clone();
     if let Some(input) = stream.get_mut("input") {
-        once(input);
+        once(input, report.as_deref());
     }
     stream
 }
 
-fn once(input: &mut Value) {
+/// Where the stream's outcome sink posts its reports, if it has one.
+fn outcome_url(value: &Value) -> Option<String> {
+    match value {
+        Value::Object(fields) => {
+            if fields.get("label").and_then(Value::as_str)
+                == Some(crate::pipeline_log::SINK_LABELS[1])
+            {
+                if let Some(url) = fields
+                    .get("http_client")
+                    .and_then(|client| client.get("url"))
+                    .and_then(Value::as_str)
+                {
+                    return Some(url.to_owned());
+                }
+            }
+            fields.values().find_map(outcome_url)
+        }
+        Value::Array(items) => items.iter().find_map(outcome_url),
+        _ => None,
+    }
+}
+
+fn once(input: &mut Value, report: Option<&str>) {
     if let Some(inputs) = input
         .get_mut("broker")
         .and_then(|b| b.get_mut("inputs"))
         .and_then(Value::as_array_mut)
     {
-        inputs.iter_mut().for_each(once);
+        inputs.iter_mut().for_each(|input| once(input, report));
         return;
     }
     let Some(fields) = input.as_object_mut() else {
@@ -681,10 +704,12 @@ fn once(input: &mut Value) {
             .collect(),
         _ => String::new(),
     };
-    let mut processors = vec![
-        serde_json::json!({ "try": [{ "http": Value::Object(client) }] }),
-        serde_json::json!({ "mutation": "root = if errored() { deleted() }" }),
-    ];
+    let mut processors = vec![serde_json::json!({ "try": [{ "http": Value::Object(client) }] })];
+    // A refused request is a failed run with the source's words, not an empty one (T-4428).
+    if let Some(url) = report {
+        processors.push(crate::pipeline_log::source_failure(url));
+    }
+    processors.push(serde_json::json!({ "mutation": "root = if errored() { deleted() }" }));
     if let Some(Value::Array(own)) = fields.remove("processors") {
         processors.extend(own);
     }
