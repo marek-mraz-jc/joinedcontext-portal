@@ -12,10 +12,11 @@
 //!   the way the publisher's own command resolves it — the variable the reference names, else the
 //!   repository's encrypted secrets under this Portal's age identity — lives in the HTTP client for
 //!   the length of one publication, and is in no outcome, no status and no log line (EP-67, CC-06).
-//! - **Only what the previous run published is ever withdrawn.** A dataset somebody created in
-//!   CKAN by hand is not this reconciler's to delete, so a withdrawal needs the Endpoint that
-//!   declared it to have been there a run ago, exactly as the subscription wave decides its
-//!   deletions (CC-19).
+//! - **Only what the platform published is ever withdrawn.** A dataset somebody created in
+//!   CKAN by hand, or a harvest wrote, is not this reconciler's to delete, so a withdrawal needs
+//!   the Endpoint that declared it to have been there a run ago, exactly as the subscription wave
+//!   decides its deletions (CC-19), or the dataset to carry jcctl's own `generated_by` mark in an
+//!   organization the current Endpoints publish into (T-4461).
 //! - **One Endpoint's failure is not the run's.** A catalogue that is down, a record the gateway
 //!   will not serve, a reference that does not resolve: each is one outcome with its reason, and
 //!   the next Endpoint is still published.
@@ -30,7 +31,7 @@ use jcctl::commands::publish_ckan::{self as publisher, Target};
 use jcctl::loader::{RawManifest, RawMetadata, Repository, ResourceId};
 use jcctl::publish::ckan::{CkanApi, Measurements, Outcome, Settings};
 use jcctl::publish::ckan_http::HttpCkan;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -196,6 +197,26 @@ impl CkanSync {
             })
             .collect();
 
+        // Per catalogue and organization, the datasets the current Endpoints publish there: what
+        // the sweep keeps (T-4461).
+        let mut sweeps: BTreeMap<(String, String), (Target, BTreeSet<String>)> = BTreeMap::new();
+        for target in &wanted {
+            let Some(organization) = target
+                .publication
+                .organization
+                .clone()
+                .or_else(|| target.instance.organization_default.clone())
+            else {
+                continue;
+            };
+            let key = (target.instance.base_url().to_owned(), organization);
+            sweeps
+                .entry(key)
+                .or_insert_with(|| (target.clone(), BTreeSet::new()))
+                .1
+                .insert(target.dataset_name().to_owned());
+        }
+
         for target in wanted {
             let measured = self.measured(repo, &target);
             reports.push(self.one(&target, false, repository, measured).await);
@@ -203,6 +224,9 @@ impl CkanSync {
         for target in withdrawn(previous, &published) {
             let measured = Measurements::default();
             reports.push(self.one(&target, true, repository, measured).await);
+        }
+        for ((_, organization), (target, kept)) in sweeps {
+            reports.extend(self.sweep(&target, organization, kept, repository).await);
         }
         self.log(&reports);
         reports
@@ -298,6 +322,110 @@ impl CkanSync {
             ),
         }
     }
+
+    /// Withdraws the datasets this platform published into `organization` that no current
+    /// Endpoint publishes (T-4461): the withdrawal from the previous mirror misses an Endpoint
+    /// removed in the same apply that restarted the Portal, because no mirror it holds ever had
+    /// it. `target` is any current publication there, for the catalogue and its token.
+    async fn sweep(
+        &self,
+        target: &Target,
+        organization: String,
+        kept: BTreeSet<String>,
+        repository: &Path,
+    ) -> Vec<Report> {
+        let project = target.id.namespace.clone().unwrap_or_default();
+        let target = target.clone();
+        let repository = repository.to_path_buf();
+        let age_key_file = self.age_key_file.clone();
+        let work = tokio::task::spawn_blocking(move || {
+            let source = publisher::TokenSource {
+                env: None,
+                age_key_file: age_key_file.as_deref(),
+            };
+            let token = publisher::token(&target.instance, &repository, source)
+                .map_err(|err| err.to_string())?;
+            let mut api =
+                HttpCkan::new(target.instance.base_url(), token).map_err(|err| err.to_string())?;
+            sweep_with(&mut api, &organization, &kept)
+        })
+        .await;
+        match work {
+            Ok(Ok(reports)) => reports
+                .into_iter()
+                .map(|(dataset, publication)| Report {
+                    project: project.clone(),
+                    endpoint: dataset,
+                    publication,
+                })
+                .collect(),
+            Ok(Err(reason)) => vec![Report::failed(&project, "", reason)],
+            Err(err) => vec![Report::failed(
+                &project,
+                "",
+                format!("the catalogue sweep did not finish: {err}"),
+            )],
+        }
+    }
+}
+
+/// The page `package_search` is read in.
+const SEARCH_ROWS: usize = 500;
+
+/// Finds and withdraws, through an open catalogue connection, every dataset in `organization`
+/// that carries the platform's own `generated_by` mark and is not in `kept`. A dataset without
+/// the mark (a harvest's, one made by hand) is never touched. One outcome per dataset, by name.
+pub fn sweep_with(
+    api: &mut impl CkanApi,
+    organization: &str,
+    kept: &BTreeSet<String>,
+) -> Result<Vec<(String, Publication)>, String> {
+    let mut stray = Vec::new();
+    let mut start = 0;
+    loop {
+        let page = api
+            .action(
+                "package_search",
+                &serde_json::json!({
+                    "fq": format!("organization:\"{organization}\""),
+                    "include_private": true,
+                    "rows": SEARCH_ROWS,
+                    "start": start,
+                }),
+            )
+            .map_err(|err| err.to_string())?;
+        let results = page["results"].as_array().cloned().unwrap_or_default();
+        for dataset in &results {
+            let ours = dataset["extras"].as_array().is_some_and(|extras| {
+                extras.iter().any(|extra| {
+                    extra["key"] == "generated_by"
+                        && extra["value"] == jcctl::publish::ckan::GENERATOR
+                })
+            });
+            match dataset["name"].as_str() {
+                Some(name) if ours && !kept.contains(name) => stray.push(name.to_owned()),
+                _ => {}
+            }
+        }
+        start += results.len();
+        let total = page["count"].as_u64().unwrap_or(0) as usize;
+        if results.is_empty() || start >= total {
+            break;
+        }
+    }
+    stray
+        .into_iter()
+        .map(|name| {
+            jcctl::publish::ckan::withdraw(api, &name)
+                .map(|_| {
+                    let publication = Publication::Withdrawn {
+                        dataset: name.clone(),
+                    };
+                    (name, publication)
+                })
+                .map_err(|err| err.to_string())
+        })
+        .collect()
 }
 
 /// Publishes one Endpoint through an open catalogue connection.
@@ -419,10 +547,8 @@ fn projects(repo: &Repository) -> BTreeSet<String> {
 /// `published` is what this run publishes, as `(project, endpoint)`.
 ///
 /// Read from the previous mirror rather than from CKAN, so a dataset this reconciler never
-/// published is never deleted by it. A withdrawal that happens while the Portal is down is
-/// therefore not seen by the run after it: the durable sweep over the catalogue's own
-/// `generated_by` datasets needs a search call the pinned publisher does not carry yet, and is a
-/// task of its own.
+/// published is never deleted by it. A withdrawal that happens while the Portal is down is not
+/// seen here; [`sweep_with`] finds it in the catalogue by the platform's own `generated_by` mark.
 pub fn withdrawn(previous: &Mirror, published: &BTreeSet<(String, String)>) -> Vec<Target> {
     let mut gone = Vec::new();
     for envelope in previous.matching(|env| env.kind == "Endpoint") {
