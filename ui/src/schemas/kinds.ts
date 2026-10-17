@@ -91,6 +91,7 @@ export const REPRESENTATIONS = [
   "csv",
   "json",
   "xlsx",
+  "parquet",
   "zip",
   "ogc-features",
   "odata",
