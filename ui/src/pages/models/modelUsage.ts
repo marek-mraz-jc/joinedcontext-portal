@@ -47,12 +47,6 @@ export function spaceOfModel(model: Manifest, spaces: Manifest[] = []): string |
   );
 }
 
-/** The model a space holds, by the same two pointers read the other way round. */
-export function modelOfSpace(space: string, models: Manifest[], spaces: Manifest[] = []): Manifest | undefined {
-  const pointer = refName(spaces.find((one) => one.metadata.name === space)?.spec.dataModelRef);
-  return models.find((model) => model.metadata.name === pointer) ?? models.find((model) => spaceOf(model) === space);
-}
-
 function record(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }

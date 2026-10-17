@@ -65,33 +65,6 @@ impl ChangeMeta {
             namespace: namespace.into(),
         }
     }
-
-    /// Derives the change metadata deterministically from a merge request string identifier or URL.
-    pub fn from_mr_str(mr: &str, namespace: impl Into<String>) -> Self {
-        let parsed_num: Option<u64> = mr
-            .rsplit('/')
-            .next()
-            .and_then(|seg| seg.parse().ok())
-            .or_else(|| mr.parse().ok());
-
-        let name = match parsed_num {
-            Some(n) => format!("chg-{:08x}", n),
-            None => {
-                // 32-bit FNV-1a hash producing 8 lowercase hex digits
-                let mut hash: u32 = 0x811c_9dc5;
-                for b in mr.as_bytes() {
-                    hash ^= *b as u32;
-                    hash = hash.wrapping_mul(0x0100_0193);
-                }
-                format!("chg-{:08x}", hash)
-            }
-        };
-
-        Self {
-            name,
-            namespace: namespace.into(),
-        }
-    }
 }
 
 /// Approval and reconciliation status of a change.
@@ -288,7 +261,7 @@ mod tests {
     use serde_json::json;
 
     // ---------------------------------------------------------------------------------------
-    // T-2106 `from_mr_str`, T-2107 `with_merge_request`, T-2108 `Change::new`.
+    // T-2107 `with_merge_request`, T-2108 `Change::new` (T-4454 removed `from_mr_str`).
     //
     // The contract that matters: a change's `name` reaches a URL path
     // (`/api/v1/projects/{project}/changes/{name}`), so **whatever string a forge hands us, the name
@@ -305,91 +278,21 @@ mod tests {
         )
     }
 
-    /// `chg-` and lowercase hex, inside a DNS-1123 label: what a name has to be to sit in a URL
-    /// path. Not exactly eight digits, because `{:08x}` is a *minimum* width — a merge request
-    /// number above `0xffff_ffff` writes more (`u64::MAX` gives `chg-ffffffffffffffff`). Harmless
-    /// for a path, and no forge counts that high, so it is a line in chyby.md, not a task.
-    fn is_change_name(name: &str) -> bool {
-        let Some(digits) = name.strip_prefix("chg-") else {
-            return false;
-        };
-        !digits.is_empty()
-            && digits.len() <= 16
-            && name.len() <= 63
-            && digits
-                .chars()
-                .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c))
-    }
-
     #[test]
-    fn a_change_name_is_chg_and_hex_whatever_the_forge_said() {
-        for mr in [
-            "17",
-            "0",
-            "18446744073709551615", // u64::MAX parses
-            "18446744073709551616", // one past it does not, so it hashes
-            "-1",
-            "1.5",
-            " 17 ",
-            "https://gitea.example/org/repo/pulls/17",
-            "https://gitea.example/org/repo/pulls/17/", // trailing slash: no last segment
-            "https://gitea.example/org/repo/pulls/../../etc/passwd",
-            "../../../etc/passwd",
-            "%2e%2e%2f%2e%2e%2f",
-            "chg-deadbeef",
-            "..",
-            "/",
-            "",
-            "   ",
-            "a b\tc\r\n",
-            "\u{0000}17",
-            "pulls/17?x=1#y",
-            "ПР-17",
-            "17\u{200b}", // a zero-width space is not a digit
-            &"9".repeat(4096),
-        ] {
-            let meta = ChangeMeta::from_mr_str(mr, "helsinki");
-            assert!(
-                is_change_name(&meta.name),
-                "{mr:?} produced {:?}",
-                meta.name
-            );
-            assert_eq!(meta.namespace, "helsinki");
-        }
-    }
-
-    #[test]
-    fn the_same_merge_request_always_derives_the_same_name_and_the_number_wins() {
-        // Deterministic: the poller derives the name again on every read, and a change that renamed
-        // itself would be a new change each time.
-        for mr in [
-            "17",
-            "https://gitea.example/org/repo/pulls/17",
-            "not-a-number",
-        ] {
-            assert_eq!(
-                ChangeMeta::from_mr_str(mr, "helsinki").name,
-                ChangeMeta::from_mr_str(mr, "helsinki").name,
-            );
-        }
-        // A URL and the bare number are the same merge request, and the number is what names it.
-        assert_eq!(
-            ChangeMeta::from_mr_str("https://gitea.example/org/repo/pulls/17", "helsinki").name,
-            ChangeMeta::from_merge_request(17, "helsinki").name,
-        );
+    fn a_merge_request_number_names_the_change_and_the_namespace_stays_apart() {
         assert_eq!(
             ChangeMeta::from_merge_request(17, "helsinki").name,
             "chg-00000011"
         );
         // Two merge requests are two changes.
         assert_ne!(
-            ChangeMeta::from_mr_str("17", "helsinki").name,
-            ChangeMeta::from_mr_str("18", "helsinki").name,
+            ChangeMeta::from_merge_request(17, "helsinki").name,
+            ChangeMeta::from_merge_request(18, "helsinki").name,
         );
         // The namespace is carried, never folded into the name: the same MR number in two projects
         // is two changes, told apart by where they live.
-        let a = ChangeMeta::from_mr_str("17", "helsinki");
-        let b = ChangeMeta::from_mr_str("17", "banskabystrica");
+        let a = ChangeMeta::from_merge_request(17, "helsinki");
+        let b = ChangeMeta::from_merge_request(17, "banskabystrica");
         assert_eq!(a.name, b.name);
         assert_ne!(a.namespace, b.namespace);
     }
@@ -420,7 +323,10 @@ mod tests {
 
     #[test]
     fn a_change_carries_its_own_api_version_and_kind_and_nothing_of_the_caller() {
-        let change = Change::new(ChangeMeta::from_mr_str("17", "helsinki"), pending_status());
+        let change = Change::new(
+            ChangeMeta::from_merge_request(17, "helsinki"),
+            pending_status(),
+        );
         assert_eq!(change.api_version, API_VERSION);
         assert_eq!(change.kind, Change::KIND);
         assert_eq!(change.metadata.name, "chg-00000011");
@@ -690,13 +596,6 @@ mod tests {
         let meta = ChangeMeta::from_merge_request(42, "ovzdusie");
         assert_eq!(meta.name, "chg-0000002a");
         assert_eq!(meta.namespace, "ovzdusie");
-
-        let from_str = ChangeMeta::from_mr_str("https://git.example.sk/pulls/1", "default");
-        assert_eq!(from_str.name, "chg-00000001");
-
-        let from_raw = ChangeMeta::from_mr_str("branch-custom-ref", "default");
-        assert!(from_raw.name.starts_with("chg-"));
-        assert_eq!(from_raw.name.len(), 12); // "chg-" (4) + 8 hex digits
     }
 
     #[test]

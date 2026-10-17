@@ -417,22 +417,6 @@ pub async fn load_agent_run(pool: &PgPool, id: &str) -> Result<Option<AgentRun>,
     .await
 }
 
-/// The newest runs of one project.
-pub async fn list_agent_runs(
-    pool: &PgPool,
-    project: &str,
-    limit: i64,
-) -> Result<Vec<AgentRun>, sqlx::Error> {
-    sqlx::query_as::<_, AgentRun>(AssertSqlSafe(format!(
-        "SELECT {AGENT_RUN_COLUMNS} FROM agent_runs WHERE project = $1 \
-         ORDER BY created_at DESC LIMIT $2"
-    )))
-    .bind(project)
-    .bind(limit)
-    .fetch_all(pool)
-    .await
-}
-
 /// Lists runs for a project matching filter criteria, newest first.
 pub async fn list_agent_runs_filtered(
     pool: &PgPool,
@@ -503,25 +487,6 @@ pub async fn load_live_agent_run_for_app(
     .bind(project)
     .bind(app_name)
     .fetch_optional(pool)
-    .await
-}
-
-/// Lists runs for a specific application in a project, newest first.
-pub async fn list_agent_runs_for_app(
-    pool: &PgPool,
-    project: &str,
-    app_name: &str,
-    limit: i64,
-) -> Result<Vec<AgentRun>, sqlx::Error> {
-    sqlx::query_as::<_, AgentRun>(AssertSqlSafe(format!(
-        "SELECT {AGENT_RUN_COLUMNS} FROM agent_runs \
-         WHERE project = $1 AND app_name = $2 \
-         ORDER BY created_at DESC LIMIT $3"
-    )))
-    .bind(project)
-    .bind(app_name)
-    .bind(limit)
-    .fetch_all(pool)
     .await
 }
 

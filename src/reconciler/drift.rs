@@ -87,17 +87,6 @@ impl Store {
         lock.get(project).cloned()
     }
 
-    /// The spaces of one project that hold a drifted entity.
-    pub fn drifted_spaces(&self, project: &str) -> Vec<String> {
-        let mut spaces: Vec<String> = self
-            .of(project)
-            .map(|found| found.entities.iter().map(|e| e.space.clone()).collect())
-            .unwrap_or_default();
-        spaces.sort();
-        spaces.dedup();
-        spaces
-    }
-
     /// Replaces everything the previous scan found: a project that no longer drifts has to
     /// stop being reported, and a project the scan could not read keeps nothing stale.
     pub fn replace_all(&self, scanned: BTreeMap<String, Found>) {
@@ -417,7 +406,9 @@ mod tests {
                 entities: vec![drifted],
             },
         )]));
-        assert_eq!(store.drifted_spaces("mesto"), vec!["ovzdusie".to_owned()]);
+        let found = store.of("mesto").expect("scanned");
+        assert_eq!(found.entities.len(), 1);
+        assert_eq!(found.entities[0].space, "ovzdusie");
 
         store.replace_all(BTreeMap::from([(
             "mesto".to_owned(),
@@ -426,7 +417,7 @@ mod tests {
                 entities: Vec::new(),
             },
         )]));
-        assert!(store.drifted_spaces("mesto").is_empty());
+        assert!(store.of("mesto").expect("scanned").entities.is_empty());
         assert!(
             store.of("mesto").is_some(),
             "the project still answers: nothing drifted, as of the last scan"

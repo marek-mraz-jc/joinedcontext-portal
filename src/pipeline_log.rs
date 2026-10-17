@@ -14,9 +14,6 @@ use serde::Serialize;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::RwLock;
 
-/// The label of the outcome sink in a rendered stream, which the metrics leave out.
-pub const SINK_LABEL: &str = SINK_LABELS[0];
-
 /// The labels of the sink and each of its parts; an unlabelled part would count its reports as
 /// the stream's own writes.
 pub const SINK_LABELS: [&str; 8] = [

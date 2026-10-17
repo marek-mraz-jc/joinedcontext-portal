@@ -448,13 +448,6 @@ impl Syncer {
         self
     }
 
-    /// The App client secrets the last run read back, by App name (AP-112).
-    pub fn app_client_secrets(
-        &self,
-    ) -> Arc<RwLock<std::collections::BTreeMap<String, super::app_clients::ClientSecret>>> {
-        Arc::clone(&self.app_client_secrets)
-    }
-
     /// The stream deployer, when this Portal has a runner.
     pub fn streams(&self) -> Option<&Arc<StreamDeployer>> {
         self.streams.as_ref()
