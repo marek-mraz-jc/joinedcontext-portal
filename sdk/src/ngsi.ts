@@ -121,6 +121,11 @@ export function cell(value: unknown, language = "en"): Cell {
     if ("object" in object) {
       return cell(object.object, language);
     }
+    // A PostalAddress reads as its one line, not as its first string (T-4422).
+    const line = addressLine(object);
+    if (line) {
+      return line;
+    }
     const text = Object.values(object).find((item) => typeof item === "string");
     if (typeof text === "string") {
       return text;
