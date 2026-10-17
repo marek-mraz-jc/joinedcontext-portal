@@ -95,6 +95,9 @@ pub struct Syncer {
     mirror: Arc<Mirror>,
     status: Arc<RwLock<SyncStatus>>,
     running: Arc<Mutex<()>>,
+    /// The last run's render and repository, reused while every repository lists the same
+    /// files at the same blobs (T-4481).
+    last_render: std::sync::Mutex<Option<(Arc<Render>, Arc<Repository>)>>,
     /// Where a layout 2 organization is assembled, kept between syncs so a project that does
     /// not stage renders as the last assembly left it (CC-86). One per syncer; its syncs run
     /// one at a time behind `running`.
@@ -214,6 +217,7 @@ impl Syncer {
                 ..SyncStatus::default()
             })),
             running: Arc::new(Mutex::new(())),
+            last_render: std::sync::Mutex::new(None),
             assembly: {
                 static SYNCERS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
                 let n = SYNCERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -752,9 +756,38 @@ impl Syncer {
     /// project staged from its own repository at its entry's `spec.ref` and assembled with it
     /// (CC-86). A project that does not stage keeps the render the last assembly gave it, and
     /// the rest of the organization renders.
-    async fn render(&self, org: Scratch) -> Result<(Render, Repository), SyncError> {
+    /// Steps 2 to 4: the organization at `revision` staged, rendered and loaded; or the last
+    /// run's render and repository, when the organization and every project repository list the
+    /// same files at the same blobs as when it staged them (T-4481). At 10,000 Endpoints the
+    /// stage and load took 5 s of a 7.6 s wave that changed nothing.
+    async fn staged(&self, revision: &str) -> Result<(Arc<Render>, Arc<Repository>), SyncError> {
+        let org = listing(&self.gitea, revision, false).await?;
+        let last = self
+            .last_render
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone();
+        if let Some((render, repository)) = last {
+            if render.unchanged(&org).await {
+                return Ok((render, repository));
+            }
+        }
+        let (render, repository) = self
+            .render(stage_listed(&self.gitea, revision, &org).await?, org)
+            .await?;
+        let fresh = (Arc::new(render), Arc::new(repository));
+        *self.last_render.lock().unwrap_or_else(|p| p.into_inner()) = Some(fresh.clone());
+        Ok(fresh)
+    }
+
+    async fn render(
+        &self,
+        org: Scratch,
+        listed: Listing,
+    ) -> Result<(Render, Repository), SyncError> {
         use jc_core::project::RepositoryRole;
         use jcctl::assemble::{assemble, layout_at, read_registry, Directories};
+        let mut listings = BTreeMap::from([(String::new(), listed)]);
         if layout_at(org.path(), RepositoryRole::Organization)? == 1 {
             let repository = Repository::load(org.path())?;
             return Ok((
@@ -764,6 +797,7 @@ impl Syncer {
                     _staged: vec![org],
                     projects: BTreeMap::new(),
                     unstaged: Vec::new(),
+                    listings,
                 },
                 repository,
             ));
@@ -781,10 +815,17 @@ impl Syncer {
                 continue;
             };
             let client = self.gitea.for_repository(name);
-            match stage_project(&client, &git_ref).await {
-                Ok(scratch) => {
+            let project = match listing(&client, &git_ref, true).await {
+                Ok(listed) => stage_listed(&client, &git_ref, &listed)
+                    .await
+                    .map(|scratch| (scratch, listed)),
+                Err(error) => Err(error),
+            };
+            match project {
+                Ok((scratch, listed)) => {
                     directories.insert(slug.clone(), scratch.path().to_path_buf());
                     staged.push(scratch);
+                    listings.insert(slug.clone(), listed);
                 }
                 Err(error) => {
                     tracing::warn!(project = %slug, %git_ref, %error, "the project's repository did not stage; its last render stays");
@@ -814,6 +855,7 @@ impl Syncer {
                 _staged: staged,
                 projects,
                 unstaged,
+                listings,
             },
             assembly.repository,
         ))
@@ -828,7 +870,7 @@ impl Syncer {
         //       with every registered project mounted at `projects/{slug}/` (CC-86).
         // 4. Load and validate the whole repository the way `jcctl plan` does (CC-08, MF-05).
         let staging = std::time::Instant::now();
-        let (scratch, repository) = self.render(stage(&self.gitea, &revision).await?).await?;
+        let (scratch, repository) = self.staged(&revision).await?;
         tracing::info!(
             elapsed_ms = staging.elapsed().as_millis() as u64,
             "repository staged and loaded"
@@ -2377,8 +2419,9 @@ fn namespace_of(path: &str) -> String {
 /// The directory one run stages the fetched manifests in.
 ///
 /// `jcctl` loads a repository from a path, and the Portal reads its repository over the
-/// forge API, so the two meet on disk. The directory belongs to one run and is removed when
-/// that run ends: nothing from the repository outlives the sync that fetched it.
+/// forge API, so the two meet on disk. The directory belongs to the run that staged it and to
+/// the later runs that found the same blobs, and is removed when the last of them lets it go: no
+/// file outlives the listing it was staged for (T-4481).
 /// The repository at one revision, staged as files the loader can read (CC-08).
 ///
 /// Its own function because two schedules need it: the mirror the Portal serves from, and the
@@ -2402,6 +2445,15 @@ async fn stage_repository(
     revision: &str,
     project: bool,
 ) -> Result<Scratch, SyncError> {
+    stage_listed(gitea, revision, &listing(gitea, revision, project).await?).await
+}
+
+/// A repository's candidate files with their blob shas, by path.
+type Listing = Vec<(String, String)>;
+
+/// The files of the repository at `revision` a stage writes, with their blobs: one tree call,
+/// and the key a run reuses the last stage by (T-4481).
+async fn listing(gitea: &GiteaClient, revision: &str, project: bool) -> Result<Listing, SyncError> {
     let tree_blobs = gitea.list_tree_blobs(revision).await?;
     let candidates: Vec<(String, String)> = tree_blobs
         .into_iter()
@@ -2423,11 +2475,21 @@ async fn stage_repository(
         ));
     }
 
-    // The staging directory is this run's own and is removed when it ends, whichever way it
-    // ends.
+    Ok(candidates)
+}
+
+/// The `candidates` of the repository at `revision`, written into a staging directory of their
+/// own.
+async fn stage_listed(
+    gitea: &GiteaClient,
+    revision: &str,
+    candidates: &Listing,
+) -> Result<Scratch, SyncError> {
+    // The staging directory is removed when the last run that reads it ends, whichever way it
+    // ends: the run that staged it, or a later one that found the same files (T-4481).
     let scratch = Scratch::new(revision)?;
     let mut staged = 0usize;
-    for (path, file) in fetch_blobs(gitea, revision, &candidates).await? {
+    for (path, file) in fetch_blobs(gitea, revision, candidates).await? {
         let Some(file) = file else {
             // The tree listed it and the contents call does not have it: a race with a
             // force-push, not a broken manifest. The next run reads a consistent tree.
@@ -2559,7 +2621,7 @@ struct Render {
     /// The organization's `.jc/layout` (CC-85).
     layout: u32,
     root: PathBuf,
-    /// The staged checkouts, held so they are removed when the sync that fetched them ends.
+    /// The staged checkouts, held so they are removed when the last sync that reads them ends.
     _staged: Vec<Scratch>,
     /// Slug → the project's repository and the ref it renders at.
     projects: BTreeMap<String, (GiteaClient, String)>,
@@ -2567,9 +2629,31 @@ struct Render {
     /// holds of them is the last render, or nothing on a replica's first run, so a step that
     /// removes what the mirror lacks waits for a run where this is empty.
     unstaged: Vec<String>,
+    /// What each repository listed when this render staged it: the organization under `""`,
+    /// each staged project under its slug.
+    listings: BTreeMap<String, Listing>,
 }
 
 impl Render {
+    /// Whether a run would stage the same files at the same blobs again: the organization lists
+    /// `org`, every project lists what it listed, and none did not stage. A blob the forge
+    /// names no sha for is never taken as unchanged.
+    async fn unchanged(&self, org: &Listing) -> bool {
+        let same = |slug: &str, now: &Listing| {
+            self.listings.get(slug) == Some(now) && now.iter().all(|(_, sha)| !sha.is_empty())
+        };
+        if !self.unstaged.is_empty() || !same("", org) {
+            return false;
+        }
+        for (slug, (client, git_ref)) in &self.projects {
+            match listing(client, git_ref, true).await {
+                Ok(now) if same(slug, &now) => {}
+                _ => return false,
+            }
+        }
+        true
+    }
+
     fn path(&self) -> &Path {
         &self.root
     }
@@ -2648,10 +2732,16 @@ impl Scratch {
 }
 
 impl Drop for Scratch {
+    /// The staged tree goes on a thread of its own: removing 31,401 files took 1.7 s at 10,000
+    /// Endpoints, every wave, after the mirror was already swapped (T-4482). The directory is
+    /// this run's alone (`new`), so nothing else reads or writes it meanwhile.
     fn drop(&mut self) {
-        if let Err(err) = std::fs::remove_dir_all(&self.0) {
-            tracing::warn!(path = %self.0.display(), error = %err, "could not remove the sync staging directory");
-        }
+        let path = std::mem::take(&mut self.0);
+        std::thread::spawn(move || {
+            if let Err(err) = std::fs::remove_dir_all(&path) {
+                tracing::warn!(path = %path.display(), error = %err, "could not remove the sync staging directory");
+            }
+        });
     }
 }
 
@@ -2827,6 +2917,24 @@ fn published_events(reports: &[super::ckan::Report]) -> Vec<ActivityEvent> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-4482: the staged tree is removed off the wave's path, and still removed.
+    #[test]
+    fn a_dropped_scratch_directory_is_removed_in_the_background() {
+        let scratch = Scratch::new("t4482-drop").expect("scratch");
+        for n in 0..200 {
+            scratch
+                .write(&format!("projects/p{}/m{n}.yaml", n % 10), "kind: X\n")
+                .expect("written");
+        }
+        let path = scratch.path().to_path_buf();
+        drop(scratch);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while path.exists() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(!path.exists(), "{} is still there", path.display());
+    }
 
     /// T-4039: a repository path stays inside the run's directory or refuses the sync.
     #[test]
@@ -3471,6 +3579,81 @@ output_error{stream="kpi"} 6
                 .as_ref()
                 .and_then(|s| s.observed_revision.as_deref()),
             Some("commit-rev-123")
+        );
+    }
+
+    /// T-4481: a run whose repository lists the same files at the same blobs reuses the last
+    /// render and repository instead of staging and loading them again; a changed blob, or one
+    /// the forge names no sha for, stages again.
+    #[tokio::test]
+    async fn a_run_reuses_the_last_stage_while_the_blobs_are_the_same() {
+        let server = MockServer::start().await;
+        let gitea = GiteaClient::new(
+            server.uri().parse().unwrap(),
+            "test-owner",
+            "test-repo",
+            "t",
+        )
+        .unwrap();
+        let space = |sandbox: bool| {
+            format!(
+                "apiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata:\n  \
+                 name: mobility\n  namespace: ovzdusie\nspec:\n  isSandbox: {sandbox}\n"
+            )
+        };
+        let file = "projects/ovzdusie/spaces/mobility/space.yaml";
+        let tree = |sha: Option<&str>, priority: u8| {
+            let mut entry = json!({ "path": file, "type": "blob" });
+            if let Some(sha) = sha {
+                entry["sha"] = json!(sha);
+            }
+            Mock::given(method("GET"))
+                .and(path("/api/v1/repos/test-owner/test-repo/git/trees/rev-1"))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(json!({ "truncated": false, "tree": [entry] })),
+                )
+                .with_priority(priority)
+        };
+        tree(Some("t4481-blob-a"), 5).mount(&server).await;
+        mount_file(&server, file, "rev-1", "t4481-blob-a", &space(false)).await;
+        let syncer = Syncer::new(Arc::new(gitea), Arc::new(Mirror::new()));
+
+        let (first, _) = syncer.staged("rev-1").await.expect("stages");
+        let (again, repository) = syncer.staged("rev-1").await.expect("reuses");
+        assert!(Arc::ptr_eq(&first, &again), "the same blobs stage once");
+        assert!(
+            again.path().join(file).is_file(),
+            "the reused tree is still there"
+        );
+        assert_eq!(repository.iter().count(), 1);
+
+        tree(Some("t4481-blob-b"), 3).mount(&server).await;
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/api/v1/repos/test-owner/test-repo/contents/{file}"
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "sha": "t4481-blob-b",
+                "content": b64(&space(true)),
+            })))
+            .with_priority(3)
+            .mount(&server)
+            .await;
+        let (changed, repository) = syncer.staged("rev-1").await.expect("stages again");
+        assert!(
+            !Arc::ptr_eq(&again, &changed),
+            "a changed blob stages again"
+        );
+        let (_, loaded) = repository.iter().next().expect("the space");
+        assert_eq!(loaded.manifest.spec["isSandbox"], json!(true));
+
+        tree(None, 1).mount(&server).await;
+        let (unnamed, _) = syncer.staged("rev-1").await.expect("stages");
+        let (unnamed_again, _) = syncer.staged("rev-1").await.expect("stages");
+        assert!(
+            !Arc::ptr_eq(&unnamed, &unnamed_again),
+            "a blob without a sha is never taken as unchanged"
         );
     }
 
