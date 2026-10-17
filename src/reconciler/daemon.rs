@@ -185,6 +185,9 @@ pub struct Syncer {
     /// `spec.publish.ckan` a declaration nobody carries out, which is what a Portal with no
     /// gateway host configured can honestly do.
     ckan: Option<Arc<super::ckan::CkanSync>>,
+    /// The open-data catalogue as an NGSI-LD Endpoint (T-4500); `None` without a gateway host
+    /// or a realm client, which is when no write through an Endpoint can be made.
+    catalog: Option<Arc<super::catalog::CatalogSync>>,
     /// Whether each Organization owns the domain it declares (PF-41, T-2377). `None` without a
     /// database: a challenge that did not outlive a restart would fail every published record.
     domains:
@@ -257,6 +260,7 @@ impl Syncer {
             pipeline_secrets: None,
             webhook_secrets: None,
             ckan: None,
+            catalog: None,
             domains: None,
             pipeline_status: None,
             pipeline_outcomes: None,
@@ -495,6 +499,13 @@ impl Syncer {
     /// and withdraw the dataset of one that stopped declaring it (EP-62, CC-19).
     pub fn with_ckan(mut self, ckan: Arc<super::ckan::CkanSync>) -> Self {
         self.ckan = Some(ckan);
+        self
+    }
+
+    /// Makes each run write the public Endpoints into the repository's `catalog` Endpoint as
+    /// SDM DCAT-AP `Dataset` and `DataService` entities (T-4500).
+    pub fn with_catalog(mut self, catalog: Arc<super::catalog::CatalogSync>) -> Self {
+        self.catalog = Some(catalog);
         self
     }
 
@@ -1610,6 +1621,20 @@ impl Syncer {
                 .converge(&repository, &self.mirror, scratch.path())
                 .await;
             self.say_published(&reports).await;
+        }
+        // 5g. The same public Endpoints as NGSI-LD entities an agent searches first (T-4500).
+        if let Some(catalog) = self.catalog.as_ref() {
+            match catalog.converge(&repository).await {
+                Ok(Some(run)) if run.upserted + run.deleted > 0 => tracing::info!(
+                    upserted = run.upserted,
+                    deleted = run.deleted,
+                    "the NGSI-LD catalogue was brought up to date"
+                ),
+                Ok(_) => {}
+                Err(err) => {
+                    tracing::warn!(error = %err, "the NGSI-LD catalogue was not brought up to date")
+                }
+            }
         }
 
         transitions.keep_all(&fresh_mirror);

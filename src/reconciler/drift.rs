@@ -136,6 +136,11 @@ impl Watch {
         realm::token(&self.http, &self.issuer, &self.client_id, &self.auth).await
     }
 
+    /// The client and the host, for a run that writes through an Endpoint (T-4500).
+    pub(crate) fn surface(&self) -> (&reqwest::Client, &str) {
+        (&self.http, &self.base)
+    }
+
     /// A token for a run that reads many pages: the data-quality run (DM-74).
     pub(crate) async fn scan_token(&self) -> Result<String, String> {
         self.token().await
