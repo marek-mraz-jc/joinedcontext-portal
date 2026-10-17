@@ -1279,7 +1279,18 @@ impl Syncer {
             }
         }
         if let Some(clients) = self.workload_clients.as_ref() {
-            for outcome in clients.converge(&fresh_mirror).await {
+            let outcomes = clients.converge(&fresh_mirror).await;
+            // `*` is a failure before any account was looked at: it names no one to hold back.
+            if let Some(streams) = self.streams.as_ref() {
+                streams.unbound(
+                    outcomes
+                        .iter()
+                        .filter(|o| o.error.is_some() && o.app != "*")
+                        .map(|o| o.app.clone())
+                        .collect(),
+                );
+            }
+            for outcome in outcomes {
                 match (&outcome.error, outcome.drift.is_empty()) {
                     (Some(err), _) => {
                         tracing::warn!(account = %outcome.app, error = %err, "workload client did not converge")
