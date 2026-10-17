@@ -135,7 +135,7 @@ const roles = () => screen.getByRole("table", { name: en.access.roles.caption.re
 describe("people and roles", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
-    document.cookie = "jc_csrf=csrf-token-value";
+    document.cookie = "__Host-jc_csrf=csrf-token-value; Secure; path=/";
     window.history.pushState({}, "", `/projects/${PROJECT}/settings/members`);
   });
 

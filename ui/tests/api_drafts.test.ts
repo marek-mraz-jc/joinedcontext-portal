@@ -98,10 +98,10 @@ describe("drafts through the typed client", () => {
   });
 
   it("carries the double-submit token on the write", async () => {
-    document.cookie = "jc_csrf=t0k";
+    document.cookie = "__Host-jc_csrf=t0k; Secure; path=/";
     answer(200, draft);
     await putDraft("helsinki", "Endpoint", "bikes", {});
     expect(seen[0].headers.get("x-csrf-token")).toBe("t0k");
-    document.cookie = "jc_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    document.cookie = "__Host-jc_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; path=/";
   });
 });

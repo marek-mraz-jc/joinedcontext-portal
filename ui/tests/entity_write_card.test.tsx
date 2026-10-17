@@ -33,7 +33,7 @@ function card(live = true) {
 describe("the change to entities card", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
-    document.cookie = "jc_csrf=csrf-token-value";
+    document.cookie = "__Host-jc_csrf=csrf-token-value; Secure; path=/";
   });
 
   afterEach(() => {

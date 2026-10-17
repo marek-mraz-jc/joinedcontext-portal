@@ -5,7 +5,7 @@
 //! - `cookie(token)` — the token is readable by the page on purpose, but the cookie is `Secure`,
 //!   `Lax` and path `/`, and **nothing a caller can put in the token may become a second cookie
 //!   attribute**.
-//! - `is_allowed(method, headers)` — a mutation passes only when a `jc_csrf` cookie and an
+//! - `is_allowed(method, headers)` — a mutation passes only when a `__Host-jc_csrf` cookie and an
 //!   `X-CSRF-Token` header carry the same non-empty value, byte for byte; a safe method always
 //!   passes; nothing else does.
 //! - `require_csrf` — a refusal is `403` as problem+json and says nothing about the request.
@@ -29,7 +29,9 @@ fn headers(cookie_value: Option<&str>, presented: Option<&str>) -> HeaderMap {
     if let Some(value) = cookie_value {
         headers.insert(
             header::COOKIE,
-            format!("jc_csrf={value}").parse().expect("cookie header"),
+            format!("__Host-jc_csrf={value}")
+                .parse()
+                .expect("cookie header"),
         );
     }
     if let Some(value) = presented {
@@ -58,7 +60,7 @@ fn the_cookie_is_readable_by_the_page_and_nothing_more() {
 #[test]
 fn nothing_but_a_minted_token_can_reach_the_cookie(/* T-2289 */) {
     // This was the family's one red case: `cookie` took a `String`, so a value carrying `;` became a
-    // cookie attribute (`jc_csrf=abc; Domain=evil.example; …`) and a CR/LF aimed at the response
+    // cookie attribute (`__Host-jc_csrf=abc; Domain=evil.example; …`) and a CR/LF aimed at the response
     // header. The fix is the signature — `cookie(&Token)`, and a `Token` comes from the CSPRNG — so
     // the forged values below no longer compile, and what is left to assert is that a minted token
     // produces the helper's own attributes and nothing else, whichever token it is.
@@ -84,14 +86,14 @@ fn nothing_but_a_minted_token_can_reach_the_cookie(/* T-2289 */) {
             "a minted token produced a value no header can carry: {written}",
         );
         // The value the page will echo is the one in the cookie, or the double submit cannot match.
-        assert!(written.starts_with(&format!("jc_csrf={}", token.as_str())));
+        assert!(written.starts_with(&format!("__Host-jc_csrf={}", token.as_str())));
     }
 }
 
 #[test]
 fn the_removal_cookie_clears_the_same_cookie_on_the_same_path() {
     let written = removal().to_string();
-    assert!(written.starts_with("jc_csrf="));
+    assert!(written.starts_with("__Host-jc_csrf="));
     assert!(written.contains("Path=/"));
     assert!(
         written.contains("Max-Age=0"),
@@ -179,7 +181,7 @@ fn the_cookie_that_counts_is_the_one_named_jc_csrf() {
     let mut with_others = HeaderMap::new();
     with_others.insert(
         header::COOKIE,
-        format!("jc_session=x; jc_csrf={token}; other=y")
+        format!("__Host-jc_session=x; __Host-jc_csrf={token}; other=y")
             .parse()
             .expect("cookie header"),
     );
@@ -227,7 +229,7 @@ async fn a_refused_mutation_is_problem_json_that_says_nothing_about_the_request(
             Request::builder()
                 .method("POST")
                 .uri("/api/v1/projects/helsinki/spaces")
-                .header(header::COOKIE, "jc_csrf=stored")
+                .header(header::COOKIE, "__Host-jc_csrf=stored")
                 .header(CSRF_HEADER, "presented")
                 .body(Body::empty())
                 .unwrap(),

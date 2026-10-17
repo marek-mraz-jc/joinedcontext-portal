@@ -89,7 +89,7 @@ const deletes = (fetchMock: ReturnType<typeof vi.fn>) =>
 describe("removing a resource from its list", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
-    document.cookie = "jc_csrf=csrf-token-value";
+    document.cookie = "__Host-jc_csrf=csrf-token-value; Secure; path=/";
     window.history.pushState({}, "", `/projects/${PROJECT}/csrs`);
   });
 

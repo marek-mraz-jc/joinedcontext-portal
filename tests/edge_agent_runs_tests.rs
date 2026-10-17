@@ -89,7 +89,7 @@ fn session_cookie(config: &Config, username: &str, roles: &[&str], groups: &[&st
         .filter_map(|value| value.to_str().ok())
         .map(|raw| raw.split(';').next().unwrap_or_default().to_string())
         .collect();
-    parts.push(format!("jc_csrf={CSRF}"));
+    parts.push(format!("__Host-jc_csrf={CSRF}"));
     parts.join("; ")
 }
 
@@ -965,7 +965,7 @@ async fn a_run_started_at_the_edge_hands_its_persons_token_to_the_proxy_and_keep
                 .uri(format!("/api/v1/projects/{PROJECT}/agent-runs"))
                 .header("x-access-token", &person)
                 // The edge's session is a browser's: the double-submit token rides along.
-                .header(header::COOKIE, format!("jc_csrf={CSRF}"))
+                .header(header::COOKIE, format!("__Host-jc_csrf={CSRF}"))
                 .header("x-csrf-token", CSRF)
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(create_body().to_string()))

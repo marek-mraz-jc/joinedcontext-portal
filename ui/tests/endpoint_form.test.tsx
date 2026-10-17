@@ -201,7 +201,7 @@ describe("endpoint form with ModelPicker (T-0564)", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
     window.history.pushState({}, "", "/projects/banskabystrica/endpoints");
-    document.cookie = "jc_csrf=tok-1";
+    document.cookie = "__Host-jc_csrf=tok-1; Secure; path=/";
   });
 
   afterEach(() => {

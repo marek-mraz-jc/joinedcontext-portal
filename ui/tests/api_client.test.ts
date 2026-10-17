@@ -20,20 +20,20 @@ describe("readCsrfToken", () => {
       const eqIdx = cookie.indexOf("=");
       const name = eqIdx > -1 ? cookie.slice(0, eqIdx).trim() : cookie.trim();
       if (name) {
-        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; path=/`;
       }
     }
   });
 
   it("returns the value from document.cookie when multiple cookies are present", () => {
     document.cookie = "session_id=xyz123; path=/";
-    document.cookie = "jc_csrf=test-csrf-token; path=/";
+    document.cookie = "__Host-jc_csrf=test-csrf-token; Secure; path=/";
     document.cookie = "pref=dark; path=/";
 
     expect(readCsrfToken()).toBe("test-csrf-token");
   });
 
-  it("returns undefined when jc_csrf cookie is absent", () => {
+  it("returns undefined when __Host-jc_csrf cookie is absent", () => {
     document.cookie = "session_id=xyz123; path=/";
     document.cookie = "pref=dark; path=/";
 
@@ -41,7 +41,7 @@ describe("readCsrfToken", () => {
   });
 
   it("decodes URI encoded cookie value", () => {
-    document.cookie = `jc_csrf=${encodeURIComponent("token/with+special=chars")}; path=/`;
+    document.cookie = `__Host-jc_csrf=${encodeURIComponent("token/with+special=chars")}; Secure; path=/`;
 
     expect(readCsrfToken()).toBe("token/with+special=chars");
   });
@@ -53,7 +53,7 @@ describe("csrfMiddleware", () => {
       const eqIdx = cookie.indexOf("=");
       const name = eqIdx > -1 ? cookie.slice(0, eqIdx).trim() : cookie.trim();
       if (name) {
-        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; path=/`;
       }
     }
   });
@@ -69,26 +69,26 @@ describe("csrfMiddleware", () => {
   }
 
   it("does not add x-csrf-token to a GET request", async () => {
-    document.cookie = "jc_csrf=my-token; path=/";
+    document.cookie = "__Host-jc_csrf=my-token; Secure; path=/";
 
     const request = await run("GET");
     expect(request.headers.get("x-csrf-token")).toBeNull();
   });
 
-  it("adds x-csrf-token to a POST request when the jc_csrf cookie is present", async () => {
-    document.cookie = "jc_csrf=my-token; path=/";
+  it("adds x-csrf-token to a POST request when the __Host-jc_csrf cookie is present", async () => {
+    document.cookie = "__Host-jc_csrf=my-token; Secure; path=/";
 
     const request = await run("POST");
     expect(request.headers.get("x-csrf-token")).toBe("my-token");
   });
 
-  it("leaves a POST unchanged when the jc_csrf cookie is absent", async () => {
+  it("leaves a POST unchanged when the __Host-jc_csrf cookie is absent", async () => {
     const request = await run("POST");
     expect(request.headers.get("x-csrf-token")).toBeNull();
   });
 
   it("covers every unsafe method", async () => {
-    document.cookie = "jc_csrf=my-token; path=/";
+    document.cookie = "__Host-jc_csrf=my-token; Secure; path=/";
 
     for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
       const request = await run(method);

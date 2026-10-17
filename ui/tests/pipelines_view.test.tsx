@@ -304,7 +304,7 @@ describe("pipelines view", () => {
   });
 
   it("proposes a change instead of stopping a running pipeline directly (CC-35)", async () => {
-    document.cookie = "jc_csrf=csrf-token-value";
+    document.cookie = "__Host-jc_csrf=csrf-token-value; Secure; path=/";
     const fetchMock = renderPipelines();
 
     const row = await rowOf("aq-mqtt-ingest");

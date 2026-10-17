@@ -984,7 +984,7 @@ async fn a_signed_in_index_brings_the_apps_origins_csrf_cookie() {
     let app = server::app(
         AppState::new(config, None).with_mirror(mirror_with_app(app_spec("published"))),
     );
-    let csrf_cookie = |signed_in: bool, cookie: Option<&str>| {
+    let set_cookies = |signed_in: bool, cookie: Option<&str>| {
         let app = app.clone();
         let cookie = cookie.map(str::to_owned);
         let token = signed_in.then(|| token.clone());
@@ -1006,16 +1006,38 @@ async fn a_signed_in_index_brings_the_apps_origins_csrf_cookie() {
                 .get_all(header::SET_COOKIE)
                 .iter()
                 .filter_map(|value| value.to_str().ok())
-                .find(|value| value.starts_with("jc_csrf="))
                 .map(str::to_owned)
+                .collect::<Vec<_>>()
         }
     };
 
+    let csrf_cookie = |signed_in: bool, cookie: Option<&'static str>| {
+        let lines = set_cookies(signed_in, cookie);
+        async move {
+            lines
+                .await
+                .into_iter()
+                .find(|value| value.starts_with("__Host-jc_csrf="))
+        }
+    };
+
+    // T-4395: an App built before the prefix reads `jc_csrf`; it gets the same token, and only
+    // the `__Host-` one is ever compared (tests/auth_tests.rs).
+    let lines = set_cookies(true, None).await;
+    let value = |name: &str| {
+        lines
+            .iter()
+            .find_map(|l| l.strip_prefix(&format!("{name}=")))
+            .and_then(|l| l.split(';').next())
+            .map(str::to_owned)
+    };
+    assert!(value("__Host-jc_csrf").is_some(), "{lines:?}");
+    assert_eq!(value("jc_csrf"), value("__Host-jc_csrf"), "{lines:?}");
     let issued = csrf_cookie(true, None)
         .await
         .expect("a CSRF cookie for the signed-in person");
     assert!(
-        issued.contains("Secure") && issued.contains("SameSite=Lax"),
+        issued.contains("Secure") && issued.contains("SameSite=Lax") && issued.contains("Path=/"),
         "{issued}"
     );
     assert_eq!(
@@ -1024,7 +1046,7 @@ async fn a_signed_in_index_brings_the_apps_origins_csrf_cookie() {
         "nothing for an anonymous visitor"
     );
     assert_eq!(
-        csrf_cookie(true, Some("jc_csrf=already-held")).await,
+        csrf_cookie(true, Some("__Host-jc_csrf=already-held")).await,
         None,
         "a held token is kept"
     );

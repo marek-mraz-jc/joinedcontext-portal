@@ -9,7 +9,7 @@ use axum::extract::{Query, State};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Form, Json, Router};
-use axum_extra::extract::cookie::{Cookie, CookieJar, PrivateCookieJar};
+use axum_extra::extract::cookie::{CookieJar, PrivateCookieJar};
 use openidconnect::core::{
     CoreAuthDisplay, CoreAuthenticationFlow, CoreClaimName, CoreClaimType, CoreClient,
     CoreClientAuthMethod, CoreGrantType, CoreIdToken, CoreJsonWebKey,
@@ -596,7 +596,7 @@ pub async fn callback(
         .ok_or_else(|| ApiError::BadRequest("no login is in flight".into()))?;
     let flow: FlowState = serde_json::from_str(flow_cookie.value())
         .map_err(|_| ApiError::BadRequest("the login cookie is unreadable".into()))?;
-    let jar = jar.remove(Cookie::build(FLOW_COOKIE).path("/").build());
+    let jar = jar.remove(session::removal(FLOW_COOKIE));
 
     let presented_state = query
         .state
