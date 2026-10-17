@@ -21,6 +21,13 @@ describe("cell", () => {
     expect(cell(["a", 1])).toBe("a, 1");
     expect(cell(undefined)).toBeNull();
   });
+  // T-4422: the entity panel reads its row through toRow; a PostalAddress was its first string.
+  it("reads a PostalAddress as its one line, a Property's or keyValues", () => {
+    const address = { streetAddress: "Kuzmányho nábrežie 28", addressLocality: "Zvolen" };
+    expect(cell({ type: "Property", value: address })).toBe("Kuzmányho nábrežie 28, Zvolen");
+    expect(cell(address)).toBe("Kuzmányho nábrežie 28, Zvolen");
+    expect(cell({ label: "x", other: "y" })).toBe("x");
+  });
   it("keeps id and type whatever the entity carries", () => {
     expect(toRow({ id: "urn:x", type: "T", "@context": [], n: 1 })).toEqual({ id: "urn:x", type: "T", n: 1 });
     expect(toRow({}).id).toBe("");
