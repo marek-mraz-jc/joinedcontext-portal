@@ -178,12 +178,16 @@ impl CkanSync {
     ) -> Vec<Report> {
         let mut reports = Vec::new();
         let mut wanted: Vec<Target> = Vec::new();
+        let mut unread = false;
         for project in projects(repo) {
             match publisher::targets(repo, &project) {
                 Ok(targets) => wanted.extend(targets),
                 // A project whose publication does not read is one project's problem: the
                 // Endpoint names an instance that is not there, or a spec that does not parse.
-                Err(err) => reports.push(Report::failed(&project, "", err.to_string())),
+                Err(err) => {
+                    unread = true;
+                    reports.push(Report::failed(&project, "", err.to_string()));
+                }
             }
         }
 
@@ -224,6 +228,11 @@ impl CkanSync {
         for target in withdrawn(previous, &published) {
             let measured = Measurements::default();
             reports.push(self.one(&target, true, repository, measured).await);
+        }
+        // A project whose publications did not read keeps its datasets out of `kept`, and a
+        // shared organization would lose them: no sweep in such a pass.
+        if unread {
+            sweeps.clear();
         }
         for ((_, organization), (target, kept)) in sweeps {
             reports.extend(self.sweep(&target, organization, kept, repository).await);

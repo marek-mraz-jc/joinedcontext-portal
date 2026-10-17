@@ -788,3 +788,68 @@ fn a_dataset_the_platform_published_for_an_endpoint_that_is_gone_is_withdrawn_an
         .expect("it runs again")
         .is_empty());
 }
+
+#[tokio::test]
+async fn a_pass_with_a_project_whose_publication_does_not_read_sweeps_nothing() {
+    // T-4461 review: project b's broken spec leaves its datasets out of what the pass keeps, so a
+    // sweep of the shared default organization would withdraw them. No sweep in such a pass.
+    let repository =
+        std::env::temp_dir().join(format!("jc-ckan-sweep-guard-{}", std::process::id()));
+    std::fs::create_dir_all(&repository).expect("a scratch directory");
+    let manifest = |project: &str, kind: &str, name: &str, spec: Value| {
+        serde_norway::to_string(&json!({
+            "apiVersion": "joinedcontext.com/v1alpha1",
+            "kind": kind,
+            "metadata": { "name": name, "namespace": project },
+            "spec": spec,
+        }))
+        .expect("yaml")
+    };
+    std::fs::write(
+        repository.join("a.yaml"),
+        format!(
+            "{}---\n{}",
+            manifest("a", "CkanInstance", "hel-fi", instance()),
+            manifest(
+                "a",
+                "Endpoint",
+                "bikes",
+                endpoint("bikes", "public", Some(dataset_only()))
+            )
+        ),
+    )
+    .expect("project a");
+    std::fs::write(
+        repository.join("b.yaml"),
+        manifest(
+            "b",
+            "Endpoint",
+            "parking",
+            endpoint(
+                "parking",
+                "public",
+                Some(json!({ "instanceRef": { "kind": "CkanInstance", "name": "nowhere" } })),
+            ),
+        ),
+    )
+    .expect("project b");
+    let repo = jcctl::loader::Repository::load(&repository).expect("the repository loads");
+    let reports = CkanSync::new(HOST)
+        .converge(&repo, &Mirror::new(), &repository)
+        .await;
+    // b's spec is reported, a's dataset is tried (and refused for want of a token), and no
+    // sweep line of project a's organization follows.
+    assert!(
+        reports
+            .iter()
+            .any(|r| r.project == "b" && r.endpoint.is_empty()),
+        "{reports:?}"
+    );
+    assert!(
+        !reports
+            .iter()
+            .any(|r| r.project == "a" && r.endpoint.is_empty()),
+        "{reports:?}"
+    );
+    std::fs::remove_dir_all(&repository).expect("cleaned up");
+}
