@@ -979,8 +979,8 @@ async fn propose_engine(
         }
     }
 
-    // 4b'''. A Pipeline in replace drops what another Pipeline writes into the same space and
-    //        type (PL-79, T-4409): the rule `jcctl validate` runs, over the project's Pipelines
+    // 4b'''. A Pipeline in replace drops what another Pipeline writes onto the same ids in its
+    //        space (PL-79, T-4409): the rule `jcctl validate` runs, over the project's Pipelines
     //        with this proposal in place of its own.
     if kind_info.kind == "Pipeline" && operation != Operation::Delete {
         check_replace(state, project, &envelope.metadata.name, &envelope.spec)?;
@@ -1792,7 +1792,7 @@ pub(crate) fn public_app_allowed(
 }
 
 /// Refuses a Pipeline proposal that, with the project's other Pipelines, makes a replace output
-/// meet another Pipeline's writes into its space and type (PL-79), whichever side it is on. A
+/// meet another Pipeline's writes of the same ids in its space (PL-79), whichever side it is on. A
 /// spec or an Endpoint that does not parse is judged elsewhere.
 fn check_replace(
     state: &AppState,
@@ -3011,7 +3011,7 @@ mod tests {
         assert_eq!(result.plan.fields[0].to, Some(json!(true)));
     }
 
-    /// PL-79, T-4409: a replace beside another writer of the same space and type is refused
+    /// PL-79, T-4409: a replace beside another writer of the same ids in its space is refused
     /// naming both, from either side; a replace alone, or into another space, is accepted.
     #[test]
     fn a_replace_beside_another_writer_of_its_type_is_refused_naming_both() {
@@ -3032,7 +3032,9 @@ mod tests {
                 "class": "scheduled", "schedule": "0 * * * *",
                 "source": { "dataSourceRef": "feed" },
                 "targetEndpoint": format!("urn:ngsi-ld:Endpoint:banskabystrica.sk:ovzdusie:{endpoint}"),
-                "output": { "type": "AirQualityObserved", "mode": mode }
+                "output": { "type": "AirQualityObserved", "mode": mode, "id": {
+                    "mint": "template", "template": "urn:ngsi-ld:AirQualityObserved:{station.code}"
+                } }
             })
         };
         for (endpoint, space) in [("public-air", "ovzdusie"), ("verejne-air", "verejne")] {
