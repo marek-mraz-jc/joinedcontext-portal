@@ -45,9 +45,14 @@ pub const REFUSED_PREFIX: &str = "jc_refused_";
 /// in its own words (T-4056).
 pub const FAILED_KEY: &str = "jc_failed";
 
-/// The labels of the pass report and its request (T-3001), which the metrics leave out like the
-/// sink: a report the Portal did not take says nothing about the stream's own reads and writes.
-pub const PASS_LABELS: [&str; 2] = ["pass", "pass_report"];
+/// The labels of the pass report and its request (T-3001), and of a run's report that its source
+/// refused the request (T-4428), which the metrics leave out like the sink: a report the Portal did not take says nothing about the stream's own reads and writes.
+pub const PASS_LABELS: [&str; 4] = [
+    "pass",
+    "pass_report",
+    "source_failed",
+    "source_failed_report",
+];
 
 /// How many log lines one pipeline keeps.
 pub const LINES_KEPT: usize = 5000;
@@ -301,19 +306,7 @@ pub fn with_passes(stream: &mut serde_json::Value, url: &str) {
     }
     let report = serde_json::json!({ "label": PASS_LABELS[0], "branch": {
         "request_map": format!("root = {{ \"run\": {RUN}, \"sent\": [] }}"),
-        "processors": [{ "label": PASS_LABELS[1], "http": {
-            "url": url,
-            "verb": "POST",
-            "headers": { "Content-Type": "application/json" },
-            "timeout": "5s",
-            "retries": 0,
-            "oauth2": {
-                "enabled": true,
-                "client_key": "${JC_CLIENT_ID}",
-                "client_secret": "${JC_CLIENT_SECRET}",
-                "token_url": "${JC_TOKEN_URL}",
-            },
-        }}],
+        "processors": [{ "label": PASS_LABELS[1], "http": report_http(url) }],
     }});
     let Some(pipeline) = stream.as_object_mut().map(|stream| {
         stream
@@ -331,6 +324,43 @@ pub fn with_passes(stream: &mut serde_json::Value, url: &str) {
     if let Some(processors) = processors.as_array_mut() {
         processors.splice(0..0, [report, serde_json::json!({ "catch": [] })]);
     }
+}
+
+/// The `http` processor a stream posts a report to its run's log with.
+fn report_http(url: &str) -> serde_json::Value {
+    serde_json::json!({
+        "url": url,
+        "verb": "POST",
+        "headers": { "Content-Type": "application/json" },
+        "timeout": "5s",
+        "retries": 0,
+        "oauth2": {
+            "enabled": true,
+            "client_key": "${JC_CLIENT_ID}",
+            "client_secret": "${JC_CLIENT_SECRET}",
+            "token_url": "${JC_TOKEN_URL}",
+        },
+    })
+}
+
+/// The processors a run puts after its source's request (T-4428): a request the source refused
+/// is reported to the run's log as a `failed` line with the source's words, then dropped, so a
+/// run whose upstream answered 4xx reads as failed, not as a run that found nothing. The words
+/// lose every URL query (where a key could ride); the route masks secret-shaped text as well.
+pub fn source_failure(url: &str) -> serde_json::Value {
+    let report = format!(
+        r#"root = {{ "run": {RUN}, "sent": [], "failed": [{{ "id": "", "message": error().or("the source refused the request").re_replace_all("""\?[^'"\s]*""", "") }}] }}"#
+    );
+    serde_json::json!({ "switch": [{
+        "check": "errored()",
+        "processors": [
+            { "label": PASS_LABELS[2], "branch": {
+                "request_map": report,
+                "processors": [{ "label": PASS_LABELS[3], "http": report_http(url) }],
+            }},
+            { "mapping": "root = deleted()" },
+        ],
+    }]})
 }
 
 fn clean(text: &str) -> String {
