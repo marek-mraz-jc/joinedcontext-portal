@@ -16,6 +16,17 @@ use crate::config::ConfigError;
 /// RFC 7523 §2.2, the `client_assertion_type` of a JWT client assertion.
 pub const JWT_BEARER: &str = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
 
+/// The HTTP client for the realm's token and admin endpoints, with `timeout`. It follows no
+/// redirect: a 307 or 308 would resend the grant or the admin call, credential included, to
+/// whatever host the answer names (T-3592).
+pub fn realm_http(timeout: std::time::Duration) -> Option<reqwest::Client> {
+    reqwest::Client::builder()
+        .timeout(timeout)
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .ok()
+}
+
 #[derive(Clone)]
 pub enum ClientAuth {
     /// `client_id` and `client_secret` in the request body.
@@ -146,6 +157,34 @@ impl std::fmt::Debug for ClientAuth {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn the_realm_client_resends_no_grant_to_the_host_a_redirect_names() {
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let elsewhere = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&elsewhere)
+            .await;
+        let realm = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(
+                ResponseTemplate::new(307).insert_header("Location", elsewhere.uri().as_str()),
+            )
+            .mount(&realm)
+            .await;
+        let answer = realm_http(std::time::Duration::from_secs(5))
+            .expect("a client")
+            .post(format!("{}/token", realm.uri()))
+            .form(&[("client_secret", "s3cret")])
+            .send()
+            .await
+            .expect("an answer");
+        assert_eq!(answer.status(), 307);
+        let resent = elsewhere.received_requests().await.unwrap_or_default();
+        assert!(resent.is_empty(), "the grant was resent: {resent:?}");
+    }
 
     const GRANT: [(&str, &str); 1] = [("grant_type", "client_credentials")];
 

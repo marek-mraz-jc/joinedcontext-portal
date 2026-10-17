@@ -415,7 +415,7 @@ impl Admin {
         let trimmed = issuer.trim_end_matches('/');
         let (root, realm) = trimmed.rsplit_once("/realms/")?;
         Some(Self {
-            http: reqwest::Client::builder().timeout(TIMEOUT).build().ok()?,
+            http: crate::auth::client_auth::realm_http(TIMEOUT)?,
             issuer: trimmed.to_owned(),
             admin: format!("{root}/admin/realms/{realm}"),
             client_id,
