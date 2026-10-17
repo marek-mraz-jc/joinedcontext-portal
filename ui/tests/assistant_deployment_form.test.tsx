@@ -110,7 +110,8 @@ describe("the deployment form's sources (T-4282)", () => {
     await userEvent.selectOptions(mode, "Ask on the first open");
     expect(mode).toHaveDisplayValue("Ask on the first open");
     expect(within(widget).getByLabelText(/^Show the language switch/)).toBeChecked();
-    for (const field of [/^Answers from/, /^Ask visitors whether an answer helped/, /^Greeting/]) {
+    // The greeting is an anyOf: its field, and the chooser of how it is given, named after it (T-4380).
+    for (const field of [/^Answers from/, /^Ask visitors whether an answer helped/, /^Greeting(?!: given as)/, /^Greeting: given as/]) {
       expect(within(widget).getByLabelText(field)).toBeInTheDocument();
     }
   });
