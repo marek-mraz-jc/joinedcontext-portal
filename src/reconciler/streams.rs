@@ -267,17 +267,6 @@ impl StreamDeployer {
             .run_now(&(project.to_owned(), name.to_owned()), chrono::Utc::now())
     }
 
-    /// The same deployer with other timeouts, so a test need not wait out the real ones.
-    #[cfg(test)]
-    fn with_timeouts(mut self, request: Duration, replace: Duration) -> Self {
-        self.http = reqwest::Client::builder()
-            .timeout(request)
-            .build()
-            .unwrap_or_default();
-        self.replace_timeout = replace;
-        self
-    }
-
     /// Renders every stream with its own pipeline's identity (PL-19): set once the runner carries
     /// the token sidecar and the federated mechanism is seen working.
     pub fn with_pipeline_identity(mut self, on: bool) -> Self {
@@ -2204,13 +2193,6 @@ pub fn eligible(spec: &PipelineSpec) -> bool {
         })
 }
 
-/// Returns whether `spec` is configured to read an external DataSource.
-pub fn is_data_source_pipeline(spec: &PipelineSpec) -> bool {
-    spec.sources()
-        .iter()
-        .any(|source| source.data_source_ref.is_some())
-}
-
 /// Returns whether `spec` is configured as a stream pipeline (DataSource or Endpoint-sourced).
 pub fn is_stream_pipeline(spec: &PipelineSpec) -> bool {
     spec.sources().iter().any(|source| {
@@ -2516,6 +2498,18 @@ fn written() -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    impl StreamDeployer {
+        /// The same deployer with other timeouts, so a test need not wait out the real ones.
+        fn with_timeouts(mut self, request: Duration, replace: Duration) -> Self {
+            self.http = reqwest::Client::builder()
+                .timeout(request)
+                .build()
+                .unwrap_or_default();
+            self.replace_timeout = replace;
+            self
+        }
+    }
 
     /// The upsert of the write labelled `label` (T-4056): the `http` inside its branch.
     fn upsert_at<'a>(stream: &'a Value, label: &str) -> &'a Value {
@@ -3970,7 +3964,7 @@ output:
         );
         assert_eq!(outputs[0]["switch"]["cases"][0]["check"], "errored()");
         assert_eq!(outputs[0]["label"], "output");
-        assert_eq!(outputs[1]["label"], crate::pipeline_log::SINK_LABEL);
+        assert_eq!(outputs[1]["label"], crate::pipeline_log::SINK_LABELS[0]);
         assert_eq!(outputs[1]["fallback"][0]["http_client"]["retries"], 0);
         assert!(outputs[1]["fallback"][1].get("drop").is_some());
         assert_eq!(

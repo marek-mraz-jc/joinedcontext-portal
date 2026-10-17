@@ -172,24 +172,6 @@ impl AgentStore {
         Ok(matching.into_iter().next())
     }
 
-    /// Lists runs for a specific application in a project, newest first.
-    pub async fn list_runs_for_app(
-        &self,
-        project: &str,
-        app_name: &str,
-        limit: i64,
-    ) -> Result<Vec<AgentRun>, StoreError> {
-        self.list_runs_filtered(
-            project,
-            &RunFilter {
-                app: Some(app_name.to_owned()),
-                ..Default::default()
-            },
-            limit,
-        )
-        .await
-    }
-
     /// Lists non-terminal runs whose expiration time is before `now_rfc3339`.
     pub async fn list_expired(&self, now_rfc3339: &str) -> Result<Vec<AgentRun>, StoreError> {
         if let Some(pool) = &self.db {
@@ -697,14 +679,6 @@ mod tests {
             .expect("live_run")
             .expect("found");
         assert_eq!(live.id, "run-2");
-
-        let app_runs = store
-            .list_runs_for_app("helsinki", "city-bikes-overview", 10)
-            .await
-            .expect("list_runs_for_app");
-        assert_eq!(app_runs.len(), 2);
-        assert_eq!(app_runs[0].id, "run-2");
-        assert_eq!(app_runs[1].id, "run-1");
 
         // list_expired with cutoff
         let expired = store

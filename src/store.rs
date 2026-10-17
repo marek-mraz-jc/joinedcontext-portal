@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
 use crate::resource::selector::{FieldSelector, LabelSelector};
@@ -18,22 +17,6 @@ pub struct ListPage {
     pub items: Vec<ResourceEnvelope>,
     pub continue_token: Option<String>,
     pub remaining: usize,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum MirrorError {
-    #[error("io error at {path}: {source}")]
-    Io {
-        path: PathBuf,
-        source: std::io::Error,
-    },
-    #[error("failed to parse yaml at {path}: {source}")]
-    Yaml {
-        path: PathBuf,
-        source: serde_norway::Error,
-    },
-    #[error("invalid resource at {path}: {reason}")]
-    InvalidResource { path: PathBuf, reason: String },
 }
 
 /// The read-optimized mirror of the configuration repository's default branch (UI-08): every
@@ -259,12 +242,6 @@ impl Mirror {
         copy.replace_all(self);
         copy
     }
-
-    pub fn load_dir(root: &Path) -> Result<Self, MirrorError> {
-        let mirror = Self::new();
-        visit_dir(root, &mirror)?;
-        Ok(mirror)
-    }
 }
 
 /// The manifest one file holds, when it holds one of a kind and version this platform serves;
@@ -279,83 +256,6 @@ pub fn envelope_of(content: &str) -> Option<ResourceEnvelope> {
     let envelope: ResourceEnvelope = serde_norway::from_value(value).ok()?;
     crate::resource::validate_meta(&envelope.metadata).ok()?;
     Some(envelope)
-}
-
-fn visit_dir(dir: &Path, mirror: &Mirror) -> Result<(), MirrorError> {
-    let entries = std::fs::read_dir(dir).map_err(|e| MirrorError::Io {
-        path: dir.to_path_buf(),
-        source: e,
-    })?;
-
-    for entry in entries {
-        let entry = entry.map_err(|e| MirrorError::Io {
-            path: dir.to_path_buf(),
-            source: e,
-        })?;
-        let path = entry.path();
-        if path.is_dir() {
-            visit_dir(&path, mirror)?;
-        } else if path.is_file() {
-            let is_yaml = path
-                .extension()
-                .and_then(|ext| ext.to_str())
-                .map(|ext| ext.eq_ignore_ascii_case("yaml") || ext.eq_ignore_ascii_case("yml"))
-                .unwrap_or(false);
-
-            if !is_yaml {
-                continue;
-            }
-
-            let content = std::fs::read_to_string(&path).map_err(|e| MirrorError::Io {
-                path: path.clone(),
-                source: e,
-            })?;
-
-            if content.trim().is_empty() {
-                continue;
-            }
-
-            let value: serde_norway::Value = match serde_norway::from_str(&content) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(MirrorError::Yaml {
-                        path: path.clone(),
-                        source: e,
-                    });
-                }
-            };
-
-            let api_version = value.get("apiVersion").and_then(|v| v.as_str());
-            let kind = value.get("kind").and_then(|v| v.as_str());
-
-            if api_version.is_none() || kind.is_none() {
-                continue;
-            }
-            // Every kind at v1alpha1, a Pipeline at v1alpha2 as well (PL-54).
-            if !api_version
-                .zip(kind)
-                .is_some_and(|(v, k)| jc_core::serves(k, v))
-            {
-                continue;
-            }
-
-            let envelope: ResourceEnvelope =
-                serde_norway::from_value(value).map_err(|e| MirrorError::Yaml {
-                    path: path.clone(),
-                    source: e,
-                })?;
-
-            if let Err(reason) = crate::resource::validate_meta(&envelope.metadata) {
-                return Err(MirrorError::InvalidResource {
-                    path: path.clone(),
-                    reason,
-                });
-            }
-
-            mirror.upsert(envelope);
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -531,58 +431,6 @@ mod tests {
         assert_eq!(page2.items[0].metadata.name, "item-4");
         assert_eq!(page2.items[1].metadata.name, "item-5");
         assert!(page2.continue_token.is_none());
-    }
-
-    #[test]
-    fn load_dir_on_temporary_tree() {
-        let temp_dir = std::env::temp_dir().join(format!(
-            "jc_mirror_test_{}",
-            time::OffsetDateTime::now_utc().unix_timestamp_nanos()
-        ));
-        std::fs::create_dir_all(temp_dir.join("sub")).expect("create test dirs");
-
-        let valid1 = r#"
-apiVersion: joinedcontext.com/v1alpha1
-kind: Endpoint
-metadata:
-  name: public-air
-  namespace: ovzdusie
-spec:
-  audience: public
-"#;
-        std::fs::write(temp_dir.join("endpoint.yaml"), valid1).expect("write valid1");
-
-        let valid2 = r#"
-apiVersion: joinedcontext.com/v1alpha1
-kind: ContextSpace
-metadata:
-  name: ovzdusie
-  namespace: ovzdusie
-spec: {}
-"#;
-        std::fs::write(temp_dir.join("sub/space.yaml"), valid2).expect("write valid2");
-
-        let native_bento = r#"
-input:
-  mqtt:
-    urls: [ "mosquitto:1883" ]
-"#;
-        std::fs::write(temp_dir.join("bento.yaml"), native_bento).expect("write bento");
-
-        let foreign_api = r#"
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ignored
-"#;
-        std::fs::write(temp_dir.join("k8s.yaml"), foreign_api).expect("write k8s");
-
-        let loaded = Mirror::load_dir(&temp_dir).expect("load_dir");
-        assert_eq!(loaded.len(), 2);
-        assert!(loaded.get("ovzdusie", "Endpoint", "public-air").is_some());
-        assert!(loaded.get("ovzdusie", "ContextSpace", "ovzdusie").is_some());
-
-        std::fs::remove_dir_all(&temp_dir).expect("clean temp dir");
     }
 
     #[test]
