@@ -482,7 +482,10 @@ async fn the_archive_is_a_zip_with_the_native_files_and_a_bundle_index() {
 
     let mut archive =
         zip::ZipArchive::new(std::io::Cursor::new(answer.body.clone())).expect("a readable zip");
-    let names: Vec<String> = archive.file_names().map(str::to_string).collect();
+    let names: Vec<String> = archive
+        .file_names()
+        .map(|n| n.expect("a text name").into_owned())
+        .collect();
     assert!(names.contains(&"projects/banskabystrica/endpoints/public-air.yaml".to_string()));
     assert!(
         names.contains(&"projects/banskabystrica/pipelines/aq-mqtt-ingest/bento.yaml".to_string()),
@@ -515,7 +518,7 @@ async fn the_archive_is_a_zip_with_the_native_files_and_a_bundle_index() {
     for index in 0..archive.len() {
         use std::io::Read;
         let mut entry = archive.by_index(index).expect("entry");
-        let name = entry.name().to_string();
+        let name = entry.name().expect("a text name").into_owned();
         let mut text = String::new();
         entry.read_to_string(&mut text).expect("utf-8 entry");
         assert!(
@@ -584,7 +587,10 @@ async fn a_whole_project_archive_says_what_its_files_mean() {
     assert_eq!(answer.status, StatusCode::OK);
     let mut archive =
         zip::ZipArchive::new(std::io::Cursor::new(answer.body.clone())).expect("a readable zip");
-    let names: Vec<String> = archive.file_names().map(str::to_string).collect();
+    let names: Vec<String> = archive
+        .file_names()
+        .map(|n| n.expect("a text name").into_owned())
+        .collect();
     for expected in [
         "README.md",
         "schemas/kinds/Endpoint.schema.json",
@@ -853,7 +859,7 @@ fn archived(answer: &Answer) -> Vec<String> {
     zip::ZipArchive::new(std::io::Cursor::new(answer.body.clone()))
         .expect("a readable zip")
         .file_names()
-        .map(str::to_string)
+        .map(|n| n.expect("a text name").into_owned())
         .collect()
 }
 

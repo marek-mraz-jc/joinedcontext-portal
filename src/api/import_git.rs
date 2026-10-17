@@ -16,7 +16,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use utoipa::ToSchema;
 
-use crate::api::import::{ImportReport, Verified, MAX_UPLOAD_BYTES};
+use crate::api::import::{enclosed_path, ImportReport, Verified, MAX_UPLOAD_BYTES};
 use crate::auth::session::Identity;
 use crate::error::ApiError;
 use crate::git::GiteaClient;
@@ -81,13 +81,13 @@ pub(crate) fn unpack(bytes: &[u8]) -> Result<BTreeMap<String, Vec<u8>>, ApiError
         if entry.is_dir() {
             continue;
         }
-        let Some(path) = entry
-            .enclosed_name()
-            .map(|p| p.to_string_lossy().into_owned())
-        else {
+        let Some(path) = enclosed_path(&entry).map(|p| p.to_string_lossy().into_owned()) else {
             return Err(ApiError::BadRequest(format!(
                 "the archive entry '{}' leaves the archive",
-                entry.name()
+                // zip 9: a name that is not UTF-8 is an error, not a reason to say nothing
+                entry
+                    .name()
+                    .unwrap_or_else(|_| "(a name that is not text)".into())
             )));
         };
         let mut content = Vec::new();

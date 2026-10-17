@@ -304,15 +304,21 @@ fn unpack(
         if entry.size() > MAX_ENTRY {
             return Err(RemoteError::Refused(format!(
                 "{} is larger than the {MAX_ENTRY} bytes one file of a source may have",
-                entry.name()
+                // zip 9: a name that is not UTF-8 is an error, not a reason to say nothing
+                entry
+                    .name()
+                    .unwrap_or_else(|_| "(a name that is not text)".into())
             )));
         }
-        // `enclosed_name` is the zip crate's own answer to zip-slip: `None` for a path that is
-        // absolute or climbs out of the archive root.
-        let Some(name) = entry.enclosed_name() else {
+        // `enclosed_path` is the zip-slip guard: `None` for a path that is absolute or climbs out
+        // of the archive root.
+        let Some(name) = crate::api::import::enclosed_path(&entry) else {
             return Err(RemoteError::Refused(format!(
                 "the archive carries `{}`, which does not stay inside the checkout",
-                entry.name()
+                // zip 9: a name that is not UTF-8 is an error, not a reason to say nothing
+                entry
+                    .name()
+                    .unwrap_or_else(|_| "(a name that is not text)".into())
             )));
         };
         let relative = if strip_root {

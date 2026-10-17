@@ -114,7 +114,7 @@ sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio",
 # PHC string this writes. Same crate and defaults as the gateway's verifier.
 argon2 = "0.5"
 # The one-click configuration archive (CC-49, MF-16). Deflate only: no encryption, no bzip2.
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 thiserror = "2"
 # The SEARCH/REPLACE apply of the kit pass (AP-58); already in the graph through jc-core.
 regex = "1"
