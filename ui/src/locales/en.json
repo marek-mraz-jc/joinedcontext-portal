@@ -124,6 +124,7 @@
     "required": "This field is required",
     "invalid": "Invalid value",
     "choose": "Choose…",
+    "chooseVariant": "{label}: given as",
     "useExample": "Use the example",
     "noResults": "No results",
     "entityPickerPending": "Choose the space and the entity type first, and this lists their entities; an entity id can also be pasted here.",
