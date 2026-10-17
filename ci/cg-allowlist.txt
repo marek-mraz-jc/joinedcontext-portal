@@ -68,6 +68,7 @@ handler-without-identity | joinedcontext_portal::server::api_cache_control_middl
 handler-without-identity | joinedcontext_portal::server::public_form_framing | middleware: relaxes framing only for a public form whose Endpoint's validated embedOrigins name the site (EP-101)
 handler-without-identity | joinedcontext_portal::telemetry::metrics | /metrics: the edge refuses the path (deployment components/portal/apisix-routes.yaml portal-metrics), scraped in-cluster only
 handler-without-identity | joinedcontext_portal::telemetry::record | middleware: request metrics
+handler-without-identity | joinedcontext_portal::public_docs::serve | the public API and User Guide pages (T-4063): embedded at build time, a chapter from a fixed list and a page name of [A-Za-z0-9_-] only, raw HTML filtered by `safe`
 
 outbound-http | src/agents/held.rs | the context gateway's /access, base from config, the caller's own token
 outbound-http | src/agents/identity.rs | the realm's token endpoint for an agent's identity, URL from config
@@ -104,6 +105,9 @@ outbound-http | src/space_usage.rs | the broker, URL from config
 outbound-http | src/sync/remote.rs | a SyncSource's URL: https only, literal address, resolved address and every redirect checked by sync::guard (MF-32, T-1705)
 outbound-http | src/sync/schema_api.rs | a peer's schema surface: sync::guard address rule (DM-49, T-1705)
 outbound-http | src/tools/model_tools.rs | Model Tools, URL from config
+outbound-http | src/api/mqtt_measured.rs | the project's own MQTT broker's API inside the cluster: host from the project and the MqttBroker's DNS-1123 name under JC_PORTAL_MQTT_NAMESPACE, no redirect, after may_read("MqttBroker")
+outbound-http | src/quality_checks.rs | the gateway's counters at the configured JC_PORTAL_GATEWAY_URL, with a timeout
+outbound-http | src/space_move.rs | the brokers' /q export and import and the gateway's /metrics, with the brokers' admin token: addresses from JC_PORTAL_BROKER_URL or its template with a declared broker's DNS-1123 name, so no request value names a host; organization administrators only (require_organization_admin); reqwest drops the bearer on a redirect to another host
 
 dynamic-sql | joinedcontext_portal::activity::ActivityStore::list | shape from which filter fields are set; every value bound
 dynamic-sql | joinedcontext_portal::apps::apps_db::AppsDb::migrate_as_owner | an App's own migration SQL, run as that App's own owner role in its schema (AP-149); the schema name is the checked 16-hex id
@@ -172,6 +176,9 @@ route-without-caller | POST /internal/pipelines/{}/{}/outcomes | joinedcontext_p
 route-without-caller | POST /internal/pipelines/{}/{}/rejected | joinedcontext_portal::api::internal::pipeline_rejected::rejected | the pipeline runner on the internal listener
 route-without-caller | POST /live-notify/{} | joinedcontext_portal::api::live::notify | the gateway delivers live-update notifications; the key in the path is the credential (API/01 §32)
 route-without-caller | POST /mail/unsubscribe | joinedcontext_portal::apps::email::unsubscribe | the form of the unsubscribe page (signature:unsubscribe-link)
+route-without-caller | GET /api/v1/projects/{}/spaces/{}/move | joinedcontext_portal::api::space_move::get_move | documented API for organization administrators (PF-111 space move, API/01); no UI page starts a move yet
+route-without-caller | POST /api/v1/projects/{}/spaces/{}/move | joinedcontext_portal::api::space_move::start_move | documented API for organization administrators (PF-111 space move, API/01); no UI page starts a move yet
+route-without-caller | POST /internal/pipelines/{}/{}/samples | joinedcontext_portal::api::internal::pipeline_rejected::sampled | the pipeline runner's taps post sampled messages over the internal listener (T-3974), authenticated by auth::internal
 button-to-decision | DELETE /api/v1/alerts/{} | joinedcontext_portal::api::alerts::unsubscribe | signed-in: DELETE ... WHERE id = $1 AND subject = $2, another caller's id is 404
 button-to-decision | GET /api/v1/alerts | joinedcontext_portal::api::alerts::list_alerts | signed-in: the caller's own subscriptions, selected by subject
 button-to-decision | GET /api/v1/app-templates | joinedcontext_portal::api::app_templates::list_templates | signed-in: the built-in template list compiled into the binary
