@@ -122,6 +122,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 time = { version = "0.3", features = ["formatting", "parsing", "macros"] }
 url = "2"
+# Folds diacritics out of the NGSI-LD catalogue's searchText (T-4500); already in the graph.
+unicode-normalization = "0.1.25"
 base64 = "0.23"
 # The code preview's transpile (SDK-12, SDK-15): TypeScript and JSX to plain modules in process,
 # with the imports checked on the parsed program rather than by pattern.

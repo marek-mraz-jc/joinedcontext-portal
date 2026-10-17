@@ -86,6 +86,16 @@ fn titles(text: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// Whether `who` finds `view` in the space's list, the one read of views (T-4453 removed the
+/// read of one).
+async fn sees(state: &AppState, who: &str, view: &Value) -> bool {
+    let list = send(state, person(who), "GET", VIEWS, None).await;
+    assert_eq!(list.status, StatusCode::OK, "{}", list.text);
+    json_of(&list.text)["items"]
+        .as_array()
+        .is_some_and(|items| items.iter().any(|item| item["id"] == view["id"]))
+}
+
 fn change(view: &Value, mode: &str, title: &str) -> Value {
     json!({ "kind": "grid", "mode": mode, "title": title, "config": view["config"], "expectedVersion": view["version"] })
 }
@@ -108,9 +118,9 @@ async fn a_personal_view_is_its_owners_alone() {
     assert!(titles(&theirs.text).is_empty());
     // Not even a steward sees it, and to them it is not there at all.
     for who in ["eva", "sami"] {
-        assert_eq!(
-            send(&state, person(who), "GET", &one, None).await.status,
-            StatusCode::NOT_FOUND
+        assert!(
+            !sees(&state, who, &view).await,
+            "{who} sees jana's personal view"
         );
         assert_eq!(
             send(&state, person(who), "DELETE", &one, None).await.status,
@@ -175,9 +185,9 @@ async fn a_collaborative_view_is_changed_by_everyone_and_governed_by_its_owner_o
             .status,
         StatusCode::NO_CONTENT
     );
-    assert_eq!(
-        send(&state, person("jana"), "GET", &one, None).await.status,
-        StatusCode::NOT_FOUND
+    assert!(
+        !sees(&state, "jana", &view).await,
+        "the deleted view is still listed"
     );
 }
 
@@ -187,9 +197,9 @@ async fn a_locked_view_is_changed_only_by_its_owner_or_a_steward_of_that_space()
     let view = save(&state, "jana", "locked").await;
     let one = format!("{VIEWS}/{}", view["id"].as_str().expect("an id"));
 
-    assert_eq!(
-        send(&state, person("eva"), "GET", &one, None).await.status,
-        StatusCode::OK
+    assert!(
+        sees(&state, "eva", &view).await,
+        "a locked view is everyone's to read"
     );
     let refused = send(
         &state,
@@ -253,7 +263,7 @@ async fn refuses_what_is_wrong_and_hides_what_is_not_theirs() {
         send(
             &state,
             person("jana"),
-            "GET",
+            "DELETE",
             &format!("{VIEWS}/not-an-id"),
             None
         )

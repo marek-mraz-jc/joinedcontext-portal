@@ -5491,77 +5491,6 @@
         }
       }
     },
-    "/api/v1/projects/{project}/assistant/catalog": {
-      "get": {
-        "tags": [
-          "assistant"
-        ],
-        "summary": "Search Catalog",
-        "description": "Find spaces, endpoints, and data models matching search keywords.",
-        "operationId": "get_catalog",
-        "parameters": [
-          {
-            "name": "project",
-            "in": "path",
-            "description": "The project the search runs in",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "q",
-            "in": "query",
-            "description": "What to look for; the function words are dropped",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "scope",
-            "in": "query",
-            "description": "One kind to search, from the kinds the catalogue holds",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "What the search matched, restricted items included",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Catalog"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "`q` is empty, or `scope` names no kind",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such project, or the caller may not read it",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/projects/{project}/assistant/conversations": {
       "post": {
         "tags": [
@@ -8299,49 +8228,6 @@
           },
           "503": {
             "description": "No repository configured",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/projects/{project}/federation-graph": {
-      "get": {
-        "tags": [
-          "federation"
-        ],
-        "summary": "Read Federation",
-        "description": "The project's spaces, endpoints, pipelines and apps, and what links them.",
-        "operationId": "get_graph",
-        "parameters": [
-          {
-            "name": "project",
-            "in": "path",
-            "description": "Project name",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The federation of this project",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FederationGraph"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
@@ -13442,75 +13328,6 @@
       }
     },
     "/api/v1/projects/{project}/spaces/{space}/views/{id}": {
-      "get": {
-        "tags": [
-          "spaces"
-        ],
-        "summary": "Read A Data View",
-        "description": "One saved view. A personal view of someone else answers like no view.",
-        "operationId": "get_view",
-        "parameters": [
-          {
-            "name": "project",
-            "in": "path",
-            "description": "Project name",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "space",
-            "in": "path",
-            "description": "Context Space name",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "description": "The view's id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The view",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DataView"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such view the caller sees",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      },
       "put": {
         "tags": [
           "spaces"
@@ -15496,38 +15313,6 @@
         }
       }
     },
-    "/api/v1/sync": {
-      "get": {
-        "tags": [
-          "system"
-        ],
-        "summary": "Read Mirror Sync",
-        "description": "Where the Portal's mirror of the configuration repository stands: the revision it holds and when it last synchronized. The instance's state, not a project's.",
-        "operationId": "get_sync_status",
-        "responses": {
-          "200": {
-            "description": "Status of the background Git mirror synchronization",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SyncStatus"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/tools/generate": {
       "post": {
         "tags": [
@@ -16003,23 +15788,6 @@
   },
   "components": {
     "schemas": {
-      "Access": {
-        "type": "object",
-        "description": "Whether the caller may read the item, and why.",
-        "required": [
-          "verdict",
-          "reason"
-        ],
-        "properties": {
-          "reason": {
-            "type": "string"
-          },
-          "verdict": {
-            "type": "string",
-            "description": "`allowed` or `restricted`."
-          }
-        }
-      },
       "AccountSeen": {
         "type": "object",
         "description": "One ServiceAccount of the broker's roles and its connected clients.",
@@ -17292,83 +17060,6 @@
           }
         },
         "additionalProperties": false
-      },
-      "Catalog": {
-        "type": "object",
-        "description": "What a search of the project's own catalogue answered (API/01 §18, AG-58).",
-        "required": [
-          "q",
-          "items"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CatalogItem"
-            }
-          },
-          "q": {
-            "type": "string",
-            "description": "The words the search ran on, with the function words removed."
-          }
-        }
-      },
-      "CatalogItem": {
-        "type": "object",
-        "description": "One manifest the search matched. A restricted item carries its kind and name and nothing\nelse: what the caller may not read is not described to them (AG-58).",
-        "required": [
-          "kind",
-          "name",
-          "space",
-          "owner",
-          "matchReason",
-          "access"
-        ],
-        "properties": {
-          "access": {
-            "$ref": "#/components/schemas/Access"
-          },
-          "endpointSlug": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "freshness": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/Freshness"
-              }
-            ]
-          },
-          "kind": {
-            "type": "string"
-          },
-          "matchReason": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "name": {
-            "type": "string"
-          },
-          "owner": {
-            "type": "string"
-          },
-          "space": {
-            "type": "string"
-          },
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
       },
       "Catalogue": {
         "type": "object",

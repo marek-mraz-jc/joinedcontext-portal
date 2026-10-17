@@ -190,3 +190,11 @@ channel = "http"
 role = "uses"
 key = "GET /apps/{name}/api/services/jobs"
 symbol = "sdk/src/sdk/client.ts::createClient"
+
+# A pod-backed App asks the Portal for its caller's roles at JC_ME_URL, which the reconciler sets
+# (AP-109, T-4453); the Rust sample is the one App in this repo with a backend that does.
+[[endpoint]]
+channel = "http"
+role = "uses"
+key = "GET /api/v1/projects/{p}/apps/{a}/me"
+symbol = "air_quality::App::roles"

@@ -5,7 +5,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -34,13 +34,7 @@ use crate::store::ListOptions;
 /// The best matches only: a person reads a screen of cards, a model a page of context.
 pub const MAX_ITEMS: usize = 20;
 /// In the order ties are broken: what a person opens first.
-const KINDS: [&str; 3] = ["Endpoint", "ContextSpace", "DataModel"];
-
-#[derive(Debug, Deserialize)]
-pub struct CatalogQuery {
-    pub q: Option<String>,
-    pub scope: Option<String>,
-}
+pub const KINDS: [&str; 3] = ["Endpoint", "ContextSpace", "DataModel"];
 
 /// What a search of the project's own catalogue answered (API/01 §18, AG-58).
 #[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
@@ -423,55 +417,6 @@ fn item(
         freshness: None,
         hits,
     }
-}
-
-#[utoipa::path(
-    get,
-    path = "/api/v1/projects/{project}/assistant/catalog",
-    summary = "Search Catalog",
-    description = "Find spaces, endpoints, and data models matching search keywords.",
-    tag = "assistant",
-    params(
-        ("project" = String, Path, description = "The project the search runs in"),
-        ("q" = String, Query, description = "What to look for; the function words are dropped"),
-        ("scope" = Option<String>, Query,
-         description = "One kind to search, from the kinds the catalogue holds")
-    ),
-    responses(
-        (status = 200, description = "What the search matched, restricted items included", body = Catalog),
-        (status = 400, description = "`q` is empty, or `scope` names no kind",
-         body = crate::error::ProblemDetails),
-        (status = 404, description = "No such project, or the caller may not read it",
-         body = crate::error::ProblemDetails)
-    )
-)]
-pub async fn get_catalog(
-    user: CurrentUser,
-    State(state): State<AppState>,
-    Path(project): Path<String>,
-    Query(query): Query<CatalogQuery>,
-) -> Result<Json<Catalog>, ApiError> {
-    let q = query.q.as_deref().unwrap_or("").trim();
-    if q.is_empty() {
-        return Err(ApiError::BadRequest("q must not be empty".into()));
-    }
-    // A search of a project is a read of it (PF-59, R20, T-1401).
-    if !is_dns1123(&project)
-        || !crate::permissions::for_request(&state, &user.0.identity, &project).may_read_project()
-    {
-        return Err(ApiError::NotFound(format!("project '{project}' not found")));
-    }
-    let scope = match query.scope.as_deref().map(str::trim) {
-        None | Some("") => None,
-        Some(kind) if KINDS.contains(&kind) => Some(kind),
-        Some(other) => {
-            return Err(ApiError::BadRequest(format!(
-                "scope '{other}' is not one of {}",
-                KINDS.join(", ")
-            )))
-        }
-    };
-    Ok(Json(search(&state, &project, q, scope).await))
 }
 
 /// The organization's domain, from the `Organization` manifest of the repository, else the
@@ -1022,7 +967,6 @@ pub async fn get_access(
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/projects/{project}/assistant/catalog", get(get_catalog))
         .route("/projects/{project}/assistant/access", get(get_access))
         .route(
             "/projects/{project}/assistant/propose-endpoint",

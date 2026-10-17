@@ -185,6 +185,9 @@ pub struct Syncer {
     /// `spec.publish.ckan` a declaration nobody carries out, which is what a Portal with no
     /// gateway host configured can honestly do.
     ckan: Option<Arc<super::ckan::CkanSync>>,
+    /// The open-data catalogue as an NGSI-LD Endpoint (T-4500); `None` without a gateway host
+    /// or a realm client, which is when no write through an Endpoint can be made.
+    catalog: Option<Arc<super::catalog::CatalogSync>>,
     /// Whether each Organization owns the domain it declares (PF-41, T-2377). `None` without a
     /// database: a challenge that did not outlive a restart would fail every published record.
     domains:
@@ -257,6 +260,7 @@ impl Syncer {
             pipeline_secrets: None,
             webhook_secrets: None,
             ckan: None,
+            catalog: None,
             domains: None,
             pipeline_status: None,
             pipeline_outcomes: None,
@@ -495,6 +499,13 @@ impl Syncer {
     /// and withdraw the dataset of one that stopped declaring it (EP-62, CC-19).
     pub fn with_ckan(mut self, ckan: Arc<super::ckan::CkanSync>) -> Self {
         self.ckan = Some(ckan);
+        self
+    }
+
+    /// Makes each run write the public Endpoints into the repository's `catalog` Endpoint as
+    /// SDM DCAT-AP `Dataset` and `DataService` entities (T-4500).
+    pub fn with_catalog(mut self, catalog: Arc<super::catalog::CatalogSync>) -> Self {
+        self.catalog = Some(catalog);
         self
     }
 
@@ -1013,6 +1024,8 @@ impl Syncer {
                 .await;
             self.say_published(&reports).await;
         }
+        // 5g. The same public Endpoints as NGSI-LD entities an agent searches first (T-4500).
+        self.converge_catalog(&repository).await;
 
         transitions.keep_all(&fresh_mirror);
         self.mirror.replace_all(&fresh_mirror);
@@ -1638,6 +1651,22 @@ impl Syncer {
                 "NoRunner",
                 "no pipeline runner is configured (JC_PORTAL_PIPELINE_RUNNER_URL)",
             );
+        }
+    }
+
+    async fn converge_catalog(&self, repository: &Repository) {
+        if let Some(catalog) = self.catalog.as_ref() {
+            match catalog.converge(repository).await {
+                Ok(Some(run)) if run.upserted + run.deleted > 0 => tracing::info!(
+                    upserted = run.upserted,
+                    deleted = run.deleted,
+                    "the NGSI-LD catalogue was brought up to date"
+                ),
+                Ok(_) => {}
+                Err(err) => {
+                    tracing::warn!(error = %err, "the NGSI-LD catalogue was not brought up to date")
+                }
+            }
         }
     }
 
@@ -4417,6 +4446,12 @@ output_error{stream="kpi"} 6
         syncer.report_missing_builds(&transitions);
         syncer.converge_artifact_store(&transitions).await;
         syncer.verify_domains().await;
+        let dir = Scratch::new("t4469").expect("a scratch directory");
+        write_tree(dir.path(), &[("README.md", "\n")]);
+        let repository = Repository::load(dir.path()).expect("the repository loads");
+        syncer.converge_views(&fresh, &repository).await;
+        syncer.converge_apps(&repository).await;
+        syncer.converge_catalog(&repository).await;
         assert_eq!(
             serde_json::to_value(fresh.matching(|_| true)).expect("JSON"),
             before

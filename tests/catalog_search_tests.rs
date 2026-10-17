@@ -1,4 +1,4 @@
-//! The assistant's catalog search (T-0578, AG-58, API/01 §18): what matches, what the caller
+//! The catalog search, `jc_catalog_search` (T-0578, AG-58, API/01 §18): what matches, what the caller
 //! may open, how fresh it is, and what a restricted item does not say.
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -7,6 +7,7 @@ use axum::body::Body;
 use axum::http::{header, Request, StatusCode};
 use axum_extra::extract::cookie::PrivateCookieJar;
 use http_body_util::BodyExt;
+use joinedcontext_portal::auth::csrf::{CSRF_COOKIE, CSRF_HEADER};
 use joinedcontext_portal::auth::session::{self, Identity, Session};
 use joinedcontext_portal::config::Config;
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
@@ -17,6 +18,8 @@ use serde_json::{json, Value};
 use tower::ServiceExt;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
+
+const CSRF_TOKEN: &str = "test-csrf-catalog";
 
 const RUNNER_BODY: &str = concat!(
     "# TYPE input_received counter\n",
@@ -142,16 +145,20 @@ fn helsinki() -> Arc<Mirror> {
     mirror
 }
 
-async fn get(config: Config, cookie: Option<&str>, uri: &str) -> (StatusCode, Value) {
+/// Runs `jc_catalog_search` in helsinki, the one door the search has (T-4453).
+async fn search(config: Config, cookie: Option<&str>, input: Value) -> (StatusCode, Value) {
     let app = server::app(AppState::new(config, None).with_mirror(helsinki()));
-    let mut request = Request::builder().uri(uri);
-    if let Some(cookie) = cookie {
-        request = request.header(header::COOKIE, cookie);
-    }
-    let response = app
-        .oneshot(request.body(Body::empty()).unwrap())
-        .await
+    let csrf = format!("{CSRF_COOKIE}={CSRF_TOKEN}");
+    let cookies = cookie.map_or(csrf.clone(), |cookie| format!("{cookie}; {csrf}"));
+    let request = Request::builder()
+        .method("POST")
+        .uri("/api/v1/projects/helsinki/ops/jc_catalog_search")
+        .header(header::COOKIE, cookies)
+        .header(CSRF_HEADER, CSRF_TOKEN)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(input.to_string()))
         .unwrap();
+    let response = app.oneshot(request).await.unwrap();
     let status = response.status();
     let body = response.into_body().collect().await.unwrap().to_bytes();
     (status, serde_json::from_slice(&body).unwrap_or(Value::Null))
@@ -178,26 +185,16 @@ fn names(body: &Value) -> Vec<String> {
 #[tokio::test]
 async fn anonymous_search_is_401_and_an_empty_question_is_400() {
     let config = Config::for_tests();
-    let (status, _) = get(
-        config.clone(),
-        None,
-        "/api/v1/projects/helsinki/assistant/catalog?q=bike",
-    )
-    .await;
+    let (status, _) = search(config.clone(), None, json!({ "q": "bike" })).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 
     let cookie = session_cookie(&config);
-    let (status, _) = get(
-        config.clone(),
-        Some(&cookie),
-        "/api/v1/projects/helsinki/assistant/catalog?q=%20",
-    )
-    .await;
+    let (status, _) = search(config.clone(), Some(&cookie), json!({ "q": " " })).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    let (status, _) = get(
+    let (status, _) = search(
         config,
         Some(&cookie),
-        "/api/v1/projects/helsinki/assistant/catalog?q=bike&scope=Pipeline",
+        json!({ "q": "bike", "scope": "Pipeline" }),
     )
     .await;
     assert_eq!(
@@ -211,10 +208,10 @@ async fn anonymous_search_is_401_and_an_empty_question_is_400() {
 async fn the_words_of_a_question_find_endpoints_spaces_and_models_of_this_project_only() {
     let config = Config::for_tests();
     let cookie = session_cookie(&config);
-    let (status, body) = get(
+    let (status, body) = search(
         config,
         Some(&cookie),
-        "/api/v1/projects/helsinki/assistant/catalog?q=vehicle%20positions%20or%20bike%20availability",
+        json!({ "q": "vehicle positions or bike availability" }),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
@@ -273,10 +270,10 @@ async fn the_words_of_a_question_find_endpoints_spaces_and_models_of_this_projec
 async fn a_restricted_endpoint_shows_its_name_and_kind_and_nothing_else() {
     let config = Config::for_tests();
     let cookie = session_cookie(&config);
-    let (status, body) = get(
+    let (status, body) = search(
         config,
         Some(&cookie),
-        "/api/v1/projects/helsinki/assistant/catalog?q=partner%20feed&scope=Endpoint",
+        json!({ "q": "partner feed", "scope": "Endpoint" }),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
@@ -307,10 +304,10 @@ async fn freshness_is_the_runner_counters_of_the_pipeline_feeding_the_endpoint()
     config.pipeline_runner_url = Some(format!("{}/{{project}}", runner.uri()));
     let cookie = session_cookie(&config);
 
-    let (status, body) = get(
+    let (status, body) = search(
         config,
         Some(&cookie),
-        "/api/v1/projects/helsinki/assistant/catalog?q=bike&scope=Endpoint",
+        json!({ "q": "bike", "scope": "Endpoint" }),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
@@ -343,10 +340,10 @@ async fn freshness_is_the_runner_counters_of_the_pipeline_feeding_the_endpoint()
 async fn a_space_matched_by_its_own_title_is_open_when_one_of_its_endpoints_is() {
     let config = Config::for_tests();
     let cookie = session_cookie(&config);
-    let (status, body) = get(
+    let (status, body) = search(
         config,
         Some(&cookie),
-        "/api/v1/projects/helsinki/assistant/catalog?q=context&scope=ContextSpace",
+        json!({ "q": "context", "scope": "ContextSpace" }),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");

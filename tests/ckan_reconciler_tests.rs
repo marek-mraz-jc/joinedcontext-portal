@@ -14,7 +14,7 @@ use jcctl::commands::publish_ckan::{Rows, Target};
 use jcctl::loader::{RawManifest, RawMetadata, ResourceId};
 use jcctl::publish::ckan::{InMemoryCkan, Outcome, Settings};
 use joinedcontext_portal::reconciler::ckan::{
-    publish_with, publish_without_rows, withdrawn, CkanSync, Publication, Report,
+    publish_with, publish_without_rows, sweep_with, withdrawn, CkanSync, Publication, Report,
 };
 use joinedcontext_portal::resource::ResourceEnvelope;
 use joinedcontext_portal::store::Mirror;
@@ -698,4 +698,158 @@ fn the_log_says_an_outcome_once_per_change_and_every_write() {
         ["helsinki/helsinki-transport: unchanged"]
     );
     assert!(sync.log(&[published(Outcome::Unchanged)]).is_empty());
+}
+
+/// A catalogue that answers `package_search` over one organization's datasets, which the
+/// in-memory double does not; every other call is the publisher's own shape.
+struct Searchable {
+    datasets: Vec<Value>,
+    deleted: Vec<String>,
+}
+
+impl jcctl::publish::ckan::CkanApi for Searchable {
+    fn show(
+        &self,
+        action: &str,
+        name: &str,
+    ) -> Result<Option<Value>, jcctl::publish::ckan::CkanError> {
+        assert_eq!(action, "package_show");
+        Ok(self
+            .datasets
+            .iter()
+            .find(|d| d["name"] == name && !self.deleted.iter().any(|gone| gone == name))
+            .cloned())
+    }
+
+    fn action(
+        &mut self,
+        action: &str,
+        payload: &Value,
+    ) -> Result<Value, jcctl::publish::ckan::CkanError> {
+        match action {
+            "package_search" => {
+                assert_eq!(payload["fq"], "organization:\"susr\"", "{payload}");
+                assert_eq!(payload["include_private"], true, "{payload}");
+                let live: Vec<Value> = self
+                    .datasets
+                    .iter()
+                    .filter(|d| !self.deleted.iter().any(|gone| *gone == d["name"]))
+                    .cloned()
+                    .collect();
+                Ok(json!({ "count": live.len(), "results": live }))
+            }
+            "package_delete" => {
+                self.deleted
+                    .push(payload["id"].as_str().unwrap_or_default().to_owned());
+                Ok(Value::Null)
+            }
+            other => panic!("no {other} in a sweep"),
+        }
+    }
+}
+
+fn dataset(name: &str, generated_by: Option<&str>) -> Value {
+    let extras: Vec<Value> = generated_by
+        .map(|value| json!({ "key": "generated_by", "value": value }))
+        .into_iter()
+        .collect();
+    json!({ "name": name, "organization": { "name": "susr" }, "extras": extras })
+}
+
+#[test]
+fn a_dataset_the_platform_published_for_an_endpoint_that_is_gone_is_withdrawn_and_a_harvests_is_not(
+) {
+    // T-4461: susr-zo-krajiny's Endpoint left the seed in the apply that restarted the Portal, so
+    // no mirror of it ever held the Endpoint; the catalogue's own mark is what says it was ours.
+    let mut api = Searchable {
+        datasets: vec![
+            dataset("susr-om", Some(jcctl::publish::ckan::GENERATOR)),
+            dataset("susr-zo-krajiny", Some(jcctl::publish::ckan::GENERATOR)),
+            dataset("harvested-from-nkod", None),
+            dataset("someone-elses", Some("ckanext-harvest")),
+        ],
+        deleted: Vec::new(),
+    };
+    let kept: BTreeSet<String> = ["susr-om".to_owned()].into();
+    let swept = sweep_with(&mut api, "susr", &kept).expect("the sweep runs");
+    assert_eq!(
+        swept,
+        vec![(
+            "susr-zo-krajiny".to_owned(),
+            Publication::Withdrawn {
+                dataset: "susr-zo-krajiny".to_owned()
+            }
+        )]
+    );
+    assert_eq!(api.deleted, vec!["susr-zo-krajiny".to_owned()]);
+
+    // The next run finds nothing more to withdraw.
+    assert!(sweep_with(&mut api, "susr", &kept)
+        .expect("it runs again")
+        .is_empty());
+}
+
+#[tokio::test]
+async fn a_pass_with_a_project_whose_publication_does_not_read_sweeps_nothing() {
+    // T-4461 review: project b's broken spec leaves its datasets out of what the pass keeps, so a
+    // sweep of the shared default organization would withdraw them. No sweep in such a pass.
+    let repository =
+        std::env::temp_dir().join(format!("jc-ckan-sweep-guard-{}", std::process::id()));
+    std::fs::create_dir_all(&repository).expect("a scratch directory");
+    let manifest = |project: &str, kind: &str, name: &str, spec: Value| {
+        serde_norway::to_string(&json!({
+            "apiVersion": "joinedcontext.com/v1alpha1",
+            "kind": kind,
+            "metadata": { "name": name, "namespace": project },
+            "spec": spec,
+        }))
+        .expect("yaml")
+    };
+    std::fs::write(
+        repository.join("a.yaml"),
+        format!(
+            "{}---\n{}",
+            manifest("a", "CkanInstance", "hel-fi", instance()),
+            manifest(
+                "a",
+                "Endpoint",
+                "bikes",
+                endpoint("bikes", "public", Some(dataset_only()))
+            )
+        ),
+    )
+    .expect("project a");
+    std::fs::write(
+        repository.join("b.yaml"),
+        manifest(
+            "b",
+            "Endpoint",
+            "parking",
+            endpoint(
+                "parking",
+                "public",
+                Some(json!({ "instanceRef": { "kind": "CkanInstance", "name": "nowhere" } })),
+            ),
+        ),
+    )
+    .expect("project b");
+    let repo = jcctl::loader::Repository::load(&repository).expect("the repository loads");
+    let reports = CkanSync::new(HOST)
+        .converge(&repo, &Mirror::new(), &repository)
+        .await;
+    // b's spec is reported, a's dataset is tried (and refused for want of a token), and no
+    // sweep line of project a's organization follows.
+    assert!(
+        reports
+            .iter()
+            .any(|r| r.project == "b" && r.endpoint.is_empty()),
+        "{reports:?}"
+    );
+    assert!(
+        !reports
+            .iter()
+            .any(|r| r.project == "a" && r.endpoint.is_empty()),
+        "{reports:?}"
+    );
+    std::fs::remove_dir_all(&repository).expect("cleaned up");
 }
