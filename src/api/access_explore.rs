@@ -11,6 +11,7 @@ use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, State};
 use axum::routing::post;
 use axum::{Json, Router};
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use utoipa::ToSchema;
@@ -60,6 +61,9 @@ pub struct Explored {
     pub consents: Vec<Consent>,
 }
 
+/// The gateway questions one exploration keeps in flight at once (T-4446).
+pub const EXPLORE_AT_ONCE: usize = 16;
+
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/access/explore",
@@ -102,22 +106,36 @@ pub async fn explore_access(
         .mirror
         .list(&project, "Endpoint", &ListOptions::default())
         .items;
-    let answers = futures_util::future::join_all(endpoints.iter().map(|endpoint| {
-        let slug = endpoint.spec["slug"].as_str().unwrap_or_default();
-        let question = &question;
-        let state = &state;
-        async move {
-            if slug.is_empty() {
-                return Ok(Value::Null);
+    // At most EXPLORE_AT_ONCE questions in flight: a project of thousands of Endpoints would
+    // otherwise open as many connections to the gateway at once (T-4446). `buffered` keeps the
+    // answers in the Endpoints' order.
+    let slugs: Vec<String> = endpoints
+        .iter()
+        .map(|endpoint| {
+            endpoint.spec["slug"]
+                .as_str()
+                .unwrap_or_default()
+                .to_owned()
+        })
+        .collect();
+    let answers: Vec<Result<Value, ApiError>> = futures_util::stream::iter(slugs)
+        .map(|slug| {
+            let question = &question;
+            let state = &state;
+            async move {
+                if slug.is_empty() {
+                    return Ok(Value::Null);
+                }
+                match ask_gateway(state, &slug, question).await {
+                    // Not served by the gateway yet: nobody reaches it.
+                    Err(ApiError::NotFound(_)) => Ok(Value::Null),
+                    answer => answer,
+                }
             }
-            match ask_gateway(state, slug, question).await {
-                // Not served by the gateway yet: nobody reaches it.
-                Err(ApiError::NotFound(_)) => Ok(Value::Null),
-                answer => answer,
-            }
-        }
-    }))
-    .await;
+        })
+        .buffered(EXPLORE_AT_ONCE)
+        .collect()
+        .await;
     let mut reached = Vec::new();
     for (endpoint, answer) in endpoints.iter().zip(answers) {
         if let Some(row) = row(endpoint, answer?) {
