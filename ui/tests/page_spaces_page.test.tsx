@@ -172,8 +172,10 @@ describe("the Context Spaces page", () => {
     await waitFor(() => expect(within(table).getAllByTestId("space-size")).toHaveLength(2));
     const sizes = within(table).getAllByTestId("space-size");
     expect(sizes.map((cell) => cell.textContent)).toEqual(["1.5 MiB", "900 B"]);
-    expect(sizes[0]).toHaveAttribute("title", "1,572,864 B");
-    expect(within(table).getByRole("columnheader", { name: en.spaces.field.size })).toHaveClass("hidden", "sm:table-cell");
+    expect(sizes[0]).toHaveAttribute("title", `${en.spaces.field.size}: 1,572,864 B`);
+    // A line under the count, not a column: a column more ran the table past its frame at 768 px.
+    expect(within(table).queryByRole("columnheader", { name: en.spaces.field.size })).toBeNull();
+    expect(sizes[0].closest("td")).toHaveTextContent(/^3\s*1\.5 MiB$/);
   });
 
   it("says_why_a_count_is_missing_and_never_shows_a_zero_for_it", async () => {

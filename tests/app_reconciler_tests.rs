@@ -45,7 +45,7 @@ fn app(overrides: Value) -> RawManifest {
             "types": ["AirQualityObserved", "District"],
             "attrs": ["pm10", "pm25", "location", "refDistrict"],
             "operations": ["queryEntity", "retrieveEntity"],
-            "representations": ["ngsi-ld", "geojson", "csv"]
+            "representations": ["ngsi-ld", "ogc-features", "csv"]
         }],
         "limits": { "requestsPerMinute": 600, "maxFileRows": 20000 }
     });
@@ -445,7 +445,7 @@ fn every_data_need_becomes_one_policy_that_grants_no_more_than_it_asked() {
                     "contextSpaceRef": { "kind": "ContextSpace", "name": "ovzdusie" },
                     "types": ["District"],
                     "operations": ["retrieveEntity"],
-                    "representations": ["geojson"]
+                    "representations": ["ogc-features"]
                 }
             ]
         })),
@@ -539,9 +539,8 @@ fn the_endpoint_is_the_union_of_what_the_needs_asked_for() {
     assert_eq!(endpoint.spec["slug"], slug.as_str());
     assert_eq!(
         endpoint.spec["enabledRepresentations"],
-        json!(["ngsi-ld", "mcp", "csv"]),
-        "the union of the needs' representations (AP-05), MCP on every Endpoint (T-4319), and \
-         no retired file: CSV is the one an Endpoint offers (T-4600)"
+        json!(["ngsi-ld", "mcp", "csv", "ogc-features"]),
+        "the union of the needs' representations (AP-05) and MCP on every Endpoint (T-4319)"
     );
     assert_eq!(endpoint.spec["audience"], "project-list");
     assert_eq!(endpoint.spec["allowedProjects"], json!(["ovzdusie"]));
@@ -753,6 +752,24 @@ fn an_image_that_is_not_pinned_by_digest_is_refused() {
 }
 
 #[test]
+fn an_app_that_needs_a_removed_file_is_refused_with_the_name_to_drop() {
+    let refused = render(
+        &app(json!({ "dataNeeds": [{
+            "contextSpaceRef": { "kind": "ContextSpace", "name": "ovzdusie" },
+            "types": ["AirQualityObserved"],
+            "operations": ["queryEntity"],
+            "representations": ["ngsi-ld", "geojson"]
+        }] })),
+        Some(APP_IMAGE),
+        &generate_slug(),
+        &settings(),
+    )
+    .expect_err("geojson left the vocabulary (T-4597)");
+    let said = format!("{refused:?}");
+    assert!(said.contains("`geojson` was removed"), "got {said}");
+}
+
+#[test]
 fn an_app_that_is_not_deployed_yet_renders_nothing() {
     for state in ["draft", "retired"] {
         let refused = render(
@@ -818,7 +835,7 @@ fn a_ui_apps_further_space_compiles_into_no_grant() {
                     "contextSpaceRef": { "kind": "ContextSpace", "name": "registre" },
                     "types": ["AdministrativeArea"],
                     "operations": ["queryEntity", "retrieveEntity"],
-                    "representations": ["geojson"]
+                    "representations": ["ogc-features"]
                 }
             ]
         })),

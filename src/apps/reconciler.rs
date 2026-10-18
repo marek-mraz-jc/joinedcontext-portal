@@ -861,9 +861,6 @@ fn endpoint(
 ) -> RawManifest {
     let representations: Vec<&str> = {
         let mut declared: BTreeSet<Representation> = spec.representations();
-        // CSV is the one file an Endpoint offers (T-4600): an App that still needs a retired
-        // one is served without it, as the gateway refuses an Endpoint that lists it.
-        declared.retain(|r| !crate::reconciler::representations::RETIRED.contains(&r.as_str()));
         if declared.is_empty() {
             // An app that names no representation still needs one; NGSI-LD is the canonical
             // surface every other representation projects from (EP-05).
