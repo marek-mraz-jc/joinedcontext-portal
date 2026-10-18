@@ -18,9 +18,9 @@
 //!   trusting its memory, so an entity a half-finished run left behind is still removed.
 
 use super::drift::Watch;
-pub use super::ngsi_catalog::{entities, fold, Place};
 use crate::resource::reference_name;
 use futures_util::StreamExt as _;
+pub use jc_core::ngsi_catalog::{entities, fold, Place};
 use jcctl::loader::Repository;
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap};

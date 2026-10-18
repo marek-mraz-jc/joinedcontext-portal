@@ -1,0 +1,205 @@
+//! Personal MCP connectors (UI-98, EP-123, T-4531): kept per person, a favourite only when the
+//! person may read it, and handed out on the internal listener to the gateway's client alone.
+//!
+//! Runs when `JC_PORTAL_TEST_DATABASE_URL` points at a PostgreSQL the test may write to; skips
+//! with a note otherwise (see preferences_db_tests.rs).
+
+use axum::body::Body;
+use axum::http::{header, Request, StatusCode};
+use http_body_util::BodyExt;
+use serde_json::{json, Value};
+use tower::ServiceExt;
+
+use joinedcontext_portal::config::Config;
+use joinedcontext_portal::server;
+use joinedcontext_portal::state::AppState;
+
+mod common;
+
+const GATEWAY_CLIENT: &str = "context-gateway";
+
+fn database_url() -> Option<String> {
+    std::env::var("JC_PORTAL_TEST_DATABASE_URL")
+        .ok()
+        .filter(|url| !url.trim().is_empty())
+}
+
+async fn state(url: &str) -> AppState {
+    let config = Config::from_vars(|key| {
+        match key {
+            "JC_OIDC_ISSUER" => Some(common::REALM.issuer.as_str()),
+            "JC_OIDC_CLIENT_ID" => Some("portal-api"),
+            "JC_OIDC_CLIENT_SECRET" => Some("secret"),
+            "JC_PORTAL_GATEWAY_CLIENT_ID" => Some(GATEWAY_CLIENT),
+            _ => None,
+        }
+        .map(str::to_owned)
+    })
+    .expect("config");
+    let pool = joinedcontext_portal::db::connect(url)
+        .await
+        .expect("connect + migrate");
+    let state = AppState::new(config, None).with_db(pool);
+    state
+        .bearer
+        .as_ref()
+        .expect("a realm")
+        .refresh()
+        .await
+        .expect("jwks");
+    for (name, audience) in [("air", "public"), ("inner", "organization")] {
+        state.mirror.upsert(common::envelope(
+            "Endpoint",
+            name,
+            "mesto",
+            json!({ "slug": format!("{name}1"), "audience": audience }),
+        ));
+    }
+    state
+}
+
+/// A person no other run of this suite uses, so runs share one database.
+fn fresh(tag: &str) -> String {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or_default();
+    format!("{tag}{nanos}")
+}
+
+fn connectors(endpoints: &[&str]) -> Value {
+    json!({ "connectors": [{ "name": "fav", "select": { "endpoints": endpoints } }] })
+}
+
+async fn internal(state: &AppState, sub: &str, bearer: &str) -> (StatusCode, Value) {
+    let response = server::internal_app(state.clone())
+        .oneshot(
+            Request::builder()
+                .uri(format!("/internal/connectors/{sub}"))
+                .header(header::AUTHORIZATION, format!("Bearer {bearer}"))
+                .body(Body::empty())
+                .expect("a request"),
+        )
+        .await
+        .expect("an answer");
+    let status = response.status();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body")
+        .to_bytes();
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
+#[tokio::test]
+async fn a_persons_connectors_reach_the_gateway_and_nobody_else() {
+    let Some(url) = database_url() else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let state = state(&url).await;
+    let (a, b) = (fresh("a"), fresh("b"));
+    let saved = common::send(
+        &state,
+        common::person(&a),
+        "PUT",
+        "/api/v1/preferences",
+        Some(connectors(&["air1"])),
+    )
+    .await;
+    assert_eq!(saved.status, StatusCode::OK, "{}", saved.text);
+
+    let theirs = common::send(
+        &state,
+        common::person(&b),
+        "GET",
+        "/api/v1/preferences",
+        None,
+    )
+    .await;
+    assert_eq!(theirs.status, StatusCode::OK);
+    assert!(
+        !theirs.text.contains("fav"),
+        "B sees none of A's: {}",
+        theirs.text
+    );
+
+    let sub_a = format!("sub-{a}");
+    let (status, body) = internal(&state, &sub_a, &common::REALM.workload(GATEWAY_CLIENT)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        body["connectors"][0]["select"]["endpoints"],
+        json!(["air1"])
+    );
+    let (status, body) = internal(
+        &state,
+        &format!("sub-{b}"),
+        &common::REALM.workload(GATEWAY_CLIENT),
+    )
+    .await;
+    assert_eq!(
+        (status, body),
+        (StatusCode::OK, json!({ "connectors": [] }))
+    );
+
+    for bearer in [
+        common::REALM.workload("some-app"),
+        common::REALM.person_token_of(common::INTERNAL_AUDIENCE, "portal-ui", &a, &[]),
+        common::REALM.person_token("x", &a, &[]),
+        common::REALM.token(GATEWAY_CLIENT, "portal-api"),
+    ] {
+        let (status, body) = internal(&state, &sub_a, &bearer).await;
+        assert!(
+            status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN,
+            "{status} {body}"
+        );
+        assert!(!body.to_string().contains("air1"));
+    }
+}
+
+#[tokio::test]
+async fn an_endpoint_the_person_cannot_read_is_not_starred() {
+    let Some(url) = database_url() else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let state = state(&url).await;
+    let a = fresh("a");
+    for slug in ["inner1", "nosuch1"] {
+        let refused = common::send(
+            &state,
+            common::person(&a),
+            "PUT",
+            "/api/v1/preferences",
+            Some(connectors(&["air1", slug])),
+        )
+        .await;
+        assert_eq!(refused.status, StatusCode::BAD_REQUEST, "{}", refused.text);
+        assert!(refused.text.contains(slug), "{}", refused.text);
+    }
+    let eleven: Vec<Value> = (0..11)
+        .map(|i| json!({ "name": format!("c{i}") }))
+        .collect();
+    let refused = common::send(
+        &state,
+        common::person(&a),
+        "PUT",
+        "/api/v1/preferences",
+        Some(json!({ "connectors": eleven })),
+    )
+    .await;
+    assert_eq!(refused.status, StatusCode::BAD_REQUEST);
+    let mine = common::send(
+        &state,
+        common::person(&a),
+        "GET",
+        "/api/v1/preferences",
+        None,
+    )
+    .await;
+    assert_eq!(mine.text, "{}", "nothing refused was kept");
+}
