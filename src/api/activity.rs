@@ -115,8 +115,7 @@ fn member_of(state: &AppState, user: &CurrentUser, project: &str) -> Result<(), 
     if !is_dns1123(project) {
         return Err(ApiError::NotFound(format!("project '{project}' not found")));
     }
-    let effective = crate::permissions::for_request(state, &user.0.identity, project);
-    if effective.bootstrap || !effective.grants.is_empty() {
+    if crate::permissions::for_request(state, &user.0.identity, project).may_read_project() {
         return Ok(());
     }
     Err(ApiError::NotFound(format!("project '{project}' not found")))
