@@ -1397,7 +1397,7 @@
         "templates": {
           "bar": "Balkendiagramm",
           "line": "Verlauf über die Zeit",
-          "heatmap": "Heatmap",
+          "heatmap": "Wärmekarte",
           "small-multiples": "Kleine Vielfache",
           "linked-brush": "Übersicht und Detail"
         },
