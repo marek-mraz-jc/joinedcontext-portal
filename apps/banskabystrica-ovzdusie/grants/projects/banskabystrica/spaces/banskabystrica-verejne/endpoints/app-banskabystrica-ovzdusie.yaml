@@ -6,8 +6,8 @@ metadata:
   annotations:
     joinedcontext.com/generated-by: portal/app-reconciler
   title:
-    en: Air quality in Banská Bystrica
-    sk: Ovzdušie v Banskej Bystrici
+    en: Air quality map of Banská Bystrica
+    sk: Mapa ovzdušia v Banskej Bystrici
 spec:
   audience: public
   callerRole: true
