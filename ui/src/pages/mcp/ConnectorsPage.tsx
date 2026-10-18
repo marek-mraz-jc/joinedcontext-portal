@@ -60,7 +60,7 @@ export function ConnectorsPage(): JSX.Element {
   const create = (
     <Button
       disabled={connectors.length >= MAX_CONNECTORS}
-      title={connectors.length >= MAX_CONNECTORS ? t("connectors.full", { max: MAX_CONNECTORS }) : undefined}
+      disabledReason={t("connectors.full")}
       onClick={() => setEditing("new")}
     >
       {t("connectors.new")}

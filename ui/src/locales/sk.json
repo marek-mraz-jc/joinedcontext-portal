@@ -7686,7 +7686,6 @@
     "title": "Moje MCP konektory",
     "lead": "Vaše vlastné MCP adresy, najviac {max}. Otvorí ich len vaše prihlásenie a každá siaha len na Endpointy, ktoré smiete čítať.",
     "new": "Nový konektor",
-    "full": "Máte {max} konektorov, viac sa nedá. Ak chcete nový, jeden vymažte.",
     "empty": "Zatiaľ žiadne konektory",
     "emptyHint": "Vytvorte konektor, alebo označte Endpoint hviezdičkou na jeho stránke a vznikne konektor favourites.",
     "edit": "Upraviť",
@@ -7728,14 +7727,15 @@
     },
     "problem": {
       "name": "Použite malé písmená, číslice a pomlčky, najviac 63 znakov.",
-      "taken": "Konektor s týmto názvom už máte. Zvoľte iný názov.",
-      "projects": "Názov projektu tvoria malé písmená, číslice a pomlčky. Opravte tie, ktoré nie sú také.",
-      "spaces": "Každý priestor zapíšte ako projekt/priestor, napríklad bbsk/ovzdusie.",
-      "tooMany": "Pole má najviac 50 hodnôt. Ostatné odstráňte."
+      "taken": "Konektor s týmto názvom už máte. Vyberte iný.",
+      "projects": "Toto nie je názov projektu. Použite malé písmená, číslice a pomlčky.",
+      "spaces": "Priestoru chýba projekt. Každý zadajte ako projekt/priestor.",
+      "tooMany": "Pole má najviac 50 hodnôt. Niektoré odstráňte."
     },
     "star": {
       "add": "Pridať do mojich konektorov",
       "in": "V konektore: {names}"
-    }
+    },
+    "full": "Máte 10 konektorov, viac sa nedá. Ak chcete pridať ďalší, jeden zmažte."
   }
 }

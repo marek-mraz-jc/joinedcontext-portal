@@ -7686,7 +7686,6 @@
     "title": "Moje MCP konektory",
     "lead": "Vaše vlastní MCP adresy, nejvýše {max}. Otevře je jen vaše přihlášení a každá sahá jen na koncové body, které smíte číst.",
     "new": "Nový konektor",
-    "full": "Máte {max} konektorů, víc to nejde. Chcete-li nový, jeden smažte.",
     "empty": "Zatím žádné konektory",
     "emptyHint": "Vytvořte konektor, nebo označte koncový bod hvězdičkou na jeho stránce a vznikne konektor favourites.",
     "edit": "Upravit",
@@ -7728,14 +7727,15 @@
     },
     "problem": {
       "name": "Použijte malá písmena, číslice a pomlčky, nejvýše 63 znaků.",
-      "taken": "Konektor s tímto názvem už máte.",
-      "projects": "Název projektu tvoří malá písmena, číslice a pomlčky.",
-      "spaces": "Každý prostor zapište jako projekt/prostor.",
-      "tooMany": "Pole má nejvýše 50 hodnot."
+      "taken": "Konektor s tímto názvem už máte. Vyberte jiný.",
+      "projects": "Toto není název projektu. Použijte malá písmena, číslice a pomlčky.",
+      "spaces": "Prostoru chybí projekt. Každý zadejte jako projekt/prostor.",
+      "tooMany": "Pole má nejvýše 50 hodnot. Některé odstraňte."
     },
     "star": {
       "add": "Přidat do mých konektorů",
       "in": "V konektoru: {names}"
-    }
+    },
+    "full": "Máte 10 konektorů, víc nejde. Chcete-li přidat další, jeden smažte."
   }
 }

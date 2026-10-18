@@ -7686,7 +7686,6 @@
     "title": "Meine MCP-Konnektoren",
     "lead": "Ihre eigenen MCP-Adressen, höchstens {max}. Nur Ihre Anmeldung öffnet sie, und jede reicht nur zu Endpunkten, die Sie lesen dürfen.",
     "new": "Neuer Konnektor",
-    "full": "Sie haben {max} Connectors, mehr geht nicht. Löschen Sie einen, um einen neuen anzulegen.",
     "empty": "Noch keine Konnektoren",
     "emptyHint": "Legen Sie einen an, oder markieren Sie einen Endpunkt auf seiner Seite mit einem Stern, dann entsteht der Konnektor favourites.",
     "edit": "Bearbeiten",
@@ -7728,14 +7727,15 @@
     },
     "problem": {
       "name": "Verwenden Sie Kleinbuchstaben, Ziffern und Bindestriche, höchstens 63 Zeichen.",
-      "taken": "Sie haben bereits einen Konnektor mit diesem Namen.",
-      "projects": "Ein Projektname besteht aus Kleinbuchstaben, Ziffern und Bindestrichen.",
-      "spaces": "Schreiben Sie jeden Raum als projekt/raum.",
-      "tooMany": "Ein Feld enthält höchstens 50 Werte."
+      "taken": "Sie haben bereits einen Konnektor mit diesem Namen. Wählen Sie einen anderen.",
+      "projects": "Das ist kein Projektname. Verwenden Sie Kleinbuchstaben, Ziffern und Bindestriche.",
+      "spaces": "Einem Raum fehlt sein Projekt. Geben Sie jeden als projekt/raum ein.",
+      "tooMany": "Ein Feld enthält höchstens 50 Werte. Entfernen Sie einige."
     },
     "star": {
       "add": "Zu meinen Konnektoren",
       "in": "Im Konnektor: {names}"
-    }
+    },
+    "full": "Sie haben 10 Konnektoren, mehr geht nicht. Löschen Sie einen, um einen weiteren anzulegen."
   }
 }
