@@ -89,6 +89,8 @@ pub struct ChatRequest {
 const MAX_CHAT_BODY: usize = 64 * 1024;
 /// The largest upload: the most any source's `upload.maxBytes` allows (T-4184).
 const MAX_UPLOAD_BODY: usize = jc_core::kinds::assistant::MAX_UPLOAD_BYTES as usize;
+/// The longest a list of stored conversations may take.
+const LIST_TIME: Duration = Duration::from_secs(20);
 /// The longest an answer may take: six model calls and their tools (AG-107).
 const CHAT_TIMEOUT: Duration = Duration::from_secs(300);
 
@@ -801,6 +803,207 @@ pub async fn deployment_usage(
     Ok(Json(body))
 }
 
+/// The filter of the stored conversations (API/05 §3.1); `jc-assistant` holds every bound.
+#[derive(Debug, Default, Deserialize, serde::Serialize, IntoParams)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct ConversationFilter {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deployment: Option<String>,
+    /// RFC 3339, inclusive.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
+    /// RFC 3339, exclusive.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to: Option<String>,
+    /// `error`, `timeout` or `ok`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    /// `up`, `down` or `none`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub feedback: Option<String>,
+    /// Only conversations with a turn over 15 s.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slow: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_cost_usd: Option<f64>,
+    /// Words of a question or an answer, 2 to 100 characters.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub q: Option<String>,
+    /// `lastAt` (default) or `costUsd`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sort: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+    /// 1 to 100, default 50.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+}
+
+/// The assistant's administrator: `approve` on `AssistantDeployment` (or `delete` to erase), else
+/// `403` naming it (API/01 §34, T-4670).
+fn administers(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    verb: Verb,
+) -> Result<(), ApiError> {
+    if !is_dns1123(project) {
+        return Err(ApiError::NotFound(format!("project '{project}' not found")));
+    }
+    crate::permissions::for_request(state, &user.0.identity, project).check(
+        "AssistantDeployment",
+        verb,
+        None,
+    )
+}
+
+/// The assistant's path of one conversation the caller administers with `verb`; a conversation id
+/// is a UUID, or no conversation of this project.
+fn conversation_path(
+    state: &AppState,
+    user: &CurrentUser,
+    (project, conversation): (&str, &str),
+    verb: Verb,
+) -> Result<String, ApiError> {
+    administers(state, user, project, verb)?;
+    let uuid = conversation.len() == 36
+        && conversation.char_indices().all(|(i, c)| {
+            if matches!(i, 8 | 13 | 18 | 23) {
+                c == '-'
+            } else {
+                c.is_ascii_hexdigit()
+            }
+        });
+    if !uuid {
+        return Err(ApiError::NotFound(format!(
+            "conversation '{conversation}' not found"
+        )));
+    }
+    Ok(format!("{project}/knowledge/conversations/{conversation}"))
+}
+
+/// Who read or erased which transcripts (T-4670). A record that cannot be written is logged, not
+/// a failure of the answer.
+async fn audited(state: &AppState, user: &CurrentUser, project: &str, what: &str, details: Value) {
+    let actor = &user.0.identity.username;
+    let event = crate::activity::ActivityEvent {
+        time: chrono::Utc::now(),
+        project: project.to_owned(),
+        space: None,
+        kind: "assistant.transcript".to_owned(),
+        source: "portal".to_owned(),
+        summary: format!("{actor} {what}"),
+        severity: "info".to_owned(),
+        correlation_id: None,
+        details: json!({ "actor": actor, "action": what, "of": details }),
+    };
+    if let Err(err) = state.activity.append(&[event]).await {
+        tracing::warn!(error = %err, "the transcript access was not recorded");
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/knowledge/conversations",
+    summary = "List Stored Conversations",
+    description = "The project's stored assistant conversations, redacted, newest first or the most expensive first, with the cursor of the next page (API/05 §3.1). Needs `approve` on AssistantDeployment; every call is recorded (API/01 §34, AG-99).",
+    tag = "knowledge",
+    params(("project" = String, Path, description = "Project name"), ConversationFilter),
+    responses(
+        (status = 200, description = "items and nextCursor", body = Object),
+        (status = 400, description = "A filter value out of its bounds", body = crate::error::ProblemDetails),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 403, description = "The caller may not approve an AssistantDeployment", body = crate::error::ProblemDetails),
+        (status = 503, description = "The knowledge assistant is not reachable", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn list_conversations(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path(project): Path<String>,
+    Query(filter): Query<ConversationFilter>,
+) -> Result<Json<Value>, ApiError> {
+    administers(&state, &user, &project, Verb::Approve)?;
+    let path = format!("{project}/knowledge/conversations");
+    let query = |r: reqwest::RequestBuilder| r.query(&filter);
+    let (_, body) = ask_with(&state, reqwest::Method::GET, &path, LIST_TIME, query).await?;
+    let what = "listed the stored conversations";
+    audited(&state, &user, &project, what, json!(filter)).await;
+    Ok(Json(body))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/knowledge/conversations/{conversation}",
+    summary = "Read A Stored Conversation",
+    description = "One stored conversation, every turn with its steps: route, searches, tool calls, model calls with tokens and cost, redacted (API/05 §3.1). Needs `approve` on AssistantDeployment; every call is recorded.",
+    tag = "knowledge",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("conversation" = String, Path, description = "Conversation id (UUID)"),
+    ),
+    responses(
+        (status = 200, description = "The conversation", body = Object),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 403, description = "The caller may not approve an AssistantDeployment", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such stored conversation", body = crate::error::ProblemDetails),
+        (status = 503, description = "The knowledge assistant is not reachable", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn get_conversation(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, conversation)): Path<(String, String)>,
+) -> Result<Json<Value>, ApiError> {
+    let path = conversation_path(&state, &user, (&project, &conversation), Verb::Approve)?;
+    let (_, body) = ask(&state, reqwest::Method::GET, &path, None).await?;
+    audited(
+        &state,
+        &user,
+        &project,
+        "read a stored conversation",
+        json!(conversation),
+    )
+    .await;
+    Ok(Json(body))
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/v1/projects/{project}/knowledge/conversations/{conversation}",
+    summary = "Erase A Stored Conversation",
+    description = "Erases one stored conversation with its steps, for a visitor's request (API/05 §3.1). Needs `delete` on AssistantDeployment; every call is recorded.",
+    tag = "knowledge",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("conversation" = String, Path, description = "Conversation id (UUID)"),
+    ),
+    responses(
+        (status = 204, description = "Erased"),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 403, description = "The caller may not delete an AssistantDeployment", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such stored conversation", body = crate::error::ProblemDetails),
+        (status = 503, description = "The knowledge assistant is not reachable", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn erase_conversation(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, conversation)): Path<(String, String)>,
+) -> Result<StatusCode, ApiError> {
+    let path = conversation_path(&state, &user, (&project, &conversation), Verb::Delete)?;
+    ask(&state, reqwest::Method::DELETE, &path, None).await?;
+    audited(
+        &state,
+        &user,
+        &project,
+        "erased a stored conversation",
+        json!(conversation),
+    )
+    .await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/knowledge/deployments/{deployment}/chat",
@@ -978,5 +1181,13 @@ pub fn router() -> Router<AppState> {
         .route(
             "/projects/{project}/knowledge/deployments/{deployment}/chat",
             post(chat).layer(DefaultBodyLimit::max(MAX_CHAT_BODY)),
+        )
+        .route(
+            "/projects/{project}/knowledge/conversations",
+            get(list_conversations),
+        )
+        .route(
+            "/projects/{project}/knowledge/conversations/{conversation}",
+            get(get_conversation).delete(erase_conversation),
         )
 }

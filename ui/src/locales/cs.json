@@ -4713,6 +4713,9 @@
       },
       "model": {
         "key": "Klíč modelu"
+      },
+      "assistant": {
+        "transcript": "Čtení uložených konverzací"
       }
     },
     "sources": {
@@ -6706,7 +6709,8 @@
       "tokensIn": "Přečtené tokeny",
       "tokensOut": "Napsané tokeny",
       "duplicate": "Duplikovat",
-      "duplicateOf": "Duplikovat {name}"
+      "duplicateOf": "Duplikovat {name}",
+      "noPrivacyContact": "Chybí kontakt pro osobní údaje"
     },
     "chat": {
       "ask": "Zeptat se",
@@ -7703,5 +7707,67 @@
       "in": "V konektoru: {names}"
     },
     "full": "Máte 10 konektorů, víc nejde. Chcete-li přidat další, jeden smažte."
+  },
+  "conversations": {
+    "title": "Konverzace",
+    "intro": "Na co se návštěvníci ptali asistentů projektu a jak vznikla každá odpověď: cesta, vyhledávání, volání nástrojů a modelu s časem a cenou. Osobní údaje se před uložením smažou; každé čtení se zaznamená.",
+    "link": "Konverzace",
+    "notAllowed": "Uložené konverzace čte jen správce asistenta, který schvaluje jeho nasazení. Požádejte ho o toto právo.",
+    "empty": "Žádné uložené konverzace",
+    "emptyHint": "Konverzace se tu objeví, až se návštěvníci začnou ptát, a zůstanou tak dlouho, jak určuje transcriptRetention nasazení.",
+    "next": "Další strana",
+    "detail": "Konverzace",
+    "erase": "Smazat konverzaci",
+    "eraseTitle": "Smazat tuto konverzaci?",
+    "eraseHint": "Všechny její otázky a kroky se hned smažou, na žádost návštěvníka. Vrátit to nelze.",
+    "copyAsTest": "Kopírovat jako test",
+    "copied": "Otázka je zkopírovaná jako případ k hodnocení.",
+    "timing": "první slovo {first}, celá {total}",
+    "steps": "Kroky",
+    "unfinished": "Nedokončeno",
+    "uncosted": "({count} bez ceny)",
+    "filter": {
+      "q": "Slova v otázce nebo odpovědi",
+      "status": "Stav",
+      "feedback": "Hodnocení",
+      "sort": "Pořadí",
+      "slow": "Pomalejší než 15 s",
+      "all": "Všechny",
+      "deployment": "Asistent",
+      "from": "Od",
+      "to": "Do",
+      "expensive": "Nad $0,02"
+    },
+    "status": {
+      "ok": "Zodpovězeno",
+      "erred": "Skončilo chybou",
+      "timeout": "Vypršel čas"
+    },
+    "feedback": {
+      "up": "Užitečné",
+      "down": "Neužitečné",
+      "none": "Bez hodnocení"
+    },
+    "sort": {
+      "lastAt": "Nejnovější",
+      "costUsd": "Nejdražší"
+    },
+    "column": {
+      "lastAt": "Poslední otázka",
+      "question": "První otázka",
+      "turns": "Otázky",
+      "route": "Cesta",
+      "slowest": "Nejpomalejší",
+      "cost": "Cena",
+      "status": "Stav"
+    },
+    "kind": {
+      "route": "Cesta",
+      "search": "Vyhledávání",
+      "tool": "Nástroj",
+      "model": "Model",
+      "answer": "Odpověď"
+    },
+    "unknownPrice": "neznámá"
   }
 }

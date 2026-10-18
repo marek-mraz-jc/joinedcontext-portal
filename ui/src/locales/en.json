@@ -4713,6 +4713,9 @@
       },
       "model": {
         "key": "Model key"
+      },
+      "assistant": {
+        "transcript": "Stored conversations read"
       }
     },
     "sources": {
@@ -6706,7 +6709,8 @@
       "tokensIn": "Tokens read",
       "tokensOut": "Tokens written",
       "duplicate": "Duplicate",
-      "duplicateOf": "Duplicate {name}"
+      "duplicateOf": "Duplicate {name}",
+      "noPrivacyContact": "No privacy contact"
     },
     "chat": {
       "ask": "Ask",
@@ -7703,5 +7707,67 @@
       "in": "In connector: {names}"
     },
     "full": "You have 10 connectors, the most there can be. Delete one to add another."
+  },
+  "conversations": {
+    "title": "Conversations",
+    "intro": "What visitors asked the project's assistants and how each answer was made: the route, the searches, the tool calls and the model calls with their time and cost. Personal data is removed before a turn is stored; every read is recorded.",
+    "link": "Conversations",
+    "notAllowed": "Only the assistant's administrator, who approves its deployments, reads the stored conversations. Ask them for that right.",
+    "empty": "No stored conversations",
+    "emptyHint": "Conversations appear here once visitors ask, for as long as the deployment's transcriptRetention keeps them.",
+    "next": "Next page",
+    "detail": "Conversation",
+    "erase": "Erase the conversation",
+    "eraseTitle": "Erase this conversation?",
+    "eraseHint": "Every turn and step of it is deleted at once, for a visitor who asked for it. This cannot be undone.",
+    "copyAsTest": "Copy as test",
+    "copied": "The turn is copied as an eval case.",
+    "timing": "first word {first}, all {total}",
+    "steps": "Steps",
+    "unfinished": "Did not finish",
+    "uncosted": "({count} unpriced)",
+    "filter": {
+      "q": "Words in a question or answer",
+      "status": "Status",
+      "feedback": "Rating",
+      "sort": "Order",
+      "slow": "Slower than 15 s",
+      "all": "All",
+      "deployment": "Assistant",
+      "from": "From",
+      "to": "To",
+      "expensive": "Over $0.02"
+    },
+    "status": {
+      "ok": "Answered",
+      "erred": "Ended in an error",
+      "timeout": "Timed out"
+    },
+    "feedback": {
+      "up": "Helpful",
+      "down": "Not helpful",
+      "none": "Not rated"
+    },
+    "sort": {
+      "lastAt": "Newest first",
+      "costUsd": "Most expensive first"
+    },
+    "column": {
+      "lastAt": "Last turn",
+      "question": "First question",
+      "turns": "Turns",
+      "route": "Route",
+      "slowest": "Slowest",
+      "cost": "Cost",
+      "status": "Status"
+    },
+    "kind": {
+      "route": "Route",
+      "search": "Search",
+      "tool": "Tool",
+      "model": "Model",
+      "answer": "Answer"
+    },
+    "unknownPrice": "unknown"
   }
 }
