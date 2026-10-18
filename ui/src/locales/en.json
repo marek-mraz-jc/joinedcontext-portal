@@ -1481,6 +1481,16 @@
       "parametersOf": "Parameters of {path}",
       "lead": "What this endpoint answers, with an example call for each read."
     },
+    "standards": {
+      "title": "Standards",
+      "lead": "Each standard this endpoint answers, the fields it filters on, and queries that returned real data when this page was built.",
+      "fields": "Filters on:",
+      "equality": "{field} equals a value",
+      "range": "{field} is at least a value",
+      "answered": "{count, plural, one {# entity} other {# entities}} on the first page",
+      "none": "No example yet: no entity was found to build one from.",
+      "unavailable": "The standards of this endpoint cannot be read right now; try again in a minute."
+    },
     "shareFlow": {
       "section": "Share with another project",
       "lead": "Choose the project, what it reads and until when; the share and its end are one change an approver decides.",
