@@ -7727,14 +7727,15 @@
     },
     "problem": {
       "name": "Použite malé písmená, číslice a pomlčky, najviac 63 znakov.",
-      "taken": "Konektor s týmto názvom už máte.",
-      "projects": "Názov projektu tvoria malé písmená, číslice a pomlčky.",
-      "spaces": "Každý priestor zapíšte ako projekt/priestor.",
-      "tooMany": "Pole má najviac 50 hodnôt."
+      "taken": "Konektor s týmto názvom už máte. Vyberte iný.",
+      "projects": "Toto nie je názov projektu. Použite malé písmená, číslice a pomlčky.",
+      "spaces": "Priestoru chýba projekt. Každý zadajte ako projekt/priestor.",
+      "tooMany": "Pole má najviac 50 hodnôt. Niektoré odstráňte."
     },
     "star": {
       "add": "Pridať do mojich konektorov",
       "in": "V konektore: {names}"
-    }
+    },
+    "full": "Máte 10 konektorov, viac sa nedá. Ak chcete pridať ďalší, jeden zmažte."
   }
 }

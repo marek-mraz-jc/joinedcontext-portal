@@ -42,6 +42,7 @@ const PAGES = [
   "/organization/projects",
   "/organization/health",
   "/organization/mcp-servers",
+  "/connectors",
   "/organization/models",
   "/organization/groups/new",
   `/projects/${PROJECT}/settings`,
