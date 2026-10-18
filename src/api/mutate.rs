@@ -771,46 +771,8 @@ async fn propose_engine(
         )));
     }
 
-    // 2. Deserialize envelope and validate apiVersion, kind and path name
-    let mut envelope: ResourceEnvelope = serde_json::from_value(body_val.clone())
-        .map_err(|e| ApiError::BadRequest(format!("invalid resource envelope: {e}")))?;
-
-    if !jc_core::serves(&envelope.kind, &envelope.api_version) {
-        return Err(ApiError::BadRequest(format!(
-            "apiVersion '{}' is not supported (expected '{}')",
-            envelope.api_version,
-            resource::API_VERSION
-        )));
-    }
-
-    if envelope.kind != kind_info.kind {
-        return Err(ApiError::BadRequest(format!(
-            "kind '{}' does not match plural '{}' (expected '{}')",
-            envelope.kind, plural, kind_info.kind
-        )));
-    }
-
-    if let Some(expected_name) = path_name {
-        if envelope.metadata.name != expected_name {
-            return Err(ApiError::BadRequest(format!(
-                "metadata.name '{}' does not match path '{}'",
-                envelope.metadata.name, expected_name
-            )));
-        }
-    }
-
-    // 3. Namespace validation and default filling
-    match envelope.metadata.namespace.as_deref() {
-        None | Some("") => {
-            envelope.metadata.namespace = Some(project.to_string());
-        }
-        Some(ns) if ns == project => {}
-        Some(foreign) => {
-            return Err(ApiError::BadRequest(format!(
-                "metadata.namespace '{foreign}' does not match project '{project}'"
-            )));
-        }
-    }
+    // 2-3. The envelope, its apiVersion, kind, path name and namespace.
+    let mut envelope = envelope_for(&body_val, kind_info.kind, plural, project, path_name)?;
 
     // 3a. One string written over a stored legacy map replaces the entry it resolves to and keeps
     //     every other language, whichever door sent it (UI-50, T-2764).
@@ -842,24 +804,7 @@ async fn propose_engine(
         false
     };
 
-    if let Some(secret_key) = find_literal_secret(&body_val) {
-        return Err(ApiError::BadRequest(format!(
-            "literal secret in field '{secret_key}' is forbidden; use secretRef instead (MF-24)"
-        )));
-    }
-
-    // A digest is not something a person types: the build lane writes it back when it publishes
-    // the image it built here, and an App deploys what it names. Typed in, or carried in from
-    // another instance, it would run an image this platform never built (AP-11, AP-13a).
-    if let Some(key) = crate::apps::converge::BUILT_ANNOTATIONS
-        .into_iter()
-        .find(|key| envelope.metadata.annotations.contains_key(*key))
-    {
-        return Err(ApiError::BadRequest(format!(
-            "annotation '{key}' is written by the build lane when it publishes an image and \
-             cannot be set in a proposal (AP-11, AP-13a)"
-        )));
-    }
+    refuse_platform_fields(&body_val, &envelope)?;
 
     // A published static App names its repository, unless the Portal image ships its bundle
     // (AP-87). jc-core believes the annotation; this door checks the bundle is really here, so
@@ -872,148 +817,15 @@ async fn propose_engine(
         }
     }
 
-    // 4a'. A kind jc-core does not define is a kind no loader can read: `jcctl`, the Portal's
-    //       own sync and the gateway's store all refuse an unknown kind and refuse the whole
-    //       repository with it, so one such file stops configuration reaching every endpoint.
-    //       What is left of that gap is the seed entity: a plain `.json` NGSI-LD entity (CC-72),
-    //       never a `kind: Entity` manifest. `Subscription` closed it with jc-core-v0.7.30 and
-    //       is written like any other kind now (T-0833, T-0913).
-    if jc_core::registry::by_kind(kind_info.kind).is_none() {
-        return Err(ApiError::BadRequest(format!(
-            "kind '{}' is declared but not defined by the platform yet, and a repository holding \
-             one stops loading for every component; it cannot be written (CC-72, T-0833)",
-            kind_info.kind
-        )));
-    }
-
-    // 4b. The kind's own parse and invariants (T-0412, CC-08, MF-24). `jcctl apply` would
-    //     refuse this manifest on `main`, after an approval; refusing it here turns a broken
-    //     repository into a form error that names the field. Kinds without a jc-core type
-    //     (PORTAL_ONLY_KINDS) have nothing to check against and pass as before.
-    if let Some(checked) = jc_core::registry::validate_yaml(
-        kind_info.kind,
-        &serde_json::to_string(&envelope).map_err(|e| ApiError::Internal(e.to_string()))?,
-    ) {
-        checked.map_err(|e| {
-            ApiError::BadRequest(format!("spec is not a valid {}: {e}", kind_info.kind))
-        })?;
-    }
-
-    // 4e. An Organization's limits stay inside the operator's bounds (PF-97): refused here,
-    //     before a Change exists, and again at approval, since the bounds may tighten between.
-    if operation != Operation::Delete {
-        organization_within_bounds(state, kind_info.kind, &envelope.spec, ApiError::BadRequest)?;
-        // 4f. The organization's public-app policy (PF-103), held again at approval.
-        public_app_allowed(state, project, &envelope, ApiError::BadRequest)?;
-        // 4g. An App's hostnames lie in the organization's verified domain and are no other
-        //     App's (AP-172); the reconciler routes only the names that still pass.
-        if kind_info.kind == "App" {
-            let apex = state.config.app_settings.as_ref().map(|s| s.apex.as_str());
-            crate::apps::hostnames::check(
-                &state.mirror,
-                project,
-                &envelope.metadata.name,
-                &envelope.spec,
-                apex,
-            )
-            .map_err(ApiError::BadRequest)?;
-        }
-    }
-
-    // 4d. A projection names only what its model version has (MP-01, T-2558): the same check
-    //     `jcctl validate` runs, so the two cannot disagree about what is stale, and every stale
-    //     name is listed at once. The model is looked up in this project only, so a model of
-    //     another project is absent and nothing of it is named (R20).
-    if kind_info.kind == "ModelProjection" && operation != Operation::Delete {
-        check_projection(state, project, &envelope.spec).await?;
-    }
-
-    // 4c. A ServiceAccount's Keycloak client id is derived, `{project}-{name}`, and the hyphen
-    //     is a character of both, so another project's account may derive the same id. The
-    //     gateway resolves such an id to nobody (T-1454); refusing it here keeps a proposal from
-    //     switching off the other project's account. The other account is not named: it may live
-    //     in a project the author cannot read (PF-59).
-    if kind_info.kind == "ServiceAccount" {
-        use jc_core::kinds::service_account::keycloak_client_id;
-        let id = keycloak_client_id(project, &envelope.metadata.name);
-        let taken = state.mirror.namespaces().into_iter().any(|namespace| {
-            state
-                .mirror
-                .list(
-                    &namespace,
-                    "ServiceAccount",
-                    &crate::store::ListOptions::default(),
-                )
-                .items
-                .iter()
-                .any(|account| {
-                    (namespace.as_str(), account.metadata.name.as_str())
-                        != (project, envelope.metadata.name.as_str())
-                        && keycloak_client_id(&namespace, &account.metadata.name) == id
-                })
-        });
-        if taken {
-            return Err(ApiError::BadRequest(format!(
-                "metadata.name '{}' gives the Keycloak client id '{id}', which another \
-                 ServiceAccount already derives; choose another name (T-1456)",
-                envelope.metadata.name
-            )));
-        }
-    }
-
-    // 4b''. An agent profile names only operations this Portal registers (MF-40): jc-core checks
-    //       the shape of an operation name, the registry is the Portal's to know.
-    if kind_info.kind == "AgentProfile" {
-        let unknown = envelope
-            .spec
-            .pointer("/access/operations")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(Value::as_str)
-            .find(|name| crate::ops::find(name).is_none());
-        if let Some(name) = unknown {
-            return Err(ApiError::BadRequest(format!(
-                "spec.access.operations names '{name}', which is not a registered operation (MF-40)"
-            )));
-        }
-    }
-
-    // 4b'''. A Pipeline in replace drops what another Pipeline writes onto the same ids in its
-    //        space (PL-79, T-4409): the rule `jcctl validate` runs, over the project's Pipelines
-    //        with this proposal in place of its own.
-    if kind_info.kind == "Pipeline" && operation != Operation::Delete {
-        check_replace(state, project, &envelope.metadata.name, &envelope.spec)?;
-    }
-
-    // 4b'. A public dashboard reads only through public Endpoints (UI-19, T-0528): the one
-    //      rule that spans three manifests, so it is checked against the mirror here.
-    crate::dashboards::check(
-        &state.mirror,
+    check_content(
+        state,
+        identity,
         project,
         kind_info.kind,
-        &envelope.metadata.name,
-        &envelope.spec,
-    )?;
-
-    // 4b-quota. What the project may hold (PF-73, PF-74): the count the repository would have
-    //       after this write, against the quota in force. Refused here, before a Change exists,
-    //       so every door - the route, an operation, the assistant, an import - refuses it.
-    if operation != Operation::Delete {
-        crate::quotas::check(
-            &state.mirror,
-            project,
-            kind_info.kind,
-            &envelope.metadata.name,
-            &envelope.spec,
-        )?;
-    }
-
-    // 4b-contact. A catalogue record publishes its contact point to everyone, so a person's own
-    //       address is refused at every door (EP-80, T-2789).
-    if operation != Operation::Delete {
-        crate::catalog::check_contact(&state.mirror, identity, kind_info.kind, &envelope.spec)?;
-    }
+        operation,
+        &envelope,
+    )
+    .await?;
 
     // 4c. Who may propose this kind here, with this content (T-0526, PF-50): the bindings of
     //     the organization repository, before a Change exists. 403 names the verb or the field.
@@ -1037,76 +849,8 @@ async fn propose_engine(
     // 4d. Nobody grants above their own rights (PF-52, AG-77).
     crate::permissions::within_own_rights(state, identity, &body_val, "proposer")?;
 
-    // 4e. A Context Space name is unique in the organization (PF-44, PF-76): a name another
-    //     project holds is refused here — after the caller's right to propose one at all, so
-    //     nobody probes the organization's names through this door, and before a Change exists,
-    //     so every door answers the same refusal, the dry run included.
     if operation != Operation::Delete {
-        crate::spaces::check(
-            state,
-            identity,
-            project,
-            kind_info.kind,
-            &envelope.metadata.name,
-            &envelope.spec,
-        )?;
-    }
-
-    // 4e-retention. Retention deletes data: only the space's owner sets or changes it (DM-85).
-    if operation != Operation::Delete {
-        crate::spaces::check_retention(
-            state,
-            identity,
-            project,
-            kind_info.kind,
-            &envelope.metadata.name,
-            &envelope.spec,
-        )?;
-    }
-
-    // 4e-broker. An Endpoint serves only what its space's broker serves (PF-110), and a space
-    //       holding entities changes broker only by the move job (PF-115, ADR-N-047).
-    if operation != Operation::Delete {
-        crate::brokers::check_endpoint(&state.mirror, project, kind_info.kind, &envelope.spec)?;
-        crate::brokers::check_move(
-            state,
-            project,
-            kind_info.kind,
-            &envelope.metadata.name,
-            &envelope.spec,
-        )
-        .await?;
-    }
-
-    // 4f. An App name is one address for the organization (AP-14a): `/apps/{name}/` carries no
-    //     project, so another project's App of the same name is refused before a Change exists.
-    if operation != Operation::Delete {
-        crate::apps::names::check(
-            state,
-            identity,
-            project,
-            kind_info.kind,
-            &envelope.metadata.name,
-        )?;
-    }
-
-    // 4g. A Group name is one Keycloak group for the organization (AP-115): one owned by the
-    //     organization or another App, or held by the realm unmanaged, is refused here.
-    if operation != Operation::Delete {
-        crate::groups::check(state, identity, kind_info.kind, &envelope.metadata)?;
-    }
-
-    // 4i. A pipeline that removes stale entities removes only its own, by a grant its author
-    //     wrote (PL-64): refused while another pipeline writes the space, a type is not the
-    //     model's, or no Policy grants the delete.
-    if operation != Operation::Delete {
-        crate::pipeline_expiry::check(
-            state,
-            project,
-            kind_info.kind,
-            &envelope.metadata.name,
-            &envelope.spec,
-        )?;
+        check_organization_names(state, identity, project, kind_info.kind, &envelope).await?;
     }
 
     // Every resource this manifest names has to be there, so a person meets a missing name in the
@@ -1157,24 +901,10 @@ async fn propose_engine(
     let filed_once =
         kind_info.repo_path(project, "s1", "a") == kind_info.repo_path(project, "s2", "b");
     if operation == Operation::Create && filed_once {
-        if let Some(held) = state
-            .mirror
-            .list(
-                project,
-                kind_info.kind,
-                &crate::store::ListOptions::default(),
-            )
-            .items
-            .into_iter()
-            .find(|held| held.metadata.name != envelope.metadata.name)
+        if let Some(refusal) =
+            held_under_another_name(state, kind_info, project, &envelope.metadata.name)
         {
-            let path = kind_info.repo_path(project, "", &held.metadata.name);
-            return Err(path_taken(
-                kind_info.kind,
-                &held.metadata.name,
-                &envelope.metadata.name,
-                &path,
-            ));
+            return Err(refusal);
         }
     }
     let mut plan = plan::diff(current.as_ref(), Some(&envelope));
@@ -1351,22 +1081,7 @@ async fn propose_engine(
     };
     let repo_path = manifest_path;
 
-    let mut envelope_to_commit = envelope.clone();
-    // A wasm App's component and shard are the Portal's, taken from the bundle it checked and
-    // the placement it recorded; whatever a proposal said of them is never committed (AP-151).
-    if build_write {
-        if let Some(status) = envelope_to_commit.status.as_mut() {
-            status.shard = published.as_ref().map(|p| p.shard);
-            if let Some(build) = status.build.as_mut() {
-                build.component = published.as_ref().map(|p| p.component.clone());
-            }
-        }
-    }
-    if !build_write {
-        envelope_to_commit.strip_status();
-    }
-    let yaml_content = serde_norway::to_string(&envelope_to_commit)
-        .map_err(|e| ApiError::Internal(format!("serialize manifest to yaml: {e}")))?;
+    let yaml_content = manifest_yaml(&envelope, build_write, published.as_ref())?;
 
     // Gitea wants the blob sha of the file being replaced, which only `get_file` knows;
     // `status.observedRevision` is a commit id and would be rejected. Asking the branch (not the
@@ -1480,6 +1195,356 @@ async fn propose_engine(
     };
 
     Ok(ProposeOutcome::Change(change))
+}
+
+/// A kind filed once per scope already held under another name (DS-07, T-2855): a create would
+/// replace that file and read as a create.
+fn held_under_another_name(
+    state: &AppState,
+    kind_info: &resource::KindInfo,
+    project: &str,
+    name: &str,
+) -> Option<ApiError> {
+    let held = state
+        .mirror
+        .list(
+            project,
+            kind_info.kind,
+            &crate::store::ListOptions::default(),
+        )
+        .items
+        .into_iter()
+        .find(|held| held.metadata.name != name)?;
+    let path = kind_info.repo_path(project, "", &held.metadata.name);
+    Some(path_taken(kind_info.kind, &held.metadata.name, name, &path))
+}
+
+/// The manifest as committed: no status, except a build write's, whose component and shard are
+/// the Portal's from the bundle it checked, whatever the proposal said of them (AP-73, AP-151).
+fn manifest_yaml(
+    envelope: &ResourceEnvelope,
+    build_write: bool,
+    published: Option<&crate::apps::wasm_apps::Published>,
+) -> Result<String, ApiError> {
+    let mut envelope_to_commit = envelope.clone();
+    if build_write {
+        if let Some(status) = envelope_to_commit.status.as_mut() {
+            status.shard = published.map(|p| p.shard);
+            if let Some(build) = status.build.as_mut() {
+                build.component = published.map(|p| p.component.clone());
+            }
+        }
+    } else {
+        envelope_to_commit.strip_status();
+    }
+    serde_norway::to_string(&envelope_to_commit)
+        .map_err(|e| ApiError::Internal(format!("serialize manifest to yaml: {e}")))
+}
+
+/// The envelope of a proposal (steps 2 and 3): an apiVersion jc-core serves, the kind its
+/// plural names, the name its path names, and this project as its namespace.
+fn envelope_for(
+    body_val: &Value,
+    kind: &str,
+    plural: &str,
+    project: &str,
+    path_name: Option<&str>,
+) -> Result<ResourceEnvelope, ApiError> {
+    // 2. Deserialize envelope and validate apiVersion, kind and path name
+    let mut envelope: ResourceEnvelope = serde_json::from_value(body_val.clone())
+        .map_err(|e| ApiError::BadRequest(format!("invalid resource envelope: {e}")))?;
+
+    if !jc_core::serves(&envelope.kind, &envelope.api_version) {
+        return Err(ApiError::BadRequest(format!(
+            "apiVersion '{}' is not supported (expected '{}')",
+            envelope.api_version,
+            resource::API_VERSION
+        )));
+    }
+
+    if envelope.kind != kind {
+        return Err(ApiError::BadRequest(format!(
+            "kind '{}' does not match plural '{}' (expected '{}')",
+            envelope.kind, plural, kind
+        )));
+    }
+
+    if let Some(expected_name) = path_name {
+        if envelope.metadata.name != expected_name {
+            return Err(ApiError::BadRequest(format!(
+                "metadata.name '{}' does not match path '{}'",
+                envelope.metadata.name, expected_name
+            )));
+        }
+    }
+
+    // 3. Namespace validation and default filling
+    match envelope.metadata.namespace.as_deref() {
+        None | Some("") => {
+            envelope.metadata.namespace = Some(project.to_string());
+        }
+        Some(ns) if ns == project => {}
+        Some(foreign) => {
+            return Err(ApiError::BadRequest(format!(
+                "metadata.namespace '{foreign}' does not match project '{project}'"
+            )));
+        }
+    }
+    Ok(envelope)
+}
+
+/// What a proposal never carries: a literal secret (MF-24) or an annotation only the build lane
+/// writes (AP-11, AP-13a).
+fn refuse_platform_fields(body_val: &Value, envelope: &ResourceEnvelope) -> Result<(), ApiError> {
+    if let Some(secret_key) = find_literal_secret(body_val) {
+        return Err(ApiError::BadRequest(format!(
+            "literal secret in field '{secret_key}' is forbidden; use secretRef instead (MF-24)"
+        )));
+    }
+
+    // A digest is not something a person types: the build lane writes it back when it publishes
+    // the image it built here, and an App deploys what it names. Typed in, or carried in from
+    // another instance, it would run an image this platform never built (AP-11, AP-13a).
+    if let Some(key) = crate::apps::converge::BUILT_ANNOTATIONS
+        .into_iter()
+        .find(|key| envelope.metadata.annotations.contains_key(*key))
+    {
+        return Err(ApiError::BadRequest(format!(
+            "annotation '{key}' is written by the build lane when it publishes an image and \
+             cannot be set in a proposal (AP-11, AP-13a)"
+        )));
+    }
+    Ok(())
+}
+
+/// The checks on the manifest itself and on what it names in this project (4a' to
+/// 4b-contact): the kind is defined, its spec parses, it keeps inside the organization's bounds
+/// and quotas, and the names it derives are free.
+async fn check_content(
+    state: &AppState,
+    identity: &crate::auth::session::Identity,
+    project: &str,
+    kind: &str,
+    operation: Operation,
+    envelope: &ResourceEnvelope,
+) -> Result<(), ApiError> {
+    // 4a'. A kind jc-core does not define is a kind no loader can read: `jcctl`, the Portal's
+    //       own sync and the gateway's store all refuse an unknown kind and refuse the whole
+    //       repository with it, so one such file stops configuration reaching every endpoint.
+    //       What is left of that gap is the seed entity: a plain `.json` NGSI-LD entity (CC-72),
+    //       never a `kind: Entity` manifest. `Subscription` closed it with jc-core-v0.7.30 and
+    //       is written like any other kind now (T-0833, T-0913).
+    if jc_core::registry::by_kind(kind).is_none() {
+        return Err(ApiError::BadRequest(format!(
+            "kind '{}' is declared but not defined by the platform yet, and a repository holding \
+             one stops loading for every component; it cannot be written (CC-72, T-0833)",
+            kind
+        )));
+    }
+
+    // 4b. The kind's own parse and invariants (T-0412, CC-08, MF-24). `jcctl apply` would
+    //     refuse this manifest on `main`, after an approval; refusing it here turns a broken
+    //     repository into a form error that names the field. Kinds without a jc-core type
+    //     (PORTAL_ONLY_KINDS) have nothing to check against and pass as before.
+    if let Some(checked) = jc_core::registry::validate_yaml(
+        kind,
+        &serde_json::to_string(&envelope).map_err(|e| ApiError::Internal(e.to_string()))?,
+    ) {
+        checked.map_err(|e| ApiError::BadRequest(format!("spec is not a valid {}: {e}", kind)))?;
+    }
+
+    // 4e. An Organization's limits stay inside the operator's bounds (PF-97): refused here,
+    //     before a Change exists, and again at approval, since the bounds may tighten between.
+    if operation != Operation::Delete {
+        organization_within_bounds(state, kind, &envelope.spec, ApiError::BadRequest)?;
+        // 4f. The organization's public-app policy (PF-103), held again at approval.
+        public_app_allowed(state, project, envelope, ApiError::BadRequest)?;
+        // 4g. An App's hostnames lie in the organization's verified domain and are no other
+        //     App's (AP-172); the reconciler routes only the names that still pass.
+        if kind == "App" {
+            let apex = state.config.app_settings.as_ref().map(|s| s.apex.as_str());
+            crate::apps::hostnames::check(
+                &state.mirror,
+                project,
+                &envelope.metadata.name,
+                &envelope.spec,
+                apex,
+            )
+            .map_err(ApiError::BadRequest)?;
+        }
+    }
+
+    // 4d. A projection names only what its model version has (MP-01, T-2558): the same check
+    //     `jcctl validate` runs, so the two cannot disagree about what is stale, and every stale
+    //     name is listed at once. The model is looked up in this project only, so a model of
+    //     another project is absent and nothing of it is named (R20).
+    if kind == "ModelProjection" && operation != Operation::Delete {
+        check_projection(state, project, &envelope.spec).await?;
+    }
+
+    // 4c. A ServiceAccount's Keycloak client id is derived, `{project}-{name}`, and the hyphen
+    //     is a character of both, so another project's account may derive the same id. The
+    //     gateway resolves such an id to nobody (T-1454); refusing it here keeps a proposal from
+    //     switching off the other project's account. The other account is not named: it may live
+    //     in a project the author cannot read (PF-59).
+    if kind == "ServiceAccount" {
+        if let Some(id) = service_account_id_taken(&state.mirror, project, &envelope.metadata.name)
+        {
+            return Err(ApiError::BadRequest(format!(
+                "metadata.name '{}' gives the Keycloak client id '{id}', which another \
+                 ServiceAccount already derives; choose another name (T-1456)",
+                envelope.metadata.name
+            )));
+        }
+    }
+
+    // 4b''. An agent profile names only operations this Portal registers (MF-40): jc-core checks
+    //       the shape of an operation name, the registry is the Portal's to know.
+    if kind == "AgentProfile" {
+        if let Some(name) = unknown_operation(&envelope.spec) {
+            return Err(ApiError::BadRequest(format!(
+                "spec.access.operations names '{name}', which is not a registered operation (MF-40)"
+            )));
+        }
+    }
+
+    // 4b'''. A Pipeline in replace drops what another Pipeline writes onto the same ids in its
+    //        space (PL-79, T-4409): the rule `jcctl validate` runs, over the project's Pipelines
+    //        with this proposal in place of its own.
+    if kind == "Pipeline" && operation != Operation::Delete {
+        check_replace(state, project, &envelope.metadata.name, &envelope.spec)?;
+    }
+
+    // 4b'. A public dashboard reads only through public Endpoints (UI-19, T-0528): the one
+    //      rule that spans three manifests, so it is checked against the mirror here.
+    crate::dashboards::check(
+        &state.mirror,
+        project,
+        kind,
+        &envelope.metadata.name,
+        &envelope.spec,
+    )?;
+
+    // 4b-quota. What the project may hold (PF-73, PF-74): the count the repository would have
+    //       after this write, against the quota in force. Refused here, before a Change exists,
+    //       so every door - the route, an operation, the assistant, an import - refuses it.
+    if operation != Operation::Delete {
+        crate::quotas::check(
+            &state.mirror,
+            project,
+            kind,
+            &envelope.metadata.name,
+            &envelope.spec,
+        )?;
+    }
+
+    // 4b-contact. A catalogue record publishes its contact point to everyone, so a person's own
+    //       address is refused at every door (EP-80, T-2789).
+    if operation != Operation::Delete {
+        crate::catalog::check_contact(&state.mirror, identity, kind, &envelope.spec)?;
+    }
+    Ok(())
+}
+
+/// The Keycloak client id `{project}-{name}` derives, when another project's ServiceAccount
+/// already derives it.
+fn service_account_id_taken(
+    mirror: &crate::store::Mirror,
+    project: &str,
+    name: &str,
+) -> Option<String> {
+    use jc_core::kinds::service_account::keycloak_client_id;
+    let id = keycloak_client_id(project, name);
+    let taken = mirror.namespaces().into_iter().any(|namespace| {
+        mirror
+            .list(
+                &namespace,
+                "ServiceAccount",
+                &crate::store::ListOptions::default(),
+            )
+            .items
+            .iter()
+            .any(|account| {
+                (namespace.as_str(), account.metadata.name.as_str()) != (project, name)
+                    && keycloak_client_id(&namespace, &account.metadata.name) == id
+            })
+    });
+    taken.then_some(id)
+}
+
+/// The first of `spec.access.operations` this Portal does not register (MF-40).
+fn unknown_operation(spec: &Value) -> Option<&str> {
+    spec.pointer("/access/operations")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .find(|name| crate::ops::find(name).is_none())
+}
+
+/// The names one organization shares (4e to 4i): Context Spaces, retention, brokers, Apps,
+/// Groups and the pipelines that expire entities, checked for a create or an update.
+async fn check_organization_names(
+    state: &AppState,
+    identity: &crate::auth::session::Identity,
+    project: &str,
+    kind: &str,
+    envelope: &ResourceEnvelope,
+) -> Result<(), ApiError> {
+    // 4e. A Context Space name is unique in the organization (PF-44, PF-76): a name another
+    //     project holds is refused here — after the caller's right to propose one at all, so
+    //     nobody probes the organization's names through this door, and before a Change exists,
+    //     so every door answers the same refusal, the dry run included.
+    crate::spaces::check(
+        state,
+        identity,
+        project,
+        kind,
+        &envelope.metadata.name,
+        &envelope.spec,
+    )?;
+
+    // 4e-retention. Retention deletes data: only the space's owner sets or changes it (DM-85).
+    crate::spaces::check_retention(
+        state,
+        identity,
+        project,
+        kind,
+        &envelope.metadata.name,
+        &envelope.spec,
+    )?;
+
+    // 4e-broker. An Endpoint serves only what its space's broker serves (PF-110), and a space
+    //       holding entities changes broker only by the move job (PF-115, ADR-N-047).
+    crate::brokers::check_endpoint(&state.mirror, project, kind, &envelope.spec)?;
+    crate::brokers::check_move(
+        state,
+        project,
+        kind,
+        &envelope.metadata.name,
+        &envelope.spec,
+    )
+    .await?;
+
+    // 4f. An App name is one address for the organization (AP-14a): `/apps/{name}/` carries no
+    //     project, so another project's App of the same name is refused before a Change exists.
+    crate::apps::names::check(state, identity, project, kind, &envelope.metadata.name)?;
+
+    // 4g. A Group name is one Keycloak group for the organization (AP-115): one owned by the
+    //     organization or another App, or held by the realm unmanaged, is refused here.
+    crate::groups::check(state, identity, kind, &envelope.metadata)?;
+
+    // 4i. A pipeline that removes stale entities removes only its own, by a grant its author
+    //     wrote (PL-64): refused while another pipeline writes the space, a type is not the
+    //     model's, or no Policy grants the delete.
+    crate::pipeline_expiry::check(
+        state,
+        project,
+        kind,
+        &envelope.metadata.name,
+        &envelope.spec,
+    )?;
+    Ok(())
 }
 
 /// The grants one App proposal commits and removes (CC-61, AP-96).
@@ -2520,6 +2585,124 @@ mod tests {
             json!({ "visibility": "public" }),
         ));
         assert!(check(&app("atlas", "public")).is_err());
+    }
+
+    /// T-4470: the parts `propose_engine` was cut into that read nothing but their input.
+    #[test]
+    fn a_derived_client_id_is_taken_only_by_another_projects_account() {
+        let mirror = crate::store::Mirror::default();
+        mirror.upsert(ResourceEnvelope {
+            api_version: resource::API_VERSION.into(),
+            kind: "ServiceAccount".into(),
+            metadata: ObjectMeta {
+                name: "c".into(),
+                namespace: Some("a-b".into()),
+                ..Default::default()
+            },
+            spec: json!({}),
+            status: None,
+        });
+        // `a` + `b-c` and `a-b` + `c` both derive `a-b-c`.
+        assert_eq!(
+            service_account_id_taken(&mirror, "a", "b-c"),
+            Some("a-b-c".to_owned())
+        );
+        assert_eq!(
+            service_account_id_taken(&mirror, "a-b", "c"),
+            None,
+            "its own account"
+        );
+        assert_eq!(service_account_id_taken(&mirror, "a", "d"), None);
+    }
+
+    #[test]
+    fn the_envelope_takes_this_project_and_refuses_another_kind_name_or_namespace() {
+        let body = |kind: &str, name: &str, namespace: Option<&str>| {
+            json!({ "apiVersion": resource::API_VERSION, "kind": kind,
+                    "metadata": { "name": name, "namespace": namespace }, "spec": {} })
+        };
+        let fine = envelope_for(
+            &body("Endpoint", "a", None),
+            "Endpoint",
+            "endpoints",
+            "p",
+            Some("a"),
+        )
+        .expect("an envelope");
+        assert_eq!(fine.metadata.namespace.as_deref(), Some("p"));
+        for (kind, name, namespace) in [
+            ("Policy", "a", None),
+            ("Endpoint", "b", None),
+            ("Endpoint", "a", Some("q")),
+        ] {
+            assert!(envelope_for(
+                &body(kind, name, namespace),
+                "Endpoint",
+                "endpoints",
+                "p",
+                Some("a")
+            )
+            .is_err());
+        }
+        let mut old = body("Endpoint", "a", None);
+        old["apiVersion"] = json!("joinedcontext.com/v0");
+        assert!(envelope_for(&old, "Endpoint", "endpoints", "p", None).is_err());
+    }
+
+    #[test]
+    fn a_literal_secret_or_a_build_annotation_is_never_proposed() {
+        let body = json!({ "apiVersion": resource::API_VERSION, "kind": "DataSource",
+                           "metadata": { "name": "a" }, "spec": { "http": { "password": "hunter2" } } });
+        let envelope: ResourceEnvelope = serde_json::from_value(body.clone()).expect("envelope");
+        let refused = refuse_platform_fields(&body, &envelope).unwrap_err();
+        assert!(
+            !format!("{refused:?}").contains("hunter2"),
+            "the value is not echoed"
+        );
+        let mut built = envelope.clone();
+        built.metadata.annotations.insert(
+            crate::apps::converge::BUILT_ANNOTATIONS[0].into(),
+            "sha256:x".into(),
+        );
+        assert!(refuse_platform_fields(&json!({}), &built).is_err());
+        assert!(refuse_platform_fields(&json!({}), &envelope).is_ok());
+    }
+
+    #[test]
+    fn a_name_held_by_another_resource_of_the_kind_is_named_and_its_own_is_not() {
+        let state = AppState::new(Config::for_tests(), None);
+        let info = resource::by_kind("Endpoint").expect("Endpoint");
+        let held: ResourceEnvelope = serde_json::from_value(json!({
+            "apiVersion": resource::API_VERSION, "kind": "Endpoint",
+            "metadata": { "name": "x", "namespace": "p" }, "spec": {}
+        }))
+        .expect("envelope");
+        state.mirror.upsert(held);
+        assert!(held_under_another_name(&state, info, "p", "y").is_some());
+        assert!(held_under_another_name(&state, info, "p", "x").is_none());
+        assert!(held_under_another_name(&state, info, "q", "y").is_none());
+    }
+
+    #[test]
+    fn only_a_build_write_commits_a_status() {
+        let envelope: ResourceEnvelope = serde_json::from_value(json!({
+            "apiVersion": resource::API_VERSION, "kind": "App",
+            "metadata": { "name": "a" }, "spec": {}, "status": { "phase": "Live" }
+        }))
+        .expect("envelope");
+        assert!(!manifest_yaml(&envelope, false, None)
+            .expect("yaml")
+            .contains("status"));
+        assert!(manifest_yaml(&envelope, true, None)
+            .expect("yaml")
+            .contains("status"));
+    }
+
+    #[test]
+    fn an_agent_profile_names_the_first_operation_nobody_registered() {
+        assert_eq!(unknown_operation(&json!({})), None);
+        let spec = json!({ "access": { "operations": ["no.such.operation", 7] } });
+        assert_eq!(unknown_operation(&spec), Some("no.such.operation"));
     }
 
     fn dummy_user() -> CurrentUser {

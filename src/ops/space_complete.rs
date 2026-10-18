@@ -326,35 +326,7 @@ pub async fn run(
     })?;
 
     // Determine space name
-    let space_name = if let Some(s) = input.space.as_deref().filter(|s| !s.trim().is_empty()) {
-        sanitize_dns1123(s)
-    } else if let Some(url_str) = input.url.as_deref().filter(|u| !u.trim().is_empty()) {
-        let seg = url_str
-            .trim_end_matches('/')
-            .rsplit('/')
-            .next()
-            .and_then(|s| s.split('?').next())
-            .unwrap_or("space");
-        let stem = seg
-            .strip_suffix(".json")
-            .or_else(|| seg.strip_suffix(".geojson"))
-            .unwrap_or(seg);
-        sanitize_dns1123(stem)
-    } else if let Some(files) = &input.files {
-        let first_name = files.first().map(|f| f.name.as_str()).unwrap_or("space");
-        let seg = if let Some((dir, _)) = first_name.split_once('/') {
-            dir
-        } else {
-            first_name
-                .strip_suffix(".csv")
-                .or_else(|| first_name.strip_suffix(".json"))
-                .or_else(|| first_name.strip_suffix(".geojson"))
-                .unwrap_or(first_name)
-        };
-        sanitize_dns1123(seg)
-    } else {
-        "space".into()
-    };
+    let space_name = space_name_of(&input);
 
     if !is_dns1123(&space_name) {
         return Err(OpError::InvalidInput {
@@ -437,112 +409,12 @@ pub async fn run(
                 sample_bytes = Some((name.to_string(), file.content.as_bytes().to_vec()));
             } else if name.eq_ignore_ascii_case("readme.md") || name.eq_ignore_ascii_case("readme")
             {
-                // Find candidate URL in README
-                for word in file.content.split_whitespace() {
-                    let cleaned = word.trim_matches(|c| {
-                        c == '(' || c == ')' || c == '<' || c == '>' || c == '"' || c == '\''
-                    });
-                    if (cleaned.starts_with("http://") || cleaned.starts_with("https://"))
-                        && described_source_spec.is_none()
-                    {
-                        described_source_spec = Some((
-                            "http".into(),
-                            json!({
-                                "type": "http",
-                                "http": {
-                                    "url": cleaned,
-                                    "verb": "GET",
-                                    "headers": { "Accept": "application/json" },
-                                    "timeout": "15s"
-                                }
-                            }),
-                            Vec::new(),
-                        ));
-                        break;
-                    }
+                if described_source_spec.is_none() {
+                    described_source_spec = source_in_readme(&file.content);
                 }
             } else if name == ".env" || name.ends_with(".env") {
-                // Parse .env
-                let mut env_map = BTreeMap::new();
-                for line in file.content.lines() {
-                    let trimmed = line.trim();
-                    if trimmed.is_empty() || trimmed.starts_with('#') {
-                        continue;
-                    }
-                    if let Some((k, v)) = trimmed.split_once('=') {
-                        env_map.insert(
-                            k.trim().to_string(),
-                            v.trim().trim_matches('"').trim_matches('\'').to_string(),
-                        );
-                    }
-                }
-                let mut findings = Vec::new();
-                if let Some(url_val) = env_map.get("URL") {
-                    described_source_spec = Some((
-                        "http".into(),
-                        json!({
-                            "type": "http",
-                            "http": {
-                                "url": url_val,
-                                "verb": "GET",
-                                "headers": { "Accept": "application/json" },
-                                "timeout": "15s"
-                            }
-                        }),
-                        findings,
-                    ));
-                } else if let (Some(host), Some(topic)) =
-                    (env_map.get("MQTT_HOST"), env_map.get("MQTT_TOPIC"))
-                {
-                    let mut mqtt_spec = json!({
-                        "urls": [host],
-                        "topics": [topic]
-                    });
-                    for k in env_map.keys() {
-                        if k.ends_with("_PASSWORD")
-                            || k.ends_with("_SECRET")
-                            || k.ends_with("_TOKEN")
-                        {
-                            let secret_name = format!(
-                                "{space_name}-{}",
-                                k.to_ascii_lowercase().replace('_', "-")
-                            );
-                            mqtt_spec["password"] = json!({
-                                "secretRef": { "name": secret_name, "key": k }
-                            });
-                            findings.push(Finding {
-                                level: Level::Warning,
-                                path: "spec.mqtt.password".to_string(),
-                                message: format!(
-                                    "fill in the secret '{secret_name}' with key '{k}'"
-                                ),
-                            });
-                        }
-                    }
-                    described_source_spec = Some((
-                        "mqtt".into(),
-                        json!({
-                            "type": "mqtt",
-                            "mqtt": mqtt_spec
-                        }),
-                        findings,
-                    ));
-                } else if let (Some(brokers), Some(topic)) =
-                    (env_map.get("KAFKA_BROKERS"), env_map.get("KAFKA_TOPIC"))
-                {
-                    let broker_list: Vec<&str> = brokers.split(',').map(str::trim).collect();
-                    let kafka_spec = json!({
-                        "brokers": broker_list,
-                        "topics": [topic]
-                    });
-                    described_source_spec = Some((
-                        "kafka".into(),
-                        json!({
-                            "type": "kafka",
-                            "kafka": kafka_spec
-                        }),
-                        findings,
-                    ));
+                if let Some(described) = source_in_env(&file.content, &space_name) {
+                    described_source_spec = Some(described);
                 }
             }
         }
@@ -570,115 +442,16 @@ pub async fn run(
     let mut feed: Option<Records> = None;
 
     if !has_datamodel {
-        let (inferred_text, infer_findings) = if let Some(text) = linkml_source.clone() {
-            (text, Vec::new())
-        } else if let Some((name, bytes)) = &sample_bytes {
-            let fmt = if name.ends_with(".csv") {
-                Some("csv")
-            } else if name.ends_with(".json") {
-                Some("json")
-            } else {
-                None
-            };
-            // A JSON sample's model is its records', like a feed's (AG-79).
-            if fmt == Some("json") {
-                feed = serde_json::from_slice::<Value>(bytes)
-                    .ok()
-                    .as_ref()
-                    .and_then(feed_shape::records);
-            }
-            let records = feed
-                .as_ref()
-                .map(|records| records.inference_sample().to_string().into_bytes());
-            let bytes = records.as_deref().unwrap_or(bytes);
-            match model_tools::infer_schema_from_bytes(state, Some(&class_name), bytes, fmt).await {
-                Ok(resp) => {
-                    let text = resp
-                        .get("linkml")
-                        .and_then(Value::as_str)
-                        .unwrap_or("")
-                        .to_string();
-                    (text, Vec::new())
-                }
-                Err(err) => {
-                    let err_msg = err.to_string();
-                    (
-                        String::new(),
-                        vec![Finding {
-                            level: Level::Error,
-                            path: "linkml".into(),
-                            message: err_msg,
-                        }],
-                    )
-                }
-            }
-        } else if let Some(url_str) = &input.url {
-            // The person's URL is probed the way the data source Check probes it: one fetch on
-            // the project's runner (MF-39), never from the Portal's own network.
-            let spec = json!({ "type": "http", "http": { "url": url_str } });
-            match crate::api::pipeline_test::probe_source(state, project, &spec).await {
-                Some(probe) if probe.skipped.is_none() && probe.sample.is_some() => {
-                    // The model is the records', not the envelope's around them (AG-79).
-                    let whole = probe.sample.unwrap_or(Value::Null);
-                    feed = feed_shape::records(&whole);
-                    let sample = feed
-                        .as_ref()
-                        .map_or(whole, Records::inference_sample)
-                        .to_string();
-                    match model_tools::infer_schema_from_bytes(
-                        state,
-                        Some(&class_name),
-                        sample.as_bytes(),
-                        Some("json"),
-                    )
-                    .await
-                    {
-                        Ok(res) => (
-                            res.get("linkml")
-                                .and_then(Value::as_str)
-                                .unwrap_or("")
-                                .to_string(),
-                            Vec::new(),
-                        ),
-                        Err(e) => (
-                            String::new(),
-                            vec![Finding {
-                                level: Level::Error,
-                                path: "linkml".into(),
-                                message: e.to_string(),
-                            }],
-                        ),
-                    }
-                }
-                Some(probe) => (
-                    String::new(),
-                    vec![Finding {
-                        level: Level::Error,
-                        path: "url".into(),
-                        message: probe
-                            .skipped
-                            .unwrap_or_else(|| "the feed answered no sample".to_string()),
-                    }],
-                ),
-                None => (
-                    String::new(),
-                    vec![Finding {
-                        level: Level::Error,
-                        path: "url".into(),
-                        message: "the URL is not an http(s) URL".to_string(),
-                    }],
-                ),
-            }
-        } else {
-            (
-                String::new(),
-                vec![Finding {
-                    level: Level::Error,
-                    path: "linkml".into(),
-                    message: "no sample file or url to infer schema from".into(),
-                }],
-            )
-        };
+        let (inferred_text, infer_findings, records) = infer_linkml(
+            state,
+            project,
+            &class_name,
+            linkml_source.as_deref(),
+            sample_bytes.as_ref(),
+            input.url.as_deref(),
+        )
+        .await;
+        feed = records;
 
         let inferred_text = match &description {
             Some(description) if !inferred_text.is_empty() => {
@@ -1028,43 +801,9 @@ pub async fn run(
             .await
             .map_err(ops::drafts::draft_error)?;
 
-        let check_res = if input.url.is_some() {
-            ops::call(
-                ops::find("jc_datasource_check").unwrap(),
-                caller,
-                state,
-                project,
-                json!({ "manifest": m }),
-            )
-            .await
-        } else {
-            ops::call(
-                ops::find("jc_manifest_dry_run").unwrap(),
-                caller,
-                state,
-                project,
-                json!({ "manifest": m }),
-            )
-            .await
-        };
-        let v = match check_res {
-            Ok(val) => {
-                let mut verdict: Verdict =
-                    serde_json::from_value(val.get("verdict").cloned().unwrap_or(Value::Null))
-                        .unwrap_or_else(|_| Verdict::green(&m, None));
-                verdict.findings.extend(ds_findings);
-                Some(verdict)
-            }
-            Err(e) => {
-                let mut findings = ds_findings;
-                findings.push(Finding {
-                    level: Level::Error,
-                    path: "".into(),
-                    message: e.to_string(),
-                });
-                Some(Verdict::red(&m, findings, None))
-            }
-        };
+        let v = Some(
+            datasource_verdict(caller, state, project, &m, input.url.is_some(), ds_findings).await,
+        );
         let final_v = if let Some(verdict) = v {
             store
                 .set_verdict(project, "DataSource", name, verdict)
@@ -1140,89 +879,15 @@ pub async fn run(
             .await
             .map_err(ops::drafts::draft_error)?;
 
-        let p_verdict = if let Some((sample_filename, sample_bytes_vec)) = &sample_bytes {
-            let sample_text = String::from_utf8_lossy(sample_bytes_vec).to_string();
-            let sample_fmt = if sample_filename.ends_with(".csv") {
-                SampleFormat::Csv
-            } else if sample_filename.ends_with(".json") {
-                SampleFormat::Json
-            } else {
-                SampleFormat::Text
-            };
-            let test_input = json!({
-                "pipeline": m,
-                "sample": Sample {
-                    text: Some(sample_text),
-                    url: None,
-                    format: sample_fmt,
-                }
-            });
-            let test_res = ops::call(
-                ops::find("jc_pipeline_test").unwrap(),
-                caller,
-                state,
-                project,
-                test_input,
-            )
-            .await;
-            match test_res {
-                Ok(val) => serde_json::from_value::<Verdict>(
-                    val.get("verdict").cloned().unwrap_or(Value::Null),
-                )
-                .ok(),
-                Err(e) => Some(Verdict::red(
-                    &m,
-                    vec![Finding {
-                        level: Level::Error,
-                        path: "".into(),
-                        message: e.to_string(),
-                    }],
-                    None,
-                )),
-            }
-        } else if let Some(url_str) = &input.url {
-            let test_input = json!({
-                "pipeline": m,
-                "sample": Sample {
-                    text: None,
-                    url: Some(url_str.clone()),
-                    format: SampleFormat::Json,
-                }
-            });
-            let test_res = ops::call(
-                ops::find("jc_pipeline_test").unwrap(),
-                caller,
-                state,
-                project,
-                test_input,
-            )
-            .await;
-            match test_res {
-                Ok(val) => serde_json::from_value::<Verdict>(
-                    val.get("verdict").cloned().unwrap_or(Value::Null),
-                )
-                .ok(),
-                Err(e) => Some(Verdict::red(
-                    &m,
-                    vec![Finding {
-                        level: Level::Error,
-                        path: "".into(),
-                        message: e.to_string(),
-                    }],
-                    None,
-                )),
-            }
-        } else {
-            Some(Verdict::red(
-                &m,
-                vec![Finding {
-                    level: Level::Error,
-                    path: "".into(),
-                    message: "no sample to test the mapping on".into(),
-                }],
-                None,
-            ))
-        };
+        let p_verdict = pipeline_verdict(
+            caller,
+            state,
+            project,
+            &m,
+            sample_bytes.as_ref(),
+            input.url.as_deref(),
+        )
+        .await;
 
         let final_v = if let Some(verdict) = p_verdict {
             store
@@ -1257,20 +922,7 @@ pub async fn run(
 
     let change = if input.propose {
         if !propose_ready {
-            let failing_check = drafts
-                .iter()
-                .find(|d| {
-                    d.verdict
-                        .as_ref()
-                        .is_none_or(|v| !v.is_fresh_for(&d.manifest))
-                })
-                .map(|d| match d.kind.as_str() {
-                    "DataModel" => "jc_model_propose",
-                    "DataSource" => "jc_datasource_check",
-                    "Pipeline" => "jc_pipeline_test",
-                    _ => "jc_manifest_dry_run",
-                })
-                .unwrap_or("jc_manifest_dry_run");
+            let failing_check = failing_check(&drafts);
             return Err(OpError::Conflict(json!({
                 "error": "verdict_required",
                 "check": failing_check,
@@ -1279,57 +931,18 @@ pub async fn run(
             })));
         }
 
-        // Commit bundle
-        let mut bundle_files = Vec::new();
-        let mut created = Vec::new();
-
-        for d in &drafts {
-            let committed = committed(&d.manifest);
-            let info = resource::by_kind(&d.kind).ok_or_else(|| {
-                OpError::Api(ApiError::BadRequest(format!("unknown kind '{}'", d.kind)))
-            })?;
-            let path = resource::repository_path(info, project, Some(&space_name), &d.name)
-                .map_err(ApiError::BadRequest)?;
-            let yaml_text = serde_norway::to_string(&committed)
-                .map_err(|e| ApiError::Internal(e.to_string()))?;
-            bundle_files.push((path, yaml_text));
-            created.push(d.name.clone());
-        }
-
-        if let Some(linkml) = model_linkml_text {
-            let linkml_path = format!(
-                "projects/{project}/spaces/{space_name}/datamodels/{space_name}.linkml.yaml"
-            );
-            bundle_files.push((linkml_path, linkml));
-        }
-
-        let report = ImportReport {
-            created,
-            replaced: Vec::new(),
-            skipped: Vec::new(),
-            renamed: BTreeMap::new(),
-            reassigned: BTreeMap::new(),
-            native_files: if drafts.iter().any(|d| d.kind == "DataModel") {
-                1
-            } else {
-                0
-            },
-            lane,
-            source: Some("jc_space_complete".into()),
-            verified: Vec::new(),
-            needs: Vec::new(),
-        };
-
-        let ch = crate::api::import::propose_bundle(
-            state,
-            &caller.identity,
-            project,
-            report,
-            bundle_files,
-            Some(("ContextSpace", &space_name)),
+        Some(
+            propose_drafts(
+                caller,
+                state,
+                project,
+                &space_name,
+                &drafts,
+                model_linkml_text,
+                lane,
+            )
+            .await?,
         )
-        .await?;
-        Some(ch)
     } else {
         None
     };
@@ -1344,6 +957,426 @@ pub async fn run(
     };
 
     Ok(serde_json::to_value(out)?)
+}
+
+/// The LinkML of the space's model: the file the person gave, else inferred from the sample
+/// they uploaded, else from one probe of their URL on the project's runner (MF-39). The records
+/// the sample or the feed holds come back too, so a map can be drafted over them (AG-79).
+/// Nothing to infer from is a finding, never an empty model passed off as one.
+async fn infer_linkml(
+    state: &AppState,
+    project: &str,
+    class_name: &str,
+    linkml_source: Option<&str>,
+    sample_bytes: Option<&(String, Vec<u8>)>,
+    url: Option<&str>,
+) -> (String, Vec<Finding>, Option<Records>) {
+    let mut feed: Option<Records> = None;
+    let (text, findings) = if let Some(text) = linkml_source.map(str::to_owned) {
+        (text, Vec::new())
+    } else if let Some((name, bytes)) = sample_bytes {
+        let fmt = if name.ends_with(".csv") {
+            Some("csv")
+        } else if name.ends_with(".json") {
+            Some("json")
+        } else {
+            None
+        };
+        // A JSON sample's model is its records', like a feed's (AG-79).
+        if fmt == Some("json") {
+            feed = serde_json::from_slice::<Value>(bytes)
+                .ok()
+                .as_ref()
+                .and_then(feed_shape::records);
+        }
+        let records = feed
+            .as_ref()
+            .map(|records| records.inference_sample().to_string().into_bytes());
+        let bytes = records.as_deref().unwrap_or(bytes);
+        match model_tools::infer_schema_from_bytes(state, Some(class_name), bytes, fmt).await {
+            Ok(resp) => {
+                let text = resp
+                    .get("linkml")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string();
+                (text, Vec::new())
+            }
+            Err(err) => {
+                let err_msg = err.to_string();
+                (
+                    String::new(),
+                    vec![Finding {
+                        level: Level::Error,
+                        path: "linkml".into(),
+                        message: err_msg,
+                    }],
+                )
+            }
+        }
+    } else if let Some(url_str) = url {
+        // The person's URL is probed the way the data source Check probes it: one fetch on
+        // the project's runner (MF-39), never from the Portal's own network.
+        let spec = json!({ "type": "http", "http": { "url": url_str } });
+        match crate::api::pipeline_test::probe_source(state, project, &spec).await {
+            Some(probe) if probe.skipped.is_none() && probe.sample.is_some() => {
+                // The model is the records', not the envelope's around them (AG-79).
+                let whole = probe.sample.unwrap_or(Value::Null);
+                feed = feed_shape::records(&whole);
+                let sample = feed
+                    .as_ref()
+                    .map_or(whole, Records::inference_sample)
+                    .to_string();
+                match model_tools::infer_schema_from_bytes(
+                    state,
+                    Some(class_name),
+                    sample.as_bytes(),
+                    Some("json"),
+                )
+                .await
+                {
+                    Ok(res) => (
+                        res.get("linkml")
+                            .and_then(Value::as_str)
+                            .unwrap_or("")
+                            .to_string(),
+                        Vec::new(),
+                    ),
+                    Err(e) => (
+                        String::new(),
+                        vec![Finding {
+                            level: Level::Error,
+                            path: "linkml".into(),
+                            message: e.to_string(),
+                        }],
+                    ),
+                }
+            }
+            Some(probe) => (
+                String::new(),
+                vec![Finding {
+                    level: Level::Error,
+                    path: "url".into(),
+                    message: probe
+                        .skipped
+                        .unwrap_or_else(|| "the feed answered no sample".to_string()),
+                }],
+            ),
+            None => (
+                String::new(),
+                vec![Finding {
+                    level: Level::Error,
+                    path: "url".into(),
+                    message: "the URL is not an http(s) URL".to_string(),
+                }],
+            ),
+        }
+    } else {
+        (
+            String::new(),
+            vec![Finding {
+                level: Level::Error,
+                path: "linkml".into(),
+                message: "no sample file or url to infer schema from".into(),
+            }],
+        )
+    };
+    (text, findings, feed)
+}
+
+/// The check of a drafted DataSource: a probe of the feed when it came as a URL, a dry run
+/// otherwise. What the drafting found is kept beside what the check found.
+async fn datasource_verdict(
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+    m: &Value,
+    from_url: bool,
+    ds_findings: Vec<Finding>,
+) -> Verdict {
+    let check = if from_url {
+        "jc_datasource_check"
+    } else {
+        "jc_manifest_dry_run"
+    };
+    let check_res = ops::call(
+        ops::find(check).unwrap(),
+        caller,
+        state,
+        project,
+        json!({ "manifest": m }),
+    )
+    .await;
+    match check_res {
+        Ok(val) => {
+            let mut verdict: Verdict =
+                serde_json::from_value(val.get("verdict").cloned().unwrap_or(Value::Null))
+                    .unwrap_or_else(|_| Verdict::green(m, None));
+            verdict.findings.extend(ds_findings);
+            verdict
+        }
+        Err(e) => {
+            let mut findings = ds_findings;
+            findings.push(Finding {
+                level: Level::Error,
+                path: "".into(),
+                message: e.to_string(),
+            });
+            Verdict::red(m, findings, None)
+        }
+    }
+}
+
+fn sample_format(filename: &str) -> SampleFormat {
+    if filename.ends_with(".csv") {
+        SampleFormat::Csv
+    } else if filename.ends_with(".json") {
+        SampleFormat::Json
+    } else {
+        SampleFormat::Text
+    }
+}
+
+fn red(m: &Value, message: String) -> Verdict {
+    Verdict::red(
+        m,
+        vec![Finding {
+            level: Level::Error,
+            path: "".into(),
+            message,
+        }],
+        None,
+    )
+}
+
+/// The test of a drafted Pipeline on the uploaded sample, else on the feed's URL; with neither
+/// there is nothing to test the mapping on, which is a red verdict and not a pass.
+async fn pipeline_verdict(
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+    m: &Value,
+    sample_bytes: Option<&(String, Vec<u8>)>,
+    url: Option<&str>,
+) -> Option<Verdict> {
+    let sample = match (sample_bytes, url) {
+        (Some((filename, bytes)), _) => Sample {
+            text: Some(String::from_utf8_lossy(bytes).to_string()),
+            url: None,
+            format: sample_format(filename),
+        },
+        (None, Some(url)) => Sample {
+            text: None,
+            url: Some(url.to_owned()),
+            format: SampleFormat::Json,
+        },
+        (None, None) => return Some(red(m, "no sample to test the mapping on".into())),
+    };
+    let test_res = ops::call(
+        ops::find("jc_pipeline_test").unwrap(),
+        caller,
+        state,
+        project,
+        json!({ "pipeline": m, "sample": sample }),
+    )
+    .await;
+    match test_res {
+        Ok(val) => {
+            serde_json::from_value::<Verdict>(val.get("verdict").cloned().unwrap_or(Value::Null))
+                .ok()
+        }
+        Err(e) => Some(red(m, e.to_string())),
+    }
+}
+
+/// The check to run again for the first draft whose verdict is missing or stale.
+fn failing_check(drafts: &[CompletedDraft]) -> &'static str {
+    drafts
+        .iter()
+        .find(|d| {
+            d.verdict
+                .as_ref()
+                .is_none_or(|v| !v.is_fresh_for(&d.manifest))
+        })
+        .map(|d| match d.kind.as_str() {
+            "DataModel" => "jc_model_propose",
+            "DataSource" => "jc_datasource_check",
+            "Pipeline" => "jc_pipeline_test",
+            _ => "jc_manifest_dry_run",
+        })
+        .unwrap_or("jc_manifest_dry_run")
+}
+
+/// The space's drafts, committed as one Change with the model's LinkML beside them.
+async fn propose_drafts(
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+    space_name: &str,
+    drafts: &[CompletedDraft],
+    model_linkml_text: Option<String>,
+    lane: Lane,
+) -> Result<Change, OpError> {
+    // Commit bundle
+    let mut bundle_files = Vec::new();
+    let mut created = Vec::new();
+
+    for d in drafts {
+        let committed = committed(&d.manifest);
+        let info = resource::by_kind(&d.kind).ok_or_else(|| {
+            OpError::Api(ApiError::BadRequest(format!("unknown kind '{}'", d.kind)))
+        })?;
+        let path = resource::repository_path(info, project, Some(space_name), &d.name)
+            .map_err(ApiError::BadRequest)?;
+        let yaml_text =
+            serde_norway::to_string(&committed).map_err(|e| ApiError::Internal(e.to_string()))?;
+        bundle_files.push((path, yaml_text));
+        created.push(d.name.clone());
+    }
+
+    if let Some(linkml) = model_linkml_text {
+        let linkml_path =
+            format!("projects/{project}/spaces/{space_name}/datamodels/{space_name}.linkml.yaml");
+        bundle_files.push((linkml_path, linkml));
+    }
+
+    let report = ImportReport {
+        created,
+        replaced: Vec::new(),
+        skipped: Vec::new(),
+        renamed: BTreeMap::new(),
+        reassigned: BTreeMap::new(),
+        native_files: if drafts.iter().any(|d| d.kind == "DataModel") {
+            1
+        } else {
+            0
+        },
+        lane,
+        source: Some("jc_space_complete".into()),
+        verified: Vec::new(),
+        needs: Vec::new(),
+    };
+    Ok(crate::api::import::propose_bundle(
+        state,
+        &caller.identity,
+        project,
+        report,
+        bundle_files,
+        Some(("ContextSpace", space_name)),
+    )
+    .await?)
+}
+
+/// A source described by its address, read the way a `GET` of JSON is.
+fn http_source(url: &str) -> (String, Value, Vec<Finding>) {
+    (
+        "http".into(),
+        json!({
+            "type": "http",
+            "http": {
+                "url": url,
+                "verb": "GET",
+                "headers": { "Accept": "application/json" },
+                "timeout": "15s"
+            }
+        }),
+        Vec::new(),
+    )
+}
+
+/// The first http(s) address a README names, as the source it describes.
+fn source_in_readme(content: &str) -> Option<(String, Value, Vec<Finding>)> {
+    content
+        .split_whitespace()
+        .map(|word| word.trim_matches(|c| matches!(c, '(' | ')' | '<' | '>' | '"' | '\'')))
+        .find(|word| word.starts_with("http://") || word.starts_with("https://"))
+        .map(http_source)
+}
+
+/// The source a `.env` file describes: `URL`, or an MQTT host and topic, or Kafka brokers and a
+/// topic. A password, secret or token in it becomes a `secretRef` to fill in, never a value.
+fn source_in_env(content: &str, space_name: &str) -> Option<(String, Value, Vec<Finding>)> {
+    let mut env_map = BTreeMap::new();
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if let Some((k, v)) = trimmed.split_once('=') {
+            env_map.insert(
+                k.trim().to_string(),
+                v.trim().trim_matches('"').trim_matches('\'').to_string(),
+            );
+        }
+    }
+    if let Some(url) = env_map.get("URL") {
+        return Some(http_source(url));
+    }
+    if let (Some(host), Some(topic)) = (env_map.get("MQTT_HOST"), env_map.get("MQTT_TOPIC")) {
+        let mut findings = Vec::new();
+        let mut mqtt_spec = json!({ "urls": [host], "topics": [topic] });
+        for k in env_map.keys() {
+            if k.ends_with("_PASSWORD") || k.ends_with("_SECRET") || k.ends_with("_TOKEN") {
+                let secret_name =
+                    format!("{space_name}-{}", k.to_ascii_lowercase().replace('_', "-"));
+                mqtt_spec["password"] = json!({ "secretRef": { "name": secret_name, "key": k } });
+                findings.push(Finding {
+                    level: Level::Warning,
+                    path: "spec.mqtt.password".to_string(),
+                    message: format!("fill in the secret '{secret_name}' with key '{k}'"),
+                });
+            }
+        }
+        return Some((
+            "mqtt".into(),
+            json!({ "type": "mqtt", "mqtt": mqtt_spec }),
+            findings,
+        ));
+    }
+    if let (Some(brokers), Some(topic)) = (env_map.get("KAFKA_BROKERS"), env_map.get("KAFKA_TOPIC"))
+    {
+        let broker_list: Vec<&str> = brokers.split(',').map(str::trim).collect();
+        let kafka_spec = json!({ "brokers": broker_list, "topics": [topic] });
+        return Some((
+            "kafka".into(),
+            json!({ "type": "kafka", "kafka": kafka_spec }),
+            Vec::new(),
+        ));
+    }
+    None
+}
+
+/// The space's name as asked, or taken from the feed's last path segment or the first file.
+fn space_name_of(input: &SpaceCompleteInput) -> String {
+    if let Some(s) = input.space.as_deref().filter(|s| !s.trim().is_empty()) {
+        sanitize_dns1123(s)
+    } else if let Some(url_str) = input.url.as_deref().filter(|u| !u.trim().is_empty()) {
+        let seg = url_str
+            .trim_end_matches('/')
+            .rsplit('/')
+            .next()
+            .and_then(|s| s.split('?').next())
+            .unwrap_or("space");
+        let stem = seg
+            .strip_suffix(".json")
+            .or_else(|| seg.strip_suffix(".geojson"))
+            .unwrap_or(seg);
+        sanitize_dns1123(stem)
+    } else if let Some(files) = &input.files {
+        let first_name = files.first().map(|f| f.name.as_str()).unwrap_or("space");
+        let seg = if let Some((dir, _)) = first_name.split_once('/') {
+            dir
+        } else {
+            first_name
+                .strip_suffix(".csv")
+                .or_else(|| first_name.strip_suffix(".json"))
+                .or_else(|| first_name.strip_suffix(".geojson"))
+                .unwrap_or(first_name)
+        };
+        sanitize_dns1123(seg)
+    } else {
+        "space".into()
+    }
 }
 
 /// The Layer and the Dashboard that draw the records over `endpoint`, or none when the project
@@ -1670,6 +1703,106 @@ pub fn operations() -> Vec<Operation> {
 mod tests {
     use super::{class_name_of, describe, describe_class, is_type_name};
     use serde_json::json;
+
+    /// T-4470: the parts `run` was cut into that read nothing but their input.
+    #[test]
+    fn the_space_is_named_as_asked_else_after_the_feed_else_after_the_first_file() {
+        let name = |input: serde_json::Value| {
+            super::space_name_of(&serde_json::from_value(input).expect("input"))
+        };
+        assert_eq!(
+            name(json!({ "space": "Bikes Now" })),
+            super::sanitize_dns1123("Bikes Now")
+        );
+        assert_eq!(
+            name(json!({ "url": "https://x.example/api/stations.geojson?x=1" })),
+            "stations"
+        );
+        assert_eq!(
+            name(json!({ "files": [{ "name": "feed/a.csv", "content": "" }] })),
+            "feed"
+        );
+        assert_eq!(
+            name(json!({ "files": [{ "name": "rows.csv", "content": "" }] })),
+            "rows"
+        );
+        assert_eq!(name(json!({ "space": "  " })), "space");
+    }
+
+    #[test]
+    fn a_readme_or_an_env_describes_a_source_and_a_secret_stays_a_reference() {
+        let (kind, spec, _) =
+            super::source_in_readme("Data at (https://x.example/feed) daily").expect("a source");
+        assert_eq!(
+            (kind.as_str(), &spec["http"]["url"]),
+            ("http", &json!("https://x.example/feed"))
+        );
+        assert!(super::source_in_readme("no address here").is_none());
+
+        let env =
+            "# comment\nMQTT_HOST=tcp://broker:1883\nMQTT_TOPIC=t\nMQTT_PASSWORD=\"hunter2\"\n";
+        let (kind, spec, findings) = super::source_in_env(env, "bikes").expect("a source");
+        assert_eq!(kind, "mqtt");
+        assert_eq!(
+            spec["mqtt"]["password"]["secretRef"]["name"],
+            json!("bikes-mqtt-password")
+        );
+        assert!(
+            !spec.to_string().contains("hunter2"),
+            "the value never reaches the manifest"
+        );
+        assert_eq!(findings.len(), 1);
+        let (kind, spec, _) =
+            super::source_in_env("KAFKA_BROKERS=a:9092, b:9092\nKAFKA_TOPIC=t", "s")
+                .expect("kafka");
+        assert_eq!(
+            (kind.as_str(), &spec["kafka"]["brokers"]),
+            ("kafka", &json!(["a:9092", "b:9092"]))
+        );
+        assert!(super::source_in_env("MQTT_HOST=only-a-host", "s").is_none());
+    }
+
+    #[tokio::test]
+    async fn the_model_is_the_given_linkml_else_a_finding_when_there_is_nothing_to_infer_from() {
+        let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
+        let (text, findings, feed) =
+            super::infer_linkml(&state, "p", "Bike", Some("classes: {}"), None, None).await;
+        assert_eq!(
+            (text.as_str(), findings.len(), feed.is_none()),
+            ("classes: {}", 0, true)
+        );
+        let (text, findings, _) = super::infer_linkml(&state, "p", "Bike", None, None, None).await;
+        assert!(text.is_empty());
+        assert_eq!(findings[0].path, "linkml");
+    }
+
+    #[test]
+    fn the_check_to_rerun_is_the_first_stale_drafts() {
+        let draft = |kind: &str| super::CompletedDraft {
+            kind: kind.into(),
+            name: "n".into(),
+            inferred: true,
+            manifest: json!({ "kind": kind }),
+            verdict: None,
+        };
+        assert_eq!(super::failing_check(&[]), "jc_manifest_dry_run");
+        assert_eq!(
+            super::failing_check(&[draft("Pipeline"), draft("DataModel")]),
+            "jc_pipeline_test"
+        );
+        assert_eq!(
+            super::failing_check(&[draft("Endpoint")]),
+            "jc_manifest_dry_run"
+        );
+        assert!(matches!(
+            super::sample_format("a.csv"),
+            super::SampleFormat::Csv
+        ));
+        assert!(matches!(
+            super::sample_format("a.geojson"),
+            super::SampleFormat::Text
+        ));
+    }
 
     #[test]
     fn the_class_is_the_named_type_else_the_sample_else_the_space_never_entity() {

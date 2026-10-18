@@ -39,8 +39,6 @@ export const FREQUENCIES = [
   "UNKNOWN",
 ] as const;
 
-export type Licence = (typeof CATALOG_LICENCES)[number];
-
 /** What a licence asks of a user, as the offer states it (EP-79). */
 export function dutyOf(licence: string | undefined): "none" | "attribute" | "shareAlike" | undefined {
   switch (licence) {
