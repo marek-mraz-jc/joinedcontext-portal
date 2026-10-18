@@ -3,4 +3,4 @@
 # tests call), len/is_empty pairs, routeTree (passed by shorthand, no edge), and two findings in
 # /workspace/chyby.md (ActivityStore::trim never scheduled, RunnerInputForm never mounted).
 joinedcontext-portal | 28
-portal-ui | 18
+portal-ui | 17

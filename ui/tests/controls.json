@@ -1230,6 +1230,23 @@
         "knowledge_pages.test.tsx"
       ]
     },
+    "src/pages/mcp/ConnectorStar.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "connectors.test.tsx"
+      ]
+    },
+    "src/pages/mcp/ConnectorsPage.tsx": {
+      "controls": {
+        "Button": 5,
+        "Checkbox": 2
+      },
+      "tests": [
+        "connectors.test.tsx"
+      ]
+    },
     "src/pages/mcp/McpServerDialog.tsx": {
       "controls": {
         "Button": 3,
@@ -1744,7 +1761,7 @@
     },
     "src/routes/EndpointsPage.tsx": {
       "controls": {
-        "Button": 3
+        "Button": 4
       },
       "tests": [
         "edit_prefill.test.tsx",
