@@ -7419,7 +7419,7 @@
                     "contextSpaceRef": "air",
                     "enabledRepresentations": [
                       "ngsi-ld",
-                      "geojson"
+                      "csv"
                     ],
                     "slug": "mluyob4nz52lok3ssk7pgn5vwt"
                   }
@@ -14677,7 +14677,7 @@
                   "contextSpaceRef": "air",
                   "enabledRepresentations": [
                     "ngsi-ld",
-                    "geojson"
+                    "csv"
                   ],
                   "slug": "mluyob4nz52lok3ssk7pgn5vwt"
                 }
@@ -14941,7 +14941,7 @@
                   "contextSpaceRef": "air",
                   "enabledRepresentations": [
                     "ngsi-ld",
-                    "geojson"
+                    "csv"
                   ],
                   "slug": "mluyob4nz52lok3ssk7pgn5vwt"
                 }

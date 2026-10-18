@@ -17,7 +17,6 @@ spec:
   enabledRepresentations:
   - ngsi-ld
   - mcp
-  - geojson
   - csv
   - ogc-features
   slug: zd6qa2wmx7kc3nbr5tyhj4pve2

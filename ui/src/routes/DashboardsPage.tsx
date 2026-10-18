@@ -95,13 +95,21 @@ interface DashboardSpec {
   pages?: { title?: string; layout?: string; layers?: string[]; widgets?: WidgetSpec[] }[];
 }
 
+/** What a layer's read asks for: NGSI-LD's own GeoJSON format (ETSI GS CIM 009 §4.5.17, API/02 §3). */
+export const GEOJSON_ACCEPT = "application/geo+json";
+
 /**
- * The Endpoint's GeoJSON projection is where a layer's features come from (UI-22). The
- * spatial constraint is the manifest's own `geoQ` when it declares one, else the viewport
- * once the reader moved the map; the gateway reads it as `georel`, `geometry`, `coordinates`.
+ * The Endpoint's NGSI-LD API, asked for GeoJSON, is where a layer's features come from (UI-22,
+ * API/02 §3; an Endpoint publishes no GeoJSON file since T-4600). The spatial constraint is
+ * the manifest's own `geoQ` when it declares one, else the viewport once the reader moved the
+ * map, as NGSI-LD's `georel`, `geometry`, `coordinates`.
  */
 export function geojsonUrl(slug: string, spec: LayerSpec, bbox?: Bbox): string {
   const params = new URLSearchParams();
+  params.set("options", "keyValues");
+  // ponytail: one page at the broker's ceiling of 1000 entities; page with `offset` when a
+  // layer draws more than that.
+  params.set("limit", "1000");
   if (spec.entityType) {
     params.set("type", spec.entityType);
   }
@@ -127,8 +135,7 @@ export function geojsonUrl(slug: string, spec: LayerSpec, bbox?: Bbox): string {
     params.set("geometry", "Polygon");
     params.set("coordinates", JSON.stringify([[[w, s], [e, s], [e, n], [w, n], [w, s]]]));
   }
-  const query = params.toString();
-  return `/api/endpoint/${slug}/file.geojson${query ? `?${query}` : ""}`;
+  return `/api/endpoint/${encodeURIComponent(slug)}/ngsi-ld/v1/entities?${params.toString()}`;
 }
 
 /**
@@ -141,7 +148,7 @@ export function geojsonUrl(slug: string, spec: LayerSpec, bbox?: Bbox): string {
  * document.
  */
 async function fetchFeatures(url: string): Promise<Feature[] | null> {
-  const response = await fetch(url, { credentials: "same-origin" });
+  const response = await fetch(url, { credentials: "same-origin", headers: { Accept: GEOJSON_ACCEPT } });
   if (!response.ok) {
     throw new ApiError(response.status, response.statusText);
   }

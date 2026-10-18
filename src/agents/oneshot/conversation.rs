@@ -710,7 +710,7 @@ the public). Answer with one or two plain sentences and then ONE fenced JSON blo
   "title": "<a title in the language of the request>",
   "audience": "project-list",
   "allowedProjects": ["<the project or team named, as a lowercase dns-1123 name>"],
-  "representations": ["ngsi-ld", "geojson"],
+  "representations": ["ngsi-ld", "csv"],
   "hiddenAttributes": ["<attributes the person wants hidden>"],
   "entityTypes": ["<the types shared>"]
 }}

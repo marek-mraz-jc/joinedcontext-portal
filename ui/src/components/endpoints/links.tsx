@@ -19,35 +19,25 @@ export const REPRESENTATION_PATHS: Record<string, string> = {
   // serves, each one a query away. The grants decide which of them answer.
   "ngsi-ld": "/ngsi-ld/v1/types",
   mcp: "/mcp",
-  geojson: "/file.geojson",
   csv: "/file.csv",
-  xlsx: "/file.xlsx",
-  parquet: "/file.parquet",
-  zip: "/file.zip",
   "ogc-features": "/ogc/features",
   sta: "/sta/v1.1",
   websocket: "/ws",
 };
 
-/** Every representation an Endpoint may serve, in jc-core's `Representation::ALL` order. */
-export const ALL_REPRESENTATIONS = [
-  "ngsi-ld",
-  "mcp",
-  "geojson",
-  "csv",
-  "xlsx",
-  "parquet",
-  "json",
-  "zip",
-  "ogc-features",
-  "sta",
-  "odata",
-  "websocket",
-] as const;
+/**
+ * Every representation an Endpoint may serve, in jc-core's `Representation::ALL` order. CSV is
+ * the one file (T-4600): the retired ones below are never offered, and a manifest that still
+ * names one is read without it.
+ */
+export const ALL_REPRESENTATIONS = ["ngsi-ld", "mcp", "csv", "ogc-features", "sta", "odata", "websocket"] as const;
+
+/** The file representations an Endpoint no longer serves (T-4600). */
+export const RETIRED_REPRESENTATIONS: readonly string[] = ["xlsx", "parquet", "json", "zip", "geojson"];
 
 /** Served by every Endpoint whatever it lists: `mcp` only while `spec.mcp` is not `false`. */
 export function alwaysServed(spec: { mcp?: unknown }): string[] {
-  return spec.mcp === false ? ["ngsi-ld", "geojson"] : ["ngsi-ld", "geojson", "mcp"];
+  return spec.mcp === false ? ["ngsi-ld"] : ["ngsi-ld", "mcp"];
 }
 
 function names(list: unknown): string[] | undefined {
@@ -56,9 +46,9 @@ function names(list: unknown): string[] | undefined {
 
 /**
  * What an Endpoint serves: the representations its manifest lists or, when it lists none,
- * every one but `sta` less `disabledRepresentations` (EP-104); then `ngsi-ld` and `geojson`,
- * which every Endpoint serves (EP-10, T-2939), and `mcp`, which every Endpoint serves, public
- * or internal, unless `spec.mcp` is `false` (EP-24). The gateway reads the same rule
+ * every one but `sta` less `disabledRepresentations` (EP-104), never a retired file (T-4600);
+ * then `ngsi-ld`, which every Endpoint serves (EP-10), and `mcp`, which every Endpoint serves,
+ * public or internal, unless `spec.mcp` is `false` (EP-24). The gateway reads the same rule
  * (jc-core's `served_representations`), so a link shown here answers there; its Policy still
  * decides every call.
  */
@@ -70,7 +60,7 @@ export function servedRepresentations(spec: {
   const always = alwaysServed(spec);
   const disabled = names(spec.disabledRepresentations) ?? [];
   const listed =
-    names(spec.enabledRepresentations) ??
+    names(spec.enabledRepresentations)?.filter((rep) => !RETIRED_REPRESENTATIONS.includes(rep)) ??
     ALL_REPRESENTATIONS.filter(
       (rep) => rep !== "sta" && !disabled.includes(rep) && (rep !== "mcp" || always.includes("mcp")),
     );

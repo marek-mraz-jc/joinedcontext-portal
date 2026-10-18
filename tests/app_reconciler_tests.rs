@@ -45,7 +45,7 @@ fn app(overrides: Value) -> RawManifest {
             "types": ["AirQualityObserved", "District"],
             "attrs": ["pm10", "pm25", "location", "refDistrict"],
             "operations": ["queryEntity", "retrieveEntity"],
-            "representations": ["ngsi-ld", "geojson"]
+            "representations": ["ngsi-ld", "geojson", "csv"]
         }],
         "limits": { "requestsPerMinute": 600, "maxFileRows": 20000 }
     });
@@ -539,8 +539,9 @@ fn the_endpoint_is_the_union_of_what_the_needs_asked_for() {
     assert_eq!(endpoint.spec["slug"], slug.as_str());
     assert_eq!(
         endpoint.spec["enabledRepresentations"],
-        json!(["ngsi-ld", "mcp", "geojson"]),
-        "the union of the needs' representations (AP-05), and MCP on every Endpoint (T-4319)"
+        json!(["ngsi-ld", "mcp", "csv"]),
+        "the union of the needs' representations (AP-05), MCP on every Endpoint (T-4319), and \
+         no retired file: CSV is the one an Endpoint offers (T-4600)"
     );
     assert_eq!(endpoint.spec["audience"], "project-list");
     assert_eq!(endpoint.spec["allowedProjects"], json!(["ovzdusie"]));

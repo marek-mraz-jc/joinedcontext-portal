@@ -260,7 +260,9 @@ describe("endpoints view", () => {
     const row = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
     expect(within(row).getByText(en.endpoints.audience.public)).toBeInTheDocument();
     expect(within(row).getByText("ngsi-ld")).toBeInTheDocument();
-    expect(within(row).getByText("geojson")).toBeInTheDocument();
+    expect(within(row).getByText("mcp")).toBeInTheDocument();
+    // The retired `geojson` the manifest still lists is no link (T-4600), and csv is not listed.
+    expect(within(row).queryByText("geojson")).not.toBeInTheDocument();
     expect(within(row).queryByText("csv")).not.toBeInTheDocument();
     expect(within(row).getByText(en.phase.live)).toBeInTheDocument();
   });
@@ -322,7 +324,8 @@ describe("endpoints view", () => {
       metadata: { labels: Record<string, string> };
       spec: { enabledRepresentations: string[] };
     };
-    expect(body.spec.enabledRepresentations).toEqual(["ngsi-ld", "geojson", "csv"]);
+    // The retired `geojson` the stored manifest still lists goes with the save (T-4600).
+    expect(body.spec.enabledRepresentations).toEqual(["ngsi-ld", "csv"]);
     // The Endpoint path template carries a {space}, which the API reads from this label.
     expect(body.metadata.labels["joinedcontext.com/space"]).toBe("ovzdusie");
 
@@ -376,7 +379,8 @@ describe("endpoints view", () => {
       spec: { slug: string; enabledRepresentations: string[] };
     };
     expect(body.spec.slug).toBe(SLUG);
-    expect(body.spec.enabledRepresentations).toEqual(["ngsi-ld", "geojson", "csv"]);
+    // A retired file the prefill named is not checked, so it is not saved (T-4600).
+    expect(body.spec.enabledRepresentations).toEqual(["ngsi-ld", "csv"]);
   });
 
   it("names the audiences in words and still saves the contract's value", async () => {
@@ -423,13 +427,13 @@ describe("endpoints view", () => {
 
     const box = (rep: keyof typeof en.endpoints.representationOption) =>
       within(dialog).getByRole("checkbox", { name: en.endpoints.representationOption[rep] });
-    for (const rep of ["csv", "json", "xlsx", "zip", "ogc-features", "odata", "websocket"] as const) {
+    for (const rep of ["csv", "ogc-features", "odata", "websocket"] as const) {
       expect(box(rep)).toBeChecked();
       expect(box(rep)).toBeEnabled();
     }
     expect(box("sta")).not.toBeChecked();
     // Served by every Endpoint: shown, checked and locked (EP-10, EP-24).
-    for (const rep of ["ngsi-ld", "geojson", "mcp"] as const) {
+    for (const rep of ["ngsi-ld", "mcp"] as const) {
       expect(box(rep)).toBeChecked();
       expect(box(rep)).toBeDisabled();
     }

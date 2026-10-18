@@ -13,7 +13,7 @@ describe("the Endpoint form", () => {
       contextSpaceRef: "helsinki",
       slug: "helsinki-bikes",
       audience: "public",
-      enabledRepresentations: ["ngsi-ld", "geojson", "csv"],
+      enabledRepresentations: ["ngsi-ld", "csv"],
       rateLimits: { requestsPerMinute: 600 },
       policyRef: "urn:ngsi-ld:Policy:hel.fi:helsinki:public-bikes",
       publish: { ckan: { instanceRef: { kind: "CkanInstance", name: "hel-fi" }, datastore: { representation: "csv", refresh: "onReconcile" } } },

@@ -105,8 +105,8 @@ describe("the endpoint link pill", () => {
     expect(representationUrl(slug, "mcp", "dev.city.example")).toBe(
       `https://dev.city.example/api/endpoint/${slug}/mcp`,
     );
-    expect(representationUrl(slug, "geojson", "dev.city.example")).toBe(
-      `${window.location.origin}/api/endpoint/${slug}/file.geojson`,
+    expect(representationUrl(slug, "csv", "dev.city.example")).toBe(
+      `${window.location.origin}/api/endpoint/${slug}/file.csv`,
     );
     // T-4132: the WebSocket address is the one API/07 and the catalogue name, never the Portal's.
     expect(representationUrl(slug, "websocket", "dev.city.example")).toBe(
@@ -176,11 +176,11 @@ describe("the endpoint link pill", () => {
 });
 
 describe("what an endpoint serves", () => {
-  // EP-10, EP-24, T-2901, T-2939: NGSI-LD, GeoJSON and MCP are on for every Endpoint, public or
-  // internal, without being listed.
-  it("adds_ngsi_ld_geojson_and_mcp_to_every_endpoint", () => {
-    expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld", "csv"] })).toEqual(["ngsi-ld", "csv", "geojson", "mcp"]);
-    expect(servedRepresentations({ enabledRepresentations: ["mcp", "geojson", "ngsi-ld"] })).toEqual(["mcp", "geojson", "ngsi-ld"]);
+  // EP-10, EP-24, T-2901: NGSI-LD and MCP are on for every Endpoint, public or internal, without
+  // being listed.
+  it("adds_ngsi_ld_and_mcp_to_every_endpoint", () => {
+    expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld", "csv"] })).toEqual(["ngsi-ld", "csv", "mcp"]);
+    expect(servedRepresentations({ enabledRepresentations: ["mcp", "ngsi-ld"] })).toEqual(["mcp", "ngsi-ld"]);
     // No list (EP-104): every standard but sta, less the disabled ones.
     const everyButSta = ALL_REPRESENTATIONS.filter((rep) => rep !== "sta");
     expect(servedRepresentations({})).toEqual(everyButSta);
@@ -190,13 +190,24 @@ describe("what an endpoint serves", () => {
   });
 
   it("leaves_mcp_out_only_when_the_manifest_says_mcp_false", () => {
-    expect(servedRepresentations({ enabledRepresentations: ["csv"], mcp: false })).toEqual(["csv", "ngsi-ld", "geojson"]);
+    expect(servedRepresentations({ enabledRepresentations: ["csv"], mcp: false })).toEqual(["csv", "ngsi-ld"]);
     // Anything but the boolean false is not an opt-out: the gateway would serve the instance.
-    expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld"], mcp: "false" })).toEqual(["ngsi-ld", "geojson", "mcp"]);
+    expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld"], mcp: "false" })).toEqual(["ngsi-ld", "mcp"]);
+  });
+
+  // T-4600: CSV is the one file an Endpoint offers. A manifest the migration has not reached yet
+  // still names a retired one; no link to it is shown, because the gateway refuses it.
+  it("offers_csv_as_the_only_file", () => {
+    expect(
+      servedRepresentations({ enabledRepresentations: ["ngsi-ld", "geojson", "csv", "xlsx", "parquet", "json", "zip"] }),
+    ).toEqual(["ngsi-ld", "csv", "mcp"]);
+    const files = (reps: string[]) => reps.filter((rep) => REPRESENTATION_PATHS[rep]?.startsWith("/file."));
+    expect(files(servedRepresentations({}))).toEqual(["csv"]);
+    expect(files(Object.keys(REPRESENTATION_PATHS))).toEqual(["csv"]);
   });
 
   it("drops_a_list_entry_that_is_not_a_name", () => {
-    expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld", 7, null], mcp: false })).toEqual(["ngsi-ld", "geojson"]);
+    expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld", 7, null], mcp: false })).toEqual(["ngsi-ld"]);
     // Not a list at all reads as no list: every standard but sta.
     expect(servedRepresentations({ enabledRepresentations: "ngsi-ld" })).toEqual(
       ALL_REPRESENTATIONS.filter((rep) => rep !== "sta"),

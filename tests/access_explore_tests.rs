@@ -263,7 +263,7 @@ async fn only_the_endpoints_the_subject_reaches_are_listed() {
     assert_eq!(air["policies"], json!(["air-read"]));
     assert_eq!(
         air["representations"],
-        json!(["ogc-features", "ngsi-ld", "geojson", "mcp"])
+        json!(["ogc-features", "ngsi-ld", "mcp"])
     );
     assert_eq!(
         air["permissions"][0]["constraints"]["geoQ"]["geometry"],

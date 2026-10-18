@@ -15,7 +15,7 @@ setWorkerUrl(workerUrl);
 /** One Layer manifest, resolved against the Endpoint it reads from. */
 export interface MapLayer {
   name: string;
-  /** Absolute or same-origin GeoJSON URL of the Endpoint, `geoQ` and friends included. */
+  /** Same-origin NGSI-LD query of the Endpoint, read as GeoJSON, `geoQ` and friends included. */
   url: string;
   /**
    * The features, when the caller has already fetched them to count them (UI-21). MapLibre
@@ -225,6 +225,12 @@ export function MapLibreView({
         style: mapStyleFor(project),
         center: center ?? DEFAULT_CENTER,
         zoom: zoom ?? DEFAULT_ZOOM,
+        // A layer MapLibre fetches by URL reads an Endpoint's NGSI-LD API, which answers GeoJSON
+        // only when asked for it (API/02 §3, T-4600).
+        transformRequest: (url, kind) =>
+          kind === "Source" && url.includes("/ngsi-ld/v1/entities")
+            ? { url, headers: { Accept: "application/geo+json" } }
+            : { url },
       });
       instance.addControl(new NavigationControl(), "top-right");
     } catch {

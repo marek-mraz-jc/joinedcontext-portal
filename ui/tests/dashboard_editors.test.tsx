@@ -101,7 +101,7 @@ const ENDPOINT = {
   apiVersion: "joinedcontext.com/v1alpha1",
   kind: "Endpoint",
   metadata: { name: "helsinki-bikes", namespace: "helsinki" },
-  spec: { contextSpaceRef: "mobility", slug: "k7m2qz4tv6xh3n5jb2ryd3wcfa", audience: "public", enabledRepresentations: ["geojson"] },
+  spec: { contextSpaceRef: "mobility", slug: "k7m2qz4tv6xh3n5jb2ryd3wcfa", audience: "public", enabledRepresentations: ["ngsi-ld"] },
 };
 const LAYER = {
   apiVersion: "joinedcontext.com/v1alpha1",
@@ -392,6 +392,14 @@ describe("dashboard editors", () => {
     const fixed = new URL(geojsonUrl("slug", { filter: { geoQ: "georel=near;maxDistance==2000;geometry=Point;coordinates=[25,60]" } }, [0, 0, 1, 1]), "http://x");
     expect(fixed.searchParams.get("georel")).toBe("near;maxDistance==2000");
     expect(fixed.searchParams.get("coordinates")).toBe("[25,60]");
+  });
+
+  it("reads a layer from the endpoint's NGSI-LD API with plain values, never a file (T-4600)", () => {
+    const url = new URL(geojsonUrl("k7m2/../x", { entityType: "T" }), "http://x");
+    expect(url.pathname).toBe("/api/endpoint/k7m2%2F..%2Fx/ngsi-ld/v1/entities");
+    expect(url.searchParams.get("options")).toBe("keyValues");
+    expect(url.searchParams.get("type")).toBe("T");
+    expect(url.searchParams.get("georel")).toBeNull();
   });
 
   it("round-trips a layer through its form without writing the visible default", () => {

@@ -12,19 +12,9 @@ use std::sync::LazyLock;
 use crate::change::{self, Lane, Operation};
 use crate::resource::{is_dns1123, API_VERSION};
 
-/// The representations an Endpoint may serve (jc-core `Representation`).
-pub const REPRESENTATIONS: [&str; 10] = [
-    "ngsi-ld",
-    "mcp",
-    "geojson",
-    "csv",
-    "xlsx",
-    "parquet",
-    "json",
-    "zip",
-    "ogc-features",
-    "sta",
-];
+/// The representations a share may name (jc-core `Representation`): CSV is the one file
+/// (T-4600), so the retired `xlsx`, `parquet`, `json`, `zip` and `geojson` are not among them.
+pub const REPRESENTATIONS: [&str; 5] = ["ngsi-ld", "csv", "mcp", "ogc-features", "sta"];
 const AUDIENCES: [&str; 3] = ["project-list", "organization", "public"];
 /// Requests a minute a caller may set, for a share and for an edit alike: one field, one bound.
 pub const MAX_REQUESTS_PER_MINUTE: u32 = 100_000;
@@ -316,7 +306,7 @@ pub fn render(
         }
     }
     let representations: Vec<String> = if params.representations.is_empty() {
-        vec!["ngsi-ld".to_owned(), "geojson".to_owned()]
+        vec!["ngsi-ld".to_owned(), "csv".to_owned()]
     } else {
         without_repeats(
             params
@@ -737,6 +727,8 @@ pub fn edit(endpoints: &[Value], params: &EditEndpoint) -> Result<Edit, String> 
     }
     let mut representations: Vec<String> = before
         .iter()
+        // A retired file a manifest still names goes with the edit (T-4600).
+        .filter(|r| REPRESENTATIONS.contains(&r.as_str()))
         .filter(|r| {
             !params
                 .remove_representations
@@ -896,16 +888,13 @@ mod tests {
     }
 
     #[test]
-    fn the_defaults_are_project_list_ngsi_ld_and_geojson_and_the_lane_is_yellow() {
+    fn the_defaults_are_project_list_ngsi_ld_and_csv_and_the_lane_is_yellow() {
         let proposal = render("helsinki", "hel.fi", &request(), &[]).expect("renders");
         assert_eq!(proposal.lane, Lane::Yellow);
         let spec = &proposal.endpoint["spec"];
         assert_eq!(spec["audience"], "project-list");
         assert_eq!(spec["allowedProjects"], json!(["regional-transport"]));
-        assert_eq!(
-            spec["enabledRepresentations"],
-            json!(["ngsi-ld", "geojson"])
-        );
+        assert_eq!(spec["enabledRepresentations"], json!(["ngsi-ld", "csv"]));
         assert_eq!(
             spec["projection"]["hiddenAttributes"],
             json!(["maintenanceNote"])
@@ -1016,11 +1005,14 @@ mod tests {
     fn an_edit_adds_and_removes_representations_and_keeps_the_slug_space_and_labels() {
         let edited = edit(
             &endpoints(),
-            &edit_of(json!({ "name": "helsinki-kpi", "addRepresentations": ["geojson", "csv"], "removeRepresentations": ["ngsi-ld"] })),
+            &edit_of(json!({ "name": "helsinki-kpi", "addRepresentations": ["ogc-features", "csv"], "removeRepresentations": ["ngsi-ld"] })),
         )
         .expect("edits");
         let spec = &edited.endpoint["spec"];
-        assert_eq!(spec["enabledRepresentations"], json!(["csv", "geojson"]));
+        assert_eq!(
+            spec["enabledRepresentations"],
+            json!(["csv", "ogc-features"])
+        );
         assert_eq!(spec["slug"], "abcdefghijklmnopqrstuvwxyz");
         assert_eq!(spec["contextSpaceRef"], "helsinki-kpi");
         assert_eq!(spec["rateLimits"]["burst"], 50);
@@ -1037,7 +1029,7 @@ mod tests {
             vec![FieldChange {
                 field: "enabledRepresentations".into(),
                 before: json!(["ngsi-ld", "csv"]),
-                after: json!(["csv", "geojson"]),
+                after: json!(["csv", "ogc-features"]),
             }]
         );
         let form = form_values(&edited.endpoint);

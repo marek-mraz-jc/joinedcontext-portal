@@ -41,7 +41,7 @@ function endpoint(index: number, overrides: Record<string, unknown> = {}) {
       contextSpaceRef: "ovzdusie",
       slug: `k7m2qz4tv6xh3n5jb2ryd3wcf${index}`,
       audience: "public",
-      enabledRepresentations: ["ngsi-ld", "geojson"],
+      enabledRepresentations: ["ngsi-ld", "csv"],
       ...overrides,
     },
     status: { phase: "Live" },
@@ -152,10 +152,10 @@ describe("all endpoints", () => {
   // EP-08, EP-44: one direct link per representation, plus the links every endpoint has.
   it("gives each endpoint one link per representation, on this origin", async () => {
     renderAll({ rows: 1 });
-    const geojson = await screen.findByRole("link", { name: "geojson" });
+    const geojson = await screen.findByRole("link", { name: "csv" });
     expect(geojson).toHaveAttribute(
       "href",
-      `${window.location.origin}/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcf0/file.geojson`,
+      `${window.location.origin}/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcf0/file.csv`,
     );
     expect(screen.getByRole("link", { name: en.endpoints.link.index })).toHaveAttribute(
       "href",
@@ -169,11 +169,11 @@ describe("all endpoints", () => {
   // endpoint's own path, and a representation with no path stays a badge rather than a link.
   it("cannot be walked out of the endpoint's own path by its slug", async () => {
     renderAll({ items: [endpoint(0, { slug: "../../admin" })] });
-    const link = await screen.findByRole("link", { name: "geojson" });
+    const link = await screen.findByRole("link", { name: "csv" });
     expect(link.getAttribute("href")).toBe(
-      `${window.location.origin}/api/endpoint/..%2F..%2Fadmin/file.geojson`,
+      `${window.location.origin}/api/endpoint/..%2F..%2Fadmin/file.csv`,
     );
-    expect(link.getAttribute("href")).not.toContain("/admin/file.geojson");
+    expect(link.getAttribute("href")).not.toContain("/admin/file.csv");
   });
 
   it("shows a representation it has no address for as a word, not a link", async () => {
@@ -196,7 +196,7 @@ describe("all endpoints", () => {
   // nothing takes focus on arrival.
   it("is reachable by keyboard in the order the table is read", async () => {
     const { container } = renderAll({ rows: 2 });
-    await screen.findAllByRole("link", { name: "geojson" });
+    await screen.findAllByRole("link", { name: "csv" });
     expect(document.activeElement).toBe(document.body);
     const reached = await tabOrder(container, 60);
     const projects = screen.getAllByRole("link", { name: /^city-/ });
@@ -240,7 +240,7 @@ describe("all endpoints", () => {
 
   it("has no axe violations with the table full", async () => {
     const { container } = renderAll({ rows: 4 });
-    await screen.findAllByRole("link", { name: "geojson" });
+    await screen.findAllByRole("link", { name: "csv" });
     await expectNoAxeViolations(container);
   });
 

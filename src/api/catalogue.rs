@@ -928,15 +928,17 @@ pub(crate) fn endpoint_url(base: &Url, slug: &str) -> String {
 }
 
 /// What an Endpoint spec serves: the listed representations or, with no list, every one but
-/// `sta` less `disabledRepresentations` (EP-104); then `ngsi-ld` and `geojson`, which every
-/// Endpoint serves (EP-10, T-2939), and `mcp` unless `spec.mcp` is `false` (EP-24). The gateway
-/// reads the same rule from jc-core's `EndpointSpec::served_representations`, and the default
-/// set is jc-core's `Representation::ALL`, so the page and the instance agree.
+/// `sta` less `disabledRepresentations` (EP-104); then `ngsi-ld`, which every Endpoint serves
+/// (EP-10), and `mcp` unless `spec.mcp` is `false` (EP-24). CSV is the one file: the retired
+/// ones (`xlsx`, `parquet`, `json`, `zip`, `geojson`, T-4600) are never listed, whatever a
+/// manifest the migration has not reached yet still names. The default set is jc-core's
+/// `Representation::ALL`, so the page and the instance agree.
 pub(crate) fn served_representations(spec: &Value) -> Vec<String> {
     let names = |field: &str| -> Option<Vec<String>> {
         spec[field].as_array().map(|list| {
             list.iter()
                 .filter_map(|r| r.as_str().map(str::to_owned))
+                .filter(|r| !crate::reconciler::representations::RETIRED.contains(&r.as_str()))
                 .collect()
         })
     };
@@ -947,12 +949,13 @@ pub(crate) fn served_representations(spec: &Value) -> Vec<String> {
             .iter()
             .map(|r| r.as_str())
             .filter(|r| *r != "sta" && !(mcp_off && *r == "mcp"))
+            .filter(|r| !crate::reconciler::representations::RETIRED.contains(r))
             .filter(|r| !disabled.iter().any(|d| d == r))
             .map(str::to_owned)
             .collect()
     });
     let mcp = (!mcp_off).then_some("mcp");
-    for always in ["ngsi-ld", "geojson"].into_iter().chain(mcp) {
+    for always in ["ngsi-ld"].into_iter().chain(mcp) {
         if !served.iter().any(|r| r == always) {
             served.push(always.to_owned());
         }
@@ -1515,34 +1518,30 @@ classes:
         }
     }
 
-    /// EP-10, EP-24: NGSI-LD, GeoJSON and MCP are on without being listed, internal or
-    /// public; only `mcp: false` leaves MCP out, and a listed one is not doubled.
+    /// EP-10, EP-24: NGSI-LD and MCP are on without being listed, internal or public; only
+    /// `mcp: false` leaves MCP out, a listed one is not doubled, and CSV is the one file
+    /// (T-4600): a retired representation a manifest still names is not served.
     #[test]
-    fn every_endpoint_serves_ngsi_ld_geojson_and_mcp_unless_it_opts_out() {
+    fn every_endpoint_serves_ngsi_ld_and_mcp_and_csv_is_the_one_file() {
         let served = |spec: Value| served_representations(&spec);
         assert_eq!(
             served(
                 json!({ "audience": "project-list", "enabledRepresentations": ["ngsi-ld", "csv"] })
             ),
-            ["ngsi-ld", "csv", "geojson", "mcp"]
+            ["ngsi-ld", "csv", "mcp"]
         );
         assert_eq!(
-            served(json!({ "enabledRepresentations": ["mcp", "geojson", "ngsi-ld"] })),
-            ["mcp", "geojson", "ngsi-ld"]
+            served(json!({ "enabledRepresentations": ["mcp", "geojson", "xlsx", "ngsi-ld"] })),
+            ["mcp", "ngsi-ld"]
         );
         assert_eq!(
             served(json!({ "enabledRepresentations": ["csv"], "mcp": false })),
-            ["csv", "ngsi-ld", "geojson"]
+            ["csv", "ngsi-ld"]
         );
         let every_but_sta = [
             "ngsi-ld",
             "mcp",
-            "geojson",
             "csv",
-            "xlsx",
-            "parquet",
-            "json",
-            "zip",
             "ogc-features",
             "odata",
             "websocket",
@@ -1555,38 +1554,18 @@ classes:
         assert_eq!(served(json!({ "mcp": true })), every_but_sta);
         assert_eq!(
             served(json!({ "disabledRepresentations": ["odata", "csv", "ngsi-ld"] })),
-            [
-                "mcp",
-                "geojson",
-                "xlsx",
-                "parquet",
-                "json",
-                "zip",
-                "ogc-features",
-                "websocket",
-                "ngsi-ld"
-            ],
+            ["mcp", "ogc-features", "websocket", "ngsi-ld"],
             "disabled ones are off, the uniform surface stays"
         );
         assert_eq!(
             served(json!({ "mcp": false, "disabledRepresentations": ["websocket"] })),
-            [
-                "ngsi-ld",
-                "geojson",
-                "csv",
-                "xlsx",
-                "parquet",
-                "json",
-                "zip",
-                "ogc-features",
-                "odata"
-            ]
+            ["ngsi-ld", "csv", "ogc-features", "odata"]
         );
         assert_eq!(
             served(
                 json!({ "enabledRepresentations": ["sta"], "disabledRepresentations": ["csv"] })
             ),
-            ["sta", "ngsi-ld", "geojson", "mcp"],
+            ["sta", "ngsi-ld", "mcp"],
             "a list wins; sta is served only where listed"
         );
     }

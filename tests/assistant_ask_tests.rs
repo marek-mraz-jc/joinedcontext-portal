@@ -153,7 +153,7 @@ fn mirror() -> Arc<Mirror> {
             json!({ "subjects": [{ "user": who }], "role": role, "scope": { "project": "helsinki" } }),
         ));
     }
-    mirror.upsert(endpoint("bikes", "helsinki", &["ngsi-ld", "geojson"]));
+    mirror.upsert(endpoint("bikes", "helsinki", &["ngsi-ld", "ogc-features"]));
     mirror.upsert(endpoint("air", "helsinki", &["csv"]));
     mirror.upsert(endpoint("espoo-bikes", "espoo", &["ngsi-ld"]));
     mirror
@@ -303,7 +303,10 @@ async fn pick_endpoints_offers_exactly_what_the_person_may_read_with_a_descripti
         .find(|o| o["value"] == "bikes")
         .unwrap();
     let description = bikes["description"].as_str().expect("a description");
-    assert!(description.contains("ngsi-ld, geojson"), "{description}");
+    assert!(
+        description.contains("ngsi-ld, ogc-features"),
+        "{description}"
+    );
     assert!(description.contains("organization"), "{description}");
     let schema = &q["schema"]["properties"]["answer"];
     assert_eq!(schema["type"], "array");

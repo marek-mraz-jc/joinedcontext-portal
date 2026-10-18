@@ -20,7 +20,7 @@ function endpoint(project: string, space: string, name: string, slug: string, au
     apiVersion: LIST,
     kind: "Endpoint",
     metadata: { name, namespace: project, labels: { "joinedcontext.com/space": space } },
-    spec: { contextSpaceRef: space, slug, audience, enabledRepresentations: ["ngsi-ld", "geojson"] },
+    spec: { contextSpaceRef: space, slug, audience, enabledRepresentations: ["ngsi-ld", "csv"] },
     status: { phase: "Live" },
   };
 }
@@ -129,9 +129,9 @@ describe("all endpoints view", () => {
       "href",
       `${window.location.origin}/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa/ngsi-ld/v1/types`,
     );
-    expect(within(bb).getByRole("link", { name: "geojson" })).toHaveAttribute(
+    expect(within(bb).getByRole("link", { name: "csv" })).toHaveAttribute(
       "href",
-      `${window.location.origin}/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa/file.geojson`,
+      `${window.location.origin}/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa/file.csv`,
     );
     expect(within(bb).getByRole("link", { name: "index" })).toHaveAttribute(
       "href",

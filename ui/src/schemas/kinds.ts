@@ -84,21 +84,11 @@ export function contextSpaceSchema(t: (key: string) => string): JsonSchema {
   };
 }
 
-/** The standards the Endpoint form offers, in the order it shows them (EP-05, EP-104). */
-export const REPRESENTATIONS = [
-  "ngsi-ld",
-  "geojson",
-  "csv",
-  "json",
-  "xlsx",
-  "parquet",
-  "zip",
-  "ogc-features",
-  "odata",
-  "websocket",
-  "sta",
-  "mcp",
-] as const;
+/**
+ * The standards the Endpoint form offers, in the order it shows them (EP-05, EP-104). CSV is the
+ * one file an Endpoint serves (T-4600): `xlsx`, `parquet`, `json`, `zip` and `geojson` are gone.
+ */
+export const REPRESENTATIONS = ["ngsi-ld", "csv", "ogc-features", "odata", "websocket", "sta", "mcp"] as const;
 
 export const AUDIENCES = ["project-list", "organization", "public"] as const;
 
@@ -400,7 +390,7 @@ export const CKAN_ORGANIZATION = "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$";
 export const endpointUiSchema: UiSchema = {
   enabledRepresentations: {
     "ui:widget": "checkboxes",
-    "ui:enumDisabled": ["ngsi-ld", "geojson", "mcp"],
+    "ui:enumDisabled": ["ngsi-ld", "mcp"],
   },
   caching: { maxAgeSeconds: { "ui:widget": "range" } },
 };
@@ -2539,18 +2529,8 @@ export const APP_VISIBILITIES = ["private", "project", "organization", "public"]
 /** Where an app's source lives: exactly one of the two (AP-02). */
 export const APP_SOURCES = ["path", "git"] as const;
 
-/** Every representation an Endpoint may serve (EP-05), in jc-core's spelling. */
-export const APP_REPRESENTATIONS = [
-  "ngsi-ld",
-  "geojson",
-  "csv",
-  "xlsx",
-  "json",
-  "zip",
-  "ogc-features",
-  "sta",
-  "mcp",
-] as const;
+/** Every representation an Endpoint may serve (EP-05), in jc-core's spelling; CSV the one file (T-4600). */
+export const APP_REPRESENTATIONS = ["ngsi-ld", "csv", "ogc-features", "sta", "mcp"] as const;
 
 /** A CSP source jc-core admits: `self`, `none`, or an https origin with no wildcard (AP-12). */
 export const CSP_SOURCE_PATTERN = "^(self|none|https://[^*\\s]+)$";

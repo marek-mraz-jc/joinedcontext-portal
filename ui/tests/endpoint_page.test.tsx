@@ -53,7 +53,7 @@ const ENDPOINT = {
     audience: "project-list",
     allowedProjects: ["kosice"],
     policyRef: "urn:ngsi-ld:Policy:banskabystrica.sk:ovzdusie:readers",
-    enabledRepresentations: ["ngsi-ld", "geojson"],
+    enabledRepresentations: ["ngsi-ld", "csv"],
     rateLimits: { requestsPerMinute: 120, burst: 20 },
     caching: { maxAgeSeconds: 60 },
     fileLimits: { maxFileRows: 50000 },
@@ -268,7 +268,7 @@ describe("the endpoint's own settings page", () => {
 
     // What it answers, and what it keeps back.
     expect(screen.getByRole("link", { name: "ngsi-ld" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "geojson" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "csv" })).toBeInTheDocument();
     // Read in its own section: the filter editor further down names the type as well (T-2776).
     const answers = screen
       .getByRole("heading", { name: en.endpoints.page.whatItAnswers })
