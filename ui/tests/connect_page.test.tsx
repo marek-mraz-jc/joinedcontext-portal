@@ -144,14 +144,14 @@ describe("the public MCP connect page (T-4169)", () => {
 });
 
 describe("the setups (T-4169)", () => {
-  it("hands out the platform host, never the Portal's, and nothing but the address", () => {
+  it("hands out the data host, never the Portal's, and nothing but the address", () => {
     expect(serverUrl("portal.dev.joinedcontext.com", "bbsk", "otvorene-data")).toBe(
-      "https://dev.joinedcontext.com/api/mcp/bbsk/otvorene-data",
+      "https://api.dev.joinedcontext.com/api/mcp/bbsk/otvorene-data",
     );
     // Any other host is not known to be the platform's; the page's own origin serves the route.
     expect(serverUrl("localhost", "bbsk", "otvorene-data")).toBe(`${window.location.origin}/api/mcp/bbsk/otvorene-data`);
     expect(clientName("banskabystrica", "otvorene-data")).toBe("banskabystrica-otvorene-data");
-    const url = "https://dev.joinedcontext.com/api/mcp/bbsk/otvorene-data";
+    const url = "https://api.dev.joinedcontext.com/api/mcp/bbsk/otvorene-data";
     const lines = setups(url, "bbsk-otvorene-data");
     expect(JSON.parse(lines.generic)).toEqual({ mcpServers: { "bbsk-otvorene-data": { type: "http", url } } });
     expect(JSON.parse(lines.claudeDesktop)).toEqual({

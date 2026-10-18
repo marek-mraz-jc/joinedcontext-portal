@@ -99,27 +99,27 @@ describe("the endpoint link pill", () => {
   });
 
   // T-3019: an MCP client refuses resource metadata that names another URL than the one it called
-  // (RFC 9728 §3.3), and the gateway names the platform host, so MCP addresses are handed out there.
+  // (RFC 9728 §3.3), and the gateway names the data host api.{domain} (T-4632), so MCP addresses are handed out there.
   it("an_mcp_address_is_on_the_platform_host_and_every_other_on_this_origin", () => {
     const slug = "k7m2qz4tv6xh3n5jb2ryd3wcfa";
     expect(representationUrl(slug, "mcp", "dev.city.example")).toBe(
-      `https://dev.city.example/api/endpoint/${slug}/mcp`,
+      `https://api.dev.city.example/api/endpoint/${slug}/mcp`,
     );
     expect(representationUrl(slug, "csv", "dev.city.example")).toBe(
       `${window.location.origin}/api/endpoint/${slug}/file.csv`,
     );
     // T-4132: the WebSocket address is the one API/07 and the catalogue name, never the Portal's.
     expect(representationUrl(slug, "websocket", "dev.city.example")).toBe(
-      `https://dev.city.example/api/endpoint/${slug}/ws`,
+      `https://api.dev.city.example/api/endpoint/${slug}/ws`,
     );
-    expect(hubUrl("dev.city.example")).toBe("https://dev.city.example/api/mcp");
+    expect(hubUrl("dev.city.example")).toBe("https://api.dev.city.example/api/mcp");
     expect(representationUrl("a/../b", "mcp", "dev.city.example")).toBe(
-      "https://dev.city.example/api/endpoint/a%2F..%2Fb/mcp",
+      "https://api.dev.city.example/api/endpoint/a%2F..%2Fb/mcp",
     );
   });
 
   it("an_mcp_address_stays_on_this_origin_without_a_bare_platform_host", () => {
-    expect(mcpOrigin("Dev.City.Example:8443")).toBe("https://dev.city.example:8443");
+    expect(mcpOrigin("Dev.City.Example:8443")).toBe("https://api.dev.city.example:8443");
     for (const domain of [undefined, "", "  ", "evil.example/api", "user@evil.example", "https://evil.example", "a b"]) {
       expect(mcpOrigin(domain), String(domain)).toBe(window.location.origin);
     }

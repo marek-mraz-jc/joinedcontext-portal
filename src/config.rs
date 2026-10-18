@@ -1402,6 +1402,21 @@ impl Config {
     pub const DEFAULT_BIND: &'static str = "0.0.0.0:8080";
     const DEFAULT_BOOTSTRAP_ADMINS: &'static str = "platform-admins";
     pub const DEFAULT_PUBLIC_URL: &'static str = "http://localhost:8080";
+
+    /// The data host Endpoint and MCP URLs are handed out on, `api.{domain}` beside
+    /// `portal.{domain}` (ADR-N-052 §2.1, T-4632): an anonymous client on the Portal host is
+    /// moved there. A Portal whose host is not `portal.…` has no data host of its own, so its
+    /// own host serves.
+    pub fn api_base_url(&self) -> Url {
+        let mut url = self.public_base_url.clone();
+        if let Some(domain) = url.host_str().and_then(|h| h.strip_prefix("portal.")) {
+            let api = format!("api.{domain}");
+            if url.set_host(Some(&api)).is_err() {
+                return self.public_base_url.clone();
+            }
+        }
+        url
+    }
     /// The internal listener's default. Port 9090, which the edge does not route (AG-52).
     pub const DEFAULT_INTERNAL_BIND: &'static str = "0.0.0.0:9090";
     /// Wall clock of one builder run when the deployment names none: twenty minutes, the
@@ -2269,6 +2284,27 @@ mod tests {
         match err {
             ConfigError::Invalid { var, .. } => assert_eq!(var, "JC_PORTAL_PUBLIC_URL"),
         }
+    }
+
+    #[test]
+    fn the_data_host_sits_beside_the_portal_host_and_falls_back_to_it() {
+        let at = |public: &str| {
+            let public = public.to_owned();
+            Config::from_vars(move |k| (k == "JC_PORTAL_PUBLIC_URL").then(|| public.clone()))
+                .expect("valid")
+                .api_base_url()
+                .to_string()
+        };
+        assert_eq!(
+            at("https://portal.dev.example.com"),
+            "https://api.dev.example.com/"
+        );
+        assert_eq!(
+            at("https://portal.example.sk:8443/"),
+            "https://api.example.sk:8443/"
+        );
+        assert_eq!(at("https://bb.example.sk"), "https://bb.example.sk/");
+        assert_eq!(at("http://localhost:8080"), "http://localhost:8080/");
     }
 
     #[test]

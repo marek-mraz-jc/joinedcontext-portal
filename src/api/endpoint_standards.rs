@@ -147,7 +147,7 @@ async fn build(
         .unwrap_or_else(|| state.config.public_base_url.clone());
     let at = Endpoint {
         read: endpoint_url(&gateway, slug),
-        shown: endpoint_url(&state.config.public_base_url, slug),
+        shown: endpoint_url(&state.config.api_base_url(), slug),
     };
     let served = served_representations(spec);
     let types = classes_of(state, project, spec);

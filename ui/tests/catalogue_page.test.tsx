@@ -15,7 +15,7 @@ import { snippets } from "../src/pages/catalogue/snippets";
 const IDENTITY = { subject: "b7c1e0f4", username: "jana.kovacova", name: "Jana Kováčová", roles: ["portal-viewer"] };
 const LIST = "joinedcontext.com/v1alpha1";
 const SLUG = "k7m2qz4tv6xh3n5jb2ryd3wcfa";
-const ENDPOINT = `https://dev.joinedcontext.com/api/endpoint/${SLUG}/`;
+const ENDPOINT = `https://api.dev.joinedcontext.com/api/endpoint/${SLUG}/`;
 
 function facet(value: string, label: string, count: number) {
   return { value, label, count };

@@ -85,12 +85,12 @@ export function endpointUrl(slug: string, path: string): string {
 }
 
 /**
- * The origin an MCP client connects to: the platform host, which the gateway names as the
- * `resource` of every MCP URL (`JC_GATEWAY_PUBLIC_URL`, built from the same domain the branding
- * serves as `domain`). A client refuses resource metadata that names another URL than the one it
- * called (RFC 9728 §3.3), so the Portal's own host, right for a browser whose edge session is the
- * bearer, is wrong for a connector (T-3019). The page's origin when the installation names no
- * domain, or one that is not a bare host.
+ * The origin an MCP client connects to: the data host `api.{domain}`, which the gateway names as
+ * the `resource` of every MCP URL (`JC_GATEWAY_PUBLIC_URL`, ADR-N-052 §2.1, T-4632; `domain` is
+ * what the branding serves). A client refuses resource metadata that names another URL than the
+ * one it called (RFC 9728 §3.3), so the Portal's own host, right for a browser whose edge session
+ * is the bearer, is wrong for a connector (T-3019). The page's origin when the installation names
+ * no domain, or one that is not a bare host.
  */
 export function mcpOrigin(domain: string | undefined): string {
   const host = domain?.trim().toLowerCase() ?? "";
@@ -98,7 +98,7 @@ export function mcpOrigin(domain: string | undefined): string {
     try {
       const url = new URL(`https://${host}`);
       if (url.host === host && url.pathname === "/" && !url.username && !url.password) {
-        return url.origin;
+        return `https://api.${url.host}`;
       }
     } catch {
       // Not a host: the page's own origin below.

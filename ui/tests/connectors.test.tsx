@@ -64,7 +64,7 @@ describe("connector helpers", () => {
     const connector: Connector = { name: "air", select: { projects: ["mesto", "kraj"], themes: ["ENVI"], endpoints: ["air1"] } };
     expect(fromForm(toForm(connector))).toEqual(connector);
     expect(fromForm({ ...toForm(), name: " x ", themes: "envi, envi" })).toEqual({ name: "x", select: { themes: ["ENVI"] } });
-    expect(connectorUrl("dev.example", "air")).toBe("https://dev.example/api/mcp/me/air");
+    expect(connectorUrl("dev.example", "air")).toBe("https://api.dev.example/api/mcp/me/air");
   });
 });
 
@@ -127,16 +127,16 @@ describe("the connectors page (T-4531)", () => {
   it("shows a connector's own address, the entry to paste and what it reaches, beside the organization's servers", async () => {
     renderAt("/connectors", { stored: { theme: "dark", connectors: [{ name: "air", select: { accessLevel: ["public"] } }] } });
     const card = await screen.findByRole("region", { name: "air" });
-    expect(within(card).getByText("https://dev.example/api/mcp/me/air")).toBeInTheDocument();
+    expect(within(card).getByText("https://api.dev.example/api/mcp/me/air")).toBeInTheDocument();
     const entry = within(card).getByLabelText("Entry for the AI client's configuration");
-    expect(JSON.parse(entry.textContent ?? "")).toEqual({ mcpServers: { air: { type: "http", url: "https://dev.example/api/mcp/me/air" } } });
+    expect(JSON.parse(entry.textContent ?? "")).toEqual({ mcpServers: { air: { type: "http", url: "https://api.dev.example/api/mcp/me/air" } } });
     expect(entry.textContent).not.toMatch(/token|Bearer|secret/i);
     const reached = within(card).getByRole("list", { name: "What air reaches" });
     expect(await within(reached).findByText("mesto/air")).toBeInTheDocument();
     expect(within(reached).queryByText("mesto/bins")).toBeNull();
     const org = screen.getByRole("region", { name: "Servers of the organization" });
-    expect(within(org).getByText("https://dev.example/api/mcp/org/all")).toBeInTheDocument();
-    expect(await within(org).findByText("https://dev.example/api/mcp/org/mobility")).toBeInTheDocument();
+    expect(within(org).getByText("https://api.dev.example/api/mcp/org/all")).toBeInTheDocument();
+    expect(await within(org).findByText("https://api.dev.example/api/mcp/org/mobility")).toBeInTheDocument();
   });
 
   it("creates a connector and keeps the rest of the preferences", async () => {
