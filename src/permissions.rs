@@ -122,6 +122,9 @@ pub fn effective(
             projects: None,
         };
     }
+    // A space binding names no project: it applies in the one project that holds the space
+    // (T-4589). Asked once per space, not once per rule.
+    let mut home: BTreeMap<String, Option<String>> = BTreeMap::new();
     let grants = in_force(mirror, identity, now)
         .into_iter()
         .filter_map(|(reach, mut grant)| {
@@ -129,7 +132,15 @@ pub fn effective(
                 Reach::Organization => None,
                 Reach::Project(p) if p == project => None,
                 Reach::Project(_) => return None,
-                Reach::Space(space) => Some(space),
+                Reach::Space(space) => {
+                    let held_by = home
+                        .entry(space.clone())
+                        .or_insert_with(|| project_of_space(mirror, &space));
+                    if held_by.as_deref() != Some(project) {
+                        return None;
+                    }
+                    Some(space)
+                }
             };
             Some(grant)
         })
@@ -388,12 +399,26 @@ fn roles(mirror: &Mirror, namespace: &str) -> Vec<(String, RoleSpec)> {
         .collect()
 }
 
-/// The project a context space belongs to, which is the project whose roles a binding scoped to
-/// that space may reach (PF-69).
+/// The project a context space belongs to: where a binding scoped to that space applies, and
+/// whose roles it may reach (PF-69). A space name is unique in the organization (PF-44, PF-76);
+/// a mirror holding it in two projects breaks that, and such a binding then applies nowhere
+/// rather than in both (T-4589).
 fn project_of_space(mirror: &Mirror, space: &str) -> Option<String> {
-    mirror
-        .find(|env| env.kind == "ContextSpace" && env.metadata.name == space)
-        .and_then(|env| env.metadata.namespace)
+    let mut holders: Vec<String> = mirror
+        .matching(|env| env.kind == "ContextSpace" && env.metadata.name == space)
+        .into_iter()
+        .filter_map(|env| env.metadata.namespace)
+        .collect();
+    holders.sort_unstable();
+    holders.dedup();
+    match holders.as_slice() {
+        [project] => Some(project.clone()),
+        [] => None,
+        _ => {
+            tracing::warn!(space, projects = ?holders, "context space name held by more than one project; a binding scoped to it grants nothing");
+            None
+        }
+    }
 }
 
 /// The role a binding names, looked up where the binding reaches it: the organization's roles

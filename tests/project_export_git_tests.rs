@@ -299,6 +299,10 @@ async fn a_caller_who_reads_part_of_the_project_gets_no_bundle() {
             "scope": { "contextSpace": "ovzdusie" }
         }),
     ));
+    // The space the binding names, held by the project (T-4589).
+    state
+        .mirror
+        .upsert(envelope("ContextSpace", "ovzdusie", "ovzdusie", json!({})));
     let answer = export(&state, person("jana"), "?format=git").await;
     assert_eq!(answer.status, StatusCode::FORBIDDEN, "{}", answer.text);
     // What the caller names still comes, narrowed to what it reads (PF-59, UI-87).
