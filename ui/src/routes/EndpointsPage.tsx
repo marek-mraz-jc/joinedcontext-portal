@@ -66,6 +66,7 @@ import {
   Dialog,
   EmptyState,
   Icon,
+  Input,
   PageHeader,
   Table,
   TableBody,
@@ -492,6 +493,18 @@ function EndpointRowActions({
 }
 
 /** Endpoints of one project: who may call them, in which representations, and their public URL. */
+/** Rows the list mounts at a time (T-4545). */
+const ROWS_PER_PAGE = 50;
+
+/** Whether the endpoint's name or title holds `needle`, case aside. */
+function matches(endpoint: Manifest, needle: string, locale: string): boolean {
+  const wanted = needle.trim().toLowerCase();
+  return (
+    endpoint.metadata.name.toLowerCase().includes(wanted) ||
+    localized(endpoint.metadata.title, locale, "").toLowerCase().includes(wanted)
+  );
+}
+
 export function EndpointsPage({ project, edit }: { project: string; edit?: string }): JSX.Element {
   const { t, i18n } = useTranslation();
   const { domain } = useBranding();
@@ -509,6 +522,10 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
   });
 
   const [activeSlug, setActiveSlug] = useState<string>(() => generateSlug());
+  // The rows on screen and the name or title they are narrowed by (T-4545): 10 000 rows mounted at
+  // once took 18 s to show the first; a page of them shows at once and the rest wait behind a button.
+  const [shown, setShown] = useState(ROWS_PER_PAGE);
+  const [needle, setNeedle] = useState("");
 
   const [pickerState, setPickerState] = useState<ModelPickerState>({
     projectionName: "",
@@ -1019,6 +1036,10 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
   );
 
   const endpoints = asManifests(list.data?.items ?? []);
+  const matching = needle.trim()
+    ? endpoints.filter((endpoint) => matches(endpoint, needle, locale))
+    : endpoints;
+  const visible = matching.slice(0, shown);
 
   /** Open this page's own editor on one endpoint: the row's action and `?edit=<name>` (T-2281). */
   const openEditor = useCallback((endpoint: Manifest) => {
@@ -1215,6 +1236,20 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
 
       {change ? <ChangeNotice change={change} project={project} /> : null}
 
+      {endpoints.length > ROWS_PER_PAGE ? (
+        <Input
+          type="search"
+          aria-label={t("endpoints.find")}
+          placeholder={t("endpoints.find")}
+          value={needle}
+          onChange={(event) => {
+            setNeedle(event.target.value);
+            setShown(ROWS_PER_PAGE);
+          }}
+          className="max-w-sm"
+        />
+      ) : null}
+
       <ResourceList
         query={list}
         caption={t("endpoints.title")}
@@ -1231,7 +1266,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
           />
         }
       >
-        {endpoints.map((endpoint) => {
+        {visible.map((endpoint) => {
           const spec = endpoint.spec as {
             slug?: string;
             enabledRepresentations?: string[];
@@ -1321,6 +1356,18 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
           );
         })}
       </ResourceList>
+      {matching.length > visible.length || (needle.trim() && endpoints.length > 0) ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <p role="status" className="text-caption text-fg-muted">
+            {t("endpoints.shownOf", { shown: visible.length, count: matching.length })}
+          </p>
+          {matching.length > visible.length ? (
+            <Button variant="secondary" size="sm" onClick={() => setShown((now) => now + ROWS_PER_PAGE)}>
+              {t("endpoints.showMore", { count: Math.min(ROWS_PER_PAGE, matching.length - visible.length) })}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
 
       {endpoints.length > 0 ? <ConnectAssistant domain={domain} /> : null}
 

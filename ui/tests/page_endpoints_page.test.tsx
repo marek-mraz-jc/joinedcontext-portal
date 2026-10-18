@@ -160,7 +160,8 @@ describe("the endpoints page", () => {
       const { calls, container, unmount } = await renderRoute({ path: PATH, answer: answering(items) });
       // The row count is the check. A role query over 500 rows computes the accessible role of
       // every cell on every poll, seconds of CPU that a loaded host turns into a timeout (T-3538).
-      await waitFor(() => expect(container.querySelector("table")?.rows.length).toBe(count === 0 ? 2 : count + 1));
+      // 500 rows mount one page of 50 (T-4545).
+      await waitFor(() => expect(container.querySelector("table")?.rows.length).toBe(count === 0 ? 2 : Math.min(count, 50) + 1));
       sent.set(count, [...new Set(calls())].sort());
       unmount();
       vi.restoreAllMocks();
@@ -200,6 +201,43 @@ describe("the endpoints page", () => {
     });
     const dialog = await findFormPage();
     expect(dialog).toHaveTextContent("public-air");
+  });
+
+  // T-4545: 10 000 rows mounted at once showed the first after 18 s.
+  const many = Array.from({ length: 120 }, (_, i) => endpoint(`ep-${String(i).padStart(4, "0")}`));
+  const rowLinks = () =>
+    screen.getAllByRole("link").filter((link) => /^ep-\d{4}$/.test(link.textContent ?? ""));
+
+  it("shows_a_page_of_rows_then_more_on_request_and_finds_one_by_name", async () => {
+    await renderRoute({ path: PATH, answer: answering(many) });
+    await screen.findByRole("link", { name: "ep-0000" });
+    expect(rowLinks()).toHaveLength(50);
+    expect(screen.getByText("Showing 50 of 120")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show 50 more" }));
+    expect(rowLinks()).toHaveLength(100);
+    await userEvent.click(screen.getByRole("button", { name: "Show 20 more" }));
+    expect(rowLinks()).toHaveLength(120);
+    expect(screen.queryByRole("button", { name: /^Show \d+ more$/ })).toBeNull();
+
+    await userEvent.type(screen.getByRole("searchbox", { name: en.endpoints.find }), "EP-0119");
+    expect(rowLinks().map((link) => link.textContent)).toEqual(["ep-0119"]);
+    expect(screen.getByText("Showing 1 of 1")).toBeInTheDocument();
+    await userEvent.clear(screen.getByRole("searchbox", { name: en.endpoints.find }));
+    await userEvent.type(screen.getByRole("searchbox", { name: en.endpoints.find }), "nothing-like-it");
+    expect(screen.getByText("Showing 0 of 0")).toBeInTheDocument();
+  });
+
+  it("opens_an_endpoint_the_url_names_beyond_the_first_page", async () => {
+    await renderRoute({ path: `${PATH}?edit=ep-0110`, answer: answering(many) });
+    const dialog = await findFormPage();
+    expect(dialog).toHaveTextContent("ep-0110");
+  });
+
+  it("a_short_list_has_no_search_and_no_paging", async () => {
+    await renderRoute({ path: PATH, answer: answering([endpoint("public-air")]) });
+    await screen.findByRole("link", { name: "public-air" });
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    expect(screen.queryByText(/^Showing/)).toBeNull();
   });
 
   it("a_name_the_url_asks_for_that_nobody_publishes_opens_nothing", async () => {
