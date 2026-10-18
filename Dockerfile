@@ -205,6 +205,8 @@ COPY sdk/services.json ./sdk/services.json
 COPY sdk/src/sdk/index.ts ./sdk/src/sdk/index.ts
 # The public API and User Guide pages are embedded too (src/public_docs.rs, T-4063).
 COPY public-docs ./public-docs
+# The commit the image is built from, which the /docs footer names beside the docs commit (T-4483).
+ARG JC_PORTAL_COMMIT=
 # `-p joinedcontext-portal`: this image ships one binary and the reference apps have images of
 # their own, so building the whole workspace here would compile them for nothing.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \

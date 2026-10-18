@@ -21,6 +21,8 @@ jobs:
         run: python3 scripts/ci/check-workflow-pins.py
       - name: every crate a Rust App's own lock names is fetched for the builder's seed (T-4150)
         run: python3 scripts/ci/check-seed-locks.py
+      - name: public-docs/ is exactly the docs commit it names, which the deployment pins (T-4483)
+        run: scripts/public-docs.sh --check
       # The checker itself; the statements run on a full `cg build --fg` before every merge, since
       # cg is not on the runner (T-3681, as Antares T-3587).
       - name: cg security invariants self-test
