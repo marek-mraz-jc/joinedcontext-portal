@@ -459,6 +459,235 @@ fn pipeline_secret_backend(
 
 /// `JC_PORTAL_APPS_URL`: an absolute `http(s)` origin with nothing after it. A path would be
 /// dropped by the redirect anyway, so it is refused here rather than silently ignored.
+/// An optional address that must be http(s): a typo is refused at startup, not on first use.
+fn http_url(
+    lookup: &impl Fn(&str) -> Option<String>,
+    var: &'static str,
+) -> Result<Option<String>, ConfigError> {
+    lookup(var)
+        .map(|raw| http_scheme(var, &raw).map(|_| raw))
+        .transpose()
+}
+
+fn http_scheme(var: &'static str, raw: &str) -> Result<Url, ConfigError> {
+    let url: Url = raw
+        .parse()
+        .map_err(|e: url::ParseError| ConfigError::Invalid {
+            var,
+            reason: e.to_string(),
+        })?;
+    if url.scheme() != "http" && url.scheme() != "https" {
+        return Err(ConfigError::Invalid {
+            var,
+            reason: format!("scheme '{}' is not http or https", url.scheme()),
+        });
+    }
+    Ok(url)
+}
+
+/// An optional namespace, trimmed; blank is unset, anything else must be a DNS-1123 label.
+fn dns_label(
+    lookup: &impl Fn(&str) -> Option<String>,
+    var: &'static str,
+) -> Result<Option<String>, ConfigError> {
+    let Some(namespace) = lookup(var)
+        .map(|v| v.trim().to_owned())
+        .filter(|v| !v.is_empty())
+    else {
+        return Ok(None);
+    };
+    if jc_core::names::validate_dns1123_label(&namespace).is_err() {
+        return Err(ConfigError::Invalid {
+            var,
+            reason: format!("`{namespace}` is not a DNS-1123 label"),
+        });
+    }
+    Ok(Some(namespace))
+}
+
+/// The login: issuer, client id and a proof together, or none of them.
+fn oidc_config(
+    lookup: &impl Fn(&str) -> Option<String>,
+) -> Result<Option<OidcConfig>, ConfigError> {
+    Ok(
+        match (
+            lookup("JC_OIDC_ISSUER"),
+            lookup("JC_OIDC_CLIENT_ID"),
+            ClientAuth::from_vars(
+                &lookup,
+                "JC_OIDC_CLIENT_SECRET",
+                "JC_OIDC_CLIENT_ASSERTION_FILE",
+            )?,
+        ) {
+            (None, None, None) => None,
+            (Some(issuer), Some(client_id), Some(auth)) => Some(OidcConfig {
+                issuer: issuer
+                    .parse()
+                    .map_err(|e: url::ParseError| ConfigError::Invalid {
+                        var: "JC_OIDC_ISSUER",
+                        reason: e.to_string(),
+                    })?,
+                client_id,
+                auth,
+                // Unreadable means misconfigured, not "carry on with fewer roots": a start-up
+                // error names the file, a silent fallback would be a confusing 500 at login.
+                extra_ca_pem: match lookup("JC_OIDC_CA_FILE") {
+                    None => None,
+                    Some(path) => Some(std::fs::read(&path).map_err(|e| ConfigError::Invalid {
+                        var: "JC_OIDC_CA_FILE",
+                        reason: format!("{path}: {e}"),
+                    })?),
+                },
+                admin_url: match lookup("JC_KEYCLOAK_ADMIN_URL").filter(|v| !v.trim().is_empty()) {
+                    None => None,
+                    Some(raw) => {
+                        let url: Url = raw.trim().parse().map_err(|e: url::ParseError| {
+                            ConfigError::Invalid {
+                                var: "JC_KEYCLOAK_ADMIN_URL",
+                                reason: e.to_string(),
+                            }
+                        })?;
+                        // An origin only: a path, query or user info would be pasted into every
+                        // admin call, and a credential in it would reach the logs.
+                        if !matches!(url.scheme(), "http" | "https")
+                            || !url.username().is_empty()
+                            || url.password().is_some()
+                            || url.path() != "/"
+                            || url.query().is_some()
+                        {
+                            return Err(ConfigError::Invalid {
+                                var: "JC_KEYCLOAK_ADMIN_URL",
+                                reason:
+                                    "an http(s) origin, such as http://keycloak.keycloak.svc:8080"
+                                        .to_string(),
+                            });
+                        }
+                        Some(url)
+                    }
+                },
+            }),
+            _ => {
+                return Err(ConfigError::Invalid {
+                    var: "JC_OIDC_ISSUER",
+                    reason: "JC_OIDC_ISSUER, JC_OIDC_CLIENT_ID and JC_OIDC_CLIENT_SECRET or \
+                         JC_OIDC_CLIENT_ASSERTION_FILE must be set together"
+                        .to_string(),
+                })
+            }
+        },
+    )
+}
+
+/// The session cookie's key and the keys a rotation still lets in.
+fn cookie_keys(lookup: &impl Fn(&str) -> Option<String>) -> Result<(Key, Vec<Key>), ConfigError> {
+    let cookie_key = match lookup("JC_PORTAL_COOKIE_KEY") {
+        Some(material) if material.len() >= Config::MIN_COOKIE_KEY_LEN => {
+            Key::from(material.as_bytes())
+        }
+        Some(_) => {
+            return Err(ConfigError::Invalid {
+                var: "JC_PORTAL_COOKIE_KEY",
+                reason: format!("at least {} bytes required", Config::MIN_COOKIE_KEY_LEN),
+            })
+        }
+        None => {
+            tracing::warn!(
+                "JC_PORTAL_COOKIE_KEY is unset: using an ephemeral key, sessions do not \
+                 survive a restart"
+            );
+            Key::generate()
+        }
+    };
+
+    // The keys a rotation is still letting in. Several, comma-separated, because a second
+    // rotation can start before the first one's sessions have all expired; each is held to
+    // the same length as the active one, since a short key here would be the way in.
+    let cookie_keys_previous = match lookup("JC_PORTAL_COOKIE_KEY_PREVIOUS") {
+        Some(material) => {
+            let mut keys = Vec::new();
+            for part in material.split(',').map(str::trim).filter(|p| !p.is_empty()) {
+                if part.len() < Config::MIN_COOKIE_KEY_LEN {
+                    return Err(ConfigError::Invalid {
+                        var: "JC_PORTAL_COOKIE_KEY_PREVIOUS",
+                        reason: format!("at least {} bytes required", Config::MIN_COOKIE_KEY_LEN),
+                    });
+                }
+                keys.push(Key::from(part.as_bytes()));
+            }
+            keys
+        }
+        None => Vec::new(),
+    };
+    Ok((cookie_key, cookie_keys_previous))
+}
+
+/// The group reconciler's Keycloak client: an id and exactly one proof, or neither.
+fn keycloak_admin(
+    lookup: &impl Fn(&str) -> Option<String>,
+    oidc: Option<&OidcConfig>,
+) -> Result<Option<(String, ClientAuth)>, ConfigError> {
+    // The reconciler's client is a second federated client in this pod: its proof is a
+    // token of its own ServiceAccount, minted per request (PF-47, T-2868).
+    let admin_account =
+        lookup("JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SERVICE_ACCOUNT").filter(|v| !v.trim().is_empty());
+    let admin_auth = match (
+        ClientAuth::from_vars(
+            &lookup,
+            "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SECRET",
+            "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ASSERTION_FILE",
+        )?,
+        admin_account,
+    ) {
+        (Some(_), Some(_)) => {
+            return Err(ConfigError::Invalid {
+                var: "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SERVICE_ACCOUNT",
+                reason: "the group reconciler's client authenticates one way: a secret, a \
+                         token file or a ServiceAccount"
+                    .to_owned(),
+            })
+        }
+        (Some(auth), None) => Some(auth),
+        (None, Some(account)) => {
+            let audience = oidc.map(|oidc| oidc.issuer.as_str().trim_end_matches('/'));
+            let audience = audience.ok_or_else(|| ConfigError::Invalid {
+                var: "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SERVICE_ACCOUNT",
+                reason: "a minted token's audience is the realm, and JC_OIDC_ISSUER is unset"
+                    .to_owned(),
+            })?;
+            Some(
+                ClientAuth::minted(
+                    std::path::Path::new(crate::apps::kube::SERVICE_ACCOUNT_DIR),
+                    crate::apps::kube::IN_CLUSTER_API,
+                    account.trim(),
+                    audience,
+                )
+                .map_err(|reason| ConfigError::Invalid {
+                    var: "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SERVICE_ACCOUNT",
+                    reason,
+                })?,
+            )
+        }
+        (None, None) => None,
+    };
+    // Both halves or neither: an id without a proof would send an unauthenticated token
+    // request every tick and log a refusal every time.
+    let keycloak_admin = match (
+        lookup("JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ID").filter(|v| !v.trim().is_empty()),
+        admin_auth,
+    ) {
+        (Some(id), Some(auth)) => Some((id, auth)),
+        (Some(_), None) => {
+            return Err(ConfigError::Invalid {
+                var: "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SECRET",
+                reason: "the group reconciler has a client id and no secret or token file"
+                    .to_owned(),
+            })
+        }
+        _ => None,
+    };
+    Ok(keycloak_admin)
+}
+
 fn apps_url(lookup: &impl Fn(&str) -> Option<String>) -> Result<Option<Url>, ConfigError> {
     let Some(raw) = lookup("JC_PORTAL_APPS_URL").filter(|v| !v.trim().is_empty()) else {
         return Ok(None);
@@ -1207,110 +1436,9 @@ impl Config {
                     reason: e.to_string(),
                 })?;
 
-        let oidc = match (
-            lookup("JC_OIDC_ISSUER"),
-            lookup("JC_OIDC_CLIENT_ID"),
-            ClientAuth::from_vars(
-                &lookup,
-                "JC_OIDC_CLIENT_SECRET",
-                "JC_OIDC_CLIENT_ASSERTION_FILE",
-            )?,
-        ) {
-            (None, None, None) => None,
-            (Some(issuer), Some(client_id), Some(auth)) => Some(OidcConfig {
-                issuer: issuer
-                    .parse()
-                    .map_err(|e: url::ParseError| ConfigError::Invalid {
-                        var: "JC_OIDC_ISSUER",
-                        reason: e.to_string(),
-                    })?,
-                client_id,
-                auth,
-                // Unreadable means misconfigured, not "carry on with fewer roots": a start-up
-                // error names the file, a silent fallback would be a confusing 500 at login.
-                extra_ca_pem: match lookup("JC_OIDC_CA_FILE") {
-                    None => None,
-                    Some(path) => Some(std::fs::read(&path).map_err(|e| ConfigError::Invalid {
-                        var: "JC_OIDC_CA_FILE",
-                        reason: format!("{path}: {e}"),
-                    })?),
-                },
-                admin_url: match lookup("JC_KEYCLOAK_ADMIN_URL").filter(|v| !v.trim().is_empty()) {
-                    None => None,
-                    Some(raw) => {
-                        let url: Url = raw.trim().parse().map_err(|e: url::ParseError| {
-                            ConfigError::Invalid {
-                                var: "JC_KEYCLOAK_ADMIN_URL",
-                                reason: e.to_string(),
-                            }
-                        })?;
-                        // An origin only: a path, query or user info would be pasted into every
-                        // admin call, and a credential in it would reach the logs.
-                        if !matches!(url.scheme(), "http" | "https")
-                            || !url.username().is_empty()
-                            || url.password().is_some()
-                            || url.path() != "/"
-                            || url.query().is_some()
-                        {
-                            return Err(ConfigError::Invalid {
-                                var: "JC_KEYCLOAK_ADMIN_URL",
-                                reason:
-                                    "an http(s) origin, such as http://keycloak.keycloak.svc:8080"
-                                        .to_string(),
-                            });
-                        }
-                        Some(url)
-                    }
-                },
-            }),
-            _ => {
-                return Err(ConfigError::Invalid {
-                    var: "JC_OIDC_ISSUER",
-                    reason: "JC_OIDC_ISSUER, JC_OIDC_CLIENT_ID and JC_OIDC_CLIENT_SECRET or \
-                             JC_OIDC_CLIENT_ASSERTION_FILE must be set together"
-                        .to_string(),
-                })
-            }
-        };
+        let oidc = oidc_config(&lookup)?;
 
-        let cookie_key = match lookup("JC_PORTAL_COOKIE_KEY") {
-            Some(material) if material.len() >= Self::MIN_COOKIE_KEY_LEN => {
-                Key::from(material.as_bytes())
-            }
-            Some(_) => {
-                return Err(ConfigError::Invalid {
-                    var: "JC_PORTAL_COOKIE_KEY",
-                    reason: format!("at least {} bytes required", Self::MIN_COOKIE_KEY_LEN),
-                })
-            }
-            None => {
-                tracing::warn!(
-                    "JC_PORTAL_COOKIE_KEY is unset: using an ephemeral key, sessions do not \
-                     survive a restart"
-                );
-                Key::generate()
-            }
-        };
-
-        // The keys a rotation is still letting in. Several, comma-separated, because a second
-        // rotation can start before the first one's sessions have all expired; each is held to
-        // the same length as the active one, since a short key here would be the way in.
-        let cookie_keys_previous = match lookup("JC_PORTAL_COOKIE_KEY_PREVIOUS") {
-            Some(material) => {
-                let mut keys = Vec::new();
-                for part in material.split(',').map(str::trim).filter(|p| !p.is_empty()) {
-                    if part.len() < Self::MIN_COOKIE_KEY_LEN {
-                        return Err(ConfigError::Invalid {
-                            var: "JC_PORTAL_COOKIE_KEY_PREVIOUS",
-                            reason: format!("at least {} bytes required", Self::MIN_COOKIE_KEY_LEN),
-                        });
-                    }
-                    keys.push(Key::from(part.as_bytes()));
-                }
-                keys
-            }
-            None => Vec::new(),
-        };
+        let (cookie_key, cookie_keys_previous) = cookie_keys(&lookup)?;
 
         let sync_interval_secs = match lookup("JC_PORTAL_SYNC_INTERVAL") {
             Some(val) => val.parse::<u64>().map_err(|e| ConfigError::Invalid {
@@ -1326,48 +1454,14 @@ impl Config {
 
         // The space surface's base: one host, no path. A typo here is a subscription that never
         // reaches its broker, so it is refused at startup like every other address.
-        let gateway_url = match lookup("JC_PORTAL_GATEWAY_URL") {
-            Some(value) => {
-                let parsed: Url =
-                    value
-                        .parse()
-                        .map_err(|e: url::ParseError| ConfigError::Invalid {
-                            var: "JC_PORTAL_GATEWAY_URL",
-                            reason: e.to_string(),
-                        })?;
-                if parsed.scheme() != "http" && parsed.scheme() != "https" {
-                    return Err(ConfigError::Invalid {
-                        var: "JC_PORTAL_GATEWAY_URL",
-                        reason: format!("scheme '{}' is not http or https", parsed.scheme()),
-                    });
-                }
-                Some(value.trim_end_matches('/').to_owned())
-            }
-            None => None,
-        };
+        let gateway_url = http_url(&lookup, "JC_PORTAL_GATEWAY_URL")?
+            .map(|url| url.trim_end_matches('/').to_owned());
 
         // The broker's own address, checked the same way: a typo here is a registration the
         // hub never learns about, and a hub that federates nothing looks exactly like a hub
         // whose members are empty.
-        let broker_url = match lookup("JC_PORTAL_BROKER_URL") {
-            Some(value) => {
-                let parsed: Url =
-                    value
-                        .parse()
-                        .map_err(|e: url::ParseError| ConfigError::Invalid {
-                            var: "JC_PORTAL_BROKER_URL",
-                            reason: e.to_string(),
-                        })?;
-                if parsed.scheme() != "http" && parsed.scheme() != "https" {
-                    return Err(ConfigError::Invalid {
-                        var: "JC_PORTAL_BROKER_URL",
-                        reason: format!("scheme '{}' is not http or https", parsed.scheme()),
-                    });
-                }
-                Some(value.trim_end_matches('/').to_owned())
-            }
-            None => None,
-        };
+        let broker_url = http_url(&lookup, "JC_PORTAL_BROKER_URL")?
+            .map(|url| url.trim_end_matches('/').to_owned());
 
         let broker_url_template = match lookup("JC_PORTAL_BROKER_URL_TEMPLATE")
             .filter(|value| !value.trim().is_empty())
@@ -1412,39 +1506,9 @@ impl Config {
             lane("JC_PORTAL_PIPELINES_SHORT_CONCURRENCY")?,
         );
 
-        let pipeline_namespace = lookup("JC_PORTAL_PIPELINE_NAMESPACE")
-            .map(|v| v.trim().to_owned())
-            .filter(|v| !v.is_empty());
-        if let Some(namespace) = &pipeline_namespace {
-            if jc_core::names::validate_dns1123_label(namespace).is_err() {
-                return Err(ConfigError::Invalid {
-                    var: "JC_PORTAL_PIPELINE_NAMESPACE",
-                    reason: format!("`{namespace}` is not a DNS-1123 label"),
-                });
-            }
-        }
-        let app_identity_namespace = lookup("JC_PORTAL_APP_IDENTITY_NAMESPACE")
-            .map(|v| v.trim().to_owned())
-            .filter(|v| !v.is_empty());
-        if let Some(namespace) = &app_identity_namespace {
-            if jc_core::names::validate_dns1123_label(namespace).is_err() {
-                return Err(ConfigError::Invalid {
-                    var: "JC_PORTAL_APP_IDENTITY_NAMESPACE",
-                    reason: format!("`{namespace}` is not a DNS-1123 label"),
-                });
-            }
-        }
-        let mqtt_namespace = lookup("JC_PORTAL_MQTT_NAMESPACE")
-            .map(|v| v.trim().to_owned())
-            .filter(|v| !v.is_empty());
-        if let Some(namespace) = &mqtt_namespace {
-            if jc_core::names::validate_dns1123_label(namespace).is_err() {
-                return Err(ConfigError::Invalid {
-                    var: "JC_PORTAL_MQTT_NAMESPACE",
-                    reason: format!("`{namespace}` is not a DNS-1123 label"),
-                });
-            }
-        }
+        let pipeline_namespace = dns_label(&lookup, "JC_PORTAL_PIPELINE_NAMESPACE")?;
+        let app_identity_namespace = dns_label(&lookup, "JC_PORTAL_APP_IDENTITY_NAMESPACE")?;
+        let mqtt_namespace = dns_label(&lookup, "JC_PORTAL_MQTT_NAMESPACE")?;
         if pipeline_identity && pipeline_namespace.is_none() {
             return Err(ConfigError::Invalid {
                 var: "JC_PORTAL_PIPELINE_IDENTITY",
@@ -1456,100 +1520,26 @@ impl Config {
 
         // The template is not a URL until `{project}` is filled in, so it is checked against a
         // stand-in: an operator learns about a typo at startup, not on the first scrape.
-        let pipeline_runner_url = match lookup("JC_PORTAL_PIPELINE_RUNNER_URL") {
-            Some(template) => {
-                let probe: Url = template.replace("{project}", "project").parse().map_err(
-                    |e: url::ParseError| ConfigError::Invalid {
-                        var: "JC_PORTAL_PIPELINE_RUNNER_URL",
-                        reason: e.to_string(),
-                    },
-                )?;
-                if probe.scheme() != "http" && probe.scheme() != "https" {
-                    return Err(ConfigError::Invalid {
-                        var: "JC_PORTAL_PIPELINE_RUNNER_URL",
-                        reason: format!("scheme '{}' is not http or https", probe.scheme()),
-                    });
-                }
-                Some(template)
-            }
-            None => None,
-        };
+        let pipeline_runner_url = lookup("JC_PORTAL_PIPELINE_RUNNER_URL")
+            .map(|template| {
+                http_scheme(
+                    "JC_PORTAL_PIPELINE_RUNNER_URL",
+                    &template.replace("{project}", "project"),
+                )
+                .map(|_| template)
+            })
+            .transpose()?;
 
-        let pipeline_test_capture_url = match lookup("JC_PORTAL_PIPELINE_TEST_CAPTURE_URL") {
-            Some(raw) => {
-                let url: Url = raw
-                    .parse()
-                    .map_err(|e: url::ParseError| ConfigError::Invalid {
-                        var: "JC_PORTAL_PIPELINE_TEST_CAPTURE_URL",
-                        reason: e.to_string(),
-                    })?;
-                if url.scheme() != "http" && url.scheme() != "https" {
-                    return Err(ConfigError::Invalid {
-                        var: "JC_PORTAL_PIPELINE_TEST_CAPTURE_URL",
-                        reason: format!("scheme '{}' is not http or https", url.scheme()),
-                    });
-                }
-                Some(raw.trim_end_matches('/').to_owned())
-            }
-            None => None,
-        };
+        let pipeline_test_capture_url = http_url(&lookup, "JC_PORTAL_PIPELINE_TEST_CAPTURE_URL")?
+            .map(|url| url.trim_end_matches('/').to_owned());
 
-        let knowledge_url = match lookup("JC_PORTAL_KNOWLEDGE_URL") {
-            Some(raw) => {
-                let url: Url = raw
-                    .parse()
-                    .map_err(|e: url::ParseError| ConfigError::Invalid {
-                        var: "JC_PORTAL_KNOWLEDGE_URL",
-                        reason: e.to_string(),
-                    })?;
-                if url.scheme() != "http" && url.scheme() != "https" {
-                    return Err(ConfigError::Invalid {
-                        var: "JC_PORTAL_KNOWLEDGE_URL",
-                        reason: format!("scheme '{}' is not http or https", url.scheme()),
-                    });
-                }
-                Some(raw.trim_end_matches('/').to_owned())
-            }
-            None => None,
-        };
+        let knowledge_url = http_url(&lookup, "JC_PORTAL_KNOWLEDGE_URL")?
+            .map(|url| url.trim_end_matches('/').to_owned());
 
-        let functions_url = match lookup("JC_FUNCTIONS_URL") {
-            Some(raw) => {
-                let url: Url = raw
-                    .parse()
-                    .map_err(|e: url::ParseError| ConfigError::Invalid {
-                        var: "JC_FUNCTIONS_URL",
-                        reason: e.to_string(),
-                    })?;
-                if url.scheme() != "http" && url.scheme() != "https" {
-                    return Err(ConfigError::Invalid {
-                        var: "JC_FUNCTIONS_URL",
-                        reason: format!("scheme '{}' is not http or https", url.scheme()),
-                    });
-                }
-                Some(raw.trim_end_matches('/').to_owned())
-            }
-            None => None,
-        };
+        let functions_url =
+            http_url(&lookup, "JC_FUNCTIONS_URL")?.map(|url| url.trim_end_matches('/').to_owned());
 
-        let model_tools_url = match lookup("JC_PORTAL_MODEL_TOOLS_URL") {
-            Some(raw) => {
-                let url: Url = raw
-                    .parse()
-                    .map_err(|e: url::ParseError| ConfigError::Invalid {
-                        var: "JC_PORTAL_MODEL_TOOLS_URL",
-                        reason: e.to_string(),
-                    })?;
-                if url.scheme() != "http" && url.scheme() != "https" {
-                    return Err(ConfigError::Invalid {
-                        var: "JC_PORTAL_MODEL_TOOLS_URL",
-                        reason: format!("scheme '{}' is not http or https", url.scheme()),
-                    });
-                }
-                Some(raw)
-            }
-            None => None,
-        };
+        let model_tools_url = http_url(&lookup, "JC_PORTAL_MODEL_TOOLS_URL")?;
 
         // Only the literal `true` turns it on: a misspelling must not open the door (ADR-N-019).
         let trust_edge_token = lookup("JC_TRUST_EDGE_TOKEN").is_some_and(|v| v.trim() == "true");
@@ -1599,67 +1589,7 @@ impl Config {
             })
             .unwrap_or_default();
 
-        // The reconciler's client is a second federated client in this pod: its proof is a
-        // token of its own ServiceAccount, minted per request (PF-47, T-2868).
-        let admin_account = lookup("JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SERVICE_ACCOUNT")
-            .filter(|v| !v.trim().is_empty());
-        let admin_auth = match (
-            ClientAuth::from_vars(
-                &lookup,
-                "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SECRET",
-                "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ASSERTION_FILE",
-            )?,
-            admin_account,
-        ) {
-            (Some(_), Some(_)) => {
-                return Err(ConfigError::Invalid {
-                    var: "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SERVICE_ACCOUNT",
-                    reason: "the group reconciler's client authenticates one way: a secret, a \
-                             token file or a ServiceAccount"
-                        .to_owned(),
-                })
-            }
-            (Some(auth), None) => Some(auth),
-            (None, Some(account)) => {
-                let audience = oidc
-                    .as_ref()
-                    .map(|oidc| oidc.issuer.as_str().trim_end_matches('/'));
-                let audience = audience.ok_or_else(|| ConfigError::Invalid {
-                    var: "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SERVICE_ACCOUNT",
-                    reason: "a minted token's audience is the realm, and JC_OIDC_ISSUER is unset"
-                        .to_owned(),
-                })?;
-                Some(
-                    ClientAuth::minted(
-                        std::path::Path::new(crate::apps::kube::SERVICE_ACCOUNT_DIR),
-                        crate::apps::kube::IN_CLUSTER_API,
-                        account.trim(),
-                        audience,
-                    )
-                    .map_err(|reason| ConfigError::Invalid {
-                        var: "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SERVICE_ACCOUNT",
-                        reason,
-                    })?,
-                )
-            }
-            (None, None) => None,
-        };
-        // Both halves or neither: an id without a proof would send an unauthenticated token
-        // request every tick and log a refusal every time.
-        let keycloak_admin = match (
-            lookup("JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ID").filter(|v| !v.trim().is_empty()),
-            admin_auth,
-        ) {
-            (Some(id), Some(auth)) => Some((id, auth)),
-            (Some(_), None) => {
-                return Err(ConfigError::Invalid {
-                    var: "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SECRET",
-                    reason: "the group reconciler has a client id and no secret or token file"
-                        .to_owned(),
-                })
-            }
-            _ => None,
-        };
+        let keycloak_admin = keycloak_admin(&lookup, oidc.as_ref())?;
 
         let artifact_store = artifact_store_settings(&lookup);
         let apps_db = apps_db_settings(&lookup);
@@ -1828,6 +1758,103 @@ fn broker_url_template(raw: &str) -> Result<String, ConfigError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn one(var: &'static str, value: &'static str) -> impl Fn(&str) -> Option<String> {
+        move |name: &str| (name == var).then(|| value.to_owned())
+    }
+
+    /// T-4470: the parts `Config::from_vars` was cut into, each on its own input.
+    #[test]
+    fn an_address_is_http_or_https_or_refused_by_name() {
+        let var = "JC_PORTAL_KNOWLEDGE_URL";
+        assert_eq!(
+            http_url(&one(var, "http://k:80/"), var).unwrap(),
+            Some("http://k:80/".into())
+        );
+        assert_eq!(http_url(&one("OTHER", "x"), var).unwrap(), None);
+        for bad in ["ftp://k", "not a url", ""] {
+            match http_url(&one(var, bad), var) {
+                Err(ConfigError::Invalid { var: named, .. }) => assert_eq!(named, var, "{bad}"),
+                other => panic!("{bad}: {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn a_namespace_is_a_dns_label_and_blank_is_unset() {
+        let var = "JC_PORTAL_MQTT_NAMESPACE";
+        assert_eq!(
+            dns_label(&one(var, " mqtt "), var).unwrap(),
+            Some("mqtt".into())
+        );
+        assert_eq!(dns_label(&one(var, "  "), var).unwrap(), None);
+        assert!(dns_label(&one(var, "Not_A_Label"), var).is_err());
+    }
+
+    #[test]
+    fn the_login_is_all_three_or_nothing() {
+        assert!(oidc_config(&|_: &str| None).unwrap().is_none());
+        assert!(oidc_config(&one("JC_OIDC_ISSUER", "https://kc/realms/x")).is_err());
+        let full = |name: &str| match name {
+            "JC_OIDC_ISSUER" => Some("https://kc/realms/x".to_owned()),
+            "JC_OIDC_CLIENT_ID" => Some("portal".to_owned()),
+            "JC_OIDC_CLIENT_SECRET" => Some("s".to_owned()),
+            "JC_KEYCLOAK_ADMIN_URL" => Some("http://kc:8080/admin".to_owned()),
+            _ => None,
+        };
+        // An admin URL with a path is refused: it would be pasted into every admin call.
+        assert!(oidc_config(&full).is_err());
+        let origin = |name: &str| match name {
+            "JC_KEYCLOAK_ADMIN_URL" => Some("http://kc:8080".to_owned()),
+            other => full(other),
+        };
+        let oidc = oidc_config(&origin).unwrap().expect("configured");
+        assert_eq!(oidc.client_id, "portal");
+        assert_eq!(
+            oidc.admin_url.map(String::from),
+            Some("http://kc:8080/".to_owned())
+        );
+    }
+
+    #[test]
+    fn cookie_keys_are_long_enough_or_refused() {
+        let long = "k".repeat(Config::MIN_COOKIE_KEY_LEN);
+        let (_, previous) = cookie_keys(&|_: &str| None).unwrap();
+        assert!(previous.is_empty());
+        let rotating = |name: &str| match name {
+            "JC_PORTAL_COOKIE_KEY" => Some(long.clone()),
+            "JC_PORTAL_COOKIE_KEY_PREVIOUS" => Some(format!("{long}, ,{long}")),
+            _ => None,
+        };
+        assert_eq!(cookie_keys(&rotating).unwrap().1.len(), 2);
+        assert!(cookie_keys(&one("JC_PORTAL_COOKIE_KEY", "short")).is_err());
+        assert!(cookie_keys(&one("JC_PORTAL_COOKIE_KEY_PREVIOUS", "short")).is_err());
+    }
+
+    #[test]
+    fn the_admin_client_needs_an_id_and_exactly_one_proof() {
+        assert!(keycloak_admin(&|_: &str| None, None).unwrap().is_none());
+        // An id without a proof would log a refusal every tick.
+        assert!(
+            keycloak_admin(&one("JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ID", "groups"), None).is_err()
+        );
+        // A minted token's audience is the realm: no issuer, no ServiceAccount proof.
+        let account = one("JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SERVICE_ACCOUNT", "portal");
+        assert!(keycloak_admin(&account, None).is_err());
+        let both = |name: &str| match name {
+            "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SECRET" => Some("s".to_owned()),
+            "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SERVICE_ACCOUNT" => Some("portal".to_owned()),
+            _ => None,
+        };
+        assert!(keycloak_admin(&both, None).is_err());
+        let secret = |name: &str| match name {
+            "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ID" => Some("groups".to_owned()),
+            "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_SECRET" => Some("s".to_owned()),
+            _ => None,
+        };
+        let (id, _) = keycloak_admin(&secret, None).unwrap().expect("configured");
+        assert_eq!(id, "groups");
+    }
 
     /// T-2772: a run waiting for approval has seven days unless `JC_AGENT_APPROVAL_TTL` says
     /// otherwise, and a lease that is not a positive number of seconds is refused at start.
