@@ -502,7 +502,8 @@
       "source": "Zdroj",
       "entities": "Entity",
       "inside": "Obsah",
-      "missingUnitCode": "Chýbajúca jednotka"
+      "missingUnitCode": "Chýbajúca jednotka",
+      "size": "Veľkosť"
     },
     "inside": {
       "total": "Priestor obsahuje {count, plural, one {# entitu} few {# entity} other {# entít}}.",
@@ -540,7 +541,9 @@
       "modelImport": "Importovať Smart Data Model",
       "tooMany": "Endpoint je zaneprázdnený (priveľa čítaní naraz).",
       "lead": "Jeho dátový model, entity, kto ich číta a čo sa s ním stalo.",
-      "broker": "Beží na kontextovom brokeri {broker}."
+      "broker": "Beží na kontextovom brokeri {broker}.",
+      "size": "Veľkosť",
+      "totalSize": "V úložisku brokera zaberá {size}, z toho história {history}."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",

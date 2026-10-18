@@ -502,7 +502,8 @@
       "source": "Zdroj",
       "entities": "Entity",
       "inside": "Obsah",
-      "missingUnitCode": "Chybějící jednotka"
+      "missingUnitCode": "Chybějící jednotka",
+      "size": "Velikost"
     },
     "inside": {
       "total": "Prostor obsahuje {count, plural, one {# entitu} few {# entity} other {# entit}}.",
@@ -540,7 +541,9 @@
       "modelImport": "Importovat Smart Data Model",
       "tooMany": "Endpoint je zaneprázdněný (příliš mnoho čtení najednou).",
       "lead": "Jeho datový model, entity, kdo je čte a co se s ním stalo.",
-      "broker": "Běží na kontextovém brokeru {broker}."
+      "broker": "Běží na kontextovém brokeru {broker}.",
+      "size": "Velikost",
+      "totalSize": "V úložišti brokera zabírá {size}, z toho historie {history}."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",

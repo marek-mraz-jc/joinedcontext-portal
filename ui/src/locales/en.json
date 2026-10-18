@@ -502,7 +502,8 @@
       "source": "Source",
       "entities": "Entities",
       "inside": "Inside",
-      "missingUnitCode": "Missing unit"
+      "missingUnitCode": "Missing unit",
+      "size": "Size"
     },
     "inside": {
       "total": "The space holds {count, plural, one {# entity} other {# entities}}.",
@@ -540,7 +541,9 @@
       "modelImport": "Import a Smart Data Model",
       "tooMany": "The endpoint is busy (too many reads at once).",
       "lead": "Its data model, its entities, who reads them and what happened to it.",
-      "broker": "It lives on the context broker {broker}."
+      "broker": "It lives on the context broker {broker}.",
+      "size": "Size",
+      "totalSize": "It takes {size} in the broker's store, {history} of it history."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
