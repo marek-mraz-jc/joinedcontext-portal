@@ -157,4 +157,21 @@ describe("an endpoint's documentation (T-3265)", () => {
     expect(await screen.findByText(en.endpoints.standards.unavailable)).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "GET /ngsi-ld/v1/entities" })).toBeInTheDocument();
   });
+
+  // T-4565, red ci-full 39104708624: a 200 of another shape (a page's mock, an older Portal)
+  // took the whole Endpoint page down through the ErrorBoundary.
+  it("says the standards cannot be read when the answer is not the documented shape, and keeps the rest", async () => {
+    show(json(DOC), true, () => json({ slug: SLUG }));
+    expect(await screen.findByText(en.endpoints.standards.unavailable)).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "GET /ngsi-ld/v1/entities" })).toBeInTheDocument();
+  });
+
+  it("never links an example whose address is not http(s)", async () => {
+    const hostile = structuredClone(STANDARDS);
+    hostile.standards[0].examples[0].url = "javascript:alert(1)";
+    show(json(DOC), true, () => json(hostile));
+    const panel = await screen.findByTestId("endpoint-standards");
+    expect(within(panel).getByText("javascript:alert(1)")).not.toHaveAttribute("href");
+    expect(within(panel).getAllByRole("link")).toHaveLength(1);
+  });
 });
