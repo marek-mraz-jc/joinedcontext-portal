@@ -8,19 +8,7 @@ import {
 } from "../src/routes/EndpointsPage";
 import type { Manifest } from "../src/api/manifest";
 
-const EVERY_BUT_STA = [
-  "ngsi-ld",
-  "geojson",
-  "csv",
-  "json",
-  "xlsx",
-  "parquet",
-  "zip",
-  "ogc-features",
-  "odata",
-  "websocket",
-  "mcp",
-];
+const EVERY_BUT_STA = ["ngsi-ld", "csv", "ogc-features", "odata", "websocket", "mcp"];
 
 function endpoint(spec: Record<string, unknown>): Manifest {
   return {
@@ -34,35 +22,13 @@ function endpoint(spec: Record<string, unknown>): Manifest {
 /** EP-104: no list serves every standard but sta, less the disabled ones (T-3942). */
 describe("the Endpoint's standards", () => {
   it("serves every standard but sta when the spec lists none, as jc-core does", () => {
-    expect(servedRepresentations({})).toEqual([
-      "ngsi-ld",
-      "mcp",
-      "geojson",
-      "csv",
-      "xlsx",
-      "parquet",
-      "json",
-      "zip",
-      "ogc-features",
-      "odata",
-      "websocket",
-    ]);
+    expect(servedRepresentations({})).toEqual(["ngsi-ld", "mcp", "csv", "ogc-features", "odata", "websocket"]);
     expect(servedRepresentations({ disabledRepresentations: ["odata", "csv"], mcp: false })).toEqual([
       "ngsi-ld",
-      "geojson",
-      "xlsx",
-      "parquet",
-      "json",
-      "zip",
       "ogc-features",
       "websocket",
     ]);
-    expect(servedRepresentations({ enabledRepresentations: ["sta"] })).toEqual([
-      "sta",
-      "ngsi-ld",
-      "geojson",
-      "mcp",
-    ]);
+    expect(servedRepresentations({ enabledRepresentations: ["sta"] })).toEqual(["sta", "ngsi-ld", "mcp"]);
   });
 
   it("checks every standard but sta on a new Endpoint and writes no field for it", () => {
@@ -77,30 +43,39 @@ describe("the Endpoint's standards", () => {
 
   it("never writes an always-on standard as disabled, even unchecked", () => {
     expect(representationSpec(["csv"])).toEqual({
-      disabledRepresentations: ["json", "xlsx", "parquet", "zip", "ogc-features", "odata", "websocket"],
+      disabledRepresentations: ["ogc-features", "odata", "websocket"],
     });
   });
 
   it("turns sta on with a list, since only a list serves it", () => {
     expect(representationSpec([...EVERY_BUT_STA, "sta"])).toEqual({
-      enabledRepresentations: ["csv", "json", "xlsx", "parquet", "zip", "ogc-features", "odata", "websocket", "sta"],
+      enabledRepresentations: ["csv", "ogc-features", "odata", "websocket", "sta"],
     });
   });
 
   it("keeps an existing list as checked, in its order, and never widens it on save", () => {
-    const stored = endpoint({ enabledRepresentations: ["geojson", "ngsi-ld", "csv"] });
+    const stored = endpoint({ enabledRepresentations: ["csv", "ngsi-ld"] });
     const form = toForm(stored);
-    expect(form.enabledRepresentations).toEqual(["ngsi-ld", "geojson", "csv", "mcp"]);
+    expect(form.enabledRepresentations).toEqual(["ngsi-ld", "csv", "mcp"]);
     expect(toEnvelope("helsinki", form, "air", [], undefined, stored).spec).toEqual(stored.spec);
 
     form.enabledRepresentations = [...form.enabledRepresentations, "odata"];
     expect(toEnvelope("helsinki", form, "air", [], undefined, stored).spec).toMatchObject({
-      enabledRepresentations: ["geojson", "ngsi-ld", "csv", "odata"],
+      enabledRepresentations: ["csv", "ngsi-ld", "odata"],
     });
-    form.enabledRepresentations = ["ngsi-ld", "geojson", "mcp"];
+    form.enabledRepresentations = ["ngsi-ld", "mcp"];
     const narrowed = toEnvelope("helsinki", form, "air", [], undefined, stored).spec as Record<string, unknown>;
-    expect(narrowed.enabledRepresentations).toEqual(["geojson", "ngsi-ld"]);
+    expect(narrowed.enabledRepresentations).toEqual(["ngsi-ld"]);
     expect(narrowed).not.toHaveProperty("disabledRepresentations");
+  });
+
+  it("drops a retired file a stored list still names on save (T-4600)", () => {
+    const stored = endpoint({ enabledRepresentations: ["geojson", "ngsi-ld", "csv", "xlsx"] });
+    const form = toForm(stored);
+    expect(form.enabledRepresentations).toEqual(["ngsi-ld", "csv", "mcp"]);
+    expect(toEnvelope("helsinki", form, "air", [], undefined, stored).spec).toMatchObject({
+      enabledRepresentations: ["ngsi-ld", "csv"],
+    });
   });
 
   it("round-trips a disabled set and drops it once everything is checked again", () => {
