@@ -201,7 +201,7 @@ async fn the_sources_join_the_manifests_with_what_the_assistant_holds() {
         .and(path(format!("{ASSISTANT_PATH}/sources")))
         .and(header("authorization", "Bearer the-portals-own-token"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({"items": [
-            {"source": "web", "state": "crawled", "lastCrawl": "2026-10-06T03:00:00Z", "pages": 120, "pagesIncluded": 110, "documents": 14, "passages": 900, "embedded": 900, "job": {"state": "done", "attempts": 1, "error": null}}
+            {"source": "web", "state": "crawled", "lastCrawl": "2026-10-06T03:00:00Z", "pages": 120, "pagesIncluded": 110, "documents": 14, "passages": 900, "embedded": 900, "languages": {"fi": 800, "en": 100}, "job": {"state": "done", "attempts": 1, "error": null}}
         ]})))
         .mount(&r.assistant)
         .await;
@@ -226,6 +226,11 @@ async fn the_sources_join_the_manifests_with_what_the_assistant_holds() {
         (json!("crawled"), json!(120), json!("website"))
     );
     assert_eq!(web["startUrls"], json!(["https://www.hel.fi/"]));
+    assert_eq!(
+        web["languages"],
+        json!({"fi": 800, "en": 100}),
+        "passages per language (UI-99)"
+    );
     let catalogue = items
         .iter()
         .find(|i| i["source"] == "catalogue")
@@ -273,6 +278,11 @@ async fn nobody_without_the_permission_reaches_the_assistant() {
         (
             "GET",
             "/api/v1/projects/helsinki/knowledge/sources/web/pages",
+            None,
+        ),
+        (
+            "GET",
+            "/api/v1/projects/helsinki/knowledge/sources/web/search?q=kirjasto",
             None,
         ),
         (
@@ -407,6 +417,86 @@ async fn reads_and_an_inclusion_are_forwarded_and_bounded() {
         asked(&r.assistant).await,
         before,
         "nothing out of bounds reached the assistant"
+    );
+}
+
+/// UI-99 (T-4659): a page search and a trial search reach the assistant with their words
+/// encoded, and its hits and its refusal of a bad `q` come back as they are.
+#[tokio::test]
+async fn a_page_search_and_a_trial_search_are_forwarded() {
+    let r = rig().await;
+    Mock::given(method("GET"))
+        .and(path(format!("{ASSISTANT_PATH}/sources/web/pages")))
+        .and(query_param("q", "Kirjasto & lainaus"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(
+            json!({"items": [{"id": 13, "url": "https://www.hel.fi/a", "title": "Kirjasto"}]}),
+        ))
+        .mount(&r.assistant)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("{ASSISTANT_PATH}/sources/web/search")))
+        .and(query_param("q", "aukioloajat?"))
+        .and(query_param("limit", "3"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"hits": [{"title": "Kirjasto",
+            "url": "https://www.hel.fi/a", "publisher": "helsinki", "modified": "2026-09-30T08:12:00Z",
+            "text": "Avoinna 9-20", "score": 0.03}]})))
+        .mount(&r.assistant)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("{ASSISTANT_PATH}/sources/web/pages")))
+        .and(query_param("q", "x"))
+        .respond_with(ResponseTemplate::new(400).set_body_json(
+            json!({"title": "Bad Request", "status": 400, "detail": "q must be 2 to 100 characters"}),
+        ))
+        .mount(&r.assistant)
+        .await;
+    let found = common::send(
+        &r.state,
+        admin(),
+        "GET",
+        "/api/v1/projects/helsinki/knowledge/sources/web/pages?q=Kirjasto%20%26%20lainaus",
+        None,
+    )
+    .await;
+    assert_eq!(found.status, 200, "{}", found.text);
+    assert!(
+        found.text.contains("\"title\":\"Kirjasto\""),
+        "{}",
+        found.text
+    );
+    let tried = common::send(
+        &r.state,
+        admin(),
+        "GET",
+        "/api/v1/projects/helsinki/knowledge/sources/web/search?q=aukioloajat%3F&limit=3",
+        None,
+    )
+    .await;
+    assert_eq!(tried.status, 200, "{}", tried.text);
+    assert!(tried.text.contains("Avoinna 9-20"), "{}", tried.text);
+    let short = common::send(
+        &r.state,
+        admin(),
+        "GET",
+        "/api/v1/projects/helsinki/knowledge/sources/web/pages?q=x",
+        None,
+    )
+    .await;
+    assert_eq!(short.status, 400, "{}", short.text);
+    assert!(short.text.contains("2 to 100"), "{}", short.text);
+    let before = asked(&r.assistant).await;
+    for uri in [
+        "/api/v1/projects/helsinki/knowledge/sources/web/search",
+        "/api/v1/projects/helsinki/knowledge/sources/web/search?q=a&limit=300",
+        "/api/v1/projects/helsinki/knowledge/sources/web/search?q=a&extra=1",
+    ] {
+        let answer = common::send(&r.state, admin(), "GET", uri, None).await;
+        assert_eq!(answer.status, 400, "{uri}: {}", answer.text);
+    }
+    assert_eq!(
+        asked(&r.assistant).await,
+        before,
+        "a malformed query never reached the assistant"
     );
 }
 

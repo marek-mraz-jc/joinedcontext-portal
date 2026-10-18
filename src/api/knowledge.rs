@@ -32,6 +32,19 @@ pub const MAX_IDS: usize = 500;
 pub struct Level {
     /// The page whose children to list; none lists the roots.
     pub parent: Option<i64>,
+    /// Instead of one level: at most 100 pages of the whole source whose title or address holds
+    /// it, case and diacritics ignored; 2 to 100 characters (UI-99).
+    pub q: Option<String>,
+}
+
+/// A trial of the search `search_documents` runs, over one source (UI-99, T-4659).
+#[derive(Debug, Deserialize, IntoParams)]
+#[serde(deny_unknown_fields)]
+pub struct Tried {
+    /// 1 to 300 characters.
+    pub q: String,
+    /// 1 to 10 hits, 5 when absent.
+    pub limit: Option<u8>,
 }
 
 /// The page or the document whose passages to show; exactly one.
@@ -282,6 +295,7 @@ pub async fn list_sources(
                         "embedded",
                         "pending",
                         "failed",
+                        "languages",
                         "job",
                     ] {
                         item[key] = found.get(key).cloned().unwrap_or(Value::Null);
@@ -295,11 +309,27 @@ pub async fn list_sources(
     Ok(Json(json!({ "items": items })))
 }
 
+/// The pairs that have a value as a query, `?a=1&b=x`, encoded; nothing when none has one.
+fn query_of(pairs: &[(&str, Option<String>)]) -> String {
+    let mut query = url::form_urlencoded::Serializer::new(String::new());
+    for (name, value) in pairs {
+        if let Some(value) = value {
+            query.append_pair(name, value);
+        }
+    }
+    let query = query.finish();
+    if query.is_empty() {
+        query
+    } else {
+        format!("?{query}")
+    }
+}
+
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/knowledge/sources/{source}/pages",
     summary = "Read A Level Of The Page Tree",
-    description = "The pages under `parent`, or the roots without it: depth, status, language, whether included and who excluded it, and how many children, documents and passages each holds.",
+    description = "The pages under `parent`, or the roots without it, or with `q` at most 100 pages of the whole source whose title or address holds it: depth, status, language, title, description, published and modified, whether included and who excluded it, and how many children, documents and passages each holds.",
     tag = "knowledge",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -308,6 +338,7 @@ pub async fn list_sources(
     ),
     responses(
         (status = 200, description = "The pages", body = Object),
+        (status = 400, description = "`q` is not 2 to 100 characters", body = crate::error::ProblemDetails),
         (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
         (status = 404, description = "No such project or crawled source", body = crate::error::ProblemDetails),
         (status = 503, description = "The knowledge assistant is not reachable", body = crate::error::ProblemDetails),
@@ -321,17 +352,48 @@ pub async fn list_pages(
 ) -> Result<Json<Value>, ApiError> {
     readable(&state, &user, &project)?;
     named("source", &source)?;
-    let query = level
-        .parent
-        .map(|p| format!("?parent={p}"))
-        .unwrap_or_default();
-    let (_, body) = ask(
-        &state,
-        reqwest::Method::GET,
-        &format!("{project}/knowledge/sources/{source}/pages{query}"),
-        None,
+    let query = query_of(&[
+        ("parent", level.parent.map(|p| p.to_string())),
+        ("q", level.q),
+    ]);
+    let path = format!("{project}/knowledge/sources/{source}/pages{query}");
+    let (_, body) = ask(&state, reqwest::Method::GET, &path, None).await?;
+    Ok(Json(body))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/knowledge/sources/{source}/search",
+    summary = "Try A Source's Search",
+    description = "The hits the MCP tool `search_documents` would answer from this one source (API/05 §4), each with its title, address, publisher, description, dates, language, passage and score; internal passages too, as an internal deployment would read them.",
+    tag = "knowledge",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("source" = String, Path, description = "KnowledgeSource name"),
+        Tried,
+    ),
+    responses(
+        (status = 200, description = "The hits, best first", body = Object),
+        (status = 400, description = "`q` is not 1 to 300 characters or `limit` not 1 to 10", body = crate::error::ProblemDetails),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such project or crawled source", body = crate::error::ProblemDetails),
+        (status = 503, description = "The knowledge assistant is not reachable", body = crate::error::ProblemDetails),
     )
-    .await?;
+)]
+pub async fn try_search(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, source)): Path<(String, String)>,
+    Query(tried): Query<Tried>,
+) -> Result<Json<Value>, ApiError> {
+    readable(&state, &user, &project)?;
+    named("source", &source)?;
+    let query = query_of(&[
+        ("q", Some(tried.q)),
+        ("limit", tried.limit.map(|l| l.to_string())),
+    ]);
+    let path = format!("{project}/knowledge/sources/{source}/search{query}");
+    let (_, body) = ask(&state, reqwest::Method::GET, &path, None).await?;
     Ok(Json(body))
 }
 
@@ -518,25 +580,26 @@ pub async fn set_inclusion(
 ) -> Result<Json<Value>, ApiError> {
     writable(&state, &user, &project)?;
     named("source", &source)?;
-    if change.pages.is_empty() && change.documents.is_empty() {
+    let body = inclusion_body(&change)?;
+    let path = format!("{project}/knowledge/sources/{source}/inclusion");
+    let (_, counts) = ask(&state, reqwest::Method::POST, &path, Some(body)).await?;
+    Ok(Json(counts))
+}
+
+/// The inclusion change as the assistant takes it: at least one and at most `MAX_IDS` ids.
+fn inclusion_body(change: &InclusionRequest) -> Result<Value, ApiError> {
+    let ids = change.pages.len() + change.documents.len();
+    if ids == 0 {
         return Err(ApiError::BadRequest(
             "name at least one page or document".into(),
         ));
     }
-    if change.pages.len() + change.documents.len() > MAX_IDS {
+    if ids > MAX_IDS {
         return Err(ApiError::BadRequest(format!(
             "at most {MAX_IDS} pages and documents in one call"
         )));
     }
-    let body = serde_json::to_value(&change).map_err(|err| ApiError::Internal(err.to_string()))?;
-    let (_, counts) = ask(
-        &state,
-        reqwest::Method::POST,
-        &format!("{project}/knowledge/sources/{source}/inclusion"),
-        Some(body),
-    )
-    .await?;
-    Ok(Json(counts))
+    serde_json::to_value(change).map_err(|err| ApiError::Internal(err.to_string()))
 }
 
 #[utoipa::path(
@@ -733,24 +796,12 @@ pub async fn remove_file(
 ) -> Result<StatusCode, ApiError> {
     writable(&state, &user, &project)?;
     named("source", &source)?;
-    ask(
-        &state,
-        reqwest::Method::DELETE,
-        &format!("{project}/knowledge/sources/{source}/files/{id}"),
-        None,
-    )
-    .await?;
-    record(
-        &state,
-        &project,
-        "knowledge.file.removed",
-        format!(
-            "{} removed file {id} from {source}",
-            user.0.identity.username
-        ),
-        json!({ "actor": user.0.identity.username, "source": source, "id": id }),
-    )
-    .await;
+    let path = format!("{project}/knowledge/sources/{source}/files/{id}");
+    ask(&state, reqwest::Method::DELETE, &path, None).await?;
+    let actor = &user.0.identity.username;
+    let message = format!("{actor} removed file {id} from {source}");
+    let detail = json!({ "actor": actor, "source": source, "id": id });
+    record(&state, &project, "knowledge.file.removed", message, detail).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1145,6 +1196,10 @@ pub fn router() -> Router<AppState> {
             get(list_documents),
         )
         .route(
+            "/projects/{project}/knowledge/sources/{source}/search",
+            get(try_search),
+        )
+        .route(
             "/projects/{project}/knowledge/sources/{source}/errors",
             get(list_errors),
         )
@@ -1190,4 +1245,42 @@ pub fn router() -> Router<AppState> {
             "/projects/{project}/knowledge/conversations/{conversation}",
             get(get_conversation).delete(erase_conversation),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{inclusion_body, query_of, InclusionRequest, MAX_IDS};
+
+    #[test]
+    fn a_query_names_the_pairs_with_a_value_encoded_and_none_is_empty() {
+        assert_eq!(query_of(&[("parent", None), ("q", None)]), "");
+        assert_eq!(
+            query_of(&[("parent", Some("12".into())), ("q", None)]),
+            "?parent=12"
+        );
+        assert_eq!(
+            query_of(&[
+                ("q", Some("Kirjasto & lainaus?".into())),
+                ("limit", Some("3".into()))
+            ]),
+            "?q=Kirjasto+%26+lainaus%3F&limit=3"
+        );
+    }
+
+    #[test]
+    fn an_inclusion_names_one_to_max_ids() {
+        let change = |pages: usize| InclusionRequest {
+            pages: (0..pages as i64).collect(),
+            documents: vec![],
+            subtree: false,
+            included: false,
+        };
+        assert!(inclusion_body(&change(0)).is_err());
+        assert_eq!(
+            inclusion_body(&change(1)).unwrap()["pages"],
+            serde_json::json!([0])
+        );
+        assert!(inclusion_body(&change(MAX_IDS)).is_ok());
+        assert!(inclusion_body(&change(MAX_IDS + 1)).is_err());
+    }
 }

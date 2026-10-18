@@ -2298,7 +2298,7 @@ export interface paths {
         };
         /**
          * Read A Level Of The Page Tree
-         * @description The pages under `parent`, or the roots without it: depth, status, language, whether included and who excluded it, and how many children, documents and passages each holds.
+         * @description The pages under `parent`, or the roots without it, or with `q` at most 100 pages of the whole source whose title or address holds it: depth, status, language, title, description, published and modified, whether included and who excluded it, and how many children, documents and passages each holds.
          */
         get: operations["list_pages"];
         put?: never;
@@ -2363,6 +2363,26 @@ export interface paths {
          * @description Queues a crawl of the source now instead of at its schedule. Needs `propose` on KnowledgeSource (AG-113).
          */
         post: operations["recrawl"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/knowledge/sources/{source}/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Try A Source's Search
+         * @description The hits the MCP tool `search_documents` would answer from this one source (API/05 §4), each with its title, address, publisher, description, dates, language, passage and score; internal passages too, as an internal deployment would read them.
+         */
+        get: operations["try_search"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -14146,6 +14166,11 @@ export interface operations {
             query?: {
                 /** @description The page whose children to list; none lists the roots. */
                 parent?: number | null;
+                /**
+                 * @description Instead of one level: at most 100 pages of the whole source whose title or address holds
+                 *     it, case and diacritics ignored; 2 to 100 characters (UI-99).
+                 */
+                q?: string | null;
             };
             header?: never;
             path: {
@@ -14165,6 +14190,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>;
+                };
+            };
+            /** @description `q` is not 2 to 100 characters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
             /** @description Not signed in */
@@ -14366,6 +14400,72 @@ export interface operations {
             };
             /** @description A crawl is already queued or running */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The knowledge assistant is not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    try_search: {
+        parameters: {
+            query: {
+                /** @description 1 to 300 characters. */
+                q: string;
+                /** @description 1 to 10 hits, 5 when absent. */
+                limit?: number | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description KnowledgeSource name */
+                source: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The hits, best first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description `q` is not 1 to 300 characters or `limit` not 1 to 10 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project or crawled source */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

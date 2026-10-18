@@ -49,10 +49,15 @@ export interface McpServerForm {
   allowedProjects: string[];
   /** Picked members as `{project}/{name}`, in the order they were picked. */
   members: string[];
+  /** Attached knowledge sources, `{source}` of this project or `{project}/{source}` (MF-57). */
+  knowledgeSources: string[];
 }
 
+/** The most knowledge sources one server attaches (MF-57). */
+export const MAX_KNOWLEDGE_SOURCES = 20;
+
 export function emptyForm(): McpServerForm {
-  return { name: "", title: "", description: "", audience: "project-list", allowedProjects: [], members: [] };
+  return { name: "", title: "", description: "", audience: "project-list", allowedProjects: [], members: [], knowledgeSources: [] };
 }
 
 /** The widest audience the picked members allow: the narrowest member's own (MF-53). */
@@ -68,6 +73,7 @@ export function formProblems(form: McpServerForm, picked: MemberChoice[]): Recor
   if (form.members.length === 0 || form.members.length > MAX_MEMBERS) problems.members = "mcp.problem.members";
   else if (picked.some((member) => !member.servesMcp)) problems.members = "mcp.problem.noMcp";
   if (breadth(form.audience) > breadth(widestAllowed(picked))) problems.audience = "mcp.problem.audience";
+  if (form.knowledgeSources.length > MAX_KNOWLEDGE_SOURCES) problems.knowledgeSources = "mcp.problem.knowledgeSources";
   if (form.audience === "project-list" && form.allowedProjects.some((p) => !/^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$/.test(p))) {
     problems.allowedProjects = "mcp.problem.projects";
   }
@@ -91,6 +97,7 @@ export function toManifest(project: string, form: McpServerForm, stored?: Manife
     audience: form.audience,
   };
   if (form.audience === "project-list" && form.allowedProjects.length > 0) spec.allowedProjects = form.allowedProjects;
+  if (form.knowledgeSources.length > 0) spec.knowledgeSources = form.knowledgeSources;
   return { apiVersion: "joinedcontext.com/v1alpha1", kind: "McpServer", metadata, spec } as ResourceProposal;
 }
 
@@ -105,7 +112,7 @@ function english(value: unknown): string {
 
 /** A stored server as the form shows it; a member without `namespace` is in the server's project. */
 export function fromManifest(project: string, manifest: Manifest): McpServerForm {
-  const spec = (manifest.spec ?? {}) as { members?: unknown; audience?: unknown; allowedProjects?: unknown };
+  const spec = (manifest.spec ?? {}) as { members?: unknown; audience?: unknown; allowedProjects?: unknown; knowledgeSources?: unknown };
   const members = (Array.isArray(spec.members) ? spec.members : [])
     .map((member) => member as { name?: unknown; namespace?: unknown })
     .filter((member) => typeof member.name === "string")
@@ -117,6 +124,9 @@ export function fromManifest(project: string, manifest: Manifest): McpServerForm
     audience: AUDIENCES.includes(spec.audience as Audience) ? (spec.audience as Audience) : "project-list",
     allowedProjects: Array.isArray(spec.allowedProjects) ? spec.allowedProjects.filter((p): p is string => typeof p === "string") : [],
     members,
+    knowledgeSources: Array.isArray(spec.knowledgeSources)
+      ? spec.knowledgeSources.filter((s): s is string => typeof s === "string")
+      : [],
   };
 }
 

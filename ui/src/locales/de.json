@@ -6586,7 +6586,9 @@
       "passages": "Passagen",
       "document": "Dokument",
       "size": "Größe",
-      "pdfPages": "Seiten"
+      "pdfPages": "Seiten",
+      "languages": "Sprachen",
+      "modified": "Letzte Änderung"
     },
     "state": {
       "notCrawled": "Noch nicht durchlaufen",
@@ -6645,7 +6647,11 @@
       "linksOf": "Verweise von {url}",
       "offDomain": "Auf einer anderen Website",
       "noPassages": "Keine Passage: Der Assistent antwortet nicht daraus.",
-      "noLinks": "Diese Seite verweist auf nichts, was der Durchlauf erfasst hat."
+      "noLinks": "Diese Seite verweist auf nichts, was der Durchlauf erfasst hat.",
+      "findPages": "Seiten finden",
+      "findPagesHelp": "Nach Titel oder Adresse, 2 bis 100 Zeichen; Groß- und Kleinschreibung und Akzente spielen keine Rolle. Höchstens 100 Seiten werden gezeigt.",
+      "noPagesFound": "Keine Seite dieser Quelle hat „{q}“ im Titel oder in der Adresse.",
+      "modified": "geändert {at}"
     },
     "field": {
       "name": "Name",
@@ -6837,6 +6843,16 @@
       "own": "{project} (dieses Projekt)",
       "unknown": "Genannt, aber Ihnen nicht angeboten",
       "none": "Noch kein Projekt, das Sie lesen dürfen, hat eine Wissensquelle."
+    },
+    "trySearch": {
+      "title": "Suche ausprobieren",
+      "intro": "Die Passagen, die das MCP-Werkzeug search_documents aus dieser Quelle liefern würde, die beste zuerst. Interne Passagen zählen hier auch.",
+      "query": "Frage oder Wörter",
+      "run": "Suche ausprobieren",
+      "searching": "Die Suche läuft.",
+      "typeFirst": "Zuerst eine Frage eingeben.",
+      "none": "Nichts in dieser Quelle beantwortet „{q}“.",
+      "hits": "Treffer für „{q}“"
     }
   },
   "mcp": {
@@ -6870,7 +6886,8 @@
       "members": "Mitglieds-Endpoints ({count} von höchstens {max})",
       "search": "Endpoint suchen",
       "audience": "Wer sich verbinden darf",
-      "allowedProjects": "Zugelassene Projekte"
+      "allowedProjects": "Zugelassene Projekte",
+      "knowledgeSources": "Wissensquellen ({count} von höchstens {max})"
     },
     "help": {
       "name": "Kleinbuchstaben, Ziffern und Bindestriche; Teil der Adresse und daher später nicht änderbar.",
@@ -6878,7 +6895,8 @@
       "description": "Was der Server enthält, in ein oder zwei Sätzen; der KI-Client liest es als seine Anweisungen.",
       "members": "Angeboten werden nur Endpoints, die Sie lesen dürfen. Jeder Aufruf eines Mitglieds ist ein eigener Aufruf dieses Endpoints, über den seine eigene Policy entscheidet.",
       "audience": "Nicht weiter als das engste Mitglied. Ein öffentlicher Server braucht nur öffentliche Mitglieder und eine freigebende Person, die veröffentlichen darf.",
-      "allowedProjects": "Projektnamen, durch Kommas getrennt; leer lässt nur dieses Projekt zu."
+      "allowedProjects": "Projektnamen, durch Kommas getrennt; leer lässt nur dieses Projekt zu.",
+      "knowledgeSources": "Der Server bietet das Werkzeug search_documents über die öffentlichen Seiten und Dokumente der hier gewählten Quellen; ohne sie bietet er kein solches Werkzeug."
     },
     "form": {
       "newTitle": "Neuer MCP-Server",
@@ -6889,14 +6907,19 @@
       "servesNoMcp": "Dieser Endpoint bietet keine MCP-Schnittstelle (spec.mcp ist false).",
       "full": "Ein Server nennt höchstens {max} Mitglieder.",
       "unseen": "Mitglieder, die Sie nicht lesen dürfen, bleiben unverändert: {count}",
-      "publicLane": "Ein öffentlicher Server nimmt die rote Spur: Es entscheidet eine freigebende Person, die veröffentlichen darf."
+      "publicLane": "Ein öffentlicher Server nimmt die rote Spur: Es entscheidet eine freigebende Person, die veröffentlichen darf.",
+      "sourcesUnreadable": "Die Wissensquellen des Projekts ließen sich nicht auflisten; bereits angehängte bleiben, wie sie sind.",
+      "noPublicSources": "Dieses Projekt hat keine öffentliche Wissensquelle zum Anhängen.",
+      "sourcesFull": "Höchstens {max} Quellen.",
+      "keptSources": "Unverändert behalten: {sources}."
     },
     "problem": {
       "name": "Verwenden Sie Kleinbuchstaben, Ziffern und Bindestriche, höchstens 63 Zeichen.",
       "members": "Wählen Sie einen bis {max} Mitglieds-Endpoints.",
       "noMcp": "Ein gewählter Endpoint bietet keine MCP-Schnittstelle; entfernen Sie ihn.",
       "audience": "Die Zielgruppe ist weiter, als das engste Mitglied erlaubt; wählen Sie eine engere.",
-      "projects": "Verwenden Sie für jeden Projektnamen Kleinbuchstaben, Ziffern und Bindestriche, etwa city-air."
+      "projects": "Verwenden Sie für jeden Projektnamen Kleinbuchstaben, Ziffern und Bindestriche, etwa city-air.",
+      "knowledgeSources": "Entfernen Sie Wissensquellen, bis höchstens 20 angehängt sind."
     },
     "health": {
       "checking": "Wird geprüft…",

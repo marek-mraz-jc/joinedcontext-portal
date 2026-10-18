@@ -32,10 +32,20 @@ export interface KnowledgeSourceRow {
   pending?: number;
   /** Pages and documents whose last read failed. */
   failed?: number;
+  /** Its passages per language; passages of no known language are not counted (UI-99). */
+  languages?: Record<string, number>;
   job?: SourceJob | null;
 }
 
-export interface PageRow {
+/** What a page or document states of itself (AG-120); `null` where it states nothing. */
+export interface Stated {
+  title?: string | null;
+  description?: string | null;
+  published?: string | null;
+  modified?: string | null;
+}
+
+export interface PageRow extends Stated {
   id: number;
   url: string;
   depth: number;
@@ -50,7 +60,7 @@ export interface PageRow {
   passages: number;
 }
 
-export interface DocumentRow {
+export interface DocumentRow extends Stated {
   id: number;
   url: string;
   pageId: number | null;
@@ -63,6 +73,18 @@ export interface DocumentRow {
   excludedBy: PageRow["excludedBy"];
   passages: number;
 }
+
+/** One hit of the search `search_documents` runs (API/05 §4, UI-99). */
+export interface SearchHit extends Stated {
+  url: string;
+  publisher: string;
+  language: string | null;
+  text: string;
+  score: number;
+}
+
+/** The shortest page search, in characters (API/05 §3). */
+export const PAGE_QUERY_MIN = 2;
 
 export interface Passage {
   ordinal: number;
@@ -110,7 +132,11 @@ export const knowledgeKeys = {
   sources: (project: string) => ["projects", project, "knowledge", "sources"] as const,
   pages: (project: string, source: string, parent: number | null) =>
     ["projects", project, "knowledge", "sources", source, "pages", parent] as const,
+  found: (project: string, source: string, q: string) =>
+    ["projects", project, "knowledge", "sources", source, "pages", "q", q] as const,
   documents: (project: string, source: string) => ["projects", project, "knowledge", "sources", source, "documents"] as const,
+  search: (project: string, source: string, q: string) =>
+    ["projects", project, "knowledge", "sources", source, "search", q] as const,
   passages: (project: string, source: string, owner: { page?: number; document?: number }) =>
     ["projects", project, "knowledge", "sources", source, "passages", owner.page ?? null, owner.document ?? null] as const,
   errors: (project: string, source: string) => ["projects", project, "knowledge", "sources", source, "errors"] as const,
@@ -133,6 +159,40 @@ export async function listPages(project: string, source: string, parent: number 
       }),
     ),
   );
+}
+
+/** At most 100 pages of the whole source whose title or address holds `q` (UI-99). */
+export async function findPages(project: string, source: string, q: string): Promise<PageRow[]> {
+  return items<PageRow>(
+    await unwrap(
+      await api.GET("/api/v1/projects/{project}/knowledge/sources/{source}/pages", {
+        params: { path: { project, source }, query: { q } },
+      }),
+    ),
+  );
+}
+
+/** What `search_documents` would answer from this one source, best first (UI-99). */
+export async function trySearch(project: string, source: string, q: string): Promise<SearchHit[]> {
+  const answer = await unwrap(
+    await api.GET("/api/v1/projects/{project}/knowledge/sources/{source}/search", {
+      params: { path: { project, source }, query: { q, limit: 5 } },
+    }),
+  );
+  const hits = (answer as { hits?: unknown } | null)?.hits;
+  return Array.isArray(hits) ? (hits as SearchHit[]) : [];
+}
+
+/** A source's languages, the largest share first: `sk 92 %, en 8 %`. */
+export function languagesText(languages: Record<string, number> | undefined, language: string): string {
+  const entries = Object.entries(languages ?? {}).filter(([, n]) => n > 0);
+  const total = entries.reduce((sum, [, n]) => sum + n, 0);
+  if (total === 0) return "—";
+  const percent = new Intl.NumberFormat(language, { style: "percent", maximumFractionDigits: 0 });
+  return entries
+    .sort(([a, x], [b, y]) => y - x || a.localeCompare(b))
+    .map(([code, n]) => `${code} ${percent.format(n / total)}`)
+    .join(", ");
 }
 
 export async function listDocuments(project: string, source: string): Promise<DocumentRow[]> {

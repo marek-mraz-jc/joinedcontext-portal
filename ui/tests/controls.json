@@ -1230,7 +1230,7 @@
     },
     "src/pages/knowledge/SourcePage.tsx": {
       "controls": {
-        "Button": 6,
+        "Button": 7,
         "Checkbox": 3
       },
       "tests": [
@@ -1266,7 +1266,7 @@
     "src/pages/mcp/McpServerDialog.tsx": {
       "controls": {
         "Button": 3,
-        "Checkbox": 1
+        "Checkbox": 2
       },
       "tests": [
         "mcp_servers.test.tsx"

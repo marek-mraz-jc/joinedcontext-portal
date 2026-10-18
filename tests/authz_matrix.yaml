@@ -457,6 +457,11 @@ routes:
     rule: "project-verb:read:KnowledgeSource"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
     note: "503 after the check: no knowledge assistant in the fixture"
+  - route: GET /projects/{project}/knowledge/sources/{source}/search
+    rule: "project-verb:read:KnowledgeSource"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    query: "q=parkovanie"
+    note: "503 after the check: no knowledge assistant in the fixture"
   - route: GET /projects/{project}/knowledge/sources/{source}/pages/{page}/links
     rule: "project-verb:read:KnowledgeSource"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
