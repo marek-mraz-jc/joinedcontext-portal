@@ -578,25 +578,26 @@ pub async fn set_inclusion(
 ) -> Result<Json<Value>, ApiError> {
     writable(&state, &user, &project)?;
     named("source", &source)?;
-    if change.pages.is_empty() && change.documents.is_empty() {
+    let body = inclusion_body(&change)?;
+    let path = format!("{project}/knowledge/sources/{source}/inclusion");
+    let (_, counts) = ask(&state, reqwest::Method::POST, &path, Some(body)).await?;
+    Ok(Json(counts))
+}
+
+/// The inclusion change as the assistant takes it: at least one and at most `MAX_IDS` ids.
+fn inclusion_body(change: &InclusionRequest) -> Result<Value, ApiError> {
+    let ids = change.pages.len() + change.documents.len();
+    if ids == 0 {
         return Err(ApiError::BadRequest(
             "name at least one page or document".into(),
         ));
     }
-    if change.pages.len() + change.documents.len() > MAX_IDS {
+    if ids > MAX_IDS {
         return Err(ApiError::BadRequest(format!(
             "at most {MAX_IDS} pages and documents in one call"
         )));
     }
-    let body = serde_json::to_value(&change).map_err(|err| ApiError::Internal(err.to_string()))?;
-    let (_, counts) = ask(
-        &state,
-        reqwest::Method::POST,
-        &format!("{project}/knowledge/sources/{source}/inclusion"),
-        Some(body),
-    )
-    .await?;
-    Ok(Json(counts))
+    serde_json::to_value(change).map_err(|err| ApiError::Internal(err.to_string()))
 }
 
 #[utoipa::path(
@@ -793,24 +794,12 @@ pub async fn remove_file(
 ) -> Result<StatusCode, ApiError> {
     writable(&state, &user, &project)?;
     named("source", &source)?;
-    ask(
-        &state,
-        reqwest::Method::DELETE,
-        &format!("{project}/knowledge/sources/{source}/files/{id}"),
-        None,
-    )
-    .await?;
-    record(
-        &state,
-        &project,
-        "knowledge.file.removed",
-        format!(
-            "{} removed file {id} from {source}",
-            user.0.identity.username
-        ),
-        json!({ "actor": user.0.identity.username, "source": source, "id": id }),
-    )
-    .await;
+    let path = format!("{project}/knowledge/sources/{source}/files/{id}");
+    ask(&state, reqwest::Method::DELETE, &path, None).await?;
+    let actor = &user.0.identity.username;
+    let message = format!("{actor} removed file {id} from {source}");
+    let detail = json!({ "actor": actor, "source": source, "id": id });
+    record(&state, &project, "knowledge.file.removed", message, detail).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1049,7 +1038,7 @@ pub fn router() -> Router<AppState> {
 
 #[cfg(test)]
 mod tests {
-    use super::query_of;
+    use super::{inclusion_body, query_of, InclusionRequest, MAX_IDS};
 
     #[test]
     fn a_query_names_the_pairs_with_a_value_encoded_and_none_is_empty() {
@@ -1065,5 +1054,22 @@ mod tests {
             ]),
             "?q=Kirjasto+%26+lainaus%3F&limit=3"
         );
+    }
+
+    #[test]
+    fn an_inclusion_names_one_to_max_ids() {
+        let change = |pages: usize| InclusionRequest {
+            pages: (0..pages as i64).collect(),
+            documents: vec![],
+            subtree: false,
+            included: false,
+        };
+        assert!(inclusion_body(&change(0)).is_err());
+        assert_eq!(
+            inclusion_body(&change(1)).unwrap()["pages"],
+            serde_json::json!([0])
+        );
+        assert!(inclusion_body(&change(MAX_IDS)).is_ok());
+        assert!(inclusion_body(&change(MAX_IDS + 1)).is_err());
     }
 }
