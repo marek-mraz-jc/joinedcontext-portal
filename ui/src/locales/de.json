@@ -502,7 +502,8 @@
       "source": "Quelle",
       "entities": "Entitäten",
       "inside": "Inhalt",
-      "missingUnitCode": "Fehlende Einheit"
+      "missingUnitCode": "Fehlende Einheit",
+      "size": "Größe"
     },
     "inside": {
       "total": "Der Raum enthält {count, plural, one {# Entität} other {# Entitäten}}.",
@@ -540,7 +541,9 @@
       "modelImport": "Smart Data Model importieren",
       "tooMany": "Der Endpoint ist ausgelastet (zu viele Lesezugriffe auf einmal).",
       "lead": "Sein Datenmodell, seine Entitäten, wer sie liest und was mit ihm geschah.",
-      "broker": "Er liegt auf dem Context-Broker {broker}."
+      "broker": "Er liegt auf dem Context-Broker {broker}.",
+      "size": "Größe",
+      "totalSize": "Er belegt {size} im Speicher des Brokers, davon {history} Verlauf."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -1004,7 +1007,7 @@
     },
     "retention": {
       "title": "Aufbewahrung",
-      "lead": "Wie lange dieser Raum die Daten jedes Typs aufbewahrt. Ein Typ ohne Regel wird für immer aufbewahrt; eine kürzere Regel oder ein ausgeschalteter Verlauf löscht Daten endgültig.",
+      "lead": "Wie lange dieser Raum die Daten jedes Typs aufbewahrt. Ein Typ, dessen Regel nichts zum Verlauf sagt, übernimmt die Zeile Alle anderen Typen und ohne sie die Vorgabe der Plattform; eine kürzere Regel oder ein ausgeschalteter Verlauf löscht Daten endgültig.",
       "noTypes": "Das Modell des Raums nennt noch keine Typen.",
       "caption": "Wie lange die Daten jedes Typs aufbewahrt werden",
       "type": "Typ",
@@ -1041,7 +1044,12 @@
       },
       "off": "Aus: kein Verlauf",
       "offShown": "Aus",
-      "foreverAsNow": "Für immer behalten (wie bisher)"
+      "foreverAsNow": "Für immer behalten (wie bisher)",
+      "anyType": "Alle anderen Typen",
+      "spaceDefault": "Vorgabe des Raums",
+      "platformDefault": "Vorgabe der Plattform",
+      "perType": "Pro Typ festgelegt",
+      "defaultAsNow": "{fallback} (wie bisher)"
     },
     "upload": {
       "open": "CSV hochladen",

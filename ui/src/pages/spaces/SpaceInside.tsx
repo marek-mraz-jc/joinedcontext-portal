@@ -8,7 +8,7 @@ import type { GridState, RichRow } from "@joinedcontext/sdk";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
-import { spaceUsageQuery, usageRefusal } from "../../api/spaceUsage";
+import { bytesOfType, exactBytes, sizeText, spaceUsageQuery, usageRefusal } from "../../api/spaceUsage";
 import { asManifests, localized, refName } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
 import { ActivityFeed } from "../../components/ActivityFeed";
@@ -195,11 +195,14 @@ function TypeRow({
   space,
   slug,
   type,
+  bytes,
 }: {
   project: string;
   space: string;
   slug?: string;
   type: string;
+  /** What the type's entities take in the broker's store (T-2890), when it measured them. */
+  bytes?: number;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const inside = useQuery({
@@ -242,6 +245,13 @@ function TypeRow({
         <TypeLink project={project} type={type} space={space} />
       </TableCell>
       <TableCell align="right" className="font-mono">{count}</TableCell>
+      <TableCell align="right" secondary className="tabular-nums">
+        {bytes === undefined ? (
+          <span className="text-fg-subtle">—</span>
+        ) : (
+          <span title={exactBytes(bytes, i18n.language)}>{sizeText(bytes, i18n.language)}</span>
+        )}
+      </TableCell>
       <TableCell secondary>
         {inside.isSuccess && inside.data.samples.length > 0 ? (
           <ul className="space-y-1">
@@ -1066,6 +1076,18 @@ export function SpaceInside({ project, name }: { project: string; name: string }
             <p className="mb-3 text-body text-fg" data-testid="space-total">
               {t("spaces.inside.total", { count: usage.data.entities })}
             </p>
+            {usage.data.bytes ? (
+              <p
+                className="mb-3 text-body text-fg"
+                data-testid="space-size"
+                title={exactBytes(usage.data.bytes.entities + usage.data.bytes.attrInstances, i18n.language)}
+              >
+                {t("spaces.inside.totalSize", {
+                  size: sizeText(usage.data.bytes.entities + usage.data.bytes.attrInstances, i18n.language),
+                  history: sizeText(usage.data.bytes.attrInstances, i18n.language),
+                })}
+              </p>
+            ) : null}
             <p className="mb-3 text-caption text-fg-muted" data-testid="space-broker">
               {t("spaces.inside.broker", { broker: usage.data.broker })}
             </p>
@@ -1112,13 +1134,21 @@ export function SpaceInside({ project, name }: { project: string; name: string }
               <TableHead>
                 <TableHeaderCell>{t("spaces.inside.type")}</TableHeaderCell>
                 <TableHeaderCell align="right">{t("spaces.inside.count")}</TableHeaderCell>
+                <TableHeaderCell align="right" secondary>{t("spaces.inside.size")}</TableHeaderCell>
                 {/* A phone keeps the type and its count (UI-27): the samples squeezed to a letter
                     a line ran 800 px down the page (T-4265, photo audit T-4160 #5). */}
                 <TableHeaderCell secondary>{t("spaces.inside.samples")}</TableHeaderCell>
               </TableHead>
               <TableBody>
                 {types.map((type) => (
-                  <TypeRow key={type} project={project} space={name} slug={slug} type={type} />
+                  <TypeRow
+                    key={type}
+                    project={project}
+                    space={name}
+                    slug={slug}
+                    type={type}
+                    bytes={bytesOfType(usage.data?.bytes?.byType, type)}
+                  />
                 ))}
               </TableBody>
             </Table>
