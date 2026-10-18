@@ -12,7 +12,7 @@ use joinedcontext_portal::auth::csrf::{CSRF_COOKIE, CSRF_HEADER};
 use joinedcontext_portal::auth::session::{self, Identity, Session};
 use joinedcontext_portal::config::Config;
 use joinedcontext_portal::git::GiteaClient;
-use joinedcontext_portal::resource::API_VERSION;
+use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
 use joinedcontext_portal::server;
 use joinedcontext_portal::state::AppState;
 use serde_json::{json, Value};
@@ -75,16 +75,38 @@ fn account(kind: &str) -> Value {
 
 /// The status and body of one POST of `payload`, and how many requests Gitea received.
 async fn post(query: &str, payload: &Value) -> (StatusCode, String, usize) {
+    send(
+        "POST",
+        &format!("/api/v1/projects/ovzdusie/serviceaccounts{query}"),
+        payload,
+    )
+    .await
+}
+
+/// One request against a Portal whose mirror already holds `vendorx` with an OAuth client.
+async fn send(method: &str, uri: &str, payload: &Value) -> (StatusCode, String, usize) {
     let gitea = MockServer::start().await;
     let client =
         GiteaClient::new(gitea.uri().parse().expect("url"), "o", "r", "token-xyz").expect("client");
     let config = Config::for_tests();
-    let app = server::app(AppState::new(config.clone(), None).with_gitea(Arc::new(client)));
-    let response = app
+    let state = AppState::new(config.clone(), None).with_gitea(Arc::new(client));
+    let existing = account("oauth-client");
+    state.mirror.upsert(ResourceEnvelope {
+        api_version: API_VERSION.to_string(),
+        kind: "ServiceAccount".to_string(),
+        metadata: ObjectMeta {
+            name: "vendorx".to_string(),
+            namespace: Some("ovzdusie".to_string()),
+            ..Default::default()
+        },
+        spec: existing["spec"].clone(),
+        status: None,
+    });
+    let response = server::app(state)
         .oneshot(
             Request::builder()
-                .method("POST")
-                .uri(format!("/api/v1/projects/ovzdusie/serviceaccounts{query}"))
+                .method(method)
+                .uri(uri)
                 .header(header::COOKIE, cookies(&config))
                 .header(CSRF_HEADER, CSRF)
                 .header(header::CONTENT_TYPE, "application/json")
@@ -139,4 +161,34 @@ async fn the_same_account_with_an_oauth_client_passes_the_dry_run() {
     let (status, body, sent) = post("?dryRun=All", &account("oauth-client")).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(sent, 0);
+}
+
+/// Edge cases: a key hidden behind a valid credential, an update rather than a create, and the
+/// kind in other letters are each refused, and none reaches Git.
+#[tokio::test]
+async fn an_api_key_is_refused_second_in_the_list_on_an_update_and_in_any_case() {
+    let mut second = account("oauth-client");
+    second["metadata"]["name"] = json!("vendory");
+    second["spec"]["credentials"]
+        .as_array_mut()
+        .expect("credentials")
+        .push(json!({ "kind": "api-key", "name": "legacy-push-2" }));
+    let (status, body, sent) = post("", &second).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "second credential: {body}");
+    assert!(body.contains("api-key"), "{body}");
+    assert_eq!(sent, 0);
+
+    let uri = "/api/v1/projects/ovzdusie/serviceaccounts/vendorx";
+    let (status, body, sent) = send("PUT", uri, &account("api-key")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "update: {body}");
+    assert!(body.contains("api-key"), "{body}");
+    assert_eq!(sent, 0);
+
+    for kind in ["API-Key", "api_key", "apiKey"] {
+        let mut other = account(kind);
+        other["metadata"]["name"] = json!("vendorz");
+        let (status, body, sent) = post("", &other).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{kind}: {body}");
+        assert_eq!(sent, 0, "{kind}");
+    }
 }
