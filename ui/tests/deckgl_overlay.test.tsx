@@ -127,7 +127,7 @@ const ENDPOINT = {
     contextSpaceRef: "doprava",
     slug: "k7m2qz4tv6xh3n5jb2ryd3wcfa",
     audience: "public",
-    enabledRepresentations: ["ngsi-ld", "geojson"],
+    enabledRepresentations: ["ngsi-ld", "csv"],
   },
   status: { phase: "Live" },
 };
@@ -154,7 +154,7 @@ function renderDashboard(options: { style?: string; features?: number } = {}) {
     vi.fn((input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : (input as Request).url;
       const path = new URL(url, window.location.origin).pathname;
-      if (path.endsWith("/file.geojson")) {
+      if (path.endsWith("/ngsi-ld/v1/entities")) {
         // Not a real `Response`: serialising fifty thousand features would cost more than
         // the assertion is worth, and every consumer here only calls `.json()`.
         return Promise.resolve({

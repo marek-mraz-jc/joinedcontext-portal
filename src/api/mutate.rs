@@ -2162,7 +2162,7 @@ async fn propose_draft(
                 "contextSpaceRef": "air",
                 "slug": "mluyob4nz52lok3ssk7pgn5vwt",
                 "audience": "organization",
-                "enabledRepresentations": ["ngsi-ld", "geojson"]
+                "enabledRepresentations": ["ngsi-ld", "csv"]
             }
         })),
     responses(
@@ -2235,7 +2235,7 @@ pub async fn create(
                 "contextSpaceRef": "air",
                 "slug": "mluyob4nz52lok3ssk7pgn5vwt",
                 "audience": "organization",
-                "enabledRepresentations": ["ngsi-ld", "geojson"]
+                "enabledRepresentations": ["ngsi-ld", "csv"]
             }
         })),
     responses(

@@ -550,6 +550,13 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
     delete form.hiddenAttributes;
     delete form.entityTypes;
     delete form.existing;
+    // A form offers only what an Endpoint may serve: a retired file a prefill still names is not
+    // checked, so it never stops the form's validation (T-4600).
+    if (Array.isArray(form.enabledRepresentations)) {
+      form.enabledRepresentations = form.enabledRepresentations.filter((rep) =>
+        (REPRESENTATIONS as readonly string[]).includes(rep),
+      );
+    }
     return {
       name: "",
       contextSpaceRef: "",

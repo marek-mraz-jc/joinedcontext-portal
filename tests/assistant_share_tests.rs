@@ -150,7 +150,7 @@ async fn a_publisher_gets_the_manifests_the_slug_and_the_lane_and_nothing_is_wri
     assert_eq!(body["endpoint"]["spec"]["audience"], "project-list");
     assert_eq!(
         body["endpoint"]["spec"]["enabledRepresentations"],
-        json!(["ngsi-ld", "geojson"])
+        json!(["ngsi-ld", "csv"])
     );
     assert_eq!(
         body["endpoint"]["spec"]["projection"]["hiddenAttributes"],

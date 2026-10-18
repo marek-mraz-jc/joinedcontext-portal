@@ -203,7 +203,8 @@ describe("endpoint editor toggles", () => {
         caching: { maxAgeSeconds: number };
       };
     };
-    expect(body.spec.enabledRepresentations).toEqual(["ngsi-ld", "geojson", "csv"]);
+    // The retired `geojson` the stored manifest still lists goes with the save (T-4600).
+    expect(body.spec.enabledRepresentations).toEqual(["ngsi-ld", "csv"]);
     expect(body.spec.rateLimits.requestsPerMinute).toBe(RATE_LIMIT_CLASSES.strict);
     expect(body.spec.rateLimits.burst).toBe(60);
     expect(body.spec.caching.maxAgeSeconds).toBe(120);

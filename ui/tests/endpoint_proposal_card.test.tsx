@@ -27,7 +27,7 @@ const PROPOSAL: Proposal = {
       slug: SLUG,
       audience: "project-list",
       allowedProjects: ["regional-transport"],
-      enabledRepresentations: ["ngsi-ld", "geojson"],
+      enabledRepresentations: ["ngsi-ld", "csv"],
       projection: { hiddenAttributes: ["maintenanceNote", "<b>internalCode</b>"] },
     },
   },
@@ -47,7 +47,7 @@ const PROPOSAL: Proposal = {
     slug: SLUG,
     audience: "project-list",
     allowedProjects: ["regional-transport"],
-    enabledRepresentations: ["ngsi-ld", "geojson"],
+    enabledRepresentations: ["ngsi-ld", "csv"],
     hiddenAttributes: ["maintenanceNote", "<b>internalCode</b>"],
   },
 };
@@ -91,7 +91,7 @@ describe("the endpoint proposal card", () => {
     expect(within(card).getByText("project-list")).toBeInTheDocument();
     expect(within(card).getByText(/shared with regional-transport/)).toBeInTheDocument();
     expect(within(card).getByText("ngsi-ld")).toBeInTheDocument();
-    expect(within(card).getByText("geojson")).toBeInTheDocument();
+    expect(within(card).getByText("csv")).toBeInTheDocument();
     expect(within(card).getByText("lane yellow")).toBeInTheDocument();
     const hidden = within(card).getByText("maintenanceNote");
     expect(hidden.className).toContain("line-through");

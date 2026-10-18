@@ -144,7 +144,7 @@ function endpoint(audience: string) {
       contextSpaceRef: "ovzdusie",
       slug: "k7m2qz4tv6xh3n5jb2ryd3wcfa",
       audience,
-      enabledRepresentations: ["ngsi-ld", "geojson"],
+      enabledRepresentations: ["ngsi-ld", "csv"],
     },
     status: { phase: "Live" },
   };
@@ -246,17 +246,29 @@ describe("map dashboard", () => {
     expect(calls.once).toEqual(["style.load"]);
   });
 
-  it("loads the layer as GeoJSON from the endpoint, filters included (UI-22)", async () => {
+  it("loads the layer as GeoJSON from the endpoint's NGSI-LD API, filters included (UI-22, T-4600)", async () => {
     renderDashboards();
 
     await waitFor(() => expect(calls.sources).toHaveLength(1));
     expect(calls.sources[0].id).toBe("air-quality-stations");
     expect(calls.sources[0].source).toMatchObject({ type: "geojson" });
     const url = new URL(String(calls.sources[0].source.data), window.location.origin);
-    expect(url.pathname).toBe("/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa/file.geojson");
+    expect(url.pathname).toBe("/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa/ngsi-ld/v1/entities");
+    expect(url.searchParams.get("options")).toBe("keyValues");
     expect(url.searchParams.get("type")).toBe("AirQualityObserved");
     expect(url.searchParams.get("q")).toBe("pm10>0");
     expect(url.searchParams.get("scopeQ")).toBe("/geo/SK/BB/#");
+
+    // The page's own read asks for GeoJSON; no request goes to a file the Endpoint no longer has.
+    const requests = vi.mocked(fetch).mock.calls;
+    const layerRead = requests.find(([input]) => String(input).includes("/ngsi-ld/v1/entities"));
+    expect(new Headers(layerRead?.[1]?.headers).get("Accept")).toBe("application/geo+json");
+    expect(requests.some(([input]) => String(input).includes("/file."))).toBe(false);
+
+    // And so does MapLibre, when it fetches a layer by URL itself; its other requests are untouched.
+    const transform = calls.constructed[0].transformRequest as (url: string, kind: string) => { headers?: Record<string, string> };
+    expect(transform(url.href, "Source").headers).toEqual({ Accept: "application/geo+json" });
+    expect(transform("https://tiles.example/style.json", "Style").headers).toBeUndefined();
   });
 
   it("styles the points from colorBy and sizeBy", async () => {

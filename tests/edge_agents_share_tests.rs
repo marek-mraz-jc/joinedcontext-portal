@@ -51,7 +51,7 @@ fn bikes() -> Vec<Value> {
                 "slug": "abcdefghijklmnopqrstuvwxyz",
                 "audience": "project-list",
                 "allowedProjects": ["transport"],
-                "enabledRepresentations": ["ngsi-ld", "geojson"],
+                "enabledRepresentations": ["ngsi-ld", "ogc-features"],
             }),
         ),
         endpoint(
@@ -245,11 +245,32 @@ fn a_representation_the_catalogue_does_not_know_is_refused() {
 
 /// EP-72: an empty list is the sensible default rather than an endpoint that serves nothing.
 #[test]
-fn an_empty_representation_list_defaults_to_ngsi_ld_and_geojson() {
+fn an_empty_representation_list_defaults_to_ngsi_ld_and_csv() {
     let rendered = render(PROJECT, ORG, &share(), &[]).expect("a valid share");
     assert_eq!(
         rendered.endpoint["spec"]["enabledRepresentations"],
-        json!(["ngsi-ld", "geojson"])
+        json!(["ngsi-ld", "csv"])
+    );
+}
+
+/// T-4600: CSV is the one file. A share that names a retired one is refused with the names it
+/// may use, and an edit of an Endpoint that still lists one drops it.
+#[test]
+fn a_retired_file_is_refused_on_a_share_and_dropped_by_an_edit() {
+    let mut params = share();
+    params.representations = vec!["ngsi-ld".to_owned(), "xlsx".to_owned()];
+    let refused = render(PROJECT, ORG, &params, &[]).expect_err("xlsx is retired");
+    assert!(refused.contains("'xlsx'"), "{refused}");
+    assert!(refused.contains("ngsi-ld, csv"), "{refused}");
+
+    let mut stored = bikes();
+    stored[0]["spec"]["enabledRepresentations"] = json!(["ngsi-ld", "geojson", "zip"]);
+    let mut edit_params = edit_of("bike-share");
+    edit_params.add_representations = vec!["csv".to_owned()];
+    let edited = edit(&stored, &edit_params).expect("a valid edit");
+    assert_eq!(
+        edited.endpoint["spec"]["enabledRepresentations"],
+        json!(["ngsi-ld", "csv"])
     );
 }
 
@@ -701,7 +722,17 @@ fn a_consumer_project_that_is_not_a_label_or_an_empty_list_is_refused() {
 /// removed, and an endpoint must keep at least one.
 #[test]
 fn a_representation_the_catalogue_does_not_know_and_an_endpoint_that_serves_none_are_refused() {
-    for bad in ["", " ", "XML", "ngsi-ld/", "../geojson", "geojson\u{0000}"] {
+    for bad in [
+        "",
+        " ",
+        "XML",
+        "ngsi-ld/",
+        "../geojson",
+        "geojson\u{0000}",
+        "geojson",
+        "xlsx",
+        "zip",
+    ] {
         let mut params = edit_of("bike-share");
         params.add_representations = vec![bad.to_owned()];
         let refused = edit(&bikes(), &params).expect_err("add");
@@ -717,7 +748,7 @@ fn a_representation_the_catalogue_does_not_know_and_an_endpoint_that_serves_none
     }
 
     let mut params = edit_of("bike-share");
-    params.remove_representations = vec!["ngsi-ld".to_owned(), "geojson".to_owned()];
+    params.remove_representations = vec!["ngsi-ld".to_owned(), "ogc-features".to_owned()];
     let refused = edit(&bikes(), &params).expect_err("all of them");
     assert!(
         refused.contains("would serve no representation"),
@@ -733,7 +764,7 @@ fn a_request_that_changes_nothing_is_refused() {
         edit_of("bike-share"),
         EditEndpoint {
             name: "bike-share".to_owned(),
-            add_representations: vec!["ngsi-ld".to_owned(), "geojson".to_owned()],
+            add_representations: vec!["ngsi-ld".to_owned(), "ogc-features".to_owned()],
             remove_representations: vec!["csv".to_owned()],
             ..Default::default()
         },
@@ -869,7 +900,7 @@ fn the_same_edit_twice_gives_the_same_manifest() {
     assert_eq!(first.changes, second.changes);
     assert_eq!(
         first.endpoint["spec"]["enabledRepresentations"],
-        json!(["ngsi-ld", "geojson", "csv"]),
+        json!(["ngsi-ld", "ogc-features", "csv"]),
         "a repeated addition was added twice"
     );
 
@@ -1061,13 +1092,13 @@ fn a_repeated_representation_is_rendered_once() {
     let mut params = share();
     params.representations = vec![
         "ngsi-ld".to_owned(),
-        "geojson".to_owned(),
+        "ogc-features".to_owned(),
         "ngsi-ld".to_owned(),
     ];
     let rendered = render(PROJECT, ORG, &params, &[]).expect("a valid share");
     assert_eq!(
         rendered.endpoint["spec"]["enabledRepresentations"],
-        json!(["ngsi-ld", "geojson"])
+        json!(["ngsi-ld", "ogc-features"])
     );
 }
 

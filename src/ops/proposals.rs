@@ -77,7 +77,7 @@ fn endpoint_propose_input_schema() -> Value {
             "allowedProjects": texts("With audience project-list: the projects that may read, by name", NAME),
             "representations": {
                 "type": "array",
-                "description": "The formats it serves; ngsi-ld and geojson when left out",
+                "description": "The formats it serves; ngsi-ld and csv when left out",
                 "items": { "type": "string", "enum": crate::agents::share::REPRESENTATIONS }
             },
             "hiddenAttributes": texts("Attributes the endpoint never returns", TERM),

@@ -19,7 +19,6 @@ spec:
   enabledRepresentations:
   - ngsi-ld
   - mcp
-  - geojson
   - ogc-features
   fileLimits:
     maxFileRows: 5000

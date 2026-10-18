@@ -676,9 +676,10 @@ describe("the space's own data", () => {
     renderInside({ status: 200, count: 1 });
 
     const endpointRow = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
-    const folded = within(endpointRow).getByText(/ngsi-ld, geojson/);
-    // Eleven served, two named: the count is what is left, never a fixed number.
-    expect(within(endpointRow).getByText("+9 more")).toBeInTheDocument();
+    const folded = within(endpointRow).getByText(/ngsi-ld, csv/);
+    // Eleven listed, eight served (the three retired files are not, T-4600), two named: the count is
+    // what is left, never a fixed number.
+    expect(within(endpointRow).getByText("+6 more")).toBeInTheDocument();
     // One line, and everything still reachable: a `details` is closed but its content is in the page
     // and its summary takes the keyboard on its own.
     const disclosure = folded.closest("details") as HTMLDetailsElement;
@@ -687,9 +688,9 @@ describe("the space's own data", () => {
     expect(within(endpointRow).getByRole("link", { name: "csv" })).toBeInTheDocument();
     expect(within(endpointRow).getByRole("link", { name: en.endpoints.link.access })).toBeInTheDocument();
 
-    // The count is arithmetic, not a constant: eleven served minus the two named. An endpoint with
+    // The count is arithmetic, not a constant: eight served minus the two named. An endpoint with
     // two or fewer therefore shows no count at all, which is the same branch (`rest > 0`).
-    expect(within(endpointRow).getByText("ngsi-ld, geojson")).toBeInTheDocument();
-    expect(within(endpointRow).queryByText("+11 more")).toBeNull();
+    expect(within(endpointRow).getByText("ngsi-ld, csv")).toBeInTheDocument();
+    expect(within(endpointRow).queryByText("+8 more")).toBeNull();
   });
 });

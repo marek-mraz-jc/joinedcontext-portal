@@ -1068,6 +1068,12 @@ impl Syncer {
             tracing::warn!(error = %err, "roles were not compiled into the repository");
         }
 
+        // 7a. CSV is the one file an Endpoint offers (T-4600): a stored Endpoint that still
+        //     names a retired representation is rewritten without it, one commit per
+        //     repository. A clean repository is not touched, so the next run changes nothing.
+        self.drop_retired_representations(&scratch, &repository, &default_branch)
+            .await;
+
         // 8. Drift (CC-21): configuration cannot drift, because every component reads it from
         //    the repository (CC-72, T-0421 option B). What can is a space's seed entities, so
         //    that is what the scan compares — against the space surface every other client
@@ -2216,6 +2222,56 @@ impl Syncer {
             tracing::info!(path, "roles compiled into the repository");
         }
         Ok(())
+    }
+
+    /// Step 7a: every Endpoint the run loaded that names a retired representation, rewritten
+    /// in the repository that holds it. A project rendered at a ref that is no branch refuses
+    /// the commit; that is a line in the log, and the gateway's refusal says the rest.
+    async fn drop_retired_representations(
+        &self,
+        render: &Render,
+        repository: &Repository,
+        default_branch: &str,
+    ) {
+        use super::representations::{migrate, names_retired, owner};
+        let mut by_repository: BTreeMap<String, std::collections::BTreeSet<String>> =
+            BTreeMap::new();
+        for (_, loaded) in repository.iter() {
+            if loaded.manifest.kind != "Endpoint" || !names_retired(&loaded.manifest.spec) {
+                continue;
+            }
+            let (slug, path) = owner(render.layout, &loaded.path.to_string_lossy());
+            by_repository.entry(slug).or_default().insert(path);
+        }
+        for (slug, paths) in by_repository {
+            let (gitea, branch) = if slug.is_empty() {
+                (&*self.gitea, default_branch.to_owned())
+            } else {
+                let Some((gitea, git_ref)) = render.projects.get(&slug) else {
+                    continue;
+                };
+                if git_ref.is_empty() {
+                    match gitea.default_branch().await {
+                        Ok(branch) => (gitea, branch),
+                        Err(error) => {
+                            tracing::warn!(project = %slug, %error, "retired representations stay: no default branch");
+                            continue;
+                        }
+                    }
+                } else {
+                    (gitea, git_ref.clone())
+                }
+            };
+            match migrate(gitea, &branch, &paths).await {
+                Ok(0) => {}
+                Ok(files) => {
+                    tracing::info!(project = %slug, files, "retired representations dropped from Endpoint manifests")
+                }
+                Err(error) => {
+                    tracing::warn!(project = %slug, %error, "retired representations stay in the repository")
+                }
+            }
+        }
     }
 
     /// Spawns the background periodic sync task.

@@ -298,7 +298,7 @@ describe("endpoint projection ui", () => {
       en.endpoints.audienceOption.public,
     );
     await userEvent.click(
-      within(dialog).getByRole("checkbox", { name: en.endpoints.representationOption.geojson }),
+      within(dialog).getByRole("checkbox", { name: en.endpoints.representationOption.csv }),
     );
 
     expect(within(dialog).queryByText(en.endpoints.section.hidden)).toBeNull();

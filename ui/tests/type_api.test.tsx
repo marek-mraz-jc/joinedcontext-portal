@@ -28,7 +28,7 @@ const subscription = (name: string, space: string, type: string, uri: string): M
 describe("the calls of a type", () => {
   it("names the list, count, one entity and history of the type, and every representation served", () => {
     const calls = callsOf("abc", "Bike Station", ["ngsi-ld", "geojson", "csv"], undefined);
-    expect(calls.map((call) => call.key)).toEqual(["list", "count", "one", "history", "geojson", "csv"]);
+    expect(calls.map((call) => call.key)).toEqual(["list", "count", "one", "history", "csv"]);
     expect(calls[0].url).toBe(`${window.location.origin}/api/endpoint/abc/ngsi-ld/v1/entities?type=Bike%20Station&limit=10`);
   });
 

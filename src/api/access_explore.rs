@@ -195,9 +195,9 @@ fn row(endpoint: &crate::resource::ResourceEnvelope, answer: Value) -> Option<Re
     })
 }
 
-/// What an Endpoint serves: its manifest's list, then `ngsi-ld` and `geojson`, which every
-/// Endpoint serves, and `mcp` unless `spec.mcp` is `false` (EP-10, EP-24), the rule the UI's
-/// `servedRepresentations` reads too.
+/// What an Endpoint serves: its manifest's list without the retired files (T-4600), then
+/// `ngsi-ld`, which every Endpoint serves, and `mcp` unless `spec.mcp` is `false` (EP-10,
+/// EP-24), the rule the UI's `servedRepresentations` reads too.
 fn representations(spec: &Value) -> Vec<String> {
     let mut served: Vec<String> = spec["enabledRepresentations"]
         .as_array()
@@ -205,14 +205,15 @@ fn representations(spec: &Value) -> Vec<String> {
             listed
                 .iter()
                 .filter_map(Value::as_str)
+                .filter(|r| !crate::reconciler::representations::RETIRED.contains(r))
                 .map(str::to_owned)
                 .collect()
         })
         .unwrap_or_default();
     let always: &[&str] = if spec["mcp"] == json!(false) {
-        &["ngsi-ld", "geojson"]
+        &["ngsi-ld"]
     } else {
-        &["ngsi-ld", "geojson", "mcp"]
+        &["ngsi-ld", "mcp"]
     };
     for representation in always {
         if !served.iter().any(|s| s == representation) {
