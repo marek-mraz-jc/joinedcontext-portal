@@ -22,6 +22,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  safeHref,
   TableEmpty,
   TableHead,
   TableHeaderCell,
@@ -281,7 +282,7 @@ function General({ project }: { project: string }): JSX.Element {
             {manifest.isPending ? (
               t("app.loading")
             ) : catalogUrl ? (
-              <a className="focus-ring underline" href={catalogUrl}>
+              <a className="focus-ring underline" href={safeHref(catalogUrl)}>
                 {catalogUrl}
               </a>
             ) : (
