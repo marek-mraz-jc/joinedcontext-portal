@@ -2,6 +2,7 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, unwrap } from "../../api/client";
+import { safeHref } from "../../components/ui/safeHref";
 
 /**
  * A public Endpoint's query standards (API/01 §16a, T-4484): the fields each one filters on and
@@ -17,7 +18,10 @@ export function EndpointStandards({ slug }: { slug: string }): JSX.Element | nul
       unwrap(await api.GET("/api/v1/catalogue/endpoints/{slug}/standards", { params: { path: { slug } } })),
   });
   if (standards.isPending) return null;
-  if (standards.isError) {
+  const list = standards.data?.standards;
+  // an answer that is not the documented shape says nothing, like a failed one; it never takes
+  // the Endpoint page down with it
+  if (standards.isError || !Array.isArray(list)) {
     return (
       <p className="text-body text-fg-muted" role="status">
         {t("endpoints.standards.unavailable")}
@@ -30,7 +34,7 @@ export function EndpointStandards({ slug }: { slug: string }): JSX.Element | nul
         {t("endpoints.standards.title")}
       </h2>
       <p className="text-body text-fg-muted">{t("endpoints.standards.lead")}</p>
-      {standards.data.standards.map((standard) => (
+      {list.map((standard) => (
         <section
           key={standard.representation}
           aria-label={t(`endpoints.representationOption.${standard.representation}`)}
@@ -50,7 +54,7 @@ export function EndpointStandards({ slug }: { slug: string }): JSX.Element | nul
                     {t(`endpoints.standards.${example.kind === "range" ? "range" : "equality"}`, { field: example.field })} ·{" "}
                     {t("endpoints.standards.answered", { count: example.answered })}
                   </span>
-                  <a className="break-all font-mono text-caption text-primary-soft-fg underline" href={example.url}>
+                  <a className="break-all font-mono text-caption text-primary-soft-fg underline" href={safeHref(example.url)}>
                     {example.url}
                   </a>
                 </li>
