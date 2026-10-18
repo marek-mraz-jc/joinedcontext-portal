@@ -39,3 +39,15 @@ test("the MCP servers page agrees with what the API answers, and each server nam
     await context.close();
   }
 });
+
+// T-4531: the steward's own connectors on dev, read only: the page answers whatever their
+// preferences hold, and the organization's org/all address is there for everyone.
+test("my connectors page opens and offers the organization's org/all address", async ({ browser }) => {
+  const { context, page } = await signIn(browser, STEWARD, "/connectors?lang=en");
+  try {
+    await expect(page.getByRole("heading", { level: 1, name: "My MCP connectors" })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/\/api\/mcp\/org\/all$/).first()).toBeVisible();
+  } finally {
+    await context.close();
+  }
+});

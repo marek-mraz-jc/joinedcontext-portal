@@ -5,7 +5,8 @@ import { axeViolations } from "./axe";
 // T-3156: a project's named MCP servers in a real browser, the API and the members' own MCP
 // surfaces answered in the browser. A server's address, client and entry; its members' health and
 // the tools they offer this person; a new server over two Endpoints of two projects, by keyboard,
-// proposed as a checked Change. At phone and desktop width, with axe.
+// proposed as a checked Change; and a person's own connectors (T-4531). At phone and desktop
+// width, with axe.
 
 const IDENTITY = { subject: "b7c1e0f4", username: "eva.steward", name: "Eva Steward", email: "eva@hel.fi", roles: [] };
 const GRANTS = {
@@ -59,6 +60,7 @@ async function stubApi(page: Page): Promise<{ writes: { path: string; body: unkn
     if (url.pathname === "/api/v1/projects/helsinki/endpoints") return json(list([endpoint("helsinki", "bikes", "bikeslug", "public")]));
     if (url.pathname === "/api/v1/projects/espoo/endpoints") return json(list([endpoint("espoo", "parking", "parkslug", "organization")]));
     if (url.pathname === "/api/v1/projects/helsinki/mcpservers") return json(list([SERVER]));
+    if (url.pathname === "/api/v1/preferences") return json({ connectors: [{ name: "air", select: { projects: ["helsinki"] } }] });
     return json(list([]));
   });
   return { writes };
@@ -77,6 +79,19 @@ for (const width of [375, 1440]) {
       await expect(card.getByText("mcp-helsinki-mobility", { exact: true })).toBeVisible();
       await expect(card.getByRole("list", { name: "Members and how they answer you" }).getByText("Answers, tools: 2")).toBeVisible();
       await expect(card.getByRole("list", { name: "Tools of the server" }).getByText("query_entities", { exact: true })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      expect(await axeViolations(page)).toEqual([]);
+    });
+
+    // T-4531: a person's own connectors, with their address, entry and reach, beside org/all.
+    test("my connectors show their own address and reach beside org/all, with no axe violations", async ({ page }) => {
+      await stubApi(page);
+      await page.goto("/connectors?lang=en");
+      await expect(page.getByRole("heading", { level: 1, name: "My MCP connectors" })).toBeVisible();
+      const card = page.getByRole("region", { name: "air" });
+      await expect(card.getByText("https://dev.example/api/mcp/me/air", { exact: true })).toBeVisible();
+      await expect(card.getByRole("list", { name: "What air reaches" }).getByText("helsinki/bikes")).toBeVisible();
+      await expect(page.getByText("https://dev.example/api/mcp/org/all", { exact: true })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       expect(await axeViolations(page)).toEqual([]);
     });
