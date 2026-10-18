@@ -195,3 +195,25 @@ test("the stored conversations agree with the API, and a viewer reads none of th
     await context.close();
   }
 });
+
+// T-4670: erasing a stored conversation, without erasing anything on dev: a viewer is refused,
+// and an id that is no conversation's never reaches the assistant.
+test("a viewer may not erase a stored conversation, and an id that is no conversation's is refused", async ({ browser }) => {
+  const path = (id: string) => `/api/v1/projects/${PROJECT}/knowledge/conversations/${id}`;
+  const viewer = await signIn(browser, VIEWER, `/projects/${PROJECT}/knowledge/conversations?lang=en`);
+  try {
+    const token = await csrf(viewer.context);
+    const refused = await viewer.page.request.delete(path("00000000-0000-4000-8000-000000000000"), { headers: { "x-csrf-token": token } });
+    expect(refused.status()).toBe(403);
+  } finally {
+    await viewer.context.close();
+  }
+  const { context, page } = await signIn(browser, STEWARD, `/projects/${PROJECT}/knowledge/conversations?lang=en`);
+  try {
+    const token = await csrf(context);
+    const malformed = await page.request.delete(path("not-a-conversation"), { headers: { "x-csrf-token": token } });
+    expect([400, 403]).toContain(malformed.status());
+  } finally {
+    await context.close();
+  }
+});

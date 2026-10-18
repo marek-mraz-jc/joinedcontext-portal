@@ -7712,7 +7712,7 @@
     "title": "Konverzace",
     "intro": "Na co se návštěvníci ptali asistentů projektu a jak vznikla každá odpověď: cesta, vyhledávání, volání nástrojů a modelu s časem a cenou. Osobní údaje se před uložením smažou; každé čtení se zaznamená.",
     "link": "Konverzace",
-    "notAllowed": "Uložené konverzace čte jen správce asistenta (schvalování pro AssistantDeployment).",
+    "notAllowed": "Uložené konverzace čte jen správce asistenta, který schvaluje jeho nasazení. Požádejte ho o toto právo.",
     "empty": "Žádné uložené konverzace",
     "emptyHint": "Konverzace se tu objeví, až se návštěvníci začnou ptát, a zůstanou tak dlouho, jak určuje transcriptRetention nasazení.",
     "next": "Další strana",
@@ -7724,7 +7724,7 @@
     "copied": "Otázka je zkopírovaná jako případ k hodnocení.",
     "timing": "první slovo {first}, celá {total}",
     "steps": "Kroky",
-    "failed": "selhalo",
+    "unfinished": "Nedokončeno",
     "uncosted": "({count} bez ceny)",
     "filter": {
       "q": "Slova v otázce nebo odpovědi",
@@ -7740,7 +7740,7 @@
     },
     "status": {
       "ok": "Zodpovězeno",
-      "error": "Chyba",
+      "erred": "Skončilo chybou",
       "timeout": "Vypršel čas"
     },
     "feedback": {

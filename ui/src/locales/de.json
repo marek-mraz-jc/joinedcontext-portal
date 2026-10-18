@@ -7712,7 +7712,7 @@
     "title": "Unterhaltungen",
     "intro": "Was Besucher die Assistenten des Projekts gefragt haben und wie jede Antwort entstand: der Weg, die Suchen, die Werkzeug- und Modellaufrufe mit Zeit und Kosten. Personenbezogene Daten werden vor dem Speichern entfernt; jeder Lesezugriff wird protokolliert.",
     "link": "Unterhaltungen",
-    "notAllowed": "Nur der Administrator des Assistenten (Genehmigen für AssistantDeployment) liest die gespeicherten Unterhaltungen.",
+    "notAllowed": "Nur der Administrator des Assistenten, der seine Deployments genehmigt, liest die gespeicherten Unterhaltungen. Bitten Sie ihn um dieses Recht.",
     "empty": "Keine gespeicherten Unterhaltungen",
     "emptyHint": "Unterhaltungen erscheinen hier, sobald Besucher fragen, so lange, wie transcriptRetention des Deployments sie aufbewahrt.",
     "next": "Nächste Seite",
@@ -7724,7 +7724,7 @@
     "copied": "Die Frage ist als Bewertungsfall kopiert.",
     "timing": "erstes Wort {first}, gesamt {total}",
     "steps": "Schritte",
-    "failed": "fehlgeschlagen",
+    "unfinished": "Nicht abgeschlossen",
     "uncosted": "({count} ohne Preis)",
     "filter": {
       "q": "Wörter in Frage oder Antwort",
@@ -7740,7 +7740,7 @@
     },
     "status": {
       "ok": "Beantwortet",
-      "error": "Fehler",
+      "erred": "Mit einem Fehler beendet",
       "timeout": "Zeit überschritten"
     },
     "feedback": {

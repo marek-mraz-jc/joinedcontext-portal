@@ -1509,6 +1509,16 @@
         "routes": [
           "POST /api/v1/projects/{project}/knowledge/deployments/{deployment}/chat"
         ]
+      },
+      "erase-conversation": {
+        "live": {
+          "spec": "knowledge.spec.ts",
+          "test": "a viewer may not erase a stored conversation, and an id that is no conversation's is refused"
+        },
+        "personOnly": "erasing a stored conversation answers one visitor's request to have it deleted (GDPR Art. 17); the administrator who received that request decides, never an agent (AG-99)",
+        "routes": [
+          "DELETE /api/v1/projects/{project}/knowledge/conversations/{conversation}"
+        ]
       }
     },
     "navigation": {

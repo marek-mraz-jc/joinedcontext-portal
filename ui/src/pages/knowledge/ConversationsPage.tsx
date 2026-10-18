@@ -81,7 +81,7 @@ export function ConversationsPage({ project }: { project: string }): JSX.Element
           >
             <option value="">{t("conversations.filter.all")}</option>
             <option value="ok">{t("conversations.status.ok")}</option>
-            <option value="error">{t("conversations.status.error")}</option>
+            <option value="error">{t("conversations.status.erred")}</option>
             <option value="timeout">{t("conversations.status.timeout")}</option>
           </Select>
         </Field>
@@ -176,7 +176,7 @@ export function ConversationsPage({ project }: { project: string }): JSX.Element
                 </TableCell>
                 <TableCell>
                   {row.timeouts > 0 ? <Badge tone="warning">{t("conversations.status.timeout")}</Badge> : null}
-                  {row.errors > 0 ? <Badge tone="danger">{t("conversations.status.error")}</Badge> : null}
+                  {row.errors > 0 ? <Badge tone="danger">{t("conversations.status.erred")}</Badge> : null}
                   {row.thumbsDown > 0 ? <Badge tone="danger">{t("conversations.feedback.down")}</Badge> : null}
                   {row.thumbsUp > 0 ? <Badge tone="success">{t("conversations.feedback.up")}</Badge> : null}
                 </TableCell>
@@ -293,7 +293,7 @@ function Steps({ steps }: { steps: ConversationStep[] }): JSX.Element | null {
               {step.endpoint ? ` · ${step.endpoint}` : ""} · {msText(step.durationMs)}
               {step.tokensIn !== null ? ` · ${step.tokensIn}/${step.tokensOut ?? 0} tok` : ""}
               {step.kind === "model" ? ` · ${step.costUsd === null ? t("conversations.unknownPrice") : usdText(step.costUsd)}` : ""}
-              {step.status === "failed" ? <Badge tone="danger">{t("conversations.failed")}</Badge> : null}
+              {step.status === "failed" ? <Badge tone="danger">{t("conversations.unfinished")}</Badge> : null}
             </summary>
             {step.input ? <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap bg-surface-subtle p-2">{step.input}</pre> : null}
             {step.output ? <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap bg-surface-subtle p-2">{step.output}</pre> : null}

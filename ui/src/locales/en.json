@@ -7712,7 +7712,7 @@
     "title": "Conversations",
     "intro": "What visitors asked the project's assistants and how each answer was made: the route, the searches, the tool calls and the model calls with their time and cost. Personal data is removed before a turn is stored; every read is recorded.",
     "link": "Conversations",
-    "notAllowed": "Only the assistant's administrator (approve on AssistantDeployment) reads the stored conversations.",
+    "notAllowed": "Only the assistant's administrator, who approves its deployments, reads the stored conversations. Ask them for that right.",
     "empty": "No stored conversations",
     "emptyHint": "Conversations appear here once visitors ask, for as long as the deployment's transcriptRetention keeps them.",
     "next": "Next page",
@@ -7724,7 +7724,7 @@
     "copied": "The turn is copied as an eval case.",
     "timing": "first word {first}, all {total}",
     "steps": "Steps",
-    "failed": "failed",
+    "unfinished": "Did not finish",
     "uncosted": "({count} unpriced)",
     "filter": {
       "q": "Words in a question or answer",
@@ -7740,7 +7740,7 @@
     },
     "status": {
       "ok": "Answered",
-      "error": "Error",
+      "erred": "Ended in an error",
       "timeout": "Timed out"
     },
     "feedback": {

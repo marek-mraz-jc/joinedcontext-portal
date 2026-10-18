@@ -1195,6 +1195,15 @@
         "knowledge_pages.test.tsx"
       ]
     },
+    "src/pages/knowledge/ConversationsPage.tsx": {
+      "controls": {
+        "Button": 4,
+        "Switch": 2
+      },
+      "tests": [
+        "assistant_conversations.test.tsx"
+      ]
+    },
     "src/pages/knowledge/IndexStatus.tsx": {
       "controls": {
         "Button": 1
