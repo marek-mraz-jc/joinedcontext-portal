@@ -73,6 +73,30 @@ function Answer({ text, citations, ids }: { text: string; citations: Citation[];
         {blocks.map((block, i) =>
           block.tag === "p" ? (
             <p key={i}>{inlineNodes(block.children, ids, grouped.position, t)}</p>
+          ) : block.tag === "pre" ? (
+            <pre key={i} className="overflow-x-auto rounded bg-surface-subtle p-3 font-mono text-caption">
+              <code>{block.text}</code>
+            </pre>
+          ) : block.tag === "table" ? (
+            <Table key={i} caption={t("knowledge.chat.data")} className="text-caption">
+              <tbody>
+                {block.children.map((row, j) => (
+                  <tr key={j}>
+                    {row.children.map((cell, k) =>
+                      cell.tag === "th" ? (
+                        <th key={k} scope="col" className="px-2 py-1 text-left">
+                          {inlineNodes(cell.children, ids, grouped.position, t)}
+                        </th>
+                      ) : (
+                        <td key={k} className="border-t border-border px-2 py-1 align-top">
+                          {inlineNodes(cell.children, ids, grouped.position, t)}
+                        </td>
+                      ),
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
           ) : (
             <block.tag key={i} className={block.tag === "ul" ? "list-disc space-y-1 pl-5" : "list-decimal space-y-1 pl-5"}>
               {block.children.map((item, j) => (

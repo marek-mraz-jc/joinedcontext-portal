@@ -6,6 +6,27 @@ import { label, markdown, sources } from "../src/pages/knowledge/answerFormat";
 const upTo = (max: number) => (n: number) => n >= 1 && n <= max;
 
 describe("an answer's Markdown", () => {
+  it("reads a pipe table, the rule making its first row the header, as the widget does (T-4649)", () => {
+    expect(markdown("| Stanica | NO₂ |\n|:---|---:|\n| **Centrum** | 12 \\| 14 |\nend")).toEqual([
+      {
+        tag: "table",
+        children: [
+          { tag: "tr", children: [{ tag: "th", children: ["Stanica"] }, { tag: "th", children: ["NO₂"] }] },
+          { tag: "tr", children: [{ tag: "td", children: [{ tag: "strong", children: ["Centrum"] }] }, { tag: "td", children: ["12 | 14"] }] },
+        ],
+      },
+      { tag: "p", children: ["end"] },
+    ]);
+    expect(markdown("a | b")).toEqual([{ tag: "p", children: ["a | b"] }]);
+  });
+
+  it("keeps a fenced block's lines as code, markers and HTML as typed", () => {
+    expect(markdown("```\nconst a = \"**x**\";\n\n<script>alert(1)</script>\n```\nafter")).toEqual([
+      { tag: "pre", text: 'const a = "**x**";\n\n<script>alert(1)</script>' },
+      { tag: "p", children: ["after"] },
+    ]);
+  });
+
   it("keeps a paragraph's breaks and starts the next at a blank line", () => {
     expect(markdown("one\ntwo\n\nthree")).toEqual([
       { tag: "p", children: ["one", { tag: "br" }, "two"] },
