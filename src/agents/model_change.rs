@@ -305,61 +305,8 @@ fn mutate(model: &mut Value, operation: &Operation) -> Result<(), String> {
             existing(model, "classes", name, "class")?;
             section_mut(model, "classes").remove(name);
         }
-        Operation::RenameClass { name, to } => {
-            existing(model, "classes", name, "class")?;
-            new_name(model, "classes", to, "class")?;
-            let classes = section_mut(model, "classes");
-            let class = classes.remove(name).unwrap_or(Value::Null);
-            classes.insert(to.clone(), class);
-            for class in classes.values_mut() {
-                if class.get("is_a").and_then(Value::as_str) == Some(name) {
-                    class["is_a"] = json!(to);
-                }
-            }
-            for slot in section_mut(model, "slots").values_mut() {
-                if slot.get("range").and_then(Value::as_str) == Some(name) {
-                    slot["range"] = json!(to);
-                }
-            }
-        }
-        Operation::AddSlot {
-            name,
-            r#class,
-            range,
-            slot_uri,
-            kind,
-        } => {
-            new_name(model, "slots", name, "slot")?;
-            if let Some(owner) = r#class {
-                existing(model, "classes", owner, "class")?;
-            }
-            let mut slot = json!({ "range": range.as_deref().unwrap_or("string") });
-            if let Some(uri) = slot_uri {
-                slot["slot_uri"] = json!(uri.trim());
-            } else if let Some(prefix) = own_prefix(model) {
-                slot["slot_uri"] = json!(format!("{prefix}:{name}"));
-            }
-            if let Some(kind) = kind.as_deref().map(str::trim) {
-                if !KINDS.contains(&kind) {
-                    return Err(format!(
-                        "kind '{kind}' of slot '{name}' is not one of {}",
-                        KINDS.join(", ")
-                    ));
-                }
-                if kind != "Property" {
-                    slot["annotations"] = json!({ "ngsi_ld_kind": kind });
-                }
-            }
-            section_mut(model, "slots").insert(name.clone(), slot);
-            if let Some(owner) = r#class {
-                let class = section_mut(model, "classes")
-                    .get_mut(owner)
-                    .expect("checked above");
-                let mut slots = slots_of(class);
-                slots.push(name.clone());
-                set_slots(class, slots);
-            }
-        }
+        Operation::RenameClass { .. } => rename_class(model, operation)?,
+        Operation::AddSlot { .. } => add_slot(model, operation)?,
         Operation::RemoveSlot { name } => {
             existing(model, "slots", name, "slot")?;
             section_mut(model, "slots").remove(name);
@@ -478,63 +425,7 @@ fn mutate(model: &mut Value, operation: &Operation) -> Result<(), String> {
                 None => fields.remove(field),
             };
         }
-        Operation::AddRelationship {
-            from,
-            to,
-            name,
-            inverse,
-            cardinality,
-            required,
-            inverse_required,
-            on_delete,
-        } => {
-            let (source_many, target_many) = flags_of(cardinality)?;
-            let on_delete = on_delete.as_deref().unwrap_or("restrict");
-            delete_rule(on_delete)?;
-            existing(model, "classes", from, "class")?;
-            if !has(model, "classes", to) {
-                return Err(format!("unknown class '{to}': a relationship's inverse is written on its target, so the target is a class of this model"));
-            }
-            if inverse.trim().is_empty() {
-                return Err(format!("the relationship '{name}' needs an inverse: the slot on {to} that points back (DM-64)"));
-            }
-            if inverse == name {
-                return Err(format!(
-                    "'{name}' cannot be its own inverse: the two ends are two slots"
-                ));
-            }
-            let stored_on_source = stored_on_source(cardinality);
-            if (stored_on_source && *inverse_required == Some(true))
-                || (!stored_on_source && *required == Some(true))
-            {
-                let computed = if stored_on_source { inverse } else { name };
-                return Err(format!("as {cardinality}, {computed} is computed on read and cannot be required; require the other end (DM-65)"));
-            }
-            add_end(
-                model,
-                End {
-                    name,
-                    owner: from,
-                    range: to,
-                    inverse,
-                    multivalued: source_many,
-                    required: *required == Some(true),
-                    on_delete: Some(on_delete),
-                },
-            )?;
-            add_end(
-                model,
-                End {
-                    name: inverse,
-                    owner: to,
-                    range: from,
-                    inverse: name,
-                    multivalued: target_many,
-                    required: *inverse_required == Some(true),
-                    on_delete: None,
-                },
-            )?;
-        }
+        Operation::AddRelationship { .. } => add_relationship(model, operation)?,
         Operation::SetCardinality { name, cardinality } => {
             let (source_many, target_many) = flags_of(cardinality)?;
             let pair = relationship_named(model, name)?;
@@ -572,47 +463,188 @@ fn mutate(model: &mut Value, operation: &Operation) -> Result<(), String> {
                 }
             }
         }
-        Operation::AddInverse { name, inverse } => {
-            existing(model, "slots", name, "slot")?;
-            let slot = &model["slots"][name];
-            let range = slot.get("range").and_then(Value::as_str).unwrap_or("");
-            if kind_of(slot) != Some("Relationship") || !has(model, "classes", range) {
-                return Err(format!(
-                    "slot '{name}' is not a Relationship pointing at a class of this model"
-                ));
-            }
-            if let Some(named) = slot.get("inverse").and_then(Value::as_str) {
-                return Err(format!("slot '{name}' already names the inverse '{named}'"));
-            }
-            let range = range.to_owned();
-            let owners = owners_of(model, name);
-            let [owner] = owners.as_slice() else {
-                return Err(format!(
-                    "slot '{name}' is used by {} classes; a relationship starts on one",
-                    owners.len()
-                ));
-            };
-            let owner = owner.clone();
-            add_end(
-                model,
-                End {
-                    name: inverse,
-                    owner: &range,
-                    range: &owner,
-                    inverse: name,
-                    multivalued: true,
-                    required: false,
-                    on_delete: None,
-                },
-            )?;
-            let slot = slot_object(model, name);
-            slot.insert("inverse".to_owned(), json!(inverse));
-            slot.insert("inlined".to_owned(), json!(false));
-            // The slot holding the data today is the source, so its entities do not change (DM-73).
-            let annotations = slot.entry("annotations").or_insert_with(|| json!({}));
-            if annotations.get("on_delete").is_none() {
-                annotations["on_delete"] = json!("restrict");
-            }
+        Operation::AddInverse { .. } => add_inverse(model, operation)?,
+    }
+    Ok(())
+}
+
+/// Adds a slot, minted under the model's prefix unless it names its own URI, to its class if any.
+fn add_slot(model: &mut Value, operation: &Operation) -> Result<(), String> {
+    let Operation::AddSlot {
+        name,
+        r#class,
+        range,
+        slot_uri,
+        kind,
+    } = operation
+    else {
+        return Err("not add_slot".to_owned());
+    };
+    new_name(model, "slots", name, "slot")?;
+    if let Some(owner) = r#class {
+        existing(model, "classes", owner, "class")?;
+    }
+    let mut slot = json!({ "range": range.as_deref().unwrap_or("string") });
+    if let Some(uri) = slot_uri {
+        slot["slot_uri"] = json!(uri.trim());
+    } else if let Some(prefix) = own_prefix(model) {
+        slot["slot_uri"] = json!(format!("{prefix}:{name}"));
+    }
+    if let Some(kind) = kind.as_deref().map(str::trim) {
+        if !KINDS.contains(&kind) {
+            return Err(format!(
+                "kind '{kind}' of slot '{name}' is not one of {}",
+                KINDS.join(", ")
+            ));
+        }
+        if kind != "Property" {
+            slot["annotations"] = json!({ "ngsi_ld_kind": kind });
+        }
+    }
+    section_mut(model, "slots").insert(name.clone(), slot);
+    if let Some(owner) = r#class {
+        let class = section_mut(model, "classes")
+            .get_mut(owner)
+            .expect("checked above");
+        let mut slots = slots_of(class);
+        slots.push(name.clone());
+        set_slots(class, slots);
+    }
+    Ok(())
+}
+
+/// Adds both ends of a relationship, each a slot on its owner, after the rules of DM-64 and DM-65.
+fn add_relationship(model: &mut Value, operation: &Operation) -> Result<(), String> {
+    let Operation::AddRelationship {
+        from,
+        to,
+        name,
+        inverse,
+        cardinality,
+        required,
+        inverse_required,
+        on_delete,
+    } = operation
+    else {
+        return Err("not add_relationship".to_owned());
+    };
+    let (source_many, target_many) = flags_of(cardinality)?;
+    let on_delete = on_delete.as_deref().unwrap_or("restrict");
+    delete_rule(on_delete)?;
+    existing(model, "classes", from, "class")?;
+    if !has(model, "classes", to) {
+        return Err(format!("unknown class '{to}': a relationship's inverse is written on its target, so the target is a class of this model"));
+    }
+    if inverse.trim().is_empty() {
+        return Err(format!(
+            "the relationship '{name}' needs an inverse: the slot on {to} that points back (DM-64)"
+        ));
+    }
+    if inverse == name {
+        return Err(format!(
+            "'{name}' cannot be its own inverse: the two ends are two slots"
+        ));
+    }
+    let stored_on_source = stored_on_source(cardinality);
+    if (stored_on_source && *inverse_required == Some(true))
+        || (!stored_on_source && *required == Some(true))
+    {
+        let computed = if stored_on_source { inverse } else { name };
+        return Err(format!("as {cardinality}, {computed} is computed on read and cannot be required; require the other end (DM-65)"));
+    }
+    add_end(
+        model,
+        End {
+            name,
+            owner: from,
+            range: to,
+            inverse,
+            multivalued: source_many,
+            required: *required == Some(true),
+            on_delete: Some(on_delete),
+        },
+    )?;
+    add_end(
+        model,
+        End {
+            name: inverse,
+            owner: to,
+            range: from,
+            inverse: name,
+            multivalued: target_many,
+            required: *inverse_required == Some(true),
+            on_delete: None,
+        },
+    )?;
+    Ok(())
+}
+
+/// Gives an existing Relationship slot its inverse on the target class (DM-73).
+fn add_inverse(model: &mut Value, operation: &Operation) -> Result<(), String> {
+    let Operation::AddInverse { name, inverse } = operation else {
+        return Err("not add_inverse".to_owned());
+    };
+    existing(model, "slots", name, "slot")?;
+    let slot = &model["slots"][name];
+    let range = slot.get("range").and_then(Value::as_str).unwrap_or("");
+    if kind_of(slot) != Some("Relationship") || !has(model, "classes", range) {
+        return Err(format!(
+            "slot '{name}' is not a Relationship pointing at a class of this model"
+        ));
+    }
+    if let Some(named) = slot.get("inverse").and_then(Value::as_str) {
+        return Err(format!("slot '{name}' already names the inverse '{named}'"));
+    }
+    let range = range.to_owned();
+    let owners = owners_of(model, name);
+    let [owner] = owners.as_slice() else {
+        return Err(format!(
+            "slot '{name}' is used by {} classes; a relationship starts on one",
+            owners.len()
+        ));
+    };
+    let owner = owner.clone();
+    add_end(
+        model,
+        End {
+            name: inverse,
+            owner: &range,
+            range: &owner,
+            inverse: name,
+            multivalued: true,
+            required: false,
+            on_delete: None,
+        },
+    )?;
+    let slot = slot_object(model, name);
+    slot.insert("inverse".to_owned(), json!(inverse));
+    slot.insert("inlined".to_owned(), json!(false));
+    // The slot holding the data today is the source, so its entities do not change (DM-73).
+    let annotations = slot.entry("annotations").or_insert_with(|| json!({}));
+    if annotations.get("on_delete").is_none() {
+        annotations["on_delete"] = json!("restrict");
+    }
+    Ok(())
+}
+
+/// Renames a class and every `is_a` and `range` that named it.
+fn rename_class(model: &mut Value, operation: &Operation) -> Result<(), String> {
+    let Operation::RenameClass { name, to } = operation else {
+        return Err("not rename_class".to_owned());
+    };
+    existing(model, "classes", name, "class")?;
+    new_name(model, "classes", to, "class")?;
+    let classes = section_mut(model, "classes");
+    let class = classes.remove(name).unwrap_or(Value::Null);
+    classes.insert(to.clone(), class);
+    for class in classes.values_mut() {
+        if class.get("is_a").and_then(Value::as_str) == Some(name) {
+            class["is_a"] = json!(to);
+        }
+    }
+    for slot in section_mut(model, "slots").values_mut() {
+        if slot.get("range").and_then(Value::as_str) == Some(name) {
+            slot["range"] = json!(to);
         }
     }
     Ok(())
@@ -879,6 +911,79 @@ mod tests {
 
     fn ops(json: Value) -> Vec<Operation> {
         serde_json::from_value(json).expect("operations")
+    }
+
+    fn op(json: Value) -> Operation {
+        serde_json::from_value(json).expect("operation")
+    }
+
+    /// T-4470: the arms `mutate` was cut into, each called alone, and refusing another operation.
+    #[test]
+    fn rename_class_follows_every_is_a_and_range() {
+        let mut model = bikes();
+        rename_class(
+            &mut model,
+            &op(json!({ "op": "renameClass", "name": "BikeHireDockingStation", "to": "Dock" })),
+        )
+        .expect("renamed");
+        assert!(model["classes"].get("BikeHireDockingStation").is_none());
+        assert_eq!(model["slots"]["station"]["range"], json!("Dock"));
+        let taken = op(json!({ "op": "renameClass", "name": "Dock", "to": "Vehicle" }));
+        assert!(rename_class(&mut model, &taken).is_err());
+        assert!(rename_class(
+            &mut model,
+            &op(json!({ "op": "removeClass", "name": "Dock" }))
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn add_slot_joins_its_class_and_refuses_an_unknown_kind() {
+        let mut model = bikes();
+        add_slot(&mut model, &op(json!({ "op": "addSlot", "name": "dock", "class": "Vehicle", "kind": "Relationship" }))).expect("added");
+        assert_eq!(
+            model["slots"]["dock"]["annotations"]["ngsi_ld_kind"],
+            json!("Relationship")
+        );
+        assert!(slots_of(&model["classes"]["Vehicle"]).contains(&"dock".to_owned()));
+        let bad = op(json!({ "op": "addSlot", "name": "x", "kind": "Thing" }));
+        assert!(add_slot(&mut model, &bad)
+            .unwrap_err()
+            .contains("kind 'Thing'"));
+        assert!(add_slot(
+            &mut model,
+            &op(json!({ "op": "addSlot", "name": "y", "class": "Nope" }))
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn add_relationship_writes_both_ends_and_refuses_its_own_inverse() {
+        let mut model = bikes();
+        let pair = json!({ "op": "addRelationship", "from": "Vehicle", "to": "BikeHireDockingStation", "name": "dockedAt", "inverse": "vehicles", "cardinality": "many-to-one" });
+        add_relationship(&mut model, &op(pair)).expect("added");
+        assert_eq!(model["slots"]["dockedAt"]["inverse"], json!("vehicles"));
+        assert_eq!(model["slots"]["vehicles"]["inverse"], json!("dockedAt"));
+        let selfish = json!({ "op": "addRelationship", "from": "Vehicle", "to": "Vehicle", "name": "twin", "inverse": "twin", "cardinality": "one-to-one" });
+        assert!(add_relationship(&mut model, &op(selfish)).is_err());
+    }
+
+    #[test]
+    fn add_inverse_needs_a_relationship_with_one_owner() {
+        let mut model = bikes();
+        // `station` is a string-kinded slot today: no Relationship, no inverse.
+        let ask = op(json!({ "op": "addInverse", "name": "station", "inverse": "vehicles" }));
+        assert!(add_inverse(&mut model, &ask).is_err());
+        model["slots"]["station"]["annotations"] = json!({ "ngsi_ld_kind": "Relationship" });
+        add_inverse(&mut model, &ask).expect("added");
+        assert_eq!(model["slots"]["station"]["inverse"], json!("vehicles"));
+        assert_eq!(
+            model["slots"]["station"]["annotations"]["on_delete"],
+            json!("restrict")
+        );
+        assert!(add_inverse(&mut model, &ask)
+            .unwrap_err()
+            .contains("already names"));
     }
 
     #[test]
