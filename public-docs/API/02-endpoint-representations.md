@@ -2,6 +2,7 @@
 sidebar_position: 3
 title: Endpoint Representations & Translations
 description: Wire-level specifications and examples for NGSI-LD, GeoJSON, CSV, XLSX, OGC API Features, SensorThings, and MCP.
+surfaces: ogc=6-ogc-api---features-part-1 sta=7-ogc-sensorthings-api-sta-v11 mcp=8-model-context-protocol-mcp
 ---
 
 # Endpoint Representations & Translations
