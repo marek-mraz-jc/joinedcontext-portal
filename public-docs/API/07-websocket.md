@@ -89,7 +89,7 @@ Each example below runs as it stands against the public transport Endpoint and p
 With [websocat](https://github.com/vi/websocat), type the subscription as the first line after the connection opens:
 
 ```bash
-websocat --protocol ngsi-ld-ws wss://dev.joinedcontext.com/api/endpoint/ajaezssvx3bwqgejgepmq4ig3frgan4e/ws
+websocat --protocol ngsi-ld-ws wss://api.dev.joinedcontext.com/api/endpoint/ajaezssvx3bwqgejgepmq4ig3frgan4e/ws
 {"metadata":{"x-op":"x-subscribe","x-id":"s1"},"body":{"type":"Subscription","entities":[{"type":"Vehicle"}],"notification":{"attributes":["speed","location"]}}}
 ```
 
@@ -104,7 +104,7 @@ With a token, add `-H "Authorization: Bearer $TOKEN"` before the address. The an
 In a browser, from a page the installation allows:
 
 ```js
-const url = "wss://dev.joinedcontext.com/api/endpoint/ajaezssvx3bwqgejgepmq4ig3frgan4e/ws";
+const url = "wss://api.dev.joinedcontext.com/api/endpoint/ajaezssvx3bwqgejgepmq4ig3frgan4e/ws";
 // With a token: new WebSocket(url, ["ngsi-ld-ws", `bearer.${token}`])
 const ws = new WebSocket(url, ["ngsi-ld-ws"]);
 ws.onopen = () => ws.send(JSON.stringify({
@@ -123,7 +123,7 @@ In Python, with the `websockets` package (version 14 or later), reconnecting and
 ```python
 import asyncio, json, os, websockets
 
-URL = "wss://dev.joinedcontext.com/api/endpoint/ajaezssvx3bwqgejgepmq4ig3frgan4e/ws"
+URL = "wss://api.dev.joinedcontext.com/api/endpoint/ajaezssvx3bwqgejgepmq4ig3frgan4e/ws"
 SUBSCRIBE = {"metadata": {"x-op": "x-subscribe", "x-id": "s1"},
              "body": {"type": "Subscription", "entities": [{"type": "Vehicle"}],
                       "notification": {"attributes": ["speed", "location"]}}}

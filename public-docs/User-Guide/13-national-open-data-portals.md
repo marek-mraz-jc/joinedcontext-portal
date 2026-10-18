@@ -22,7 +22,7 @@ Your organization's administrator switches the national format on once for the w
 
 ## 2. data.slovensko.sk
 
-1. Take your catalogue's address: `https://{your installation}/catalog/{project}.ttl?profile=dcat-ap-sk`. For the city of Banská Bystrica on the development installation that is `https://dev.joinedcontext.com/catalog/banskabystrica.ttl?profile=dcat-ap-sk`.
+1. Take your catalogue's address: `https://api.{your installation}/catalog/{project}.ttl?profile=dcat-ap-sk`. For the city of Banská Bystrica on the development installation that is `https://api.dev.joinedcontext.com/catalog/banskabystrica.ttl?profile=dcat-ap-sk`.
 2. Open it in a browser: you see your body as the publisher and one line per public endpoint.
 3. Sign in to data.slovensko.sk as your body's publisher, open the list of local catalogues (*lokálne katalógy*), add a catalogue of the type *DCAT-AP Dokumenty* and paste the address.
 
@@ -30,7 +30,7 @@ The portal reads the catalogue on its own schedule. A dataset you make public la
 
 ## 3. data.gov.cz
 
-1. Take your catalogue's address: `https://{your installation}/catalog/{project}.ttl?profile=dcat-ap-cz`, for Prague on the development installation `https://dev.joinedcontext.com/catalog/praha.ttl?profile=dcat-ap-cz`.
+1. Take your catalogue's address: `https://api.{your installation}/catalog/{project}.ttl?profile=dcat-ap-cz`, for Prague on the development installation `https://api.dev.joinedcontext.com/catalog/praha.ttl?profile=dcat-ap-cz`.
 2. Open it in a browser and check the publisher and the datasets.
 3. Fill in the registration form for local catalogues on data.gov.cz with that address, as the interface type *DCAT-AP Dokumenty*. Only a public body listed in the RPP register can register, so the form is signed by your body's data box.
 

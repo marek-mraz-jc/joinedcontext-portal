@@ -878,6 +878,12 @@ pub fn endpoint_slug(extra: &str, public_base: &Url) -> Option<String> {
     valid.then(|| slug.to_owned())
 }
 
+/// The slug of an Endpoint URL on the data host or, as written before it (T-4632), the Portal's.
+fn our_endpoint_slug(state: &AppState, extra: &str) -> Option<String> {
+    endpoint_slug(extra, &state.config.api_base_url())
+        .or_else(|| endpoint_slug(extra, &state.config.public_base_url))
+}
+
 /// The public Endpoint with `slug`, and the project it belongs to.
 pub(crate) fn public_endpoint(
     state: &AppState,
@@ -991,9 +997,9 @@ pub async fn detail(state: &AppState, catalogue: &str, dataset: &Value) -> Catal
         })
         .collect();
 
-    let base = &state.config.public_base_url;
+    let base = &state.config.api_base_url();
     let found = extra(dataset, "endpoint")
-        .and_then(|e| endpoint_slug(&e, base))
+        .and_then(|e| our_endpoint_slug(state, &e))
         .and_then(|slug| public_endpoint(state, &slug).map(|found| (slug, found)));
     let (endpoint, model) = match found {
         Some((slug, (project, endpoint))) => {
@@ -1148,7 +1154,7 @@ pub async fn get_sample(
         .and_then(|m| m.classes.into_iter().next())
         .map(|c| c.name)
         .ok_or_else(no_sample)?;
-    let slug = endpoint_slug(&endpoint.url, &state.config.public_base_url).ok_or_else(no_sample)?;
+    let slug = our_endpoint_slug(&state, &endpoint.url).ok_or_else(no_sample)?;
     // In the cluster the gateway answers directly; the public host is the same Endpoint.
     let base = state
         .config
@@ -1415,21 +1421,21 @@ mod tests {
 
     #[test]
     fn only_an_endpoint_url_on_this_host_names_a_slug() {
-        let base = Url::parse("https://dev.joinedcontext.com").unwrap();
+        let base = Url::parse("https://api.dev.joinedcontext.com").unwrap();
         let slug = "mluyob4nz52lok3ssk7pgn5vwt";
         assert_eq!(
             endpoint_slug(
-                &format!("https://dev.joinedcontext.com/api/endpoint/{slug}/"),
+                &format!("https://api.dev.joinedcontext.com/api/endpoint/{slug}/"),
                 &base
             ),
             Some(slug.to_owned())
         );
         for foreign in [
             format!("https://evil.example/api/endpoint/{slug}/"),
-            format!("https://dev.joinedcontext.com:8443/api/endpoint/{slug}/"),
-            format!("https://dev.joinedcontext.com/api/endpoint/{slug}/../../internal"),
-            "https://dev.joinedcontext.com/api/endpoint/short/".to_owned(),
-            format!("https://dev.joinedcontext.com/cs/{slug}"),
+            format!("https://api.dev.joinedcontext.com:8443/api/endpoint/{slug}/"),
+            format!("https://api.dev.joinedcontext.com/api/endpoint/{slug}/../../internal"),
+            "https://api.dev.joinedcontext.com/api/endpoint/short/".to_owned(),
+            format!("https://api.dev.joinedcontext.com/cs/{slug}"),
             "not a url".to_owned(),
         ] {
             assert_eq!(endpoint_slug(&foreign, &base), None, "{foreign}");

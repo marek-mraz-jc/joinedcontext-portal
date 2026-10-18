@@ -125,10 +125,10 @@ describe("the MCP servers page (T-3156)", () => {
   it("shows a server's address, sign-in client and entry, its members' health and the tools they offer this person", async () => {
     const { fetchMock } = renderAt("/projects/helsinki/mcp");
     const card = await screen.findByRole("region", { name: "Mobility data" });
-    expect(within(card).getByText("https://dev.example/api/mcp/helsinki/mobility")).toBeInTheDocument();
+    expect(within(card).getByText("https://api.dev.example/api/mcp/helsinki/mobility")).toBeInTheDocument();
     expect(within(card).getByText("mcp-helsinki-mobility")).toBeInTheDocument();
     const entry = within(card).getByLabelText("Entry for the AI client's configuration");
-    expect(JSON.parse(entry.textContent ?? "")).toEqual({ mcpServers: { mobility: { type: "http", url: "https://dev.example/api/mcp/helsinki/mobility" } } });
+    expect(JSON.parse(entry.textContent ?? "")).toEqual({ mcpServers: { mobility: { type: "http", url: "https://api.dev.example/api/mcp/helsinki/mobility" } } });
     const members = within(card).getByRole("list", { name: "Members and how they answer you" });
     expect(await within(members).findByText("Answers, tools: 3")).toBeInTheDocument();
     expect(await within(members).findByText("Answers, tools: 2")).toBeInTheDocument();
@@ -302,8 +302,8 @@ describe("the named server's rules (MF-53)", () => {
 
   it("writes the client and the entry without a token", () => {
     expect(clientId("helsinki", "mobility")).toBe("mcp-helsinki-mobility");
-    expect(JSON.parse(clientConfig("https://dev.example/api/mcp/helsinki/mobility", "mobility"))).toEqual({
-      mcpServers: { mobility: { type: "http", url: "https://dev.example/api/mcp/helsinki/mobility" } },
+    expect(JSON.parse(clientConfig("https://api.dev.example/api/mcp/helsinki/mobility", "mobility"))).toEqual({
+      mcpServers: { mobility: { type: "http", url: "https://api.dev.example/api/mcp/helsinki/mobility" } },
     });
   });
 });
@@ -325,9 +325,9 @@ describe("the parts on their own", () => {
   it("copies a value and says it did", async () => {
     const writeText = vi.fn(() => Promise.resolve());
     Object.assign(navigator, { clipboard: { writeText } });
-    wrap(<CopyValue label="Address" value="https://dev.example/api/mcp/helsinki/mobility" />);
+    wrap(<CopyValue label="Address" value="https://api.dev.example/api/mcp/helsinki/mobility" />);
     await userEvent.click(screen.getByRole("button", { name: "Copy: Address" }));
-    expect(writeText).toHaveBeenCalledWith("https://dev.example/api/mcp/helsinki/mobility");
+    expect(writeText).toHaveBeenCalledWith("https://api.dev.example/api/mcp/helsinki/mobility");
     expect(await screen.findByText("Copied")).toBeInTheDocument();
   });
 
