@@ -7727,14 +7727,15 @@
     },
     "problem": {
       "name": "Use lowercase letters, digits and dashes, up to 63 characters.",
-      "taken": "You already have a connector with this name.",
-      "projects": "A project name is lowercase letters, digits and dashes.",
-      "spaces": "Write each space as project/space.",
-      "tooMany": "A field holds 50 values at most."
+      "taken": "You already have a connector with this name. Pick another one.",
+      "projects": "This is not a project name. Use lowercase letters, digits and dashes.",
+      "spaces": "A space is missing its project. Enter each one as project/space.",
+      "tooMany": "A field holds 50 values at most. Remove some."
     },
     "star": {
       "add": "Add to my connectors",
       "in": "In connector: {names}"
-    }
+    },
+    "full": "You have 10 connectors, the most there can be. Delete one to add another."
   }
 }
