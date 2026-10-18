@@ -1095,6 +1095,14 @@
         "share_flow.test.tsx"
       ]
     },
+    "src/pages/endpoints/VisualizationsSection.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "endpoint_visualizations.test.tsx"
+      ]
+    },
     "src/pages/explore/ChartFromView.tsx": {
       "controls": {
         "Button": 2,

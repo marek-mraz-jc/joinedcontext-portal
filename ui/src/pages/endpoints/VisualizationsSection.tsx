@@ -109,6 +109,7 @@ export function VisualizationsSection({
                   variant="secondary"
                   className="ml-auto"
                   disabled={proposal.mutation.isPending}
+                  disabledReason={t("app.busyReason")}
                   onClick={() => propose(list.filter((other) => other.name !== one.name))}
                 >
                   {t("endpoints.page.visualizations.remove")}

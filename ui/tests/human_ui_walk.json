@@ -109,6 +109,7 @@
     "src/pages/endpoints/Playground.tsx": null,
     "src/pages/endpoints/SchemaProjectionPanel.tsx": null,
     "src/pages/endpoints/ShareFlow.tsx": null,
+    "src/pages/endpoints/VisualizationsSection.tsx": null,
     "src/pages/explore/ChartFromView.tsx": null,
     "src/pages/explore/ExplorePage.tsx": null,
     "src/pages/explore/ExportView.tsx": null,
