@@ -49,10 +49,23 @@ pub fn strip(text: &str) -> Option<String> {
             continue;
         };
         for list in LISTS {
-            if let Some(Value::Sequence(items)) = spec.get_mut(list) {
-                let before = items.len();
-                items.retain(|item| !is_retired(item.as_str()));
-                changed |= items.len() != before;
+            let Some(Value::Sequence(items)) = spec.get_mut(list) else {
+                continue;
+            };
+            let before = items.len();
+            items.retain(|item| !is_retired(item.as_str()));
+            if items.len() == before {
+                continue;
+            }
+            changed = true;
+            if items.is_empty() {
+                if list == "enabledRepresentations" {
+                    // jc-core refuses an empty listed set; NGSI-LD is served anyway (EP-10), so
+                    // naming it alone keeps the Endpoint as narrow as it was.
+                    items.push(Value::String("ngsi-ld".to_owned()));
+                } else {
+                    spec.remove(list);
+                }
             }
         }
     }
@@ -149,6 +162,26 @@ mod tests {
         assert_eq!(enabled, ["ngsi-ld", "csv", "ogc-features"]);
         assert_eq!(disabled, ["sta"]);
         assert_eq!(strip(&stripped), None, "a second run changes nothing");
+    }
+
+    /// jc-core refuses a listed set that is empty, so an Endpoint that listed only retired files
+    /// keeps the narrowest one there is, and an emptied `disabledRepresentations` goes away.
+    #[test]
+    fn a_list_of_only_retired_files_keeps_ngsi_ld_and_an_empty_disabled_list_goes() {
+        let only = "kind: Endpoint\nmetadata:\n  name: air\nspec:\n  enabledRepresentations: [geojson, xlsx]\n";
+        let value: Value = serde_norway::from_str(&strip(only).expect("changed")).expect("yaml");
+        assert_eq!(
+            value["spec"]["enabledRepresentations"]
+                .as_sequence()
+                .map(|items| items.iter().filter_map(Value::as_str).collect::<Vec<_>>()),
+            Some(vec!["ngsi-ld"])
+        );
+
+        let disabled =
+            "kind: Endpoint\nmetadata:\n  name: air\nspec:\n  disabledRepresentations: [zip]\n";
+        let value: Value =
+            serde_norway::from_str(&strip(disabled).expect("changed")).expect("yaml");
+        assert!(value["spec"].get("disabledRepresentations").is_none());
     }
 
     #[test]
