@@ -901,24 +901,10 @@ async fn propose_engine(
     let filed_once =
         kind_info.repo_path(project, "s1", "a") == kind_info.repo_path(project, "s2", "b");
     if operation == Operation::Create && filed_once {
-        if let Some(held) = state
-            .mirror
-            .list(
-                project,
-                kind_info.kind,
-                &crate::store::ListOptions::default(),
-            )
-            .items
-            .into_iter()
-            .find(|held| held.metadata.name != envelope.metadata.name)
+        if let Some(refusal) =
+            held_under_another_name(state, kind_info, project, &envelope.metadata.name)
         {
-            let path = kind_info.repo_path(project, "", &held.metadata.name);
-            return Err(path_taken(
-                kind_info.kind,
-                &held.metadata.name,
-                &envelope.metadata.name,
-                &path,
-            ));
+            return Err(refusal);
         }
     }
     let mut plan = plan::diff(current.as_ref(), Some(&envelope));
@@ -1095,22 +1081,7 @@ async fn propose_engine(
     };
     let repo_path = manifest_path;
 
-    let mut envelope_to_commit = envelope.clone();
-    // A wasm App's component and shard are the Portal's, taken from the bundle it checked and
-    // the placement it recorded; whatever a proposal said of them is never committed (AP-151).
-    if build_write {
-        if let Some(status) = envelope_to_commit.status.as_mut() {
-            status.shard = published.as_ref().map(|p| p.shard);
-            if let Some(build) = status.build.as_mut() {
-                build.component = published.as_ref().map(|p| p.component.clone());
-            }
-        }
-    }
-    if !build_write {
-        envelope_to_commit.strip_status();
-    }
-    let yaml_content = serde_norway::to_string(&envelope_to_commit)
-        .map_err(|e| ApiError::Internal(format!("serialize manifest to yaml: {e}")))?;
+    let yaml_content = manifest_yaml(&envelope, build_write, published.as_ref())?;
 
     // Gitea wants the blob sha of the file being replaced, which only `get_file` knows;
     // `status.observedRevision` is a commit id and would be rejected. Asking the branch (not the
@@ -1224,6 +1195,50 @@ async fn propose_engine(
     };
 
     Ok(ProposeOutcome::Change(change))
+}
+
+/// A kind filed once per scope already held under another name (DS-07, T-2855): a create would
+/// replace that file and read as a create.
+fn held_under_another_name(
+    state: &AppState,
+    kind_info: &resource::KindInfo,
+    project: &str,
+    name: &str,
+) -> Option<ApiError> {
+    let held = state
+        .mirror
+        .list(
+            project,
+            kind_info.kind,
+            &crate::store::ListOptions::default(),
+        )
+        .items
+        .into_iter()
+        .find(|held| held.metadata.name != name)?;
+    let path = kind_info.repo_path(project, "", &held.metadata.name);
+    Some(path_taken(kind_info.kind, &held.metadata.name, name, &path))
+}
+
+/// The manifest as committed: no status, except a build write's, whose component and shard are
+/// the Portal's from the bundle it checked, whatever the proposal said of them (AP-73, AP-151).
+fn manifest_yaml(
+    envelope: &ResourceEnvelope,
+    build_write: bool,
+    published: Option<&crate::apps::wasm_apps::Published>,
+) -> Result<String, ApiError> {
+    let mut envelope_to_commit = envelope.clone();
+    if build_write {
+        if let Some(status) = envelope_to_commit.status.as_mut() {
+            status.shard = published.map(|p| p.shard);
+            if let Some(build) = status.build.as_mut() {
+                build.component = published.map(|p| p.component.clone());
+            }
+        }
+    } else {
+        envelope_to_commit.strip_status();
+    }
+    serde_norway::to_string(&envelope_to_commit)
+        .map_err(|e| ApiError::Internal(format!("serialize manifest to yaml: {e}")))
 }
 
 /// The envelope of a proposal (steps 2 and 3): an apiVersion jc-core serves, the kind its
@@ -2651,6 +2666,36 @@ mod tests {
         );
         assert!(refuse_platform_fields(&json!({}), &built).is_err());
         assert!(refuse_platform_fields(&json!({}), &envelope).is_ok());
+    }
+
+    #[test]
+    fn a_name_held_by_another_resource_of_the_kind_is_named_and_its_own_is_not() {
+        let state = AppState::new(Config::for_tests(), None);
+        let info = resource::by_kind("Endpoint").expect("Endpoint");
+        let held: ResourceEnvelope = serde_json::from_value(json!({
+            "apiVersion": resource::API_VERSION, "kind": "Endpoint",
+            "metadata": { "name": "x", "namespace": "p" }, "spec": {}
+        }))
+        .expect("envelope");
+        state.mirror.upsert(held);
+        assert!(held_under_another_name(&state, info, "p", "y").is_some());
+        assert!(held_under_another_name(&state, info, "p", "x").is_none());
+        assert!(held_under_another_name(&state, info, "q", "y").is_none());
+    }
+
+    #[test]
+    fn only_a_build_write_commits_a_status() {
+        let envelope: ResourceEnvelope = serde_json::from_value(json!({
+            "apiVersion": resource::API_VERSION, "kind": "App",
+            "metadata": { "name": "a" }, "spec": {}, "status": { "phase": "Live" }
+        }))
+        .expect("envelope");
+        assert!(!manifest_yaml(&envelope, false, None)
+            .expect("yaml")
+            .contains("status"));
+        assert!(manifest_yaml(&envelope, true, None)
+            .expect("yaml")
+            .contains("status"));
     }
 
     #[test]
