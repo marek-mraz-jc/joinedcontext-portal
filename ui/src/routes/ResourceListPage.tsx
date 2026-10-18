@@ -8,10 +8,11 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { NotFoundState } from "../components/NotFoundState";
 import { asManifests, isChange, localized } from "../api/manifest";
-import type { Change, ResourceProposal } from "../api/manifest";
+import type { Change, Manifest, ResourceProposal } from "../api/manifest";
 import { proposeChecked } from "../api/proposal";
 import { ChangeNotice } from "../components/ChangeNotice";
 import { ResourceFormDialog } from "../components/ResourceFormDialog";
+import { AssistantContextPreview } from "../pages/knowledge/AssistantContextPreview";
 import { useCreateFormFromDraft } from "../components/forms/FormRoute";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
 import { humanizeName } from "../pages/apps/appTitle";
@@ -183,6 +184,8 @@ const EDIT_FORMS: Record<string, (t: (key: string) => string, project: string) =
     uiSchema: assistantDeploymentUiSchema,
     fromManifest: (manifest) => fromKindManifest(manifest),
     toManifest: (form, stored) => toKindManifest("AssistantDeployment", project, form, stored),
+    // What the deployment being edited will read, before it is proposed (AG-121, T-4693).
+    afterFields: (manifest) => <AssistantContextPreview project={project} manifest={manifest as Manifest} />,
   }),
 };
 
@@ -408,6 +411,7 @@ export function KindList({
             fromManifest: (manifest) => form.fromManifest(manifest),
           }}
           submitLabel={t("resourceList.propose")}
+          afterFields={form.afterFields?.(form.toManifest(values ?? {}, undefined))}
           submitting={create.isPending}
           error={formError}
           onSubmit={(next) => create.mutate(next)}

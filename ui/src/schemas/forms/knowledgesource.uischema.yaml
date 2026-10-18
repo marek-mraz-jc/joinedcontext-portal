@@ -33,6 +33,7 @@ spec:
       organizations,
       upload,
       visibility,
+      categories,
       sitemap,
       wordpressTypes,
       include,
@@ -55,7 +56,7 @@ spec:
         sk: Web alebo katalóg a či z neho smie odpovedať verejný asistent.
         cs: Web nebo katalog a zda z něj smí odpovídat veřejný asistent.
         de: Die Website oder der Katalog, und ob ein öffentlicher Assistent daraus antworten darf.
-      fields: [name, source, startUrls, ckanInstanceRef, organizations, upload, visibility]
+      fields: [name, source, startUrls, ckanInstanceRef, organizations, upload, visibility, categories]
     - title:
         en: How far it reads
         sk: Ako ďaleko číta

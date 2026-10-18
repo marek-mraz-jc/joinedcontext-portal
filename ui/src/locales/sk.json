@@ -6679,7 +6679,15 @@
       "feedback": "Pýtať sa návštevníkov, či odpoveď pomohla",
       "widget": "Chat",
       "widgetLanguage": "Jazyk, v ktorom sa chat otvorí",
-      "languageToggle": "Zobraziť prepínač jazyka"
+      "languageToggle": "Zobraziť prepínač jazyka",
+      "select": "Endpointy podľa výberu",
+      "selectHint": "Každý endpoint, ktorý zodpovedá všetkým zadaným poliam, v tomto projekte a v scope.projects.",
+      "selectProjects": "Vydavatelia (projekty)",
+      "selectThemes": "Kategórie",
+      "selectTypes": "Typy entít",
+      "selectAccess": "Prístup",
+      "excludeEndpoints": "Tieto endpointy nikdy nečítať",
+      "categories": "Kategórie"
     },
     "visibility": {
       "internal": "Interný: prihlásení zamestnanci",
@@ -6803,6 +6811,44 @@
       "own": "{project} (tento projekt)",
       "unknown": "Uvedené, ale vám neponúknuté",
       "none": "Žiadny projekt, ktorý môžete čítať, zatiaľ nemá zdroj znalostí."
+    },
+    "category": {
+      "AGRI": "Poľnohospodárstvo, rybárstvo, lesníctvo a potraviny",
+      "ECON": "Hospodárstvo a financie",
+      "EDUC": "Vzdelávanie, kultúra a šport",
+      "ENER": "Energetika",
+      "ENVI": "Životné prostredie",
+      "GOVE": "Vláda a verejný sektor",
+      "HEAL": "Zdravie",
+      "INTR": "Medzinárodné otázky",
+      "JUST": "Spravodlivosť, právny systém a verejná bezpečnosť",
+      "REGI": "Regióny a mestá",
+      "SOCI": "Obyvateľstvo a spoločnosť",
+      "TECH": "Veda a technika",
+      "TRAN": "Doprava"
+    },
+    "accessLevel": {
+      "public": "Verejný",
+      "organization": "Organizácia",
+      "project": "Projekt",
+      "grant": "Oprávnenie"
+    },
+    "context": {
+      "heading": "Čo bude asistent vedieť",
+      "problems": "Pred návrhom asistenta opravte tieto polia",
+      "categories": "Kategórie:",
+      "noEndpoints": "Žiadny endpoint: odpovedá len zo zdrojov znalostí.",
+      "endpoints": "Endpointy, ktoré číta ({count})",
+      "endpoint": "Endpoint",
+      "publisher": "Vydavateľ",
+      "types": "Typy entít",
+      "how": "Ako",
+      "connector": "Konektor: {tools}",
+      "selected": "Podľa výberu",
+      "omittedTitle": "Vynechané endpointy: {count}",
+      "omitted": "Jeden asistent číta najviac 50 endpointov; zúžte výber alebo niektoré vylúčte. Vynechané: {slugs}",
+      "noSources": "Žiadny zdroj znalostí: odpovedá len zo živých dát.",
+      "sources": "Zdroje znalostí"
     }
   },
   "mcp": {

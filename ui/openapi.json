@@ -8906,6 +8906,154 @@
         }
       }
     },
+    "/api/v1/projects/{project}/knowledge/deployments/context": {
+      "post": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Preview What An Assistant Will Know",
+        "description": "Resolves an unsaved AssistantDeployment manifest the way the assistant will: its Endpoints (connectors, select and mcpServer, less exclude, inside the project's reach), its knowledge sources and its categories. Changes nothing; `dryRun=All` is required.",
+        "operationId": "previewAssistantContext",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "description": "The language of the category labels and titles; `sk`, `en`, `cs`, `hu`, `de`, `fi` or\n`uk`, English otherwise.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "dryRun",
+            "in": "query",
+            "description": "`All`: the preview changes nothing (API/01 §dry runs).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The AssistantDeployment manifest being edited",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResourceEnvelope"
+              },
+              "example": {
+                "apiVersion": "joinedcontext.com/v1alpha1",
+                "kind": "AssistantDeployment",
+                "metadata": {
+                  "name": "doprava",
+                  "namespace": "bb"
+                },
+                "spec": {
+                  "allowedOrigins": [
+                    "https://www.banskabystrica.sk"
+                  ],
+                  "budget": {
+                    "tokensPerConversation": 40000,
+                    "tokensPerDay": 2000000
+                  },
+                  "categories": [
+                    "TRAN"
+                  ],
+                  "channel": "public",
+                  "languages": [
+                    "sk",
+                    "en"
+                  ],
+                  "publicId": "bb-doprava",
+                  "rateLimit": {
+                    "perClientPerMinute": 10,
+                    "requestsPerMinute": 60
+                  },
+                  "scope": {
+                    "projects": [
+                      "bbsk"
+                    ]
+                  },
+                  "select": {
+                    "themes": [
+                      "TRAN"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "What the assistant will read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an AssistantDeployment, or a field its kind refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/knowledge/deployments/{deployment}/chat": {
       "post": {
         "tags": [
@@ -9034,6 +9182,92 @@
           },
           "503": {
             "description": "The knowledge assistant is not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/knowledge/deployments/{deployment}/context": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Read What An Assistant Knows",
+        "description": "The Endpoints, knowledge sources and categories of one saved AssistantDeployment, resolved as the assistant resolves them.",
+        "operationId": "getAssistantContext",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deployment",
+            "in": "path",
+            "description": "AssistantDeployment name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "description": "The language of the category labels and titles; `sk`, `en`, `cs`, `hu`, `de`, `fi` or\n`uk`, English otherwise.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "dryRun",
+            "in": "query",
+            "description": "`All`: the preview changes nothing (API/01 §dry runs).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What the assistant reads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project or deployment the caller may read",
             "content": {
               "application/json": {
                 "schema": {

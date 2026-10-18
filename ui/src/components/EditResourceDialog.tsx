@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ComponentProps, JSX } from "react";
+import type { ComponentProps, JSX, ReactNode } from "react";
 import { PermissionGuard } from "./ui/PermissionGuard";
 import { useTranslation } from "react-i18next";
 import { usePermissions } from "../api/permissions";
@@ -35,6 +35,8 @@ export interface EditableForm {
    * or the edit would propose deleting it (T-2470).
    */
   toManifest: (form: Record<string, unknown>, stored: unknown) => unknown;
+  /** Panels under the fields that follow the manifest as it is edited, e.g. a live preview (T-4693). */
+  afterFields?: (manifest: unknown) => ReactNode;
 }
 
 /**
