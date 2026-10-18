@@ -93,14 +93,14 @@ Published endpoints provide Streamable HTTP endpoints implementing the Model Con
 #### By hand
 
 1. Open `/projects/helsinki/endpoints` and select an endpoint with the `mcp` representation enabled, such as `helsinki-all`.
-2. Locate the public URL and copy the MCP address: `https://portal.joinedcontext.com/api/endpoint/mluyob4nz52lok3ssk7pgn5vwt/mcp`.
+2. Locate the public URL and copy the MCP address: `https://api.joinedcontext.com/api/endpoint/mluyob4nz52lok3ssk7pgn5vwt/mcp`.
 3. In your local MCP client configuration, add the server entry:
 
    ```json
    {
      "mcpServers": {
        "helsinki-context": {
-         "url": "https://portal.joinedcontext.com/api/endpoint/mluyob4nz52lok3ssk7pgn5vwt/mcp"
+         "url": "https://api.joinedcontext.com/api/endpoint/mluyob4nz52lok3ssk7pgn5vwt/mcp"
        }
      }
    }

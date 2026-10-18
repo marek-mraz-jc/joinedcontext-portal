@@ -8,7 +8,7 @@ surfaces: ogc=6-ogc-api---features-part-1 sta=7-ogc-sensorthings-api-sta-v11 mcp
 # Endpoint Representations & Translations
 
 The platform provides multi-representation data endpoints through unique URL slugs:
-`https://{host}/api/endpoint/{endpointSlug}/...`
+`https://api.{domain}/api/endpoint/{endpointSlug}/...`
 
 The Context Gateway dynamically translates live NGSI-LD context data into the requested representation while enforcing identical authorization policies across all formats ([SP-03](../Requirements/space-surface.md#1-url-scheme)).
 
@@ -107,12 +107,12 @@ carrying `If-Match` (T-3789), a Subscription (T-3653), and an Endpoint whose pro
 
 ```json
 {
-  "entities": "https://{host}/api/endpoint/{endpointSlug}/ngsi-ld/v1/entities",
+  "entities": "https://api.{domain}/api/endpoint/{endpointSlug}/ngsi-ld/v1/entities",
   "types": [
-    { "type": "BikeHireDockingStation", "query": "https://{host}/api/endpoint/{endpointSlug}/ngsi-ld/v1/entities?type=BikeHireDockingStation" }
+    { "type": "BikeHireDockingStation", "query": "https://api.{domain}/api/endpoint/{endpointSlug}/ngsi-ld/v1/entities?type=BikeHireDockingStation" }
   ],
-  "access": "https://{host}/api/endpoint/{endpointSlug}/access",
-  "schema": "https://{host}/api/endpoint/{endpointSlug}/schema/index.json"
+  "access": "https://api.{domain}/api/endpoint/{endpointSlug}/access",
+  "schema": "https://api.{domain}/api/endpoint/{endpointSlug}/schema/index.json"
 }
 ```
 
@@ -174,6 +174,31 @@ Every refusal is `application/problem+json` (RFC 7807) with a `type` under
 - **SP-05** [space] — no answer carries `NGSILD-Tenant`.
 
 ---
+
+## 2b. History, versions and provenance
+
+The broker keeps one row per measurement and versions of a corrected one ([ADR-N-054](../Decisions/adr-n-054-history-versions-provenance-gdpr.md), DM-104…DM-119). What a caller sees of it on the NGSI-LD surface:
+
+| Request | Answer |
+|---|---|
+| a write with an `observedAt` already stored and the same value | `204`, nothing stored (a duplicate) |
+| a write with an `observedAt` already stored and another value | `204`, a correction: a new version; needs `JC-Reason` |
+| a write with an `observedAt` before the current one | `204`, history only; the current state is unchanged |
+| `DELETE` of an attribute or an Entity | `204`, a tombstone version with `deletedAt`; needs `JC-Reason` |
+| `GET …/temporal/entities…` | the latest version of each measurement |
+| `GET …/temporal/entities…&versions=all` | every version, oldest first, each with `supersededAt` and `provenance`; `403` without `readVersions` |
+| `GET …/temporal/entities…` over an `onChange` attribute | also its last row before `timeAt` |
+| `aggrMethods=sum` or `totalCount` over an `onChange` attribute | `400`, problem type `aggregation-not-meaningful` |
+
+Headers:
+
+| Header | Direction | Meaning |
+|---|---|---|
+| `JC-Reason` | request | why a correction, a delete or a UI edit is made, 1 to 500 characters of UTF-8, percent-encoded; without one such a write answers `400` with the problem type `reason-required` |
+| `X-Request-Id` | response | the id the row's `provenance.requestId` holds |
+| `JC-Provenance-*` | never | dropped at the edge; the gateway sets them for the broker (DM-112) |
+
+`lastN` counts measurements, not versions. Provenance is `channel`, `actor`, `operation`, `reason`, `requestId` and `writtenAt` ([ADR-N-054 §2.3](../Decisions/adr-n-054-history-versions-provenance-gdpr.md#23-provenance-on-every-write)).
 
 ## 3. GeoJSON for maps
 
@@ -319,7 +344,7 @@ x-jc-roles: public
 ```
 
 and the broker answers a `FeatureCollection` whose links name
-`https://{host}/api/endpoint/zt4qm7ge2xdv6ksb3ncf5arw2y/ogc/features/…`.
+`https://api.{domain}/api/endpoint/zt4qm7ge2xdv6ksb3ncf5arw2y/ogc/features/…`.
 
 ---
 
@@ -369,7 +394,7 @@ addressable after a restart, after a broker swap, and from a client that saw it 
 ```json
 {
   "@iot.id": "urn:ngsi-ld:Device:hel.fi:air-quality:dev-01",
-  "@iot.selfLink": "https://{host}/api/endpoint/{slug}/sta/v1.1/Things('urn:ngsi-ld:Device:hel.fi:air-quality:dev-01')",
+  "@iot.selfLink": "https://api.{domain}/api/endpoint/{slug}/sta/v1.1/Things('urn:ngsi-ld:Device:hel.fi:air-quality:dev-01')",
   "name": "Kallio",
   "description": "Air quality station",
   "properties": { "type": "Device" },
@@ -797,7 +822,7 @@ One `POST` carries one JSON-RPC message, one response comes back, and nothing is
 **The broker's MCP surface (T-3647).** The gateway verifies the caller, applies the Endpoint's rate limit and the domain gate on a write, and forwards each request to the broker's MCP surface of the Endpoint's view (`/x/views/{endpointSlug}/mcp`; `/cs/{space}/mcp` to `cs-{space}`) under the verified caller. The tools, their input schemas, paging and write confirmation are the broker's (Antares `docs/src/mcp.md`): `type` is a list, `cursor` is the opaque `nextCursor` of the previous answer passed back unchanged (no cursor on a first page), `batch_upsert` replaces `upsert_entity`, and a write is confirmed by the person through the 2026-07-28 multi round-trip request (`InputRequiredResult`, then the same call with `inputResponses` and `requestState`). The gateway still answers `describe_access`, `describe_schema` and the `access://` and `schema://` resources itself, added to the broker's `tools/list` and `resources/list`; it caps `joinLevel` at 3 and `lastN` at 1000 as on the NGSI-LD surface, and asks the broker with `Accept: application/json, text/event-stream` whatever the client sent. An Endpoint with a view mapping, a caller holding a data-space agreement and a space that federates registrations stay on the gateway's own tools until the hub forwards too (T-3808).
 
 ```bash
-curl -sS -X POST "https://{host}/api/endpoint/{endpointSlug}/mcp" \
+curl -sS -X POST "https://api.{domain}/api/endpoint/{endpointSlug}/mcp" \
   -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"query_entities","arguments":{"type":["AirQualityObserved"],"limit":2}}}'
 ```
@@ -836,14 +861,14 @@ Three answers are worth knowing before writing a client:
 - **`structuredContent` is an object, never a bare list** (MCP's own rule and the tool's output schema): the entities sit under `entities`, and `restricted: true` sits beside them when the policy narrowed the answer (AG-13, R22). The marker says that something was removed, never what. Unlike the REST header it is not opt-in: a tool result is read by a model, which has no way to ask for it first, and the field is what AG-13 makes the agent's own signal.
 - **A unit beside its code.** Every object of a tool result that carries a `unitCode` the UN/CEFACT Recommendation 20 list knows also carries `unit`, the symbol a person reads (`"unitCode": "GQ", "unit": "µg/m³"`), or the unit's name where Rec 20 gives no symbol, in `structuredContent` and in the JSON text item alike; an unknown code and an object that already has `unit` are left as they are. A model reads a bare `GQ` as no unit. The gateway adds it to the broker's answer; the stored entity and the NGSI-LD representation are unchanged (T-4373, DM-06).
 
-Unauthenticated access follows the Endpoint's audience: a `public` Endpoint answers `tools/list` and every read tool with no token, everything else answers `401` with `WWW-Authenticate: Bearer resource_metadata="https://{host}/api/endpoint/{endpointSlug}/.well-known/oauth-protected-resource"` (AG-32).
+Unauthenticated access follows the Endpoint's audience: a `public` Endpoint answers `tools/list` and every read tool with no token, everything else answers `401` with `WWW-Authenticate: Bearer resource_metadata="https://api.{domain}/api/endpoint/{endpointSlug}/.well-known/oauth-protected-resource"` (AG-32).
 
 ### The hub (`/api/mcp`)
 
 One address over every Endpoint ([EP-87](../Requirements/endpoints.md), [ADR-N-025](../Decisions/adr-n-025-one-mcp-connector-several-endpoints.md)). Without a token it answers over the `public` Endpoints that serve `mcp`; with a token over those plus the ones the token reaches (`endpoint:*` reaches every Endpoint the person may read, EP-88). `list_endpoints` takes `q`, `type`, `attribute`, `space`, `access`, `limit` and `cursor` (EP-111); every other tool is the Endpoint's own tool with one more argument, `endpoint`, a slug `list_endpoints` answered (EP-112).
 
 ```bash
-curl -sS -X POST "https://{host}/api/mcp" \
+curl -sS -X POST "https://api.{domain}/api/mcp" \
   -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_endpoints","arguments":{"type":"AirQualityObserved","limit":1}}}'
 ```
@@ -866,9 +891,9 @@ curl -sS -X POST "https://{host}/api/mcp" \
           "types": ["AirQualityObserved"],
           "attributes": { "AirQualityObserved": ["dateObserved", "location", "no2", "pm10"] },
           "temporal": true,
-          "dcat": "https://{host}/api/endpoint/k4y7pq2mzt6vhx3nbwrs5cjd8f/",
-          "mcp": "https://{host}/api/endpoint/k4y7pq2mzt6vhx3nbwrs5cjd8f/mcp",
-          "schema": "https://{host}/api/endpoint/k4y7pq2mzt6vhx3nbwrs5cjd8f/schema/v1/model.linkml.yaml"
+          "dcat": "https://api.{domain}/api/endpoint/k4y7pq2mzt6vhx3nbwrs5cjd8f/",
+          "mcp": "https://api.{domain}/api/endpoint/k4y7pq2mzt6vhx3nbwrs5cjd8f/mcp",
+          "schema": "https://api.{domain}/api/endpoint/k4y7pq2mzt6vhx3nbwrs5cjd8f/schema/v1/model.linkml.yaml"
         }
       ],
       "total": 1
@@ -877,9 +902,22 @@ curl -sS -X POST "https://{host}/api/mcp" \
 }
 ```
 
+### OAuth for an assistant that needs it
+
+A public MCP server, the hub or any server an anonymous caller may read, needs no token. An assistant that connects only through OAuth 2.1 (Gemini's custom apps) runs the flow against the gateway's own authorization server on `api.{domain}`, which stores nothing and identifies nobody ([EP-129](../Requirements/endpoints.md), [ADR-N-052](../Decisions/adr-n-052-anonymous-oauth-public-mcp.md)):
+
+| Step | Request | Answer |
+|---|---|---|
+| Discovery | `GET /api/mcp/.well-known/oauth-protected-resource`, then `GET /.well-known/oauth-authorization-server` | the resource's metadata, listing this server first and Keycloak second; the server's endpoints, `S256`, public clients only |
+| Registration | `POST /oauth/register` with `redirect_uris` | `201` with a `client_id` signed over those URIs, valid 365 days; `400 invalid_redirect_uri` for a host outside the allowlist, `400 invalid_client_metadata` for more than 5 URIs or one over 2048 bytes |
+| Authorize | `GET /oauth/authorize?response_type=code&client_id=…&redirect_uri=…&code_challenge=…&code_challenge_method=S256&state=…&resource=…` | `302` to the `redirect_uri` with a `code` valid 60 seconds and the same `state`; no login, no consent. A failed check answers an error page here and never redirects |
+| Token | `POST /oauth/token` with `grant_type=authorization_code`, `code`, `redirect_uri`, `client_id`, `code_verifier` | an access token valid one hour and a refresh token valid 30 days; `grant_type=refresh_token` answers a new pair |
+
+The redirect allowlist is `oauth-redirect.googleusercontent.com`, `claude.ai`, `claude.com` and `chatgpt.com` over `https`, and `localhost`, `127.0.0.1` and `[::1]` on any port over `http`, configurable ([ADR-N-052 §2.3](../Decisions/adr-n-052-anonymous-oauth-public-mcp.md#23-the-redirect-allowlist)). The token carries no subject and grants exactly what a call without a token gets, inside the anonymous rate-limit allowance, on the resource its `aud` names. A server that is not anonymous-readable lists Keycloak alone and refuses this token.
+
 ## 8a. WebSocket (`ws`)
 
-Path: `wss://{host}/api/endpoint/{endpointSlug}/ws`
+Path: `wss://api.{domain}/api/endpoint/{endpointSlug}/ws`
 
 One connection carries NGSI-LD Subscriptions made over the socket and the Notifications they produce, in the TS 104 243 `{metadata, body}` envelope (EP-106). The gateway authenticates the upgrade like any request and forwards it to the broker view's `/x/views/{view}/ws`, so a notification carries only what the caller's grant reads. Messages, limits, resume and client examples are on their own page: [API/07](07-websocket.md).
 
@@ -923,7 +961,7 @@ Path: `/api/endpoints`, on the gateway's host, outside any one Endpoint.
 The REST twin of the hub's `list_endpoints` ([EP-105](../Requirements/endpoints.md), [ADR-N-025 §4a](../Decisions/adr-n-025-one-mcp-connector-several-endpoints.md)): the Endpoints this token reaches and may read something through, whatever they serve. A person's token, a hub token with `endpoint:` scopes, and a ServiceAccount's `client_credentials` token each get the list their token opens (EP-88). Without a token the answer lists the `public` Endpoints only, as the hub does (EP-87); nothing internal is named. The filters and the row fields are the hub's (EP-111).
 
 ```bash
-curl -sS "https://{host}/api/endpoints?limit=2" -H "authorization: Bearer $TOKEN"
+curl -sS "https://api.{domain}/api/endpoints?limit=2" -H "authorization: Bearer $TOKEN"
 ```
 
 ```json
@@ -936,12 +974,12 @@ curl -sS "https://{host}/api/endpoints?limit=2" -H "authorization: Bearer $TOKEN
       "types": ["AirQualityObserved"],
       "representations": ["ngsi-ld", "mcp", "ogc-features"],
       "surfaces": {
-        "ngsi-ld": "https://{host}/api/endpoint/k4y7pq2mzt6vhx3nbwrs5cjd8f/ngsi-ld/v1/",
-        "mcp": "https://{host}/api/endpoint/k4y7pq2mzt6vhx3nbwrs5cjd8f/mcp",
-        "ogc-features": "https://{host}/api/endpoint/k4y7pq2mzt6vhx3nbwrs5cjd8f/ogc/features/"
+        "ngsi-ld": "https://api.{domain}/api/endpoint/k4y7pq2mzt6vhx3nbwrs5cjd8f/ngsi-ld/v1/",
+        "mcp": "https://api.{domain}/api/endpoint/k4y7pq2mzt6vhx3nbwrs5cjd8f/mcp",
+        "ogc-features": "https://api.{domain}/api/endpoint/k4y7pq2mzt6vhx3nbwrs5cjd8f/ogc/features/"
       },
-      "mcp": "https://{host}/api/endpoint/k4y7pq2mzt6vhx3nbwrs5cjd8f/mcp",
-      "schema": "https://{host}/api/endpoint/k4y7pq2mzt6vhx3nbwrs5cjd8f/schema/v1/model.linkml.yaml"
+      "mcp": "https://api.{domain}/api/endpoint/k4y7pq2mzt6vhx3nbwrs5cjd8f/mcp",
+      "schema": "https://api.{domain}/api/endpoint/k4y7pq2mzt6vhx3nbwrs5cjd8f/schema/v1/model.linkml.yaml"
     }
   ],
   "total": 5,

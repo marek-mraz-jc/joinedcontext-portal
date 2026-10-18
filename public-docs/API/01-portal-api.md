@@ -1912,8 +1912,8 @@ GET /api/v1/projects/{project}/ckan/status    catalogues, and what each endpoint
       "dataset": "kvalita-ovzdusia",
       "datasetUrl": "https://data.banskabystrica.sk/dataset/kvalita-ovzdusia",
       "resources": [
-        { "name": "NGSI-LD API", "url": "https://{host}/api/endpoint/{endpointSlug}/ngsi-ld/v1/", "format": "NGSI-LD" },
-        { "name": "CSV", "url": "https://{host}/api/endpoint/{endpointSlug}/file.csv", "format": "CSV" }
+        { "name": "NGSI-LD API", "url": "https://api.{domain}/api/endpoint/{endpointSlug}/ngsi-ld/v1/", "format": "NGSI-LD" },
+        { "name": "CSV", "url": "https://api.{domain}/api/endpoint/{endpointSlug}/file.csv", "format": "CSV" }
       ],
       "datastore": { "representation": "csv", "refresh": "onChange" }
     }
@@ -2002,13 +2002,13 @@ alternatives, filters combine with AND) and `page` (from 1, twenty datasets a pa
   "modified": "2026-09-21T05:52:34Z",
   "catalogueUrl": "https://data.{host}/dataset/bbsk-kpi",
   "resources": [
-    { "name": "CSV", "format": "CSV", "url": "https://{host}/api/endpoint/{endpointSlug}/file.csv", "description": "…", "previewUrl": "https://data.{host}/dataset/bbsk-kpi/resource/{id}" }
+    { "name": "CSV", "format": "CSV", "url": "https://api.{domain}/api/endpoint/{endpointSlug}/file.csv", "description": "…", "previewUrl": "https://data.{host}/dataset/bbsk-kpi/resource/{id}" }
   ],
-  "endpoint": { "url": "https://{host}/api/endpoint/{endpointSlug}/", "representations": ["ngsi-ld", "csv", "mcp"] },
+  "endpoint": { "url": "https://api.{domain}/api/endpoint/{endpointSlug}/", "representations": ["ngsi-ld", "csv", "mcp"] },
   "model": {
     "name": "key-performance-indicator",
     "classes": [{ "name": "KeyPerformanceIndicator", "description": "…" }],
-    "docsUrl": "https://{host}/api/endpoint/{endpointSlug}/schema/1/key-performance-indicator.v1.md"
+    "docsUrl": "https://api.{domain}/api/endpoint/{endpointSlug}/schema/1/key-performance-indicator.v1.md"
   }
 }
 ```
@@ -2042,8 +2042,8 @@ Endpoint's page (`/d/{slug}` and the Endpoint page in the Portal, TS-19, T-4484)
       "representation": "ngsi-ld",
       "fields": ["name", "no2", "pm10"],
       "examples": [
-        { "kind": "equality", "field": "name", "url": "https://{host}/api/endpoint/{endpointSlug}/ngsi-ld/v1/entities?type=AirQualityObserved&q=name%3D%3D%22Zvolen%22", "answered": 1 },
-        { "kind": "range", "field": "no2", "url": "https://{host}/api/endpoint/{endpointSlug}/ngsi-ld/v1/entities?type=AirQualityObserved&q=no2%3E%3D21.5", "answered": 4 }
+        { "kind": "equality", "field": "name", "url": "https://api.{domain}/api/endpoint/{endpointSlug}/ngsi-ld/v1/entities?type=AirQualityObserved&q=name%3D%3D%22Zvolen%22", "answered": 1 },
+        { "kind": "range", "field": "no2", "url": "https://api.{domain}/api/endpoint/{endpointSlug}/ngsi-ld/v1/entities?type=AirQualityObserved&q=no2%3E%3D21.5", "answered": 4 }
       ]
     },
     { "representation": "ogc-features", "fields": ["name", "no2", "pm10"], "examples": [] }
@@ -3277,6 +3277,8 @@ token ([API/05 §3](05-knowledge-assistant.md#3-administration-for-the-portal)).
 ```text
 GET  /api/v1/projects/{project}/knowledge/sources                          every source with what it holds
 GET  /api/v1/projects/{project}/knowledge/sources/{source}/pages?parent=   one level of the page tree; no parent: the roots
+GET  /api/v1/projects/{project}/knowledge/sources/{source}/pages?q=        pages whose title or address holds q, at most 100
+GET  /api/v1/projects/{project}/knowledge/sources/{source}/search?q=&limit= the hits the MCP's search_documents would answer
 GET  /api/v1/projects/{project}/knowledge/sources/{source}/documents       the documents (PDFs) the pages link
 GET  /api/v1/projects/{project}/knowledge/sources/{source}/pages/{page}/links
 GET  /api/v1/projects/{project}/knowledge/sources/{source}/passages?page=|document=
@@ -3285,6 +3287,9 @@ POST /api/v1/projects/{project}/knowledge/sources/{source}/recrawl         queue
 GET  /api/v1/projects/{project}/knowledge/sources/{source}/errors          the pages and documents the last crawls could not read
 GET  /api/v1/projects/{project}/knowledge/deployments/{deployment}/usage   requests and tokens per day, 30 days
 POST /api/v1/projects/{project}/knowledge/deployments/{deployment}/chat    ask the assistant as the signed-in person
+GET  /api/v1/projects/{project}/knowledge/conversations                    stored conversations, filtered (API/05 §3.1)
+GET  /api/v1/projects/{project}/knowledge/conversations/{conversation}     one conversation, every turn with its steps
+DELETE /api/v1/projects/{project}/knowledge/conversations/{conversation}   erase one conversation
 ```
 
 - The read routes answer only a caller who may read `KnowledgeSource` in the project (the usage
@@ -3300,6 +3305,12 @@ POST /api/v1/projects/{project}/knowledge/deployments/{deployment}/chat    ask t
   person's own access token on for an `internal` deployment's connectors and keeps no copy
   ([API/05 §1.7](05-knowledge-assistant.md#17-in-the-portal), AG-115).
 - `recrawl` answers `202` with the queued job, or `409` when one is already queued or running.
+- The `conversations` routes answer only a caller with `approve` on `AssistantDeployment` in the
+  project (the assistant's administrator; `org-admin` holds it), anyone else `403` naming it, and
+  `DELETE` needs `delete` on `AssistantDeployment`. Every call writes an audit record naming the
+  caller, the project and the conversation (or the filter of a list). The Portal page Asistent →
+  Konverzácie is shown to those callers only, and "Kopírovať ako test" copies a turn as the JSON
+  fixture of the assistant eval sets (T-4656, T-4670).
 - The index status of a source is in its row of `sources`: `passages`, `embedded` and `pending`
   (passages not embedded yet), `failed` (pages and documents that could not be read), and the last
   job with its `startedAt` and `finishedAt`. `errors` lists at most 50 of the failed pages and
@@ -3791,6 +3802,29 @@ GET  /api/v1/projects/{project}/spaces/{space}/move                → 200
 - Who may move: organization administrators only; anybody else is `403`. The job's commits are
   the Portal's and name the administrator who started it. No address or token is part of an
   answer.
+
+## 46. Personal data of a space (DM-124…DM-127)
+
+For a space whose model marks personal data ([Architecture/11 §9](../Architecture/11-data-models.md#9-personal-data-in-a-model)), a person the space's Policy grants `personalData` (by default the owner role) runs the data subject's rights. `{subject}` is the value of the class's `dataSubjectRef` slot, or its keyed hash when the slot is ingested as `keyedHash`; the Portal hashes a value it is given with the space's key.
+
+```text
+GET    /api/v1/projects/{project}/spaces/{space}/subjects/{subject}/export         every Entity naming the subject, its versions and read log → 200
+POST   /api/v1/projects/{project}/spaces/{space}/subjects/{subject}/rectification  { "entity", "attribute", "value", "reason" } → 200
+POST   /api/v1/projects/{project}/spaces/{space}/erasures                          { "subject", "reason" } → 202, Location of the erasure
+GET    /api/v1/projects/{project}/spaces/{space}/erasures/{id}                     its state and counts per store → 200
+```
+
+```json
+{
+  "id": "er-2026-10-18-0001",
+  "state": "done",
+  "requestedAt": "2026-10-18T10:00:00Z",
+  "completedAt": "2026-10-18T10:00:41Z",
+  "counts": { "broker": 14, "versions": 52, "ckanDatastore": 14, "exports": 2, "caches": 3, "conversations": 0 }
+}
+```
+
+The erasure log holds the subject's keyed hash, never the value, and outlives backups: after a restore the reconciler re-applies it ([Deployment/07 §5](../Deployment/07-backup-restore.md#5-backups-and-erasure)). Every call is audited with its `reason`; a call without `reason` answers `400` with the problem type `reason-required`.
 
 ## Related
 
