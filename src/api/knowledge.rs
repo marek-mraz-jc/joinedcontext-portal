@@ -89,6 +89,8 @@ pub struct ChatRequest {
 const MAX_CHAT_BODY: usize = 64 * 1024;
 /// The largest upload: the most any source's `upload.maxBytes` allows (T-4184).
 const MAX_UPLOAD_BODY: usize = jc_core::kinds::assistant::MAX_UPLOAD_BYTES as usize;
+/// The longest a list of stored conversations may take.
+const LIST_TIME: Duration = Duration::from_secs(20);
 /// The longest an answer may take: six model calls and their tools (AG-107).
 const CHAT_TIMEOUT: Duration = Duration::from_secs(300);
 
@@ -855,8 +857,15 @@ fn administers(
     )
 }
 
-/// A conversation id is a UUID, or no conversation of this project.
-fn conversation_id(conversation: &str) -> Result<(), ApiError> {
+/// The assistant's path of one conversation the caller administers with `verb`; a conversation id
+/// is a UUID, or no conversation of this project.
+fn conversation_path(
+    state: &AppState,
+    user: &CurrentUser,
+    (project, conversation): (&str, &str),
+    verb: Verb,
+) -> Result<String, ApiError> {
+    administers(state, user, project, verb)?;
     let uuid = conversation.len() == 36
         && conversation.char_indices().all(|(i, c)| {
             if matches!(i, 8 | 13 | 18 | 23) {
@@ -865,13 +874,12 @@ fn conversation_id(conversation: &str) -> Result<(), ApiError> {
                 c.is_ascii_hexdigit()
             }
         });
-    if uuid {
-        Ok(())
-    } else {
-        Err(ApiError::NotFound(format!(
+    if !uuid {
+        return Err(ApiError::NotFound(format!(
             "conversation '{conversation}' not found"
-        )))
+        )));
     }
+    Ok(format!("{project}/knowledge/conversations/{conversation}"))
 }
 
 /// Who read or erased which transcripts (T-4670). A record that cannot be written is logged, not
@@ -917,23 +925,10 @@ pub async fn list_conversations(
 ) -> Result<Json<Value>, ApiError> {
     administers(&state, &user, &project, Verb::Approve)?;
     let path = format!("{project}/knowledge/conversations");
-    let query = &filter;
-    let (_, body) = ask_with(
-        &state,
-        reqwest::Method::GET,
-        &path,
-        Duration::from_secs(20),
-        |request| request.query(query),
-    )
-    .await?;
-    audited(
-        &state,
-        &user,
-        &project,
-        "listed the stored conversations",
-        json!(filter),
-    )
-    .await;
+    let query = |r: reqwest::RequestBuilder| r.query(&filter);
+    let (_, body) = ask_with(&state, reqwest::Method::GET, &path, LIST_TIME, query).await?;
+    let what = "listed the stored conversations";
+    audited(&state, &user, &project, what, json!(filter)).await;
     Ok(Json(body))
 }
 
@@ -960,15 +955,8 @@ pub async fn get_conversation(
     State(state): State<AppState>,
     Path((project, conversation)): Path<(String, String)>,
 ) -> Result<Json<Value>, ApiError> {
-    administers(&state, &user, &project, Verb::Approve)?;
-    conversation_id(&conversation)?;
-    let (_, body) = ask(
-        &state,
-        reqwest::Method::GET,
-        &format!("{project}/knowledge/conversations/{conversation}"),
-        None,
-    )
-    .await?;
+    let path = conversation_path(&state, &user, (&project, &conversation), Verb::Approve)?;
+    let (_, body) = ask(&state, reqwest::Method::GET, &path, None).await?;
     audited(
         &state,
         &user,
@@ -1003,15 +991,8 @@ pub async fn erase_conversation(
     State(state): State<AppState>,
     Path((project, conversation)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
-    administers(&state, &user, &project, Verb::Delete)?;
-    conversation_id(&conversation)?;
-    ask(
-        &state,
-        reqwest::Method::DELETE,
-        &format!("{project}/knowledge/conversations/{conversation}"),
-        None,
-    )
-    .await?;
+    let path = conversation_path(&state, &user, (&project, &conversation), Verb::Delete)?;
+    ask(&state, reqwest::Method::DELETE, &path, None).await?;
     audited(
         &state,
         &user,
