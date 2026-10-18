@@ -284,7 +284,7 @@ fn endpoint() -> Value {
             "contextSpaceRef": { "kind": "ContextSpace", "name": "ovzdusie" },
             "slug": "zt4qm7ge2xdv6ksb3ncf5arw2y",
             "audience": "public",
-            "enabledRepresentations": ["ngsi-ld", "geojson"]
+            "enabledRepresentations": ["ngsi-ld", "ogc-features"]
         }
     })
 }
@@ -343,7 +343,7 @@ async fn an_endpoint_a_pipeline_a_policy_and_a_role_binding_are_proposed_at_thei
         current["spec"].clone(),
     ));
     let mut changed = endpoint();
-    changed["spec"]["enabledRepresentations"] = json!(["ngsi-ld", "geojson", "csv"]);
+    changed["spec"]["enabledRepresentations"] = json!(["ngsi-ld", "ogc-features", "csv"]);
     // The space the endpoint serves is in the project, as it has to be: a manifest naming a
     // resource that is not there is refused by the check (MF-13, T-2233).
     state

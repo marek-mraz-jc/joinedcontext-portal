@@ -179,7 +179,7 @@ fn mirror() -> Arc<Mirror> {
             json!({ "subjects": [{ "user": who }], "role": role, "scope": { "project": "helsinki" } }),
         ));
     }
-    mirror.upsert(endpoint("bikes", "helsinki", &["ngsi-ld", "geojson"]));
+    mirror.upsert(endpoint("bikes", "helsinki", &["ngsi-ld", "ogc-features"]));
     mirror.upsert(endpoint("air", "helsinki", &["csv"]));
     mirror.upsert(endpoint("espoo-bikes", "espoo", &["ngsi-ld"]));
     // One space and no data source in helsinki: the pipeline path offers the one and says why

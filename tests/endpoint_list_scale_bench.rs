@@ -89,7 +89,7 @@ fn catalogue(seed: u64) -> Vec<ResourceEnvelope> {
                     "slug": format!("{i:0>26}"),
                     "audience": "public",
                     "entityTypes": [class],
-                    "enabledRepresentations": ["ngsi-ld", "geojson"],
+                    "enabledRepresentations": ["ngsi-ld", "ogc-features"],
                 },
                 "status": {"phase": "Live"},
             });
