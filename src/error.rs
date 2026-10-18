@@ -15,6 +15,10 @@ pub struct ProblemDetails {
     pub detail: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub instance: Option<String>,
+    /// What the caller does about it, one English sentence: the catalogue's hint of the slug
+    /// (API/00 §4, API/09); the Portal UI shows its own translation by the slug instead.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hint: Option<String>,
     /// Every violation of one request, when there is more than one thing to say. A form marks
     /// all its bad fields from this in one pass instead of one round trip per mistake (CC-24).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -38,6 +42,13 @@ pub const PORTAL_PROBLEM_TYPES: &[ProblemType] = &[
     ProblemType { slug: "no-json", status: 502, title: "No JSON", hint: "The model answered with something other than JSON of the schema; ask again." },
     ProblemType { slug: "no-model-key", status: 503, title: "No Model Key", hint: "Ask an administrator to set or top up the organization's model key." },
 ];
+
+/// The hint of a slug, from jc-core's catalogue or the Portal's own; nothing for an unknown one.
+pub fn hint_of(slug: &str) -> Option<String> {
+    jc_core::error::problem_type(slug)
+        .or_else(|| PORTAL_PROBLEM_TYPES.iter().find(|known| known.slug == slug))
+        .map(|known| known.hint.to_owned())
+}
 
 /// Portal API error variants conforming to RFC 7807.
 #[derive(Debug, thiserror::Error)]
@@ -186,6 +197,7 @@ impl IntoResponse for ApiError {
             status: status.as_u16(),
             detail,
             instance: None,
+            hint: hint_of(slug),
             errors,
         };
 
@@ -245,6 +257,30 @@ mod tests {
                 "application/problem+json"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn every_problem_carries_its_catalogued_hint() {
+        for (err, slug) in [
+            (ApiError::SelfApproval("mine".into()), "self-approval"),
+            (ApiError::Forbidden, "forbidden"),
+        ] {
+            let body = err
+                .into_response()
+                .into_body()
+                .collect()
+                .await
+                .unwrap()
+                .to_bytes();
+            let problem: ProblemDetails = serde_json::from_slice(&body).unwrap();
+            assert_eq!(
+                problem.r#type,
+                format!("https://joinedcontext.com/errors/{slug}")
+            );
+            assert_eq!(problem.hint, hint_of(slug));
+            assert!(problem.hint.is_some_and(|hint| !hint.is_empty()), "{slug}");
+        }
+        assert_eq!(hint_of("no-such-slug"), None);
     }
 
     #[tokio::test]
