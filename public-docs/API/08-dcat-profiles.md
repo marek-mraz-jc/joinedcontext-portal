@@ -96,7 +96,16 @@ An Organization names the national profiles its records are served in, in `Organ
 - **One rendering per profile.** The record of an Endpoint and the catalogue feed take `?profile=<id>`: `dcat-ap` (the default), or a profile the Organization lists. A profile it does not list, or one this build was compiled without, answers 404. Every profile renders the same core record (title, description, publisher, themes, licence, distributions) and only adds or retypes what section 2 or 3 asks for, so the core values never differ between profiles.
 - **The Slovak record has no checksum.** The DCAT-AP 2.1.1 base accepts only SHA-1 in `spdx:algorithm`, and every checksum node must carry it. SHA-1 is broken, and `spdx:checksum` is optional in 2.1.1, so a `dcat-ap-sk` record omits it and types `dcat:byteSize` as `xsd:decimal`. The DCAT-AP 3.0 record keeps its SHA-256 checksums (EP-68).
 - **SK and CZ in one record is not offered.** The two bases disagree on `dcat:byteSize` and on the checksum, so no single record meets both; an Organization listing both serves two renderings.
-- **Inputs.** The national terms-of-use node (`leg:TermsOfUse`, `pu:Specifikace`) is derived from `spec.catalog.license`; `dct:spatial`, `dct:accrualPeriodicity`, `dcat:keyword`, `r5r:applicableLegislation` and the publisher come from `spec.catalog` as today. A property a profile requires and the Endpoint does not declare is left out, never invented, and the conformance suite names it.
+- **Inputs.** The national terms-of-use node (`leg:TermsOfUse`, `pu:Specifikace`) is derived from `spec.catalog.license`, except its personal-data statement; `dct:spatial`, `dct:accrualPeriodicity`, `dcat:keyword`, `r5r:applicableLegislation` and the publisher come from `spec.catalog` as today. A property a profile requires and the Endpoint does not declare is left out, never invented, and the conformance suite names it.
+
+- **The personal-data statement.** No licence says whether a dataset holds personal data, so the Endpoint states it in `spec.catalog.personalData`: `contains` or `does-not-contain`. Unset, the property is left out and the conformance suite names it. The code lists, read on 2026-10-18:
+
+  | `personalData` | DCAT-AP-SK `leg:personalDataContainmentType` | DCAT-AP-CZ `pu:osobní-údaje` |
+  |---|---|---|
+  | `contains` | `https://data.gov.sk/def/personal-data-occurence-type/1`, "Obsahuje osobné údaje" | `https://data.gov.cz/podmínky-užití/obsahuje-osobní-údaje/` |
+  | `does-not-contain` | `https://data.gov.sk/def/personal-data-occurence-type/2`, "Neobsahuje osobné údaje" | `https://data.gov.cz/podmínky-užití/neobsahuje-osobní-údaje/` |
+
+  The Slovak labels are the code list `https://data.gov.sk/set/codelist/personal-data-occurence-type` as `https://data.slovensko.sk/codelists?keys[]=https://data.gov.sk/set/codelist/personal-data-occurence-type` serves it. The Czech IRIs are the individuals of `dcat-ap-cz-podmínky-užití/2025-08-12/model.owl.ttl` in `datagov-cz/otevrene-formalni-normy` (commit `fa3cb6a`). The Slovak list has a third code, `/3` "Môže obsahovať osobné údaje (nie je špecifikované)", which the national catalogue refuses on input (`slovak-egov/nkod-portal`, `DistributionLicenceInput.cs` at `71b5ea98`); the Czech list has no such value, so neither profile offers it.
 
 Decided (worker-2, T-4499, owner may override): a profile is a query parameter, not content negotiation by `Accept-Profile`, because a harvester is configured with one URL. The other options were one URL per profile, or the profile as an `Accept-Profile` header.
 
