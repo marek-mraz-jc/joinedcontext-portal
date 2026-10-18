@@ -33,6 +33,8 @@ const KEPT_MAX: usize = 512;
 const TYPES_TRIED: usize = 5;
 /// The most fields listed per standard.
 const FIELDS_MAX: usize = 50;
+/// The quotable texts an equality example tries, in field order, before a number.
+const EQUALITY_TRIES: usize = 3;
 /// The query standards a page explains, in the order it shows them.
 const STANDARDS: [&str; 4] = ["ngsi-ld", "ogc-features", "odata", "sta"];
 
@@ -212,14 +214,18 @@ async fn guide(
     let Some(base) = base else {
         return out;
     };
-    let candidates = [
-        ("equality", text_field(entity, &out.fields)),
-        ("range", number_field(entity, &out.fields)),
-    ];
-    let urls: Vec<(&str, String, String)> = candidates
+    // Equality on the first text the endpoint answers, else on a number when none does (air
+    // quality: numbers, and station names the old ASCII-only rule refused, T-4571). Texts are
+    // tried in turn because a source may match a name and never an address.
+    let mut equality = text_fields(entity, &out.fields);
+    equality.truncate(EQUALITY_TRIES);
+    equality.extend(number_field(entity, &out.fields));
+    let candidates = equality
         .into_iter()
-        .filter_map(|(kind, found)| {
-            let (field, value) = found?;
+        .map(|found| ("equality", found))
+        .chain(number_field(entity, &out.fields).map(|found| ("range", found)));
+    let urls: Vec<(&str, String, String)> = candidates
+        .filter_map(|(kind, (field, value))| {
             let query = query(representation, kind, &field, &value)?;
             Some((kind, field, format!("{base}{query}")))
         })
@@ -227,7 +233,8 @@ async fn guide(
     let answers = join_all(urls.iter().map(|(_, _, path)| at.read(path))).await;
     for ((kind, field, path), answer) in urls.into_iter().zip(answers) {
         let answered = answer.as_ref().map_or(0, |a| count(representation, a));
-        if answered > 0 {
+        let shown = out.examples.iter().any(|e| e.kind == kind);
+        if answered > 0 && !shown {
             out.examples.push(Example {
                 kind: kind.to_owned(),
                 field,
@@ -336,19 +343,25 @@ fn odata_properties(metadata: &str, name: &str) -> Vec<String> {
 }
 
 /// The query string of one example in the standard's own syntax; `None` for a standard with
-/// no filter syntax here.
+/// no filter syntax here. An equality on a number is written unquoted in every syntax.
 fn query(representation: &str, kind: &str, field: &str, value: &str) -> Option<String> {
     let equality = kind == "equality";
+    let number = value.parse::<f64>().is_ok_and(f64::is_finite);
+    let (double, single) = if number {
+        (value.to_owned(), value.to_owned())
+    } else {
+        (format!("\"{value}\""), format!("'{value}'"))
+    };
     Some(match representation {
-        "ngsi-ld" if equality => format!("q={}", encode(&format!("{field}==\"{value}\""))),
+        "ngsi-ld" if equality => format!("q={}", encode(&format!("{field}=={double}"))),
         "ngsi-ld" => format!("q={}", encode(&format!("{field}>={value}"))),
         "ogc-features" if equality => format!("{}={}", encode(field), encode(value)),
         "ogc-features" => format!("filter={}", encode(&format!("{field} >= {value}"))),
-        "odata" if equality => format!("$filter={}", encode(&format!("{field} eq '{value}'"))),
+        "odata" if equality => format!("$filter={}", encode(&format!("{field} eq {single}"))),
         "odata" => format!("$filter={}", encode(&format!("{field} ge {value}"))),
         "sta" if equality => format!(
             "$filter={}",
-            encode(&format!("properties/{field} eq '{value}'"))
+            encode(&format!("properties/{field} eq {single}"))
         ),
         "sta" => format!(
             "$filter={}",
@@ -380,18 +393,24 @@ fn attributes(entity: &Value) -> Vec<String> {
         .collect()
 }
 
-/// A field `fields` lists whose value is text every standard can quote as is: no spaces,
-/// quotes or separators.
-fn text_field(entity: &Value, fields: &[String]) -> Option<(String, String)> {
-    fields.iter().find_map(|field| {
-        let value = entity[field.as_str()].as_str()?;
-        let plain = !value.is_empty()
-            && value.len() <= 64
-            && value
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'));
-        plain.then(|| (field.clone(), value.to_owned()))
-    })
+/// The fields `fields` lists whose value is text every standard can quote, in order: up to 64 characters,
+/// spaces and diacritics included, never a quote or a control character (each syntax's encoding
+/// percent-encodes the rest). A text that reads as a number is left to [`number_field`], since
+/// it would be written unquoted.
+fn text_fields(entity: &Value, fields: &[String]) -> Vec<(String, String)> {
+    fields
+        .iter()
+        .filter_map(|field| {
+            let value = entity[field.as_str()].as_str()?;
+            let quotable = !value.trim().is_empty()
+                && value.chars().count() <= 64
+                && !value
+                    .chars()
+                    .any(|c| c == '"' || c == '\'' || c.is_control())
+                && value.parse::<f64>().is_err();
+            quotable.then(|| (field.clone(), value.to_owned()))
+        })
+        .collect()
 }
 
 /// A field `fields` lists whose value is a number.
@@ -464,30 +483,85 @@ mod tests {
         assert_eq!(query("csv", "range", "no2", "3"), None);
     }
 
+    /// T-4571: an equality on a number is unquoted in every syntax.
     #[test]
-    fn only_plain_text_and_numbers_become_examples() {
+    fn a_numeric_equality_is_unquoted_in_each_syntax() {
+        let q = |r| query(r, "equality", "no2", "12").expect("a filter syntax");
+        assert_eq!(q("ngsi-ld"), "q=no2%3D%3D12");
+        assert_eq!(q("ogc-features"), "no2=12");
+        assert_eq!(q("odata"), "$filter=no2%20eq%2012");
+        assert_eq!(q("sta"), "$filter=properties%2Fno2%20eq%2012");
+        assert_eq!(
+            query("odata", "equality", "name", "Námestie SNP").as_deref(),
+            Some("$filter=name%20eq%20%27N%C3%A1mestie%20SNP%27")
+        );
+    }
+
+    /// T-4571: an air-quality entity, numbers and a station name with a space and diacritics,
+    /// yields an equality on the name and a range on a number; one with numbers alone an
+    /// equality on a number.
+    #[test]
+    fn an_entity_of_numbers_and_diacritic_text_yields_two_candidates() {
+        let entity = json!({"id": "urn:ngsi-ld:AirQualityObserved:1", "type": "AirQualityObserved",
+                            "name": "Banská Bystrica, Štefánikovo nábrežie", "no2": 21.5});
+        let fields = attributes(&entity);
+        assert_eq!(
+            text_fields(&entity, &fields).first().cloned(),
+            Some((
+                "name".to_owned(),
+                "Banská Bystrica, Štefánikovo nábrežie".to_owned()
+            ))
+        );
+        assert_eq!(
+            number_field(&entity, &fields),
+            Some(("no2".to_owned(), "21.5".to_owned()))
+        );
+        let numbers = json!({"no2": 21.5, "pm10": 9});
+        let fields = attributes(&numbers);
+        assert_eq!(text_fields(&numbers, &fields).first().cloned(), None);
+        assert!(number_field(&numbers, &fields).is_some());
+    }
+
+    #[test]
+    fn only_quotable_text_and_numbers_become_examples() {
         let entity = json!({
             "id": "urn:ngsi-ld:A:1", "type": "A",
             "address": "Hlavná 1", "quoted": "it's", "refStation": "urn:ngsi-ld:S:1",
-            "name": "Zvolen-1", "no2": 21.5, "count": 3, "flag": true
+            "name": "Zvolen-1", "no2": 21.5, "count": 3, "flag": true, "code": "42",
+            "line": "a\nb"
         });
         let fields = attributes(&entity);
         assert!(
             !fields.iter().any(|f| f == "id" || f == "type"),
             "{fields:?}"
         );
+        // sorted names: `address` is the first quotable text
         assert_eq!(
-            text_field(&entity, &fields),
-            Some(("name".to_owned(), "Zvolen-1".to_owned()))
+            text_fields(&entity, &fields).first().cloned(),
+            Some(("address".to_owned(), "Hlavná 1".to_owned()))
         );
         // sorted names: `count` before `no2`
         assert_eq!(
             number_field(&entity, &fields),
             Some(("count".to_owned(), "3".to_owned()))
         );
-        assert_eq!(text_field(&entity, &["address".to_owned()]), None);
+        // T-4571: a space and diacritics are quotable; a quote, a control character and a
+        // number written as text are not.
+        assert_eq!(
+            text_fields(&entity, &["address".to_owned()])
+                .first()
+                .cloned(),
+            Some(("address".to_owned(), "Hlavná 1".to_owned()))
+        );
+        for field in ["quoted", "line", "code"] {
+            assert_eq!(
+                text_fields(&entity, &[field.to_owned()]).first().cloned(),
+                None,
+                "{field}"
+            );
+        }
         assert_eq!(number_field(&entity, &["name".to_owned()]), None);
-        assert_eq!(text_field(&json!({}), &fields), None);
+        assert_eq!(text_fields(&json!({}), &fields), []);
     }
 
     #[test]

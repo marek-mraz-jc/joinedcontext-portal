@@ -25,6 +25,7 @@ export const ACTIVITY_KINDS = [
   "catalogue.published",
   "person.changed",
   "model.key",
+  "assistant.transcript",
 ] as const;
 
 export const ACTIVITY_SOURCES = [

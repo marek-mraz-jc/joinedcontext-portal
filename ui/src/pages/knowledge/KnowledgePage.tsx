@@ -6,10 +6,12 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { startJob } from "../../jobs";
 import { RecordLink } from "../../components/RecordLink";
+import { usePermissions } from "../../api/permissions";
 import {
   Alert,
   Badge,
   Button,
+  buttonClass,
   Dialog,
   EmptyState,
   PageFailed,
@@ -58,6 +60,7 @@ export function standing(row: KnowledgeSourceRow): { key: string; tone: BadgeTon
 export function KnowledgePage({ project }: { project: string }): JSX.Element {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
+  const { can } = usePermissions(project);
   const [queued, setQueued] = useState<string | null>(null);
   const sources = useQuery({
     queryKey: knowledgeKeys.sources(project),
@@ -95,7 +98,21 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
         title={t("knowledge.title")}
         description={t("knowledge.intro")}
         note={<MayNotCreate project={project} kinds={["KnowledgeSource", "AssistantDeployment"]} />}
-        actions={addSource}
+        actions={
+          <>
+            {/* The stored conversations, shown to the assistant's administrator alone (T-4670). */}
+            {can("AssistantDeployment", "approve") ? (
+              <Link
+                to="/projects/$project/knowledge/conversations"
+                params={{ project }}
+                className={buttonClass("secondary")}
+              >
+                {t("conversations.link")}
+              </Link>
+            ) : null}
+            {addSource}
+          </>
+        }
       />
       {sources.isError ? (
         <PageFailed
@@ -242,6 +259,7 @@ interface DeploymentItem {
     sources?: string[];
     connectors?: { endpoint: string }[];
     languages?: string[];
+    privacy?: { contact?: string; documentsUrl?: string };
   };
 }
 
@@ -329,7 +347,15 @@ function Assistants({ project }: { project: string }): JSX.Element {
                   <RecordLink project={project} plural="assistantdeployments" name={item.metadata.name} />
                 </TableCell>
                 <TableCell secondary className="font-mono">{item.spec.publicId ?? "—"}</TableCell>
-                <TableCell secondary>{item.spec.channel ? t(`knowledge.channel.${item.spec.channel}`) : "—"}</TableCell>
+                <TableCell secondary>
+                  {item.spec.channel ? t(`knowledge.channel.${item.spec.channel}`) : "—"}
+                  {/* A visitor-facing assistant whose privacy dialog would name no contact (T-4670). */}
+                  {item.spec.channel && item.spec.channel !== "internal" && !item.spec.privacy?.contact ? (
+                    <Badge tone="warning" className="ml-2">
+                      {t("knowledge.assistants.noPrivacyContact")}
+                    </Badge>
+                  ) : null}
+                </TableCell>
                 <TableCell secondary>{(item.spec.sources ?? []).join(", ") || "—"}</TableCell>
                 <TableCell secondary>{(item.spec.connectors ?? []).map((c) => c.endpoint).join(", ") || "—"}</TableCell>
                 <TableCell align="right">

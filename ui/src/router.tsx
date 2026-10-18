@@ -38,6 +38,9 @@ const ConnectPage = lazy(() => import("./pages/connect/ConnectPage").then((modul
 import { HomePage } from "./pages/home/HomePage";
 const KnowledgePage = lazy(() => import("./pages/knowledge/KnowledgePage").then((module) => ({ default: module.KnowledgePage })));
 const SourcePage = lazy(() => import("./pages/knowledge/SourcePage").then((module) => ({ default: module.SourcePage })));
+const ConversationsPage = lazy(() =>
+  import("./pages/knowledge/ConversationsPage").then((module) => ({ default: module.ConversationsPage })),
+);
 const ConnectorsPage = lazy(() => import("./pages/mcp/ConnectorsPage").then((module) => ({ default: module.ConnectorsPage })));
 const McpServersPage = lazy(() => import("./pages/mcp/McpServersPage").then((module) => ({ default: module.McpServersPage })));
 const CataloguePage = lazy(() => import("./pages/catalogue/CataloguePage").then((module) => ({ default: module.CataloguePage })));
@@ -900,6 +903,20 @@ const connectorsRoute = createRoute({
   },
 });
 
+/** The assistant's stored conversations, for its administrator (API/01 §34, T-4670). */
+const knowledgeConversationsRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/knowledge/conversations",
+  component: function KnowledgeConversationsRoute() {
+    const { project } = knowledgeConversationsRoute.useParams();
+    return (
+      <Shell project={project}>
+        <ConversationsPage project={project} />
+      </Shell>
+    );
+  },
+});
+
 /** One source's pages, documents and passages, included and excluded (T-3057). */
 const knowledgeSourceRoute = createRoute({
   getParentRoute: () => protectedRoute,
@@ -1214,6 +1231,7 @@ export const routeTree = rootRoute.addChildren([
     ckanRoute,
     knowledgeRoute,
     inboxRoute,
+    knowledgeConversationsRoute,
     knowledgeSourceRoute,
     mcpServersRoute,
     connectorsRoute,

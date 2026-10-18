@@ -75,7 +75,7 @@ for (const width of [375, 1440]) {
       await page.goto("/projects/helsinki/mcp?lang=en");
       await expect(page.getByRole("heading", { level: 1, name: "MCP servers" })).toBeVisible();
       const card = page.getByRole("region", { name: "Mobility data" });
-      await expect(card.getByText("https://dev.example/api/mcp/helsinki/mobility", { exact: true })).toBeVisible();
+      await expect(card.getByText("https://api.dev.example/api/mcp/helsinki/mobility", { exact: true })).toBeVisible();
       await expect(card.getByText("mcp-helsinki-mobility", { exact: true })).toBeVisible();
       await expect(card.getByRole("list", { name: "Members and how they answer you" }).getByText("Answers, tools: 2")).toBeVisible();
       await expect(card.getByRole("list", { name: "Tools of the server" }).getByText("query_entities", { exact: true })).toBeVisible();
@@ -89,9 +89,9 @@ for (const width of [375, 1440]) {
       await page.goto("/connectors?lang=en");
       await expect(page.getByRole("heading", { level: 1, name: "My MCP connectors" })).toBeVisible();
       const card = page.getByRole("region", { name: "air" });
-      await expect(card.getByText("https://dev.example/api/mcp/me/air", { exact: true })).toBeVisible();
+      await expect(card.getByText("https://api.dev.example/api/mcp/me/air", { exact: true })).toBeVisible();
       await expect(card.getByRole("list", { name: "What air reaches" }).getByText("helsinki/bikes")).toBeVisible();
-      await expect(page.getByText("https://dev.example/api/mcp/org/all", { exact: true })).toBeVisible();
+      await expect(page.getByText("https://api.dev.example/api/mcp/org/all", { exact: true })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       expect(await axeViolations(page)).toEqual([]);
     });
