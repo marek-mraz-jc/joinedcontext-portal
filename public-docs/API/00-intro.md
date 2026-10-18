@@ -45,11 +45,13 @@ flowchart LR
 | API Surface | Base Path URL | Purpose | Primary Consumer |
 |---|---|---|---|
 | **Portal Management API** | `https://{host}/api/v1/...` | Managing projects, organizations, blueprints, and approvals | Portal UI, CI systems, admin scripts |
-| **Canonical Space Surface** | `https://{host}/cs/{space}/...` | Direct NGSI-LD access for the project owning the space | Project team members, resident pipelines |
-| **Shared Endpoint Surface** | `https://{host}/api/endpoint/{endpointSlug}/...`| Multi-representation data consumption (GeoJSON, CSV, OGC, MCP) | Dashboards, external users, QGIS, agents |
+| **Canonical Space Surface** | `https://api.{domain}/cs/{space}/...` | Direct NGSI-LD access for the project owning the space | Project team members, resident pipelines |
+| **Shared Endpoint Surface** | `https://api.{domain}/api/endpoint/{endpointSlug}/...`| Multi-representation data consumption (GeoJSON, CSV, OGC, MCP) | Dashboards, external users, QGIS, agents |
 | **Portal MCP** | `https://{host}/api/v1/mcp` | The management API as agent tools: proposing manifests, opening changes, reading a project | AI agents (Claude Code, OpenHands) |
-| **Endpoint and space MCP** | `https://{host}/api/endpoint/{endpointSlug}/mcp`, `https://{host}/cs/{space}/mcp` | The context data of one endpoint or space as agent tools, under the same Policy as every other read | AI agents |
+| **Endpoint and space MCP** | `https://api.{domain}/api/endpoint/{endpointSlug}/mcp`, `https://api.{domain}/api/mcp` (the hub), `https://api.{domain}/cs/{space}/mcp` | The context data of one endpoint or space as agent tools, under the same Policy as every other read | AI agents |
 | **Public documentation** | `https://portal.{host}/docs/API/{page}`, `https://portal.{host}/docs/User-Guide/{page}` | The pages of this API chapter and of the User Guide, readable with no account, so a citizen can use a public Endpoint (T-4063). `{page}` is the file name without `.md`; the apex `https://{host}/docs/...` redirects there. No other chapter (Operations, Deployment, Architecture) is served there | Citizens, external developers |
+
+Every surface that serves data to the outside, the Canonical Space Surface, the Shared Endpoint Surface, the hub and the harvesting feed `/catalog*`, answers on its own host `api.{domain}` (`api.dev.joinedcontext.com` on `dev`); the Portal and its public pages stay on `portal.{domain}`, the open-data catalogue on `data.{domain}` ([EP-128](../Requirements/endpoints.md), [ADR-N-052](../Decisions/adr-n-052-anonymous-oauth-public-mcp.md)). Until release `v0.2.0` the old addresses of those four on `{host}` and `portal.{host}` answer `308` to the same path on `api.{domain}`; a client drops its `Authorization` header when it follows a redirect to another host, so a caller with a token changes its address.
 
 ---
 
@@ -67,6 +69,8 @@ All API endpoints are protected by default (fail-closed, [R5](../Requirements/ac
 ### Anonymous Public Access
 
 Endpoints with `audience: public` permit unauthenticated access. Requests without a bearer token are mapped automatically to the internal role `public` and evaluated against public data policies ([GW22](../Requirements/gateway-firewall.md#5-tenants-pinning-and-chaining)).
+
+An assistant that connects only through OAuth (Gemini) gets a token for the same anonymous rights from the gateway's own authorization server on `api.{domain}`: it registers, is redirected back at once with no login, and receives a token that names nobody ([EP-129](../Requirements/endpoints.md), [API/02 §8](02-endpoint-representations.md#8-model-context-protocol-mcp)).
 
 ---
 
@@ -129,7 +133,8 @@ The platform hosts standard well-known endpoints for automated client and agent 
 
 - `https://idm.{host}/realms/{realm}/.well-known/openid-configuration`: the realm's own OIDC discovery document. Keycloak serves it; the platform does not proxy it, and the APISIX routes read it from there (`components/portal/apisix-plugins.yaml`).
 - `/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/api/v1/mcp`: RFC 9728 metadata of the Portal MCP server (`joinedcontext-portal/src/mcp/mod.rs`).
-- `/api/endpoint/{endpointSlug}/.well-known/oauth-protected-resource`: the same document for one endpoint's MCP server, which names that endpoint's audience (`crates/context-gateway/src/app.rs`).
+- `/api/endpoint/{endpointSlug}/.well-known/oauth-protected-resource`: the same document for one endpoint's MCP server, which names that endpoint's audience (`crates/context-gateway/src/app.rs`). On `api.{domain}`; for a server an anonymous caller may read it lists the gateway's own authorization server first and Keycloak second.
+- `https://api.{domain}/.well-known/oauth-authorization-server`: RFC 8414 metadata of the gateway's stateless authorization server for anonymous data ([ADR-N-052](../Decisions/adr-n-052-anonymous-oauth-public-mcp.md)).
 - `/api/endpoint/{endpointSlug}/schema/index.json`: the model an endpoint serves — its classes, their slots and the generated JSON Schema. There is no platform-wide `/schema/context.jsonld`; a `@context` belongs to a space's model and is served under its endpoint.
 
 ## Related

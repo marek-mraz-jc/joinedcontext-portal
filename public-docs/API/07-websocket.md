@@ -14,7 +14,7 @@ The broker side of this channel is Antares ADR-0026. This page describes what a 
 
 | | |
 |---|---|
-| URL | `wss://{host}/api/endpoint/{endpointSlug}/ws`, on the same host as the Endpoint's REST URL (`dev.joinedcontext.com` on dev) |
+| URL | `wss://api.{domain}/api/endpoint/{endpointSlug}/ws`, on the same host as the Endpoint's REST URL (`api.dev.joinedcontext.com` on dev) |
 | Subprotocol | `ngsi-ld-ws`: optional for a client that sends no token or sends it in the header, required for the browser form below |
 | Public Endpoint | open without a token; you receive what the anonymous grant reads |
 | Any other Endpoint | a bearer access token for the Endpoint's audience, as for REST |

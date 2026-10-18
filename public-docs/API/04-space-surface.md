@@ -6,7 +6,7 @@ description: Wire-level specification of /cs, the DCAT-AP space record and the N
 
 # Canonical Space Surface
 
-`https://{host}/cs/{space}/` is the direct surface of one context space, for the project that owns it and for the pipelines that write into it. Where an Endpoint is an opaque slug shared with the outside world, a space is named after the evidencia code in the entity URN, and the caller has to hold a grant on it. This page specifies what the surface answers; the requirements are [SP-01…SP-13](../Requirements/space-surface.md) and the design is [Architecture/04](../Architecture/04-context-spaces-and-endpoints.md#1-context-space-canonical-surface-sp-01sp-04).
+`https://api.{domain}/cs/{space}/` is the direct surface of one context space, for the project that owns it and for the pipelines that write into it. Where an Endpoint is an opaque slug shared with the outside world, a space is named after the evidencia code in the entity URN, and the caller has to hold a grant on it. This page specifies what the surface answers; the requirements are [SP-01…SP-13](../Requirements/space-surface.md) and the design is [Architecture/04](../Architecture/04-context-spaces-and-endpoints.md#1-context-space-canonical-surface-sp-01sp-04).
 
 ## 1. Resource tree
 
@@ -98,7 +98,7 @@ A caller with no grant on the space gets `404`, never `403`: a refusal that dist
 
 Byte for byte the CIM 009 resource tree, so a stock NGSI-LD client pointed at the space base works unmodified (SP-03, R15). The request passes exactly the steps an Endpoint request passes, in the same code: the client's tenancy and identity claims are stripped, the space is resolved, the operation is named, the PDP decides, a read is narrowed to the grant and a write is checked whole, and only then is `NGSILD-Tenant: {space}` injected on the internal hop (SP-07, GW20, GW25).
 
-The difference from `/api/endpoint/{slug}/ngsi-ld/v1/` is the name in the path and the audience the token has to carry, nothing else. `aud` names the space (`air-quality`) or the full resource URI (`https://{host}/cs/air-quality`); a token minted for an Endpoint does not open a space.
+The difference from `/api/endpoint/{slug}/ngsi-ld/v1/` is the name in the path and the audience the token has to carry, nothing else. `aud` names the space (`air-quality`) or the full resource URI (`https://api.{domain}/cs/air-quality`); a token minted for an Endpoint does not open a space.
 
 ```http
 GET /cs/air-quality/ngsi-ld/v1/entities?type=AirQualityObserved&limit=10
