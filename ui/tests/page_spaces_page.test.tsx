@@ -152,6 +152,30 @@ describe("the Context Spaces page", () => {
     expect(shown()).toEqual(["1,200", "14,232", "0"]);
   });
 
+  // T-2890: what each space takes in the broker's store, in binary units, exact in the tooltip.
+  it("shows_each_spaces_size_in_binary_units_and_a_dash_where_the_broker_measured_none", async () => {
+    const bytes: Record<string, unknown> = {
+      air: { entities: 1_048_576, attrInstances: 524_288, byType: { "https://x/Air": 1_048_576 } },
+      bikes: { entities: 900, attrInstances: 0, byType: {} },
+    };
+    await renderRoute({
+      path: PATH,
+      answer: (path) => {
+        const usage = /\/spaces\/([a-z-]+)\/usage$/.exec(path);
+        if (usage) {
+          return jsonResponse({ entities: 3, broker: "main", observedAt: "2026-09-25T11:40:00Z", bytes: bytes[usage[1]] });
+        }
+        return answering([space("air"), space("bikes"), space("noise")])(path);
+      },
+    });
+    const table = await screen.findByRole("table");
+    await waitFor(() => expect(within(table).getAllByTestId("space-size")).toHaveLength(2));
+    const sizes = within(table).getAllByTestId("space-size");
+    expect(sizes.map((cell) => cell.textContent)).toEqual(["1.5 MiB", "900 B"]);
+    expect(sizes[0]).toHaveAttribute("title", "1,572,864 B");
+    expect(within(table).getByRole("columnheader", { name: en.spaces.field.size })).toHaveClass("hidden", "sm:table-cell");
+  });
+
   it("says_why_a_count_is_missing_and_never_shows_a_zero_for_it", async () => {
     await renderRoute({
       path: PATH,

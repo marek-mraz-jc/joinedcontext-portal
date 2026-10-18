@@ -45,3 +45,40 @@ export function usageRefusal(error: unknown): string {
   }
   return error instanceof Error ? error.message : "";
 }
+
+const BINARY = ["B", "KiB", "MiB", "GiB", "TiB"] as const;
+
+/** A size in binary units with the locale's separators: 1,5 MiB, 340 KiB, 12 B (T-2890). */
+export function sizeText(bytes: number, language: string): string {
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < BINARY.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  const digits = unit > 0 && value < 10 ? 1 : 0;
+  return `${new Intl.NumberFormat(language, { maximumFractionDigits: digits }).format(value)} ${BINARY[unit]}`;
+}
+
+/** The exact bytes, for the tooltip: 1 572 864 B. */
+export function exactBytes(bytes: number, language: string): string {
+  return `${new Intl.NumberFormat(language).format(bytes)} B`;
+}
+
+/** Everything the space takes: its current state and its history. */
+export function totalBytes(usage: SpaceUsage | undefined): number | undefined {
+  const bytes = usage?.bytes;
+  return bytes ? bytes.entities + bytes.attrInstances : undefined;
+}
+
+/**
+ * The bytes of one type of the space's DataModel. The broker keys them by the stored type, an
+ * expanded IRI, and the model names the type short, so a key matches by itself or by its last
+ * segment; a short name two IRIs share is no answer.
+ */
+export function bytesOfType(byType: Record<string, number> | undefined, type: string): number | undefined {
+  if (!byType) return undefined;
+  if (byType[type] !== undefined) return byType[type];
+  const matches = Object.entries(byType).filter(([key]) => key.split(/[/#]/).pop() === type);
+  return matches.length === 1 ? matches[0][1] : undefined;
+}
