@@ -111,6 +111,9 @@ routes:
   - route: POST /internal/agent-runs/events
     rule: "workload:agent-proxy"
     expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: GET /internal/connectors/{sub}
+    rule: "workload:gateway"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
   - route: GET /internal/agent-runs/{id}
     rule: "workload:agent-proxy"
     expect: [401, 401, 401, 401, 401, 401, 401, 401]
