@@ -1,5 +1,6 @@
 import { PageFailed } from "../../components/ui/PageState";
-import { useState } from "react";
+import { useDeferredValue, useState } from "react";
+import type { FormEvent } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -12,6 +13,8 @@ import {
   Dialog,
   EmptyState,
   ExternalLink,
+  Field,
+  Input,
   PageHeader,
   PermissionGuard,
   Table,
@@ -26,14 +29,17 @@ import {
 import { reasonOf } from "./KnowledgePage";
 import {
   bytesText,
+  findPages,
   knowledgeKeys,
   listDocuments,
   listLinks,
   listPages,
   listPassages,
   listSources,
+  PAGE_QUERY_MIN,
   setInclusion,
   timeText,
+  trySearch,
 } from "./knowledge";
 import type { DocumentRow, InclusionCounts, PageRow } from "./knowledge";
 import { useUrlParam } from "../../navigation/urlState";
@@ -73,6 +79,8 @@ export function SourcePage({ project, source }: { project: string; source: strin
   const [subtree, setSubtree] = useState(true);
   const [done, setDone] = useState<{ counts: InclusionCounts; included: boolean } | null>(null);
   const [opened, setOpened] = useState<Opened | null>(null);
+  const [find, setFind] = useState("");
+  const found = useDeferredValue(find.trim());
   const change = useMutation({
     mutationFn: (included: boolean) =>
       setInclusion(project, source, { pages: [...pages], documents: [...documents], subtree, included }),
@@ -111,6 +119,7 @@ export function SourcePage({ project, source }: { project: string; source: strin
       <section aria-label={t("knowledge.source.title", { source })} className="space-y-6">
         {header}
         {status}
+        <TrySearch project={project} source={source} />
         <UploadedFiles project={project} source={source} />
       </section>
     );
@@ -120,6 +129,7 @@ export function SourcePage({ project, source }: { project: string; source: strin
     <section aria-label={t("knowledge.source.title", { source })} className="space-y-6">
       {header}
       {status}
+      <TrySearch project={project} source={source} />
       {change.isError ? (
         <Alert role="alert" tone="danger">
           {reasonOf(change.error, t("app.error.generic"))}
@@ -182,14 +192,20 @@ export function SourcePage({ project, source }: { project: string; source: strin
       />
       <div {...tabPanelProps("knowledge-source", view)}>
         {view === "pages" ? (
-          <PageLevel
-            project={project}
-            source={source}
-            parent={null}
-            selected={pages}
-            onSelect={(id) => setPages((set) => toggle(set, id))}
-            onOpen={setOpened}
-          />
+          <>
+            <Field id="knowledge-find-pages" label={t("knowledge.source.findPages")} help={t("knowledge.source.findPagesHelp")} className="mb-3 max-w-xl">
+              <Input id="knowledge-find-pages" type="search" maxLength={100} value={find} onChange={(event) => setFind(event.target.value)} />
+            </Field>
+            <PageLevel
+              project={project}
+              source={source}
+              parent={null}
+              q={found.length >= PAGE_QUERY_MIN ? found : undefined}
+              selected={pages}
+              onSelect={(id) => setPages((set) => toggle(set, id))}
+              onOpen={setOpened}
+            />
+          </>
         ) : (
           <Documents
             project={project}
@@ -218,11 +234,15 @@ export function SourcePage({ project, source }: { project: string; source: strin
   );
 }
 
-/** One level of the page tree; a branch opens the level below it in place. */
+/**
+ * One level of the page tree; a branch opens the level below it in place. With `q`, the pages of
+ * the whole source whose title or address holds it instead, as one flat list (UI-99).
+ */
 function PageLevel({
   project,
   source,
   parent,
+  q,
   selected,
   onSelect,
   onOpen,
@@ -230,6 +250,7 @@ function PageLevel({
   project: string;
   source: string;
   parent: number | null;
+  q?: string;
   selected: ReadonlySet<number>;
   onSelect: (id: number) => void;
   onOpen: (opened: Opened) => void;
@@ -237,8 +258,8 @@ function PageLevel({
   const { t, i18n } = useTranslation();
   const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
   const level = useQuery({
-    queryKey: knowledgeKeys.pages(project, source, parent),
-    queryFn: () => listPages(project, source, parent),
+    queryKey: q === undefined ? knowledgeKeys.pages(project, source, parent) : knowledgeKeys.found(project, source, q),
+    queryFn: () => (q === undefined ? listPages(project, source, parent) : findPages(project, source, q)),
   });
   if (level.isLoading) return <p role="status">{t("app.loading")}</p>;
   if (level.isError) {
@@ -247,6 +268,9 @@ function PageLevel({
     );
   }
   const rows = level.data ?? [];
+  if (rows.length === 0 && q !== undefined) {
+    return <p role="status">{t("knowledge.source.noPagesFound", { q })}</p>;
+  }
   if (rows.length === 0 && parent === null) {
     return <EmptyState title={t("knowledge.source.noPages")} description={t("knowledge.source.noPagesHint")} icon="search" />;
   }
@@ -258,7 +282,7 @@ function PageLevel({
         return (
           <li key={row.id}>
             <div className="flex flex-wrap items-center gap-2 py-1">
-              {row.children > 0 ? (
+              {row.children > 0 && q === undefined ? (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -287,9 +311,7 @@ function PageLevel({
                 checked={selected.has(row.id)}
                 onChange={() => onSelect(row.id)}
               />
-              <ExternalLink href={row.url} className="font-mono [overflow-wrap:anywhere]">
-                {row.url}
-              </ExternalLink>
+              <Titled row={row} />
               <InclusionBadge included={row.included} excludedBy={row.excludedBy} />
               {row.status !== "fetched" ? <Badge tone={row.status === "failed" ? "danger" : "neutral"}>{t(`knowledge.status.${row.status}`)}</Badge> : null}
               {row.language ? <Badge mono>{row.language}</Badge> : null}
@@ -297,6 +319,7 @@ function PageLevel({
                 {t("knowledge.source.pageCounts", { passages: row.passages, documents: row.documents })}
                 {" · "}
                 {timeText(row.fetchedAt, i18n.language)}
+                {row.modified ? ` · ${t("knowledge.source.modified", { at: timeText(row.modified, i18n.language) })}` : null}
               </span>
               <Button
                 variant="ghost"
@@ -371,6 +394,7 @@ function Documents({
         <TableHeaderCell>{t("knowledge.column.document")}</TableHeaderCell>
         <TableHeaderCell align="right">{t("knowledge.column.size")}</TableHeaderCell>
         <TableHeaderCell align="right">{t("knowledge.column.pdfPages")}</TableHeaderCell>
+        <TableHeaderCell>{t("knowledge.column.modified")}</TableHeaderCell>
         <TableHeaderCell>{t("knowledge.column.state")}</TableHeaderCell>
         <TableHeaderCell align="right">{t("knowledge.column.passages")}</TableHeaderCell>
         <TableHeaderCell align="right">
@@ -388,9 +412,7 @@ function Documents({
               />
             </TableCell>
             <TableCell>
-              <ExternalLink href={row.url} className="font-mono [overflow-wrap:anywhere]">
-                {row.url}
-              </ExternalLink>
+              <Titled row={row} />
               {row.offDomain ? (
                 <Badge tone="warning" className="ml-2">
                   {t("knowledge.source.offDomain")}
@@ -399,6 +421,7 @@ function Documents({
             </TableCell>
             <TableCell align="right">{bytesText(row.bytes, i18n.language)}</TableCell>
             <TableCell align="right">{row.pages ?? "—"}</TableCell>
+            <TableCell>{timeText(row.modified, i18n.language)}</TableCell>
             <TableCell>
               <InclusionBadge included={row.included} excludedBy={row.excludedBy} />
               {row.status !== "fetched" ? (
@@ -478,5 +501,88 @@ function Links({ project, source, page }: { project: string; source: string; pag
         </li>
       ))}
     </ul>
+  );
+}
+
+/** A page's or document's own title over its address, or the address alone when it states none (AG-120). */
+function Titled({ row }: { row: { url: string; title?: string | null } }): JSX.Element {
+  if (!row.title) {
+    return (
+      <ExternalLink href={row.url} className="font-mono [overflow-wrap:anywhere]">
+        {row.url}
+      </ExternalLink>
+    );
+  }
+  return (
+    <span className="inline-flex min-w-0 flex-col">
+      <ExternalLink href={row.url} className="[overflow-wrap:anywhere]">
+        {row.title}
+      </ExternalLink>
+      <span className="font-mono text-caption text-fg-muted [overflow-wrap:anywhere]">{row.url}</span>
+    </span>
+  );
+}
+
+/**
+ * "Vyskúšať vyhľadávanie" (UI-99, T-4659): the search the MCP tool `search_documents` runs, over
+ * this one source, with the hits it would answer. Internal passages count too, as an internal
+ * deployment would read them.
+ */
+function TrySearch({ project, source }: { project: string; source: string }): JSX.Element {
+  const { t, i18n } = useTranslation();
+  const [text, setText] = useState("");
+  const [asked, setAsked] = useState<string | null>(null);
+  const hits = useQuery({
+    queryKey: knowledgeKeys.search(project, source, asked ?? ""),
+    queryFn: () => trySearch(project, source, asked ?? ""),
+    enabled: asked !== null,
+  });
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    const q = text.trim();
+    if (q) setAsked(q);
+  };
+  return (
+    <section aria-labelledby="knowledge-try-search" className="space-y-3 rounded-md border border-border p-4">
+      <h2 id="knowledge-try-search" className="text-title">
+        {t("knowledge.trySearch.title")}
+      </h2>
+      <p className="text-caption text-fg-muted">{t("knowledge.trySearch.intro")}</p>
+      <form onSubmit={submit} className="flex flex-wrap items-end gap-2">
+        <Field id="knowledge-try-search-q" label={t("knowledge.trySearch.query")} className="min-w-0 flex-1">
+          <Input id="knowledge-try-search-q" type="search" maxLength={300} value={text} onChange={(event) => setText(event.target.value)} />
+        </Field>
+        <Button type="submit" disabled={!text.trim() || hits.isFetching} disabledReason={t(text.trim() ? "knowledge.trySearch.searching" : "knowledge.trySearch.typeFirst")}>
+          {t("knowledge.trySearch.run")}
+        </Button>
+      </form>
+      {asked === null ? null : hits.isLoading ? (
+        <p role="status">{t("app.loading")}</p>
+      ) : hits.isError ? (
+        <PageFailed error={hits.error} onRetry={() => void hits.refetch()} />
+      ) : (hits.data ?? []).length === 0 ? (
+        <p role="status">{t("knowledge.trySearch.none", { q: asked })}</p>
+      ) : (
+        <ol className="space-y-3" aria-label={t("knowledge.trySearch.hits", { q: asked })}>
+          {(hits.data ?? []).map((hit, at) => (
+            <li key={`${hit.url}-${at}`} className="space-y-1 rounded-md border border-border p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Titled row={hit} />
+                {hit.language ? <Badge mono>{hit.language}</Badge> : null}
+                {hit.modified ? (
+                  <span className="text-caption text-fg-muted">
+                    {t("knowledge.source.modified", { at: timeText(hit.modified, i18n.language) })}
+                  </span>
+                ) : null}
+              </div>
+              {hit.description ? <p className="text-caption text-fg-muted">{hit.description}</p> : null}
+              <p className="whitespace-pre-wrap text-body [overflow-wrap:anywhere]" lang={hit.language ?? undefined}>
+                {hit.text}
+              </p>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
   );
 }

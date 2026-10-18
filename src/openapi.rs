@@ -183,6 +183,7 @@ use crate::tools::model_tools::{
         crate::api::knowledge::list_sources,
         crate::api::knowledge::list_pages,
         crate::api::knowledge::list_documents,
+        crate::api::knowledge::try_search,
         crate::api::knowledge::list_errors,
         crate::api::knowledge::list_links,
         crate::api::knowledge::list_passages,

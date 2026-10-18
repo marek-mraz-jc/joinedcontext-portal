@@ -6549,7 +6549,9 @@
       "passages": "Passages",
       "document": "Document",
       "size": "Size",
-      "pdfPages": "Pages"
+      "pdfPages": "Pages",
+      "languages": "Languages",
+      "modified": "Last change"
     },
     "state": {
       "notCrawled": "Not crawled yet",
@@ -6608,7 +6610,11 @@
       "linksOf": "Links of {url}",
       "offDomain": "On another site",
       "noPassages": "No passage: the assistant does not answer from this.",
-      "noLinks": "This page links nothing the crawl recorded."
+      "noLinks": "This page links nothing the crawl recorded.",
+      "findPages": "Find pages",
+      "findPagesHelp": "By title or address, 2 to 100 characters; case and accents do not matter. At most 100 pages are shown.",
+      "noPagesFound": "No page of this source has “{q}” in its title or address.",
+      "modified": "changed {at}"
     },
     "field": {
       "name": "Name",
@@ -6799,6 +6805,16 @@
       "own": "{project} (this project)",
       "unknown": "Named, but not offered to you",
       "none": "No project you can read has a knowledge source yet."
+    },
+    "trySearch": {
+      "title": "Try the search",
+      "intro": "The passages the MCP tool search_documents would answer from this source, best first. Internal passages count here too.",
+      "query": "Question or words",
+      "run": "Try the search",
+      "searching": "The search is running.",
+      "typeFirst": "Type a question first.",
+      "none": "Nothing in this source answers “{q}”.",
+      "hits": "Hits for “{q}”"
     }
   },
   "mcp": {
@@ -6832,7 +6848,8 @@
       "members": "Member Endpoints ({count} of at most {max})",
       "search": "Find an Endpoint",
       "audience": "Who may connect",
-      "allowedProjects": "Projects it admits"
+      "allowedProjects": "Projects it admits",
+      "knowledgeSources": "Knowledge sources ({count} of at most {max})"
     },
     "help": {
       "name": "Lowercase letters, digits and dashes; part of the address, so it cannot change later.",
@@ -6840,7 +6857,8 @@
       "description": "What the server holds, in one or two sentences; the AI client reads it as its instructions.",
       "members": "Only Endpoints you may read are offered. Each call to a member is that Endpoint's own call, decided by its own Policy.",
       "audience": "No wider than the narrowest member. A public server needs every member public, and an approver who may publish.",
-      "allowedProjects": "Project names separated by commas; empty admits this project only."
+      "allowedProjects": "Project names separated by commas; empty admits this project only.",
+      "knowledgeSources": "The server offers the tool search_documents over the public pages and documents of the sources picked here; with none it offers no such tool."
     },
     "form": {
       "newTitle": "New MCP server",
@@ -6851,14 +6869,19 @@
       "servesNoMcp": "This Endpoint serves no MCP surface (spec.mcp is false).",
       "full": "A server names at most {max} members.",
       "unseen": "Members you may not read, kept as they are: {count}",
-      "publicLane": "A public server takes the red lane: an approver who may publish decides."
+      "publicLane": "A public server takes the red lane: an approver who may publish decides.",
+      "sourcesUnreadable": "The project's knowledge sources could not be listed; the ones already attached stay as they are.",
+      "noPublicSources": "This project has no public knowledge source to attach.",
+      "sourcesFull": "At most {max} sources.",
+      "keptSources": "Kept as they are: {sources}."
     },
     "problem": {
       "name": "Use lowercase letters, digits and dashes, up to 63 characters.",
       "members": "Pick between one and {max} member Endpoints.",
       "noMcp": "A picked Endpoint serves no MCP surface; remove it.",
       "audience": "The audience is wider than the narrowest member allows; pick a narrower one.",
-      "projects": "Use lowercase letters, digits and dashes for each project name, such as city-air."
+      "projects": "Use lowercase letters, digits and dashes for each project name, such as city-air.",
+      "knowledgeSources": "Attach at most 20 knowledge sources."
     },
     "health": {
       "checking": "Checking…",

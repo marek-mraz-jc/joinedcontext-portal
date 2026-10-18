@@ -54,6 +54,7 @@ const SOURCES = {
       embedded: 850,
       pending: 50,
       failed: 0,
+      languages: { en: 90, sk: 810 },
       job: { state: "done", attempts: 1, error: null },
     },
     {
@@ -194,14 +195,23 @@ function renderAt(path: string, stub: Stub = {}) {
       ] });
     }
     if (url.pathname === `${base}/sources`) return json(stub.sources?.body ?? SOURCES, stub.sources?.code ?? 200);
+    if (url.pathname === `${base}/sources/bb-web/search`) {
+      return json({ hits: [{ title: "Odvoz odpadu", url: "https://www.banskabystrica.sk/odpad", publisher: "banskabystrica",
+        description: "Kalendár zvozu", published: null, modified: "2026-09-30T08:12:00Z", language: "sk",
+        text: "Odpad vyvážame v utorok.", score: 0.03 }] });
+    }
     if (url.pathname === `${base}/sources/bb-web/pages`) {
+      if (url.searchParams.get("q") === "odpad") {
+        return json({ items: [page(2, "https://www.banskabystrica.sk/odpad", { depth: 1, parentId: 1, children: 4, title: "Odvoz odpadu", modified: "2026-09-30T08:12:00Z" })] });
+      }
+      if (url.searchParams.has("q")) return json({ items: [] });
       if (url.searchParams.get("parent") === "1") {
         return json({ items: [page(2, "https://www.banskabystrica.sk/odpad", { depth: 1, parentId: 1, excludedBy: "administrator", included: false })] });
       }
       return json({ items: [page(1, "https://www.banskabystrica.sk/", { children: 1, documents: 1 })] });
     }
     if (url.pathname === `${base}/sources/bb-web/documents`) {
-      return json({ items: [{ id: 9, url: "https://www.banskabystrica.sk/vzn.pdf", pageId: 1, mime: "application/pdf", bytes: 1_250_000, pages: 12, offDomain: true, status: "fetched", included: true, excludedBy: null, passages: 40 }] });
+      return json({ items: [{ id: 9, url: "https://www.banskabystrica.sk/vzn.pdf", pageId: 1, mime: "application/pdf", bytes: 1_250_000, pages: 12, offDomain: true, status: "fetched", included: true, excludedBy: null, passages: 40, title: "VZN o odpade", modified: "2026-01-15T00:00:00Z" }] });
     }
     if (url.pathname === `${base}/sources/bb-web/passages`) return json({ items: [{ ordinal: 0, text: "Odpad vyvážame v utorok.", lang: "sk", url: "u" }] });
     if (url.pathname === `${base}/sources/bb-web/pages/1/links`) return json({ items: [{ url: "https://www.banskabystrica.sk/vzn.pdf", kind: "document" }] });
@@ -225,7 +235,15 @@ function renderAt(path: string, stub: Stub = {}) {
       </I18nextProvider>
     </QueryClientProvider>,
   );
-  return { writes };
+  return { writes, fetchMock };
+}
+
+/** The addresses of the reads `fetchMock` answered, path and query. */
+function readsOf(fetchMock: ReturnType<typeof vi.fn>): string[] {
+  return fetchMock.mock.calls.map(([input]) => {
+    const url = new URL((input as Request).url);
+    return `${url.pathname}${url.search}`;
+  });
 }
 
 describe("the knowledge sources page (T-3057)", () => {
@@ -359,6 +377,63 @@ describe("one source's pages and documents (T-3057, AG-113)", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Pages" }));
     await userEvent.click(await screen.findByRole("button", { name: "Links of https://www.banskabystrica.sk/" }));
     expect(await within(await screen.findByRole("dialog")).findByText("Document")).toBeInTheDocument();
+  });
+});
+
+describe("finding pages and trying the search (UI-99, T-4659)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("shows each source's languages by share", async () => {
+    renderAt("/projects/banskabystrica/knowledge");
+    const table = await screen.findByRole("table", { name: "Knowledge sources" });
+    expect(within(table).getByText("sk 90%, en 10%")).toBeInTheDocument();
+  });
+
+  it("finds pages of the whole source by title from two letters on, flat and titled", async () => {
+    const { fetchMock } = renderAt("/projects/banskabystrica/knowledge/bb-web");
+    const find = await screen.findByRole("searchbox", { name: "Find pages" });
+    await userEvent.type(find, "o");
+    expect(readsOf(fetchMock).some((read) => read.includes("q="))).toBe(false);
+    await userEvent.type(find, "dpad");
+    const link = await screen.findByRole("link", { name: /Odvoz odpadu/ });
+    expect(link).toHaveAttribute("href", "https://www.banskabystrica.sk/odpad");
+    expect(screen.getByText(/changed/)).toBeInTheDocument();
+    // A found page is one line: no branch to open beside it.
+    expect(screen.queryByRole("button", { name: /Show the 4 pages below/ })).not.toBeInTheDocument();
+    expect(readsOf(fetchMock)).toContain("/api/v1/projects/banskabystrica/knowledge/sources/bb-web/pages?q=odpad");
+    await userEvent.clear(find);
+    await userEvent.type(find, "nikde");
+    expect(await screen.findByText("No page of this source has “nikde” in its title or address.")).toBeInTheDocument();
+  });
+
+  it("runs the search search_documents runs and shows its hits, and refuses an empty question", async () => {
+    const { fetchMock } = renderAt("/projects/banskabystrica/knowledge/bb-web");
+    const run = await screen.findByRole("button", { name: "Try the search" });
+    expect(run).toHaveAttribute("aria-disabled", "true");
+    expect(run).toHaveAccessibleDescription("Type a question first.");
+    await userEvent.click(run);
+    expect(readsOf(fetchMock).some((read) => read.includes("/search"))).toBe(false);
+    await userEvent.type(screen.getByRole("searchbox", { name: "Question or words" }), "kedy vyvážajú odpad{Enter}");
+    const hits = await screen.findByRole("list", { name: "Hits for “kedy vyvážajú odpad”" });
+    expect(within(hits).getByRole("link", { name: /Odvoz odpadu/ })).toBeInTheDocument();
+    expect(within(hits).getByText("Kalendár zvozu")).toBeInTheDocument();
+    expect(within(hits).getByText("Odpad vyvážame v utorok.")).toBeInTheDocument();
+    expect(readsOf(fetchMock)).toContain(
+      `/api/v1/projects/banskabystrica/knowledge/sources/bb-web/search?q=${encodeURIComponent("kedy vyvážajú odpad")}&limit=5`,
+    );
+  });
+
+  it("titles a document by what it states and shows its last change", async () => {
+    renderAt("/projects/banskabystrica/knowledge/bb-web");
+    await userEvent.click(await screen.findByRole("tab", { name: "Documents" }));
+    const table = await screen.findByRole("table", { name: "Documents" });
+    expect(within(table).getByRole("link", { name: /VZN o odpade/ })).toHaveAttribute("href", "https://www.banskabystrica.sk/vzn.pdf");
+    expect(within(table).getByRole("columnheader", { name: "Last change" })).toBeInTheDocument();
   });
 });
 

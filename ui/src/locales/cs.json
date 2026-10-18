@@ -6549,7 +6549,9 @@
       "passages": "Pasáže",
       "document": "Dokument",
       "size": "Velikost",
-      "pdfPages": "Strany"
+      "pdfPages": "Strany",
+      "languages": "Jazyky",
+      "modified": "Poslední změna"
     },
     "state": {
       "notCrawled": "Ještě neprojitý",
@@ -6608,7 +6610,11 @@
       "linksOf": "Odkazy z {url}",
       "offDomain": "Na jiném webu",
       "noPassages": "Žádná pasáž: asistent z tohoto neodpovídá.",
-      "noLinks": "Tato stránka neodkazuje na nic, co procházení zaznamenalo."
+      "noLinks": "Tato stránka neodkazuje na nic, co procházení zaznamenalo.",
+      "findPages": "Najít stránky",
+      "findPagesHelp": "Podle názvu nebo adresy, 2 až 100 znaků; na velikosti písmen a diakritice nezáleží. Zobrazí se nejvýše 100 stránek.",
+      "noPagesFound": "Žádná stránka tohoto zdroje nemá „{q}“ v názvu ani v adrese.",
+      "modified": "změněno {at}"
     },
     "field": {
       "name": "Název",
@@ -6799,6 +6805,16 @@
       "own": "{project} (tento projekt)",
       "unknown": "Uvedené, ale vám nenabídnuté",
       "none": "Žádný projekt, který můžete číst, zatím nemá zdroj znalostí."
+    },
+    "trySearch": {
+      "title": "Vyzkoušet vyhledávání",
+      "intro": "Úryvky, které by z tohoto zdroje vrátil nástroj MCP search_documents, od nejlepšího. Počítají se zde i interní úryvky.",
+      "query": "Otázka nebo slova",
+      "run": "Vyzkoušet vyhledávání",
+      "searching": "Vyhledávání běží.",
+      "typeFirst": "Nejprve napište otázku.",
+      "none": "Na „{q}“ v tomto zdroji nic neodpovídá.",
+      "hits": "Výsledky pro „{q}“"
     }
   },
   "mcp": {
@@ -6832,7 +6848,8 @@
       "members": "Členské endpointy ({count} z nejvýše {max})",
       "search": "Najít endpoint",
       "audience": "Kdo se smí připojit",
-      "allowedProjects": "Projekty, které připouští"
+      "allowedProjects": "Projekty, které připouští",
+      "knowledgeSources": "Zdroje znalostí ({count} z nejvýše {max})"
     },
     "help": {
       "name": "Malá písmena, číslice a pomlčky; je součástí adresy, proto ho později nelze změnit.",
@@ -6840,7 +6857,8 @@
       "description": "Co server obsahuje, v jedné či dvou větách; AI klient to čte jako své pokyny.",
       "members": "Nabízejí se jen endpointy, které smíte číst. Každé volání člena je vlastní volání toho endpointu, o kterém rozhoduje jeho vlastní politika.",
       "audience": "Ne širší než nejužší člen. Veřejný server potřebuje všechny členy veřejné a schvalovatele, který smí publikovat.",
-      "allowedProjects": "Názvy projektů oddělené čárkami; prázdné připouští jen tento projekt."
+      "allowedProjects": "Názvy projektů oddělené čárkami; prázdné připouští jen tento projekt.",
+      "knowledgeSources": "Server nabídne nástroj search_documents nad veřejnými stránkami a dokumenty zde vybraných zdrojů; bez nich takový nástroj nenabízí."
     },
     "form": {
       "newTitle": "Nový MCP server",
@@ -6851,14 +6869,19 @@
       "servesNoMcp": "Tento endpoint neposkytuje MCP (spec.mcp je false).",
       "full": "Server jmenuje nejvýše {max} členů.",
       "unseen": "Členové, které nesmíte číst, zůstávají beze změny: {count}",
-      "publicLane": "Veřejný server jde červeným pruhem: rozhoduje schvalovatel, který smí publikovat."
+      "publicLane": "Veřejný server jde červeným pruhem: rozhoduje schvalovatel, který smí publikovat.",
+      "sourcesUnreadable": "Zdroje znalostí projektu se nepodařilo načíst; již připojené zůstávají, jak jsou.",
+      "noPublicSources": "Projekt nemá žádný veřejný zdroj znalostí k připojení.",
+      "sourcesFull": "Nejvýše {max} zdrojů.",
+      "keptSources": "Ponechané, jak jsou: {sources}."
     },
     "problem": {
       "name": "Použijte malá písmena, číslice a pomlčky, nejvýše 63 znaků.",
       "members": "Vyberte jeden až {max} členských endpointů.",
       "noMcp": "Vybraný endpoint neposkytuje MCP; odstraňte ho.",
       "audience": "Publikum je širší, než dovoluje nejužší člen; vyberte užší.",
-      "projects": "Pro každý název projektu použijte malá písmena, číslice a pomlčky, například city-air."
+      "projects": "Pro každý název projektu použijte malá písmena, číslice a pomlčky, například city-air.",
+      "knowledgeSources": "Připojte nejvýše 20 zdrojů znalostí."
     },
     "health": {
       "checking": "Ověřuji…",

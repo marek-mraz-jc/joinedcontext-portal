@@ -32,6 +32,19 @@ pub const MAX_IDS: usize = 500;
 pub struct Level {
     /// The page whose children to list; none lists the roots.
     pub parent: Option<i64>,
+    /// Instead of one level: at most 100 pages of the whole source whose title or address holds
+    /// it, case and diacritics ignored; 2 to 100 characters (UI-99).
+    pub q: Option<String>,
+}
+
+/// A trial of the search `search_documents` runs, over one source (UI-99, T-4659).
+#[derive(Debug, Deserialize, IntoParams)]
+#[serde(deny_unknown_fields)]
+pub struct Tried {
+    /// 1 to 300 characters.
+    pub q: String,
+    /// 1 to 10 hits, 5 when absent.
+    pub limit: Option<u8>,
 }
 
 /// The page or the document whose passages to show; exactly one.
@@ -280,6 +293,7 @@ pub async fn list_sources(
                         "embedded",
                         "pending",
                         "failed",
+                        "languages",
                         "job",
                     ] {
                         item[key] = found.get(key).cloned().unwrap_or(Value::Null);
@@ -297,7 +311,7 @@ pub async fn list_sources(
     get,
     path = "/api/v1/projects/{project}/knowledge/sources/{source}/pages",
     summary = "Read A Level Of The Page Tree",
-    description = "The pages under `parent`, or the roots without it: depth, status, language, whether included and who excluded it, and how many children, documents and passages each holds.",
+    description = "The pages under `parent`, or the roots without it, or with `q` at most 100 pages of the whole source whose title or address holds it: depth, status, language, title, description, published and modified, whether included and who excluded it, and how many children, documents and passages each holds.",
     tag = "knowledge",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -306,6 +320,7 @@ pub async fn list_sources(
     ),
     responses(
         (status = 200, description = "The pages", body = Object),
+        (status = 400, description = "`q` is not 2 to 100 characters", body = crate::error::ProblemDetails),
         (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
         (status = 404, description = "No such project or crawled source", body = crate::error::ProblemDetails),
         (status = 503, description = "The knowledge assistant is not reachable", body = crate::error::ProblemDetails),
@@ -319,14 +334,71 @@ pub async fn list_pages(
 ) -> Result<Json<Value>, ApiError> {
     readable(&state, &user, &project)?;
     named("source", &source)?;
-    let query = level
-        .parent
-        .map(|p| format!("?parent={p}"))
-        .unwrap_or_default();
+    // The serializer is not `Send`: it ends before the await.
+    let query = {
+        let mut query = url::form_urlencoded::Serializer::new(String::new());
+        if let Some(parent) = level.parent {
+            query.append_pair("parent", &parent.to_string());
+        }
+        if let Some(q) = &level.q {
+            query.append_pair("q", q);
+        }
+        query.finish()
+    };
+    let query = if query.is_empty() {
+        query
+    } else {
+        format!("?{query}")
+    };
     let (_, body) = ask(
         &state,
         reqwest::Method::GET,
         &format!("{project}/knowledge/sources/{source}/pages{query}"),
+        None,
+    )
+    .await?;
+    Ok(Json(body))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/knowledge/sources/{source}/search",
+    summary = "Try A Source's Search",
+    description = "The hits the MCP tool `search_documents` would answer from this one source (API/05 §4), each with its title, address, publisher, description, dates, language, passage and score; internal passages too, as an internal deployment would read them.",
+    tag = "knowledge",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("source" = String, Path, description = "KnowledgeSource name"),
+        Tried,
+    ),
+    responses(
+        (status = 200, description = "The hits, best first", body = Object),
+        (status = 400, description = "`q` is not 1 to 300 characters or `limit` not 1 to 10", body = crate::error::ProblemDetails),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such project or crawled source", body = crate::error::ProblemDetails),
+        (status = 503, description = "The knowledge assistant is not reachable", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn try_search(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, source)): Path<(String, String)>,
+    Query(tried): Query<Tried>,
+) -> Result<Json<Value>, ApiError> {
+    readable(&state, &user, &project)?;
+    named("source", &source)?;
+    let query = {
+        let mut query = url::form_urlencoded::Serializer::new(String::new());
+        query.append_pair("q", &tried.q);
+        if let Some(limit) = tried.limit {
+            query.append_pair("limit", &limit.to_string());
+        }
+        query.finish()
+    };
+    let (_, body) = ask(
+        &state,
+        reqwest::Method::GET,
+        &format!("{project}/knowledge/sources/{source}/search?{query}"),
         None,
     )
     .await?;
@@ -940,6 +1012,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/projects/{project}/knowledge/sources/{source}/documents",
             get(list_documents),
+        )
+        .route(
+            "/projects/{project}/knowledge/sources/{source}/search",
+            get(try_search),
         )
         .route(
             "/projects/{project}/knowledge/sources/{source}/errors",

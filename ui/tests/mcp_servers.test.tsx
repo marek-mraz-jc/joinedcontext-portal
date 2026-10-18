@@ -98,6 +98,12 @@ function renderAt(path: string, stub: Stub = {}) {
       return json(list([endpoint("espoo", "parking", "parkslug", "organization"), endpoint("espoo", "staff", "hiddenslug", "project-list")]));
     }
     if (url.pathname === "/api/v1/projects/helsinki/mcpservers") return json(list(stub.servers ?? [SERVER]));
+    if (url.pathname === "/api/v1/projects/helsinki/knowledge/sources") {
+      return json({ items: [
+        { source: "web", type: "website", state: "crawled", startUrls: ["https://www.hel.fi/"], visibility: "public" },
+        { source: "intranet", type: "website", state: "crawled", startUrls: ["https://intra.hel.fi/"], visibility: "internal" },
+      ] });
+    }
     return json(list([]));
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -176,6 +182,26 @@ describe("the MCP servers page (T-3156)", () => {
     ]);
   });
 
+  it("attaches the project's public knowledge sources only, and keeps one it does not list (MF-57, T-4659)", async () => {
+    const { writes } = renderAt("/projects/helsinki/mcp", { servers: [] });
+    await userEvent.click(await screen.findByRole("button", { name: "New MCP server" }));
+    const dialog = await screen.findByRole("dialog", { name: "New MCP server" });
+    await userEvent.type(within(dialog).getByLabelText(/^Name/), "weby");
+    await userEvent.click(await within(dialog).findByRole("checkbox", { name: "bikes (helsinki/bikes)" }));
+    const web = await within(dialog).findByRole("checkbox", { name: "web" });
+    expect(within(dialog).queryByRole("checkbox", { name: "intranet" })).not.toBeInTheDocument();
+    await userEvent.click(web);
+    expect(within(dialog).getByText("Knowledge sources (1 of at most 20)")).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Check and propose" }));
+    expect(await within(dialog).findByText("chg-mcp-1", { exact: false })).toBeInTheDocument();
+    expect((writes[0].body as { spec: Record<string, unknown> }).spec.knowledgeSources).toEqual(["web"]);
+
+    const stored = fromManifest("helsinki", { ...SERVER, spec: { ...SERVER.spec, knowledgeSources: ["web", "bbsk/web", 7] } } as unknown as Manifest);
+    expect(stored.knowledgeSources).toEqual(["web", "bbsk/web"]);
+    const again = toManifest("helsinki", { ...stored, knowledgeSources: [] }) as unknown as { spec: Record<string, unknown> };
+    expect(again.spec.knowledgeSources).toBeUndefined();
+  });
+
   it("refuses to propose without a member and says why, and an Endpoint without MCP cannot be picked", async () => {
     const { writes } = renderAt("/projects/helsinki/mcp", { servers: [] });
     await userEvent.click(await screen.findByRole("button", { name: "New MCP server" }));
@@ -194,7 +220,8 @@ describe("the MCP servers page (T-3156)", () => {
     const dialog = await screen.findByRole("dialog", { name: "New MCP server" });
     await within(dialog).findByRole("checkbox", { name: "parking (espoo/parking)" });
     await userEvent.type(within(dialog).getByLabelText("Find an Endpoint"), "park");
-    expect(within(dialog).getAllByRole("checkbox")).toHaveLength(1);
+    // The members' checkboxes, `title (project/name)`; the knowledge sources have their own.
+    expect(within(dialog).getAllByRole("checkbox", { name: /\(.+\/.+\)$/ })).toHaveLength(1);
     await userEvent.clear(within(dialog).getByLabelText("Find an Endpoint"));
     await userEvent.type(within(dialog).getByLabelText("Find an Endpoint"), "nothing-like-this");
     expect(within(dialog).getByText("No Endpoint matches, or none you may read.")).toBeInTheDocument();
@@ -262,6 +289,10 @@ describe("the named server's rules (MF-53)", () => {
     expect(formProblems({ ...emptyForm(), name: "ok", members: ["a/x"], allowedProjects: ["Not OK"] }, [choice("a", "x", "public")])).toEqual({
       allowedProjects: "mcp.problem.projects",
     });
+    const many = Array.from({ length: 21 }, (_, i) => `s${i}`);
+    expect(formProblems({ ...emptyForm(), name: "ok", members: ["a/x"], knowledgeSources: many }, [choice("a", "x", "public")])).toEqual({
+      knowledgeSources: "mcp.problem.knowledgeSources",
+    });
   });
 
   it("round-trips a manifest, keeps stored metadata and drops allowedProjects off a project-list", () => {
@@ -274,6 +305,7 @@ describe("the named server's rules (MF-53)", () => {
       audience: "organization",
       allowedProjects: [],
       members: ["helsinki/bikes", "espoo/parking"],
+      knowledgeSources: [],
     });
     const again = toManifest("helsinki", { ...form, allowedProjects: ["espoo"] }, stored) as unknown as Manifest & { spec: Record<string, unknown> };
     expect(again.metadata).toMatchObject({ labels: { team: "mobility" }, title: { en: "Mobility data" } });
