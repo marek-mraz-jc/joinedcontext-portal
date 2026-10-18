@@ -47,6 +47,9 @@ const PublicViewPage = lazy(() => import("./pages/spaces/PublicView").then((modu
 const PublicFormPage = lazy(() => import("./pages/spaces/FormView").then((module) => ({ default: module.PublicFormPage })));
 import { useAuth } from "./auth/AuthProvider";
 import { Button } from "./components/ui";
+const ProjectSettingsPage = lazy(() =>
+  import("./pages/projectSettings/ProjectSettingsPage").then((module) => ({ default: module.ProjectSettingsPage })),
+);
 const ImportPage = lazy(() => import("./pages/import/ImportPage").then((module) => ({ default: module.ImportPage })));
 // A page that carries a map, a grid or an editor loads with its route, not with the Portal: the
 // entry every visit downloads first was 1.7 MB gzipped while these sat in it (T-3280).
@@ -70,8 +73,8 @@ const Gallery = lazy(() => import("./pages/gallery/Gallery").then((module) => ({
 import { ORG_NAMESPACE } from "./api/manifest";
 import { isOrganizationTab, OrganizationPage } from "./pages/organization/OrganizationPage";
 import type { OrganizationTab } from "./pages/organization/OrganizationPage";
-import { isProjectSettingsTab, ProjectSettingsPage } from "./pages/projectSettings/ProjectSettingsPage";
-import type { ProjectSettingsTab } from "./pages/projectSettings/ProjectSettingsPage";
+import { isProjectSettingsTab } from "./pages/projectSettings/tabs";
+import type { ProjectSettingsTab } from "./pages/projectSettings/tabs";
 import type { AuthState } from "./auth/AuthProvider";
 
 export interface RouterContext {

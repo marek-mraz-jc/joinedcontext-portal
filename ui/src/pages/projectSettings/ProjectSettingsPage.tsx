@@ -39,22 +39,11 @@ import { RoleBindings } from "../access/RoleBindings";
 import { Roles } from "../access/Roles";
 import { ServiceAccounts } from "../access/ServiceAccounts";
 
-/** The tabs of `/projects/{project}/settings/{tab}`, in the order Architecture/09 §14.2 lists them. */
-export const PROJECT_SETTINGS_TABS = [
-  "general",
-  "members",
-  "roles",
-  "service-accounts",
-  "access",
-  "explorer",
-  "danger",
-] as const;
-
-export type ProjectSettingsTab = (typeof PROJECT_SETTINGS_TABS)[number];
-
-export function isProjectSettingsTab(value: string): value is ProjectSettingsTab {
-  return (PROJECT_SETTINGS_TABS as readonly string[]).includes(value);
-}
+// The tabs live apart so the router can know them without loading this page (bundle budget).
+import { PROJECT_SETTINGS_TABS } from "./tabs";
+import type { ProjectSettingsTab } from "./tabs";
+export { isProjectSettingsTab, PROJECT_SETTINGS_TABS } from "./tabs";
+export type { ProjectSettingsTab } from "./tabs";
 
 interface ProjectManifest {
   metadata?: { name?: string; title?: unknown; description?: unknown };
