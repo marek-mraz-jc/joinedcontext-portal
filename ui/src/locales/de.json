@@ -7678,5 +7678,60 @@
       "other": "Formularlayouts",
       "new": "Neues Formularlayout"
     }
+  },
+  "connectors": {
+    "title": "Meine MCP-Konnektoren",
+    "lead": "Ihre eigenen MCP-Adressen, höchstens {max}. Nur Ihre Anmeldung öffnet sie, und jede reicht nur zu Endpunkten, die Sie lesen dürfen.",
+    "new": "Neuer Konnektor",
+    "empty": "Noch keine Konnektoren",
+    "emptyHint": "Legen Sie einen an, oder markieren Sie einen Endpunkt auf seiner Seite mit einem Stern, dann entsteht der Konnektor favourites.",
+    "edit": "Bearbeiten",
+    "editOf": "Konnektor {name} bearbeiten",
+    "remove": "Löschen",
+    "removeOf": "Konnektor {name} löschen",
+    "reach": "Erreicht jetzt: {count}",
+    "reachOf": "Was {name} erreicht",
+    "narrowedAtGateway": "Domänen und Themen schränken das weiter ein, wenn das Gateway ihn bedient.",
+    "organization": "Server der Organisation",
+    "organizationLead": "Jeder in der Organisation darf sich verbinden; jeder antwortet trotzdem nur mit dem, was Sie lesen dürfen.",
+    "all": "Alles, was Sie lesen dürfen (org/all)",
+    "newTitle": "Neuer Konnektor",
+    "editTitle": "Konnektor {name} bearbeiten",
+    "formLead": "Ein Endpunkt gehört zum Konnektor, wenn er jedes ausgefüllte Feld erfüllt. Leere Felder passen auf alles, was Sie lesen dürfen.",
+    "save": "Speichern",
+    "field": {
+      "name": "Name",
+      "projects": "Projekte",
+      "spaces": "Kontexträume",
+      "domains": "Domänen",
+      "themes": "Themen",
+      "accessLevel": "Zugang",
+      "endpoints": "Lieblings-Endpunkte: {count}"
+    },
+    "help": {
+      "name": "Kleinbuchstaben, Ziffern und Bindestriche; der letzte Teil der Adresse.",
+      "projects": "Projektnamen, durch Kommas getrennt.",
+      "spaces": "projekt/raum, durch Kommas getrennt.",
+      "domains": "Smart-Data-Models-Domänen: Environment, Transportation, …",
+      "themes": "EU-Datenthemen, etwa ENVI oder TRAN.",
+      "endpoints": "Einen Endpunkt fügen Sie mit dem Stern auf seiner Seite hinzu."
+    },
+    "level": {
+      "public": "Öffentlich",
+      "organization": "Ganze Organisation",
+      "project": "Meine Projekte",
+      "grant": "Mit mir geteilt"
+    },
+    "problem": {
+      "name": "Verwenden Sie Kleinbuchstaben, Ziffern und Bindestriche, höchstens 63 Zeichen.",
+      "taken": "Sie haben bereits einen Konnektor mit diesem Namen.",
+      "projects": "Ein Projektname besteht aus Kleinbuchstaben, Ziffern und Bindestrichen.",
+      "spaces": "Schreiben Sie jeden Raum als projekt/raum.",
+      "tooMany": "Ein Feld enthält höchstens 50 Werte."
+    },
+    "star": {
+      "add": "Zu meinen Konnektoren",
+      "in": "Im Konnektor: {names}"
+    }
   }
 }

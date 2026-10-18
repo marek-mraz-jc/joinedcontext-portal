@@ -12,6 +12,7 @@ use sha2::{Digest, Sha256};
 use crate::state::AppState;
 
 pub mod agent_runs;
+pub mod connectors;
 pub mod domain_verifications;
 pub mod model_key;
 pub mod pipeline_rejected;
@@ -26,6 +27,7 @@ pub fn router() -> Router<AppState> {
         .merge(previews::router())
         .merge(domain_verifications::router())
         .merge(model_key::router())
+        .merge(connectors::router())
 }
 
 /// A JSON body the gateway polls every ten seconds: its `ETag` is a SHA-256 over the body, and a

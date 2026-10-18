@@ -61,8 +61,13 @@ pub fn desired(project: &str, name: &str) -> Value {
     })
 }
 
-/// The servers of the mirror as `(project, name)`, the organization's (`org`) included, sorted so
-/// a run is deterministic. One whose client id would not fit Keycloak names no client.
+/// The organization's built-in server over everything the caller may read, which the gateway
+/// serves at `/api/mcp/org/all` without a manifest (EP-122, T-4530).
+pub const ORG_ALL: &str = "all";
+
+/// The servers of the mirror as `(project, name)`, the organization's (`org`) and its built-in
+/// `org/all` included, sorted so a run is deterministic. One whose client id would not fit
+/// Keycloak names no client.
 pub fn declared(mirror: &Mirror) -> Vec<(String, String)> {
     // `namespaces` lists the projects; the organization's servers live in `org` beside them.
     let mut servers: Vec<(String, String)> = mirror
@@ -78,6 +83,10 @@ pub fn declared(mirror: &Mirror) -> Vec<(String, String)> {
                 .into_iter()
                 .map(move |envelope| (project.clone(), envelope.metadata.name))
         })
+        .chain(std::iter::once((
+            crate::api::blueprints::ORG_NAMESPACE.to_owned(),
+            ORG_ALL.to_owned(),
+        )))
         .filter(|(project, name)| client_id(project, name).len() <= 255)
         .collect();
     servers.sort();
@@ -313,8 +322,14 @@ mod tests {
             vec![
                 ("espoo".to_owned(), "air".to_owned()),
                 ("helsinki".to_owned(), "mobility".to_owned()),
+                ("org".to_owned(), "all".to_owned()),
                 ("org".to_owned(), "city".to_owned()),
             ]
         );
+        // `org/all` has a client with no manifest, once even when one is written for it.
+        mirror.upsert(server("org", "all"));
+        let empty = Mirror::new();
+        assert_eq!(declared(&empty), vec![("org".to_owned(), "all".to_owned())]);
+        assert_eq!(declared(&mirror).len(), 4);
     }
 }
