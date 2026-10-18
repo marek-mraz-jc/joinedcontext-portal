@@ -61,6 +61,7 @@ pub mod space_usage;
 pub mod sync_sources;
 pub mod type_attributes;
 pub mod validation;
+pub mod visualization_templates;
 pub mod webhook;
 pub mod workspaces;
 
@@ -125,6 +126,7 @@ pub fn router() -> Router<AppState> {
         .merge(live::router())
         .merge(sync_sources::router())
         .merge(validation::router())
+        .merge(visualization_templates::router())
         .merge(organization_limits::router())
         .merge(brokers::router())
         .merge(space_move::router())

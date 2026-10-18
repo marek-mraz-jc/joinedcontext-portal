@@ -27,7 +27,7 @@ import {
 } from "../../components/ui";
 import type { BadgeTone } from "../../components/ui";
 import { putDraft } from "../../api/drafts";
-import { duplicateDeployment, knowledgeKeys, listSources, listUsage, recrawl, timeText } from "./knowledge";
+import { duplicateDeployment, knowledgeKeys, languagesText, listSources, listUsage, recrawl, timeText } from "./knowledge";
 import type { KnowledgeSourceRow } from "./knowledge";
 import { AssistantChat, EmbedSnippet } from "./AssistantChat";
 import { sum } from "./IndexStatus";
@@ -163,6 +163,7 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
             <TableHeaderCell align="right" secondary>{t("knowledge.column.pages")}</TableHeaderCell>
             <TableHeaderCell align="right" secondary>{t("knowledge.column.documents")}</TableHeaderCell>
             <TableHeaderCell align="right" secondary>{t("knowledge.column.passages")}</TableHeaderCell>
+            <TableHeaderCell secondary>{t("knowledge.column.languages")}</TableHeaderCell>
             <TableHeaderCell align="right">
               <span className="sr-only">{t("approvals.actions")}</span>
             </TableHeaderCell>
@@ -218,6 +219,7 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
                       ? t("knowledge.embeddedOf", { embedded: row.embedded ?? 0, total: row.passages ?? 0 })
                       : "—"}
                   </TableCell>
+                  <TableCell secondary>{row.state === "crawled" ? languagesText(row.languages, i18n.language) : "—"}</TableCell>
                   <TableCell align="right">
                     {row.type === "upload" ? null : (
                     <PermissionGuard project={project} kind="KnowledgeSource" verb="propose">

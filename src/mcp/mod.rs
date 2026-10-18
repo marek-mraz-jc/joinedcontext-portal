@@ -1029,7 +1029,9 @@ async fn record_answer(
             "subject": caller.identity.subject,
         }),
     };
-    let _ = state.activity.append(&[event]).await;
+    if let Err(err) = state.activity.append(&[event]).await {
+        tracing::warn!(operation, error = %err, "the MCP consent answer is not on the activity feed");
+    }
 }
 
 /// One operation's answer as a `tools/call` result.

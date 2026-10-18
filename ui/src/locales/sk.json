@@ -1374,6 +1374,40 @@
           "failed": "Endpoint neodpovedal. Odpovie, keď bude zmena, ktorá ho vytvorila, schválená a nasadená."
         }
       },
+      "visualizations": {
+        "title": "Grafy pri datasete",
+        "lead": "Grafy, ktoré katalóg otvorených dát ukazuje pri datasete tohto endpointu, z vlastných dát endpointu.",
+        "none": "Zatiaľ žiadne grafy.",
+        "add": "Pridať graf",
+        "name": "Názov",
+        "nameHint": "Malé písmená, číslice a pomlčky; jedinečný v tomto endpointe.",
+        "chartTitle": "Nadpis",
+        "description": "Popis",
+        "template": "Graf",
+        "noColumn": "Žiadny",
+        "fill": "Vyplniť podľa grafu",
+        "pickRoles": "Vyberte stĺpec pre každú os, ktorú graf potrebuje.",
+        "spec": "Špecifikácia Vega-Lite",
+        "specHint": "Môžete ju upraviť ako JSON; kontrola pred návrhom odmietne všetko, čo siaha mimo endpoint.",
+        "badJson": "Špecifikácia nie je platný JSON.",
+        "noSource": "Tento endpoint neposkytuje žiadny zo zdrojov, ktoré graf číta.",
+        "incomplete": "Zadajte grafu názov, nadpis, popis a špecifikáciu.",
+        "propose": "Navrhnúť graf",
+        "remove": "Odstrániť",
+        "templates": {
+          "bar": "Stĺpcový graf",
+          "line": "Priebeh v čase",
+          "heatmap": "Teplotná mapa",
+          "small-multiples": "Malé násobky",
+          "linked-brush": "Prehľad a detail"
+        },
+        "roles": {
+          "x": "Vodorovná os",
+          "y": "Veličina",
+          "color": "Farba",
+          "facet": "Panel podľa"
+        }
+      },
       "firstCall": "Prvé volanie",
       "firstCallOpen": "Otvoriť v prehliadači",
       "firstCallCopy": "Kopírovať príkaz",
@@ -6552,7 +6586,9 @@
       "passages": "Pasáže",
       "document": "Dokument",
       "size": "Veľkosť",
-      "pdfPages": "Strany"
+      "pdfPages": "Strany",
+      "languages": "Jazyky",
+      "modified": "Posledná zmena"
     },
     "state": {
       "notCrawled": "Ešte neprejdený",
@@ -6611,7 +6647,11 @@
       "linksOf": "Odkazy z {url}",
       "offDomain": "Na inom webe",
       "noPassages": "Žiadna pasáž: asistent z tohto neodpovedá.",
-      "noLinks": "Táto stránka neodkazuje na nič, čo prechádzanie zaznamenalo."
+      "noLinks": "Táto stránka neodkazuje na nič, čo prechádzanie zaznamenalo.",
+      "findPages": "Nájsť stránky",
+      "findPagesHelp": "Podľa názvu alebo adresy, 2 až 100 znakov; na veľkosti písmen a diakritike nezáleží. Zobrazí sa najviac 100 stránok.",
+      "noPagesFound": "Žiadna stránka tohto zdroja nemá „{q}“ v názve ani v adrese.",
+      "modified": "zmenené {at}"
     },
     "field": {
       "name": "Názov",
@@ -6849,6 +6889,16 @@
       "omitted": "Jeden asistent číta najviac 50 endpointov; zúžte výber alebo niektoré vylúčte. Vynechané: {slugs}",
       "noSources": "Žiadny zdroj znalostí: odpovedá len zo živých dát.",
       "sources": "Zdroje znalostí"
+    },
+    "trySearch": {
+      "title": "Vyskúšať vyhľadávanie",
+      "intro": "Úryvky, ktoré by z tohto zdroja vrátil nástroj MCP search_documents, od najlepšieho. Rátajú sa tu aj interné úryvky.",
+      "query": "Otázka alebo slová",
+      "run": "Vyskúšať vyhľadávanie",
+      "searching": "Vyhľadávanie beží.",
+      "typeFirst": "Najprv napíšte otázku.",
+      "none": "Na „{q}“ v tomto zdroji nič neodpovedá.",
+      "hits": "Výsledky pre „{q}“"
     }
   },
   "mcp": {
@@ -6882,7 +6932,8 @@
       "members": "Členské endpointy ({count} z najviac {max})",
       "search": "Nájsť endpoint",
       "audience": "Kto sa smie pripojiť",
-      "allowedProjects": "Projekty, ktoré pripúšťa"
+      "allowedProjects": "Projekty, ktoré pripúšťa",
+      "knowledgeSources": "Zdroje znalostí ({count} z najviac {max})"
     },
     "help": {
       "name": "Malé písmená, číslice a pomlčky; je súčasťou adresy, preto sa neskôr nedá zmeniť.",
@@ -6890,7 +6941,8 @@
       "description": "Čo server obsahuje, v jednej či dvoch vetách; AI klient to číta ako svoje pokyny.",
       "members": "Ponúkajú sa len endpointy, ktoré smiete čítať. Každé volanie člena je vlastné volanie toho endpointu, o ktorom rozhoduje jeho vlastná politika.",
       "audience": "Nie širšie ako najužší člen. Verejný server potrebuje všetkých členov verejných a schvaľovateľa, ktorý smie publikovať.",
-      "allowedProjects": "Názvy projektov oddelené čiarkami; prázdne pripúšťa len tento projekt."
+      "allowedProjects": "Názvy projektov oddelené čiarkami; prázdne pripúšťa len tento projekt.",
+      "knowledgeSources": "Server ponúkne nástroj search_documents nad verejnými stránkami a dokumentmi tu vybraných zdrojov; bez nich taký nástroj neponúka."
     },
     "form": {
       "newTitle": "Nový MCP server",
@@ -6901,14 +6953,19 @@
       "servesNoMcp": "Tento endpoint neposkytuje MCP (spec.mcp je false).",
       "full": "Server pomenúva najviac {max} členov.",
       "unseen": "Členovia, ktorých nesmiete čítať, ostávajú bez zmeny: {count}",
-      "publicLane": "Verejný server ide červeným pruhom: rozhoduje schvaľovateľ, ktorý smie publikovať."
+      "publicLane": "Verejný server ide červeným pruhom: rozhoduje schvaľovateľ, ktorý smie publikovať.",
+      "sourcesUnreadable": "Zdroje znalostí projektu sa nepodarilo načítať; už pripojené zostávajú, ako sú.",
+      "noPublicSources": "Projekt nemá žiadny verejný zdroj znalostí na pripojenie.",
+      "sourcesFull": "Najviac {max} zdrojov.",
+      "keptSources": "Ponechané, ako sú: {sources}."
     },
     "problem": {
       "name": "Použite malé písmená, číslice a pomlčky, najviac 63 znakov.",
       "members": "Vyberte jeden až {max} členských endpointov.",
       "noMcp": "Vybraný endpoint neposkytuje MCP; odstráňte ho.",
       "audience": "Publikum je širšie, ako dovoľuje najužší člen; vyberte užšie.",
-      "projects": "Pre každý názov projektu použite malé písmená, číslice a pomlčky, napríklad city-air."
+      "projects": "Pre každý názov projektu použite malé písmená, číslice a pomlčky, napríklad city-air.",
+      "knowledgeSources": "Odoberte zdroje znalostí, kým ich nebude najviac 20."
     },
     "health": {
       "checking": "Overujem…",

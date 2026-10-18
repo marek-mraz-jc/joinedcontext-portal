@@ -121,7 +121,7 @@ fn record() -> Value {
 /// A tabular answer of two stations, as the CSV representation serves it.
 const ROWS: &str = "id,type,name,available\nurn:ngsi-ld:BikeStation:hel.fi:bikes:1,BikeStation,Rautatientori,12\nurn:ngsi-ld:BikeStation:hel.fi:bikes:2,BikeStation,Kamppi,4\n";
 
-/// The gateway's answer for a sheet: `csv`, and no model schema or LinkML (T-3012).
+/// The gateway's answer for a sheet: `csv`, and no model schema or LinkML (T-3012, T-4672).
 fn answer(csv: &str) -> Rows {
     Rows {
         csv: csv.to_owned(),

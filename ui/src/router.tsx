@@ -1258,7 +1258,8 @@ export const routeTree = rootRoute.addChildren([
 
 export function createPortalRouter() {
   return createRouter({
-    routeTree,
+    // Written out: the code graph reads no reference in a shorthand property (cg dead-code ratchet).
+    routeTree: routeTree,
     context: { auth: undefined as unknown as AuthState },
     defaultPreload: false,
     // Back and forward land where the page was left, not at its top (UI-89, T-3239).

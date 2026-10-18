@@ -518,7 +518,7 @@ fn places_names_only_public_endpoints_and_their_space_area() {
 /// types. A wave within the hour reads no count again.
 #[tokio::test]
 async fn a_service_lists_its_types_with_counts_and_the_next_query() {
-    let dir = scratch("6");
+    let dir = scratch("7");
     let gateway = Gateway::start(air_feed("Air quality in Banská Bystrica")).await;
     let surface = format!("/api/endpoint/{AIR}/ngsi-ld/v1");
     Mock::given(method("GET"))

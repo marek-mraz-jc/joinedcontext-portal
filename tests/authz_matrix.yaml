@@ -281,6 +281,9 @@ routes:
   - route: GET /app-templates/{name}/screenshot/{width}
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /visualization-templates/{name}
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
   - route: PUT /preferences
     rule: "signed-in"
     expect: [403, allow, allow, allow, allow, allow, allow, allow]
@@ -453,6 +456,11 @@ routes:
   - route: GET /projects/{project}/knowledge/sources/{source}/documents
     rule: "project-verb:read:KnowledgeSource"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    note: "503 after the check: no knowledge assistant in the fixture"
+  - route: GET /projects/{project}/knowledge/sources/{source}/search
+    rule: "project-verb:read:KnowledgeSource"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    query: "q=parkovanie"
     note: "503 after the check: no knowledge assistant in the fixture"
   - route: GET /projects/{project}/knowledge/sources/{source}/pages/{page}/links
     rule: "project-verb:read:KnowledgeSource"

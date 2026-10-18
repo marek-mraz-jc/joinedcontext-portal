@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { JSX } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useProposal } from "../../api/proposal";
 import type { Change, Manifest } from "../../api/manifest";
@@ -17,7 +18,8 @@ import {
   Textarea,
 } from "../../components/ui";
 import { ToolPreview } from "./McpServerPanels";
-import { AUDIENCES, MAX_MEMBERS, breadth, emptyForm, formProblems, fromManifest, memberKey, toManifest, widestAllowed } from "./mcp";
+import { knowledgeKeys, listSources } from "../knowledge/knowledge";
+import { AUDIENCES, MAX_KNOWLEDGE_SOURCES, MAX_MEMBERS, breadth, emptyForm, formProblems, fromManifest, memberKey, toManifest, widestAllowed } from "./mcp";
 import type { Audience, McpServerForm, MemberChoice } from "./mcp";
 
 /**
@@ -59,6 +61,12 @@ export function McpServerDialog({
   const shown = choices.filter(
     (choice) => !needle || memberKey(choice).toLowerCase().includes(needle) || choice.title.toLowerCase().includes(needle),
   );
+
+  // The project's public sources may be attached (MF-57); one of another project, or one this
+  // person cannot list, stays in the manifest as it is.
+  const sources = useQuery({ queryKey: knowledgeKeys.sources(project), queryFn: () => listSources(project), enabled: open, retry: false });
+  const attachable = (sources.data ?? []).filter((row) => row.visibility === "public").map((row) => row.source);
+  const keptSources = form.knowledgeSources.filter((name) => !attachable.includes(name));
 
   const set = (patch: Partial<McpServerForm>) => setForm((current) => ({ ...current, ...patch }));
   const toggle = (key: string, on: boolean) =>
@@ -164,6 +172,45 @@ export function McpServerDialog({
                 {shownError("members")?.[0]}
               </InlineError>
             ) : null}
+          </fieldset>
+
+          <fieldset className="flex flex-col gap-2">
+            <legend className="text-body font-semibold">
+              {t("mcp.field.knowledgeSources", { count: form.knowledgeSources.length, max: MAX_KNOWLEDGE_SOURCES })}
+            </legend>
+            <p className="text-caption text-fg-muted">{t("mcp.help.knowledgeSources")}</p>
+            {sources.isLoading ? <p role="status">{t("app.loading")}</p> : null}
+            {sources.isError ? <p>{t("mcp.form.sourcesUnreadable")}</p> : null}
+            {sources.isSuccess && attachable.length === 0 ? <p>{t("mcp.form.noPublicSources")}</p> : null}
+            {attachable.length > 0 ? (
+              <ul className="flex flex-col gap-1 rounded-md border border-border p-2">
+                {attachable.map((name) => {
+                  const on = form.knowledgeSources.includes(name);
+                  const full = !on && form.knowledgeSources.length >= MAX_KNOWLEDGE_SOURCES;
+                  return (
+                    <li key={name}>
+                      <Checkbox
+                        label={name}
+                        checked={on}
+                        disabled={full}
+                        disabledReason={full ? t("mcp.form.sourcesFull", { max: MAX_KNOWLEDGE_SOURCES }) : undefined}
+                        onChange={(event) =>
+                          set({
+                            knowledgeSources: event.target.checked
+                              ? [...form.knowledgeSources, name]
+                              : form.knowledgeSources.filter((source) => source !== name),
+                          })
+                        }
+                      />
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+            {keptSources.length > 0 ? (
+              <p className="text-caption text-fg-muted">{t("mcp.form.keptSources", { sources: keptSources.join(", ") })}</p>
+            ) : null}
+            {shownError("knowledgeSources") ? <InlineError>{shownError("knowledgeSources")?.[0]}</InlineError> : null}
           </fieldset>
 
           <div className="grid gap-4 md:grid-cols-2">
