@@ -5,7 +5,7 @@ The data grids of T-2784: one tab per register of the region's public space `bbs
 `EntityGrid` with the region's column labels, a filter on every column that becomes the endpoint's
 own `q`, the model's enums (hospital kind, form of service, provider, road class, heritage status,
 area, level) as pick lists with their words, the name pinned as the row's primary field, and the
-endpoint's own downloads of the register in CSV (human headers) and GeoJSON.
+endpoint's own download of the register in CSV (human headers).
 It sits in the SDK's `AppShell` (SDK-39), and a row's name opens the row in the shell's entity
 panel (SDK-40), read fresh through the same endpoint. The App is public, so the panel links the row
 to the Portal for editing and offers no Edit of its own (AP-140). It reads through a public

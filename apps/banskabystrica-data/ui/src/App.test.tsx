@@ -116,7 +116,8 @@ describe("the city's datasets", () => {
         expect(await screen.findByRole("dialog", { name })).toBeInTheDocument();
         await user.keyboard("{Escape}");
       }
-      for (const link of within(panel).getAllByRole("link", { name: new RegExp(`^(${s.csv}|${s.geojson}) `) })) {
+      expect(panel.querySelectorAll(".downloads a"), "one download: the gateway serves no GeoJSON file (T-4597, T-4603)").toHaveLength(1);
+      for (const link of within(panel).getAllByRole("link", { name: new RegExp(`^${s.csv} `) })) {
         link.addEventListener("click", (event) => event.preventDefault());
         await user.click(link);
         expect(link).toHaveAttribute("download");
@@ -138,7 +139,7 @@ describe("the city's datasets", () => {
     for (const dataset of ["schools", "air", "events"] as const) {
       await user.click(screen.getByRole("tab", { name: en.dataset[dataset] }));
       expect(screen.getByRole("tabpanel", { name: en.dataset[dataset] })).toBeInTheDocument();
-      for (const link of screen.getAllByRole("link", { name: new RegExp(`^(${en.csv}|${en.geojson}) `) })) {
+      for (const link of screen.getAllByRole("link", { name: new RegExp(`^${en.csv} `) })) {
         link.addEventListener("click", (event) => event.preventDefault());
         await user.click(link);
         expect(link.getAttribute("href")).toContain(`/api/endpoint/${SLUG}/file.`);

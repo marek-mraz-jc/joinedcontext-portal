@@ -17,8 +17,8 @@ metadata:
     sk: "Registre Banskobystrického kraja"
     en: "Registers of the Banská Bystrica region"
   description:
-    sk: "Nemocnice, sociálne služby, mosty, organizácie a územné členenie kraja v tabuľkách: filter na každom stĺpci, hodnoty číselníkov na výber, detail riadku a stiahnutie v CSV a GeoJSON."
-    en: "The region's hospitals, social services, bridges, organizations and territorial division as tables: a filter on every column, code lists picked, each row whole, and a CSV or GeoJSON download."
+    sk: "Nemocnice, sociálne služby, mosty, organizácie a územné členenie kraja v tabuľkách: filter na každom stĺpci, hodnoty číselníkov na výber, detail riadku a stiahnutie v CSV."
+    en: "The region's hospitals, social services, bridges, organizations and territorial division as tables: a filter on every column, code lists picked, each row whole, and a CSV download."
 spec:
   kind: ui
   source:
