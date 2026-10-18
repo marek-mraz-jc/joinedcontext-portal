@@ -986,27 +986,12 @@ impl Syncer {
         //     the last file it read.
         self.converge_edge_file(&fresh_mirror).await;
 
-        // 5b. Deploy resident streams for eligible DataSource pipelines (PL-47), each with the
-        //     validation stage of its space's model at the version the space pins now (PL-60).
-        //     After the App clients and the edge file: a runner that cannot restart a stream
-        //     answers a PUT only at the timeout, and the edge's routes and protections must not
-        //     wait for that (T-2891).
-        self.converge_streams(&fresh_mirror, &repository, &scratch, &bentos, &refused)
-            .await;
-
-        // A pipeline whose credential did not resolve says so last, over whatever the wave
-        // above wrote: it is stopped whether or not this Portal has a runner to deploy to, and
-        // the missing reference is the reason the author can act on (T-0927, PL-15). The
-        // condition names the reference, never the value.
+        // Until the stream wave below has answered, a stream pipeline says what the leader last
+        // concluded, so a replica that has just taken the lock never serves its follower stamp
+        // for a whole run (T-4599). A pipeline whose credential did not resolve says so over
+        // it, whatever the wave writes (T-0927, PL-15): the reference, never the value.
+        serve_leaders_phases(&fresh_mirror, &self.leaders_phases().await, LEADING);
         mark_refused_pipelines(&fresh_mirror, &refused);
-
-        // What this run concluded about every stream pipeline, for the replicas that serve
-        // without reconciling (T-2976). Best effort: a follower that cannot read it says so.
-        if let Some(store) = self.pipeline_status.as_ref() {
-            if let Err(err) = store.save(&stream_phases(&fresh_mirror)).await {
-                tracing::warn!(error = %err, "the pipeline phases were not shared with the other replicas");
-            }
-        }
 
         // 5f. The open-data catalogue of every project (EP-62…EP-67, T-2405). Before the mirror
         //     is swapped on purpose: a dataset is withdrawn only when the Endpoint that declared
@@ -1022,6 +1007,28 @@ impl Syncer {
 
         transitions.keep_all(&fresh_mirror);
         self.mirror.replace_all(&fresh_mirror);
+
+        // 5b. Deploy resident streams for eligible DataSource pipelines (PL-47), each with the
+        //     validation stage of its space's model at the version the space pins now (PL-60).
+        //     After the App clients and the edge file: a runner that cannot restart a stream
+        //     answers a PUT only at the timeout, and the edge's routes and protections must not
+        //     wait for that (T-2891). After the swap: a merged change is served while the
+        //     runner is still answering, and the wave's outcome lands on the stream pipelines
+        //     alone (T-4599).
+        self.converge_streams(&fresh_mirror, &repository, &scratch, &bentos, &refused)
+            .await;
+        mark_refused_pipelines(&fresh_mirror, &refused);
+        transitions.keep_all(&fresh_mirror);
+        let phases = stream_phases(&fresh_mirror);
+        serve_leaders_phases(&self.mirror, &phases, LEADING);
+
+        // What this run concluded about every stream pipeline, for the replicas that serve
+        // without reconciling (T-2976). Best effort: a follower that cannot read it says so.
+        if let Some(store) = self.pipeline_status.as_ref() {
+            if let Err(err) = store.save(&phases).await {
+                tracing::warn!(error = %err, "the pipeline phases were not shared with the other replicas");
+            }
+        }
 
         // 6. Converge what an App compiles into (T-0411, AP-18, AP-21). The mirror is already
         //    swapped, so a cluster that refuses one object leaves the Portal serving the
@@ -1197,7 +1204,21 @@ impl Syncer {
         transitions: &super::transitions::Transitions,
         repository: &Repository,
     ) {
-        let saved = match self.pipeline_status.as_ref() {
+        serve_leaders_phases(fresh_mirror, &self.leaders_phases().await, FOLLOWER);
+        transitions.keep_all(fresh_mirror);
+        self.mirror.replace_all(fresh_mirror);
+        // The broker is the leader's to write; a draft's preview compiles against what this
+        // replica read, so it answers on every replica (T-3820, EP-85).
+        if let Some(views) = self.views.as_ref() {
+            views.remember(repository);
+        }
+    }
+
+    /// What the leader last concluded about the stream pipelines, fresh enough to serve.
+    async fn leaders_phases(
+        &self,
+    ) -> HashMap<crate::pipeline_status::Key, crate::pipeline_status::Saved> {
+        match self.pipeline_status.as_ref() {
             Some(store) => store
                 .load(crate::pipeline_status::FRESH)
                 .await
@@ -1206,14 +1227,6 @@ impl Syncer {
                     HashMap::new()
                 }),
             None => HashMap::new(),
-        };
-        serve_leaders_phases(fresh_mirror, &saved);
-        transitions.keep_all(fresh_mirror);
-        self.mirror.replace_all(fresh_mirror);
-        // The broker is the leader's to write; a draft's preview compiles against what this
-        // replica read, so it answers on every replica (T-3820, EP-85).
-        if let Some(views) = self.views.as_ref() {
-            views.remember(repository);
         }
     }
 
@@ -2325,11 +2338,23 @@ fn stream_phases(
     phases
 }
 
-/// A follower's stream pipelines: what the leader last concluded where it said something fresh,
-/// else `Pending` with the `Follower` reason, because this replica cannot know (T-2976).
+/// What a follower's stream pipeline says when the leader has said nothing recent (T-2976).
+const FOLLOWER: (&str, &str) = (
+    "Follower",
+    "another replica reconciles the streams and has said nothing recent about this one",
+);
+/// What the leader's stream pipeline says until its own wave answers (T-4599).
+const LEADING: (&str, &str) = (
+    "Deploying",
+    "this replica reconciles the streams and the runner has not answered for this one yet",
+);
+
+/// Stream pipelines: what the leader last concluded where it said something fresh, else
+/// `Pending` with `unknown`'s reason and message, because this run cannot know yet (T-2976).
 fn serve_leaders_phases(
     mirror: &Mirror,
     saved: &HashMap<crate::pipeline_status::Key, crate::pipeline_status::Saved>,
+    unknown: (&str, &str),
 ) {
     for ns in mirror.namespaces() {
         let page = mirror.list(&ns, "Pipeline", &crate::store::ListOptions::default());
@@ -2354,8 +2379,8 @@ fn serve_leaders_phases(
                         status.conditions = vec![make_condition(
                             "StreamDeployed",
                             "False",
-                            "Follower",
-                            "another replica reconciles the streams and has said nothing recent about this one",
+                            unknown.0,
+                            unknown.1,
                         )];
                     }
                 }
@@ -4206,7 +4231,7 @@ output_error{stream="kpi"} 6
             ),
         ]);
 
-        serve_leaders_phases(&mirror, &saved);
+        serve_leaders_phases(&mirror, &saved, FOLLOWER);
 
         let status = |name: &str| {
             mirror

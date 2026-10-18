@@ -992,6 +992,86 @@ mod pass_edges {
         }
     }
 
+    /// T-4599: a replica that served as follower and then takes the lock drops the follower
+    /// stamp at the start of its stream wave, not when the wave ends: while the runner still
+    /// holds the PUT, the mirror already serves this run's revision and the pipeline says the
+    /// leader is deploying it; once the runner answers, it is Live.
+    #[tokio::test]
+    async fn a_replica_that_takes_the_lock_replaces_the_follower_stamp_before_its_streams_answer() {
+        use std::time::{Duration, Instant};
+        let Some(url) = database_url() else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let pool = joinedcontext_portal::db::connect(&url)
+            .await
+            .expect("connect and migrate");
+        let key = private_key(4);
+        let holder = Leadership::new(pool.clone(), key);
+        assert!(holder.acquire().await.expect("the old pod leads"));
+
+        let mut files = project("helsinki", &[("vehicles", None)]);
+        files.push((
+            "projects/helsinki/endpoints/vehicles-in.yaml".to_owned(),
+            "apiVersion: joinedcontext.com/v1alpha1\nkind: Endpoint\nmetadata:\n  name: vehicles-in\n  namespace: helsinki\nspec:\n  contextSpaceRef: mobility\n  slug: mluyob4nz52lok3ssk7pgn5vwt\n  audience: internal\n  enabledRepresentations:\n    - ngsi-ld\n".to_owned(),
+        ));
+        let forge = serve(&[files]).await;
+        let runner = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&runner)
+            .await;
+        Mock::given(method("PUT"))
+            .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_secs(3)))
+            .mount(&runner)
+            .await;
+        let mirror = Arc::new(Mirror::new());
+        let lock = Arc::new(Leadership::new(pool.clone(), key));
+        let syncer = Arc::new(
+            Syncer::new(client(&forge), Arc::clone(&mirror))
+                .with_streams(deployer(&runner))
+                .with_leadership(Arc::clone(&lock)),
+        );
+
+        syncer.sync_once().await.expect("a follower's run");
+        assert!(!lock.is_leader());
+        assert_eq!(condition(&mirror, "helsinki", "vehicles").0, "Follower");
+
+        holder.resign().await;
+        let leading = Arc::clone(&syncer);
+        let run = tokio::spawn(async move { leading.sync_once().await });
+        let started = Instant::now();
+        while calls(&runner, "PUT", "").await == 0 {
+            assert!(
+                started.elapsed() < Duration::from_secs(10),
+                "the leader never sent the stream"
+            );
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert!(
+            !run.is_finished(),
+            "the runner answered before the mirror was read, so this proves nothing"
+        );
+        assert!(lock.is_leader());
+        assert_eq!(condition(&mirror, "helsinki", "vehicles").0, "Deploying");
+
+        run.await.expect("the run ends").expect("a leader's run");
+        let vehicles = mirror
+            .get("helsinki", "Pipeline", "vehicles")
+            .and_then(|pipeline| pipeline.status)
+            .expect("a status");
+        assert_eq!(vehicles.phase, joinedcontext_portal::resource::Phase::Live);
+        assert!(
+            !vehicles
+                .conditions
+                .iter()
+                .any(|c| c.reason.as_deref() == Some("Deploying")),
+            "{:?}",
+            vehicles.conditions
+        );
+        lock.resign().await;
+    }
+
     /// Cases 1 and 2: a follower resolves the webhook secrets any replica may be asked to check,
     /// and never a pipeline's: no read of a pipeline credential, no Secret written.
     #[tokio::test]
