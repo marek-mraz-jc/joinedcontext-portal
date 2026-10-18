@@ -1374,6 +1374,40 @@
           "failed": "Der Endpunkt hat nicht geantwortet. Er antwortet, sobald die Änderung, die ihn anlegt, genehmigt und angewendet ist."
         }
       },
+      "visualizations": {
+        "title": "Diagramme am Datensatz",
+        "lead": "Die Diagramme, die der Open-Data-Katalog am Datensatz dieses Endpoints zeigt, aus den eigenen Daten des Endpoints.",
+        "none": "Noch keine Diagramme.",
+        "add": "Diagramm hinzufügen",
+        "name": "Name",
+        "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche; eindeutig an diesem Endpoint.",
+        "chartTitle": "Titel",
+        "description": "Beschreibung",
+        "template": "Diagramm",
+        "noColumn": "Keine",
+        "fill": "Aus dem Diagramm füllen",
+        "pickRoles": "Wählen Sie für jede Achse, die das Diagramm braucht, eine Spalte.",
+        "spec": "Vega-Lite-Spezifikation",
+        "specHint": "Sie können sie als JSON bearbeiten; die Prüfung vor dem Vorschlag lehnt alles ab, was über den Endpoint hinausgreift.",
+        "badJson": "Die Spezifikation ist kein gültiges JSON.",
+        "noSource": "Dieser Endpoint liefert keine der Quellen, die das Diagramm liest.",
+        "incomplete": "Geben Sie dem Diagramm einen Namen, einen Titel, eine Beschreibung und eine Spezifikation.",
+        "propose": "Diagramm vorschlagen",
+        "remove": "Entfernen",
+        "templates": {
+          "bar": "Balkendiagramm",
+          "line": "Verlauf über die Zeit",
+          "heatmap": "Wärmekarte",
+          "small-multiples": "Kleine Vielfache",
+          "linked-brush": "Übersicht und Detail"
+        },
+        "roles": {
+          "x": "Horizontale Achse",
+          "y": "Messgröße",
+          "color": "Farbe",
+          "facet": "Feld je"
+        }
+      },
       "firstCall": "Erster Aufruf",
       "firstCallOpen": "Im Browser öffnen",
       "firstCallCopy": "Befehl kopieren",
@@ -4713,6 +4747,9 @@
       },
       "model": {
         "key": "Modellschlüssel"
+      },
+      "assistant": {
+        "transcript": "Gespeicherte Unterhaltungen gelesen"
       }
     },
     "sources": {
@@ -6712,7 +6749,8 @@
       "tokensIn": "Gelesene Tokens",
       "tokensOut": "Geschriebene Tokens",
       "duplicate": "Duplizieren",
-      "duplicateOf": "{name} duplizieren"
+      "duplicateOf": "{name} duplizieren",
+      "noPrivacyContact": "Kein Datenschutzkontakt"
     },
     "chat": {
       "ask": "Fragen",
@@ -6881,7 +6919,7 @@
       "noMcp": "Ein gewählter Endpoint bietet keine MCP-Schnittstelle; entfernen Sie ihn.",
       "audience": "Die Zielgruppe ist weiter, als das engste Mitglied erlaubt; wählen Sie eine engere.",
       "projects": "Verwenden Sie für jeden Projektnamen Kleinbuchstaben, Ziffern und Bindestriche, etwa city-air.",
-      "knowledgeSources": "Höchstens 20 Wissensquellen anhängen."
+      "knowledgeSources": "Entfernen Sie Wissensquellen, bis höchstens 20 angehängt sind."
     },
     "health": {
       "checking": "Wird geprüft…",
@@ -7726,5 +7764,67 @@
       "in": "Im Konnektor: {names}"
     },
     "full": "Sie haben 10 Konnektoren, mehr geht nicht. Löschen Sie einen, um einen weiteren anzulegen."
+  },
+  "conversations": {
+    "title": "Unterhaltungen",
+    "intro": "Was Besucher die Assistenten des Projekts gefragt haben und wie jede Antwort entstand: der Weg, die Suchen, die Werkzeug- und Modellaufrufe mit Zeit und Kosten. Personenbezogene Daten werden vor dem Speichern entfernt; jeder Lesezugriff wird protokolliert.",
+    "link": "Unterhaltungen",
+    "notAllowed": "Nur der Administrator des Assistenten, der seine Deployments genehmigt, liest die gespeicherten Unterhaltungen. Bitten Sie ihn um dieses Recht.",
+    "empty": "Keine gespeicherten Unterhaltungen",
+    "emptyHint": "Unterhaltungen erscheinen hier, sobald Besucher fragen, so lange, wie transcriptRetention des Deployments sie aufbewahrt.",
+    "next": "Nächste Seite",
+    "detail": "Unterhaltung",
+    "erase": "Unterhaltung löschen",
+    "eraseTitle": "Diese Unterhaltung löschen?",
+    "eraseHint": "Alle Fragen und Schritte werden sofort gelöscht, auf Wunsch des Besuchers. Das lässt sich nicht rückgängig machen.",
+    "copyAsTest": "Als Test kopieren",
+    "copied": "Die Frage ist als Bewertungsfall kopiert.",
+    "timing": "erstes Wort {first}, gesamt {total}",
+    "steps": "Schritte",
+    "unfinished": "Nicht abgeschlossen",
+    "uncosted": "({count} ohne Preis)",
+    "filter": {
+      "q": "Wörter in Frage oder Antwort",
+      "status": "Status",
+      "feedback": "Bewertung",
+      "sort": "Reihenfolge",
+      "slow": "Langsamer als 15 s",
+      "all": "Alle",
+      "deployment": "Assistent",
+      "from": "Von",
+      "to": "Bis",
+      "expensive": "Über $0,02"
+    },
+    "status": {
+      "ok": "Beantwortet",
+      "erred": "Mit einem Fehler beendet",
+      "timeout": "Zeit überschritten"
+    },
+    "feedback": {
+      "up": "Hilfreich",
+      "down": "Nicht hilfreich",
+      "none": "Nicht bewertet"
+    },
+    "sort": {
+      "lastAt": "Neueste zuerst",
+      "costUsd": "Teuerste zuerst"
+    },
+    "column": {
+      "lastAt": "Letzte Frage",
+      "question": "Erste Frage",
+      "turns": "Fragen",
+      "route": "Weg",
+      "slowest": "Langsamste",
+      "cost": "Kosten",
+      "status": "Status"
+    },
+    "kind": {
+      "route": "Weg",
+      "search": "Suche",
+      "tool": "Werkzeug",
+      "model": "Modell",
+      "answer": "Antwort"
+    },
+    "unknownPrice": "unbekannt"
   }
 }

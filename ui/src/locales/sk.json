@@ -1374,6 +1374,40 @@
           "failed": "Endpoint neodpovedal. Odpovie, keď bude zmena, ktorá ho vytvorila, schválená a nasadená."
         }
       },
+      "visualizations": {
+        "title": "Grafy pri datasete",
+        "lead": "Grafy, ktoré katalóg otvorených dát ukazuje pri datasete tohto endpointu, z vlastných dát endpointu.",
+        "none": "Zatiaľ žiadne grafy.",
+        "add": "Pridať graf",
+        "name": "Názov",
+        "nameHint": "Malé písmená, číslice a pomlčky; jedinečný v tomto endpointe.",
+        "chartTitle": "Nadpis",
+        "description": "Popis",
+        "template": "Graf",
+        "noColumn": "Žiadny",
+        "fill": "Vyplniť podľa grafu",
+        "pickRoles": "Vyberte stĺpec pre každú os, ktorú graf potrebuje.",
+        "spec": "Špecifikácia Vega-Lite",
+        "specHint": "Môžete ju upraviť ako JSON; kontrola pred návrhom odmietne všetko, čo siaha mimo endpoint.",
+        "badJson": "Špecifikácia nie je platný JSON.",
+        "noSource": "Tento endpoint neposkytuje žiadny zo zdrojov, ktoré graf číta.",
+        "incomplete": "Zadajte grafu názov, nadpis, popis a špecifikáciu.",
+        "propose": "Navrhnúť graf",
+        "remove": "Odstrániť",
+        "templates": {
+          "bar": "Stĺpcový graf",
+          "line": "Priebeh v čase",
+          "heatmap": "Teplotná mapa",
+          "small-multiples": "Malé násobky",
+          "linked-brush": "Prehľad a detail"
+        },
+        "roles": {
+          "x": "Vodorovná os",
+          "y": "Veličina",
+          "color": "Farba",
+          "facet": "Panel podľa"
+        }
+      },
       "firstCall": "Prvé volanie",
       "firstCallOpen": "Otvoriť v prehliadači",
       "firstCallCopy": "Kopírovať príkaz",
@@ -4713,6 +4747,9 @@
       },
       "model": {
         "key": "Kľúč modelu"
+      },
+      "assistant": {
+        "transcript": "Čítanie uložených konverzácií"
       }
     },
     "sources": {
@@ -6712,7 +6749,8 @@
       "tokensIn": "Prečítané tokeny",
       "tokensOut": "Napísané tokeny",
       "duplicate": "Duplikovať",
-      "duplicateOf": "Duplikovať {name}"
+      "duplicateOf": "Duplikovať {name}",
+      "noPrivacyContact": "Chýba kontakt pre osobné údaje"
     },
     "chat": {
       "ask": "Opýtať sa",
@@ -6881,7 +6919,7 @@
       "noMcp": "Vybraný endpoint neposkytuje MCP; odstráňte ho.",
       "audience": "Publikum je širšie, ako dovoľuje najužší člen; vyberte užšie.",
       "projects": "Pre každý názov projektu použite malé písmená, číslice a pomlčky, napríklad city-air.",
-      "knowledgeSources": "Pripojte najviac 20 zdrojov znalostí."
+      "knowledgeSources": "Odoberte zdroje znalostí, kým ich nebude najviac 20."
     },
     "health": {
       "checking": "Overujem…",
@@ -7726,5 +7764,67 @@
       "in": "V konektore: {names}"
     },
     "full": "Máte 10 konektorov, viac sa nedá. Ak chcete pridať ďalší, jeden zmažte."
+  },
+  "conversations": {
+    "title": "Konverzácie",
+    "intro": "Na čo sa návštevníci pýtali asistentov projektu a ako vznikla každá odpoveď: cesta, vyhľadávania, volania nástrojov a modelu s časom a cenou. Osobné údaje sa pred uložením vymažú; každé čítanie sa zaznamená.",
+    "link": "Konverzácie",
+    "notAllowed": "Uložené konverzácie číta iba správca asistenta, ktorý schvaľuje jeho nasadenia. Požiadajte ho o toto právo.",
+    "empty": "Žiadne uložené konverzácie",
+    "emptyHint": "Konverzácie sa tu zobrazia, keď sa návštevníci začnú pýtať, a ostanú tak dlho, ako určuje transcriptRetention nasadenia.",
+    "next": "Ďalšia strana",
+    "detail": "Konverzácia",
+    "erase": "Vymazať konverzáciu",
+    "eraseTitle": "Vymazať túto konverzáciu?",
+    "eraseHint": "Všetky jej otázky a kroky sa hneď vymažú, na žiadosť návštevníka. Vrátiť sa to nedá.",
+    "copyAsTest": "Kopírovať ako test",
+    "copied": "Otázka je skopírovaná ako prípad na hodnotenie.",
+    "timing": "prvé slovo {first}, celé {total}",
+    "steps": "Kroky",
+    "unfinished": "Nedokončené",
+    "uncosted": "({count} bez ceny)",
+    "filter": {
+      "q": "Slová v otázke alebo odpovedi",
+      "status": "Stav",
+      "feedback": "Hodnotenie",
+      "sort": "Poradie",
+      "slow": "Pomalšie ako 15 s",
+      "all": "Všetky",
+      "deployment": "Asistent",
+      "from": "Od",
+      "to": "Do",
+      "expensive": "Nad $0,02"
+    },
+    "status": {
+      "ok": "Zodpovedané",
+      "erred": "Skončilo chybou",
+      "timeout": "Vypršal čas"
+    },
+    "feedback": {
+      "up": "Užitočné",
+      "down": "Neužitočné",
+      "none": "Bez hodnotenia"
+    },
+    "sort": {
+      "lastAt": "Najnovšie",
+      "costUsd": "Najdrahšie"
+    },
+    "column": {
+      "lastAt": "Posledná otázka",
+      "question": "Prvá otázka",
+      "turns": "Otázky",
+      "route": "Cesta",
+      "slowest": "Najpomalšia",
+      "cost": "Cena",
+      "status": "Stav"
+    },
+    "kind": {
+      "route": "Cesta",
+      "search": "Vyhľadávanie",
+      "tool": "Nástroj",
+      "model": "Model",
+      "answer": "Odpoveď"
+    },
+    "unknownPrice": "neznáma"
   }
 }
