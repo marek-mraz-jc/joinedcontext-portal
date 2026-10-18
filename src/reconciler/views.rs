@@ -22,7 +22,6 @@
 
 use jc_core::envelope::ORG_NAMESPACE;
 use jc_core::kinds::data_model::ModelImport;
-use jc_core::kinds::space::HISTORY_FOREVER;
 use jc_core::kinds::{
     ContextSpaceSpec, DataAgreementSpec, DataModelLifecycle, DataModelRef, DataModelSpec,
     DataOfferSpec, EndpointSpec, MappingSpec, ModelProjectionSpec, Operation, OperationRef,
@@ -2085,7 +2084,12 @@ impl ViewSync {
             .collect();
         let mut out: BTreeMap<(String, String), u64> = BTreeMap::new();
         for row in answer["counts"].as_array().into_iter().flatten() {
-            let iri = row["type"].as_str().unwrap_or_default();
+            // What the platform default deleted is the space's `*` row: the types without a
+            // history rule of their own (DM-97).
+            let iri = match row["type"].as_str().unwrap_or_default() {
+                "@platform" => RETENTION_ANY_TYPE,
+                iri => iri,
+            };
             let class = classes.get(iri).map_or_else(
                 || iri.rsplit(['/', '#']).next().unwrap_or(iri).to_owned(),
                 |class| (*class).to_owned(),
@@ -2149,21 +2153,31 @@ pub struct RetentionCount {
     pub count: u64,
 }
 
+/// The `entityType` of a space's default retention rule, `*` (DM-97); jc-core's
+/// `RETENTION_ANY_TYPE` from the pin that accepts it.
+const RETENTION_ANY_TYPE: &str = "*";
+
 /// The broker's retention document of one space (DM-82, ADR-N-046): each rule under every IRI
 /// its type is written as, the NGSI-LD core context's and the space's model's, once.
 fn retention_document(rules: &[RetentionRule], context: Option<&Value>) -> Value {
     let mut seen = BTreeSet::new();
     let mut out = Vec::new();
     for rule in rules {
-        for iri in type_iris(&rule.entity_type, context) {
+        // The space's default is no class: the broker reads `*` as it is (DM-97).
+        let iris = if rule.entity_type == RETENTION_ANY_TYPE {
+            vec![RETENTION_ANY_TYPE.to_owned()]
+        } else {
+            type_iris(&rule.entity_type, context)
+        };
+        for iri in iris {
             if seen.insert(iri.clone()) {
                 let mut one = json!({ "type": iri });
                 if let Some(current) = &rule.current {
                     one["current"] = json!(current);
                 }
-                // `forever` is the manifest's word for the broker's default, a type with no
-                // history rule; the broker reads only a duration or `off` (DM-82, T-4275).
-                if let Some(history) = rule.history.as_deref().filter(|h| *h != HISTORY_FOREVER) {
+                // `forever` reaches the broker as written, so the space's `*` rule and the
+                // platform default leave the type alone (DM-97); the `reason` stays in the manifest.
+                if let Some(history) = &rule.history {
                     one["history"] = json!(history);
                 }
                 out.push(one);
@@ -4502,28 +4516,33 @@ mod tests {
         );
     }
 
-    /// A history kept forever reaches the broker as no history rule, which keeps it all; `off`
-    /// and a duration go as written (DM-82, T-4275).
+    /// `forever`, `off` and a duration reach the broker as written, so the space's `*` rule and
+    /// the platform default leave a type kept forever alone; `*` is sent as itself, once
+    /// (DM-82, DM-97, T-4275).
     #[test]
-    fn a_history_kept_forever_is_sent_as_no_history_rule() {
-        let rule = |entity_type: &str, history: &str| RetentionRule {
+    fn forever_and_the_spaces_default_reach_the_broker_as_written() {
+        let rule = |entity_type: &str, current: Option<&str>, history: &str| RetentionRule {
             entity_type: entity_type.into(),
-            current: Some("P1D".into()),
+            current: current.map(Into::into),
             history: Some(history.into()),
-            reason: (history == HISTORY_FOREVER).then(|| "the archive is the record".into()),
+            reason: (history == "forever").then(|| "the archive is the record".into()),
         };
         let rules = [
-            rule("Bus", "forever"),
-            rule("Stop", "off"),
-            rule("Air", "P30D"),
+            rule("Bus", Some("P1D"), "forever"),
+            rule("Stop", Some("P1D"), "off"),
+            rule("Air", Some("P1D"), "P30D"),
+            rule("*", None, "P90D"),
         ];
         let core = |name: &str| format!("https://uri.etsi.org/ngsi-ld/default-context/{name}");
+        let context = json!({"@context": {"Air": "https://e.org/Air"}});
         assert_eq!(
-            retention_document(&rules, None),
+            retention_document(&rules, Some(&context)),
             json!({"rules": [
-                {"type": core("Bus"), "current": "P1D"},
+                {"type": core("Bus"), "current": "P1D", "history": "forever"},
                 {"type": core("Stop"), "current": "P1D", "history": "off"},
                 {"type": core("Air"), "current": "P1D", "history": "P30D"},
+                {"type": "https://e.org/Air", "current": "P1D", "history": "P30D"},
+                {"type": "*", "history": "P90D"},
             ]})
         );
     }

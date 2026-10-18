@@ -15,7 +15,7 @@ use crate::state::AppState;
     get,
     path = "/api/v1/projects/{project}/spaces/{space}/usage",
     summary = "Read Space Usage",
-    description = "The entity count of one space, read from the broker that holds it and kept for five minutes. `0` for a space the broker has no tenant for yet. The same count for everyone who reads the space.",
+    description = "The entity count and the storage in bytes of one space, read from the broker that holds it and kept for five minutes. `0` entities and no `bytes` for a space the broker has no tenant for yet. The same count for everyone who reads the space.",
     tag = "spaces",
     params(
         ("project" = String, Path, description = "Project name"),

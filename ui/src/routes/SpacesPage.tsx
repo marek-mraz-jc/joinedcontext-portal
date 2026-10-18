@@ -9,7 +9,8 @@ import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
-import { spaceUsageQuery, usageRefusal } from "../api/spaceUsage";
+import { exactBytes, sizeText, spaceUsageQuery, totalBytes, usageRefusal } from "../api/spaceUsage";
+import type { SpaceUsage } from "../api/spaceUsage";
 import { asManifests, isChange, localized, refName, rewritten, storedMetadata } from "../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../api/manifest";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
@@ -187,6 +188,17 @@ function EntityCount({
   );
 }
 
+/** What a space takes in the broker's store, exact in the tooltip; a dash while it is not known. */
+function SpaceSize({ usage, locale }: { usage: SpaceUsage | undefined; locale: string }): JSX.Element {
+  const bytes = totalBytes(usage);
+  if (bytes === undefined) return <span className="text-fg-subtle">—</span>;
+  return (
+    <span data-testid="space-size" title={exactBytes(bytes, locale)}>
+      {sizeText(bytes, locale)}
+    </span>
+  );
+}
+
 export function SpacesPage({ project }: { project: string }): JSX.Element {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
@@ -287,6 +299,7 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
           <span aria-hidden="true">{bySize ? " ↓" : ""}</span>
         </Button>
       </TableHeaderCell>
+      <TableHeaderCell align="right" secondary>{t("spaces.field.size")}</TableHeaderCell>
       <TableHeaderCell align="right">{t("spaces.field.inside")}</TableHeaderCell>
       <TableHeaderCell align="right" secondary>{t("spaces.field.source")}</TableHeaderCell>
     </TableHead>
@@ -442,6 +455,9 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
               </TableCell>
               <TableCell align="right" secondary className="tabular-nums">
                 <EntityCount usage={usageOf(space.metadata.name)} numbers={numbers} />
+              </TableCell>
+              <TableCell align="right" secondary className="tabular-nums">
+                <SpaceSize usage={usageOf(space.metadata.name)?.data} locale={locale} />
               </TableCell>
               <TableCell align="right">
                 <SpaceRowActions

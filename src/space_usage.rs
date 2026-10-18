@@ -7,16 +7,16 @@
 //! `joinedcontext` policy engine denies a caller without subject headers on every query clause,
 //! so on dev it answered 403 for every space (T-3983). A count is a scan on the broker's side,
 //! so each answer is kept for a few minutes: these are dashboard numbers, not per-request work.
-//! The storage size in bytes waits for a broker surface (T-2890).
+//! The storage size in bytes comes in the same answer, measured by the broker (`bytes`, T-2890).
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::PathBuf;
 use std::sync::RwLock;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use reqwest::StatusCode;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// The problem type of a tenant the broker has never written to (`GET /q/tenants/{tenant}`).
@@ -39,6 +39,22 @@ pub struct SpaceUsage {
     /// When the broker answered.
     #[schema(value_type = String, format = DateTime)]
     pub observed_at: DateTime<Utc>,
+    /// The storage the space takes, measured by the broker; absent when the broker cannot
+    /// measure it or holds no tenant for the space yet.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bytes: Option<SpaceBytes>,
+}
+
+/// A space's storage in bytes, as the broker measures it in its store (T-2890).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SpaceBytes {
+    /// The current state: every Entity of the space.
+    pub entities: u64,
+    /// The history: the space's temporal attribute instances.
+    pub attr_instances: u64,
+    /// The current state by each Entity's first type (expanded IRI); sums to `entities`.
+    pub by_type: BTreeMap<String, u64>,
 }
 
 /// Asks the broker for a space's counts and keeps each answer for five minutes.
@@ -118,11 +134,11 @@ impl Counter {
             })?;
         let status = response.status();
         let body: Value = response.json().await.unwrap_or(Value::Null);
-        let entities = match status {
-            status if status.is_success() => count_of(&body)?,
+        let (entities, bytes) = match status {
+            status if status.is_success() => (count_of(&body)?, bytes_of(&body)),
             // The broker creates a tenant on its first write: no tenant is an empty space. Any
             // other 404 is an address that reaches no broker, never an empty space.
-            StatusCode::NOT_FOUND if body["type"] == NO_TENANT => 0,
+            StatusCode::NOT_FOUND if body["type"] == NO_TENANT => (0, None),
             status => {
                 tracing::warn!(tenant, %status, "the broker refused a space's counts");
                 return Err(format!(
@@ -134,6 +150,7 @@ impl Counter {
             entities,
             broker: broker_name.to_owned(),
             observed_at: now,
+            bytes,
         };
         self.cache
             .write()
@@ -231,6 +248,12 @@ fn count_of(body: &Value) -> Result<u64, String> {
         .ok_or_else(|| "the broker's answer holds no readable entity count".to_owned())
 }
 
+/// The `bytes` of a `GET /q/tenants/{tenant}` answer; `None` from a broker that does not measure
+/// (or answers a shape this Portal does not know), so the page shows no size rather than a zero.
+fn bytes_of(body: &Value) -> Option<SpaceBytes> {
+    serde_json::from_value(body.get("bytes")?.clone()).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,6 +271,22 @@ mod tests {
         assert!(count_of(&Value::Null).is_err());
         assert!(count_of(&json!({"counts": {"entities": -1}})).is_err());
         assert!(count_of(&json!({"counts": {"entities": "many"}})).is_err());
+    }
+
+    #[test]
+    fn the_size_is_read_from_the_tenants_bytes_and_never_made_up() {
+        let body = json!({"counts": {"entities": 2}, "bytes": {
+            "entities": 900, "attrInstances": 40, "byType": {"https://x/Room": 600, "https://x/Bridge": 300}}});
+        let bytes = bytes_of(&body).expect("bytes");
+        assert_eq!((bytes.entities, bytes.attr_instances), (900, 40));
+        assert_eq!(bytes.by_type["https://x/Room"], 600);
+        // an older broker, a negative or a partial answer: no size, never a zero
+        assert_eq!(bytes_of(&json!({"counts": {"entities": 2}})), None);
+        assert_eq!(
+            bytes_of(&json!({"bytes": {"entities": -1, "attrInstances": 0, "byType": {}}})),
+            None
+        );
+        assert_eq!(bytes_of(&json!({"bytes": {"entities": 9}})), None);
     }
 
     #[tokio::test]

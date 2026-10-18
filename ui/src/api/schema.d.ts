@@ -2898,7 +2898,7 @@ export interface paths {
         };
         /**
          * Read Space Usage
-         * @description The entity count of one space, read from the broker that holds it and kept for five minutes. `0` for a space the broker has no tenant for yet. The same count for everyone who reads the space.
+         * @description The entity count and the storage in bytes of one space, read from the broker that holds it and kept for five minutes. `0` entities and no `bytes` for a space the broker has no tenant for yet. The same count for everyone who reads the space.
          */
         get: operations["get_usage"];
         put?: never;
@@ -6278,6 +6278,23 @@ export interface components {
             severity: string;
             version: string;
         };
+        /** @description A space's storage in bytes, as the broker measures it in its store (T-2890). */
+        SpaceBytes: {
+            /**
+             * Format: int64
+             * @description The history: the space's temporal attribute instances.
+             */
+            attrInstances: number;
+            /** @description The current state by each Entity's first type (expanded IRI); sums to `entities`. */
+            byType: {
+                [key: string]: number;
+            };
+            /**
+             * Format: int64
+             * @description The current state: every Entity of the space.
+             */
+            entities: number;
+        };
         /** @description The answer of `GET …/spaces/{space}/quality/checks`. */
         SpaceChecks: {
             /**
@@ -6314,6 +6331,7 @@ export interface components {
         SpaceUsage: {
             /** @description The `ContextBroker` the space lives on, which counted it (PF-111). */
             broker: string;
+            bytes?: null | components["schemas"]["SpaceBytes"];
             /**
              * Format: int64
              * @description The entities of the space's tenant, as the broker counts them.

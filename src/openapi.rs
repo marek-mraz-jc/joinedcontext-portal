@@ -301,6 +301,7 @@ use crate::tools::model_tools::{
         crate::quality_checks::Counts,
         crate::quality_checks::Windows,
         crate::space_usage::SpaceUsage,
+        crate::space_usage::SpaceBytes,
         crate::api::space_retention::RetentionDraft,
         crate::api::space_retention::RetentionCounts,
         crate::reconciler::views::RetentionCount,

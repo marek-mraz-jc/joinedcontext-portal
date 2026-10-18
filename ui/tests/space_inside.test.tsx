@@ -333,6 +333,42 @@ describe("space inside view", () => {
     expect(screen.getByTestId("space-broker")).toHaveTextContent("It lives on the context broker canary.");
   });
 
+  // T-2890: the size the broker measured, whole and per type, in binary units; none without it.
+  it("says what the space takes in the store and each type's share, and no size when unmeasured", async () => {
+    renderInside({ status: 200, count: 42 }, { status: 200 }, {
+      usage: {
+        status: 200,
+        body: {
+          entities: 42,
+          broker: "main",
+          observedAt: "2026-09-25T11:40:00Z",
+          bytes: {
+            entities: 3 * 1024 * 1024,
+            attrInstances: 1024 * 1024,
+            byType: { "https://smartdatamodels.org/dataModel.Environment/AirQualityObserved": 3 * 1024 * 1024 },
+          },
+        },
+      },
+    });
+    const size = await screen.findByTestId("space-size");
+    expect(size).toHaveTextContent(i18n.t("spaces.inside.totalSize", { size: "4 MiB", history: "1 MiB" }));
+    expect(size).toHaveAttribute("title", "4,194,304 B");
+    const table = await screen.findByRole("table", { name: en.spaces.inside.types });
+    const row = within(table).getByText("AirQualityObserved").closest("tr") as HTMLElement;
+    expect(within(row).getByTitle("3,145,728 B")).toHaveTextContent("3 MiB");
+  });
+
+  it("shows no size, never a zero, when the broker did not measure one", async () => {
+    renderInside({ status: 200, count: 42 }, { status: 200 }, {
+      usage: { status: 200, body: { entities: 42, broker: "main", observedAt: "2026-09-25T11:40:00Z" } },
+    });
+    expect(await screen.findByTestId("space-total")).toBeInTheDocument();
+    expect(screen.queryByTestId("space-size")).toBeNull();
+    const table = await screen.findByRole("table", { name: en.spaces.inside.types });
+    const row = within(table).getByText("AirQualityObserved").closest("tr") as HTMLElement;
+    expect(row.textContent).not.toMatch(/\d B|KiB|MiB/);
+  });
+
   it("names the reason instead of a count the broker could not give", async () => {
     renderInside({ status: 200, count: 42 }, { status: 200 }, {
       usage: { status: 503, body: { title: "Service Unavailable", status: 503, detail: "the broker answered 500" } },
