@@ -442,115 +442,16 @@ pub async fn run(
     let mut feed: Option<Records> = None;
 
     if !has_datamodel {
-        let (inferred_text, infer_findings) = if let Some(text) = linkml_source.clone() {
-            (text, Vec::new())
-        } else if let Some((name, bytes)) = &sample_bytes {
-            let fmt = if name.ends_with(".csv") {
-                Some("csv")
-            } else if name.ends_with(".json") {
-                Some("json")
-            } else {
-                None
-            };
-            // A JSON sample's model is its records', like a feed's (AG-79).
-            if fmt == Some("json") {
-                feed = serde_json::from_slice::<Value>(bytes)
-                    .ok()
-                    .as_ref()
-                    .and_then(feed_shape::records);
-            }
-            let records = feed
-                .as_ref()
-                .map(|records| records.inference_sample().to_string().into_bytes());
-            let bytes = records.as_deref().unwrap_or(bytes);
-            match model_tools::infer_schema_from_bytes(state, Some(&class_name), bytes, fmt).await {
-                Ok(resp) => {
-                    let text = resp
-                        .get("linkml")
-                        .and_then(Value::as_str)
-                        .unwrap_or("")
-                        .to_string();
-                    (text, Vec::new())
-                }
-                Err(err) => {
-                    let err_msg = err.to_string();
-                    (
-                        String::new(),
-                        vec![Finding {
-                            level: Level::Error,
-                            path: "linkml".into(),
-                            message: err_msg,
-                        }],
-                    )
-                }
-            }
-        } else if let Some(url_str) = &input.url {
-            // The person's URL is probed the way the data source Check probes it: one fetch on
-            // the project's runner (MF-39), never from the Portal's own network.
-            let spec = json!({ "type": "http", "http": { "url": url_str } });
-            match crate::api::pipeline_test::probe_source(state, project, &spec).await {
-                Some(probe) if probe.skipped.is_none() && probe.sample.is_some() => {
-                    // The model is the records', not the envelope's around them (AG-79).
-                    let whole = probe.sample.unwrap_or(Value::Null);
-                    feed = feed_shape::records(&whole);
-                    let sample = feed
-                        .as_ref()
-                        .map_or(whole, Records::inference_sample)
-                        .to_string();
-                    match model_tools::infer_schema_from_bytes(
-                        state,
-                        Some(&class_name),
-                        sample.as_bytes(),
-                        Some("json"),
-                    )
-                    .await
-                    {
-                        Ok(res) => (
-                            res.get("linkml")
-                                .and_then(Value::as_str)
-                                .unwrap_or("")
-                                .to_string(),
-                            Vec::new(),
-                        ),
-                        Err(e) => (
-                            String::new(),
-                            vec![Finding {
-                                level: Level::Error,
-                                path: "linkml".into(),
-                                message: e.to_string(),
-                            }],
-                        ),
-                    }
-                }
-                Some(probe) => (
-                    String::new(),
-                    vec![Finding {
-                        level: Level::Error,
-                        path: "url".into(),
-                        message: probe
-                            .skipped
-                            .unwrap_or_else(|| "the feed answered no sample".to_string()),
-                    }],
-                ),
-                None => (
-                    String::new(),
-                    vec![Finding {
-                        level: Level::Error,
-                        path: "url".into(),
-                        message: "the URL is not an http(s) URL".to_string(),
-                    }],
-                ),
-            }
-        } else {
-            (
-                String::new(),
-                vec![Finding {
-                    level: Level::Error,
-                    path: "linkml".into(),
-                    message: "no sample file or url to infer schema from".into(),
-                }],
-            )
-        };
+        let (inferred_text, infer_findings, records) = infer_linkml(
+            state,
+            project,
+            &class_name,
+            linkml_source.as_deref(),
+            sample_bytes.as_ref(),
+            input.url.as_deref(),
+        )
+        .await;
+        feed = records;
 
         let inferred_text = match &description {
             Some(description) if !inferred_text.is_empty() => {
@@ -1056,6 +957,131 @@ pub async fn run(
     };
 
     Ok(serde_json::to_value(out)?)
+}
+
+/// The LinkML of the space's model: the file the person gave, else inferred from the sample
+/// they uploaded, else from one probe of their URL on the project's runner (MF-39). The records
+/// the sample or the feed holds come back too, so a map can be drafted over them (AG-79).
+/// Nothing to infer from is a finding, never an empty model passed off as one.
+async fn infer_linkml(
+    state: &AppState,
+    project: &str,
+    class_name: &str,
+    linkml_source: Option<&str>,
+    sample_bytes: Option<&(String, Vec<u8>)>,
+    url: Option<&str>,
+) -> (String, Vec<Finding>, Option<Records>) {
+    let mut feed: Option<Records> = None;
+    let (text, findings) = if let Some(text) = linkml_source.map(str::to_owned) {
+        (text, Vec::new())
+    } else if let Some((name, bytes)) = sample_bytes {
+        let fmt = if name.ends_with(".csv") {
+            Some("csv")
+        } else if name.ends_with(".json") {
+            Some("json")
+        } else {
+            None
+        };
+        // A JSON sample's model is its records', like a feed's (AG-79).
+        if fmt == Some("json") {
+            feed = serde_json::from_slice::<Value>(bytes)
+                .ok()
+                .as_ref()
+                .and_then(feed_shape::records);
+        }
+        let records = feed
+            .as_ref()
+            .map(|records| records.inference_sample().to_string().into_bytes());
+        let bytes = records.as_deref().unwrap_or(bytes);
+        match model_tools::infer_schema_from_bytes(state, Some(class_name), bytes, fmt).await {
+            Ok(resp) => {
+                let text = resp
+                    .get("linkml")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string();
+                (text, Vec::new())
+            }
+            Err(err) => {
+                let err_msg = err.to_string();
+                (
+                    String::new(),
+                    vec![Finding {
+                        level: Level::Error,
+                        path: "linkml".into(),
+                        message: err_msg,
+                    }],
+                )
+            }
+        }
+    } else if let Some(url_str) = url {
+        // The person's URL is probed the way the data source Check probes it: one fetch on
+        // the project's runner (MF-39), never from the Portal's own network.
+        let spec = json!({ "type": "http", "http": { "url": url_str } });
+        match crate::api::pipeline_test::probe_source(state, project, &spec).await {
+            Some(probe) if probe.skipped.is_none() && probe.sample.is_some() => {
+                // The model is the records', not the envelope's around them (AG-79).
+                let whole = probe.sample.unwrap_or(Value::Null);
+                feed = feed_shape::records(&whole);
+                let sample = feed
+                    .as_ref()
+                    .map_or(whole, Records::inference_sample)
+                    .to_string();
+                match model_tools::infer_schema_from_bytes(
+                    state,
+                    Some(class_name),
+                    sample.as_bytes(),
+                    Some("json"),
+                )
+                .await
+                {
+                    Ok(res) => (
+                        res.get("linkml")
+                            .and_then(Value::as_str)
+                            .unwrap_or("")
+                            .to_string(),
+                        Vec::new(),
+                    ),
+                    Err(e) => (
+                        String::new(),
+                        vec![Finding {
+                            level: Level::Error,
+                            path: "linkml".into(),
+                            message: e.to_string(),
+                        }],
+                    ),
+                }
+            }
+            Some(probe) => (
+                String::new(),
+                vec![Finding {
+                    level: Level::Error,
+                    path: "url".into(),
+                    message: probe
+                        .skipped
+                        .unwrap_or_else(|| "the feed answered no sample".to_string()),
+                }],
+            ),
+            None => (
+                String::new(),
+                vec![Finding {
+                    level: Level::Error,
+                    path: "url".into(),
+                    message: "the URL is not an http(s) URL".to_string(),
+                }],
+            ),
+        }
+    } else {
+        (
+            String::new(),
+            vec![Finding {
+                level: Level::Error,
+                path: "linkml".into(),
+                message: "no sample file or url to infer schema from".into(),
+            }],
+        )
+    };
+    (text, findings, feed)
 }
 
 /// The check of a drafted DataSource: a probe of the feed when it came as a URL, a dry run
@@ -1734,6 +1760,20 @@ mod tests {
             ("kafka", &json!(["a:9092", "b:9092"]))
         );
         assert!(super::source_in_env("MQTT_HOST=only-a-host", "s").is_none());
+    }
+
+    #[tokio::test]
+    async fn the_model_is_the_given_linkml_else_a_finding_when_there_is_nothing_to_infer_from() {
+        let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
+        let (text, findings, feed) =
+            super::infer_linkml(&state, "p", "Bike", Some("classes: {}"), None, None).await;
+        assert_eq!(
+            (text.as_str(), findings.len(), feed.is_none()),
+            ("classes: {}", 0, true)
+        );
+        let (text, findings, _) = super::infer_linkml(&state, "p", "Bike", None, None, None).await;
+        assert!(text.is_empty());
+        assert_eq!(findings[0].path, "linkml");
     }
 
     #[test]

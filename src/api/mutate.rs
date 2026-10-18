@@ -771,46 +771,8 @@ async fn propose_engine(
         )));
     }
 
-    // 2. Deserialize envelope and validate apiVersion, kind and path name
-    let mut envelope: ResourceEnvelope = serde_json::from_value(body_val.clone())
-        .map_err(|e| ApiError::BadRequest(format!("invalid resource envelope: {e}")))?;
-
-    if !jc_core::serves(&envelope.kind, &envelope.api_version) {
-        return Err(ApiError::BadRequest(format!(
-            "apiVersion '{}' is not supported (expected '{}')",
-            envelope.api_version,
-            resource::API_VERSION
-        )));
-    }
-
-    if envelope.kind != kind_info.kind {
-        return Err(ApiError::BadRequest(format!(
-            "kind '{}' does not match plural '{}' (expected '{}')",
-            envelope.kind, plural, kind_info.kind
-        )));
-    }
-
-    if let Some(expected_name) = path_name {
-        if envelope.metadata.name != expected_name {
-            return Err(ApiError::BadRequest(format!(
-                "metadata.name '{}' does not match path '{}'",
-                envelope.metadata.name, expected_name
-            )));
-        }
-    }
-
-    // 3. Namespace validation and default filling
-    match envelope.metadata.namespace.as_deref() {
-        None | Some("") => {
-            envelope.metadata.namespace = Some(project.to_string());
-        }
-        Some(ns) if ns == project => {}
-        Some(foreign) => {
-            return Err(ApiError::BadRequest(format!(
-                "metadata.namespace '{foreign}' does not match project '{project}'"
-            )));
-        }
-    }
+    // 2-3. The envelope, its apiVersion, kind, path name and namespace.
+    let mut envelope = envelope_for(&body_val, kind_info.kind, plural, project, path_name)?;
 
     // 3a. One string written over a stored legacy map replaces the entry it resolves to and keeps
     //     every other language, whichever door sent it (UI-50, T-2764).
@@ -842,24 +804,7 @@ async fn propose_engine(
         false
     };
 
-    if let Some(secret_key) = find_literal_secret(&body_val) {
-        return Err(ApiError::BadRequest(format!(
-            "literal secret in field '{secret_key}' is forbidden; use secretRef instead (MF-24)"
-        )));
-    }
-
-    // A digest is not something a person types: the build lane writes it back when it publishes
-    // the image it built here, and an App deploys what it names. Typed in, or carried in from
-    // another instance, it would run an image this platform never built (AP-11, AP-13a).
-    if let Some(key) = crate::apps::converge::BUILT_ANNOTATIONS
-        .into_iter()
-        .find(|key| envelope.metadata.annotations.contains_key(*key))
-    {
-        return Err(ApiError::BadRequest(format!(
-            "annotation '{key}' is written by the build lane when it publishes an image and \
-             cannot be set in a proposal (AP-11, AP-13a)"
-        )));
-    }
+    refuse_platform_fields(&body_val, &envelope)?;
 
     // A published static App names its repository, unless the Portal image ships its bundle
     // (AP-87). jc-core believes the annotation; this door checks the bundle is really here, so
@@ -1279,6 +1224,82 @@ async fn propose_engine(
     };
 
     Ok(ProposeOutcome::Change(change))
+}
+
+/// The envelope of a proposal (steps 2 and 3): an apiVersion jc-core serves, the kind its
+/// plural names, the name its path names, and this project as its namespace.
+fn envelope_for(
+    body_val: &Value,
+    kind: &str,
+    plural: &str,
+    project: &str,
+    path_name: Option<&str>,
+) -> Result<ResourceEnvelope, ApiError> {
+    // 2. Deserialize envelope and validate apiVersion, kind and path name
+    let mut envelope: ResourceEnvelope = serde_json::from_value(body_val.clone())
+        .map_err(|e| ApiError::BadRequest(format!("invalid resource envelope: {e}")))?;
+
+    if !jc_core::serves(&envelope.kind, &envelope.api_version) {
+        return Err(ApiError::BadRequest(format!(
+            "apiVersion '{}' is not supported (expected '{}')",
+            envelope.api_version,
+            resource::API_VERSION
+        )));
+    }
+
+    if envelope.kind != kind {
+        return Err(ApiError::BadRequest(format!(
+            "kind '{}' does not match plural '{}' (expected '{}')",
+            envelope.kind, plural, kind
+        )));
+    }
+
+    if let Some(expected_name) = path_name {
+        if envelope.metadata.name != expected_name {
+            return Err(ApiError::BadRequest(format!(
+                "metadata.name '{}' does not match path '{}'",
+                envelope.metadata.name, expected_name
+            )));
+        }
+    }
+
+    // 3. Namespace validation and default filling
+    match envelope.metadata.namespace.as_deref() {
+        None | Some("") => {
+            envelope.metadata.namespace = Some(project.to_string());
+        }
+        Some(ns) if ns == project => {}
+        Some(foreign) => {
+            return Err(ApiError::BadRequest(format!(
+                "metadata.namespace '{foreign}' does not match project '{project}'"
+            )));
+        }
+    }
+    Ok(envelope)
+}
+
+/// What a proposal never carries: a literal secret (MF-24) or an annotation only the build lane
+/// writes (AP-11, AP-13a).
+fn refuse_platform_fields(body_val: &Value, envelope: &ResourceEnvelope) -> Result<(), ApiError> {
+    if let Some(secret_key) = find_literal_secret(body_val) {
+        return Err(ApiError::BadRequest(format!(
+            "literal secret in field '{secret_key}' is forbidden; use secretRef instead (MF-24)"
+        )));
+    }
+
+    // A digest is not something a person types: the build lane writes it back when it publishes
+    // the image it built here, and an App deploys what it names. Typed in, or carried in from
+    // another instance, it would run an image this platform never built (AP-11, AP-13a).
+    if let Some(key) = crate::apps::converge::BUILT_ANNOTATIONS
+        .into_iter()
+        .find(|key| envelope.metadata.annotations.contains_key(*key))
+    {
+        return Err(ApiError::BadRequest(format!(
+            "annotation '{key}' is written by the build lane when it publishes an image and \
+             cannot be set in a proposal (AP-11, AP-13a)"
+        )));
+    }
+    Ok(())
 }
 
 /// The checks on the manifest itself and on what it names in this project (4a' to
@@ -2577,6 +2598,59 @@ mod tests {
             "its own account"
         );
         assert_eq!(service_account_id_taken(&mirror, "a", "d"), None);
+    }
+
+    #[test]
+    fn the_envelope_takes_this_project_and_refuses_another_kind_name_or_namespace() {
+        let body = |kind: &str, name: &str, namespace: Option<&str>| {
+            json!({ "apiVersion": resource::API_VERSION, "kind": kind,
+                    "metadata": { "name": name, "namespace": namespace }, "spec": {} })
+        };
+        let fine = envelope_for(
+            &body("Endpoint", "a", None),
+            "Endpoint",
+            "endpoints",
+            "p",
+            Some("a"),
+        )
+        .expect("an envelope");
+        assert_eq!(fine.metadata.namespace.as_deref(), Some("p"));
+        for (kind, name, namespace) in [
+            ("Policy", "a", None),
+            ("Endpoint", "b", None),
+            ("Endpoint", "a", Some("q")),
+        ] {
+            assert!(envelope_for(
+                &body(kind, name, namespace),
+                "Endpoint",
+                "endpoints",
+                "p",
+                Some("a")
+            )
+            .is_err());
+        }
+        let mut old = body("Endpoint", "a", None);
+        old["apiVersion"] = json!("joinedcontext.com/v0");
+        assert!(envelope_for(&old, "Endpoint", "endpoints", "p", None).is_err());
+    }
+
+    #[test]
+    fn a_literal_secret_or_a_build_annotation_is_never_proposed() {
+        let body = json!({ "apiVersion": resource::API_VERSION, "kind": "DataSource",
+                           "metadata": { "name": "a" }, "spec": { "http": { "password": "hunter2" } } });
+        let envelope: ResourceEnvelope = serde_json::from_value(body.clone()).expect("envelope");
+        let refused = refuse_platform_fields(&body, &envelope).unwrap_err();
+        assert!(
+            !format!("{refused:?}").contains("hunter2"),
+            "the value is not echoed"
+        );
+        let mut built = envelope.clone();
+        built.metadata.annotations.insert(
+            crate::apps::converge::BUILT_ANNOTATIONS[0].into(),
+            "sha256:x".into(),
+        );
+        assert!(refuse_platform_fields(&json!({}), &built).is_err());
+        assert!(refuse_platform_fields(&json!({}), &envelope).is_ok());
     }
 
     #[test]
