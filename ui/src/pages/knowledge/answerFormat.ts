@@ -13,7 +13,13 @@ export type Inline =
   | { tag: "cite"; numbers: number[] }
   | { tag: "br" };
 
-export type Block = { tag: "p"; children: Inline[] } | { tag: "ul" | "ol"; children: { tag: "li"; children: Inline[] }[] };
+export type Cell = { tag: "th" | "td"; children: Inline[] };
+
+export type Block =
+  | { tag: "p"; children: Inline[] }
+  | { tag: "ul" | "ol"; children: { tag: "li"; children: Inline[] }[] }
+  | { tag: "table"; children: { tag: "tr"; children: Cell[] }[] }
+  | { tag: "pre"; text: string };
 
 // Bold, italic, inline code, an http(s) link, and a citation marker `[1]` or `[1, 2]`.
 const INLINE =
@@ -51,16 +57,59 @@ function inline(text: string, known: (n: number) => boolean): Inline[] {
 const BULLET = /^\s*[-*+]\s+(.*)$/;
 const NUMBERED = /^\s*\d{1,3}[.)]\s+(.*)$/;
 const HEADING = /^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/;
+const FENCE = /^\s{0,3}(```|~~~)/;
+const ROW = /^\s*\|.*\|\s*$/;
+const RULE = /^\s*\|?(\s*:?-+:?\s*\|)+\s*(:?-+:?\s*)?$/;
+
+// A table row's cells: the text between its pipes, a `\|` kept as a pipe.
+function cells(line: string, known: (n: number) => boolean): Cell[] {
+  return line
+    .trim()
+    .replace(/\\\|/g, "\u0000")
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => ({ tag: "td", children: inline(cell.trim().split("\u0000").join("|"), known) }));
+}
 
 /**
  * The answer as blocks: paragraphs (lines joined by line breaks), bullet and numbered lists,
- * headings read as bold paragraphs. `known(n)` says whether citation n exists.
+ * headings read as bold paragraphs, pipe tables and fenced code (T-4649, as the widget reads
+ * them). `known(n)` says whether citation n exists.
  */
 export function markdown(text: string, known: (n: number) => boolean = () => false): Block[] {
   const blocks: Block[] = [];
   let paragraph: { tag: "p"; children: Inline[] } | null = null;
   let list: { tag: "ul" | "ol"; children: { tag: "li"; children: Inline[] }[] } | null = null;
+  let table: { tag: "table"; children: { tag: "tr"; children: Cell[] }[] } | null = null;
+  let fence: { tag: "pre"; text: string; lines: string[] } | null = null;
   for (const line of text.replace(/\r\n?/g, "\n").split("\n")) {
+    if (fence) {
+      if (FENCE.test(line)) fence = null;
+      else fence.lines.push(line);
+      continue;
+    }
+    if (FENCE.test(line)) {
+      fence = { tag: "pre", text: "", lines: [] };
+      blocks.push(fence);
+      paragraph = list = table = null;
+      continue;
+    }
+    if (ROW.test(line) || (table && RULE.test(line))) {
+      paragraph = list = null;
+      if (table && table.children.length === 1 && RULE.test(line)) {
+        // The rule under the first row makes it the header.
+        for (const cell of table.children[0].children) cell.tag = "th";
+        continue;
+      }
+      if (!table) {
+        table = { tag: "table", children: [] };
+        blocks.push(table);
+      }
+      table.children.push({ tag: "tr", children: cells(line, known) });
+      continue;
+    }
+    table = null;
     const item = BULLET.exec(line) ?? NUMBERED.exec(line);
     const tag = BULLET.test(line) ? "ul" : "ol";
     const heading = HEADING.exec(line);
@@ -91,6 +140,12 @@ export function markdown(text: string, known: (n: number) => boolean = () => fal
         paragraph.children.push({ tag: "br" });
       }
       paragraph.children.push(...inline(line.trim(), known));
+    }
+  }
+  for (const block of blocks) {
+    if ("lines" in block) {
+      block.text = (block.lines as string[]).join("\n");
+      delete (block as { lines?: string[] }).lines;
     }
   }
   return blocks;
