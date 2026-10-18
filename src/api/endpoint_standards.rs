@@ -33,6 +33,8 @@ const KEPT_MAX: usize = 512;
 const TYPES_TRIED: usize = 5;
 /// The most fields listed per standard.
 const FIELDS_MAX: usize = 50;
+/// The quotable texts an equality example tries, in field order, before a number.
+const EQUALITY_TRIES: usize = 3;
 /// The query standards a page explains, in the order it shows them.
 const STANDARDS: [&str; 4] = ["ngsi-ld", "ogc-features", "odata", "sta"];
 
@@ -212,19 +214,18 @@ async fn guide(
     let Some(base) = base else {
         return out;
     };
-    // Equality on a text, else on a number when the entity holds no text a standard can quote
-    // (air quality: numbers, and station names the old ASCII-only rule refused, T-4571).
-    let candidates = [
-        (
-            "equality",
-            text_field(entity, &out.fields).or_else(|| number_field(entity, &out.fields)),
-        ),
-        ("range", number_field(entity, &out.fields)),
-    ];
-    let urls: Vec<(&str, String, String)> = candidates
+    // Equality on the first text the endpoint answers, else on a number when none does (air
+    // quality: numbers, and station names the old ASCII-only rule refused, T-4571). Texts are
+    // tried in turn because a source may match a name and never an address.
+    let mut equality = text_fields(entity, &out.fields);
+    equality.truncate(EQUALITY_TRIES);
+    equality.extend(number_field(entity, &out.fields));
+    let candidates = equality
         .into_iter()
-        .filter_map(|(kind, found)| {
-            let (field, value) = found?;
+        .map(|found| ("equality", found))
+        .chain(number_field(entity, &out.fields).map(|found| ("range", found)));
+    let urls: Vec<(&str, String, String)> = candidates
+        .filter_map(|(kind, (field, value))| {
             let query = query(representation, kind, &field, &value)?;
             Some((kind, field, format!("{base}{query}")))
         })
@@ -232,7 +233,8 @@ async fn guide(
     let answers = join_all(urls.iter().map(|(_, _, path)| at.read(path))).await;
     for ((kind, field, path), answer) in urls.into_iter().zip(answers) {
         let answered = answer.as_ref().map_or(0, |a| count(representation, a));
-        if answered > 0 {
+        let shown = out.examples.iter().any(|e| e.kind == kind);
+        if answered > 0 && !shown {
             out.examples.push(Example {
                 kind: kind.to_owned(),
                 field,
@@ -391,21 +393,24 @@ fn attributes(entity: &Value) -> Vec<String> {
         .collect()
 }
 
-/// A field `fields` lists whose value is text every standard can quote: up to 64 characters,
+/// The fields `fields` lists whose value is text every standard can quote, in order: up to 64 characters,
 /// spaces and diacritics included, never a quote or a control character (each syntax's encoding
 /// percent-encodes the rest). A text that reads as a number is left to [`number_field`], since
 /// it would be written unquoted.
-fn text_field(entity: &Value, fields: &[String]) -> Option<(String, String)> {
-    fields.iter().find_map(|field| {
-        let value = entity[field.as_str()].as_str()?;
-        let quotable = !value.trim().is_empty()
-            && value.chars().count() <= 64
-            && !value
-                .chars()
-                .any(|c| c == '"' || c == '\'' || c.is_control())
-            && value.parse::<f64>().is_err();
-        quotable.then(|| (field.clone(), value.to_owned()))
-    })
+fn text_fields(entity: &Value, fields: &[String]) -> Vec<(String, String)> {
+    fields
+        .iter()
+        .filter_map(|field| {
+            let value = entity[field.as_str()].as_str()?;
+            let quotable = !value.trim().is_empty()
+                && value.chars().count() <= 64
+                && !value
+                    .chars()
+                    .any(|c| c == '"' || c == '\'' || c.is_control())
+                && value.parse::<f64>().is_err();
+            quotable.then(|| (field.clone(), value.to_owned()))
+        })
+        .collect()
 }
 
 /// A field `fields` lists whose value is a number.
@@ -501,7 +506,7 @@ mod tests {
                             "name": "Banská Bystrica, Štefánikovo nábrežie", "no2": 21.5});
         let fields = attributes(&entity);
         assert_eq!(
-            text_field(&entity, &fields),
+            text_fields(&entity, &fields).first().cloned(),
             Some((
                 "name".to_owned(),
                 "Banská Bystrica, Štefánikovo nábrežie".to_owned()
@@ -513,7 +518,7 @@ mod tests {
         );
         let numbers = json!({"no2": 21.5, "pm10": 9});
         let fields = attributes(&numbers);
-        assert_eq!(text_field(&numbers, &fields), None);
+        assert_eq!(text_fields(&numbers, &fields).first().cloned(), None);
         assert!(number_field(&numbers, &fields).is_some());
     }
 
@@ -532,7 +537,7 @@ mod tests {
         );
         // sorted names: `address` is the first quotable text
         assert_eq!(
-            text_field(&entity, &fields),
+            text_fields(&entity, &fields).first().cloned(),
             Some(("address".to_owned(), "Hlavná 1".to_owned()))
         );
         // sorted names: `count` before `no2`
@@ -543,14 +548,20 @@ mod tests {
         // T-4571: a space and diacritics are quotable; a quote, a control character and a
         // number written as text are not.
         assert_eq!(
-            text_field(&entity, &["address".to_owned()]),
+            text_fields(&entity, &["address".to_owned()])
+                .first()
+                .cloned(),
             Some(("address".to_owned(), "Hlavná 1".to_owned()))
         );
         for field in ["quoted", "line", "code"] {
-            assert_eq!(text_field(&entity, &[field.to_owned()]), None, "{field}");
+            assert_eq!(
+                text_fields(&entity, &[field.to_owned()]).first().cloned(),
+                None,
+                "{field}"
+            );
         }
         assert_eq!(number_field(&entity, &["name".to_owned()]), None);
-        assert_eq!(text_field(&json!({}), &fields), None);
+        assert_eq!(text_fields(&json!({}), &fields), []);
     }
 
     #[test]
