@@ -1509,7 +1509,10 @@
       "pickType": "Zvolte alespoň jeden typ.",
       "propose": "Navrhnout sdílení",
       "newGroup": "Sdílení opravňuje skupinu {group}, která ještě neexistuje: navrhne se prázdná spolu se sdílením. Po schválení do ní přidejte lidi z {group}, kteří mají číst."
-    }
+    },
+    "find": "Najít koncový bod podle názvu",
+    "shownOf": "Zobrazeno {shown} z {count}",
+    "showMore": "Zobrazit dalších {count}"
   },
   "datasources": {
     "title": "Zdroje dat",

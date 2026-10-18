@@ -1509,7 +1509,10 @@
       "pickType": "Choose at least one type.",
       "propose": "Propose the share",
       "newGroup": "The share grants the group {group}, which does not exist yet: it is proposed empty with the share. Add the people of {group} who should read to it once the change is approved."
-    }
+    },
+    "find": "Find an endpoint by name or title",
+    "shownOf": "Showing {shown} of {count}",
+    "showMore": "Show {count} more"
   },
   "datasources": {
     "title": "Data sources",
