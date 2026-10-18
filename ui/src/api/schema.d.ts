@@ -3333,6 +3333,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/visualization-templates/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fill a Visualization Template
+         * @description The Vega-Lite spec of the template `bar`, `line`, `heatmap`, `small-multiples` or `linked-brush` with each role's column filled in; a role left out drops the encodings that use it. 404 when the template does not exist or a role it needs is missing (T-4642).
+         */
+        get: operations["fill_template"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/webhooks/gitea": {
         parameters: {
             query?: never;
@@ -18023,6 +18043,56 @@ export interface operations {
             };
             /** @description No model tools service configured, or it did not answer */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    fill_template: {
+        parameters: {
+            query?: {
+                /** @description The column on the first axis */
+                x?: string;
+                /** @description The measured column */
+                y?: string;
+                /** @description The column that colours the marks */
+                color?: string;
+                /** @description The column that splits the chart into panels */
+                facet?: string;
+            };
+            header?: never;
+            path: {
+                /** @description The template's name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The filled spec */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such template, or a role it needs is missing */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

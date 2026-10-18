@@ -87,6 +87,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/preferences", "this person's own Portal preferences, not a project's data"),
 ("GET", "/app-templates", "the Portal's own App templates, the same for every signed-in person, no project's data"),
 ("GET", "/app-templates/{name}/screenshot/{width}", "a picture of a Portal App template, the same for every signed-in person, no project's data"),
+("GET", "/visualization-templates/{name}", "a Portal chart template filled with the columns given, the same for every signed-in person, no project's data"),
 ("PUT", "/preferences", "this person's own Portal preferences, not a project's data"),
 ("POST", "/preferences/recent", "this person's own recent pages, not a project's data"),
 ("GET", "/endpoints", "jc_endpoint_list_all"),

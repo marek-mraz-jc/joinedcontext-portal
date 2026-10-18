@@ -1374,6 +1374,40 @@
           "failed": "Der Endpunkt hat nicht geantwortet. Er antwortet, sobald die Änderung, die ihn anlegt, genehmigt und angewendet ist."
         }
       },
+      "visualizations": {
+        "title": "Diagramme am Datensatz",
+        "lead": "Die Diagramme, die der Open-Data-Katalog am Datensatz dieses Endpoints zeigt, aus den eigenen Daten des Endpoints.",
+        "none": "Noch keine Diagramme.",
+        "add": "Diagramm hinzufügen",
+        "name": "Name",
+        "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche; eindeutig an diesem Endpoint.",
+        "chartTitle": "Titel",
+        "description": "Beschreibung",
+        "template": "Diagramm",
+        "noColumn": "Keine",
+        "fill": "Aus dem Diagramm füllen",
+        "pickRoles": "Wählen Sie für jede Achse, die das Diagramm braucht, eine Spalte.",
+        "spec": "Vega-Lite-Spezifikation",
+        "specHint": "Sie können sie als JSON bearbeiten; die Prüfung vor dem Vorschlag lehnt alles ab, was über den Endpoint hinausgreift.",
+        "badJson": "Die Spezifikation ist kein gültiges JSON.",
+        "noSource": "Dieser Endpoint liefert keine der Quellen, die das Diagramm liest.",
+        "incomplete": "Geben Sie dem Diagramm einen Namen, einen Titel, eine Beschreibung und eine Spezifikation.",
+        "propose": "Diagramm vorschlagen",
+        "remove": "Entfernen",
+        "templates": {
+          "bar": "Balkendiagramm",
+          "line": "Verlauf über die Zeit",
+          "heatmap": "Heatmap",
+          "small-multiples": "Kleine Vielfache",
+          "linked-brush": "Übersicht und Detail"
+        },
+        "roles": {
+          "x": "Horizontale Achse",
+          "y": "Messgröße",
+          "color": "Farbe",
+          "facet": "Feld je"
+        }
+      },
       "firstCall": "Erster Aufruf",
       "firstCallOpen": "Im Browser öffnen",
       "firstCallCopy": "Befehl kopieren",

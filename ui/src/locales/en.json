@@ -1374,6 +1374,40 @@
           "failed": "The endpoint did not answer. It answers once the change that created it is approved and applied."
         }
       },
+      "visualizations": {
+        "title": "Charts on the dataset",
+        "lead": "The charts the open-data catalogue shows on this endpoint's dataset, drawn from the endpoint's own data.",
+        "none": "No charts yet.",
+        "add": "Add a chart",
+        "name": "Name",
+        "nameHint": "Lower-case letters, digits and hyphens; unique on this endpoint.",
+        "chartTitle": "Title",
+        "description": "Description",
+        "template": "Chart",
+        "noColumn": "None",
+        "fill": "Fill from the chart",
+        "pickRoles": "Pick a column for each axis the chart needs.",
+        "spec": "Vega-Lite specification",
+        "specHint": "Edit it as JSON if you like; the check before the proposal refuses anything that reaches outside the endpoint.",
+        "badJson": "The specification is not valid JSON.",
+        "noSource": "This endpoint serves none of the sources this chart reads.",
+        "incomplete": "Give the chart a name, a title, a description and a specification.",
+        "propose": "Propose the chart",
+        "remove": "Remove",
+        "templates": {
+          "bar": "Bar chart",
+          "line": "Line over time",
+          "heatmap": "Heatmap",
+          "small-multiples": "Small multiples",
+          "linked-brush": "Overview and detail"
+        },
+        "roles": {
+          "x": "Horizontal axis",
+          "y": "Measure",
+          "color": "Colour",
+          "facet": "Panel per"
+        }
+      },
       "firstCall": "First call",
       "firstCallOpen": "Open in the browser",
       "firstCallCopy": "Copy the command",
