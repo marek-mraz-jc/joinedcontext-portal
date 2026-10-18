@@ -15451,6 +15451,95 @@
         }
       }
     },
+    "/api/v1/visualization-templates/{name}": {
+      "get": {
+        "tags": [
+          "endpoints"
+        ],
+        "summary": "Fill a Visualization Template",
+        "description": "The Vega-Lite spec of the template `bar`, `line`, `heatmap`, `small-multiples` or `linked-brush` with each role's column filled in; a role left out drops the encodings that use it. 404 when the template does not exist or a role it needs is missing (T-4642).",
+        "operationId": "fill_template",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "The template's name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x",
+            "in": "query",
+            "description": "The column on the first axis",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "y",
+            "in": "query",
+            "description": "The measured column",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "color",
+            "in": "query",
+            "description": "The column that colours the marks",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "facet",
+            "in": "query",
+            "description": "The column that splits the chart into panels",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The filled spec",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such template, or a role it needs is missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/webhooks/gitea": {
       "post": {
         "tags": [

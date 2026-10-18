@@ -1374,6 +1374,40 @@
           "failed": "Endpoint neodpovedal. Odpovie, keď bude zmena, ktorá ho vytvorila, schválená a nasadená."
         }
       },
+      "visualizations": {
+        "title": "Grafy pri datasete",
+        "lead": "Grafy, ktoré katalóg otvorených dát ukazuje pri datasete tohto endpointu, z vlastných dát endpointu.",
+        "none": "Zatiaľ žiadne grafy.",
+        "add": "Pridať graf",
+        "name": "Názov",
+        "nameHint": "Malé písmená, číslice a pomlčky; jedinečný v tomto endpointe.",
+        "chartTitle": "Nadpis",
+        "description": "Popis",
+        "template": "Graf",
+        "noColumn": "Žiadny",
+        "fill": "Vyplniť podľa grafu",
+        "pickRoles": "Vyberte stĺpec pre každú os, ktorú graf potrebuje.",
+        "spec": "Špecifikácia Vega-Lite",
+        "specHint": "Môžete ju upraviť ako JSON; kontrola pred návrhom odmietne všetko, čo siaha mimo endpoint.",
+        "badJson": "Špecifikácia nie je platný JSON.",
+        "noSource": "Tento endpoint neposkytuje žiadny zo zdrojov, ktoré graf číta.",
+        "incomplete": "Zadajte grafu názov, nadpis, popis a špecifikáciu.",
+        "propose": "Navrhnúť graf",
+        "remove": "Odstrániť",
+        "templates": {
+          "bar": "Stĺpcový graf",
+          "line": "Priebeh v čase",
+          "heatmap": "Teplotná mapa",
+          "small-multiples": "Malé násobky",
+          "linked-brush": "Prehľad a detail"
+        },
+        "roles": {
+          "x": "Vodorovná os",
+          "y": "Veličina",
+          "color": "Farba",
+          "facet": "Panel podľa"
+        }
+      },
       "firstCall": "Prvé volanie",
       "firstCallOpen": "Otvoriť v prehliadači",
       "firstCallCopy": "Kopírovať príkaz",
