@@ -465,7 +465,7 @@ async fn a_change_to_an_existing_endpoint_opens_its_form_with_the_change_and_kee
             "contextSpaceRef": "helsinki",
             "slug": "newsnewsnewsnewsnewsnewsne",
             "audience": "public",
-            "enabledRepresentations": ["ngsi-ld", "geojson"]
+            "enabledRepresentations": ["ngsi-ld", "ogc-features"]
         }),
     );
     endpoint
@@ -479,7 +479,7 @@ async fn a_change_to_an_existing_endpoint_opens_its_form_with_the_change_and_kee
         person("admin@hel.fi", &["portal-approver"]),
         Conversation {
             path: Some("share-data"),
-            answer: "I will add CSV to the news endpoint.\n\n```json\n{\"tool\":\"change_resource\",\"kind\":\"Endpoint\",\"name\":\"helsinki-news\",\"patch\":{\"spec\":{\"enabledRepresentations\":[\"ngsi-ld\",\"geojson\",\"csv\"]}}}\n```\n",
+            answer: "I will add CSV to the news endpoint.\n\n```json\n{\"tool\":\"change_resource\",\"kind\":\"Endpoint\",\"name\":\"helsinki-news\",\"patch\":{\"spec\":{\"enabledRepresentations\":[\"ngsi-ld\",\"ogc-features\",\"csv\"]}}}\n```\n",
             message: "Add csv to helsinki-news",
             tool: "change_resource",
             seeded,
@@ -507,7 +507,7 @@ async fn a_change_to_an_existing_endpoint_opens_its_form_with_the_change_and_kee
     assert_eq!(draft.manifest["spec"]["slug"], "newsnewsnewsnewsnewsnewsne");
     assert_eq!(
         draft.manifest["spec"]["enabledRepresentations"],
-        json!(["ngsi-ld", "geojson", "csv"])
+        json!(["ngsi-ld", "ogc-features", "csv"])
     );
     assert_eq!(
         draft.manifest["metadata"]["labels"]["joinedcontext.com/space"],
@@ -529,7 +529,7 @@ async fn a_change_to_an_existing_endpoint_opens_its_form_with_the_change_and_kee
     );
     assert_eq!(
         navigate.payload["prefill"]["enabledRepresentations"],
-        json!(["ngsi-ld", "geojson", "csv"])
+        json!(["ngsi-ld", "ogc-features", "csv"])
     );
 }
 
