@@ -31,6 +31,10 @@ jobs:
       # the count itself runs on a full `cg build --fg` in tasks/push, since cg is not on the runner (T-4454).
       - name: cg dead-code ratchet self-test
         run: python3 dev/cg-dead-code.py --selftest
+      # Complexity and untested public functions, Rust crate and UI apart, against
+      # ci/cg-structure-baseline.txt; the count runs in tasks/push like the dead-code one (T-4607).
+      - name: cg structure ratchet self-test
+        run: python3 dev/cg-structure.py --selftest
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with: { components: "rustfmt, clippy" }
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
