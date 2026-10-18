@@ -39,6 +39,18 @@ async fn the_websocket_guide_answers_without_a_session() {
         policy.is_some_and(|policy| policy.contains("default-src 'self'")),
         "the page keeps the Portal's Content-Security-Policy"
     );
+    // the footer names the docs commit the deployment pins and the release it belongs to
+    let docs = joinedcontext_portal::public_docs::docs_commit();
+    assert_eq!(docs.len(), 40, "public-docs/COMMIT is one commit");
+    let footer = format!(
+        "docs {}, Portal {}</p></footer>",
+        &docs[..12],
+        joinedcontext_portal::public_docs::release()
+    );
+    assert!(body.contains(&footer), "{footer} in {body:.300}");
+    assert!(
+        joinedcontext_portal::public_docs::release().starts_with(joinedcontext_portal::APP_VERSION)
+    );
     let (status, _, _) = get("/docs/User-Guide/01-getting-started.md").await;
     assert_eq!(
         status,

@@ -609,6 +609,39 @@ Those entries are listed per model major rather than per model, because a major 
 addresses — two models of one major render into one document — and the digest is of the bytes that
 fetch returns, the same digest the REST index publishes and the same one the `ETag` carries.
 
+### Mappings (`schema/v{major}/mappings/`)
+
+Path: `…/schema/v{major}/mappings/` (the index) and `…/schema/v{major}/mappings/{file}` (EP-53).
+
+The Mappings the project maintains from this model to another one ([Architecture/11 §7.5](../Architecture/11-data-models.md#75-mappings-across-context-spaces-and-instances-federation), outbound) are published beside the model they read, so a consumer can run the same transformation the platform runs. A `kind: Mapping` is published on an Endpoint's `schema/v{major}/` when all of these hold:
+
+- it is in the repository the gateway applies, which is a merged Change: a preview's Mapping is never served, because nobody approved it;
+- it belongs to the Endpoint's project and space (`spec.contextSpaceRef`), and its `spec.source` is a DataModel the Endpoint serves, at that major;
+- both compiled artifacts, `spec.artifacts.bloblang` and `spec.artifacts.gatewayIr`, are committed beside it and readable, so what is published is what was reviewed (DM-52);
+- it has no `native` block and no member named `secretRef` anywhere: a native block reads names nobody can check against the grant, so it stays unpublished.
+
+Per caller, a Mapping is listed only when every source class and slot its `class_derivations` read (`populated_from`, the `{slot}` names of an `expr`, and a slot's own name when it names no source) is in the JSON Schema this caller is served at that major. A Mapping that reads a hidden name is absent and the index says `"redacted": true`, as §7a does for the model, never which Mapping. An Endpoint with nothing to publish answers the index with an empty list; a file of a Mapping not listed answers `404`.
+
+```json
+{
+  "endpoint": "zt4qm7ge2xdv6ksb3ncf5arw2y",
+  "version": 2,
+  "mappings": [{
+    "name": "hki-air-quality-to-sdm",
+    "title": { "en": "HKI air quality → SDM AirQualityObserved" },
+    "source": { "name": "hki-air-quality", "version": "2" },
+    "target": { "name": "sdm-airqualityobserved", "version": "1" },
+    "artifacts": {
+      "hki-air-quality-to-sdm.linkml-map.yaml": { "type": "text/yaml",        "bytes": 1840, "sha256": "5be0…" },
+      "hki-air-quality-to-sdm.blobl":           { "type": "text/plain",       "bytes": 912,  "sha256": "a01c…" },
+      "hki-air-quality-to-sdm.ir.json":         { "type": "application/json", "bytes": 1377, "sha256": "e9f2…" }
+    }
+  }]
+}
+```
+
+`{name}.linkml-map.yaml` is `spec.transformation`, the LinkML-Map `TransformationSpecification`, as YAML; `{name}.blobl` and `{name}.ir.json` are the committed files byte for byte. Each file carries a strong sha256 `ETag`. The schema index links each major that publishes a Mapping with `Link: <…/schema/v{major}/mappings/>; rel="https://joinedcontext.com/rel/mappings"`, and the Endpoint's DCAT-AP record lists every file this caller may fetch as a `dcat:distribution` with its `dcat:accessURL`, `dcat:mediaType`, `spdx:checksum` and `dcterms:conformsTo` (EP-68), so the CKAN dataset carries one resource per file.
+
 ## 7b. Access surface (`access`)
 
 Path: `/api/endpoint/{endpointSlug}/access` and `POST …/access/check`. The space surface links a
