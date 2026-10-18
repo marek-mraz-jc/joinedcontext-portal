@@ -1408,6 +1408,13 @@ async fn check_content(
         }
     }
 
+    // 4b-surfaces. A domain-standard representation (`ical`) needs its type and that type's
+    //       mandatory attributes in the space's model (EP-125): the rule `jcctl validate` runs,
+    //       in the same words, so the reconciler is never handed an Endpoint it would refuse.
+    if kind == "Endpoint" && operation != Operation::Delete {
+        check_surfaces(state, project, &envelope.metadata.name, &envelope.spec).await?;
+    }
+
     // 4b'''. A Pipeline in replace drops what another Pipeline writes onto the same ids in its
     //        space (PL-79, T-4409): the rule `jcctl validate` runs, over the project's Pipelines
     //        with this proposal in place of its own.
@@ -1897,6 +1904,67 @@ fn check_replace(
         Some(conflict) => Err(ApiError::BadRequest(conflict.to_string())),
         None => Ok(()),
     }
+}
+
+/// Refuses an Endpoint that lists a representation its space's model cannot serve (EP-125), with
+/// `jcctl validate`'s sentence. A spec that does not parse is judged by the kind's own check.
+async fn check_surfaces(
+    state: &AppState,
+    project: &str,
+    name: &str,
+    spec: &Value,
+) -> Result<(), ApiError> {
+    use jc_core::kinds::{DataModelLifecycle, DataModelSpec, EndpointSpec};
+    let Ok(endpoint) = serde_json::from_value::<EndpointSpec>(spec.clone()) else {
+        return Ok(());
+    };
+    let wanted: Vec<_> = endpoint
+        .served_representations()
+        .into_iter()
+        .filter(|r| r.requirement().is_some())
+        .collect();
+    if wanted.is_empty() {
+        return Ok(());
+    }
+    let space = endpoint.context_space_ref.name();
+    let model = state
+        .mirror
+        .list(project, "DataModel", &crate::store::ListOptions::default())
+        .items
+        .into_iter()
+        .find(|model| {
+            serde_json::from_value::<DataModelSpec>(model.spec.clone()).is_ok_and(|m| {
+                m.context_space_ref.as_deref() == Some(space)
+                    && m.lifecycle != DataModelLifecycle::Mirrored
+                    && m.validate().is_ok()
+            })
+        });
+    let linkml = match model {
+        Some(model) => {
+            Some(crate::api::datamodels::read_source(state, project, &model.metadata.name).await?)
+        }
+        None => None,
+    };
+    for representation in wanted {
+        let gap = match &linkml {
+            // A space without a model has no type at all.
+            None => Ok(representation
+                .requirement()
+                .map(|need| format!("the type {}", need.entity_type))),
+            Some(text) => representation.model_gap(text),
+        };
+        let detail = match gap {
+            Ok(None) => continue,
+            Ok(Some(gap)) => format!(
+                "Endpoint {project}/{name}: `{representation}` needs {gap} in the data model of space {space} (EP-125)"
+            ),
+            Err(err) => format!(
+                "Endpoint {project}/{name}: `{representation}` cannot be checked against the data model of space {space}: {err} (EP-125)"
+            ),
+        };
+        return Err(ApiError::BadRequest(detail));
+    }
+    Ok(())
 }
 
 async fn check_projection(state: &AppState, project: &str, spec: &Value) -> Result<(), ApiError> {
