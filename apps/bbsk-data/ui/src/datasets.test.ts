@@ -37,8 +37,7 @@ describe("the grids", () => {
   });
 
   it("downloads a whole register from the endpoint's own files", () => {
-    expect(exportUrl(SLUG, "bridges", "csv")).toBe(`/api/endpoint/${SLUG}/file.csv?type=Bridge&humanHeaders=true`);
-    expect(exportUrl(SLUG, "hospitals", "geojson")).toBe(`/api/endpoint/${SLUG}/file.geojson?type=PointOfInterest&q=category%3D%3D%22hospital%22`);
+    expect(exportUrl(SLUG, "bridges")).toBe(`/api/endpoint/${SLUG}/file.csv?type=Bridge&humanHeaders=true`);
   });
 });
 

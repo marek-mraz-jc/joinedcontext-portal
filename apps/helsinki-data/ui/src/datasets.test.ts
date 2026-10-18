@@ -16,10 +16,9 @@ describe("the grids", () => {
   });
 
   it("downloads a whole dataset from the endpoint's own files", () => {
-    expect(exportUrl(SLUG, "permits", "csv")).toBe(`/api/endpoint/${SLUG}/file.csv?type=CityWork&humanHeaders=true`);
-    expect(exportUrl(SLUG, "services", "geojson")).toBe(`/api/endpoint/${SLUG}/file.geojson?type=PointOfInterest`);
+    expect(exportUrl(SLUG, "permits")).toBe(`/api/endpoint/${SLUG}/file.csv?type=CityWork&humanHeaders=true`);
     // T-4329: the zones are OnStreetParking beside the parking guide's areas; only the zones are read.
-    expect(exportUrl(SLUG, "zones", "csv")).toBe(`/api/endpoint/${SLUG}/file.csv?type=OnStreetParking&q=category%3D%3D%22feeCharged%22%2C%22forResidents%22&humanHeaders=true`);
+    expect(exportUrl(SLUG, "zones")).toBe(`/api/endpoint/${SLUG}/file.csv?type=OnStreetParking&q=category%3D%3D%22feeCharged%22%2C%22forResidents%22&humanHeaders=true`);
     expect(gridConfig(SLUG, "zones", {}).filters.preset).toEqual({ q: 'category=="feeCharged","forResidents"' });
     expect(gridConfig(SLUG, "permits", {}).filters.preset).toBeUndefined();
   });

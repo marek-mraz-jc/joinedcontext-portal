@@ -17,8 +17,8 @@ metadata:
     cs: "Data Prahy"
     en: "Data of Prague"
   description:
-    cs: "Místa, tříděný odpad, P+R, sdílená kola, ovzduší, městské části a rozpočet Prahy v tabulkách: filtr na každém sloupci, číselníky na výběr, detail řádku a stažení v CSV a GeoJSON."
-    en: "Prague's places, recycling, park and ride, shared bikes, air, districts and budget as tables: a filter on every column, code lists picked, each row whole, and a CSV or GeoJSON download."
+    cs: "Místa, tříděný odpad, P+R, sdílená kola, ovzduší, městské části a rozpočet Prahy v tabulkách: filtr na každém sloupci, číselníky na výběr, detail řádku a stažení v CSV."
+    en: "Prague's places, recycling, park and ride, shared bikes, air, districts and budget as tables: a filter on every column, code lists picked, each row whole, and a CSV download."
 spec:
   kind: ui
   source:

@@ -18,8 +18,7 @@ describe("the grids", () => {
   });
 
   it("downloads a whole dataset from the endpoint's own files", () => {
-    expect(exportUrl(SLUG, "schools", "csv")).toBe(`/api/endpoint/${SLUG}/file.csv?type=Organization&humanHeaders=true`);
-    expect(exportUrl(SLUG, "events", "geojson")).toBe(`/api/endpoint/${SLUG}/file.geojson?type=Event`);
+    expect(exportUrl(SLUG, "schools")).toBe(`/api/endpoint/${SLUG}/file.csv?type=Organization&humanHeaders=true`);
   });
 });
 
