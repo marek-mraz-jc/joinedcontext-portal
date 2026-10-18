@@ -69,6 +69,7 @@ export const ADDRESSES: Record<string, string[]> = {
   "/projects/$project/mcp": [`${P}/mcp`],
   "/connectors": ["/connectors"],
   "/projects/$project/knowledge": [`${P}/knowledge`],
+  "/projects/$project/knowledge/conversations": [`${P}/knowledge/conversations`],
   "/projects/$project/knowledge/$source": [`${P}/knowledge/web`],
   "/projects/$project/import": [`${P}/import`],
   "/projects/$project/federation": [`${P}/federation`],
