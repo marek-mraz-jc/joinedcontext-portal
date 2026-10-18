@@ -1221,6 +1221,49 @@
         }
       }
     },
+    "/api/v1/catalogue/endpoints/{slug}/standards": {
+      "get": {
+        "tags": [
+          "ckan"
+        ],
+        "summary": "Explain a public Endpoint's standards",
+        "description": "The query standards a public Endpoint serves, the fields each filters on and two examples per standard built from one real entity, read anonymously through the Endpoint (TS-19, T-4484).",
+        "operationId": "get_standards",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "description": "The Endpoint's slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The standards",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EndpointStandards"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No public Endpoint with this slug",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/endpoints": {
       "get": {
         "tags": [
@@ -19353,6 +19396,40 @@
           "readWrite"
         ]
       },
+      "EndpointStandards": {
+        "type": "object",
+        "description": "What a public Endpoint's page shows under \"Standards\".",
+        "required": [
+          "slug",
+          "types",
+          "standards"
+        ],
+        "properties": {
+          "entityType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The type of the entity the examples were built from; absent when none was read."
+          },
+          "slug": {
+            "type": "string"
+          },
+          "standards": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StandardGuide"
+            }
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The entity types of the Endpoint's data model."
+          }
+        }
+      },
       "EventReceipt": {
         "type": "object",
         "description": "The sequence number a relayed event was given.",
@@ -19363,6 +19440,34 @@
           "seq": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "Example": {
+        "type": "object",
+        "description": "A query that answered with at least one entity when the page was built.",
+        "required": [
+          "kind",
+          "field",
+          "url",
+          "answered"
+        ],
+        "properties": {
+          "answered": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The entities on the first page of its answer.",
+            "minimum": 0
+          },
+          "field": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`equality` or `range`."
+          },
+          "url": {
+            "type": "string"
           }
         }
       },
@@ -24050,6 +24155,34 @@
             "type": "string",
             "format": "date-time",
             "description": "When the broker answered."
+          }
+        }
+      },
+      "StandardGuide": {
+        "type": "object",
+        "description": "One query standard the Endpoint serves.",
+        "required": [
+          "representation",
+          "fields",
+          "examples"
+        ],
+        "properties": {
+          "examples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Example"
+            }
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The names this standard filters on."
+          },
+          "representation": {
+            "type": "string",
+            "description": "`ngsi-ld`, `ogc-features`, `odata` or `sta`."
           }
         }
       },

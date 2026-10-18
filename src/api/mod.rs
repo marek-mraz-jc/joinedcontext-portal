@@ -25,6 +25,7 @@ pub mod drafts;
 pub mod drift;
 pub mod dry_run;
 pub mod endpoint_preview;
+pub mod endpoint_standards;
 pub mod entity_comments;
 pub mod entity_trash;
 pub mod export;
@@ -87,6 +88,7 @@ pub fn router() -> Router<AppState> {
         .merge(branding::router())
         .merge(catalogue::router())
         .merge(catalogue_draft::router())
+        .merge(endpoint_standards::router())
         .merge(changes::router())
         .merge(restore::router())
         .merge(feedback::router())

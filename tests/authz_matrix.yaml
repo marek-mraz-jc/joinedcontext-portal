@@ -187,6 +187,10 @@ routes:
     rule: "public"
     expect: [404, 404, 404, 404, 404, 404, 404, 404]
     note: "public: the fixture configures no catalogue, so no dataset is found by anybody"
+  - route: GET /catalogue/endpoints/{slug}/standards
+    rule: "public"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "public: the fixture holds no public Endpoint, so nobody finds one"
   - route: POST /projects/{project}/catalogue/drafts
     rule: "project-verb:propose:Endpoint"
     expect: [403, 403, allow, allow, 403, allow, 404, 403]
