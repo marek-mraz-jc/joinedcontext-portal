@@ -5,7 +5,8 @@ import { expect, test } from "@playwright/test";
 // project, titled as the gateway's generator titles them (its topics, the 518 places read from
 // dev in tests/fixtures/places-dev.txt, 2023 to 2026, the same xorshift64* stream, seed 4497).
 // The API is answered in the browser, so the time is the page's own: from navigation to the
-// first and the last generated row on screen. The numbers are printed for the task, not gated.
+// first row on screen, gated under one second (T-4545); the last generated Endpoint is beyond the
+// first page and is found by the page's search, and opens by name from the address.
 
 const TOPICS: [string, string][] = [
   ["Air quality", "Kvalita ovzdušia"],
@@ -61,7 +62,7 @@ function catalogue(seed: bigint): unknown[] {
   });
 }
 
-test("ten thousand endpoints: the page's first and last row on screen", async ({ page }) => {
+test("ten thousand endpoints: the first row is on screen within a second and the last is found", async ({ page }) => {
   test.setTimeout(180_000);
   const items = catalogue(4497n);
   const body = JSON.stringify({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", metadata: {}, items });
@@ -88,9 +89,18 @@ test("ten thousand endpoints: the page's first and last row on screen", async ({
   await page.goto("/projects/bbsk/endpoints?lang=en");
   await expect(page.getByText(first, { exact: true }).first()).toBeVisible({ timeout: 120_000 });
   const firstRow = Date.now() - started;
-  await expect(page.getByText(last, { exact: true }).first()).toBeAttached({ timeout: 120_000 });
-  const lastRow = Date.now() - started;
   const rows = await page.locator("[data-records] tbody tr").count();
-  console.log(`portal_endpoints_ui first_row_ms=${firstRow} last_row_ms=${lastRow} rows=${rows} bytes=${body.length}`);
-  expect(rows).toBeGreaterThan(0);
+  // The search asks the list the page already holds: the last of 10 000, a page and more away.
+  const searched = Date.now();
+  await page.getByRole("searchbox", { name: "Find an endpoint by name or title" }).fill(`d${String(N - 1).padStart(5, "0")}`);
+  await expect(page.getByText(last, { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+  const foundMs = Date.now() - searched;
+  console.log(`portal_endpoints_ui first_row_ms=${firstRow} found_last_ms=${foundMs} rows=${rows} bytes=${body.length}`);
+  expect(rows).toBeLessThanOrEqual(50);
+  expect(firstRow).toBeLessThan(1_000);
+
+  // An endpoint the address names opens though it is far beyond the first page.
+  await page.goto("/projects/bbsk/endpoints?lang=en&edit=d09990");
+  await expect(page.getByRole("heading", { name: "Edit", exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("endpoint-preview")).toContainText('"name": "d09990"');
 });
