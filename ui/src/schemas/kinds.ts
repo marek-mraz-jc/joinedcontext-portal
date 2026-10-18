@@ -2974,8 +2974,8 @@ export const CATALOG_LANGUAGES = ["sk", "cs", "en", "de"] as const;
  * least one language and the body's registry IRI, which jc-core refuses a catalogue without; a
  * contact desk is its name and its address together (EP-80).
  */
-function projectCatalogProperty(t: (key: string) => string) {
-  const named = { anyOf: CATALOG_LANGUAGES.map((language) => ({ required: [language] })) };
+function projectCatalogProperty(t: (key: string) => string): JsonSchema {
+  const named: JsonSchema = { anyOf: CATALOG_LANGUAGES.map((language) => ({ required: [language] })) };
   return {
     type: "object",
     title: t("projectSettings.field.catalog"),
@@ -3009,7 +3009,7 @@ function projectCatalogProperty(t: (key: string) => string) {
       ],
     },
     then: { required: ["publisherName", "publisherUri"], properties: { publisherName: named } },
-  } as const;
+  };
 }
 
 /**
