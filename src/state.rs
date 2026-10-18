@@ -308,26 +308,7 @@ impl AppState {
             None => None,
         };
         let mut state = Self::new(config, oidc);
-        state.agents = Arc::new(AgentStore::new(db.clone()));
-        if !state.agents.is_durable() {
-            tracing::info!(
-                "no database: a builder run and its stream live only until this process ends"
-            );
-        }
-        state.drafts = DraftStore::new(db.clone()).with_hub(state.draft_events.clone());
-        if let Some(db) = &db {
-            state.draft_events.connect(db.clone());
-        }
-        state.workspaces = crate::ops::workspaces::WorkspaceStore::new(db.clone());
-        state.data_views = crate::ops::data_views::DataViewStore::new(db.clone());
-        state.pipeline_templates = crate::ops::pipeline_templates::TemplateStore::new(db.clone());
-        state.activity =
-            crate::activity::ActivityStore::new(db.clone()).with_hub(state.activity_events.clone());
-        state.rejected = Arc::new(crate::pipeline_outcomes::RejectedStore::new(db.clone()));
-        state.trash = Arc::new(crate::entity_trash::TrashStore::new(db.clone()));
-        state.comments = Arc::new(crate::entity_comments::CommentStore::new(db.clone()));
-        state.feedback = Arc::new(crate::feedback::FeedbackStore::new(db.clone()));
-        state.alerts = Arc::new(crate::alerts::AlertStore::new(db.clone()));
+        state.attach_stores(&db);
         // The live updates write their subscriptions as the reconciler writes declared ones: through
         // the space surface, as this Portal's own ServiceAccount (API/01 §32).
         if let (Some(base), Some(oidc), Some((id, secret)), Some(domain)) = (
@@ -353,38 +334,7 @@ impl AppState {
         state.db = db;
         // What the process before this one refused stays refused (T-0980).
         state.load_revocations().await;
-        // A builder run is scheduled into the cluster this Portal runs in (AG-33). The client is
-        // the same in-cluster one the app converger uses; outside a cluster it stays `None` and
-        // a run is refused rather than recorded with no pod behind it.
-        if state.config.agent_settings.is_some() {
-            match crate::apps::kube::KubeClient::in_cluster() {
-                Ok(Some(kube)) => state.kube = Some(Arc::new(kube)),
-                Ok(None) => tracing::info!(
-                    "no ServiceAccount mount: a builder run is driven by its caller, not scheduled"
-                ),
-                Err(err) => tracing::warn!(
-                    error = %err,
-                    "the ServiceAccount mount is unreadable, so no builder workspace is scheduled"
-                ),
-            }
-        }
-        // The run's test sandbox (SDK-38): its own client, in the namespace that fences it.
-        if let Some(settings) = state.config.app_tests.clone() {
-            match crate::apps::kube::KubeClient::in_cluster() {
-                Ok(Some(kube)) => {
-                    state.app_tests = Some(Arc::new(crate::agents::sandbox::Sandbox::new(
-                        kube, settings,
-                    )))
-                }
-                Ok(None) => tracing::info!(
-                    "no ServiceAccount mount: a run's tests are left to the build lane"
-                ),
-                Err(err) => tracing::warn!(
-                    error = %err,
-                    "the ServiceAccount mount is unreadable, so a run's tests are left to the build lane"
-                ),
-            }
-        }
+        state.attach_run_clients();
         // The people of the realm, managed with the admin client that manages its groups (PF-90).
         if let (Some(oidc), Some((id, secret))) = (
             state.config.oidc.as_ref(),
@@ -393,46 +343,7 @@ impl AppState {
             state.people =
                 crate::people::People::new(&oidc.backchannel(), id, secret).map(Arc::new);
         }
-        // The wasm Apps' database and bucket (AP-149, AP-151): both or neither, the pool connects
-        // on first use and jc_apps's schema is applied in the background.
-        if let (Some(apps_db), Some(store)) = (
-            state.config.apps_db.clone(),
-            state.config.artifact_store.clone(),
-        ) {
-            match (
-                apps_db.url.parse::<sqlx::postgres::PgConnectOptions>(),
-                crate::artifact_store::Client::new(store),
-            ) {
-                (Ok(connect), Ok(store)) => {
-                    let admin = sqlx::postgres::PgPoolOptions::new()
-                        .max_connections(4)
-                        .connect_lazy_with(connect.clone());
-                    let db = crate::apps::apps_db::AppsDb {
-                        admin,
-                        connect,
-                        shards: apps_db.shards,
-                    };
-                    let wasm = Arc::new(crate::apps::wasm_apps::WasmApps {
-                        db,
-                        store: Arc::new(store),
-                        bucket: apps_db.bucket,
-                    });
-                    let boot = Arc::clone(&wasm);
-                    tokio::spawn(async move {
-                        if let Err(err) = boot.db.bootstrap().await {
-                            tracing::error!(error = %err, "the apps database's jc_apps schema did not apply");
-                        }
-                    });
-                    state.wasm_apps = Some(wasm);
-                }
-                (Err(err), _) => {
-                    tracing::error!(error = %err, "JC_PORTAL_APPS_DB_URL is no PostgreSQL URL, so no wasm App is published")
-                }
-                (_, Err(err)) => {
-                    tracing::error!(error = %err, "the artifact store is unusable, so no wasm App is published")
-                }
-            }
-        }
+        state.attach_wasm_apps();
         // Warm the key cache so the first bearer call does not pay for the fetch; a realm that
         // is down at startup only costs a warning, the next unknown `kid` fetches again.
         if let Some(bearer) = state.bearer.as_ref() {
@@ -457,459 +368,13 @@ impl AppState {
                     Arc::clone(&state.quality),
                     Arc::clone(&state.alerts),
                 )));
-            // The root credential of the artifact store reaches this one object and no other,
-            // and no workload gets it: every organization is served a derived, scoped pair
-            // instead (PF-32, ADR-N-015).
-            if let Some(settings) = state.config.artifact_store.clone() {
-                match crate::artifact_store::Client::new(settings) {
-                    Ok(store) => syncer = syncer.with_artifact_store(Arc::new(store)),
-                    Err(err) => {
-                        tracing::warn!(error = %err, "the artifact store endpoint is unusable, so no organization credential is issued")
-                    }
-                }
-            }
-            // Each WASM shard's placement and store key, in the host's namespace (AP-157, AP-158).
-            // Without that namespace there is nowhere a shard would read them, so none is written.
-            if let Some(apps_db) = state.config.apps_db.clone() {
-                match (apps_db.host_namespace.clone(), crate::apps::kube::KubeClient::in_cluster()) {
-                    (Some(namespace), Ok(Some(kube))) => {
-                        syncer = syncer.with_wasm_shards(Arc::new(
-                            crate::reconciler::wasm_shards::WasmShards::new(
-                                kube,
-                                namespace,
-                                apps_db.shards,
-                                apps_db.bucket.clone(),
-                            ),
-                        ));
-                    }
-                    (None, _) => tracing::warn!(
-                        "JC_PORTAL_WASM_HOST_NAMESPACE is not set: no WASM shard gets its placement or its store key"
-                    ),
-                    (_, Err(err)) => {
-                        tracing::warn!(error = %err, "the ServiceAccount mount is unreadable, so no WASM shard gets its placement")
-                    }
-                    (_, Ok(None)) => tracing::info!("no cluster: no WASM shard placement is written"),
-                }
-            }
-            // Each MqttBroker's release, in the brokers' namespace, from the deployment's template
-            // (ADR-N-048, T-3994).
-            match (
-                state.config.mqtt_namespace.clone(),
-                crate::apps::kube::KubeClient::in_cluster(),
-            ) {
-                (Some(namespace), Ok(Some(kube))) => {
-                    syncer = syncer.with_mqtt_brokers(Arc::new(
-                        crate::reconciler::mqtt_brokers::MqttBrokers::new(kube, namespace),
-                    ));
-                }
-                (None, _) => tracing::info!(
-                    "JC_PORTAL_MQTT_NAMESPACE is not set: no MqttBroker gets a release"
-                ),
-                (_, Err(err)) => {
-                    tracing::warn!(error = %err, "the ServiceAccount mount is unreadable, so no MqttBroker gets a release")
-                }
-                (_, Ok(None)) => tracing::info!("no cluster: no MqttBroker release is applied"),
-            }
-            // The Secrets this reconciler writes into its own namespace: an organization's
-            // artifact-store reader (T-0925) and the pipeline runner's environment (T-0927).
-            // Outside a cluster there is nowhere to write one, which is not an error.
-            match (
-                crate::apps::kube::KubeClient::in_cluster(),
-                crate::apps::kube::KubeClient::own_namespace(),
-            ) {
-                (Ok(Some(kube)), Some(namespace)) => {
-                    syncer = syncer.with_credential_secrets(Arc::new(kube), namespace);
-                }
-                (Err(err), _) => {
-                    tracing::warn!(error = %err, "the ServiceAccount mount is unreadable, so no credential is handed over")
-                }
-                _ => tracing::info!("no cluster: credentials are resolved and handed to nobody"),
-            }
-            // What resolves a pipeline's `secretRef`s (T-0927, PL-15). Without it a pipeline
-            // that declares one is not deployed, with the reason on the Pipeline; the values
-            // reach the runner through the same Secret writer the credentials above use.
-            if let Some(backend) = state.config.pipeline_secrets.clone() {
-                syncer =
-                    syncer.with_pipeline_secrets(crate::pipeline_secrets::Resolver::new(backend));
-            }
-
-            // A person's removal finishes once its Change is merged (PF-93): the pending ones are
-            // in the database, so the step runs only with one and with the realm's admin client.
-            if let (Some(people), Some(pool)) = (state.people.clone(), state.db.clone()) {
-                syncer = syncer.with_people(people, pool);
-            }
-            // With a database the replicas elect one reconciler; without one there is nothing
-            // to elect with, and a Portal that runs alone reconciles alone (T-0191, CC-03).
-            if let Some(pool) = state.db.as_ref() {
-                syncer = syncer
-                    .with_leadership(Arc::new(Leadership::reconciler(pool.clone())))
-                    .with_pipeline_status(Arc::new(crate::pipeline_status::Store::new(
-                        pool.clone(),
-                    )));
-                // PF-41: the challenge lives in the database, so the check runs only with one.
-                let host = state.config.public_base_url.host_str().map(str::to_owned);
-                match (crate::domain_verification::NetLookup::new(), host) {
-                    (Ok(lookup), Some(host)) => {
-                        syncer = syncer.with_domain_verification(Arc::new(
-                            crate::domain_verification::Verifier::new(pool.clone(), lookup, host),
-                        ));
-                    }
-                    (Err(err), _) => {
-                        tracing::warn!(error = %err, "no domain is verified: the resolver did not start")
-                    }
-                    (_, None) => {
-                        tracing::warn!("no domain is verified: the public URL names no host")
-                    }
-                }
-            }
-            // Applying an app's objects needs two halves: a cluster to write into and the
-            // settings that say where. Either missing leaves the reconciler reading apps and
-            // deploying nothing, which is what a Portal on a laptop does (T-0411, AP-18). No
-            // realm is needed: the login front is the edge's one client (AP-27, ADR-N-019).
-            match (
-                state.config.app_settings.clone(),
-                crate::apps::kube::KubeClient::in_cluster(),
-            ) {
-                (Some(settings), Ok(Some(kube))) => {
-                    // The edge file has its own client: the converger owns the other one.
-                    match crate::apps::kube::KubeClient::in_cluster() {
-                        Ok(Some(edge_kube)) => {
-                            let namespace = settings.apisix_namespace.clone();
-                            match crate::apps::kube::KubeClient::in_cluster() {
-                                Ok(Some(hosts_kube)) => {
-                                    syncer = syncer.with_app_hosts(Arc::new(
-                                        crate::reconciler::app_hosts::AppHosts::new(
-                                            hosts_kube,
-                                            namespace.clone(),
-                                        ),
-                                    ));
-                                }
-                                _ => tracing::warn!(
-                                    "no third API client: no App host gets a certificate"
-                                ),
-                            }
-                            syncer = syncer.with_edge_file(
-                                Arc::new(
-                                    crate::reconciler::edge_file::EdgeFile::new(
-                                        edge_kube, namespace,
-                                    )
-                                    .with_bounds(state.config.organization_bounds.clone()),
-                                ),
-                                settings.clone(),
-                            );
-                        }
-                        _ => tracing::warn!(
-                            "no second API client: the edge serves helm's base alone"
-                        ),
-                    }
-                    syncer = syncer.with_converger(Arc::new(
-                        crate::apps::converge::Converger::new(kube, settings)
-                            .with_wasm_apps(state.wasm_apps.clone()),
-                    ));
-                }
-                (_, Err(err)) => {
-                    tracing::warn!(error = %err, "the ServiceAccount mount is unreadable, so no app is deployed")
-                }
-                _ => tracing::info!("no app settings or no cluster: apps are read, not deployed"),
-            }
-            // The realm's managed groups (PF-63). Without an admin client the manifests are
-            // still read and served; nothing in the realm is written.
-            match (
-                state.config.oidc.as_ref(),
-                state.config.keycloak_admin.clone(),
-            ) {
-                (Some(oidc), Some((id, secret))) => {
-                    match crate::reconciler::groups::GroupSync::new(&oidc.backchannel(), id, secret)
-                    {
-                        Some(groups) => {
-                            syncer = syncer.with_groups(Arc::new(
-                                groups.with_foreign(Arc::clone(&state.foreign_names)),
-                            ))
-                        }
-                        None => tracing::warn!(
-                            "the issuer is not a realm URL, so no Keycloak group is managed"
-                        ),
-                    }
-                }
-                _ => tracing::info!(
-                    "no Keycloak admin client: Group manifests are read, the realm is not written"
-                ),
-            }
-            // Every published App's own client (ADR-N-030, AP-111). It is written as the Portal
-            // client's own service account, the one identity the realm gives `manage-clients`.
-            // Who holds an App role is looked up and mapped with the group credential above,
-            // which already writes memberships; the login client only reads the holders (T-3022).
-            match (
-                state.config.oidc.as_ref(),
-                state
-                    .config
-                    .app_settings
-                    .as_ref()
-                    .map(|settings| settings.apex.clone()),
-            ) {
-                (Some(oidc), Some(host)) => {
-                    match crate::reconciler::app_clients::AppClientSync::new(
-                        &oidc.backchannel(),
-                        oidc.client_id.clone(),
-                        oidc.auth.clone(),
-                        host,
-                    ) {
-                        Some(mut clients) => {
-                            if let Some((id, secret)) = state.config.keycloak_admin.clone() {
-                                clients = clients.with_members(id, secret);
-                            }
-                            syncer = syncer.with_app_clients(Arc::new(
-                                clients.with_foreign(Arc::clone(&state.foreign_names)),
-                            ))
-                        }
-                        None => tracing::warn!(
-                            "the issuer is not a realm URL, so no App client is managed"
-                        ),
-                    }
-                }
-                _ => tracing::info!("no login client or no apps host: no App client is managed"),
-            }
-            // Every ServiceAccount bound to a workload gets its federated client (PF-47), written
-            // by the same identity as the App clients.
-            if let Some(oidc) = state.config.oidc.as_ref() {
-                match crate::reconciler::workload_clients::WorkloadClientSync::new(
-                    &oidc.backchannel(),
-                    oidc.client_id.clone(),
-                    oidc.auth.clone(),
-                ) {
-                    Some(clients) => {
-                        let clients = match state.config.pipeline_namespace.clone() {
-                            Some(namespace) => clients.with_pipelines(namespace),
-                            None => clients,
-                        };
-                        let clients = match state.config.app_identity_namespace.clone() {
-                            Some(namespace) => clients.with_app_jobs(namespace),
-                            None => clients,
-                        };
-                        syncer = syncer.with_workload_clients(Arc::new(clients))
-                    }
-                    None => tracing::warn!(
-                        "the issuer is not a realm URL, so no workload client is managed"
-                    ),
-                }
-                // The MCP hub's `endpoint:{slug}` scopes (T-2490), by the same identity.
-                if let Some(scopes) = crate::reconciler::hub_scopes::HubScopeSync::new(
-                    &oidc.backchannel(),
-                    oidc.client_id.clone(),
-                    oidc.auth.clone(),
-                ) {
-                    syncer = syncer.with_hub_scopes(Arc::new(scopes));
-                }
-                // Each MQTT broker's bearer-only client, its devices' audience (T-3994).
-                if let Some(clients) = crate::reconciler::mqtt_brokers::MqttClientSync::new(
-                    &oidc.backchannel(),
-                    oidc.client_id.clone(),
-                    oidc.auth.clone(),
-                ) {
-                    syncer = syncer.with_mqtt_clients(Arc::new(clients));
-                }
-                // Each named MCP server's sign-in client (EP-96, T-3156), by the same identity.
-                if let Some(clients) = crate::reconciler::mcp_clients::McpClientSync::new(
-                    &oidc.backchannel(),
-                    oidc.client_id.clone(),
-                    oidc.auth.clone(),
-                ) {
-                    syncer = syncer.with_mcp_clients(Arc::new(clients));
-                }
-            }
-            // Each Pipeline's own Kubernetes ServiceAccount (PL-19, T-1508), by the Portal's
-            // in-cluster identity, which the deployment lets write that one namespace.
-            if let Some(namespace) = state.config.pipeline_namespace.clone() {
-                match crate::apps::kube::KubeClient::in_cluster() {
-                    Ok(Some(kube)) => {
-                        syncer = syncer.with_pipeline_service_accounts(Arc::new(kube), namespace)
-                    }
-                    Ok(None) => tracing::warn!(
-                        "no ServiceAccount mount: the pipelines' Kubernetes accounts are not made"
-                    ),
-                    Err(err) => tracing::warn!(
-                        error = %err,
-                        "the ServiceAccount mount is unreadable, so the pipelines' Kubernetes accounts are not made"
-                    ),
-                }
-            }
-            // Each App's job ServiceAccount (AP-159, T-3539), by the same in-cluster identity,
-            // which the deployment lets write the identities namespace.
-            match state.config.app_identity_namespace.clone() {
-                Some(namespace) => match crate::apps::kube::KubeClient::in_cluster() {
-                    Ok(Some(kube)) => {
-                        syncer = syncer.with_app_job_service_accounts(Arc::new(kube), namespace)
-                    }
-                    Ok(None) => tracing::warn!(
-                        "no ServiceAccount mount: the Apps' job accounts are not made"
-                    ),
-                    Err(err) => tracing::warn!(
-                        error = %err,
-                        "the ServiceAccount mount is unreadable, so the Apps' job accounts are not made"
-                    ),
-                },
-                None => tracing::info!(
-                    "no JC_PORTAL_APP_IDENTITY_NAMESPACE: no App job gets a principal"
-                ),
-            }
-            if let Some(url) = state.config.pipeline_runner_url.clone() {
-                let (batch, short) = state.config.pipelines_concurrency;
-                let deployer = StreamDeployer::new(url)
-                    .with_pipeline_identity(state.config.pipeline_identity)
-                    .with_concurrency(batch, short);
-                // A refused record reaches the Portal on the listener the test harness reaches
-                // (PL-61); without that address the stream writes as it did, unvalidated.
-                let deployer = match state.config.pipeline_test_capture_url.clone() {
-                    Some(internal) => {
-                        deployer.with_validation(internal, Arc::clone(&state.model_schemas))
-                    }
-                    None => {
-                        tracing::warn!("no internal listener address for the runner: pipelines are not validated before they write");
-                        deployer
-                    }
-                };
-                let deployer = Arc::new(deployer);
-                // The run-and-delete pipelines run from the queue (PL-78).
-                Arc::clone(&deployer).spawn_queue();
-                syncer = syncer.with_streams(deployer);
-            } else {
-                tracing::info!("no pipeline runner: DataSource pipelines stay Pending");
-            }
-            // A declared Subscription reaches its space through the space surface, as this
-            // Portal's own service account (T-0931, CC-72). Without the address, the realm
-            // client or the organization's domain there is no write to make: the manifests are
-            // read and served, and no broker is touched.
-            match (
-                state.config.gateway_url.clone(),
-                state.config.oidc.as_ref(),
-                state.config.keycloak_admin.clone(),
-                state.config.org_domain.clone(),
-            ) {
-                (Some(base), Some(oidc), Some((id, secret)), Some(domain)) => {
-                    syncer = syncer.with_subscriptions(Arc::new(
-                        crate::reconciler::subscriptions::SubscriptionSync::new(
-                            base,
-                            &oidc.backchannel(),
-                            id,
-                            secret,
-                            domain,
-                        ),
-                    ));
-                }
-                _ => tracing::info!(
-                    "no gateway address, realm client or organization domain: Subscription \
-                     manifests are read, no broker is written"
-                ),
-            }
-            // An Endpoint that declares `spec.publish.ckan` becomes a dataset in its catalogue on
-            // every run, and one that stopped declaring it loses the dataset (EP-62, T-2405). The
-            // host is this Portal's own public host, which is where the endpoints answer; the
-            // token comes from the instance's `apiTokenRef`, through the repository's encrypted
-            // secrets when this Portal holds the age identity, and otherwise from the variable the
-            // reference itself names.
-            {
-                let age_key_file = match state.config.pipeline_secrets.as_ref() {
-                    Some(crate::pipeline_secrets::Backend::Sops { age_key_file }) => {
-                        Some(age_key_file.clone())
-                    }
-                    _ => None,
-                };
-                let host = state
-                    .config
-                    .public_base_url
-                    .host_str()
-                    .unwrap_or("localhost")
-                    .to_owned();
-                let mut catalogue =
-                    crate::reconciler::ckan::CkanSync::new(host).with_age_key_file(age_key_file);
-                let branding =
-                    crate::branding::Branding::load(state.config.branding_file.as_deref());
-                if !branding.organisation.trim().is_empty() {
-                    catalogue = catalogue.titled(branding.organisation);
-                }
-                if !branding.documentation_base_url.is_empty() {
-                    catalogue = catalogue.documented_at(branding.documentation_base_url);
-                }
-                // Each dataset carries the pass rate and the freshness of its space (DM-95).
-                catalogue = catalogue.with_quality(
-                    Arc::clone(&state.quality),
-                    Arc::clone(&state.quality_checks),
-                );
-                syncer = syncer.with_ckan(Arc::new(catalogue));
-            }
-
-            // A declared ContextSourceRegistration is written straight at the broker, in the
-            // tenant of its hub space (T-0345, SP-08): it is a control-plane act with no
-            // gateway operation behind it and no credential on the hop. Without the broker's
-            // address the manifests are read and served and no hub is federated.
-            match state.config.broker_url.clone() {
-                Some(broker) => {
-                    syncer = syncer.with_registrations(Arc::new(
-                        crate::reconciler::registrations::RegistrationSync::new(broker)
-                            .with_broker_template(state.config.broker_url_template.clone())
-                            .with_gateway(state.config.gateway_url.clone()),
-                    ));
-                }
-                None => tracing::info!(
-                    "no broker address: ContextSourceRegistration manifests are read, no hub is \
-                     federated"
-                ),
-            }
-            // Every Endpoint's and Context Space's view and every space's rule document, written
-            // into the broker with its admin token (T-3640). Without both the Endpoints stay on
-            // the gateway.
-            if let (Some(broker), Some(token_file)) = (
-                state.config.broker_url.clone(),
-                state.config.broker_admin_token_file.clone(),
-            ) {
-                let mut views = crate::reconciler::views::ViewSync::new(broker, token_file)
-                    .with_broker_template(state.config.broker_url_template.clone());
-                if let Some(url) = state.config.model_tools_url.clone() {
-                    views = views.with_model_tools(url);
-                }
-                let views = Arc::new(views);
-                state.views = Some(Arc::clone(&views));
-                syncer = syncer.with_views(views);
-            }
-            // Drift (CC-21, UI-25, UI-26): the seed entities a space declares, against what it
-            // holds. Configuration cannot drift under T-0421's option B — every component reads
-            // it from the repository — so this is the whole of what drift means here. Without
-            // the space surface or the realm client there is nothing to compare against, and
-            // the API answers "never scanned" rather than "nothing drifted".
-            match (
-                state.config.gateway_url.clone(),
-                state.config.oidc.as_ref(),
-                state.config.keycloak_admin.clone(),
-            ) {
-                (Some(base), Some(oidc), Some((id, secret))) => {
-                    let watch = Arc::new(crate::reconciler::drift::Watch::new(
-                        base,
-                        &oidc.backchannel(),
-                        id,
-                        secret,
-                    ));
-                    // One watch, two readers: the reconciler scans with it and a resolution
-                    // writes through it, so the buttons cannot reach a surface the scan did not.
-                    state.drift_watch = Some(Arc::clone(&watch));
-                    // The daily data-quality run reads through the same client (DM-74).
-                    syncer = syncer.with_quality(Arc::new(crate::quality::Scanner {
-                        watch: Arc::clone(&watch),
-                        schemas: Arc::clone(&state.model_schemas),
-                        mirror: Arc::clone(&state.mirror),
-                        org_domain: state.config.org_domain.clone().unwrap_or_default(),
-                        store: Arc::clone(&state.quality),
-                    }));
-                    // The NGSI-LD catalogue writes through the same client (T-4500).
-                    syncer = syncer.with_catalog(Arc::new(
-                        crate::reconciler::catalog::CatalogSync::new(Arc::clone(&watch)),
-                    ));
-                    syncer = syncer.with_drift(watch, Arc::clone(&state.drift));
-                }
-                _ => tracing::info!(
-                    "no gateway address or realm client: seed entities are never compared, so \
-                     the drift surface answers that no scan has run"
-                ),
-            }
+            syncer = state.wire_cluster_writers(syncer);
+            syncer = state.wire_database_steps(syncer);
+            syncer = state.wire_app_deployment(syncer);
+            syncer = state.wire_realm_clients(syncer);
+            syncer = state.wire_service_accounts(syncer);
+            syncer = state.wire_streams(syncer);
+            syncer = state.wire_space_writers(syncer);
             // The `SyncSource` loop needs the forge and a way out to the origins. Without the
             // second there is no loop at all: a driver that cannot fetch would report every
             // source as failing every minute (MF-27).
@@ -947,6 +412,586 @@ impl AppState {
         // The 24-hour and 7-day windows need a reading an hour, page or no page (DM-94).
         state.quality_checks.start_hourly();
         Ok(state)
+    }
+
+    /// The writers into the cluster: the artifact store's root client, the WASM shards, the MQTT
+    /// brokers, the credential Secrets and the pipelines' secret resolver.
+    fn wire_cluster_writers(&self, mut syncer: Syncer) -> Syncer {
+        // The root credential of the artifact store reaches this one object and no other,
+        // and no workload gets it: every organization is served a derived, scoped pair
+        // instead (PF-32, ADR-N-015).
+        if let Some(settings) = self.config.artifact_store.clone() {
+            match crate::artifact_store::Client::new(settings) {
+                Ok(store) => syncer = syncer.with_artifact_store(Arc::new(store)),
+                Err(err) => {
+                    tracing::warn!(error = %err, "the artifact store endpoint is unusable, so no organization credential is issued")
+                }
+            }
+        }
+        // Each WASM shard's placement and store key, in the host's namespace (AP-157, AP-158).
+        // Without that namespace there is nowhere a shard would read them, so none is written.
+        if let Some(apps_db) = self.config.apps_db.clone() {
+            match (apps_db.host_namespace.clone(), crate::apps::kube::KubeClient::in_cluster()) {
+                (Some(namespace), Ok(Some(kube))) => {
+                    syncer = syncer.with_wasm_shards(Arc::new(
+                        crate::reconciler::wasm_shards::WasmShards::new(
+                            kube,
+                            namespace,
+                            apps_db.shards,
+                            apps_db.bucket.clone(),
+                        ),
+                    ));
+                }
+                (None, _) => tracing::warn!(
+                    "JC_PORTAL_WASM_HOST_NAMESPACE is not set: no WASM shard gets its placement or its store key"
+                ),
+                (_, Err(err)) => {
+                    tracing::warn!(error = %err, "the ServiceAccount mount is unreadable, so no WASM shard gets its placement")
+                }
+                (_, Ok(None)) => tracing::info!("no cluster: no WASM shard placement is written"),
+            }
+        }
+        // Each MqttBroker's release, in the brokers' namespace, from the deployment's template
+        // (ADR-N-048, T-3994).
+        match (
+            self.config.mqtt_namespace.clone(),
+            crate::apps::kube::KubeClient::in_cluster(),
+        ) {
+            (Some(namespace), Ok(Some(kube))) => {
+                syncer = syncer.with_mqtt_brokers(Arc::new(
+                    crate::reconciler::mqtt_brokers::MqttBrokers::new(kube, namespace),
+                ));
+            }
+            (None, _) => {
+                tracing::info!("JC_PORTAL_MQTT_NAMESPACE is not set: no MqttBroker gets a release")
+            }
+            (_, Err(err)) => {
+                tracing::warn!(error = %err, "the ServiceAccount mount is unreadable, so no MqttBroker gets a release")
+            }
+            (_, Ok(None)) => tracing::info!("no cluster: no MqttBroker release is applied"),
+        }
+        // The Secrets this reconciler writes into its own namespace: an organization's
+        // artifact-store reader (T-0925) and the pipeline runner's environment (T-0927).
+        // Outside a cluster there is nowhere to write one, which is not an error.
+        match (
+            crate::apps::kube::KubeClient::in_cluster(),
+            crate::apps::kube::KubeClient::own_namespace(),
+        ) {
+            (Ok(Some(kube)), Some(namespace)) => {
+                syncer = syncer.with_credential_secrets(Arc::new(kube), namespace);
+            }
+            (Err(err), _) => {
+                tracing::warn!(error = %err, "the ServiceAccount mount is unreadable, so no credential is handed over")
+            }
+            _ => tracing::info!("no cluster: credentials are resolved and handed to nobody"),
+        }
+        // What resolves a pipeline's `secretRef`s (T-0927, PL-15). Without it a pipeline
+        // that declares one is not deployed, with the reason on the Pipeline; the values
+        // reach the runner through the same Secret writer the credentials above use.
+        if let Some(backend) = self.config.pipeline_secrets.clone() {
+            syncer = syncer.with_pipeline_secrets(crate::pipeline_secrets::Resolver::new(backend));
+        }
+        syncer
+    }
+
+    /// The steps that need the database: removals, leadership, pipeline status, domain checks.
+    fn wire_database_steps(&self, mut syncer: Syncer) -> Syncer {
+        // A person's removal finishes once its Change is merged (PF-93): the pending ones are
+        // in the database, so the step runs only with one and with the realm's admin client.
+        if let (Some(people), Some(pool)) = (self.people.clone(), self.db.clone()) {
+            syncer = syncer.with_people(people, pool);
+        }
+        // With a database the replicas elect one reconciler; without one there is nothing
+        // to elect with, and a Portal that runs alone reconciles alone (T-0191, CC-03).
+        if let Some(pool) = self.db.as_ref() {
+            syncer = syncer
+                .with_leadership(Arc::new(Leadership::reconciler(pool.clone())))
+                .with_pipeline_status(Arc::new(crate::pipeline_status::Store::new(pool.clone())));
+            // PF-41: the challenge lives in the database, so the check runs only with one.
+            let host = self.config.public_base_url.host_str().map(str::to_owned);
+            match (crate::domain_verification::NetLookup::new(), host) {
+                (Ok(lookup), Some(host)) => {
+                    syncer = syncer.with_domain_verification(Arc::new(
+                        crate::domain_verification::Verifier::new(pool.clone(), lookup, host),
+                    ));
+                }
+                (Err(err), _) => {
+                    tracing::warn!(error = %err, "no domain is verified: the resolver did not start")
+                }
+                (_, None) => {
+                    tracing::warn!("no domain is verified: the public URL names no host")
+                }
+            }
+        }
+        syncer
+    }
+
+    /// The app converger and the edge file, when there are app settings and a cluster.
+    fn wire_app_deployment(&self, mut syncer: Syncer) -> Syncer {
+        // Applying an app's objects needs two halves: a cluster to write into and the
+        // settings that say where. Either missing leaves the reconciler reading apps and
+        // deploying nothing, which is what a Portal on a laptop does (T-0411, AP-18). No
+        // realm is needed: the login front is the edge's one client (AP-27, ADR-N-019).
+        match (
+            self.config.app_settings.clone(),
+            crate::apps::kube::KubeClient::in_cluster(),
+        ) {
+            (Some(settings), Ok(Some(kube))) => {
+                // The edge file has its own client: the converger owns the other one.
+                match crate::apps::kube::KubeClient::in_cluster() {
+                    Ok(Some(edge_kube)) => {
+                        let namespace = settings.apisix_namespace.clone();
+                        match crate::apps::kube::KubeClient::in_cluster() {
+                            Ok(Some(hosts_kube)) => {
+                                syncer = syncer.with_app_hosts(Arc::new(
+                                    crate::reconciler::app_hosts::AppHosts::new(
+                                        hosts_kube,
+                                        namespace.clone(),
+                                    ),
+                                ));
+                            }
+                            _ => tracing::warn!(
+                                "no third API client: no App host gets a certificate"
+                            ),
+                        }
+                        syncer = syncer.with_edge_file(
+                            Arc::new(
+                                crate::reconciler::edge_file::EdgeFile::new(edge_kube, namespace)
+                                    .with_bounds(self.config.organization_bounds.clone()),
+                            ),
+                            settings.clone(),
+                        );
+                    }
+                    _ => tracing::warn!("no second API client: the edge serves helm's base alone"),
+                }
+                syncer = syncer.with_converger(Arc::new(
+                    crate::apps::converge::Converger::new(kube, settings)
+                        .with_wasm_apps(self.wasm_apps.clone()),
+                ));
+            }
+            (_, Err(err)) => {
+                tracing::warn!(error = %err, "the ServiceAccount mount is unreadable, so no app is deployed")
+            }
+            _ => tracing::info!("no app settings or no cluster: apps are read, not deployed"),
+        }
+        syncer
+    }
+
+    /// The realm writers: groups, App clients, workload clients, hub scopes, MQTT and MCP clients.
+    fn wire_realm_clients(&self, mut syncer: Syncer) -> Syncer {
+        // The realm's managed groups (PF-63). Without an admin client the manifests are
+        // still read and served; nothing in the realm is written.
+        match (
+            self.config.oidc.as_ref(),
+            self.config.keycloak_admin.clone(),
+        ) {
+            (Some(oidc), Some((id, secret))) => {
+                match crate::reconciler::groups::GroupSync::new(&oidc.backchannel(), id, secret) {
+                    Some(groups) => {
+                        syncer = syncer.with_groups(Arc::new(
+                            groups.with_foreign(Arc::clone(&self.foreign_names)),
+                        ))
+                    }
+                    None => tracing::warn!(
+                        "the issuer is not a realm URL, so no Keycloak group is managed"
+                    ),
+                }
+            }
+            _ => tracing::info!(
+                "no Keycloak admin client: Group manifests are read, the realm is not written"
+            ),
+        }
+        // Every published App's own client (ADR-N-030, AP-111). It is written as the Portal
+        // client's own service account, the one identity the realm gives `manage-clients`.
+        // Who holds an App role is looked up and mapped with the group credential above,
+        // which already writes memberships; the login client only reads the holders (T-3022).
+        match (
+            self.config.oidc.as_ref(),
+            self.config
+                .app_settings
+                .as_ref()
+                .map(|settings| settings.apex.clone()),
+        ) {
+            (Some(oidc), Some(host)) => {
+                match crate::reconciler::app_clients::AppClientSync::new(
+                    &oidc.backchannel(),
+                    oidc.client_id.clone(),
+                    oidc.auth.clone(),
+                    host,
+                ) {
+                    Some(mut clients) => {
+                        if let Some((id, secret)) = self.config.keycloak_admin.clone() {
+                            clients = clients.with_members(id, secret);
+                        }
+                        syncer = syncer.with_app_clients(Arc::new(
+                            clients.with_foreign(Arc::clone(&self.foreign_names)),
+                        ))
+                    }
+                    None => {
+                        tracing::warn!("the issuer is not a realm URL, so no App client is managed")
+                    }
+                }
+            }
+            _ => tracing::info!("no login client or no apps host: no App client is managed"),
+        }
+        // Every ServiceAccount bound to a workload gets its federated client (PF-47), written
+        // by the same identity as the App clients.
+        if let Some(oidc) = self.config.oidc.as_ref() {
+            match crate::reconciler::workload_clients::WorkloadClientSync::new(
+                &oidc.backchannel(),
+                oidc.client_id.clone(),
+                oidc.auth.clone(),
+            ) {
+                Some(clients) => {
+                    let clients = match self.config.pipeline_namespace.clone() {
+                        Some(namespace) => clients.with_pipelines(namespace),
+                        None => clients,
+                    };
+                    let clients = match self.config.app_identity_namespace.clone() {
+                        Some(namespace) => clients.with_app_jobs(namespace),
+                        None => clients,
+                    };
+                    syncer = syncer.with_workload_clients(Arc::new(clients))
+                }
+                None => tracing::warn!(
+                    "the issuer is not a realm URL, so no workload client is managed"
+                ),
+            }
+            // The MCP hub's `endpoint:{slug}` scopes (T-2490), by the same identity.
+            if let Some(scopes) = crate::reconciler::hub_scopes::HubScopeSync::new(
+                &oidc.backchannel(),
+                oidc.client_id.clone(),
+                oidc.auth.clone(),
+            ) {
+                syncer = syncer.with_hub_scopes(Arc::new(scopes));
+            }
+            // Each MQTT broker's bearer-only client, its devices' audience (T-3994).
+            if let Some(clients) = crate::reconciler::mqtt_brokers::MqttClientSync::new(
+                &oidc.backchannel(),
+                oidc.client_id.clone(),
+                oidc.auth.clone(),
+            ) {
+                syncer = syncer.with_mqtt_clients(Arc::new(clients));
+            }
+            // Each named MCP server's sign-in client (EP-96, T-3156), by the same identity.
+            if let Some(clients) = crate::reconciler::mcp_clients::McpClientSync::new(
+                &oidc.backchannel(),
+                oidc.client_id.clone(),
+                oidc.auth.clone(),
+            ) {
+                syncer = syncer.with_mcp_clients(Arc::new(clients));
+            }
+        }
+        syncer
+    }
+
+    /// The Kubernetes ServiceAccounts of each Pipeline and each App's job.
+    fn wire_service_accounts(&self, mut syncer: Syncer) -> Syncer {
+        // Each Pipeline's own Kubernetes ServiceAccount (PL-19, T-1508), by the Portal's
+        // in-cluster identity, which the deployment lets write that one namespace.
+        if let Some(namespace) = self.config.pipeline_namespace.clone() {
+            match crate::apps::kube::KubeClient::in_cluster() {
+                Ok(Some(kube)) => {
+                    syncer = syncer.with_pipeline_service_accounts(Arc::new(kube), namespace)
+                }
+                Ok(None) => tracing::warn!(
+                    "no ServiceAccount mount: the pipelines' Kubernetes accounts are not made"
+                ),
+                Err(err) => tracing::warn!(
+                    error = %err,
+                    "the ServiceAccount mount is unreadable, so the pipelines' Kubernetes accounts are not made"
+                ),
+            }
+        }
+        // Each App's job ServiceAccount (AP-159, T-3539), by the same in-cluster identity,
+        // which the deployment lets write the identities namespace.
+        match self.config.app_identity_namespace.clone() {
+            Some(namespace) => match crate::apps::kube::KubeClient::in_cluster() {
+                Ok(Some(kube)) => {
+                    syncer = syncer.with_app_job_service_accounts(Arc::new(kube), namespace)
+                }
+                Ok(None) => {
+                    tracing::warn!("no ServiceAccount mount: the Apps' job accounts are not made")
+                }
+                Err(err) => tracing::warn!(
+                    error = %err,
+                    "the ServiceAccount mount is unreadable, so the Apps' job accounts are not made"
+                ),
+            },
+            None => {
+                tracing::info!("no JC_PORTAL_APP_IDENTITY_NAMESPACE: no App job gets a principal")
+            }
+        }
+        syncer
+    }
+
+    /// The stream deployer, with its queue started, when a pipeline runner is configured.
+    fn wire_streams(&self, mut syncer: Syncer) -> Syncer {
+        if let Some(url) = self.config.pipeline_runner_url.clone() {
+            let (batch, short) = self.config.pipelines_concurrency;
+            let deployer = StreamDeployer::new(url)
+                .with_pipeline_identity(self.config.pipeline_identity)
+                .with_concurrency(batch, short);
+            // A refused record reaches the Portal on the listener the test harness reaches
+            // (PL-61); without that address the stream writes as it did, unvalidated.
+            let deployer = match self.config.pipeline_test_capture_url.clone() {
+                Some(internal) => {
+                    deployer.with_validation(internal, Arc::clone(&self.model_schemas))
+                }
+                None => {
+                    tracing::warn!("no internal listener address for the runner: pipelines are not validated before they write");
+                    deployer
+                }
+            };
+            let deployer = Arc::new(deployer);
+            // The run-and-delete pipelines run from the queue (PL-78).
+            Arc::clone(&deployer).spawn_queue();
+            syncer = syncer.with_streams(deployer);
+        } else {
+            tracing::info!("no pipeline runner: DataSource pipelines stay Pending");
+        }
+        syncer
+    }
+
+    /// The writers into the spaces: subscriptions, the CKAN catalogue, registrations, views and drift.
+    fn wire_space_writers(&mut self, mut syncer: Syncer) -> Syncer {
+        // A declared Subscription reaches its space through the space surface, as this
+        // Portal's own service account (T-0931, CC-72). Without the address, the realm
+        // client or the organization's domain there is no write to make: the manifests are
+        // read and served, and no broker is touched.
+        match (
+            self.config.gateway_url.clone(),
+            self.config.oidc.as_ref(),
+            self.config.keycloak_admin.clone(),
+            self.config.org_domain.clone(),
+        ) {
+            (Some(base), Some(oidc), Some((id, secret)), Some(domain)) => {
+                syncer = syncer.with_subscriptions(Arc::new(
+                    crate::reconciler::subscriptions::SubscriptionSync::new(
+                        base,
+                        &oidc.backchannel(),
+                        id,
+                        secret,
+                        domain,
+                    ),
+                ));
+            }
+            _ => tracing::info!(
+                "no gateway address, realm client or organization domain: Subscription \
+                 manifests are read, no broker is written"
+            ),
+        }
+        // An Endpoint that declares `spec.publish.ckan` becomes a dataset in its catalogue on
+        // every run, and one that stopped declaring it loses the dataset (EP-62, T-2405). The
+        // host is this Portal's own public host, which is where the endpoints answer; the
+        // token comes from the instance's `apiTokenRef`, through the repository's encrypted
+        // secrets when this Portal holds the age identity, and otherwise from the variable the
+        // reference itself names.
+        {
+            let age_key_file = match self.config.pipeline_secrets.as_ref() {
+                Some(crate::pipeline_secrets::Backend::Sops { age_key_file }) => {
+                    Some(age_key_file.clone())
+                }
+                _ => None,
+            };
+            let host = self
+                .config
+                .public_base_url
+                .host_str()
+                .unwrap_or("localhost")
+                .to_owned();
+            let mut catalogue =
+                crate::reconciler::ckan::CkanSync::new(host).with_age_key_file(age_key_file);
+            let branding = crate::branding::Branding::load(self.config.branding_file.as_deref());
+            if !branding.organisation.trim().is_empty() {
+                catalogue = catalogue.titled(branding.organisation);
+            }
+            if !branding.documentation_base_url.is_empty() {
+                catalogue = catalogue.documented_at(branding.documentation_base_url);
+            }
+            // Each dataset carries the pass rate and the freshness of its space (DM-95).
+            catalogue =
+                catalogue.with_quality(Arc::clone(&self.quality), Arc::clone(&self.quality_checks));
+            syncer = syncer.with_ckan(Arc::new(catalogue));
+        }
+
+        // A declared ContextSourceRegistration is written straight at the broker, in the
+        // tenant of its hub space (T-0345, SP-08): it is a control-plane act with no
+        // gateway operation behind it and no credential on the hop. Without the broker's
+        // address the manifests are read and served and no hub is federated.
+        match self.config.broker_url.clone() {
+            Some(broker) => {
+                syncer = syncer.with_registrations(Arc::new(
+                    crate::reconciler::registrations::RegistrationSync::new(broker)
+                        .with_broker_template(self.config.broker_url_template.clone())
+                        .with_gateway(self.config.gateway_url.clone()),
+                ));
+            }
+            None => tracing::info!(
+                "no broker address: ContextSourceRegistration manifests are read, no hub is \
+                 federated"
+            ),
+        }
+        // Every Endpoint's and Context Space's view and every space's rule document, written
+        // into the broker with its admin token (T-3640). Without both the Endpoints stay on
+        // the gateway.
+        if let (Some(broker), Some(token_file)) = (
+            self.config.broker_url.clone(),
+            self.config.broker_admin_token_file.clone(),
+        ) {
+            let mut views = crate::reconciler::views::ViewSync::new(broker, token_file)
+                .with_broker_template(self.config.broker_url_template.clone());
+            if let Some(url) = self.config.model_tools_url.clone() {
+                views = views.with_model_tools(url);
+            }
+            let views = Arc::new(views);
+            self.views = Some(Arc::clone(&views));
+            syncer = syncer.with_views(views);
+        }
+        // Drift (CC-21, UI-25, UI-26): the seed entities a space declares, against what it
+        // holds. Configuration cannot drift under T-0421's option B — every component reads
+        // it from the repository — so this is the whole of what drift means here. Without
+        // the space surface or the realm client there is nothing to compare against, and
+        // the API answers "never scanned" rather than "nothing drifted".
+        match (
+            self.config.gateway_url.clone(),
+            self.config.oidc.as_ref(),
+            self.config.keycloak_admin.clone(),
+        ) {
+            (Some(base), Some(oidc), Some((id, secret))) => {
+                let watch = Arc::new(crate::reconciler::drift::Watch::new(
+                    base,
+                    &oidc.backchannel(),
+                    id,
+                    secret,
+                ));
+                // One watch, two readers: the reconciler scans with it and a resolution
+                // writes through it, so the buttons cannot reach a surface the scan did not.
+                self.drift_watch = Some(Arc::clone(&watch));
+                // The daily data-quality run reads through the same client (DM-74).
+                syncer = syncer.with_quality(Arc::new(crate::quality::Scanner {
+                    watch: Arc::clone(&watch),
+                    schemas: Arc::clone(&self.model_schemas),
+                    mirror: Arc::clone(&self.mirror),
+                    org_domain: self.config.org_domain.clone().unwrap_or_default(),
+                    store: Arc::clone(&self.quality),
+                }));
+                // The NGSI-LD catalogue writes through the same client (T-4500).
+                syncer = syncer.with_catalog(Arc::new(
+                    crate::reconciler::catalog::CatalogSync::new(Arc::clone(&watch)),
+                ));
+                syncer = syncer.with_drift(watch, Arc::clone(&self.drift));
+            }
+            _ => tracing::info!(
+                "no gateway address or realm client: seed entities are never compared, so \
+                 the drift surface answers that no scan has run"
+            ),
+        }
+        syncer
+    }
+
+    /// The stores that keep their rows in the database when there is one.
+    fn attach_stores(&mut self, db: &Option<sqlx::PgPool>) {
+        self.agents = Arc::new(AgentStore::new(db.clone()));
+        if !self.agents.is_durable() {
+            tracing::info!(
+                "no database: a builder run and its stream live only until this process ends"
+            );
+        }
+        self.drafts = DraftStore::new(db.clone()).with_hub(self.draft_events.clone());
+        if let Some(db) = &db {
+            self.draft_events.connect(db.clone());
+        }
+        self.workspaces = crate::ops::workspaces::WorkspaceStore::new(db.clone());
+        self.data_views = crate::ops::data_views::DataViewStore::new(db.clone());
+        self.pipeline_templates = crate::ops::pipeline_templates::TemplateStore::new(db.clone());
+        self.activity =
+            crate::activity::ActivityStore::new(db.clone()).with_hub(self.activity_events.clone());
+        self.rejected = Arc::new(crate::pipeline_outcomes::RejectedStore::new(db.clone()));
+        self.trash = Arc::new(crate::entity_trash::TrashStore::new(db.clone()));
+        self.comments = Arc::new(crate::entity_comments::CommentStore::new(db.clone()));
+        self.feedback = Arc::new(crate::feedback::FeedbackStore::new(db.clone()));
+        self.alerts = Arc::new(crate::alerts::AlertStore::new(db.clone()));
+    }
+
+    /// The cluster clients a builder run and its test sandbox are scheduled with.
+    fn attach_run_clients(&mut self) {
+        // A builder run is scheduled into the cluster this Portal runs in (AG-33). The client is
+        // the same in-cluster one the app converger uses; outside a cluster it stays `None` and
+        // a run is refused rather than recorded with no pod behind it.
+        if self.config.agent_settings.is_some() {
+            match crate::apps::kube::KubeClient::in_cluster() {
+                Ok(Some(kube)) => self.kube = Some(Arc::new(kube)),
+                Ok(None) => tracing::info!(
+                    "no ServiceAccount mount: a builder run is driven by its caller, not scheduled"
+                ),
+                Err(err) => tracing::warn!(
+                    error = %err,
+                    "the ServiceAccount mount is unreadable, so no builder workspace is scheduled"
+                ),
+            }
+        }
+        // The run's test sandbox (SDK-38): its own client, in the namespace that fences it.
+        if let Some(settings) = self.config.app_tests.clone() {
+            match crate::apps::kube::KubeClient::in_cluster() {
+                Ok(Some(kube)) => {
+                    self.app_tests = Some(Arc::new(crate::agents::sandbox::Sandbox::new(
+                        kube, settings,
+                    )))
+                }
+                Ok(None) => tracing::info!(
+                    "no ServiceAccount mount: a run's tests are left to the build lane"
+                ),
+                Err(err) => tracing::warn!(
+                    error = %err,
+                    "the ServiceAccount mount is unreadable, so a run's tests are left to the build lane"
+                ),
+            }
+        }
+    }
+
+    /// The wasm Apps' database and bucket, both or neither.
+    fn attach_wasm_apps(&mut self) {
+        // The wasm Apps' database and bucket (AP-149, AP-151): both or neither, the pool connects
+        // on first use and jc_apps's schema is applied in the background.
+        if let (Some(apps_db), Some(store)) = (
+            self.config.apps_db.clone(),
+            self.config.artifact_store.clone(),
+        ) {
+            match (
+                apps_db.url.parse::<sqlx::postgres::PgConnectOptions>(),
+                crate::artifact_store::Client::new(store),
+            ) {
+                (Ok(connect), Ok(store)) => {
+                    let admin = sqlx::postgres::PgPoolOptions::new()
+                        .max_connections(4)
+                        .connect_lazy_with(connect.clone());
+                    let db = crate::apps::apps_db::AppsDb {
+                        admin,
+                        connect,
+                        shards: apps_db.shards,
+                    };
+                    let wasm = Arc::new(crate::apps::wasm_apps::WasmApps {
+                        db,
+                        store: Arc::new(store),
+                        bucket: apps_db.bucket,
+                    });
+                    let boot = Arc::clone(&wasm);
+                    tokio::spawn(async move {
+                        if let Err(err) = boot.db.bootstrap().await {
+                            tracing::error!(error = %err, "the apps database's jc_apps schema did not apply");
+                        }
+                    });
+                    self.wasm_apps = Some(wasm);
+                }
+                (Err(err), _) => {
+                    tracing::error!(error = %err, "JC_PORTAL_APPS_DB_URL is no PostgreSQL URL, so no wasm App is published")
+                }
+                (_, Err(err)) => {
+                    tracing::error!(error = %err, "the artifact store is unusable, so no wasm App is published")
+                }
+            }
+        }
     }
 
     /// Marks every session of a subject as logged out (OIDC back-channel logout).
@@ -1085,6 +1130,54 @@ mod tests {
             access_expires_at: issued_at + 600,
             refresh_token: None,
         }
+    }
+
+    fn forge() -> Syncer {
+        let client = GiteaClient::new("http://127.0.0.1:9".parse().expect("url"), "o", "r", "t")
+            .expect("client");
+        Syncer::new(Arc::new(client), Arc::new(Mirror::default()))
+    }
+
+    /// T-4470: the parts `from_config` was cut into, each on a bare configuration.
+    #[tokio::test]
+    async fn without_a_database_or_a_cluster_nothing_is_attached() {
+        let mut state = AppState::new(Config::for_tests(), None);
+        state.attach_stores(&None);
+        assert!(!state.agents.is_durable());
+        state.attach_run_clients();
+        assert!(state.kube.is_none() && state.app_tests.is_none());
+        state.attach_wasm_apps();
+        assert!(state.wasm_apps.is_none());
+        // A database without its bucket is neither: the wasm Apps need both.
+        let mut config = Config::for_tests();
+        config.apps_db = Some(crate::config::AppsDbSettings {
+            url: "postgres://apps@db/apps".into(),
+            shards: 2,
+            bucket: "apps".into(),
+            host_namespace: None,
+        });
+        config.artifact_store = None;
+        let mut state = AppState::new(config, None);
+        state.attach_wasm_apps();
+        assert!(state.wasm_apps.is_none());
+    }
+
+    #[tokio::test]
+    async fn the_space_writers_keep_the_views_and_the_drift_watch_they_were_given() {
+        let mut state = AppState::new(Config::for_tests(), None);
+        let _ = state.wire_space_writers(forge());
+        assert!(state.views.is_none() && state.drift_watch.is_none());
+
+        let mut config = Config::for_tests();
+        config.broker_url = Some("http://broker:1026".into());
+        config.broker_admin_token_file = Some("/nonexistent/token".into());
+        let mut state = AppState::new(config, None);
+        let _ = state.wire_space_writers(forge());
+        assert!(
+            state.views.is_some(),
+            "a broker and its token file write the views"
+        );
+        assert!(state.drift_watch.is_none(), "no gateway, no drift watch");
     }
 
     #[tokio::test]
