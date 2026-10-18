@@ -5871,14 +5871,21 @@
     "field": {
       "title": "Název",
       "description": "Popis",
-      "quotas": "Kvóty tohoto projektu"
+      "quotas": "Kvóty tohoto projektu",
+      "catalog": "Jeho katalog",
+      "publisherName": "Název zveřejňujícího subjektu",
+      "publisherUri": "IRI subjektu v registru",
+      "contactName": "Kontaktní místo",
+      "contactEmail": "Kontaktní adresa"
     },
     "general": {
       "title": "Obecné",
       "lead": "Jak se projekt jmenuje a popisuje a co smí obsahovat. Úprava navrhne změnu souboru project.yaml.",
       "noDescription": "Zatím bez popisu.",
       "organization": "Organizace",
-      "unknown": "Pro vás nečitelné"
+      "unknown": "Pro vás nečitelné",
+      "catalogUrl": "Katalog",
+      "noCatalog": "Zatím bez poskytovatele."
     },
     "access": {
       "title": "Váš přístup zde",

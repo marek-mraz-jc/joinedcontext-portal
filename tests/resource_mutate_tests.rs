@@ -2070,3 +2070,73 @@ async fn a_step_names_its_own_secret_as_a_variable_and_nothing_else() {
         "{detail}"
     );
 }
+
+/// T-4595, EP-127: Project settings → General writes `spec.catalog` into project.yaml. The Portal
+/// reads it with the jc-core it pins, so a pin from before the catalogue refused the field as
+/// unknown; it checks now, and a publisher without its registry IRI is refused naming the field.
+#[tokio::test]
+async fn a_project_catalogue_is_checked_with_the_project_and_its_iri_is_required() {
+    let config = Config::for_tests();
+    let state = AppState::new(config.clone(), None);
+    let project = |catalog: serde_json::Value| ResourceEnvelope {
+        api_version: API_VERSION.into(),
+        kind: "Project".into(),
+        metadata: ObjectMeta::new(
+            "banskabystrica",
+            joinedcontext_portal::permissions::ORG_NAMESPACE,
+        ),
+        spec: json!({ "organizationRef": "bb", "catalog": catalog }),
+        status: None,
+    };
+    state.mirror.upsert(ResourceEnvelope {
+        spec: json!({ "organizationRef": "bb" }),
+        ..project(json!(null))
+    });
+    let put = |body: ResourceEnvelope| {
+        let app = server::app(state.clone());
+        let config = config.clone();
+        async move {
+            let response = app
+                .oneshot(
+                    Request::builder()
+                        .method("PUT")
+                        .uri("/api/v1/projects/org/projects/banskabystrica?dryRun=All")
+                        .header(header::COOKIE, session_and_csrf_cookies(&config))
+                        .header(CSRF_HEADER, TEST_CSRF_TOKEN)
+                        .header(header::CONTENT_TYPE, "application/json")
+                        .body(Body::from(serde_json::to_vec(&body).expect("json")))
+                        .expect("request"),
+                )
+                .await
+                .expect("response");
+            let status = response.status();
+            let bytes = response
+                .into_body()
+                .collect()
+                .await
+                .expect("body")
+                .to_bytes();
+            (status, String::from_utf8_lossy(&bytes).into_owned())
+        }
+    };
+
+    let (status, body) = put(project(json!({
+        "publisher": {
+            "name": { "sk": "Mesto Banská Bystrica" },
+            "uri": "https://data.gov.sk/id/legal-subject/00313271"
+        },
+        "contactPoint": { "name": "Oddelenie otvorených dát", "email": "opendata@banskabystrica.sk" }
+    })))
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains("\"valid\":true"), "{body}");
+
+    let (status, body) = put(project(json!({
+        "publisher": { "name": { "sk": "Mesto Banská Bystrica" } }
+    })))
+    .await;
+    // A dry run answers what a proposal would be refused for as its verdict.
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains("\"valid\":false"), "{body}");
+    assert!(body.contains("spec.catalog.publisher.uri"), "{body}");
+}

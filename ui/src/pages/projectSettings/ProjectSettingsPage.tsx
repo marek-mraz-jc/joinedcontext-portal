@@ -62,7 +62,23 @@ interface ProjectManifest {
     organizationRef?: unknown;
     /** What the project allows its Apps, within the organization's (AP-163, AP-165). */
     apps?: { services?: string[]; limits?: Record<string, number | undefined> };
+    /** The body that publishes the project's catalogue (EP-127). */
+    catalog?: ProjectCatalog;
   };
+}
+
+/** `spec.catalog` of `project.yaml`, as jc-core's `ProjectCatalog` reads it. */
+interface ProjectCatalog {
+  publisher: { name: Record<string, string>; uri?: string };
+  contactPoint?: { name: string; email: string };
+}
+
+/** The catalogue group of the form: flat, so the schema can say what goes with what. */
+interface CatalogForm {
+  publisherName?: Record<string, string | undefined>;
+  publisherUri?: string;
+  contactName?: string;
+  contactEmail?: string;
 }
 
 /** What General edits of `project.yaml`: its title, its description and its own quotas. */
@@ -73,6 +89,50 @@ export function fromProject(manifest: unknown): Record<string, unknown> {
     description: plainTitle(project.metadata?.description),
     quotas: project.spec?.quotas ?? {},
     apps: { services: project.spec?.apps?.services ?? [], limits: project.spec?.apps?.limits ?? {} },
+    catalog: catalogForm(project.spec?.catalog),
+  };
+}
+
+function catalogForm(catalog: ProjectCatalog | undefined): CatalogForm {
+  if (!catalog) {
+    return {};
+  }
+  return {
+    publisherName: { ...catalog.publisher.name },
+    publisherUri: catalog.publisher.uri,
+    contactName: catalog.contactPoint?.name,
+    contactEmail: catalog.contactPoint?.email,
+  };
+}
+
+/** A form text trimmed, or nothing when it is empty. */
+function text(value: unknown): string | undefined {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  return trimmed === "" ? undefined : trimmed;
+}
+
+/**
+ * The catalogue the form names, or nothing when every field is empty, so clearing the group
+ * removes `spec.catalog`. The schema refuses a half-filled group before this runs, and jc-core
+ * refuses it again on the server.
+ */
+export function toCatalog(form: CatalogForm | undefined): ProjectCatalog | undefined {
+  const name = Object.fromEntries(
+    Object.entries(form?.publisherName ?? {}).flatMap(([language, value]) => {
+      const kept = text(value);
+      return kept ? [[language, kept]] : [];
+    }),
+  );
+  const uri = text(form?.publisherUri);
+  const contact = { name: text(form?.contactName), email: text(form?.contactEmail) };
+  if (Object.keys(name).length === 0 && !uri && !contact.name && !contact.email) {
+    return undefined;
+  }
+  return {
+    publisher: { name, ...(uri ? { uri } : {}) },
+    ...(contact.name || contact.email
+      ? { contactPoint: { name: contact.name ?? "", email: contact.email ?? "" } }
+      : {}),
   };
 }
 
@@ -116,6 +176,12 @@ export function toProject(form: Record<string, unknown>, stored: unknown): unkno
   } else {
     delete spec.apps;
   }
+  const catalog = toCatalog(form.catalog as CatalogForm | undefined);
+  if (catalog) {
+    spec.catalog = catalog;
+  } else {
+    delete spec.catalog;
+  }
   return { ...manifest, metadata, spec };
 }
 
@@ -150,6 +216,10 @@ function General({ project }: { project: string }): JSX.Element {
   const stored = (manifest.data ?? {}) as ProjectManifest;
   const title = localized(stored.metadata?.title as string | Record<string, string> | undefined, locale, project);
   const description = plainTitle(stored.metadata?.description);
+  // The anonymous catalogue the gateway serves on this host once a publisher is saved (API/08 §6).
+  const catalogUrl = stored.spec?.catalog
+    ? `${window.location.origin}/catalog/${encodeURIComponent(project)}.jsonld`
+    : undefined;
   const inOwnRepository = Boolean((stored.spec as { repository?: unknown } | undefined)?.repository);
   const form: EditableForm = {
     schema: projectSchema(t),
@@ -205,6 +275,18 @@ function General({ project }: { project: string }): JSX.Element {
           <dt className="font-medium text-fg">{t("organization.field.visibility")}</dt>
           <dd className="text-fg">
             {t(`organization.visibility.${orgSpec.projects?.visibility === "members" ? "members" : "organization"}`)}
+          </dd>
+          <dt className="font-medium text-fg">{t("projectSettings.general.catalogUrl")}</dt>
+          <dd className="break-all text-fg">
+            {manifest.isPending ? (
+              t("app.loading")
+            ) : catalogUrl ? (
+              <a className="focus-ring underline" href={catalogUrl}>
+                {catalogUrl}
+              </a>
+            ) : (
+              t("projectSettings.general.noCatalog")
+            )}
           </dd>
         </dl>
       </section>
