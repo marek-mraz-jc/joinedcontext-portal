@@ -189,7 +189,8 @@ export async function ask(page: Page, text: string): Promise<void> {
 
 /** The change a proposal answered with, read off the notice the page shows (UI-23). */
 export async function proposedChange(page: Page): Promise<string> {
-  const review = page.getByRole("link", { name: "Review it in Approvals" });
+  // A proposer who may approve gets "Open the change" on a change approved as proposed (PF-58).
+  const review = page.getByRole("link", { name: /^(Review it in Approvals|Open the change)$/ });
   try {
     await expect(review).toBeVisible({ timeout: 60_000 });
   } catch (err) {
@@ -210,6 +211,11 @@ export async function proposedChange(page: Page): Promise<string> {
  * (a public Endpoint, CC-19) asks for the resource name, typed as a person would.
  */
 export async function approve(page: Page, project: string, change: string, confirm?: string): Promise<void> {
+  // A Yellow change can be merged before the approver gets to it (on dev, 2026-10-18: chg-0000002b
+  // read "Yellow Merged" with Approve disabled); that is the outcome this helper waits for.
+  const state = await page.request.get(`/api/v1/projects/${project}/changes/${change}`);
+  const phase = state.ok() ? ((await state.json()) as { status?: { phase?: string } }).status?.phase : undefined;
+  if (phase && ["Deploying", "Merged", "Applied"].includes(phase)) return;
   await page.goto(`/projects/${project}/approvals/${change}?lang=en`, { waitUntil: "load" });
   const button = page.getByRole("button", { name: "Approve", exact: true });
   // Only a Red lane asks for the name typed back (CC-19). A caller that knows the name passes it
