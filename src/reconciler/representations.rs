@@ -107,14 +107,16 @@ pub async fn migrate(
             continue;
         };
         if let Some(content) = strip(&file.content) {
-            uploads.push((path.clone(), content));
+            // The blob read here, so a commit someone lands before this one is refused rather
+            // than overwritten; the next sync reads the fresh file.
+            uploads.push((path.clone(), content, file.sha));
         }
     }
     if uploads.is_empty() {
         return Ok(0);
     }
     gitea
-        .change_files(
+        .update_files(
             branch,
             "endpoints: CSV is the one file an Endpoint offers (T-4600)",
             Author {
@@ -122,7 +124,6 @@ pub async fn migrate(
                 email: crate::sync::proposal::AUTHOR_EMAIL,
             },
             &uploads,
-            &[],
         )
         .await?;
     Ok(uploads.len())
@@ -212,6 +213,39 @@ mod tests {
         );
     }
 
+    /// A file someone changed after this run read it: the forge refuses the stale blob, the
+    /// run reports it and writes nothing, and the next sync reads the fresh file.
+    #[tokio::test]
+    async fn a_file_that_moved_on_is_refused_by_the_forge_and_not_overwritten() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/repos/test-owner/test-repo/contents/a.yaml"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "sha": "stale-sha",
+                "content": base64::engine::general_purpose::STANDARD.encode(ENDPOINT),
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/repos/test-owner/test-repo/contents"))
+            .respond_with(
+                ResponseTemplate::new(409).set_body_json(json!({"message": "sha does not match"})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let gitea = GiteaClient::new(
+            server.uri().parse().expect("forge url"),
+            "test-owner",
+            "test-repo",
+            "token",
+        )
+        .expect("client");
+
+        let paths = BTreeSet::from(["a.yaml".to_owned()]);
+        assert!(migrate(&gitea, "main", &paths).await.is_err());
+    }
+
     #[test]
     fn names_retired_reads_both_lists() {
         assert!(names_retired(
@@ -285,6 +319,11 @@ mod tests {
         let files = body["files"].as_array().expect("files");
         assert_eq!(files.len(), 1, "the clean file is not in the commit");
         assert_eq!(files[0]["path"], "a.yaml");
+        assert_eq!(
+            files[0]["operation"], "update",
+            "an update the forge refuses when the file moved on"
+        );
+        assert_eq!(files[0]["sha"], "blob-sha", "the blob this run read");
 
         let only_clean = BTreeSet::from(["b.yaml".to_owned()]);
         assert_eq!(migrate(&gitea, "main", &only_clean).await.expect("ok"), 0);

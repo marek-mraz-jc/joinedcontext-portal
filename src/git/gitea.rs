@@ -1892,7 +1892,6 @@ impl GiteaClient {
         uploads: &[(String, String)],
         deletes: &[(String, String)],
     ) -> Result<String, GitError> {
-        let url = self.repo_url("contents")?;
         let mut files = Vec::with_capacity(uploads.len() + deletes.len());
         for (path, content) in uploads {
             files.push(ChangeFileDto {
@@ -1910,6 +1909,39 @@ impl GiteaClient {
                 sha: Some(sha.clone()),
             });
         }
+        self.commit_changes(branch, message, author, files).await
+    }
+
+    /// `POST /contents` — one commit on `branch` that replaces every `(path, content, blob sha)`
+    /// of `updates`. Gitea refuses the whole commit when a file's blob is no longer `sha`, so a
+    /// change someone committed after the caller read the file is never overwritten.
+    pub async fn update_files(
+        &self,
+        branch: &str,
+        message: &str,
+        author: Author<'_>,
+        updates: &[(String, String, String)],
+    ) -> Result<String, GitError> {
+        let mut files = Vec::with_capacity(updates.len());
+        for (path, content, sha) in updates {
+            files.push(ChangeFileDto {
+                operation: "update",
+                path: self.write_path(path)?,
+                content: Some(STANDARD.encode(content.as_bytes())),
+                sha: Some(sha.clone()),
+            });
+        }
+        self.commit_changes(branch, message, author, files).await
+    }
+
+    async fn commit_changes(
+        &self,
+        branch: &str,
+        message: &str,
+        author: Author<'_>,
+        files: Vec<ChangeFileDto>,
+    ) -> Result<String, GitError> {
+        let url = self.repo_url("contents")?;
         let payload = ChangeFilesPayload {
             files,
             message,
