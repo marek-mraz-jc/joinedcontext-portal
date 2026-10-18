@@ -17,8 +17,8 @@ metadata:
     fi: "Helsingin avoin data"
     en: "Helsinki open data"
   description:
-    fi: "Palvelut, alueluvat, tapahtumat, liikennetiedotteet, pysäköintivyöhykkeet, kaupunginosat, vedenlämpö, ilmanlaatu ja tiesää taulukkoina: suodatin jokaisessa sarakkeessa, koodistot valittavina, rivin tiedot ja lataus CSV- ja GeoJSON-muodossa."
-    en: "Services, area permits, events, traffic notices, parking zones, districts, water temperature, air quality and road weather as tables: a filter on every column, code lists picked, each row whole, and a CSV or GeoJSON download."
+    fi: "Palvelut, alueluvat, tapahtumat, liikennetiedotteet, pysäköintivyöhykkeet, kaupunginosat, vedenlämpö, ilmanlaatu ja tiesää taulukkoina: suodatin jokaisessa sarakkeessa, koodistot valittavina, rivin tiedot ja lataus CSV-muodossa."
+    en: "Services, area permits, events, traffic notices, parking zones, districts, water temperature, air quality and road weather as tables: a filter on every column, code lists picked, each row whole, and a CSV download."
 spec:
   kind: ui
   source:

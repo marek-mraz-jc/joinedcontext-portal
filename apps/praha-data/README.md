@@ -5,8 +5,8 @@ recycling points, sensor containers, park and ride, shared bikes, air quality, c
 budget lines), each the SDK's `EntityGrid` with the city's Czech and English column labels, a filter
 on every column that becomes the endpoint's own `q`, the model's enums (category, access, kind of
 waste, status) as pick lists in words, the first column pinned as the primary field (the name, or
-the code where a type has no name) that opens the row in the SDK's entity panel (SDK-40, linked to the Portal) inside the SDK's shell (SDK-39), and the endpoint's own downloads in CSV
-(human headers) and GeoJSON. It reads through a public endpoint, never writes and never asks anybody
+the code where a type has no name) that opens the row in the SDK's entity panel (SDK-40, linked to the Portal) inside the SDK's shell (SDK-39), and the endpoint's own download in CSV
+(human headers). It reads through a public endpoint, never writes and never asks anybody
 to sign in.
 
 ## Files

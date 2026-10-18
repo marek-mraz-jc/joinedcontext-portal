@@ -64,12 +64,13 @@ export function gridConfig(slug: string, dataset: Dataset, labels: Record<string
 
 /**
  * The endpoint's own download of a whole register (API/02 §3, §4): the same grant as the grid, so
- * the file holds nothing the grid would not show. CSV with human headers, GeoJSON as published.
+ * the file holds nothing the grid would not show. CSV with human headers;
+ * the gateway serves no GeoJSON file since T-4597.
  */
-export function exportUrl(slug: string, dataset: Dataset, format: "csv" | "geojson"): string {
+export function exportUrl(slug: string, dataset: Dataset): string {
   const query = new URLSearchParams({ type: TYPE_OF[dataset] });
   const category = CATEGORY_Q[dataset];
   if (category) query.set("q", category);
-  if (format === "csv") query.set("humanHeaders", "true");
-  return `/api/endpoint/${encodeURIComponent(slug)}/file.${format}?${query.toString()}`;
+  query.set("humanHeaders", "true");
+  return `/api/endpoint/${encodeURIComponent(slug)}/file.csv?${query.toString()}`;
 }

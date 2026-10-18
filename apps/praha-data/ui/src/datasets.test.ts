@@ -16,8 +16,7 @@ describe("the grids", () => {
   });
 
   it("downloads a whole dataset from the endpoint's own files", () => {
-    expect(exportUrl(SLUG, "budget", "csv")).toBe(`/api/endpoint/${SLUG}/file.csv?type=BudgetLine&humanHeaders=true`);
-    expect(exportUrl(SLUG, "places", "geojson")).toBe(`/api/endpoint/${SLUG}/file.geojson?type=PointOfInterest`);
+    expect(exportUrl(SLUG, "budget")).toBe(`/api/endpoint/${SLUG}/file.csv?type=BudgetLine&humanHeaders=true`);
   });
 });
 

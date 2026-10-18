@@ -3,8 +3,8 @@
 The data grids of T-2782: one tab per dataset of the city's public space `banskabystrica-verejne`
 (events, schools, air quality), each the SDK's `EntityGrid` with the city's column labels, a
 filter on every column that becomes the endpoint's own `q`, the model's `EventCategory` as a pick
-list, the name pinned as the row's primary field, and the endpoint's own downloads of the dataset
-in CSV (with human headers) and GeoJSON. It reads through a public endpoint, never writes and
+list, the name pinned as the row's primary field, and the endpoint's own download of the dataset
+in CSV (with human headers). It reads through a public endpoint, never writes and
 never asks anybody to sign in.
 
 The page sits in the SDK's `AppShell` (SDK-39). A row's name opens the entity in the SDK's entity

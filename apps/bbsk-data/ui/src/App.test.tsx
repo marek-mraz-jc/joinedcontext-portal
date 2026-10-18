@@ -130,13 +130,14 @@ describe("the region's registers", () => {
     expect(asked.every((url) => url.pathname.startsWith(`/api/endpoint/${SLUG}/`))).toBe(true);
   });
 
-  // The App's own controls on every register: its tab, its two downloads, and a row it opens in the
+  // The App's own controls on every register: its tab, its download, and a row it opens in the
   // shell's panel. The grid's own controls (sort, filter, details) are the SDK suite's (T-3373).
   it.each(DATASETS)("%s: the tab, the register's downloads and a row opened by its name", async (dataset: Dataset) => {
     show();
     fireEvent.click(screen.getByRole("tab", { name: s.dataset[dataset] }));
     const panel = screen.getByRole("tabpanel", { name: s.dataset[dataset] });
-    for (const format of [s.csv, s.geojson]) {
+    expect(panel.querySelectorAll(".downloads a"), "one download: the gateway serves no GeoJSON file (T-4597, T-4603)").toHaveLength(1);
+    for (const format of [s.csv]) {
       const link = within(panel).getByRole("link", { name: `${format} ${s.dataset[dataset]}` });
       expect(link).toHaveAttribute("download");
       const kept = vi.fn((event: Event) => event.preventDefault());
@@ -144,7 +145,7 @@ describe("the region's registers", () => {
       fireEvent.click(link);
       expect(kept).toHaveBeenCalledTimes(1);
     }
-    for (const row of answer(keyOf(new URL(exportUrl(SLUG, dataset, "csv"), "http://portal.test"))) as { id: string; name?: { languageMap: { sk: string } } }[]) {
+    for (const row of answer(keyOf(new URL(exportUrl(SLUG, dataset), "http://portal.test"))) as { id: string; name?: { languageMap: { sk: string } } }[]) {
       // A row without a name opens by its identifier, and the panel names it by its last part.
       const name = row.name?.languageMap.sk ?? row.id;
       fireEvent.click(await within(panel).findByRole("button", { name: `${s.grid.openRow}: ${name}` }));
