@@ -928,7 +928,7 @@ pub(crate) fn endpoint_url(base: &Url, slug: &str) -> String {
 }
 
 /// What an Endpoint spec serves: the listed representations or, with no list, every one but
-/// `sta` less `disabledRepresentations` (EP-104); then `ngsi-ld`, which every Endpoint serves
+/// the opt-in `sta` and `ical` less `disabledRepresentations` (EP-104); then `ngsi-ld`, which every Endpoint serves
 /// (EP-10), and `mcp` unless `spec.mcp` is `false` (EP-24). CSV is the one file: the retired
 /// ones (`xlsx`, `parquet`, `json`, `zip`, `geojson`, T-4600) are never listed, whatever a
 /// manifest the migration has not reached yet still names. The default set is jc-core's
@@ -947,8 +947,10 @@ pub(crate) fn served_representations(spec: &Value) -> Vec<String> {
         let disabled = names("disabledRepresentations").unwrap_or_default();
         jc_core::kinds::endpoint::Representation::ALL
             .iter()
+            // `sta` and `ical` are served only where listed (EP-104, jc-core `opt_in`).
+            .filter(|r| !r.opt_in())
             .map(|r| r.as_str())
-            .filter(|r| *r != "sta" && !(mcp_off && *r == "mcp"))
+            .filter(|r| !(mcp_off && *r == "mcp"))
             .filter(|r| !crate::reconciler::representations::RETIRED.contains(r))
             .filter(|r| !disabled.iter().any(|d| d == r))
             .map(str::to_owned)
@@ -1549,7 +1551,12 @@ classes:
         assert_eq!(
             served(json!({})),
             every_but_sta,
-            "a spec with no list serves every standard but sta (EP-104)"
+            "a spec with no list serves every standard but the opt-in sta and ical (EP-104)"
+        );
+        assert_eq!(
+            served(json!({ "enabledRepresentations": ["ical", "sta"] })),
+            ["ical", "sta", "ngsi-ld", "mcp"],
+            "an opt-in one is served where it is listed"
         );
         assert_eq!(served(json!({ "mcp": true })), every_but_sta);
         assert_eq!(
