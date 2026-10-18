@@ -95,11 +95,8 @@ function Datasets() {
             <p className="about">{s.about[dataset]}</p>
             <div className="downloads">
               <span>{s.download}:</span>
-              <a href={exportUrl(slug, dataset, "csv")} download>
+              <a href={exportUrl(slug, dataset)} download>
                 {s.csv} <span className="visually-hidden">{s.dataset[dataset]}</span>
-              </a>
-              <a href={exportUrl(slug, dataset, "geojson")} download>
-                {s.geojson} <span className="visually-hidden">{s.dataset[dataset]}</span>
               </a>
               <small>{s.downloadNote}</small>
             </div>

@@ -17,8 +17,8 @@ metadata:
     sk: "Dáta mesta Banská Bystrica"
     en: "Data of Banská Bystrica"
   description:
-    sk: "Podujatia, školy a ovzdušie mesta v tabuľkách: filter na každom stĺpci, druh podujatia na výber, detail riadku a stiahnutie v CSV a GeoJSON."
-    en: "The city's events, schools and air quality as tables: a filter on every column, the kind of event picked from a list, each row whole, and a CSV or GeoJSON download."
+    sk: "Podujatia, školy a ovzdušie mesta v tabuľkách: filter na každom stĺpci, druh podujatia na výber, detail riadku a stiahnutie v CSV."
+    en: "The city's events, schools and air quality as tables: a filter on every column, the kind of event picked from a list, each row whole, and a CSV download."
 spec:
   kind: ui
   source:

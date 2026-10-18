@@ -74,6 +74,7 @@ describe("Helsinki's datasets", () => {
       "href",
       `/api/endpoint/${SLUG}/file.csv?type=CityWork&humanHeaders=true`,
     );
+    expect(panel.querySelectorAll(".downloads a"), "one download: the gateway serves no GeoJSON file (T-4597, T-4603)").toHaveLength(1);
     await userEvent.keyboard("{End}");
     expect(screen.getByRole("tab", { name: s.dataset.weather })).toHaveFocus();
   });

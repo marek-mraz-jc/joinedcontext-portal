@@ -11,7 +11,6 @@ export interface Strings {
   about: Record<Dataset, string>;
   download: string;
   csv: string;
-  geojson: string;
   downloadNote: string;
   noEndpoint: string;
   column: Record<string, string>;
@@ -33,7 +32,6 @@ const sk: Strings = {
   },
   download: "Stiahnuť celý súbor",
   csv: "CSV",
-  geojson: "GeoJSON",
   downloadNote: "Súbor vydá endpoint s tým istým prístupom ako tabuľka; filter tabuľky sa doň nepremieta.",
   noEndpoint: "Aplikácia nemá zverejnený prístup k verejným dátam mesta, preto nemá čo zobraziť.",
   column: {
@@ -137,7 +135,6 @@ const en: Strings = {
   },
   download: "Download the whole dataset",
   csv: "CSV",
-  geojson: "GeoJSON",
   downloadNote: "The endpoint sends the file with the same access as the table; the table's filter is not applied to it.",
   noEndpoint: "This app has no published access to the city's public data, so it has nothing to show.",
   column: {

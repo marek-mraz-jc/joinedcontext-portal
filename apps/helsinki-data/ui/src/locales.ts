@@ -11,7 +11,6 @@ export interface Strings {
   about: Record<Dataset, string>;
   download: string;
   csv: string;
-  geojson: string;
   downloadNote: string;
   noEndpoint: string;
   column: Record<string, string>;
@@ -49,7 +48,6 @@ const fi: Strings = {
   },
   download: "Lataa koko aineisto",
   csv: "CSV",
-  geojson: "GeoJSON",
   downloadNote: "Päätepiste lähettää tiedoston samalla pääsyllä kuin taulukon; taulukon suodatin ei siirry tiedostoon.",
   noEndpoint: "Sovelluksella ei ole julkaistua pääsyä Helsingin avoimeen dataan, joten sillä ei ole mitään näytettävää.",
   column: {
@@ -193,7 +191,6 @@ const en: Strings = {
   },
   download: "Download the whole dataset",
   csv: "CSV",
-  geojson: "GeoJSON",
   downloadNote: "The endpoint sends the file with the same access as the table; the table's filter is not applied to it.",
   noEndpoint: "This app has no published access to Helsinki's open data, so it has nothing to show.",
   column: {
