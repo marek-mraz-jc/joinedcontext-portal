@@ -5871,14 +5871,21 @@
     "field": {
       "title": "Titel",
       "description": "Beschreibung",
-      "quotas": "Kontingente dieses Projekts"
+      "quotas": "Kontingente dieses Projekts",
+      "catalog": "Sein Katalog",
+      "publisherName": "Name der veröffentlichenden Stelle",
+      "publisherUri": "Register-IRI der Stelle",
+      "contactName": "Kontaktstelle",
+      "contactEmail": "Kontaktadresse"
     },
     "general": {
       "title": "Allgemein",
       "lead": "Wie das Projekt heißt und beschrieben wird und was es enthalten darf. Bearbeiten schlägt eine Änderung von project.yaml vor.",
       "noDescription": "Noch keine Beschreibung.",
       "organization": "Organisation",
-      "unknown": "Für Sie nicht lesbar"
+      "unknown": "Für Sie nicht lesbar",
+      "catalogUrl": "Katalog",
+      "noCatalog": "Noch keine veröffentlichende Stelle genannt."
     },
     "access": {
       "title": "Ihr Zugriff hier",

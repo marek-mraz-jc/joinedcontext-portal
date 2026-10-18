@@ -5871,14 +5871,21 @@
     "field": {
       "title": "Title",
       "description": "Description",
-      "quotas": "Quotas of this project"
+      "quotas": "Quotas of this project",
+      "catalog": "Its catalogue",
+      "publisherName": "Publishing body's name",
+      "publisherUri": "Publishing body's registry IRI",
+      "contactName": "Contact desk",
+      "contactEmail": "Contact address"
     },
     "general": {
       "title": "General",
       "lead": "How the project is named and described, and what it may hold. Edit proposes a change of project.yaml.",
       "noDescription": "No description yet.",
       "organization": "Organization",
-      "unknown": "Not readable for you"
+      "unknown": "Not readable for you",
+      "catalogUrl": "Catalogue",
+      "noCatalog": "No publisher named yet."
     },
     "access": {
       "title": "Your access here",
