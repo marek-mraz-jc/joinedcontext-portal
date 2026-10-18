@@ -19,7 +19,7 @@ import { expect } from "vitest";
 import en from "../src/locales/en.json";
 import { NAV_SECTIONS } from "../src/components/layout/navigation";
 import { ORGANIZATION_TABS } from "../src/pages/organization/OrganizationPage";
-import { PROJECT_SETTINGS_TABS } from "../src/pages/projectSettings/ProjectSettingsPage";
+import { PROJECT_SETTINGS_TABS } from "../src/pages/projectSettings/tabs";
 import { pageFindings, unexcused } from "./pageChecks";
 import type { Excused } from "./pageChecks";
 import { jsonResponse, problem, renderRoute } from "./pageHarness";
