@@ -21,7 +21,9 @@ export function HelpMenu({ onFeedback }: { onFeedback?: () => void } = {}): JSX.
   const branding = useBranding();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const page = helpFor(pathname);
-  const guide = page ? guideUrl(branding, page.guide) : undefined;
+  // The installation's own documentation site where it names one, else the pinned pages this
+  // Portal serves itself at /docs (T-4063, T-4485), so every helped page leads to its guide page.
+  const guide = page ? (guideUrl(branding, page.guide) ?? `/docs/${page.guide}`) : undefined;
   // The dot follows what was read; the list marks what was new when it was opened.
   const [seen, setSeen] = useState(lastSeen);
   const [readBefore, setReadBefore] = useState<string | undefined>();

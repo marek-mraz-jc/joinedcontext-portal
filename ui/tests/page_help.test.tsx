@@ -1,8 +1,10 @@
 /**
  * T-3269: help for the page a person is on. Every main page says what it is for and its three main
- * steps in every locale, leads to its User Guide page when the installation serves the guide, and
+ * steps in every locale, leads to its User Guide page (the installation's, else the Portal's own /docs), and
  * hands the assistant a question about the page for the person to send.
  */
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { useState } from "react";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -130,7 +132,24 @@ describe("help for this page (T-3269)", () => {
     }
   });
 
-  it("offers no page help where there is none, and no guide link where the installation serves no guide", async () => {
+  it("T-4485: leads every helped page to its page of the guide this Portal serves, when the installation names no other", async () => {
+    const address = (key: string) => (key === "home" ? "/" : key === "organization" ? "/organization" : `/projects/p/${key}`);
+    for (const key of HELPED) {
+      const guide = helpFor(address(key))?.guide;
+      // the page the Portal's /docs serves: its bundle, public-docs/ (src/public_docs.rs)
+      expect(existsSync(join(__dirname, `../../public-docs/${guide}.md`)), `${key}: ${guide}`).toBe(true);
+    }
+    renderPage(<HelpMenu />, { answer: () => undefined, path: "/projects/helsinki/endpoints" });
+    await userEvent.click(await screen.findByRole("button", { name: /^Help/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: en.pageHelp.menu }));
+    const dialog = await screen.findByRole("dialog", { name: en.pageHelp.endpoints.title });
+    expect(within(dialog).getByRole("link", { name: new RegExp(en.pageHelp.guide) })).toHaveAttribute(
+      "href",
+      "/docs/User-Guide/05-endpoints-and-sharing",
+    );
+  });
+
+  it("offers no page help where there is none", async () => {
     renderPage(<HelpMenu />, { answer: () => undefined, path: "/glossary" });
     await userEvent.click(await screen.findByRole("button", { name: /^Help/ }));
     expect(await screen.findByRole("menuitem", { name: /^What's new/ })).toBeInTheDocument();

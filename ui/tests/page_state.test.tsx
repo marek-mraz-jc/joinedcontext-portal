@@ -252,6 +252,24 @@ describe("the page's failed state", () => {
     expect(screen.queryByText(en.problem.forbidden)).toBeNull();
   });
 
+  it("T-4485: a problem of the platform links its section of the public error page, any other links nothing", () => {
+    const conflict = { ...problem(409, "changed on main"), type: "https://joinedcontext.com/errors/draft-conflict" };
+    const { unmount } = show(<PageFailed error={new ApiError(409, "Conflict", conflict)} />);
+    expect(screen.getByRole("link", { name: en.app.error.problemPage })).toHaveAttribute("href", "/docs/API/09-errors#draft-conflict");
+    unmount();
+    const ngsi = { ...problem(400, "bad id"), type: "https://uri.etsi.org/ngsi-ld/errors/BadRequestData", code: "urn-scheme" };
+    const second = show(<PageFailed error={new ApiError(400, "Bad Request", ngsi)} />);
+    expect(screen.getByRole("link", { name: en.app.error.problemPage })).toHaveAttribute("href", "/docs/API/09-errors#urn-scheme");
+    second.unmount();
+    const foreign = { ...problem(400, "x"), type: "https://example.org/errors/forbidden" };
+    const third = show(<PageFailed error={new ApiError(400, "Bad Request", foreign)} />);
+    expect(screen.queryByRole("link")).toBeNull();
+    third.unmount();
+    const crafted = { ...problem(400, "x"), type: "https://joinedcontext.com/errors/x#y\"onclick" };
+    show(<PageFailed error={new ApiError(400, "Bad Request", crafted)} />);
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
   it("T-3244: offline says so and reads again by itself once the connection is back", () => {
     vi.stubGlobal("navigator", { ...navigator, onLine: false });
     const retry = vi.fn();
@@ -272,7 +290,7 @@ describe("the page's failed state", () => {
 
   it("T-2747: every kind reads in every locale the Portal ships", async () => {
     await inEveryLocale(async (locale) => {
-      for (const key of ["app.error.session", "app.error.forbiddenHint", "app.error.reference", "app.error.offline", "app.error.copy"]) {
+      for (const key of ["app.error.session", "app.error.forbiddenHint", "app.error.problemPage", "app.error.reference", "app.error.offline", "app.error.copy"]) {
         expect(i18n.t(key), `${locale} ${key}`).not.toMatch(/^app\./);
       }
     });

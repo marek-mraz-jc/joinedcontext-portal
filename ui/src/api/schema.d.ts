@@ -5865,6 +5865,11 @@ export interface components {
              *     all its bad fields from this in one pass instead of one round trip per mistake (CC-24).
              */
             errors?: string[] | null;
+            /**
+             * @description What the caller does about it, one English sentence: the catalogue's hint of the slug
+             *     (API/00 §4, API/09); the Portal UI shows its own translation by the slug instead.
+             */
+            hint?: string | null;
             instance?: string | null;
             /** Format: int32 */
             status: number;

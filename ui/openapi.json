@@ -22450,6 +22450,13 @@
             },
             "description": "Every violation of one request, when there is more than one thing to say. A form marks\nall its bad fields from this in one pass instead of one round trip per mistake (CC-24)."
           },
+          "hint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the caller does about it, one English sentence: the catalogue's hint of the slug\n(API/00 §4, API/09); the Portal UI shows its own translation by the slug instead."
+          },
           "instance": {
             "type": [
               "string",

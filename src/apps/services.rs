@@ -268,6 +268,9 @@ pub(super) fn problem(
         "status": status.as_u16(),
         "detail": detail,
     });
+    if let (Some(hint), Some(body)) = (crate::error::hint_of(slug), body.as_object_mut()) {
+        body.insert("hint".into(), Value::String(hint));
+    }
     if let (Some(body), Value::Object(extra)) = (body.as_object_mut(), extra) {
         body.extend(extra);
     }

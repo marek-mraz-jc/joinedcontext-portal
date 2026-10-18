@@ -74,7 +74,7 @@ describe("drafts through the typed client", () => {
   });
 
   it("names the version it lost to on a conflict", async () => {
-    answer(409, { type: "https://joinedcontext.com/problems/draft-conflict", current: 7 });
+    answer(409, { type: "https://joinedcontext.com/errors/draft-conflict", current: 7 });
     await expect(putDraft("helsinki", "Endpoint", "bikes", {}, 3)).rejects.toMatchObject({
       status: 409,
       current: 7,

@@ -86,6 +86,7 @@ fn problem_response(
         status: status.as_u16(),
         detail,
         instance: None,
+        hint: crate::error::hint_of(slug),
         errors: None,
     };
     (

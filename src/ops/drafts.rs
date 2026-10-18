@@ -832,7 +832,7 @@ async fn draft_workspace_visible(
 pub(crate) fn draft_error(err: DraftError) -> OpError {
     match err {
         DraftError::Conflict { current } => OpError::Conflict(json!({
-            "type": "https://joinedcontext.com/problems/draft-conflict",
+            "type": "https://joinedcontext.com/errors/draft-conflict",
             "error": "draft_conflict",
             "current": current,
         })),
