@@ -307,6 +307,22 @@ pub async fn list_sources(
     Ok(Json(json!({ "items": items })))
 }
 
+/// The pairs that have a value as a query, `?a=1&b=x`, encoded; nothing when none has one.
+fn query_of(pairs: &[(&str, Option<String>)]) -> String {
+    let mut query = url::form_urlencoded::Serializer::new(String::new());
+    for (name, value) in pairs {
+        if let Some(value) = value {
+            query.append_pair(name, value);
+        }
+    }
+    let query = query.finish();
+    if query.is_empty() {
+        query
+    } else {
+        format!("?{query}")
+    }
+}
+
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/knowledge/sources/{source}/pages",
@@ -334,29 +350,12 @@ pub async fn list_pages(
 ) -> Result<Json<Value>, ApiError> {
     readable(&state, &user, &project)?;
     named("source", &source)?;
-    // The serializer is not `Send`: it ends before the await.
-    let query = {
-        let mut query = url::form_urlencoded::Serializer::new(String::new());
-        if let Some(parent) = level.parent {
-            query.append_pair("parent", &parent.to_string());
-        }
-        if let Some(q) = &level.q {
-            query.append_pair("q", q);
-        }
-        query.finish()
-    };
-    let query = if query.is_empty() {
-        query
-    } else {
-        format!("?{query}")
-    };
-    let (_, body) = ask(
-        &state,
-        reqwest::Method::GET,
-        &format!("{project}/knowledge/sources/{source}/pages{query}"),
-        None,
-    )
-    .await?;
+    let query = query_of(&[
+        ("parent", level.parent.map(|p| p.to_string())),
+        ("q", level.q),
+    ]);
+    let path = format!("{project}/knowledge/sources/{source}/pages{query}");
+    let (_, body) = ask(&state, reqwest::Method::GET, &path, None).await?;
     Ok(Json(body))
 }
 
@@ -387,21 +386,12 @@ pub async fn try_search(
 ) -> Result<Json<Value>, ApiError> {
     readable(&state, &user, &project)?;
     named("source", &source)?;
-    let query = {
-        let mut query = url::form_urlencoded::Serializer::new(String::new());
-        query.append_pair("q", &tried.q);
-        if let Some(limit) = tried.limit {
-            query.append_pair("limit", &limit.to_string());
-        }
-        query.finish()
-    };
-    let (_, body) = ask(
-        &state,
-        reqwest::Method::GET,
-        &format!("{project}/knowledge/sources/{source}/search?{query}"),
-        None,
-    )
-    .await?;
+    let query = query_of(&[
+        ("q", Some(tried.q)),
+        ("limit", tried.limit.map(|l| l.to_string())),
+    ]);
+    let path = format!("{project}/knowledge/sources/{source}/search{query}");
+    let (_, body) = ask(&state, reqwest::Method::GET, &path, None).await?;
     Ok(Json(body))
 }
 
@@ -1055,4 +1045,25 @@ pub fn router() -> Router<AppState> {
             "/projects/{project}/knowledge/deployments/{deployment}/chat",
             post(chat).layer(DefaultBodyLimit::max(MAX_CHAT_BODY)),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::query_of;
+
+    #[test]
+    fn a_query_names_the_pairs_with_a_value_encoded_and_none_is_empty() {
+        assert_eq!(query_of(&[("parent", None), ("q", None)]), "");
+        assert_eq!(
+            query_of(&[("parent", Some("12".into())), ("q", None)]),
+            "?parent=12"
+        );
+        assert_eq!(
+            query_of(&[
+                ("q", Some("Kirjasto & lainaus?".into())),
+                ("limit", Some("3".into()))
+            ]),
+            "?q=Kirjasto+%26+lainaus%3F&limit=3"
+        );
+    }
 }
