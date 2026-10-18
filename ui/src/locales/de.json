@@ -1007,7 +1007,7 @@
     },
     "retention": {
       "title": "Aufbewahrung",
-      "lead": "Wie lange dieser Raum die Daten jedes Typs aufbewahrt. Ein Typ ohne Regel wird für immer aufbewahrt; eine kürzere Regel oder ein ausgeschalteter Verlauf löscht Daten endgültig.",
+      "lead": "Wie lange dieser Raum die Daten jedes Typs aufbewahrt. Ein Typ, dessen Regel nichts zum Verlauf sagt, übernimmt die Zeile Alle anderen Typen und ohne sie die Vorgabe der Plattform; eine kürzere Regel oder ein ausgeschalteter Verlauf löscht Daten endgültig.",
       "noTypes": "Das Modell des Raums nennt noch keine Typen.",
       "caption": "Wie lange die Daten jedes Typs aufbewahrt werden",
       "type": "Typ",
@@ -1044,7 +1044,12 @@
       },
       "off": "Aus: kein Verlauf",
       "offShown": "Aus",
-      "foreverAsNow": "Für immer behalten (wie bisher)"
+      "foreverAsNow": "Für immer behalten (wie bisher)",
+      "anyType": "Alle anderen Typen",
+      "spaceDefault": "Vorgabe des Raums",
+      "platformDefault": "Vorgabe der Plattform",
+      "perType": "Pro Typ festgelegt",
+      "defaultAsNow": "{fallback} (wie bisher)"
     },
     "upload": {
       "open": "CSV hochladen",

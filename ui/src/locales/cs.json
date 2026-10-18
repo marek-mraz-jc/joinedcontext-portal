@@ -1007,7 +1007,7 @@
     },
     "retention": {
       "title": "Uchovávání",
-      "lead": "Jak dlouho tento prostor uchovává data každého typu. Typ bez pravidla se uchovává navždy; kratší pravidlo nebo vypnutá historie data trvale smaže.",
+      "lead": "Jak dlouho tento prostor uchovává data každého typu. Typ, jehož pravidlo o historii nic neříká, přebírá řádek Všechny ostatní typy a bez něj výchozí hodnotu platformy; kratší pravidlo nebo vypnutá historie data trvale smaže.",
       "noTypes": "Model prostoru zatím nejmenuje žádné typy.",
       "caption": "Jak dlouho se uchovávají data každého typu",
       "type": "Typ",
@@ -1044,7 +1044,12 @@
       },
       "off": "Vypnutá: bez historie",
       "offShown": "Vypnutá",
-      "foreverAsNow": "Uchovat navždy (jako teď)"
+      "foreverAsNow": "Uchovat navždy (jako teď)",
+      "anyType": "Všechny ostatní typy",
+      "spaceDefault": "Výchozí v prostoru",
+      "platformDefault": "Výchozí v platformě",
+      "perType": "Nastavuje se pro každý typ",
+      "defaultAsNow": "{fallback} (jako teď)"
     },
     "upload": {
       "open": "Nahrát CSV",

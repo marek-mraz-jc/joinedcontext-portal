@@ -23,6 +23,9 @@ export interface RetentionRule {
   reason?: string;
 }
 
+/** The `entityType` of the space's default rule: history of every type without its own (DM-97). */
+export const ANY_TYPE = "*";
+
 /** The history of a type that keeps its current state only (T-4275). */
 export const HISTORY_OFF = "off";
 /** The history of a type that keeps it all, which the manifest states with a reason. */

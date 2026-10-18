@@ -1007,7 +1007,7 @@
     },
     "retention": {
       "title": "Uchovávanie",
-      "lead": "Ako dlho tento priestor uchováva údaje každého typu. Typ bez pravidla sa uchováva navždy; kratšie pravidlo alebo vypnutá história údaje natrvalo vymaže.",
+      "lead": "Ako dlho tento priestor uchováva údaje každého typu. Typ, ktorého pravidlo o histórii nič nehovorí, preberá riadok Všetky ostatné typy a bez neho predvolenú hodnotu platformy; kratšie pravidlo alebo vypnutá história údaje natrvalo vymaže.",
       "noTypes": "Model priestoru zatiaľ nemenuje žiadne typy.",
       "caption": "Ako dlho sa uchovávajú údaje každého typu",
       "type": "Typ",
@@ -1044,7 +1044,12 @@
       },
       "off": "Vypnutá: bez histórie",
       "offShown": "Vypnutá",
-      "foreverAsNow": "Uchovať navždy (ako teraz)"
+      "foreverAsNow": "Uchovať navždy (ako teraz)",
+      "anyType": "Všetky ostatné typy",
+      "spaceDefault": "Predvolené v priestore",
+      "platformDefault": "Predvolené v platforme",
+      "perType": "Nastavuje sa pre každý typ",
+      "defaultAsNow": "{fallback} (ako teraz)"
     },
     "upload": {
       "open": "Nahrať CSV",
