@@ -902,7 +902,8 @@ PUT /api/v1/preferences      replaces them whole; answers 200 with what is now s
   "advancedMode": false,
   "firstRunDismissed": false,
   "recent": [{ "path": "/projects/air-quality/pipelines/shmu/edit", "title": "shmu · air-quality" }],
-  "favourites": [{ "path": "/projects/air-quality/explore?type=AirQualityObserved", "title": "Explore data · air-quality" }]
+  "favourites": [{ "path": "/projects/air-quality/explore?type=AirQualityObserved", "title": "Explore data · air-quality" }],
+  "connectors": [{ "name": "my-air", "select": { "themes": ["ENVI"], "endpoints": ["zt4qm7ge2xdv6ksb3ncf5arw2y"] } }]
 }
 ```
 
@@ -919,6 +920,17 @@ PUT /api/v1/preferences      replaces them whole; answers 200 with what is now s
   space, connect a data source, run a pipeline, see the data, share it); the help menu shows it
   again by clearing it. Absent means shown. Each step ticks itself from the project's own state,
   never from this record (T-3233).
+- `connectors` holds up to ten personal MCP connectors (UI-98, ADR-N-043 §7): a DNS-label `name`,
+  unique in the list, and a `select` of the McpServer selector fields (MF-55) plus `endpoints`, up to
+  50 Endpoint slugs; a slug the caller may not read when saved, an eleventh connector or a fifty-first
+  slug is a `400`. The gateway reads them for `/api/mcp/me/{name}` by the caller's `sub` alone (EP-123):
+  `GET /internal/connectors/{sub}` on the Portal's internal listener answers
+  `{ "connectors": [ { "name": "my-air", "select": { … } } ] }`, an empty list for a `sub` with
+  none, with the same Keycloak ServiceAccount check as `/internal/previews` (the gateway's own
+  token, audience `portal-internal`; any other token or none is a `401`, and the NetworkPolicy
+  opens the listener to the gateway alone). The gateway keeps an answer at most 60 seconds per
+  `sub` and answers `503` while the Portal cannot be read, never an older list. `me` is
+  therefore no project a named server can be declared in.
 - `recent` holds the last ten item pages the person opened, newest first, and `favourites` up to
   fifty pages they starred (UI-90). Each place is a `path` inside the Portal, with its query and
   without `lang`, and the `title` the page had: a path that is not one of this Portal's (`//host`,
@@ -1345,20 +1357,16 @@ POST /api/v1/webhooks/sync/{project}/{name}                  signed, no session
 
 ### The mirror itself (MF-04, CC-08, OPS-51)
 
-Four routes are about the Portal's own copy of the repository rather than about any project
-(`joinedcontext-portal/src/api/sync.rs`, `joinedcontext-portal/src/api/webhook.rs`,
-`joinedcontext-portal/src/api/health.rs`):
+Three routes are about the Portal's own copy of the repository rather than about any project
+(`joinedcontext-portal/src/api/webhook.rs`, `joinedcontext-portal/src/api/health.rs`); a replica
+is ready only once its first sync has landed (T-4453 removed `GET /api/v1/sync`, which nothing read):
 
 ```text
-GET  /api/v1/sync              how the background mirror sync stands; a session, no project
 POST /api/v1/webhooks/gitea    the forge's own hook: signed, no session
 GET  /api/v1/health            liveness; public
 GET  /api/v1/ready             readiness; public
 ```
 
-- `/sync` answers `lastSync` (a Unix instant), `revision`, `manifests`, `lastError` and `leader`,
-  which is the replica that reconciles. It never carries the repository URL, the branch or a
-  token: a browser reads it, and none of those is the browser's business.
 - `/webhooks/gitea` is what makes a merged change visible without waiting for the next tick. The
   body is authenticated by an HMAC-SHA256 in `x-gitea-signature` against the configured webhook
   secret, and the previous one while a rotation runs, so a rotation never closes the door
@@ -2178,10 +2186,11 @@ A write answers `202` with a `Change` like any other manifest, and a federation 
 takes the Red lane: it makes one tenant's data answerable in another, which is a decision a
 steward signs (CC-63). The manifest lands at `projects/{project}/spaces/{space}/registrations/{name}.yaml`.
 
-What needs a route of its own is the picture across five kinds at once:
+What needs an operation of its own is the picture across five kinds at once, the registry's
+`jc_federation_graph` (§21; T-4453 removed the `GET …/federation-graph` route beside it):
 
 ```text
-GET /api/v1/projects/{project}/federation-graph   who reads whose data, as nodes and edges
+POST /api/v1/projects/{project}/ops/jc_federation_graph   {}   who reads whose data, as nodes and edges
 ```
 
 ```json
@@ -2245,11 +2254,12 @@ GET /api/v1/projects/{project}/federation-graph   who reads whose data, as nodes
 
 ## 18. Assistant catalog search (AG-58, UI-46)
 
-The question a person asks the assistant, answered from the mirror (Architecture/09 §9). The same
-call is the assistant's `search_catalog` tool, so a run and a person get the same answer:
+The question a person asks the assistant, answered from the mirror (Architecture/09 §9) by the
+registry's `jc_catalog_search` (§21), which is also the assistant's `search_catalog` tool, so a
+run and a person get the same answer (T-4453 removed the `GET …/assistant/catalog` route beside it):
 
 ```text
-GET /api/v1/projects/{project}/assistant/catalog?q=bike%20availability&scope=Endpoint
+POST /api/v1/projects/{project}/ops/jc_catalog_search   { "q": "bike availability", "scope": "Endpoint" }
 ```
 
 ```json
@@ -3138,7 +3148,6 @@ read and never widens it (ADR-N-042 §3.2).
 ```text
 GET    /api/v1/projects/{project}/spaces/{space}/views          the views this caller sees → 200
 POST   /api/v1/projects/{project}/spaces/{space}/views          save a new one → 201
-GET    /api/v1/projects/{project}/spaces/{space}/views/{id}     one view → 200
 PUT    /api/v1/projects/{project}/spaces/{space}/views/{id}     rename it, change its mode or settings → 200
 DELETE /api/v1/projects/{project}/spaces/{space}/views/{id}     delete it → 204
 ```

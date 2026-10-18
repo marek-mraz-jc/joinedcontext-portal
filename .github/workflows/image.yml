@@ -41,7 +41,9 @@ jobs:
           context: .
           file: ${{ matrix.file }}
           target: ${{ matrix.target }}
-          build-args: APT_REFRESH=${{ steps.day.outputs.d }}
+          build-args: |
+            APT_REFRESH=${{ steps.day.outputs.d }}
+            JC_PORTAL_COMMIT=${{ github.sha }}
           push: true
           tags: ${{ matrix.image }}:${{ github.sha }},${{ matrix.image }}:main
           cache-from: type=gha,scope=${{ matrix.name }}

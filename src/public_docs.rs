@@ -66,18 +66,39 @@ pub fn render(chapter: &str, page: &str) -> Option<String> {
     let mut content = String::new();
     let options = Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH;
     html::push_html(&mut content, Parser::new_ext(body, options).map(safe));
-    let commit = Pages::get("COMMIT")
-        .and_then(|file| String::from_utf8(file.data.into_owned()).ok())
-        .unwrap_or_default();
+    let commit = docs_commit();
     Some(format!(
         "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
          <title>{title}</title>\n<style>{STYLE}</style>\n</head>\n<body>\n<main>\n{content}</main>\n\
-         <footer><p>joinedcontext platform documentation, {chapter}, docs {commit}</p></footer>\n\
-         </body>\n</html>\n",
+         <footer><p>joinedcontext platform documentation, {chapter}, docs {commit}, \
+         Portal {release}</p></footer>\n</body>\n</html>\n",
         title = escape(title),
-        commit = escape(commit.trim().get(..12).unwrap_or(commit.trim())),
+        commit = escape(short(&commit)),
+        release = escape(&release()),
     ))
+}
+
+/// The docs commit the bundle was made from (`public-docs/COMMIT`), which the deployment pins
+/// beside the Portal's digest (T-4483).
+pub fn docs_commit() -> String {
+    Pages::get("COMMIT")
+        .and_then(|file| String::from_utf8(file.data.into_owned()).ok())
+        .map(|commit| commit.trim().to_owned())
+        .unwrap_or_default()
+}
+
+/// The release these pages belong to: the Portal's version and, in an image, the commit it was
+/// built from (the `JC_PORTAL_COMMIT` build argument, T-4483).
+pub fn release() -> String {
+    match option_env!("JC_PORTAL_COMMIT").map(str::trim) {
+        Some(built) if !built.is_empty() => format!("{} {}", crate::APP_VERSION, short(built)),
+        _ => crate::APP_VERSION.to_owned(),
+    }
+}
+
+fn short(commit: &str) -> &str {
+    commit.get(..12).unwrap_or(commit)
 }
 
 const STYLE: &str = "body{font:16px/1.6 system-ui,sans-serif;max-width:52rem;margin:0 auto;\
