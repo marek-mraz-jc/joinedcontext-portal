@@ -320,7 +320,7 @@ describe("export", () => {
     expect(exportUrl("abc", "csv", TYPE, 'name=="A"', ["name", "status"])).toBe(
       `/api/endpoint/abc/file.csv?type=${TYPE}&q=name%3D%3D%22A%22&attrs=name%2Cstatus`,
     );
-    expect(exportUrl("abc", "json", TYPE, undefined, [])).toBe(`/api/endpoint/abc/file.json?type=${TYPE}`);
+    expect(exportUrl("abc", "csv", TYPE, undefined, [])).toBe(`/api/endpoint/abc/file.csv?type=${TYPE}`);
   });
 
   it("offers only the formats an Endpoint of the space serves, and says when none does", () => {
@@ -332,7 +332,8 @@ describe("export", () => {
       </I18nextProvider>,
     );
     expect(screen.getByRole("link", { name: "CSV" })).toHaveAttribute("href", `/api/endpoint/a1/file.csv?type=${TYPE}&attrs=name`);
-    expect(screen.getByRole("link", { name: "JSON" })).toBeInTheDocument();
+    // CSV is the one file an Endpoint publishes (T-4600): a listed `json` is no link.
+    expect(screen.queryByRole("link", { name: "JSON" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Excel" })).toBeNull();
     rerender(
       <I18nextProvider i18n={i18n}>

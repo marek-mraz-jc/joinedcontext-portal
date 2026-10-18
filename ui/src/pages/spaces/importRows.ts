@@ -670,7 +670,8 @@ export function rejectedCsv(rejected: Rejected[]): string {
 // ---------------------------------------------------------------------------------------------
 
 /** The file representations an export offers, in the order the menu lists them. */
-export const EXPORTS = ["csv", "xlsx", "json"] as const;
+/** The one file an Endpoint publishes (T-4600, T-4597): its other files are gone. */
+export const EXPORTS = ["csv"] as const;
 
 /**
  * Where an Endpoint's file of the view is: its `file.{format}` narrowed to the type, the view's

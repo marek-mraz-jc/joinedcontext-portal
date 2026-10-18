@@ -23,7 +23,9 @@ describe("the Portal's own NGSI-LD reads", () => {
   });
 
   it("leaves the other representations alone", () => {
-    expect(REPRESENTATION_PATHS.geojson).toBe("/file.geojson");
+    expect(REPRESENTATION_PATHS.csv).toBe("/file.csv");
+    // CSV is the one file (T-4600).
+    expect(REPRESENTATION_PATHS.geojson).toBeUndefined();
     expect(REPRESENTATION_PATHS.mcp).toBe("/mcp");
   });
 });
