@@ -463,3 +463,91 @@ async fn a_reader_lists_the_runs_and_reads_one_runs_log_of_this_pipeline_only() 
         assert!(!refused.text.contains("urn:s-"));
     }
 }
+
+/// T-4593: a steward bound to one space with propose on Pipeline replays the pipelines that
+/// write that space and no other, and never reaches the project's pipeline templates, which
+/// live in no space.
+#[tokio::test]
+async fn a_space_steward_replays_its_spaces_pipeline_only_and_never_the_templates() {
+    let runner = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path_regex(r"^/helsinki/streams/rejected-replay-[a-z0-9]+$"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&runner)
+        .await;
+    let state = retry_world(&runner).await;
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "sanna-helsinki-pipelines",
+        ORG_NAMESPACE,
+        json!({
+            "subjects": [{ "user": "sanna@hel.fi" }],
+            "role": "pipeline-author",
+            "scope": { "contextSpace": "helsinki" },
+        }),
+    ));
+    state.mirror.upsert(envelope(
+        "ContextSpace",
+        "water",
+        "helsinki",
+        json!({ "urnSegment": "water" }),
+    ));
+    state.mirror.upsert(envelope(
+        "Endpoint",
+        "lakes",
+        "helsinki",
+        json!({ "contextSpaceRef": "water", "slug": "w3qz8rmn5tkd2vxc7bpya4hfge" }),
+    ));
+    state.mirror.upsert(envelope(
+        "Pipeline",
+        "lake-feed",
+        "helsinki",
+        json!({
+            "class": "resident",
+            "source": { "dataSourceRef": { "kind": "DataSource", "name": "feed" } },
+            "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:helsinki:lakes"
+        }),
+    ));
+    let clean = ids(&state).await[0];
+
+    let other = send(
+        &state,
+        person("sanna"),
+        "POST",
+        "/api/v1/projects/helsinki/pipelines/lake-feed/rejected/retry",
+        Some(json!({ "ids": [clean] })),
+    )
+    .await;
+    assert_eq!(other.status, StatusCode::NOT_FOUND, "{}", other.text);
+    for (method, uri, body) in [
+        ("GET", "/api/v1/projects/helsinki/pipelinetemplates", None),
+        (
+            "POST",
+            "/api/v1/projects/helsinki/pipelinetemplates",
+            Some(json!({ "name": "t" })),
+        ),
+        (
+            "DELETE",
+            "/api/v1/projects/helsinki/pipelinetemplates/x",
+            None,
+        ),
+    ] {
+        let answer = send(&state, person("sanna"), method, uri, body).await;
+        assert_eq!(
+            answer.status,
+            StatusCode::NOT_FOUND,
+            "{method} {uri}: {}",
+            answer.text
+        );
+    }
+
+    let own = send(
+        &state,
+        person("sanna"),
+        "POST",
+        RETRY,
+        Some(json!({ "ids": [clean] })),
+    )
+    .await;
+    assert_eq!(own.status, StatusCode::ACCEPTED, "{}", own.text);
+}

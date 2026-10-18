@@ -185,22 +185,22 @@ impl Effective {
     /// Whether some grant here lets the caller `verb` on `kind` at all, whatever the content:
     /// the question asked before a manifest is read, so a caller without the right learns
     /// nothing of the kind's schema (T-2576, PF-50). The content is judged by [`Self::check`].
+    ///
+    /// A grant bound to one context space counts only for a kind that lives in a space (T-4593):
+    /// for any other kind no manifest could pass [`Self::check`], and a route that asks only this
+    /// question would let a steward of one space act on the whole project. A route acting on a
+    /// manifest of such a kind with a space of its own asks [`Self::may_in`] with that space.
     pub fn may(&self, kind: &str, verb: Verb) -> bool {
         self.bootstrap
-            || self
-                .grants
-                .iter()
-                .any(|grant| grant.rule.grants(kind, verb))
+            || self.grants.iter().any(|grant| {
+                grant.rule.grants(kind, verb) && (grant.space.is_none() || lives_in_space(kind))
+            })
     }
 
     /// Whether the caller may read `kind` here (PF-59). `propose` on a kind implies `read` on
     /// it, which is what keeps a role written before the verb working (jc-core `Rule::grants`).
     pub fn may_read(&self, kind: &str) -> bool {
-        self.bootstrap
-            || self
-                .grants
-                .iter()
-                .any(|grant| grant.rule.grants(kind, Verb::Read))
+        self.may(kind, Verb::Read)
     }
 
     /// Whether a role of this caller names `field` in a constraint on `propose` of `kind`
@@ -1037,12 +1037,29 @@ fn is_subject(identity: &Identity, subject: &jc_core::kinds::Subject) -> bool {
         .is_some_and(|g| in_group(identity, g))
 }
 
-/// `spec.contextSpaceRef` of a manifest, written bare or as `{ name }`.
 /// The audience of the manifest under approval, when it has one (EP-14).
 fn audience_of(target: Option<&Value>) -> Option<&str> {
     target?.pointer("/spec/audience")?.as_str()
 }
 
+/// Whether a manifest of `kind` names its context space in `spec.contextSpaceRef`, or is the
+/// space itself: the kinds a binding scoped to one space can reach (T-4593).
+pub fn lives_in_space(kind: &str) -> bool {
+    matches!(
+        kind,
+        "ContextSpace"
+            | "Endpoint"
+            | "Policy"
+            | "Subscription"
+            | "ContextSourceRegistration"
+            | "DataModel"
+            | "Mapping"
+            | "ModelProjection"
+            | "DataOffer"
+    )
+}
+
+/// `spec.contextSpaceRef` of a manifest, written bare or as `{ name }`.
 pub fn space_ref(target: &Value) -> Option<String> {
     let value = target.pointer("/spec/contextSpaceRef")?;
     value
