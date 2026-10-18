@@ -81,7 +81,7 @@ export function markdown(text: string, known: (n: number) => boolean = () => fal
   const blocks: Block[] = [];
   let paragraph: { tag: "p"; children: Inline[] } | null = null;
   let list: { tag: "ul" | "ol"; children: { tag: "li"; children: Inline[] }[] } | null = null;
-  let table: { tag: "table"; children: { tag: "tr"; children: Cell[] }[] } | null = null;
+  let table: Table | null = null;
   let fence: { tag: "pre"; text: string; lines: string[] } | null = null;
   for (const line of text.replace(/\r\n?/g, "\n").split("\n")) {
     if (fence) {
@@ -97,16 +97,7 @@ export function markdown(text: string, known: (n: number) => boolean = () => fal
     }
     if (ROW.test(line) || (table && RULE.test(line))) {
       paragraph = list = null;
-      if (table && table.children.length === 1 && RULE.test(line)) {
-        // The rule under the first row makes it the header.
-        for (const cell of table.children[0].children) cell.tag = "th";
-        continue;
-      }
-      if (!table) {
-        table = { tag: "table", children: [] };
-        blocks.push(table);
-      }
-      table.children.push({ tag: "tr", children: cells(line, known) });
+      table = tableLine(line, table, blocks, known);
       continue;
     }
     table = null;
@@ -142,13 +133,34 @@ export function markdown(text: string, known: (n: number) => boolean = () => fal
       paragraph.children.push(...inline(line.trim(), known));
     }
   }
+  closeFences(blocks);
+  return blocks;
+}
+
+type Table = { tag: "table"; children: { tag: "tr"; children: Cell[] }[] };
+
+// One table line: a row, or the rule under the first row, which makes it the header.
+function tableLine(line: string, table: Table | null, blocks: Block[], known: (n: number) => boolean): Table {
+  if (table && table.children.length === 1 && RULE.test(line)) {
+    for (const cell of table.children[0].children) cell.tag = "th";
+    return table;
+  }
+  if (!table) {
+    table = { tag: "table", children: [] };
+    blocks.push(table);
+  }
+  table.children.push({ tag: "tr", children: cells(line, known) });
+  return table;
+}
+
+// A fenced block's lines become its text once the whole answer is read.
+function closeFences(blocks: Block[]) {
   for (const block of blocks) {
     if (block.tag === "pre" && "lines" in block) {
       block.text = (block.lines as string[]).join("\n");
       delete (block as { lines?: string[] }).lines;
     }
   }
-  return blocks;
 }
 
 export interface Source {
