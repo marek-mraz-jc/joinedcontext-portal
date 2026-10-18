@@ -69,7 +69,7 @@ fn endpoint(name: &str, audience: &str) -> ResourceEnvelope {
     live(
         "Endpoint",
         name,
-        json!({ "contextSpaceRef": "ovzdusie", "slug": "zt4qm7ge2xdv6ksb3ncf5arw2y", "audience": audience, "enabledRepresentations": ["ngsi-ld", "geojson"] }),
+        json!({ "contextSpaceRef": "ovzdusie", "slug": "zt4qm7ge2xdv6ksb3ncf5arw2y", "audience": audience, "enabledRepresentations": ["ngsi-ld", "ogc-features"] }),
     )
 }
 

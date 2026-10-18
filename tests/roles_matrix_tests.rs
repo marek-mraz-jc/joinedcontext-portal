@@ -80,7 +80,7 @@ const FAMILIES: [Family; 7] = [
                 "contextSpaceRef": { "kind": "ContextSpace", "name": "helsinki" },
                 "slug": "zt4qm7ge2xdv6ksb3ncf5arw2y",
                 "audience": "organization",
-                "enabledRepresentations": ["ngsi-ld", "geojson"]
+                "enabledRepresentations": ["ngsi-ld", "ogc-features"]
             })
         },
     },

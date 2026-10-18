@@ -197,7 +197,7 @@ async fn state() -> AppState {
             "Endpoint",
             "air-public",
             PROJECT,
-            json!({ "contextSpaceRef": "air", "slug": "k7m2qz4tv6xh3n5jb2ryd3wcfa", "audience": "public", "enabledRepresentations": ["ngsi-ld", "geojson"] }),
+            json!({ "contextSpaceRef": "air", "slug": "k7m2qz4tv6xh3n5jb2ryd3wcfa", "audience": "public", "enabledRepresentations": ["ngsi-ld", "ogc-features"] }),
         ),
         (
             "Layer",
