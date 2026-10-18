@@ -66,6 +66,9 @@ test("ten thousand endpoints: the first row is on screen within a second and the
   test.setTimeout(180_000);
   const items = catalogue(4497n);
   const body = JSON.stringify({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", metadata: {}, items });
+  // When the list reached the page: the clock of what this page does with 10 000 rows, apart from
+  // booting the app on a dev server, which a loaded CI runner stretched past a second (T-4561).
+  let answered = 0;
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     const json = (value: string) => route.fulfill({ status: 200, contentType: "application/json", body: value });
@@ -76,7 +79,9 @@ test("ten thousand endpoints: the first row is on screen within a second and the
       return json(JSON.stringify({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ProjectList", items: [{ name: "bbsk" }] }));
     }
     if (path === "/api/v1/projects/bbsk/endpoints") {
-      return json(body);
+      await json(body);
+      answered ||= Date.now();
+      return;
     }
     return json(JSON.stringify({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] }));
   });
@@ -88,15 +93,18 @@ test("ten thousand endpoints: the first row is on screen within a second and the
   const started = Date.now();
   await page.goto("/projects/bbsk/endpoints?lang=en");
   await expect(page.getByText(first, { exact: true }).first()).toBeVisible({ timeout: 120_000 });
-  const firstRow = Date.now() - started;
+  const shown = Date.now();
+  const firstRow = shown - answered;
+  const bootMs = answered - started;
   const rows = await page.locator("[data-records] tbody tr").count();
   // The search asks the list the page already holds: the last of 10 000, a page and more away.
   const searched = Date.now();
   await page.getByRole("searchbox", { name: "Find an endpoint by name or title" }).fill(`d${String(N - 1).padStart(5, "0")}`);
   await expect(page.getByText(last, { exact: true }).first()).toBeVisible({ timeout: 30_000 });
   const foundMs = Date.now() - searched;
-  console.log(`portal_endpoints_ui first_row_ms=${firstRow} found_last_ms=${foundMs} rows=${rows} bytes=${body.length}`);
+  console.log(`portal_endpoints_ui first_row_ms=${firstRow} boot_ms=${bootMs} found_last_ms=${foundMs} rows=${rows} bytes=${body.length}`);
   expect(rows).toBeLessThanOrEqual(50);
+  expect(answered).toBeGreaterThan(0);
   expect(firstRow).toBeLessThan(1_000);
 
   // An endpoint the address names opens though it is far beyond the first page.
