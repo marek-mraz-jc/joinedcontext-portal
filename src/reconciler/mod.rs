@@ -21,7 +21,6 @@ pub mod hub_scopes;
 pub mod leader;
 pub mod mcp_clients;
 pub mod mqtt_brokers;
-pub mod ngsi_catalog;
 pub mod project_teams;
 pub mod realm;
 pub mod registrations;

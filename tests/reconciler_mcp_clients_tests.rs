@@ -54,6 +54,29 @@ async fn realm(listed: Value) -> MockServer {
         .respond_with(ResponseTemplate::new(200).set_body_json(listed))
         .mount(&keycloak)
         .await;
+    // The organization's built-in `org/all` (EP-122) is declared on every run; here its client is
+    // already as wanted, so it writes nothing. A test that wants it otherwise mounts its own.
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/clients")))
+        .and(query_param("clientId", "mcp-org-all"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!([held("uuid-all", "org", "all")])),
+        )
+        .with_priority(20)
+        .mount(&keycloak)
+        .await;
+    let mut own = audience_mapper("mcp-org-all");
+    own["id"] = json!("all-a");
+    let mut groups = groups_mapper();
+    groups["id"] = json!("all-g");
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "{REALM}/clients/uuid-all/protocol-mappers/models"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([own, groups])))
+        .with_priority(20)
+        .mount(&keycloak)
+        .await;
     for verb in ["POST", "PUT", "DELETE"] {
         Mock::given(method(verb))
             .and(path_regex(format!(
@@ -145,8 +168,8 @@ async fn a_server_gets_a_public_pkce_client_naming_itself() {
     let outcomes = sync(&keycloak)
         .converge(&mirror_with(vec![server("helsinki", "mobility")]))
         .await;
-    assert_eq!(outcomes.len(), 1, "{outcomes:?}");
-    assert_eq!(outcomes[0].error, None, "{outcomes:?}");
+    assert_eq!(outcomes.len(), 2, "the server and org/all: {outcomes:?}");
+    assert!(outcomes.iter().all(|o| o.error.is_none()), "{outcomes:?}");
     assert_eq!(
         wrote(&keycloak).await,
         vec![
@@ -283,4 +306,26 @@ async fn the_client_of_a_removed_server_is_deleted_and_nothing_else() {
     assert!(outcomes
         .iter()
         .any(|o| o.app == "helsinki/gone" && o.drift.iter().any(|d| d.contains("server is gone"))));
+}
+
+/// EP-122: `org/all` has no manifest, and still gets its client in a realm that has none.
+#[tokio::test]
+async fn org_all_gets_its_client_without_a_manifest() {
+    let keycloak = realm(json!([])).await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/clients")))
+        .and(query_param("clientId", "mcp-org-all"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .up_to_n_times(1)
+        .mount(&keycloak)
+        .await;
+
+    let outcomes = sync(&keycloak).converge(&Mirror::new()).await;
+    assert_eq!(outcomes.len(), 1, "{outcomes:?}");
+    assert_eq!(outcomes[0].app, "org/all");
+    assert_eq!(outcomes[0].error, None, "{outcomes:?}");
+    let created = &bodies(&keycloak, "POST", &format!("{REALM}/clients")).await[0];
+    assert_eq!(created["clientId"], "mcp-org-all");
+    assert_eq!(created["publicClient"], true);
+    assert_eq!(created["attributes"][SERVER_ATTRIBUTE], "org/all");
 }

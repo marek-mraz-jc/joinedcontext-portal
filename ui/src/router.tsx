@@ -38,6 +38,7 @@ const ConnectPage = lazy(() => import("./pages/connect/ConnectPage").then((modul
 import { HomePage } from "./pages/home/HomePage";
 const KnowledgePage = lazy(() => import("./pages/knowledge/KnowledgePage").then((module) => ({ default: module.KnowledgePage })));
 const SourcePage = lazy(() => import("./pages/knowledge/SourcePage").then((module) => ({ default: module.SourcePage })));
+const ConnectorsPage = lazy(() => import("./pages/mcp/ConnectorsPage").then((module) => ({ default: module.ConnectorsPage })));
 const McpServersPage = lazy(() => import("./pages/mcp/McpServersPage").then((module) => ({ default: module.McpServersPage })));
 const CataloguePage = lazy(() => import("./pages/catalogue/CataloguePage").then((module) => ({ default: module.CataloguePage })));
 const DatasetPage = lazy(() => import("./pages/catalogue/DatasetPage").then((module) => ({ default: module.DatasetPage })));
@@ -878,6 +879,24 @@ const mcpServersRoute = createRoute({
   },
 });
 
+/** The person's own MCP connectors (UI-98, T-4531): outside any project, like the organization. */
+const connectorsRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/connectors",
+  component: function ConnectorsRoute() {
+    const projects = useProjects();
+    const first = preferredProject(projects.data);
+    if (!first) {
+      return <NoProject projects={projects} />;
+    }
+    return (
+      <Shell project={first}>
+        <ConnectorsPage />
+      </Shell>
+    );
+  },
+});
+
 /** One source's pages, documents and passages, included and excluded (T-3057). */
 const knowledgeSourceRoute = createRoute({
   getParentRoute: () => protectedRoute,
@@ -1194,6 +1213,7 @@ export const routeTree = rootRoute.addChildren([
     inboxRoute,
     knowledgeSourceRoute,
     mcpServersRoute,
+    connectorsRoute,
     importRoute,
     federationRoute,
     spaceCompleteRoute,

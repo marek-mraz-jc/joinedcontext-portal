@@ -7678,5 +7678,60 @@
       "other": "form layouts",
       "new": "New form layout"
     }
+  },
+  "connectors": {
+    "title": "My MCP connectors",
+    "lead": "Your own MCP addresses, up to {max}. Only your sign-in opens them, and each reaches only Endpoints you may read.",
+    "new": "New connector",
+    "empty": "No connectors yet",
+    "emptyHint": "Create one, or star an Endpoint on its page to start a connector called favourites.",
+    "edit": "Edit",
+    "editOf": "Edit connector {name}",
+    "remove": "Delete",
+    "removeOf": "Delete connector {name}",
+    "reach": "Reaches now: {count}",
+    "reachOf": "What {name} reaches",
+    "narrowedAtGateway": "Domains and themes narrow this further when the gateway serves it.",
+    "organization": "Servers of the organization",
+    "organizationLead": "Anyone in the organization may connect to these; each still answers with only what you may read.",
+    "all": "Everything you may read (org/all)",
+    "newTitle": "New connector",
+    "editTitle": "Edit connector {name}",
+    "formLead": "An Endpoint is in the connector when it matches every field you fill in. Empty fields match everything you may read.",
+    "save": "Save",
+    "field": {
+      "name": "Name",
+      "projects": "Projects",
+      "spaces": "Context spaces",
+      "domains": "Domains",
+      "themes": "Themes",
+      "accessLevel": "Access",
+      "endpoints": "Favourite Endpoints: {count}"
+    },
+    "help": {
+      "name": "Lowercase letters, digits and dashes; the last part of the address.",
+      "projects": "Comma-separated project names.",
+      "spaces": "project/space, comma-separated.",
+      "domains": "Smart Data Models domains: Environment, Transportation, …",
+      "themes": "EU data themes, such as ENVI or TRAN.",
+      "endpoints": "Star an Endpoint on its page to add it here."
+    },
+    "level": {
+      "public": "Public",
+      "organization": "Whole organization",
+      "project": "My projects",
+      "grant": "Shared with me"
+    },
+    "problem": {
+      "name": "Use lowercase letters, digits and dashes, up to 63 characters.",
+      "taken": "You already have a connector with this name.",
+      "projects": "A project name is lowercase letters, digits and dashes.",
+      "spaces": "Write each space as project/space.",
+      "tooMany": "A field holds 50 values at most."
+    },
+    "star": {
+      "add": "Add to my connectors",
+      "in": "In connector: {names}"
+    }
   }
 }
