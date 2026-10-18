@@ -188,14 +188,16 @@ function EntityCount({
   );
 }
 
-/** What a space takes in the broker's store, exact in the tooltip; a dash while it is not known. */
-function SpaceSize({ usage, locale }: { usage: SpaceUsage | undefined; locale: string }): JSX.Element {
+/** What a space takes in the broker's store, a line under its count, exact in the tooltip; nothing
+ *  while it is not known. Under the count, not a column of its own: one more column pushed the
+ *  table past its frame at 768 px (red ci-full 39140815794). */
+function SpaceSize({ usage, locale, label }: { usage: SpaceUsage | undefined; locale: string; label: string }): JSX.Element | null {
   const bytes = totalBytes(usage);
-  if (bytes === undefined) return <span className="text-fg-subtle">—</span>;
+  if (bytes === undefined) return null;
   return (
-    <span data-testid="space-size" title={exactBytes(bytes, locale)}>
+    <div data-testid="space-size" className="text-caption text-fg-muted" title={`${label}: ${exactBytes(bytes, locale)}`}>
       {sizeText(bytes, locale)}
-    </span>
+    </div>
   );
 }
 
@@ -299,7 +301,6 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
           <span aria-hidden="true">{bySize ? " ↓" : ""}</span>
         </Button>
       </TableHeaderCell>
-      <TableHeaderCell align="right" secondary>{t("spaces.field.size")}</TableHeaderCell>
       <TableHeaderCell align="right">{t("spaces.field.inside")}</TableHeaderCell>
       <TableHeaderCell align="right" secondary>{t("spaces.field.source")}</TableHeaderCell>
     </TableHead>
@@ -455,9 +456,7 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
               </TableCell>
               <TableCell align="right" secondary className="tabular-nums">
                 <EntityCount usage={usageOf(space.metadata.name)} numbers={numbers} />
-              </TableCell>
-              <TableCell align="right" secondary className="tabular-nums">
-                <SpaceSize usage={usageOf(space.metadata.name)?.data} locale={locale} />
+                <SpaceSize usage={usageOf(space.metadata.name)?.data} locale={locale} label={t("spaces.field.size")} />
               </TableCell>
               <TableCell align="right">
                 <SpaceRowActions

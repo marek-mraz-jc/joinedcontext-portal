@@ -36,4 +36,4 @@ spec:
       # the endpoint's projection and is not asked for.
       attrs: [name, description, startDate, endDate, eventStatus, address, location, source]
       operations: [queryEntity, retrieveEntity]
-      representations: [ngsi-ld, geojson]
+      representations: [ngsi-ld, ogc-features]
