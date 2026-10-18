@@ -873,8 +873,217 @@ impl Syncer {
         // 2, 3. The repository as files on disk, this run's own; in layout 2 the organization
         //       with every registered project mounted at `projects/{slug}/` (CC-86).
         // 4. Load and validate the whole repository the way `jcctl plan` does (CC-08, MF-05).
+        let (scratch, repository) = self.stage_and_load(&revision).await?;
+
+        // 4b. The author's mapping beside a Pipeline manifest (PL-03): the loader leaves
+        //     `bento.yaml` alone, so the streams read it from the staged tree by name.
+        let bentos = bentos_beside(&repository, scratch.path());
+
+        // 5. Compile the live status of every resource and swap the mirror in one step, so a
+        //    reader never sees a half-built repository (MF-04).
+        // The conditions this run starts from, so one that says the same again keeps its time.
+        let transitions = super::transitions::Transitions::of(&self.mirror);
+        let (fresh_mirror, loaded) =
+            self.load_mirror(&scratch, &repository, &revision, &default_branch)?;
+
+        // 5a. What the sync webhook route authorises a run against (MF-44, T-2297). Before the
+        //     follower's early return: any replica can be the one an origin's hook reaches, and
+        //     a follower holding none would refuse a signature that is right.
+        self.resolve_webhook_secrets(&fresh_mirror, scratch.path())
+            .await;
+
+        // 5b. Every replica serves `/apps/*` from its own disk, so each one fetches the builds
+        //     the new mirror names before anything is leader-only (AP-102).
+        if let Some(cache) = self.apps_cache_dir.as_deref() {
+            crate::apps::fetch::fetch_missing(&self.gitea, Path::new(cache), &fresh_mirror).await;
+        }
+
+        // A follower stops here: what the runner accepted, what the cluster runs and what the
+        //    forge enforces are the leader's to converge, so its stream pipelines say so.
+        if !leader {
+            self.serve_as_follower(&fresh_mirror, &transitions, &repository)
+                .await;
+            return Ok((loaded, revision));
+        }
+
+        // 5a''. A project whose registry entry is gone was deleted (PF-77): its repository is
+        //       archived, read-only with its history, never removed. The entry is what the
+        //       reviewed Change took away, so nothing else can make a repository go.
+        //       ponytail: compares with the last sync of this process; a deletion merged while
+        //       the Portal was down leaves its repository open until an operator archives it.
+        self.archive_deleted_projects(&fresh_mirror).await;
+
+        // 5a'. Resolve what every pipeline's `secretRef`s name and hand the values to the
+        //      runner as one Secret (T-0927, PL-15). A pipeline whose reference does not
+        //      resolve, or whose `envVar` another pipeline already claims, is named here and
+        //      refused by the wave below rather than started without its credential.
+        let refused = self
+            .resolve_pipeline_secrets(&fresh_mirror, scratch.path())
+            .await;
+
+        // 5a*. A pipeline the repository no longer holds takes its refused records and its log
+        //      with it (PL-61, PL-62); a paused one is still in the repository and keeps them.
+        //      Only the leader, only after a sync that loaded, and only in a project this sync
+        //      read: a project whose repository did not stage holds nothing in the mirror.
+        //      ponytail: a deleted project's rows stay (it holds nothing to compare against);
+        //      drop them with the project's archive when PF-77 grows a data purge.
+        self.forget_gone_pipelines(&fresh_mirror).await;
+
+        // 5b'. What every `Subscription` manifest declares, written into the space it names
+        //      (T-0931, CC-72). The broker holds the effect, so the status of each manifest is
+        //      where a person sees whether the declaration arrived.
+        self.converge_subscriptions(&fresh_mirror, &scratch).await;
+
+        // 5b''. Every `ContextSourceRegistration`, written into the tenant of the hub space it
+        //       names (T-0345, PF-48). A hub is a configuration, so the manifest's status is
+        //       where a person sees whether the member was actually registered.
+        self.converge_registrations(&fresh_mirror).await;
+
+        // 5b'''. Every Endpoint's and Context Space's view and every space's rule document,
+        //        written into the broker (T-3640). The condition says whether the broker holds
+        //        it; an Endpoint whose view is refused keeps the gateway path and its phase.
+        self.converge_views(&fresh_mirror, &repository).await;
+
+        // 5c. The realm's managed groups, brought to what `users/groups/` says (PF-63). The
+        //     drift lands on the Group manifests of this run's mirror, so the Access page shows
+        //     where the console and the repository disagreed.
+        //     Beside them, each registered project's `{slug}-readers` and `{slug}-writers`,
+        //     filled from its bindings, which the forge maps onto the teams of 5c* (PF-87).
+        let projects = fresh_mirror.repositories();
+        self.converge_groups(&fresh_mirror, &projects).await;
+
+        // 5c*. The forge teams those groups map onto: two per project of layout 2, each
+        //      reaching its project's repository alone; a gone project's teams go (PF-87).
+        self.converge_project_teams(&fresh_mirror, &projects).await;
+
+        // 5c'. People whose removal Change has been decided (PF-93): merged, the Keycloak user
+        //      goes; closed unmerged, the pending removal is dropped and the person stays
+        //      disabled for an administrator to enable.
+        if let Some((people, pool)) = self.people.as_ref() {
+            crate::api::people::finish_deletions(people, pool, &self.gitea).await;
+        }
+
+        // 5d. Every published App's own Keycloak client (ADR-N-030, AP-111). The secrets it reads
+        //     back replace the last run's, so a retired App's secret is gone with its client.
+        self.converge_app_clients(&fresh_mirror).await;
+
+        // 5d'. The federated client of every ServiceAccount bound to a workload (PF-47). Nothing
+        //      is read back: no secret opens such a client. A Pipeline's own account is bound
+        //      to a Kubernetes ServiceAccount the step before it keeps (PL-19), and so is an
+        //      App's job principal (AP-159).
+        self.converge_workload_accounts(&fresh_mirror).await;
+
+        // 5d''. One `endpoint:{slug}` scope on the MCP hub's client per Endpoint that serves MCP
+        //       (T-2490, EP-88): the connect-time allow-list a hub token carries.
+        self.converge_hub_scopes(&fresh_mirror).await;
+
+        // 5d, named servers. One public PKCE client per named MCP server, its own audience
+        //       (EP-96, T-3156).
+        self.converge_mcp_clients(&fresh_mirror).await;
+
+        // 5e. The file the edge serves: helm's base with the routes of every App whose client
+        //     the step above has in place (ADR-N-030, AP-112). A failure leaves APISIX serving
+        //     the last file it read.
+        self.converge_edge_file(&fresh_mirror).await;
+
+        // 5b. Deploy resident streams for eligible DataSource pipelines (PL-47), each with the
+        //     validation stage of its space's model at the version the space pins now (PL-60).
+        //     After the App clients and the edge file: a runner that cannot restart a stream
+        //     answers a PUT only at the timeout, and the edge's routes and protections must not
+        //     wait for that (T-2891).
+        self.converge_streams(&fresh_mirror, &repository, &scratch, &bentos, &refused)
+            .await;
+
+        // A pipeline whose credential did not resolve says so last, over whatever the wave
+        // above wrote: it is stopped whether or not this Portal has a runner to deploy to, and
+        // the missing reference is the reason the author can act on (T-0927, PL-15). The
+        // condition names the reference, never the value.
+        mark_refused_pipelines(&fresh_mirror, &refused);
+
+        // What this run concluded about every stream pipeline, for the replicas that serve
+        // without reconciling (T-2976). Best effort: a follower that cannot read it says so.
+        if let Some(store) = self.pipeline_status.as_ref() {
+            if let Err(err) = store.save(&stream_phases(&fresh_mirror)).await {
+                tracing::warn!(error = %err, "the pipeline phases were not shared with the other replicas");
+            }
+        }
+
+        // 5f. The open-data catalogue of every project (EP-62…EP-67, T-2405). Before the mirror
+        //     is swapped on purpose: a dataset is withdrawn only when the Endpoint that declared
+        //     it was there a run ago, and `self.mirror` is still that run.
+        if let Some(catalogue) = self.ckan.as_ref() {
+            let reports = catalogue
+                .converge(&repository, &self.mirror, scratch.path())
+                .await;
+            self.say_published(&reports).await;
+        }
+        // 5g. The same public Endpoints as NGSI-LD entities an agent searches first (T-4500).
+        self.converge_catalog(&repository).await;
+
+        transitions.keep_all(&fresh_mirror);
+        self.mirror.replace_all(&fresh_mirror);
+
+        // 6. Converge what an App compiles into (T-0411, AP-18, AP-21). The mirror is already
+        //    swapped, so a cluster that refuses one object leaves the Portal serving the
+        //    repository correctly and says why in the log; one app's failure is not the run's.
+        self.converge_apps(&repository).await;
+
+        // 6a. Every published App's host: its certificate, requested once, and its edge Ingress;
+        //     a retired App's are removed (ADR-N-037, AP-133). An App whose certificate is not
+        //     issued yet says so, and reads published only once it is.
+        self.converge_app_hosts(&scratch, &transitions).await;
+
+        // 6a2. Each WASM shard's placement of the published `wasm` Apps placed on it, and its
+        //      store key (AP-157, AP-158): after 6, so an App retired this run has left it.
+        self.converge_wasm_shards().await;
+
+        // 6a3. Every MqttBroker's release and client (ADR-N-048 §2.6–§2.7, T-3994). A manifest
+        //      the platform refuses keeps the release it had and says why in its status; one no
+        //      repository holds any more loses both, and only when every repository staged.
+        self.converge_mqtt_brokers(&scratch, &transitions).await;
+
+        // 6b. An app whose `status.build` names a build this host does not hold keeps the
+        //     previous one serving, and says so on the App rather than looking healthy (AP-72).
+        self.report_missing_builds(&transitions);
+
+        // 6c. One writer and one reader per Organization in the artifact store, scoped to that
+        //     organization's prefixes (PF-31, PF-32). Both are derived from the root credential
+        //     this process holds, so the call is an upsert and re-running it changes nothing;
+        //     one organization the store refuses is that organization's condition, not the
+        //     run's failure, exactly like the app wave above.
+        self.converge_artifact_store(&transitions).await;
+
+        // 6d. Whether each Organization owns the domain it declares (PF-41, T-2377): minted,
+        //     checked when due and stored, then reported on the Organization's status. A lookup
+        //     that fails is a recorded state; a database that fails is a log line, and the
+        //     Organization shows no state rather than a stale one.
+        self.verify_domains().await;
+
+        // 7. Compile `users/` into what the forge enforces (T-0527, PF-51, PF-52, CC-41): the
+        //    CODEOWNERS, the bindings as data, and the gate that reads them. Written only when
+        //    the repository differs, so the commit this makes is seen once by the next run and
+        //    changes nothing. A forge that refuses the write costs the run nothing but a line
+        //    in the log; the Portal's own check (PF-50) holds either way.
+        if let Err(err) = self.publish_roles(&repository, &default_branch).await {
+            tracing::warn!(error = %err, "roles were not compiled into the repository");
+        }
+
+        // 8. Drift (CC-21): configuration cannot drift, because every component reads it from
+        //    the repository (CC-72, T-0421 option B). What can is a space's seed entities, so
+        //    that is what the scan compares — against the space surface every other client
+        //    reads, as this Portal's own service account, so it reports what a person could
+        //    see. Only the leader scans: a follower's answer would be the same read made twice.
+        self.scan_and_start_background(&scratch).await;
+
+        Ok((loaded, revision))
+    }
+
+    async fn stage_and_load(
+        &self,
+        revision: &str,
+    ) -> Result<(Arc<Render>, Arc<Repository>), SyncError> {
         let staging = std::time::Instant::now();
-        let (scratch, repository) = self.staged(&revision).await?;
+        let (scratch, repository) = self.staged(revision).await?;
         tracing::info!(
             elapsed_ms = staging.elapsed().as_millis() as u64,
             "repository staged and loaded"
@@ -882,31 +1091,19 @@ impl Syncer {
         for (id, path, expected) in repository.misplaced() {
             tracing::warn!(resource = %id, path = %path.display(), %expected, "manifest is not at the path its kind declares");
         }
+        Ok((scratch, repository))
+    }
 
-        // 4b. The author's mapping beside a Pipeline manifest (PL-03): the loader leaves
-        //     `bento.yaml` alone, so the streams read it from the staged tree by name.
-        let mut bentos = Bentos::new();
-        for (id, resource) in repository.iter() {
-            if id.kind != "Pipeline" {
-                continue;
-            }
-            let beside = scratch
-                .path()
-                .join(&resource.path)
-                .with_file_name("bento.yaml");
-            if let Ok(text) = std::fs::read_to_string(&beside) {
-                let namespace = id
-                    .namespace
-                    .clone()
-                    .unwrap_or_else(|| namespace_of(&resource.path.to_string_lossy()));
-                bentos.insert((namespace, id.name.clone()), text);
-            }
-        }
-
-        // 5. Compile the live status of every resource and swap the mirror in one step, so a
-        //    reader never sees a half-built repository (MF-04).
-        // The conditions this run starts from, so one that says the same again keeps its time.
-        let transitions = super::transitions::Transitions::of(&self.mirror);
+    /// The mirror this run builds: every resource the repository loaded, with the status the
+    /// repository owns and the one this run computes. A repository with no resource of a known
+    /// kind is an error rather than an empty Portal.
+    fn load_mirror(
+        &self,
+        scratch: &Render,
+        repository: &Repository,
+        revision: &str,
+        default_branch: &str,
+    ) -> Result<(Mirror, usize), SyncError> {
         let fresh_mirror = Mirror::new();
         fresh_mirror.set_layout(scratch.layout);
         fresh_mirror.set_repositories(
@@ -963,10 +1160,10 @@ impl Syncer {
             envelope.strip_status();
             envelope.status = Some(crate::resource::Status {
                 phase: crate::resource::Phase::Live,
-                observed_revision: Some(revision.clone()),
+                observed_revision: Some(revision.to_string()),
                 // The branch, not the revision: a Source link should keep working after the
                 // next commit, and the observed revision is right there beside it.
-                source_url: Some(scratch.browse_url(&self.gitea, &path, &default_branch)),
+                source_url: Some(scratch.browse_url(&self.gitea, &path, default_branch)),
                 conditions: Vec::new(),
                 build,
                 shard,
@@ -983,48 +1180,38 @@ impl Syncer {
                 "no resource of a known kind in the staged manifests".to_string(),
             ));
         }
+        Ok((fresh_mirror, loaded))
+    }
 
-        // 5a. What the sync webhook route authorises a run against (MF-44, T-2297). Before the
-        //     follower's early return: any replica can be the one an origin's hook reaches, and
-        //     a follower holding none would refuse a signature that is right.
-        self.resolve_webhook_secrets(&fresh_mirror, scratch.path())
-            .await;
-
-        // 5b. Every replica serves `/apps/*` from its own disk, so each one fetches the builds
-        //     the new mirror names before anything is leader-only (AP-102).
-        if let Some(cache) = self.apps_cache_dir.as_deref() {
-            crate::apps::fetch::fetch_missing(&self.gitea, Path::new(cache), &fresh_mirror).await;
+    /// A follower's run: what the runner accepted, what the cluster runs and what the forge
+    /// enforces are the leader's to converge, so its stream pipelines say what the leader saw.
+    async fn serve_as_follower(
+        &self,
+        fresh_mirror: &Mirror,
+        transitions: &super::transitions::Transitions,
+        repository: &Repository,
+    ) {
+        let saved = match self.pipeline_status.as_ref() {
+            Some(store) => store
+                .load(crate::pipeline_status::FRESH)
+                .await
+                .unwrap_or_else(|err| {
+                    tracing::warn!(error = %err, "the leader's pipeline phases could not be read");
+                    HashMap::new()
+                }),
+            None => HashMap::new(),
+        };
+        serve_leaders_phases(fresh_mirror, &saved);
+        transitions.keep_all(fresh_mirror);
+        self.mirror.replace_all(fresh_mirror);
+        // The broker is the leader's to write; a draft's preview compiles against what this
+        // replica read, so it answers on every replica (T-3820, EP-85).
+        if let Some(views) = self.views.as_ref() {
+            views.remember(repository);
         }
+    }
 
-        // A follower stops here: what the runner accepted, what the cluster runs and what the
-        //    forge enforces are the leader's to converge, so its stream pipelines say so.
-        if !leader {
-            let saved = match self.pipeline_status.as_ref() {
-                Some(store) => store
-                    .load(crate::pipeline_status::FRESH)
-                    .await
-                    .unwrap_or_else(|err| {
-                        tracing::warn!(error = %err, "the leader's pipeline phases could not be read");
-                        HashMap::new()
-                    }),
-                None => HashMap::new(),
-            };
-            serve_leaders_phases(&fresh_mirror, &saved);
-            transitions.keep_all(&fresh_mirror);
-            self.mirror.replace_all(&fresh_mirror);
-            // The broker is the leader's to write; a draft's preview compiles against what this
-            // replica read, so it answers on every replica (T-3820, EP-85).
-            if let Some(views) = self.views.as_ref() {
-                views.remember(&repository);
-            }
-            return Ok((loaded, revision));
-        }
-
-        // 5a''. A project whose registry entry is gone was deleted (PF-77): its repository is
-        //       archived, read-only with its history, never removed. The entry is what the
-        //       reviewed Change took away, so nothing else can make a repository go.
-        //       ponytail: compares with the last sync of this process; a deletion merged while
-        //       the Portal was down leaves its repository open until an operator archives it.
+    async fn archive_deleted_projects(&self, fresh_mirror: &Mirror) {
         let registered = fresh_mirror.repositories();
         for (slug, repository) in self.mirror.repositories() {
             if registered.contains_key(&slug) || registered.values().any(|r| *r == repository) {
@@ -1044,33 +1231,11 @@ impl Syncer {
                 }
             }
         }
+    }
 
-        // 5a'. Resolve what every pipeline's `secretRef`s name and hand the values to the
-        //      runner as one Secret (T-0927, PL-15). A pipeline whose reference does not
-        //      resolve, or whose `envVar` another pipeline already claims, is named here and
-        //      refused by the wave below rather than started without its credential.
-        let refused = self
-            .resolve_pipeline_secrets(&fresh_mirror, scratch.path())
-            .await;
-
-        // 5a*. A pipeline the repository no longer holds takes its refused records and its log
-        //      with it (PL-61, PL-62); a paused one is still in the repository and keeps them.
-        //      Only the leader, only after a sync that loaded, and only in a project this sync
-        //      read: a project whose repository did not stage holds nothing in the mirror.
-        //      ponytail: a deleted project's rows stay (it holds nothing to compare against);
-        //      drop them with the project's archive when PF-77 grows a data purge.
+    async fn forget_gone_pipelines(&self, fresh_mirror: &Mirror) {
         if let Some((rejected, log)) = self.pipeline_outcomes.as_ref() {
-            let mut loaded: std::collections::BTreeMap<String, std::collections::HashSet<String>> =
-                Default::default();
-            for envelope in fresh_mirror.matching(|_| true) {
-                let Some(project) = envelope.metadata.namespace else {
-                    continue;
-                };
-                let names = loaded.entry(project).or_default();
-                if envelope.kind == "Pipeline" {
-                    names.insert(envelope.metadata.name);
-                }
-            }
+            let loaded = pipelines_by_project(fresh_mirror);
             if let Err(error) = rejected.forget_gone(&loaded).await {
                 tracing::warn!(%error, "the refused records of deleted pipelines were not dropped");
             }
@@ -1078,132 +1243,47 @@ impl Syncer {
                 tracing::warn!(%error, "the run logs of deleted pipelines were not dropped");
             }
         }
+    }
 
-        // 5b'. What every `Subscription` manifest declares, written into the space it names
-        //      (T-0931, CC-72). The broker holds the effect, so the status of each manifest is
-        //      where a person sees whether the declaration arrived.
+    async fn converge_subscriptions(&self, fresh_mirror: &Mirror, scratch: &Render) {
         if let Some(subscriptions) = self.subscriptions.as_ref() {
             let outcomes = subscriptions
                 .converge(
-                    &fresh_mirror,
+                    fresh_mirror,
                     &self.mirror,
                     scratch.path(),
                     self.pipeline_secrets.as_ref(),
                 )
                 .await;
-            for (namespace, name, outcome) in outcomes {
-                let Some(mut envelope) = fresh_mirror.get(&namespace, "Subscription", &name) else {
-                    continue;
-                };
-                if let Some(status) = envelope.status.as_mut() {
-                    match &outcome {
-                        SubscriptionOutcome::Written => {
-                            status.phase = crate::resource::Phase::Live;
-                            status.conditions = Vec::new();
-                        }
-                        SubscriptionOutcome::Error(reason) => {
-                            status.phase = crate::resource::Phase::Error;
-                            status.conditions = vec![make_condition(
-                                "SubscriptionWritten",
-                                "False",
-                                "SpaceRefused",
-                                reason,
-                            )];
-                        }
-                    }
-                }
-                fresh_mirror.upsert(envelope);
-            }
+            record_subscriptions(fresh_mirror, outcomes);
         }
+    }
 
-        // 5b''. Every `ContextSourceRegistration`, written into the tenant of the hub space it
-        //       names (T-0345, PF-48). A hub is a configuration, so the manifest's status is
-        //       where a person sees whether the member was actually registered.
+    async fn converge_registrations(&self, fresh_mirror: &Mirror) {
         if let Some(registrations) = self.registrations.as_ref() {
-            let outcomes = registrations.converge(&fresh_mirror, &self.mirror).await;
-            for (namespace, name, outcome) in outcomes {
-                let Some(mut envelope) =
-                    fresh_mirror.get(&namespace, "ContextSourceRegistration", &name)
-                else {
-                    continue;
-                };
-                if let Some(status) = envelope.status.as_mut() {
-                    match &outcome {
-                        RegistrationOutcome::Written => {
-                            status.phase = crate::resource::Phase::Live;
-                            status.conditions = Vec::new();
-                        }
-                        RegistrationOutcome::Error(reason) => {
-                            status.phase = crate::resource::Phase::Error;
-                            status.conditions = vec![make_condition(
-                                "RegistrationWritten",
-                                "False",
-                                "BrokerRefused",
-                                reason,
-                            )];
-                        }
-                    }
-                }
-                fresh_mirror.upsert(envelope);
-            }
+            let outcomes = registrations.converge(fresh_mirror, &self.mirror).await;
+            record_registrations(fresh_mirror, outcomes);
         }
+    }
 
-        // 5b'''. Every Endpoint's and Context Space's view and every space's rule document,
-        //        written into the broker (T-3640). The condition says whether the broker holds
-        //        it; an Endpoint whose view is refused keeps the gateway path and its phase.
+    async fn converge_views(&self, fresh_mirror: &Mirror, repository: &Repository) {
         if let Some(views) = self.views.as_ref() {
-            for (owner, outcome) in views.converge(&repository).await {
-                let Some(mut envelope) = fresh_mirror.get(&owner.project, owner.kind, &owner.name)
-                else {
-                    continue;
-                };
-                if let Some(status) = envelope.status.as_mut() {
-                    let condition = match &outcome {
-                        super::views::ViewOutcome::Written => make_condition(
-                            super::views::CONDITION,
-                            "True",
-                            "Written",
-                            "the broker holds this view and rule document",
-                        ),
-                        super::views::ViewOutcome::Refused(reason) => make_condition(
-                            super::views::CONDITION,
-                            "False",
-                            "WriterRefused",
-                            reason,
-                        ),
-                        super::views::ViewOutcome::Failed(reason) => make_condition(
-                            super::views::CONDITION,
-                            "False",
-                            "BrokerRefused",
-                            reason,
-                        ),
-                    };
-                    status
-                        .conditions
-                        .retain(|held| held.r#type != super::views::CONDITION);
-                    status.conditions.push(condition);
-                }
-                fresh_mirror.upsert(envelope);
-            }
+            record_views(fresh_mirror, views.converge(repository).await);
         }
+    }
 
-        // 5c. The realm's managed groups, brought to what `users/groups/` says (PF-63). The
-        //     drift lands on the Group manifests of this run's mirror, so the Access page shows
-        //     where the console and the repository disagreed.
-        //     Beside them, each registered project's `{slug}-readers` and `{slug}-writers`,
-        //     filled from its bindings, which the forge maps onto the teams of 5c* (PF-87).
-        let projects = fresh_mirror.repositories();
+    async fn converge_groups(&self, fresh_mirror: &Mirror, projects: &BTreeMap<String, String>) {
         if let Some(groups) = self.groups.as_ref() {
             let now = chrono::Utc::now();
             let generated: Vec<(String, std::collections::BTreeSet<String>)> = projects
                 .keys()
                 .flat_map(|slug| {
-                    let members = crate::permissions::project_members(&fresh_mirror, slug, now);
+                    let members = crate::permissions::project_members(fresh_mirror, slug, now);
                     let [(readers, _), (writers, _)] = super::project_teams::teams_of(slug);
                     [(readers, members.readers), (writers, members.writers)]
                 })
                 .collect();
-            let outcomes = groups.converge_with(&fresh_mirror, &generated).await;
+            let outcomes = groups.converge_with(fresh_mirror, &generated).await;
             for outcome in &outcomes {
                 match (&outcome.error, outcome.drift.is_empty()) {
                     (Some(err), _) => {
@@ -1218,14 +1298,18 @@ impl Syncer {
                     tracing::warn!(group = %outcome.name, %warning, "group member is not a realm user yet");
                 }
             }
-            super::groups::record(&fresh_mirror, &outcomes);
+            super::groups::record(fresh_mirror, &outcomes);
             self.say_group_drift(&outcomes).await;
         }
+    }
 
-        // 5c*. The forge teams those groups map onto: two per project of layout 2, each
-        //      reaching its project's repository alone; a gone project's teams go (PF-87).
+    async fn converge_project_teams(
+        &self,
+        fresh_mirror: &Mirror,
+        projects: &BTreeMap<String, String>,
+    ) {
         if fresh_mirror.layout() == 2 {
-            let outcomes = match super::project_teams::converge(&self.gitea, &projects).await {
+            let outcomes = match super::project_teams::converge(&self.gitea, projects).await {
                 super::project_teams::Teams::Kept(outcomes) => {
                     self.teams_left_to_bootstrap
                         .store(false, std::sync::atomic::Ordering::Relaxed);
@@ -1257,19 +1341,12 @@ impl Syncer {
                 }
             }
         }
+    }
 
-        // 5c'. People whose removal Change has been decided (PF-93): merged, the Keycloak user
-        //      goes; closed unmerged, the pending removal is dropped and the person stays
-        //      disabled for an administrator to enable.
-        if let Some((people, pool)) = self.people.as_ref() {
-            crate::api::people::finish_deletions(people, pool, &self.gitea).await;
-        }
-
-        // 5d. Every published App's own Keycloak client (ADR-N-030, AP-111). The secrets it reads
-        //     back replace the last run's, so a retired App's secret is gone with its client.
+    async fn converge_app_clients(&self, fresh_mirror: &Mirror) {
         if let Some(clients) = self.app_clients.as_ref() {
-            let run = clients.converge(&fresh_mirror).await;
-            super::app_clients::record(&fresh_mirror, &run.outcomes);
+            let run = clients.converge(fresh_mirror).await;
+            super::app_clients::record(fresh_mirror, &run.outcomes);
             for outcome in &run.outcomes {
                 match (&outcome.error, outcome.drift.is_empty()) {
                     (Some(err), _) => {
@@ -1297,15 +1374,13 @@ impl Syncer {
                     .unwrap_or_else(|poisoned| poisoned.into_inner()) = run.secrets;
             }
         }
+    }
 
-        // 5d'. The federated client of every ServiceAccount bound to a workload (PF-47). Nothing
-        //      is read back: no secret opens such a client. A Pipeline's own account is bound
-        //      to a Kubernetes ServiceAccount the step before it keeps (PL-19), and so is an
-        //      App's job principal (AP-159).
+    async fn converge_workload_accounts(&self, fresh_mirror: &Mirror) {
         if let Some((kube, namespace)) = self.pipeline_service_accounts.as_ref() {
             for failure in super::workload_clients::converge_pipeline_service_accounts(
                 kube,
-                &fresh_mirror,
+                fresh_mirror,
                 namespace,
             )
             .await
@@ -1316,7 +1391,7 @@ impl Syncer {
         if let Some((kube, namespace)) = self.app_job_service_accounts.as_ref() {
             for failure in super::workload_clients::converge_app_job_service_accounts(
                 kube,
-                &fresh_mirror,
+                fresh_mirror,
                 namespace,
             )
             .await
@@ -1325,7 +1400,7 @@ impl Syncer {
             }
         }
         if let Some(clients) = self.workload_clients.as_ref() {
-            let outcomes = clients.converge(&fresh_mirror).await;
+            let outcomes = clients.converge(fresh_mirror).await;
             // `*` is a failure before any account was looked at: it names no one to hold back.
             if let Some(streams) = self.streams.as_ref() {
                 streams.unbound(
@@ -1348,11 +1423,11 @@ impl Syncer {
                 }
             }
         }
+    }
 
-        // 5d''. One `endpoint:{slug}` scope on the MCP hub's client per Endpoint that serves MCP
-        //       (T-2490, EP-88): the connect-time allow-list a hub token carries.
+    async fn converge_hub_scopes(&self, fresh_mirror: &Mirror) {
         if let Some(scopes) = self.hub_scopes.as_ref() {
-            let outcomes = scopes.converge(&fresh_mirror).await;
+            let outcomes = scopes.converge(fresh_mirror).await;
             for outcome in &outcomes {
                 if let Some(err) = &outcome.error {
                     tracing::warn!(scope = %outcome.app, error = %err, "hub scope did not converge");
@@ -1365,7 +1440,7 @@ impl Syncer {
             }
             // T-3324: each Endpoint that serves MCP says whether a hub token can name it yet; the
             // deployment links its scope.
-            for endpoint in super::hub_scopes::serving(&fresh_mirror) {
+            for endpoint in super::hub_scopes::serving(fresh_mirror) {
                 let Some((state, reason, message)) =
                     super::hub_scopes::linked(&outcomes, &endpoint.scope())
                 else {
@@ -1390,11 +1465,11 @@ impl Syncer {
                 fresh_mirror.upsert(envelope);
             }
         }
+    }
 
-        // 5d, named servers. One public PKCE client per named MCP server, its own audience
-        //       (EP-96, T-3156).
+    async fn converge_mcp_clients(&self, fresh_mirror: &Mirror) {
         if let Some(clients) = self.mcp_clients.as_ref() {
-            for outcome in clients.converge(&fresh_mirror).await {
+            for outcome in clients.converge(fresh_mirror).await {
                 if let Some(err) = &outcome.error {
                     tracing::warn!(server = %outcome.app, error = %err, "MCP server client did not converge");
                 } else if !outcome.drift.is_empty() {
@@ -1402,19 +1477,17 @@ impl Syncer {
                 }
             }
         }
+    }
 
-        // 5e. The file the edge serves: helm's base with the routes of every App whose client
-        //     the step above has in place (ADR-N-030, AP-112). A failure leaves APISIX serving
-        //     the last file it read.
+    async fn converge_edge_file(&self, fresh_mirror: &Mirror) {
         if let Some((edge_file, settings)) = self.edge_file.as_ref() {
             let secrets = self
                 .app_client_secrets
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
                 .clone();
-            let (apps, mut skipped) =
-                super::edge_file::edge_apps(&fresh_mirror, &secrets, settings);
-            let limits = crate::api::organization_limits::limits_in(&fresh_mirror);
+            let (apps, mut skipped) = super::edge_file::edge_apps(fresh_mirror, &secrets, settings);
+            let limits = crate::api::organization_limits::limits_in(fresh_mirror);
             let (outcome, refused) = edge_file.converge(&apps, limits.as_ref()).await;
             skipped.extend(refused);
             for (app, reason) in &skipped {
@@ -1430,18 +1503,19 @@ impl Syncer {
                 }
             }
         }
+    }
 
-        // 5b. Deploy resident streams for eligible DataSource pipelines (PL-47), each with the
-        //     validation stage of its space's model at the version the space pins now (PL-60).
-        //     After the App clients and the edge file: a runner that cannot restart a stream
-        //     answers a PUT only at the timeout, and the edge's routes and protections must not
-        //     wait for that (T-2891).
+    async fn converge_streams(
+        &self,
+        fresh_mirror: &Mirror,
+        repository: &Repository,
+        scratch: &Render,
+        bentos: &Bentos,
+        refused: &BTreeMap<(String, String), String>,
+    ) {
         if let Some(deployer) = self.streams.as_ref() {
             if let Some(schemas) = deployer.model_schemas() {
-                schemas.replace(crate::pipeline_validation::load(
-                    &repository,
-                    scratch.path(),
-                ));
+                schemas.replace(crate::pipeline_validation::load(repository, scratch.path()));
             }
             // A scheduled pipeline that never ran gets its first run now, not at 03:00 (T-4421).
             if let Some((_, log)) = self.pipeline_outcomes.as_ref() {
@@ -1452,7 +1526,7 @@ impl Syncer {
                     }
                 }
             }
-            let outcomes = deployer.converge(&fresh_mirror, &bentos, &refused).await;
+            let outcomes = deployer.converge(fresh_mirror, bentos, refused).await;
             // A Live stream that reads nothing is the failure nobody sees: the runner keeps the
             // stream, the Portal says Live, and the counters are the only witness (T-0914). One
             // scrape per project with a Live stream, read for each of them.
@@ -1554,13 +1628,7 @@ impl Syncer {
                         if is_stream {
                             if let Some(status) = envelope.status.as_mut() {
                                 status.phase = crate::resource::Phase::Pending;
-                                let reason = if why.contains("quota") {
-                                    "QuotaExceeded"
-                                } else if why.contains("disabled") || why.contains("paused") {
-                                    "Paused"
-                                } else {
-                                    "Skipped"
-                                };
+                                let reason = skipped_reason(why);
                                 status.conditions =
                                     vec![make_condition("StreamDeployed", "False", reason, why)];
                             }
@@ -1572,52 +1640,16 @@ impl Syncer {
             self.stalls.retain(&live);
         } else {
             mark_streams_pending(
-                &fresh_mirror,
+                fresh_mirror,
                 "NoRunner",
                 "no pipeline runner is configured (JC_PORTAL_PIPELINE_RUNNER_URL)",
             );
         }
+    }
 
-        // A pipeline whose credential did not resolve says so last, over whatever the wave
-        // above wrote: it is stopped whether or not this Portal has a runner to deploy to, and
-        // the missing reference is the reason the author can act on (T-0927, PL-15). The
-        // condition names the reference, never the value.
-        for ((namespace, name), reason) in &refused {
-            let Some(mut envelope) = fresh_mirror.get(namespace, "Pipeline", name) else {
-                continue;
-            };
-            if let Some(status) = envelope.status.as_mut() {
-                status.phase = crate::resource::Phase::Error;
-                status.conditions = vec![make_condition(
-                    "StreamDeployed",
-                    "False",
-                    "SecretUnresolved",
-                    reason,
-                )];
-            }
-            fresh_mirror.upsert(envelope);
-        }
-
-        // What this run concluded about every stream pipeline, for the replicas that serve
-        // without reconciling (T-2976). Best effort: a follower that cannot read it says so.
-        if let Some(store) = self.pipeline_status.as_ref() {
-            if let Err(err) = store.save(&stream_phases(&fresh_mirror)).await {
-                tracing::warn!(error = %err, "the pipeline phases were not shared with the other replicas");
-            }
-        }
-
-        // 5f. The open-data catalogue of every project (EP-62…EP-67, T-2405). Before the mirror
-        //     is swapped on purpose: a dataset is withdrawn only when the Endpoint that declared
-        //     it was there a run ago, and `self.mirror` is still that run.
-        if let Some(catalogue) = self.ckan.as_ref() {
-            let reports = catalogue
-                .converge(&repository, &self.mirror, scratch.path())
-                .await;
-            self.say_published(&reports).await;
-        }
-        // 5g. The same public Endpoints as NGSI-LD entities an agent searches first (T-4500).
+    async fn converge_catalog(&self, repository: &Repository) {
         if let Some(catalog) = self.catalog.as_ref() {
-            match catalog.converge(&repository).await {
+            match catalog.converge(repository).await {
                 Ok(Some(run)) if run.upserted + run.deleted > 0 => tracing::info!(
                     upserted = run.upserted,
                     deleted = run.deleted,
@@ -1629,13 +1661,9 @@ impl Syncer {
                 }
             }
         }
+    }
 
-        transitions.keep_all(&fresh_mirror);
-        self.mirror.replace_all(&fresh_mirror);
-
-        // 6. Converge what an App compiles into (T-0411, AP-18, AP-21). The mirror is already
-        //    swapped, so a cluster that refuses one object leaves the Portal serving the
-        //    repository correctly and says why in the log; one app's failure is not the run's.
+    async fn converge_apps(&self, repository: &Repository) {
         if let Some(converger) = self.converger.as_ref() {
             // What each project may deploy (PF-74); the mirror is already swapped, so this is
             // the repository as it now stands.
@@ -1649,7 +1677,7 @@ impl Syncer {
                         .map(move |name| (ns.clone(), name))
                 })
                 .collect();
-            for (app, outcome) in converger.converge(&repository, &beyond).await {
+            for (app, outcome) in converger.converge(repository, &beyond).await {
                 match outcome {
                     Ok(Outcome::Applied) => tracing::info!(%app, "app objects applied"),
                     Ok(Outcome::Deleted) => tracing::info!(%app, "app objects deleted"),
@@ -1662,10 +1690,13 @@ impl Syncer {
                 }
             }
         }
+    }
 
-        // 6a. Every published App's host: its certificate, requested once, and its edge Ingress;
-        //     a retired App's are removed (ADR-N-037, AP-133). An App whose certificate is not
-        //     issued yet says so, and reads published only once it is.
+    async fn converge_app_hosts(
+        &self,
+        scratch: &Render,
+        transitions: &super::transitions::Transitions,
+    ) {
         if let (Some(hosts), Some((_, settings))) =
             (self.app_hosts.as_ref(), self.edge_file.as_ref())
         {
@@ -1741,9 +1772,9 @@ impl Syncer {
                 self.mirror.upsert(envelope);
             }
         }
+    }
 
-        // 6a2. Each WASM shard's placement of the published `wasm` Apps placed on it, and its
-        //      store key (AP-157, AP-158): after 6, so an App retired this run has left it.
+    async fn converge_wasm_shards(&self) {
         if let Some(shards) = self.wasm_shards.as_ref() {
             let placed = super::wasm_shards::PlacedApp::all(
                 &self
@@ -1776,10 +1807,13 @@ impl Syncer {
                 }
             }
         }
+    }
 
-        // 6a3. Every MqttBroker's release and client (ADR-N-048 §2.6–§2.7, T-3994). A manifest
-        //      the platform refuses keeps the release it had and says why in its status; one no
-        //      repository holds any more loses both, and only when every repository staged.
+    async fn converge_mqtt_brokers(
+        &self,
+        scratch: &Render,
+        transitions: &super::transitions::Transitions,
+    ) {
         if self.mqtt_brokers.is_some() || self.mqtt_clients.is_some() {
             let brokers = super::mqtt_brokers::declared(&self.mirror);
             let mut failed: BTreeMap<String, String> = brokers
@@ -1834,9 +1868,9 @@ impl Syncer {
                 self.mirror.upsert(envelope);
             }
         }
+    }
 
-        // 6b. An app whose `status.build` names a build this host does not hold keeps the
-        //     previous one serving, and says so on the App rather than looking healthy (AP-72).
+    fn report_missing_builds(&self, transitions: &super::transitions::Transitions) {
         for name in
             crate::apps::static_host::build_missing(self.apps_cache_dir.as_deref(), &self.mirror)
         {
@@ -1865,16 +1899,13 @@ impl Syncer {
         for name in crate::apps::static_host::report_unbuilt(
             self.apps_dir.as_deref(),
             &self.mirror,
-            &transitions,
+            transitions,
         ) {
             tracing::warn!(app = %name, "a published App has no build to serve");
         }
+    }
 
-        // 6c. One writer and one reader per Organization in the artifact store, scoped to that
-        //     organization's prefixes (PF-31, PF-32). Both are derived from the root credential
-        //     this process holds, so the call is an upsert and re-running it changes nothing;
-        //     one organization the store refuses is that organization's condition, not the
-        //     run's failure, exactly like the app wave above.
+    async fn converge_artifact_store(&self, transitions: &super::transitions::Transitions) {
         if let Some(store) = self.artifact_store.as_ref() {
             for name in self
                 .mirror
@@ -1913,11 +1944,9 @@ impl Syncer {
                 }
             }
         }
+    }
 
-        // 6d. Whether each Organization owns the domain it declares (PF-41, T-2377): minted,
-        //     checked when due and stored, then reported on the Organization's status. A lookup
-        //     that fails is a recorded state; a database that fails is a log line, and the
-        //     Organization shows no state rather than a stale one.
+    async fn verify_domains(&self) {
         if let Some(domains) = self.domains.as_ref() {
             for mut envelope in self
                 .mirror
@@ -1940,48 +1969,32 @@ impl Syncer {
                 }
             }
         }
+    }
 
-        // 7. Compile `users/` into what the forge enforces (T-0527, PF-51, PF-52, CC-41): the
-        //    CODEOWNERS, the bindings as data, and the gate that reads them. Written only when
-        //    the repository differs, so the commit this makes is seen once by the next run and
-        //    changes nothing. A forge that refuses the write costs the run nothing but a line
-        //    in the log; the Portal's own check (PF-50) holds either way.
-        if let Err(err) = self.publish_roles(&repository, &default_branch).await {
-            tracing::warn!(error = %err, "roles were not compiled into the repository");
-        }
-
-        // 8. Drift (CC-21): configuration cannot drift, because every component reads it from
-        //    the repository (CC-72, T-0421 option B). What can is a space's seed entities, so
-        //    that is what the scan compares — against the space surface every other client
-        //    reads, as this Portal's own service account, so it reports what a person could
-        //    see. Only the leader scans: a follower's answer would be the same read made twice.
-        if leader {
-            if let Some((watch, store)) = self.drift.as_ref() {
-                match watch.scan(scratch.path()).await {
-                    Ok(found) => {
-                        let drifted: usize = found.values().map(|f| f.entities.len()).sum();
-                        store.replace_all(found);
-                        if drifted > 0 {
-                            tracing::info!(drifted, "seed entities differ from what Git declares");
-                        }
+    async fn scan_and_start_background(&self, scratch: &Render) {
+        if let Some((watch, store)) = self.drift.as_ref() {
+            match watch.scan(scratch.path()).await {
+                Ok(found) => {
+                    let drifted: usize = found.values().map(|f| f.entities.len()).sum();
+                    store.replace_all(found);
+                    if drifted > 0 {
+                        tracing::info!(drifted, "seed entities differ from what Git declares");
                     }
-                    // A scan that failed keeps the previous answer rather than replacing it
-                    // with an empty one: "nothing drifted" and "nothing was read" are not the
-                    // same thing, and the second must not look like the first on the page.
-                    Err(err) => tracing::warn!(error = %err, "the drift scan did not complete"),
                 }
-            }
-            // 9. Data quality (DM-74): once a day, in the background; the sync never waits.
-            if let Some(scanner) = self.quality.as_ref() {
-                scanner.start_if_due();
-            }
-            // 10. Alerts (T-3261): from the statuses this run just set; in the background.
-            if let Some(evaluator) = self.alerts.as_ref() {
-                evaluator.start();
+                // A scan that failed keeps the previous answer rather than replacing it
+                // with an empty one: "nothing drifted" and "nothing was read" are not the
+                // same thing, and the second must not look like the first on the page.
+                Err(err) => tracing::warn!(error = %err, "the drift scan did not complete"),
             }
         }
-
-        Ok((loaded, revision))
+        // 9. Data quality (DM-74): once a day, in the background; the sync never waits.
+        if let Some(scanner) = self.quality.as_ref() {
+            scanner.start_if_due();
+        }
+        // 10. Alerts (T-3261): from the statuses this run just set; in the background.
+        if let Some(evaluator) = self.alerts.as_ref() {
+            evaluator.start();
+        }
     }
 
     /// Resolves every pipeline's references and writes them into the runner's one Secret.
@@ -2930,6 +2943,169 @@ fn published_events(reports: &[super::ckan::Report]) -> Vec<ActivityEvent> {
             })
         })
         .collect()
+}
+
+/// Every project the mirror holds, with the Pipelines it holds there: what the refused records
+/// and the run logs are compared against, so a project with no Pipeline left is still named.
+fn pipelines_by_project(
+    fresh_mirror: &Mirror,
+) -> BTreeMap<String, std::collections::HashSet<String>> {
+    let mut loaded: BTreeMap<String, std::collections::HashSet<String>> = Default::default();
+    for envelope in fresh_mirror.matching(|_| true) {
+        let Some(project) = envelope.metadata.namespace else {
+            continue;
+        };
+        let names = loaded.entry(project).or_default();
+        if envelope.kind == "Pipeline" {
+            names.insert(envelope.metadata.name);
+        }
+    }
+    loaded
+}
+
+/// Each Subscription's status from what its space answered (T-0931, CC-72).
+fn record_subscriptions(
+    fresh_mirror: &Mirror,
+    outcomes: Vec<(String, String, SubscriptionOutcome)>,
+) {
+    for (namespace, name, outcome) in outcomes {
+        let Some(mut envelope) = fresh_mirror.get(&namespace, "Subscription", &name) else {
+            continue;
+        };
+        if let Some(status) = envelope.status.as_mut() {
+            match &outcome {
+                SubscriptionOutcome::Written => {
+                    status.phase = crate::resource::Phase::Live;
+                    status.conditions = Vec::new();
+                }
+                SubscriptionOutcome::Error(reason) => {
+                    status.phase = crate::resource::Phase::Error;
+                    status.conditions = vec![make_condition(
+                        "SubscriptionWritten",
+                        "False",
+                        "SpaceRefused",
+                        reason,
+                    )];
+                }
+            }
+        }
+        fresh_mirror.upsert(envelope);
+    }
+}
+
+/// Each ContextSourceRegistration's status from what its hub's tenant answered (T-0345, PF-48).
+fn record_registrations(
+    fresh_mirror: &Mirror,
+    outcomes: Vec<(String, String, RegistrationOutcome)>,
+) {
+    for (namespace, name, outcome) in outcomes {
+        let Some(mut envelope) = fresh_mirror.get(&namespace, "ContextSourceRegistration", &name)
+        else {
+            continue;
+        };
+        if let Some(status) = envelope.status.as_mut() {
+            match &outcome {
+                RegistrationOutcome::Written => {
+                    status.phase = crate::resource::Phase::Live;
+                    status.conditions = Vec::new();
+                }
+                RegistrationOutcome::Error(reason) => {
+                    status.phase = crate::resource::Phase::Error;
+                    status.conditions = vec![make_condition(
+                        "RegistrationWritten",
+                        "False",
+                        "BrokerRefused",
+                        reason,
+                    )];
+                }
+            }
+        }
+        fresh_mirror.upsert(envelope);
+    }
+}
+
+/// Each Endpoint's and Context Space's view condition, replacing the one a run before set
+/// (T-3640); the phase stays the owner's own.
+fn record_views(
+    fresh_mirror: &Mirror,
+    outcomes: Vec<(super::views::Owner, super::views::ViewOutcome)>,
+) {
+    for (owner, outcome) in outcomes {
+        let Some(mut envelope) = fresh_mirror.get(&owner.project, owner.kind, &owner.name) else {
+            continue;
+        };
+        if let Some(status) = envelope.status.as_mut() {
+            let condition = match &outcome {
+                super::views::ViewOutcome::Written => make_condition(
+                    super::views::CONDITION,
+                    "True",
+                    "Written",
+                    "the broker holds this view and rule document",
+                ),
+                super::views::ViewOutcome::Refused(reason) => {
+                    make_condition(super::views::CONDITION, "False", "WriterRefused", reason)
+                }
+                super::views::ViewOutcome::Failed(reason) => {
+                    make_condition(super::views::CONDITION, "False", "BrokerRefused", reason)
+                }
+            };
+            status
+                .conditions
+                .retain(|held| held.r#type != super::views::CONDITION);
+            status.conditions.push(condition);
+        }
+        fresh_mirror.upsert(envelope);
+    }
+}
+
+/// The reason a stream pipeline the runner skipped reads Pending with (PL-47).
+fn skipped_reason(why: &str) -> &'static str {
+    if why.contains("quota") {
+        "QuotaExceeded"
+    } else if why.contains("disabled") || why.contains("paused") {
+        "Paused"
+    } else {
+        "Skipped"
+    }
+}
+
+/// The author's mapping beside each Pipeline manifest (PL-03), by (project, pipeline).
+fn bentos_beside(repository: &Repository, root: &Path) -> Bentos {
+    let mut bentos = Bentos::new();
+    for (id, resource) in repository.iter() {
+        if id.kind != "Pipeline" {
+            continue;
+        }
+        let beside = root.join(&resource.path).with_file_name("bento.yaml");
+        if let Ok(text) = std::fs::read_to_string(&beside) {
+            let namespace = id
+                .namespace
+                .clone()
+                .unwrap_or_else(|| namespace_of(&resource.path.to_string_lossy()));
+            bentos.insert((namespace, id.name.clone()), text);
+        }
+    }
+    bentos
+}
+
+/// A pipeline whose credential did not resolve reads Error, whatever else this run wrote on it
+/// (T-0927, PL-15). The condition names the reference, never the value.
+fn mark_refused_pipelines(fresh_mirror: &Mirror, refused: &BTreeMap<(String, String), String>) {
+    for ((namespace, name), reason) in refused {
+        let Some(mut envelope) = fresh_mirror.get(namespace, "Pipeline", name) else {
+            continue;
+        };
+        if let Some(status) = envelope.status.as_mut() {
+            status.phase = crate::resource::Phase::Error;
+            status.conditions = vec![make_condition(
+                "StreamDeployed",
+                "False",
+                "SecretUnresolved",
+                reason,
+            )];
+        }
+        fresh_mirror.upsert(envelope);
+    }
 }
 
 #[cfg(test)]
@@ -4103,5 +4279,319 @@ output_error{stream="kpi"} 6
             serde_json::json!({ "type": "http", "http": { "url": "https://example.org/x", "verb": "GET" } }),
         ));
         assert_eq!(pipeline_references(&mirror, "praha", &pipeline).len(), 1);
+    }
+
+    // T-4469: each step `do_sync` runs, on its own input.
+
+    fn envelope(kind: &str, project: &str, name: &str) -> ResourceEnvelope {
+        use crate::resource::{ObjectMeta, Phase, Status, API_VERSION};
+        ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: kind.to_owned(),
+            metadata: ObjectMeta::new(name, project),
+            spec: serde_json::json!({}),
+            status: Some(Status {
+                phase: Phase::Pending,
+                observed_revision: None,
+                source_url: None,
+                conditions: vec![make_condition(
+                    "Kept",
+                    "True",
+                    "Before",
+                    "set before this run",
+                )],
+                build: None,
+                shard: None,
+                domain_verification: None,
+                jobs: Vec::new(),
+            }),
+        }
+    }
+
+    fn status_of(mirror: &Mirror, kind: &str, name: &str) -> crate::resource::Status {
+        mirror
+            .get("p", kind, name)
+            .and_then(|envelope| envelope.status)
+            .expect("the resource and its status")
+    }
+
+    fn bare_syncer() -> Syncer {
+        let gitea = GiteaClient::new("http://localhost:3000".parse().unwrap(), "o", "r", "token")
+            .expect("a forge client");
+        Syncer::new(Arc::new(gitea), Arc::new(Mirror::new()))
+    }
+
+    fn write_tree(dir: &Path, files: &[(&str, &str)]) {
+        for (path, text) in files {
+            let at = dir.join(path);
+            std::fs::create_dir_all(at.parent().expect("a parent")).expect("mkdir");
+            std::fs::write(at, text).expect("write");
+        }
+    }
+
+    const PIPELINE: &str = "apiVersion: joinedcontext.com/v1alpha1\nkind: Pipeline\nmetadata:\n  name: NAME\n  namespace: ovzdusie\nspec:\n  class: auto\n  period: 60s\n  source:\n    dataSourceRef:\n      kind: DataSource\n      name: hsl\n  compute:\n    kind: bloblang\n    bloblang: root = this\n  targetEndpoint: urn:ngsi-ld:Endpoint:example.org:ovzdusie:all\n";
+
+    #[test]
+    fn a_pipeline_with_a_bento_beside_it_is_read_and_one_without_is_not() {
+        let dir = Scratch::new("t4469").expect("a scratch directory");
+        write_tree(
+            dir.path(),
+            &[
+                (
+                    "projects/ovzdusie/pipelines/aq/aq.yaml",
+                    &PIPELINE.replace("NAME", "aq"),
+                ),
+                ("projects/ovzdusie/pipelines/aq/bento.yaml", "input: {}\n"),
+                (
+                    "projects/ovzdusie/pipelines/bare/bare.yaml",
+                    &PIPELINE.replace("NAME", "bare"),
+                ),
+            ],
+        );
+        let repository = Repository::load(dir.path()).expect("the repository loads");
+        let bentos = bentos_beside(&repository, dir.path());
+        assert_eq!(
+            bentos,
+            Bentos::from([(
+                ("ovzdusie".to_owned(), "aq".to_owned()),
+                "input: {}\n".to_owned()
+            )])
+        );
+    }
+
+    #[test]
+    fn the_mirror_holds_each_resource_live_at_the_revision_and_nothing_is_an_error() {
+        let dir = Scratch::new("t4469").expect("a scratch directory");
+        let render = |root: &Path| Render {
+            layout: 1,
+            root: root.to_path_buf(),
+            _staged: Vec::new(),
+            projects: BTreeMap::new(),
+            unstaged: Vec::new(),
+            listings: BTreeMap::new(),
+        };
+        let syncer = bare_syncer();
+        write_tree(
+            dir.path(),
+            &[(
+                "projects/ovzdusie/pipelines/aq/aq.yaml",
+                &PIPELINE.replace("NAME", "aq"),
+            )],
+        );
+        let repository = Repository::load(dir.path()).expect("the repository loads");
+        let (mirror, loaded) = syncer
+            .load_mirror(&render(dir.path()), &repository, "abc123", "main")
+            .expect("one resource loads");
+        assert_eq!(loaded, 1);
+        let status = mirror
+            .get("ovzdusie", "Pipeline", "aq")
+            .and_then(|envelope| envelope.status)
+            .expect("the pipeline and its status");
+        assert_eq!(status.phase, crate::resource::Phase::Live);
+        assert_eq!(status.observed_revision.as_deref(), Some("abc123"));
+        assert!(status
+            .source_url
+            .expect("a source link")
+            .contains("aq.yaml"));
+        assert_eq!(mirror.layout(), 1);
+
+        let empty = Scratch::new("t4469").expect("a scratch directory");
+        write_tree(empty.path(), &[("README.md", "nothing here\n")]);
+        let repository = Repository::load(empty.path()).expect("an empty repository loads");
+        assert!(matches!(
+            syncer.load_mirror(&render(empty.path()), &repository, "abc123", "main"),
+            Err(SyncError::Empty(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_follower_swaps_the_mirror_in_without_converging_anything() {
+        let syncer = bare_syncer();
+        let fresh = Mirror::new();
+        fresh.upsert(envelope("Endpoint", "p", "e"));
+        let transitions = super::super::transitions::Transitions::of(&syncer.mirror);
+        let dir = Scratch::new("t4469").expect("a scratch directory");
+        write_tree(dir.path(), &[("README.md", "\n")]);
+        let repository = Repository::load(dir.path()).expect("the repository loads");
+        syncer
+            .serve_as_follower(&fresh, &transitions, &repository)
+            .await;
+        assert!(syncer.mirror.get("p", "Endpoint", "e").is_some());
+    }
+
+    #[tokio::test]
+    async fn a_step_whose_client_is_not_configured_changes_nothing() {
+        let syncer = bare_syncer();
+        let fresh = Mirror::new();
+        fresh.upsert(envelope("Endpoint", "p", "e"));
+        let before = serde_json::to_value(fresh.matching(|_| true)).expect("JSON");
+        let transitions = super::super::transitions::Transitions::of(&syncer.mirror);
+        syncer.archive_deleted_projects(&fresh).await;
+        syncer.forget_gone_pipelines(&fresh).await;
+        syncer.converge_registrations(&fresh).await;
+        syncer.converge_groups(&fresh, &BTreeMap::new()).await;
+        syncer.converge_app_clients(&fresh).await;
+        syncer.converge_workload_accounts(&fresh).await;
+        syncer.converge_hub_scopes(&fresh).await;
+        syncer.converge_mcp_clients(&fresh).await;
+        syncer.converge_edge_file(&fresh).await;
+        syncer.converge_wasm_shards().await;
+        syncer.report_missing_builds(&transitions);
+        syncer.converge_artifact_store(&transitions).await;
+        syncer.verify_domains().await;
+        let dir = Scratch::new("t4469").expect("a scratch directory");
+        write_tree(dir.path(), &[("README.md", "\n")]);
+        let repository = Repository::load(dir.path()).expect("the repository loads");
+        syncer.converge_views(&fresh, &repository).await;
+        syncer.converge_apps(&repository).await;
+        syncer.converge_catalog(&repository).await;
+        assert_eq!(
+            serde_json::to_value(fresh.matching(|_| true)).expect("JSON"),
+            before
+        );
+        assert!(syncer.mirror.matching(|_| true).is_empty());
+    }
+
+    #[test]
+    fn every_project_is_named_with_its_pipelines_even_one_with_none() {
+        let mirror = Mirror::new();
+        mirror.upsert(envelope("Pipeline", "a", "one"));
+        mirror.upsert(envelope("Pipeline", "a", "two"));
+        mirror.upsert(envelope("Endpoint", "b", "e"));
+        let found = pipelines_by_project(&mirror);
+        assert_eq!(found.len(), 2);
+        assert_eq!(
+            found["a"],
+            ["one", "two"].map(String::from).into_iter().collect()
+        );
+        assert!(found["b"].is_empty());
+    }
+
+    #[test]
+    fn a_written_subscription_is_live_and_a_refused_one_names_the_space() {
+        let mirror = Mirror::new();
+        mirror.upsert(envelope("Subscription", "p", "ok"));
+        mirror.upsert(envelope("Subscription", "p", "no"));
+        record_subscriptions(
+            &mirror,
+            vec![
+                ("p".into(), "ok".into(), SubscriptionOutcome::Written),
+                (
+                    "p".into(),
+                    "no".into(),
+                    SubscriptionOutcome::Error("403".into()),
+                ),
+                ("p".into(), "gone".into(), SubscriptionOutcome::Written),
+            ],
+        );
+        let ok = status_of(&mirror, "Subscription", "ok");
+        assert_eq!(ok.phase, crate::resource::Phase::Live);
+        assert!(ok.conditions.is_empty());
+        let no = status_of(&mirror, "Subscription", "no");
+        assert_eq!(no.phase, crate::resource::Phase::Error);
+        assert_eq!(no.conditions[0].reason.as_deref(), Some("SpaceRefused"));
+        assert_eq!(no.conditions[0].message.as_deref(), Some("403"));
+        assert!(mirror.get("p", "Subscription", "gone").is_none());
+    }
+
+    #[test]
+    fn a_written_registration_is_live_and_a_refused_one_names_the_broker() {
+        let mirror = Mirror::new();
+        mirror.upsert(envelope("ContextSourceRegistration", "p", "ok"));
+        mirror.upsert(envelope("ContextSourceRegistration", "p", "no"));
+        record_registrations(
+            &mirror,
+            vec![
+                ("p".into(), "ok".into(), RegistrationOutcome::Written),
+                (
+                    "p".into(),
+                    "no".into(),
+                    RegistrationOutcome::Error("timeout".into()),
+                ),
+            ],
+        );
+        assert_eq!(
+            status_of(&mirror, "ContextSourceRegistration", "ok").phase,
+            crate::resource::Phase::Live
+        );
+        let no = status_of(&mirror, "ContextSourceRegistration", "no");
+        assert_eq!(no.phase, crate::resource::Phase::Error);
+        assert_eq!(no.conditions[0].r#type, "RegistrationWritten");
+        assert_eq!(no.conditions[0].reason.as_deref(), Some("BrokerRefused"));
+    }
+
+    #[test]
+    fn a_view_outcome_replaces_the_last_view_condition_and_keeps_the_rest() {
+        use super::super::views::{Owner, ViewOutcome, CONDITION};
+        let mirror = Mirror::new();
+        let mut endpoint = envelope("Endpoint", "p", "e");
+        if let Some(status) = endpoint.status.as_mut() {
+            status
+                .conditions
+                .push(make_condition(CONDITION, "True", "Written", "a run ago"));
+        }
+        mirror.upsert(endpoint);
+        mirror.upsert(envelope("ContextSpace", "p", "s"));
+        let owner = |kind, name: &str| Owner {
+            kind,
+            project: "p".into(),
+            name: name.into(),
+        };
+        record_views(
+            &mirror,
+            vec![
+                (
+                    owner("Endpoint", "e"),
+                    ViewOutcome::Refused("no such type".into()),
+                ),
+                (
+                    owner("ContextSpace", "s"),
+                    ViewOutcome::Failed("503".into()),
+                ),
+            ],
+        );
+        let e = status_of(&mirror, "Endpoint", "e");
+        assert_eq!(e.phase, crate::resource::Phase::Pending);
+        let types: Vec<&str> = e.conditions.iter().map(|c| c.r#type.as_str()).collect();
+        assert_eq!(types, ["Kept", CONDITION]);
+        assert_eq!(e.conditions[1].reason.as_deref(), Some("WriterRefused"));
+        assert_eq!(
+            status_of(&mirror, "ContextSpace", "s").conditions[1]
+                .reason
+                .as_deref(),
+            Some("BrokerRefused")
+        );
+    }
+
+    #[test]
+    fn a_skipped_stream_reads_quota_paused_or_skipped() {
+        assert_eq!(
+            skipped_reason("the project's stream quota is spent"),
+            "QuotaExceeded"
+        );
+        assert_eq!(skipped_reason("the pipeline is paused"), "Paused");
+        assert_eq!(skipped_reason("disabled by its author"), "Paused");
+        assert_eq!(skipped_reason("not a stream"), "Skipped");
+    }
+
+    #[test]
+    fn a_pipeline_whose_secret_did_not_resolve_reads_error_over_what_the_wave_wrote() {
+        let mirror = Mirror::new();
+        mirror.upsert(envelope("Pipeline", "p", "x"));
+        mark_refused_pipelines(
+            &mirror,
+            &BTreeMap::from([
+                (
+                    ("p".to_owned(), "x".to_owned()),
+                    "secretRef db-pass is not set".to_owned(),
+                ),
+                (("p".to_owned(), "gone".to_owned()), "never mind".to_owned()),
+            ]),
+        );
+        let x = status_of(&mirror, "Pipeline", "x");
+        assert_eq!(x.phase, crate::resource::Phase::Error);
+        assert_eq!(x.conditions.len(), 1);
+        assert_eq!(x.conditions[0].reason.as_deref(), Some("SecretUnresolved"));
+        assert!(mirror.get("p", "Pipeline", "gone").is_none());
     }
 }
