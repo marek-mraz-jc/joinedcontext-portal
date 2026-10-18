@@ -141,10 +141,10 @@ pub(super) fn as_user(caller: &Caller) -> CurrentUser {
 
 /// Why an agent run never takes this operation, by name, or `None` when it may (AG-11).
 ///
-/// A run acts for the person who started it, so driving another run, answering the question a run
-/// asked that person, and minting or retiring the credentials the platform authenticates with are
-/// all the person's. The reason is looked up by name because one sentence for all of them made a
-/// refused key mint read as a refused run, which tells the reader nothing they can act on.
+/// A run acts for the person who started it, so driving another run and answering the question a
+/// run asked that person are the person's. The reason is looked up by name because one sentence
+/// for all of them made a refused answer read as a refused run, which tells the reader nothing
+/// they can act on.
 ///
 /// [`super::Caller::may_run`] asks this before an operation is listed or run, so the refusal
 /// arrives where `GET …/ops` can see it: the listing names exactly what the caller would be let
@@ -160,12 +160,6 @@ pub(super) fn agent_refusal(operation: &str) -> Option<&'static str> {
         "jc_run_answer" => {
             "an agent run does not answer the question a run asked the person it acts for; \
              a person does (AG-11, AG-45)"
-        }
-        "jc_service_account_key_mint"
-        | "jc_service_account_key_rotate"
-        | "jc_service_account_key_revoke" => {
-            "an agent run does not mint, rotate or revoke a service account's key; a person does \
-             (AG-11)"
         }
         _ => return None,
     })

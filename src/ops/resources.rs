@@ -69,16 +69,12 @@ pub const CHECKED_BY_THE_ROUTE: &[&str] = &[
     "jc_change_get",
     "jc_run_list",
     "jc_run_get",
-    "jc_service_account_key_list",
     "jc_project_get",
     "jc_endpoint_list_all",
     "jc_project_create",
     "jc_project_delete",
     "jc_project_export",
     "jc_project_import",
-    "jc_service_account_key_mint",
-    "jc_service_account_key_rotate",
-    "jc_service_account_key_revoke",
     // People live in the realm: the route checks the verb on Person at organization scope and
     // every right the person holds (PF-91, PF-93).
     "jc_person_list",
@@ -400,9 +396,8 @@ async fn reject(
 /// Deciding a change is a person's, and an MCP client is refused with an agent run (AG-11,
 /// owner decision T-1005): the client is a tool a model drives even when it carries the
 /// person's token, so leaving `Via::Mcp` open would let an agent approve by choosing another
-/// transport. Approving and rejecting stay in the Portal and on the REST route. The run and
-/// service-account operations keep `super::runs::refuse_agent`: they are not a change's
-/// decision.
+/// transport. Approving and rejecting stay in the Portal and on the REST route. The run
+/// operations keep `super::runs::refuse_agent`: they are not a change's decision.
 pub fn refuse_agent_decision(caller: &Caller) -> Result<(), OpError> {
     if matches!(caller.via, Via::Agent | Via::Mcp) {
         return Err(OpError::Api(ApiError::Denied(

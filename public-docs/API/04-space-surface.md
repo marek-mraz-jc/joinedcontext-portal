@@ -24,13 +24,8 @@ Served today (`crates/context-gateway/src/app.rs`):
 The two schema routes are the endpoint surface's own handlers under the space prefix, so the
 document a caller reads is the same one either way (SP-03).
 
-`/cs/{space}/dump/` answers the space's dump (SP-13, T-2391): `application/zip`, the `file.zip`
-bundle of the Endpoint surface (EP-41: entities as JSON-LD, GeoJSON and CSV, the schema
-directory, the DCAT-AP record and a `manifest.json`) over everything in the space the caller's
-grants read, generated per request and projected as `ngsi-ld/v1/` projects it. A caller whose
-grants reach nothing gets `404`, as for a space that does not exist; past the byte or row ceiling
-the answer is `413` and no archive. `NGSILD-Results-Restricted: true` marks a dump the grants
-narrowed. `access` was never a child of a space — SP-04 does not list it, and the access document is
+`/cs/{space}/dump/` is gone (SP-13, T-4597): it answers `404` like any unknown child, and a
+space's data leaves through its Endpoints' `file.csv` and APIs. `access` was never a child of a space — SP-04 does not list it, and the access document is
 served per endpoint at `/api/endpoint/{slug}/access` (EP-55).
 
 No other child exists. Anything else under `/cs/{space}/` answers `404`, the same answer a space the caller may not discover gives, so a probe learns nothing either way (SP-06, R20).

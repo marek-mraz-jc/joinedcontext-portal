@@ -67,12 +67,6 @@ pub struct RunListInput {
     pub mine: Option<bool>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub struct AccountInput {
-    pub account: String,
-}
-
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RevisionsInput {
@@ -248,41 +242,6 @@ fn run_list_output_schema() -> Value {
     json!({
         "type": "object",
         "properties": { "items": { "type": "array", "items": run_output_schema() } },
-        "required": ["items"]
-    })
-}
-
-fn account_input_schema() -> Value {
-    json!({
-        "type": "object",
-        "properties": { "account": text("The ServiceAccount's name", NAME) },
-        "required": ["account"],
-        "additionalProperties": false
-    })
-}
-
-fn key_list_output_schema() -> Value {
-    json!({
-        "type": "object",
-        "description": "Every key of the account as anyone but its minter ever sees it: no token (PF-36)",
-        "properties": {
-            "items": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "keyId": { "type": "string" },
-                        "credential": { "type": "string" },
-                        "createdAt": { "type": "string", "format": "date-time" },
-                        "createdBy": { "type": "string" },
-                        "expiresAt": { "type": "string", "format": "date-time" },
-                        "lastUsedAt": { "type": "string", "format": "date-time" },
-                        "revokedAt": { "type": "string", "format": "date-time" }
-                    },
-                    "required": ["keyId", "credential", "createdAt"]
-                }
-            }
-        },
         "required": ["items"]
     })
 }
@@ -618,34 +577,6 @@ pub fn operations() -> Vec<Operation> {
                     )
                     .await?;
                     Ok(serde_json::to_value(run)?)
-                })
-            },
-        },
-        Operation {
-            name: "jc_service_account_key_list",
-            title: "List Service Account Keys",
-            description: "Every key of one ServiceAccount, with no token in the answer",
-            input: account_input_schema,
-            output: key_list_output_schema,
-            annotations: Annotations {
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: true,
-            },
-            kind: "ServiceAccount",
-            verb: None,
-            lane: Lane::Green,
-            validate: |val| parse_input::<AccountInput>(val.clone()).map(|_| ()),
-            run: |caller, state, project, val| {
-                Box::pin(async move {
-                    let input: AccountInput = parse_input(val)?;
-                    let axum::Json(list) = crate::api::service_accounts::list_keys(
-                        as_user(caller),
-                        axum::extract::State(state.clone()),
-                        axum::extract::Path((project.to_owned(), input.account)),
-                    )
-                    .await?;
-                    Ok(serde_json::to_value(list)?)
                 })
             },
         },

@@ -1046,37 +1046,6 @@
           "POST /api/v1/projects/{project}/{plural}"
         ]
       },
-      "mint-key": {
-        "live": {
-          "spec": "readiness.spec.ts",
-          "test": "9a. a service account's API key is minted, rotated and revoked"
-        },
-        "personOnly": "a key is a credential shown once to the person who minted it; an agent never receives one (AG-11)",
-        "routes": [
-          "POST /api/v1/projects/{project}/serviceaccounts/{name}/keys",
-          "POST /api/v1/projects/{project}/serviceaccounts/{name}/keys/claims/{claimId}"
-        ]
-      },
-      "rotate-key": {
-        "live": {
-          "spec": "readiness.spec.ts",
-          "test": "9a. a service account's API key is minted, rotated and revoked"
-        },
-        "personOnly": "a rotated key is a new credential shown once to a person, never to an agent (AG-11)",
-        "routes": [
-          "POST /api/v1/projects/{project}/serviceaccounts/{name}/keys/{keyId}/rotate"
-        ]
-      },
-      "revoke-key": {
-        "live": {
-          "spec": "readiness.spec.ts",
-          "test": "9a. a service account's API key is minted, rotated and revoked"
-        },
-        "assistant": "jc_service_account_key_revoke",
-        "routes": [
-          "DELETE /api/v1/projects/{project}/serviceaccounts/{name}/keys/{keyId}"
-        ]
-      },
       "retire": {
         "live": {
           "spec": "kind-serviceaccounts.spec.ts",
@@ -1092,7 +1061,7 @@
           "spec": "kind-serviceaccounts.spec.ts",
           "test": "ServiceAccount: a viewer finds every write control disabled with its reason, and the door answers 403"
         },
-        "assistant": "jc_service_account_key_mint"
+        "assistant": "jc_resource_propose"
       }
     },
     "ckan": {

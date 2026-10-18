@@ -10,7 +10,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { findFormPage } from "./formPage";
 import { App } from "../src/App";
-import { ServiceAccounts, expiryChoices, keyExpiry, requestedExpiry } from "../src/pages/access/ServiceAccounts";
+import { ServiceAccounts } from "../src/pages/access/ServiceAccounts";
 import { expectNoAxeViolations, json, list, problem, renderPart } from "./page_contract";
 
 const IDENTITY = {
@@ -33,43 +33,17 @@ const ACCOUNTS = {
         owner: { user: "jana.kovacova" },
         purpose: "VendorX pushes ParkingSpot updates every 10 s",
         roles: [{ role: "space-writer", scope: { contextSpace: "parking" } }],
-        credentials: [
-          { kind: "oauth-client", name: "main" },
-          { kind: "api-key", name: "legacy-push" },
-        ],
+        credentials: [{ kind: "oauth-client", name: "main" }],
       },
     },
   ],
 };
 
-const KEYS = {
-  items: [
-    {
-      keyId: "3f9c2a7b1d4e8f06",
-      credential: "legacy-push",
-      createdAt: "2026-09-06T18:20:11Z",
-      createdBy: "jana.kovacova",
-      expiresAt: "2027-03-01T00:00:00Z",
-    },
-  ],
-};
-
-const MINTED = {
-  keyId: "aa11bb22cc33dd44",
-  // Deliberately low entropy and self-describing: the previous fixture was a plausible
-  // base64 secret and gitleaks' generic-api-key rule stopped the whole ci lane on it.
-  token: "jc_aa11bb22cc33dd44_EXAMPLE_NOT_A_REAL_TOKEN",
-  credential: "legacy-push",
-};
-
 function renderAccess(
   options: {
-    keysStatus?: number;
     identity?: typeof IDENTITY;
     grants?: unknown[];
     accounts?: unknown;
-    claim?: { status: number; body: unknown };
-    keys?: unknown;
   } = {},
 ) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
@@ -77,7 +51,6 @@ function renderAccess(
     const request = typeof input === "string" || input instanceof URL ? null : input;
     const href = request ? request.url : String(input);
     const path = new URL(href, window.location.origin).pathname;
-    const method = request?.method ?? "GET";
     const json = (body: unknown, status = 200) =>
       Promise.resolve(
         new Response(status === 204 ? null : JSON.stringify(body), {
@@ -91,18 +64,6 @@ function renderAccess(
     }
     if (path.endsWith("/permissions/me") && options.grants) {
       return json({ grants: options.grants });
-    }
-    if (path.includes("/keys/claims/") && method === "GET") {
-      return json(options.claim?.body ?? {}, options.claim?.status ?? 404);
-    }
-    if (path.endsWith("/keys") && method === "GET") {
-      return json(options.keys ?? KEYS, options.keysStatus ?? 200);
-    }
-    if (path.includes("/keys") && method === "POST") {
-      return json(MINTED, 201);
-    }
-    if (path.includes("/keys") && method === "DELETE") {
-      return Promise.resolve(new Response(null, { status: 204 }));
     }
     if (path.endsWith("/serviceaccounts")) {
       return json(options.accounts ?? ACCOUNTS);
@@ -139,14 +100,6 @@ function renderAccess(
   return fetchMock;
 }
 
-/** "New API key", then the expiry dialog's "Create key" (T-3255): how a key is minted now. */
-async function mint(choice?: RegExp): Promise<void> {
-  await userEvent.click(await screen.findByRole("button", { name: /New API key \(legacy-push\)/ }));
-  const asked = await screen.findByRole("dialog", { name: en.access.keys.mint.title.replace("{credential}", "legacy-push") });
-  if (choice) await userEvent.click(within(asked).getByRole("radio", { name: choice }));
-  await userEvent.click(within(asked).getByRole("button", { name: en.access.keys.mint.submit }));
-}
-
 describe("service accounts view", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
@@ -159,279 +112,31 @@ describe("service accounts view", () => {
     vi.restoreAllMocks();
   });
 
-  it("lists the account, its owner and the keys behind its api-key credential", async () => {
+  it("lists the account, its owner and its purpose", async () => {
     renderAccess();
 
     expect(await screen.findByText("vendorx-parking-push")).toBeInTheDocument();
     expect(screen.getByText(/VendorX pushes ParkingSpot updates/)).toBeInTheDocument();
-    expect(await screen.findByText("3f9c2a7b1d4e8f06")).toBeInTheDocument();
-    // The oauth-client credential is provisioned in Keycloak and has no key button here.
-    expect(
-      screen.getByRole("button", { name: /New API key \(legacy-push\)/ }),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /New API key \(main\)/ })).not.toBeInTheDocument();
+    expect(screen.getByText("jana.kovacova", { selector: "dd" })).toBeInTheDocument();
   });
 
-  // T-3255: a key about to stop working is announced before its callers fail.
-  it("announces the keys that expire within two weeks or already have, and leaves the others", async () => {
-    const day = 86_400_000;
-    const at = (days: number) => new Date(Date.now() + days * day).toISOString();
-    renderAccess({
-      keys: {
-        items: [
-          { keyId: "aaaa000000000001", credential: "legacy-push", createdAt: at(-30), createdBy: "jana.kovacova", expiresAt: at(4.5) },
-          { keyId: "aaaa000000000002", credential: "legacy-push", createdAt: at(-30), createdBy: "jana.kovacova", expiresAt: at(-1) },
-          { keyId: "aaaa000000000003", credential: "legacy-push", createdAt: at(-30), createdBy: "jana.kovacova", expiresAt: at(90) },
-          { keyId: "aaaa000000000004", credential: "legacy-push", createdAt: at(-30), createdBy: "jana.kovacova", expiresAt: at(2), revokedAt: at(-2) },
-        ],
-      },
-    });
-    const table = await screen.findByRole("table", { name: /API keys of vendorx-parking-push/ });
-    const rows = within(table).getAllByRole("row").slice(1);
-    expect(rows[0]).toHaveTextContent("expires in 5 days");
-    expect(rows[1]).toHaveTextContent("expired");
-    expect(rows[2]).not.toHaveTextContent(/expire/);
-    expect(rows[3]).not.toHaveTextContent(/expires in/);
-    expect(screen.getByText("Keys that expire within 14 days or have expired: 2. Rotate them before the programs that use them fail.")).toBeInTheDocument();
-  });
-
-  it("shows a minted key once, in a dialog that warns it will not be shown again (PF-36)", async () => {
-    renderAccess();
-
-    await mint();
-
-    const dialog = await screen.findByRole("dialog", { name: en.access.keys.newTitle });
-    expect(within(dialog).getByText(en.access.keys.onceWarning)).toBeInTheDocument();
-    const field = within(dialog).getByLabelText(en.access.keys.token) as HTMLInputElement;
-    expect(field.value).toBe(MINTED.token);
-
-    await userEvent.click(within(dialog).getByRole("button", { name: en.access.keys.copy }));
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(MINTED.token);
-
-    await userEvent.click(within(dialog).getByRole("button", { name: en.access.keys.done }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    // Gone for good: the listing the view falls back to has no token in it.
-    expect(screen.queryByText(MINTED.token)).not.toBeInTheDocument();
-  });
-
-  it("mints against the account in the path and never sends the token back", async () => {
+  // T-4616: an account signs in with its Keycloak client only, so even its owner is offered no
+  // key, and the page reads none.
+  it("offers its owner no key and reads none", async () => {
     const fetchMock = renderAccess();
-
-    await mint();
-
-    const write = await waitFor(() => {
-      const request = fetchMock.mock.calls
-        .map((call) => call[0] as Request)
-        .find((candidate) => candidate.method === "POST");
-      expect(request).toBeDefined();
-      return request as Request;
-    });
-    expect(new URL(write.url).pathname).toBe(
-      "/api/v1/projects/banskabystrica/serviceaccounts/vendorx-parking-push/keys",
-    );
-    expect(write.headers.get("x-csrf-token")).toBe("csrf-token-value");
-    expect(JSON.parse(await write.clone().text())).toEqual({ credential: "legacy-push" });
-  });
-
-  it("says what a new key allows and asks how long it works before minting (T-3255)", async () => {
-    const fetchMock = renderAccess();
-    const posts = () => fetchMock.mock.calls.map((call) => call[0] as Request).filter((r) => r.method === "POST");
-
-    await userEvent.click(await screen.findByRole("button", { name: /New API key \(legacy-push\)/ }));
-    const asked = await screen.findByRole("dialog", { name: "New API key (legacy-push)" });
-    expect(within(asked).getByText("space-writer in parking")).toBeInTheDocument();
-    expect(within(asked).getByRole("radio", { name: en.access.keys.mint.asCredentialNever })).toBeChecked();
-    expect(within(asked).getAllByRole("radio")).toHaveLength(5);
-    expect(posts()).toHaveLength(0);
-
-    // A date it cannot take is said where the date is typed, and nothing is minted.
-    await userEvent.click(within(asked).getByRole("radio", { name: en.access.keys.mint.onDate }));
-    await userEvent.click(within(asked).getByRole("button", { name: en.access.keys.mint.submit }));
-    expect(within(asked).getByLabelText(en.access.keys.mint.dateLabel)).toHaveAccessibleDescription(en.access.keys.mint.dateMissing);
-    expect(posts()).toHaveLength(0);
-
-    await userEvent.click(within(asked).getByRole("radio", { name: /In 30 days/ }));
-    const before = Date.now();
-    await userEvent.click(within(asked).getByRole("button", { name: en.access.keys.mint.submit }));
-    const write = await waitFor(() => {
-      expect(posts()).toHaveLength(1);
-      return posts()[0];
-    });
-    const body = JSON.parse(await write.clone().text()) as { credential: string; expiresAt: string };
-    expect(body.credential).toBe("legacy-push");
-    const days = (new Date(body.expiresAt).getTime() - before) / 86_400_000;
-    expect(days).toBeGreaterThan(29.99);
-    expect(days).toBeLessThan(30.01);
-    expect(await screen.findByRole("dialog", { name: en.access.keys.newTitle })).toBeInTheDocument();
-  });
-
-  it("closes the question without minting when the person cancels", async () => {
-    const fetchMock = renderAccess();
-    await userEvent.click(await screen.findByRole("button", { name: /New API key \(legacy-push\)/ }));
-    const asked = await screen.findByRole("dialog", { name: "New API key (legacy-push)" });
-    await userEvent.click(within(asked).getAllByRole("button", { name: en.access.keys.claim.cancel })[0]);
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(fetchMock.mock.calls.some((call) => (call[0] as Request).method === "POST")).toBe(false);
-  });
-
-  it("asks before revoking a key and only then calls DELETE", async () => {
-    const fetchMock = renderAccess();
-
-    await userEvent.click(await screen.findByRole("button", { name: en.access.keys.revoke }));
-    const confirm = await screen.findByRole("alertdialog");
-    expect(confirm).toHaveTextContent("3f9c2a7b1d4e8f06");
-    expect(
-      fetchMock.mock.calls.some((call) => (call[0] as Request).method === "DELETE"),
-    ).toBe(false);
-
-    await userEvent.click(
-      within(confirm).getByRole("button", { name: en.access.keys.revokeNow }),
-    );
-    const deleted = await waitFor(() => {
-      const request = fetchMock.mock.calls
-        .map((call) => call[0] as Request)
-        .find((candidate) => candidate.method === "DELETE");
-      expect(request).toBeDefined();
-      return request as Request;
-    });
-    expect(new URL(deleted.url).pathname).toMatch(/\/keys\/3f9c2a7b1d4e8f06$/);
-  });
-
-  it("asks in a dialog that takes the focus, and Escape answers no (T-3281)", async () => {
-    const fetchMock = renderAccess();
-
-    await userEvent.click(await screen.findByRole("button", { name: en.access.keys.revoke }));
-    const confirm = await screen.findByRole("alertdialog", { name: /3f9c2a7b1d4e8f06/ });
-    // The safe answer holds the focus, so Enter on arrival revokes nothing.
-    // The dialog moves the focus there after it opens; on a loaded runner that lands a tick later.
-    await waitFor(() => expect(within(confirm).getByRole("button", { name: en.form.cancel })).toHaveFocus());
-    await userEvent.keyboard("{Escape}");
-    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
-    expect(fetchMock.mock.calls.some((call) => (call[0] as Request).method === "DELETE")).toBe(false);
-    expect(screen.getByRole("button", { name: en.access.keys.revoke })).toHaveFocus();
-  });
-
-  it("rotates through the key's own route", async () => {
-    const fetchMock = renderAccess();
-
-    await userEvent.click(await screen.findByRole("button", { name: en.access.keys.rotate }));
-
-    const rotated = await waitFor(() => {
-      const request = fetchMock.mock.calls
-        .map((call) => call[0] as Request)
-        .find((candidate) => candidate.url.includes("/rotate"));
-      expect(request).toBeDefined();
-      return request as Request;
-    });
-    expect(rotated.method).toBe("POST");
-    expect(await screen.findByRole("dialog")).toHaveTextContent(en.access.keys.onceWarning);
-  });
-
-  it("says the key store is missing rather than showing an empty list", async () => {
-    renderAccess({ keysStatus: 503 });
-
-    expect(await screen.findByText(en.access.keys.noStore)).toBeInTheDocument();
-    expect(screen.queryByText(en.access.keys.empty)).not.toBeInTheDocument();
-  });
-
-  it("asks for no key of an account the viewer neither owns nor may change", async () => {
-    const fetchMock = renderAccess({
-      identity: { ...IDENTITY, username: "demo.viewer", email: "demo.viewer@hel.fi" },
-      grants: [{ rule: { kinds: ["*"], verbs: ["read"] } }],
-    });
 
     expect(await screen.findByText("vendorx-parking-push")).toBeInTheDocument();
-    expect(await screen.findByText(en.access.keys.notYours)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /New API key/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /API key/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(
       fetchMock.mock.calls.some((call) => String((call[0] as Request).url ?? call[0]).includes("/keys")),
     ).toBe(false);
   });
 });
 
-const CLAIM_ID = "c7e1f0a94b2d6e8f13a5c9d7b0e4f261";
-const CLAIM_PAGE = `/projects/banskabystrica/settings/service-accounts?account=vendorx-parking-push&claim=${CLAIM_ID}`;
-const CLAIM = {
-  claim: { id: CLAIM_ID, url: `https://portal.example.org${CLAIM_PAGE}`, expiresAt: "2026-09-25T10:15:00Z" },
-  account: "vendorx-parking-push",
-  action: "mint",
-  credential: "legacy-push",
-};
-
-/**
- * PF-104: a key an MCP client asked for. The client was answered a link to this page and no
- * token; the person who asked opens it, sees what it will do, and only their confirmation mints
- * the key, shown once as any other. A link that has expired or is not theirs says to ask again.
- */
-describe("a key claim opened from its link", () => {
-  beforeEach(async () => {
-    await i18n.changeLanguage("en");
-    document.cookie = "__Host-jc_csrf=csrf-token-value; Secure; path=/";
-    Object.assign(navigator, { clipboard: { writeText: vi.fn(() => Promise.resolve()) } });
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    // The link stays in the address bar until the dialog is closed; the tests after these
-    // render the same page without it.
-    window.history.replaceState({}, "", "/projects/banskabystrica/settings/service-accounts");
-  });
-
-  it("says what it will mint, mints only when the person confirms, and shows the key once", async () => {
-    window.history.pushState({}, "", CLAIM_PAGE);
-    const fetchMock = renderAccess({ claim: { status: 200, body: CLAIM } });
-
-    const asked = await screen.findByRole("dialog", { name: en.access.keys.claim.title });
-    expect(await within(asked).findByText(/Mint a new key for the credential legacy-push of vendorx-parking-push/)).toBeInTheDocument();
-    const posts = () => fetchMock.mock.calls.map((call) => call[0]).filter((call) => call instanceof Request && call.method === "POST");
-    expect(posts()).toHaveLength(0);
-
-    await userEvent.click(within(asked).getByRole("button", { name: en.access.keys.claim.confirmMint }));
-
-    const shown = await screen.findByRole("dialog", { name: en.access.keys.newTitle });
-    expect((within(shown).getByLabelText(en.access.keys.token) as HTMLInputElement).value).toBe(MINTED.token);
-    const used = posts()[0] as Request;
-    expect(new URL(used.url).pathname).toBe(
-      `/api/v1/projects/banskabystrica/serviceaccounts/vendorx-parking-push/keys/claims/${CLAIM_ID}`,
-    );
-    expect(used.headers.get("x-csrf-token")).toBe("csrf-token-value");
-    // The address forgets the claim, so a reload does not open a spent link again.
-    expect(window.location.search).toBe("");
-    await expectNoAxeViolations(document.body);
-  });
-
-  it("says a link that has expired, was used or is someone else's opens nothing, and mints nothing", async () => {
-    window.history.pushState({}, "", CLAIM_PAGE);
-    const fetchMock = renderAccess({ claim: { status: 404, body: { title: "Not Found", status: 404 } } });
-
-    const asked = await screen.findByRole("dialog", { name: en.access.keys.claim.title });
-    expect(await within(asked).findByRole("alert")).toHaveTextContent(en.access.keys.claim.gone);
-    expect(within(asked).queryByRole("button", { name: en.access.keys.claim.confirmMint })).not.toBeInTheDocument();
-
-    await userEvent.click(within(asked).getAllByRole("button", { name: en.access.keys.done })[0]);
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(window.location.search).toBe("");
-    expect(fetchMock.mock.calls.some((call) => call[0] instanceof Request && call[0].method === "POST")).toBe(false);
-  });
-
-  it("names the key a rotation replaces and the overlap it keeps", async () => {
-    window.history.pushState({}, "", CLAIM_PAGE);
-    renderAccess({
-      claim: { status: 200, body: { ...CLAIM, action: "rotate", keyId: "3f9c2a7b1d4e8f06", overlapHours: 1 } },
-    });
-
-    const asked = await screen.findByRole("dialog", { name: en.access.keys.claim.title });
-    expect(
-      await within(asked).findByText(/Rotate key 3f9c2a7b1d4e8f06 of vendorx-parking-push: .* keeps working for 1 hour\./),
-    ).toBeInTheDocument();
-    expect(within(asked).getByRole("button", { name: en.access.keys.claim.confirmRotate })).toBeInTheDocument();
-  });
-});
-
 /**
  * The panel on its own (T-2137): what it shows before there is a list — the wait, the refusal in
- * the API's own words, and a project that holds no service account yet. A key is never among
- * them: the panel asks for keys only where the caller may propose one (PF-40).
+ * the API's own words, and a project that holds no service account yet.
  */
 describe("the service accounts panel, mounted on its own", () => {
   beforeEach(async () => {
@@ -496,8 +201,8 @@ describe("the service accounts panel, mounted on its own", () => {
     expect(within(role).getByRole("option", { name: "space-writer" })).toBeInTheDocument();
   });
 
-  // T-2759: "space-reader, space-reader", and two lines saying the account has no key.
-  it("names where each grant holds, and says once that an account has no api key", async () => {
+  // T-2759: "space-reader, space-reader".
+  it("names where each grant holds", async () => {
     renderAccess({
       accounts: {
         apiVersion: "joinedcontext.com/v1alpha1",
@@ -523,8 +228,6 @@ describe("the service accounts panel, mounted on its own", () => {
     expect(
       await screen.findByText("space-reader in helsinki, space-reader in helsinki-kpi"),
     ).toBeInTheDocument();
-    expect(screen.getByText(en.access.keys.noCredential)).toBeInTheDocument();
-    expect(screen.queryByText(en.access.keys.empty)).toBeNull();
   });
 
   it("has no axe violation", async () => {
@@ -533,46 +236,5 @@ describe("the service accounts panel, mounted on its own", () => {
     });
     await screen.findByText(en.access.accounts.empty);
     await expectNoAxeViolations(container);
-  });
-});
-
-describe("a key's expiry (T-3255)", () => {
-  const now = new Date("2026-10-07T12:00:00Z");
-  it("rounds the days left up, warns within two weeks, and ignores a revoked key", () => {
-    expect(keyExpiry({ expiresAt: "2026-10-08T00:00:00Z" }, now)).toEqual({ state: "soon", days: 1 });
-    expect(keyExpiry({ expiresAt: "2026-10-21T12:00:00Z" }, now)).toEqual({ state: "soon", days: 14 });
-    expect(keyExpiry({ expiresAt: "2026-10-21T12:00:01Z" }, now)).toEqual({ state: "fine" });
-    expect(keyExpiry({ expiresAt: "2026-10-07T12:00:00Z" }, now)).toEqual({ state: "expired" });
-    expect(keyExpiry({ expiresAt: null }, now)).toEqual({ state: "never" });
-    expect(keyExpiry({ expiresAt: "2026-10-08T00:00:00Z", revokedAt: "2026-10-01T00:00:00Z" }, now)).toEqual({ state: "revoked" });
-  });
-});
-
-describe("a new key's expiry (T-3255)", () => {
-  const now = new Date("2026-10-10T12:00:00Z");
-
-  it("offers every length without a credential expiry, and only those that fit within one", () => {
-    expect(expiryChoices(undefined, now)).toEqual(["credential", "7", "30", "90", "date"]);
-    expect(expiryChoices("2026-11-30T00:00:00Z", now)).toEqual(["credential", "7", "30", "date"]);
-    expect(expiryChoices("2026-10-12T00:00:00Z", now)).toEqual(["credential", "date"]);
-  });
-
-  it("sends nothing for the credential's own, a length from now, or the end of a chosen day", () => {
-    expect(requestedExpiry("credential", "", "2027-03-01T00:00:00Z", now)).toEqual({ ok: true });
-    expect(requestedExpiry("7", "", undefined, now)).toEqual({ ok: true, expiresAt: "2026-10-17T12:00:00.000Z" });
-    const chosen = requestedExpiry("date", "2026-12-24", undefined, now);
-    expect(chosen.ok && new Date(chosen.expiresAt ?? "").getTime()).toBe(new Date("2026-12-24T23:59:59").getTime());
-  });
-
-  it("refuses a missing, past or too late day, and ends the credential's own last day with it", () => {
-    expect(requestedExpiry("date", "", undefined, now)).toEqual({ ok: false, error: "dateMissing" });
-    expect(requestedExpiry("date", "not-a-date", undefined, now)).toEqual({ ok: false, error: "dateMissing" });
-    expect(requestedExpiry("date", "2026-10-09", undefined, now)).toEqual({ ok: false, error: "datePast" });
-    const ceiling = "2027-03-01T12:00:00Z";
-    const ceilingDay = new Date(ceiling);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const day = `${ceilingDay.getFullYear()}-${pad(ceilingDay.getMonth() + 1)}-${pad(ceilingDay.getDate())}`;
-    expect(requestedExpiry("date", day, ceiling, now)).toEqual({ ok: true, expiresAt: "2027-03-01T12:00:00.000Z" });
-    expect(requestedExpiry("date", "2027-03-05", ceiling, now)).toEqual({ ok: false, error: "dateAfter" });
   });
 });
