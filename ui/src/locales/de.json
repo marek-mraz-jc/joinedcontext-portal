@@ -4713,6 +4713,9 @@
       },
       "model": {
         "key": "Modellschlüssel"
+      },
+      "assistant": {
+        "transcript": "Gespeicherte Unterhaltungen gelesen"
       }
     },
     "sources": {
@@ -6706,7 +6709,8 @@
       "tokensIn": "Gelesene Tokens",
       "tokensOut": "Geschriebene Tokens",
       "duplicate": "Duplizieren",
-      "duplicateOf": "{name} duplizieren"
+      "duplicateOf": "{name} duplizieren",
+      "noPrivacyContact": "Kein Datenschutzkontakt"
     },
     "chat": {
       "ask": "Fragen",
@@ -7703,5 +7707,67 @@
       "in": "Im Konnektor: {names}"
     },
     "full": "Sie haben 10 Konnektoren, mehr geht nicht. Löschen Sie einen, um einen weiteren anzulegen."
+  },
+  "conversations": {
+    "title": "Unterhaltungen",
+    "intro": "Was Besucher die Assistenten des Projekts gefragt haben und wie jede Antwort entstand: der Weg, die Suchen, die Werkzeug- und Modellaufrufe mit Zeit und Kosten. Personenbezogene Daten werden vor dem Speichern entfernt; jeder Lesezugriff wird protokolliert.",
+    "link": "Unterhaltungen",
+    "notAllowed": "Nur der Administrator des Assistenten (Genehmigen für AssistantDeployment) liest die gespeicherten Unterhaltungen.",
+    "empty": "Keine gespeicherten Unterhaltungen",
+    "emptyHint": "Unterhaltungen erscheinen hier, sobald Besucher fragen, so lange, wie transcriptRetention des Deployments sie aufbewahrt.",
+    "next": "Nächste Seite",
+    "detail": "Unterhaltung",
+    "erase": "Unterhaltung löschen",
+    "eraseTitle": "Diese Unterhaltung löschen?",
+    "eraseHint": "Alle Fragen und Schritte werden sofort gelöscht, auf Wunsch des Besuchers. Das lässt sich nicht rückgängig machen.",
+    "copyAsTest": "Als Test kopieren",
+    "copied": "Die Frage ist als Bewertungsfall kopiert.",
+    "timing": "erstes Wort {first}, gesamt {total}",
+    "steps": "Schritte",
+    "failed": "fehlgeschlagen",
+    "uncosted": "({count} ohne Preis)",
+    "filter": {
+      "q": "Wörter in Frage oder Antwort",
+      "status": "Status",
+      "feedback": "Bewertung",
+      "sort": "Reihenfolge",
+      "slow": "Langsamer als 15 s",
+      "all": "Alle",
+      "deployment": "Assistent",
+      "from": "Von",
+      "to": "Bis",
+      "expensive": "Über $0,02"
+    },
+    "status": {
+      "ok": "Beantwortet",
+      "error": "Fehler",
+      "timeout": "Zeit überschritten"
+    },
+    "feedback": {
+      "up": "Hilfreich",
+      "down": "Nicht hilfreich",
+      "none": "Nicht bewertet"
+    },
+    "sort": {
+      "lastAt": "Neueste zuerst",
+      "costUsd": "Teuerste zuerst"
+    },
+    "column": {
+      "lastAt": "Letzte Frage",
+      "question": "Erste Frage",
+      "turns": "Fragen",
+      "route": "Weg",
+      "slowest": "Langsamste",
+      "cost": "Kosten",
+      "status": "Status"
+    },
+    "kind": {
+      "route": "Weg",
+      "search": "Suche",
+      "tool": "Werkzeug",
+      "model": "Modell",
+      "answer": "Antwort"
+    },
+    "unknownPrice": "unbekannt"
   }
 }
