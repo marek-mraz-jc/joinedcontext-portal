@@ -2966,6 +2966,52 @@ export function organizationSchema(t: (key: string) => string, entries: readonly
   return withCatalog(schema, entries, t);
 }
 
+/** The languages a publisher's name is given in, as the UI speaks them. */
+export const CATALOG_LANGUAGES = ["sk", "cs", "en", "de"] as const;
+
+/**
+ * The project's catalogue publisher, flat for the form (T-4595, EP-127): empty, or a name in at
+ * least one language and the body's registry IRI, which jc-core refuses a catalogue without; a
+ * contact desk is its name and its address together (EP-80).
+ */
+function projectCatalogProperty(t: (key: string) => string): JsonSchema {
+  const named: JsonSchema = { anyOf: CATALOG_LANGUAGES.map((language) => ({ required: [language] })) };
+  return {
+    type: "object",
+    title: t("projectSettings.field.catalog"),
+    properties: {
+      publisherName: {
+        type: "object",
+        title: t("projectSettings.field.publisherName"),
+        properties: Object.fromEntries(
+          CATALOG_LANGUAGES.map((language) => [
+            language,
+            { type: "string", minLength: 1, maxLength: 256, title: t(`choice.language.${language}`) },
+          ]),
+        ),
+      },
+      publisherUri: {
+        type: "string",
+        title: t("projectSettings.field.publisherUri"),
+        pattern: "^https?://\\S+$",
+        maxLength: 2048,
+      },
+      contactName: { type: "string", minLength: 1, maxLength: 256, title: t("projectSettings.field.contactName") },
+      contactEmail: { type: "string", format: "email", title: t("projectSettings.field.contactEmail") },
+    },
+    dependencies: { contactName: ["contactEmail"], contactEmail: ["contactName"] },
+    if: {
+      anyOf: [
+        { required: ["publisherUri"] },
+        { required: ["contactName"] },
+        { required: ["contactEmail"] },
+        { required: ["publisherName"], properties: { publisherName: named } },
+      ],
+    },
+    then: { required: ["publisherName", "publisherUri"], properties: { publisherName: named } },
+  };
+}
+
 /**
  * The fields of `project.yaml` Project settings → General edits (T-2606, PF-17, PF-73): the
  * project's title and description, and its own quotas, which may only lower the organization's.
@@ -2992,6 +3038,7 @@ export function projectSchema(t: (key: string) => string): JsonSchema {
         title: t("projectSettings.field.quotas"),
         properties: quotas,
       },
+      catalog: projectCatalogProperty(t),
       apps: {
         type: "object",
         title: t("appServices.title"),

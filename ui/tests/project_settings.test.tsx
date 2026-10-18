@@ -139,7 +139,8 @@ describe("General (PF-17, PF-61)", () => {
     expect(screen.getByText("Helsinki city data")).toBeInTheDocument();
     expect(screen.getByText("hel.fi")).toBeInTheDocument();
     expect(screen.getByText(en.organization.visibility.members)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Edit Helsinki city data/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Edit Helsinki city data/ })).toBeInTheDocument();    // No publisher saved, so no catalogue address to hand out (T-4595).
+    expect(screen.getByText(en.projectSettings.general.noCatalog)).toBeInTheDocument();
   });
 
   it("edits title, description and quotas and keeps organizationRef, the metadata and no status", () => {
@@ -149,6 +150,7 @@ describe("General (PF-17, PF-61)", () => {
       description: "Open data of the city.",
       quotas: { contextSpaces: 4 },
       apps: { services: [], limits: {} },
+      catalog: {},
     });
     const edited = toProject(
       { title: "Helsinki", description: "  ", quotas: { contextSpaces: 3, apps: undefined } },

@@ -17,7 +17,7 @@ unknown-registry = "deny"
 unknown-git = "deny"
 allow-git = [
   "https://github.com/marek-mraz-jc/joinedcontext-platform",
-  # The default broker's query-language crates, which the platform's context-gateway pulls in
-  # (T-3530) and the platform pin brings along (T-3539).
-  "https://github.com/marek-mraz-jc/Antares-NGSI-LD-Context-Broker",
+  # The default broker's NGSI-LD crates, which the platform's context-gateway pulls in (T-3530)
+  # from their own repository since T-3913, and the platform pin brings along (T-3539).
+  "https://github.com/marek-mraz-jc/ngsild",
 ]
