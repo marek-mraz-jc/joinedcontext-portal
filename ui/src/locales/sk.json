@@ -1509,7 +1509,10 @@
       "pickType": "Zvoľte aspoň jeden typ.",
       "propose": "Navrhnúť zdieľanie",
       "newGroup": "Zdieľanie oprávňuje skupinu {group}, ktorá ešte neexistuje: navrhne sa prázdna spolu so zdieľaním. Po schválení do nej pridajte ľudí z {group}, ktorí majú čítať."
-    }
+    },
+    "find": "Nájsť endpoint podľa názvu",
+    "shownOf": "Zobrazených {shown} z {count}",
+    "showMore": "Zobraziť ďalších {count}"
   },
   "datasources": {
     "title": "Zdroje údajov",

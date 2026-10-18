@@ -1509,7 +1509,10 @@
       "pickType": "Wählen Sie mindestens einen Typ.",
       "propose": "Freigabe vorschlagen",
       "newGroup": "Die Freigabe berechtigt die Gruppe {group}, die es noch nicht gibt: sie wird leer mit der Freigabe vorgeschlagen. Fügen Sie nach der Genehmigung die Personen von {group} hinzu, die lesen sollen."
-    }
+    },
+    "find": "Endpunkt nach Name oder Titel finden",
+    "shownOf": "{shown} von {count} angezeigt",
+    "showMore": "{count} weitere anzeigen"
   },
   "datasources": {
     "title": "Datenquellen",
