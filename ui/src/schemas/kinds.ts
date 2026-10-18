@@ -2153,8 +2153,8 @@ export const subscriptionUiSchema: UiSchema = {
 /** What a service account's grant covers, in the order a person narrows it (PF-35). */
 export const ROLE_SCOPE_LEVELS = ["project", "contextSpace", "organization"] as const;
 
-/** How a workload proves itself: a Keycloak client first, a hashed key only for a legacy caller (PF-37). */
-export const CREDENTIAL_KINDS = ["oauth-client", "api-key"] as const;
+/** How a workload proves itself: its Keycloak client, and nothing else (PF-37, T-4616). */
+export const CREDENTIAL_KINDS = ["oauth-client"] as const;
 
 /** An IPv4 or IPv6 block with its prefix length, as jc-core's `validate_cidr` reads one. */
 export const CIDR_PATTERN = "^[0-9A-Fa-f:.]+/[0-9]{1,3}$";
@@ -2163,9 +2163,8 @@ export const CIDR_PATTERN = "^[0-9A-Fa-f:.]+/[0-9]{1,3}$";
  * The `ServiceAccount` a person authors: who answers for it, why it exists, what it may do and
  * how it signs in (PF-34, PF-35, PF-36, PF-47).
  *
- * A credential is declared, never held: `kind` and `name` say which client or key exists, and
- * the value lives in Keycloak or as an Argon2id hash in the Portal's database, so the form has no
- * field a secret could be typed into (PF-36). A grant's scope is one of three levels in the
+ * A credential is declared, never held: `kind` and `name` say which Keycloak client exists, and
+ * its secret lives in Keycloak, so the form has no field a secret could be typed into (PF-36). A grant's scope is one of three levels in the
  * manifest and one choice and one name here: jc-core refuses a scope naming two, and a form with
  * three optional boxes invites exactly that (`spec.roles.scope`).
  */

@@ -1,7 +1,7 @@
 ---
 sidebar_position: 3
 title: Endpoint Representations & Translations
-description: Wire-level specifications and examples for NGSI-LD, GeoJSON, CSV, XLSX, OGC API Features, SensorThings, and MCP.
+description: Wire-level specifications and examples for NGSI-LD, GeoJSON for maps, CSV, OGC API Features, SensorThings, and MCP.
 surfaces: ogc=6-ogc-api---features-part-1 sta=7-ogc-sensorthings-api-sta-v11 mcp=8-model-context-protocol-mcp
 ---
 
@@ -21,10 +21,7 @@ flowchart LR
     GW["Context Gateway PEP"]
     
     GW --> R1["/ngsi-ld/v1/... (ETSI Normalized & Concise)"]
-    GW --> R2["/file.geojson (GeoJSON FeatureCollection)"]
     GW --> R3["/file.csv (Flattened Tabular Data)"]
-    GW --> R4["/file.xlsx (Excel Worksheets)"]
-    GW --> R4b["/file.zip (Export Bundle)"]
     GW --> R5["/ogc/features/... (OGC API - Features)"]
     GW --> R6["/sta/v1.1/... (OGC SensorThings API)"]
     GW --> R7["/mcp (Model Context Protocol)"]
@@ -178,66 +175,33 @@ Every refusal is `application/problem+json` (RFC 7807) with a `type` under
 
 ---
 
-## 3. GeoJSON FeatureCollection
+## 3. GeoJSON for maps
 
-Path: `/api/endpoint/{endpointSlug}/file.geojson`
+An Endpoint publishes no GeoJSON file (T-4597). A map reads GeoJSON from an API:
 
-Converts spatial NGSI-LD entities into standard RFC 7946 GeoJSON.
-
-- **Feature `id`:** Bound to the entity URN.
-- **`geometry`:** Extracted from the primary `location` GeoProperty. An entity without one is still
-  a Feature, with `"geometry": null` (RFC 7946 §3.2), so the download carries every entity the
-  grant lets through and a map client skips what it cannot place.
-- **An answer with no geometry at all:** a `200` FeatureCollection whose Features all carry a
-  `null` geometry, by [EP-10](../Requirements/endpoints.md): every Endpoint serves GeoJSON, a
-  KPI or a news endpoint included, and no Endpoint advertises a surface that refuses. An answer
-  with no entities at all is an empty collection (`translators/geojson.rs`, T-2939).
-- **`properties`:** One key per remaining attribute, by the table of §6: the attribute's `value` or
-  a Relationship's `object` under its own name, and the `unitCode` and `observedAt` it carries
-  under `{name}_unitCode` and `{name}_observedAt` (T-2380). An attribute that carries neither gains
-  no keys. A `LanguageProperty` is the one text of the caller's `Accept-Language`, which the answer
-  names in `Vary` ([EP-37](../Requirements/endpoints.md)). The JSON-LD keywords are dropped and
-  `type` keeps the entity's NGSI-LD type (`translators/geojson.rs`).
-
-```json
-{
-  "type": "FeatureCollection",
-  "features": [
-    {
-      "type": "Feature",
-      "id": "urn:ngsi-ld:WeatherObserved:hel.fi:air-quality:station-01",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [19.146, 48.736]
-      },
-      "properties": {
-        "type": "WeatherObserved",
-        "temperature": 22.4,
-        "temperature_unitCode": "CEL",
-        "temperature_observedAt": "2026-08-15T12:00:00Z",
-        "refDistrict": "urn:ngsi-ld:District:hel.fi:air-quality:kallio"
-      }
-    }
-  ]
-}
-```
+- `ngsi-ld/v1/entities` with `Accept: application/geo+json`: NGSI-LD's own GeoJSON format (ETSI
+  GS CIM 009 §4.5.17), with the same query parameters as any NGSI-LD read (`type`, `q`, `georel`,
+  `geometry`, `coordinates`), so a dashboard layer is one query. `options=keyValues` makes each
+  Feature's `properties` the plain values. Every Endpoint serves it (EP-10); an entity without a
+  `location` is a Feature with a `null` geometry, so a query over non-spatial types answers `200`.
+- `ogc/features/collections/{type}/items` (§6), where the Endpoint serves `ogc-features`: the
+  OGC API for desktop GIS such as QGIS, whose Features follow EP-09.
 
 ---
 
 ## 4. Tabular CSV Representation
 
-Path: `/api/endpoint/{endpointSlug}/file.csv` (also `file.geojson`, `file.json`, `file.xlsx`,
-`file.parquet`, `file.zip`; EP-41…EP-45, EP-119)
+Path: `/api/endpoint/{endpointSlug}/file.csv`, the one file an Endpoint publishes (EP-42…EP-45;
+§5 lists the files that were removed)
 
-Which of them an Endpoint answers is `spec.enabledRepresentations`, plus `ngsi-ld`, `geojson` and
-`mcp`, which every Endpoint serves whether or not it lists them (EP-10, EP-24); a manifest that omits the
+Whether an Endpoint answers it is `spec.enabledRepresentations`, beside `ngsi-ld` and `mcp`, which
+every Endpoint serves whether or not it lists them (EP-10, EP-24); a manifest that omits the
 list serves every standard but SensorThings, less `spec.disabledRepresentations` (EP-104, the matrix in
 [Architecture/04](../Architecture/04-context-spaces-and-endpoints.md#configuring-one-endpoint)); the set a manifest may name
 is the `Representation` enum of the Endpoint kind (`crates/jc-core/src/kinds/endpoint.rs`), which is
-what the published `schemas/kinds/Endpoint.json` validates a manifest against. `json` is one of
-them, so an administrator can enable it, and §4a says what it answers.
+what the published `schemas/kinds/Endpoint.json` validates a manifest against.
 
-All `file.*` children accept the NGSI-LD `GET /entities` query parameters and stream the result as an attachment:
+`file.csv` accepts the NGSI-LD `GET /entities` query parameters and stream the result as an attachment:
 
 ```http
 GET /api/endpoint/zt4qm7ge2xdv6ksb3ncf5arw2y/file.csv?type=WeatherObserved&q=temperature>20&humanHeaders=true
@@ -252,9 +216,8 @@ Content-Disposition: attachment; filename="zt4qm7ge2xdv6ksb3ncf5arw2y.csv"
 The file is named after the endpoint slug and the extension, which are both literals the gateway
 controls, so nothing a caller sent reaches the `Content-Disposition` header. A download carries no
 `ETag`: the body is a whole query answered afresh, and a validator over a paged export would have to
-be computed by running the export. `file.zip` is §5a. Limits: `spec.fileLimits.maxFileRows` /
-`spec.fileLimits.maxFileBytes` on the Endpoint manifest (413 when exceeded). Only `.xlsx` is served,
-never legacy `.xls`.
+be computed by running the export. Limits: `spec.fileLimits.maxFileRows` /
+`spec.fileLimits.maxFileBytes` on the Endpoint manifest (413 when exceeded).
 
 Exports entities as flat tabular data with RFC 4180 compliance.
 
@@ -292,92 +255,26 @@ The gateway pages through the broker with `limit` and `offset` and appends each 
 
 ---
 
-## 4a. The `file.json` download
+## 5. Files that were removed
 
-`file.json` is the same download as one array of entities: the NGSI-LD documents
-`/ngsi-ld/v1/entities` would answer, over the whole dataset rather than one broker page, projected
-to the caller's grants and served as `application/json` (T-2382). A script that already reads
-NGSI-LD asks for this one; the CSV of §4 is what a spreadsheet wants.
+Owner decision 2026-10-18 (T-4597): an Endpoint publishes one file format, CSV. One format is one
+writer to keep correct and one distribution to describe in DCAT, and the gateway no longer
+assembles a ZIP or a Parquet footer in memory. The data stays reachable through the APIs, which
+are not files.
 
-The limits, the filename and the missing `ETag` of §4 hold here too: the array is one query answered
-afresh, so a body past `spec.fileLimits.maxFileBytes` is refused whole with `413` rather than cut
-short, because half a JSON array is not a smaller answer.
+| Removed | Was | Read instead |
+|---|---|---|
+| `file.geojson` | GeoJSON FeatureCollection | §3: `ngsi-ld/v1/entities` with `Accept: application/geo+json`, or `ogc/features/` items |
+| `file.json` | one array of NGSI-LD entities | `ngsi-ld/v1/entities`, paged with `limit` and `offset` |
+| `file.xlsx` | the CSV rows as an Excel workbook (EP-08) | `file.csv`, which a spreadsheet opens; OData (`odata/v4/`) for Excel and Power BI |
+| `file.parquet` | the CSV rows as Apache Parquet (EP-119) | `file.csv`; DuckDB, pandas and Polars read it directly |
+| `file.zip` | a bundle of JSON-LD, GeoJSON, CSV, the schemas and a DCAT record (EP-41, EP-51) | `file.csv`, `schema/` (§7a) and the DCAT record of the Endpoint |
+| `/cs/{space}/dump/` | `file.zip` over a whole space (SP-13) | the `file.csv` of the space's Endpoints |
 
-## 5. Excel Spreadsheet (XLSX)
-
-Path: `/api/endpoint/{endpointSlug}/file.xlsx`
-
-The same rows as `file.csv` (§4), in an Office Open XML workbook of two sheets. `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`.
-
-| Sheet | Contents |
-|---|---|
-| `data` | The header row of §4 followed by one row per entity. A value that is a JSON number becomes a numeric cell, everything else an inline string, so a spreadsheet sums a measurement without the reader retyping it. |
-| `metadata` | One `key,value` pair per row: the space, the endpoint slug, the export instant in UTC, the query the caller sent, the row count, and the licence the space declares. |
-
-The workbook is written in the same pass as the CSV, from the same flattened rows, so the two representations of one query never disagree. `humanHeaders=true` and the limits of §4 apply unchanged.
-
----
-
-## 5a. Export bundle (ZIP)
-
-Path: `/api/endpoint/{endpointSlug}/file.zip`
-
-One download that a colleague can open without the platform: the same query as JSON-LD, GeoJSON and
-CSV, the schemas that describe it, and the catalogue record that says where it came from (EP-41,
-EP-51). The workbook of §5 is not in the bundle — a spreadsheet opens the CSV. `Content-Type: application/zip` and
-`Content-Disposition: attachment; filename="{slug}-{YYYYMMDD}.zip"` (EP-43).
-
-```text
-{slug}-{YYYYMMDD}/
-  data/entities.jsonld          normalized JSON-LD, the same bytes /ngsi-ld/v1 would answer
-  data/entities.geojson         the FeatureCollection of file.geojson
-  data/entities.csv             the rows of file.csv, human headers off
-  schema/v{n}/model.schema.json    the seven documents of §7a, one set per model major
-  schema/v{n}/context.jsonld       (`model.shacl.ttl`, `model.owl.ttl`, `model.rdf.ttl`,
-  schema/v{n}/…                     `model.linkml.yaml` and `model.md` beside them)
-  dcat.jsonld                   DCAT-AP dataset record of this download
-  manifest.json                 what was asked for and what came back
-```
-
-`manifest.json` carries `endpoint`, `space`, `query`, `exportedAt`, `types`, `rows` and `files`, so
-a bundle found on a disk two years later still says what it is. `dcat.jsonld` is the space's own DCAT-AP record narrowed to this download,
-with one `dcat:Distribution` per file above.
-
-Every file is produced in one pass over one paged query, so the four representations of a bundle
-cannot disagree with each other or with the same query asked directly. The endpoint's
-`spec.fileLimits` apply to the whole archive: the first row that would cross `maxFileRows` or
-`maxFileBytes` ends the download with `413 Payload Too Large` rather than a bundle that looks
-complete (EP-44). Because a ZIP central directory is written last, the archive is assembled in a
-buffer the byte limit bounds rather than streamed member by member; the limit an endpoint
-advertises is therefore also the memory one download may claim, which is why the default is
-64 MiB and not a number that sounds generous.
-
-A type whose schema the caller may not read in full contributes the granted projection of that
-schema, the same document `schema/` would serve, so a bundle never widens what the endpoint
-narrows (EP-47).
-
----
-
-## 5b. Apache Parquet
-
-Path: `/api/endpoint/{endpointSlug}/file.parquet` (`Representation` `parquet`, EP-119)
-
-The rows of `file.csv` (§4) as one Apache Parquet file, the format a data scientist loads into
-pandas, Polars, DuckDB or Spark without parsing text. `Content-Type: application/vnd.apache.parquet`
-and `Content-Disposition: attachment; filename="{slug}.parquet"`.
-
-- One column per flattened path of §4, in the same order, under the same name; `humanHeaders=true`
-  renames them as it renames the CSV header.
-- A column is typed by its values: `INT64` when every value it holds is a JSON integer, `DOUBLE`
-  when every one is a number, `BOOLEAN` when every one is a boolean, and a UTF-8 string otherwise.
-  A column that mixes kinds is a string column, each value written as the CSV writes it.
-- Every column is optional: a row whose entity has no value at that path holds null, never an empty
-  string.
-- The file's key-value metadata carries what the `metadata` sheet of the workbook carries (§5): the
-  space, the endpoint slug, the export instant, the query and the row count.
-- One row group, no compression. The limits of §4 apply: the file is assembled in a buffer
-  `spec.fileLimits.maxFileBytes` bounds, because a Parquet footer is written last, and a file past
-  either limit is refused whole with `413`.
+Each removed path answers `404`, like any child an Endpoint does not serve. A manifest that still
+lists `geojson`, `json`, `xlsx`, `parquet` or `zip` in `spec.enabledRepresentations` or
+`spec.disabledRepresentations` is refused with a message that names the removal (EP-104); the
+Portal drops them from stored Endpoints once, so no published Endpoint goes dark.
 
 ---
 
@@ -986,6 +883,39 @@ Path: `wss://{host}/api/endpoint/{endpointSlug}/ws`
 
 One connection carries NGSI-LD Subscriptions made over the socket and the Notifications they produce, in the TS 104 243 `{metadata, body}` envelope (EP-106). The gateway authenticates the upgrade like any request and forwards it to the broker view's `/x/views/{view}/ws`, so a notification carries only what the caller's grant reads. Messages, limits, resume and client examples are on their own page: [API/07](07-websocket.md).
 
+## 8b. Domain standards and the data model they need
+
+A domain standard, such as iCalendar, is a representation of one Smart Data Models type in another standard's terms. It is served only where `spec.enabledRepresentations` lists it (never by the EP-104 default), and only on an Endpoint whose Context Space's data model has that type with every attribute the standard's mandatory fields come from, each one a slot marked `required: true` (EP-125). The requirement is code: the platform's `Representation::requirement()` declares it, and [`schemas/surface-requirements.md`](https://github.com/marek-mraz-jc/joinedcontext-platform/blob/main/schemas/surface-requirements.md) in the platform repository is generated from it and checked against it by the platform's tests. This section quotes that file.
+
+### iCalendar (`ical`, RFC 5545)
+
+Smart Data Models type: `Event` (`https://smartdatamodels.org/dataModel.Event/Event`).
+
+| Field | Standard | Source attribute | Mandatory |
+|---|---|---|---|
+| `UID` | RFC 5545 §3.6.1, §3.8.4.7 | entity `id` | yes |
+| `DTSTAMP` | RFC 5545 §3.6.1, §3.8.7.2 | entity `modifiedAt` (system) | yes |
+| `DTSTART` | RFC 5545 §3.6.1, §3.8.2.4 | `startDate` | yes |
+| `SUMMARY` | RFC 5545 §3.8.1.12 | `name` | yes (a calendar entry without a title is of no use) |
+| `DTEND` | RFC 5545 §3.8.2.2 | `endDate` | no: absent, the event has no end |
+| `DESCRIPTION` | RFC 5545 §3.8.1.5 | `description` | no |
+| `LOCATION`, `GEO` | RFC 5545 §3.8.1.7, §3.8.1.6 | `address`, `location` | no |
+| `URL` | RFC 5545 §3.8.4.6 | `url` | no |
+
+`id` and `modifiedAt` belong to every entity, so the model has to declare `startDate` and `name` as required slots of `Event`.
+
+### The refusal
+
+```text
+Endpoint banskabystrica/banskabystrica-podujatia: `ical` needs the type Event with the required attribute(s) startDate in the data model of space banskabystrica-verejne (EP-125)
+```
+
+### An entity that lacks a mandatory attribute
+
+An entity read without `startDate` or `name` is left out of the feed and counted in `antares_surface_records_skipped_total{surface="ical", attribute="startDate"}`; the feed stays valid RFC 5545 (EP-126).
+
+---
+
 ## 9. The Endpoints a token reaches (`GET /api/endpoints`)
 
 Path: `/api/endpoints`, on the gateway's host, outside any one Endpoint.
@@ -1032,7 +962,7 @@ A published Endpoint (`spec.publish.ckan`) is one CKAN dataset with one resource
 | MCP | `MCP` | the client entry (`url`, `transport: http`) for an MCP client |
 | OGC API - Features | `OGCFEAT` | QGIS: Layer, Add Layer, Add WFS / OGC API - Features Layer, the landing URL |
 | OData v4 | `OData` | Excel: Data, Get Data, From OData Feed; Power BI: Get data, OData feed; the service URL |
-| GeoJSON, CSV, XLSX, JSON, ZIP | their own | that the file is generated on each download from live data |
+| CSV | `CSV` | that the file is generated on each download from live data |
 | Schema index and artifacts | `JSON`, `LinkML`, `SHACL`, … | the model version and the sha256 (EP-68) |
 
 On a public Endpoint the NGSI-LD, OGC API - Features, OData and SensorThings resources also link the Endpoint's public page (`https://{host}/d/{endpointSlug}`), whose "Standards" part lists the fields each standard filters on and example queries that answered with the dataset's own data when the Portal last read it ([API/01 §16a](01-portal-api.md#16a-the-catalogue-ep-81-ep-82)); the catalogue holds the link, never a copy of the examples, which would go stale between publication runs.
@@ -1046,7 +976,7 @@ What the catalogue keeps current (EP-109):
 | Resource kind | What CKAN holds | How it stays current |
 |---|---|---|
 | DataStore table (`spec.publish.ckan.datastore`) | a copy of the rows, one table per entity type | row by row on each change (`refresh: onChange`) or on each reconcile (`onReconcile`), deletions included (EP-65) |
-| File resource (`file.*`) | a link to the live download | the file is built on each request; `metadata_modified` moves on the next publication run after the data changed |
+| File resource (`file.csv`) | a link to the live download | the file is built on each request; `metadata_modified` moves on the next publication run after the data changed |
 | API resource (NGSI-LD, WebSocket, MCP, OGC, OData) | a link | always live; CKAN holds no copy |
 | Schema artifact | a link and the sha256 of its model version | a new model version adds new artifacts with their own hashes (EP-68) |
 

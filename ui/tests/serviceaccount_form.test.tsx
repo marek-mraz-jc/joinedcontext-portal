@@ -139,6 +139,14 @@ describe("the ServiceAccount form", () => {
     }
   });
 
+  // T-4616: a ServiceAccount signs in with its Keycloak client only; an api-key credential is
+  // no choice and is refused at the field.
+  it("offers a Keycloak client as the only credential, and refuses an api key", () => {
+    const credential = schema().properties?.credentials as { items: { properties: { kind: { oneOf: { const: string }[] } } } };
+    expect(credential.items.properties.kind.oneOf.map((choice) => choice.const)).toEqual(["oauth-client"]);
+    expect(errorsOf({ ...FILLED, credentials: [{ kind: "api-key", name: "stary-system" }] })).toContain(".credentials.0.kind");
+  });
+
   it("refuses an account with no owner, no purpose, no grant or no credential at the field", () => {
     expect(errorsOf({ ...FILLED, owner: { user: "" } })).toContain(".owner.user");
     expect(errorsOf({ ...FILLED, purpose: "" })).toContain(".purpose");
@@ -255,12 +263,12 @@ describe("the ServiceAccount manifest the form writes", () => {
     const manifest = toServiceAccountEnvelope(PROJECT, {
       ...FILLED,
       roles: [{ role: "reader", scope: { level: "project", name: PROJECT }, operations: [], types: [" "] }],
-      credentials: [{ kind: "api-key", name: "stary-system", expiresAt: " ", ipAllowList: [] }],
+      credentials: [{ kind: "oauth-client", name: "senzory", expiresAt: " ", ipAllowList: [] }],
       limits: {},
       workload: { kubernetes: { namespace: "", serviceAccount: "" } },
     }) as { spec: Record<string, unknown> };
     expect(manifest.spec.roles).toEqual([{ role: "reader", scope: { project: PROJECT } }]);
-    expect(manifest.spec.credentials).toEqual([{ kind: "api-key", name: "stary-system" }]);
+    expect(manifest.spec.credentials).toEqual([{ kind: "oauth-client", name: "senzory" }]);
     expect(manifest.spec).not.toHaveProperty("limits");
     expect(manifest.spec).not.toHaveProperty("workload");
   });

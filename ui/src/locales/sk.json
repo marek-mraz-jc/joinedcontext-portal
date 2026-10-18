@@ -2486,66 +2486,7 @@
       },
       "grantIn": "{role} v {where}",
       "grantOrg": "{role} v celej organizácii",
-      "emptyHint": "Servisný účet je spôsob, ako program mimo Portálu číta alebo zapisuje tento projekt: skript, pipeline inde, iná platforma. Každý dostane vlastné kľúče a len rolu, ktorú mu dáte."
-    },
-    "keys": {
-      "create": "Nový API kľúč ({credential})",
-      "noCredential": "Tento účet nemá v manifeste žiadny údaj typu api-key; najprv ho doplňte.",
-      "empty": "Zatiaľ žiadny API kľúč.",
-      "noStore": "API kľúče potrebujú databázu Portálu, ktorá tu nie je nastavená.",
-      "notYours": "Jeho kľúče vidí iba vlastník a tí, ktorí môžu meniť servisné účty.",
-      "tableCaption": "API kľúče účtu {account}",
-      "newTitle": "Váš nový API kľúč",
-      "newHint": "Uložte si ho teraz do správcu tajomstiev.",
-      "onceWarning": "Kľúč sa zobrazuje jediný raz. Ukladá sa iba jeho odtlačok a už sa nedá obnoviť.",
-      "token": "API kľúč",
-      "copy": "Kopírovať",
-      "done": "Zavrieť",
-      "rotate": "Vymeniť",
-      "rotateHint": "Vydá nástupcu; súčasný kľúč funguje ešte 24 hodín.",
-      "revoke": "Zneplatniť",
-      "revokeNow": "Zneplatniť teraz",
-      "revokeConfirm": "Zneplatniť kľúč {keyId}? Volajúci, ktorí ho používajú, okamžite prestanú fungovať.",
-      "revoked": "zneplatnený {date}",
-      "never": "bez expirácie",
-      "neverUsed": "nepoužitý",
-      "field": {
-        "keyId": "Identifikátor kľúča",
-        "credential": "Údaj",
-        "expires": "Platnosť do",
-        "lastUsed": "Naposledy použitý"
-      },
-      "claim": {
-        "title": "Kľúč, o ktorý požiadal váš MCP klient",
-        "hint": "Potvrďte ho tu a kľúč sa zobrazí. Váš MCP klient ho nedostal.",
-        "mint": "Vytvoriť nový kľúč pre poverenie {credential} účtu {account}.",
-        "rotate": "Vymeniť kľúč {keyId} účtu {account}: vytvorí sa nástupca a súčasný kľúč funguje ešte {hours} h.",
-        "expires": "Nový kľúč platí do {date}.",
-        "until": "Odkaz platí do {time}.",
-        "confirmMint": "Vytvoriť a zobraziť kľúč",
-        "confirmRotate": "Vymeniť a zobraziť kľúč",
-        "cancel": "Teraz nie",
-        "gone": "Tento odkaz vypršal, už bol použitý alebo patrí niekomu inému. Požiadajte o kľúč znova vo svojom MCP klientovi."
-      },
-      "expiresIn": "{count, plural, one {vyprší o # deň} few {vyprší o # dni} other {vyprší o # dní}}",
-      "expired": "vypršal",
-      "ending": "Kľúče, ktoré vypršia do {days} dní alebo už vypršali: {count}. Vymeňte ich skôr, než programy, ktoré ich používajú, zlyhajú.",
-      "mint": {
-        "title": "Nový API kľúč ({credential})",
-        "hint": "Vyberte, ako dlho bude platiť. Kľúč sa zobrazí raz, hneď po vytvorení.",
-        "allows": "Čo kľúč dovoľuje",
-        "allowsNothing": "Tento účet zatiaľ nemá žiadnu rolu, jeho kľúč preto nedovoľuje nič. Najprv účtu priraďte rolu.",
-        "expiry": "Platnosť",
-        "asCredential": "Do konca platnosti prístupu: {date}",
-        "asCredentialNever": "Bez obmedzenia, ako určuje prístup",
-        "inDays": "{count, plural, one {# deň ({date})} few {# dni ({date})} other {# dní ({date})}}",
-        "onDate": "Do zvoleného dňa",
-        "dateLabel": "Posledný deň platnosti kľúča",
-        "dateMissing": "Vyberte posledný deň platnosti kľúča.",
-        "datePast": "Tento deň už uplynul. Vyberte deň po dnešku.",
-        "dateAfter": "Prístup platí do {date} a kľúč nemôže platiť dlhšie. Vyberte tento alebo skorší deň.",
-        "submit": "Vytvoriť kľúč"
-      }
+      "emptyHint": "Servisný účet je spôsob, ako program mimo Portálu číta alebo zapisuje tento projekt: skript, pipeline inde, iná platforma. Každý sa prihlasuje vlastným klientom v Keycloaku a má len rolu, ktorú mu dáte."
     },
     "matrix": {
       "title": "Prístup k údajom",
@@ -4064,8 +4005,8 @@
       "lead": "Riadky typu {type}, ktoré ukazuje tento pohľad, čítané cez rovnaký endpoint s rovnakým filtrom. Skopírujte ukážku a spustite ju tak, ako je.",
       "public": "Tento endpoint odpovedá komukoľvek: token netreba.",
       "tokenTitle": "Token vášho programu",
-      "token": "Pred spustením ukážky vložte token do premennej prostredia {variable}: API kľúč servisného účtu tohto projektu, o ktorom rozhoduje politika endpointu rovnako ako o vašej relácii. Nikdy nevkladajte svoju osobnú reláciu do programu.",
-      "tokenLink": "Vytvoriť servisný účet a jeho API kľúč",
+      "token": "Pred spustením ukážky vložte token do premennej prostredia {variable}: prístupový token servisného účtu tohto projektu, získaný z Keycloaku údajmi jeho klienta, o ktorom rozhoduje politika endpointu rovnako ako o vašej relácii. Nikdy nevkladajte svoju osobnú reláciu do programu.",
+      "tokenLink": "Vytvoriť servisný účet",
       "copy": "Kopírovať ukážku {language}",
       "language": {
         "curl": "curl (príkazový riadok)",
@@ -6099,8 +6040,7 @@
       "organization": "Celá organizácia"
     },
     "credentialKind": {
-      "oauth-client": "ID klienta a tajomstvo (OAuth)",
-      "api-key": "API kľúč"
+      "oauth-client": "ID klienta a tajomstvo (OAuth)"
     },
     "mappingLanguage": {
       "bloblang": "Bloblang"

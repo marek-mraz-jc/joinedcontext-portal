@@ -3,13 +3,12 @@
  * UI-44, PF-50). Since T-2606 the accounts are on Project settings → Service accounts and the
  * groups on Organization → Groups; the cases follow them there.
  *
- * Neither file was named by a test. Both carried the same two defects the checklist looks for:
- * a refusal that could not be read — the Propose button was hard-disabled with its reason wired
- * by `aria-describedby`, which is out of the tab order, so nobody could reach it to be told why
- * — and, on the keys, a list that could not be read drawn in the same grey as a list that is
- * genuinely empty. One of those two means a credential has to be rotated and the other does not.
+ * Neither file was named by a test. Both carried a defect the checklist looks for: a refusal
+ * that could not be read — the Propose button was hard-disabled with its reason wired by
+ * `aria-describedby`, which is out of the tab order, so nobody could reach it to be told why. (The
+ * key list's cases went with the keys, T-4616.)
  */
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
@@ -19,7 +18,6 @@ import {
   jsonResponse,
   list,
   LOCALES,
-  problem,
   renderRoute,
   VIEWER,
 } from "./pageHarness";
@@ -67,37 +65,6 @@ describe("the service accounts and the groups", () => {
     const { container } = await renderRoute({ path: ACCOUNTS, answer: answering(), identity: VIEWER });
     await screen.findByText("harvester");
     await expectAxeClean(container);
-  });
-
-  it("a_key_list_that_failed_says_the_apis_own_sentence_and_offers_one_more_try", async () => {
-    const { calls } = await renderRoute({
-      path: ACCOUNTS,
-      answer: answering((path) =>
-        path.includes("/keys") ? problem(500, "The key store lost its connection.") : undefined,
-      ),
-    });
-
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("The key store lost its connection.");
-    // Not "this account has no keys", which is the other thing that grey paragraph used to say.
-    expect(screen.queryByText(en.access.keys.empty)).toBeNull();
-
-    const before = calls().filter((call) => call.includes("/keys")).length;
-    await userEvent.click(within(alert).getByRole("button", { name: en.app.error.retry }));
-    await waitFor(() =>
-      expect(calls().filter((call) => call.includes("/keys")).length).toBeGreaterThan(before),
-    );
-  });
-
-  it("an_account_with_no_key_still_says_it_has_none", async () => {
-    await renderRoute({
-      path: ACCOUNTS,
-      answer: answering((path) => (path.includes("/keys") ? jsonResponse(list([])) : undefined)),
-    });
-    // Declaring no api-key credential is having none, said once (T-2759).
-    expect(await screen.findByText(en.access.keys.noCredential)).toBeInTheDocument();
-    expect(screen.queryByText(en.access.keys.empty)).toBeNull();
-    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("the_new_group_form_opens_on_its_fields_and_not_on_a_manifest", async () => {

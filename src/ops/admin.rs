@@ -1,22 +1,16 @@
 //! Moving a project and its credentials through the registry (AG-59, CC-48, T-0840).
 //!
-//! Exporting a project, importing a bundle, writing a data model's LinkML and minting, rotating
-//! or revoking a service account's key were reachable through the Portal's routes alone. Each
-//! operation here calls the route's own function, so the grants, the refusals and the answers
-//! are the route's; nothing here decides anything of its own.
-//!
-//! A key is a credential, so an agent asks and a person acts: the three key operations refuse a
-//! run outright (AG-11), and through MCP the Red lane asks the person first (AG-63).
+//! Exporting a project, importing a bundle and writing a data model's LinkML were reachable
+//! through the Portal's routes alone. Each operation here calls the route's own function, so the
+//! grants, the refusals and the answers are the route's; nothing here decides anything of its own.
 
 use axum::extract::{Path, Query, State};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use super::bounds::{text, ID, NAME, QUERY, TERM, TITLE};
-use super::runs::{as_user, refuse_agent};
-use super::{
-    change_schema, dry_run_output_schema, parse_input, Annotations, OpError, Operation, Via,
-};
+use super::bounds::{text, NAME, QUERY, TERM, TITLE};
+use super::runs::as_user;
+use super::{change_schema, dry_run_output_schema, parse_input, Annotations, OpError, Operation};
 use crate::change::Lane;
 use crate::error::ApiError;
 
@@ -77,33 +71,6 @@ pub struct SourcePutInput {
     pub version: Option<String>,
     #[serde(default)]
     pub dry_run: bool,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub struct KeyMintInput {
-    /// The ServiceAccount the key belongs to.
-    pub account: String,
-    /// The `api-key` credential of that account the key is minted for.
-    pub credential: String,
-    #[serde(default)]
-    pub expires_at: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub struct KeyRotateInput {
-    pub account: String,
-    pub key_id: String,
-    #[serde(default)]
-    pub overlap_hours: Option<i64>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub struct KeyRevokeInput {
-    pub account: String,
-    pub key_id: String,
 }
 
 fn export_input_schema() -> Value {
@@ -212,92 +179,6 @@ fn source_put_input_schema() -> Value {
 
 fn source_put_output_schema() -> Value {
     json!({ "oneOf": [dry_run_output_schema(), change_schema()] })
-}
-
-fn key_mint_input_schema() -> Value {
-    json!({
-        "type": "object",
-        "properties": {
-            "account": text("The ServiceAccount's name", NAME),
-            "credential": text("The api-key credential of that account the key belongs to (PF-34)", NAME),
-            "expiresAt": { "type": "string", "format": "date-time", "description": "Overrides the manifest's expiry", "maxLength": 64 }
-        },
-        "required": ["account", "credential"],
-        "additionalProperties": false
-    })
-}
-
-fn key_rotate_input_schema() -> Value {
-    json!({
-        "type": "object",
-        "properties": {
-            "account": text("The ServiceAccount's name", NAME),
-            "keyId": text("The key to replace", ID),
-            "overlapHours": { "type": "integer", "minimum": 0, "description": "How long the old key keeps working beside its successor (PF-38)" }
-        },
-        "required": ["account", "keyId"],
-        "additionalProperties": false
-    })
-}
-
-fn key_revoke_input_schema() -> Value {
-    json!({
-        "type": "object",
-        "properties": {
-            "account": text("The ServiceAccount's name", NAME),
-            "keyId": text("The key to revoke", ID)
-        },
-        "required": ["account", "keyId"],
-        "additionalProperties": false
-    })
-}
-
-fn minted_key_output_schema() -> Value {
-    json!({
-        "oneOf": [
-            {
-                "type": "object",
-                "description": "The minted key, to a person in the Portal or on the REST route: the only answer that ever carries the token itself; it is never recoverable (PF-36, PF-37)",
-                "properties": {
-                    "keyId": { "type": "string" },
-                    "token": { "type": "string" },
-                    "credential": { "type": "string" },
-                    "expiresAt": { "type": "string", "format": "date-time" }
-                },
-                "required": ["keyId", "token", "credential"]
-            },
-            {
-                "type": "object",
-                "description": "Over MCP: a one-time claim the person who asked opens in the Portal within 15 minutes to mint the key and see its token; this answer carries no token (PF-104)",
-                "properties": {
-                    "claim": {
-                        "type": "object",
-                        "properties": {
-                            "id": { "type": "string" },
-                            "url": { "type": "string", "format": "uri" },
-                            "expiresAt": { "type": "string", "format": "date-time" }
-                        },
-                        "required": ["id", "url", "expiresAt"]
-                    },
-                    "account": { "type": "string" },
-                    "action": { "type": "string", "enum": ["mint", "rotate"] },
-                    "credential": { "type": "string" },
-                    "keyId": { "type": "string" },
-                    "keyExpiresAt": { "type": "string", "format": "date-time" },
-                    "overlapHours": { "type": "integer" }
-                },
-                "required": ["claim", "account", "action", "credential"]
-            }
-        ]
-    })
-}
-
-fn revoked_output_schema() -> Value {
-    json!({
-        "type": "object",
-        "properties": { "revoked": { "type": "boolean" } },
-        "required": ["revoked"]
-    })
 }
 
 /// A route that answers a `Change` as its response, read back as an operation answers it: the id
@@ -520,126 +401,6 @@ pub fn operations() -> Vec<Operation> {
                     )
                     .await?;
                     proposed(response).await
-                })
-            },
-        },
-        Operation {
-            name: "jc_service_account_key_mint",
-            title: "Mint A Service Account Key",
-            description: "Mints one api-key credential of a ServiceAccount; the token is in this answer and nowhere else. Over MCP nothing is minted: the answer is a one-time claim link the person who asked opens in the Portal to mint the key and see it, so the token never reaches the client (PF-104)",
-            input: key_mint_input_schema,
-            output: minted_key_output_schema,
-            annotations: Annotations {
-                read_only_hint: false,
-                destructive_hint: false,
-                idempotent_hint: false,
-            },
-            kind: "ServiceAccount",
-            verb: None,
-            lane: Lane::Red,
-            validate: |val| parse_input::<KeyMintInput>(val.clone()).map(|_| ()),
-            run: |caller, state, project, val| {
-                Box::pin(async move {
-                    refuse_agent(caller, "jc_service_account_key_mint")?;
-                    let input: KeyMintInput = parse_input(val)?;
-                    let body = json!({
-                        "credential": input.credential,
-                        "expiresAt": input.expires_at,
-                    });
-                    let path = Path((project.to_owned(), input.account));
-                    let body = serde_json::to_vec(&body).unwrap_or_default().into();
-                    // A person's MCP client is driven by a model: it is answered a claim the
-                    // person opens in the Portal, never the token (PF-104).
-                    if caller.via == Via::Mcp {
-                        let claim = crate::api::service_accounts::claim_mint(
-                            as_user(caller),
-                            State(state.clone()),
-                            path,
-                            body,
-                        )
-                        .await?;
-                        return Ok(serde_json::to_value(claim)?);
-                    }
-                    let (_, axum::Json(minted)) = crate::api::service_accounts::create_key(
-                        as_user(caller),
-                        State(state.clone()),
-                        path,
-                        body,
-                    )
-                    .await?;
-                    Ok(serde_json::to_value(minted)?)
-                })
-            },
-        },
-        Operation {
-            name: "jc_service_account_key_rotate",
-            title: "Rotate A Service Account Key",
-            description: "Replaces one key with a successor; the old one stops working when its overlap ends. Over MCP nothing is rotated yet: the answer is a one-time claim link the person who asked opens in the Portal to make the rotation and see the successor, so the token never reaches the client (PF-104)",
-            input: key_rotate_input_schema,
-            output: minted_key_output_schema,
-            annotations: Annotations {
-                read_only_hint: false,
-                destructive_hint: true,
-                idempotent_hint: false,
-            },
-            kind: "ServiceAccount",
-            verb: None,
-            lane: Lane::Red,
-            validate: |val| parse_input::<KeyRotateInput>(val.clone()).map(|_| ()),
-            run: |caller, state, project, val| {
-                Box::pin(async move {
-                    refuse_agent(caller, "jc_service_account_key_rotate")?;
-                    let input: KeyRotateInput = parse_input(val)?;
-                    let body = json!({ "overlapHours": input.overlap_hours });
-                    let path = Path((project.to_owned(), input.account, input.key_id));
-                    let body = serde_json::to_vec(&body).unwrap_or_default().into();
-                    if caller.via == Via::Mcp {
-                        let claim = crate::api::service_accounts::claim_rotate(
-                            as_user(caller),
-                            State(state.clone()),
-                            path,
-                            body,
-                        )
-                        .await?;
-                        return Ok(serde_json::to_value(claim)?);
-                    }
-                    let (_, axum::Json(minted)) = crate::api::service_accounts::rotate_key(
-                        as_user(caller),
-                        State(state.clone()),
-                        path,
-                        body,
-                    )
-                    .await?;
-                    Ok(serde_json::to_value(minted)?)
-                })
-            },
-        },
-        Operation {
-            name: "jc_service_account_key_revoke",
-            title: "Revoke A Service Account Key",
-            description: "Stops one key at once; nothing that used it works afterwards",
-            input: key_revoke_input_schema,
-            output: revoked_output_schema,
-            annotations: Annotations {
-                read_only_hint: false,
-                destructive_hint: true,
-                idempotent_hint: true,
-            },
-            kind: "ServiceAccount",
-            verb: None,
-            lane: Lane::Red,
-            validate: |val| parse_input::<KeyRevokeInput>(val.clone()).map(|_| ()),
-            run: |caller, state, project, val| {
-                Box::pin(async move {
-                    refuse_agent(caller, "jc_service_account_key_revoke")?;
-                    let input: KeyRevokeInput = parse_input(val)?;
-                    crate::api::service_accounts::revoke_key(
-                        as_user(caller),
-                        State(state.clone()),
-                        Path((project.to_owned(), input.account, input.key_id)),
-                    )
-                    .await?;
-                    Ok(json!({ "revoked": true }))
                 })
             },
         },

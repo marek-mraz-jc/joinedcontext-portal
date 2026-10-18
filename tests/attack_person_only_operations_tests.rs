@@ -3,13 +3,14 @@
 //!
 //! **The attack.** Arrive as `Via::Mcp` and as `Via::Agent` and take, by name, the operations the
 //! platform reserves for a person: approve a change, reject one, delete a resource, delete a
-//! project, mint a service account's key, rotate one, bring a workspace back, throw one away, and
-//! answer the question a run asked. Name them even where the caller's profile does not, and name
-//! them where the widest profile an author could write does.
+//! project, bring a workspace back, throw one away, and answer the question a run asked (a service
+//! account's keys were on this list until there were none to mint, T-4616). Name them even where
+//! the caller's profile does not, and name them where the widest profile an author could write
+//! does.
 //!
 //! **The defence.** Each is refused on the caller and the operation alone — before the profile is
 //! consulted, before the input is read and before the body runs — with the reason that says whose
-//! the act is. Two of the nine are not refused and must not be: proposing a deletion is an agent's
+//! the act is. Two of them are not refused and must not be: proposing a deletion is an agent's
 //! to do (AG-77), because a deletion is a Red Change that a person still approves. The vector's
 //! property is that nothing is decided, not that nothing is asked for.
 //!
@@ -26,11 +27,11 @@
 //! - `ops_registry_tests.rs::the_run_operations_answer_and_an_agent_is_refused_by_name` — create,
 //!   cancel and publish as a run, and that a person's own MCP session is not stopped by that gate.
 //!
-//! What was left, and is this file: the keys and the run's answer (refused nowhere the listing could
-//! see, so `GET …/ops` and `tools/list` offered a run three operations it would always be denied —
-//! fixed in `src/ops/mod.rs::may_run`), the reason a refused key mint reads (one sentence about
-//! runs, which told a reader nothing), the two proposals that are deliberately open, and the
-//! evidence that a refused call writes, fetches and echoes nothing.
+//! What was left, and is this file: the run's answer (refused nowhere the listing could see, so
+//! `GET …/ops` and `tools/list` offered a run an operation it would always be denied — fixed in
+//! `src/ops/mod.rs::may_run`), the reason a refused answer reads (one sentence about runs, which
+//! told a reader nothing), the two proposals that are deliberately open, and the evidence that a
+//! refused call writes, fetches and echoes nothing.
 
 mod common;
 
@@ -65,15 +66,6 @@ fn attacked() -> Vec<(&'static str, Option<&'static str>)> {
         ("jc_change_reject", Some("approves or rejects")),
         ("jc_workspace_propose", Some("brings a workspace back")),
         ("jc_workspace_discard", Some("throws a workspace away")),
-        ("jc_service_account_key_mint", Some("service account's key")),
-        (
-            "jc_service_account_key_rotate",
-            Some("service account's key"),
-        ),
-        (
-            "jc_service_account_key_revoke",
-            Some("service account's key"),
-        ),
         ("jc_run_answer", Some("answer the question a run asked")),
         (
             "jc_run_create",
@@ -99,11 +91,6 @@ fn attack_input(operation: &str) -> Value {
         "jc_change_approve" => json!({ "id": format!("chg-{CANARY}") }),
         "jc_change_reject" => json!({ "id": format!("chg-{CANARY}"), "reason": CANARY }),
         "jc_workspace_propose" | "jc_workspace_discard" => json!({ "name": CANARY }),
-        "jc_service_account_key_mint" => json!({ "account": CANARY, "credential": CANARY }),
-        "jc_service_account_key_rotate" => {
-            json!({ "account": CANARY, "keyId": CANARY, "overlapHours": 1 })
-        }
-        "jc_service_account_key_revoke" => json!({ "account": CANARY, "keyId": CANARY }),
         "jc_run_answer" => {
             json!({ "id": CANARY, "questionId": CANARY, "answers": { "where": CANARY } })
         }
@@ -191,7 +178,7 @@ fn op(name: &str) -> &'static ops::Operation {
 
 /// AG-11, AG-45: every operation of this vector is refused for an agent run on the caller and the
 /// operation alone, and the reason names the act rather than a neighbouring one. A run reading
-/// "an agent run does not start, cancel or publish another run" after asking for a key mint learns
+/// "an agent run does not start, cancel or publish another run" after answering a question learns
 /// nothing it can act on, which is why the reason is looked up by name.
 #[test]
 fn an_agent_run_is_refused_each_operation_a_person_must_perform_with_its_own_reason() {
@@ -223,7 +210,7 @@ fn an_agent_run_is_refused_each_operation_a_person_must_perform_with_its_own_rea
         );
     }
     assert_eq!(
-        refused, 11,
+        refused, 8,
         "the vector no longer covers what it was written for"
     );
 }
@@ -295,7 +282,7 @@ fn the_widest_profile_grants_none_of_them_and_never_answers_with_its_own_reason(
 
 /// API/01 §21: `GET …/ops` lists exactly the operations the caller would be let through, and
 /// `tools/list` is the same listing. An operation refused only inside its body was still offered,
-/// so a model was taught that minting a key is something it does and then fails at (the reasoning
+/// so a model was taught that answering for its person is something it does and then fails at (the reasoning
 /// of `may_run`, AG-63). None of this vector is offered to a run, whatever its profile says.
 #[test]
 fn not_one_of_them_is_offered_to_an_agent_run() {
@@ -432,9 +419,9 @@ fn every_operation_the_registry_refuses_a_run_is_refused_before_it_is_listed() {
 }
 
 /// The refusal a person reads must not be the same sentence for two different acts, or it stops
-/// being a reason. Every refusal of this vector is one of six distinct sentences: deciding a change,
-/// bringing a workspace back, throwing one away, driving another run, answering a run's question,
-/// and a service account's keys.
+/// being a reason. Every refusal of this vector is one of five distinct sentences: deciding a change,
+/// bringing a workspace back, throwing one away, driving another run, and answering a run's
+/// question.
 #[test]
 fn the_refusals_of_this_vector_are_distinct_sentences() {
     let run = Caller::for_run(steward(), Access::default());
@@ -446,9 +433,9 @@ fn the_refusals_of_this_vector_are_distinct_sentences() {
     sentences.sort();
     sentences.dedup();
     assert_eq!(
-        6,
+        5,
         sentences.len(),
-        "six acts, six sentences; found {sentences:#?}",
+        "five acts, five sentences; found {sentences:#?}",
     );
 }
 

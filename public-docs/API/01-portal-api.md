@@ -482,8 +482,8 @@ GET    /api/v1/projects/{project}/drafts/events                the same changes 
 - `version` counts up on every save. Send the version you read as `expectedVersion` and a save
   against a newer draft is refused with `409 {"error": "draft_conflict", "current": 9}` instead of
   overwriting what the other window wrote; omit it and the last save wins.
-- `touchedBy` is the caller's username and `touchedKind` is how they reached it: `person`,
-  `api-key`, `mcp` or `run`, so a form can say the assistant wrote this, not you.
+- `touchedBy` is the caller's username and `touchedKind` is how they reached it: `person`, `mcp`
+  or `run`, so a form can say the assistant wrote this, not you.
 - A literal secret under one of the secret keys of section 5 is `400` here as it is on a write
   (MF-24): a draft is a manifest on its way to Git.
 - `?workspace={name}` addresses the drafts of one workspace (section 22). A draft of a workspace is
@@ -959,119 +959,15 @@ GET /api/v1/forms            every UiSchema manifest of portal/forms/, as a List
   field the schema lacks, a widget the Portal does not register, two manifests for one kind) is
   listed in the dialog itself, and the dialog's footer carries the `advancedMode` switch.
 
-## 9. ServiceAccounts and API keys (PF-34…PF-40)
+## 9. ServiceAccounts (PF-34…PF-40)
 
 A `ServiceAccount` manifest declares that a credential exists; the secret itself never enters Git
 (PF-36). The manifest is read and written through the resource API like every other kind
-(`/api/v1/projects/{project}/serviceaccounts`). The keys behind an `api-key` credential live in the
-Portal's PostgreSQL tier, and these routes are the only way to mint, rotate and revoke them:
-
-```text
-GET    /api/v1/projects/{project}/serviceaccounts/{name}/keys                  the account's keys, metadata only
-POST   /api/v1/projects/{project}/serviceaccounts/{name}/keys                  mint a key → 201, the token once
-POST   /api/v1/projects/{project}/serviceaccounts/{name}/keys/{keyId}/rotate   mint a successor, the old key keeps working for the overlap window → 201
-DELETE /api/v1/projects/{project}/serviceaccounts/{name}/keys/{keyId}          revoke now → 204
-```
-
-Minting takes the credential name from the manifest and, optionally, an expiry:
-
-```json
-{ "credential": "legacy-push", "expiresAt": "2027-03-01T00:00:00Z" }
-```
-
-The `201` answer is the only place the secret ever appears:
-
-```json
-{
-  "keyId": "3f9c2a7b1d4e8f06",
-  "token": "jc_3f9c2a7b1d4e8f06_Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MGFiY2RlZg",
-  "credential": "legacy-push",
-  "expiresAt": "2027-03-01T00:00:00Z"
-}
-```
-
-A listed key carries what an operator decides on and nothing that opens a door:
-
-```json
-{
-  "items": [
-    {
-      "keyId": "3f9c2a7b1d4e8f06",
-      "credential": "legacy-push",
-      "createdAt": "2026-09-06T18:20:11Z",
-      "createdBy": "jana.kovacova",
-      "expiresAt": "2027-03-01T00:00:00Z",
-      "lastUsedAt": null,
-      "revokedAt": null
-    }
-  ]
-}
-```
-
-- `token` is `jc_{keyId}_{secret}` (PF-37): `keyId` is 16 lowercase hex characters, the secret 32
-  random bytes in URL-safe base64 without padding. The Portal stores the Argon2id PHC string of the
-  secret, the key id, the expiry and the audit timestamps, never the secret (PF-36); a listed key
-  therefore has no `token`, and a lost token means a new key.
-- `credential` MUST name an `api-key` credential of the manifest; an `oauth-client` credential is
-  provisioned in Keycloak by the reconciler and has no key here (`400`).
-- `expiresAt` defaults to the credential's `expiresAt` in the manifest; without either the key does
-  not expire. It MUST NOT be in the past (`400`), and MUST NOT be later than the credential's own
-  `expiresAt` when the manifest declares one (`400`, naming that expiry): the manifest's expiry was
-  reviewed, so a key asked for in the Portal may end sooner, never later (T-3255).
-- Rotation (PF-38) mints a successor with the same credential and expiry and moves the old key's
-  expiry to `now + overlap`, `{ "overlapHours": 24 }` in the body, default 24, at most 168; an old key
-  that already expires sooner keeps its earlier expiry. Both keys are listed while both work.
-- Revocation is immediate: the key row is kept with `revokedAt` set for the audit trail and the
-  gateway refuses it on the next request (PF-38).
-- The caller MUST be the account's `spec.owner.user` or hold the `portal-approver` realm role
-  (CC-60); anyone else is `403`. An account the caller may not see is `404`, whether it exists or
-  not (R20).
-- `503` with `problem+json` when the Portal runs without its PostgreSQL tier, as for section 8.
-
-### 9.1 A key asked for over MCP: the claim (PF-104)
-
-A person's MCP client is driven by a model, and whatever an operation answers lands in that model's
-context and the client's transcript. So `jc_service_account_key_mint` and
-`jc_service_account_key_rotate` called over `/api/v1/mcp` mint nothing. They check the request as the
-routes above do (the account, the credential, the expiry, the key and the overlap), record a claim
-and answer it:
-
-```json
-{
-  "claim": {
-    "id": "c7e1f0a94b2d6e8f13a5c9d7b0e4f261",
-    "expiresAt": "2026-09-25T10:15:00Z",
-    "url": "https://portal.example.org/projects/bikes/settings/service-accounts?account=legacy-push&claim=c7e1f0a94b2d6e8f13a5c9d7b0e4f261"
-  },
-  "account": "legacy-push",
-  "action": "mint",
-  "credential": "legacy-push"
-}
-```
-
-`action` is `mint` or `rotate`; a rotation's answer also names `keyId`, the key it replaces, and
-`overlapHours`; an expiry asked for is `keyExpiresAt`. The
-answer carries no token and no key id of a key that does not exist yet. The person opens `url` in the
-Portal, signed in, sees what the claim will do and confirms it; only then is the key minted, or the
-rotation made, and the token shown once, exactly as a mint in the Portal shows it:
-
-```text
-GET  /api/v1/projects/{project}/serviceaccounts/{name}/keys/claims/{claimId}   what the claim will do → 200
-POST /api/v1/projects/{project}/serviceaccounts/{name}/keys/claims/{claimId}   mint or rotate now → 201 MintedKey, the claim spent
-```
-
-- A claim belongs to the person who asked for it. Anyone else, a claim that has expired and a claim
-  already spent answer `404`, the same answer as a claim that never existed (R20), so the link in a
-  transcript opens nothing for whoever reads it.
-- A claim lives 15 minutes and is spent by its first `POST`, whether the mint succeeds or not; a
-  second `POST` is `404`. Expired claims are deleted.
-- The caller MUST still be allowed to manage the account's keys when the claim is used, as for a
-  mint; a key rotated in between answers `409` as a direct rotation of a revoked key does.
-- The claim row holds what the claim will do and who asked for it, never a secret: nothing is minted
-  until the person confirms (PF-36).
-- `jc_service_account_key_revoke` answers no secret and revokes over MCP at once, as in the Portal.
-- The REST routes and the Portal mint directly; their answer reaches a person, not a model. A run is
-  refused all three operations (§21).
+(`/api/v1/projects/{project}/serviceaccounts`). Its credential is an `oauth-client`: the reconciler
+provisions the Keycloak client, and a program signs in with `client_credentials` or, inside the
+cluster, with its workload identity (PF-47). The Portal mints, stores and accepts no API key
+(PF-37; the key routes and the MCP key claim were removed with the keys, owner decision 2026-10-18,
+T-4362).
 
 ## 10. Export, import, revisions and sync (MF-16…MF-32, CC-49)
 
@@ -1147,7 +1043,7 @@ GET /api/v1/projects/{project}/apps/{name}/export
 - Grants apply as on the resource API: the bundle holds the kinds the caller may `read` in the
   project (PF-59), a project they may not read is `404`, and `omitted` in the index counts what
   was withheld without naming it (MF-18). Live entities and histories are
-  never part of a bundle (MF-19); they are the endpoint's `file.{json|csv|geojson}` representation.
+  never part of a bundle (MF-19); they are the endpoint's `file.csv` and its APIs.
 - `/revisions` is the history of `projects/{project}/` on the default branch, newest first, for the
   revision picker (Architecture/06 section 6): `sha`, `message`, `author`, `date`. `limit` is 1…100,
   default 20.
@@ -2360,7 +2256,7 @@ POST /api/v1/projects/{project}/assistant/propose-endpoint
   "name": "bikes-regional-transport",
   "audience": "project-list",
   "allowedProjects": ["regional-transport"],
-  "representations": ["ngsi-ld", "geojson"],
+  "representations": ["ngsi-ld", "csv"],
   "hiddenAttributes": ["maintenanceNote"],
   "entityTypes": ["BikeHireDockingStation"]
 }
@@ -2370,14 +2266,14 @@ POST /api/v1/projects/{project}/assistant/propose-endpoint
 {
   "lane": "yellow",
   "slug": "k7m2p9q4r6s8t3v5w7x2y4z6a8b3",
-  "endpoint": { "apiVersion": "joinedcontext.com/v1alpha1", "kind": "Endpoint", "metadata": { "name": "bikes-regional-transport", "namespace": "helsinki" }, "spec": { "contextSpaceRef": "helsinki", "slug": "k7m2p9q4r6s8t3v5w7x2y4z6a8b3", "audience": "project-list", "allowedProjects": ["regional-transport"], "enabledRepresentations": ["ngsi-ld", "geojson"], "projection": { "hiddenAttributes": ["maintenanceNote"] } } },
+  "endpoint": { "apiVersion": "joinedcontext.com/v1alpha1", "kind": "Endpoint", "metadata": { "name": "bikes-regional-transport", "namespace": "helsinki" }, "spec": { "contextSpaceRef": "helsinki", "slug": "k7m2p9q4r6s8t3v5w7x2y4z6a8b3", "audience": "project-list", "allowedProjects": ["regional-transport"], "enabledRepresentations": ["ngsi-ld", "csv"], "projection": { "hiddenAttributes": ["maintenanceNote"] } } },
   "policies": [ { "apiVersion": "joinedcontext.com/v1alpha1", "kind": "Policy", "metadata": { "name": "bikes-regional-transport-regional-transport", "namespace": "helsinki" }, "spec": { "contextSpaceRef": { "kind": "ContextSpace", "name": "helsinki" }, "assigner": "did:web:hel.fi", "assignee": { "kind": "group", "id": "regional-transport" }, "operations": ["retrieveOps"], "information": [ { "entities": [ { "type": "BikeHireDockingStation" } ] } ] } } ],
-  "prefill": { "name": "bikes-regional-transport", "contextSpaceRef": "helsinki", "slug": "k7m2p9q4r6s8t3v5w7x2y4z6a8b3", "audience": "project-list", "allowedProjects": ["regional-transport"], "enabledRepresentations": ["ngsi-ld", "geojson"], "hiddenAttributes": ["maintenanceNote"] }
+  "prefill": { "name": "bikes-regional-transport", "contextSpaceRef": "helsinki", "slug": "k7m2p9q4r6s8t3v5w7x2y4z6a8b3", "audience": "project-list", "allowedProjects": ["regional-transport"], "enabledRepresentations": ["ngsi-ld", "csv"], "hiddenAttributes": ["maintenanceNote"] }
 }
 ```
 
 - `audience` defaults to `project-list`; `project-list` needs at least one project in
-  `allowedProjects`; `representations` defaults to `ngsi-ld` and `geojson`; every name is a
+  `allowedProjects`; `representations` defaults to `ngsi-ld` and `csv`; every name is a
   DNS-1123 label and every attribute an identifier, or the answer is `400`.
 - `access` names what the new endpoint's Policy grants: absent, `retrieveOps` (a share); `read`,
   `update` or `full`, the operations of AP-132 for an endpoint an app proposes; `create`,
@@ -2475,7 +2371,7 @@ Verdict:
 Drafts (also operations: jc_draft_put, jc_draft_get, jc_draft_drop):
   { "project": "helsinki", "kind": "DataSource", "name": "hsl-citybikes-free",
     "manifest": {…}, "verdict": {…} | null, "version": 7,
-    "touchedBy": "jana.kovacova", "touchedKind": "person" | "api-key" | "mcp" | "run",
+    "touchedBy": "jana.kovacova", "touchedKind": "person" | "mcp" | "run",
     "updatedAt": "…" }                                 # the REST routes are §4
   Draft changes are `draft` events on the activity stream (§7 of Architecture/09).
   jc_draft_list (GET /projects/{project}/drafts) answers one line per draft and never the
@@ -2519,14 +2415,10 @@ route's problem document.
     → 202 { "changeId": "chg-00000081", "lane": "yellow", "url": "…", "change": { … "phase": "Rejected" } }
   An assistant or application run calling jc_change_approve or jc_change_reject is refused
   (AG-11): 403 problem "an agent never approves or rejects a change; a person does (AG-11)".
-  Five more operations are the person's in the same way, refused for a run whatever its profile
+  Four more operations are the person's in the same way, refused for a run whatever its profile
   names and so absent from its `GET …/ops` and its `tools/list`: jc_run_create, jc_run_cancel and
-  jc_run_publish (a run does not drive another run), jc_run_answer (a run does not answer the
-  question a run asked the person it acts for, AG-45), and jc_service_account_key_mint,
-  jc_service_account_key_rotate and jc_service_account_key_revoke (a run does not mint or retire
-  the credentials the platform authenticates with). Each refusal names its own act. Over `/api/v1/mcp`
-  a person's own client still calls jc_service_account_key_mint and jc_service_account_key_rotate,
-  and is answered a claim the person opens in the Portal instead of the token (§9.1, PF-104). Proposing a
+  jc_run_publish (a run does not drive another run) and jc_run_answer (a run does not answer the
+  question a run asked the person it acts for, AG-45). Each refusal names its own act. Proposing a
   deletion is not among them: jc_resource_delete and jc_project_delete stay open to a run and to
   an MCP client, because a deletion is a Red change a person still approves (AG-77, CC-39).
   The rejection's reason is written on the merge request beside who rejected it; the REST route
@@ -3161,7 +3053,9 @@ GET /api/v1/projects/{project}/spaces/{space}/usage     the space's entity count
 ```
 
 ```json
-{ "entities": 14232, "broker": "main", "observedAt": "2026-09-25T11:40:00Z" }
+{ "entities": 14232, "broker": "main", "observedAt": "2026-09-25T11:40:00Z",
+  "bytes": { "entities": 48211968, "attrInstances": 1203456,
+             "byType": { "https://smartdatamodels.org/dataModel.Environment/AirQualityObserved": 48211968 } } }
 ```
 
 - A space the broker has no tenant for yet holds nothing: `entities` is `0`.
@@ -3174,7 +3068,16 @@ GET /api/v1/projects/{project}/spaces/{space}/usage     the space's entity count
   the same for everyone who reads the space; which entities they are is the entity read's.
 - The per-type breakdown on the space's page is the gateway's own `count=true` per type, read
   with the person's token, so it narrows as the person's grants do.
-- The storage size in bytes is not answered yet: the broker has no surface for it (T-2890).
+- `bytes` is the storage the space takes, measured by the broker in its store (`GET
+  /q/tenants/{tenant}` `bytes`, T-2890), never estimated: `entities` the current state,
+  `attrInstances` the history, `byType` the current state by each Entity's first type as the
+  broker stores it (an expanded IRI), summing to `entities`. Like the count it is the space's,
+  the same for everyone who reads the space; the type names are the space's DataModels, which the
+  reader already sees. A broker that cannot measure leaves `bytes` out, and so does a space it has
+  no tenant for yet; the page then shows no size, never a zero.
+- The Context Spaces list and the space's page show the size in binary units (KiB, MiB, GiB) with
+  the locale's separators and the exact bytes in the tooltip; the space's per-type table adds the
+  size of each type beside its count. The list still sorts by the entity count.
 
 ## 30. Data views of a space (ADR-N-042, T-3104, T-3099)
 
@@ -3681,7 +3584,7 @@ DELETE /api/v1/organization/people/{id}/consents/{client}          → 204
 ```json
 {"subject": {"serviceAccount": "ovzdusie-etl", "groups": [], "roles": []},
  "endpoints": [{"name": "air", "slug": "zt4qm7ge2xdv6ksb3ncf5arw2y", "title": "Air quality",
-                "space": "ovzdusie", "representations": ["ngsi-ld", "geojson", "mcp"],
+                "space": "ovzdusie", "representations": ["ngsi-ld", "csv", "mcp"],
                 "policies": ["public-air"],
                 "permissions": [{"resource": {"type": "AirQualityObserved"},
                                  "actions": ["queryEntity", "retrieveEntity"],
@@ -3702,7 +3605,7 @@ DELETE /api/v1/organization/people/{id}/consents/{client}          → 204
   `prohibitions` as the gateway answered them (types, actions, attributes, and the view
   restriction as `constraints` `q`, `scopeQ`, `geoQ`, `temporalQ`), `policies` naming the Policies
   in force for the subject, and `representations`, the surfaces the Endpoint serves (the list of
-  its manifest, then `ngsi-ld`, `geojson` and, unless `spec.mcp` is `false`, `mcp`). The page
+  its manifest, then `ngsi-ld` and, unless `spec.mcp` is `false`, `mcp`). The page
   builds each surface's URL under `/api/endpoint/{slug}` and the hub's at `/api/mcp`.
 - `mcpServers` names the project's McpServers (ADR-N-043) with a member among the rows.
 - The page is Project settings → Access explorer, `/projects/{project}/settings/explorer`, with

@@ -946,7 +946,7 @@ fn draft_schema() -> Value {
             "manifest": { "type": "object" },
             "verdict": verdict_schema(),
             "touchedBy": { "type": "string" },
-            "touchedKind": { "type": "string", "description": "person, assistant, mcp, api-key or agent" },
+            "touchedKind": { "type": "string", "description": "person, mcp or run" },
             "version": { "type": "integer" },
             "updatedAt": { "type": "string", "format": "date-time" }
         },
