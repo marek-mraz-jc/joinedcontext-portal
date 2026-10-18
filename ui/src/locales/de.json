@@ -1481,6 +1481,16 @@
       "parametersOf": "Parameter von {path}",
       "lead": "Worauf dieser Endpunkt antwortet, mit einem Beispielaufruf für jedes Lesen."
     },
+    "standards": {
+      "title": "Standards",
+      "lead": "Jeder Standard, den dieser Endpoint beantwortet, die Felder, nach denen er filtert, und Abfragen, die beim Erstellen dieser Seite echte Daten lieferten.",
+      "fields": "Filtert nach:",
+      "equality": "{field} ist gleich einem Wert",
+      "range": "{field} ist mindestens ein Wert",
+      "answered": "{count, plural, one {# Entität} other {# Entitäten}} auf der ersten Seite",
+      "none": "Noch kein Beispiel: Es wurde keine Entität gefunden, aus der eines entstehen könnte.",
+      "unavailable": "Die Standards dieses Endpoints können gerade nicht gelesen werden; versuchen Sie es in einer Minute erneut."
+    },
     "shareFlow": {
       "section": "Mit einem anderen Projekt teilen",
       "lead": "Wählen Sie das Projekt, was es liest und bis wann; die Freigabe und ihr Ende sind eine Änderung, über die ein Genehmigender entscheidet.",

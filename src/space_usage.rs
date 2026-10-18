@@ -9,7 +9,7 @@
 //! so each answer is kept for a few minutes: these are dashboard numbers, not per-request work.
 //! The storage size in bytes waits for a broker surface (T-2890).
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 use std::sync::RwLock;
 use std::time::Duration;
@@ -48,6 +48,7 @@ pub struct Counter {
     token_file: Option<PathBuf>,
     http: reqwest::Client,
     cache: RwLock<HashMap<String, SpaceUsage>>,
+    surfaces: RwLock<Option<(DateTime<Utc>, BTreeSet<String>)>>,
 }
 
 impl Counter {
@@ -63,6 +64,7 @@ impl Counter {
                 .build()
                 .unwrap_or_default(),
             cache: RwLock::default(),
+            surfaces: RwLock::default(),
         }
     }
 
@@ -170,6 +172,31 @@ impl Counter {
     /// The version broker `broker_name` reports on `GET /q/health`, or why it is not up
     /// (API/01 §43). Asked on every call: a health answer kept for minutes would hide an outage.
     pub async fn health(&self, broker_name: &str) -> Result<String, String> {
+        let body = self.health_of(broker_name).await?;
+        Ok(body["version"].as_str().unwrap_or_default().to_owned())
+    }
+
+    /// The surfaces the platform broker mounts, by the names its `GET /q/health` lists under
+    /// `surfaces` (T-4484), kept five minutes like a count. `None` when it did not answer, which
+    /// is not kept, so the next ask tries again.
+    pub async fn surfaces(&self) -> Option<BTreeSet<String>> {
+        let now = Utc::now();
+        if let Some((_, kept)) = self
+            .surfaces
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .filter(|(at, _)| now - *at < FRESH)
+        {
+            return Some(kept.clone());
+        }
+        let body = self.health_of(jc_core::kinds::IMPLICIT_BROKER).await.ok()?;
+        let names: BTreeSet<String> = body["surfaces"].as_object()?.keys().cloned().collect();
+        *self.surfaces.write().unwrap_or_else(|e| e.into_inner()) = Some((now, names.clone()));
+        Some(names)
+    }
+
+    async fn health_of(&self, broker_name: &str) -> Result<Value, String> {
         let broker = crate::spaces::broker_address(
             broker_name,
             self.broker.as_deref(),
@@ -193,8 +220,7 @@ impl Counter {
         if !status.is_success() {
             return Err(format!("the broker answered {status} for its health"));
         }
-        let body: Value = response.json().await.unwrap_or(Value::Null);
-        Ok(body["version"].as_str().unwrap_or_default().to_owned())
+        Ok(response.json().await.unwrap_or(Value::Null))
     }
 }
 

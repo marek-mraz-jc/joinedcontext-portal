@@ -431,6 +431,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/catalogue/endpoints/{slug}/standards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Explain a public Endpoint's standards
+         * @description The query standards a public Endpoint serves, the fields each filters on and two examples per standard built from one real entity, read anonymously through the Endpoint (TS-19, T-4484).
+         */
+        get: operations["get_standards"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/endpoints": {
         parameters: {
             query?: never;
@@ -4750,10 +4770,31 @@ export interface components {
          * @enum {string}
          */
         EndpointAccess: "read" | "readWrite";
+        /** @description What a public Endpoint's page shows under "Standards". */
+        EndpointStandards: {
+            /** @description The type of the entity the examples were built from; absent when none was read. */
+            entityType?: string | null;
+            slug: string;
+            standards: components["schemas"]["StandardGuide"][];
+            /** @description The entity types of the Endpoint's data model. */
+            types: string[];
+        };
         /** @description The sequence number a relayed event was given. */
         EventReceipt: {
             /** Format: int64 */
             seq: number;
+        };
+        /** @description A query that answered with at least one entity when the page was built. */
+        Example: {
+            /**
+             * Format: int64
+             * @description The entities on the first page of its answer.
+             */
+            answered: number;
+            field: string;
+            /** @description `equality` or `range`. */
+            kind: string;
+            url: string;
         };
         ExploreRequest: {
             subject: components["schemas"]["Who"];
@@ -6440,6 +6481,14 @@ export interface components {
              */
             observedAt: string;
         };
+        /** @description One query standard the Endpoint serves. */
+        StandardGuide: {
+            examples: components["schemas"]["Example"][];
+            /** @description The names this standard filters on. */
+            fields: string[];
+            /** @description `ngsi-ld`, `ogc-features`, `odata` or `sta`. */
+            representation: string;
+        };
         /** @description Request payload for starting or continuing an assistant conversation. */
         StartConversation: {
             access?: null | components["schemas"]["Capabilities"];
@@ -7727,6 +7776,38 @@ export interface operations {
             };
             /** @description The Endpoint did not answer */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_standards: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Endpoint's slug */
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The standards */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EndpointStandards"];
+                };
+            };
+            /** @description No public Endpoint with this slug */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

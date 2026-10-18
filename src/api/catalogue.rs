@@ -879,7 +879,7 @@ pub fn endpoint_slug(extra: &str, public_base: &Url) -> Option<String> {
 }
 
 /// The public Endpoint with `slug`, and the project it belongs to.
-fn public_endpoint(
+pub(crate) fn public_endpoint(
     state: &AppState,
     slug: &str,
 ) -> Option<(String, crate::resource::ResourceEnvelope)> {
@@ -922,7 +922,7 @@ async fn model_of(
     })
 }
 
-fn endpoint_url(base: &Url, slug: &str) -> String {
+pub(crate) fn endpoint_url(base: &Url, slug: &str) -> String {
     let origin = base.origin().ascii_serialization();
     format!("{origin}/api/endpoint/{slug}/")
 }

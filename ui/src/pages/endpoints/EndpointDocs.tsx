@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { endpointUrl } from "../../components/endpoints/links";
 import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
+import { EndpointStandards } from "./EndpointStandards";
 import { snippetsOf } from "./Playground";
 
 /** What the docs page reads of the gateway's OpenAPI document (EP-99); the rest is not shown. */
@@ -103,6 +104,7 @@ export function EndpointDocs({ slug, open, heading = true }: { slug: string; ope
       <a className="w-fit text-caption text-primary-soft-fg underline" href={endpointUrl(slug, "/openapi.json")}>
         {t("endpoints.docs.download")}
       </a>
+      {open ? <EndpointStandards slug={slug} /> : null}
       {operationsOf(doc.data).map((operation) => {
         const code = snippetsOf(endpointUrl(slug, operation.example), open);
         return (

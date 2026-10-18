@@ -2044,6 +2044,7 @@ they carry is what the public catalogue already shows.
 GET /api/v1/catalogue                          search, facets and one page of datasets
 GET /api/v1/catalogue/datasets/{name}          one dataset
 GET /api/v1/catalogue/datasets/{name}/sample   up to ten rows, read through its Endpoint
+GET /api/v1/catalogue/endpoints/{slug}/standards  a public Endpoint's standards, fields and examples
 ```
 
 `GET /api/v1/catalogue` takes `q` (full text, passed to CKAN), the facet filters `publisher`,
@@ -2131,6 +2132,44 @@ model class, read anonymously through its NGSI-LD representation with `options=k
 `{ "type": "KeyPerformanceIndicator", "columns": ["id", "name", "value"], "rows": [["urn:…", "…", "12"]] }`.
 A dataset with no Endpoint of this installation, or one that does not serve `ngsi-ld`, answers
 `404`; an Endpoint that does not answer, `503`. Nested values are written as compact JSON.
+
+`GET /api/v1/catalogue/endpoints/{slug}/standards` answers the "Standards" part of a public
+Endpoint's page (`/d/{slug}` and the Endpoint page in the Portal, TS-19, T-4484):
+
+```json
+{
+  "slug": "{endpointSlug}",
+  "types": ["AirQualityObserved"],
+  "entityType": "AirQualityObserved",
+  "standards": [
+    {
+      "representation": "ngsi-ld",
+      "fields": ["name", "no2", "pm10"],
+      "examples": [
+        { "kind": "equality", "field": "name", "url": "https://{host}/api/endpoint/{endpointSlug}/ngsi-ld/v1/entities?type=AirQualityObserved&q=name%3D%3D%22Zvolen%22", "answered": 1 },
+        { "kind": "range", "field": "no2", "url": "https://{host}/api/endpoint/{endpointSlug}/ngsi-ld/v1/entities?type=AirQualityObserved&q=no2%3E%3D21.5", "answered": 4 }
+      ]
+    },
+    { "representation": "ogc-features", "fields": ["name", "no2", "pm10"], "examples": [] }
+  ]
+}
+```
+
+- Every read is anonymous, through the Endpoint on the gateway, so the answer holds what a
+  visitor without a token may read and nothing a view hides. A non-public or unknown slug answers
+  `404`.
+- `standards` lists the query standards the Endpoint serves, in this order: `ngsi-ld`,
+  `ogc-features`, `odata`, `sta`. `fields` are the names that standard filters on: the
+  attributes of one entity for `ngsi-ld` and `sta`, the collection's queryables for
+  `ogc-features`, and the properties of the entity type in `$metadata` for `odata`.
+- The examples are built from one real entity, the first of the first type in `types` that has
+  one (`entityType`): an `equality` on a text field with the entity's own value (no spaces or
+  quotes) and a `range` (`>=`) on a numeric field with its value, written in the standard's own
+  syntax (`q`, OGC `?{field}=` and CQL2 `filter`, OData and SensorThings `$filter`). Each one is
+  run once and kept only when it answers `200` with at least one entity; `answered` is the
+  number on its first page. No example is written by hand.
+- A standard whose surface does not answer, or an Endpoint with no entity, lists no examples.
+- The answer is kept an hour per Endpoint (`Cache-Control: public, max-age=3600`).
 
 ## 16b. Publish a dataset in one step (EP-83)
 

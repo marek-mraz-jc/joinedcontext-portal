@@ -2,6 +2,7 @@
 sidebar_position: 3
 title: Endpoint Representations & Translations
 description: Wire-level specifications and examples for NGSI-LD, GeoJSON, CSV, XLSX, OGC API Features, SensorThings, and MCP.
+surfaces: ogc=6-ogc-api---features-part-1 sta=7-ogc-sensorthings-api-sta-v11 mcp=8-model-context-protocol-mcp
 ---
 
 # Endpoint Representations & Translations
@@ -1033,6 +1034,8 @@ A published Endpoint (`spec.publish.ckan`) is one CKAN dataset with one resource
 | OData v4 | `OData` | Excel: Data, Get Data, From OData Feed; Power BI: Get data, OData feed; the service URL |
 | GeoJSON, CSV, XLSX, JSON, ZIP | their own | that the file is generated on each download from live data |
 | Schema index and artifacts | `JSON`, `LinkML`, `SHACL`, … | the model version and the sha256 (EP-68) |
+
+On a public Endpoint the NGSI-LD, OGC API - Features, OData and SensorThings resources also link the Endpoint's public page (`https://{host}/d/{endpointSlug}`), whose "Standards" part lists the fields each standard filters on and example queries that answered with the dataset's own data when the Portal last read it ([API/01 §16a](01-portal-api.md#16a-the-catalogue-ep-81-ep-82)); the catalogue holds the link, never a copy of the examples, which would go stale between publication runs.
 
 Above the resources, the dataset page shows the "Connect an AI assistant" panel (EP-113): the hub's URL and copy buttons for Claude, VS Code, Cursor and a plain `mcpServers` entry. The panel names the hub, never this dataset's slug, so one installation serves the whole catalogue and the agent picks the Endpoint with `list_endpoints`. The catalogue's home page and the Portal's Endpoint page show the same panel.
 

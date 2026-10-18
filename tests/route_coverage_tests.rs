@@ -43,6 +43,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/catalogue", "the public open-data catalogue, read from CKAN as an anonymous caller (EP-81): not a project's data"),
 ("GET", "/catalogue/datasets/{name}", "the public open-data catalogue, read from CKAN as an anonymous caller (EP-82): not a project's data"),
 ("GET", "/catalogue/datasets/{name}/sample", "a public Endpoint read anonymously, as any visitor of the catalogue reads it (EP-82)"),
+("GET", "/catalogue/endpoints/{slug}/standards", "a public Endpoint read anonymously, as any visitor of its page reads it (TS-19)"),
 ("GET", "/forms", "the form definitions the Portal renders, not a project's data"),
 ("GET", "/health", "liveness"),
 ("POST", "/internal/agent-runs/events", "the runner's own callback, authenticated as a workload"),

@@ -5,13 +5,21 @@
 //!
 //! The markdown is rendered on the server with raw HTML shown as text and every link either
 //! relative, `http(s)` or `mailto`, so a page carries no script whatever the source holds.
+//!
+//! A section that documents a broker surface built behind a Cargo feature is named in its page's
+//! front matter (`surfaces: sta=7-ogc-sensorthings-api-sta-v11`, docs STYLE.md); the page leaves
+//! it out, and every page leaves out its links to it, unless the platform broker's `/q/health`
+//! lists that surface (T-4484, TS-19). A broker that does not answer confirms none.
 
-use axum::extract::Path;
+use std::collections::BTreeSet;
+use std::sync::LazyLock;
+
+use axum::extract::{Path, State};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
-use pulldown_cmark::{html, CowStr, Event, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{html, CowStr, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use rust_embed::RustEmbed;
 
 use crate::state::AppState;
@@ -30,8 +38,16 @@ pub fn router() -> Router<AppState> {
     Router::new().route("/docs/{chapter}/{page}", get(serve))
 }
 
-async fn serve(Path((chapter, page)): Path<(String, String)>) -> Response {
-    match render(&chapter, page.strip_suffix(".md").unwrap_or(&page)) {
+async fn serve(
+    State(state): State<AppState>,
+    Path((chapter, page)): Path<(String, String)>,
+) -> Response {
+    let mounted = state.space_usage.surfaces().await.unwrap_or_default();
+    match render(
+        &chapter,
+        page.strip_suffix(".md").unwrap_or(&page),
+        &mounted,
+    ) {
         Some(document) => (
             [
                 (header::CONTENT_TYPE, "text/html; charset=utf-8"),
@@ -49,9 +65,9 @@ async fn serve(Path((chapter, page)): Path<(String, String)>) -> Response {
     }
 }
 
-/// The page as a whole HTML document; `None` for a chapter that is not public or a page that is
-/// not in the bundle.
-pub fn render(chapter: &str, page: &str) -> Option<String> {
+/// The page as a whole HTML document, without the sections of the surfaces `mounted` does not
+/// name; `None` for a chapter that is not public or a page that is not in the bundle.
+pub fn render(chapter: &str, page: &str, mounted: &BTreeSet<String>) -> Option<String> {
     let named = !page.is_empty()
         && page
             .bytes()
@@ -63,11 +79,12 @@ pub fn render(chapter: &str, page: &str) -> Option<String> {
     let text = std::str::from_utf8(&file.data).ok()?;
     let (title, body) = split_front_matter(text);
     let title = title.or_else(|| first_heading(body)).unwrap_or(page);
-    let mut content = String::new();
-    let options =
-        Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH | Options::ENABLE_HEADING_ATTRIBUTES;
-    let events: Vec<Event> = Parser::new_ext(body, options).map(safe).collect();
-    html::push_html(&mut content, anchored(events).into_iter());
+    let hidden: Vec<(&str, &str)> = GATES
+        .iter()
+        .filter(|gate| !mounted.contains(&gate.surface))
+        .map(|gate| (gate.page.as_str(), gate.id.as_str()))
+        .collect();
+    let content = content(&format!("{chapter}/{page}"), body, &hidden);
     let commit = docs_commit();
     Some(format!(
         "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n\
@@ -79,6 +96,132 @@ pub fn render(chapter: &str, page: &str) -> Option<String> {
         commit = escape(short(&commit)),
         release = escape(&release()),
     ))
+}
+
+/// The markdown of page `here` (`{chapter}/{page}`) as HTML, without the sections `hidden`
+/// names and without the links to any of them.
+fn content(here: &str, body: &str, hidden: &[(&str, &str)]) -> String {
+    let options =
+        Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH | Options::ENABLE_HEADING_ATTRIBUTES;
+    let events: Vec<Event> = Parser::new_ext(body, options).map(safe).collect();
+    let mut out = String::new();
+    html::push_html(
+        &mut out,
+        without(anchored(events), here, hidden).into_iter(),
+    );
+    out
+}
+
+/// A section a page names in its front matter as documenting a broker surface.
+struct Gate {
+    /// `{chapter}/{page}`.
+    page: String,
+    /// The surface's name as the broker's `/q/health` lists it.
+    surface: String,
+    /// The id of the section's heading.
+    id: String,
+}
+
+/// Every gated section of the bundle, read once from the pages' `surfaces:`.
+static GATES: LazyLock<Vec<Gate>> = LazyLock::new(|| {
+    Pages::iter()
+        .filter_map(|path| {
+            let page = path.strip_suffix(".md")?.to_owned();
+            let file = Pages::get(&path)?;
+            let text = std::str::from_utf8(&file.data).ok()?;
+            Some(
+                surfaces_of(text)
+                    .into_iter()
+                    .map(|(surface, id)| Gate {
+                        page: page.clone(),
+                        surface,
+                        id,
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .flatten()
+        .collect()
+});
+
+/// The `name=heading-id` pairs of a page's `surfaces:` front matter.
+fn surfaces_of(text: &str) -> Vec<(String, String)> {
+    let Some(front) = text
+        .strip_prefix("---\n")
+        .and_then(|rest| rest.split_once("\n---\n"))
+        .map(|(front, _)| front)
+    else {
+        return Vec::new();
+    };
+    front
+        .lines()
+        .find_map(|line| line.strip_prefix("surfaces:"))
+        .map(|pairs| {
+            pairs
+                .split_whitespace()
+                .filter_map(|pair| pair.split_once('='))
+                .map(|(name, id)| (name.to_owned(), id.to_owned()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The events of page `here` without each hidden section (its heading up to the next heading of
+/// the same or a higher level) and with each link into a hidden section reduced to its text.
+fn without<'a>(events: Vec<Event<'a>>, here: &str, hidden: &[(&str, &str)]) -> Vec<Event<'a>> {
+    let is_hidden = |page: &str, id: &str| hidden.iter().any(|&(p, i)| p == page && i == id);
+    let mut out = Vec::with_capacity(events.len());
+    let mut skipping: Option<HeadingLevel> = None;
+    let mut unlinked = false;
+    for event in events {
+        if let Event::Start(Tag::Heading { level, id, .. }) = &event {
+            if skipping.is_some_and(|section| *level > section) {
+                continue;
+            }
+            skipping = id
+                .as_deref()
+                .filter(|id| is_hidden(here, id))
+                .map(|_| *level);
+        }
+        if skipping.is_some() {
+            continue;
+        }
+        match &event {
+            Event::Start(Tag::Link { dest_url, .. })
+                if target(here, dest_url).is_some_and(|(page, id)| is_hidden(&page, id)) =>
+            {
+                unlinked = true;
+                continue;
+            }
+            Event::End(TagEnd::Link) if unlinked => {
+                unlinked = false;
+                continue;
+            }
+            _ => {}
+        }
+        out.push(event);
+    }
+    out
+}
+
+/// The page (`{chapter}/{page}`) and heading id a link from page `here` points at, once `link`
+/// has rewritten it; `None` for a link with no anchor or to another site.
+fn target<'d>(here: &str, dest: &'d str) -> Option<(String, &'d str)> {
+    let (path, id) = dest.split_once('#')?;
+    if path.is_empty() {
+        return Some((here.to_owned(), id));
+    }
+    if path.contains(':') {
+        return None;
+    }
+    let (chapter, _) = here.split_once('/')?;
+    let mut parts = path.rsplit('/');
+    let page = parts.next()?;
+    let chapter = match parts.next() {
+        Some(named) if named != "." && named != ".." => named,
+        _ => chapter,
+    };
+    Some((format!("{chapter}/{page}"), id))
 }
 
 /// The docs commit the bundle was made from (`public-docs/COMMIT`), which the deployment pins
@@ -251,6 +394,11 @@ fn escape(text: &str) -> String {
 mod tests {
     use super::*;
 
+    /// Every surface any page names: nothing is left out.
+    fn every() -> BTreeSet<String> {
+        GATES.iter().map(|gate| gate.surface.clone()).collect()
+    }
+
     fn rendered(markdown: &str) -> String {
         let mut out = String::new();
         html::push_html(
@@ -266,7 +414,8 @@ mod tests {
         for path in Pages::iter().filter(|path| path.ends_with(".md")) {
             let (chapter, file) = path.split_once('/').expect("chapter/page.md");
             let page = file.strip_suffix(".md").expect("a markdown page");
-            let document = render(chapter, page).unwrap_or_else(|| panic!("{path} renders"));
+            let document =
+                render(chapter, page, &every()).unwrap_or_else(|| panic!("{path} renders"));
             assert!(!document.contains("<title></title>"), "{path} has a title");
             pages += 1;
         }
@@ -275,7 +424,7 @@ mod tests {
 
     #[test]
     fn the_websocket_guide_is_titled_from_its_front_matter() {
-        let document = render("API", "07-websocket").expect("the guide is public");
+        let document = render("API", "07-websocket", &every()).expect("the guide is public");
         assert!(document.contains("<title>Live Updates over WebSocket</title>"));
         assert!(
             !document.contains("sidebar_position"),
@@ -296,7 +445,7 @@ mod tests {
             ("API", "no-such-page"),
         ] {
             assert!(
-                render(chapter, page).is_none(),
+                render(chapter, page, &every()).is_none(),
                 "{chapter}/{page} is not served"
             );
         }
@@ -360,10 +509,81 @@ mod tests {
             !crafted.contains("evil") && !crafted.contains("onclick"),
             "{crafted}"
         );
-        let bundled = render("API", "07-websocket").expect("bundled");
+        let bundled = render("API", "07-websocket", &every()).expect("bundled");
         assert!(
             bundled.contains(" id=\""),
             "no heading id in a bundled page"
         );
+    }
+
+    #[test]
+    fn every_gate_names_a_heading_of_its_page() {
+        assert!(
+            GATES.iter().any(|gate| gate.surface == "sta"),
+            "API/02 names its SensorThings section"
+        );
+        for gate in GATES.iter() {
+            let (chapter, page) = gate.page.split_once('/').expect("chapter/page");
+            let document = render(chapter, page, &every()).expect("bundled");
+            assert!(
+                document.contains(&format!(" id=\"{}\"", gate.id)),
+                "{} names {}={}, which is no heading there",
+                gate.page,
+                gate.surface,
+                gate.id
+            );
+        }
+    }
+
+    #[test]
+    fn a_hidden_section_goes_with_its_subsections_and_every_link_to_it() {
+        let body = "## 1. Kept\n\nSee [sta](#2-sta) and [api](02-x.md#2-sta).\n\n\
+                    ## 2. STA\n\nGone.\n\n### Sub\n\nGone too.\n\n## 3. After\n\n\
+                    [other page](../User-Guide/02-x.md#2-sta) [kept](02-x.md#3-after)\n";
+        let out = content("API/02-x", body, &[("API/02-x", "2-sta")]);
+        assert!(!out.contains("Gone") && !out.contains("Sub"), "{out}");
+        assert!(!out.contains("href=\"#2-sta\""), "{out}");
+        assert!(!out.contains("href=\"02-x#2-sta\""), "{out}");
+        assert!(
+            out.contains("See sta and api."),
+            "the link text stays: {out}"
+        );
+        assert!(
+            out.contains("href=\"../User-Guide/02-x#2-sta\""),
+            "another page's section: {out}"
+        );
+        assert!(out.contains("href=\"02-x#3-after\""), "{out}");
+        assert!(
+            out.contains("id=\"3-after\""),
+            "the next section stays: {out}"
+        );
+        assert_eq!(content("API/02-x", body, &[]).matches("Gone").count(), 2);
+    }
+
+    #[test]
+    fn a_link_resolves_to_its_page_and_heading() {
+        assert_eq!(target("API/02-x", "#a"), Some(("API/02-x".to_owned(), "a")));
+        assert_eq!(
+            target("API/00-intro", "02-x#a"),
+            Some(("API/02-x".to_owned(), "a"))
+        );
+        assert_eq!(
+            target("API/00-intro", "./02-x#a"),
+            Some(("API/02-x".to_owned(), "a"))
+        );
+        assert_eq!(
+            target("User-Guide/01", "../API/02-x#a"),
+            Some(("API/02-x".to_owned(), "a"))
+        );
+        assert_eq!(target("API/00", "02-x"), None);
+        assert_eq!(target("API/00", "https://example.org/#a"), None);
+        assert_eq!(
+            surfaces_of("---\ntitle: T\nsurfaces: sta=7-a ogc=6-b junk\n---\n# T\n"),
+            vec![
+                ("sta".to_owned(), "7-a".to_owned()),
+                ("ogc".to_owned(), "6-b".to_owned())
+            ]
+        );
+        assert!(surfaces_of("# no front matter\n").is_empty());
     }
 }

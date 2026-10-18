@@ -240,7 +240,7 @@ fn subject(identity: &Identity, public: bool) -> Vec<(&'static str, String)> {
 
 /// Percent-encoded UTF-8 with the RFC 3986 unreserved characters kept, so a diacritic travels
 /// and a comma never splits a list member.
-fn encode(value: &str) -> String {
+pub(crate) fn encode(value: &str) -> String {
     value
         .bytes()
         .map(|byte| {

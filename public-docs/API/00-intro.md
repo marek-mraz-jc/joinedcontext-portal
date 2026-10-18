@@ -108,51 +108,12 @@ The extension members (T-3243):
 
 | Member | When | What |
 |---|---|---|
-| `hint` | every problem whose type is in the table below | what the caller does about it, one English sentence; the Portal shows its own translation by the slug |
+| `hint` | every problem whose type is on [Problem Types](09-errors.md) | what the caller does about it, one English sentence; the Portal shows its own translation by the slug |
 | `field` | a validation that names one member or parameter | the member, as the request wrote it (`metadata.name`, `id`) |
 | `code` | the NGSI-LD surface, where `type` is the ETSI one (CIM 009 5.5.2) | the joinedcontext slug the gateway refused with |
 | `requestId` | a `500` | the reference a report is matched to a log line by |
 
-A problem type is one of these slugs; `ProblemDetails::new` with any other fails the platform's catalogue test, and a status without a type of its own answers with the generic one for its class:
-
-| Slug | Status | What to do |
-|---|---|---|
-| `bad-request` | 400 | Correct the request as the detail says and send it again. |
-| `invalid-body` | 400 | Send a JSON body of the documented shape; the detail names what is wrong. |
-| `urn-scheme` | 400 | Use an entity id of the form `urn:ngsi-ld:{Type}:{id}`. |
-| `quality-rule` | 400 | Correct the attribute the detail names: a quality rule of the space refuses its value (DM-88). |
-| `unauthorized` | 401 | Sign in again, or send a valid bearer token for this audience. |
-| `forbidden` | 403 | Ask a project owner or an organization administrator for the role this needs. |
-| `domain-not-verified` | 403 | Verify the domain in the organization settings first. |
-| `origin-refused` | 403 | Open the WebSocket from a page on the platform's own origin, or from a client that sends no `Origin`. |
-| `resource-not-found` | 404 | Check the name in the address; it does not exist or is not shared with you. |
-| `method-not-allowed` | 405 | Use one of the methods the `Allow` header lists. |
-| `read-only-view` | 405 | This view only reads; write through the endpoint it is built on. |
-| `conflict` | 409 | Read the resource again and repeat the change on its current state. |
-| `precondition-failed` | 412 | Read the entity again and send its current version in `If-Match`. |
-| `payload-too-large` | 413 | Send less at once: split the request or the file. |
-| `unsupported-media-type` | 415 | Send the body as `application/json` or `application/ld+json`. |
-| `upgrade-required` | 426 | This address is a WebSocket: open it with the subprotocol `ngsi-ld-ws` and send an `x-subscribe` message; the answer names an example and the guide. |
-| `too-many-requests` | 429 | Wait the seconds `Retry-After` names, then try again. |
-| `daily-budget` | 429 | Today's allowance is used up; try again tomorrow or ask an administrator to raise it. |
-| `egress-budget-spent` | 429 | This run's outbound allowance is used up; start a new run or ask an administrator to raise it. |
-| `too-many-connections` | 429, 503 | Close a WebSocket you no longer read, or wait a minute, then connect again. |
-| `internal-error` | 500 | Try again; if it happens again, report the `requestId`. |
-| `subscription-not-routable` | 501 | This deployment cannot deliver to that address; use an HTTP(S) receiver the platform reaches. |
-| `federation-identity-unavailable` | 501 | A source of this space asks for your own token but is outside this platform; ask its steward to register it with `serviceAccount` identity. |
-| `federation-exchange-failed` | 502, 503 | The identity provider did not issue your token for the brokers this read federates to; sign in again, or try again shortly. |
-| `ogc-view-unavailable` | 501 | Read this endpoint through its NGSI-LD surface; its OGC surface needs a broker view it does not have. |
-| `odata-view-unavailable` | 501 | Read this endpoint through its NGSI-LD surface; its OData surface needs a broker view it does not have. |
-| `odata-batch-unavailable` | 501 | Send each OData write as a request of its own; `$batch` is not served through an endpoint. |
-| `broker-failure` | 5xx | The context broker failed this request; try again in a minute, and report the `requestId` if it repeats. |
-| `broker-unavailable` | 502 | The context broker did not open the WebSocket; try again in a minute. |
-| `upstream-unavailable` | 502, 503 | A service behind the platform did not answer; try again in a minute. |
-| `upstream-redirect` | 502 | The service behind the platform answered with a redirect it may not follow; ask its owner for the final address. |
-| `service-unavailable` | 503 | The platform is not ready for this yet; try again in a minute. |
-| `space-moving` | 503 | The space is moving to another broker and takes no writes; send the write again after the seconds `Retry-After` names. |
-| `space-full` | 503 | The space has as many WebSocket connections open as it holds; close one or connect again in a minute. |
-| `no-view` | 503 | The endpoint has no context broker view (its slug is longer than a view id can be); its status in the Portal says so. Give it a shorter slug. |
-| `delivery-timeout` | 504 | The receiver did not answer in time; check that it is reachable and try again. |
+A problem type is one of the slugs [Problem Types](09-errors.md) lists, with what happened and what to do for each: jc-core's `PROBLEM_TYPES` and, for the Portal's own, its `PORTAL_PROBLEM_TYPES`. `ProblemDetails::new` with any other slug fails the platform's catalogue test, a Portal slug outside both lists fails the Portal's, and the docs check fails on a slug with no section on that page (T-4485). A status without a type of its own answers with the generic one for its class. The Portal links the section from every error it shows.
 
 The edge's own `too-many-requests` (the per-address limit of a route) is the one refusal that also comes as a page. A request whose `Accept` names `text/html` (a browser opening a page) gets an HTML page in the language its `Accept-Language` puts first (Slovak, Czech or German, otherwise English). The page says the same thing and reloads itself after the seconds `Retry-After` names. It loads nothing and runs no script. Every other caller gets the Problem Details above, with the same status and `Retry-After` (T-4201).
 

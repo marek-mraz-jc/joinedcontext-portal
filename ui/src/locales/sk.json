@@ -1481,6 +1481,16 @@
       "parametersOf": "Parametre {path}",
       "lead": "Na čo tento endpoint odpovedá, s príkladom volania ku každému čítaniu."
     },
+    "standards": {
+      "title": "Štandardy",
+      "lead": "Každý štandard, na ktorý tento endpoint odpovedá, polia, podľa ktorých filtruje, a dotazy, ktoré pri zostavení stránky vrátili skutočné dáta.",
+      "fields": "Filtruje podľa:",
+      "equality": "{field} sa rovná hodnote",
+      "range": "{field} je aspoň hodnota",
+      "answered": "{count, plural, one {# entita} few {# entity} other {# entít}} na prvej strane",
+      "none": "Zatiaľ bez príkladu: nenašla sa entita, z ktorej by sa dal zostaviť.",
+      "unavailable": "Štandardy tohto endpointu sa teraz nedajú načítať; skúste to o minútu."
+    },
     "shareFlow": {
       "section": "Zdieľať s iným projektom",
       "lead": "Zvoľte projekt, čo číta a dokedy; zdieľanie a jeho koniec sú jedna zmena, o ktorej rozhodne schvaľovateľ.",
