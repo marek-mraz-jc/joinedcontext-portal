@@ -1004,7 +1004,7 @@
     },
     "retention": {
       "title": "Retention",
-      "lead": "How long this space keeps each type's data. A type without a rule is kept forever; a shorter rule, or history turned off, deletes data for good.",
+      "lead": "How long this space keeps each type's data. A type whose rule says nothing of history takes the row All other types, and without it the platform default; a shorter rule, or history turned off, deletes data for good.",
       "noTypes": "The space's model names no types yet.",
       "caption": "How long each type's data is kept",
       "type": "Type",
@@ -1041,7 +1041,12 @@
       },
       "off": "Off: no history",
       "offShown": "Off",
-      "foreverAsNow": "Keep forever (as now)"
+      "foreverAsNow": "Keep forever (as now)",
+      "anyType": "All other types",
+      "spaceDefault": "Space default",
+      "platformDefault": "Platform default",
+      "perType": "Set per type",
+      "defaultAsNow": "{fallback} (as now)"
     },
     "upload": {
       "open": "Upload CSV",

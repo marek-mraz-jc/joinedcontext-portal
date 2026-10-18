@@ -43,7 +43,7 @@ afterEach(() => {
 });
 
 describe("the Retention section (DM-82, DM-85)", () => {
-  it("shows each type's rule in plain units, forever where none, and what was deleted", async () => {
+  it("shows each type's rule in plain units, the default where none, and what was deleted", async () => {
     const { container } = renderRetention((url) =>
       url.pathname === `${BASE}/retention/deleted` ? json(DELETED) : undefined,
     );
@@ -53,7 +53,13 @@ describe("the Retention section (DM-82, DM-85)", () => {
     expect(within(vehicle).getByText("8 hours")).toBeInTheDocument();
     expect(await within(vehicle).findByText("0 values, 42 history records")).toBeInTheDocument();
     const stop = within(table).getByRole("row", { name: /Stop/ });
-    expect(within(stop).getAllByText(en.spaces.retention.forever)).toHaveLength(2);
+    expect(within(stop).getByText(en.spaces.retention.forever)).toBeInTheDocument();
+    expect(within(stop).getByText(en.spaces.retention.platformDefault)).toBeInTheDocument();
+    // DM-97: the space's default row comes last and sets history only.
+    const rows = within(table).getAllByRole("row");
+    const any = rows[rows.length - 1];
+    expect(within(any).getByText(en.spaces.retention.anyType)).toBeInTheDocument();
+    expect(within(any).getByText(en.spaces.retention.perType)).toBeInTheDocument();
     await expectNoAxeViolations(container);
   });
 
@@ -63,7 +69,7 @@ describe("the Retention section (DM-82, DM-85)", () => {
         ? json({ type: "about:blank", title: "Unavailable", status: 503, detail: "no broker" }, 503)
         : undefined,
     );
-    expect(await screen.findAllByText(en.spaces.retention.deletedUnknown)).toHaveLength(2);
+    expect(await screen.findAllByText(en.spaces.retention.deletedUnknown)).toHaveLength(3);
   });
 
   it("a shorter rule names what it deletes before anything is proposed", async () => {
@@ -154,7 +160,7 @@ describe("the Retention section (DM-82, DM-85)", () => {
       en.spaces.retention.unit.days,
     ]);
     expect(options("History of Stop: unit")).toEqual([
-      en.spaces.retention.foreverAsNow,
+      "Platform default (as now)",
       en.spaces.retention.off,
       en.spaces.retention.unit.minutes,
       en.spaces.retention.unit.hours,
@@ -187,5 +193,50 @@ describe("the Retention section (DM-82, DM-85)", () => {
     const row = (await screen.findByRole("cell", { name: "Stop" })).closest("tr") as HTMLElement;
     expect(within(row).getByText(en.spaces.retention.offShown)).toBeInTheDocument();
   });
-});
 
+  it("the space's default covers the types without a history rule and is saved as * (DM-97)", async () => {
+    const sent: { path: string; body: unknown }[] = [];
+    const manifest = {
+      ...MANIFEST,
+      spec: { retention: [{ entityType: "Vehicle", current: "PT5M" }, { entityType: "*", history: "P90D" }] },
+    } as unknown as Manifest;
+    const { container } = renderPage(
+      <SpaceRetention project="helsinki" space="bikes" manifest={manifest} types={["Stop", "Vehicle"]} />,
+      {
+        path: "/projects/helsinki/spaces/bikes",
+        answer: async (url, request) => {
+          if (url.pathname.endsWith("/deleted")) return json({ counts: [{ entityType: "*", kind: "history", count: 7 }] });
+          if (request.method === "POST" || request.method === "PUT") {
+            sent.push({ path: url.pathname, body: await request.clone().json() });
+            if (url.pathname.endsWith("/preview")) return json({ counts: [{ entityType: "*", kind: "history", count: 9 }] });
+            return json({ ...manifest, status: {} });
+          }
+          return undefined;
+        },
+      },
+    );
+    const table = await screen.findByRole("table", { name: en.spaces.retention.caption });
+    const stop = within(table).getByRole("row", { name: /Stop/ });
+    expect(within(stop).getByText(en.spaces.retention.spaceDefault)).toBeInTheDocument();
+    const any = within(table).getByRole("row", { name: new RegExp(en.spaces.retention.anyType) });
+    expect(within(any).getByText("90 days")).toBeInTheDocument();
+    expect(await within(any).findByText("0 values, 7 history records")).toBeInTheDocument();
+    await expectNoAxeViolations(container);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: en.spaces.retention.edit }));
+    expect(screen.queryByRole("combobox", { name: `Current values of ${en.spaces.retention.anyType}: unit` })).toBeNull();
+    const amount = screen.getByRole("spinbutton", { name: `History of ${en.spaces.retention.anyType}: how many` });
+    await user.clear(amount);
+    await user.type(amount, "30");
+    await user.click(screen.getByRole("button", { name: en.spaces.retention.save }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText(`${en.spaces.retention.anyType}: 9 history records`)).toBeInTheDocument();
+    expect(sent[0].body).toEqual({
+      retention: [
+        { entityType: "Vehicle", current: "PT5M" },
+        { entityType: "*", history: "P30D" },
+      ],
+    });
+  });
+});

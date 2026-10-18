@@ -20,7 +20,7 @@ import {
   TableHeaderCell,
   TableRow,
 } from "../../components/ui";
-import { fromIso, HISTORY_FOREVER, HISTORY_OFF, shortens, toIso, UNITS, written } from "./retention";
+import { ANY_TYPE, fromIso, HISTORY_FOREVER, HISTORY_OFF, shortens, toIso, UNITS, written } from "./retention";
 import type { RetentionRule, Unit } from "./retention";
 
 type Count = components["schemas"]["RetentionCount"];
@@ -60,7 +60,8 @@ function rulesOf(manifest: Manifest): RetentionRule[] {
 /**
  * How long a space keeps each type's data (DM-82, DM-85, ADR-N-046): the rules in plain units,
  * what the broker's sweeps deleted, and for the space's owners an editor that names what a shorter
- * rule deletes before it is proposed. A type without a rule is kept forever.
+ * rule deletes before it is proposed. A type whose rule says nothing of history takes the space's
+ * default, the row "*", and without one the platform's (DM-97).
  */
 export function SpaceRetention({
   project,
@@ -76,7 +77,12 @@ export function SpaceRetention({
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const held = rulesOf(manifest);
-  const shown = [...new Set([...types, ...held.map((rule) => rule.entityType)])].sort();
+  // The space's default row comes last, under every type it covers (DM-97).
+  const shown = [
+    ...[...new Set([...types, ...held.map((rule) => rule.entityType)])].filter((type) => type !== ANY_TYPE).sort(),
+    ANY_TYPE,
+  ];
+  const typed = shown.length > 1;
   const [draft, setDraft] = useState<Record<string, { current: Cell; history: Cell }> | null>(null);
   const [counts, setCounts] = useState<Count[] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -131,15 +137,20 @@ export function SpaceRetention({
   });
 
   const ruleOf = (type: string) => held.find((rule) => rule.entityType === type);
-  const plain = (iso?: string) => {
+  const named = (type: string) => (type === ANY_TYPE ? t("spaces.retention.anyType") : type);
+  // What an absent history falls to: the space's default, then the platform's (DM-97).
+  const fallback = (type: string) =>
+    type !== ANY_TYPE && ruleOf(ANY_TYPE)?.history !== undefined
+      ? t("spaces.retention.spaceDefault")
+      : t("spaces.retention.platformDefault");
+  const plain = (type: string, kind: "current" | "history") => {
+    const iso = ruleOf(type)?.[kind];
+    if (kind === "current" && type === ANY_TYPE) return t("spaces.retention.perType");
     if (iso === HISTORY_OFF) return t("spaces.retention.offShown");
     if (iso === HISTORY_FOREVER) return t("spaces.retention.forever");
-    const keep = iso === undefined ? undefined : fromIso(iso);
-    return keep === undefined
-      ? iso === undefined
-        ? t("spaces.retention.forever")
-        : iso
-      : t(`spaces.retention.amount.${keep.unit}`, { count: keep.amount });
+    if (iso === undefined) return kind === "history" ? fallback(type) : t("spaces.retention.forever");
+    const keep = fromIso(iso);
+    return keep === undefined ? iso : t(`spaces.retention.amount.${keep.unit}`, { count: keep.amount });
   };
   const removed = (type: string) => {
     const rows = (deleted.data ?? []).filter((row) => row.entityType === type);
@@ -186,7 +197,8 @@ export function SpaceRetention({
   };
 
   const editor = (type: string, kind: "current" | "history") => {
-    if (draft === null) return null;
+    // The space's default sets history only; current state is removed per type (DM-97).
+    if (draft === null || (kind === "current" && type === ANY_TYPE)) return null;
     const cell = draft[type][kind];
     const set = (next: Partial<Cell>) =>
       setDraft({ ...draft, [type]: { ...draft[type], [kind]: { ...cell, ...next } } });
@@ -198,13 +210,13 @@ export function SpaceRetention({
             type="number"
             min={1}
             className="w-20"
-            aria-label={t("spaces.retention.amountOf", { type, what: label })}
+            aria-label={t("spaces.retention.amountOf", { type: named(type), what: label })}
             value={cell.amount}
             onChange={(event) => set({ amount: event.target.value })}
           />
         )}
         <Select
-          aria-label={t("spaces.retention.unitOf", { type, what: label })}
+          aria-label={t("spaces.retention.unitOf", { type: named(type), what: label })}
           value={cell.unit}
           onChange={(event) => set({ unit: event.target.value as Cell["unit"], amount: cell.amount || "1" })}
         >
@@ -214,7 +226,11 @@ export function SpaceRetention({
           ) : (
             <>
               {(cell.stored === undefined || cell.stored === HISTORY_FOREVER) && (
-                <option value="forever">{t("spaces.retention.foreverAsNow")}</option>
+                <option value="forever">
+                  {cell.stored === HISTORY_FOREVER
+                    ? t("spaces.retention.foreverAsNow")
+                    : t("spaces.retention.defaultAsNow", { fallback: fallback(type) })}
+                </option>
               )}
               <option value="off">{t("spaces.retention.off")}</option>
             </>
@@ -233,38 +249,33 @@ export function SpaceRetention({
   return (
     <div className="space-y-3">
       <p className="text-body text-fg-muted">{t("spaces.retention.lead")}</p>
-      {shown.length === 0 ? (
-        <p className="text-body text-fg-muted">{t("spaces.retention.noTypes")}</p>
-      ) : (
-        <Table caption={t("spaces.retention.caption")}>
-          <TableHead>
-            <TableHeaderCell>{t("spaces.retention.type")}</TableHeaderCell>
-            <TableHeaderCell>{t("spaces.retention.current")}</TableHeaderCell>
-            <TableHeaderCell>{t("spaces.retention.history")}</TableHeaderCell>
-            <TableHeaderCell>{t("spaces.retention.deleted")}</TableHeaderCell>
-          </TableHead>
-          <TableBody>
-            {shown.map((type) => (
-              <TableRow key={type}>
-                <TableCell>{type}</TableCell>
-                <TableCell>{editor(type, "current") ?? plain(ruleOf(type)?.current)}</TableCell>
-                <TableCell>{editor(type, "history") ?? plain(ruleOf(type)?.history)}</TableCell>
-                <TableCell>{deleted.isError ? t("spaces.retention.deletedUnknown") : removed(type)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+      {!typed && <p className="text-body text-fg-muted">{t("spaces.retention.noTypes")}</p>}
+      <Table caption={t("spaces.retention.caption")}>
+        <TableHead>
+          <TableHeaderCell>{t("spaces.retention.type")}</TableHeaderCell>
+          <TableHeaderCell>{t("spaces.retention.current")}</TableHeaderCell>
+          <TableHeaderCell>{t("spaces.retention.history")}</TableHeaderCell>
+          <TableHeaderCell>{t("spaces.retention.deleted")}</TableHeaderCell>
+        </TableHead>
+        <TableBody>
+          {shown.map((type) => (
+            <TableRow key={type}>
+              <TableCell>{named(type)}</TableCell>
+              <TableCell>{editor(type, "current") ?? plain(type, "current")}</TableCell>
+              <TableCell>{editor(type, "history") ?? plain(type, "history")}</TableCell>
+              <TableCell>{deleted.isError ? t("spaces.retention.deletedUnknown") : removed(type)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
       {problem !== null && <Alert tone="danger">{problem}</Alert>}
       {proposed && <Alert tone="success">{t("spaces.retention.proposed")}</Alert>}
       {draft === null ? (
-        shown.length > 0 && (
-          <PermissionGuard project={project} kind="ContextSpace" verb="approve">
-            <Button variant="secondary" onClick={edit}>
-              {t("spaces.retention.edit")}
-            </Button>
-          </PermissionGuard>
-        )
+        <PermissionGuard project={project} kind="ContextSpace" verb="approve">
+          <Button variant="secondary" onClick={edit}>
+            {t("spaces.retention.edit")}
+          </Button>
+        </PermissionGuard>
       ) : (
         <span className="flex gap-2">
           <Button onClick={save} loading={preview.isPending || propose.isPending}>
@@ -301,7 +312,7 @@ export function SpaceRetention({
             {(counts ?? []).map((row) => (
               <li key={`${row.entityType}-${row.kind}`}>
                 {t(`spaces.retention.wouldDelete.${row.kind === "entity" ? "entity" : "history"}`, {
-                  type: row.entityType,
+                  type: named(row.entityType),
                   count: row.count,
                 })}
               </li>
