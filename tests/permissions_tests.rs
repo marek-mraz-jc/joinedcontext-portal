@@ -1164,7 +1164,7 @@ fn a_space_name_held_by_two_projects_grants_nothing_in_either() {
 
 /// The routes the review named: another project's drift, activity, pipeline templates and a
 /// replay of its rejected records are `404` for the steward of `ovzdusie/air`; the steward's own
-/// project still answers.
+/// project still answers, except its pipeline templates, which live in no space (T-4593).
 #[tokio::test]
 async fn the_steward_of_one_space_finds_nothing_in_another_project() {
     let config = Config::for_tests();
@@ -1199,11 +1199,21 @@ async fn the_steward_of_one_space_finds_nothing_in_another_project() {
     assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
 
     let (status, body) = get(
+        app_with(&config, envelopes.clone()),
+        &config,
+        steward(),
+        "/api/v1/projects/ovzdusie/drift",
+    )
+    .await;
+    assert_ne!(status, StatusCode::NOT_FOUND, "{body}");
+    // T-4593: pipeline templates live in no space, so a space binding reaches them in no
+    // project, its own included.
+    let (status, body) = get(
         app_with(&config, envelopes),
         &config,
         steward(),
         "/api/v1/projects/ovzdusie/pipelinetemplates",
     )
     .await;
-    assert_ne!(status, StatusCode::NOT_FOUND, "{body}");
+    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
 }

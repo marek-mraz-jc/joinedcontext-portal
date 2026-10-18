@@ -11,7 +11,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { ConnectAssistant, mcpInstall } from "../src/components/endpoints/ConnectAssistant";
 
-const HUB = "https://dev.city.example/api/mcp";
+const HUB = "https://api.dev.city.example/api/mcp";
 
 describe("mcpInstall", () => {
   it("gives each client the hub under one name", () => {

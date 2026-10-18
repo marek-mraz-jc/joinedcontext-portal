@@ -317,9 +317,16 @@ pub async fn get_samples(
 ) -> Result<Json<PipelineSamples>, ApiError> {
     let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
     let pipeline = state.mirror.get(&project, "Pipeline", &name);
-    let Some(pipeline) =
-        pipeline.filter(|_| effective.may_read_project() && effective.may_read("Pipeline"))
-    else {
+    let Some(pipeline) = pipeline.filter(|p| {
+        effective.may_read_project()
+            && may_pipeline(
+                &effective,
+                &state,
+                &project,
+                &p.spec,
+                jc_core::kinds::Verb::Read,
+            )
+    }) else {
         return Err(ApiError::NotFound(format!(
             "pipeline '{name}' not found in project '{project}'"
         )));
@@ -401,12 +408,7 @@ pub async fn get_metrics(
     // caller who may not read the project's pipelines is answered as if it were not there
     // rather than handed its throughput. `metrics_for` itself stays open: the catalog search
     // calls it behind its own access filter (AG-58).
-    let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
-    if !effective.may_read_project() || !effective.may_read("Pipeline") {
-        return Err(ApiError::NotFound(format!(
-            "pipeline '{name}' not found in project '{project}'"
-        )));
-    }
+    readable_pipeline(&state, &user, &project, &name)?;
     Ok(Json(metrics_for(&state, &project, &name).await?))
 }
 
@@ -588,15 +590,21 @@ pub(crate) fn readable_pipeline(
         ))
     };
     let effective = crate::permissions::for_request(state, &user.0.identity, project);
-    if !effective.may_read_project() || !effective.may_read("Pipeline") {
-        return Err(not_found());
-    }
-    if !is_dns1123(project) || !is_dns1123(name) {
+    if !effective.may_read_project() || !is_dns1123(project) || !is_dns1123(name) {
         return Err(not_found());
     }
     state
         .mirror
         .get(project, "Pipeline", name)
+        .filter(|p| {
+            may_pipeline(
+                &effective,
+                state,
+                project,
+                &p.spec,
+                jc_core::kinds::Verb::Read,
+            )
+        })
         .map(|_| ())
         .ok_or_else(not_found)
 }
@@ -736,9 +744,13 @@ pub async fn post_run(
 ) -> Result<(axum::http::StatusCode, Json<RunStarted>), ApiError> {
     readable_pipeline(&state, &user, &project, &name)?;
     let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
-    if !effective.may("Pipeline", jc_core::kinds::Verb::Propose)
-        || !effective.may("Pipeline", jc_core::kinds::Verb::Approve)
-    {
+    let spec = state
+        .mirror
+        .get(&project, "Pipeline", &name)
+        .map(|p| p.spec)
+        .unwrap_or_default();
+    let may = |verb| may_pipeline(&effective, &state, &project, &spec, verb);
+    if !may(jc_core::kinds::Verb::Propose) || !may(jc_core::kinds::Verb::Approve) {
         return Err(ApiError::Denied(format!(
             "a run outside the schedule writes through the approved pipeline, which needs propose \
              and approve on Pipeline in project {project}"
@@ -839,17 +851,29 @@ pub async fn retry_rejected(
         ))
     };
     let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
-    if !effective.may_read_project() || !effective.may_read("Pipeline") {
-        return Err(not_found());
-    }
-    if !is_dns1123(&project) || !is_dns1123(&name) {
+    if !effective.may_read_project() || !is_dns1123(&project) || !is_dns1123(&name) {
         return Err(not_found());
     }
     let pipeline = state
         .mirror
         .get(&project, "Pipeline", &name)
+        .filter(|p| {
+            may_pipeline(
+                &effective,
+                &state,
+                &project,
+                &p.spec,
+                jc_core::kinds::Verb::Read,
+            )
+        })
         .ok_or_else(not_found)?;
-    if !effective.may("Pipeline", jc_core::kinds::Verb::Propose) {
+    if !may_pipeline(
+        &effective,
+        &state,
+        &project,
+        &pipeline.spec,
+        jc_core::kinds::Verb::Propose,
+    ) {
         return Err(ApiError::Denied(format!(
             "replaying a rejected record writes through the pipeline, which needs propose on \
              Pipeline in project {project}"
@@ -997,6 +1021,21 @@ fn replay_target(state: &AppState, project: &str, spec: &Value) -> Option<(Strin
     let space = crate::api::assistant::ref_name(&endpoint.spec["contextSpaceRef"])?;
     let slug = endpoint.spec.get("slug")?.as_str()?.to_owned();
     Some((space, slug))
+}
+
+/// Whether the caller may `verb` this pipeline: a grant over the project's pipelines, or one
+/// bound to the space its target Endpoint writes (T-4593). A steward of one space acts on the
+/// pipelines that write it and on no other.
+fn may_pipeline(
+    effective: &crate::permissions::Effective,
+    state: &AppState,
+    project: &str,
+    spec: &Value,
+    verb: jc_core::kinds::Verb,
+) -> bool {
+    effective.may("Pipeline", verb)
+        || replay_target(state, project, spec)
+            .is_some_and(|(space, _)| effective.may_in("Pipeline", verb, Some(&space)))
 }
 
 /// One message holding the records, split into one per record, and the pipeline's own write
