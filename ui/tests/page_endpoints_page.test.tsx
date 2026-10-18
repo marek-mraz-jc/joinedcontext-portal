@@ -227,6 +227,23 @@ describe("the endpoints page", () => {
     expect(screen.getByText("Showing 0 of 0")).toBeInTheDocument();
   });
 
+  it("finds_by_title_ignores_blank_search_and_starts_a_new_search_on_page_one", async () => {
+    const titled = many.map((one, i) =>
+      i === 77 ? { ...one, metadata: { ...one.metadata, title: { en: "Noise in Zvolen" } } } : one,
+    );
+    await renderRoute({ path: PATH, answer: answering(titled) });
+    await screen.findByRole("link", { name: "ep-0000" });
+    await userEvent.click(screen.getByRole("button", { name: "Show 50 more" }));
+    const search = screen.getByRole("searchbox", { name: en.endpoints.find });
+    await userEvent.type(search, "   ");
+    expect(rowLinks()).toHaveLength(50);
+    expect(screen.getByText("Showing 50 of 120")).toBeInTheDocument();
+    await userEvent.clear(search);
+    await userEvent.type(search, "zvolen");
+    expect(screen.getByRole("link", { name: "Noise in Zvolen" })).toBeInTheDocument();
+    expect(screen.getByText("Showing 1 of 1")).toBeInTheDocument();
+  });
+
   it("opens_an_endpoint_the_url_names_beyond_the_first_page", async () => {
     await renderRoute({ path: `${PATH}?edit=ep-0110`, answer: answering(many) });
     const dialog = await findFormPage();
