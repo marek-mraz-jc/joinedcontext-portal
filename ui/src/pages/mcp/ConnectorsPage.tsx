@@ -58,7 +58,11 @@ export function ConnectorsPage(): JSX.Element {
   const [editing, setEditing] = useState<Connector | "new" | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const create = (
-    <Button disabled={connectors.length >= MAX_CONNECTORS} onClick={() => setEditing("new")}>
+    <Button
+      disabled={connectors.length >= MAX_CONNECTORS}
+      title={connectors.length >= MAX_CONNECTORS ? t("connectors.full", { max: MAX_CONNECTORS }) : undefined}
+      onClick={() => setEditing("new")}
+    >
       {t("connectors.new")}
     </Button>
   );

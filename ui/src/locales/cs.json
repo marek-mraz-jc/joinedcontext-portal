@@ -7686,6 +7686,7 @@
     "title": "Moje MCP konektory",
     "lead": "Vaše vlastní MCP adresy, nejvýše {max}. Otevře je jen vaše přihlášení a každá sahá jen na koncové body, které smíte číst.",
     "new": "Nový konektor",
+    "full": "Máte {max} konektorů, víc to nejde. Chcete-li nový, jeden smažte.",
     "empty": "Zatím žádné konektory",
     "emptyHint": "Vytvořte konektor, nebo označte koncový bod hvězdičkou na jeho stránce a vznikne konektor favourites.",
     "edit": "Upravit",

@@ -168,7 +168,7 @@ describe("the connectors page (T-4531)", () => {
     const dialog = await screen.findByRole("dialog", { name: "New connector" });
     await userEvent.type(within(dialog).getByLabelText(/^Name/), "air");
     await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-    expect(await within(dialog).findByText("You already have a connector with this name.")).toBeInTheDocument();
+    expect(await within(dialog).findByText("You already have a connector with this name. Choose another name.")).toBeInTheDocument();
     expect(writes).toEqual([]);
   });
 

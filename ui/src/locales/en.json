@@ -7686,6 +7686,7 @@
     "title": "My MCP connectors",
     "lead": "Your own MCP addresses, up to {max}. Only your sign-in opens them, and each reaches only Endpoints you may read.",
     "new": "New connector",
+    "full": "You have {max} connectors, the most there can be. Delete one to make another.",
     "empty": "No connectors yet",
     "emptyHint": "Create one, or star an Endpoint on its page to start a connector called favourites.",
     "edit": "Edit",
@@ -7727,10 +7728,10 @@
     },
     "problem": {
       "name": "Use lowercase letters, digits and dashes, up to 63 characters.",
-      "taken": "You already have a connector with this name.",
-      "projects": "A project name is lowercase letters, digits and dashes.",
-      "spaces": "Write each space as project/space.",
-      "tooMany": "A field holds 50 values at most."
+      "taken": "You already have a connector with this name. Choose another name.",
+      "projects": "A project name is lowercase letters, digits and dashes. Correct the ones that are not.",
+      "spaces": "Type each space as project/space, for example bbsk/ovzdusie.",
+      "tooMany": "A field holds 50 values at most. Remove the rest."
     },
     "star": {
       "add": "Add to my connectors",
