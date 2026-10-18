@@ -218,20 +218,24 @@ async fn forge() -> MockServer {
 }
 
 /// A `Role` that reads every kind an export carries and a `RoleBinding` that gives it to the
-/// caller for one context space only, as `roles_matrix_tests::state_with` builds them.
+/// caller for one context space only, as `roles_matrix_tests::state_with` builds them, beside the
+/// project's `ContextSpace` the binding names: a space binding holds in the project that holds the
+/// space (T-4589).
 fn bound_to(space: &str) -> Vec<ResourceEnvelope> {
-    let manifest = |kind: &str, name: &str, spec: Value| ResourceEnvelope {
+    let in_namespace = |namespace: &str, kind: &str, name: &str, spec: Value| ResourceEnvelope {
         api_version: API_VERSION.into(),
         kind: kind.into(),
         metadata: ObjectMeta {
             name: name.into(),
-            namespace: Some("org".into()),
+            namespace: Some(namespace.into()),
             ..Default::default()
         },
         spec,
         status: None,
     };
+    let manifest = |kind: &str, name: &str, spec: Value| in_namespace("org", kind, name, spec);
     vec![
+        in_namespace("banskabystrica", "ContextSpace", space, json!({})),
         manifest(
             "Role",
             "space-reader",

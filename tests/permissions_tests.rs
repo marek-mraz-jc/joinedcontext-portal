@@ -1078,3 +1078,132 @@ fn a_service_account_may_propose_and_never_approve() {
     );
     assert_eq!(held.grants.len(), 1);
 }
+
+// --- T-4589: a space binding applies in the project that holds the space ---------------------
+
+fn space_in(project: &str, name: &str) -> ResourceEnvelope {
+    ResourceEnvelope {
+        api_version: API_VERSION.to_owned(),
+        kind: "ContextSpace".to_owned(),
+        metadata: ObjectMeta::new(name, project),
+        spec: json!({}),
+        status: None,
+    }
+}
+
+fn in_(project: &str, kind: &str, name: &str) -> ResourceEnvelope {
+    ResourceEnvelope {
+        api_version: API_VERSION.to_owned(),
+        kind: kind.to_owned(),
+        metadata: ObjectMeta::new(name, project),
+        spec: json!({}),
+        status: None,
+    }
+}
+
+/// The steward of space `air`: reads and proposes pipelines and entities, scoped to that space.
+fn air_steward() -> Vec<ResourceEnvelope> {
+    vec![
+        org(
+            "Role",
+            "space-steward",
+            json!({ "rules": [
+                { "kinds": ["Pipeline", "Entity", "ContextSpace"], "verbs": ["read", "propose"] }
+            ]}),
+        ),
+        binding(
+            "air-steward",
+            "space-steward",
+            json!([{ "user": "steward@ovzdusie.sk" }]),
+            json!({ "contextSpace": "air" }),
+            None,
+        ),
+    ]
+}
+
+/// The binding names `air` and no project: it holds in `ovzdusie`, which holds `air`, and in no
+/// other project, so `helsinki` reads like a project that is not there (PF-59, R20).
+#[test]
+fn a_space_binding_holds_only_in_the_project_that_holds_the_space() {
+    let mut envelopes = air_steward();
+    envelopes.push(space_in("ovzdusie", "air"));
+    envelopes.push(space_in("helsinki", "bikes"));
+    let mirror = mirror_with(envelopes);
+    let steward = identity("steward@ovzdusie.sk", &[]);
+    let now = Utc::now();
+
+    let home = effective(&mirror, "", &steward, "ovzdusie", now);
+    assert!(home.may_read_project());
+    assert!(home.may_in("Entity", Verb::Propose, Some("air")));
+    assert!(!home.may_in("Entity", Verb::Propose, Some("other")));
+
+    let elsewhere = effective(&mirror, "", &steward, "helsinki", now);
+    assert!(elsewhere.grants.is_empty(), "{:?}", elsewhere.grants);
+    assert!(!elsewhere.may_read_project());
+    assert!(!elsewhere.may("Pipeline", Verb::Propose));
+}
+
+/// A space name is unique in the organization (PF-44, PF-76). A mirror that holds `air` in two
+/// projects breaks that, and the binding then grants nothing in either rather than both.
+#[test]
+fn a_space_name_held_by_two_projects_grants_nothing_in_either() {
+    let mut envelopes = air_steward();
+    envelopes.push(space_in("ovzdusie", "air"));
+    envelopes.push(space_in("helsinki", "air"));
+    let mirror = mirror_with(envelopes);
+    let steward = identity("steward@ovzdusie.sk", &[]);
+    for project in ["ovzdusie", "helsinki"] {
+        let granted = effective(&mirror, "", &steward, project, Utc::now());
+        assert!(granted.grants.is_empty(), "{project}: {:?}", granted.grants);
+        assert!(
+            !granted.may_in("Entity", Verb::Propose, Some("air")),
+            "{project}"
+        );
+    }
+}
+
+/// The routes the review named: another project's drift, activity, pipeline templates and a
+/// replay of its rejected records are `404` for the steward of `ovzdusie/air`; the steward's own
+/// project still answers.
+#[tokio::test]
+async fn the_steward_of_one_space_finds_nothing_in_another_project() {
+    let config = Config::for_tests();
+    let mut envelopes = air_steward();
+    envelopes.push(space_in("ovzdusie", "air"));
+    envelopes.push(space_in("helsinki", "bikes"));
+    envelopes.push(in_("helsinki", "Pipeline", "bikes-feed"));
+    let steward = || identity("steward@ovzdusie.sk", &[]);
+
+    for uri in [
+        "/api/v1/projects/helsinki/drift",
+        "/api/v1/projects/helsinki/activity",
+        "/api/v1/projects/helsinki/pipelinetemplates",
+    ] {
+        let (status, body) = get(
+            app_with(&config, envelopes.clone()),
+            &config,
+            steward(),
+            uri,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{uri}: {body}");
+    }
+    let (status, body) = post(
+        app_with(&config, envelopes.clone()),
+        &config,
+        steward(),
+        "/api/v1/projects/helsinki/pipelines/bikes-feed/rejected/retry",
+        &json!({ "ids": [1] }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
+
+    let (status, body) = get(
+        app_with(&config, envelopes),
+        &config,
+        steward(),
+        "/api/v1/projects/ovzdusie/pipelinetemplates",
+    )
+    .await;
+    assert_ne!(status, StatusCode::NOT_FOUND, "{body}");
+}

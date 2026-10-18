@@ -40,6 +40,10 @@ async fn world() -> AppState {
     state
         .mirror
         .upsert(role("reads-pipelines", json!(["Pipeline"])));
+    // The space `bikes-readers` are bound to, held by helsinki (T-4589).
+    state
+        .mirror
+        .upsert(envelope("ContextSpace", "bikes", "helsinki", json!({})));
     for (binding, role, group, scope) in [
         (
             "b1",
