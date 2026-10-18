@@ -165,3 +165,55 @@ test("a question outside the contract and an unknown assistant are refused befor
     await context.close();
   }
 });
+
+// T-4670: the stored conversations agree with the API for one who may read them, and a viewer is
+// refused by the API and offered nothing on the page.
+test("the stored conversations agree with the API, and a viewer reads none of them", async ({ browser }) => {
+  const viewer = await signIn(browser, VIEWER, `/projects/${PROJECT}/knowledge/conversations?lang=en`);
+  try {
+    await expect(viewer.page.getByRole("heading", { level: 1, name: "Conversations" })).toBeVisible({ timeout: 60_000 });
+    expect((await viewer.page.request.get(`/api/v1/projects/${PROJECT}/knowledge/conversations`)).status()).toBe(403);
+    await expect(viewer.page.getByRole("table")).toHaveCount(0);
+  } finally {
+    await viewer.context.close();
+  }
+  const { context, page } = await signIn(browser, STEWARD, `/projects/${PROJECT}/knowledge/conversations?lang=en`);
+  try {
+    await expect(page.getByRole("heading", { level: 1, name: "Conversations" })).toBeVisible({ timeout: 60_000 });
+    const answer = await page.request.get(`/api/v1/projects/${PROJECT}/knowledge/conversations?limit=50`);
+    if (answer.status() === 403) {
+      await expect(page.getByText("Only the assistant's administrator")).toBeVisible();
+      return;
+    }
+    const list = (await answer.json()) as { items: { firstQuestion: string }[] };
+    if (list.items.length === 0) {
+      await expect(page.getByText("No stored conversations")).toBeVisible();
+    } else {
+      await expect(page.getByRole("table").getByRole("button", { name: list.items[0].firstQuestion })).toBeVisible();
+    }
+  } finally {
+    await context.close();
+  }
+});
+
+// T-4670: erasing a stored conversation, without erasing anything on dev: a viewer is refused,
+// and an id that is no conversation's never reaches the assistant.
+test("a viewer may not erase a stored conversation, and an id that is no conversation's is refused", async ({ browser }) => {
+  const path = (id: string) => `/api/v1/projects/${PROJECT}/knowledge/conversations/${id}`;
+  const viewer = await signIn(browser, VIEWER, `/projects/${PROJECT}/knowledge/conversations?lang=en`);
+  try {
+    const token = await csrf(viewer.context);
+    const refused = await viewer.page.request.delete(path("00000000-0000-4000-8000-000000000000"), { headers: { "x-csrf-token": token } });
+    expect(refused.status()).toBe(403);
+  } finally {
+    await viewer.context.close();
+  }
+  const { context, page } = await signIn(browser, STEWARD, `/projects/${PROJECT}/knowledge/conversations?lang=en`);
+  try {
+    const token = await csrf(context);
+    const malformed = await page.request.delete(path("not-a-conversation"), { headers: { "x-csrf-token": token } });
+    expect([400, 403]).toContain(malformed.status());
+  } finally {
+    await context.close();
+  }
+});

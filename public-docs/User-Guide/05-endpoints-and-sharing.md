@@ -19,7 +19,7 @@ An Endpoint provides a policy-guarded view over one Context Space. Access is con
 - **Public (`public`):** Open to anonymous callers worldwide for reading. Anonymous callers cannot write data or register subscriptions.
 
 Each endpoint has its own address: a 26-character random slug nobody can guess.
-`https://{host}/api/endpoint/{slug}/`
+`https://api.{domain}/api/endpoint/{slug}/`
 
 ## 2. Publishing an Endpoint
 
@@ -79,11 +79,11 @@ The assistant updates the projection filter and opens `/projects/helsinki/endpoi
 
 Copy endpoint addresses using the **Copy URL** button beside any slug:
 
-- **QGIS & Desktop GIS:** Add an OGC API Features connection pointing to `https://{host}/api/endpoint/{slug}/ogc/features`.
-- **Microsoft Excel & Power BI:** Select **Data > From Web** and enter the CSV export URL `https://{host}/api/endpoint/{slug}/file.csv`.
+- **QGIS & Desktop GIS:** Add an OGC API Features connection pointing to `https://api.{domain}/api/endpoint/{slug}/ogc/features`.
+- **Microsoft Excel & Power BI:** Select **Data > From Web** and enter the CSV export URL `https://api.{domain}/api/endpoint/{slug}/file.csv`.
 - **Grafana:** In the Infinity datasource plugin, query `/ngsi-ld/v1/entities?type=…` with the header `Accept: application/geo+json` to plot live positions on a Geomap panel.
-- **AI Agents (MCP):** Connect external agent environments (such as Claude Code) to `https://{host}/api/endpoint/{slug}/mcp`. The agent discovers query tools automatically according to the endpoint policy.
-- The schema and what you may do: `https://{host}/api/endpoint/{slug}/schema/v1/AirQualityObserved.json` is the published schema of one type, and `https://{host}/api/endpoint/{slug}/access` answers what the caller of that moment may read and write.
+- **AI Agents (MCP):** Connect external agent environments (such as Claude Code) to `https://api.{domain}/api/endpoint/{slug}/mcp`. The agent discovers query tools automatically according to the endpoint policy.
+- The schema and what you may do: `https://api.{domain}/api/endpoint/{slug}/schema/v1/AirQualityObserved.json` is the published schema of one type, and `https://api.{domain}/api/endpoint/{slug}/access` answers what the caller of that moment may read and write.
 
 ## 5. Cross-Project Data Sharing
 

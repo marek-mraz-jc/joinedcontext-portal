@@ -57,6 +57,22 @@ const ANSWER = [
   'event: done\ndata: {"tokens":700}',
 ].join("\n\n") + "\n\n";
 
+const CONVERSATION = "6f1c0e9e-3b1a-4d7e-9b51-2c4f8f2a7c11";
+const CONVERSATIONS = {
+  items: [{ id: CONVERSATION, deployment: "staff", origin: null, startedAt: "2026-10-18T10:00:00Z", lastAt: "2026-10-18T10:01:00Z",
+    firstQuestion: "Are the roads icy?", turns: 1, routes: ["data"], totalMs: 2400, errors: 0, timeouts: 0, costUsd: 0.0046,
+    uncosted: 0, thumbsUp: 0, thumbsDown: 0 }],
+  nextCursor: null,
+};
+const DETAIL = {
+  id: CONVERSATION, deployment: "staff", origin: null,
+  turns: [{ turn: 1, at: "2026-10-18T10:01:00Z", question: "Are the roads icy?", answer: "The roads are icy at Kamppi.", route: "data",
+    firstTokenMs: 800, totalMs: 2400, error: null, timedOut: false, costUsd: 0.0046, uncosted: 0, verdict: null,
+    steps: [{ kind: "tool", name: "query_entities", endpoint: "helsinki-weather", input: "{}", output: "[]", outputBytes: 2,
+      status: "ok", startMs: 900, durationMs: 120, error: null, stage: null, model: null, provider: null, tokensIn: null,
+      tokensOut: null, reasoningTokens: null, costUsd: null }] }],
+};
+
 async function stubApi(p: Page, verbs: string[] = ["read", "propose"]): Promise<{ writes: { path: string; body: unknown }[] }> {
   const writes: { path: string; body: unknown }[] = [];
   await p.route("**/api/v1/**", async (route) => {
@@ -89,12 +105,36 @@ async function stubApi(p: Page, verbs: string[] = ["read", "propose"]): Promise<
         : json({ items: [page(1, "https://www.hel.fi/", { children: 1 })] });
     }
     if (url.pathname === `${base}/sources/hel-web/documents`) return json({ items: [] });
+    // T-4670: one stored conversation, a data turn with a model call and a tool call.
+    if (url.pathname === `${base}/conversations`) return json(CONVERSATIONS);
+    if (url.pathname === `${base}/conversations/${CONVERSATION}`) return json(DETAIL);
     return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] });
   });
   return { writes };
 }
 
 test.describe("the knowledge sources", () => {
+  test("the assistant's administrator opens the stored conversations from the page and reads one with its steps (T-4670)", async ({ page: p }) => {
+    await stubApi(p, ["read", "propose", "approve"]);
+    await p.goto("/projects/helsinki/knowledge?lang=en");
+    await p.getByRole("link", { name: "Conversations" }).click();
+    await expect(p).toHaveURL(/\/projects\/helsinki\/knowledge\/conversations/);
+    await p.getByRole("button", { name: "Are the roads icy?" }).click();
+    await expect(p.getByText("The roads are icy at Kamppi.")).toBeVisible();
+    await expect(p.getByText(/helsinki-weather/)).toBeVisible();
+    expect(await axeViolations(p)).toEqual([]);
+  });
+
+  test("a steward without approve is offered no conversations link", async ({ page: p }) => {
+    await stubApi(p);
+    await p.goto("/projects/helsinki/knowledge?lang=en");
+    await expect(p.getByRole("heading", { level: 1, name: "Knowledge sources" })).toBeVisible();
+    await expect(p.getByRole("link", { name: "Conversations" })).toHaveCount(0);
+    await p.goto("/projects/helsinki/knowledge/conversations?lang=en");
+    await expect(p.getByText("Only the assistant's administrator")).toBeVisible();
+    await expect(p.getByRole("table")).toHaveCount(0);
+  });
+
   test("lists each source with what the assistant holds, and a source not crawled yet says so", async ({ page: p }) => {
     await stubApi(p);
     await p.goto("/projects/helsinki/knowledge?lang=en");
