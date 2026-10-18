@@ -143,7 +143,7 @@ export function markdown(text: string, known: (n: number) => boolean = () => fal
     }
   }
   for (const block of blocks) {
-    if ("lines" in block) {
+    if (block.tag === "pre" && "lines" in block) {
       block.text = (block.lines as string[]).join("\n");
       delete (block as { lines?: string[] }).lines;
     }
