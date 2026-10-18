@@ -1,6 +1,7 @@
 use axum::body::Body;
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
+use jc_core::error::ProblemType;
 use serde::Serialize;
 use utoipa::ToSchema;
 
@@ -19,6 +20,24 @@ pub struct ProblemDetails {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub errors: Option<Vec<String>>,
 }
+
+/// The problem types only the Portal writes (T-4485, API/09); every other `type` it answers with is
+/// one of jc-core's `PROBLEM_TYPES`. The test below holds every slug the Portal's source writes to
+/// the two lists, and the docs check holds API/09 to them: one section per slug, no section without.
+#[rustfmt::skip]
+pub const PORTAL_PROBLEM_TYPES: &[ProblemType] = &[
+    ProblemType { slug: "invalid-request", status: 400, title: "Invalid Request", hint: "Correct the request as the detail says; errors lists every violation at once." },
+    ProblemType { slug: "self-approval", status: 403, title: "Self Approval Forbidden", hint: "Ask another person who may approve changes in this project to approve it." },
+    ProblemType { slug: "service-off", status: 403, title: "Service Off", hint: "Ask an administrator to switch the service on at the layer the answer names." },
+    ProblemType { slug: "recipient-refused", status: 403, title: "Recipient Refused", hint: "Send only to people of the organization with a verified address." },
+    ProblemType { slug: "draft-conflict", status: 409, title: "Draft Conflict", hint: "Someone saved the draft since you opened it: read current, then make your change on it." },
+    ProblemType { slug: "verdict-required", status: 409, title: "Verdict Required", hint: "Run the check the answer names and send the change again with its verdict." },
+    ProblemType { slug: "file-too-large", status: 413, title: "File Too Large", hint: "Store a smaller object; the answer names the limit in bytes." },
+    ProblemType { slug: "quota", status: 429, title: "Quota Used", hint: "Wait until resetAt, delete what the App no longer needs, or ask an administrator to raise the quota." },
+    ProblemType { slug: "not-implemented", status: 501, title: "Not Implemented", hint: "This Portal does not do this yet; the detail names what it does instead." },
+    ProblemType { slug: "no-json", status: 502, title: "No JSON", hint: "The model answered with something other than JSON of the schema; ask again." },
+    ProblemType { slug: "no-model-key", status: 503, title: "No Model Key", hint: "Ask an administrator to set or top up the organization's model key." },
+];
 
 /// Portal API error variants conforming to RFC 7807.
 #[derive(Debug, thiserror::Error)]
@@ -246,5 +265,64 @@ mod tests {
             "https://joinedcontext.com/errors/internal-error"
         );
         assert_eq!(problem.title, "Internal Server Error");
+    }
+
+    /// Every slug the Portal writes is catalogued (T-4485): the slug that follows a status in the
+    /// source (`ApiError`'s table, `services::problem`, the basemap's problems) and every type
+    /// written whole. A slug outside both lists would be a `type` with no page in API/09.
+    #[test]
+    fn every_slug_the_portal_writes_is_catalogued() {
+        let known = |slug: &str| {
+            jc_core::error::problem_type(slug).is_some()
+                || PORTAL_PROBLEM_TYPES.iter().any(|known| known.slug == slug)
+        };
+        let after_status = regex::Regex::new(r#"StatusCode::[A-Z_]+,\s*"([a-z][a-z-]*)""#).unwrap();
+        let whole =
+            regex::Regex::new(r"https://joinedcontext\.com/(?:errors|problems)/([a-z][a-z-]*)")
+                .unwrap();
+        let mut seen = std::collections::BTreeSet::new();
+        let mut stack = vec![std::path::PathBuf::from(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src"
+        ))];
+        while let Some(dir) = stack.pop() {
+            for entry in std::fs::read_dir(&dir).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    stack.push(path);
+                } else if path.extension().is_some_and(|ext| ext == "rs") {
+                    let text = std::fs::read_to_string(&path).unwrap();
+                    // a module's tests make up slugs to prove a refusal; they are not written
+                    let text = text.split("#[cfg(test)]").next().unwrap_or_default();
+                    for found in after_status
+                        .captures_iter(text)
+                        .chain(whole.captures_iter(text))
+                    {
+                        seen.insert((found[1].to_owned(), path.display().to_string()));
+                    }
+                }
+            }
+        }
+        assert!(
+            seen.iter().any(|(slug, _)| slug == "self-approval"),
+            "the scan found nothing"
+        );
+        let unknown: Vec<_> = seen.iter().filter(|(slug, _)| !known(slug)).collect();
+        assert!(
+            unknown.is_empty(),
+            "no PORTAL_PROBLEM_TYPES entry for {unknown:?}"
+        );
+        for portal in PORTAL_PROBLEM_TYPES {
+            assert!(
+                jc_core::error::problem_type(portal.slug).is_none(),
+                "{} is jc-core's",
+                portal.slug
+            );
+            assert!(
+                seen.iter().any(|(slug, _)| slug == portal.slug),
+                "nothing writes {}",
+                portal.slug
+            );
+        }
     }
 }

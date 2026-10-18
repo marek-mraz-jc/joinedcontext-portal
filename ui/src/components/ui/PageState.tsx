@@ -71,15 +71,33 @@ export function problemHint(
   exists: (key: string) => boolean,
 ): string | undefined {
   if (!(error instanceof ApiError) || !error.problem) return undefined;
-  const problem = error.problem as { type?: unknown; code?: unknown; hint?: unknown };
+  const slug = problemSlug(error);
+  if (slug && exists(`problem.${slug}`)) return t(`problem.${slug}`);
+  const hint = (error.problem as { hint?: unknown }).hint;
+  return typeof hint === "string" && hint.trim() !== "" ? hint : undefined;
+}
+
+/**
+ * The platform's slug of a problem: `code` where the NGSI-LD surface put the ETSI type in `type`,
+ * else the last segment of a `https://joinedcontext.com/errors/{slug}` type; nothing for any other.
+ */
+export function problemSlug(error: unknown): string | undefined {
+  if (!(error instanceof ApiError) || !error.problem) return undefined;
+  const problem = error.problem as { type?: unknown; code?: unknown };
   const slug =
     typeof problem.code === "string"
       ? problem.code
-      : typeof problem.type === "string"
-        ? problem.type.split("/").pop()
+      : typeof problem.type === "string" && problem.type.startsWith(PROBLEM_TYPE_BASE)
+        ? problem.type.slice(PROBLEM_TYPE_BASE.length)
         : undefined;
-  if (slug && /^[a-z-]+$/.test(slug) && exists(`problem.${slug}`)) return t(`problem.${slug}`);
-  return typeof problem.hint === "string" && problem.hint.trim() !== "" ? problem.hint : undefined;
+  return slug && /^[a-z-]+$/.test(slug) ? slug : undefined;
+}
+
+const PROBLEM_TYPE_BASE = "https://joinedcontext.com/errors/";
+
+/** The public docs section of a problem type (T-4485): one per slug, held to the code by docs CI. */
+export function problemPage(slug: string): string {
+  return `/docs/API/09-errors#${slug}`;
 }
 
 /**
@@ -115,6 +133,7 @@ export function PageFailed({
     kind === "refused" || kind === "notFound" || kind === "server"
       ? problemHint(error, t, (key) => i18n.exists(key))
       : undefined;
+  const slug = kind === "session" ? undefined : problemSlug(error);
   const offline = kind === "network" && typeof navigator !== "undefined" && navigator.onLine === false;
   const said = error instanceof ApiError ? (error.problem?.detail ?? error.message) : undefined;
   const reason =
@@ -159,6 +178,11 @@ export function PageFailed({
       {reason}
       {kind === "forbidden" ? <span className="mt-1 block">{t("app.error.forbiddenHint")}</span> : null}
       {hint ? <span className="mt-1 block">{hint}</span> : null}
+      {slug ? (
+        <a className="mt-1 block underline" href={problemPage(slug)} target="_blank" rel="noreferrer">
+          {t("app.error.problemPage")}
+        </a>
+      ) : null}
       {reference ? <Reference value={reference} /> : null}
     </Alert>
   );

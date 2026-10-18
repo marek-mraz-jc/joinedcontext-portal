@@ -11,7 +11,7 @@ use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
-use pulldown_cmark::{html, CowStr, Event, Options, Parser, Tag};
+use pulldown_cmark::{html, CowStr, Event, Options, Parser, Tag, TagEnd};
 use rust_embed::RustEmbed;
 
 use crate::state::AppState;
@@ -64,8 +64,10 @@ pub fn render(chapter: &str, page: &str) -> Option<String> {
     let (title, body) = split_front_matter(text);
     let title = title.or_else(|| first_heading(body)).unwrap_or(page);
     let mut content = String::new();
-    let options = Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH;
-    html::push_html(&mut content, Parser::new_ext(body, options).map(safe));
+    let options =
+        Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH | Options::ENABLE_HEADING_ATTRIBUTES;
+    let events: Vec<Event> = Parser::new_ext(body, options).map(safe).collect();
+    html::push_html(&mut content, anchored(events).into_iter());
     let commit = docs_commit();
     Some(format!(
         "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n\
@@ -158,6 +160,49 @@ fn safe(event: Event<'_>) -> Event<'_> {
         }),
         other => other,
     }
+}
+
+/// Every heading gets the id a link to it uses (T-4485): its own `{#id}`, else its text the way
+/// the docs site and GitHub make it (lower case, punctuation dropped, spaces to `-`), so
+/// `07-websocket#limits` and `09-errors#quota` land on their section. Classes and attributes a
+/// page writes are dropped; an id is all a heading carries.
+fn anchored(mut events: Vec<Event<'_>>) -> Vec<Event<'_>> {
+    for start in 0..events.len() {
+        let Event::Start(Tag::Heading { level, id, .. }) = &events[start] else {
+            continue;
+        };
+        let (level, id) = (*level, id.clone());
+        let id = id.unwrap_or_else(|| {
+            let text: String = events[start + 1..]
+                .iter()
+                .take_while(|event| !matches!(event, Event::End(TagEnd::Heading(_))))
+                .filter_map(|event| match event {
+                    Event::Text(text) | Event::Code(text) => Some(text.as_ref()),
+                    _ => None,
+                })
+                .collect();
+            CowStr::from(heading_id(&text))
+        });
+        events[start] = Event::Start(Tag::Heading {
+            level,
+            id: Some(id),
+            classes: Vec::new(),
+            attrs: Vec::new(),
+        });
+    }
+    events
+}
+
+fn heading_id(text: &str) -> String {
+    text.trim()
+        .to_lowercase()
+        .chars()
+        .filter_map(|c| match c {
+            ' ' => Some('-'),
+            c if c.is_alphanumeric() || c == '-' || c == '_' => Some(c),
+            _ => None,
+        })
+        .collect()
 }
 
 /// `http(s)` and `mailto` stay, any other scheme becomes `#`; a relative link to another page
@@ -295,6 +340,30 @@ mod tests {
         assert_eq!(
             escape("<a href=\"x\">&'"),
             "&lt;a href=&quot;x&quot;&gt;&amp;&#39;"
+        );
+    }
+
+    #[test]
+    fn a_heading_carries_the_id_a_link_to_it_uses() {
+        let page = |markdown: &str| {
+            let mut out = String::new();
+            let options = Options::ENABLE_HEADING_ATTRIBUTES;
+            let events: Vec<Event> = Parser::new_ext(markdown, options).map(safe).collect();
+            html::push_html(&mut out, anchored(events).into_iter());
+            out
+        };
+        assert!(page("## 2. Limits & `ws` frames\n").contains(r#"<h2 id="2-limits--ws-frames">"#));
+        assert!(page("### `quota` {#quota}\n").contains(r#"<h3 id="quota">"#));
+        let crafted = page("### x {#a .evil onclick=alert(1)}\n");
+        assert!(crafted.contains(r#"<h3 id="a">"#), "{crafted}");
+        assert!(
+            !crafted.contains("evil") && !crafted.contains("onclick"),
+            "{crafted}"
+        );
+        let bundled = render("API", "07-websocket").expect("bundled");
+        assert!(
+            bundled.contains(" id=\""),
+            "no heading id in a bundled page"
         );
     }
 }

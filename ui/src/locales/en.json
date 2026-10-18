@@ -16,6 +16,7 @@
       "chunkReload": "Load the page again",
       "session": "Your session ended. Sign in again to see this.",
       "forbiddenHint": "A project owner or an organization administrator can give you access.",
+      "problemPage": "What this answer means and what to do",
       "reference": "Quote this when you report it:",
       "offline": "You are offline. The page reads again as soon as the connection is back.",
       "copy": "Copy",
