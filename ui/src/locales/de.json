@@ -2478,66 +2478,7 @@
       },
       "grantIn": "{role} in {where}",
       "grantOrg": "{role} in der ganzen Organisation",
-      "emptyHint": "Ein Dienstkonto ist der Weg, auf dem ein Programm außerhalb des Portals dieses Projekt liest oder schreibt: ein Skript, eine Pipeline anderswo, eine andere Plattform. Jedes bekommt eigene Schlüssel und nur die Rolle, die Sie ihm geben."
-    },
-    "keys": {
-      "create": "Neuer API-Schlüssel ({credential})",
-      "noCredential": "Dieses Konto deklariert kein api-key-Credential; ergänzen Sie es zuerst im Manifest.",
-      "empty": "Noch kein API-Schlüssel.",
-      "noStore": "API-Schlüssel brauchen die Portal-Datenbank, die hier nicht konfiguriert ist.",
-      "notYours": "Seine Schlüssel sehen nur der Eigentümer und wer Dienstkonten ändern darf.",
-      "tableCaption": "API-Schlüssel von {account}",
-      "newTitle": "Ihr neuer API-Schlüssel",
-      "newHint": "Speichern Sie ihn jetzt in Ihrem Passwortspeicher.",
-      "onceWarning": "Der Schlüssel wird nur dieses eine Mal angezeigt. Gespeichert wird nur sein Hash, er ist nicht wiederherstellbar.",
-      "token": "API-Schlüssel",
-      "copy": "Kopieren",
-      "done": "Schließen",
-      "rotate": "Erneuern",
-      "rotateHint": "Erzeugt einen Nachfolger; der aktuelle Schlüssel gilt noch 24 Stunden.",
-      "revoke": "Widerrufen",
-      "revokeNow": "Jetzt widerrufen",
-      "revokeConfirm": "Schlüssel {keyId} widerrufen? Aufrufer, die ihn nutzen, funktionieren sofort nicht mehr.",
-      "revoked": "widerrufen am {date}",
-      "never": "ohne Ablauf",
-      "neverUsed": "nie benutzt",
-      "field": {
-        "keyId": "Schlüssel-Id",
-        "credential": "Zugangsdaten",
-        "expires": "Gültig bis",
-        "lastUsed": "Zuletzt benutzt"
-      },
-      "claim": {
-        "title": "Ein Schlüssel, den Ihr MCP-Client angefordert hat",
-        "hint": "Bestätigen Sie ihn hier, um den Schlüssel zu sehen. Ihr MCP-Client hat ihn nicht erhalten.",
-        "mint": "Einen neuen Schlüssel für die Anmeldeinformation {credential} von {account} erstellen.",
-        "rotate": "Schlüssel {keyId} von {account} rotieren: Ein Nachfolger wird erstellt, der aktuelle Schlüssel funktioniert noch {hours, plural, one {# Stunde} other {# Stunden}}.",
-        "expires": "Der neue Schlüssel läuft am {date} ab.",
-        "until": "Der Link gilt bis {time}.",
-        "confirmMint": "Erstellen und Schlüssel anzeigen",
-        "confirmRotate": "Rotieren und Schlüssel anzeigen",
-        "cancel": "Nicht jetzt",
-        "gone": "Dieser Link ist abgelaufen, wurde bereits verwendet oder gehört jemand anderem. Fordern Sie den Schlüssel in Ihrem MCP-Client erneut an."
-      },
-      "expiresIn": "{count, plural, one {läuft in # Tag ab} other {läuft in # Tagen ab}}",
-      "expired": "abgelaufen",
-      "ending": "Schlüssel, die innerhalb von {days} Tagen ablaufen oder abgelaufen sind: {count}. Rotieren Sie sie, bevor die Programme, die sie nutzen, scheitern.",
-      "mint": {
-        "title": "Neuer API-Schlüssel ({credential})",
-        "hint": "Wählen Sie, wie lange er gilt. Der Schlüssel wird einmal angezeigt, direkt nach dem Erstellen.",
-        "allows": "Was der Schlüssel erlaubt",
-        "allowsNothing": "Dieses Konto hat noch keine Rolle, sein Schlüssel erlaubt daher nichts. Weisen Sie dem Konto zuerst eine Rolle zu.",
-        "expiry": "Gültig bis",
-        "asCredential": "Bis zum Ende des Zugangs: {date}",
-        "asCredentialNever": "Unbegrenzt, wie der Zugang es vorgibt",
-        "inDays": "{count, plural, one {# Tag ({date})} other {# Tage ({date})}}",
-        "onDate": "Bis zu einem Datum",
-        "dateLabel": "Letzter Gültigkeitstag des Schlüssels",
-        "dateMissing": "Wählen Sie den letzten Gültigkeitstag des Schlüssels.",
-        "datePast": "Dieser Tag ist vorbei. Wählen Sie einen Tag nach heute.",
-        "dateAfter": "Der Zugang gilt bis {date}, und ein Schlüssel kann nicht länger gelten. Wählen Sie diesen oder einen früheren Tag.",
-        "submit": "Schlüssel erstellen"
-      }
+      "emptyHint": "Ein Dienstkonto ist der Weg, auf dem ein Programm außerhalb des Portals dieses Projekt liest oder schreibt: ein Skript, eine Pipeline anderswo, eine andere Plattform. Jedes meldet sich mit einem eigenen Keycloak-Client an und hat nur die Rolle, die Sie ihm geben."
     },
     "matrix": {
       "title": "Datenzugriff",
@@ -4056,8 +3997,8 @@
       "lead": "Die Zeilen von {type}, die diese Ansicht zeigt, gelesen über denselben Endpunkt mit demselben Filter. Kopieren Sie ein Beispiel und führen Sie es unverändert aus.",
       "public": "Dieser Endpunkt antwortet jedem: Es ist kein Token nötig.",
       "tokenTitle": "Das Token Ihres Programms",
-      "token": "Legen Sie vor dem Ausführen ein Token in die Umgebungsvariable {variable}: einen API-Schlüssel eines Dienstkontos dieses Projekts, über den die Richtlinie des Endpunkts wie über Ihre Sitzung entscheidet. Fügen Sie nie Ihre persönliche Sitzung in ein Programm ein.",
-      "tokenLink": "Dienstkonto und API-Schlüssel anlegen",
+      "token": "Legen Sie vor dem Ausführen ein Token in die Umgebungsvariable {variable}: ein Access-Token eines Dienstkontos dieses Projekts, mit dessen Client-Zugangsdaten von Keycloak geholt, über das die Richtlinie des Endpunkts wie über Ihre Sitzung entscheidet. Fügen Sie nie Ihre persönliche Sitzung in ein Programm ein.",
+      "tokenLink": "Dienstkonto anlegen",
       "copy": "{language}-Beispiel kopieren",
       "language": {
         "curl": "curl (Shell)",
@@ -6091,8 +6032,7 @@
       "organization": "Die ganze Organisation"
     },
     "credentialKind": {
-      "oauth-client": "Client-ID und Geheimnis (OAuth)",
-      "api-key": "API-Schlüssel"
+      "oauth-client": "Client-ID und Geheimnis (OAuth)"
     },
     "mappingLanguage": {
       "bloblang": "Bloblang"

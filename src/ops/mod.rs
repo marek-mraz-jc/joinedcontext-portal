@@ -72,8 +72,8 @@ impl Via {
     /// Who last touched a draft, as the draft records it (AG-61).
     pub fn touched_kind(self) -> &'static str {
         match self {
-            Via::Session => "person",
-            Via::Bearer => "api-key",
+            // A program with its own Keycloak token is a person's, like the session (T-4616).
+            Via::Session | Via::Bearer => "person",
             Via::Mcp => "mcp",
             Via::Agent => "run",
         }
@@ -143,10 +143,9 @@ impl Caller {
         if op.name == "jc_workspace_discard" {
             workspaces::refuse_agent_discard(self)?;
         }
-        // The rest of what no profile can grant: another run, the answer to a run's question, and
-        // a service account's keys (AG-11). Their refusal used to live in the body alone, which
-        // left `listing` — and so `GET …/ops` and `tools/list` — offering a run an operation it
-        // would always be denied.
+        // The rest of what no profile can grant: another run and the answer to a run's question
+        // (AG-11). Their refusal used to live in the body alone, which left `listing` — and so
+        // `GET …/ops` and `tools/list` — offering a run an operation it would always be denied.
         runs::refuse_agent(self, op.name)?;
         self.grants(op)
     }
@@ -627,13 +626,9 @@ mod tests {
             "jc_project_export",
             "jc_project_import",
             "jc_model_source_put",
-            "jc_service_account_key_mint",
-            "jc_service_account_key_rotate",
-            "jc_service_account_key_revoke",
             "jc_change_get",
             "jc_run_list",
             "jc_run_get",
-            "jc_service_account_key_list",
             "jc_ckan_status",
             "jc_endpoint_list_all",
             "jc_project_get",

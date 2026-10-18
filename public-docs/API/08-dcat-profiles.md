@@ -1,7 +1,7 @@
 ---
 sidebar_position: 9
 title: National DCAT-AP Profiles
-description: What DCAT-AP-SK 2.0.1 and DCAT-AP-CZ 2026-09-23 require of an Endpoint's catalogue record beyond DCAT-AP 3.0, each rule with its source, and how the conformance suite checks it.
+description: What DCAT-AP-SK 3.0.0 and DCAT-AP-CZ 2026-09-23 require of an Endpoint's catalogue record and of a publisher's catalogue beyond DCAT-AP 3.0, each rule with its source, the per-publisher catalogue a national portal harvests, and how the conformance suite checks it.
 ---
 
 # National DCAT-AP Profiles
@@ -13,46 +13,46 @@ Every Endpoint serves a DCAT-AP 3.0 record ([EP-27](../Requirements/endpoints.md
 | Profile | Version pinned | Based on | Official text | Machine-readable shapes |
 |---|---|---|---|---|
 | DCAT-AP | 3.0.0 | DCAT 3 | <https://semiceu.github.io/DCAT-AP/releases/3.0.0/> | SEMIC SHACL, vendored |
-| DCAT-AP-SK | 2.0.1 | DCAT-AP 2.1.1 | <https://datova-kancelaria.github.io/dcat-ap-sk-2.0/> (repository `datova-kancelaria/dcat-ap-sk-2.0` at `ef7713876fdb4f319f0ae692e306b55d03b2410e`) | none published; DCAT-AP 2.1.1 SHACL plus our `sk-additions.shacl.ttl` |
+| DCAT-AP-SK | 3.0.0 | DCAT-AP 3.0.0 | "Rozhranie katalógu otvorených dát DCAT-AP-SK 3", repository `slovak-egov/centralny-model-udajov`, folder `tbox/national/dcat-ap-sk/` at `15b09176edacf3fd2ba21612c1b8d950484fc076` (`index.bs`) | `povinné-vlastnosti/dcat-ap-sk-3.0.0-shapes.ttl` and `dcat-ap-sk-3.0.0-hvd-shapes.ttl` of the same folder, vendored |
 | DCAT-AP-CZ | 2026-09-23 | DCAT-AP 3.0.0 | <https://ofn.gov.cz/dcat-ap-cz-otevřená-data/2026-09-23/> (open data), <https://ofn.gov.cz/dcat-ap-cz-hvd/2026-09-23/> (high-value datasets), <https://ofn.gov.cz/dcat-ap-cz-rozhraní-katalogů-dat/2026-09-23/> (catalogue interface) | OFN `shacl.ttl` per specification, vendored; plus our `cz-additions.shacl.ttl` for the cardinalities |
 
-**Which Slovak version data.slovensko.sk validates against today.** DCAT-AP 2.1.1, through DCAT-AP-SK 2.0.1. The catalogue's SPARQL endpoint (`https://data.slovensko.sk/api/sparql`, queried 2026-10-17) answers:
+**Which Slovak version.** DCAT-AP-SK 3.0.0. The repository `datova-kancelaria/dcat-ap-sk-2.0` that published 2.0.1 is closed and points to `slovak-egov/centralny-model-udajov`, whose `tbox/national/dcat-ap-sk/README.md` names the standard "DCAT-AP-SK 3" on DCAT 3 and DCAT-AP 3.0.0, and whose `povinné-vlastnosti/` folder is the machine-readable form of its mandatory properties. Its text is written for a local catalogue (LKOD) that the national catalogue (NKOD, data.slovensko.sk) harvests. SK and CZ now share one base, DCAT-AP 3.0.0. The store of data.slovensko.sk (`https://data.slovensko.sk/api/sparql`, queried 2026-10-17) still holds 13,646 resources declaring DCAT-AP 2.1.1 beside DCAT-AP 3 terms; a 3.0 record is what the current text asks for, and the store already carries its terms.
 
-```sparql
-PREFIX dct: <http://purl.org/dc/terms/>
-SELECT ?o (COUNT(DISTINCT ?s) AS ?n)
-WHERE { ?s dct:conformsTo ?o FILTER(CONTAINS(STR(?o), "dcat")) }
-GROUP BY ?o
-```
-
-One row: 13,646 resources declare `dct:conformsTo <https://joinup.ec.europa.eu/collection/semantic-interoperability-community-semic/solution/dcat-application-profile-data-portals-europe/release/211>`, the DCAT-AP 2.1.1 release. The same store already holds DCAT-AP 3 terms (`dcat:inSeries` on 6,203 resources, `r5r:applicableLegislation` on 500, `r5r:hvdCategory` on 325) and its own `dqv` quality measurements (the mandatory-attribute metric on 22,629 datasets). A record that meets DCAT-AP 3.0 and the SK additions below is therefore harvestable: the 3.0 terms it carries are already in the store.
+**One defect in the published shapes.** `sha-dcatapsk:catalog_dataset` gives `dcat:dataset` of a catalogue `sh:maxCount 1`, so every catalogue with two datasets fails it, the standard's own example `príklady/katalóg.ttl` (three datasets) included. The suite reports that one result apart, as the upstream defect, and holds every other result as a violation; the vendored file stays byte for byte the upstream one.
 
 **Which Czech version.** The OFN of 2026-09-23 is the newest. It replaced the single "Rozhraní katalogů otevřených dat" of 2024-05-28 with four specifications (catalogue interface, open data, HVD, data interfaces). Its published `shacl.ttl` files check value classes and datatypes but carry no `sh:minCount` except `hvdCategory`, so the mandatory rows of its tables are written as SHACL in `cz-additions.shacl.ttl`, each shape linking its row.
 
-## 2. DCAT-AP-SK 2.0.1: what it adds
+## 2. DCAT-AP-SK 3.0.0: what it adds
 
-Each row is mandatory ("Povinná") in the Slovak text and optional or absent in DCAT-AP 3.0. The source column is the section anchor on <https://datova-kancelaria.github.io/dcat-ap-sk-2.0/>.
+Each row is a property shape of `povinné-vlastnosti/dcat-ap-sk-3.0.0-shapes.ttl` (prefix `sha-dcatapsk:`), stricter than DCAT-AP 3.0. The section column is the anchor in `index.bs`.
 
-| Class | Property | Obligation | Value and vocabulary | Source |
+| Class | Property | Rule | Shape | Section |
 |---|---|---|---|---|
-| Catalog | `dct:publisher` | mandatory | IRI of the publisher | `#katalóg-poskytovateľ` |
-| Catalog | `dcat:dataset` | mandatory | at least one dataset | `#katalóg-dataset` |
-| Dataset | `dct:publisher` | mandatory | IRI of the publisher | `#dataset-poskytovateľ` |
-| Dataset | `dcat:theme` | mandatory, one or more | at least one from the EU data-theme table `http://publications.europa.eu/resource/authority/data-theme` | `#dataset-téma` |
-| Dataset | `dct:accrualPeriodicity` | mandatory, exactly one | EU frequency table `http://publications.europa.eu/resource/authority/frequency` | `#dataset-periodicita-aktualizácie` |
-| Dataset | `dcat:keyword` | mandatory, one or more | language-tagged text | `#dataset-kľúčové-slová` |
-| Dataset | `dcat:distribution` | mandatory unless the dataset is the umbrella of a series | a Distribution | `#dataset-distribúcia` |
-| Dataset | `dct:spatial` | optional | NUTS-SK territorial units first, then EU continent and country tables | `#dataset-geografické-územia` |
-| Dataset | `dct:type` | optional | `https://data.gov.sk/def/dataset-type/` | `#dataset-typ` |
-| Distribution | `dcat:accessURL` | mandatory | URL | `#distribúcia-prístupové-url` |
-| Distribution | `leg:termsOfUse` | mandatory, exactly one | a `leg:TermsOfUse` node, below | `#špecifikácia-podmienok-použitia` |
-| Distribution (file) | `dcat:downloadURL`, `dct:format`, `dcat:mediaType` | mandatory for a file download | format from the EU file-type table, media type from the IANA register | `#distribúcia-stiahnutie-súboru`, `#distribúcia-formát-súboru`, `#distribúcia-media-type` |
-| Distribution (service) | `dcat:accessService` | mandatory for a data service | a DataService with `dct:title` (mandatory) | `#distribúcia-služba`, `#dátová-služba-názov` |
-| TermsOfUse | `leg:authorsWorkType`, `leg:originalDatabaseType`, `leg:databaseProtectedBySpecialRightsType`, `leg:personalDataContainmentType` | all mandatory | `https://data.gov.sk/def/authors-work-type/`, `https://data.gov.sk/def/original-database-type/`, `https://data.gov.sk/def/codelist/database-creator-special-rights-type/`, `https://data.gov.sk/def/personal-data-occurence-type/` | `#špecifikácia-podmienok-použitia` |
+| Catalog | `dct:title`, `dct:description` | `rdf:langString`, one per language, at least one `@sk` | `catalog_title(_sk)`, `catalog_description(_sk)` | `#katalóg-názov`, `#katalóg-popis` |
+| Catalog | `dct:publisher` | exactly one IRI matching `^https://data.gov.sk/id/legal-subject/` (the body's IČO) | `catalog_publisher` | `#katalóg-poskytovateľ` |
+| Catalog | `dcat:contactPoint` | at most one, `vcard:Organization` or `vcard:Individual` | `catalog_contact` | `#katalóg-kontaktný-bod` |
+| Catalog | `dcat:dataset` | IRIs of `dcat:Dataset` (the `maxCount 1` is the upstream defect of section 1) | `catalog_dataset(_type)` | `#katalóg-dataset` |
+| Dataset | `dct:title`, `dct:description` | `rdf:langString`, one per language, at least one `@sk` | `dataset_title(_sk)`, `dataset_description(_sk)` | `#dataset-názov`, `#dataset-popis` |
+| Dataset | `dct:publisher` | exactly one IRI matching `^https://data.gov.sk/id/legal-subject/` | `dataset_publisher` | `#dataset-poskytovateľ` |
+| Dataset | `dct:issued`, `dct:modified` | at most one each, `xsd:dateTime` | `dataset_issued`, `dataset_modified` | `#dataset-dátum-publikácie`, `#dataset-dátum-modifikácie` |
+| Dataset | `dcat:theme` | one or more IRIs (EU data-theme table) | `dataset_theme` | `#dataset-téma` |
+| Dataset | `dct:accrualPeriodicity` | exactly one IRI (EU frequency table) | `dataset_frequency` | `#dataset-periodicita-aktualizácie` |
+| Dataset | `dcat:keyword` | `rdf:langString`, at least one `@sk` | `dataset_keyword(_sk)` | `#dataset-kľúčové-slová` |
+| Dataset | `dct:spatial` | one or more IRIs; NUTS-SK (`https://data.gov.sk/id/nuts1/SK0`) named first, EU tables accepted | `dataset_spatial` | `#dataset-register-adries`, `#dataset-geografické-územia` |
+| Dataset | `dcat:contactPoint` | at most one, `vcard:Organization` or `vcard:Individual` | `dataset_contact` | `#dataset-kontaktní-bod` |
+| Dataset | `dcat:distribution` | one or more IRIs of `dcat:Distribution` | `dataset_distribution` | `#dataset-distribúcia` |
+| Dataset (HVD) | `dct:type`, `r5r:hvdCategory`, `r5r:applicableLegislation` | all three or none: type `…/dataset-type/HVD`, a category, ELI `http://data.europa.eu/eli/reg_impl/2023/138/oj` | `dataset_type_hvd`, `dataset_hvdCategory(_none)`, `dataset_applicableLegislation_hvd` | `#dataset-kategória-hvd` |
+| Distribution | `leg:termsOfUse` | exactly one `leg:TermsOfUse` | `distribution_termsOfUse` | `#špecifikácia-podmienok-použitia` |
+| Distribution | `dct:title` | `rdf:langString`, one per language | `distribution_title` | `#distribúcia-názov` |
+| Distribution | `dct:conformsTo` | at most one IRI | `distribution_conformsTo` | `#distribuce-schéma` |
+| Distribution (file) | `dcat:downloadURL`, `dct:format`, `dcat:mediaType` | exactly one IRI each; `dcat:accessURL` equal to `dcat:downloadURL`; no `dcat:accessService` | `distribution_downloadURL`, `_format`, `_mediaType`, `_accessURL_download`, `_accessService_none` | `#distribúcia-stiahnutie-súboru` to `#distribúcia-media-type` |
+| Distribution (service) | `dcat:accessService` | one or more IRIs of `dcat:DataService` whose `dcat:endpointURL` equals the distribution's `dcat:accessURL`; no `dcat:downloadURL` | `distribution_accessService`, `_accessURL_service`, `_downloadURL_none` | `#distribúcia-služba` |
+| DataService | `dct:title` | `rdf:langString`, at least one `@sk` | `dataService_title(_sk)` | `#dátová-služba-názov` |
+| DataService | `dcat:endpointURL` | one or more IRIs | `dataService_endpointURL` | `#dátová-služba-prístupový-bod` |
+| TermsOfUse | `leg:authorsWorkType`, `leg:originalDatabaseType`, `leg:databaseProtectedBySpecialRightsType`, `leg:personalDataContainmentType` | exactly one IRI each | `termsOfUse_*` | `#špecifikácia-podmienok-použitia` |
+| Contact | `vcard:fn`, `vcard:hasEmail` | `fn` a `rdf:langString` with one `@sk`; one `mailto:` IRI | `contact_fn(_sk)`, `contact_hasEmail` | `#dataset-kontaktní-bod` |
 
-`leg:` is `https://data.gov.sk/def/ontology/legislation/`. The CKAN API section of the same text (`#ckan-api-názov` to `#ckan-api-distribúcia-názov`) maps these to CKAN fields; `license_link` (`#ckan-api-podmienky-pužitia`) is mandatory there.
-
-**DCAT-AP 2.1.1 versus 3.0.** The base shapes reject two things our 3.0 records carry: `spdx:algorithm` other than SHA-1 (2.1.1 allows only SHA-1; our checksums are SHA-256) and `dcat:byteSize` that is not `xsd:decimal`. Both come from the older base, not from the Slovak text; T-4499 decides whether a Slovak record drops the checksum or carries both.
+`leg:` is `https://data.gov.sk/def/ontology/legislation/`, `r5r:` is `http://data.europa.eu/r5r/`. Three rules come from the IRI form of the harvest interface, not from a shape: datasets, distributions and data services are IRIs, never blank nodes (`#rozhranie-dcat-ap-dokumenty`).
 
 ## 3. DCAT-AP-CZ 2026-09-23: what it adds
 
@@ -85,7 +85,8 @@ The conformance repository vendors the shapes under `dcat/shapes/<profile>/<vers
 
 - fails when a vendored file is not its pinned digest;
 - holds each fixture record (`tests/ckan/fixtures/catalog-*.jsonld`, the gateway's records for a public, an organization and a restricted Endpoint) to DCAT-AP 3.0.0: a violation fails;
-- reports every DCAT-AP-SK and DCAT-AP-CZ violation into `evidence/dcat-profiles.md` and fails when that committed report is not a fresh run. The national profiles turn into a gate when T-4499 lands.
+- holds each publisher catalogue fixture (`tests/ckan/fixtures/publisher-*.jsonld`, section 6) to its national profile: the Banská Bystrica catalogue in `?profile=dcat-ap-sk` to DCAT-AP-SK 3.0.0, the Praha one in `?profile=dcat-ap-cz` to DCAT-AP-CZ; a violation fails, except the upstream `catalog_dataset` defect of section 1, which the report lists apart;
+- reports every DCAT-AP-SK and DCAT-AP-CZ violation of the single records into `evidence/dcat-profiles.md` and fails when that committed report is not a fresh run.
 
 A third national profile is one more folder of shapes and one more entry in `PROFILES`; nothing else changes.
 
@@ -93,10 +94,11 @@ A third national profile is one more folder of shapes and one more entry in `PRO
 
 An Organization names the national profiles its records are served in, in `Organization.spec.dcatProfiles`: a list of `dcat-ap-sk` and `dcat-ap-cz`, empty by default. DCAT-AP 3.0 is always served and stays the default representation.
 
-- **One rendering per profile.** The record of an Endpoint and the catalogue feed take `?profile=<id>`: `dcat-ap` (the default), or a profile the Organization lists. A profile it does not list, or one this build was compiled without, answers 404. Every profile renders the same core record (title, description, publisher, themes, licence, distributions) and only adds or retypes what section 2 or 3 asks for, so the core values never differ between profiles.
-- **The Slovak record has no checksum.** The DCAT-AP 2.1.1 base accepts only SHA-1 in `spdx:algorithm`, and every checksum node must carry it. SHA-1 is broken, and `spdx:checksum` is optional in 2.1.1, so a `dcat-ap-sk` record omits it and types `dcat:byteSize` as `xsd:decimal`. The DCAT-AP 3.0 record keeps its SHA-256 checksums (EP-68).
-- **SK and CZ in one record is not offered.** The two bases disagree on `dcat:byteSize` and on the checksum, so no single record meets both; an Organization listing both serves two renderings.
-- **Inputs.** The national terms-of-use node (`leg:TermsOfUse`, `pu:Specifikace`) is derived from `spec.catalog.license`, except its personal-data statement; `dct:spatial`, `dct:accrualPeriodicity`, `dcat:keyword`, `r5r:applicableLegislation` and the publisher come from `spec.catalog` as today. A property a profile requires and the Endpoint does not declare is left out, never invented, and the conformance suite names it.
+- **One rendering per profile.** The record of an Endpoint, the installation's catalogue and a publisher's catalogue take `?profile=<id>`: `dcat-ap` (the default), or a profile the Organization lists. A profile it does not list, or one this build was compiled without, answers 404. Every profile renders the same core record (title, description, publisher, themes, licence, distributions) and only adds or retypes what section 2 or 3 asks for, so the core values never differ between profiles.
+- **Both profiles keep the checksums.** DCAT-AP-SK 3.0.0 and DCAT-AP-CZ stand on DCAT-AP 3.0.0, which takes SHA-256 in `spdx:checksum` and `xsd:nonNegativeInteger` in `dcat:byteSize`, so neither rendering drops or retypes them (EP-68).
+- **SK and CZ stay two renderings.** Each national catalogue reads its own terms-of-use node and the Slovak one also splits the distributions (below), so one rendering per profile keeps each record to what its harvester reads.
+- **What the Slovak rendering retypes.** A distribution that is a file (a `file.*` representation and every schema artifact) carries `dcat:downloadURL` equal to its `dcat:accessURL`, its `dct:format` from the EU file-type table by its media type, and no `dcat:accessService`. A distribution that is an interface (NGSI-LD, MCP, OGC API - Features, SensorThings, OData, WebSocket) gets a `dcat:DataService` of its own, `{accessURL}#service`, whose `dcat:endpointURL` is the distribution's access URL, beside the Endpoint's own service. A title or a contact name the gateway writes as one plain string, a representation's or an artifact's name and the desk's name, is written as `@sk`, the language the Slovak shapes require; an Endpoint's own titles keep their languages. A contact point is typed `vcard:Organization`. The original datasets of `dct:source` stay as IRIs without the `dcat:Dataset` type, so the national catalogue never harvests another publisher's dataset as this publisher's; the Czech rendering leaves them untyped too (T-4612).
+- **Inputs.** The national terms-of-use node (`leg:TermsOfUse`, `pu:Specifikace`) is derived from `spec.catalog.license`, except its personal-data statement; `dct:spatial`, `dct:accrualPeriodicity`, `dcat:keyword`, `r5r:applicableLegislation` come from the Endpoint's `spec.catalog`, the publisher and contact point from it or else from its Project's `spec.catalog` (section 6). A property a profile requires and the Endpoint does not declare is left out, never invented, and the conformance suite names it.
 
 - **The personal-data statement.** No licence says whether a dataset holds personal data, so the Endpoint states it in `spec.catalog.personalData`: `contains` or `does-not-contain`. Unset, the property is left out and the conformance suite names it. The code lists, read on 2026-10-18:
 
@@ -109,24 +111,53 @@ An Organization names the national profiles its records are served in, in `Organ
 
 Decided (worker-2, T-4499, owner may override): a profile is a query parameter, not content negotiation by `Accept-Profile`, because a harvester is configured with one URL. The other options were one URL per profile, or the profile as an `Accept-Profile` header.
 
-## 6. Safe and reusable records
+## 6. One catalogue per publisher
+
+A national catalogue registers one local catalogue per publisher: data.slovensko.sk a body by its IČO, data.gov.cz a body of the RPP register. One installation hosts the data of several publishers (a city, its region, a state network), each a Project naming its body in `spec.domain` ([Architecture/03](../Architecture/03-domain-model.md)), so the gateway serves a catalogue per Project that names its publisher (EP-127):
+
+- **Address.** `https://{host}/catalog/{project}.jsonld` and `https://{host}/catalog/{project}.ttl`, anonymous, with `?profile=` as in section 5. The catalogue's IRI is `https://{host}/catalog/{project}`. A project that names no publisher, a project without a public Endpoint, and a name that is no project all answer the same 404.
+- **Content.** One `dcat:Catalog` holding the record of every Endpoint of the project whose audience is `public`, as the anonymous caller reads it, and nothing of any other project; an App's own Endpoint (`app-{name}`, which the Portal writes for the App) re-serves a space for that App and is in no catalogue, this one or the installation's, though its record stays at its address (T-4612); each dataset is an IRI that dereferences to its complete record, which is the "DCAT-AP Dokumenty" interface both national catalogues harvest.
+- **The publisher.** `Project.spec.catalog.publisher`: `name` per language and `uri`, the body's registry IRI: `https://data.gov.sk/id/legal-subject/{IČO}` for a Slovak body, `https://rpp-opendata.egon.gov.cz/odrpp/zdroj/orgán-veřejné-moci/{IČO}` for a Czech one. `uri` is required here, because a catalogue's publisher is an IRI in both profiles. The catalogue names it as `dct:publisher`, and every record of the project whose Endpoint names no publisher of its own carries it too.
+- **The contact point.** `Project.spec.catalog.contactPoint`, a desk's `name` and role `email` (EP-80), on the catalogue and on every record whose Endpoint names none.
+- **Title, description, homepage.** The Project's `metadata.title` and `metadata.description` per language, and `https://{spec.domain}/` as `foaf:homepage` when the project names a domain.
+
+```yaml excerpt
+kind: Project
+metadata:
+  name: banskabystrica
+  title: { sk: "Mesto Banská Bystrica", en: "City of Banská Bystrica" }
+spec:
+  domain: banskabystrica.sk
+  catalog:
+    publisher:
+      name: { sk: "Mesto Banská Bystrica", en: "City of Banská Bystrica" }
+      uri: https://data.gov.sk/id/legal-subject/00313271
+    contactPoint: { name: "Oddelenie informatiky", email: otvorenedata@example.org }
+```
+
+The installation's catalogue `/catalog.jsonld` (EP-84) stays: it lists every public Endpoint under the Organization and is what data.europa.eu or another CKAN harvests. Registering a publisher's URL with its national catalogue is the publisher's step ([User-Guide/13](../User-Guide/13-national-open-data-portals.md)).
+
+## 7. Safe and reusable records
 
 These rules hold for every profile, so a record meeting a national catalogue never says more than the Endpoint's public description:
 
 - **Only public metadata.** A record carries no internal id, no person's e-mail and no name of a private space or project; a restricted Endpoint's record names what the anonymous caller may know and no more (EP-27).
-- **Publisher and contact point are the Organization's.** The Organization enters them; they are a desk, never a person read from Keycloak.
+- **Publisher and contact point are the publisher's.** The Endpoint's or its Project's `spec.catalog` enters them; the contact is a desk, never a person read from Keycloak.
 - **Licences only from the EU licence table** (`http://publications.europa.eu/resource/authority/licence`), and the national terms-of-use node (`leg:TermsOfUse`, `pu:Specifikace`) is derived from that licence, never typed separately (EP-78).
 - **Profiles are data.** The shapes and the mapping table are the profile; the code that writes a record reads them and holds no profile-specific branch.
 
-## 7. Requirements
+## 8. Requirements
 
 - **EP-27** [H][P][A] — the Endpoint's DCAT-AP 3.0 record ([Requirements/endpoints](../Requirements/endpoints.md)).
 - **EP-46** [P][A] — the schema artifacts the record lists.
 - **EP-68** [P][A] — every artifact a `dcat:distribution` with checksum and `dcterms:conformsTo`.
 - **EP-78** [H][P][A] — the licence the record and the CKAN dataset carry.
+- **EP-84** [H][P][A] — the installation's catalogue for harvesters.
+- **EP-127** [H][P][A] — one catalogue per publisher, in the national profiles.
 
 ## Related
 
 - [API/02-endpoint-representations](02-endpoint-representations.md) — the record itself and every representation an Endpoint serves.
 - [Architecture/21-open-data-catalogue](../Architecture/21-open-data-catalogue.md) — the catalogue the record is published to.
-- [Requirements/endpoints](../Requirements/endpoints.md) — EP-27, EP-46, EP-68, EP-78.
+- [Requirements/endpoints](../Requirements/endpoints.md) — EP-27, EP-46, EP-68, EP-78, EP-84, EP-127.
+- [User-Guide/13-national-open-data-portals](../User-Guide/13-national-open-data-portals.md) — registering a publisher's catalogue with data.slovensko.sk and data.gov.cz.

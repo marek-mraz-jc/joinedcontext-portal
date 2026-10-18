@@ -173,13 +173,15 @@ fn cookies(config: &Config, who: Identity) -> String {
 // T-2113 `Via::touched_kind`
 // -------------------------------------------------------------------------------------------------
 
-/// AG-61: the word a draft records for whoever last touched it. Four arrivals, four words, and the
-/// one a session writes is `person` (`tests/drafts_tests.rs:88` reads it back over the API).
+/// AG-61: the word a draft records for whoever last touched it: `person`, `mcp` or `run` (API/01
+/// §17). A program with its own Keycloak token is its person's, like the session, since no key
+/// stands for anyone any more (T-4616); the one a session writes is `person`
+/// (`tests/drafts_tests.rs:88` reads it back over the API).
 #[test]
-fn the_four_ways_a_caller_arrives_are_four_words_a_reader_can_tell_apart() {
+fn the_ways_a_caller_arrives_are_three_words_a_reader_can_tell_apart() {
     let all = [
         (Via::Session, "person"),
-        (Via::Bearer, "api-key"),
+        (Via::Bearer, "person"),
         (Via::Mcp, "mcp"),
         (Via::Agent, "run"),
     ];
@@ -188,12 +190,16 @@ fn the_four_ways_a_caller_arrives_are_four_words_a_reader_can_tell_apart() {
         // The word is written into a draft and read back by the UI: nothing that needs escaping,
         // and nothing that could be read as a second value.
         assert!(
-            word.chars().all(|c| c.is_ascii_lowercase() || c == '-') && !word.is_empty(),
+            word.chars().all(|c| c.is_ascii_lowercase()) && !word.is_empty(),
             "{via:?} records {word:?}",
         );
     }
     let words: std::collections::BTreeSet<&str> = all.iter().map(|(_, word)| *word).collect();
-    assert_eq!(words.len(), all.len(), "two arrivals record the same word");
+    assert_eq!(
+        words.into_iter().collect::<Vec<_>>(),
+        ["mcp", "person", "run"],
+        "the words API/01 lists, and no other"
+    );
     // An agent run is never recorded as the person who started it: an audit trail that cannot tell
     // the two apart is an audit trail that cannot answer who did it (AG-70).
     assert_ne!(Via::Agent.touched_kind(), Via::Session.touched_kind());
@@ -241,7 +247,7 @@ fn a_profile_narrows_and_a_caller_without_one_is_narrowed_by_nothing() {
 /// in a log, and a profile is not a list to be enumerated through refusals.
 #[test]
 fn the_profiles_refusal_names_the_operation_and_nothing_of_the_person_or_the_profile() {
-    let secret_looking = "jc_service_account_key_mint";
+    let secret_looking = "jc_run_answer";
     let named = Access::from_spec(&json!({
         "access": { "operations": [secret_looking, "jc_catalog_search"],
                     "kinds": [{ "kind": "*", "verbs": ["read"] }] }
