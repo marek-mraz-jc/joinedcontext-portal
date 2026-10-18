@@ -205,8 +205,17 @@ describe("the endpoints page", () => {
 
   // T-4545: 10 000 rows mounted at once showed the first after 18 s.
   const many = Array.from({ length: 120 }, (_, i) => endpoint(`ep-${String(i).padStart(4, "0")}`));
+  // Anchors by text, not a role query: computing the role of every cell of 120 rows on every
+  // poll is what a loaded CI host turned into 26 s and a timeout (T-3538, T-4553).
   const rowLinks = () =>
-    screen.getAllByRole("link").filter((link) => /^ep-\d{4}$/.test(link.textContent ?? ""));
+    Array.from(document.querySelectorAll("a[href]")).filter((link) => /^ep-\d{4}$/.test(link.textContent ?? ""));
+  // One change per search, not one render of 120 rows per typed character.
+  const search = async (text: string) => {
+    const box = screen.getByRole("searchbox", { name: en.endpoints.find });
+    await userEvent.clear(box);
+    await userEvent.click(box);
+    await userEvent.paste(text);
+  };
 
   it("shows_a_page_of_rows_then_more_on_request_and_finds_one_by_name", async () => {
     await renderRoute({ path: PATH, answer: answering(many) });
@@ -219,11 +228,10 @@ describe("the endpoints page", () => {
     expect(rowLinks()).toHaveLength(120);
     expect(screen.queryByRole("button", { name: /^Show \d+ more$/ })).toBeNull();
 
-    await userEvent.type(screen.getByRole("searchbox", { name: en.endpoints.find }), "EP-0119");
+    await search("EP-0119");
     expect(rowLinks().map((link) => link.textContent)).toEqual(["ep-0119"]);
     expect(screen.getByText("Showing 1 of 1")).toBeInTheDocument();
-    await userEvent.clear(screen.getByRole("searchbox", { name: en.endpoints.find }));
-    await userEvent.type(screen.getByRole("searchbox", { name: en.endpoints.find }), "nothing-like-it");
+    await search("nothing-like-it");
     expect(screen.getByText("Showing 0 of 0")).toBeInTheDocument();
   });
 
@@ -234,12 +242,10 @@ describe("the endpoints page", () => {
     await renderRoute({ path: PATH, answer: answering(titled) });
     await screen.findByRole("link", { name: "ep-0000" });
     await userEvent.click(screen.getByRole("button", { name: "Show 50 more" }));
-    const search = screen.getByRole("searchbox", { name: en.endpoints.find });
-    await userEvent.type(search, "   ");
+    await search("   ");
     expect(rowLinks()).toHaveLength(50);
     expect(screen.getByText("Showing 50 of 120")).toBeInTheDocument();
-    await userEvent.clear(search);
-    await userEvent.type(search, "zvolen");
+    await search("zvolen");
     expect(screen.getByRole("link", { name: "Noise in Zvolen" })).toBeInTheDocument();
     expect(screen.getByText("Showing 1 of 1")).toBeInTheDocument();
   });
