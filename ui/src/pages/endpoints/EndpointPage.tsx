@@ -38,6 +38,7 @@ import { bindingOf, spaceSegment } from "../../components/endpoints/policyBindin
 import type { Binding } from "../../components/endpoints/policyBinding";
 import { grantWrites, groupOf } from "../../components/endpoints/operationGroups";
 import { CatalogSection } from "./CatalogSection";
+import { VisualizationsSection } from "./VisualizationsSection";
 import { FilterProof, classesWithSlots } from "./FilterProof";
 import { filterSlotsOf, useModelSource } from "../../components/entities/filters";
 import { parseModel } from "../models/linkml";
@@ -621,6 +622,17 @@ export function EndpointPage({
 
       <Section title={t("endpoints.page.catalog.title")} lead={t("endpoints.page.catalog.lead")}>
         <CatalogSection slug={slug} catalog={spec.catalog} audience={spec.audience ?? "project-list"} />
+      </Section>
+
+      <Section title={t("endpoints.page.visualizations.title")} lead={t("endpoints.page.visualizations.lead")}>
+        <VisualizationsSection
+          project={project}
+          manifest={manifest}
+          types={filtered ? classesOf(filtered) : []}
+          columnsOf={(type) => filterSlotsOf(modelSource, type).map((slot) => slot.name)}
+          served={servedRepresentations(spec)}
+          canEdit={permissions.can("Endpoint", "propose")}
+        />
       </Section>
 
       {/* An endpoint has no pause; deleting it through a change is how it stops (EP-89). */}

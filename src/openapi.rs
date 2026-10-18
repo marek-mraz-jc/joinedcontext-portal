@@ -202,6 +202,7 @@ use crate::tools::model_tools::{
         crate::api::preferences::add_recent,
         crate::api::app_templates::list_templates,
         crate::api::app_templates::screenshot,
+        crate::api::visualization_templates::fill_template,
         crate::api::ops::list_ops,
         crate::api::ops::run_op,
         crate::api::drafts::list_drafts,
