@@ -1780,6 +1780,38 @@ mod tests {
         }
     }
 
+    /// T-4470 edge cases: a trailing slash goes from the addresses paths are appended to and stays
+    /// on the model tools; the runner URL is a template checked with `{project}` filled in.
+    #[test]
+    fn addresses_keep_or_drop_their_slash_and_the_runner_template_is_probed() {
+        let vars = |name: &str| match name {
+            "JC_PORTAL_GATEWAY_URL" => Some("http://gw:8080/".to_owned()),
+            "JC_PORTAL_MODEL_TOOLS_URL" => Some("http://tools:8000/".to_owned()),
+            "JC_PORTAL_PIPELINE_RUNNER_URL" => Some("http://runner.{project}.svc:4195".to_owned()),
+            _ => None,
+        };
+        let config = Config::from_vars(vars).expect("valid");
+        assert_eq!(config.gateway_url.as_deref(), Some("http://gw:8080"));
+        assert_eq!(
+            config.model_tools_url.as_deref(),
+            Some("http://tools:8000/")
+        );
+        assert_eq!(
+            config.pipeline_runner_url.as_deref(),
+            Some("http://runner.{project}.svc:4195"),
+            "the template is kept as written"
+        );
+        let bad_runner = |name: &str| {
+            (name == "JC_PORTAL_PIPELINE_RUNNER_URL").then(|| "ftp://runner.{project}".to_owned())
+        };
+        match Config::from_vars(bad_runner) {
+            Err(ConfigError::Invalid { var, .. }) => {
+                assert_eq!(var, "JC_PORTAL_PIPELINE_RUNNER_URL")
+            }
+            other => panic!("{:?}", other.map(|_| ())),
+        }
+    }
+
     #[test]
     fn a_namespace_is_a_dns_label_and_blank_is_unset() {
         let var = "JC_PORTAL_MQTT_NAMESPACE";
