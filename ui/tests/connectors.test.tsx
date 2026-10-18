@@ -9,7 +9,7 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
-import { connectorProblems, connectorUrl, fromForm, reach, resetConnectors, toForm, toggledStar } from "../src/pages/mcp/connectors";
+import { connectorProblems, connectorUrl, fromForm, reach, toForm, toggledStar } from "../src/pages/mcp/connectors";
 import type { Connector, Readable } from "../src/pages/mcp/connectors";
 import { ConnectorStar } from "../src/pages/mcp/ConnectorStar";
 import { ConnectorsPage } from "../src/pages/mcp/ConnectorsPage";
@@ -118,7 +118,6 @@ function renderAt(path: string, stub: Stub = {}, page?: JSX.Element) {
 
 describe("the connectors page (T-4531)", () => {
   beforeEach(async () => {
-    resetConnectors();
     await i18n.changeLanguage("en");
   });
   afterEach(() => {

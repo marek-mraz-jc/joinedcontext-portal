@@ -126,7 +126,6 @@ export function toggledStar(connectors: Connector[], slug: string): Connector[] 
 // The person's connectors, read once and written back whole with the rest of their preferences
 // kept, the way the starred pages are (navigation/places.ts).
 let connectors: Connector[] = [];
-let loading: Promise<void> | null = null;
 const listeners = new Set<() => void>();
 
 function publish(next: Connector[]): void {
@@ -139,11 +138,11 @@ async function read(): Promise<Preferences | null> {
   return answer.data ?? null;
 }
 
+/** Reads the stored connectors again on every mount: one small GET, never a stale list. */
 function load(): Promise<void> {
-  loading ??= read()
+  return read()
     .then((stored) => publish(stored?.connectors ?? []))
     .catch(() => undefined);
-  return loading;
 }
 
 /** Saves `change` of the stored connectors; rejects with the server's reason when it refuses. */
@@ -168,10 +167,4 @@ export function useConnectors(): Connector[] {
     },
     () => connectors,
   );
-}
-
-/** For tests: forget what was read. */
-export function resetConnectors(): void {
-  connectors = [];
-  loading = null;
 }
