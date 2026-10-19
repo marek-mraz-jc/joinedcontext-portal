@@ -1,6 +1,8 @@
-//! The open-data catalogue as an NGSI-LD Endpoint (T-4500): the gateway's DCAT-AP feed becomes one
-//! `Dataset` per context space and one `DataService` per public Endpoint, written through the
-//! repository's `catalog` Endpoint; a change is written in the wave it appears, and only it.
+//! The open-data catalogue as an NGSI-LD Endpoint (T-4500, T-4746): the gateway's DCAT-AP feed
+//! becomes one `DataService` per public Endpoint, CKAN's public datasets one `Dataset` each with
+//! their `Organization`, and an Endpoint no CKAN dataset names a `Dataset` of its own, written
+//! through the repository's `catalog` Endpoint; a change is written in the wave it appears, and
+//! only it.
 
 use joinedcontext_portal::config::ClientAuth;
 use joinedcontext_portal::reconciler::catalog::{entities, fold, places, CatalogSync, Place, Run};
@@ -9,7 +11,7 @@ use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Arc;
-use wiremock::matchers::{method, path};
+use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 const PROJECT: &str = "mesto";
@@ -150,12 +152,12 @@ fn air_feed(air_title: &str) -> Value {
 }
 
 #[test]
-fn a_dataset_per_space_and_a_service_per_public_endpoint_agree_with_the_record() {
+fn without_ckan_each_public_endpoint_is_a_service_and_a_dataset_that_agree_with_the_record() {
     let dir = scratch("1");
     let places = places(&city(&dir, true));
     assert!(!places.contains_key(INNER) && !places.contains_key(CATALOG_SLUG));
     let feed = air_feed("Air quality in Banská Bystrica");
-    let built = entities(feed["@included"].as_array().expect("nodes"), &places);
+    let built = entities(feed["@included"].as_array().expect("nodes"), &places, None);
     let ids: Vec<&str> = built.keys().map(String::as_str).collect();
     assert_eq!(
         ids,
@@ -163,8 +165,9 @@ fn a_dataset_per_space_and_a_service_per_public_endpoint_agree_with_the_record()
             format!("urn:ngsi-ld:DataService:{AIR}").as_str(),
             &format!("urn:ngsi-ld:DataService:{AIR_HISTORY}"),
             &format!("urn:ngsi-ld:DataService:{BIKES}"),
-            "urn:ngsi-ld:Dataset:mesto-doprava",
-            "urn:ngsi-ld:Dataset:mesto-ovzdusie",
+            &format!("urn:ngsi-ld:Dataset:{AIR}"),
+            &format!("urn:ngsi-ld:Dataset:{AIR_HISTORY}"),
+            &format!("urn:ngsi-ld:Dataset:{BIKES}"),
         ]
     );
     assert!(!serde_json::to_string(&built)
@@ -208,12 +211,11 @@ fn a_dataset_per_space_and_a_service_per_public_endpoint_agree_with_the_record()
     assert_eq!(service["accessRights"]["value"], record["dct:accessRights"]);
     assert_eq!(service["license"]["value"], record["dct:license"]);
     assert_eq!(
-        service["servesDataset"]["object"],
-        "urn:ngsi-ld:Dataset:mesto-ovzdusie"
+        service["refDataset"],
+        json!({ "type": "ListRelationship", "objectList": [{ "object": format!("urn:ngsi-ld:Dataset:{AIR}") }] })
     );
 
-    let dataset = &built["urn:ngsi-ld:Dataset:mesto-ovzdusie"];
-    // The space's first public Endpoint by slug names it.
+    let dataset = &built[&format!("urn:ngsi-ld:Dataset:{AIR}")];
     assert_eq!(
         dataset["title"]["languageMap"]["en"],
         "Air quality in Banská Bystrica"
@@ -242,13 +244,10 @@ fn a_dataset_per_space_and_a_service_per_public_endpoint_agree_with_the_record()
         json!([19.25, 48.8]),
         "the space's area is where `georel=near` finds it"
     );
-    let services: Vec<&Value> = dataset["dataService"]["value"]
-        .as_array()
-        .expect("a list")
-        .iter()
-        .map(|link| &link["identifier"])
-        .collect();
-    assert_eq!(services, [AIR, AIR_HISTORY]);
+    assert_eq!(
+        dataset["refDataService"]["object"],
+        format!("urn:ngsi-ld:DataService:{AIR}")
+    );
     let search = dataset["searchText"]["value"].as_str().expect("text");
     assert!(
         search.contains("banska bystrica") && search.contains("bystrici"),
@@ -259,7 +258,7 @@ fn a_dataset_per_space_and_a_service_per_public_endpoint_agree_with_the_record()
         "{search}"
     );
     // No area declared: no location written, not an empty one.
-    assert!(built["urn:ngsi-ld:Dataset:mesto-doprava"]
+    assert!(built[&format!("urn:ngsi-ld:Dataset:{BIKES}")]
         .get("location")
         .is_none());
 }
@@ -374,13 +373,13 @@ async fn an_endpoint_created_renamed_and_deleted_shows_in_the_catalog_within_one
     assert_eq!(
         run,
         Some(Run {
-            upserted: 5,
+            upserted: 6,
             deleted: 0
         })
     );
     let (sent, listings) = gateway.sent(0).await;
     assert_eq!(listings, 1, "a fresh Portal lists what the catalogue holds");
-    assert_eq!(sent["upsert"].len(), 5);
+    assert_eq!(sent["upsert"].len(), 6);
 
     // Nothing changed: nothing is written, and the memory is trusted.
     let from = gateway.requests().await;
@@ -391,7 +390,7 @@ async fn an_endpoint_created_renamed_and_deleted_shows_in_the_catalog_within_one
     let (sent, listings) = gateway.sent(from).await;
     assert!(sent.is_empty() && listings == 0, "{sent:?}");
 
-    // Renamed: its service and its space's Dataset, and nothing else.
+    // Renamed: its service and its Dataset, and nothing else.
     *gateway.feed.lock().expect("feed") = air_feed("Air in Banská Bystrica");
     let from = gateway.requests().await;
     sync.converge(&city(&dir, true)).await.expect("the rename");
@@ -400,11 +399,11 @@ async fn an_endpoint_created_renamed_and_deleted_shows_in_the_catalog_within_one
         sent["upsert"],
         [
             format!("urn:ngsi-ld:DataService:{AIR}"),
-            "urn:ngsi-ld:Dataset:mesto-ovzdusie".to_owned()
+            format!("urn:ngsi-ld:Dataset:{AIR}"),
         ]
     );
 
-    // Deleted from the repository: its service and its now empty space go.
+    // Deleted from the repository: its service and its Dataset go.
     let from = gateway.requests().await;
     let run = sync.converge(&city(&dir, false)).await.expect("the delete");
     assert_eq!(
@@ -419,7 +418,7 @@ async fn an_endpoint_created_renamed_and_deleted_shows_in_the_catalog_within_one
         sent["delete"],
         [
             format!("urn:ngsi-ld:DataService:{BIKES}"),
-            "urn:ngsi-ld:Dataset:mesto-doprava".to_owned(),
+            format!("urn:ngsi-ld:Dataset:{BIKES}"),
         ]
     );
 }
@@ -461,7 +460,7 @@ async fn a_refused_write_is_an_error_and_the_next_wave_lists_again() {
         .await
         .expect("the next wave");
     let (sent, listings) = gateway.sent(from).await;
-    assert_eq!((listings, sent["upsert"].len()), (1, 5));
+    assert_eq!((listings, sent["upsert"].len()), (1, 6));
 }
 
 #[tokio::test]
@@ -573,7 +572,7 @@ async fn a_service_lists_its_types_with_counts_and_the_next_query() {
     );
     let dataset = written
         .iter()
-        .find(|e| e["id"] == "urn:ngsi-ld:Dataset:mesto-ovzdusie")
+        .find(|e| e["id"] == format!("urn:ngsi-ld:Dataset:{AIR}"))
         .expect("the air dataset");
     assert!(
         dataset["searchText"]["value"]
@@ -598,4 +597,157 @@ async fn a_service_lists_its_types_with_counts_and_the_next_query() {
             .any(|r| r.url.path().starts_with(&surface)),
         "counts are read once an hour"
     );
+}
+
+/// One CKAN dataset over `slug`: the Endpoint's own (its `identifier`), or a harvested one that
+/// narrows a shared Endpoint to `kind`.
+fn ckan_package(name: &str, slug: &str, org: &str, kind: Option<&str>, private: bool) -> Value {
+    let (url, extras) = match kind {
+        Some(kind) => (
+            format!("{HOST}/api/endpoint/{slug}/ngsi-ld/v1/entities?type={kind}"),
+            json!([]),
+        ),
+        None => (
+            format!("{HOST}/api/endpoint/{slug}/ngsi-ld/v1/"),
+            json!([{ "key": "identifier", "value": slug }]),
+        ),
+    };
+    json!({
+        "name": name, "title": format!("{name} title"), "notes": "Readings.",
+        "private": private, "state": "active",
+        "organization": { "name": org, "title": format!("{org} title") },
+        "tags": [{ "name": "air" }], "extras": extras, "resources": [{ "url": url }],
+    })
+}
+
+fn search(packages: &[Value]) -> Value {
+    json!({ "success": true, "result": { "count": packages.len(), "results": packages } })
+}
+
+/// The city with its CKAN, served by the same mock server as the gateway.
+fn city_with_ckan(dir: &Path, site: &str) -> jcctl::loader::Repository {
+    city(dir, true);
+    std::fs::write(
+        dir.join("ckan.yaml"),
+        manifest(
+            "CkanInstance",
+            "mesto",
+            json!({
+                "url": site, "organizationDefault": "mesto",
+                "apiTokenRef": { "name": "ckan-token", "key": "token" },
+            }),
+        ),
+    )
+    .expect("a manifest");
+    jcctl::loader::Repository::load(dir).expect("the repository loads")
+}
+
+/// T-4746: CKAN's public datasets are the catalogue's Datasets, by CKAN's name, with their
+/// Organization and its count; the Endpoint no dataset names keeps a Dataset of its own; a
+/// withdrawn dataset goes in the next wave; a CKAN that does not answer writes nothing.
+#[tokio::test]
+async fn ckan_datasets_and_their_organizations_are_the_catalogue() {
+    let dir = scratch("8");
+    let gateway = Gateway::start(air_feed("Air quality in Banská Bystrica")).await;
+    let listed = Arc::new(std::sync::Mutex::new(search(&[
+        ckan_package("air-quality", AIR, "mesto", None, false),
+        ckan_package(
+            "air-history-shmu",
+            AIR_HISTORY,
+            "shmu",
+            Some("AirQualityObserved"),
+            false,
+        ),
+        ckan_package("draft", BIKES, "mesto", None, true),
+    ])));
+    let served = Arc::clone(&listed);
+    Mock::given(method("GET"))
+        .and(path("/api/3/action/package_search"))
+        .and(query_param("start", "0"))
+        .respond_with(move |_: &wiremock::Request| {
+            ResponseTemplate::new(200).set_body_json(served.lock().expect("search").clone())
+        })
+        .mount(&gateway.server)
+        .await;
+    let repo = city_with_ckan(&dir, &gateway.server.uri());
+    let sync = gateway.sync();
+    sync.converge(&repo).await.expect("the first wave");
+    let (sent, _) = gateway.sent(0).await;
+    let mut ids = sent["upsert"].clone();
+    ids.sort();
+    assert_eq!(
+        ids,
+        [
+            format!("urn:ngsi-ld:DataService:{AIR}"),
+            format!("urn:ngsi-ld:DataService:{AIR_HISTORY}"),
+            format!("urn:ngsi-ld:DataService:{BIKES}"),
+            "urn:ngsi-ld:Dataset:air-history-shmu".to_owned(),
+            "urn:ngsi-ld:Dataset:air-quality".to_owned(),
+            // The private CKAN dataset is not public: the Endpoint keeps its own.
+            format!("urn:ngsi-ld:Dataset:{BIKES}"),
+            "urn:ngsi-ld:Organization:mesto".to_owned(),
+            "urn:ngsi-ld:Organization:shmu".to_owned(),
+        ]
+    );
+    let requests = gateway.server.received_requests().await.expect("recorded");
+    let written: Vec<Value> = requests
+        .iter()
+        .filter(|r| r.url.path().ends_with("entityOperations/upsert"))
+        .flat_map(|r| serde_json::from_slice::<Vec<Value>>(&r.body).expect("a batch"))
+        .collect();
+    let find = |id: &str| written.iter().find(|e| e["id"] == id).expect(id).clone();
+    let mesto = find("urn:ngsi-ld:Organization:mesto");
+    assert_eq!(mesto["datasetCount"]["value"], 1, "{mesto}");
+    let harvested = find("urn:ngsi-ld:Dataset:air-history-shmu");
+    assert_eq!(
+        harvested["refPublisher"]["object"],
+        "urn:ngsi-ld:Organization:shmu"
+    );
+    assert_eq!(
+        harvested["refDataService"]["object"],
+        format!("urn:ngsi-ld:DataService:{AIR_HISTORY}")
+    );
+    let ckan_reads = requests
+        .iter()
+        .filter(|r| r.url.path().ends_with("package_search"));
+    assert!(
+        ckan_reads.clone().count() == 1
+            && ckan_reads
+                .clone()
+                .all(|r| !r.headers.contains_key("authorization")),
+        "CKAN is read once, anonymously"
+    );
+
+    // Withdrawn in CKAN: its Dataset and its now empty Organization go, the Endpoint's own
+    // Dataset comes back.
+    *listed.lock().expect("search") =
+        search(&[ckan_package("air-quality", AIR, "mesto", None, false)]);
+    let from = gateway.requests().await;
+    sync.converge(&repo).await.expect("the withdrawal");
+    let (sent, _) = gateway.sent(from).await;
+    let mut deleted = sent["delete"].clone();
+    deleted.sort();
+    assert_eq!(
+        deleted,
+        [
+            "urn:ngsi-ld:Dataset:air-history-shmu",
+            "urn:ngsi-ld:Organization:shmu"
+        ]
+    );
+    assert!(sent["upsert"].contains(&format!("urn:ngsi-ld:Dataset:{AIR_HISTORY}")));
+    assert!(!sent["upsert"].contains(&format!("urn:ngsi-ld:Dataset:{AIR}")));
+
+    // CKAN fails: the run fails and writes nothing.
+    let _down = Mock::given(method("GET"))
+        .and(path("/api/3/action/package_search"))
+        .respond_with(ResponseTemplate::new(503))
+        .with_priority(1)
+        .mount_as_scoped(&gateway.server)
+        .await;
+    *listed.lock().expect("search") = search(&[]);
+    let from = gateway.requests().await;
+    let err = sync.converge(&repo).await.expect_err("CKAN down");
+    assert!(err.contains("CKAN"), "{err}");
+    let (sent, _) = gateway.sent(from).await;
+    assert!(sent.is_empty(), "{sent:?}");
 }
