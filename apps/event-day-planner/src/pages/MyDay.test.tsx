@@ -367,6 +367,29 @@ describe("MyDay featured events", () => {
     expect(await screen.findByText("No event is featured.")).toBeInTheDocument();
   });
 
+  // T-4783: a note typed while the server is still featuring the event survives the server's answer.
+  it("keeps a note typed before the feature is confirmed, and saves it", async () => {
+    const server = memory(STEWARD);
+    const real = server.feature;
+    let confirm = () => {};
+    server.feature = vi.fn((eventId: string, note: string) => new Promise((done) => (confirm = () => done(real(eventId, note)))));
+    showAs(STEWARD, server);
+    const list = await screen.findByRole("list", { name: "Events of the day" });
+    await screen.findByText("No event is featured.");
+    fireEvent.click(within(list).getByRole("button", { name: "Feature: Organ concert" }));
+    const featured = await screen.findByRole("list", { name: "Featured events" });
+    const note = within(featured).getByRole("textbox", { name: "Note" });
+    fireEvent.change(note, { target: { value: "Free entry" } });
+    await act(async () => confirm());
+    expect(await screen.findByText("Featured: Organ concert.")).toBeInTheDocument();
+    expect(within(featured).getByRole("textbox", { name: "Note" })).toHaveValue("Free entry");
+    const save = within(featured).getByRole("button", { name: "Save the note" });
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+    expect(await screen.findByText("The note is saved.")).toBeInTheDocument();
+    expect(server.changeNote).toHaveBeenCalledWith(1, "Free entry");
+  });
+
   it("puts the list back and says why when the server refuses a steward's change", async () => {
     const server = memory(STEWARD);
     await server.feature(ORGAN, "Free entry");
