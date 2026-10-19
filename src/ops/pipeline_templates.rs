@@ -80,15 +80,22 @@ pub fn template_spec(manifest: &Value) -> Result<Value, TemplateError> {
     spec.remove("dataSourceRef");
     spec.remove("endpointRef");
     spec.remove("targetEndpoint");
-    for (list, refs) in [
+    // `source`/`output` is the one-object form of `sources`/`outputs` (T-3995: dev's seeded
+    // pipelines kept their `source.dataSourceRef` in a template).
+    for (field, refs) in [
         ("sources", &["dataSourceRef", "endpointRef"][..]),
+        ("source", &["dataSourceRef", "endpointRef"][..]),
         ("outputs", &["targetEndpoint"][..]),
+        ("output", &["targetEndpoint"][..]),
     ] {
-        if let Some(Value::Array(items)) = spec.get_mut(list) {
-            for item in items.iter_mut().filter_map(Value::as_object_mut) {
-                for key in refs {
-                    item.remove(*key);
-                }
+        let items: Vec<&mut Value> = match spec.get_mut(field) {
+            Some(Value::Array(items)) => items.iter_mut().collect(),
+            Some(item) => vec![item],
+            None => Vec::new(),
+        };
+        for item in items.into_iter().filter_map(Value::as_object_mut) {
+            for key in refs {
+                item.remove(*key);
             }
         }
     }
@@ -279,6 +286,36 @@ mod tests {
                 "steps": [{ "kind": "bloblang", "bloblang": "root = this" }]
             })
         );
+    }
+
+    #[test]
+    fn the_one_source_form_drops_its_references_too() {
+        let spec = template_spec(&json!({
+            "kind": "Pipeline",
+            "spec": {
+                "class": "auto",
+                "schedule": "*/30 * * * *",
+                "source": { "dataSourceRef": { "kind": "DataSource", "name": "fmi-air-quality" } },
+                "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:air:all",
+                "output": { "type": "AirQualityObserved", "mode": "upsert", "targetEndpoint": "x" }
+            }
+        }))
+        .expect("a template");
+        assert_eq!(
+            spec,
+            json!({
+                "class": "auto",
+                "schedule": "*/30 * * * *",
+                "source": {},
+                "output": { "type": "AirQualityObserved", "mode": "upsert" }
+            })
+        );
+        let by_endpoint = template_spec(&json!({
+            "kind": "Pipeline",
+            "spec": { "source": { "endpointRef": "kpi", "query": { "type": "X" } } }
+        }))
+        .expect("a template");
+        assert_eq!(by_endpoint, json!({ "source": { "query": { "type": "X" } } }));
     }
 
     #[test]
