@@ -105,7 +105,7 @@ const MAX_CHAT_BODY: usize = 64 * 1024;
 /// The largest upload: the most any source's `upload.maxBytes` allows (T-4184).
 const MAX_UPLOAD_BODY: usize = jc_core::kinds::assistant::MAX_UPLOAD_BYTES as usize;
 /// The longest a list of stored conversations may take.
-const LIST_TIME: Duration = Duration::from_secs(20);
+pub(super) const LIST_TIME: Duration = Duration::from_secs(20);
 /// The longest an answer may take: six model calls and their tools (AG-107).
 const CHAT_TIMEOUT: Duration = Duration::from_secs(300);
 
@@ -165,14 +165,13 @@ pub(crate) async fn ask(
     ask_with(state, method, path, Duration::from_secs(20), with).await
 }
 
-/// [`ask`] with the request's body and time limit chosen by the caller: an upload's raw bytes.
-async fn ask_with(
+/// A request to the assistant's administration routes with the Portal's own token.
+async fn request(
     state: &AppState,
     method: reqwest::Method,
     path: &str,
     timeout: Duration,
-    with: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
-) -> Result<(StatusCode, Value), ApiError> {
+) -> Result<reqwest::RequestBuilder, ApiError> {
     let base = state.config.knowledge_url.as_deref().ok_or_else(|| {
         ApiError::Unavailable(
             "this Portal has no knowledge assistant address (JC_PORTAL_KNOWLEDGE_URL)".into(),
@@ -184,15 +183,22 @@ async fn ask_with(
     let token = oidc.service_token().await.map_err(|err| {
         ApiError::Unavailable(format!("no token for the knowledge assistant: {err}"))
     })?;
-    let request = http()
+    Ok(http()
         .request(method, format!("{base}/internal/v1/projects/{path}"))
         .bearer_auth(token)
-        .timeout(timeout);
-    let answer = with(request).send().await.map_err(|err| {
+        .timeout(timeout))
+}
+
+/// Sends `request`; the answer, or the refusal it carries as the Portal's own error.
+pub(super) async fn sent(request: reqwest::RequestBuilder) -> Result<reqwest::Response, ApiError> {
+    let answer = request.send().await.map_err(|err| {
         tracing::warn!(error = %err.without_url(), "the knowledge assistant did not answer");
         ApiError::Unavailable("the knowledge assistant did not answer; try again shortly".into())
     })?;
     let status = StatusCode::from_u16(answer.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+    if status.is_success() {
+        return Ok(answer);
+    }
     let body: Value = answer.json().await.unwrap_or(Value::Null);
     let detail = || {
         body.get("detail")
@@ -200,23 +206,47 @@ async fn ask_with(
             .unwrap_or("no reason given")
             .to_owned()
     };
-    match status.as_u16() {
-        200..=299 => Ok((status, body)),
-        400 => Err(ApiError::BadRequest(detail())),
-        404 => Err(ApiError::NotFound(detail())),
-        409 => Err(ApiError::Conflict(detail())),
-        413 => Err(ApiError::TooLarge(detail())),
-        415 => Err(ApiError::UnsupportedMediaType(detail())),
+    Err(match status.as_u16() {
+        400 => ApiError::BadRequest(detail()),
+        404 => ApiError::NotFound(detail()),
+        409 => ApiError::Conflict(detail()),
+        413 => ApiError::TooLarge(detail()),
+        415 => ApiError::UnsupportedMediaType(detail()),
         401 | 403 => {
             tracing::error!("the knowledge assistant refused the Portal's own token");
-            Err(ApiError::Unavailable(
+            ApiError::Unavailable(
                 "the knowledge assistant does not accept this Portal's token".into(),
-            ))
+            )
         }
-        _ => Err(ApiError::Unavailable(format!(
-            "the knowledge assistant answered {status}"
-        ))),
-    }
+        _ => ApiError::Unavailable(format!("the knowledge assistant answered {status}")),
+    })
+}
+
+/// [`ask`] with the request's body and time limit chosen by the caller: an upload's raw bytes.
+pub(super) async fn ask_with(
+    state: &AppState,
+    method: reqwest::Method,
+    path: &str,
+    timeout: Duration,
+    with: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
+) -> Result<(StatusCode, Value), ApiError> {
+    let answer = sent(with(request(state, method, path, timeout).await?)).await?;
+    let status = StatusCode::from_u16(answer.status().as_u16()).unwrap_or(StatusCode::OK);
+    Ok((status, answer.json().await.unwrap_or(Value::Null)))
+}
+
+/// The assistant's answer to a GET of `path` with `query`, as text: a CSV export.
+pub(super) async fn ask_text(
+    state: &AppState,
+    path: &str,
+    timeout: Duration,
+    query: &impl serde::Serialize,
+) -> Result<String, ApiError> {
+    let request = request(state, reqwest::Method::GET, path, timeout).await?;
+    sent(request.query(query)).await?.text().await.map_err(|err| {
+        tracing::warn!(error = %err.without_url(), "the knowledge assistant's answer broke off");
+        ApiError::Unavailable("the knowledge assistant's answer broke off; try again shortly".into())
+    })
 }
 
 /// What a source is, from its manifest: for the list, beside what it holds.
@@ -882,7 +912,7 @@ pub struct ConversationFilter {
     /// Words of a question or an answer, 2 to 100 characters.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub q: Option<String>,
-    /// `lastAt` (default) or `costUsd`.
+    /// `lastAt` (default), `costUsd`, `tokens` or `totalMs`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -894,7 +924,7 @@ pub struct ConversationFilter {
 
 /// The assistant's administrator: `approve` on `AssistantDeployment` (or `delete` to erase), else
 /// `403` naming it (API/01 §34, T-4670).
-fn administers(
+pub(super) fn administers(
     state: &AppState,
     user: &CurrentUser,
     project: &str,
@@ -965,7 +995,7 @@ fn counted(
 }
 
 /// `429` once `subject` made [`TRANSCRIPT_CALLS_PER_MINUTE`] calls on the transcripts this minute.
-fn admitted(subject: &str, now: Instant) -> Result<(), ApiError> {
+pub(super) fn admitted(subject: &str, now: Instant) -> Result<(), ApiError> {
     static CALLS: OnceLock<Mutex<HashMap<String, Vec<Instant>>>> = OnceLock::new();
     if counted(&CALLS, subject, now, Duration::from_secs(60)) > TRANSCRIPT_CALLS_PER_MINUTE {
         return Err(ApiError::TooManyRequests(format!(
@@ -983,7 +1013,7 @@ fn probing(subject: &str, now: Instant) -> bool {
 }
 
 /// `result` as it is, a `404` counted toward [`probing`] and recorded when it is one.
-async fn missed<T>(
+pub(super) async fn missed<T>(
     state: &AppState,
     user: &CurrentUser,
     project: &str,
@@ -1006,7 +1036,13 @@ async fn missed<T>(
 
 /// Who read or erased which transcripts (T-4670). A record that cannot be written is logged, not
 /// a failure of the answer.
-async fn audited(state: &AppState, user: &CurrentUser, project: &str, what: &str, details: Value) {
+pub(super) async fn audited(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    what: &str,
+    details: Value,
+) {
     let actor = &user.0.identity.username;
     let event = crate::activity::ActivityEvent {
         time: chrono::Utc::now(),
@@ -1367,6 +1403,14 @@ pub fn router() -> Router<AppState> {
         .route(
             "/projects/{project}/knowledge/conversations",
             get(list_conversations),
+        )
+        .route(
+            "/projects/{project}/knowledge/conversations/usage",
+            get(super::knowledge_usage::usage),
+        )
+        .route(
+            "/projects/{project}/knowledge/conversations/export",
+            get(super::knowledge_usage::export),
         )
         .route(
             "/projects/{project}/knowledge/conversations/{conversation}",
