@@ -856,6 +856,57 @@ pub async fn deployment_usage(
     Ok(Json(body))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/v1/projects/{project}/knowledge/deployments/{deployment}/answers",
+    summary = "Forget An Assistant's Kept Answers",
+    description = "Forgets the answers one AssistantDeployment keeps for repeated questions, so the next question is answered afresh (API/05 §3, T-4731). Needs `approve` on AssistantDeployment; every call is recorded.",
+    tag = "knowledge",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("deployment" = String, Path, description = "AssistantDeployment name"),
+    ),
+    responses(
+        (status = 200, description = "forgotten: how many kept answers were dropped", body = Object),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 403, description = "The caller may not approve an AssistantDeployment", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such project or deployment", body = crate::error::ProblemDetails),
+        (status = 503, description = "The knowledge assistant is not reachable", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn forget_answers(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, deployment)): Path<(String, String)>,
+) -> Result<Json<Value>, ApiError> {
+    administers(&state, &user, &project, Verb::Approve)?;
+    named("deployment", &deployment)?;
+    if state
+        .mirror
+        .get(&project, "AssistantDeployment", &deployment)
+        .is_none()
+    {
+        return Err(ApiError::NotFound(format!(
+            "deployment '{deployment}' not found"
+        )));
+    }
+    let path = format!("{project}/knowledge/deployments/{deployment}/answers");
+    let (_, body) = ask(&state, reqwest::Method::DELETE, &path, None).await?;
+    let actor = &user.0.identity.username;
+    let message = format!("{actor} forgot the kept answers of {deployment}");
+    let detail =
+        json!({ "actor": actor, "deployment": deployment, "forgotten": body["forgotten"] });
+    record(
+        &state,
+        &project,
+        "knowledge.answers.forgotten",
+        message,
+        detail,
+    )
+    .await;
+    Ok(Json(body))
+}
+
 /// The filter of the stored conversations (API/05 §3.1); `jc-assistant` holds every bound.
 #[derive(Debug, Default, Deserialize, serde::Serialize, IntoParams)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -1359,6 +1410,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/projects/{project}/knowledge/deployments/{deployment}/usage",
             get(deployment_usage),
+        )
+        .route(
+            "/projects/{project}/knowledge/deployments/{deployment}/answers",
+            delete(forget_answers),
         )
         .route(
             "/projects/{project}/knowledge/deployments/{deployment}/chat",

@@ -9157,6 +9157,88 @@
         }
       }
     },
+    "/api/v1/projects/{project}/knowledge/deployments/{deployment}/answers": {
+      "delete": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Forget An Assistant's Kept Answers",
+        "description": "Forgets the answers one AssistantDeployment keeps for repeated questions, so the next question is answered afresh (API/05 §3, T-4731). Needs `approve` on AssistantDeployment; every call is recorded.",
+        "operationId": "forget_answers",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deployment",
+            "in": "path",
+            "description": "AssistantDeployment name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "forgotten: how many kept answers were dropped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not approve an AssistantDeployment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project or deployment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The knowledge assistant is not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/knowledge/deployments/{deployment}/chat": {
       "post": {
         "tags": [

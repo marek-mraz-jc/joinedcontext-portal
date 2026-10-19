@@ -197,6 +197,7 @@ use crate::tools::model_tools::{
         crate::api::knowledge::upload_file,
         crate::api::knowledge::remove_file,
         crate::api::knowledge::deployment_usage,
+        crate::api::knowledge::forget_answers,
         crate::api::assistant_context::preview_context,
         crate::api::assistant_context::deployment_context,
         crate::api::knowledge::list_conversations,

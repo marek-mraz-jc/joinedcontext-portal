@@ -913,3 +913,60 @@ async fn the_crawl_errors_reach_a_proposer_alone() {
     let body: Value = serde_json::from_str(&answer.text).expect("json");
     assert_eq!(body["items"][0]["reason"], "HTTP 404");
 }
+
+/// T-4731: an approver's purge reaches the assistant and is recorded; nobody else's does, and an
+/// unknown deployment is refused before the assistant is asked.
+#[tokio::test]
+async fn a_purge_of_kept_answers_is_forwarded_recorded_and_refused_to_others() {
+    let r = rig().await;
+    let purge = "/api/v1/projects/helsinki/knowledge/deployments/public/answers";
+    let stranger = common::person("nobody");
+    let refused = common::send(&r.state, stranger, "DELETE", purge, None).await;
+    assert_eq!(refused.status, 403, "{}", refused.text);
+    let unknown = "/api/v1/projects/helsinki/knowledge/deployments/nikde/answers";
+    let missing = common::send(&r.state, admin(), "DELETE", unknown, None).await;
+    assert_eq!(missing.status, 404, "{}", missing.text);
+    assert_eq!(asked(&r.assistant).await, 0);
+
+    Mock::given(method("DELETE"))
+        .and(path(format!("{ASSISTANT_PATH}/deployments/public/answers")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"forgotten": 3})))
+        .mount(&r.assistant)
+        .await;
+    let mut activity = r.state.activity_events.subscribe("helsinki").await;
+    let done = common::send(&r.state, admin(), "DELETE", purge, None).await;
+    assert_eq!(done.status, 200, "{}", done.text);
+    assert_eq!(
+        serde_json::from_str::<Value>(&done.text).expect("json"),
+        json!({"forgotten": 3})
+    );
+    let event = activity.try_recv().expect("an activity event");
+    assert_eq!(event.kind, "knowledge.answers.forgotten");
+    assert_eq!(event.details["forgotten"], 3);
+
+    // A Policy or an Endpoint that changes moves the fingerprint, and every deployment's kept
+    // answers are forgotten; another kind changes nothing.
+    use joinedcontext_portal::answers::{fingerprint, forget_all};
+    let before = fingerprint(&r.state.mirror);
+    r.state.mirror.upsert(common::envelope(
+        "KnowledgeSource",
+        "guide",
+        "helsinki",
+        json!({ "source": "guide", "visibility": "internal" }),
+    ));
+    assert_eq!(fingerprint(&r.state.mirror), before);
+    r.state.mirror.upsert(common::envelope(
+        "Policy",
+        "citizens",
+        "helsinki",
+        json!({ "rules": [] }),
+    ));
+    let ruled = fingerprint(&r.state.mirror);
+    assert_ne!(ruled, before);
+    assert_eq!(
+        fingerprint(&r.state.mirror),
+        ruled,
+        "the same rules, the same digest"
+    );
+    assert_eq!(forget_all(&r.state).await, 3);
+}
