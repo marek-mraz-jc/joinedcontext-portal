@@ -315,7 +315,10 @@ mod tests {
             "spec": { "source": { "endpointRef": "kpi", "query": { "type": "X" } } }
         }))
         .expect("a template");
-        assert_eq!(by_endpoint, json!({ "source": { "query": { "type": "X" } } }));
+        assert_eq!(
+            by_endpoint,
+            json!({ "source": { "query": { "type": "X" } } })
+        );
     }
 
     #[test]
