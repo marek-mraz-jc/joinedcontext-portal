@@ -513,7 +513,8 @@ async fn portal(pool: &PgPool, erasure: &Erasure) -> Result<u64, String> {
     Ok(gone)
 }
 
-/// The assistant's stored conversations that mention an Entity or the subject's words.
+/// The assistant's stored conversations that mention an Entity or the subject's words (5
+/// characters or more: a shorter word would match unrelated conversations).
 async fn conversations(
     state: &AppState,
     erasure: &Erasure,
@@ -523,7 +524,7 @@ async fn conversations(
     terms.extend(
         words
             .map(|w| w.trim().to_owned())
-            .filter(|w| w.chars().count() >= 3),
+            .filter(|w| w.chars().count() >= 5),
     );
     if terms.is_empty() {
         return Ok(0);
