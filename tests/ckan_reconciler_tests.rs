@@ -9,12 +9,15 @@
 //! transport does, so a payload that contained it would be visible here.
 
 use std::collections::BTreeSet;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use jcctl::commands::publish_ckan::{Rows, Target};
 use jcctl::loader::{RawManifest, RawMetadata, ResourceId};
 use jcctl::publish::ckan::{InMemoryCkan, Outcome, Settings};
 use joinedcontext_portal::reconciler::ckan::{
-    publish_with, publish_without_rows, sweep_with, withdrawn, CkanSync, Publication, Report,
+    fingerprint, publish_with, publish_without_rows, sweep_with, withdrawn, CkanSync, Paced,
+    Pacing, Publication, Report, CALL_GAP, MOST_BACKOFF, REFRESH,
 };
 use joinedcontext_portal::resource::ResourceEnvelope;
 use joinedcontext_portal::store::Mirror;
@@ -853,4 +856,124 @@ async fn a_pass_with_a_project_whose_publication_does_not_read_sweeps_nothing() 
         "{reports:?}"
     );
     std::fs::remove_dir_all(&repository).expect("cleaned up");
+}
+
+// T-4717: the prod Portal republished every dataset on every sync, through the public edge, at
+// about 1,000 requests a minute; the edge answered 429 and each refusal was retried a tick later.
+
+fn key() -> (String, String) {
+    (PROJECT.to_owned(), "air".to_owned())
+}
+
+fn published_now() -> Publication {
+    Publication::Published {
+        dataset: "air".to_owned(),
+        outcome: Outcome::Unchanged,
+        rows: None,
+        no_linkml: false,
+    }
+}
+
+#[test]
+fn an_unchanged_endpoint_is_published_again_only_after_the_refresh() {
+    let print = fingerprint(&target("air", "public", dataset_only()), &settings());
+    let mut pacing = Pacing::default();
+    let now = Instant::now();
+    assert!(pacing.due(&key(), print, now), "never published, so due");
+    pacing.record(key(), print, &published_now(), now);
+    assert!(!pacing.due(&key(), print, now + Duration::from_secs(60)));
+    assert!(!pacing.due(&key(), print, now + REFRESH - Duration::from_secs(1)));
+    assert!(pacing.due(&key(), print, now + REFRESH));
+}
+
+#[test]
+fn a_changed_endpoint_is_due_at_once() {
+    let before = fingerprint(&target("air", "public", dataset_only()), &settings());
+    let after = fingerprint(&target("air", "public", with_sheet()), &settings());
+    assert_ne!(before, after);
+    assert_eq!(
+        before,
+        fingerprint(&target("air", "public", dataset_only()), &settings())
+    );
+    let mut pacing = Pacing::default();
+    let now = Instant::now();
+    pacing.record(key(), before, &published_now(), now);
+    assert!(pacing.due(&key(), after, now + Duration::from_secs(1)));
+    // A failing Endpoint the user then fixes is not left waiting out its backoff.
+    pacing.record(key(), before, &Publication::Failed("refused".into()), now);
+    assert!(pacing.due(&key(), after, now));
+}
+
+#[test]
+fn a_429_backs_off_from_five_minutes_and_doubles_up_to_an_hour() {
+    let print = 7;
+    let refused =
+        Publication::Failed("CKAN rejected organization_show: 429 Too Many Requests".into());
+    let mut pacing = Pacing::default();
+    let mut now = Instant::now();
+    pacing.record(key(), print, &refused, now);
+    assert!(!pacing.due(&key(), print, now + Duration::from_secs(299)));
+    assert!(pacing.due(&key(), print, now + Duration::from_secs(300)));
+    now += Duration::from_secs(300);
+    pacing.record(key(), print, &refused, now);
+    assert!(!pacing.due(&key(), print, now + Duration::from_secs(599)));
+    assert!(pacing.due(&key(), print, now + Duration::from_secs(600)));
+    for _ in 0..10 {
+        pacing.record(key(), print, &refused, now);
+    }
+    assert!(!pacing.due(&key(), print, now + MOST_BACKOFF - Duration::from_secs(1)));
+    assert!(pacing.due(&key(), print, now + MOST_BACKOFF));
+    // Once it goes through, the next is the ordinary refresh.
+    pacing.record(key(), print, &published_now(), now);
+    assert!(!pacing.due(&key(), print, now + REFRESH - Duration::from_secs(1)));
+    assert!(pacing.due(&key(), print, now + REFRESH));
+}
+
+#[test]
+fn another_failure_is_tried_again_after_a_minute_and_a_number_containing_429_is_not_a_429() {
+    let mut pacing = Pacing::default();
+    let now = Instant::now();
+    let failed = Publication::Failed("the gateway did not answer: 4290 rows, 502".into());
+    pacing.record(key(), 1, &failed, now);
+    assert!(!pacing.due(&key(), 1, now + Duration::from_secs(59)));
+    assert!(pacing.due(&key(), 1, now + Duration::from_secs(60)));
+}
+
+/// A catalogue that only notes when it was called.
+struct Clocked(Arc<Mutex<Vec<Instant>>>);
+
+impl jcctl::publish::ckan::CkanApi for Clocked {
+    fn show(&self, _: &str, _: &str) -> Result<Option<Value>, jcctl::publish::ckan::CkanError> {
+        self.0.lock().expect("calls").push(Instant::now());
+        Ok(None)
+    }
+
+    fn action(&mut self, _: &str, _: &Value) -> Result<Value, jcctl::publish::ckan::CkanError> {
+        self.0.lock().expect("calls").push(Instant::now());
+        Ok(Value::Null)
+    }
+}
+
+#[test]
+fn calls_to_the_catalogue_keep_the_gap_across_every_client_of_one_portal() {
+    use jcctl::publish::ckan::CkanApi;
+    let gap = Duration::from_millis(40);
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let last = Arc::new(Mutex::new(None));
+    let mut first = Paced::new(Clocked(calls.clone()), last.clone(), gap);
+    first.show("package_show", "a").expect("show");
+    first.action("package_patch", &json!({})).expect("action");
+    // The next Endpoint's client is a new one; the gap is the Portal's, not the client's.
+    let second = Paced::new(Clocked(calls.clone()), last, gap);
+    second.show("package_show", "b").expect("show");
+    let at = calls.lock().expect("calls").clone();
+    assert_eq!(at.len(), 3);
+    for pair in at.windows(2) {
+        assert!(pair[1] - pair[0] >= gap, "{:?}", pair[1] - pair[0]);
+    }
+    assert_eq!(
+        CALL_GAP,
+        Duration::from_millis(200),
+        "at most five calls a second"
+    );
 }
