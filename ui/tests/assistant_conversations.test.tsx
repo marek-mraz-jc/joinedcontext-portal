@@ -14,9 +14,13 @@ import { ConversationsPage } from "../src/pages/knowledge/ConversationsPage";
 import {
   aligned,
   capped,
+  costText,
   evalCase,
   filterQuery,
   msText,
+  rangeQuery,
+  shareText,
+  tokensText,
   totals,
   usdText,
   visible,
@@ -32,6 +36,12 @@ const LIST = {
     id: ONE, deployment: "obcan", origin: null, startedAt: "2026-10-18T10:00:00Z", lastAt: "2026-10-18T10:01:00Z",
     firstQuestion: "Aké je PM10?", turns: 1, routes: ["data"], totalMs: 2400, errors: 0, timeouts: 0,
     costUsd: 0.0046, uncosted: 1, thumbsUp: 0, thumbsDown: 1,
+    tokensIn: 58722, tokensOut: 235, cachedTokens: 400, firstTokenMs: 800, models: ["google/gemini-3.8-flash"],
+  }, {
+    id: "33333333-3333-4333-8333-333333333333", deployment: "obcan", origin: null, startedAt: "2026-10-18T09:00:00Z",
+    lastAt: "2026-10-18T09:00:30Z", firstQuestion: "Kto je starosta?", turns: 1, routes: ["rag"], totalMs: 45000, errors: 0,
+    timeouts: 1, costUsd: 0, uncosted: 1, thumbsUp: 0, thumbsDown: 0, tokensIn: 5560, tokensOut: 185, cachedTokens: null,
+    firstTokenMs: null, models: [],
   }],
   nextCursor: null,
 };
@@ -81,6 +91,21 @@ const OTHER = {
     ],
   }],
 };
+const spreadOf = (p50: number | null, p90: number | null, max: number | null) => ({ p50, p90, max });
+const USAGE = {
+  questions: 21, timeouts: 7, errors: 1, uncostedQuestions: 1,
+  costUsd: { total: 0.2082, mean: 0.0104, p50: 0.0099, p90: 0.0151 },
+  tokens: { in: 58722, out: 235, cached: 1200, cachedShare: 0.2 },
+  firstTokenMs: spreadOf(8100, 20000, 30000), totalMs: spreadOf(28900, 45000, 45200),
+  phases: { route: spreadOf(1200, 2100, 3000), work: spreadOf(9000, 15000, 20000), answer: spreadOf(6000, 9000, 12000) },
+  costByStage: [
+    { stage: "answer", calls: 20, costUsd: 0.15, uncostedCalls: 1 },
+    { stage: "router", calls: 21, costUsd: null, uncostedCalls: 21 },
+  ],
+  days: [{ day: "2026-10-19", questions: 21, costUsd: 0.2082, uncostedQuestions: 1, p50TotalMs: 28900, timeouts: 7, errors: 1 }],
+};
+const CSV = "at,question\r\n2026-10-19T07:00:00Z,Kedy?\r\n";
+
 const SAME = {
   items: [
     { conversation: TWO, turn: 1, at: "2026-10-19T10:01:00Z", deployment: "obcan", totalMs: 3100, costUsd: 0.006, steps: 3 },
@@ -98,8 +123,12 @@ function renderAs(verbs: string[], link: { open?: string; against?: string } = {
     const request = input instanceof Request ? input : new Request(String(input), init);
     const url = new URL(request.url, "http://localhost");
     calls.push({ method: request.method, url });
+    if (url.pathname.endsWith("/conversations/export")) {
+      return Promise.resolve(new Response(CSV, { status: 200, headers: { "Content-Type": "text/csv; charset=utf-8" } }));
+    }
     const body = request.method === "DELETE" ? null
       : url.pathname.endsWith("/permissions/me") ? permissions
+      : url.pathname.endsWith("/conversations/usage") ? USAGE
       : url.pathname.endsWith("/same") ? SAME
       : url.pathname.endsWith(TWO) ? OTHER
       : url.pathname.endsWith(ONE) ? DETAIL : LIST;
@@ -148,6 +177,26 @@ describe("the stored conversations' helpers", () => {
   it("write times and prices as a person reads them", () => {
     expect([msText(850), msText(2400), msText(null)]).toEqual(["850 ms", "2.4 s", "–"]);
     expect([usdText(0.0046), usdText(1.5), usdText(null)]).toEqual(["$0.0046", "$1.50", "–"]);
+  });
+});
+
+describe("the usage summary's helpers (T-4728)", () => {
+  it("say the price is unknown for an unpriced turn, never $0, and format tokens and shares", () => {
+    expect(costText(0, 1, "cena neznáma")).toBe("cena neznáma");
+    expect(costText(null, 2, "cena neznáma")).toBe("cena neznáma");
+    expect(costText(0.0046, 1, "cena neznáma")).toBe("$0.0046");
+    expect(costText(0, 0, "cena neznáma")).toBe("$0.0000");
+    expect(tokensText(58722, "en")).toBe("58,722");
+    expect(tokensText(null, "en")).toBe("–");
+    expect(shareText(0.2, "en")).toBe("20%");
+    expect(shareText(null, "en")).toBe("–");
+  });
+
+  it("send the summary and the export the list's deployment and days only", () => {
+    expect(rangeQuery({ deployment: " obcan ", from: "2026-10-18", to: "2026-10-18", status: "timeout", q: "PM10" })).toEqual({
+      deployment: "obcan", from: "2026-10-18T00:00:00Z", to: "2026-10-19T00:00:00Z",
+    });
+    expect(rangeQuery({})).toEqual({});
   });
 });
 
@@ -236,7 +285,9 @@ describe("Asistent → Konverzácie", () => {
 
     await user.click(within(screen.getByRole("table")).getByRole("button", { name: "Aké je PM10?" }));
     expect(await screen.findByText("PM10 je dnes 31 µg/m³.")).toBeInTheDocument();
-    expect(screen.getByText(/google\/gemini-3.8-flash/)).toBeInTheDocument();
+    // The list row names the model too; the transcript's step is the one outside the table.
+    const outside = screen.getAllByText(/google\/gemini-3.8-flash/).filter((e) => !screen.getByRole("table").contains(e));
+    expect(outside).toHaveLength(1);
     expect(screen.getByText(/hronov-air/)).toBeInTheDocument();
     // A call with no price says so, never $0 (T-4178).
     expect(screen.getByText(/unpriced\/model/).textContent).toContain(i18n.t("conversations.unknownPrice"));
@@ -246,6 +297,49 @@ describe("Asistent → Konverzácie", () => {
     await user.click(screen.getByRole("button", { name: i18n.t("conversations.copyAsTest") }));
     expect(writeText).toHaveBeenCalledOnce();
     expect(JSON.parse((writeText.mock.calls[0] as unknown as [string])[0]).q).toBe("Aké je PM10?");
+  });
+
+  it("shows the usage summary, the rows' tokens and times, sorts by tokens and downloads the CSV (T-4728)", async () => {
+    const user = userEvent.setup();
+    const saved: Blob[] = [];
+    const createObjectURL = vi.fn((blob: Blob) => {
+      saved.push(blob);
+      return "blob:csv";
+    });
+    Object.defineProperty(URL, "createObjectURL", { value: createObjectURL, configurable: true });
+    Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
+    const calls = renderAs(["read", "approve"]);
+    const summary = await screen.findByLabelText(i18n.t("conversations.usage.title"));
+    expect(await within(summary).findByText("21", { selector: "dd" })).toBeInTheDocument();
+    expect(within(summary).getByText("$0.21")).toBeInTheDocument();
+    expect(within(summary).getByText(i18n.t("conversations.usage.uncosted", { count: 1 }))).toBeInTheDocument();
+    expect(within(summary).getByText("28.9 s")).toBeInTheDocument();
+    expect(within(summary).getByText(/2026-10-19/)).toBeInTheDocument();
+    // A stage nothing priced says so, never $0.
+    expect(within(summary).getByText(/router:/).textContent).toContain(i18n.t("conversations.unknownPrice"));
+
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("58,722 / 235")).toBeInTheDocument();
+    expect(within(table).getByText("google/gemini-3.8-flash")).toBeInTheDocument();
+    expect(within(table).getByText("800 ms")).toBeInTheDocument();
+    const unpriced = within(table).getByText("Kto je starosta?").closest("tr");
+    expect(unpriced?.textContent).toContain(i18n.t("conversations.unknownPrice"));
+    expect(unpriced?.textContent).not.toContain("$0.0000");
+
+    await user.selectOptions(screen.getByLabelText(i18n.t("conversations.filter.sort")), "tokens");
+    await waitFor(() => {
+      expect(calls.some((c) => c.url.searchParams.get("sort") === "tokens")).toBe(true);
+    });
+    await user.type(screen.getByLabelText(i18n.t("conversations.filter.deployment")), "obcan");
+    await waitFor(() => {
+      expect(calls.some((c) => c.url.pathname.endsWith("/usage") && c.url.searchParams.get("deployment") === "obcan")).toBe(true);
+    });
+    expect(calls.filter((c) => c.url.pathname.endsWith("/usage")).every((c) => !c.url.searchParams.has("sort"))).toBe(true);
+
+    await user.click(within(summary).getByRole("button", { name: i18n.t("conversations.usage.export") }));
+    await waitFor(() => expect(createObjectURL).toHaveBeenCalledOnce());
+    expect(await saved[0].text()).toBe(CSV);
+    expect(calls.some((c) => c.url.pathname.endsWith("/conversations/export"))).toBe(true);
   });
 
   it("one who may delete erases a conversation after confirming", async () => {

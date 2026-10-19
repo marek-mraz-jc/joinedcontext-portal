@@ -190,7 +190,7 @@ async fn request(
 }
 
 /// Sends `request`; the answer, or the refusal it carries as the Portal's own error.
-pub(super) async fn sent(request: reqwest::RequestBuilder) -> Result<reqwest::Response, ApiError> {
+async fn sent(request: reqwest::RequestBuilder) -> Result<reqwest::Response, ApiError> {
     let answer = request.send().await.map_err(|err| {
         tracing::warn!(error = %err.without_url(), "the knowledge assistant did not answer");
         ApiError::Unavailable("the knowledge assistant did not answer; try again shortly".into())
@@ -1406,11 +1406,11 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/projects/{project}/knowledge/conversations/usage",
-            get(super::knowledge_usage::usage),
+            get(super::knowledge_usage::conversation_usage),
         )
         .route(
             "/projects/{project}/knowledge/conversations/export",
-            get(super::knowledge_usage::export),
+            get(super::knowledge_usage::export_conversations),
         )
         .route(
             "/projects/{project}/knowledge/conversations/{conversation}",

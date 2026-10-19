@@ -54,7 +54,7 @@ pub struct UsageRange {
         (status = 503, description = "The knowledge assistant is not reachable", body = crate::error::ProblemDetails),
     )
 )]
-pub async fn usage(
+pub async fn conversation_usage(
     user: CurrentUser,
     State(state): State<AppState>,
     Path(project): Path<String>,
@@ -86,7 +86,7 @@ pub async fn usage(
         (status = 503, description = "The knowledge assistant is not reachable", body = crate::error::ProblemDetails),
     )
 )]
-pub async fn export(
+pub async fn export_conversations(
     user: CurrentUser,
     State(state): State<AppState>,
     Path(project): Path<String>,
@@ -98,8 +98,13 @@ pub async fn export(
     let csv = ask_text(&state, &path, EXPORT_TIME, &range).await?;
     let what = "exported the stored conversations";
     audited(&state, &user, &project, what, json!(range)).await;
+    Ok(csv_file(&project, csv))
+}
+
+/// `csv` as a download named after `project` (a DNS-1123 name), never kept by a cache.
+fn csv_file(project: &str, csv: String) -> Response {
     let file = format!("attachment; filename=\"{project}-conversations.csv\"");
-    Ok((
+    (
         [
             (header::CONTENT_TYPE, "text/csv; charset=utf-8".to_owned()),
             (header::CONTENT_DISPOSITION, file),
@@ -107,5 +112,5 @@ pub async fn export(
         ],
         csv,
     )
-        .into_response())
+        .into_response()
 }
