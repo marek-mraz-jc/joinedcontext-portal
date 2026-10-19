@@ -2180,11 +2180,37 @@ fn retention_document(rules: &[RetentionRule], context: Option<&Value>) -> Value
                 if let Some(history) = &rule.history {
                     one["history"] = json!(history);
                 }
+                record_into(&mut one, rule, context);
                 out.push(one);
             }
         }
     }
     json!({ "rules": out })
+}
+
+/// A rule's recording as the broker reads it (DM-108, T-4669): `record`, `heartbeat`,
+/// `deadband` and `minDistance` as written, and each attribute's under every IRI it is written as.
+fn record_into(one: &mut Value, rule: &RetentionRule, context: Option<&Value>) {
+    let own = json!({ "record": rule.record, "heartbeat": rule.heartbeat,
+                      "deadband": rule.deadband, "minDistance": rule.min_distance });
+    for (key, value) in own.as_object().into_iter().flatten() {
+        if !value.is_null() {
+            one[key] = value.clone();
+        }
+    }
+    let attributes: serde_json::Map<String, Value> = rule
+        .attributes
+        .iter()
+        .flat_map(|(name, recording)| {
+            let recording = serde_json::to_value(recording).unwrap_or_default();
+            type_iris(name, context)
+                .into_iter()
+                .map(move |iri| (iri, recording.clone()))
+        })
+        .collect();
+    if !attributes.is_empty() {
+        one["attributes"] = Value::Object(attributes);
+    }
 }
 
 /// The broker's quality document of one space (DM-91, ADR-N-046 2.5): each `maxAge` rule
@@ -4269,6 +4295,7 @@ mod tests {
                 current: Some("PT5M".into()),
                 history: None,
                 reason: None,
+                ..Default::default()
             }],
         );
         let context = json!({"@context": {"sdm": "https://smartdatamodels.org/",
@@ -4329,6 +4356,7 @@ mod tests {
             current: None,
             history: Some("PT8H".into()),
             reason: None,
+            ..Default::default()
         }];
         Mock::given(method("POST"))
             .and(path("/q/retention/city-air/preview"))
@@ -4501,12 +4529,14 @@ mod tests {
                 current: None,
                 history: Some("PT8H".into()),
                 reason: None,
+                ..Default::default()
             },
             RetentionRule {
                 entity_type: "Bus".into(),
                 current: Some("PT1M".into()),
                 history: None,
                 reason: None,
+                ..Default::default()
             },
         ];
         assert_eq!(
@@ -4526,6 +4556,7 @@ mod tests {
             current: current.map(Into::into),
             history: Some(history.into()),
             reason: (history == "forever").then(|| "the archive is the record".into()),
+            ..Default::default()
         };
         let rules = [
             rule("Bus", Some("P1D"), "forever"),
@@ -4543,6 +4574,39 @@ mod tests {
                 {"type": core("Air"), "current": "P1D", "history": "P30D"},
                 {"type": "https://e.org/Air", "current": "P1D", "history": "P30D"},
                 {"type": "*", "history": "P90D"},
+            ]})
+        );
+    }
+
+    /// A rule's recording reaches the broker as written, each attribute under every IRI it is
+    /// written as; a rule without one sends none (DM-108, T-4669).
+    #[test]
+    fn a_rules_recording_reaches_the_broker_with_its_attributes_under_both_iris() {
+        let rule: RetentionRule = serde_json::from_value(json!({
+            "entityType": "Spot", "history": "P90D", "record": "onChange", "heartbeat": "PT1H",
+            "deadband": 0.5, "attributes": {"count": {"record": "every"}},
+        }))
+        .expect("a rule");
+        let plain = RetentionRule {
+            entity_type: "Bus".into(),
+            history: Some("P30D".into()),
+            ..Default::default()
+        };
+        let core = |name: &str| format!("https://uri.etsi.org/ngsi-ld/default-context/{name}");
+        let context =
+            json!({"@context": {"Spot": "https://e.org/Spot", "count": "https://e.org/count"}});
+        let attributes =
+            json!({core("count"): {"record": "every"}, "https://e.org/count": {"record": "every"}});
+        let spot = |iri: String| {
+            json!({"type": iri, "history": "P90D", "record": "onChange",
+                                        "heartbeat": "PT1H", "deadband": 0.5, "attributes": attributes})
+        };
+        assert_eq!(
+            retention_document(&[rule, plain], Some(&context)),
+            json!({"rules": [
+                spot(core("Spot")),
+                spot("https://e.org/Spot".into()),
+                {"type": core("Bus"), "history": "P30D"},
             ]})
         );
     }
