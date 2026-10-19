@@ -841,12 +841,22 @@ test("a bundle that carries the preview's data-jc-src stamp is named, a clean on
     writeFileSync(join(dir, "index.html"), "<div id=root></div>");
     writeFileSync(join(dir, "assets", "index-1.js"), 'jsx("h2", { children: n })');
     writeFileSync(join(dir, "assets", "notes.txt"), "data-jc-src in prose is not code");
+    // T-3578: the SDK's own select module names the attribute it reads; that is no stamp, and
+    // every App bundle that keeps the module failed the lane on it.
+    writeFileSync(
+      join(dir, "assets", "sdk-1.js"),
+      'const e="data-jc-src";addEventListener("click",t=>{t.target.closest(`[${e}]`)?.getAttribute(e)});export{e as SOURCE_ATTRIBUTE};',
+    );
     assert.deepEqual(stampedFiles(dir), []);
     writeFileSync(join(dir, "assets", "index-2.js"), 'jsx("h2", { "data-jc-src": "src/App.tsx:4" })');
     assert.deepEqual(stampedFiles(dir), [join("assets", "index-2.js")]);
+    // Minified, and in a page: a stamp is the attribute with a file and a line.
+    writeFileSync(join(dir, "assets", "index-3.js"), 'jsx("p",{"data-jc-src":"src/pages/Card.tsx:12",children:n})');
+    writeFileSync(join(dir, "page.html"), '<p data-jc-src="src/App.tsx:7">x</p>');
+    assert.deepEqual(stampedFiles(dir), [join("assets", "index-2.js"), join("assets", "index-3.js"), "page.html"]);
     const cli = spawnSync(process.execPath, [new URL("./lane.mjs", import.meta.url).pathname, "unstamped", dir], { encoding: "utf8" });
     assert.equal(cli.status, 1);
-    assert.match(cli.stderr, /assets\/index-2\.js \(SDK-46\)/);
+    assert.match(cli.stderr, /assets\/index-2\.js, assets\/index-3\.js, page\.html \(SDK-46\)/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
