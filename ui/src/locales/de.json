@@ -7853,7 +7853,9 @@
     },
     "sort": {
       "lastAt": "Neueste zuerst",
-      "costUsd": "Teuerste zuerst"
+      "costUsd": "Teuerste zuerst",
+      "tokens": "Meiste Tokens",
+      "totalMs": "Langsamste"
     },
     "column": {
       "lastAt": "Letzte Frage",
@@ -7862,7 +7864,9 @@
       "route": "Weg",
       "slowest": "Langsamste",
       "cost": "Kosten",
-      "status": "Status"
+      "status": "Status",
+      "firstToken": "Erstes Wort",
+      "tokens": "Tokens (ein / aus)"
     },
     "kind": {
       "route": "Weg",
@@ -7888,6 +7892,32 @@
     "changes": "Änderungen an Diagrammen, Tabellen und Karten",
     "noChanges": "Keine Änderung",
     "answers": "Unterschied der Antworten",
-    "totals": "{steps} Schritte · {tools} Werkzeuge · {models} Modellaufrufe · {time} · {cost} · aus dem Cache {cached}"
+    "totals": "{steps} Schritte · {tools} Werkzeuge · {models} Modellaufrufe · {time} · {cost} · aus dem Cache {cached}",
+    "usage": {
+      "title": "Verbrauch im gewählten Zeitraum",
+      "export": "CSV herunterladen",
+      "exporting": "CSV wird erstellt…",
+      "questions": "Fragen",
+      "cost": "Kosten gesamt",
+      "uncosted": "{count} Fragen ohne Preis, nicht mitgezählt",
+      "perQuestion": "Kosten pro Frage (Mittel)",
+      "costSpread": "Median {p50}, p90 {p90}",
+      "tokens": "Tokens pro Frage (ein / aus)",
+      "cached": "aus dem Cache {cached} ({share})",
+      "total": "Antwortzeit (Median)",
+      "spread": "Median {p50}, p90 {p90}, max {max}",
+      "failures": "Zeitüberschreitungen / Fehler",
+      "failureShare": "{timeouts} / {errors} der Fragen",
+      "firstToken": "Erstes Wort (Median)",
+      "phase": {
+        "route": "Routing",
+        "work": "Suche und Werkzeuge",
+        "answer": "Antwort schreiben"
+      },
+      "byStage": "Kosten nach Schritt",
+      "calls": "{count} Aufrufe",
+      "days": "Nach Tagen (UTC)",
+      "day": "{questions} Fragen, {cost}, Median {p50}, Zeitlimits {timeouts}, Fehler {errors}"
+    }
   }
 }

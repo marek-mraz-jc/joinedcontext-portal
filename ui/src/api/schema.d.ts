@@ -2101,6 +2101,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/knowledge/conversations/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Stored Turns
+         * @description The project's stored assistant turns in the range as CSV, one row per turn, newest first, the questions as stored (redacted) and an unpriced turn's cost empty (API/05 §3.1). More than 20,000 turns is 400. Needs `approve` on AssistantDeployment; every call is recorded (API/01 §34).
+         */
+        get: operations["export_conversations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/knowledge/conversations/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Summarize Stored Turns
+         * @description What the project's stored assistant turns in the range add up to: questions, timeouts, errors, the cost of the priced turns (total, mean, p50, p90) with the unpriced counted apart, tokens, the speed per phase, the cost per stage and the newest 14 days (API/05 §3.1). Needs `approve` on AssistantDeployment; every call is recorded (API/01 §34).
+         */
+        get: operations["conversation_usage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/knowledge/conversations/{conversation}": {
         parameters: {
             query?: never;
@@ -13509,7 +13549,7 @@ export interface operations {
                 minCostUsd?: number | null;
                 /** @description Words of a question or an answer, 2 to 100 characters. */
                 q?: string | null;
-                /** @description `lastAt` (default) or `costUsd`. */
+                /** @description `lastAt` (default), `costUsd`, `tokens` or `totalMs`. */
                 sort?: string | null;
                 cursor?: string | null;
                 /** @description 1 to 100, default 50. */
@@ -13553,6 +13593,158 @@ export interface operations {
             };
             /** @description The caller may not approve an AssistantDeployment */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The knowledge assistant is not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    export_conversations: {
+        parameters: {
+            query?: {
+                deployment?: string | null;
+                /** @description RFC 3339, inclusive. */
+                from?: string | null;
+                /** @description RFC 3339, exclusive. */
+                to?: string | null;
+                /** @description The route the turns took (`rag`, `data`, `direct`, …). */
+                route?: string | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description text/csv, one row per turn */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description A range value out of its bounds, or more than 20,000 turns */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not approve an AssistantDeployment */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description 60 calls on the stored conversations in a minute already */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The knowledge assistant is not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    conversation_usage: {
+        parameters: {
+            query?: {
+                deployment?: string | null;
+                /** @description RFC 3339, inclusive. */
+                from?: string | null;
+                /** @description RFC 3339, exclusive. */
+                to?: string | null;
+                /** @description The route the turns took (`rag`, `data`, `direct`, …). */
+                route?: string | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description A range value out of its bounds */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not approve an AssistantDeployment */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description 60 calls on the stored conversations in a minute already */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -18,6 +18,13 @@ export interface ConversationRow {
   uncosted: number;
   thumbsUp: number;
   thumbsDown: number;
+  /** T-4728: the turns' prompt and completion tokens, the cached ones (null when none reported). */
+  tokensIn?: number;
+  tokensOut?: number;
+  cachedTokens?: number | null;
+  /** The first turn's time to its first token; null when none came. */
+  firstTokenMs?: number | null;
+  models?: string[];
 }
 
 export interface ConversationStep {
@@ -84,7 +91,7 @@ export interface ConversationFilter {
   /** Only conversations that cost more than $0.02. */
   expensive?: boolean;
   q?: string;
-  sort?: "lastAt" | "costUsd";
+  sort?: "lastAt" | "costUsd" | "tokens" | "totalMs";
   cursor?: string;
 }
 
@@ -100,6 +107,8 @@ export interface SameTurn {
 }
 
 export const conversationKeys = {
+  usage: (project: string, filter: ConversationFilter) =>
+    ["projects", project, "knowledge", "conversations", "usage", rangeQuery(filter)] as const,
   list: (project: string, filter: ConversationFilter) => ["projects", project, "knowledge", "conversations", filter] as const,
   one: (project: string, id: string) => ["projects", project, "knowledge", "conversations", id] as const,
   same: (project: string, id: string, turn: number) =>
@@ -142,7 +151,7 @@ export function filterQuery(filter: ConversationFilter): ConversationQuery {
   if (filter.slow) query.slow = true;
   const q = filter.q?.trim();
   if (q && q.length >= 2) query.q = q;
-  if (filter.sort === "costUsd") query.sort = "costUsd";
+  if (filter.sort && filter.sort !== "lastAt") query.sort = filter.sort;
   if (filter.cursor) query.cursor = filter.cursor;
   return query;
 }
@@ -157,6 +166,80 @@ export async function listConversations(
     }),
   )) as { items?: ConversationRow[]; nextCursor?: string | null } | null;
   return { items: Array.isArray(answer?.items) ? answer.items : [], nextCursor: answer?.nextCursor ?? null };
+}
+
+/** p50, p90 and max of a time; null with no turn. */
+export interface Spread {
+  p50: number | null;
+  p90: number | null;
+  max: number | null;
+}
+
+/** What the stored turns of a range add up to (API/05 §3.1, T-4728). */
+export interface UsageSummary {
+  questions: number;
+  timeouts: number;
+  errors: number;
+  /** Turns with a call the provider sent no price for: counted apart, never as $0. */
+  uncostedQuestions: number;
+  costUsd: { total: number | null; mean: number | null; p50: number | null; p90: number | null };
+  tokens: { in: number | null; out: number | null; cached: number | null; cachedShare: number | null };
+  firstTokenMs: Spread;
+  totalMs: Spread;
+  phases: { route: Spread; work: Spread; answer: Spread };
+  costByStage: { stage: string; calls: number; costUsd: number | null; uncostedCalls: number }[];
+  days: {
+    day: string;
+    questions: number;
+    costUsd: number | null;
+    uncostedQuestions: number;
+    p50TotalMs: number | null;
+    timeouts: number;
+    errors: number;
+  }[];
+}
+
+/** The range of the summary and the export: the list's deployment and days. */
+export function rangeQuery(filter: ConversationFilter): Pick<ConversationQuery, "deployment" | "from" | "to"> {
+  const { deployment, from, to } = filterQuery(filter);
+  return { ...(deployment ? { deployment } : {}), ...(from ? { from } : {}), ...(to ? { to } : {}) };
+}
+
+export async function conversationUsage(project: string, filter: ConversationFilter): Promise<UsageSummary> {
+  return (await unwrap(
+    await api.GET("/api/v1/projects/{project}/knowledge/conversations/usage", {
+      params: { path: { project }, query: rangeQuery(filter) },
+    }),
+  )) as UsageSummary;
+}
+
+/** The range's turns as the CSV the assistant wrote; a refusal (over 20,000 turns) throws its reason. */
+export async function exportConversations(project: string, filter: ConversationFilter): Promise<string> {
+  const csv: unknown = await unwrap(
+    await api.GET("/api/v1/projects/{project}/knowledge/conversations/export", {
+      params: { path: { project }, query: rangeQuery(filter) },
+      parseAs: "text",
+    }),
+  );
+  return typeof csv === "string" ? csv : "";
+}
+
+/** A cost a person can trust: "cena neznáma" when a call was unpriced and nothing priced, never $0. */
+export function costText(usd: number | null | undefined, uncosted: number, unknown: string): string {
+  if (uncosted > 0 && !usd) return unknown;
+  return usdText(usd);
+}
+
+/** A count of tokens: 58 722, 1,2 k and so on, by the reader's locale; "–" when missing. */
+export function tokensText(n: number | null | undefined, locale: string): string {
+  if (n === null || n === undefined || !Number.isFinite(n)) return "–";
+  return new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(n);
+}
+
+/** A share as a percent: 20 %; "–" when there is none. */
+export function shareText(share: number | null | undefined, locale: string): string {
+  if (share === null || share === undefined || !Number.isFinite(share)) return "–";
+  return new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 }).format(share);
 }
 
 export async function getConversation(project: string, conversation: string): Promise<Conversation> {

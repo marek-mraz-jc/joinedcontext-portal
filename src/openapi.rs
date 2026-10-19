@@ -201,6 +201,8 @@ use crate::tools::model_tools::{
         crate::api::assistant_context::preview_context,
         crate::api::assistant_context::deployment_context,
         crate::api::knowledge::list_conversations,
+        crate::api::knowledge_usage::conversation_usage,
+        crate::api::knowledge_usage::export_conversations,
         crate::api::knowledge::get_conversation,
         crate::api::knowledge::erase_conversation,
         crate::api::knowledge::same_question,

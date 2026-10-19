@@ -7853,7 +7853,9 @@
     },
     "sort": {
       "lastAt": "Newest first",
-      "costUsd": "Most expensive first"
+      "costUsd": "Most expensive first",
+      "tokens": "Most tokens",
+      "totalMs": "Slowest"
     },
     "column": {
       "lastAt": "Last turn",
@@ -7862,7 +7864,9 @@
       "route": "Route",
       "slowest": "Slowest",
       "cost": "Cost",
-      "status": "Status"
+      "status": "Status",
+      "firstToken": "First word",
+      "tokens": "Tokens (in / out)"
     },
     "kind": {
       "route": "Route",
@@ -7888,6 +7892,32 @@
     "changes": "Changes in charts, tables and maps",
     "noChanges": "No change",
     "answers": "Answer diff",
-    "totals": "{steps} steps · {tools} tools · {models} model calls · {time} · {cost} · cached {cached}"
+    "totals": "{steps} steps · {tools} tools · {models} model calls · {time} · {cost} · cached {cached}",
+    "usage": {
+      "title": "Usage in the selected range",
+      "export": "Download CSV",
+      "exporting": "Preparing the CSV…",
+      "questions": "Questions",
+      "cost": "Total cost",
+      "uncosted": "{count} questions without a price, not counted",
+      "perQuestion": "Cost per question (mean)",
+      "costSpread": "median {p50}, p90 {p90}",
+      "tokens": "Tokens per question (in / out)",
+      "cached": "cached {cached} ({share})",
+      "total": "Answer time (median)",
+      "spread": "median {p50}, p90 {p90}, max {max}",
+      "failures": "Timeouts / errors",
+      "failureShare": "{timeouts} / {errors} of questions",
+      "firstToken": "First word (median)",
+      "phase": {
+        "route": "Routing",
+        "work": "Search and tools",
+        "answer": "Writing the answer"
+      },
+      "byStage": "Cost by step",
+      "calls": "{count} calls",
+      "days": "By day (UTC)",
+      "day": "{questions} questions, {cost}, median {p50}, timeouts {timeouts}, errors {errors}"
+    }
   }
 }

@@ -7853,7 +7853,9 @@
     },
     "sort": {
       "lastAt": "Najnovšie",
-      "costUsd": "Najdrahšie"
+      "costUsd": "Najdrahšie",
+      "tokens": "Najviac tokenov",
+      "totalMs": "Najpomalšie"
     },
     "column": {
       "lastAt": "Posledná otázka",
@@ -7862,7 +7864,9 @@
       "route": "Cesta",
       "slowest": "Najpomalšia",
       "cost": "Cena",
-      "status": "Stav"
+      "status": "Stav",
+      "firstToken": "Prvé slovo",
+      "tokens": "Tokeny (vstup / výstup)"
     },
     "kind": {
       "route": "Cesta",
@@ -7888,6 +7892,32 @@
     "changes": "Zmeny v grafoch, tabuľkách a mapách",
     "noChanges": "Bez zmeny",
     "answers": "Rozdiel odpovedí",
-    "totals": "{steps} krokov · {tools} nástrojov · {models} volaní modelu · {time} · {cost} · z cache {cached}"
+    "totals": "{steps} krokov · {tools} nástrojov · {models} volaní modelu · {time} · {cost} · z cache {cached}",
+    "usage": {
+      "title": "Spotreba za vybrané obdobie",
+      "export": "Stiahnuť CSV",
+      "exporting": "Pripravujem CSV…",
+      "questions": "Otázky",
+      "cost": "Cena spolu",
+      "uncosted": "{count} otázok bez ceny, nezapočítané",
+      "perQuestion": "Cena za otázku (priemer)",
+      "costSpread": "medián {p50}, p90 {p90}",
+      "tokens": "Tokeny na otázku (vstup / výstup)",
+      "cached": "z cache {cached} ({share})",
+      "total": "Čas odpovede (medián)",
+      "spread": "medián {p50}, p90 {p90}, max {max}",
+      "failures": "Časové limity / chyby",
+      "failureShare": "{timeouts} / {errors} otázok",
+      "firstToken": "Prvé slovo (medián)",
+      "phase": {
+        "route": "Smerovanie",
+        "work": "Hľadanie a nástroje",
+        "answer": "Písanie odpovede"
+      },
+      "byStage": "Cena podľa krokov",
+      "calls": "{count} volaní",
+      "days": "Po dňoch (UTC)",
+      "day": "{questions} otázok, {cost}, medián {p50}, limity {timeouts}, chyby {errors}"
+    }
   }
 }

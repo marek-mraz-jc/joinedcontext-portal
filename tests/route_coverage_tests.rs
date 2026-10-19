@@ -193,6 +193,8 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/projects/{project}/knowledge/deployments/context", "the editor's preview of an unsaved AssistantDeployment, dryRun=All: resolves and changes nothing, the save is the AssistantDeployment's own proposal (API/05 §1.9, AG-121, T-4693)"),
 ("POST", "/projects/{project}/knowledge/deployments/{deployment}/chat", "one question to an assistant as the signed-in person, answered by jc-assistant as events: a conversation, not configuration (API/01 §34, AG-115)"),
 ("GET", "/projects/{project}/knowledge/conversations", "the stored assistant conversations, redacted, for the assistant's administrator: jc-assistant's runtime record, not configuration (API/01 §34, T-4670)"),
+("GET", "/projects/{project}/knowledge/conversations/usage", "what the stored assistant turns add up to, computed by jc-assistant for the assistant's administrator (API/01 §34, T-4728)"),
+("GET", "/projects/{project}/knowledge/conversations/export", "the stored assistant turns as CSV, written by jc-assistant for the assistant's administrator (API/01 §34, T-4728)"),
 ("GET", "/projects/{project}/knowledge/conversations/{conversation}", "one stored conversation with its steps, from jc-assistant's store (API/01 §34, T-4670)"),
 ("DELETE", "/projects/{project}/knowledge/conversations/{conversation}", "erases one stored conversation in jc-assistant for a visitor's request (API/01 §34, T-4670)"),
 ("GET", "/projects/{project}/knowledge/conversations/{conversation}/turns/{turn}/same", "the stored turns of one question, from jc-assistant's store, to compare two answers (API/01 §34, T-4681)"),
