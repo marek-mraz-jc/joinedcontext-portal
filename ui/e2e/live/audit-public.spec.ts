@@ -34,7 +34,7 @@ const DIR = process.env.SHOTS_DIR;
 const PORTAL = new URL(process.env.PORTAL_URL ?? "https://portal.dev.joinedcontext.com");
 const DOMAIN = PORTAL.hostname.replace(/^portal\./, "");
 const ASSISTANT = `https://assistant.${DOMAIN}`;
-const DATA = `https://data.${DOMAIN}`;
+const DATA = `https://opendata.${DOMAIN}`;
 const IDM = `https://idm.${DOMAIN}/realms/${process.env.KEYCLOAK_REALM ?? "dev"}`;
 const QUESTION: Record<Lang, string> = {
   sk: "Aké otvorené údaje o kvalite ovzdušia tu nájdem?",

@@ -66,13 +66,13 @@ const DETAIL = {
   themes: [{ code: "ECON", label: "Economy and finance" }],
   spatial: ["SK032"],
   temporal: { start: "2020-01-01", end: null },
-  catalogueUrl: "https://data.dev.joinedcontext.com/dataset/bbsk-kpi",
+  catalogueUrl: "https://opendata.dev.joinedcontext.com/dataset/bbsk-kpi",
   resources: [
     {
       name: "CSV",
       format: "CSV",
       url: `${ENDPOINT}file.csv`,
-      previewUrl: "https://data.dev.joinedcontext.com/dataset/bbsk-kpi/resource/r1",
+      previewUrl: "https://opendata.dev.joinedcontext.com/dataset/bbsk-kpi/resource/r1",
       description: "CSV, generated on each download.\n\n    curl -o file.csv 'https://x/file.csv'",
     },
     { name: "Hostile", format: "HTML", url: "javascript:alert(1)" },
@@ -231,7 +231,7 @@ describe("the catalogue (EP-81, EP-82)", () => {
     const resources = screen.getByRole("table", { name: "Resources" });
     expect(within(resources).getByRole("link", { name: /Preview/ })).toHaveAttribute(
       "href",
-      "https://data.dev.joinedcontext.com/dataset/bbsk-kpi/resource/r1",
+      "https://opendata.dev.joinedcontext.com/dataset/bbsk-kpi/resource/r1",
     );
     // A resource URL the catalogue holds is checked before it becomes a link.
     // T-4160 #16: a sentence in the page's language; the publisher's commands behind a disclosure.
