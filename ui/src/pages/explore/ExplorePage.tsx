@@ -13,6 +13,7 @@ import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { deleteEntity, enumsOfModel, fetchEntity, filterSlotsOf, qProblem, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import type { EntityQuery } from "../../components/entities/filters";
 import { Alert, Button, Dialog, EmptyState, Field, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
+import { AttributeHistory } from "../../components/entities/history/AttributeHistory";
 import { TypeQuality } from "./TypeQuality";
 import { writesOf } from "../access/EffectivePermissions";
 import { TypeLink } from "../models/ModelLinks";
@@ -98,6 +99,7 @@ export function ExplorePage({
   const [gridSort, setGridSort] = useState<ViewSort | null>(null);
   /** Bumped when an entity is removed, so the grid reads the endpoint again. */
   const [generation, setGeneration] = useState(0);
+  const [historyAttr, setHistoryAttr] = useState<string>("");
   const queryClient = useQueryClient();
 
   // What is chosen stands in the address as it changes (UI-89, T-3239): a reload or a link sent
@@ -207,6 +209,36 @@ export function ExplorePage({
       .map((slot) => slot.name)
       .filter((attr) => !denied[attr] && (unlimited || named.has(attr)));
   }, [access.data, query.type, slots, denied]);
+  // T-4667: one opened entity's attribute, its history and versions; an edit is offered where the
+  // grant names the write, a backfill or correction where it also names a temporal write.
+  const historySlots = useMemo(
+    () =>
+      slots.filter(
+        (slot) =>
+          slot.kind !== "GeoProperty" &&
+          slot.kind !== "Relationship" &&
+          !denied[slot.name],
+      ),
+    [slots, denied],
+  );
+  const effectiveHistoryAttr =
+    historySlots.some((s) => s.name === historyAttr)
+      ? historyAttr
+      : (historySlots[0]?.name ?? "");
+  const hasTemporalGrant = Boolean(
+    (access.data?.permissions ?? []).some(
+      (entry) =>
+        (entry.resource?.type === undefined || entry.resource.type === query.type) &&
+        (entry.actions ?? []).some(
+          (action) =>
+            action === "appendAttrsTemporal" || action === "updateAttrInstanceTemporal",
+        ),
+    ),
+  );
+  const canEditAttr = Boolean(
+    effectiveHistoryAttr && editableAttrs.includes(effectiveHistoryAttr),
+  );
+  const canEditHistoryAttr = Boolean(canEditAttr && hasTemporalGrant);
 
   /**
    * What the grid is told to show. The endpoint is a slug and never a URL (EP-55), and the filters
@@ -552,6 +584,43 @@ export function ExplorePage({
               {detail.data ? JSON.stringify(detail.data, null, 2) : t("app.loading")}
             </pre>
           )}
+        </section>
+      ) : null}
+
+      {selected && slug && historySlots.length > 0 ? (
+        <section
+          aria-labelledby="explore-history-heading"
+          className="rounded-md border border-border bg-surface p-3"
+        >
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h2 id="explore-history-heading" className="text-body font-semibold text-fg">
+              {t("attributeHistory.sectionTitle")}
+            </h2>
+            <div className="w-64">
+              <Field id="explore-history-attr" label={t("attributeHistory.attribute")} srLabel>
+                <Select
+                  id="explore-history-attr"
+                  value={effectiveHistoryAttr}
+                  onChange={(e) => setHistoryAttr(e.target.value)}
+                >
+                  {historySlots.map((s) => (
+                    <option key={s.name} value={s.name}>
+                      {s.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+          </div>
+          {effectiveHistoryAttr ? (
+            <AttributeHistory
+              slug={slug}
+              entityId={selected}
+              attribute={effectiveHistoryAttr}
+              canEdit={canEditAttr}
+              canEditHistory={canEditHistoryAttr}
+            />
+          ) : null}
         </section>
       ) : null}
 
