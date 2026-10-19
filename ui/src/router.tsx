@@ -903,15 +903,23 @@ const connectorsRoute = createRoute({
   },
 });
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** The assistant's stored conversations, for its administrator (API/01 §34, T-4670). */
 const knowledgeConversationsRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/projects/$project/knowledge/conversations",
+  // `?open=<id>&compare=<id>`: an eval run's link opens its conversation against the previous run's (T-4681).
+  validateSearch: (search: Record<string, unknown>): { open?: string; compare?: string } => ({
+    open: typeof search.open === "string" && UUID.test(search.open) ? search.open : undefined,
+    compare: typeof search.compare === "string" && UUID.test(search.compare) ? search.compare : undefined,
+  }),
   component: function KnowledgeConversationsRoute() {
     const { project } = knowledgeConversationsRoute.useParams();
+    const { open, compare } = knowledgeConversationsRoute.useSearch();
     return (
       <Shell project={project}>
-        <ConversationsPage project={project} />
+        <ConversationsPage project={project} open={open} against={compare} />
       </Shell>
     );
   },
