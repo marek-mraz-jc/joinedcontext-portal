@@ -44,6 +44,14 @@ A value breaks a quality rule its Context Space sets (DM-88), so the write was r
 
 What to do: Correct the attribute the detail names: a quality rule of the space refuses its value.
 
+### `reason-required` {#reason-required}
+
+**Reason Required**, status 400.
+
+A delete through an Endpoint names no reason in `JC-Reason` (DM-113, ADR-N-054), so nothing was changed. The gateway asks it of every delete except the Portal UI's own, which follows once the UI sends a reason; DM-113 extends it to corrections and every UI write.
+
+What to do: Send the same request again with a `JC-Reason` header of 1 to 500 characters that says why.
+
 ### `unauthorized` {#unauthorized}
 
 **Authentication Required**, status 401.
@@ -59,6 +67,14 @@ What to do: Sign in again, or send a valid bearer token for this audience.
 You are signed in, but no role you hold grants this, or the change touches something outside your grant.
 
 What to do: Ask a project owner or an organization administrator for the role this needs.
+
+### `personal-data-public` {#personal-data-public}
+
+**Personal Data on a Public Endpoint**, status 403.
+
+The Endpoint is public, and its model and projection would serve attributes the model marks as personal data (DM-122, ADR-N-054), so the Endpoint answers nothing until that changes.
+
+What to do: Hide the attributes the detail names in the Endpoint's projection, or narrow its audience.
 
 ### `domain-not-verified` {#domain-not-verified}
 
