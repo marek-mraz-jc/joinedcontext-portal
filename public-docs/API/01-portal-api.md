@@ -1261,6 +1261,7 @@ is ready only once its first sync has landed (T-4453 removed `GET /api/v1/sync`,
 POST /api/v1/webhooks/gitea    the forge's own hook: signed, no session
 GET  /api/v1/health            liveness; public
 GET  /api/v1/ready             readiness; public
+GET  /api/v1/version           the commits of the binary and of the UI bundle; public
 ```
 
 - `/webhooks/gitea` is what makes a merged change visible without waiting for the next tick. The
@@ -1270,6 +1271,7 @@ GET  /api/v1/ready             readiness; public
   any other event answers `204`; a body that is not JSON is `400`, a missing or wrong signature
   `401`, and an instance with no webhook secret configured `503`, because a hook nobody can
   authenticate is refused rather than trusted.
+- `/version` answers `{"portal": {"commit", "openapi"}, "ui": {"commit", "openapi"} | null, "contract"}` (T-2485): `openapi` is the sha256 of the OpenAPI document, the binary's own and the `ui/openapi.json` the bundle was built against, and `contract` is `match` when they agree, `mismatch` when they differ and `unknown` when the bundle is unreachable or names no hash. `dev-smoke` warns on anything but `match`.
 - `/health` answers `{"name": …, "version": …, "status": "ok"}` whenever the process serves, and
   it is the liveness probe. `/ready` is the readiness probe (OPS-51): `503 {"status": "loading"}`
   until this replica's mirror holds the repository, `200 {"status": "ready"}` afterwards. A Portal
@@ -3289,6 +3291,7 @@ GET  /api/v1/projects/{project}/knowledge/deployments/{deployment}/usage   reque
 POST /api/v1/projects/{project}/knowledge/deployments/{deployment}/chat    ask the assistant as the signed-in person
 GET  /api/v1/projects/{project}/knowledge/conversations                    stored conversations, filtered (API/05 §3.1)
 GET  /api/v1/projects/{project}/knowledge/conversations/{conversation}     one conversation, every turn with its steps
+GET  /api/v1/projects/{project}/knowledge/conversations/{conversation}/turns/{turn}/same  stored turns of the same question
 DELETE /api/v1/projects/{project}/knowledge/conversations/{conversation}   erase one conversation
 ```
 
@@ -3310,7 +3313,21 @@ DELETE /api/v1/projects/{project}/knowledge/conversations/{conversation}   erase
   `DELETE` needs `delete` on `AssistantDeployment`. Every call writes an audit record naming the
   caller, the project and the conversation (or the filter of a list). The Portal page Asistent →
   Konverzácie is shown to those callers only, and "Kopírovať ako test" copies a turn as the JSON
-  fixture of the assistant eval sets (T-4656, T-4670).
+  fixture of the assistant eval sets (T-4656, T-4670). A conversation of another project, or one
+  that does not exist, answers `404`. A caller gets at most 60 calls a minute on these routes,
+  then `429`; more than 20 `404`s of one caller in 5 minutes writes an `assistant.transcript`
+  audit record with the action `probe` (T-4681).
+- "Porovnať" opens two turns side by side, picked from "Rovnaká otázka" (the turns `…/same`
+  answers); `?open={conversation}&compare={conversation}` (UUIDs only, never a token) opens one
+  conversation and compares its last turn with the other's, the link the opendata eval writes per
+  question, this run against the previous. The view shows a header line with each turn's steps,
+  tool and model calls, time, price and cached share; the steps aligned by kind, each with its
+  arguments, rows, time, tokens and price and the model's reasoning text; the changes between the
+  tables, charts and maps each turn showed, named from their stored specs (kind, chart type,
+  units, row count; the stored spec holds no data, so nothing is redrawn); and the two answers as
+  a word diff. Every stored text is shown as React text, never markup: no stored HTML, markdown
+  or link runs, bidi and zero-width characters show as visible markers, and a step shows its
+  first 64 kB until "Zobraziť viac" (T-4681).
 - The index status of a source is in its row of `sources`: `passages`, `embedded` and `pending`
   (passages not embedded yet), `failed` (pages and documents that could not be read), and the last
   job with its `startedAt` and `finishedAt`. `errors` lists at most 50 of the failed pages and
@@ -3805,26 +3822,42 @@ GET  /api/v1/projects/{project}/spaces/{space}/move                → 200
 
 ## 46. Personal data of a space (DM-124…DM-127)
 
-For a space whose model marks personal data ([Architecture/11 §9](../Architecture/11-data-models.md#9-personal-data-in-a-model)), a person the space's Policy grants `personalData` (by default the owner role) runs the data subject's rights. `{subject}` is the value of the class's `dataSubjectRef` slot, or its keyed hash when the slot is ingested as `keyedHash`; the Portal hashes a value it is given with the space's key.
+For a space whose model names its data subject ([Architecture/11 §9](../Architecture/11-data-models.md#9-personal-data-in-a-model): a class with the annotation `dataSubjectRef`, the slot that holds the person), an owner of the space (`approve` on its ContextSpace) runs the data subject's rights. The subject's value, the one the class's `dataSubjectRef` slot holds, travels in the request body and never in a URL an access log keeps; the Portal keeps only its keyed hash, an HMAC-SHA256 per project and space. A subject slot ingested as `keyedHash` (DM-121) holds the value's HMAC under the space's `spec.personalData.keyRef`, a key the Portal does not hold yet: until the reconciler mounts it, an export or an erasure on such a space answers `409` and names the slot, never an erasure `done` with no Entities.
 
 ```text
-GET    /api/v1/projects/{project}/spaces/{space}/subjects/{subject}/export         every Entity naming the subject, its versions and read log → 200
-POST   /api/v1/projects/{project}/spaces/{space}/subjects/{subject}/rectification  { "entity", "attribute", "value", "reason" } → 200
-POST   /api/v1/projects/{project}/spaces/{space}/erasures                          { "subject", "reason" } → 202, Location of the erasure
-GET    /api/v1/projects/{project}/spaces/{space}/erasures/{id}                     its state and counts per store → 200
+POST   /api/v1/projects/{project}/spaces/{space}/subjects/export           { "subject", "reason" } → 200, Cache-Control: no-store
+POST   /api/v1/projects/{project}/spaces/{space}/erasures                  { "subject", "reason" } → 202, Location of the erasure
+POST   /api/v1/projects/{project}/spaces/{space}/erasures?dryRun=All       the same body → 200 { "dryRun": true, "entities", "groups": [{ "class", "entities", "attrs" }] }, nothing erased or logged
+GET    /api/v1/projects/{project}/spaces/{space}/erasures/{id}             its state and counts per store → 200
 ```
+
+Rectification (Art. 16) has no route of its own yet: the corrected value is written through the space's Endpoint like any other write, and its superseded version keeps the old value until a rectification route redacts it.
+
+The export answers every Entity of the space naming the subject, each with its class, its current state and its stored history, to the caller's session only. The read log of those Entities joins it once the gateway keeps one (DM-128, T-4666).
+
+An erasure finds the Entities naming the subject in each such class and erases, from every store that holds a copy, the class's Attributes marked `personalData` and the subject slot itself, or the whole Entity of a class marked `personalData` as a whole:
+
+| Store | What goes |
+| --- | --- |
+| `broker` | the Attributes from the current state, every version and the dead letters; the broker keeps a content-free record and applies it again when it starts (Antares `POST /q/erasures/{tenant}`) |
+| `ckanDatastore` | the Entities' rows of the DataStore tables the space's published Endpoints mirror, by `entity_id`; the next mirror run writes back what an Entity still holds |
+| `portal` | the Portal's trash and comments of the Entities |
+| `conversations` | every stored assistant conversation that mentions an Entity's URN or, on the first attempt, the subject's own words |
+| `exports`, `caches` | nothing: the platform keeps no export file (`file.csv` is streamed) and no entity cache (every answer is `private`), so both are `done` at once |
 
 ```json
 {
-  "id": "er-2026-10-18-0001",
-  "state": "done",
-  "requestedAt": "2026-10-18T10:00:00Z",
-  "completedAt": "2026-10-18T10:00:41Z",
-  "counts": { "broker": 14, "versions": 52, "ckanDatastore": 14, "exports": 2, "caches": 3, "conversations": 0 }
+  "id": "er-20261019-0a1b2c3d4e5f",
+  "state": "open",
+  "requestedAt": "2026-10-19T10:00:00Z",
+  "completedAt": null,
+  "entities": 14,
+  "counts": { "broker": 14, "versions": 52, "ckanDatastore": 14, "portal": 2, "conversations": 1, "exports": 0, "caches": 0 },
+  "stores": { "broker": { "state": "done", "count": 14, "versions": 52, "attempts": 1 }, "ckanDatastore": { "state": "pending", "count": 0, "attempts": 1, "error": "CKAN unavailable: …" } }
 }
 ```
 
-The erasure log holds the subject's keyed hash, never the value, and outlives backups: after a restore the reconciler re-applies it ([Deployment/07 §5](../Deployment/07-backup-restore.md#5-backups-and-erasure)). Every call is audited with its `reason`; a call without `reason` answers `400` with the problem type `reason-required`.
+The erasure answers at once and stays `open` until every store reports `done`: a store that does not answer is asked again each minute, the CKAN DataStore at each reconciler run, and after an hour of refusals it is `failed`, which leaves the erasure for a person to read why. The erasure log keeps the subject's keyed hash, the Entities and the counts, never a value, outside the broker's database; when the Portal starts and every hour after, it sends again every erasure whose record a broker no longer holds, after that broker's database was restored from an older backup ([Deployment/07 §5](../Deployment/07-backup-restore.md#5-backups-and-erasure)). Every call is audited with its `reason`; a call without one answers `400` naming `reason-required`.
 
 ## Related
 

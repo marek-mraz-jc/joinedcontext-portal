@@ -29,7 +29,7 @@ description: The chat route of jc-assistant, its Server-Sent Events, and how the
 ```
 
 - `message` is 1 to 4,000 characters after trimming; `conversation`, when present, is an id this service issued; `history` holds at most 6 turns of `user` or `assistant`, each at most 4,000 characters; `connectors`, when present, is a subset of the deployment's connector Endpoints, and an empty list switches every connector off. Anything else answers `400` naming the field. The body is at most 64 KiB. (AG-98)
-- The service keeps each turn, redacted, for the deployment's `transcriptRetention` (default 30 days) so its administrators can see what an answer did (§3.1); the visitor's chat still sends `history` back with each question, and a turn of `history` is the caller's own text, so the rules in §1.4 treat it as untrusted the same as the question. (AG-99)
+- The service keeps each turn, with its secrets masked, for the deployment's `transcriptRetention` (default 90 days) so its administrators can see what an answer did (§3.1); the visitor's chat still sends `history` back with each question, and a turn of `history` is the caller's own text, so the rules in §1.4 treat it as untrusted the same as the question. (AG-99)
 
 ### 1.2 Who may ask
 
@@ -42,12 +42,12 @@ description: The chat route of jc-assistant, its Server-Sent Events, and how the
 - On these channels every question carries a visitor token (§1.2.1) in `X-JC-Visitor`. A request without one, or with one that is forged, expired or another deployment's, answers `401` with a `detail` the chat shows, in Slovak; the widget then gets a new token and asks again once. (T-4653)
 - A request that names no `Origin` is no browser on an allowed site: it also counts in a pool of its own, a sixth of `rateLimit.requestsPerMinute` (one at least), and all such requests share one visitor's share of the day's cost. (T-4653)
 - `rateLimit.requestsPerMinute` counts every request of the deployment, `rateLimit.perClientPerMinute` the requests of one client address: `X-Forwarded-For` read from the right, past the cluster's own private, loopback and link-local proxy hops, to the address the edge appended, so an address a caller writes in front changes nothing (T-3059). Past any of them, `429` with `Retry-After` and a `detail` the chat shows, in Slovak. (AG-101)
-- One client also has `rateLimit.perClientPerHour`, `rateLimit.perClientPerDay` and `rateLimit.perClientPerMonth` questions (the month is the UTC calendar month; default 300 when the manifest names none), and `rateLimit.streamsPerClient` answers in progress at once. A request that one window refuses counts in none. The service knows a client by a keyed hash of the address and the UTC day (the month, for the monthly window), with a key that is random per process; it stores and logs no address (T-4149, T-4286). Past the monthly window that client is answered as search, without a model call, under a sentence that names the day it resets (the first of the next month), like the cost cap below; the minute, hour and day windows still count, and other clients are not affected. (AG-101)
+- One client also has `rateLimit.perClientPerHour`, `rateLimit.perClientPerDay` and `rateLimit.perClientPerMonth` questions (the month is the UTC calendar month; default 300 when the manifest names none), and `rateLimit.streamsPerClient` answers in progress at once. A request that one window refuses counts in none. The service knows a client by a keyed hash of the address and the UTC day (the month, for the monthly window), with a key that is random per process; it stores and logs no address (T-4149, T-4286). Past the monthly window that client's stream is one `error` event (`429`, `Monthly Limit Reached`, "Dosiahli ste mesačný limit otázok. Obnoví sa 1. 11. 2026.", the first of the next month) and `done`, with no model call and no search; the minute, hour and day windows still count, and other clients are not affected. (AG-101, T-4671)
 - The visitor token's id counts a minute of `rateLimit.perClientPerMinute` and `rateLimit.streamsPerClient` of its own, so people behind one address (an office, a school, a mobile carrier) each have their own minute. The hour, day and month windows and the cost share below stay the address's: a new token never buys a fresh month or cost share. With a token, the address's minute is five times `rateLimit.perClientPerMinute`. (T-4653)
-- One visitor, or the no-`Origin` pool together, spends at most a tenth of `budget.costPerDayUsd` a day; past that, their questions are answered as search (as at the cost cap below) while other visitors still get answers. `history` turns on these channels are cut to 1,000 characters each. (T-4653)
+- One visitor, or the no-`Origin` pool together, spends at most a tenth of `budget.costPerDayUsd` a day; past that, their questions are refused `429` (`Visitor Limit Reached`, "Dnes ste položili veľa otázok. Skúste to znova neskôr.") with `Retry-After` up to the next UTC midnight, while other visitors still get answers. `history` turns on these channels are cut to 1,000 characters each. (T-4653)
 - `budget.questionChars` caps the question (`400` past it) and `budget.messagesPerConversation` the questions of one conversation (`429`, start a new one). One answer takes at most 30 seconds; past that, an `error` event with status `504`. `enabled: false` answers every request `503`. (T-4149)
-- `budget.costPerDayUsd` caps the day's cost: the sum of each model response's `usage.cost`, per deployment and UTC day. From the request that finds the cap reached, the chat answers as search, without a model call: one `answer` event that says so in Slovak and cites the best-matching pages, then `citations` and `done` with `modelCalls: 0`. The service logs the cap once a day. (T-4149, AG-107)
-- `budget.tokensPerDay` is the model proxy's cap (§2). A question whose model call the proxy refuses for the day is answered the same way, as search with the best-matching pages, never with a refusal: no visitor reads that the assistant's answers are used up. `costPerDayUsd` is the guard a deployment is sized by; a public deployment's `tokensPerDay` is set high enough that the cost cap binds first (T-4286).
+- `budget.costPerDayUsd` caps the day's cost: the sum of each model response's `usage.cost`, per deployment and UTC day. From the request that finds the cap reached, the stream is one `error` event (`429`, `Daily Limit Reached`, "Asistent dnes dosiahol denný limit. Skúste to znova zajtra po 2:00.", the next UTC midnight in the deployment's zone) and `done` with nothing spent: no model call, no search, no answer, citation, card or follow-up. A question that already started finishes its answer call; the next one is refused. Today's spend that cannot be read refuses the same way (`503`, `Assistant Unavailable`, "Asistent je dočasne nedostupný. Skúste to o chvíľu.") and logs an error. The service warns once a day per deployment at the first cap and logs each refusal with its `cap` (`day`, `month`, `share`, `unknown`). (T-4149, AG-107, T-4671)
+- `budget.tokensPerDay` is the model proxy's cap (§2). A question whose model call the proxy refuses for the day gets the same `Daily Limit Reached` event, whatever it streamed before, and never the proxy's own words. `costPerDayUsd` is the guard a deployment is sized by; a public deployment's `tokensPerDay` is set high enough that the cost cap binds first (T-4286).
 - The service answers at most 32 questions at once across its deployments; a question past that is refused, never queued: `503` with `Retry-After: 5` and nothing spent (T-3059).
 - One model reply may carry at most 4 tool calls and each call's arguments at most 4,096 characters as JSON; a call past either is answered to the model with a refusal instead of being run (T-3059).
 
@@ -79,16 +79,16 @@ Both routes follow the `Origin` rules of §1.2, and the preflight allows `GET`, 
 
 | Event | Data | When |
 |---|---|---|
-| `conversation` | `{"id": "<uuid>", "at": "2026-10-16T12:17:05Z"}`; `at` is the server's moment of the question in UTC, the one every model call of the answer is told (T-4339) | first, always |
-| `stage` | `{"stage": "understanding" \| "searching" \| "reading" \| "history" \| "schema" \| "answering", "topic": "otváracie hodiny knižnice"}`; `topic` is the search query, the entity type read (`reading`, `history`) or the Endpoint whose types or schema are read (`schema`), absent otherwise | before each step of the answer; the chat shows the latest as one line until the first `delta` or the `answer` (T-4155, T-4294) |
+| `conversation` | `{"id": "<uuid>", "at": "2026-10-16T12:17:05Z", "turn": "<uuid>"}`; `at` is the server's moment of the question in UTC, the one every model call of the answer is told (T-4339); `turn` names this answer for `resume` (§1.6.2) and is present on a visitor's stream alone, one that carried a visitor token (T-4685) | first, always |
+| `stage` | `{"stage": "understanding" \| "searching" \| "reading" \| "history" \| "schema" \| "answering", "topic": "otváracie hodiny knižnice"}`; `topic` is the search query, the entity type read (`reading`, `history`) or the Endpoint whose types or schema are read (`schema`), absent otherwise | before each step of the answer; the chat shows the latest as one line until the first `delta` or the `answer` (T-4155, T-4294). A public chat never shows `topic` as written except for `searching`: a type read is named in words, an Endpoint slug never; the "Postup" list gives each step its words and its time (T-4682) |
 | `tool` | `{"name": "search", "status": "started" \| "done" \| "failed"}`; a connector's tool adds `"endpoint"` | around each tool call |
 | `script` | `{"code": "…", "output": "…"}`, or `"error"` in place of `"output"` | after a `run_script` call (§1.5) |
-| `data` | `{"endpoint": "ovzdusie-verejne", "type": "AirQualityObserved", "columns": ["name", "pm10", "observedAt"], "units": [null, "µg/m³", null], "rows": [["Námestie SNP", 21, "2026-10-15T18:00:00Z"]], "dataset": "https://…/dataset/public-air", "download": "https://…/api/endpoint/…/ngsi-ld/v1/entities?type=…"}` | after a data round, before `delta`; at most 50 rows. The columns come by importance (T-4650): `name` (else `id`), the attributes the query named, measured values (a number with a `unitCode` or an `observedAt`), other numbers, categories, the record's metadata, and last one `observedAt`, the row's newest measurement. `units` holds, per column, the symbol (else the name) of the `unitCode` it carries, or `null`. The chat labels each column in the visitor's language with its unit, aligns numbers right and formats numbers, yes/no and times for that language. When rows carry a GeoJSON `location` and the deployment has a `viz.{domain}`, `map` holds the map spec of ADR-N-053 §2.9 built from them (the label, up to four of the values the table leads with, and `observedAt`), and the chat offers "Table \| Map", the map first when every row has a location (T-4657) |
-| `visualization` | `{"spec": {…}, "rows": [{"name": "…", "pm10": 21}]}`: a Vega-Lite 5 spec over `rows`, or a map spec (ADR-N-053 §2.9) with no `rows` | after a `show_visualization` call the service accepted, at most once per answer; the chat draws it in a frame of `https://viz.{domain}/#show` (T-4657) |
+| `data` | `{"endpoint": "ovzdusie-verejne", "type": "AirQualityObserved", "columns": ["name", "pm10", "observedAt"], "units": [null, "µg/m³", null], "rows": [["Námestie SNP", 21, "2026-10-15T18:00:00Z"]], "dataset": "https://…/dataset/public-air", "download": "https://…/api/endpoint/…/ngsi-ld/v1/entities?type=…"}` | after a data round, before `delta`; at most 50 rows. The columns come by importance (T-4650): `name` (else `id`), the attributes the query named, measured values (a number with a `unitCode` or an `observedAt`), other numbers, categories, the record's metadata, and last one `observedAt`, the row's newest measurement. `units` holds, per column, the symbol (else the name) of the `unitCode` it carries, or `null`. The chat labels each column in the visitor's language with its unit, aligns numbers right and formats numbers, yes/no and times for that language. When rows carry a GeoJSON `location` and the deployment has a `viz.{domain}`, `map` holds the map spec of ADR-N-053 §2.9 built from them (the label, up to four of the values the table leads with, and `observedAt`), and the chat offers "Table \| Map", the map first when every row has a location (T-4657). Per column, `labels` holds the model's label as a language map (`{"sk": "Rok výstavby", "en": "Year built"}`) or `null`, `summary` whether the model marks it as a summary attribute, and `enums` the words of each enum value as `{"notListed": {"sk": "nie je chránená", "en": "not listed"}}` or `null`, all from the type's LinkML at no model cost (T-4672, T-4682). The chat shows at most 20 rows, the entity's label first and never the URN (the URN tail stands in where a row has no `name`), no Relationship column, years and codes without grouping, an enum in words, a URL as a short link, and an empty cell empty; `dateModified` is dropped when the row has `observedAt` (T-4682). Rows whose `location` is a Polygon or MultiPolygon also carry two columns `area` and `perimeter`, measured on the server on the WGS84 ellipsoid (geodesic, holes subtracted), each in the unit of its largest value (`m²`, `ha` or `km²`; `m` or `km`) to three significant figures; their outlines reach the map simplified (Douglas-Peucker to a thousandth of the extent, never finer than a metre, never into an invalid polygon). A table of one such row carries `geojson`, the entity's OGC API Features item `https://…/api/endpoint/{slug}/ogc/features/collections/{type}/items/{id}`, which the chat offers as "Stiahnuť GeoJSON" (T-4697) |
+| `visualization` | `{"spec": {…}, "rows": [{"name": "…", "pm10": 21}]}`: a Vega-Lite 5 spec over `rows`, or a map spec (ADR-N-053 §2.9) with no `rows` | after a `show_visualization` call the service accepted, at most once per answer; the chat draws it in a frame of `https://viz.{domain}/#show` (T-4657). `labels` maps a field to its label in the visitor's language, which the chat writes as the title and axis names; a chart of fewer than 3 values is refused, and the categories are the entities' names, never their URNs (T-4682). The visuals follow the answer's text, folded when there is more than one |
 | `delta` | `{"text": "…"}` | zero or more, the answer's next characters as the answering model streams them |
 | `answer` | `{"text": "… [1] … [2]"}` | once, the whole answer, after the last `delta` |
 | `citations` | `[{"n": 1, "url": "https://…/page#page=4", "title": "Ovzdušie"}, {"n": 2, "tool": "query_entities", "endpoint": "ovzdusie-verejne", "url": "https://…/dataset/ovzdusie", "title": "Kvalita ovzdušia"}]` | after `answer` |
-| `followups` | `{"questions": ["Kde je zberný dvor?", "…"]}` | after `citations`, at most once: up to 3 questions of at most 120 characters each that the router call proposed (T-4139), no extra model call; absent for a cached or search-only answer |
+| `followups` | `{"questions": ["Kde je zberný dvor?", "…"]}` | after `citations`, at most once: up to 3 questions of at most 120 characters each that the router call proposed (T-4139), no extra model call; absent for a cached answer |
 | `error` | `{"status": 429, "title": "Budget Spent", "detail": "…"}` | instead of `answer` |
 | `done` | `{"tokens": 1834, "tokensIn": 1600, "tokensOut": 234, "modelCalls": 2, "firstTokenMs": 900, "totalMs": 3100, "cached": false, "costUsd": 0.000412, "stagesMs": {"route": 420, "search": 40, "judge": 380, "answer": 2100}, "judgeSkipped": false, "providers": {"route": "Groq", "judge": "Groq", "answer": "Google Vertex"}, "reasoningTokens": {"route": 0, "judge": 0, "answer": 64}}` | last, always; the token counts are the sums of each model response's `usage` (`prompt_tokens`, `completion_tokens`), `tokens` their total; `costUsd` is the sum of each response's `usage.cost`, present only when every call reported one, and 0 for a cached answer or one that made no call (T-4178); `stagesMs` is the wall time of each stage that ran, in milliseconds: `route` the router call, `search` and `judge` summed over the rounds, `answer` the streamed answer call from request to last token. A stage that did not run is absent. The question's own search and its judgement run beside the router call, so the stages may add up to more than `totalMs` (T-4293); `judgeSkipped` is true when the first round's passages covered the question and were not judged; `providers` names, per stage, the OpenRouter provider that served its last call, and `reasoningTokens` the reasoning tokens its calls spent (`usage.completion_tokens_details.reasoning_tokens`), each stage only when a call reported it (T-4360) |
 
@@ -97,7 +97,7 @@ Both routes follow the `Origin` rules of §1.2, and the preflight allows `GET`, 
 - `title` is the first heading of the cited page or document, when it opens with one. A tool result's citation also carries the `url` and `title` of the page the deployment's sources hold about its Endpoint (the catalogue's or its dataset's, found by the Endpoint's address), when one exists. Both come from the deployment's own sources, public ones alone on a public channel. A channel shows the title and never the tool's name. (AG-117)
 - A passage citation may carry `cards`, what the cited passage itself publishes, read from its text and links without a model call: `{"kind": "contact", "name": "Klientske centrum", "phones": ["+421 48 4330 111"], "emails": ["podatelna@example.org"]}`, `{"kind": "place", "address": "Československej armády 26, 974 01 Banská Bystrica"}` or `{"kind": "procedure", "steps": ["Vyplňte žiadosť.", "…"]}`. `name` is the passage's last heading; empty lists and absent fields are left out; at most 3 cards per citation, 5 phones or e-mails per contact, 10 steps. The chat links a phone as `tel:`, an e-mail as `mailto:` and an address to an OpenStreetMap search only when each is well formed, and shows it as text otherwise. (T-4155)
 - The answer is in the language of the question; the deployment's `languages` only choose the greeting and the search stemmers. (AG-103)
-- An error the person can act on is an `error` event with a sentence: the conversation's budget is spent (`tokensPerConversation`), the model is unreachable, or a connector failed (the answer then goes on without it, and the `tool` event says `failed`). A spent day (`tokensPerDay`, `costPerDayUsd`) is no error: the chat answers as search (§1.2). (AG-104, T-4286)
+- An error the person can act on is an `error` event with a sentence: the conversation's budget is spent (`tokensPerConversation`), the model is unreachable, or a connector failed (the answer then goes on without it, and the `tool` event says `failed`). So is each cap of §1.2: a spent day (`tokensPerDay`, `costPerDayUsd`), a spent month, a spent share and unreadable spend; the chat shows a cap's sentence with no retry, since nothing changes before it resets. (AG-104, T-4286, T-4671)
 
 ### 1.4 The agent loop
 
@@ -141,6 +141,24 @@ operable and announces answers to a screen reader.
   from `https://viz.{domain}` alone when the deployment has one (ADR-N-053 §2.9); it MUST set
   no cookie. The chat route MUST accept the widget's own origin (`JC_ASSISTANT_PUBLIC_ORIGIN`)
   beside the deployment's, and every limit stays the server's (AG-100, AG-101, AG-110, AG-114).
+
+#### 1.6.1 Docked beside the catalogue (T-4685)
+
+The catalogue's theme frames the widget with `?embed=1&dock=1`; `dock=1` marks a host that can dock it.
+
+- **The panel.** On a screen at least 1100 px wide the header offers a dock button beside full screen. The widget posts `{"type": "jc-assistant-size", "size": "dock" | "panel" | "full"}` to its host. Docked, the host pins the frame to the right edge at full height, 34 % of the window by default. The visitor drags its left edge between 360 px and 50 % of the window, or moves it with the arrow keys; the host keeps the width in `localStorage` (`jc-dock-width`) and the open and docked state in `sessionStorage`. The page gets a right margin as wide as the panel, so the panel never covers it, and search, filters, maps and tables stay usable. Narrower screens keep the floating panel and full screen.
+- **A link clicked on the page.** Every catalogue link stays a normal page load: the address bar, Back and bookmarks keep working. The theme declares `@view-transition { navigation: auto; }` and names the frame `view-transition-name: jc-assistant`, so the browser holds the panel in place while the page beside it cross-fades in about 150 ms (no animation under `prefers-reduced-motion`). The host opens the panel again before its first paint. The widget writes its draft, caret and scroll to `sessionStorage` (`jc-chat-view:{publicId}`) on `pagehide` and restores them, with the conversation, when it loads. An answer still streaming at the page change continues through `resume` (§1.6.2), neither restarted nor repeated. A browser without cross-document view transitions gets the same restore without the cross-fade.
+- **Opening the dataset an answer is about.** When an answer is `done`, the widget checks its citations. If they link exactly one catalogue dataset page (a path `/dataset/{name}`, every such citation the same page, the first citation among them), the input is empty and the visitor's switch "Otvárať dataset automaticky" is on, the widget posts `{"type": "jc-assistant-dataset", "url": "…", "title": "…"}`. The switch lives in the "Súkromie" dialog, is shown on a docking host alone, is on by default and is kept in `localStorage` (`jc-chat-follow:{publicId}`). The host navigates only when the URL's origin is its own and its path is `/dataset/{name}`, when it is not the page already open, no text is selected and no field of the page has focus. It first answers `{"type": "jc-assistant-opened", "url": "…"}`. The widget then shows "Otvoril som dataset {title} · Späť" under the answer, and a screen reader hears "Stránka zmenená na dataset {title}" once. "Späť" posts `{"type": "jc-assistant-back"}` and the host goes back one page. A broad answer that links several datasets, or none, never navigates. A host that frames the widget on another site ignores the message, and the citation stays a link.
+- The host trusts these messages only from its own frame and the assistant's origin. The widget sends them to the framing origin alone. They carry a URL and a title, never a token.
+
+#### 1.6.2 Resuming an answer (T-4685)
+
+`GET https://assistant.{domain}/api/v1/d/{publicId}/turns/{turn}/resume?after={n}` with the header `X-JC-Visitor`.
+
+- A visitor's answer runs to its end on the server even when its reader leaves (a link on the host page, a closed tab, Stop), and its turn is stored as usual (§3.1). The service keeps the turn's events in memory until 2 minutes after `done`.
+- `after` is the number of events after `conversation` the widget already handled, 0 by default. The answer is `200`, `text/event-stream`, `Cache-Control: no-store`: the events from index `after` on, in the order and shape of §1.3, the ones still to come as they come, ending with `done`. Each event carries its index as the SSE `id`.
+- The turn belongs to the address that asked (its salted daily hash, as the limits of §1.2 key it): a resume carries any current visitor token, since the token lives in the page's memory and the next page earns a new one. Another address, another deployment or an unknown id answers `404`. The turn id is a random UUID and never the authorization. A missing or expired token answers `401`, an origin the deployment does not allow `403`, a turn past its 2 minutes `410` (for 10 minutes more, `404` after that), a 21st resume in a minute from one address `429`.
+- At most 1,000 turns are held at once; past that, the oldest finished turn is dropped first.
 
 ### 1.7 In the Portal
 
@@ -188,6 +206,66 @@ asking one optional "Čo chýbalo?" (T-4174):
 - A verdict is stored with its deployment, day, turn and note alone: no address, cookie or other
   personal data. The note is data, never an instruction: no model reads it. Verdicts are deleted
   after 90 days. The usage route of §3 counts them per day.
+
+### 1.9 What the assistant knows: the context
+
+`GET https://assistant.{domain}/api/v1/d/{publicId}/context` answers, without a token, what the
+deployment reads, and `https://assistant.{domain}/d/{publicId}/context` shows the same as a page
+in the deployment's languages (`?lang=`), linked from the widget's privacy dialog
+(AG-123, [ADR-N-055 §2.6](../Decisions/adr-n-055-assistant-profiles.md#26-the-context-page)).
+The deployment reads its Endpoints by the selector of MF-58:
+
+```yaml excerpt
+spec:
+  publicId: bb-doprava
+  channel: public
+  categories: [TRAN]
+  sources: []                     # a data-only assistant
+  select:
+    projects: [banskabystrica]
+    themes: [TRAN]
+    accessLevel: [public]
+  exclude: [hfp-vehicles-raw]
+```
+
+```json
+{"publicId": "bb-doprava", "title": {"sk": "Doprava v Banskej Bystrici", "en": "Transport in Banská Bystrica"},
+ "languages": ["sk", "en"], "categories": [{"code": "TRAN", "label": "Doprava"}],
+ "limits": {"perClientPerHour": 60, "perClientPerDay": 200, "messagesPerConversation": 30, "questionChars": 1000},
+ "endpoints": [{"slug": "banskabystrica-parking", "title": "Parkoviská", "publisher": "banskabystrica",
+   "themes": ["TRAN"], "types": ["OffStreetParking"], "entities": 41, "modified": "2026-10-18T21:40:00Z",
+   "catalogue": "https://opendata.{domain}/dataset/banskabystrica-parking"}],
+ "sources": [], "omitted": 0}
+```
+
+- `title` is the deployment's `theme.title` per language; `categories` carry the labels of
+  AG-124 in the asked language. `endpoints` is the resolution of AG-121 sorted by slug, each
+  with the theme codes of its catalogue record, `entities` and `modified` as the Endpoint's catalogue record counts them; `sources` lists
+  each `visibility: public` source with `kind`, `sites` (its start hosts), `pages`, `documents`
+  and `crawled`. `omitted` counts the Endpoints past the limit of AG-122.
+- It never carries the system prompt, the model, the budget, a `secretRef`, a source that is not
+  public or an Endpoint outside the resolution. An unknown, disabled or doubly declared
+  `publicId`, and one of the `internal` channel, answers `404`, as the chat does.
+- An `internal` deployment's context is the Portal's
+  `GET /api/v1/projects/{project}/knowledge/deployments/{deployment}/context`, for a caller who may
+  read `AssistantDeployment` in the project. The Portal's editor previews an unsaved manifest with
+  `POST /api/v1/projects/{project}/knowledge/deployments/context?dryRun=All` and the manifest as
+  the body, same rule, same document, computed by the same resolver; it changes nothing.
+
+### 1.10 A chat page outside the platform
+
+A city may build its own chat page, in its own design, on its own host (AG-125,
+[ADR-N-055 §2.7](../Decisions/adr-n-055-assistant-profiles.md#27-public-clients-outside-the-platform)).
+It is a browser client of one `publicId` and nothing else:
+
+1. Its origin, `https://host[:port]`, is in the deployment's `allowedOrigins`.
+2. It reads the look and the texts from `GET …/context` and the widget settings of MF-52.
+3. It gets a visitor token by `challenge` and `token` (§1.2), keeps it in memory, and sends
+   questions to `chat` and verdicts to `feedback` with it.
+
+It holds no model key, no ServiceAccount, no secret and no copy of the data; every limit, the
+budget and the Policy stay the server's. A change of the look, the languages or the reach is a
+Change to the manifest, never a new build of the page.
 
 ## 2. Calling the model through `jc-agent-proxy`
 
@@ -298,11 +376,22 @@ DELETE …/knowledge/conversations/{conversation}
   A step carries `kind` (`route`, `search`, `tool`, `model`, `answer`), `name`, `endpoint`,
   `input`, `output` (at most 8 kB; `outputBytes` is the whole size), `status`, `startMs`,
   `durationMs`, `error`, and for `model` the `stage` (`router`, `judge`, `data`, `answer`),
-  `model`, `provider`, `tokensIn`, `tokensOut`, `reasoningTokens` and `costUsd` (`null` when the
-  provider sent none). A turn's `costUsd` is the sum of its steps', a conversation's the sum of its
-  turns'.
-- Every text was redacted before it was stored: an e-mail address reads `[e-mail]`, a phone
-  number `[telefón]`, an IBAN `[IBAN]`, a birth number `[rodné číslo]`, a card number `[karta]`.
+  `model`, `provider`, `effort`, `promptVersion`, `tokensIn`, `tokensOut`, `cachedTokens`,
+  `reasoningTokens`, `reasoning` (the text the provider returned, else `null`), `finishReason` and
+  `costUsd` (`null` when the provider sent none). `kind` is also `visual` (a table, chart or map
+  the visitor was shown: `name` is `table`, `chart` or `map`, `input` its spec, `rows` its row
+  count) and `untracked` (the time between steps no step accounts for), so the steps' durations
+  add up to the turn's time from the question's arrival, the connectors' setup included. `output` is whole up to 64 kB, beyond that its first 20 rows, with
+  `outputBytes` the whole size (T-4681). A turn's `costUsd` is the sum of its steps', a
+  conversation's the sum of its turns'.
+- `GET …/knowledge/conversations/{conversation}/turns/{turn}/same` lists the stored turns of the
+  project whose question reads the same (case, diacritics and spacing ignored, matched by a hash),
+  newest first, at most 50: `conversation`, `turn`, `at`, `deployment`, `totalMs`, `costUsd`,
+  `steps` (their number), so the Portal compares two answers to one question side by side.
+- Before a turn is stored, an access token or API key reads `[token]`, a password `[heslo]`, a
+  private key `[kľúč]` and a card number `[karta]`; under `transcriptRedaction: personal` an
+  e-mail address also reads `[e-mail]`, a phone number `[telefón]`, an IBAN `[IBAN]` and a birth
+  number `[rodné číslo]`.
   Inputs and outputs are untrusted text: the Portal shows them escaped and never sends them to a
   model.
 - `DELETE` removes the conversation's turns and steps (erasure, T-4668) and answers `204`; an
@@ -345,9 +434,32 @@ named sources hold in public, for the tool's description, under the same rules:
 `{"passages": 23140, "publishers": ["banskabystrica", "bbsk"], "languages": {"en": 0.08, "sk": 0.92}}`,
 the share of each language among the passages whose language is known.
 
+## 5. The assistant's MCP server
+
+The gateway serves every enabled deployment as an MCP server at
+`https://api.{domain}/api/mcp/d/{publicId}` (EP-136, EP-137,
+[ADR-N-055 §2.5](../Decisions/adr-n-055-assistant-profiles.md#25-an-mcp-server-per-assistant)),
+so a person adds the reach of an assistant to Claude, ChatGPT or Gemini and asks with their own
+model:
+
+| Offered | What it is |
+|---|---|
+| the read tools of the hub (`list_endpoints`, `get_endpoint`, `query_entities`, `get_entity`, `query_temporal`, …) | narrowed to the Endpoints the resolver returns for the deployment (AG-121) |
+| `search_documents` | over the deployment's own `visibility: public` knowledge sources, when it has one (EP-133) |
+| resource `context` | the document of §1.9 |
+
+- A `public`, `ckan` or `iframe` deployment answers without a token and with the anonymous tokens
+  of ADR-N-052, with its `audience: public` Endpoints alone; an `internal` one answers a Keycloak
+  token of a member of the organization, each call read with that token.
+- The server runs no model, so it never touches the deployment's `budget`; each call counts
+  against the deployment's `rateLimit` per caller beside the gateway's buckets.
+- An unknown `publicId`, one two deployments declare, and one with `enabled: false` answer as an
+  unknown server does.
+
 ## Related
 
 - [Architecture/22](../Architecture/22-knowledge-assistant.md): the service, its manifests and its channels.
 - [ADR-N-040](../Decisions/adr-n-040-knowledge-assistant.md): the decision, §3.4 the proxy, §3.7 the threats.
 - [04-agent-runs.md](04-agent-runs.md): `jc-agent-proxy` for agent runs.
 - [02-endpoint-representations.md](02-endpoint-representations.md): the MCP surface of an Endpoint the connectors call.
+- [ADR-N-055](../Decisions/adr-n-055-assistant-profiles.md): assistant profiles, §1.9 and §5 here.
