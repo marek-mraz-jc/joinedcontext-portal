@@ -17,7 +17,7 @@ use jcctl::loader::{RawManifest, RawMetadata, ResourceId};
 use jcctl::publish::ckan::{InMemoryCkan, Outcome, Settings};
 use joinedcontext_portal::reconciler::ckan::{
     fingerprint, publish_with, publish_without_rows, sweep_with, withdrawn, CkanSync, Paced,
-    Pacing, Publication, Report, CALL_GAP, MOST_BACKOFF, REFRESH,
+    Pacing, Publication, Report, CALL_GAP, MOST_BACKOFF, RECORD_READS, REFRESH, ROWS_READS,
 };
 use joinedcontext_portal::resource::ResourceEnvelope;
 use joinedcontext_portal::store::Mirror;
@@ -976,4 +976,43 @@ fn calls_to_the_catalogue_keep_the_gap_across_every_client_of_one_portal() {
         Duration::from_millis(200),
         "at most five calls a second"
     );
+}
+
+#[test]
+fn the_gateway_reads_of_each_publication_keep_the_catalogues_pace() {
+    // T-4717: prod's edge saw the publisher at 25 requests a second, all from the record, `/ws`,
+    // file.csv and schema reads, which went out beside the paced catalogue calls.
+    use jcctl::publish::ckan::CkanApi;
+    let gap = Duration::from_millis(30);
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let last = Arc::new(Mutex::new(None));
+    let api = Paced::new(Clocked(calls.clone()), last.clone(), gap);
+    let read = || calls.lock().expect("calls").push(Instant::now());
+    let endpoints = 3;
+    for _ in 0..endpoints {
+        api.reads(RECORD_READS, read);
+        api.reads(ROWS_READS, read);
+    }
+    // The next Endpoint's catalogue call, on a client of its own, waits for every read before it.
+    Paced::new(Clocked(calls.clone()), last, gap)
+        .show("package_show", "next")
+        .expect("show");
+    let at = calls.lock().expect("calls").clone();
+    assert_eq!(at.len(), 2 * endpoints + 1);
+    let held = gap * (RECORD_READS + ROWS_READS) * endpoints as u32;
+    assert!(
+        at[at.len() - 1] - at[0] >= held,
+        "{:?} < {held:?}",
+        at[at.len() - 1] - at[0]
+    );
+    assert_eq!(
+        (RECORD_READS, ROWS_READS),
+        (2, 3),
+        "/, /ws; file.csv and two schemas"
+    );
+
+    // An Endpoint without a sheet reads no rows: nothing to wait for.
+    let before = Instant::now();
+    api.reads(0, || ());
+    assert!(before.elapsed() < gap);
 }

@@ -107,7 +107,8 @@ pub struct CkanSync {
     said: Arc<Mutex<HashMap<(String, String), String>>>,
     /// When each `(project, endpoint)` is next published (T-4717).
     pacing: Arc<Mutex<Pacing>>,
-    /// When this Portal last called the catalogue, shared by every publication (T-4717).
+    /// When this Portal may next call the catalogue or read the gateway, shared by every
+    /// publication (T-4717).
     last_call: Arc<Mutex<Option<Instant>>>,
 }
 
@@ -534,7 +535,8 @@ fn refused_for_load(reason: &str) -> bool {
 }
 
 /// A catalogue client that keeps its calls `gap` apart, the gap shared by every client holding
-/// the same `last` (T-4717). Blocking: it sleeps on the publication's own blocking thread.
+/// the same `last`, the earliest the next call may go (T-4717). Blocking: it sleeps on the
+/// publication's own blocking thread.
 pub struct Paced<A> {
     api: A,
     last: Arc<Mutex<Option<Instant>>>,
@@ -547,15 +549,31 @@ impl<A> Paced<A> {
         Self { api, last, gap }
     }
 
+    /// Runs `read`, which makes `calls` requests of its own to the gateway, inside the same pace:
+    /// it waits its turn and holds `calls` gaps, so the next call comes no sooner than if each
+    /// request had waited. The reads of a publication (the record and its `/ws`, then `file.csv`
+    /// and two schemas) went out unpaced and peaked at 25 a second on prod (T-4717).
+    pub fn reads<T>(&self, calls: u32, read: impl FnOnce() -> T) -> T {
+        if calls > 0 {
+            self.wait_for(calls);
+        }
+        read()
+    }
+
     fn wait(&self) {
+        self.wait_for(1);
+    }
+
+    /// Waits until the last holder's gap has passed, then holds `calls` gaps from now.
+    fn wait_for(&self, calls: u32) {
         let mut last = self.last.lock().unwrap_or_else(|p| p.into_inner());
-        if let Some(at) = *last {
-            let since = at.elapsed();
-            if since < self.gap {
-                std::thread::sleep(self.gap - since);
+        if let Some(ready) = *last {
+            let now = Instant::now();
+            if ready > now {
+                std::thread::sleep(ready - now);
             }
         }
-        *last = Some(Instant::now());
+        *last = Some(Instant::now() + self.gap * calls);
     }
 }
 
@@ -634,20 +652,33 @@ pub fn sweep_with(
         .collect()
 }
 
+/// The gateway requests of `publisher::record`: the record, and `/ws` for its example type.
+pub const RECORD_READS: u32 = 2;
+/// The gateway requests of `publisher::rows`: `file.csv`, `model.schema.json`, `model.linkml.yaml`.
+pub const ROWS_READS: u32 = 3;
+
 /// Publishes one Endpoint through an open catalogue connection.
 ///
 /// The record and the rows are read from the gateway as an ordinary consumer, which is what keeps
-/// a dataset to what the Endpoint's policy set already allows (EP-66). Blocking: both reads and
-/// every catalogue call open a socket.
-pub fn publish_one(
-    api: &mut impl CkanApi,
+/// a dataset to what the Endpoint's policy set already allows (EP-66). Both reads keep the
+/// catalogue's pace, since they pass the same edge (T-4717). Blocking: both reads and every
+/// catalogue call open a socket.
+pub fn publish_one<A: CkanApi>(
+    api: &mut Paced<A>,
     target: &Target,
     settings: &Settings,
     measured: &Measurements,
 ) -> Result<Publication, String> {
-    let record = publisher::record(target, settings).map_err(|err| err.to_string())?;
+    let record = api
+        .reads(RECORD_READS, || publisher::record(target, settings))
+        .map_err(|err| err.to_string())?;
     let record = jcctl::publish::ckan::measured(&record, measured);
-    match publisher::rows(target, settings) {
+    let reads = if target.publication.datastore.is_some() {
+        ROWS_READS
+    } else {
+        0
+    };
+    match api.reads(reads, || publisher::rows(target, settings)) {
         Ok(rows) => publish_with(api, target, &record, rows.as_ref(), settings),
         Err(err) => publish_without_rows(api, target, &record, &err.to_string(), settings),
     }
