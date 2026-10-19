@@ -1248,7 +1248,7 @@
     },
     "src/pages/knowledge/UsageSummary.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "assistant_conversations.test.tsx"
