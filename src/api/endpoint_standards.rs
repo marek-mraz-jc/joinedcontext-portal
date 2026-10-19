@@ -425,21 +425,8 @@ fn number_field(entity: &Value, fields: &[String]) -> Option<(String, String)> {
 
 /// The classes of the data model of the space the Endpoint serves.
 fn classes_of(state: &AppState, project: &str, spec: &Value) -> Vec<String> {
-    let model = crate::resource::reference_name(&spec["contextSpaceRef"])
-        .and_then(|space| state.mirror.get(project, "ContextSpace", space))
-        .and_then(|space| {
-            crate::resource::reference_name(&space.spec["dataModelRef"]).map(str::to_owned)
-        })
-        .and_then(|name| state.mirror.get(project, "DataModel", &name));
-    model
-        .map(|model| {
-            model.spec["classes"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(|c| c.as_str().map(str::to_owned))
-                .collect()
-        })
+    crate::resource::reference_name(&spec["contextSpaceRef"])
+        .map(|space| crate::api::assistant_context::model_classes(&state.mirror, project, space))
         .unwrap_or_default()
 }
 

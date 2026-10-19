@@ -2145,6 +2145,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/knowledge/deployments/context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview What An Assistant Will Know
+         * @description Resolves an unsaved AssistantDeployment manifest the way the assistant will: its Endpoints (connectors, select and mcpServer, less exclude, inside the project's reach), its knowledge sources and its categories. Changes nothing; `dryRun=All` is required.
+         */
+        post: operations["previewAssistantContext"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/knowledge/deployments/{deployment}/chat": {
         parameters: {
             query?: never;
@@ -2159,6 +2179,26 @@ export interface paths {
          * @description One question to the project's AssistantDeployment as the signed-in person, answered as the Server-Sent Events of API/05 §1.3. An internal deployment reads its internal passages and the organization's Endpoints with the person's own token, which the Portal passes on and keeps no copy of; any other channel answers as it answers a visitor (API/05 §1.7, AG-115).
          */
         post: operations["chat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/knowledge/deployments/{deployment}/context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read What An Assistant Knows
+         * @description The Endpoints, knowledge sources and categories of one saved AssistantDeployment, resolved as the assistant resolves them.
+         */
+        get: operations["getAssistantContext"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -13602,6 +13642,120 @@ export interface operations {
             };
         };
     };
+    previewAssistantContext: {
+        parameters: {
+            query?: {
+                /**
+                 * @description The language of the category labels and titles: `sk`, `en`, `cs`, `hu`, `de`, `fi` or
+                 *     `uk`; English for any other.
+                 */
+                lang?: string | null;
+                /** @description `All`: the preview changes nothing (API/01 §dry runs). */
+                dryRun?: string | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        /** @description The AssistantDeployment manifest being edited */
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "apiVersion": "joinedcontext.com/v1alpha1",
+                 *       "kind": "AssistantDeployment",
+                 *       "metadata": {
+                 *         "name": "doprava",
+                 *         "namespace": "bb"
+                 *       },
+                 *       "spec": {
+                 *         "allowedOrigins": [
+                 *           "https://www.banskabystrica.sk"
+                 *         ],
+                 *         "budget": {
+                 *           "tokensPerConversation": 40000,
+                 *           "tokensPerDay": 2000000
+                 *         },
+                 *         "categories": [
+                 *           "TRAN"
+                 *         ],
+                 *         "channel": "public",
+                 *         "languages": [
+                 *           "sk",
+                 *           "en"
+                 *         ],
+                 *         "publicId": "bb-doprava",
+                 *         "rateLimit": {
+                 *           "perClientPerMinute": 10,
+                 *           "requestsPerMinute": 60
+                 *         },
+                 *         "scope": {
+                 *           "projects": [
+                 *             "bbsk"
+                 *           ]
+                 *         },
+                 *         "select": {
+                 *           "themes": [
+                 *             "TRAN"
+                 *           ]
+                 *         }
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["ResourceEnvelope"];
+            };
+        };
+        responses: {
+            /** @description What the assistant will read */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Not an AssistantDeployment, or a field its kind refuses */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     chat: {
         parameters: {
             query?: never;
@@ -13704,6 +13858,57 @@ export interface operations {
             };
             /** @description The knowledge assistant is not reachable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getAssistantContext: {
+        parameters: {
+            query?: {
+                /**
+                 * @description The language of the category labels and titles: `sk`, `en`, `cs`, `hu`, `de`, `fi` or
+                 *     `uk`; English for any other.
+                 */
+                lang?: string | null;
+                /** @description `All`: the preview changes nothing (API/01 §dry runs). */
+                dryRun?: string | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description AssistantDeployment name */
+                deployment: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What the assistant reads */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project or deployment the caller may read */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

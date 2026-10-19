@@ -19,6 +19,29 @@ const SOURCES: Record<string, unknown[]> = {
   banskabystrica: [source("banskabystrica", "web", "City pages", "public")],
 };
 
+type Proposal = { spec?: { sources?: string[]; select?: unknown } };
+
+// T-4693 (AG-121): what the resolver would answer, a data-only assistant's Endpoints or a RAG-only
+// assistant's sources, from what the form sends.
+function contextOf(proposal: Proposal) {
+  const spec = proposal.spec ?? {};
+  const transport = [{ code: "TRAN", label: "Transport" }];
+  return {
+    publicId: "bbsk-doprava",
+    channel: "public",
+    title: null,
+    languages: ["sk", "en"],
+    categories: spec.select ? transport : [],
+    limits: { perClientPerHour: null, perClientPerDay: null, messagesPerConversation: null, questionChars: null },
+    endpoints: spec.select
+      ? [{ slug: "aaaaaaaaaaaaaaaaaaaaaaaaaa", project: PROJECT, name: "roads", title: "Regional roads", audience: "public", themes: transport, types: ["Road"], tools: [], timeoutSeconds: 20 }]
+      : [],
+    omitted: [],
+    sources: (spec.sources ?? []).map((name) => ({ project: PROJECT, name, kind: "website", visibility: "public", sites: ["www.bbsk.sk"], categories: [] })),
+    problems: [],
+  };
+}
+
 async function stubApi(page: Page): Promise<void> {
   await page.route(
     (url) => url.pathname.startsWith("/api/"),
@@ -32,6 +55,7 @@ async function stubApi(page: Page): Promise<void> {
       if (path.endsWith("/events")) return route.fulfill({ status: 200, contentType: "text/event-stream", body: "" });
       const sources = /^\/api\/v1\/projects\/([^/]+)\/knowledgesources$/.exec(path);
       if (sources) return list(SOURCES[sources[1]] ?? []);
+      if (path.endsWith("/knowledge/deployments/context")) return json(contextOf(route.request().postDataJSON() as Proposal));
       return list([]);
     },
   );
@@ -74,3 +98,26 @@ for (const width of [375, 1440]) {
     }
   });
 }
+
+test("a RAG-only assistant previews its sources and no Endpoint", async ({ page }) => {
+  await stubApi(page);
+  await page.goto(`/projects/${PROJECT}/assistantdeployments/new?lang=en`);
+  await page.getByTestId("knowledge-sources").getByRole("checkbox", { name: /Region pages/ }).check();
+  const preview = page.getByRole("region", { name: "What the assistant will know" });
+  // The source's own answer, not the first one before the box was ticked.
+  await expect(preview.getByRole("list", { name: /sources/i })).toContainText("web");
+  await expect(preview.getByRole("table")).toHaveCount(0);
+});
+
+test("a data-only assistant previews the Endpoints its selector reaches", async ({ page }) => {
+  await stubApi(page);
+  await page.route(
+    (url) => url.pathname.endsWith("/knowledge/deployments/context"),
+    (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(contextOf({ spec: { select: {} } })) }),
+  );
+  await page.goto(`/projects/${PROJECT}/assistantdeployments/new?lang=en`);
+  const preview = page.getByRole("region", { name: "What the assistant will know" });
+  await expect(preview.getByRole("cell", { name: "Regional roads" })).toBeVisible();
+  await expect(preview.getByText("Transport").first()).toBeVisible();
+  await page.screenshot({ path: `${process.env.SHOTS_DIR ?? "test-results"}/t4693-preview-data.png`, fullPage: false });
+});

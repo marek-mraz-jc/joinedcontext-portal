@@ -6719,7 +6719,15 @@
       "feedback": "Ptát se návštěvníků, zda odpověď pomohla",
       "widget": "Chat",
       "widgetLanguage": "Jazyk, ve kterém se chat otevře",
-      "languageToggle": "Zobrazit přepínač jazyka"
+      "languageToggle": "Zobrazit přepínač jazyka",
+      "select": "Endpointy podle výběru",
+      "selectHint": "Každý endpoint, který odpovídá všem zadaným polím, v tomto projektu a ve scope.projects.",
+      "selectProjects": "Vydavatelé (projekty)",
+      "selectThemes": "Kategorie",
+      "selectTypes": "Typy entit",
+      "selectAccess": "Přístup",
+      "excludeEndpoints": "Tyto endpointy nikdy nečíst",
+      "categories": "Kategorie"
     },
     "visibility": {
       "internal": "Interní: přihlášení zaměstnanci",
@@ -6843,6 +6851,44 @@
       "own": "{project} (tento projekt)",
       "unknown": "Uvedené, ale vám nenabídnuté",
       "none": "Žádný projekt, který můžete číst, zatím nemá zdroj znalostí."
+    },
+    "category": {
+      "AGRI": "Zemědělství, rybářství, lesnictví a potraviny",
+      "ECON": "Hospodářství a finance",
+      "EDUC": "Vzdělávání, kultura a sport",
+      "ENER": "Energie",
+      "ENVI": "Životní prostředí",
+      "GOVE": "Vláda a veřejný sektor",
+      "HEAL": "Zdraví",
+      "INTR": "Mezinárodní otázky",
+      "JUST": "Spravedlnost, právní systém a veřejná bezpečnost",
+      "REGI": "Regiony a města",
+      "SOCI": "Obyvatelstvo a společnost",
+      "TECH": "Věda a technika",
+      "TRAN": "Doprava"
+    },
+    "accessLevel": {
+      "public": "Veřejný",
+      "organization": "Organizace",
+      "project": "Projekt",
+      "grant": "Oprávnění"
+    },
+    "context": {
+      "heading": "Co bude asistent vědět",
+      "problems": "Před návrhem asistenta opravte tato pole",
+      "categories": "Kategorie:",
+      "noEndpoints": "Žádný endpoint: odpovídá jen ze zdrojů znalostí.",
+      "endpoints": "Endpointy, které čte ({count})",
+      "endpoint": "Endpoint",
+      "publisher": "Vydavatel",
+      "types": "Typy entit",
+      "how": "Jak",
+      "connector": "Konektor: {tools}",
+      "selected": "Podle výběru",
+      "omittedTitle": "Vynechané endpointy: {count}",
+      "omitted": "Jeden asistent čte nejvýše 50 endpointů; zužte výběr nebo některé vylučte. Vynechané: {slugs}",
+      "noSources": "Žádný zdroj znalostí: odpovídá jen z živých dat.",
+      "sources": "Zdroje znalostí"
     },
     "trySearch": {
       "title": "Vyzkoušet vyhledávání",

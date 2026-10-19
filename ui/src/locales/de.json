@@ -6719,7 +6719,15 @@
       "feedback": "Besucher fragen, ob eine Antwort geholfen hat",
       "widget": "Der Chat",
       "widgetLanguage": "Sprache, in der der Chat öffnet",
-      "languageToggle": "Sprachumschalter zeigen"
+      "languageToggle": "Sprachumschalter zeigen",
+      "select": "Endpoints nach Auswahl",
+      "selectHint": "Jeder Endpoint, der allen angegebenen Feldern entspricht, in diesem Projekt und in scope.projects.",
+      "selectProjects": "Herausgeber (Projekte)",
+      "selectThemes": "Kategorien",
+      "selectTypes": "Entitätstypen",
+      "selectAccess": "Zugriff",
+      "excludeEndpoints": "Diese Endpoints nie lesen",
+      "categories": "Kategorien"
     },
     "visibility": {
       "internal": "Intern: angemeldete Mitarbeitende",
@@ -6843,6 +6851,44 @@
       "own": "{project} (dieses Projekt)",
       "unknown": "Genannt, aber Ihnen nicht angeboten",
       "none": "Noch kein Projekt, das Sie lesen dürfen, hat eine Wissensquelle."
+    },
+    "category": {
+      "AGRI": "Landwirtschaft, Fischerei, Forstwirtschaft und Nahrungsmittel",
+      "ECON": "Wirtschaft und Finanzen",
+      "EDUC": "Bildung, Kultur und Sport",
+      "ENER": "Energie",
+      "ENVI": "Umwelt",
+      "GOVE": "Regierung und öffentlicher Sektor",
+      "HEAL": "Gesundheit",
+      "INTR": "Internationale Themen",
+      "JUST": "Justiz, Rechtssystem und öffentliche Sicherheit",
+      "REGI": "Regionen und Städte",
+      "SOCI": "Bevölkerung und Gesellschaft",
+      "TECH": "Wissenschaft und Technologie",
+      "TRAN": "Verkehr"
+    },
+    "accessLevel": {
+      "public": "Öffentlich",
+      "organization": "Organisation",
+      "project": "Projekt",
+      "grant": "Berechtigung"
+    },
+    "context": {
+      "heading": "Was der Assistent wissen wird",
+      "problems": "Korrigieren Sie diese Felder, bevor Sie den Assistenten vorschlagen",
+      "categories": "Kategorien:",
+      "noEndpoints": "Kein Endpoint: er antwortet nur aus seinen Wissensquellen.",
+      "endpoints": "Endpoints, die er liest ({count})",
+      "endpoint": "Endpoint",
+      "publisher": "Herausgeber",
+      "types": "Entitätstypen",
+      "how": "Wie",
+      "connector": "Konnektor: {tools}",
+      "selected": "Nach Auswahl",
+      "omittedTitle": "Ausgelassene Endpoints: {count}",
+      "omitted": "Ein Assistent liest höchstens 50 Endpoints; schränken Sie die Auswahl ein oder schließen Sie einige aus. Ausgelassen: {slugs}",
+      "noSources": "Keine Wissensquelle: er antwortet nur aus Live-Daten.",
+      "sources": "Wissensquellen"
     },
     "trySearch": {
       "title": "Suche ausprobieren",

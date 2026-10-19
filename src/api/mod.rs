@@ -9,6 +9,7 @@ pub mod app_shapes;
 pub mod app_templates;
 pub mod app_transfer;
 pub mod assistant;
+pub mod assistant_context;
 pub mod basemap;
 pub mod blueprints;
 pub mod branding;

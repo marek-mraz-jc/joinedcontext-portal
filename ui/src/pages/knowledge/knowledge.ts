@@ -2,6 +2,7 @@
 // sources hold once crawled. The answers are jc-assistant's; the shapes below are API/05 §3.
 import { api, ApiError, readCsrfToken, unwrap } from "../../api/client";
 import type { ProblemDetails } from "../../api/client";
+import type { Manifest } from "../../api/manifest";
 
 export interface SourceJob {
   state: "queued" | "running" | "done" | "failed";
@@ -609,5 +610,78 @@ export function duplicateDeployment(
     kind: "AssistantDeployment",
     metadata: { name: freeName(manifest.metadata.name, names), namespace: manifest.metadata.namespace },
     spec: { ...structuredClone(manifest.spec ?? {}), publicId: freeName(publicId, ids) },
+  };
+}
+
+/** One EU data-theme category with its label in the asked language (AG-124). */
+export interface Category {
+  code: string;
+  label: string;
+}
+
+/** What an assistant reads, as the resolver resolves it (API/05 §1.9, AG-121). */
+export interface AssistantContext {
+  publicId: string;
+  channel: string;
+  title: string | null;
+  languages: string[];
+  categories: Category[];
+  limits: {
+    perClientPerHour: number | null;
+    perClientPerDay: number | null;
+    messagesPerConversation: number | null;
+    questionChars: number | null;
+  };
+  endpoints: {
+    slug: string;
+    project: string;
+    name: string;
+    title: string | null;
+    audience: string | null;
+    themes: Category[];
+    types: string[];
+    /** The connector's tools; empty for an Endpoint that joined by the selector or the server. */
+    tools: string[];
+    timeoutSeconds: number;
+  }[];
+  /** Slugs past the 50 one deployment serves (AG-122). */
+  omitted: string[];
+  sources: {
+    project: string;
+    name: string;
+    kind: string;
+    visibility: string;
+    sites: string[];
+    categories: Category[];
+  }[];
+  /** The manifest's own rule findings; the preview resolves what it can regardless. */
+  problems: string[];
+}
+
+/** The context an unsaved AssistantDeployment manifest would have; a dry run that changes nothing. */
+export async function previewContext(
+  project: string,
+  manifest: Manifest,
+  lang: string,
+): Promise<AssistantContext> {
+  const answer = (await unwrap(
+    await api.POST("/api/v1/projects/{project}/knowledge/deployments/context", {
+      params: { path: { project }, query: { dryRun: "All", lang } },
+      body: manifest,
+    }),
+  )) as Partial<AssistantContext> | null;
+  // The lists are what the preview walks; an answer without them reads as an empty context.
+  const listed = <T,>(items: T[] | undefined): T[] => (Array.isArray(items) ? items : []);
+  return {
+    publicId: answer?.publicId ?? "",
+    channel: answer?.channel ?? "",
+    title: answer?.title ?? null,
+    languages: listed(answer?.languages),
+    categories: listed(answer?.categories),
+    limits: answer?.limits ?? { perClientPerHour: null, perClientPerDay: null, messagesPerConversation: null, questionChars: null },
+    endpoints: listed(answer?.endpoints),
+    omitted: listed(answer?.omitted),
+    sources: listed(answer?.sources),
+    problems: listed(answer?.problems),
   };
 }

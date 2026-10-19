@@ -1349,6 +1349,14 @@ pub fn router() -> Router<AppState> {
             delete(remove_file),
         )
         .route(
+            "/projects/{project}/knowledge/deployments/context",
+            post(crate::api::assistant_context::preview_context),
+        )
+        .route(
+            "/projects/{project}/knowledge/deployments/{deployment}/context",
+            get(crate::api::assistant_context::deployment_context),
+        )
+        .route(
             "/projects/{project}/knowledge/deployments/{deployment}/usage",
             get(deployment_usage),
         )
