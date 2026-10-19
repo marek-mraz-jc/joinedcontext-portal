@@ -92,7 +92,8 @@ jobs:
             APT_REFRESH=${{ steps.day.outputs.d }}
             JC_PORTAL_COMMIT=${{ github.sha }}
           push: true
-          tags: ${{ matrix.image }}:${{ github.sha }},${{ matrix.image }}:main
+          # dev-<N>: built and smoke-tested; the full-test promote adds :<N> and :latest (T-4721)
+          tags: ${{ matrix.image }}:${{ github.sha }},${{ matrix.image }}:main,${{ matrix.image }}:dev-${{ github.run_number }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
           provenance: true
