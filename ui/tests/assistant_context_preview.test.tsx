@@ -2,9 +2,10 @@
  * T-4693 (AG-121, MF-58, MF-60): the deployment editor's selector, exclude list and categories,
  * and the preview beside the form of what the assistant being edited will read.
  */
-import { screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import validator from "../src/components/forms/validator";
+import { ContextView } from "../src/pages/knowledge/AssistantContextPreview";
 import type { AssistantContext } from "../src/pages/knowledge/knowledge";
 import { CATEGORIES, assistantDeploymentSchema, toKindManifest } from "../src/schemas/knowledge";
 import { jsonResponse, list, renderRoute } from "./pageHarness";
@@ -128,5 +129,30 @@ describe("the preview of what the assistant will read (AG-121)", () => {
     const preview = await screen.findByRole("region", { name: "What the assistant will know" });
     expect(await within(preview).findByRole("alert")).toHaveTextContent("spec: unknown field");
     expect(within(preview).queryByRole("table")).not.toBeInTheDocument();
+  });
+});
+
+describe("an empty context", () => {
+  it("says the assistant reads no Endpoint and no source, with no table and no warning", () => {
+    render(
+      <ContextView
+        context={{
+          publicId: "bb-doprava",
+          channel: "public",
+          title: null,
+          languages: [],
+          categories: [],
+          limits: { perClientPerHour: null, perClientPerDay: null, messagesPerConversation: null, questionChars: null },
+          endpoints: [],
+          omitted: [],
+          sources: [],
+          problems: [],
+        }}
+      />,
+    );
+    expect(screen.getByText("No Endpoint: it answers from its knowledge sources alone.")).toBeInTheDocument();
+    expect(screen.getByText("No knowledge source: it answers from live data alone.")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
