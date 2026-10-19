@@ -518,6 +518,10 @@ routes:
     rule: "project-verb:delete:AssistantDeployment"
     expect: [403, 403, 403, 403, 403, 404, 403, 403]
     note: "the fixture's conversation id is no UUID, so a caller the rule admits meets 404 after the check passed"
+  - route: GET /projects/{project}/knowledge/conversations/{conversation}/turns/{turn}/same
+    rule: "project-verb:approve:AssistantDeployment"
+    expect: [401, 403, 403, 403, 403, 404, 403, 403]
+    note: "the fixture's conversation id is no UUID, so a caller the rule admits meets 404 after the check passed (T-4681)"
   - route: GET /projects/{project}/agent-runs
     rule: "project-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

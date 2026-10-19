@@ -3,7 +3,9 @@
 //! `jc-assistant`'s internal paths. The caller's permission is checked first and nothing reaches
 //! the assistant for a caller who lacks it; the assistant is asked with the Portal's own token.
 
-use std::time::Duration;
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
@@ -933,6 +935,75 @@ fn conversation_path(
     Ok(format!("{project}/knowledge/conversations/{conversation}"))
 }
 
+/// The calls one person may make on the stored conversations in a minute (API/01 §34, T-4681).
+const TRANSCRIPT_CALLS_PER_MINUTE: usize = 60;
+/// The `404`s of one person in five minutes past which their probing is recorded (T-4681).
+const TRANSCRIPT_MISSES: usize = 20;
+
+/// How many of `key`'s times in `window` fall within `span` of `now`, `now` counted.
+// ponytail: one window per replica, in memory, like the feedback route's; a shared counter if
+// the Portal runs several.
+fn counted(
+    window: &OnceLock<Mutex<HashMap<String, Vec<Instant>>>>,
+    key: &str,
+    now: Instant,
+    span: Duration,
+) -> usize {
+    let mut all = window
+        .get_or_init(Mutex::default)
+        .lock()
+        .unwrap_or_else(|p| p.into_inner());
+    all.retain(|_, times| {
+        times
+            .last()
+            .is_some_and(|at| now.duration_since(*at) < span)
+    });
+    let times = all.entry(key.to_owned()).or_default();
+    times.retain(|at| now.duration_since(*at) < span);
+    times.push(now);
+    times.len()
+}
+
+/// `429` once `subject` made [`TRANSCRIPT_CALLS_PER_MINUTE`] calls on the transcripts this minute.
+fn admitted(subject: &str, now: Instant) -> Result<(), ApiError> {
+    static CALLS: OnceLock<Mutex<HashMap<String, Vec<Instant>>>> = OnceLock::new();
+    if counted(&CALLS, subject, now, Duration::from_secs(60)) > TRANSCRIPT_CALLS_PER_MINUTE {
+        return Err(ApiError::TooManyRequests(format!(
+            "{TRANSCRIPT_CALLS_PER_MINUTE} calls on the stored conversations in a minute already; try again in a minute"
+        )));
+    }
+    Ok(())
+}
+
+/// Whether this miss of `subject` is the one past [`TRANSCRIPT_MISSES`] in five minutes, which is
+/// recorded once as a probe (T-4681).
+fn probing(subject: &str, now: Instant) -> bool {
+    static MISSES: OnceLock<Mutex<HashMap<String, Vec<Instant>>>> = OnceLock::new();
+    counted(&MISSES, subject, now, Duration::from_secs(300)) == TRANSCRIPT_MISSES + 1
+}
+
+/// `result` as it is, a `404` counted toward [`probing`] and recorded when it is one.
+async fn missed<T>(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    result: Result<T, ApiError>,
+) -> Result<T, ApiError> {
+    if matches!(result, Err(ApiError::NotFound(_)))
+        && probing(&user.0.identity.subject, Instant::now())
+    {
+        audited(
+            state,
+            user,
+            project,
+            "probe",
+            json!({"misses": TRANSCRIPT_MISSES + 1, "minutes": 5}),
+        )
+        .await;
+    }
+    result
+}
+
 /// Who read or erased which transcripts (T-4670). A record that cannot be written is logged, not
 /// a failure of the answer.
 async fn audited(state: &AppState, user: &CurrentUser, project: &str, what: &str, details: Value) {
@@ -975,6 +1046,7 @@ pub async fn list_conversations(
     Query(filter): Query<ConversationFilter>,
 ) -> Result<Json<Value>, ApiError> {
     administers(&state, &user, &project, Verb::Approve)?;
+    admitted(&user.0.identity.subject, Instant::now())?;
     let path = format!("{project}/knowledge/conversations");
     let query = |r: reqwest::RequestBuilder| r.query(&filter);
     let (_, body) = ask_with(&state, reqwest::Method::GET, &path, LIST_TIME, query).await?;
@@ -1006,8 +1078,13 @@ pub async fn get_conversation(
     State(state): State<AppState>,
     Path((project, conversation)): Path<(String, String)>,
 ) -> Result<Json<Value>, ApiError> {
-    let path = conversation_path(&state, &user, (&project, &conversation), Verb::Approve)?;
-    let (_, body) = ask(&state, reqwest::Method::GET, &path, None).await?;
+    administers(&state, &user, &project, Verb::Approve)?;
+    admitted(&user.0.identity.subject, Instant::now())?;
+    let read = async {
+        let path = conversation_path(&state, &user, (&project, &conversation), Verb::Approve)?;
+        ask(&state, reqwest::Method::GET, &path, None).await
+    };
+    let (_, body) = missed(&state, &user, &project, read.await).await?;
     audited(
         &state,
         &user,
@@ -1042,8 +1119,13 @@ pub async fn erase_conversation(
     State(state): State<AppState>,
     Path((project, conversation)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
-    let path = conversation_path(&state, &user, (&project, &conversation), Verb::Delete)?;
-    ask(&state, reqwest::Method::DELETE, &path, None).await?;
+    administers(&state, &user, &project, Verb::Delete)?;
+    admitted(&user.0.identity.subject, Instant::now())?;
+    let erase = async {
+        let path = conversation_path(&state, &user, (&project, &conversation), Verb::Delete)?;
+        ask(&state, reqwest::Method::DELETE, &path, None).await
+    };
+    missed(&state, &user, &project, erase.await).await?;
     audited(
         &state,
         &user,
@@ -1053,6 +1135,58 @@ pub async fn erase_conversation(
     )
     .await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/knowledge/conversations/{conversation}/turns/{turn}/same",
+    summary = "List The Turns Of The Same Question",
+    description = "The project's stored turns whose question reads as this turn's (case, diacritics and spacing ignored), newest first, at most 50, for comparing two answers to one question (API/05 §3.1, T-4681). Needs `approve` on AssistantDeployment; every call is recorded.",
+    tag = "knowledge",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("conversation" = String, Path, description = "Conversation id (UUID)"),
+        ("turn" = u32, Path, description = "Turn number, 1 to 200"),
+    ),
+    responses(
+        (status = 200, description = "items: conversation, turn, at, deployment, totalMs, costUsd, steps", body = Object),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 403, description = "The caller may not approve an AssistantDeployment", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such stored turn", body = crate::error::ProblemDetails),
+        (status = 429, description = "60 calls on the stored conversations in a minute already", body = crate::error::ProblemDetails),
+        (status = 503, description = "The knowledge assistant is not reachable", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn same_question(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, conversation, turn)): Path<(String, String, u32)>,
+) -> Result<Json<Value>, ApiError> {
+    administers(&state, &user, &project, Verb::Approve)?;
+    admitted(&user.0.identity.subject, Instant::now())?;
+    let read = async {
+        let path = conversation_path(&state, &user, (&project, &conversation), Verb::Approve)?;
+        if !(1..=200).contains(&turn) {
+            return Err(ApiError::NotFound(format!("turn {turn} not found")));
+        }
+        ask(
+            &state,
+            reqwest::Method::GET,
+            &format!("{path}/turns/{turn}/same"),
+            None,
+        )
+        .await
+    };
+    let (_, body) = missed(&state, &user, &project, read.await).await?;
+    audited(
+        &state,
+        &user,
+        &project,
+        "listed the turns of one question",
+        json!({"conversation": conversation, "turn": turn}),
+    )
+    .await;
+    Ok(Json(body))
 }
 
 #[utoipa::path(
@@ -1245,11 +1379,47 @@ pub fn router() -> Router<AppState> {
             "/projects/{project}/knowledge/conversations/{conversation}",
             get(get_conversation).delete(erase_conversation),
         )
+        .route(
+            "/projects/{project}/knowledge/conversations/{conversation}/turns/{turn}/same",
+            get(same_question),
+        )
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{inclusion_body, query_of, InclusionRequest, MAX_IDS};
+    use super::{admitted, inclusion_body, probing, query_of, InclusionRequest, MAX_IDS};
+    use super::{TRANSCRIPT_CALLS_PER_MINUTE, TRANSCRIPT_MISSES};
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn the_sixty_first_call_in_a_minute_is_refused_and_the_next_minute_admits() {
+        let start = Instant::now();
+        let who = "transcript-rate-subject";
+        for _ in 0..TRANSCRIPT_CALLS_PER_MINUTE {
+            assert!(admitted(who, start).is_ok());
+        }
+        assert!(matches!(
+            admitted(who, start),
+            Err(crate::error::ApiError::TooManyRequests(_))
+        ));
+        assert!(admitted(who, start + Duration::from_secs(61)).is_ok());
+        assert!(admitted("transcript-rate-other", start).is_ok());
+    }
+
+    #[test]
+    fn the_twenty_first_miss_in_five_minutes_is_a_probe_once() {
+        let start = Instant::now();
+        let who = "transcript-probe-subject";
+        let seen: Vec<bool> = (0..TRANSCRIPT_MISSES + 3)
+            .map(|_| probing(who, start))
+            .collect();
+        assert_eq!(seen.iter().filter(|p| **p).count(), 1);
+        assert!(seen[TRANSCRIPT_MISSES]);
+        assert!(
+            !probing(who, start + Duration::from_secs(301)),
+            "a new window starts again"
+        );
+    }
 
     #[test]
     fn a_query_names_the_pairs_with_a_value_encoded_and_none_is_empty() {

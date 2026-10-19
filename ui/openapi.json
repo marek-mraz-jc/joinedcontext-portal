@@ -8906,6 +8906,109 @@
         }
       }
     },
+    "/api/v1/projects/{project}/knowledge/conversations/{conversation}/turns/{turn}/same": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "List The Turns Of The Same Question",
+        "description": "The project's stored turns whose question reads as this turn's (case, diacritics and spacing ignored), newest first, at most 50, for comparing two answers to one question (API/05 §3.1, T-4681). Needs `approve` on AssistantDeployment; every call is recorded.",
+        "operationId": "same_question",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "conversation",
+            "in": "path",
+            "description": "Conversation id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "turn",
+            "in": "path",
+            "description": "Turn number, 1 to 200",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "items: conversation, turn, at, deployment, totalMs, costUsd, steps",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not approve an AssistantDeployment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such stored turn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "60 calls on the stored conversations in a minute already",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The knowledge assistant is not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/knowledge/deployments/{deployment}/chat": {
       "post": {
         "tags": [
