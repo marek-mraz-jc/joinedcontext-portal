@@ -11,6 +11,56 @@ impl Driver {
         futures_util::future::join_all(lists).await
     }
 
+    /// The query cards of the endpoints the conversation reads and `cards` has no answer for yet,
+    /// read at once and kept for the turn (T-4760). One that does not answer has none for now.
+    pub(super) async fn read_cards(
+        &self,
+        chosen: &[endpoints::RunEndpoint],
+        cards: &mut BTreeMap<String, Option<String>>,
+    ) {
+        let missing: Vec<usize> = (0..chosen.len())
+            .filter(|&index| !cards.contains_key(&chosen[index].name))
+            .collect();
+        let read = futures_util::future::join_all(
+            missing.iter().map(|&index| self.card_of(chosen, index)),
+        )
+        .await;
+        for (index, card) in missing.into_iter().zip(read) {
+            cards.insert(chosen[index].name.clone(), card);
+        }
+    }
+
+    /// One endpoint's `card://{slug}` through the proxy with the person's own token: the card the
+    /// gateway serves them, so it names only what their grants read (T-4759, T-4760).
+    async fn card_of(&self, chosen: &[endpoints::RunEndpoint], index: usize) -> Option<String> {
+        let endpoint = chosen.get(index)?;
+        let url = format!(
+            "{}/mcp",
+            endpoints::data_base(&self.proxy_base, chosen, index)
+        );
+        let read = json!({
+            "jsonrpc": "2.0", "id": 1, "method": "resources/read",
+            "params": { "uri": format!("card://{}", endpoint.slug) },
+        });
+        let response = self
+            .http
+            .post(&url)
+            .bearer_auth(&self.bearer)
+            .header("accept", "application/json")
+            .json(&read)
+            .send()
+            .await
+            .ok()?;
+        if !response.status().is_success() {
+            tracing::info!(run = %self.run_id, endpoint = %endpoint.name, status = %response.status(), "an endpoint served no query card");
+            return None;
+        }
+        let body = response.json::<Value>().await.ok()?;
+        body["result"]["contents"][0]["text"]
+            .as_str()
+            .map(str::to_owned)
+    }
+
     /// The read tools one endpoint of the conversation offers, from its own `tools/list`. One
     /// that does not answer offers nothing for now, and says why in the log (T-3044).
     pub(super) async fn tools_of(
@@ -814,5 +864,44 @@ mod tests {
         for name in ["air", "trams", "unknown"] {
             assert_eq!(pending_endpoint(&open, name), None, "{name}");
         }
+    }
+
+    /// T-4760: each endpoint's card is read once through the proxy as `card://{slug}`; one the
+    /// gateway refuses has none, and its types are never put before the model.
+    #[tokio::test]
+    async fn the_cards_are_read_once_and_a_refused_one_is_none() {
+        let proxy = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(wiremock::matchers::path("/v1/data/mcp"))
+            .and(wiremock::matchers::body_string_contains("card://slug-a"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "jsonrpc": "2.0", "id": 1,
+                "result": { "contents": [{ "uri": "card://slug-a", "mimeType": "text/plain", "text": "NGSI-LD Endpoint helsinki/a" }] } })))
+            .expect(1)
+            .mount(&proxy)
+            .await;
+        Mock::given(method("POST"))
+            .and(wiremock::matchers::path("/v1/data/endpoints/slug-b/mcp"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&proxy)
+            .await;
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let mut driver = Driver::for_tests(state, "helsinki");
+        driver.proxy_base = proxy.uri();
+        let chosen = [run_endpoint("a"), run_endpoint("b")];
+        let mut cards = BTreeMap::new();
+        driver.read_cards(&chosen, &mut cards).await;
+        driver.read_cards(&chosen, &mut cards).await;
+        assert_eq!(
+            cards.get("a"),
+            Some(&Some("NGSI-LD Endpoint helsinki/a".to_owned()))
+        );
+        assert_eq!(cards.get("b"), Some(&None));
+        let section = data_query::cards_section(&chosen, &cards);
+        assert!(
+            section.contains("`a`")
+                && section.contains("```text\nNGSI-LD Endpoint helsinki/a\n```"),
+            "{section}"
+        );
+        assert!(!section.contains("`b`"), "{section}");
     }
 }

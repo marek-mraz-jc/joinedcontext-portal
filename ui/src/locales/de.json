@@ -1483,6 +1483,16 @@
       "next": "Nächste Seite",
       "window": "Entitäten {from} bis {to} von {total}"
     },
+    "card": {
+      "title": "Abfragekarte",
+      "lead": "Wie ein KI-Client diesen NGSI-LD-Endpoint abfragt: seine Typen und Attribute mit Einheiten und erlaubten Werten, so wie das Gateway sie Ihnen ausliefert. Fügen Sie sie oder die MCP-Adresse in Claude, ChatGPT oder einen anderen MCP-Client ein.",
+      "mcp": "MCP-Adresse",
+      "reading": "Abfragekarte wird gelesen…",
+      "failed": "Die Abfragekarte konnte nicht gelesen werden. Laden Sie die Seite neu, um es erneut zu versuchen.",
+      "refused": "Ihr Zugriff reicht nicht an die Typen dieses Endpoints, daher hat er keine Abfragekarte für Sie.",
+      "copy": "Karte kopieren",
+      "ask": "Den Assistenten zu diesem Endpoint fragen"
+    },
     "hub": {
       "title": "KI-Assistenten verbinden",
       "lead": "Eine MCP-Adresse für alle Endpunkte. Einmal in einem KI-Assistenten hinzugefügt, antworten offene Endpunkte ohne Anmeldung, und nach der Anmeldung kommen die hinzu, die Sie lesen dürfen. Der Assistent wählt den Endpunkt, liest seine Attribute, sein Modell und seinen Zugriff, und jeder Aufruf läuft unter der Richtlinie des jeweiligen Endpunkts.",
