@@ -309,7 +309,7 @@ fn url(path: &str, row: &Row) -> (bool, String) {
 
 /// A route's placeholders, filled with what the fixture holds.
 fn fill(path: &str) -> String {
-    let values: [(&str, &str); 24] = [
+    let values: [(&str, &str); 25] = [
         ("{project}", PROJECT),
         ("{plural}", "endpoints"),
         ("{name}", EXISTING),
@@ -334,6 +334,7 @@ fn fill(path: &str) -> String {
         ("{page}", "1"),
         ("{deployment}", EXISTING),
         ("{type}", "Station"),
+        ("{turn}", "1"),
     ];
     values
         .iter()

@@ -198,6 +198,7 @@ use crate::tools::model_tools::{
         crate::api::knowledge::list_conversations,
         crate::api::knowledge::get_conversation,
         crate::api::knowledge::erase_conversation,
+        crate::api::knowledge::same_question,
         crate::api::knowledge::chat,
         crate::api::live::watch,
         crate::api::preferences::get_preferences,
