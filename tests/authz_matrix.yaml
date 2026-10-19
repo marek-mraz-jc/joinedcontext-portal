@@ -838,6 +838,10 @@ routes:
   - route: GET /ready
     rule: "public"
     expect: [allow, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /version
+    rule: "public"
+    expect: [allow, allow, allow, allow, allow, allow, allow, allow]
+    note: "two commits and two OpenAPI hashes, nothing of a project (T-2485)"
   - route: POST /tools/generate
     rule: "signed-in"
     expect: [403, allow, allow, allow, allow, allow, allow, allow]

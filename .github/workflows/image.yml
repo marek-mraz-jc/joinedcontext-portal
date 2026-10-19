@@ -2,7 +2,7 @@ name: image
 # Builds, signs and pushes the Portal's two images, the binary and the `portal-ui` bundle it reads
 # its pages from (T-2485), and the build lane's images (AP-82: the builder carries the SDK of the
 # same commit), on every push to main and on tags. A push builds only what its paths need
-# (dev/image-matrix.py): a ui/-only push builds the bundle alone, in minutes.
+# (dev/image-matrix.py); a ui/-only push builds the bundle and, until the cut-over, the binary.
 on:
   push:
     branches: [main]

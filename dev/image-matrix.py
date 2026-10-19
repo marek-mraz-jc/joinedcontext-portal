@@ -6,9 +6,8 @@ every image.
 - `ui/**` or `sdk/**` builds `portal-ui`: the UI links the SDK (`link:../sdk`).
 - Any path outside `ui/` builds the binary and the two builder images, as every push did before:
   the binary embeds the SDK's kit, and the builders carry the SDK of the same commit (AP-82).
-
-A `ui/**`-only push builds the bundle alone and is live in minutes; the binary's 30-minute build
-waits for a change that needs it.
+- Until the cut-over, `ui/**` also builds the binary: it still embeds the bundle and is what an
+  installation without `portal-ui` serves (T-2485). The cut-over sets EMBEDS_UI to False.
 
     git diff --name-only "$BEFORE" "$GITHUB_SHA" | dev/image-matrix.py owner/repo owner
     python3 dev/image-matrix.py --selftest
@@ -41,7 +40,11 @@ def images(repository: str, owner: str) -> dict[str, dict]:
     }
 
 
-def wanted(paths: list[str]) -> list[str]:
+# The binary embeds ui/dist until every installation reads its pages from `portal-ui` (T-2485).
+EMBEDS_UI = True
+
+
+def wanted(paths: list[str], embeds_ui: bool = EMBEDS_UI) -> list[str]:
     paths = [p.strip() for p in paths if p.strip()]
     if "ALL" in paths:
         return ["portal", "portal-ui", "app-builder", "app-builder-rust"]
@@ -50,6 +53,8 @@ def wanted(paths: list[str]) -> list[str]:
         names.append("portal-ui")
     if any(not p.startswith("ui/") for p in paths):
         names = ["portal", *names, "app-builder", "app-builder-rust"]
+    elif names and embeds_ui:
+        names = ["portal", *names]
     return names
 
 
@@ -59,7 +64,8 @@ def matrix(paths: list[str], repository: str, owner: str) -> dict:
 
 
 def selftest() -> None:
-    assert wanted(["ui/src/App.tsx", "ui/package.json"]) == ["portal-ui"]
+    assert wanted(["ui/src/App.tsx", "ui/package.json"]) == ["portal", "portal-ui"]
+    assert wanted(["ui/src/App.tsx"], embeds_ui=False) == ["portal-ui"]
     assert wanted(["src/main.rs"]) == ["portal", "app-builder", "app-builder-rust"]
     assert wanted(["sdk/src/sdk/index.ts"]) == ["portal", "portal-ui", "app-builder", "app-builder-rust"]
     assert wanted(["ui/src/a.tsx", "src/b.rs"]) == ["portal", "portal-ui", "app-builder", "app-builder-rust"]
@@ -70,7 +76,7 @@ def selftest() -> None:
     assert wanted([]) == [] and wanted(["", "  "]) == []
     # `ui` as a prefix of another folder is not the UI.
     assert wanted(["uikit/x"]) == ["portal", "app-builder", "app-builder-rust"]
-    built = matrix(["ui/x"], "o/joinedcontext-portal", "o")["include"]
+    built = matrix(["ui/x"], "o/joinedcontext-portal", "o")["include"][1:]
     assert built == [
         {
             "name": "portal-ui",
