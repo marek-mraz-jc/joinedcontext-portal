@@ -1664,7 +1664,14 @@ fn first_compute(pipeline: &PipelineSpec) -> Option<Compute> {
     })
 }
 
-/// What turns a page into gateway-sized batches: one entity per message, 1000 per request.
+/// The most bytes of entities one write carries: a quarter of the broker's 4 MiB body bound
+/// (Antares `MAX_BODY_BYTES`), so the names expanded to IRIs on the way still fit. 1000 census
+/// rows of 500 Attributes, or 1000 investment polygons, went out as one body and were refused
+/// 413 whole (T-4753: 8,132 BBSK rows on prod).
+const WRITE_BATCH_BYTES: u64 = 1024 * 1024;
+
+/// What turns a page into gateway-sized batches: one entity per message, 1000 per request, and
+/// no more than [`WRITE_BATCH_BYTES`] per request.
 ///
 /// The gateway takes at most 1000 entities per batch operation; a page of 4000 stations goes
 /// out as four requests, not one 400.
@@ -1674,7 +1681,7 @@ fn batching() -> Vec<Value> {
             "mapping": "root = if this.type() == \"array\" { this } else { [this] }"
         }),
         serde_json::json!({ "unarchive": { "format": "json_array" } }),
-        serde_json::json!({ "split": { "size": 1000 } }),
+        serde_json::json!({ "split": { "size": 1000, "byte_size": WRITE_BATCH_BYTES } }),
         serde_json::json!({ "archive": { "format": "json_array" } }),
     ]
 }
@@ -2750,6 +2757,8 @@ mod tests {
             1000,
             "the batch is split before it is archived"
         );
+        // And at 1 MiB, so wide or large entities never reach the broker's 4 MiB bound (T-4753).
+        assert_eq!(processors[archive - 1]["split"]["byte_size"], 1024 * 1024);
         assert_eq!(processors[archive + 1]["label"], "write_0");
         assert_eq!(processors[archive + 2]["label"], "write_refused");
 
