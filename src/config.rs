@@ -147,6 +147,10 @@ pub struct Config {
     /// `http://model-tools.tools.svc.cluster.local:8080`. `None` leaves the LinkML preview
     /// routes answering 503 instead of guessing a service name (DM-18).
     pub model_tools_url: Option<String>,
+    /// Base URL of the `portal-ui` bundle the pages are read from (`JC_PORTAL_UI_URL`), e.g.
+    /// `http://portal-ui.jc-portal.svc.cluster.local:8080`, without a trailing slash (T-2485).
+    /// `None` serves the bundle built into the binary, or the placeholder page without one.
+    pub ui_url: Option<String>,
     /// Base URL of the `jc-functions` runtime (`JC_FUNCTIONS_URL`), e.g.
     /// `http://jc-functions.jc-system.svc.cluster.local:8080`. `None` leaves the function routes
     /// answering 503 (SDK-23).
@@ -324,6 +328,7 @@ impl std::fmt::Debug for Config {
             .field("org_domain", &self.org_domain)
             .field("pipeline_test_capture_url", &self.pipeline_test_capture_url)
             .field("model_tools_url", &self.model_tools_url)
+            .field("ui_url", &self.ui_url)
             .field("functions_url", &self.functions_url)
             .field("knowledge_url", &self.knowledge_url)
             .field("apps_dir", &self.apps_dir)
@@ -1555,6 +1560,8 @@ impl Config {
             http_url(&lookup, "JC_FUNCTIONS_URL")?.map(|url| url.trim_end_matches('/').to_owned());
 
         let model_tools_url = http_url(&lookup, "JC_PORTAL_MODEL_TOOLS_URL")?;
+        let ui_url =
+            http_url(&lookup, "JC_PORTAL_UI_URL")?.map(|url| url.trim_end_matches('/').to_owned());
 
         // Only the literal `true` turns it on: a misspelling must not open the door (ADR-N-019).
         let trust_edge_token = lookup("JC_TRUST_EDGE_TOKEN").is_some_and(|v| v.trim() == "true");
@@ -1644,6 +1651,7 @@ impl Config {
             org_domain: lookup("JC_PORTAL_ORG_DOMAIN").filter(|v| !v.trim().is_empty()),
             pipeline_test_capture_url,
             model_tools_url,
+            ui_url,
             functions_url,
             knowledge_url,
             apps_dir,
@@ -1705,6 +1713,7 @@ impl Config {
             org_domain: None,
             pipeline_test_capture_url: None,
             model_tools_url: None,
+            ui_url: None,
             functions_url: None,
             knowledge_url: None,
             app_settings: None,
@@ -1802,11 +1811,13 @@ mod tests {
         let vars = |name: &str| match name {
             "JC_PORTAL_GATEWAY_URL" => Some("http://gw:8080/".to_owned()),
             "JC_PORTAL_MODEL_TOOLS_URL" => Some("http://tools:8000/".to_owned()),
+            "JC_PORTAL_UI_URL" => Some("http://portal-ui:8080/".to_owned()),
             "JC_PORTAL_PIPELINE_RUNNER_URL" => Some("http://runner.{project}.svc:4195".to_owned()),
             _ => None,
         };
         let config = Config::from_vars(vars).expect("valid");
         assert_eq!(config.gateway_url.as_deref(), Some("http://gw:8080"));
+        assert_eq!(config.ui_url.as_deref(), Some("http://portal-ui:8080"));
         assert_eq!(
             config.model_tools_url.as_deref(),
             Some("http://tools:8000/")

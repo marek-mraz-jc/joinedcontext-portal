@@ -45,13 +45,14 @@ handler-without-identity | joinedcontext_portal::api::catalogue::get_dataset | o
 handler-without-identity | joinedcontext_portal::api::catalogue::get_sample | reads a public Endpoint with no credential, so the gateway's own anonymous policy decides what comes back
 handler-without-identity | joinedcontext_portal::api::health::health | liveness probe
 handler-without-identity | joinedcontext_portal::api::health::ready | readiness probe
+handler-without-identity | joinedcontext_portal::api::health::version | the two build commits and API hashes, nothing about any project (T-2485)
 handler-without-identity | joinedcontext_portal::api::live::notify | the path key is an HMAC under a per-process secret (live::LiveHub::key); body bounded, a delivery only makes a view read again
 handler-without-identity | joinedcontext_portal::api::sync_sources::webhook | the body must carry the HMAC of the SyncSource's own secret (MF-44, PF-59)
 handler-without-identity | joinedcontext_portal::apps::email::unsubscribe | the link is an HMAC over project, app and subject, each validated before it is echoed or bound
 handler-without-identity | joinedcontext_portal::apps::email::unsubscribe_page | same signed link; the page echoes only a DNS-1123 app name under a default-src 'none' CSP
 handler-without-identity | joinedcontext_portal::apps::template_demos::asset | the built-in templates' demo files, CSP forbids every connection (AP-141)
 handler-without-identity | joinedcontext_portal::apps::template_demos::demo | the built-in templates' demo pages (AP-141)
-handler-without-identity | joinedcontext_portal::assets::static_handler | the embedded UI bundle
+handler-without-identity | joinedcontext_portal::assets::static_handler | the UI bundle, from portal-ui or embedded (T-2485)
 handler-without-identity | joinedcontext_portal::auth::csrf::require_csrf | middleware: the CSRF guard itself
 handler-without-identity | joinedcontext_portal::auth::oidc::OidcClient::refresh | the session refresh, reached from the refresh middleware with the caller's own cookie
 handler-without-identity | joinedcontext_portal::auth::oidc::backchannel_logout | the realm's call: the logout token's signature, issuer and audience are verified, and it must carry the logout event and no nonce

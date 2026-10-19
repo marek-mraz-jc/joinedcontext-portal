@@ -15915,6 +15915,28 @@
         }
       }
     },
+    "/api/v1/version": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Build of both artifacts",
+        "description": "The commit and OpenAPI hash of the binary and of the UI bundle it serves, and whether the bundle was built against this API (`match`, `mismatch`, `unknown`). Public (T-2485).",
+        "operationId": "version",
+        "responses": {
+          "200": {
+            "description": "Both builds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Version"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/visualization-templates/{name}": {
       "get": {
         "tags": [
@@ -17397,6 +17419,20 @@
             "items": {
               "$ref": "#/components/schemas/Broker"
             }
+          }
+        }
+      },
+      "Build": {
+        "type": "object",
+        "description": "One deploy artifact: the commit it was built from and the OpenAPI document it speaks (T-2485).",
+        "properties": {
+          "commit": {
+            "type": "string",
+            "description": "Empty when the build named none (a local `cargo run` or `pnpm build`)."
+          },
+          "openapi": {
+            "type": "string",
+            "description": "The sha256 of the OpenAPI document, hex; empty when unknown."
           }
         }
       },
@@ -25048,6 +25084,34 @@
           "path": {
             "type": "string",
             "description": "The path the bundle index gave the file."
+          }
+        }
+      },
+      "Version": {
+        "type": "object",
+        "description": "Both halves of the Portal and whether the UI was built against this binary's API (T-2485).",
+        "required": [
+          "portal",
+          "contract"
+        ],
+        "properties": {
+          "contract": {
+            "type": "string",
+            "description": "`match`, `mismatch`, or `unknown` when the bundle names no hash."
+          },
+          "portal": {
+            "$ref": "#/components/schemas/Build"
+          },
+          "ui": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Build",
+                "description": "`None` when the bundle is unreachable or carries no `version.json`."
+              }
+            ]
           }
         }
       },

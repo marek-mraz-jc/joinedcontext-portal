@@ -1,6 +1,8 @@
 name: image
-# Builds, signs and pushes the Portal image and the build lane's image (AP-82: the builder carries
-# the SDK of the same commit) on every push to main and on tags.
+# Builds, signs and pushes the Portal's two images, the binary and the `portal-ui` bundle it reads
+# its pages from (T-2485), and the build lane's images (AP-82: the builder carries the SDK of the
+# same commit), on every push to main and on tags. A push builds only what its paths need
+# (dev/image-matrix.py): a ui/-only push builds the bundle alone, in minutes.
 on:
   push:
     branches: [main]
@@ -16,18 +18,36 @@ permissions: { contents: read }
 # Queued per ref, so each run publishes its own `:sha` and moves `:main` in order.
 concurrency: { group: "image-${{ github.ref }}", cancel-in-progress: false }
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs: { matrix: "${{ steps.pick.outputs.matrix }}" }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: { fetch-depth: 0 }
+      # A tag, a dispatch, the first push of a branch or a rewritten range builds everything.
+      - id: pick
+        env:
+          BEFORE: ${{ github.event.before }}
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+        run: |
+          if [ "$EVENT" = push ] && [ "${REF#refs/tags/}" = "$REF" ] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            paths=$(git diff --name-only "$BEFORE" "$GITHUB_SHA")
+          else
+            paths=ALL
+          fi
+          printf '%s\n' "$paths"
+          echo "matrix=$(printf '%s\n' "$paths" | python3 dev/image-matrix.py "${{ github.repository }}" "${{ github.repository_owner }}")" >> "$GITHUB_OUTPUT"
   build:
+    needs: changes
+    if: fromJSON(needs.changes.outputs.matrix).include[0] != null
     runs-on: ubuntu-latest
     permissions: { contents: read, packages: write, id-token: write }
     timeout-minutes: 30
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { name: portal, file: Dockerfile, image: "ghcr.io/${{ github.repository }}" }
-          - { name: app-builder, file: builder/Dockerfile, image: "ghcr.io/${{ github.repository_owner }}/joinedcontext-app-builder" }
-          # The rust-1.90 runner of fullstack Apps: the same Dockerfile's `rust` stage (AP-106).
-          - { name: app-builder-rust, file: builder/Dockerfile, target: rust, image: "ghcr.io/${{ github.repository_owner }}/joinedcontext-app-builder-rust" }
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
