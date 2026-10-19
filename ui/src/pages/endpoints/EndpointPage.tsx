@@ -7,6 +7,7 @@ import { Playground } from "./Playground";
 import { ShareFlow } from "./ShareFlow";
 import { EndpointDocs } from "./EndpointDocs";
 import { ConnectAssistant } from "../../components/endpoints/ConnectAssistant";
+import { QueryCard } from "../../components/endpoints/QueryCard";
 import { ApiError, api, queryKeys, readCsrfToken, unwrap, whilePending } from "../../api/client";
 import { asManifests, isChange, localized, refName } from "../../api/manifest";
 import type { Change, ResourceProposal } from "../../api/manifest";
@@ -472,8 +473,13 @@ export function EndpointPage({
         </Facts>
       </Section>
 
-      {/* One connector for every Endpoint, this one included: the agent picks it by its slug (EP-113). */}
-      {slug && servedRepresentations(spec).includes("mcp") ? <ConnectAssistant domain={domain} /> : null}
+      {/* This Endpoint's query card and MCP address, then the one connector for every Endpoint (EP-113). */}
+      {slug && servedRepresentations(spec).includes("mcp") ? (
+        <>
+          <QueryCard slug={slug} name={name} domain={domain} />
+          <ConnectAssistant domain={domain} />
+        </>
+      ) : null}
 
       <Section title={t("endpoints.page.filtering")} lead={t("endpoints.page.filteringLead")}>
         {filtered ? (

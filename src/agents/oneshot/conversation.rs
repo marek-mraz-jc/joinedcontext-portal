@@ -214,7 +214,13 @@ impl Driver {
             Ok(Some(run)) => endpoints::of_run(&run),
             _ => self.endpoints.clone(),
         };
-        let mut tools = self.data_tools(&chosen).await;
+        // Each endpoint's query card comes with its tools, so the model knows its types and
+        // attributes before its first call (T-4760).
+        let mut cards = BTreeMap::new();
+        let (mut tools, ()) = tokio::join!(
+            self.data_tools(&chosen),
+            self.read_cards(&chosen, &mut cards)
+        );
         let every_operation =
             tools_registry::offered(&self.access, &self.identity, &self.state, &self.project);
         let mut results: Vec<(data_query::QueryCall, String)> = Vec::new();
@@ -233,7 +239,10 @@ impl Driver {
                 })
                 .cloned()
                 .collect();
-            let data = data_query::section(&chosen, &tools, &self.openable_endpoints(&chosen));
+            // An endpoint opened mid-turn brings its card to the next call.
+            self.read_cards(&chosen, &mut cards).await;
+            let data = data_query::section(&chosen, &tools, &self.openable_endpoints(&chosen))
+                + &data_query::cards_section(&chosen, &cards);
             let whole = turn_pack(&base, path, &data, &offered);
             // The pack before the turn's own part is the same from one turn to the next and goes
             // as its own block, marked for the provider's cache (T-3079).
