@@ -7600,6 +7600,7 @@
     "address": "Adresa konektoru",
     "copyAddress": "Kopírovat adresu",
     "copied": "Zkopírováno do schránky.",
+    "selected": "Označeno: stiskněte Ctrl+C.",
     "readOnly": "Jen pro čtení: asistent může data číst a vyhledávat, nikdy je nezmění.",
     "noLogin": "Bez přihlášení a bez klíče: klientovi stačí adresa.",
     "limit": "Nejvýše {count} požadavků za minutu z jedné sítě.",

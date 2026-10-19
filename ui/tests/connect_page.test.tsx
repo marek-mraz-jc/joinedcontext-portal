@@ -1,6 +1,6 @@
 // covers (T-2137, the module gate in gate_modules.test.ts): src/pages/connect/ConnectPage.tsx and
 // src/pages/connect/connect.ts, the public setup page of one named MCP server (T-4169, T-4141).
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -107,6 +107,55 @@ describe("the public MCP connect page (T-4169)", () => {
     expect(await screen.findByText(en.connect.copied)).toHaveAttribute("role", "status");
     // A setup longer than the page scrolls sideways, so a keyboard reaches it (axe scrollable-region-focusable).
     for (const block of document.querySelectorAll("pre")) expect(block).toHaveAttribute("tabindex", "0");
+  });
+
+  it("goes back to Copy after two seconds", async () => {
+    serve({ initialize: { status: 200, body: HELLO }, "tools/list": { status: 200, body: TOOLS } });
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText: vi.fn(async () => undefined) } });
+    show();
+    const button = await screen.findByRole("button", { name: en.connect.claudeCode.copy });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      fireEvent.click(button);
+      expect(await screen.findByText(en.connect.copied)).toBeInTheDocument();
+      await act(() => vi.advanceTimersByTimeAsync(2100));
+      expect(screen.queryByText(en.connect.copied)).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    ["refuses", { writeText: () => Promise.reject(new DOMException("denied", "NotAllowedError")) }],
+    ["is missing", undefined],
+  ])("copies by the browser's copy command when the clipboard %s (T-4762)", async (_, clipboard) => {
+    serve({ initialize: { status: 200, body: HELLO }, "tools/list": { status: 200, body: TOOLS } });
+    vi.stubGlobal("navigator", { ...navigator, clipboard });
+    let copied = "";
+    const execCommand = vi.fn(() => {
+      copied = document.querySelector("textarea")?.value ?? "";
+      return true;
+    });
+    Object.defineProperty(document, "execCommand", { configurable: true, value: execCommand });
+    show();
+    fireEvent.click(await screen.findByRole("button", { name: en.connect.claudeCode.copy }));
+    expect(await screen.findByText(en.connect.copied)).toHaveAttribute("role", "status");
+    expect(execCommand).toHaveBeenCalledWith("copy");
+    expect(copied).toMatch(/^claude mcp add --transport http bbsk-otvorene-data https?:\/\/\S+$/);
+    expect(document.querySelector("textarea")).toBeNull();
+  });
+
+  it("selects the block and says press Ctrl+C when nothing can copy (T-4762)", async () => {
+    serve({ initialize: { status: 200, body: HELLO }, "tools/list": { status: 200, body: TOOLS } });
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText: () => Promise.reject(new Error("denied")) } });
+    Object.defineProperty(document, "execCommand", { configurable: true, value: vi.fn(() => false) });
+    show();
+    // Claude Desktop's and the generic block share the label; the generic one comes last.
+    fireEvent.click((await screen.findAllByRole("button", { name: en.connect.generic.copy })).at(-1)!);
+    expect(await screen.findByText(en.connect.selected)).toHaveAttribute("role", "status");
+    expect(JSON.parse(String(window.getSelection()))).toEqual({
+      mcpServers: { "bbsk-otvorene-data": { type: "http", url: expect.stringMatching(/\/api\/mcp\/bbsk\/otvorene-data$/) } },
+    });
   });
 
   it("tells a visitor an unknown or private connector apart from a busy one", async () => {
