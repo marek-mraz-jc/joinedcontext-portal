@@ -512,7 +512,7 @@ fn the_edge_lets_an_anonymous_request_through_to_a_public_app_alone() {
             });
             let secrets =
                 BTreeMap::from([(APP.to_owned(), ClientSecret::from("s-desk".to_owned()))]);
-            let (apps, skipped) = edge_apps(&mirror, &secrets, &settings());
+            let (apps, skipped) = edge_apps(&mirror, &secrets, &settings(), None);
             assert!(skipped.is_empty(), "{visibility} {kind}: {skipped:?}");
             assert_eq!(apps.len(), 1, "{visibility} {kind}");
             assert_eq!(

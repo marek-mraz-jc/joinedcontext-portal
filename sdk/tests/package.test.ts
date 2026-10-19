@@ -173,6 +173,17 @@ describe("the published package", () => {
     }
   });
 
+  // T-3579: an App imports `@joinedcontext/sdk/style.css` for MapLibre, the typeface and the
+  // attribution underline (T-3045, T-3124, T-3577); the package's file held the components' CSS
+  // alone, so no built App had them and every map failed axe link-in-text-block.
+  it("ships the SDK stylesheet beside the components' CSS in style.css", () => {
+    const css = readFileSync(join(root, "dist/package", "style.css"), "utf8");
+    expect(css).toMatch(/\.maplibregl-ctrl-attrib a\[href\]\{text-decoration:underline\}/);
+    expect(css).toContain(".maplibregl-map{");
+    expect(css).toMatch(/@font-face\{font-family:Inter;/);
+    expect(css).toContain(".jc-grid{");
+  });
+
   it("names the same peer versions the generated application pins", () => {
     const template = JSON.parse(readFileSync(join(root, "template/package.json"), "utf8")) as {
       dependencies: Record<string, string>;

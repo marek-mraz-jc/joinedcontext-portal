@@ -49,6 +49,11 @@ const COMPOSED_BY_VALUE: &str = "portal";
 const END_MARKER: &str = "#END";
 const APP_PRIORITY: u64 = 30;
 const ENDPOINT_PRIORITY: u64 = 35;
+/// A wasm App's server, `/api/*` on its host: above the App's page, below its endpoint and
+/// services routes (AP-143).
+const SERVER_PRIORITY: u64 = 32;
+/// The port of a WASM shard's Service on which the Apps' APIs answer (AP-143, T-3857).
+const WASM_HOST_PORT: u16 = 8080;
 /// The base's plugin config an App's own route is modelled on: the edge login, the header strip,
 /// the rate limit and the security headers of a page.
 const APPS_SURFACE: &str = "apps-surface";
@@ -182,6 +187,9 @@ pub struct EdgeApp {
     /// The names of the Organization's verified domain the App also answers on, each routed
     /// exactly as its host (AP-172).
     pub hostnames: Vec<String>,
+    /// A `wasm` App's server: its shard's Service, `host:port`, which serves `/apps/{name}/api`
+    /// (AP-143); `None` for any other App, or one not placed on a shard yet.
+    pub server: Option<String>,
 }
 
 /// The host an App is served on, under the apex (AP-133).
@@ -363,6 +371,7 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
         let endpoint = format!("app-{name}-endpoint");
         let moved = format!("app-{name}-moved");
         let services = format!("app-{name}-services");
+        let server = format!("app-{name}-server");
         let host = app_host(name, &apex);
         // The App's host, then each hostname of its Organization's domain with the same three
         // routes and a login that returns to it (AP-133, AP-167, AP-172).
@@ -382,9 +391,15 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
             ]
         }))
         .collect();
+        let server_routes: Vec<String> = hosts
+            .iter()
+            .filter(|_| app.server.is_some())
+            .map(|[_, route, _, _]| format!("{route}-server"))
+            .collect();
         if let Some(id) = hosts
             .iter()
             .flat_map(|[_, route, endpoint, services]| [route, endpoint, services])
+            .chain(&server_routes)
             .chain([&moved])
             .find(|id| taken.contains(id))
         {
@@ -416,6 +431,18 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
             }
             Upstream::Static => static_upstream.clone(),
         };
+        if let Some(node) = &app.server {
+            push(
+                &mut document,
+                "upstreams",
+                json!({
+                    "id": server,
+                    "type": "roundrobin",
+                    "nodes": { node.as_str(): 1 },
+                    "timeout": { "connect": 6, "send": 30, "read": 30 },
+                }),
+            );
+        }
         for [host, own, endpoint, services] in &hosts {
             let mut plugins = surface_plugins.clone();
             let policy = match &app.upstream {
@@ -479,6 +506,39 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
                     &mut document,
                     "plugin_configs",
                     json!({ "id": endpoint, "desc": format!("App {name}'s endpoint behind its own login"), "plugins": plugins }),
+                );
+            }
+            // A wasm App's server answers the rest of `/api/` on its host, under the same login
+            // and with the same headers stripped as the endpoint; its shard routes by the
+            // `/apps/{name}/api` prefix. Without this route the static host answered every call
+            // of kpi-forecast's and news-topics' servers 404 (T-3579).
+            if app.server.is_some() {
+                let id = format!("{own}-server");
+                let mut plugins = plugins.clone();
+                rewrite_uri(
+                    &mut plugins,
+                    format!("^(?:/apps/{name})?/api/(.*)$"),
+                    format!("/apps/{name}/api/$1"),
+                );
+                push(
+                    &mut document,
+                    "plugin_configs",
+                    json!({ "id": id, "desc": format!("App {name}'s server behind its own login"), "plugins": plugins }),
+                );
+                push(
+                    &mut document,
+                    "routes",
+                    json!({
+                        "id": id,
+                        "name": id,
+                        "desc": format!("App {name}'s server"),
+                        "uris": ["/api/*", format!("/apps/{name}/api/*")],
+                        "host": host,
+                        "priority": SERVER_PRIORITY,
+                        "vars": [["uri", "!", "~~", format!("^(?:/apps/{name})?/api/(?:endpoint|services)/")]],
+                        "upstream_id": server,
+                        "plugin_config_id": id,
+                    }),
                 );
             }
 
@@ -600,6 +660,7 @@ pub fn edge_apps(
     mirror: &Mirror,
     secrets: &BTreeMap<String, ClientSecret>,
     settings: &Settings,
+    wasm_host: Option<&str>,
 ) -> (Vec<EdgeApp>, Vec<(String, String)>) {
     let mut apps = Vec::new();
     let mut skipped = Vec::new();
@@ -646,6 +707,13 @@ pub fn edge_apps(
             .collect();
         let hostnames =
             crate::apps::hostnames::routed(mirror, &project, &name, &envelope.spec, &settings.apex);
+        let shard = envelope.status.as_ref().and_then(|status| status.shard);
+        let server = match (spec.class, wasm_host, shard) {
+            (jc_core::kinds::AppClass::Wasm, Some(namespace), Some(shard)) => Some(format!(
+                "jc-wasm-host-{shard}.{namespace}.svc.cluster.local:{WASM_HOST_PORT}"
+            )),
+            _ => None,
+        };
         apps.push(EdgeApp {
             name,
             public,
@@ -653,6 +721,7 @@ pub fn edge_apps(
             secret: secret.clone(),
             slugs,
             hostnames,
+            server,
         });
     }
     (apps, skipped)
@@ -687,6 +756,9 @@ pub struct EdgeFile {
     namespace: String,
     /// The operator's bounds the Organization's rates are held inside (ADR-N-035).
     bounds: OrganizationBounds,
+    /// The WASM shards' namespace (`JC_PORTAL_WASM_HOST_NAMESPACE`): a wasm App's server is
+    /// routed only when it is set.
+    wasm_host: Option<String>,
 }
 
 /// A kube error as a sentence that names the object and the status, never the body sent.
@@ -705,7 +777,18 @@ impl EdgeFile {
             kube,
             namespace,
             bounds: OrganizationBounds::default(),
+            wasm_host: None,
         }
+    }
+
+    /// The WASM shards' namespace, so a wasm App's `/api` reaches its shard (AP-143).
+    pub fn with_wasm_host(mut self, namespace: Option<String>) -> Self {
+        self.wasm_host = namespace;
+        self
+    }
+
+    pub fn wasm_host(&self) -> Option<&str> {
+        self.wasm_host.as_deref()
     }
 
     /// The operator's bounds (`JC_ORGANIZATION_BOUNDS`) in place of the built-in ones.
@@ -881,6 +964,7 @@ routes:
             secret: ClientSecret::from(format!("secret-of-{name}")),
             slugs: vec![format!("slug-of-{name}")],
             hostnames: Vec::new(),
+            server: None,
         }
     }
 
@@ -923,6 +1007,84 @@ routes:
         let page =
             &by_id(&file, "plugin_configs", "app-air-quality").expect("its plugins")["plugins"];
         assert!(page["proxy-rewrite"]["headers"]["remove"].is_null());
+    }
+
+    /// T-3579: a wasm App's `/api` reaches its shard under the App's own login, with the
+    /// session's token as the bearer and the cookie kept at the edge; the endpoint and the
+    /// services keep their own routes. Before, only the page route matched and the static host
+    /// answered every server call 404.
+    #[test]
+    fn a_wasm_apps_server_is_routed_to_its_shard_on_each_of_its_hosts() {
+        let mut kpi = app("kpi-forecast", false, Upstream::Static);
+        kpi.server = Some("jc-wasm-host-0.wasm-host.svc.cluster.local:8080".into());
+        kpi.hostnames = vec!["kpi.city.example".into()];
+        let composed = compose(
+            BASE,
+            &[kpi, app("praha-mesto", true, Upstream::Static)],
+            &EdgeLimits::default(),
+        )
+        .expect("composes");
+        assert!(composed.skipped.is_empty(), "{:?}", composed.skipped);
+        let file = parsed(&composed.file);
+
+        let upstream = by_id(&file, "upstreams", "app-kpi-forecast-server").expect("its upstream");
+        assert_eq!(
+            upstream["nodes"],
+            json!({ "jc-wasm-host-0.wasm-host.svc.cluster.local:8080": 1 })
+        );
+        let at = format!(
+            "app-kpi-forecast-at-{}-server",
+            hostname_key("kpi.city.example")
+        );
+        for (id, host) in [
+            ("app-kpi-forecast-server", "kpi-forecast.apps.city.example"),
+            (at.as_str(), "kpi.city.example"),
+        ] {
+            let route = by_id(&file, "routes", id).expect("its server route");
+            assert_eq!(route["host"], host);
+            assert_eq!(route["uris"], json!(["/api/*", "/apps/kpi-forecast/api/*"]));
+            assert_eq!(route["upstream_id"], "app-kpi-forecast-server");
+            assert_eq!(route["plugin_config_id"], id);
+            let priority = route["priority"].as_u64().expect("a priority");
+            assert!(
+                priority > APP_PRIORITY && priority < ENDPOINT_PRIORITY,
+                "{priority}"
+            );
+            assert_eq!(
+                route["vars"],
+                json!([[
+                    "uri",
+                    "!",
+                    "~~",
+                    "^(?:/apps/kpi-forecast)?/api/(?:endpoint|services)/"
+                ]])
+            );
+            let plugins = &by_id(&file, "plugin_configs", id).expect("its plugins")["plugins"];
+            let oidc = &plugins["openid-connect"];
+            assert_eq!(oidc["unauth_action"], "deny");
+            assert_eq!(oidc["access_token_in_authorization_header"], true);
+            assert_eq!(oidc["client_id"], client_id("kpi-forecast"));
+            assert_eq!(
+                plugins["proxy-rewrite"]["regex_uri"],
+                json!([
+                    "^(?:/apps/kpi-forecast)?/api/(.*)$",
+                    "/apps/kpi-forecast/api/$1"
+                ])
+            );
+            assert_eq!(
+                plugins["proxy-rewrite"]["headers"]["remove"],
+                json!(["Cookie"])
+            );
+            assert_eq!(
+                plugins["serverless-pre-function"],
+                by_id(&file, "plugin_configs", "context-endpoint").expect("base")["plugins"]
+                    ["serverless-pre-function"],
+                "the base's header strip runs on the server route too"
+            );
+        }
+        // An App without a server gets no server route and no upstream.
+        assert!(by_id(&file, "routes", "app-praha-mesto-server").is_err());
+        assert!(by_id(&file, "upstreams", "app-praha-mesto-server").is_err());
     }
 
     #[test]

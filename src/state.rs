@@ -560,7 +560,13 @@ impl AppState {
                         syncer = syncer.with_edge_file(
                             Arc::new(
                                 crate::reconciler::edge_file::EdgeFile::new(edge_kube, namespace)
-                                    .with_bounds(self.config.organization_bounds.clone()),
+                                    .with_bounds(self.config.organization_bounds.clone())
+                                    .with_wasm_host(
+                                        self.config
+                                            .apps_db
+                                            .as_ref()
+                                            .and_then(|db| db.host_namespace.clone()),
+                                    ),
                             ),
                             settings.clone(),
                         );

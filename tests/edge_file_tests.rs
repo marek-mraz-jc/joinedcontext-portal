@@ -68,6 +68,7 @@ fn apps() -> Vec<EdgeApp> {
         secret: ClientSecret::from(CLIENT_SECRET.to_owned()),
         slugs: vec!["k4y7pq2mzt6vhx3nbwrs5cjd8f".into()],
         hostnames: Vec::new(),
+        server: None,
     }]
 }
 
@@ -373,6 +374,7 @@ fn a_pod_app_route_carries_the_policy_of_its_manifest() {
         &mirror,
         &secrets,
         &pod_settings(Some("https://portal.city.example/")),
+        None,
     );
     assert!(skipped.is_empty(), "{skipped:?}");
     let upstream = |name: &str| {
@@ -405,7 +407,7 @@ fn a_pod_app_route_carries_the_policy_of_its_manifest() {
     assert_eq!(csp.matches("script-src").count(), 1, "{csp}");
 
     // Without a basemap nothing of the Portal but its frame is named.
-    let (apps, _) = edge_apps(&mirror, &secrets, &pod_settings(None));
+    let (apps, _) = edge_apps(&mirror, &secrets, &pod_settings(None), None);
     let air = apps
         .iter()
         .find(|app| app.name == "air-quality")
@@ -418,4 +420,40 @@ fn a_pod_app_route_carries_the_policy_of_its_manifest() {
         "{csp}"
     );
     assert!(!csp.contains("basemap"), "{csp}");
+}
+
+/// T-3579: a published wasm App placed on a shard names that shard's Service as its server, so
+/// the edge routes its `/api` there; a wasm App on no shard yet, a `ui` App, or a Portal without
+/// the shards' namespace names none.
+#[test]
+fn a_wasm_app_on_a_shard_names_its_shards_service_as_its_server() {
+    let mirror = Mirror::new();
+    let mut placed = published("kpi-forecast", "wasm", json!([]));
+    placed.status = Some(serde_json::from_value(json!({ "shard": 1 })).expect("a status"));
+    mirror.upsert(placed);
+    mirror.upsert(published("news-topics", "wasm", json!([])));
+    mirror.upsert(published("praha-mesto", "ui", json!([])));
+    let secrets: BTreeMap<String, ClientSecret> = ["kpi-forecast", "news-topics", "praha-mesto"]
+        .into_iter()
+        .map(|name| (name.to_owned(), ClientSecret::from(format!("s-{name}"))))
+        .collect();
+
+    let (apps, skipped) = edge_apps(&mirror, &secrets, &pod_settings(None), Some("wasm-host"));
+    assert!(skipped.is_empty(), "{skipped:?}");
+    let server = |name: &str| {
+        apps.iter()
+            .find(|app| app.name == name)
+            .unwrap_or_else(|| panic!("{name} is routed"))
+            .server
+            .clone()
+    };
+    assert_eq!(
+        server("kpi-forecast").as_deref(),
+        Some("jc-wasm-host-1.wasm-host.svc.cluster.local:8080")
+    );
+    assert_eq!(server("news-topics"), None, "on no shard yet");
+    assert_eq!(server("praha-mesto"), None, "a ui App has no server");
+
+    let (apps, _) = edge_apps(&mirror, &secrets, &pod_settings(None), None);
+    assert!(apps.iter().all(|app| app.server.is_none()), "{apps:?}");
 }

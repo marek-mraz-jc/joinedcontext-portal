@@ -101,6 +101,30 @@ describe("an application of several endpoints", () => {
     expect(calls).toHaveLength(1);
   });
 
+  // T-3579: a public App's visitor reads its public endpoint but not the steward's write
+  // endpoint beside it; that one's 401 no longer costs the visitor the whole schema.
+  it("merges the schemas the caller may read and skips an endpoint that refuses them", async () => {
+    for (const refused of [401, 403]) {
+      const { transport } = recording();
+      const guarded: Transport = async (req) =>
+        req.path.startsWith("/api/endpoint/kpis1/") ? { status: refused, body: { title: "Authentication Required" } } : transport(req);
+      const client = createClient(CONFIG, guarded);
+      expect(Object.keys(await client.schema())).toEqual(["Vehicle"]);
+      // Asked for by name, the refused endpoint still says why.
+      await expect(client.schema("transportation-kpis")).rejects.toMatchObject({ status: refused });
+    }
+  });
+
+  it("still fails the merged schema when no endpoint may be read, or one is broken", async () => {
+    const { transport } = recording();
+    const none: Transport = async (req) =>
+      req.path.includes("/schema/") ? { status: 401, body: { title: "Authentication Required" } } : transport(req);
+    await expect(createClient(CONFIG, none).schema()).rejects.toMatchObject({ status: 401 });
+    const broken: Transport = async (req) =>
+      req.path.startsWith("/api/endpoint/kpis1/schema/") ? { status: 502, body: { title: "Bad Gateway" } } : transport(req);
+    await expect(createClient(CONFIG, broken).schema()).rejects.toMatchObject({ status: 502 });
+  });
+
   it("merges every endpoint's schema and reads one endpoint's access by name", async () => {
     const { calls, transport } = recording();
     const client = createClient(CONFIG, transport);
