@@ -7610,6 +7610,7 @@
     "address": "Adresa konektora",
     "copyAddress": "Kopírovať adresu",
     "copied": "Skopírované do schránky.",
+    "selected": "Označené: stlačte Ctrl+C.",
     "readOnly": "Len na čítanie: asistent môže údaje čítať a vyhľadávať, nikdy ich nezmení.",
     "noLogin": "Bez prihlásenia a bez kľúča: klientovi stačí adresa.",
     "limit": "Najviac {count} požiadaviek za minútu z jednej siete.",
