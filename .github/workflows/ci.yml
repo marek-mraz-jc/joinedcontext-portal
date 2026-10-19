@@ -37,6 +37,9 @@ jobs:
       # ci/cg-structure-baseline.txt; the count runs in tasks/push like the dead-code one (T-4607).
       - name: cg structure ratchet self-test
         run: python3 dev/cg-structure.py --selftest
+      # Which images a push builds: a ui/-only push builds the bundle and, until the cut-over, the binary (T-2485).
+      - name: image matrix path filter self-test
+        run: python3 dev/image-matrix.py --selftest
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with: { components: "rustfmt, clippy" }
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
