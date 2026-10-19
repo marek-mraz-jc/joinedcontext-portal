@@ -49,9 +49,6 @@ export default defineConfig({
         server: fileURLToPath(new URL("./src/sdk/server.ts", import.meta.url)),
         testing: fileURLToPath(new URL("./src/sdk/testing.ts", import.meta.url)),
         responsive: fileURLToPath(new URL("./src/sdk/responsive.ts", import.meta.url)),
-        // `@joinedcontext/sdk/style.css`: MapLibre's rules, the typeface and the attribution
-        // underline beside the components' CSS, in the one `style.css` (T-3579).
-        stylesheet: fileURLToPath(new URL("./src/sdk/stylesheet.ts", import.meta.url)),
       },
       formats: ["es"],
     },
