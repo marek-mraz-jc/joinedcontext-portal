@@ -7910,6 +7910,10 @@
       "failureShare": "{timeouts} / {errors} der Fragen",
       "answerCache": "Aus gespeicherten Antworten beantwortet",
       "answerCacheNote": "{hits} Fragen, etwa {ms} und {usd} gespart",
+      "forget": "Gespeicherte Antworten vergessen",
+      "forgetting": "Wird vergessen…",
+      "forgetHint": "Die nächsten Fragen werden neu beantwortet, etwa nachdem Sie eine Quelle korrigiert haben",
+      "forgot": "Vergessene gespeicherte Antworten: {count}",
       "firstToken": "Erstes Wort (Median)",
       "phase": {
         "route": "Wegwahl",

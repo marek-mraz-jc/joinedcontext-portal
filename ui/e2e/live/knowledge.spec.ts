@@ -218,6 +218,34 @@ test("a viewer may not erase a stored conversation, and an id that is no convers
   }
 });
 
+// T-4731: the kept answers of an assistant are forgotten only by an approver; on dev the purge
+// costs one cold answer and nothing else, so the journey runs it.
+test("a viewer may not make an assistant forget its kept answers, and an approver's purge says how many it forgot", async ({ browser }) => {
+  const path = (name: string) => `/api/v1/projects/${PROJECT}/knowledge/deployments/${name}/answers`;
+  const viewer = await signIn(browser, VIEWER, `/projects/${PROJECT}/knowledge/conversations?lang=en`);
+  try {
+    const refused = await viewer.page.request.delete(path("public"), { headers: { "x-csrf-token": await csrf(viewer.context) } });
+    expect(refused.status()).toBe(403);
+  } finally {
+    await viewer.context.close();
+  }
+  const { context, page } = await signIn(browser, STEWARD, `/projects/${PROJECT}/knowledge/conversations?lang=en`);
+  try {
+    const token = await csrf(context);
+    const unknown = await page.request.delete(path("no-such-assistant"), { headers: { "x-csrf-token": token } });
+    if (unknown.status() === 403) return; // this steward is no approver on dev
+    expect(unknown.status()).toBe(404);
+    const listed = await page.request.get(`/api/v1/projects/${PROJECT}/assistantdeployments`);
+    const names = listed.ok() ? ((await listed.json()) as { items: { metadata: { name: string } }[] }).items : [];
+    if (names.length === 0) return;
+    const purged = await page.request.delete(path(names[0].metadata.name), { headers: { "x-csrf-token": token } });
+    expect(purged.status()).toBe(200);
+    expect(typeof ((await purged.json()) as { forgotten: unknown }).forgotten).toBe("number");
+  } finally {
+    await context.close();
+  }
+});
+
 // T-4693 (AG-121): the editor's preview resolves a manifest nobody saved, on a channel nobody signs
 // in to public Endpoints alone, and changes nothing without `dryRun=All`.
 test("a steward previews an unsaved assistant's Endpoints, public ones alone on a public channel", async ({ browser }) => {

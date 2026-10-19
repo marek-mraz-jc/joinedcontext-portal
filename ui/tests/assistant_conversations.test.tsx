@@ -411,6 +411,39 @@ describe("Asistent → Konverzácie", () => {
 });
 
 describe("UsageSummary (T-4728)", () => {
+  it("offers to forget one assistant's kept answers and says how many went (T-4731)", async () => {
+    const user = userEvent.setup();
+    const deletes: string[] = [];
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(String(input), init);
+      const url = new URL(request.url, "http://localhost");
+      if (request.method === "DELETE") deletes.push(url.pathname);
+      const body = request.method === "DELETE" ? { forgotten: 4 } : USAGE;
+      return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }));
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        <I18nextProvider i18n={i18n}>
+          <UsageSummary project={PROJECT} filter={{}} />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    const summary = await screen.findByLabelText(i18n.t("conversations.usage.title"));
+    // Without one assistant chosen there is nothing to forget.
+    expect(within(summary).queryByRole("button", { name: i18n.t("conversations.usage.forget") })).toBeNull();
+    rerender(
+      <QueryClientProvider client={client}>
+        <I18nextProvider i18n={i18n}>
+          <UsageSummary project={PROJECT} filter={{ deployment: "obcan" }} />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    await user.click(await within(summary).findByRole("button", { name: i18n.t("conversations.usage.forget") }));
+    expect(await within(summary).findByRole("status")).toHaveTextContent(i18n.t("conversations.usage.forgot", { count: 4 }));
+    expect(deletes).toEqual([`/api/v1/projects/${PROJECT}/knowledge/deployments/obcan/answers`]);
+  });
+
   it("reads an all-unpriced range as an unknown price and shows the export's refusal in words", async () => {
     const user = userEvent.setup();
     const unpriced = {

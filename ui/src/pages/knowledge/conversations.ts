@@ -284,6 +284,16 @@ export async function eraseConversation(project: string, conversation: string): 
   );
 }
 
+/** Makes one assistant forget the answers it keeps for repeated questions; how many it forgot (T-4731). */
+export async function forgetAnswers(project: string, deployment: string): Promise<number> {
+  const answer = (await unwrap(
+    await api.DELETE("/api/v1/projects/{project}/knowledge/deployments/{deployment}/answers", {
+      params: { path: { project, deployment } },
+    }),
+  )) as { forgotten?: unknown };
+  return typeof answer.forgotten === "number" ? answer.forgotten : 0;
+}
+
 export async function sameQuestion(project: string, conversation: string, turn: number): Promise<SameTurn[]> {
   const answer = (await unwrap(
     await api.GET("/api/v1/projects/{project}/knowledge/conversations/{conversation}/turns/{turn}/same", {

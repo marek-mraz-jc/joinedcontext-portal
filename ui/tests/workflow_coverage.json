@@ -1529,6 +1529,16 @@
         "routes": [
           "DELETE /api/v1/projects/{project}/knowledge/conversations/{conversation}"
         ]
+      },
+      "forget-answers": {
+        "live": {
+          "spec": "knowledge.spec.ts",
+          "test": "a viewer may not make an assistant forget its kept answers, and an approver's purge says how many it forgot"
+        },
+        "personOnly": "dropping an assistant's kept answers is an administrator's call after a correction they made; the Portal also does it by itself when a Policy or an Endpoint changes, so an agent has nothing to decide (T-4731)",
+        "routes": [
+          "DELETE /api/v1/projects/{project}/knowledge/deployments/{deployment}/answers"
+        ]
       }
     },
     "navigation": {

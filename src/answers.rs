@@ -28,15 +28,15 @@ pub fn fingerprint(mirror: &Mirror) -> u64 {
 }
 
 /// Asks jc-assistant to forget the kept answers of every mirrored AssistantDeployment; how many
-/// it forgot. A deployment the assistant cannot be asked for is logged and left to its answers'
-/// own life (an hour at most).
+/// it forgot, `Some(0)` with no assistant, and `None` when one deployment could not be purged, so
+/// the caller tries again rather than leave answers read under an old grant.
 // ponytail: every deployment of every project, since a connector may read another project's
 // Endpoint; per-deployment purges through resolve_connectors if Policy changes become frequent.
-pub async fn forget_all(state: &AppState) -> u64 {
+pub async fn forget_all(state: &AppState) -> Option<u64> {
     if state.config.knowledge_url.is_none() {
-        return 0;
+        return Some(0);
     }
-    let mut forgotten = 0;
+    let (mut forgotten, mut all) = (0, true);
     for env in state
         .mirror
         .matching(|env| env.kind == "AssistantDeployment")
@@ -48,16 +48,19 @@ pub async fn forget_all(state: &AppState) -> u64 {
         );
         match crate::api::knowledge::ask(state, reqwest::Method::DELETE, &path, None).await {
             Ok((_, body)) => forgotten += body["forgotten"].as_u64().unwrap_or(0),
+            // An assistant without the route keeps no answers to forget.
+            Err(crate::error::ApiError::NotFound(_)) => {}
             Err(err) => {
-                tracing::warn!(deployment = %path, error = %err, "the kept answers were not forgotten")
+                all = false;
+                tracing::warn!(deployment = %path, error = %err, "the kept answers were not forgotten; again in 30 s")
             }
         }
     }
-    forgotten
+    all.then_some(forgotten)
 }
 
 /// Looks at the mirror every 30 seconds and forgets every kept answer once a Policy or an
-/// Endpoint changed since the last look.
+/// Endpoint changed since the last look; a purge that failed is tried again on the next look.
 pub(crate) fn spawn_periodic(state: AppState) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
@@ -67,12 +70,13 @@ pub(crate) fn spawn_periodic(state: AppState) {
             interval.tick().await;
             let now = fingerprint(&state.mirror);
             if now != seen {
-                let forgotten = forget_all(&state).await;
-                tracing::info!(
-                    forgotten,
-                    "a Policy or an Endpoint changed: kept answers forgotten"
-                );
-                seen = now;
+                if let Some(forgotten) = forget_all(&state).await {
+                    tracing::info!(
+                        forgotten,
+                        "a Policy or an Endpoint changed: kept answers forgotten"
+                    );
+                    seen = now;
+                }
             }
         }
     });

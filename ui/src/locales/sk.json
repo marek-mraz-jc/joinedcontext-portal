@@ -7910,6 +7910,10 @@
       "failureShare": "{timeouts} / {errors} otázok",
       "answerCache": "Odpovedané z uložených odpovedí",
       "answerCacheNote": "{hits} otázok, ušetrené asi {ms} a {usd}",
+      "forget": "Zabudnúť uložené odpovede",
+      "forgetting": "Zabúda sa…",
+      "forgetHint": "Ďalšie otázky dostanú novú odpoveď, napríklad keď ste opravili zdroj",
+      "forgot": "Zabudnuté uložené odpovede: {count}",
       "firstToken": "Prvé slovo (medián)",
       "phase": {
         "route": "Smerovanie",

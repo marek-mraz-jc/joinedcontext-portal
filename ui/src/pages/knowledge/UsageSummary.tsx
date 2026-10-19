@@ -10,6 +10,7 @@ import {
   conversationUsage,
   costText,
   exportConversations,
+  forgetAnswers,
   msText,
   shareText,
   tokensText,
@@ -38,6 +39,8 @@ export function UsageSummary({ project, filter }: { project: string; filter: Con
   const locale = i18n.language;
   const [exporting, setExporting] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  const [forgetting, setForgetting] = useState(false);
+  const [forgot, setForgot] = useState<number | null>(null);
   const usage = useQuery({
     queryKey: conversationKeys.usage(project, filter),
     queryFn: () => conversationUsage(project, filter),
@@ -60,21 +63,49 @@ export function UsageSummary({ project, filter }: { project: string; filter: Con
     }
   };
 
+  const deployment = filter.deployment;
+  const forget = async (name: string) => {
+    setForgetting(true);
+    setFailed(null);
+    setForgot(null);
+    try {
+      setForgot(await forgetAnswers(project, name));
+    } catch (error) {
+      setFailed(reasonOf(error, t("app.error.generic")));
+    } finally {
+      setForgetting(false);
+    }
+  };
+
   const s = usage.data;
   return (
     <Card className="space-y-4 p-4" aria-label={t("conversations.usage.title")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold">{t("conversations.usage.title")}</h2>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => void save()}
-          disabled={exporting}
-          title={exporting ? t("conversations.usage.exporting") : undefined}
-        >
-          {exporting ? t("conversations.usage.exporting") : t("conversations.usage.export")}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {deployment ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void forget(deployment)}
+              disabled={forgetting}
+              title={t("conversations.usage.forgetHint")}
+            >
+              {forgetting ? t("conversations.usage.forgetting") : t("conversations.usage.forget")}
+            </Button>
+          ) : null}
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void save()}
+            disabled={exporting}
+            title={exporting ? t("conversations.usage.exporting") : undefined}
+          >
+            {exporting ? t("conversations.usage.exporting") : t("conversations.usage.export")}
+          </Button>
+        </div>
       </div>
+      {forgot !== null ? <p role="status">{t("conversations.usage.forgot", { count: forgot })}</p> : null}
       {failed ? <Alert tone="danger">{failed}</Alert> : null}
       {usage.isError ? <Alert tone="danger">{reasonOf(usage.error, t("app.error.generic"))}</Alert> : null}
       {usage.isLoading ? <p role="status">{t("app.loading")}</p> : null}

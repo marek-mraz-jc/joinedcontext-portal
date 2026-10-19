@@ -7910,6 +7910,10 @@
       "failureShare": "{timeouts} / {errors} of questions",
       "answerCache": "Answered from kept answers",
       "answerCacheNote": "{hits} questions, saved about {ms} and {usd}",
+      "forget": "Forget kept answers",
+      "forgetting": "Forgetting…",
+      "forgetHint": "The next questions are answered afresh, for example after you corrected a source",
+      "forgot": "Kept answers forgotten: {count}",
       "firstToken": "First word (median)",
       "phase": {
         "route": "Routing",

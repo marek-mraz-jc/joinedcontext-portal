@@ -968,5 +968,14 @@ async fn a_purge_of_kept_answers_is_forwarded_recorded_and_refused_to_others() {
         ruled,
         "the same rules, the same digest"
     );
-    assert_eq!(forget_all(&r.state).await, 3);
+    assert_eq!(forget_all(&r.state).await, Some(3));
+    // An assistant without the route keeps nothing; one that fails leaves the purge to be tried
+    // again.
+    r.assistant.reset().await;
+    assert_eq!(forget_all(&r.state).await, Some(0));
+    Mock::given(method("DELETE"))
+        .respond_with(ResponseTemplate::new(503))
+        .mount(&r.assistant)
+        .await;
+    assert_eq!(forget_all(&r.state).await, None);
 }
