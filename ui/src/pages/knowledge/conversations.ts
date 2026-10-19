@@ -21,7 +21,7 @@ export interface ConversationRow {
 }
 
 export interface ConversationStep {
-  kind: "route" | "search" | "tool" | "model" | "answer";
+  kind: "route" | "search" | "tool" | "model" | "answer" | "visual" | "untracked";
   name: string;
   endpoint: string | null;
   input: string | null;
@@ -38,6 +38,16 @@ export interface ConversationStep {
   tokensOut: number | null;
   reasoningTokens: number | null;
   costUsd: number | null;
+  /** T-4681: prompt tokens the provider read from its cache. */
+  cachedTokens?: number | null;
+  /** The model's reasoning text, up to 64 KB; never shown to visitors. */
+  reasoning?: string | null;
+  finishReason?: string | null;
+  effort?: string | null;
+  /** The first 12 hex of the system prompt's sha256: which prompt version answered. */
+  promptVersion?: string | null;
+  /** A tool's or a visual's row count. */
+  rows?: number | null;
 }
 
 export interface ConversationTurn {
@@ -78,9 +88,22 @@ export interface ConversationFilter {
   cursor?: string;
 }
 
+/** A stored turn with the same normalized question (API/05 §3.1, T-4681). */
+export interface SameTurn {
+  conversation: string;
+  turn: number;
+  at: string;
+  deployment: string;
+  totalMs: number;
+  costUsd: number | null;
+  steps: number;
+}
+
 export const conversationKeys = {
   list: (project: string, filter: ConversationFilter) => ["projects", project, "knowledge", "conversations", filter] as const,
   one: (project: string, id: string) => ["projects", project, "knowledge", "conversations", id] as const,
+  same: (project: string, id: string, turn: number) =>
+    ["projects", project, "knowledge", "conversations", id, "same", turn] as const,
 };
 
 /** What the route takes (API/05 §3.1). */
@@ -152,6 +175,15 @@ export async function eraseConversation(project: string, conversation: string): 
   );
 }
 
+export async function sameQuestion(project: string, conversation: string, turn: number): Promise<SameTurn[]> {
+  const answer = (await unwrap(
+    await api.GET("/api/v1/projects/{project}/knowledge/conversations/{conversation}/turns/{turn}/same", {
+      params: { path: { project, conversation, turn } },
+    }),
+  )) as { items?: SameTurn[] } | null;
+  return Array.isArray(answer?.items) ? answer.items : [];
+}
+
 /**
  * A turn as a case of the assistant's eval set (conformance tests/assistant/opendata_questions.json,
  * T-4656): the question, the kind its route suggests and an empty `must` the person fills in; the
@@ -173,4 +205,157 @@ export function msText(ms: number | null | undefined): string {
 export function usdText(usd: number | null | undefined): string {
   if (usd === null || usd === undefined || !Number.isFinite(usd)) return "–";
   return `$${usd < 0.01 ? usd.toFixed(4) : usd.toFixed(2)}`;
+}
+
+/** The most text one step shows before "Zobraziť viac" (the store keeps 64 KB, T-4681). */
+export const SHOWN_CHARS = 64 * 1024;
+
+// Bidi overrides, isolates and marks, and the zero-width characters: they reorder or hide text.
+const INVISIBLE = /[\u061c\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/gu;
+
+/** Stored text with every bidi and zero-width character shown as a visible marker such as ⟦U+202E⟧. */
+export function visible(text: string): string {
+  return text.replace(INVISIBLE, (c) => `⟦U+${c.codePointAt(0)?.toString(16).toUpperCase().padStart(4, "0")}⟧`);
+}
+
+/** The text up to `limit` characters, and whether more was cut. */
+export function capped(text: string, limit = SHOWN_CHARS): { text: string; more: boolean } {
+  return text.length > limit ? { text: text.slice(0, limit), more: true } : { text, more: false };
+}
+
+export interface TurnTotals {
+  steps: number;
+  tools: number;
+  models: number;
+  totalMs: number;
+  costUsd: number;
+  /** Cached prompt tokens over all prompt tokens of the model calls; null when none were counted. */
+  cachedShare: number | null;
+}
+
+/** The header line of a compared turn: steps, tool calls, model calls, time, cost and cached share. */
+export function totals(turn: Pick<ConversationTurn, "steps" | "totalMs" | "costUsd">): TurnTotals {
+  const models = turn.steps.filter((s) => s.kind === "model");
+  const prompt = models.reduce((sum, s) => sum + (s.tokensIn ?? 0), 0);
+  const cached = models.reduce((sum, s) => sum + (s.cachedTokens ?? 0), 0);
+  return {
+    steps: turn.steps.length,
+    tools: turn.steps.filter((s) => s.kind === "tool").length,
+    models: models.length,
+    totalMs: turn.totalMs,
+    costUsd: turn.costUsd,
+    cachedShare: prompt > 0 ? cached / prompt : null,
+  };
+}
+
+/** The longest common subsequence of `a` and `b` under `same`, as index pairs in order. */
+function lcs<T>(a: T[], b: T[], same: (x: T, y: T) => boolean): [number, number][] {
+  const n = a.length;
+  const m = b.length;
+  const table = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      table[i][j] = same(a[i], b[j]) ? table[i + 1][j + 1] + 1 : Math.max(table[i + 1][j], table[i][j + 1]);
+    }
+  }
+  const pairs: [number, number][] = [];
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m) {
+    if (same(a[i], b[j])) {
+      pairs.push([i, j]);
+      i++;
+      j++;
+    } else if (table[i + 1][j] >= table[i][j + 1]) i++;
+    else j++;
+  }
+  return pairs;
+}
+
+/** Two step timelines aligned by kind: matched steps share a row, the others face an empty cell. */
+export function aligned(
+  a: ConversationStep[],
+  b: ConversationStep[],
+): [ConversationStep | null, ConversationStep | null][] {
+  const rows: [ConversationStep | null, ConversationStep | null][] = [];
+  let i = 0;
+  let j = 0;
+  for (const [x, y] of [...lcs(a, b, (s, t) => s.kind === t.kind), [a.length, b.length]]) {
+    while (i < x) rows.push([a[i++], null]);
+    while (j < y) rows.push([null, b[j++]]);
+    if (x < a.length) rows.push([a[i++], b[j++]]);
+  }
+  return rows;
+}
+
+export interface DiffWord {
+  word: string;
+  change: "same" | "removed" | "added";
+}
+
+// ponytail: the word LCS is O(n·m); past this many words each answer shows as wholly changed.
+const DIFF_WORDS = 2000;
+
+/** A word diff of two answers: the words of `a` that `b` dropped, the ones it added, the rest kept. */
+export function wordDiff(a: string, b: string): DiffWord[] {
+  const left = a.split(/\s+/u).filter(Boolean);
+  const right = b.split(/\s+/u).filter(Boolean);
+  const pairs = left.length > DIFF_WORDS || right.length > DIFF_WORDS ? [] : lcs(left, right, (x, y) => x === y);
+  const out: DiffWord[] = [];
+  let i = 0;
+  let j = 0;
+  for (const [x, y] of [...pairs, [left.length, right.length]]) {
+    while (i < x) out.push({ word: left[i++], change: "removed" });
+    while (j < y) out.push({ word: right[j++], change: "added" });
+    if (x < left.length) {
+      out.push({ word: left[i++], change: "same" });
+      j++;
+    }
+  }
+  return out;
+}
+
+/** What a visual step showed: table, chart or map, the chart type, its units and its row count. */
+export interface VisualSummary {
+  kind: string;
+  mark: string | null;
+  units: string | null;
+  rows: number | null;
+}
+
+export function visualSummary(step: ConversationStep): VisualSummary {
+  let spec: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = JSON.parse(step.input ?? "{}");
+    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) spec = parsed as Record<string, unknown>;
+  } catch {
+    // A stored spec cut at 64 KB no longer parses; the kind and row count still compare.
+  }
+  const mark = spec.mark;
+  const markType =
+    typeof mark === "string" ? mark
+    : mark !== null && typeof mark === "object" && typeof (mark as { type?: unknown }).type === "string"
+      ? (mark as { type: string }).type
+      : null;
+  const units = spec.units === undefined || spec.units === null ? null : JSON.stringify(spec.units);
+  return { kind: step.name, mark: markType, units, rows: step.rows ?? null };
+}
+
+/** The spec changes between the visuals of two turns, in order: "chart → map", "units: … → none". */
+export function visualChanges(a: ConversationStep[], b: ConversationStep[]): string[] {
+  const left = a.filter((s) => s.kind === "visual").map(visualSummary);
+  const right = b.filter((s) => s.kind === "visual").map(visualSummary);
+  const changes: string[] = [];
+  for (let i = 0; i < Math.max(left.length, right.length); i++) {
+    const x = left[i];
+    const y = right[i];
+    if (!x || !y) {
+      changes.push(`${x?.kind ?? "–"} → ${y?.kind ?? "–"}`);
+      continue;
+    }
+    for (const key of ["kind", "mark", "units", "rows"] as const) {
+      if (x[key] !== y[key]) changes.push(`${key}: ${x[key] ?? "–"} → ${y[key] ?? "–"}`);
+    }
+  }
+  return changes;
 }

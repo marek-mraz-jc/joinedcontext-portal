@@ -8906,6 +8906,109 @@
         }
       }
     },
+    "/api/v1/projects/{project}/knowledge/conversations/{conversation}/turns/{turn}/same": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "List The Turns Of The Same Question",
+        "description": "The project's stored turns whose question reads as this turn's (case, diacritics and spacing ignored), newest first, at most 50, for comparing two answers to one question (API/05 §3.1, T-4681). Needs `approve` on AssistantDeployment; every call is recorded.",
+        "operationId": "same_question",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "conversation",
+            "in": "path",
+            "description": "Conversation id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "turn",
+            "in": "path",
+            "description": "Turn number, 1 to 200",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "items: conversation, turn, at, deployment, totalMs, costUsd, steps",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not approve an AssistantDeployment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such stored turn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "60 calls on the stored conversations in a minute already",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The knowledge assistant is not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/knowledge/deployments/context": {
       "post": {
         "tags": [
@@ -16115,6 +16218,28 @@
         }
       }
     },
+    "/api/v1/version": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Build of both artifacts",
+        "description": "The commit and OpenAPI hash of the binary and of the UI bundle it serves, and whether the bundle was built against this API (`match`, `mismatch`, `unknown`). Public (T-2485).",
+        "operationId": "version",
+        "responses": {
+          "200": {
+            "description": "Both builds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Version"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/visualization-templates/{name}": {
       "get": {
         "tags": [
@@ -17597,6 +17722,20 @@
             "items": {
               "$ref": "#/components/schemas/Broker"
             }
+          }
+        }
+      },
+      "Build": {
+        "type": "object",
+        "description": "One deploy artifact: the commit it was built from and the OpenAPI document it speaks (T-2485).",
+        "properties": {
+          "commit": {
+            "type": "string",
+            "description": "Empty when the build named none (a local `cargo run` or `pnpm build`)."
+          },
+          "openapi": {
+            "type": "string",
+            "description": "The sha256 of the OpenAPI document, hex; empty when unknown."
           }
         }
       },
@@ -25267,6 +25406,34 @@
           "path": {
             "type": "string",
             "description": "The path the bundle index gave the file."
+          }
+        }
+      },
+      "Version": {
+        "type": "object",
+        "description": "Both halves of the Portal and whether the UI was built against this binary's API (T-2485).",
+        "required": [
+          "portal",
+          "contract"
+        ],
+        "properties": {
+          "contract": {
+            "type": "string",
+            "description": "`match`, `mismatch`, or `unknown` when the bundle names no hash."
+          },
+          "portal": {
+            "$ref": "#/components/schemas/Build"
+          },
+          "ui": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Build",
+                "description": "`None` when the bundle is unreachable or carries no `version.json`."
+              }
+            ]
           }
         }
       },

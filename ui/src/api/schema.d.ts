@@ -2125,6 +2125,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/knowledge/conversations/{conversation}/turns/{turn}/same": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List The Turns Of The Same Question
+         * @description The project's stored turns whose question reads as this turn's (case, diacritics and spacing ignored), newest first, at most 50, for comparing two answers to one question (API/05 §3.1, T-4681). Needs `approve` on AssistantDeployment; every call is recorded.
+         */
+        get: operations["same_question"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/knowledge/deployments/context": {
         parameters: {
             query?: never;
@@ -3497,6 +3517,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Build of both artifacts
+         * @description The commit and OpenAPI hash of the binary and of the UI bundle it serves, and whether the bundle was built against this API (`match`, `mismatch`, `unknown`). Public (T-2485).
+         */
+        get: operations["version"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/visualization-templates/{name}": {
         parameters: {
             query?: never;
@@ -4082,6 +4122,13 @@ export interface components {
         /** @description The organization's brokers. */
         Brokers: {
             items: components["schemas"]["Broker"][];
+        };
+        /** @description One deploy artifact: the commit it was built from and the OpenAPI document it speaks (T-2485). */
+        Build: {
+            /** @description Empty when the build named none (a local `cargo run` or `pnpm build`). */
+            commit?: string;
+            /** @description The sha256 of the OpenAPI document, hex; empty when unknown. */
+            openapi?: string;
         };
         /** @description One successful build of an App, as Restore offers it (AP-171). */
         BuildEntry: {
@@ -6774,6 +6821,13 @@ export interface components {
             equal: boolean;
             /** @description The path the bundle index gave the file. */
             path: string;
+        };
+        /** @description Both halves of the Portal and whether the UI was built against this binary's API (T-2485). */
+        Version: {
+            /** @description `match`, `mismatch`, or `unknown` when the bundle names no hash. */
+            contract: string;
+            portal: components["schemas"]["Build"];
+            ui?: null | components["schemas"]["Build"];
         };
         /** @description How a view looks at its type (API/01 §30). */
         ViewConfig: {
@@ -13617,6 +13671,78 @@ export interface operations {
             };
         };
     };
+    same_question: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Conversation id (UUID) */
+                conversation: string;
+                /** @description Turn number, 1 to 200 */
+                turn: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description items: conversation, turn, at, deployment, totalMs, costUsd, steps */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not approve an AssistantDeployment */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such stored turn */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description 60 calls on the stored conversations in a minute already */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The knowledge assistant is not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     previewAssistantContext: {
         parameters: {
             query?: {
@@ -18886,6 +19012,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    version: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Both builds */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Version"];
                 };
             };
         };

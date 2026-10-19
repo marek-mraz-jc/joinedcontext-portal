@@ -1,9 +1,11 @@
 use axum::body::Body;
-use axum::http::{header, StatusCode, Uri};
+use axum::extract::State;
+use axum::http::{header, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use rust_embed::RustEmbed;
 
 use crate::error::ApiError;
+use crate::state::AppState;
 
 #[derive(RustEmbed)]
 #[folder = "ui/dist"]
@@ -26,35 +28,93 @@ pub const PLACEHOLDER_HTML: &str = r#"<!doctype html>
 </html>
 "#;
 
-/// Serves static assets from the embedded Vite build or falls back to SPA routing.
-pub async fn static_handler(uri: Uri) -> Response {
-    let path = uri.path().trim_start_matches('/');
-    if path.is_empty() || path == "index.html" {
-        return serve_index();
-    }
-
-    if let Some(file) = Assets::get(path) {
-        let mime = mime_guess::from_path(path).first_or_octet_stream();
-        let cache_control = if path.starts_with("assets/") {
-            "public, max-age=31536000, immutable"
-        } else {
-            "no-cache"
-        };
-
-        Response::builder()
-            .status(StatusCode::OK)
-            .header(header::CONTENT_TYPE, mime.as_ref())
-            .header(header::CACHE_CONTROL, cache_control)
-            .body(Body::from(file.data))
-            .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
+/// A fingerprinted file under `assets/` never changes; everything else is asked again.
+fn cache_control(path: &str) -> &'static str {
+    if path.starts_with("assets/") {
+        "public, max-age=31536000, immutable"
     } else {
-        let last_segment = path.rsplit('/').next().unwrap_or(path);
-        if last_segment.contains('.') {
-            ApiError::NotFound(format!("Asset '{path}' not found")).into_response()
-        } else {
-            serve_index()
+        "no-cache"
+    }
+}
+
+/// A path without an extension in its last segment is a page of the SPA: the shell answers it.
+fn is_page(path: &str) -> bool {
+    path.is_empty() || !path.rsplit('/').next().unwrap_or(path).contains('.')
+}
+
+/// Serves the UI: from the `portal-ui` bundle when `JC_PORTAL_UI_URL` names one (T-2485), else
+/// from the build embedded in the binary, with SPA routing either way.
+pub async fn static_handler(State(state): State<AppState>, uri: Uri) -> Response {
+    let path = uri.path().trim_start_matches('/');
+    let path = if is_page(path) { "index.html" } else { path };
+    match state.config.ui_url.as_deref() {
+        Some(ui) => from_bundle(ui, path).await,
+        None if path == "index.html" => serve_index(),
+        None => embedded(path),
+    }
+}
+
+fn http() -> &'static reqwest::Client {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .unwrap_or_default()
+    })
+}
+
+/// One file of the bundle, read from `portal-ui` inside the cluster. The Portal's own layers add
+/// the security headers, so the bundle's server only has to hand over bytes and their type.
+async fn from_bundle(ui: &str, path: &str) -> Response {
+    // nginx keeps a `..` inside its root, but a path that climbs is nobody's asset.
+    if path.split('/').any(|segment| segment == "..") {
+        return ApiError::NotFound(format!("Asset '{path}' not found")).into_response();
+    }
+    let answer = match http().get(format!("{ui}/{path}")).send().await {
+        Ok(answer) => answer,
+        Err(err) => {
+            tracing::warn!(error = %err, "the UI bundle did not answer");
+            return ApiError::Unavailable("the UI bundle is not reachable".into()).into_response();
+        }
+    };
+    match answer.status() {
+        reqwest::StatusCode::OK => {}
+        reqwest::StatusCode::NOT_FOUND => {
+            return ApiError::NotFound(format!("Asset '{path}' not found")).into_response();
+        }
+        status => {
+            tracing::warn!(%status, "the UI bundle refused a file");
+            return ApiError::Unavailable("the UI bundle is not reachable".into()).into_response();
         }
     }
+    let mime = answer
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .cloned()
+        .unwrap_or_else(|| {
+            HeaderValue::from_str(mime_guess::from_path(path).first_or_octet_stream().as_ref())
+                .unwrap_or(HeaderValue::from_static("application/octet-stream"))
+        });
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, mime)
+        .header(header::CACHE_CONTROL, cache_control(path))
+        .body(Body::from_stream(answer.bytes_stream()))
+        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
+}
+
+fn embedded(path: &str) -> Response {
+    let Some(file) = Assets::get(path) else {
+        return ApiError::NotFound(format!("Asset '{path}' not found")).into_response();
+    };
+    let mime = mime_guess::from_path(path).first_or_octet_stream();
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, mime.as_ref())
+        .header(header::CACHE_CONTROL, cache_control(path))
+        .body(Body::from(file.data))
+        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
 }
 
 fn serve_index() -> Response {

@@ -1,9 +1,11 @@
 # syntax=docker/dockerfile:1
-# One binary: the axum API, the embedded UI bundle and the in-process reconciler.
+# Two artifacts of one commit (T-2485): the default target is the binary (the axum API and the
+# in-process reconciler), and `--target ui-bundle` is the `portal-ui` image the binary reads its
+# pages from (JC_PORTAL_UI_URL).
 
-# The Vite build. rust-embed reads ui/dist at compile time, so the bundle has to exist
-# before cargo runs; without this stage the binary ships the placeholder page and every
-# view of DEMO.md is unreachable on the deployed platform (T-0369).
+# The Vite build, the content of `portal-ui`. The binary still embeds it until every
+# installation runs `portal-ui` (T-2485): without JC_PORTAL_UI_URL it serves this copy, so a binary
+# pinned before its bundle never falls back to the placeholder page (T-0369).
 FROM node:24-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS ui
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 # Both halves of the build context: `ui` depends on `@joinedcontext/sdk` as `link:../sdk` (T-1439,
@@ -22,6 +24,21 @@ WORKDIR /work/ui
 # An empty dist embeds as nothing and the placeholder page comes back silently, so the
 # image build is where that is caught, not the demo.
 RUN pnpm build && test -s dist/index.html && ls dist/assets/*.js >/dev/null
+# What GET /api/v1/version compares: the commit, and the spec the client was generated from.
+ARG JC_PORTAL_COMMIT=
+RUN printf '{"commit":"%s","openapi":"%s"}\n' "$JC_PORTAL_COMMIT" "$(sha256sum openapi.json | cut -d' ' -f1)" \
+    > dist/version.json
+
+# `portal-ui`: the bundle behind the static server the deployment already pins (components/basemap),
+# uid 101 on port 8080. Its default site serves the files and answers 404 for the rest; the
+# binary decides which paths are pages of the SPA.
+FROM docker.io/nginxinc/nginx-unprivileged:1.30.4-alpine-slim@sha256:7bbe8940bc478e5618e6d4cfbeda406e5b4217cacc06faacd665aca5e468595e AS ui-bundle
+# The pinned base lags Alpine's security fixes (pcre2 CVE-2026-103111, T-4707): take them at
+# build time, so a fix never waits for upstream to rebuild the tag.
+USER 0
+RUN apk upgrade --no-cache
+USER 101
+COPY --from=ui /work/ui/dist /usr/share/nginx/html
 
 # The App SDK (SDK-01) with the kit renderer the spec pass still fills in, embedded like the UI.
 FROM node:24-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS sdk

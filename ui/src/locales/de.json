@@ -7813,7 +7813,7 @@
   },
   "conversations": {
     "title": "Unterhaltungen",
-    "intro": "Was Besucher die Assistenten des Projekts gefragt haben und wie jede Antwort entstand: der Weg, die Suchen, die Werkzeug- und Modellaufrufe mit Zeit und Kosten. Personenbezogene Daten werden vor dem Speichern entfernt; jeder Lesezugriff wird protokolliert.",
+    "intro": "Was Besucher die Assistenten des Projekts gefragt haben und wie jede Antwort entstand: der Weg, die Suchen, die Werkzeug- und Modellaufrufe mit Zeit, Kosten und der Überlegung des Modells. Gespräche bleiben 90 Tage wörtlich gespeichert, nur Passwörter, Tokens und Kartennummern werden vor dem Speichern maskiert; jeder Lesezugriff wird protokolliert.",
     "link": "Unterhaltungen",
     "notAllowed": "Nur der Administrator des Assistenten, der seine Deployments genehmigt, liest die gespeicherten Unterhaltungen. Bitten Sie ihn um dieses Recht.",
     "empty": "Keine gespeicherten Unterhaltungen",
@@ -7869,8 +7869,25 @@
       "search": "Suche",
       "tool": "Werkzeug",
       "model": "Modell",
-      "answer": "Antwort"
+      "answer": "Antwort",
+      "visual": "Diagramm, Tabelle, Karte",
+      "untracked": "Nicht erfasst"
     },
-    "unknownPrice": "unbekannt"
+    "unknownPrice": "unbekannt",
+    "same": "Gleiche Frage",
+    "sameEmpty": "Keine andere gespeicherte Antwort auf diese Frage.",
+    "stepCount": "{count, plural, one {# Schritt} other {# Schritte}}",
+    "compare": "Vergleichen",
+    "compareTitle": "Zwei Antworten im Vergleich",
+    "compareClose": "Vergleich schließen",
+    "copyPair": "Paar als JSON kopieren",
+    "showMore": "Mehr anzeigen ({size} kB)",
+    "reasoning": "Überlegung des Modells",
+    "cached": "{count} aus dem Cache",
+    "rows": "{count} Zeilen",
+    "changes": "Änderungen an Diagrammen, Tabellen und Karten",
+    "noChanges": "Keine Änderung",
+    "answers": "Unterschied der Antworten",
+    "totals": "{steps} Schritte · {tools} Werkzeuge · {models} Modellaufrufe · {time} · {cost} · aus dem Cache {cached}"
   }
 }

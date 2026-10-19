@@ -1205,7 +1205,7 @@
     },
     "src/pages/knowledge/ConversationsPage.tsx": {
       "controls": {
-        "Button": 4,
+        "Button": 9,
         "Switch": 2
       },
       "tests": [
