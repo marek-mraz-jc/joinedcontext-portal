@@ -20,7 +20,7 @@ pub fn routes_in_source() -> Vec<(String, String)> {
             }
             let text = std::fs::read_to_string(&path).expect("read a source file");
             let text = text.split("\n#[cfg(test)]").next().unwrap_or_default();
-            found.extend(routes_in(text));
+            found.extend(routes_in(&code_of(text)));
         }
     }
     found.sort();
@@ -28,7 +28,31 @@ pub fn routes_in_source() -> Vec<(String, String)> {
     found
 }
 
-fn routes_in(text: &str) -> Vec<(String, String)> {
+/// The text without its comment lines, so a doc comment naming `.route(` is not a route.
+fn code_of(text: &str) -> String {
+    text.lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Every route of `text`. A route the scan cannot read panics instead of going unlisted (T-4774):
+/// a path that is not a string literal, a method other than the five below (`any`, `on`), or a
+/// router mounted by `.nest_service`, `.route_service` or a `.nest` under another prefix than
+/// `/api/v1`, whose routes would then pass the authorization matrix without a row.
+pub fn routes_in(text: &str) -> Vec<(String, String)> {
+    for mount in [".nest_service(", ".route_service("] {
+        assert!(
+            !text.contains(mount),
+            "a router mounted by `{mount}` hides its routes from this inventory"
+        );
+    }
+    for nest in text.split(".nest(").skip(1) {
+        assert!(
+            nest.trim_start().starts_with("\"/api/v1\""),
+            "a router nested under another prefix than /api/v1 hides its routes from this inventory"
+        );
+    }
     let mut found = Vec::new();
     let mut from = 0;
     while let Some(at) = text[from..].find(".route(") {
@@ -50,15 +74,21 @@ fn routes_in(text: &str) -> Vec<(String, String)> {
         }
         let call = &text[open..=end];
         from = end + 1;
-        let Some(path) = call.split('"').nth(1) else {
-            continue;
+        let Some(literal) = call[1..].trim_start().strip_prefix('"') else {
+            panic!("a route whose path is not a string literal: .route{call}");
         };
+        let path = &literal[..literal.find('"').expect("a closed string")];
         let path = path.strip_prefix("/api/v1").unwrap_or(path);
+        let before = found.len();
         for method in ["get", "post", "put", "patch", "delete"] {
             if names_method(call, method) {
                 found.push((method.to_uppercase(), path.to_owned()));
             }
         }
+        assert!(
+            found.len() > before,
+            "a route whose method this inventory cannot read: .route{call}"
+        );
     }
     found
 }
