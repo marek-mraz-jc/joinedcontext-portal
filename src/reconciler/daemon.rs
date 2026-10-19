@@ -1519,7 +1519,12 @@ impl Syncer {
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
                 .clone();
-            let (apps, mut skipped) = super::edge_file::edge_apps(fresh_mirror, &secrets, settings);
+            let (apps, mut skipped) = super::edge_file::edge_apps(
+                fresh_mirror,
+                &secrets,
+                settings,
+                edge_file.wasm_host(),
+            );
             let limits = crate::api::organization_limits::limits_in(fresh_mirror);
             let (outcome, refused) = edge_file.converge(&apps, limits.as_ref()).await;
             skipped.extend(refused);
