@@ -113,6 +113,18 @@ describe("the published package", () => {
     }
   });
 
+  it("ships src/sdk/style.css in its stylesheet, not only the components' CSS", () => {
+    // `./style.css` is the build's one CSS asset, and the entries import only layout.css: the
+    // typeface (T-3124) and MapLibre's attribution underline (T-3577) never reached an App built
+    // on the forge, whose axe sweep kept failing link-in-text-block (T-3578).
+    const css = readFileSync(join(root, "dist/package/style.css"), "utf8");
+    expect(css).toMatch(/\.maplibregl-ctrl-attrib a\[href\]\{text-decoration:underline/);
+    expect(css).toMatch(/body\{font-family:var\(--jc-font-body/);
+    expect(css).toMatch(/@font-face\{font-family:"?Inter"?;/);
+    expect(css).toContain("data:font/woff2");
+    expect(css).toContain(".jc-shell{");
+  });
+
   it("ships built JavaScript and declarations, never the TypeScript source", () => {
     for (const [name, entry] of Object.entries(manifest.exports)) {
       if (typeof entry === "string") continue;
