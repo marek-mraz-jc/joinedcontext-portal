@@ -5,7 +5,9 @@
 //! only it.
 
 use joinedcontext_portal::config::ClientAuth;
-use joinedcontext_portal::reconciler::catalog::{entities, fold, places, CatalogSync, Place, Run};
+use joinedcontext_portal::reconciler::catalog::{
+    catalogues, entities, fold, places, slice, CatalogSync, Catalogue, Place, Run,
+};
 use joinedcontext_portal::reconciler::drift::Watch;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
@@ -750,4 +752,151 @@ async fn ckan_datasets_and_their_organizations_are_the_catalogue() {
     assert!(err.contains("CKAN"), "{err}");
     let (sent, _) = gateway.sent(from).await;
     assert!(sent.is_empty(), "{sent:?}");
+}
+
+/// T-4746: the installation's catalogue (segment `catalog`) holds every project, a project's own
+/// catalogue Endpoint (`{project}-catalog`) only its Endpoints and the Datasets naming them.
+#[tokio::test]
+async fn a_project_catalogue_is_its_slice_of_the_installations() {
+    const WHOLE: &str = "wwwwwwwwwwwwwwwwwwwwwwwwww";
+    const RIVERS: &str = "rrrrrrrrrrrrrrrrrrrrrrrrrr";
+    let dir = scratch("9");
+    city(&dir, true);
+    let land = |kind: &str, name: &str, spec: Value| {
+        json!({
+            "apiVersion": "joinedcontext.com/v1alpha1", "kind": kind,
+            "metadata": { "name": name, "namespace": "land" }, "spec": spec,
+        })
+        .to_string()
+    };
+    for (file, text) in [
+        (
+            "land-space.yaml",
+            land(
+                "ContextSpace",
+                "catalog",
+                json!({ "urnSegment": "catalog" }),
+            ),
+        ),
+        (
+            "land-catalog.yaml",
+            land(
+                "Endpoint",
+                "catalog",
+                json!({ "contextSpaceRef": { "kind": "ContextSpace", "name": "catalog" },
+                        "slug": WHOLE, "audience": "public", "enabledRepresentations": ["ngsi-ld"] }),
+            ),
+        ),
+        (
+            "rivers.yaml",
+            land(
+                "Endpoint",
+                "rivers",
+                json!({ "contextSpaceRef": { "kind": "ContextSpace", "name": "voda" },
+                        "slug": RIVERS, "audience": "public", "enabledRepresentations": ["ngsi-ld"] }),
+            ),
+        ),
+    ] {
+        std::fs::write(dir.join(file), text).expect("a manifest");
+    }
+    let repo = jcctl::loader::Repository::load(&dir).expect("loads");
+    assert_eq!(
+        catalogues(&repo).expect("catalogues"),
+        [
+            Catalogue {
+                slug: WHOLE.to_owned(),
+                project: None
+            },
+            Catalogue {
+                slug: CATALOG_SLUG.to_owned(),
+                project: Some(PROJECT.to_owned())
+            },
+        ]
+    );
+
+    let mut records = vec![record(RIVERS, ("Rivers", "Rieky"))];
+    records.extend(
+        air_feed("Air")["@included"]
+            .as_array()
+            .expect("nodes")
+            .chunks(2)
+            .map(|pair| [pair[0].clone(), pair[1].clone()]),
+    );
+    let gateway = Gateway::start(feed(&records)).await;
+    Mock::given(method("GET"))
+        .and(path(format!("/api/endpoint/{WHOLE}/ngsi-ld/v1/entities")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .mount(&gateway.server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!(
+            "/api/endpoint/{WHOLE}/ngsi-ld/v1/entityOperations/upsert"
+        )))
+        .respond_with(ResponseTemplate::new(204))
+        .mount(&gateway.server)
+        .await;
+    let run = gateway.sync().converge(&repo).await.expect("the wave");
+    assert_eq!(
+        run,
+        Some(Run {
+            upserted: 8 + 6,
+            deleted: 0
+        })
+    );
+    let requests = gateway.server.received_requests().await.expect("recorded");
+    let ids = |slug: &str| -> Vec<String> {
+        requests
+            .iter()
+            .filter(|r| {
+                r.url.path() == format!("/api/endpoint/{slug}/ngsi-ld/v1/entityOperations/upsert")
+            })
+            .flat_map(|r| serde_json::from_slice::<Vec<Value>>(&r.body).expect("a batch"))
+            .filter_map(|e| e["id"].as_str().map(str::to_owned))
+            .collect()
+    };
+    let rivers = format!("urn:ngsi-ld:DataService:{RIVERS}");
+    assert!(ids(WHOLE).contains(&rivers) && ids(WHOLE).len() == 8);
+    assert!(!ids(CATALOG_SLUG).contains(&rivers) && ids(CATALOG_SLUG).len() == 6);
+    assert!(!ids(CATALOG_SLUG).contains(&format!("urn:ngsi-ld:Dataset:{RIVERS}")));
+}
+
+#[test]
+fn a_slice_recounts_its_organizations_and_drops_the_others() {
+    let wanted: BTreeMap<String, Value> = [
+        json!({ "id": "urn:ngsi-ld:DataService:a", "type": "DataService" }),
+        json!({ "id": "urn:ngsi-ld:DataService:b", "type": "DataService" }),
+        json!({ "id": "urn:ngsi-ld:Dataset:one", "type": "Dataset",
+                "refDataService": { "type": "Relationship", "object": "urn:ngsi-ld:DataService:a" },
+                "refPublisher": { "type": "Relationship", "object": "urn:ngsi-ld:Organization:x" } }),
+        json!({ "id": "urn:ngsi-ld:Dataset:two", "type": "Dataset",
+                "refDataService": { "type": "Relationship", "object": "urn:ngsi-ld:DataService:b" },
+                "refPublisher": { "type": "Relationship", "object": "urn:ngsi-ld:Organization:x" } }),
+        json!({ "id": "urn:ngsi-ld:Dataset:three", "type": "Dataset",
+                "refDataService": { "type": "Relationship", "object": "urn:ngsi-ld:DataService:b" },
+                "refPublisher": { "type": "Relationship", "object": "urn:ngsi-ld:Organization:y" } }),
+        json!({ "id": "urn:ngsi-ld:Organization:x", "type": "Organization" }),
+        json!({ "id": "urn:ngsi-ld:Organization:y", "type": "Organization" }),
+    ]
+    .into_iter()
+    .map(|e| (e["id"].as_str().expect("id").to_owned(), e))
+    .collect();
+    let owners = [("a", "mesto"), ("b", "kraj")]
+        .into_iter()
+        .map(|(slug, project)| (slug.to_owned(), project.to_owned()))
+        .collect();
+    let mesto = slice(&wanted, "mesto", &owners);
+    let ids: Vec<&str> = mesto.keys().map(String::as_str).collect();
+    assert_eq!(
+        ids,
+        [
+            "urn:ngsi-ld:DataService:a",
+            "urn:ngsi-ld:Dataset:one",
+            "urn:ngsi-ld:Organization:x"
+        ]
+    );
+    assert_eq!(
+        mesto["urn:ngsi-ld:Organization:x"]["datasetCount"]["value"],
+        1
+    );
+    assert!(slice(&wanted, "nobody", &owners).is_empty());
 }

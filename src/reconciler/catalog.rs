@@ -43,6 +43,8 @@ const RELIST: Duration = Duration::from_secs(3600);
 
 /// An Endpoint's entity types, each with how many entities it holds, most first.
 type Counts = Vec<(String, u64)>;
+/// What a run left in one catalogue, by id, and when that catalogue was last listed.
+type Memory = (Instant, BTreeMap<String, Value>);
 
 /// What one run wrote.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -56,8 +58,9 @@ pub struct Run {
 /// The catalogue wave of one Portal.
 pub struct CatalogSync {
     watch: Arc<Watch>,
-    /// What the last run left in the catalogue, by id, and when it was last listed.
-    written: Mutex<Option<(Instant, BTreeMap<String, Value>)>>,
+    /// Per catalogue Endpoint slug, what the last run left in it, by id, and when it was last
+    /// listed.
+    written: Mutex<HashMap<String, Memory>>,
     /// Per public Endpoint slug, its entity types and their counts as an anonymous caller reads
     /// them, and when they were read (T-4526).
     counts: Mutex<HashMap<String, (Instant, Counts)>>,
@@ -68,17 +71,19 @@ impl CatalogSync {
     pub fn new(watch: Arc<Watch>) -> Self {
         Self {
             watch,
-            written: Mutex::new(None),
+            written: Mutex::new(HashMap::new()),
             counts: Mutex::new(HashMap::new()),
         }
     }
 
-    /// Brings the catalogue to the public Endpoints of `repo`. `Ok(None)` when the repository
-    /// declares no catalogue Endpoint, which leaves this wave off.
+    /// Brings every catalogue Endpoint of `repo` to its public Endpoints: the installation's to
+    /// all of them, a project's to its own. `Ok(None)` when the repository declares no
+    /// catalogue Endpoint, which leaves this wave off.
     pub async fn converge(&self, repo: &Repository) -> Result<Option<Run>, String> {
-        let Some(slug) = catalog_slug(repo)? else {
+        let targets = catalogues(repo)?;
+        if targets.is_empty() {
             return Ok(None);
-        };
+        }
         let (http, base) = self.watch.surface();
         let feed: Value = http
             .get(format!("{base}/catalog.jsonld"))
@@ -117,16 +122,42 @@ impl CatalogSync {
         with_types(&mut wanted, &counted);
 
         let token = self.watch.scan_token().await?;
+        let owners = owners(repo);
+        let mut run = Run::default();
+        for target in &targets {
+            let slice = match &target.project {
+                None => wanted.clone(),
+                Some(project) => slice(&wanted, project, &owners),
+            };
+            let wrote = self.write(http, base, &token, &target.slug, slice).await?;
+            run.upserted += wrote.upserted;
+            run.deleted += wrote.deleted;
+        }
+        if let Ok(mut written) = self.written.lock() {
+            written.retain(|slug, _| targets.iter().any(|target| &target.slug == slug));
+        }
+        Ok(Some(run))
+    }
+
+    /// Writes what changed in one catalogue Endpoint since the last run.
+    async fn write(
+        &self,
+        http: &reqwest::Client,
+        base: &str,
+        token: &str,
+        slug: &str,
+        wanted: BTreeMap<String, Value>,
+    ) -> Result<Run, String> {
         let surface = format!("{base}/api/endpoint/{slug}/ngsi-ld/v1");
         let remembered = self
             .written
             .lock()
             .map_err(|_| "the catalogue's memory is poisoned".to_owned())?
-            .take()
+            .remove(slug)
             .filter(|(listed, _)| listed.elapsed() < RELIST);
         let (listed, known) = match remembered {
             Some(memory) => memory,
-            None => (Instant::now(), listing(http, &surface, &token).await?),
+            None => (Instant::now(), listing(http, &surface, token).await?),
         };
 
         let changed: Vec<&Value> = wanted
@@ -139,10 +170,10 @@ impl CatalogSync {
             .filter(|id| !wanted.contains_key(*id))
             .collect();
         for batch in changed.chunks(BATCH) {
-            post(http, &surface, "upsert", &token, &json!(batch)).await?;
+            post(http, &surface, "upsert", token, &json!(batch)).await?;
         }
         for batch in gone.chunks(BATCH) {
-            post(http, &surface, "delete", &token, &json!(batch)).await?;
+            post(http, &surface, "delete", token, &json!(batch)).await?;
         }
         let run = Run {
             upserted: changed.len(),
@@ -150,9 +181,9 @@ impl CatalogSync {
         };
         // Remembered only once every write landed: a failed run lists the catalogue again.
         if let Ok(mut written) = self.written.lock() {
-            *written = Some((listed, wanted));
+            written.insert(slug.to_owned(), (listed, wanted));
         }
-        Ok(Some(run))
+        Ok(run)
     }
 }
 
@@ -305,37 +336,74 @@ pub fn with_types(
     }
 }
 
-/// The slug of the repository's catalogue Endpoint: the Endpoint named `catalog` on the space
-/// named `catalog`. More than one is a repository that does not say where to write.
-pub fn catalog_slug(repo: &Repository) -> Result<Option<String>, String> {
-    let slugs: Vec<String> = repo
+/// One catalogue Endpoint the wave writes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Catalogue {
+    pub slug: String,
+    /// The project it is the slice of; `None` for the installation's, which holds every project.
+    pub project: Option<String>,
+}
+
+/// The repository's catalogue Endpoints, the installation's first: each Endpoint named `catalog`
+/// on a space named `catalog`. The one whose space segment is `catalog` is the installation's
+/// (EP-140); one on `{project}-catalog` is its project's slice. Two installation catalogues are
+/// a repository that does not say where to write.
+pub fn catalogues(repo: &Repository) -> Result<Vec<Catalogue>, String> {
+    let mut found: Vec<Catalogue> = repo
         .iter()
         .filter(|(id, _)| id.kind == "Endpoint" && id.name == CATALOG)
-        .filter(|(_, resource)| {
-            resource
-                .manifest
-                .spec
-                .get("contextSpaceRef")
-                .and_then(reference_name)
-                == Some(CATALOG)
-        })
-        .filter_map(|(_, resource)| {
-            resource
-                .manifest
-                .spec
-                .get("slug")?
-                .as_str()
-                .map(str::to_owned)
+        .filter_map(|(id, resource)| {
+            let spec = &resource.manifest.spec;
+            if spec.get("contextSpaceRef").and_then(reference_name) != Some(CATALOG) {
+                return None;
+            }
+            let project = id.namespace.clone().unwrap_or_default();
+            let whole = repo.space_segment(&project, CATALOG) == CATALOG;
+            Some(Catalogue {
+                slug: spec.get("slug")?.as_str()?.to_owned(),
+                project: (!whole).then_some(project),
+            })
         })
         .collect();
-    match slugs.as_slice() {
-        [] => Ok(None),
-        [one] => Ok(Some(one.clone())),
-        _ => Err(format!(
-            "{} Endpoints are named `{CATALOG}` on a space `{CATALOG}`; the catalogue is written to none",
-            slugs.len()
-        )),
+    let whole = found.iter().filter(|c| c.project.is_none()).count();
+    if whole > 1 {
+        return Err(format!(
+            "{whole} Endpoints are named `{CATALOG}` on a space with the segment `{CATALOG}`; the catalogue is written to none"
+        ));
     }
+    found.sort_by_key(|c| c.project.is_some());
+    Ok(found)
+}
+
+/// Every public Endpoint's project by slug.
+fn owners(repo: &Repository) -> HashMap<String, String> {
+    repo.iter()
+        .filter(|(id, _)| id.kind == "Endpoint")
+        .filter_map(|(id, resource)| {
+            let slug = resource.manifest.spec.get("slug")?.as_str()?;
+            Some((slug.to_owned(), id.namespace.clone().unwrap_or_default()))
+        })
+        .collect()
+}
+
+/// A project's slice of the catalogue: its own Endpoints' DataServices, the Datasets that
+/// name one, and their Organizations, counted over the slice.
+pub fn slice(
+    wanted: &BTreeMap<String, Value>,
+    project: &str,
+    owners: &HashMap<String, String>,
+) -> BTreeMap<String, Value> {
+    let mut out: BTreeMap<String, Value> = wanted
+        .iter()
+        .filter(|(id, _)| {
+            id.strip_prefix("urn:ngsi-ld:DataService:")
+                .is_none_or(|slug| owners.get(slug).map(String::as_str) == Some(project))
+        })
+        .map(|(id, entity)| (id.clone(), entity.clone()))
+        .collect();
+    // Datasets whose DataService left and Organizations with no Dataset left go here.
+    link(&mut out);
+    out
 }
 
 /// The address of every CKAN instance of the repository, once each.
