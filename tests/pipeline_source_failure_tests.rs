@@ -90,12 +90,13 @@ async fn run(runner: &str, path: &str) -> Vec<Value> {
     });
     let mut stream = joinedcontext_portal::reconciler::run_queue::one_run(&rendered);
     without_token(&mut stream);
+    // The two tests run at once: a clock read alone can name both streams alike on a coarse
+    // clock, and the second POST is then refused with `Stream already exists` (T-4712).
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let name = format!(
-        "t4428-{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("after 1970")
-            .as_nanos()
+        "t4428-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     );
     let created = client
         .post(format!("{runner}/streams/{name}"))
