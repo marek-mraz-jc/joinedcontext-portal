@@ -31,6 +31,7 @@
     "src/components/WorkOnCopyDialog.tsx": null,
     "src/components/dashboards/TemporalChart.tsx": null,
     "src/components/drift/DriftResolutionModal.tsx": null,
+    "src/components/endpoints/QueryCard.tsx": null,
     "src/components/endpoints/links.tsx": null,
     "src/components/entities/AddFieldDialog.tsx": null,
     "src/components/entities/EndpointDataView.tsx": null,

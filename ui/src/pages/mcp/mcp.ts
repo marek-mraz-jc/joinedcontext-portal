@@ -230,3 +230,41 @@ export function mergedTools(probes: { member: string; probe: Probe }[]): { tool:
   }
   return [...byName.values()].sort((a, b) => a.tool.name.localeCompare(b.tool.name));
 }
+
+/** One Endpoint's NGSI-LD query card as this person reaches it (T-4760). */
+export type CardRead = { state: "card"; text: string } | { state: "refused"; status: number };
+
+/**
+ * Reads the gateway's `card://{slug}` resource on this origin, where the edge turns the person's
+ * session into the bearer: the very text every MCP client is served, for this person's grants.
+ * A 401 or 403, and an Endpoint whose card the gateway does not serve them, are refusals.
+ */
+export async function readCard(slug: string, signal?: AbortSignal): Promise<CardRead> {
+  const response = await globalThis.fetch(
+    new Request(`${window.location.origin}/api/endpoint/${encodeURIComponent(slug)}/mcp`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+        "x-csrf-token": readCsrfToken() ?? "",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "resources/read", params: { uri: `card://${slug}` } }),
+      signal,
+    }),
+  );
+  if (response.status === 401 || response.status === 403 || response.status === 404) {
+    return { state: "refused", status: response.status };
+  }
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const answer = rpcAnswer(response.headers.get("content-type") ?? "", await response.text()) as {
+    error?: unknown;
+    result?: { contents?: { text?: unknown }[]; isError?: unknown };
+  } | null;
+  if (answer?.error) return { state: "refused", status: 403 };
+  const text = answer?.result?.contents?.[0]?.text;
+  if (answer?.result?.isError === true || typeof text !== "string") {
+    throw new Error("the card could not be read");
+  }
+  return { state: "card", text };
+}

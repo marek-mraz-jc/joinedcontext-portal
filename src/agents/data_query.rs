@@ -8,6 +8,8 @@
 //! and gives every result back, until the model answers in prose, drafts something, or the calls
 //! of one message run out.
 
+use std::collections::BTreeMap;
+
 use serde_json::{json, Value};
 
 use crate::agents::endpoints::RunEndpoint;
@@ -341,6 +343,26 @@ fn facade_tools() -> Value {
         { "name": "query_entities", "arguments": { "type": ["<entity type>"], "q": "<NGSI-LD filter>", "attrs": ["<attribute>"], "limit": 100, "count": true } },
         { "name": "get_entity", "arguments": { "id": "<entity id>" } }
     ])
+}
+
+/// The NGSI-LD query card of each endpoint the conversation reads (T-4759, T-4760): its types and
+/// attributes with units, allowed values and an example `q`, as the gateway serves the person
+/// (`card://{slug}`), so the first answer about them needs no schema call. Empty without a card.
+pub fn cards_section(
+    endpoints: &[RunEndpoint],
+    cards: &BTreeMap<String, Option<String>>,
+) -> String {
+    endpoints
+        .iter()
+        .filter_map(|e| Some((e, cards.get(&e.name)?.as_deref()?)))
+        .map(|(e, card)| {
+            format!(
+                "\nThe query card of `{}`: its types and attributes as you may read them; query \
+                 them without describing the schema first.\n\n```text\n{card}\n```\n",
+                e.name
+            )
+        })
+        .collect()
 }
 
 /// The prompt section: the endpoints the conversation reads, each with the tools it offers, the
