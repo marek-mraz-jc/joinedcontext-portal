@@ -21,6 +21,12 @@
 //!   will not serve, a reference that does not resolve: each is one outcome with its reason, and
 //!   the next Endpoint is still published.
 //!
+//! - **An Endpoint is published when it is due, never every tick (T-4717).** Republishing every
+//!   dataset each sync came to about 1,000 requests a minute through the public edge, the edge
+//!   answered 429, and each refusal was retried on the next tick. So an unchanged Endpoint is
+//!   published again only after [`REFRESH`], a failed one backs off, and the calls of a run to
+//!   the catalogue keep [`CALL_GAP`] apart.
+//!
 //! Everything CKAN is spoken to through `jcctl`'s blocking client, so each publication runs on a
 //! blocking thread: dropping a blocking `reqwest` client inside the reconciler's runtime panics.
 
@@ -29,11 +35,12 @@ use jc_core::kinds::ckan::CkanInstanceSpec;
 use jc_core::kinds::EndpointSpec;
 use jcctl::commands::publish_ckan::{self as publisher, Target};
 use jcctl::loader::{RawManifest, RawMetadata, Repository, ResourceId};
-use jcctl::publish::ckan::{CkanApi, Measurements, Outcome, Settings};
+use jcctl::publish::ckan::{CkanApi, CkanError, Measurements, Outcome, Settings};
 use jcctl::publish::ckan_http::HttpCkan;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 /// What one run did with one Endpoint's publication.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -98,6 +105,10 @@ pub struct CkanSync {
     /// What the log last said of each `(project, endpoint)`, so an outcome is logged when it
     /// changes and not once a sync (T-4065).
     said: Arc<Mutex<HashMap<(String, String), String>>>,
+    /// When each `(project, endpoint)` is next published (T-4717).
+    pacing: Arc<Mutex<Pacing>>,
+    /// When this Portal last called the catalogue, shared by every publication (T-4717).
+    last_call: Arc<Mutex<Option<Instant>>>,
 }
 
 impl CkanSync {
@@ -108,6 +119,8 @@ impl CkanSync {
             age_key_file: None,
             quality: None,
             said: Arc::default(),
+            pacing: Arc::default(),
+            last_call: Arc::default(),
         }
     }
 
@@ -222,8 +235,26 @@ impl CkanSync {
         }
 
         for target in wanted {
+            let key = (
+                target.id.namespace.clone().unwrap_or_default(),
+                target.id.name.clone(),
+            );
+            let print = fingerprint(&target, &self.settings);
+            let due = self.pacing.lock().unwrap_or_else(|p| p.into_inner()).due(
+                &key,
+                print,
+                Instant::now(),
+            );
+            if !due {
+                continue;
+            }
             let measured = self.measured(repo, &target);
-            reports.push(self.one(&target, false, repository, measured).await);
+            let report = self.one(&target, false, repository, measured).await;
+            self.pacing
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .record(key, print, &report.publication, Instant::now());
+            reports.push(report);
         }
         for target in withdrawn(previous, &published) {
             let measured = Measurements::default();
@@ -337,6 +368,7 @@ impl CkanSync {
         let target = target.clone();
         let repository = repository.to_path_buf();
         let age_key_file = self.age_key_file.clone();
+        let last_call = self.last_call.clone();
         // Resolving the token, opening the socket and reading the gateway are all blocking, and
         // dropping a blocking client inside this runtime panics, so the whole publication of one
         // Endpoint happens on a blocking thread.
@@ -347,8 +379,9 @@ impl CkanSync {
             };
             let token = publisher::token(&target.instance, &repository, source)
                 .map_err(|err| err.to_string())?;
-            let mut api =
+            let api =
                 HttpCkan::new(target.instance.base_url(), token).map_err(|err| err.to_string())?;
+            let mut api = Paced::new(api, last_call, CALL_GAP);
             if withdraw {
                 return withdraw_one(&mut api, &target);
             }
@@ -386,6 +419,7 @@ impl CkanSync {
         let target = target.clone();
         let repository = repository.to_path_buf();
         let age_key_file = self.age_key_file.clone();
+        let last_call = self.last_call.clone();
         let work = tokio::task::spawn_blocking(move || {
             let source = publisher::TokenSource {
                 env: None,
@@ -393,8 +427,9 @@ impl CkanSync {
             };
             let token = publisher::token(&target.instance, &repository, source)
                 .map_err(|err| err.to_string())?;
-            let mut api =
+            let api =
                 HttpCkan::new(target.instance.base_url(), token).map_err(|err| err.to_string())?;
+            let mut api = Paced::new(api, last_call, CALL_GAP);
             sweep_with(&mut api, &organization, &kept)
         })
         .await;
@@ -414,6 +449,129 @@ impl CkanSync {
                 format!("the catalogue sweep did not finish: {err}"),
             )],
         }
+    }
+}
+
+/// How long an Endpoint whose publication went through, and has not changed, is left alone:
+/// its measurements and its sheet are at most this old in the catalogue (T-4717).
+pub const REFRESH: Duration = Duration::from_secs(3600);
+/// The longest a failing Endpoint waits before it is tried again.
+pub const MOST_BACKOFF: Duration = Duration::from_secs(3600);
+/// The least time between two calls to the catalogue: at most five a second (T-4717).
+pub const CALL_GAP: Duration = Duration::from_millis(200);
+
+/// What a target looks like to the publisher, so a changed Endpoint, instance or setting is due
+/// at once. In-process only: the hash is never stored, so a differing `Debug` between builds
+/// costs one republication, nothing more.
+pub fn fingerprint(target: &Target, settings: &Settings) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    format!("{target:?}|{settings:?}").hash(&mut hasher);
+    hasher.finish()
+}
+
+/// When each Endpoint's publication is next due (T-4717). A publication that went through is due
+/// again after [`REFRESH`]; a failed one after 1, 2, 4 … minutes, starting at 5 when the
+/// catalogue or the gateway said 429, up to [`MOST_BACKOFF`]; a changed Endpoint at once.
+#[derive(Debug, Default)]
+pub struct Pacing {
+    seen: HashMap<(String, String), Pace>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Pace {
+    fingerprint: u64,
+    failures: u32,
+    next: Instant,
+}
+
+impl Pacing {
+    /// Whether the Endpoint `key`, looking like `fingerprint`, is published in a run at `now`.
+    pub fn due(&self, key: &(String, String), fingerprint: u64, now: Instant) -> bool {
+        self.seen
+            .get(key)
+            .is_none_or(|pace| pace.fingerprint != fingerprint || now >= pace.next)
+    }
+
+    /// What the run at `now` did with `key`, which sets when it is next due.
+    pub fn record(
+        &mut self,
+        key: (String, String),
+        fingerprint: u64,
+        publication: &Publication,
+        now: Instant,
+    ) {
+        let before = self
+            .seen
+            .get(&key)
+            .filter(|pace| pace.fingerprint == fingerprint)
+            .map_or(0, |pace| pace.failures);
+        let (failures, wait) = match publication {
+            Publication::Failed(reason) => {
+                let first = if refused_for_load(reason) { 5 * 60 } else { 60 };
+                let wait = Duration::from_secs(first << before.min(6)).min(MOST_BACKOFF);
+                (before + 1, wait)
+            }
+            Publication::Published { .. } | Publication::Withdrawn { .. } => (0, REFRESH),
+        };
+        self.seen.insert(
+            key,
+            Pace {
+                fingerprint,
+                failures,
+                next: now + wait,
+            },
+        );
+    }
+}
+
+/// Whether a failure's reason is a 429: the catalogue's and the gateway's errors carry the status
+/// as a number of its own.
+fn refused_for_load(reason: &str) -> bool {
+    reason
+        .split(|c: char| !c.is_ascii_digit())
+        .any(|word| word == "429")
+}
+
+/// A catalogue client that keeps its calls `gap` apart, the gap shared by every client holding
+/// the same `last` (T-4717). Blocking: it sleeps on the publication's own blocking thread.
+pub struct Paced<A> {
+    api: A,
+    last: Arc<Mutex<Option<Instant>>>,
+    gap: Duration,
+}
+
+impl<A> Paced<A> {
+    /// `api` paced against every other client holding `last`.
+    pub fn new(api: A, last: Arc<Mutex<Option<Instant>>>, gap: Duration) -> Self {
+        Self { api, last, gap }
+    }
+
+    fn wait(&self) {
+        let mut last = self.last.lock().unwrap_or_else(|p| p.into_inner());
+        if let Some(at) = *last {
+            let since = at.elapsed();
+            if since < self.gap {
+                std::thread::sleep(self.gap - since);
+            }
+        }
+        *last = Some(Instant::now());
+    }
+}
+
+impl<A: CkanApi> CkanApi for Paced<A> {
+    fn show(&self, action: &str, name: &str) -> Result<Option<serde_json::Value>, CkanError> {
+        self.wait();
+        self.api.show(action, name)
+    }
+
+    fn action(
+        &mut self,
+        action: &str,
+        payload: &serde_json::Value,
+    ) -> Result<serde_json::Value, CkanError> {
+        self.wait();
+        self.api.action(action, payload)
     }
 }
 
