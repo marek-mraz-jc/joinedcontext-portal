@@ -48,7 +48,7 @@ test("ckan/status: a steward reads each catalogue and each published endpoint th
       );
     }
     await expect(page.getByRole("alert")).toHaveCount(0);
-    await guideShot(page, "ckan-2-published-endpoints");
+    await guideShot(page, "ckan-2-published-endpoints", { reloads: true });
   } finally {
     await context.close();
   }

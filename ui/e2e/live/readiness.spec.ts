@@ -152,7 +152,7 @@ async function newEndpoint(page: Page, name: string, writable: boolean): Promise
   await form.locator("#root_title").fill(`Readiness ${name}`);
   await form.locator("#root_contextSpaceRef").selectOption(PROJECT);
   // Public: a signed-in person holds the role `public`, so the steward reads it (gateway app.rs).
-  await form.locator("#root_audience").selectOption("public");
+  await form.locator("#root_audience").selectOption({ label: "Public: anyone with the address" });
   await form.getByRole("checkbox", { name: "BikeHireDockingStation", exact: true }).check();
   if (writable) {
     await form.getByRole("checkbox", { name: "BikeHireDockingStation Writable" }).check();

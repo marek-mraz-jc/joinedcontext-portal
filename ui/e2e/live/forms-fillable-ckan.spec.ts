@@ -23,7 +23,7 @@ for (const who of [STEWARD, EDITOR]) {
     try {
       await expect(page.getByRole("heading", { level: 1, name: "Open-data catalogue" })).toBeVisible({ timeout: 60_000 });
       // Before anything is typed: step 1 types a token-shaped string no shot may show.
-      if (who === STEWARD) await guideShot(page, "ckan-1-open-data-page");
+      if (who === STEWARD) await guideShot(page, "ckan-1-open-data-page", { reloads: true });
 
       // 1. Register a catalogue: the token itself never goes into a field.
       const propose = page.getByRole("button", { name: "Propose catalogue" });

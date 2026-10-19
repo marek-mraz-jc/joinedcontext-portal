@@ -190,7 +190,11 @@ export function endpointSpec(endpoint: Manifest): EndpointSpec {
  * from, which no entity is served as (`Entity`, or a definition the schema marks abstract).
  */
 export function concreteTypes(document: unknown): ReturnType<typeof publishedTypes> {
-  const defs = (document as { $defs?: Record<string, { abstract?: unknown }> } | null)?.$defs ?? {};
+  const doc = document as {
+    $defs?: Record<string, { abstract?: unknown }>;
+    definitions?: Record<string, { abstract?: unknown }>;
+  } | null;
+  const defs = { ...doc?.$defs, ...doc?.definitions };
   return publishedTypes(document).filter(
     (type) => type.name !== "Entity" && defs[type.name]?.abstract !== true,
   );
