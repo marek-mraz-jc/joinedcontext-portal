@@ -1510,6 +1510,16 @@
           "POST /api/v1/projects/{project}/knowledge/deployments/{deployment}/chat"
         ]
       },
+      "preview-assistant": {
+        "live": {
+          "spec": "knowledge.spec.ts",
+          "test": "a steward previews an unsaved assistant's Endpoints, public ones alone on a public channel"
+        },
+        "personOnly": "the preview sits beside the deployment form a person edits; an agent proposes the manifest and reads the same resolution from jcctl validate (AG-121)",
+        "routes": [
+          "POST /api/v1/projects/{project}/knowledge/deployments/context"
+        ]
+      },
       "erase-conversation": {
         "live": {
           "spec": "knowledge.spec.ts",

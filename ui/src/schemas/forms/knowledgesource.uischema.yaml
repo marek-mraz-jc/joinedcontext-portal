@@ -33,6 +33,7 @@ spec:
       organizations,
       upload,
       visibility,
+      categories,
       sitemap,
       wordpressTypes,
       include,
@@ -55,7 +56,7 @@ spec:
         sk: Web alebo katalóg a či z neho smie odpovedať verejný asistent.
         cs: Web nebo katalog a zda z něj smí odpovídat veřejný asistent.
         de: Die Website oder der Katalog, und ob ein öffentlicher Assistent daraus antworten darf.
-      fields: [name, source, startUrls, ckanInstanceRef, organizations, upload, visibility]
+      fields: [name, source, startUrls, ckanInstanceRef, organizations, upload, visibility, categories]
     - title:
         en: How far it reads
         sk: Ako ďaleko číta
@@ -81,6 +82,12 @@ spec:
       folded: true
       fields: [schedule, languages]
   fields:
+    categories:
+      help:
+        en: The EU data themes its pages are about; the assistant editor shows them beside the source.
+        sk: Témy dát EÚ, o ktorých sú jeho stránky; editor asistenta ich zobrazí pri zdroji.
+        cs: Témata dat EU, o kterých jsou jeho stránky; editor asistenta je zobrazí u zdroje.
+        de: Die EU-Datenthemen seiner Seiten; der Assistenten-Editor zeigt sie bei der Quelle.
     organizations:
       help:
         en: The catalogue's organizations whose datasets are read, by name, at most 10; empty reads every one.

@@ -28,6 +28,12 @@ export const CHANNELS = ["public", "internal", "ckan", "iframe"] as const;
 export const PDF_POLICIES = ["include", "exclude"] as const;
 /** What one answer may use: the sources and the connectors, the sources alone, or the connectors alone (MF-52, T-4281). */
 export const ANSWER_ROUTES = ["both", "rag", "data"] as const;
+/** The EU data-theme codes, the one category list (MF-60, AG-124); labels in `knowledge.category`. */
+export const CATEGORIES = ["AGRI", "ECON", "EDUC", "ENER", "ENVI", "GOVE", "HEAL", "INTR", "JUST", "REGI", "SOCI", "TECH", "TRAN"] as const;
+/** How a selector reaches an Endpoint (MF-55); a channel nobody signs in to takes `public` alone (MF-58). */
+export const ACCESS_LEVELS = ["public", "organization", "project", "grant"] as const;
+/** An NGSI-LD entity type short name (MF-61). */
+export const ENTITY_TYPE = "^[A-Z][A-Za-z0-9]{1,63}$";
 /** How the chat picks its language (`widget.language`, MF-52, T-4343); `browser` is the default. */
 export const WIDGET_LANGUAGES = ["browser", "ask", "fixed"] as const;
 /** A source or an Endpoint of the own project by its name, or of a project in `scope.projects` as `{project}/{name}` (MF-52). */
@@ -51,6 +57,7 @@ export function knowledgeSourceSchema(t: (key: string) => string, catalogues: st
     type: "object",
     required: ["name", "source", "visibility"],
     properties: {
+      categories: { type: "array", title: t("knowledge.field.categories"), items: { type: "string", ...words(t, "knowledge.category", CATEGORIES) }, maxItems: 13, uniqueItems: true },
       name: { type: "string", title: t("knowledge.field.name"), pattern: DNS1123, maxLength: 63 },
       source: { type: "string", title: t("knowledge.field.source"), default: "website", ...words(t, "knowledge.type", SOURCE_TYPES) },
       startUrls: {
@@ -169,7 +176,12 @@ export function assistantDeploymentSchema(
       },
       {
         if: { properties: { answer: { properties: { routes: { const: "data" } }, required: ["routes"] } }, required: ["answer"] },
-        then: { required: ["connectors"], properties: { connectors: { minItems: 1 } } },
+        then: { anyOf: [{ required: ["connectors"], properties: { connectors: { minItems: 1 } } }, { required: ["select"] }] },
+      },
+      // On a channel nobody signs in to, a selector reaches public Endpoints alone (MF-58).
+      {
+        if: { properties: { channel: { anyOf: ANONYMOUS_CHANNELS.map((channel) => ({ const: channel })) } }, required: ["channel"] },
+        then: { properties: { select: { properties: { accessLevel: { items: { const: "public" } } } } } },
       },
     ],
     properties: {
@@ -205,6 +217,34 @@ export function assistantDeploymentSchema(
             timeoutSeconds: { type: "integer", title: t("knowledge.field.connectorTimeout"), minimum: 1, maximum: 120, default: 20 },
           },
         },
+      },
+      // The Endpoints a selector picks beside the connectors (MF-58, ADR-N-055 §2.2). No
+      // `minItems` on its lists: the form would pad them with an empty entry, and an empty list
+      // leaves the manifest anyway.
+      select: {
+        type: "object",
+        title: t("knowledge.field.select"),
+        description: t("knowledge.field.selectHint"),
+        properties: {
+          projects: { type: "array", title: t("knowledge.field.selectProjects"), items: { type: "string", pattern: DNS1123 }, maxItems: 50, uniqueItems: true },
+          themes: { type: "array", title: t("knowledge.field.selectThemes"), items: { type: "string", ...words(t, "knowledge.category", CATEGORIES) }, maxItems: 13, uniqueItems: true },
+          types: { type: "array", title: t("knowledge.field.selectTypes"), items: { type: "string", pattern: ENTITY_TYPE }, maxItems: 50, uniqueItems: true },
+          accessLevel: { type: "array", title: t("knowledge.field.selectAccess"), items: { type: "string", ...words(t, "knowledge.accessLevel", ACCESS_LEVELS) }, uniqueItems: true },
+        },
+      },
+      exclude: {
+        type: "array",
+        title: t("knowledge.field.excludeEndpoints"),
+        items: endpoints.length > 0 ? { type: "string", enum: endpoints } : { type: "string", pattern: PROJECT_REF },
+        maxItems: 50,
+        uniqueItems: true,
+      },
+      categories: {
+        type: "array",
+        title: t("knowledge.field.categories"),
+        items: { type: "string", ...words(t, "knowledge.category", CATEGORIES) },
+        maxItems: 13,
+        uniqueItems: true,
       },
       answer: {
         type: "object",

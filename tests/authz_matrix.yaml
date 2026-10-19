@@ -515,6 +515,15 @@ routes:
     rule: "project-verb:read:AssistantDeployment"
     expect: [401, 404, 404, 404, 404, 404, 404, 404]
     note: "the fixture holds no AssistantDeployment, so a caller the rule admits meets 404 after the check passed"
+  - route: GET /projects/{project}/knowledge/deployments/{deployment}/context
+    rule: "project-verb:read:AssistantDeployment"
+    expect: [401, 404, 404, 404, 404, 404, 404, 404]
+    note: "the fixture holds no AssistantDeployment, so a caller the rule admits meets 404 after the check passed; assistant_context_tests holds the rule with one (T-4693)"
+  - route: POST /projects/{project}/knowledge/deployments/context
+    rule: "project-verb:read:AssistantDeployment"
+    expect: [403, allow, allow, allow, allow, allow, 404, allow]
+    body: {"apiVersion": "joinedcontext.com/v1alpha1", "kind": "AssistantDeployment", "metadata": {"name": "doprava"}, "spec": {"publicId": "doprava", "channel": "internal"}}
+    note: "400 after the check: the row sends no dryRun=All; assistant_context_tests holds the preview itself (T-4693)"
   - route: POST /projects/{project}/knowledge/deployments/{deployment}/chat
     rule: "project-verb:read:AssistantDeployment"
     expect: [403, 404, 404, 404, 404, 404, 404, 404]
