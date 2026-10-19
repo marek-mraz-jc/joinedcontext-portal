@@ -67,7 +67,7 @@ export const REFERENCE_PICKERS: Record<string, Record<string, Entry>> = {
   // The knowledge assistant's kinds (T-3057): a catalogue, the project's own sources and the
   // Endpoints whose MCP surface a connector reads.
   KnowledgeSource: { ckanInstanceRef: project("ckaninstances") },
-  AssistantDeployment: { "sources[]": project("knowledgesources"), "connectors[].endpoint": project("endpoints") },
+  AssistantDeployment: { "sources[]": project("knowledgesources"), "connectors[].endpoint": project("endpoints"), "select.types[]": TYPE },
 };
 
 /**

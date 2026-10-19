@@ -217,3 +217,28 @@ test("a viewer may not erase a stored conversation, and an id that is no convers
     await context.close();
   }
 });
+
+// T-4693 (AG-121): the editor's preview resolves a manifest nobody saved, on a channel nobody signs
+// in to public Endpoints alone, and changes nothing without `dryRun=All`.
+test("a steward previews an unsaved assistant's Endpoints, public ones alone on a public channel", async ({ browser }) => {
+  const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/assistantdeployments?lang=en`);
+  try {
+    const manifest = {
+      apiVersion: "joinedcontext.com/v1alpha1",
+      kind: "AssistantDeployment",
+      metadata: { name: "live-preview", namespace: PROJECT },
+      spec: { publicId: "live-preview", channel: "public", select: {}, answer: { routes: "data" } },
+    };
+    const path = `/api/v1/projects/${PROJECT}/knowledge/deployments/context`;
+    const token = await csrf(steward.context);
+    expect((await post(steward.page, token, path, manifest)).status()).toBe(400);
+    const answer = await post(steward.page, token, `${path}?dryRun=All&lang=en`, manifest);
+    expect(answer.status()).toBe(200);
+    const context = (await answer.json()) as { endpoints: { audience: string | null }[]; problems: string[] };
+    expect(context.endpoints.every((endpoint) => endpoint.audience === "public")).toBe(true);
+    // Nothing was saved: the name the preview read is no deployment of the project.
+    expect((await steward.page.request.get(`/api/v1/projects/${PROJECT}/knowledge/deployments/live-preview/context`)).status()).toBe(404);
+  } finally {
+    await steward.context.close();
+  }
+});
