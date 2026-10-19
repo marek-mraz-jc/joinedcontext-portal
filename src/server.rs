@@ -303,6 +303,9 @@ pub async fn serve(config: Config) -> std::io::Result<()> {
         });
     }
 
+    // A data subject's erasures, asked again each minute until every store is done (T-4668).
+    crate::erasure::spawn_periodic(state.clone());
+
     let router = app(state);
     axum::serve(listener, router)
         .with_graceful_shutdown(shutdown_signal())

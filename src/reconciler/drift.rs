@@ -168,6 +168,61 @@ impl Watch {
         response.json().await.map_err(|e| e.to_string())
     }
 
+    /// The entities of `entity_type` in the space whose `q` holds, at most 1000 (API/01 §46,
+    /// T-4668): the Entities naming one data subject.
+    pub(crate) async fn named(
+        &self,
+        token: &str,
+        space: &str,
+        entity_type: &str,
+        q: &str,
+    ) -> Result<Vec<Value>, String> {
+        self.fetch(
+            token,
+            &format!("{}/cs/{space}/ngsi-ld/v1/entities", self.base),
+            &[("type", entity_type), ("q", q), ("limit", "1000")],
+        )
+        .await
+        .map(|found| found.as_array().cloned().unwrap_or_default())
+    }
+
+    /// Every stored version of one entity's attributes, as the space's temporal surface answers.
+    pub(crate) async fn history(
+        &self,
+        token: &str,
+        space: &str,
+        id: &str,
+    ) -> Result<Value, String> {
+        let mut url = url::Url::parse(&format!(
+            "{}/cs/{space}/ngsi-ld/v1/temporal/entities",
+            self.base
+        ))
+        .map_err(|err| err.to_string())?;
+        url.path_segments_mut()
+            .map_err(|()| "the space surface has no path".to_owned())?
+            .push(id);
+        self.fetch(token, url.as_str(), &[]).await
+    }
+
+    async fn fetch(&self, token: &str, url: &str, query: &[(&str, &str)]) -> Result<Value, String> {
+        let response = self
+            .http
+            .get(url)
+            .query(query)
+            .bearer_auth(token)
+            .header("Accept", "application/json")
+            .send()
+            .await
+            .map_err(|err| err.without_url().to_string())?;
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(Value::Null);
+        }
+        if !response.status().is_success() {
+            return Err(format!("the space answered {}", response.status()));
+        }
+        response.json().await.map_err(|e| e.to_string())
+    }
+
     /// The entity the space holds under this id, or `None` when it holds none.
     pub async fn live(&self, token: &str, space: &str, id: &str) -> Result<Option<Value>, String> {
         let response = self

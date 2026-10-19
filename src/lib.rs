@@ -24,6 +24,7 @@ pub mod db;
 pub mod domain_verification;
 pub mod entity_comments;
 pub mod entity_trash;
+pub mod erasure;
 pub mod error;
 pub mod feedback;
 pub mod git;

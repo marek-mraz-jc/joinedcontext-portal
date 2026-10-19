@@ -152,7 +152,7 @@ fn http() -> &'static reqwest::Client {
 
 /// Asks `jc-assistant` at `path` (under `/internal/v1/projects/`) with the Portal's own token and
 /// returns its status and body. Its `401` is this Portal's misconfiguration, not the caller's.
-async fn ask(
+pub(crate) async fn ask(
     state: &AppState,
     method: reqwest::Method,
     path: &str,

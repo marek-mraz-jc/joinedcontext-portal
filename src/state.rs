@@ -501,6 +501,9 @@ impl AppState {
         if let (Some(people), Some(pool)) = (self.people.clone(), self.db.clone()) {
             syncer = syncer.with_people(people, pool);
         }
+        if let Some(pool) = self.db.clone() {
+            syncer = syncer.with_erasures(pool);
+        }
         // With a database the replicas elect one reconciler; without one there is nothing
         // to elect with, and a Portal that runs alone reconciles alone (T-0191, CC-03).
         if let Some(pool) = self.db.as_ref() {
