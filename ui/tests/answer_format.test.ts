@@ -77,13 +77,13 @@ describe("an answer's Markdown", () => {
 describe("an answer's sources", () => {
   it("lists one per address by title, and live data never by its tool", () => {
     const { list, position } = sources([
-      { n: 1, url: "https://data.dev.joinedcontext.com/dataset/helsinki-events", title: "Helsinki events" },
-      { n: 2, url: "https://data.dev.joinedcontext.com/dataset/helsinki-events" },
+      { n: 1, url: "https://opendata.dev.joinedcontext.com/dataset/helsinki-events", title: "Helsinki events" },
+      { n: 2, url: "https://opendata.dev.joinedcontext.com/dataset/helsinki-events" },
       { n: 3, tool: "query_entities", endpoint: "helsinki-events" },
       { n: 4, url: "javascript:alert(1)" },
     ]);
     expect(list).toEqual([
-      { url: "https://data.dev.joinedcontext.com/dataset/helsinki-events", title: "Helsinki events", live: false, endpoint: null, domain: "data.dev.joinedcontext.com", numbers: [1, 2] },
+      { url: "https://opendata.dev.joinedcontext.com/dataset/helsinki-events", title: "Helsinki events", live: false, endpoint: null, domain: "opendata.dev.joinedcontext.com", numbers: [1, 2] },
       { url: null, title: null, live: true, endpoint: "helsinki-events", domain: "", numbers: [3] },
     ]);
     expect(position).toEqual({ 1: 1, 2: 1, 3: 2 });
