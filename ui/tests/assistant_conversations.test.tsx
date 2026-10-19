@@ -446,4 +446,21 @@ describe("UsageSummary (T-4728)", () => {
     await user.click(within(summary).getByRole("button", { name: i18n.t("conversations.usage.export") }));
     expect(await within(summary).findByText(/narrow the range/)).toBeInTheDocument();
   });
+
+  it("says a body of another shape failed instead of breaking the page", async () => {
+    vi.stubGlobal("fetch", () =>
+      Promise.resolve(new Response(JSON.stringify({ items: [] }), { status: 200, headers: { "Content-Type": "application/json" } })),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <I18nextProvider i18n={i18n}>
+          <UsageSummary project={PROJECT} filter={{}} />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    const summary = await screen.findByLabelText(i18n.t("conversations.usage.title"));
+    expect(await within(summary).findByRole("alert")).toBeInTheDocument();
+    expect(within(summary).getByRole("button", { name: i18n.t("conversations.usage.export") })).toBeEnabled();
+  });
 });

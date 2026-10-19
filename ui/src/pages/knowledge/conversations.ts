@@ -207,12 +207,36 @@ export function rangeQuery(filter: ConversationFilter): Pick<ConversationQuery, 
   return { ...(deployment ? { deployment } : {}), ...(from ? { from } : {}), ...(to ? { to } : {}) };
 }
 
+/** Whether `answer` has every part of a summary the card reads, so a body of another shape (an
+ * older assistant, a proxy's page) is a failure the card says, never a page that breaks. */
+function isUsage(answer: unknown): answer is UsageSummary {
+  const a = answer as Partial<UsageSummary> | null;
+  const spread = (s: unknown) => typeof s === "object" && s !== null;
+  return (
+    typeof a === "object" &&
+    a !== null &&
+    typeof a.questions === "number" &&
+    spread(a.costUsd) &&
+    spread(a.tokens) &&
+    spread(a.firstTokenMs) &&
+    spread(a.totalMs) &&
+    spread(a.phases) &&
+    spread(a.phases?.route) &&
+    spread(a.phases?.work) &&
+    spread(a.phases?.answer) &&
+    Array.isArray(a.costByStage) &&
+    Array.isArray(a.days)
+  );
+}
+
 export async function conversationUsage(project: string, filter: ConversationFilter): Promise<UsageSummary> {
-  return (await unwrap(
+  const answer: unknown = await unwrap(
     await api.GET("/api/v1/projects/{project}/knowledge/conversations/usage", {
       params: { path: { project }, query: rangeQuery(filter) },
     }),
-  )) as UsageSummary;
+  );
+  if (!isUsage(answer)) throw new Error("the knowledge assistant answered no usage summary");
+  return answer;
 }
 
 /** The range's turns as the CSV the assistant wrote; a refusal (over 20,000 turns) throws its reason. */
