@@ -44,13 +44,13 @@ interface SchemaIndex {
   models?: { name?: string; version?: number }[];
 }
 
-/** Reads `$defs` of the projected draft-07 document the endpoint serves. */
+/**
+ * Reads the types of the projected document the endpoint serves: draft-07 keeps them under
+ * `definitions`, a later draft under `$defs`, and the gateway has served both.
+ */
 export function publishedTypes(document: unknown): PublishedType[] {
-  const defs = (document as { $defs?: Record<string, unknown> } | null)?.$defs;
-  if (!defs) {
-    return [];
-  }
-  return Object.entries(defs)
+  const doc = document as { $defs?: Record<string, unknown>; definitions?: Record<string, unknown> } | null;
+  return Object.entries({ ...doc?.$defs, ...doc?.definitions })
     .map(([name, definition]) => ({
       name,
       attributes: Object.keys(

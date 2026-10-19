@@ -190,7 +190,7 @@ test("2. an endpoint over the space reads and updates every class, and the proje
   await form.locator("#root_name").fill(ENDPOINT);
   await form.locator("#root_title").fill(`Relationships ${SUFFIX}`);
   await form.locator("#root_contextSpaceRef").selectOption(SPACE);
-  await form.locator("#root_audience").selectOption("public");
+  await form.locator("#root_audience").selectOption({ label: "Public: anyone with the address" });
   for (const name of CLASSES) {
     await form.getByRole("checkbox", { name, exact: true }).check();
     await form.getByRole("checkbox", { name: `${name} Writable` }).check();

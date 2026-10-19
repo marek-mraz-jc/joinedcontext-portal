@@ -119,9 +119,11 @@ export function ModelPicker({
     return parseModel(modelSource);
   }, [modelSource]);
 
+  // A projection names the model's served major version ("1" of 1.8.0): the manifest refuses a
+  // full semver, which the gateway never serves a schema under.
   const modelVersion = useMemo(() => {
     const spec = matchingModel?.spec as { version?: string | number } | undefined;
-    return spec?.version ? String(spec.version) : "1";
+    return String(spec?.version ?? "1").split(".")[0] || "1";
   }, [matchingModel]);
 
   // Keep dataModel info synchronized in value

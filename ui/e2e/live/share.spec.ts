@@ -9,6 +9,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { guideShot, helpClipStart } from "./guide";
 import { journeyClock } from "./journeys";
+import { proposeFrom } from "./kindJourney";
 import { APPROVER, STEWARD, approve, listedNames, proposeDelete, proposedChange, signIn } from "./portal";
 
 const PROJECT = "helsinki";
@@ -49,17 +50,19 @@ test("an endpoint proposed and approved through the UI: Live, the hidden attribu
   await dialog.locator("#root_name").fill(ENDPOINT);
   await dialog.locator("#root_title").fill("City bikes for the regional transport team");
   await dialog.locator("#root_contextSpaceRef").selectOption(PROJECT);
-  await dialog.locator("#root_audience").selectOption("public");
+  await dialog.locator("#root_audience").selectOption({ label: "Public: anyone with the address" });
   await expect(dialog.getByText(/public audience/)).toBeVisible();
   await dialog.getByRole("checkbox", { name: "ngsi-ld" }).check();
-  await dialog.getByRole("checkbox", { name: "geojson" }).check();
-  await dialog.locator("#projection-typed").fill(HIDDEN);
-  await dialog.getByRole("button", { name: "Hide", exact: true }).click();
+  // The model projection: the bike stations, with one slot left out.
+  const projection = dialog.getByRole("group", { name: "Model projection" });
+  await projection.getByRole("checkbox", { name: "BikeHireDockingStation", exact: true }).check();
+  await dialog.getByRole("textbox", { name: "Projection name" }).fill(`${ENDPOINT}-view`);
+  await projection.getByRole("checkbox", { name: `BikeHireDockingStation.${HIDDEN}`, exact: true }).uncheck();
   // A guide shot is not the person's time.
   const shooting = Date.now();
   await guideShot(page, "endpoint-1-form");
   start += Date.now() - shooting;
-  await dialog.getByRole("button", { name: "Propose change" }).click();
+  await proposeFrom(dialog);
   const change = await proposedChange(page);
   personSeconds += (Date.now() - start) / 1000;
   await clip.end();
@@ -80,7 +83,7 @@ test("an endpoint proposed and approved through the UI: Live, the hidden attribu
     await expect(row.getByText("Live")).toBeVisible({ timeout: 5_000 });
   }).toPass({ timeout: 180_000, intervals: [10_000] });
   clock.live();
-  await guideShot(page, "endpoint-3-live");
+  await guideShot(page, "endpoint-3-live", { reloads: true });
   const href = await row.getByRole("link", { name: "ngsi-ld" }).getAttribute("href");
   expect(href).toContain("/api/endpoint/");
   const link = href ?? "";

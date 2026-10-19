@@ -147,6 +147,14 @@ describe("the states the picker has before a class can be ticked", () => {
 });
 
 describe("the ticks and the fields of a class", () => {
+  it("names the model's served major version, never its semver (T-3270)", async () => {
+    const onChange = vi.fn();
+    picker({ onChange }, { models: [{ ...MODEL, spec: { ...MODEL.spec, version: "1.8.0" } }] });
+    await classTick("Vehicle");
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+    expect((onChange.mock.calls.at(-1)![0] as ModelPickerState).dataModelVersion).toBe("1");
+  });
+
   it("ticks a class with the shared checkbox, focus ring and all", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

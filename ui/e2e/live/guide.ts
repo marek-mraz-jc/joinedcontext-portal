@@ -6,7 +6,7 @@
  * `scripts/publish-guide-shots.sh` quantizes the results into the docs repository's
  * `User-Guide/img/`, where `scripts/check-guide-shots.py` holds the guides to the shots that exist.
  */
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { BrowserContextOptions, Page } from "@playwright/test";
@@ -44,11 +44,47 @@ const LABELS: Record<GuideLang, { label: string; name: string }> = {
   sk: { label: langWords("sk").label, name: langWords("sk").sk },
 };
 
-/** Switches the Portal's language through its own header menu, as a person would. */
-async function switchTo(page: Page, from: GuideLang, to: GuideLang): Promise<void> {
+/**
+ * Switches the Portal's language through its own header menu, as a person would; `false`, with the
+ * menu closed again, when the installation does not offer `to` (dev speaks English only).
+ */
+async function switchTo(page: Page, from: GuideLang, to: GuideLang): Promise<boolean> {
   await page.getByRole("button", { name: LABELS[from].label }).first().click();
-  await page.getByRole("menuitem", { name: LABELS[to].name }).click();
+  const item = page.getByRole("menuitem", { name: LABELS[to].name });
+  if (!(await item.count())) {
+    await page.keyboard.press("Escape");
+    return false;
+  }
+  await item.click();
   await page.waitForFunction((lang) => document.documentElement.lang === lang, to);
+  return true;
+}
+
+/** The page's address in `lang`, through the `?lang=` the Portal's language detector reads. */
+async function reloadIn(page: Page, lang: GuideLang): Promise<void> {
+  const url = new URL(page.url());
+  url.searchParams.set("lang", lang);
+  await page.goto(url.toString(), { waitUntil: "load" });
+  // Loaded means in the language, with the page's heading and no skeleton still pulsing.
+  await page.waitForFunction(
+    (want) =>
+      document.documentElement.lang === want &&
+      document.querySelector("main h1") !== null &&
+      document.querySelector('[class*="animate-pulse"]') === null,
+    lang,
+    { timeout: 60_000 },
+  );
+}
+
+/** How a shot reaches Slovak when the header's menu does not offer it. */
+export interface GuideShotOptions {
+  /**
+   * The page shows the same after a reload (a list, a saved change's page): the Slovak shot is
+   * taken after a reload with `?lang=sk`. Left out, an unsaved form would come back empty, so the
+   * Slovak guide shows the English shot until the installation offers Slovak (T-3270).
+   */
+  reloads?: boolean;
+  root?: string;
 }
 
 /**
@@ -57,8 +93,9 @@ async function switchTo(page: Page, from: GuideLang, to: GuideLang): Promise<voi
  * The language is switched through the header's menu, so a shot is taken with no dialog open:
  * a modal dialog hides the header from the menu's click.
  */
-export async function guideShot(page: Page, name: string, root = "test-results/guide"): Promise<void> {
+export async function guideShot(page: Page, name: string, options: GuideShotOptions = {}): Promise<void> {
   if (!guideShotsOn()) return;
+  const root = options.root ?? "test-results/guide";
   const lang = await page.evaluate(() => document.documentElement.lang);
   if (lang !== "en") throw new Error(`guide shot ${name}: the page is in ${JSON.stringify(lang)}; journeys shoot from English (?lang=en)`);
   if (await page.locator("[role=dialog][aria-modal=true]").count()) {
@@ -66,14 +103,26 @@ export async function guideShot(page: Page, name: string, root = "test-results/g
   }
   const size = page.viewportSize();
   await page.setViewportSize({ width: GUIDE_WIDTH, height: GUIDE_HEIGHT });
+  const shoot = async (current: GuideLang) => {
+    const path = guideShotPath(current, name, root);
+    mkdirSync(join(path, ".."), { recursive: true });
+    await page.screenshot({ path, animations: "disabled", caret: "hide", mask: [page.locator("input[type=password]")] });
+    return path;
+  };
   try {
-    for (const [at, current] of GUIDE_LANGS.entries()) {
-      if (at > 0) await switchTo(page, GUIDE_LANGS[at - 1], current);
-      const path = guideShotPath(current, name, root);
-      mkdirSync(join(path, ".."), { recursive: true });
-      await page.screenshot({ path, animations: "disabled", caret: "hide", mask: [page.locator("input[type=password]")] });
+    const english = await shoot("en");
+    if (await switchTo(page, "en", "sk")) {
+      await shoot("sk");
+      await switchTo(page, "sk", "en");
+    } else if (options.reloads) {
+      await reloadIn(page, "sk");
+      await shoot("sk");
+      await reloadIn(page, "en");
+    } else {
+      const slovak = guideShotPath("sk", name, root);
+      mkdirSync(join(slovak, ".."), { recursive: true });
+      copyFileSync(english, slovak);
     }
-    await switchTo(page, GUIDE_LANGS[GUIDE_LANGS.length - 1], "en");
   } finally {
     if (size) await page.setViewportSize(size);
   }
