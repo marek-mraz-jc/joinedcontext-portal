@@ -15,7 +15,7 @@ kindJourney({
   page: `/projects/${PROJECT}/ckan`,
   create: async (page, name) => {
     await page.locator("#ckan-instance-name").fill(name);
-    await page.locator("#ckan-instance-url").fill("https://data.dev.joinedcontext.com");
+    await page.locator("#ckan-instance-url").fill("https://opendata.dev.joinedcontext.com");
     await page.locator("#ckan-instance-secret").fill("ckan-api-token");
     await page.getByRole("button", { name: "Propose catalogue" }).click();
   },

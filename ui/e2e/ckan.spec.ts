@@ -34,7 +34,7 @@ const STATUS = {
   instances: [
     {
       name: "hel-fi",
-      url: "https://data.dev.joinedcontext.com",
+      url: "https://opendata.dev.joinedcontext.com",
       organizationDefault: "helsinki",
       apiTokenRef: "ckan-api-token",
     },
@@ -45,7 +45,7 @@ const STATUS = {
       instance: "hel-fi",
       instanceMissing: false,
       dataset: "helsinki-air-quality",
-      datasetUrl: "https://data.dev.joinedcontext.com/dataset/helsinki-air-quality",
+      datasetUrl: "https://opendata.dev.joinedcontext.com/dataset/helsinki-air-quality",
       resources: [
         { name: "CSV", format: "CSV", url: "https://portal.example/api/endpoint/k7m2/file.csv" },
         { name: "GeoJSON", format: "GeoJSON", url: "https://portal.example/api/endpoint/k7m2/geo.json" },
@@ -132,7 +132,7 @@ test.describe("the open-data page", () => {
 
     const catalogues = page.getByRole("table", { name: "Catalogues" });
     const row = catalogues.getByRole("row", { name: /hel-fi/ });
-    await expect(row.getByRole("link", { name: "https://data.dev.joinedcontext.com" })).toBeVisible();
+    await expect(row.getByRole("link", { name: "https://opendata.dev.joinedcontext.com" })).toBeVisible();
     // The name of the secret the operator loaded, never a token (EP-67).
     await expect(row.getByText("ckan-api-token")).toBeVisible();
 
@@ -140,7 +140,7 @@ test.describe("the open-data page", () => {
     await expect(published.getByText("published to hel-fi")).toBeVisible();
     await expect(published.getByRole("link", { name: "helsinki-air-quality" })).toHaveAttribute(
       "href",
-      "https://data.dev.joinedcontext.com/dataset/helsinki-air-quality",
+      "https://opendata.dev.joinedcontext.com/dataset/helsinki-air-quality",
     );
     await expect(published.getByRole("link", { name: "CSV" })).toBeVisible();
     await expect(published.getByRole("link", { name: "GeoJSON" })).toBeVisible();

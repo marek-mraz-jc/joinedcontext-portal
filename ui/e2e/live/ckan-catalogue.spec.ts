@@ -16,7 +16,7 @@ import { STEWARD } from "./portal";
 
 test.setTimeout(180_000);
 
-const CATALOGUE = (process.env.CKAN_URL ?? "https://data.dev.joinedcontext.com").replace(/\/$/, "");
+const CATALOGUE = (process.env.CKAN_URL ?? "https://opendata.dev.joinedcontext.com").replace(/\/$/, "");
 /** CKAN's own teal and the darker shade its header used, as a browser reports them. */
 const STOCK = ["rgb(32, 107, 130)", "rgb(0, 93, 122)"];
 const WIDTHS = [375, 768, 1440, 2560];
