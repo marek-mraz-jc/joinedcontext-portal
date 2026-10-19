@@ -31,9 +31,9 @@ export function AssistantContextPreview({ project, manifest }: { project: string
   });
   return (
     <section aria-labelledby="assistant-context-heading" className="space-y-3">
-      <h3 id="assistant-context-heading" className="text-base font-semibold">
+      <h2 id="assistant-context-heading" className="text-base font-semibold">
         {t("knowledge.context.heading")}
-      </h3>
+      </h2>
       <div aria-live="polite" aria-busy={preview.isFetching}>
         {preview.isError ? (
           <PageFailed
