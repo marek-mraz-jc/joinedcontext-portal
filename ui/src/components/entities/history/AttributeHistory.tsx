@@ -30,6 +30,9 @@ import {
 } from "./historyApi";
 import type { CsvProblem, CsvRow, Measurement, Version } from "./historyApi";
 
+/** One page of measurements, as many as the broker serves per attribute (temporal.md). */
+const PAGE = 9;
+
 function formatValue(val: unknown): string {
   if (val === undefined || val === null) {
     return "";
@@ -42,8 +45,475 @@ function toLocalInputString(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+/** A reason the gateway takes: something written, at most 500 characters (DM-113). */
+function reasonOk(reason: string): boolean {
+  const trimmed = reason.trim();
+  return trimmed.length > 0 && trimmed.length <= 500;
+}
+
+/** The attribute every form writes to, and what to do once a write landed. */
+interface Target {
+  slug: string;
+  entityId: string;
+  attribute: string;
+  /** The current value: a typed field reads its text as the same type. */
+  sample: unknown;
+  written: () => Promise<void>;
+}
+
+/** One write at a time: busy while it runs, the gateway's message when it fails. */
+function useWrite(target: Target) {
+  const { t } = useTranslation();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const run = async (write: () => Promise<void>): Promise<boolean> => {
+    setBusy(true);
+    setError(null);
+    try {
+      await write();
+      await target.written();
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("app.error.generic"));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+  return { busy, error, run };
+}
+
+function ReasonField({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  onChange: (next: string) => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <Field id={id} label={t("attributeHistory.reason")} help={t("attributeHistory.reasonHint")}>
+      <Input id={id} value={value} onChange={(e) => onChange(e.target.value)} />
+    </Field>
+  );
+}
+
+/** The current value, replaced through the Endpoint with a reason (DM-113). */
+function EditCurrent({ target, current }: { target: Target; current: unknown }): JSX.Element {
+  const { t } = useTranslation();
+  // The field shows the current value until the person types.
+  const [typed, setTyped] = useState<string | undefined>(undefined);
+  const [reason, setReason] = useState("");
+  const write = useWrite(target);
+  const text = typed ?? formatValue(current);
+  const value = valueOf(text, target.sample);
+
+  const save = async () => {
+    const done = await write.run(() =>
+      editCurrent(target.slug, target.entityId, target.attribute, value, reason),
+    );
+    if (done) {
+      setReason("");
+      setTyped(undefined);
+    }
+  };
+
+  return (
+    <section
+      aria-labelledby="history-edit-current-title"
+      className="rounded-lg border border-border bg-surface p-4"
+    >
+      <h3 id="history-edit-current-title" className="font-semibold text-fg">
+        {t("attributeHistory.editCurrent")}
+      </h3>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <Field
+          id="history-current-val"
+          label={t("attributeHistory.value")}
+          errors={text !== "" && value === undefined ? [t("attributeHistory.value")] : undefined}
+        >
+          <Input id="history-current-val" value={text} onChange={(e) => setTyped(e.target.value)} />
+        </Field>
+        <ReasonField id="history-current-reason" value={reason} onChange={setReason} />
+      </div>
+      {write.error ? <InlineError className="mt-2">{write.error}</InlineError> : null}
+      <div className="mt-3 flex justify-end">
+        <Button
+          variant="primary"
+          size="sm"
+          loading={write.busy}
+          disabled={!reasonOk(reason) || value === undefined}
+          onClick={() => void save()}
+        >
+          {t("attributeHistory.save")}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+/** A value of an instant gone by, into history only: a backfill (ADR-N-054 2.1). */
+function AddOldValue({ target }: { target: Target }): JSX.Element {
+  const { t } = useTranslation();
+  const [local, setLocal] = useState("");
+  const [text, setText] = useState("");
+  const [reason, setReason] = useState("");
+  const write = useWrite(target);
+  const instant = instantOf(local);
+  const value = valueOf(text, target.sample);
+
+  const save = async () => {
+    if (!instant) {
+      return;
+    }
+    const done = await write.run(() =>
+      addOldValue(target.slug, target.entityId, target.attribute, value, instant, reason),
+    );
+    if (done) {
+      setLocal("");
+      setText("");
+      setReason("");
+    }
+  };
+
+  return (
+    <section
+      aria-labelledby="history-add-old-title"
+      className="rounded-lg border border-border bg-surface p-4"
+    >
+      <h3 id="history-add-old-title" className="font-semibold text-fg">
+        {t("attributeHistory.addOldValue")}
+      </h3>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <Field id="history-old-date" label={t("attributeHistory.observedAt")}>
+          <Input
+            id="history-old-date"
+            type="datetime-local"
+            max={toLocalInputString(new Date())}
+            value={local}
+            onChange={(e) => setLocal(e.target.value)}
+          />
+        </Field>
+        <Field id="history-old-val" label={t("attributeHistory.value")}>
+          <Input id="history-old-val" value={text} onChange={(e) => setText(e.target.value)} />
+        </Field>
+        <ReasonField id="history-old-reason" value={reason} onChange={setReason} />
+      </div>
+      {write.error ? <InlineError className="mt-2">{write.error}</InlineError> : null}
+      <div className="mt-3 flex justify-end">
+        <Button
+          variant="primary"
+          size="sm"
+          loading={write.busy}
+          disabled={!reasonOk(reason) || !instant || value === undefined}
+          onClick={() => void save()}
+        >
+          {t("attributeHistory.save")}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+/** Old values from a CSV file: a preview of what is new, the same or a correction, then one run (DM-81). */
+function CsvImport({
+  target,
+  measurements,
+  complete,
+}: {
+  target: Target;
+  measurements: Measurement[];
+  complete: boolean;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const [rows, setRows] = useState<CsvRow[]>([]);
+  const [problems, setProblems] = useState<CsvProblem[]>([]);
+  const [reason, setReason] = useState("");
+  const [progress, setProgress] = useState<{ sent: number; total: number } | null>(null);
+  const [result, setResult] = useState<string | null>(null);
+  const write = useWrite(target);
+  const plan = useMemo(() => planImport(rows, measurements, complete), [rows, measurements, complete]);
+  const count = plan.added.length + plan.unchecked.length + plan.corrections.length;
+
+  const choose = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    setResult(null);
+    const parsed = parseCsv(await file.text(), target.sample);
+    setRows(parsed.rows);
+    setProblems(parsed.problems);
+  };
+
+  const confirm = async () => {
+    setResult(null);
+    const done = await write.run(async () => {
+      const ran = await runImport(
+        target.slug,
+        target.entityId,
+        target.attribute,
+        plan,
+        reason,
+        setProgress,
+      );
+      if (ran.failed) {
+        throw new Error(
+          t("attributeHistory.importFailed", { line: ran.failed.line, reason: ran.failed.message }),
+        );
+      }
+      setResult(t("attributeHistory.importResult", { sent: ran.sent }));
+    });
+    if (done) {
+      setRows([]);
+      setProblems([]);
+      setReason("");
+      setProgress(null);
+    }
+  };
+
+  return (
+    <section
+      aria-labelledby="history-import-csv-title"
+      className="rounded-lg border border-border bg-surface p-4"
+    >
+      <h3 id="history-import-csv-title" className="font-semibold text-fg">
+        {t("attributeHistory.importCsv")}
+      </h3>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <Field id="history-import-file" label={t("attributeHistory.file")}>
+          <Input
+            id="history-import-file"
+            type="file"
+            accept=".csv,text/csv"
+            onChange={(e) => void choose(e)}
+          />
+        </Field>
+        <ReasonField id="history-import-reason" value={reason} onChange={setReason} />
+      </div>
+      {rows.length > 0 ? (
+        <p className="mt-2 font-medium text-fg">
+          {t("attributeHistory.csvPreview", {
+            added: plan.added.length,
+            duplicates: plan.duplicates.length,
+            corrections: plan.corrections.length,
+          })}
+        </p>
+      ) : null}
+      {plan.unchecked.length > 0 ? (
+        <p className="mt-1 text-caption text-fg-muted">
+          {t("attributeHistory.csvUnchecked", { count: plan.unchecked.length })}
+        </p>
+      ) : null}
+      {problems.length > 0 ? (
+        <ul className="mt-1 list-disc pl-5 text-caption text-danger">
+          {problems.map((problem) => (
+            <li key={`${problem.line}-${problem.reason}`}>
+              {t("attributeHistory.csvProblems", { line: problem.line, reason: problem.reason })}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {progress ? (
+        <p className="mt-2 text-caption text-fg-muted">
+          {t("attributeHistory.importProgress", progress)}
+        </p>
+      ) : null}
+      {result ? <p className="mt-2 text-caption font-medium text-fg">{result}</p> : null}
+      {write.error ? <InlineError className="mt-2">{write.error}</InlineError> : null}
+      <div className="mt-3 flex justify-end">
+        <Button
+          variant="primary"
+          size="sm"
+          loading={write.busy}
+          disabled={!reasonOk(reason) || count === 0}
+          onClick={() => void confirm()}
+        >
+          {t("attributeHistory.confirmImport")}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+/** A past measurement's new version: a correction with its value, or a revert to an older one (DM-115). */
+function VersionDialog({
+  target,
+  measurement,
+  revertTo,
+  close,
+}: {
+  target: Target;
+  measurement: Measurement;
+  /** The older version a revert writes again; absent, the person types the corrected value. */
+  revertTo?: Version;
+  close: () => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const [text, setText] = useState(formatValue(measurement.current.value));
+  const [reason, setReason] = useState("");
+  const write = useWrite(target);
+  const value = revertTo ? revertTo.value : valueOf(text, target.sample);
+
+  const save = async () => {
+    const done = await write.run(() =>
+      correct(
+        target.slug,
+        target.entityId,
+        target.attribute,
+        measurement.current.instanceId ?? "",
+        value,
+        measurement.observedAt,
+        reason,
+      ),
+    );
+    if (done) {
+      close();
+    }
+  };
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) close();
+      }}
+      title={t(revertTo ? "attributeHistory.revertTitle" : "attributeHistory.correctTitle")}
+      description={new Date(measurement.observedAt).toLocaleString()}
+      closeLabel={t("attributeHistory.cancel")}
+      footer={
+        <>
+          <Button variant="secondary" onClick={close}>
+            {t("attributeHistory.cancel")}
+          </Button>
+          <Button
+            variant="primary"
+            loading={write.busy}
+            disabled={!reasonOk(reason) || value === undefined}
+            onClick={() => void save()}
+          >
+            {t(revertTo ? "attributeHistory.revert" : "attributeHistory.save")}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        {revertTo ? null : (
+          <Field id="correct-modal-val" label={t("attributeHistory.value")}>
+            <Input id="correct-modal-val" value={text} onChange={(e) => setText(e.target.value)} />
+          </Field>
+        )}
+        <ReasonField
+          id={revertTo ? "revert-modal-reason" : "correct-modal-reason"}
+          value={reason}
+          onChange={setReason}
+        />
+        {write.error ? <InlineError>{write.error}</InlineError> : null}
+      </div>
+    </Dialog>
+  );
+}
+
+/** One version's row: when, what, and who wrote it why (ADR-N-054 2.3). */
+function VersionRow({
+  measurement,
+  version,
+  first,
+  canEditHistory,
+  open,
+}: {
+  measurement: Measurement;
+  version: Version;
+  first: boolean;
+  canEditHistory: boolean;
+  open: (revertTo?: Version) => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const current = version === measurement.current && !version.supersededAt;
+  const written = version.provenance?.writtenAt;
+  return (
+    <TableRow>
+      <TableCell className="font-mono text-caption">
+        {first ? (
+          <span>{new Date(measurement.observedAt).toLocaleString()}</span>
+        ) : (
+          <span className="text-fg-muted">↳</span>
+        )}
+      </TableCell>
+      <TableCell className="font-mono text-caption">
+        <div className="flex items-center gap-1.5">
+          <span>{formatValue(version.value)}</span>
+          {version.unitCode ? <span className="text-fg-muted">{version.unitCode}</span> : null}
+          <Badge tone={current ? "success" : "neutral"}>
+            {t(current ? "attributeHistory.current" : "attributeHistory.superseded")}
+          </Badge>
+        </div>
+      </TableCell>
+      <TableCell className="text-caption">{version.provenance?.channel ?? "—"}</TableCell>
+      <TableCell className="font-mono text-caption">{version.provenance?.actor ?? "—"}</TableCell>
+      <TableCell className="text-caption">{version.provenance?.operation ?? "—"}</TableCell>
+      <TableCell className="text-caption">{version.provenance?.reason ?? "—"}</TableCell>
+      <TableCell className="text-caption">
+        {written ? new Date(written).toLocaleString() : "—"}
+      </TableCell>
+      <TableCell className="text-right">
+        {canEditHistory ? (
+          <Button size="xs" variant="ghost" onClick={() => open(current ? undefined : version)}>
+            {t(current ? "attributeHistory.correct" : "attributeHistory.revert")}
+          </Button>
+        ) : null}
+      </TableCell>
+    </TableRow>
+  );
+}
+
+/** The measurements of one page, each with its versions oldest first. */
+function Timeline({
+  measurements,
+  canEditHistory,
+  open,
+}: {
+  measurements: Measurement[];
+  canEditHistory: boolean;
+  open: (measurement: Measurement, revertTo?: Version) => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <Table caption={t("attributeHistory.timeline")}>
+      <TableHead>
+        <TableHeaderCell>{t("attributeHistory.observedAt")}</TableHeaderCell>
+        <TableHeaderCell>{t("attributeHistory.value")}</TableHeaderCell>
+        <TableHeaderCell>{t("attributeHistory.channel")}</TableHeaderCell>
+        <TableHeaderCell>{t("attributeHistory.actor")}</TableHeaderCell>
+        <TableHeaderCell>{t("attributeHistory.operation")}</TableHeaderCell>
+        <TableHeaderCell>{t("attributeHistory.reason")}</TableHeaderCell>
+        <TableHeaderCell>{t("attributeHistory.writtenAt")}</TableHeaderCell>
+        <TableHeaderCell className="text-right" />
+      </TableHead>
+      <TableBody>
+        {measurements.flatMap((measurement) =>
+          measurement.versions.map((version, index) => (
+            <VersionRow
+              key={`${measurement.observedAt}-${version.instanceId ?? index}`}
+              measurement={measurement}
+              version={version}
+              first={index === 0}
+              canEditHistory={canEditHistory}
+              open={(revertTo) => open(measurement, revertTo)}
+            />
+          )),
+        )}
+      </TableBody>
+    </Table>
+  );
+}
+
 /**
- * Attribute history timeline, version inspector and change forms (T-4667, DM-114).
+ * One attribute's history through the Endpoint (T-4667, ADR-N-054 2.4, DM-114): every version
+ * with who wrote it and why, and, where the grant allows, the current value edited, an old value
+ * added, a measurement corrected or reverted, and old values imported from CSV, each with a reason.
  */
 export function AttributeHistory({
   slug,
@@ -61,413 +531,40 @@ export function AttributeHistory({
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [before, setBefore] = useState<string | undefined>(undefined);
-
-  const queryKey = ["attribute-history", slug, entityId, attribute, before] as const;
-  const historyQuery = useQuery({
-    queryKey,
+  const [editing, setEditing] = useState<{ measurement: Measurement; revertTo?: Version } | null>(
+    null,
+  );
+  const history = useQuery({
+    queryKey: ["attribute-history", slug, entityId, attribute, before],
     retry: false,
     queryFn: () => readHistory(slug, entityId, attribute, { before }),
   });
-
-  const measurements = useMemo(() => historyQuery.data?.measurements ?? [], [historyQuery.data]);
-  const sample = measurements[0]?.current.value;
-
-  // Edit current state: the field shows the current value until the person types.
-  const [typedValue, setCurrentValueText] = useState<string | undefined>(undefined);
-  const [currentReason, setCurrentReason] = useState("");
-  const [editError, setEditError] = useState<string | null>(null);
-  const [isSavingCurrent, setIsSavingCurrent] = useState(false);
+  const measurements = useMemo(() => history.data?.measurements ?? [], [history.data]);
 
   // The newest page holds the current value; an older page never stands in for it.
   const [newest, setNewest] = useState<unknown>(undefined);
   if (before === undefined && measurements[0] && measurements[0].current.value !== newest) {
     setNewest(measurements[0].current.value);
   }
-  const currentValueText = typedValue ?? formatValue(newest);
-
-  const parsedCurrentValue = useMemo(
-    () => valueOf(currentValueText, sample),
-    [currentValueText, sample],
-  );
-  const currentReasonValid =
-    currentReason.trim().length > 0 && currentReason.trim().length <= 500;
-
-  // Add old value state
-  const [oldDateTime, setOldDateTime] = useState("");
-  const [oldValueText, setOldValueText] = useState("");
-  const [oldReason, setOldReason] = useState("");
-  const [oldError, setOldError] = useState<string | null>(null);
-  const [isSavingOld, setIsSavingOld] = useState(false);
-
-  const parsedOldInstant = instantOf(oldDateTime);
-  const parsedOldValue = useMemo(() => valueOf(oldValueText, sample), [oldValueText, sample]);
-  const oldReasonValid = oldReason.trim().length > 0 && oldReason.trim().length <= 500;
-
-  // CSV Import state
-  const [importRows, setImportRows] = useState<CsvRow[]>([]);
-  const [importProblems, setImportProblems] = useState<CsvProblem[]>([]);
-  const [importReason, setImportReason] = useState("");
-  const [importProgress, setImportProgress] = useState<{ sent: number; total: number } | null>(
-    null,
-  );
-  const [importResult, setImportResult] = useState<string | null>(null);
-  const [importError, setImportError] = useState<string | null>(null);
-  const [isImporting, setIsImporting] = useState(false);
-
-  // Fewer than a page of measurements on the newest page is the whole history: every row compares.
-  const complete = before === undefined && measurements.length < 9;
-  const importPlan = useMemo(
-    () => planImport(importRows, measurements, complete),
-    [importRows, measurements, complete],
-  );
-  const importCount = importPlan.added.length + importPlan.unchecked.length + importPlan.corrections.length;
-  const importReasonValid =
-    importReason.trim().length > 0 && importReason.trim().length <= 500;
-
-  // Revert & Correct Dialog states
-  const [reverting, setReverting] = useState<{
-    measurement: Measurement;
-    version: Version;
-  } | null>(null);
-  const [revertReason, setRevertReason] = useState("");
-  const [revertError, setRevertError] = useState<string | null>(null);
-  const [isReverting, setIsReverting] = useState(false);
-
-  const [correcting, setCorrecting] = useState<Measurement | null>(null);
-  const [correctValueText, setCorrectValueText] = useState("");
-  const [correctReason, setCorrectReason] = useState("");
-  const [correctError, setCorrectError] = useState<string | null>(null);
-  const [isCorrecting, setIsCorrecting] = useState(false);
-
-  const parsedCorrectValue = useMemo(
-    () => valueOf(correctValueText, sample),
-    [correctValueText, sample],
-  );
-
-  async function handleSaveCurrent() {
-    if (!currentReasonValid || parsedCurrentValue === undefined) return;
-    setIsSavingCurrent(true);
-    setEditError(null);
-    try {
-      await editCurrent(slug, entityId, attribute, parsedCurrentValue, currentReason);
-      setCurrentReason("");
-      setCurrentValueText(undefined);
-      await queryClient.invalidateQueries({
-        queryKey: ["attribute-history", slug, entityId, attribute],
-      });
-    } catch (err) {
-      setEditError(err instanceof Error ? err.message : t("app.error.generic"));
-    } finally {
-      setIsSavingCurrent(false);
-    }
-  }
-
-  async function handleSaveOld() {
-    if (!oldReasonValid || !parsedOldInstant || parsedOldValue === undefined) return;
-    setIsSavingOld(true);
-    setOldError(null);
-    try {
-      await addOldValue(slug, entityId, attribute, parsedOldValue, parsedOldInstant, oldReason);
-      setOldReason("");
-      setOldValueText("");
-      setOldDateTime("");
-      await queryClient.invalidateQueries({
-        queryKey: ["attribute-history", slug, entityId, attribute],
-      });
-    } catch (err) {
-      setOldError(err instanceof Error ? err.message : t("app.error.generic"));
-    } finally {
-      setIsSavingOld(false);
-    }
-  }
-
-  async function handleFileSelect(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImportResult(null);
-    setImportError(null);
-    try {
-      const text = await file.text();
-      const parsed = parseCsv(text, sample);
-      setImportRows(parsed.rows);
-      setImportProblems(parsed.problems);
-    } catch (err) {
-      setImportError(err instanceof Error ? err.message : t("app.error.generic"));
-    }
-  }
-
-  async function handleRunImport() {
-    if (!importReasonValid || importCount === 0) {
-      return;
-    }
-    setIsImporting(true);
-    setImportError(null);
-    setImportResult(null);
-    try {
-      const res = await runImport(
-        slug,
-        entityId,
-        attribute,
-        importPlan,
-        importReason,
-        (p) => setImportProgress(p),
-      );
-      if (res.failed) {
-        setImportError(
-          t("attributeHistory.importFailed", {
-            line: res.failed.line,
-            reason: res.failed.message,
-          }),
-        );
-      } else {
-        setImportResult(t("attributeHistory.importResult", { sent: res.sent }));
-        setImportRows([]);
-        setImportProblems([]);
-        setImportReason("");
-        setImportProgress(null);
-        await queryClient.invalidateQueries({
-          queryKey: ["attribute-history", slug, entityId, attribute],
-        });
-      }
-    } catch (err) {
-      setImportError(err instanceof Error ? err.message : t("app.error.generic"));
-    } finally {
-      setIsImporting(false);
-    }
-  }
-
-  async function handleConfirmRevert() {
-    if (!reverting || !revertReason.trim()) return;
-    setIsReverting(true);
-    setRevertError(null);
-    try {
-      await correct(
-        slug,
-        entityId,
-        attribute,
-        reverting.measurement.current.instanceId ?? "",
-        reverting.version.value,
-        reverting.measurement.observedAt,
-        revertReason,
-      );
-      setReverting(null);
-      setRevertReason("");
-      await queryClient.invalidateQueries({
-        queryKey: ["attribute-history", slug, entityId, attribute],
-      });
-    } catch (err) {
-      setRevertError(err instanceof Error ? err.message : t("app.error.generic"));
-    } finally {
-      setIsReverting(false);
-    }
-  }
-
-  async function handleConfirmCorrect() {
-    if (!correcting || !correctReason.trim() || parsedCorrectValue === undefined) return;
-    setIsCorrecting(true);
-    setCorrectError(null);
-    try {
-      await correct(
-        slug,
-        entityId,
-        attribute,
-        correcting.current.instanceId ?? "",
-        parsedCorrectValue,
-        correcting.observedAt,
-        correctReason,
-      );
-      setCorrecting(null);
-      setCorrectReason("");
-      setCorrectValueText("");
-      await queryClient.invalidateQueries({
-        queryKey: ["attribute-history", slug, entityId, attribute],
-      });
-    } catch (err) {
-      setCorrectError(err instanceof Error ? err.message : t("app.error.generic"));
-    } finally {
-      setIsCorrecting(false);
-    }
-  }
-
-  const oldestObservedAt = measurements[measurements.length - 1]?.observedAt;
+  const target: Target = {
+    slug,
+    entityId,
+    attribute,
+    sample: newest,
+    written: () =>
+      queryClient.invalidateQueries({ queryKey: ["attribute-history", slug, entityId, attribute] }),
+  };
+  // Fewer than a page on the newest page is the whole history: every CSV row compares.
+  const complete = before === undefined && measurements.length < PAGE;
+  const oldest = measurements.at(-1)?.observedAt;
 
   return (
     <div className="flex flex-col gap-4 text-body">
-      {canEdit ? (
-        <section
-          aria-labelledby="history-edit-current-title"
-          className="rounded-lg border border-border bg-surface p-4"
-        >
-          <h3 id="history-edit-current-title" className="font-semibold text-fg">
-            {t("attributeHistory.editCurrent")}
-          </h3>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <Field
-              id="history-current-val"
-              label={t("attributeHistory.value")}
-              errors={
-                currentValueText !== "" && parsedCurrentValue === undefined
-                  ? [t("attributeHistory.value")]
-                  : undefined
-              }
-            >
-              <Input
-                id="history-current-val"
-                value={currentValueText}
-                onChange={(e) => setCurrentValueText(e.target.value)}
-              />
-            </Field>
-            <Field
-              id="history-current-reason"
-              label={t("attributeHistory.reason")}
-              help={t("attributeHistory.reasonHint")}
-            >
-              <Input
-                id="history-current-reason"
-                value={currentReason}
-                onChange={(e) => setCurrentReason(e.target.value)}
-              />
-            </Field>
-          </div>
-          {editError ? <InlineError className="mt-2">{editError}</InlineError> : null}
-          <div className="mt-3 flex justify-end">
-            <Button
-              variant="primary"
-              size="sm"
-              loading={isSavingCurrent}
-              disabled={!currentReasonValid || parsedCurrentValue === undefined}
-              onClick={() => void handleSaveCurrent()}
-            >
-              {t("attributeHistory.save")}
-            </Button>
-          </div>
-        </section>
-      ) : null}
-
+      {canEdit ? <EditCurrent target={target} current={newest} /> : null}
       {canEditHistory ? (
         <>
-          <section
-            aria-labelledby="history-add-old-title"
-            className="rounded-lg border border-border bg-surface p-4"
-          >
-            <h3 id="history-add-old-title" className="font-semibold text-fg">
-              {t("attributeHistory.addOldValue")}
-            </h3>
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <Field id="history-old-date" label={t("attributeHistory.observedAt")}>
-                <Input
-                  id="history-old-date"
-                  type="datetime-local"
-                  max={toLocalInputString(new Date())}
-                  value={oldDateTime}
-                  onChange={(e) => setOldDateTime(e.target.value)}
-                />
-              </Field>
-              <Field id="history-old-val" label={t("attributeHistory.value")}>
-                <Input
-                  id="history-old-val"
-                  value={oldValueText}
-                  onChange={(e) => setOldValueText(e.target.value)}
-                />
-              </Field>
-              <Field
-                id="history-old-reason"
-                label={t("attributeHistory.reason")}
-                help={t("attributeHistory.reasonHint")}
-              >
-                <Input
-                  id="history-old-reason"
-                  value={oldReason}
-                  onChange={(e) => setOldReason(e.target.value)}
-                />
-              </Field>
-            </div>
-            {oldError ? <InlineError className="mt-2">{oldError}</InlineError> : null}
-            <div className="mt-3 flex justify-end">
-              <Button
-                variant="primary"
-                size="sm"
-                loading={isSavingOld}
-                disabled={!oldReasonValid || !parsedOldInstant || parsedOldValue === undefined}
-                onClick={() => void handleSaveOld()}
-              >
-                {t("attributeHistory.save")}
-              </Button>
-            </div>
-          </section>
-
-          <section
-            aria-labelledby="history-import-csv-title"
-            className="rounded-lg border border-border bg-surface p-4"
-          >
-            <h3 id="history-import-csv-title" className="font-semibold text-fg">
-              {t("attributeHistory.importCsv")}
-            </h3>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <Field id="history-import-file" label={t("attributeHistory.file")}>
-                <Input
-                  id="history-import-file"
-                  type="file"
-                  accept=".csv,text/csv"
-                  onChange={(e) => void handleFileSelect(e)}
-                />
-              </Field>
-              <Field
-                id="history-import-reason"
-                label={t("attributeHistory.reason")}
-                help={t("attributeHistory.reasonHint")}
-              >
-                <Input
-                  id="history-import-reason"
-                  value={importReason}
-                  onChange={(e) => setImportReason(e.target.value)}
-                />
-              </Field>
-            </div>
-            {importRows.length > 0 ? (
-              <p className="mt-2 font-medium text-fg">
-                {t("attributeHistory.csvPreview", {
-                  added: importPlan.added.length,
-                  duplicates: importPlan.duplicates.length,
-                  corrections: importPlan.corrections.length,
-                })}
-              </p>
-            ) : null}
-            {importPlan.unchecked.length > 0 ? (
-              <p className="mt-1 text-caption text-fg-muted">
-                {t("attributeHistory.csvUnchecked", { count: importPlan.unchecked.length })}
-              </p>
-            ) : null}
-            {importProblems.length > 0 ? (
-              <ul className="mt-1 list-disc pl-5 text-caption text-danger">
-                {importProblems.map((prob) => (
-                  <li key={`${prob.line}-${prob.reason}`}>
-                    {t("attributeHistory.csvProblems", { line: prob.line, reason: prob.reason })}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            {importProgress ? (
-              <p className="mt-2 text-caption text-fg-muted">
-                {t("attributeHistory.importProgress", importProgress)}
-              </p>
-            ) : null}
-            {importResult ? (
-              <p className="mt-2 text-caption text-fg font-medium">{importResult}</p>
-            ) : null}
-            {importError ? <InlineError className="mt-2">{importError}</InlineError> : null}
-            <div className="mt-3 flex justify-end">
-              <Button
-                variant="primary"
-                size="sm"
-                loading={isImporting}
-                disabled={!importReasonValid || importCount === 0}
-                onClick={() => void handleRunImport()}
-              >
-                {t("attributeHistory.confirmImport")}
-              </Button>
-            </div>
-          </section>
+          <AddOldValue target={target} />
+          <CsvImport target={target} measurements={measurements} complete={complete} />
         </>
       ) : null}
 
@@ -485,228 +582,53 @@ export function AttributeHistory({
                 {t("attributeHistory.newest")}
               </Button>
             ) : null}
-            {measurements.length > 0 && oldestObservedAt ? (
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setBefore(oldestObservedAt)}
-              >
+            {oldest ? (
+              <Button size="sm" variant="secondary" onClick={() => setBefore(oldest)}>
                 {t("attributeHistory.older")}
               </Button>
             ) : null}
           </div>
         </div>
-
-        {historyQuery.isPending ? (
+        {history.isPending ? (
           <div role="status" aria-busy="true" aria-label={t("app.loading")}>
             <Skeleton className="h-32 w-full" />
           </div>
         ) : null}
-
-        {historyQuery.isError ? (
+        {/* An unreadable history is not an empty one: it says so and offers a retry. */}
+        {history.isError ? (
           <InlineError className="flex flex-wrap items-center gap-2">
-            {historyQuery.error instanceof Error
-              ? historyQuery.error.message
-              : t("app.error.generic")}
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                void historyQuery.refetch();
-              }}
-            >
+            {history.error instanceof Error ? history.error.message : t("app.error.generic")}
+            <Button size="sm" variant="ghost" onClick={() => void history.refetch()}>
               {t("app.error.retry")}
             </Button>
           </InlineError>
         ) : null}
-
-        {!historyQuery.isPending && !historyQuery.isError && measurements.length === 0 ? (
+        {history.isSuccess && measurements.length === 0 ? (
           <p role="status" className="text-caption text-fg-muted">
             {t("attributeHistory.noHistory")}
           </p>
         ) : null}
-
-        {historyQuery.data && !historyQuery.data.versions ? (
-          <p className="mb-2 text-caption text-fg-muted">
-            {t("attributeHistory.versionsRestricted")}
-          </p>
+        {history.data && !history.data.versions ? (
+          <p className="mb-2 text-caption text-fg-muted">{t("attributeHistory.versionsRestricted")}</p>
         ) : null}
-
         {measurements.length > 0 ? (
-          <Table caption={t("attributeHistory.timeline")}>
-            <TableHead>
-              <TableHeaderCell>{t("attributeHistory.observedAt")}</TableHeaderCell>
-              <TableHeaderCell>{t("attributeHistory.value")}</TableHeaderCell>
-              <TableHeaderCell>{t("attributeHistory.channel")}</TableHeaderCell>
-              <TableHeaderCell>{t("attributeHistory.actor")}</TableHeaderCell>
-              <TableHeaderCell>{t("attributeHistory.operation")}</TableHeaderCell>
-              <TableHeaderCell>{t("attributeHistory.reason")}</TableHeaderCell>
-              <TableHeaderCell>{t("attributeHistory.writtenAt")}</TableHeaderCell>
-              <TableHeaderCell className="text-right" />
-            </TableHead>
-            <TableBody>
-              {measurements.flatMap((m) =>
-                m.versions.map((ver, idx) => {
-                  const isCurrent = ver === m.current && !ver.supersededAt;
-                  return (
-                    <TableRow key={`${m.observedAt}-${ver.instanceId ?? idx}`}>
-                      <TableCell className="font-mono text-caption">
-                        {idx === 0 ? (
-                          <span>{new Date(m.observedAt).toLocaleString()}</span>
-                        ) : (
-                          <span className="text-fg-muted">↳</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-mono text-caption">
-                        <div className="flex items-center gap-1.5">
-                          <span>{formatValue(ver.value)}</span>
-                          {ver.unitCode ? (
-                            <span className="text-fg-muted">{ver.unitCode}</span>
-                          ) : null}
-                          {isCurrent ? (
-                            <Badge tone="success">{t("attributeHistory.current")}</Badge>
-                          ) : (
-                            <Badge tone="neutral">{t("attributeHistory.superseded")}</Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-caption">{ver.provenance?.channel ?? "—"}</TableCell>
-                      <TableCell className="font-mono text-caption">
-                        {ver.provenance?.actor ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-caption">{ver.provenance?.operation ?? "—"}</TableCell>
-                      <TableCell className="text-caption">{ver.provenance?.reason ?? "—"}</TableCell>
-                      <TableCell className="text-caption">
-                        {ver.provenance?.writtenAt
-                          ? new Date(ver.provenance.writtenAt).toLocaleString()
-                          : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {canEditHistory && isCurrent ? (
-                          <Button
-                            size="xs"
-                            variant="ghost"
-                            onClick={() => {
-                              setCorrecting(m);
-                              setCorrectValueText(formatValue(ver.value));
-                              setCorrectReason("");
-                              setCorrectError(null);
-                            }}
-                          >
-                            {t("attributeHistory.correct")}
-                          </Button>
-                        ) : null}
-                        {canEditHistory && !isCurrent ? (
-                          <Button
-                            size="xs"
-                            variant="ghost"
-                            onClick={() => {
-                              setReverting({ measurement: m, version: ver });
-                              setRevertReason("");
-                              setRevertError(null);
-                            }}
-                          >
-                            {t("attributeHistory.revert")}
-                          </Button>
-                        ) : null}
-                      </TableCell>
-                    </TableRow>
-                  );
-                }),
-              )}
-            </TableBody>
-          </Table>
+          <Timeline
+            measurements={measurements}
+            canEditHistory={canEditHistory}
+            open={(measurement, revertTo) => setEditing({ measurement, revertTo })}
+          />
         ) : null}
       </section>
 
-      {/* Correct Dialog */}
-      <Dialog
-        open={correcting !== null}
-        onOpenChange={(open) => {
-          if (!open) setCorrecting(null);
-        }}
-        title={t("attributeHistory.correctTitle")}
-        description={correcting ? new Date(correcting.observedAt).toLocaleString() : undefined}
-        closeLabel={t("attributeHistory.cancel")}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setCorrecting(null)}>
-              {t("attributeHistory.cancel")}
-            </Button>
-            <Button
-              variant="primary"
-              loading={isCorrecting}
-              disabled={!correctReason.trim() || parsedCorrectValue === undefined}
-              onClick={() => void handleConfirmCorrect()}
-            >
-              {t("attributeHistory.save")}
-            </Button>
-          </>
-        }
-      >
-        <div className="flex flex-col gap-3">
-          <Field id="correct-modal-val" label={t("attributeHistory.value")}>
-            <Input
-              id="correct-modal-val"
-              value={correctValueText}
-              onChange={(e) => setCorrectValueText(e.target.value)}
-            />
-          </Field>
-          <Field
-            id="correct-modal-reason"
-            label={t("attributeHistory.reason")}
-            help={t("attributeHistory.reasonHint")}
-          >
-            <Input
-              id="correct-modal-reason"
-              value={correctReason}
-              onChange={(e) => setCorrectReason(e.target.value)}
-            />
-          </Field>
-          {correctError ? <InlineError>{correctError}</InlineError> : null}
-        </div>
-      </Dialog>
-
-      {/* Revert Dialog */}
-      <Dialog
-        open={reverting !== null}
-        onOpenChange={(open) => {
-          if (!open) setReverting(null);
-        }}
-        title={t("attributeHistory.revertTitle")}
-        description={reverting ? new Date(reverting.measurement.observedAt).toLocaleString() : undefined}
-        closeLabel={t("attributeHistory.cancel")}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setReverting(null)}>
-              {t("attributeHistory.cancel")}
-            </Button>
-            <Button
-              variant="primary"
-              loading={isReverting}
-              disabled={!revertReason.trim()}
-              onClick={() => void handleConfirmRevert()}
-            >
-              {t("attributeHistory.revert")}
-            </Button>
-          </>
-        }
-      >
-        <div className="flex flex-col gap-3">
-          <Field
-            id="revert-modal-reason"
-            label={t("attributeHistory.reason")}
-            help={t("attributeHistory.reasonHint")}
-          >
-            <Input
-              id="revert-modal-reason"
-              value={revertReason}
-              onChange={(e) => setRevertReason(e.target.value)}
-            />
-          </Field>
-          {revertError ? <InlineError>{revertError}</InlineError> : null}
-        </div>
-      </Dialog>
+      {editing ? (
+        <VersionDialog
+          key={`${editing.measurement.observedAt}-${editing.revertTo?.instanceId ?? "correct"}`}
+          target={target}
+          measurement={editing.measurement}
+          revertTo={editing.revertTo}
+          close={() => setEditing(null)}
+        />
+      ) : null}
     </div>
   );
 }

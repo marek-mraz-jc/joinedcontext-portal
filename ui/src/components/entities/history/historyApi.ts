@@ -91,6 +91,60 @@ async function handleResponseError(response: Response): Promise<Error> {
   return new Error(detail ? `HTTP ${response.status}: ${detail}` : `HTTP ${response.status}`);
 }
 
+/** The instances of one attribute: an array, a `values` list, or one instance. */
+function instancesOf(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) {
+    return raw;
+  }
+  if (!raw || typeof raw !== "object") {
+    return [];
+  }
+  const values = (raw as { values?: unknown }).values;
+  return Array.isArray(values) ? values : [raw];
+}
+
+function stringOf(val: unknown): string | undefined {
+  return typeof val === "string" ? val : undefined;
+}
+
+/** One instance as a version, or undefined when it has no observedAt to group by. */
+function versionOf(item: unknown): Version | undefined {
+  if (!item || typeof item !== "object") {
+    return undefined;
+  }
+  const raw = item as Record<string, unknown>;
+  const observedAt = stringOf(raw.observedAt);
+  if (!observedAt || observedAt.trim() === "") {
+    return undefined;
+  }
+  return {
+    value: raw.value,
+    observedAt,
+    instanceId: stringOf(raw.instanceId),
+    supersededAt: stringOf(raw.supersededAt),
+    provenance:
+      typeof raw.provenance === "object" && raw.provenance !== null
+        ? (raw.provenance as Provenance)
+        : undefined,
+    unitCode: stringOf(raw.unitCode),
+  };
+}
+
+/** Oldest version first: by when it was written, else superseded ones before the live one. */
+function versionOrder(a: Version, b: Version): number {
+  const tA = Date.parse(a.provenance?.writtenAt ?? "");
+  const tB = Date.parse(b.provenance?.writtenAt ?? "");
+  if (!Number.isNaN(tA) && !Number.isNaN(tB)) {
+    return tA - tB;
+  }
+  if (!a.supersededAt || !b.supersededAt) {
+    return Number(!a.supersededAt) - Number(!b.supersededAt);
+  }
+  const sA = Date.parse(a.supersededAt);
+  const sB = Date.parse(b.supersededAt);
+  return Number.isNaN(sA) || Number.isNaN(sB) ? 0 : sA - sB;
+}
+
 /**
  * Extracts and groups temporal measurements from NGSI-LD response body (ADR-N-054 §2.1).
  */
@@ -98,64 +152,19 @@ export function measurementsOf(body: unknown, attribute: string): Measurement[] 
   if (!body || typeof body !== "object" || typeof attribute !== "string") {
     return [];
   }
-  const rawAttr = (body as Record<string, unknown>)[attribute];
-  if (!rawAttr) {
-    return [];
-  }
-  const instances = Array.isArray(rawAttr)
-    ? rawAttr
-    : typeof rawAttr === "object" && rawAttr !== null
-      ? Array.isArray((rawAttr as { values?: unknown }).values)
-        ? ((rawAttr as { values?: unknown }).values as unknown[])
-        : [rawAttr]
-      : [];
-
   const byObservedAt = new Map<string, Version[]>();
-  for (const item of instances) {
-    if (!item || typeof item !== "object") {
-      continue;
+  for (const item of instancesOf((body as Record<string, unknown>)[attribute])) {
+    const version = versionOf(item);
+    if (version?.observedAt) {
+      const list = byObservedAt.get(version.observedAt) ?? [];
+      list.push(version);
+      byObservedAt.set(version.observedAt, list);
     }
-    const rawItem = item as Record<string, unknown>;
-    const observedAt =
-      typeof rawItem.observedAt === "string" && rawItem.observedAt.trim() !== ""
-        ? rawItem.observedAt
-        : undefined;
-    if (!observedAt) {
-      continue;
-    }
-    const version: Version = {
-      value: rawItem.value,
-      observedAt,
-      instanceId: typeof rawItem.instanceId === "string" ? rawItem.instanceId : undefined,
-      supersededAt: typeof rawItem.supersededAt === "string" ? rawItem.supersededAt : undefined,
-      provenance:
-        typeof rawItem.provenance === "object" && rawItem.provenance !== null
-          ? (rawItem.provenance as Provenance)
-          : undefined,
-      unitCode: typeof rawItem.unitCode === "string" ? rawItem.unitCode : undefined,
-    };
-    const list = byObservedAt.get(observedAt) ?? [];
-    list.push(version);
-    byObservedAt.set(observedAt, list);
   }
 
   const measurements: Measurement[] = [];
   for (const [observedAt, versions] of byObservedAt.entries()) {
-    versions.sort((a, b) => {
-      const tA = a.provenance?.writtenAt ? Date.parse(a.provenance.writtenAt) : NaN;
-      const tB = b.provenance?.writtenAt ? Date.parse(b.provenance.writtenAt) : NaN;
-      if (!Number.isNaN(tA) && !Number.isNaN(tB)) {
-        return tA - tB;
-      }
-      if (a.supersededAt && !b.supersededAt) return -1;
-      if (!a.supersededAt && b.supersededAt) return 1;
-      if (a.supersededAt && b.supersededAt) {
-        const sA = Date.parse(a.supersededAt);
-        const sB = Date.parse(b.supersededAt);
-        if (!Number.isNaN(sA) && !Number.isNaN(sB)) return sA - sB;
-      }
-      return 0;
-    });
+    versions.sort(versionOrder);
     const current = versions.filter((v) => !v.supersededAt).at(-1) ?? versions[versions.length - 1];
     measurements.push({ observedAt, current, versions });
   }
@@ -376,6 +385,69 @@ export function valueOf(text: string, sample: unknown): unknown {
   return text;
 }
 
+type CsvRecord = { fields: string[]; line: number };
+
+/** Splits RFC 4180 text into records, each with the line it starts on; quoted fields keep newlines. */
+function csvRecords(content: string): CsvRecord[] {
+  const records: CsvRecord[] = [];
+  let field = "";
+  let record: string[] = [];
+  let inQuotes = false;
+  let line = 1;
+  let start = 1;
+
+  for (let i = 0; i < content.length; i++) {
+    const char = content[i];
+    if (inQuotes && char === '"' && content[i + 1] === '"') {
+      field += '"';
+      i++;
+    } else if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (inQuotes || (char !== "," && char !== "\r" && char !== "\n")) {
+      field += char;
+      if (char === "\n") line++;
+    } else if (char === ",") {
+      record.push(field);
+      field = "";
+    } else {
+      // A record ends at CR, LF or CRLF.
+      if (char === "\r" && content[i + 1] === "\n") i++;
+      record.push(field);
+      records.push({ fields: record, line: start });
+      field = "";
+      record = [];
+      line++;
+      start = line;
+    }
+  }
+  if (field !== "" || record.length > 0) {
+    record.push(field);
+    records.push({ fields: record, line: start });
+  }
+  return records;
+}
+
+/** One data record as a row, or the reason it is not one. */
+function csvRow(
+  record: CsvRecord,
+  observedAtIdx: number,
+  valueIdx: number,
+  sample: unknown,
+): CsvRow | CsvProblem {
+  const parsedTime = Date.parse((record.fields[observedAtIdx] ?? "").trim());
+  if (Number.isNaN(parsedTime)) {
+    return { line: record.line, reason: "invalid observedAt instant" };
+  }
+  if (parsedTime > Date.now()) {
+    return { line: record.line, reason: "observedAt in the future" };
+  }
+  const value = valueOf(record.fields[valueIdx] ?? "", sample);
+  if (value === undefined) {
+    return { line: record.line, reason: "invalid value" };
+  }
+  return { observedAt: new Date(parsedTime).toISOString(), value, line: record.line };
+}
+
 /** Parses RFC 4180 CSV containing observedAt and value columns (DM-81). */
 export function parseCsv(
   text: string,
@@ -386,96 +458,30 @@ export function parseCsv(
   }
 
   const content = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-  const byteCount = new TextEncoder().encode(content).length;
-  if (byteCount > MAX_CSV_BYTES) {
+  if (new TextEncoder().encode(content).length > MAX_CSV_BYTES) {
     return {
       rows: [],
       problems: [{ line: 1, reason: `exceeds maximum of ${MAX_CSV_BYTES} bytes` }],
     };
   }
 
-  const rawRecords: { fields: string[]; line: number }[] = [];
-  let currentField = "";
-  let currentRecord: string[] = [];
-  let inQuotes = false;
-  let line = 1;
-  let recordStartLine = 1;
-
-  for (let i = 0; i < content.length; i++) {
-    const char = content[i];
-    if (inQuotes) {
-      if (char === '"') {
-        if (i + 1 < content.length && content[i + 1] === '"') {
-          currentField += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        currentField += char;
-        if (char === "\n") line++;
-      }
-    } else {
-      if (char === '"') {
-        inQuotes = true;
-      } else if (char === ",") {
-        currentRecord.push(currentField);
-        currentField = "";
-      } else if (char === "\r") {
-        if (i + 1 < content.length && content[i + 1] === "\n") {
-          i++;
-        }
-        currentRecord.push(currentField);
-        currentField = "";
-        rawRecords.push({ fields: currentRecord, line: recordStartLine });
-        currentRecord = [];
-        line++;
-        recordStartLine = line;
-      } else if (char === "\n") {
-        currentRecord.push(currentField);
-        currentField = "";
-        rawRecords.push({ fields: currentRecord, line: recordStartLine });
-        currentRecord = [];
-        line++;
-        recordStartLine = line;
-      } else {
-        currentField += char;
-      }
-    }
-  }
-
-  if (currentField !== "" || currentRecord.length > 0) {
-    currentRecord.push(currentField);
-    rawRecords.push({ fields: currentRecord, line: recordStartLine });
-  }
-
-  const nonEmptyRecords = rawRecords.filter((rec) =>
-    rec.fields.some((f) => f.trim() !== ""),
-  );
-
-  if (nonEmptyRecords.length === 0) {
+  const records = csvRecords(content).filter((rec) => rec.fields.some((f) => f.trim() !== ""));
+  const header = records[0];
+  if (!header) {
     return { rows: [], problems: [{ line: 1, reason: "missing header row" }] };
   }
-
-  const headerRecord = nonEmptyRecords[0];
-  const headerFields = headerRecord.fields.map((f) => f.trim().toLowerCase());
+  const headerFields = header.fields.map((f) => f.trim().toLowerCase());
   const observedAtIdx = headerFields.indexOf("observedat");
   const valueIdx = headerFields.indexOf("value");
-
   if (observedAtIdx === -1 || valueIdx === -1) {
     return {
       rows: [],
-      problems: [
-        {
-          line: headerRecord.line,
-          reason: "header must include observedAt and value",
-        },
-      ],
+      problems: [{ line: header.line, reason: "header must include observedAt and value" }],
     };
   }
 
-  const dataRecords = nonEmptyRecords.slice(1);
-  if (dataRecords.length > MAX_CSV_ROWS) {
+  const data = records.slice(1);
+  if (data.length > MAX_CSV_ROWS) {
     return {
       rows: [],
       problems: [{ line: 1, reason: `exceeds maximum of ${MAX_CSV_ROWS} rows` }],
@@ -484,34 +490,14 @@ export function parseCsv(
 
   const rows: CsvRow[] = [];
   const problems: CsvProblem[] = [];
-
-  for (const record of dataRecords) {
-    const rawObs = record.fields[observedAtIdx] ?? "";
-    const rawVal = record.fields[valueIdx] ?? "";
-
-    const parsedTime = Date.parse(rawObs.trim());
-    if (Number.isNaN(parsedTime)) {
-      problems.push({ line: record.line, reason: "invalid observedAt instant" });
-      continue;
+  for (const record of data) {
+    const parsed = csvRow(record, observedAtIdx, valueIdx, sample);
+    if ("reason" in parsed) {
+      problems.push(parsed);
+    } else {
+      rows.push(parsed);
     }
-    if (parsedTime > Date.now()) {
-      problems.push({ line: record.line, reason: "observedAt in the future" });
-      continue;
-    }
-
-    const val = valueOf(rawVal, sample);
-    if (val === undefined) {
-      problems.push({ line: record.line, reason: "invalid value" });
-      continue;
-    }
-
-    rows.push({
-      observedAt: new Date(parsedTime).toISOString(),
-      value: val,
-      line: record.line,
-    });
   }
-
   return { rows, problems };
 }
 
