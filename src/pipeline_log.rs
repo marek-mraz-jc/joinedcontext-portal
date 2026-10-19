@@ -303,7 +303,7 @@ pub fn with_passes(stream: &mut serde_json::Value, url: &str) {
     }
     let report = serde_json::json!({ "label": PASS_LABELS[0], "branch": {
         "request_map": format!("root = {{ \"run\": {RUN}, \"sent\": [] }}"),
-        "processors": [{ "label": PASS_LABELS[1], "http": report_http(url) }],
+        "processors": [{ "label": PASS_LABELS[1], "http": pass_http(url) }],
     }});
     let Some(pipeline) = stream.as_object_mut().map(|stream| {
         stream
@@ -321,6 +321,17 @@ pub fn with_passes(stream: &mut serde_json::Value, url: &str) {
     if let Some(processors) = processors.as_array_mut() {
         processors.splice(0..0, [report, serde_json::json!({ "catch": [] })]);
     }
+}
+
+/// The `http` processor a pass is reported with (T-4269). The report carries no lines, so a
+/// repeat adds nothing to the run's counts and is safe to retry; without it one refused or slow
+/// POST at a stream's first tick (the Portal restarting, the token endpoint slow) left a 24 h
+/// clock without a run for a day. Three tries 2 s apart hold the tick's read at most ~21 s.
+fn pass_http(url: &str) -> serde_json::Value {
+    let mut http = report_http(url);
+    http["retries"] = serde_json::json!(3);
+    http["retry_period"] = serde_json::json!("2s");
+    http
 }
 
 /// The `http` processor a stream posts a report to its run's log with.
@@ -850,6 +861,29 @@ mod tests {
             resident, before,
             "a stream without a clock has no pass to report"
         );
+    }
+
+    /// T-4269: a pass report is retried, so one refused or slow POST at a stream's first tick
+    /// does not leave a 24 h clock without a run for a day; a report that carries lines adds to
+    /// the run's counts and is never repeated.
+    #[test]
+    fn a_pass_report_is_retried_and_a_counting_report_is_sent_once() {
+        let url = "http://portal/outcomes";
+        let mut clocked = serde_json::json!({
+            "input": { "generate": { "interval": "24h", "mapping": TICK } },
+            "output": { "drop": {} },
+        });
+        with_passes(&mut clocked, url);
+        let pass = &clocked["pipeline"]["processors"][0]["branch"]["processors"][0]["http"];
+        assert!(pass["retries"].as_u64().is_some_and(|n| n >= 1), "{pass}");
+        assert!(pass["retry_period"].is_string(), "{pass}");
+
+        let failure = source_failure(url);
+        let report = &failure["switch"][0]["processors"][0]["branch"]["processors"][0]["http"];
+        assert_eq!(report["retries"], 0, "a failed line counts once: {report}");
+        let sink = with_outcomes(serde_json::json!({ "drop": {} }), url);
+        let outcome = &sink["broker"]["outputs"][1]["fallback"][0]["http_client"];
+        assert_eq!(outcome["retries"], 0, "sent ids count once: {outcome}");
     }
 
     /// T-4036: the sink keeps its own in-flight window. `drop_on` sends one message and waits

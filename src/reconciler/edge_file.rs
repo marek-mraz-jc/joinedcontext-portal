@@ -465,6 +465,15 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
                 format!("^(?:/apps/{name})?(/api/endpoint/.*)$"),
                 "$1".to_owned(),
             );
+            // The session cookie stays at the edge: the gateway takes the bearer and drops any
+            // cookie, and the cookie (two chunks, about 6 KB) beside a long id list pushed a read
+            // past the gateway's header limit (praha-odpad's isle names answered 431, T-3579).
+            // `openid-connect` reads the session before `proxy-rewrite` runs.
+            let remove = &mut plugins["proxy-rewrite"]["headers"]["remove"];
+            match remove.as_array_mut() {
+                Some(list) => list.push(json!("Cookie")),
+                None => *remove = json!(["Cookie"]),
+            }
             if !app.slugs.is_empty() {
                 push(
                     &mut document,
@@ -892,6 +901,31 @@ routes:
     }
 
     #[test]
+    fn the_endpoint_route_keeps_the_headers_the_base_strips_beside_the_cookie() {
+        let base = BASE.replace(
+            "          set:\n            X-Forwarded-Proto: https\n",
+            "          set:\n            X-Forwarded-Proto: https\n          remove: [X-Userinfo]\n",
+        );
+        let composed = compose(
+            &base,
+            &[app("air-quality", false, pod("jc-helsinki-apps"))],
+            &EdgeLimits::default(),
+        )
+        .expect("composes");
+        let file = parsed(&composed.file);
+        let plugins = &by_id(&file, "plugin_configs", "app-air-quality-endpoint")
+            .expect("its plugins")["plugins"];
+        assert_eq!(
+            plugins["proxy-rewrite"]["headers"]["remove"],
+            json!(["X-Userinfo", "Cookie"])
+        );
+        // The App's own page keeps its cookie: only the endpoint route drops it.
+        let page =
+            &by_id(&file, "plugin_configs", "app-air-quality").expect("its plugins")["plugins"];
+        assert!(page["proxy-rewrite"]["headers"]["remove"].is_null());
+    }
+
+    #[test]
     fn each_app_gets_its_own_login_route_and_endpoint_route() {
         let composed = compose(
             BASE,
@@ -976,6 +1010,11 @@ routes:
         assert_eq!(
             plugins["proxy-rewrite"]["headers"]["set"]["X-Forwarded-Proto"],
             "https"
+        );
+        // T-3579: the session cookie stays at the edge; the gateway gets the bearer.
+        assert_eq!(
+            plugins["proxy-rewrite"]["headers"]["remove"],
+            json!(["Cookie"])
         );
         assert_eq!(plugins["openid-connect"]["unauth_action"], "deny");
         assert_eq!(
