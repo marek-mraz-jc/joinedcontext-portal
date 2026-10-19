@@ -17,6 +17,7 @@ import en from "../src/locales/en.json";
 import { AssistantDock } from "../src/assistant/AssistantDock";
 import { MAX_ENDPOINTS, runEndpointNames, sameEndpoints, storedEndpoints } from "../src/assistant/EndpointPicker";
 import { rememberRun } from "../src/assistant/state";
+import { ASSISTANT_EVENT } from "../src/navigation/shortcuts";
 import { QueryResultCard, queryResultOf, viewOf } from "../src/pages/apps/QueryResultCard";
 
 const PROJECT = "helsinki";
@@ -187,6 +188,39 @@ describe("the data bar (AG-75)", () => {
       message: "Which stations are empty?",
       endpointNames: ["helsinki-all", "helsinki-bikes", "helsinki-air", "helsinki-traffic"],
     });
+  });
+
+  it("an Endpoint page's Ask the assistant opens it on that one Endpoint and sends it with the first message (T-4760)", async () => {
+    const user = userEvent.setup();
+    const { posted } = renderDock();
+    await screen.findByRole("button", { name: en.assistant.open });
+    act(() => {
+      window.dispatchEvent(new CustomEvent(ASSISTANT_EVENT, { detail: { endpoints: ["helsinki-air"] } }));
+    });
+    await waitFor(() => expect(chipNames()).toEqual(["helsinki-air"]));
+    expect(storedEndpoints(PROJECT)).toEqual(["helsinki-air"]);
+    await user.type(screen.getByLabelText(en.assistant.empty.composer), "Which attributes and units does this have?");
+    await user.click(screen.getByRole("button", { name: en.assistant.empty.send }));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]).toEqual({
+      message: "Which attributes and units does this have?",
+      endpointNames: ["helsinki-air"],
+    });
+  });
+
+  it("in a running conversation, Ask on another Endpoint switches it with the next message (T-4760)", async () => {
+    const user = userEvent.setup();
+    rememberRun({ project: PROJECT, runId: RUN_ID });
+    const { messages } = renderDock();
+    await waitFor(() => expect(chipNames()).toEqual(["helsinki-all"]));
+    act(() => {
+      window.dispatchEvent(new CustomEvent(ASSISTANT_EVENT, { detail: { endpoints: ["helsinki-bikes", 7] } }));
+    });
+    await waitFor(() => expect(chipNames()).toEqual(["helsinki-bikes"]));
+    await user.type(screen.getByLabelText(en.agentRun.conversation.placeholder), "And here?");
+    await user.click(screen.getByRole("button", { name: en.agentRun.conversation.send }));
+    await waitFor(() => expect(messages).toHaveLength(1));
+    expect(messages[0]).toEqual({ text: "And here?", endpointNames: ["helsinki-bikes"] });
   });
 
   it("filters by name or title and works from the keyboard", async () => {

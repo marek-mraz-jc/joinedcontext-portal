@@ -1483,6 +1483,16 @@
       "next": "Next page",
       "window": "Entities {from} to {to} of {total}"
     },
+    "card": {
+      "title": "Query card",
+      "lead": "How an AI client queries this NGSI-LD Endpoint: its types and attributes with units and allowed values, as the gateway serves them to you. Paste it, or the MCP address, into Claude, ChatGPT or any MCP client.",
+      "mcp": "MCP address",
+      "reading": "Reading the query card…",
+      "failed": "The query card could not be read. Reload the page to try again.",
+      "refused": "Your access does not reach this Endpoint's types, so it has no query card for you.",
+      "copy": "Copy the card",
+      "ask": "Ask the assistant about this Endpoint"
+    },
     "hub": {
       "title": "Connect an AI assistant",
       "lead": "One MCP address for every endpoint. Add it once to an AI assistant: open endpoints answer without signing in, and signing in adds the ones you may read. The assistant picks the endpoint, reads its attributes, model and access, and each call runs under that endpoint's own policy.",

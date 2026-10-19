@@ -288,6 +288,28 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
     setChosenEndpoints(names);
     rememberEndpoints(activeProject, names);
   };
+  // "Ask the assistant" on an Endpoint's page scopes the assistant to that Endpoint (T-4760): the
+  // next conversation, or the running one's next message, which then reads that Endpoint's card.
+  // A run of another project keeps its own Endpoints: the name is the page project's.
+  const runProject = run?.project ?? null;
+  useEffect(() => {
+    const onAsk = (event: Event) => {
+      const asked = (event as CustomEvent<{ endpoints?: unknown }>).detail?.endpoints;
+      if (!Array.isArray(asked)) return;
+      const names = asked.filter((name): name is string => typeof name === "string").slice(0, MAX_ENDPOINTS);
+      if (names.length === 0) return;
+      if (runProject === null) {
+        setChosenEndpoints(names);
+        rememberEndpoints(project, names);
+      } else if (runProject === project) {
+        setPendingEndpoints(names);
+      }
+    };
+    window.addEventListener(ASSISTANT_EVENT, onAsk);
+    return () => {
+      window.removeEventListener(ASSISTANT_EVENT, onAsk);
+    };
+  }, [project, runProject]);
   // What the assistant may do (AG-92, T-2718), remembered per project like the endpoints.
   const [capabilities, setCapabilities] = useState<Capabilities | null>(() => storedCapabilities(project));
   const [capabilitiesOf, setCapabilitiesOf] = useState(activeProject);

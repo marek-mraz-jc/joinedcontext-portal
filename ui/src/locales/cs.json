@@ -1483,6 +1483,16 @@
       "next": "Další stránka",
       "window": "Entity {from} až {to} z {total}"
     },
+    "card": {
+      "title": "Karta dotazů",
+      "lead": "Jak AI klient dotazuje tento NGSI-LD Endpoint: jeho typy a atributy s jednotkami a povolenými hodnotami, tak jak vám je podává brána. Vložte ji nebo MCP adresu do Claude, ChatGPT nebo jiného MCP klienta.",
+      "mcp": "MCP adresa",
+      "reading": "Načítám kartu dotazů…",
+      "failed": "Kartu dotazů se nepodařilo načíst. Obnovte stránku a zkuste to znovu.",
+      "refused": "Váš přístup nesahá na typy tohoto Endpointu, proto pro vás nemá kartu dotazů.",
+      "copy": "Kopírovat kartu",
+      "ask": "Zeptat se asistenta na tento Endpoint"
+    },
     "hub": {
       "title": "Připojit AI asistenta",
       "lead": "Jedna MCP adresa pro všechna rozhraní. Přidejte ji jednou do AI asistenta: otevřená rozhraní odpovídají bez přihlášení a po přihlášení přibudou ta, která smíte číst. Asistent si rozhraní vybere, přečte jeho atributy, model a přístup a každé volání proběhne pod politikou daného rozhraní.",
