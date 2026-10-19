@@ -7600,6 +7600,7 @@
     "address": "Adresse des Konnektors",
     "copyAddress": "Adresse kopieren",
     "copied": "In die Zwischenablage kopiert.",
+    "selected": "Markiert: Strg+C drücken.",
     "readOnly": "Nur lesend: ein Assistent kann die Daten lesen und durchsuchen, nie ändern.",
     "noLogin": "Keine Anmeldung und kein Schlüssel: ein Client braucht nur die Adresse.",
     "limit": "Höchstens {count} Anfragen pro Minute aus einem Netz.",

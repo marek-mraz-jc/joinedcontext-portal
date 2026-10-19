@@ -7600,6 +7600,7 @@
     "address": "Connector address",
     "copyAddress": "Copy the address",
     "copied": "Copied to the clipboard.",
+    "selected": "Selected: press Ctrl+C.",
     "readOnly": "Read-only: an assistant can read and search the data, never change it.",
     "noLogin": "No sign-in and no key: the address is all a client needs.",
     "limit": "Up to {count} requests a minute from one network.",

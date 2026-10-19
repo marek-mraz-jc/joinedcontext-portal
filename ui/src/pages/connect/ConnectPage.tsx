@@ -1,36 +1,76 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Button, Icon, PageHeader, PageLoading } from "../../components/ui";
 import { ANONYMOUS_CALLS_PER_MINUTE, clientName, readServer, serverUrl, setups } from "./connect";
 
+/**
+ * Puts `text` on the clipboard: the Clipboard API, else (an http origin, a frame without
+ * clipboard-write, a refusal) the browser's copy command on a hidden field. False when neither
+ * copied, so the caller selects the text for Ctrl+C and says so (T-4762).
+ */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.readOnly = true;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    try {
+      return document.execCommand("copy");
+    } catch {
+      return false;
+    } finally {
+      area.remove();
+    }
+  }
+}
+
 /** A block a person copies whole, with a button that says so to a screen reader too. */
 function CopyBlock({ label, code }: { label: string; code: string }): JSX.Element {
   const { t } = useTranslation();
   const id = useId();
-  const [copied, setCopied] = useState(false);
+  const block = useRef<HTMLPreElement>(null);
+  const [copied, setCopied] = useState<"copied" | "selected" | null>(null);
+  useEffect(() => {
+    if (copied !== "copied") return undefined;
+    const timer = window.setTimeout(() => setCopied(null), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+  const copy = async () => {
+    if (await copyText(code)) {
+      setCopied("copied");
+      return;
+    }
+    // Nothing reached the clipboard: the block stays selected for the visitor's own Ctrl+C.
+    const selection = window.getSelection();
+    if (block.current && selection) {
+      selection.selectAllChildren(block.current);
+    }
+    setCopied("selected");
+  };
   return (
     <div className="flex flex-col gap-1">
-      <pre id={id} tabIndex={0} className="focus-ring overflow-x-auto whitespace-pre rounded bg-surface-muted p-3 font-mono text-caption">
+      <pre ref={block} id={id} tabIndex={0} className="focus-ring overflow-x-auto whitespace-pre rounded bg-surface-muted p-3 font-mono text-caption">
         {code}
       </pre>
       <div className="flex items-center gap-2">
         <Button
           size="sm"
           aria-describedby={id}
-          icon={<Icon name={copied ? "check" : "copy"} className="size-4" />}
-          onClick={() => {
-            void navigator.clipboard
-              ?.writeText(code)
-              .then(() => setCopied(true))
-              .catch(() => setCopied(false));
-          }}
+          icon={<Icon name={copied === "copied" ? "check" : "copy"} className="size-4" />}
+          onClick={() => void copy()}
         >
           {label}
         </Button>
         <span role="status" aria-live="polite" className="text-caption text-fg-muted">
-          {copied ? t("connect.copied") : ""}
+          {copied ? t(`connect.${copied}`) : ""}
         </span>
       </div>
     </div>
