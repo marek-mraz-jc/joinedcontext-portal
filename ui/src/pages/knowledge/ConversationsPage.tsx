@@ -489,10 +489,7 @@ function Compared({ left, right }: { left: ConversationTurn; right: Conversation
   const { t } = useTranslation();
   return (
     <>
-      <div className="grid gap-2 text-caption md:grid-cols-2">
-        <p data-testid="compare-left-totals">{totalsText(t, left)}</p>
-        <p data-testid="compare-right-totals">{totalsText(t, right)}</p>
-      </div>
+      <Totals left={left} right={right} />
       <ChangeList changes={visualChanges(left.steps, right.steps)} />
       <ol aria-label={t("conversations.steps")} className="space-y-1 text-caption">
         {aligned(left.steps, right.steps).map(([a, b], i) => (
@@ -504,6 +501,17 @@ function Compared({ left, right }: { left: ConversationTurn; right: Conversation
       </ol>
       <AnswerDiff left={left.answer} right={right.answer} />
     </>
+  );
+}
+
+/** The header lines of the two compared turns, side by side. */
+function Totals({ left, right }: { left: ConversationTurn; right: ConversationTurn }): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <div className="grid gap-2 text-caption md:grid-cols-2">
+      <p data-testid="compare-left-totals">{totalsText(t, left)}</p>
+      <p data-testid="compare-right-totals">{totalsText(t, right)}</p>
+    </div>
   );
 }
 
