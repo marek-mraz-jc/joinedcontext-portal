@@ -11,7 +11,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { queryKeys } from "../src/api/client";
 import { ConversationsPage } from "../src/pages/knowledge/ConversationsPage";
-import { evalCase, filterQuery, msText, usdText } from "../src/pages/knowledge/conversations";
+import {
+  aligned,
+  capped,
+  evalCase,
+  filterQuery,
+  msText,
+  totals,
+  usdText,
+  visible,
+  visualChanges,
+  wordDiff,
+} from "../src/pages/knowledge/conversations";
+import type { ConversationStep } from "../src/pages/knowledge/conversations";
 
 const PROJECT = "helsinki";
 const ONE = "11111111-1111-4111-8111-111111111111";
@@ -42,6 +54,40 @@ const DETAIL = {
   }],
 };
 
+// T-4681: a second run of the same question, its stored text hostile.
+const TWO = "22222222-2222-4222-8222-222222222222";
+const HOSTILE = [
+  "<script>window.pwned = 1</script>",
+  "<img src=x onerror=\"window.pwned = 1\">",
+  "[x](javascript:window.pwned=1)",
+  "<svg onload=\"window.pwned = 1\"></svg>",
+  "evil\u202Etxt.exe",
+].join(" ");
+const step = (kind: ConversationStep["kind"], extra: Partial<ConversationStep> = {}): ConversationStep => ({
+  kind, name: kind, endpoint: null, input: null, output: null, outputBytes: null, status: "ok", startMs: 0, durationMs: 100,
+  error: null, stage: null, model: null, provider: null, tokensIn: null, tokensOut: null, reasoningTokens: null, costUsd: null,
+  ...extra,
+});
+const OTHER = {
+  id: TWO, deployment: "obcan", origin: null,
+  turns: [{
+    turn: 1, at: "2026-10-19T10:01:00Z", question: "Aké je PM10?", answer: `PM10 je dnes 40 µg/m³. ${HOSTILE}`, route: "data",
+    firstTokenMs: 700, totalMs: 3100, error: null, timedOut: false, costUsd: 0.006, uncosted: 0, verdict: null,
+    steps: [
+      step("model", { model: "google/gemini-3.8-flash", tokensIn: 1000, tokensOut: 90, cachedTokens: 800, costUsd: 0.006,
+        reasoning: HOSTILE }),
+      step("tool", { name: "query_entities", input: HOSTILE, output: "x".repeat(70 * 1024), rows: 20 }),
+      step("visual", { name: "chart", input: "{\"mark\":\"bar\"}", rows: 7 }),
+    ],
+  }],
+};
+const SAME = {
+  items: [
+    { conversation: TWO, turn: 1, at: "2026-10-19T10:01:00Z", deployment: "obcan", totalMs: 3100, costUsd: 0.006, steps: 3 },
+    { conversation: ONE, turn: 1, at: "2026-10-18T10:01:00Z", deployment: "obcan", totalMs: 2400, costUsd: 0.0046, steps: 3 },
+  ],
+};
+
 function renderAs(verbs: string[]) {
   const calls: { method: string; url: URL }[] = [];
   const permissions = {
@@ -54,6 +100,8 @@ function renderAs(verbs: string[]) {
     calls.push({ method: request.method, url });
     const body = request.method === "DELETE" ? null
       : url.pathname.endsWith("/permissions/me") ? permissions
+      : url.pathname.endsWith("/same") ? SAME
+      : url.pathname.endsWith(TWO) ? OTHER
       : url.pathname.endsWith(ONE) ? DETAIL : LIST;
     return Promise.resolve(
       new Response(body === null ? null : JSON.stringify(body), {
@@ -103,6 +151,68 @@ describe("the stored conversations' helpers", () => {
   });
 });
 
+describe("the compare view's helpers (T-4681)", () => {
+  it("align two timelines by kind, unmatched steps facing an empty cell", () => {
+    const left = [step("route"), step("tool"), step("model"), step("answer")];
+    const right = [step("route"), step("model"), step("visual"), step("answer")];
+    expect(aligned(left, right).map(([a, b]) => [a?.kind ?? null, b?.kind ?? null])).toEqual([
+      ["route", "route"],
+      ["tool", null],
+      ["model", "model"],
+      [null, "visual"],
+      ["answer", "answer"],
+    ]);
+    expect(aligned([], [step("tool")])).toEqual([[null, expect.objectContaining({ kind: "tool" })]]);
+    expect(aligned([], [])).toEqual([]);
+  });
+
+  it("diff two answers word by word", () => {
+    expect(wordDiff("PM10 je 31 dnes", "PM10 je 40 dnes")).toEqual([
+      { word: "PM10", change: "same" },
+      { word: "je", change: "same" },
+      { word: "31", change: "removed" },
+      { word: "40", change: "added" },
+      { word: "dnes", change: "same" },
+    ]);
+    expect(wordDiff("", "")).toEqual([]);
+    // Past the word cap both answers show as wholly changed instead of an O(n·m) table.
+    const long = Array.from({ length: 2500 }, (_, i) => `w${i}`).join(" ");
+    const diff = wordDiff(long, long);
+    expect(diff.filter((w) => w.change === "removed")).toHaveLength(2500);
+    expect(diff.filter((w) => w.change === "added")).toHaveLength(2500);
+  });
+
+  it("total a turn's steps, calls, time, cost and cached share", () => {
+    const turn = OTHER.turns[0];
+    expect(totals(turn)).toEqual({ steps: 3, tools: 1, models: 1, totalMs: 3100, costUsd: 0.006, cachedShare: 0.8 });
+    expect(totals({ steps: [], totalMs: 0, costUsd: 0 }).cachedShare).toBeNull();
+  });
+
+  it("name the visuals' spec changes: another chart type, a missing unit, a different point count", () => {
+    const a = [step("visual", { name: "chart", input: JSON.stringify({ mark: { type: "line" }, units: { pm10: "µg/m³" } }), rows: 12 })];
+    const b = [step("visual", { name: "chart", input: JSON.stringify({ mark: "bar" }), rows: 7 }), step("visual", { name: "map" })];
+    expect(visualChanges(a, b)).toEqual([
+      "mark: line → bar",
+      "units: {\"pm10\":\"µg/m³\"} → –",
+      "rows: 12 → 7",
+      "– → map",
+    ]);
+    // A spec cut at 64 KB no longer parses: the kind and rows still compare.
+    expect(visualChanges([step("visual", { name: "table", input: "{\"cut", rows: 3 })], [step("visual", { name: "table", rows: 3 })]))
+      .toEqual([]);
+  });
+
+  it("show bidi and zero-width characters as markers and cap long text", () => {
+    expect(visible("evil\u202Etxt\u200B.exe\uFEFF")).toBe("evil⟦U+202E⟧txt⟦U+200B⟧.exe⟦U+FEFF⟧");
+    expect(visible("Banská Bystrica")).toBe("Banská Bystrica");
+    expect(capped("abc", 2)).toEqual({ text: "ab", more: true });
+    expect(capped("ab", 2)).toEqual({ text: "ab", more: false });
+    const huge = capped("x".repeat(10 * 1024 * 1024));
+    expect(huge.more).toBe(true);
+    expect(huge.text).toHaveLength(64 * 1024);
+  });
+});
+
 describe("Asistent → Konverzácie", () => {
   it("a member without approve reads nothing and the assistant is never asked", async () => {
     const calls = renderAs(["read"]);
@@ -148,5 +258,45 @@ describe("Asistent → Konverzácie", () => {
     await waitFor(() => {
       expect(calls.some((c) => c.method === "DELETE" && c.url.pathname.endsWith(`/conversations/${ONE}`))).toBe(true);
     });
+  });
+
+  it("lists the same question's turns and compares two side by side, every stored text inert", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    const calls = renderAs(["read", "approve"]);
+    await user.click(await screen.findByRole("button", { name: "Aké je PM10?" }));
+    await user.click(await screen.findByRole("button", { name: i18n.t("conversations.same") }));
+    const same = await screen.findByRole("list", { name: i18n.t("conversations.same") });
+    // The turn itself is not offered against itself.
+    expect(within(same).getAllByRole("button", { name: i18n.t("conversations.compare") })).toHaveLength(1);
+    expect(calls.some((c) => c.url.pathname.endsWith(`/conversations/${ONE}/turns/1/same`))).toBe(true);
+
+    await user.click(within(same).getByRole("button", { name: i18n.t("conversations.compare") }));
+    const view = await screen.findByRole("region", { name: i18n.t("conversations.compareTitle") });
+    expect(await within(view).findByTestId("compare-right-totals")).toHaveTextContent("3 steps · 1 tools · 1 model calls · 3.1 s · $0.0060 · cached 80 %");
+    expect(within(view).getByTestId("compare-left-totals")).toHaveTextContent("3 steps · 1 tools · 2 model calls · 2.4 s · $0.0046 · cached 0 %");
+    expect(within(view).getByRole("list", { name: i18n.t("conversations.changes") })).toHaveTextContent("– → chart");
+    const diff = within(view).getByTestId("answer-diff");
+    expect(diff.querySelector("del")).toHaveTextContent("31");
+    expect(diff.querySelector("ins")).toHaveTextContent("40");
+
+    // Hostile stored text stays text: no element, no handler, no link, the bidi override marked.
+    for (const node of [view, ...Array.from(view.querySelectorAll("details"))]) {
+      if (node instanceof HTMLDetailsElement) node.open = true;
+    }
+    expect(view.querySelector("script, img, svg[onload], a[href^='javascript']")).toBeNull();
+    expect(view.textContent).toContain("<script>window.pwned = 1</script>");
+    expect(view.textContent).toContain("evil⟦U+202E⟧txt.exe");
+    expect(view.textContent).not.toContain("\u202E");
+    expect((window as unknown as { pwned?: number }).pwned).toBeUndefined();
+    // A 70 KB result shows its first 64 KB until "Zobraziť viac".
+    const more = within(view).getByRole("button", { name: i18n.t("conversations.showMore", { size: 70 }) });
+    await user.click(more);
+    expect(within(view).queryByRole("button", { name: i18n.t("conversations.showMore", { size: 70 }) })).toBeNull();
+
+    await user.click(within(view).getByRole("button", { name: i18n.t("conversations.copyPair") }));
+    const pair = JSON.parse((writeText.mock.calls[0] as unknown as [string])[0]) as { question: string }[];
+    expect(pair.map((turn) => turn.question)).toEqual(["Aké je PM10?", "Aké je PM10?"]);
   });
 });

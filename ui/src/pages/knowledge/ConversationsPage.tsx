@@ -26,13 +26,20 @@ import {
 import { reasonOf } from "./KnowledgePage";
 import { timeText } from "./knowledge";
 import {
+  aligned,
+  capped,
   conversationKeys,
   eraseConversation,
   evalCase,
   getConversation,
   listConversations,
   msText,
+  sameQuestion,
+  totals,
   usdText,
+  visible,
+  visualChanges,
+  wordDiff,
 } from "./conversations";
 import type { ConversationFilter, ConversationStep, ConversationTurn } from "./conversations";
 
@@ -146,8 +153,8 @@ export function ConversationsPage({ project }: { project: string }): JSX.Element
         <Table caption={t("conversations.title")}>
           <TableHead>
             <TableRow>
-              <TableHeaderCell>{t("conversations.column.lastAt")}</TableHeaderCell>
               <TableHeaderCell>{t("conversations.column.question")}</TableHeaderCell>
+              <TableHeaderCell>{t("conversations.column.lastAt")}</TableHeaderCell>
               <TableHeaderCell>{t("conversations.column.turns")}</TableHeaderCell>
               <TableHeaderCell>{t("conversations.column.route")}</TableHeaderCell>
               <TableHeaderCell>{t("conversations.column.slowest")}</TableHeaderCell>
@@ -158,13 +165,14 @@ export function ConversationsPage({ project }: { project: string }): JSX.Element
           <TableBody>
             {items.map((row) => (
               <TableRow key={row.id}>
-                <TableCell>{timeText(row.lastAt, i18n.language)}</TableCell>
+                {/* The question first: on a phone the first column stays in view while the rest scrolls. */}
                 <TableCell>
                   <Button variant="ghost" size="sm" className="h-auto text-left underline" onClick={() => setOpen(row.id)}>
-                    {row.firstQuestion}
+                    {visible(row.firstQuestion)}
                   </Button>
                   <div className="text-caption text-fg-muted">{row.deployment}</div>
                 </TableCell>
+                <TableCell>{timeText(row.lastAt, i18n.language)}</TableCell>
                 <TableCell>{row.turns}</TableCell>
                 <TableCell>{row.routes.join(", ")}</TableCell>
                 <TableCell>{msText(row.totalMs)}</TableCell>
@@ -212,6 +220,8 @@ function ConversationDetail({
   const queryClient = useQueryClient();
   const [confirm, setConfirm] = useState(false);
   const [copied, setCopied] = useState<number | null>(null);
+  const [same, setSame] = useState<number | null>(null);
+  const [compare, setCompare] = useState<{ turn: ConversationTurn; other: { conversation: string; turn: number } } | null>(null);
   const one = useQuery({ queryKey: conversationKeys.one(project, id), queryFn: () => getConversation(project, id) });
   const erase = useMutation({
     mutationFn: () => eraseConversation(project, id),
@@ -254,10 +264,24 @@ function ConversationDetail({
               <Button size="sm" onClick={() => copy(turn)}>
                 {t("conversations.copyAsTest")}
               </Button>
+              <Button size="sm" variant="secondary" onClick={() => setSame(same === turn.turn ? null : turn.turn)}>
+                {t("conversations.same")}
+              </Button>
             </div>
-            <p className="font-semibold">{turn.question}</p>
-            <p className="whitespace-pre-wrap">{turn.answer}</p>
-            {turn.error ? <Alert tone="danger">{turn.error.detail ?? turn.error.title}</Alert> : null}
+            <p className="font-semibold">{visible(turn.question)}</p>
+            <p className="whitespace-pre-wrap">{visible(turn.answer)}</p>
+            {turn.error ? <Alert tone="danger">{visible(turn.error.detail ?? turn.error.title ?? "")}</Alert> : null}
+            {same === turn.turn ? (
+              <SameList
+                project={project}
+                id={id}
+                turn={turn.turn}
+                onCompare={(other) => setCompare({ turn, other })}
+              />
+            ) : null}
+            {compare?.turn.turn === turn.turn ? (
+              <CompareView project={project} left={turn} other={compare.other} onClose={() => setCompare(null)} />
+            ) : null}
             <Steps steps={turn.steps} />
           </li>
         ))}
@@ -292,15 +316,214 @@ function Steps({ steps }: { steps: ConversationStep[] }): JSX.Element | null {
               <strong>{t(`conversations.kind.${step.kind}`)}</strong> {step.model ?? step.name}
               {step.endpoint ? ` · ${step.endpoint}` : ""} · {msText(step.durationMs)}
               {step.tokensIn !== null ? ` · ${step.tokensIn}/${step.tokensOut ?? 0} tok` : ""}
+              {step.cachedTokens ? ` · ${t("conversations.cached", { count: step.cachedTokens })}` : ""}
+              {step.rows !== null && step.rows !== undefined ? ` · ${t("conversations.rows", { count: step.rows })}` : ""}
               {step.kind === "model" ? ` · ${step.costUsd === null ? t("conversations.unknownPrice") : usdText(step.costUsd)}` : ""}
               {step.status === "failed" ? <Badge tone="danger">{t("conversations.unfinished")}</Badge> : null}
             </summary>
-            {step.input ? <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap bg-surface-subtle p-2">{step.input}</pre> : null}
-            {step.output ? <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap bg-surface-subtle p-2">{step.output}</pre> : null}
-            {step.error ? <p className="text-danger">{step.error}</p> : null}
+            <StepBody step={step} />
           </details>
         </li>
       ))}
     </ol>
+  );
+}
+
+/** A step's stored text: arguments, result, reasoning and error, all as inert text. */
+function StepBody({ step }: { step: ConversationStep }): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <>
+      {step.input ? <StoredText text={step.input} /> : null}
+      {step.output ? <StoredText text={step.output} /> : null}
+      {step.reasoning ? (
+        <>
+          <p className="mt-1 font-semibold">{t("conversations.reasoning")}</p>
+          <StoredText text={step.reasoning} />
+        </>
+      ) : null}
+      {step.error ? <p className="text-danger">{visible(step.error)}</p> : null}
+    </>
+  );
+}
+
+/**
+ * Stored text as React text, never markup: bidi and zero-width characters shown as markers, and
+ * the first 64 KB until "Zobraziť viac" (T-4681).
+ */
+function StoredText({ text }: { text: string }): JSX.Element {
+  const { t } = useTranslation();
+  const [all, setAll] = useState(false);
+  const shown = capped(text, all ? Infinity : undefined);
+  return (
+    <>
+      <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap bg-surface-subtle p-2">{visible(shown.text)}</pre>
+      {shown.more ? (
+        <Button size="sm" variant="ghost" onClick={() => setAll(true)}>
+          {t("conversations.showMore", { size: Math.round(text.length / 1024) })}
+        </Button>
+      ) : null}
+    </>
+  );
+}
+
+/** "Rovnaká otázka": every stored turn whose question reads the same, newest first (T-4681). */
+function SameList({
+  project,
+  id,
+  turn,
+  onCompare,
+}: {
+  project: string;
+  id: string;
+  turn: number;
+  onCompare: (other: { conversation: string; turn: number }) => void;
+}): JSX.Element {
+  const { t, i18n } = useTranslation();
+  const same = useQuery({ queryKey: conversationKeys.same(project, id, turn), queryFn: () => sameQuestion(project, id, turn) });
+  if (same.isError) return <Alert tone="danger">{reasonOf(same.error, t("app.error.generic"))}</Alert>;
+  if (same.isLoading) return <p role="status">{t("app.loading")}</p>;
+  const others = (same.data ?? []).filter((row) => row.conversation !== id || row.turn !== turn);
+  if (others.length === 0) return <p className="text-caption text-fg-muted">{t("conversations.sameEmpty")}</p>;
+  return (
+    <ul aria-label={t("conversations.same")} className="space-y-1 text-caption">
+      {others.map((row) => (
+        <li key={`${row.conversation}/${row.turn}`} className="flex flex-wrap items-center gap-2">
+          <span>{timeText(row.at, i18n.language)}</span>
+          <span>{row.deployment}</span>
+          <span>{msText(row.totalMs)}</span>
+          <span>{usdText(row.costUsd)}</span>
+          <span>{t("conversations.stepCount", { count: row.steps })}</span>
+          <Button size="sm" onClick={() => onCompare({ conversation: row.conversation, turn: row.turn })}>
+            {t("conversations.compare")}
+          </Button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Two turns side by side (T-4681): the totals, the visuals' spec changes, the steps aligned by
+ * kind with their arguments, results and reasoning, and a word diff of the answers.
+ */
+function CompareView({
+  project,
+  left,
+  other,
+  onClose,
+}: {
+  project: string;
+  left: ConversationTurn;
+  other: { conversation: string; turn: number };
+  onClose: () => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
+  const loaded = useQuery({
+    queryKey: conversationKeys.one(project, other.conversation),
+    queryFn: () => getConversation(project, other.conversation),
+  });
+  const right = loaded.data?.turns.find((turn) => turn.turn === other.turn);
+  const copy = (pair: [ConversationTurn, ConversationTurn]) => {
+    void navigator.clipboard
+      .writeText(JSON.stringify(pair, null, 2))
+      .then(() => setCopied(true))
+      .catch(() => setCopied(false));
+  };
+  return (
+    <section aria-label={t("conversations.compareTitle")} className="space-y-3 rounded border border-border p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-semibold">{t("conversations.compareTitle")}</h3>
+        <div className="flex gap-2">
+          {right ? (
+            <Button size="sm" onClick={() => copy([left, right])}>
+              {t("conversations.copyPair")}
+            </Button>
+          ) : null}
+          <Button size="sm" variant="ghost" onClick={onClose}>
+            {t("conversations.compareClose")}
+          </Button>
+        </div>
+      </div>
+      {copied ? <Alert role="status" tone="success">{t("conversations.copied")}</Alert> : null}
+      {loaded.isError ? <Alert tone="danger">{reasonOf(loaded.error, t("app.error.generic"))}</Alert> : null}
+      {loaded.isLoading ? <p role="status">{t("app.loading")}</p> : null}
+      {loaded.isSuccess && !right ? <Alert tone="info">{t("conversations.sameEmpty")}</Alert> : null}
+      {right ? <Compared left={left} right={right} /> : null}
+    </section>
+  );
+}
+
+function Compared({ left, right }: { left: ConversationTurn; right: ConversationTurn }): JSX.Element {
+  const { t } = useTranslation();
+  const changes = visualChanges(left.steps, right.steps);
+  const line = (turn: ConversationTurn) => {
+    const sum = totals(turn);
+    return t("conversations.totals", {
+      steps: sum.steps,
+      tools: sum.tools,
+      models: sum.models,
+      time: msText(sum.totalMs),
+      cost: usdText(sum.costUsd),
+      cached: sum.cachedShare === null ? "–" : `${Math.round(sum.cachedShare * 100)} %`,
+    });
+  };
+  return (
+    <>
+      <div className="grid gap-2 text-caption md:grid-cols-2">
+        <p data-testid="compare-left-totals">{line(left)}</p>
+        <p data-testid="compare-right-totals">{line(right)}</p>
+      </div>
+      <div className="text-caption">
+        <p className="font-semibold">{t("conversations.changes")}</p>
+        {changes.length === 0 ? (
+          <p className="text-fg-muted">{t("conversations.noChanges")}</p>
+        ) : (
+          <ul aria-label={t("conversations.changes")} className="list-disc pl-5">
+            {changes.map((change, i) => (
+              <li key={i}>{visible(change)}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <ol aria-label={t("conversations.steps")} className="space-y-1 text-caption">
+        {aligned(left.steps, right.steps).map(([a, b], i) => (
+          <li key={i} className="grid gap-2 border-l border-border pl-3 md:grid-cols-2">
+            {[a, b].map((step, side) => (
+              <div key={side} data-side={side === 0 ? "left" : "right"}>
+                {step ? (
+                  <details>
+                    <summary className="cursor-pointer">
+                      <strong>{t(`conversations.kind.${step.kind}`)}</strong> {visible(step.model ?? step.name)}
+                      {step.endpoint ? ` · ${visible(step.endpoint)}` : ""} · {msText(step.durationMs)}
+                      {step.tokensIn !== null ? ` · ${step.tokensIn}/${step.tokensOut ?? 0} tok` : ""}
+                      {step.kind === "model" ? ` · ${usdText(step.costUsd)}` : ""}
+                    </summary>
+                    <StepBody step={step} />
+                  </details>
+                ) : (
+                  <span className="text-fg-muted">–</span>
+                )}
+              </div>
+            ))}
+          </li>
+        ))}
+      </ol>
+      <div>
+        <p className="text-caption font-semibold">{t("conversations.answers")}</p>
+        <p className="whitespace-pre-wrap" data-testid="answer-diff">
+          {wordDiff(left.answer, right.answer).map((w, i) =>
+            w.change === "same" ? (
+              <span key={i}>{visible(w.word)} </span>
+            ) : w.change === "removed" ? (
+              <del key={i} className="text-danger">{visible(w.word)} </del>
+            ) : (
+              <ins key={i} className="text-success">{visible(w.word)} </ins>
+            ),
+          )}
+        </p>
+      </div>
+    </>
   );
 }

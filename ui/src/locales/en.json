@@ -7767,7 +7767,7 @@
   },
   "conversations": {
     "title": "Conversations",
-    "intro": "What visitors asked the project's assistants and how each answer was made: the route, the searches, the tool calls and the model calls with their time and cost. Personal data is removed before a turn is stored; every read is recorded.",
+    "intro": "What visitors asked the project's assistants and how each answer was made: the route, the searches, the tool calls and the model calls with their time, cost and the model's reasoning. Conversations are kept verbatim for 90 days, only passwords, tokens and card numbers are masked before a turn is stored; every read is recorded.",
     "link": "Conversations",
     "notAllowed": "Only the assistant's administrator, who approves its deployments, reads the stored conversations. Ask them for that right.",
     "empty": "No stored conversations",
@@ -7823,8 +7823,25 @@
       "search": "Search",
       "tool": "Tool",
       "model": "Model",
-      "answer": "Answer"
+      "answer": "Answer",
+      "visual": "Chart, table, map",
+      "untracked": "Untracked"
     },
-    "unknownPrice": "unknown"
+    "unknownPrice": "unknown",
+    "same": "Same question",
+    "sameEmpty": "No other stored answer to this question.",
+    "stepCount": "{count, plural, one {# step} other {# steps}}",
+    "compare": "Compare",
+    "compareTitle": "Two answers compared",
+    "compareClose": "Close the comparison",
+    "copyPair": "Copy the pair as JSON",
+    "showMore": "Show more ({size} kB)",
+    "reasoning": "The model's reasoning",
+    "cached": "{count} cached",
+    "rows": "{count} rows",
+    "changes": "Changes in charts, tables and maps",
+    "noChanges": "No change",
+    "answers": "Answer diff",
+    "totals": "{steps} steps · {tools} tools · {models} model calls · {time} · {cost} · cached {cached}"
   }
 }

@@ -7767,7 +7767,7 @@
   },
   "conversations": {
     "title": "Konverzace",
-    "intro": "Na co se návštěvníci ptali asistentů projektu a jak vznikla každá odpověď: cesta, vyhledávání, volání nástrojů a modelu s časem a cenou. Osobní údaje se před uložením smažou; každé čtení se zaznamená.",
+    "intro": "Na co se návštěvníci ptali asistentů projektu a jak vznikla každá odpověď: cesta, vyhledávání, volání nástrojů a modelu s časem, cenou a úvahou modelu. Konverzace se ukládají doslovně 90 dní, jen hesla, tokeny a čísla karet se před uložením zamaskují; každé čtení se zaznamená.",
     "link": "Konverzace",
     "notAllowed": "Uložené konverzace čte jen správce asistenta, který schvaluje jeho nasazení. Požádejte ho o toto právo.",
     "empty": "Žádné uložené konverzace",
@@ -7823,8 +7823,25 @@
       "search": "Vyhledávání",
       "tool": "Nástroj",
       "model": "Model",
-      "answer": "Odpověď"
+      "answer": "Odpověď",
+      "visual": "Graf, tabulka, mapa",
+      "untracked": "Neměřeno"
     },
-    "unknownPrice": "neznámá"
+    "unknownPrice": "neznámá",
+    "same": "Stejná otázka",
+    "sameEmpty": "Jiná uložená odpověď na tuto otázku není.",
+    "stepCount": "{count, plural, one {# krok} few {# kroky} other {# kroků}}",
+    "compare": "Porovnat",
+    "compareTitle": "Porovnání dvou odpovědí",
+    "compareClose": "Zavřít porovnání",
+    "copyPair": "Kopírovat pár jako JSON",
+    "showMore": "Zobrazit více ({size} kB)",
+    "reasoning": "Úvaha modelu",
+    "cached": "{count} z cache",
+    "rows": "{count} řádků",
+    "changes": "Změny v grafech, tabulkách a mapách",
+    "noChanges": "Beze změny",
+    "answers": "Rozdíl odpovědí",
+    "totals": "{steps} kroků · {tools} nástrojů · {models} volání modelu · {time} · {cost} · z cache {cached}"
   }
 }
