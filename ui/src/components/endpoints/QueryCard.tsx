@@ -50,7 +50,8 @@ export function QueryCard({
           {t("endpoints.card.reading")}
         </p>
       ) : card.isError ? (
-        <p role="alert" className="text-caption text-danger">
+        // Not an alert: the page works without its card, and its own errors keep the one alert.
+        <p role="status" className="text-caption text-fg-muted">
           {t("endpoints.card.failed")}
         </p>
       ) : card.data.state === "refused" ? (

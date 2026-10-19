@@ -160,8 +160,10 @@ describe("QueryCard", () => {
   it("says the card could not be read when the gateway fails", async () => {
     stubGateway(() => new Response("", { status: 502 }));
     renderCard();
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      en.endpoints.card.failed,
+    expect(await screen.findByText(en.endpoints.card.failed)).toHaveAttribute(
+      "role",
+      "status",
     );
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
