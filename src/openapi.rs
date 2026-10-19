@@ -34,7 +34,7 @@ use crate::api::drafts::{DraftList, PutDraftRequest};
 use crate::api::dry_run::DryRunResult;
 use crate::api::export::{Revision, RevisionList};
 use crate::api::federation::{Edge, EdgeKind, FederationGraph, Node, NodeHealth, RegistrationCard};
-use crate::api::health::{Health, Readiness};
+use crate::api::health::{Build, Health, Readiness, Version};
 use crate::api::ops::{OperationAnnotations, OperationSummary};
 use crate::api::pipelines::PipelineMetrics;
 use crate::api::preferences::Preferences;
@@ -69,6 +69,7 @@ use crate::tools::model_tools::{
         crate::auth::oidc::backchannel_logout,
         crate::api::health::health,
         crate::api::health::ready,
+        crate::api::health::version,
         crate::api::branding::get_branding,
         crate::api::branding::get_asset,
         crate::auth::oidc::me,
@@ -361,6 +362,8 @@ use crate::tools::model_tools::{
         FailedRequest,
         Health,
         Readiness,
+        Build,
+        Version,
         Effective,
         Grant,
         Affordance,

@@ -3457,6 +3457,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Build of both artifacts
+         * @description The commit and OpenAPI hash of the binary and of the UI bundle it serves, and whether the bundle was built against this API (`match`, `mismatch`, `unknown`). Public (T-2485).
+         */
+        get: operations["version"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/visualization-templates/{name}": {
         parameters: {
             query?: never;
@@ -4042,6 +4062,13 @@ export interface components {
         /** @description The organization's brokers. */
         Brokers: {
             items: components["schemas"]["Broker"][];
+        };
+        /** @description One deploy artifact: the commit it was built from and the OpenAPI document it speaks (T-2485). */
+        Build: {
+            /** @description Empty when the build named none (a local `cargo run` or `pnpm build`). */
+            commit?: string;
+            /** @description The sha256 of the OpenAPI document, hex; empty when unknown. */
+            openapi?: string;
         };
         /** @description One successful build of an App, as Restore offers it (AP-171). */
         BuildEntry: {
@@ -6727,6 +6754,13 @@ export interface components {
             equal: boolean;
             /** @description The path the bundle index gave the file. */
             path: string;
+        };
+        /** @description Both halves of the Portal and whether the UI was built against this binary's API (T-2485). */
+        Version: {
+            /** @description `match`, `mismatch`, or `unknown` when the bundle names no hash. */
+            contract: string;
+            portal: components["schemas"]["Build"];
+            ui?: null | components["schemas"]["Build"];
         };
         /** @description How a view looks at its type (API/01 §30). */
         ViewConfig: {
@@ -18688,6 +18722,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    version: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Both builds */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Version"];
                 };
             };
         };

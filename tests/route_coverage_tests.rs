@@ -240,6 +240,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("PATCH", "/projects/{project}/{plural}/{name}", "jc_resource_propose"),
 ("DELETE", "/projects/{project}/{plural}/{name}", "jc_resource_delete"),
 ("GET", "/ready", "readiness"),
+("GET", "/version", "the build of the binary and of the UI bundle, nothing of a project (T-2485)"),
 ("POST", "/tools/generate", "the model tools the Portal proxies; jc_model_propose is the project's door"),
 ("POST", "/tools/import-sdm", "the model tools the Portal proxies; jc_model_propose is the project's door"),
 ("POST", "/tools/infer-schema", "the model tools the Portal proxies; jc_model_infer is the project's door"),
