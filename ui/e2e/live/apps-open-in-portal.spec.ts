@@ -10,11 +10,12 @@
  * Every wait is on the thing the step needs, never on the network going idle (T-2452).
  */
 import { expect, test } from "@playwright/test";
-import type { FrameLocator, Locator } from "@playwright/test";
+import type { FrameLocator, Locator, Page } from "@playwright/test";
 import { guideShot, helpClipStart } from "./guide";
 import { STEWARD, signIn } from "./portal";
 
 const PROJECT = "helsinki";
+const menu = (page: Page): Locator => page.getByRole("banner").getByRole("button", { name: "Menu" });
 
 test.setTimeout(600_000);
 
@@ -40,7 +41,8 @@ const APPS: { name: string; data: (frame: FrameLocator) => Locator }[] = [
 
 for (const app of APPS) {
   test(`${app.name} opens inside the Portal with its data, and in a window of its own`, async ({ browser }) => {
-    const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/apps/${app.name}/open?lang=en`);
+    // The App page folds the project navigation away (T-2908): its landmark is the header's Menu.
+    const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/apps/${app.name}/open?lang=en`, menu);
     try {
       const page = steward.page;
       const clip = app === APPS[0] ? helpClipStart(page, "apps") : undefined;
@@ -67,8 +69,9 @@ for (const app of APPS) {
       const popup = page.waitForEvent("popup");
       await page.getByRole("link", { name: /Open in new window/ }).click();
       const own = await popup;
-      // The realm session makes the App's own login two redirects before the App's address.
-      await own.waitForURL((url) => url.pathname === `/apps/${app.name}/`, { timeout: 60_000 });
+      // The realm session makes the App's own login two redirects before the App's address: the
+      // frame's, on the Apps origin when it has one (T-2840).
+      await own.waitForURL((url) => url.origin === src.origin && url.pathname === src.pathname, { timeout: 60_000 });
       await own.close();
     } finally {
       await steward.context.close();

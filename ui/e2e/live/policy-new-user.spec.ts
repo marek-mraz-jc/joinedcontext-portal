@@ -8,6 +8,7 @@
 import { expect, test } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
 import { guideShot, helpClipStart } from "./guide";
+import { proposeFrom } from "./kindJourney";
 import { APPROVER, STEWARD, approve, proposedChange, removeCompletely, signIn } from "./portal";
 
 test.setTimeout(300_000);
@@ -39,7 +40,7 @@ test("a new user fills the Policy form from what it offers and proposes it", asy
   expect(firstSpace, "the form offers a space to pick").toBeTruthy();
   await space.selectOption(firstSpace ?? "");
   // The grantee: a group, offered by name from the groups that exist (T-3217).
-  await form.getByLabel(/^Kind of grantee/).selectOption("group");
+  await form.getByLabel(/^Kind of grantee/).selectOption({ label: "A group" });
   const grantee = form.getByLabel(/^Grantee/);
   await expect(grantee).toHaveAttribute("list", /.+/, { timeout: 30_000 });
   const offered = await grantee.evaluate((input) => {
@@ -52,15 +53,18 @@ test("a new user fills the Policy form from what it offers and proposes it", asy
   await form.getByRole("checkbox", { name: "Read", exact: true }).check();
   // The validity with the date picker: it ended long ago, so the grant never reads anything
   // while it exists on dev for the minute this journey keeps it.
-  for (const folded of await form.locator("details:not([open]) > summary").all()) {
-    await folded.click();
+  // Asked again after each click: opening one fold can reveal or remove others.
+  const folded = form.locator("details:not([open]) > summary");
+  for (let opened = 0; opened < 20 && (await folded.count()) > 0; opened += 1) {
+    await folded.first().click();
   }
   await form.getByLabel(/^Valid to/).fill("2020-01-01T00:00");
   // T-3276: what the form grants, in words, as it is filled.
   await expect(form.getByTestId("policy-sentence")).toContainText(`Members of the group ${offered[0]} may read`);
   await clip.end();
   await guideShot(page, "policy-1-form-in-words");
-  await form.getByRole("button", { name: /Propose/ }).click();
+  // A policy is proposed only after a fresh green check.
+  await proposeFrom(form);
   change = await proposedChange(page);
   expect(change).toMatch(/\S/);
   await guideShot(page, "policy-2-proposed");
@@ -71,7 +75,7 @@ test("a second person approves the change", async ({ browser }) => {
   const approver = await signIn(browser, APPROVER, `/projects/${PROJECT}/approvals?lang=en`);
   try {
     await expect(approver.page.getByRole("heading", { level: 1, name: "Approvals" })).toBeVisible({ timeout: 60_000 });
-    await approve(approver.page, PROJECT, change);
+    await approve(approver.page, PROJECT, change, NAME);
   } finally {
     await approver.context.close();
   }
@@ -93,9 +97,11 @@ test("the change's page shows it merged with the policy it made, and the policy 
   await expect(row).toBeVisible({ timeout: 60_000 });
   await expect(row.getByText("Merged")).toBeVisible();
   await expect(row.getByText(APPROVER.user)).toBeVisible();
-  await guideShot(page, "approval-3-history");
-  const stored = await page.request.get(`/api/v1/projects/${PROJECT}/policies/${NAME}`);
-  expect(stored.status()).toBe(200);
+  await guideShot(page, "approval-3-history", { reloads: true });
+  // A merged change reaches the store with the reconciler's next pass, not with the merge.
+  const read = () => page.request.get(`/api/v1/projects/${PROJECT}/policies/${NAME}`);
+  await expect.poll(async () => (await read()).status(), { timeout: 120_000, intervals: [3_000] }).toBe(200);
+  const stored = await read();
   const spec = ((await stored.json()) as { spec?: { validity?: { to?: string } } }).spec;
   expect(spec?.validity?.to ?? "", "the picked date is stored as a UTC instant").toMatch(/^2020-01-01T|^2019-12-31T/);
 });

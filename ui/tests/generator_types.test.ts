@@ -21,6 +21,16 @@ describe("the types an app can read", () => {
     ]);
   });
 
+  it("reads a draft-07 document's `definitions` as the gateway serves an endpoint's view (T-3270)", () => {
+    const schema = {
+      definitions: {
+        Place: { abstract: true, properties: { location: {} } },
+        Article: { properties: { headline: {}, datePublished: {} } },
+      },
+    };
+    expect(concreteTypes(schema)).toEqual([{ name: "Article", attributes: ["datePublished", "headline"] }]);
+  });
+
   it("is empty for a document that is not a schema", () => {
     expect(concreteTypes(undefined)).toEqual([]);
   });

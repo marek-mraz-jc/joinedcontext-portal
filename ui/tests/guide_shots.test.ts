@@ -4,18 +4,22 @@
  * masks password fields, and leaves the page in English at the size it had.
  */
 // covers: e2e/live/guide.ts, scripts/help-clips.mjs (T-3308: the help clips' marks).
-import { existsSync, mkdtempSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { Page } from "@playwright/test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GUIDE_WIDTH, clipRecording, guideShot, guideShotPath, guideShotsOn, helpClipStart, recordingSince } from "../e2e/live/guide";
 import { HELPED } from "../src/pageHelp";
 
-/** A page that records what the helper does to it; `lang` is the document's language. */
-function fakePage(lang = "en", dialogOpen = false) {
+/**
+ * A page that records what the helper does to it; `lang` is the document's language, `offered`
+ * the languages its header menu lists.
+ */
+function fakePage(lang = "en", dialogOpen = false, offered = ["English", "Slovenčina"]) {
   const calls: string[] = [];
   let current = lang;
+  let address = "https://portal.example/projects/p/ckan?lang=en";
   let size = { width: 1600, height: 1000 };
   const masks: unknown[] = [];
   const page = {
@@ -25,7 +29,15 @@ function fakePage(lang = "en", dialogOpen = false) {
       size = next;
       calls.push(`size ${next.width}`);
     },
+    url: () => address,
+    goto: async (url: string) => {
+      address = url;
+      current = new URL(url).searchParams.get("lang") ?? current;
+      calls.push(`goto ${new URL(url).search}`);
+    },
+    keyboard: { press: async (key: string) => calls.push(`press ${key}`) },
     getByRole: (role: string, { name }: { name: string }) => ({
+      count: async () => (role === "menuitem" && !offered.includes(name) ? 0 : 1),
       click: async () => {
         calls.push(`${role} ${name}`);
         if (role === "menuitem") current = name === "Slovenčina" ? "sk" : "en";
@@ -37,6 +49,8 @@ function fakePage(lang = "en", dialogOpen = false) {
     screenshot: async ({ path, mask }: { path: string; mask: unknown[] }) => {
       calls.push(`shot ${path.split("/").slice(-2).join("/")}`);
       masks.push(...mask);
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, current);
     },
   };
   return { page: page as unknown as Page, calls, masks, size: () => size };
@@ -65,7 +79,7 @@ describe("guide shots (T-3270)", () => {
     vi.stubEnv("GUIDE_SHOTS", "1");
     const root = mkdtempSync(join(tmpdir(), "guide-"));
     const { page, calls, masks, size } = fakePage();
-    await guideShot(page, "space-1", root);
+    await guideShot(page, "space-1", { root });
     expect(calls).toEqual([
       `size ${GUIDE_WIDTH}`,
       "shot en/space-1.png",
@@ -81,6 +95,35 @@ describe("guide shots (T-3270)", () => {
     expect(masks.map(String)).toEqual(["input[type=password]", "input[type=password]"]);
     expect(size()).toEqual({ width: 1600, height: 1000 });
     expect(existsSync(join(root, "en")) && existsSync(join(root, "sk"))).toBe(true);
+  });
+
+  it("reach Slovak by a reload when the menu does not offer it and the page survives one", async () => {
+    vi.stubEnv("GUIDE_SHOTS", "1");
+    const root = mkdtempSync(join(tmpdir(), "guide-"));
+    const { page, calls } = fakePage("en", false, ["English"]);
+    await guideShot(page, "ckan-1", { root, reloads: true });
+    expect(calls).toEqual([
+      `size ${GUIDE_WIDTH}`,
+      "shot en/ckan-1.png",
+      "button Language",
+      "press Escape",
+      "goto ?lang=sk",
+      "wait sk",
+      "shot sk/ckan-1.png",
+      "goto ?lang=en",
+      "wait en",
+      "size 1600",
+    ]);
+    expect(readFileSync(join(root, "sk", "ckan-1.png"), "utf8")).toBe("sk");
+  });
+
+  it("give the Slovak guide the English shot of a form a reload would empty", async () => {
+    vi.stubEnv("GUIDE_SHOTS", "1");
+    const root = mkdtempSync(join(tmpdir(), "guide-"));
+    const { page, calls } = fakePage("en", false, ["English"]);
+    await guideShot(page, "space-1", { root });
+    expect(calls).toEqual([`size ${GUIDE_WIDTH}`, "shot en/space-1.png", "button Language", "press Escape", "size 1600"]);
+    expect(readFileSync(join(root, "sk", "space-1.png"), "utf8")).toBe("en");
   });
 
   it("refuse a page with a dialog open, whose header the language menu cannot reach", async () => {

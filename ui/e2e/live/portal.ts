@@ -90,7 +90,12 @@ export const PROBE = { user: "demo.probe@hel.fi", password: process.env.PROBE_PA
  * (`#username`, `#password`, `#kc-login`), back to the page asked for. Mirrors
  * joinedcontext-presentation/record/acts/_portal.py so a spec and a recording take one path.
  */
-export async function signIn(browser: Browser, who: { user: string; password: string }, path: string): Promise<{ context: BrowserContext; page: Page }> {
+export async function signIn(
+  browser: Browser,
+  who: { user: string; password: string },
+  path: string,
+  ready: (page: Page) => Locator = portalReady,
+): Promise<{ context: BrowserContext; page: Page }> {
   if (!who.password) {
     throw new Error(
       `no password in the environment for ${who.user} ` +
@@ -101,7 +106,7 @@ export async function signIn(browser: Browser, who: { user: string; password: st
   await withLocalUi(context);
   const page = await context.newPage();
   recordingSince(page);
-  await goSignedIn(page, who, path);
+  await goSignedIn(page, who, path, ready);
   return { context, page };
 }
 
