@@ -8927,7 +8927,7 @@
           {
             "name": "lang",
             "in": "query",
-            "description": "The language of the category labels and titles; `sk`, `en`, `cs`, `hu`, `de`, `fi` or\n`uk`, English otherwise.",
+            "description": "The language of the category labels and titles: `sk`, `en`, `cs`, `hu`, `de`, `fi` or\n`uk`; English for any other.",
             "required": false,
             "schema": {
               "type": [
@@ -9223,7 +9223,7 @@
           {
             "name": "lang",
             "in": "query",
-            "description": "The language of the category labels and titles; `sk`, `en`, `cs`, `hu`, `de`, `fi` or\n`uk`, English otherwise.",
+            "description": "The language of the category labels and titles: `sk`, `en`, `cs`, `hu`, `de`, `fi` or\n`uk`; English for any other.",
             "required": false,
             "schema": {
               "type": [

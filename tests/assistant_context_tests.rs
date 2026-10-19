@@ -279,3 +279,25 @@ fn the_category_labels_are_the_jc_core_table() {
         }
     }
 }
+
+/// AG-124: the context reads the same from the resolver whatever door asks; a language the
+/// labels do not hold answers in English.
+#[test]
+fn an_unknown_language_reads_the_english_labels() {
+    use joinedcontext_portal::api::assistant_context::context_of;
+    let state = state();
+    let spec = serde_json::from_value(deployment(
+        json!({ "select": { "themes": ["TRAN"] }, "scope": { "projects": ["bbsk"] } }),
+    ))
+    .expect("a deployment");
+    let context = context_of(&state.mirror, "bb", &spec, "xx");
+    assert_eq!(
+        context["categories"],
+        json!([{ "code": "TRAN", "label": "Transport" }])
+    );
+    assert_eq!(context["title"], "Transport in Banská Bystrica");
+    assert_eq!(
+        slugs(&context),
+        ["aaaaaaaaaaaaaaaaaaaaaaaaaa", "cccccccccccccccccccccccccc"]
+    );
+}

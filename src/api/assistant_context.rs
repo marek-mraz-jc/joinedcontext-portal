@@ -29,8 +29,8 @@ use crate::store::Mirror;
 #[derive(Debug, Default, Deserialize, IntoParams)]
 #[serde(deny_unknown_fields)]
 pub struct ContextQuery {
-    /// The language of the category labels and titles; `sk`, `en`, `cs`, `hu`, `de`, `fi` or
-    /// `uk`, English otherwise.
+    /// The language of the category labels and titles: `sk`, `en`, `cs`, `hu`, `de`, `fi` or
+    /// `uk`; English for any other.
     pub lang: Option<String>,
     /// `All`: the preview changes nothing (API/01 §dry runs).
     #[serde(rename = "dryRun")]
@@ -52,11 +52,7 @@ fn authorize(state: &AppState, user: &CurrentUser, project: &str) -> Result<(), 
 }
 
 fn language(query: &ContextQuery) -> &str {
-    query
-        .lang
-        .as_deref()
-        .filter(|lang| DataTheme::LABEL_LANGUAGES.contains(lang))
-        .unwrap_or("en")
+    query.lang.as_deref().unwrap_or("en")
 }
 
 #[utoipa::path(
@@ -102,6 +98,16 @@ pub async fn preview_context(
     Json(manifest): Json<ResourceEnvelope>,
 ) -> Result<Json<Value>, ApiError> {
     authorize(&state, &user, &project)?;
+    let spec = previewed(&query, manifest)?;
+    let lang = language(&query);
+    Ok(Json(context_of(&state.mirror, &project, &spec, lang)))
+}
+
+/// The spec of the manifest a preview reads: a dry run of an AssistantDeployment alone.
+fn previewed(
+    query: &ContextQuery,
+    manifest: ResourceEnvelope,
+) -> Result<AssistantDeploymentSpec, ApiError> {
     if query.dry_run.as_deref() != Some("All") {
         return Err(ApiError::BadRequest(
             "the preview is a dry run: send it with dryRun=All".into(),
@@ -113,14 +119,8 @@ pub async fn preview_context(
             manifest.kind
         )));
     }
-    let spec: AssistantDeploymentSpec = serde_json::from_value(manifest.spec)
-        .map_err(|err| ApiError::BadRequest(format!("spec: {err}")))?;
-    Ok(Json(context_of(
-        &state.mirror,
-        &project,
-        &spec,
-        language(&query),
-    )))
+    serde_json::from_value(manifest.spec)
+        .map_err(|err| ApiError::BadRequest(format!("spec: {err}")))
 }
 
 #[utoipa::path(
@@ -148,23 +148,27 @@ pub async fn deployment_context(
     Query(query): Query<ContextQuery>,
 ) -> Result<Json<Value>, ApiError> {
     authorize(&state, &user, &project)?;
+    let spec = saved(&state.mirror, &project, &deployment)?;
+    let lang = language(&query);
+    Ok(Json(context_of(&state.mirror, &project, &spec, lang)))
+}
+
+/// The spec of saved deployment `deployment`; a name that is none is 404.
+fn saved(
+    mirror: &Mirror,
+    project: &str,
+    deployment: &str,
+) -> Result<AssistantDeploymentSpec, ApiError> {
     let not_found = || ApiError::NotFound(format!("deployment '{deployment}' not found"));
-    if !is_dns1123(&deployment) {
+    if !is_dns1123(deployment) {
         return Err(not_found());
     }
-    let saved = state
-        .mirror
-        .get(&project, "AssistantDeployment", &deployment)
+    let saved = mirror
+        .get(project, "AssistantDeployment", deployment)
         .ok_or_else(not_found)?;
-    let spec: AssistantDeploymentSpec = serde_json::from_value(saved.spec).map_err(|err| {
+    serde_json::from_value(saved.spec).map_err(|err| {
         ApiError::Internal(format!("deployment '{deployment}' does not read: {err}"))
-    })?;
-    Ok(Json(context_of(
-        &state.mirror,
-        &project,
-        &spec,
-        language(&query),
-    )))
+    })
 }
 
 /// The classes of the data model of `space` in `project`: the types its Endpoints serve.

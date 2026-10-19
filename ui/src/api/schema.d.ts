@@ -13554,8 +13554,8 @@ export interface operations {
         parameters: {
             query?: {
                 /**
-                 * @description The language of the category labels and titles; `sk`, `en`, `cs`, `hu`, `de`, `fi` or
-                 *     `uk`, English otherwise.
+                 * @description The language of the category labels and titles: `sk`, `en`, `cs`, `hu`, `de`, `fi` or
+                 *     `uk`; English for any other.
                  */
                 lang?: string | null;
                 /** @description `All`: the preview changes nothing (API/01 §dry runs). */
@@ -13779,8 +13779,8 @@ export interface operations {
         parameters: {
             query?: {
                 /**
-                 * @description The language of the category labels and titles; `sk`, `en`, `cs`, `hu`, `de`, `fi` or
-                 *     `uk`, English otherwise.
+                 * @description The language of the category labels and titles: `sk`, `en`, `cs`, `hu`, `de`, `fi` or
+                 *     `uk`; English for any other.
                  */
                 lang?: string | null;
                 /** @description `All`: the preview changes nothing (API/01 §dry runs). */
