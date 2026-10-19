@@ -77,6 +77,9 @@ async fn subject_classes(
             "the model '{model}' names no data subject: a class needs the annotation dataSubjectRef (Architecture/11 §9)"
         )));
     }
+    if let Some(why) = erasure::hashed_refusal(&classes) {
+        return Err(ApiError::Conflict(why));
+    }
     Ok(classes)
 }
 
@@ -182,6 +185,7 @@ fn subject_key(state: &AppState) -> Result<&str, ApiError> {
         (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
         (status = 403, description = "The caller reads the space but does not own it", body = crate::error::ProblemDetails),
         (status = 404, description = "No such space the caller may read", body = crate::error::ProblemDetails),
+        (status = 409, description = "The subject slot is ingested as keyedHash and the Portal does not hold the space's key yet", body = crate::error::ProblemDetails),
         (status = 503, description = "The space or the key is not available", body = crate::error::ProblemDetails),
     )
 )]
@@ -250,6 +254,7 @@ pub(crate) async fn export_subject(
         (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
         (status = 403, description = "The caller reads the space but does not own it", body = crate::error::ProblemDetails),
         (status = 404, description = "No such space the caller may read", body = crate::error::ProblemDetails),
+        (status = 409, description = "The subject slot is ingested as keyedHash and the Portal does not hold the space's key yet", body = crate::error::ProblemDetails),
         (status = 503, description = "No database, space surface or key", body = crate::error::ProblemDetails),
     )
 )]

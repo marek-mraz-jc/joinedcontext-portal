@@ -16369,6 +16369,15 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description The subject slot is ingested as keyedHash and the Portal does not hold the space's key yet */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description No database, space surface or key */
             503: {
                 headers: {
@@ -16902,6 +16911,15 @@ export interface operations {
             };
             /** @description No such space the caller may read */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The subject slot is ingested as keyedHash and the Portal does not hold the space's key yet */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

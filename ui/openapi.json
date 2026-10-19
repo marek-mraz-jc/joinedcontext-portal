@@ -12583,6 +12583,16 @@
               }
             }
           },
+          "409": {
+            "description": "The subject slot is ingested as keyedHash and the Portal does not hold the space's key yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "503": {
             "description": "No database, space surface or key",
             "content": {
@@ -13318,6 +13328,16 @@
           },
           "404": {
             "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The subject slot is ingested as keyedHash and the Portal does not hold the space's key yet",
             "content": {
               "application/json": {
                 "schema": {

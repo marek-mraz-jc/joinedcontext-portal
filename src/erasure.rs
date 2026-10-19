@@ -257,11 +257,14 @@ pub fn subject_refusal(subject: &str) -> Option<String> {
 
 /// A class of the space's model that names its data subject: the slot that holds the subject
 /// (`dataSubjectRef`) and the Attributes to erase, `None` when the whole class is personal.
+/// `hashed` when the subject slot is ingested as `keyedHash` (DM-121): the broker holds the
+/// value's keyed hash, so the subject is found only under the space's key.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubjectClass {
     pub class: String,
     pub slot: String,
     pub attrs: Option<Vec<String>>,
+    pub hashed: bool,
 }
 
 /// The classes of a LinkML model that declare `dataSubjectRef` (Architecture/11 §9), with the
@@ -328,13 +331,36 @@ pub fn subject_classes(linkml: &str) -> Vec<SubjectClass> {
             attrs.dedup();
             Some(attrs)
         };
+        // The subject slot's `ingest`, the class's own word on it first.
+        let hashed = [
+            class.get("slot_usage").and_then(|u| u.get(slot.as_str())),
+            class.get("attributes").and_then(|a| a.get(slot.as_str())),
+            model.get("slots").and_then(|all| all.get(slot.as_str())),
+        ]
+        .into_iter()
+        .flatten()
+        .find_map(|node| annotation(node, "ingest"))
+        .is_some_and(|ingest| ingest.as_str() == Some("keyedHash"));
         out.push(SubjectClass {
             class: name.to_owned(),
             slot,
             attrs,
+            hashed,
         });
     }
     out
+}
+
+/// Why a subject cannot be searched for when a class holds it as a keyed hash: the broker holds
+/// the HMAC under the space's key, which this Portal does not hold yet, so asking for the raw
+/// value would find nothing and end `done` with no Entities, a silent miss. Refused until the
+/// reconciler mounts the key.
+pub fn hashed_refusal(classes: &[SubjectClass]) -> Option<String> {
+    let class = classes.iter().find(|c| c.hashed)?;
+    Some(format!(
+        "the subject slot '{}' of '{}' is ingested as keyedHash and this Portal does not hold the space's key (spec.personalData.keyRef) yet, so it cannot find the subject; nothing was read or erased",
+        class.slot, class.class
+    ))
 }
 
 /// The NGSI-LD `q` that finds the Entities naming `subject` in `slot`.
@@ -858,16 +884,63 @@ classes:
                 SubjectClass {
                     class: "BikeTrip".into(),
                     slot: "rider".into(),
-                    attrs: Some(vec!["phone".into(), "rider".into(), "riderName".into()])
+                    attrs: Some(vec!["phone".into(), "rider".into(), "riderName".into()]),
+                    hashed: false,
                 },
                 SubjectClass {
                     class: "Account".into(),
                     slot: "owner".into(),
-                    attrs: None
+                    attrs: None,
+                    hashed: false,
                 },
             ]
         );
         assert!(subject_classes("not: [yaml").is_empty());
+    }
+
+    #[test]
+    fn a_subject_slot_ingested_as_keyed_hash_is_marked_hashed_where_the_class_says_so() {
+        let linkml = r#"
+slots:
+  rider:
+    annotations: { personalData: true, ingest: keyedHash }
+  owner:
+    annotations: { ingest: keyedHash }
+classes:
+  BikeTrip:
+    annotations: { dataSubjectRef: rider }
+    slots: [rider]
+  Account:
+    annotations: { dataSubjectRef: owner }
+    slots: [owner]
+    slot_usage:
+      owner:
+        annotations: { ingest: { tag: ingest, value: keep } }
+  Card:
+    annotations: { dataSubjectRef: holder }
+    attributes:
+      holder:
+        annotations: { ingest: keyedHash }
+"#;
+        let hashed: Vec<(String, bool)> = subject_classes(linkml)
+            .into_iter()
+            .map(|c| (c.class, c.hashed))
+            .collect();
+        assert_eq!(
+            hashed,
+            [
+                ("BikeTrip".to_owned(), true),
+                ("Account".to_owned(), false),
+                ("Card".to_owned(), true),
+            ]
+        );
+        let classes = subject_classes(linkml);
+        let why = hashed_refusal(&classes).unwrap_or_default();
+        assert!(
+            why.contains("'rider' of 'BikeTrip'") && why.contains("keyedHash"),
+            "{why}"
+        );
+        assert_eq!(hashed_refusal(&classes[1..2]), None);
         assert!(subject_classes("classes: {}").is_empty());
     }
 }
