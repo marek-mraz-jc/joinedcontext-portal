@@ -193,6 +193,8 @@ use crate::tools::model_tools::{
         crate::api::knowledge::upload_file,
         crate::api::knowledge::remove_file,
         crate::api::knowledge::deployment_usage,
+        crate::api::assistant_context::preview_context,
+        crate::api::assistant_context::deployment_context,
         crate::api::knowledge::list_conversations,
         crate::api::knowledge::get_conversation,
         crate::api::knowledge::erase_conversation,

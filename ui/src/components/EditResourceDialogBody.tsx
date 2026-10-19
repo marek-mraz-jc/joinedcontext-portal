@@ -254,6 +254,9 @@ export function EditResourceDialogBody({
                   setInvalid(null);
                 }}
                 onSubmit={(next) => proposeManifest(form.toManifest(next, current.data))}
+                afterFields={form.afterFields?.(
+                  form.toManifest(edited ?? form.fromManifest(current.data), current.data),
+                )}
               />
               </Suspense>
             ) : null

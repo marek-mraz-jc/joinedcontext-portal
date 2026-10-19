@@ -30,9 +30,12 @@ spec:
       publicId,
       channel,
       enabled,
+      categories,
       sources,
       scope,
       connectors,
+      select,
+      exclude,
       systemPrompt,
       sandbox,
       languages,
@@ -58,7 +61,7 @@ spec:
         sk: "Ako sa volá a kto sa s ním smie rozprávať."
         cs: "Jak se jmenuje a kdo s ním smí mluvit."
         de: "Wie er heißt und wer mit ihm sprechen darf."
-      fields: [name, publicId, channel, enabled]
+      fields: [name, publicId, channel, enabled, categories]
     - title:
         en: "Knowledge"
         sk: "Znalosti"
@@ -80,7 +83,7 @@ spec:
         sk: "Endpointy, ktorých nástroje smie volať pre aktuálne hodnoty; žiadny pre asistenta, ktorý odpovedá len zo znalostí."
         cs: "Endpointy, jejichž nástroje smí volat pro aktuální hodnoty; žádný pro asistenta, který odpovídá jen ze znalostí."
         de: "Endpoints, deren Werkzeuge er für aktuelle Werte rufen darf; keiner für einen Assistenten, der nur aus seinem Wissen antwortet."
-      fields: [connectors]
+      fields: [connectors, select, exclude]
     - title:
         en: "How it answers"
         sk: "Ako odpovedá"
@@ -137,6 +140,24 @@ spec:
         de: "Wie oft ein Besucher fragen darf, was ein Tag kosten darf und welche Modelle er nutzt; öffentlich braucht Limit und Budget."
       fields: [rateLimit, budget, model]
   fields:
+    categories:
+      help:
+        en: The EU data themes it is about; the context page and the public chat show them.
+        sk: Témy dát EÚ, o ktorých je; zobrazí ich stránka kontextu aj verejný chat.
+        cs: Témata dat EU, o kterých je; zobrazí je stránka kontextu i veřejný chat.
+        de: Die EU-Datenthemen, um die es geht; die Kontextseite und der öffentliche Chat zeigen sie.
+    select:
+      help:
+        en: "Picks Endpoints by publisher, category, entity type and access, inside this project and the projects of scope.projects; an Endpoint added later that matches joins without a change here. A public channel picks public Endpoints only."
+        sk: "Vyberie endpointy podľa vydavateľa, kategórie, typu entity a prístupu, v tomto projekte a v projektoch zo scope.projects; endpoint pridaný neskôr, ktorý zodpovedá, sa pridá bez zmeny tu. Verejný kanál vyberá len verejné endpointy."
+        cs: "Vybere endpointy podle vydavatele, kategorie, typu entity a přístupu, v tomto projektu a v projektech ze scope.projects; endpoint přidaný později, který odpovídá, se přidá bez změny zde. Veřejný kanál vybírá jen veřejné endpointy."
+        de: "Wählt Endpoints nach Herausgeber, Kategorie, Entitätstyp und Zugriff, in diesem Projekt und den Projekten aus scope.projects; ein später hinzugefügter passender Endpoint kommt ohne Änderung hier dazu. Ein öffentlicher Kanal wählt nur öffentliche Endpoints."
+    exclude:
+      help:
+        en: Endpoints it never reads, whatever the connectors or the selector say.
+        sk: Endpointy, ktoré nikdy nečíta, nech konektory či výber hovoria čokoľvek.
+        cs: Endpointy, které nikdy nečte, ať konektory či výběr říkají cokoli.
+        de: Endpoints, die er nie liest, was auch immer Konnektoren oder Auswahl sagen.
     theme:
       help:
         en: Shown in the chat itself, on every page it is placed on.

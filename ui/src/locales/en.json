@@ -6719,7 +6719,15 @@
       "feedback": "Ask visitors whether an answer helped",
       "widget": "The chat",
       "widgetLanguage": "Language the chat opens in",
-      "languageToggle": "Show the language switch"
+      "languageToggle": "Show the language switch",
+      "select": "Endpoints by selector",
+      "selectHint": "Every Endpoint that matches all the fields given, inside this project and scope.projects.",
+      "selectProjects": "Publishers (projects)",
+      "selectThemes": "Categories",
+      "selectTypes": "Entity types",
+      "selectAccess": "Access",
+      "excludeEndpoints": "Never read these Endpoints",
+      "categories": "Categories"
     },
     "visibility": {
       "internal": "Internal: signed-in staff",
@@ -6843,6 +6851,44 @@
       "own": "{project} (this project)",
       "unknown": "Named, but not offered to you",
       "none": "No project you can read has a knowledge source yet."
+    },
+    "category": {
+      "AGRI": "Agriculture, fisheries, forestry and food",
+      "ECON": "Economy and finance",
+      "EDUC": "Education, culture and sport",
+      "ENER": "Energy",
+      "ENVI": "Environment",
+      "GOVE": "Government and public sector",
+      "HEAL": "Health",
+      "INTR": "International issues",
+      "JUST": "Justice, legal system and public safety",
+      "REGI": "Regions and cities",
+      "SOCI": "Population and society",
+      "TECH": "Science and technology",
+      "TRAN": "Transport"
+    },
+    "accessLevel": {
+      "public": "Public",
+      "organization": "Organization",
+      "project": "Project",
+      "grant": "Grant"
+    },
+    "context": {
+      "heading": "What the assistant will know",
+      "problems": "Fix these fields before you propose the assistant",
+      "categories": "Categories:",
+      "noEndpoints": "No Endpoint: it answers from its knowledge sources alone.",
+      "endpoints": "Endpoints it reads ({count})",
+      "endpoint": "Endpoint",
+      "publisher": "Publisher",
+      "types": "Entity types",
+      "how": "How",
+      "connector": "Connector: {tools}",
+      "selected": "By the selector",
+      "omittedTitle": "{count} Endpoints left out",
+      "omitted": "One assistant reads at most 50 Endpoints; narrow the selector or exclude some. Left out: {slugs}",
+      "noSources": "No knowledge source: it answers from live data alone.",
+      "sources": "Knowledge sources"
     },
     "trySearch": {
       "title": "Try the search",
