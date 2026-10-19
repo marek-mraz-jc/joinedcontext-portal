@@ -12516,6 +12516,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "dryRun",
+            "in": "query",
+            "description": "`All` answers what would be erased and erases nothing",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -12533,6 +12542,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "description": "With `?dryRun=All`: what the erasure would take, per class, and nothing erased or logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
           "202": {
             "description": "The erasure, its Location and its state per store",
             "content": {

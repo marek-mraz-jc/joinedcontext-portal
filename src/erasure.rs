@@ -169,6 +169,16 @@ impl Erasure {
     }
 }
 
+/// The dry run of an erasure (`?dryRun=All`, API/01 §46): the Entities and Attributes it would
+/// take, per class, so the steward confirms before anything is erased.
+pub fn preview(groups: &[Group]) -> Value {
+    json!({
+        "dryRun": true,
+        "entities": groups.iter().map(|g| g.entities.len()).sum::<usize>(),
+        "groups": groups,
+    })
+}
+
 /// A fresh erasure: every store pending but the two this platform does not keep.
 pub fn begin(
     (project, space): (&str, &str),
@@ -896,6 +906,31 @@ classes:
             ]
         );
         assert!(subject_classes("not: [yaml").is_empty());
+    }
+
+    #[test]
+    fn the_dry_run_counts_what_each_class_would_lose() {
+        let groups = [
+            Group {
+                class: "BikeTrip".into(),
+                entities: vec![
+                    "urn:ngsi-ld:BikeTrip:1".into(),
+                    "urn:ngsi-ld:BikeTrip:2".into(),
+                ],
+                attrs: Some(vec!["rider".into()]),
+            },
+            Group {
+                class: "Account".into(),
+                entities: vec![],
+                attrs: None,
+            },
+        ];
+        let view = preview(&groups);
+        assert_eq!(view["dryRun"], true);
+        assert_eq!(view["entities"], 2);
+        assert_eq!(view["groups"][0]["attrs"], json!(["rider"]));
+        assert_eq!(view["groups"][1]["attrs"], Value::Null);
+        assert_eq!(preview(&[])["entities"], 0);
     }
 
     #[test]

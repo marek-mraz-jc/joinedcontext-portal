@@ -16302,7 +16302,10 @@ export interface operations {
     };
     erase_subject: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description `All` answers what would be erased and erases nothing */
+                dryRun?: string;
+            };
             header?: never;
             path: {
                 /** @description Project name */
@@ -16324,6 +16327,15 @@ export interface operations {
             };
         };
         responses: {
+            /** @description With `?dryRun=All`: what the erasure would take, per class, and nothing erased or logged */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
             /** @description The erasure, its Location and its state per store */
             202: {
                 headers: {

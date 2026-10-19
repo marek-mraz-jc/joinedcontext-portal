@@ -6,7 +6,7 @@
 //! call needs a `reason` and is audited with it.
 
 use axum::extract::rejection::JsonRejection;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -16,6 +16,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use utoipa::ToSchema;
 
+use crate::api::dry_run::{is_dry_run, DryRunQuery};
 use crate::auth::CurrentUser;
 use crate::erasure::{self, Group, SubjectClass};
 use crate::error::ApiError;
@@ -246,9 +247,11 @@ pub(crate) async fn export_subject(
     params(
         ("project" = String, Path, description = "Project name"),
         ("space" = String, Path, description = "Context Space name"),
+        ("dryRun" = Option<String>, Query, description = "`All` answers what would be erased and erases nothing"),
     ),
     request_body(content = SubjectRequest, example = json!({"subject": "r-42", "reason": "Art. 17 request 2026-10-19-07"})),
     responses(
+        (status = 200, description = "With `?dryRun=All`: what the erasure would take, per class, and nothing erased or logged", body = Object),
         (status = 202, description = "The erasure, its Location and its state per store", body = Object),
         (status = 400, description = "No reason, a subject that cannot be searched for, or a model that names no subject", body = crate::error::ProblemDetails),
         (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
@@ -262,9 +265,11 @@ pub(crate) async fn erase_subject(
     user: CurrentUser,
     State(state): State<AppState>,
     Path((project, space)): Path<(String, String)>,
+    Query(dry): Query<DryRunQuery>,
     body: Result<Json<SubjectRequest>, JsonRejection>,
 ) -> Result<Response, ApiError> {
     let spec = owned(&state, &user, &project, &space)?;
+    let dry = is_dry_run(&dry)?;
     let request = checked(body)?;
     let pool = state.db.clone().ok_or_else(|| {
         ApiError::Unavailable("this Portal keeps no erasure log (no database)".into())
@@ -272,7 +277,7 @@ pub(crate) async fn erase_subject(
     let hash = erasure::subject_hash(subject_key(&state)?, &project, &space, &request.subject);
     let classes = subject_classes(&state, (&project, &space), &spec).await?;
     let (_, found) = named(&state, &project, &space, &classes, &request.subject).await?;
-    let groups = found
+    let groups: Vec<Group> = found
         .into_iter()
         .map(|(class, held)| Group {
             class: class.class,
@@ -283,6 +288,9 @@ pub(crate) async fn erase_subject(
             attrs: class.attrs,
         })
         .collect();
+    if dry {
+        return Ok(Json(erasure::preview(&groups)).into_response());
+    }
     let actor = format!("user:{}", user.0.identity.username);
     let mut started = erasure::begin(
         (&project, &space),
