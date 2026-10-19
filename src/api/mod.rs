@@ -28,6 +28,7 @@ pub mod endpoint_preview;
 pub mod endpoint_standards;
 pub mod entity_comments;
 pub mod entity_trash;
+pub mod erasures;
 pub mod export;
 pub mod export_git;
 pub mod federation;
@@ -115,6 +116,7 @@ pub fn router() -> Router<AppState> {
         .merge(quality::router())
         .merge(space_usage::router())
         .merge(space_retention::router())
+        .merge(erasures::router())
         .merge(data_views::router())
         .merge(pipeline_templates::router())
         .merge(type_attributes::router())

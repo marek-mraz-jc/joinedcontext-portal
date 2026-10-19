@@ -361,6 +361,20 @@ routes:
     expect: [403, 403, allow, allow, allow, allow, 404, 403]
     body: {"retention": [{"entityType": "Station", "history": "PT8H"}]}
     note: "an owner's 503 is the fixture's: it has no broker"
+  - route: POST /projects/{project}/spaces/{space}/subjects/export
+    rule: "space-read, then approve on ContextSpace in the space (DM-124)"
+    expect: [403, 403, allow, allow, allow, allow, 404, 403]
+    body: {"subject": "r-42", "reason": "Art. 15 request 7"}
+    note: "an owner's 503 is the fixture's: it holds no key to hash a subject with"
+  - route: POST /projects/{project}/spaces/{space}/erasures
+    rule: "space-read, then approve on ContextSpace in the space (DM-126)"
+    expect: [403, 403, allow, allow, allow, allow, 404, 403]
+    body: {"subject": "r-42", "reason": "Art. 17 request 7"}
+    note: "an owner's 503 is the fixture's: it has no database"
+  - route: GET /projects/{project}/spaces/{space}/erasures/{id}
+    rule: "space-read, then approve on ContextSpace in the space (DM-127)"
+    expect: [401, 403, allow, allow, allow, allow, 404, 403]
+    note: "an owner's 503 is the fixture's: it has no database"
   - route: GET /projects/{project}/spaces/{space}/retention/deleted
     rule: "space-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

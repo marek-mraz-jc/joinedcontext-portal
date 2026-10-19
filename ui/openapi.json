@@ -12153,6 +12153,203 @@
         }
       }
     },
+    "/api/v1/projects/{project}/spaces/{space}/erasures": {
+      "post": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Erase a Data Subject",
+        "description": "Erases the data subject from the space: the personal Attributes (or the whole Entity of a personal class) of every Entity naming it, from the broker's current state and every version, the CKAN DataStore copy, the Portal's trash and comments and the assistant's stored conversations (DM-126). Answers at once with the erasure, which stays open until every store reports done; the erasure log keeps the subject's keyed hash, never the value (DM-127). For the space's owners; audited with the reason.",
+        "operationId": "erase_subject",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubjectRequest"
+              },
+              "example": {
+                "reason": "Art. 17 request 2026-10-19-07",
+                "subject": "r-42"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "The erasure, its Location and its state per store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No reason, a subject that cannot be searched for, or a model that names no subject",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller reads the space but does not own it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No database, space surface or key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/spaces/{space}/erasures/{id}": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Read an Erasure",
+        "description": "One erasure of the space: `open` until every store reports done, `done`, or `failed` once a store gave up after an hour, with the counts and the state of each store (DM-126, DM-127). For the space's owners.",
+        "operationId": "get_erasure",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The erasure's id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The erasure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller reads the space but does not own it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space or erasure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No database",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/spaces/{space}/live": {
       "get": {
         "tags": [
@@ -12688,6 +12885,112 @@
           },
           "503": {
             "description": "No broker, or the broker did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/spaces/{space}/subjects/export": {
+      "post": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Export a Data Subject",
+        "description": "Every Entity of the space naming the data subject in its class's `dataSubjectRef` slot, current state and stored history, answered to the caller's session alone (DM-124). The subject is in the body, never the URL. For the space's owners; audited with the reason.",
+        "operationId": "export_subject",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubjectRequest"
+              },
+              "example": {
+                "reason": "Art. 15 request 2026-10-19-07",
+                "subject": "r-42"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The subject's Entities with their history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No reason, a subject that cannot be searched for, or a model that names no subject",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller reads the space but does not own it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The space or the key is not available",
             "content": {
               "application/json": {
                 "schema": {
@@ -24203,6 +24506,25 @@
               "null"
             ],
             "description": "Forge page of the file this manifest was read from, so a view can link \"Source\"\nwithout knowing where a kind lives in the repository. Computed, never read from Git."
+          }
+        },
+        "additionalProperties": false
+      },
+      "SubjectRequest": {
+        "type": "object",
+        "description": "A request about one data subject.",
+        "required": [
+          "subject",
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Why, for the audit record: the request's reference, the legal ground."
+          },
+          "subject": {
+            "type": "string",
+            "description": "The value of the class's `dataSubjectRef` slot."
           }
         },
         "additionalProperties": false

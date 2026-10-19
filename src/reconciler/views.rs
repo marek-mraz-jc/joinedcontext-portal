@@ -2027,6 +2027,86 @@ impl ViewSync {
             .map_err(|err| format!("GET {path} did not answer JSON: {err}"))
     }
 
+    /// The erasure records the broker of the space whose tenant is `tenant` holds (Antares
+    /// `GET /q/erasures/{tenant}`, T-4665): what it applies again when it starts.
+    pub(crate) async fn erasure_records(&self, tenant: &str) -> Result<Vec<Value>, String> {
+        let token = std::fs::read_to_string(&self.token_file)
+            .ok()
+            .map(|token| token.trim().to_owned())
+            .filter(|token| !token.is_empty())
+            .ok_or("the broker's admin token is not readable")?;
+        let broker = lock(&self.last)
+            .as_ref()
+            .and_then(|sources| sources.brokers.get(tenant).cloned())
+            .unwrap_or_else(|| jc_core::kinds::IMPLICIT_BROKER.to_owned());
+        let base = self
+            .address(&broker)
+            .ok_or_else(|| format!("the space's broker '{broker}' has no address"))?;
+        Ok(self
+            .get(&base, &token, &format!("/q/erasures/{tenant}"))
+            .await?
+            .and_then(|listed| listed.as_array().cloned())
+            .unwrap_or_default())
+    }
+
+    /// Erases `attrs` (expanded under the space's `@context`; `None`: the whole Entity) of
+    /// `entities` from the broker of the space whose tenant is `tenant`: current state, every
+    /// version and the dead letters (Antares `POST /q/erasures/{tenant}`, T-4665). The broker
+    /// keeps the record and applies it again after a restore (DM-127). Returns its counts.
+    pub(crate) async fn erase(
+        &self,
+        tenant: &str,
+        entities: &[String],
+        attrs: Option<&[String]>,
+        (subject, actor, reason): (&str, &str, &str),
+    ) -> Result<Value, String> {
+        let token = std::fs::read_to_string(&self.token_file)
+            .ok()
+            .map(|token| token.trim().to_owned())
+            .filter(|token| !token.is_empty())
+            .ok_or("the broker's admin token is not readable")?;
+        let context = lock(&self.compiled)
+            .get(tenant)
+            .and_then(|(_, _, context)| context.clone());
+        let broker = lock(&self.last)
+            .as_ref()
+            .and_then(|sources| sources.brokers.get(tenant).cloned())
+            .unwrap_or_else(|| jc_core::kinds::IMPLICIT_BROKER.to_owned());
+        let base = self
+            .address(&broker)
+            .ok_or_else(|| format!("the space's broker '{broker}' has no address"))?;
+        let attrs: Option<Vec<String>> = attrs.map(|terms| {
+            terms
+                .iter()
+                .flat_map(|term| type_iris(term, context.as_ref()))
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect()
+        });
+        let response = self
+            .http
+            .post(format!("{base}/q/erasures/{tenant}"))
+            .bearer_auth(token)
+            .json(&json!({
+                "entities": entities,
+                "attrs": attrs,
+                "subject": subject,
+                "actor": actor,
+                "reason": reason,
+            }))
+            .send()
+            .await
+            .map_err(|err| format!("the broker did not answer: {}", err.without_url()))?;
+        if !response.status().is_success() {
+            return Err(refusal("the broker refused the erasure", response).await);
+        }
+        let record: Value = response
+            .json()
+            .await
+            .map_err(|err| format!("the broker answered no JSON: {err}"))?;
+        Ok(record.get("counts").cloned().unwrap_or(Value::Null))
+    }
+
     /// Per class and kind what `rules` of the space whose broker tenant is `tenant` would delete
     /// now, as the broker counts the document the reconciler would write (DM-85); with `None`,
     /// what this broker's sweeps deleted of the space's `held` rules since it started.

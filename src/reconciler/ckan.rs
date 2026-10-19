@@ -284,6 +284,45 @@ impl CkanSync {
         logged
     }
 
+    /// The DataStore rows of `ids` in every dataset the published Endpoints of `space` mirror
+    /// (DM-126, T-4668), each on a blocking thread with its instance's token. Returns the rows
+    /// that went; the first catalogue that refuses fails the whole pass, asked again next run.
+    pub(crate) async fn erase_rows(
+        &self,
+        repo: &Repository,
+        repository: &Path,
+        (project, space): (&str, &str),
+        ids: &[String],
+    ) -> Result<u64, String> {
+        let targets: Vec<Target> = publisher::targets(repo, project)
+            .map_err(|err| err.to_string())?
+            .into_iter()
+            .filter(|t| {
+                crate::resource::reference_name(&t.manifest.spec["contextSpaceRef"]) == Some(space)
+            })
+            .collect();
+        let mut gone = 0;
+        for target in targets {
+            let repository = repository.to_path_buf();
+            let age_key_file = self.age_key_file.clone();
+            let ids = ids.to_vec();
+            gone += tokio::task::spawn_blocking(move || {
+                let source = publisher::TokenSource {
+                    env: None,
+                    age_key_file: age_key_file.as_deref(),
+                };
+                let token = publisher::token(&target.instance, &repository, source)
+                    .map_err(|err| err.to_string())?;
+                let mut api = HttpCkan::new(target.instance.base_url(), token)
+                    .map_err(|err| err.to_string())?;
+                erase_rows_with(&mut api, target.dataset_name(), &ids)
+            })
+            .await
+            .map_err(|err| format!("the erasure did not finish: {err}"))??;
+        }
+        Ok(gone)
+    }
+
     /// One Endpoint: resolve the token, then publish or withdraw on a blocking thread.
     async fn one(
         &self,
@@ -534,6 +573,52 @@ pub fn measurements(
     }
 }
 
+/// The rows of `ids` in every DataStore table of `dataset`, deleted (DM-126, T-4668): counted by
+/// `entity_id` first, then deleted by it, a thousand ids per call. A dataset CKAN does not hold
+/// has no rows. Returns the rows that went.
+pub(crate) fn erase_rows_with(
+    api: &mut impl CkanApi,
+    dataset: &str,
+    ids: &[String],
+) -> Result<u64, String> {
+    let Some(live) = api
+        .show("package_show", dataset)
+        .map_err(|err| err.to_string())?
+    else {
+        return Ok(0);
+    };
+    let tables: Vec<String> = live["resources"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|r| r["url_type"].as_str() == Some("datastore"))
+        .filter_map(|r| r["id"].as_str().map(str::to_owned))
+        .collect();
+    let mut gone = 0;
+    for table in &tables {
+        for batch in ids.chunks(1000) {
+            let filters = serde_json::json!({ "entity_id": batch });
+            let found = api
+                .action(
+                    "datastore_search",
+                    &serde_json::json!({ "resource_id": table, "filters": filters, "limit": 0 }),
+                )
+                .map_err(|err| err.to_string())?;
+            let total = found["total"].as_u64().unwrap_or(0);
+            if total == 0 {
+                continue;
+            }
+            api.action(
+                "datastore_delete",
+                &serde_json::json!({ "resource_id": table, "filters": filters, "force": true }),
+            )
+            .map_err(|err| err.to_string())?;
+            gone += total;
+        }
+    }
+    Ok(gone)
+}
+
 /// Withdraws one Endpoint's dataset, and its sheet with it (EP-62, CC-19).
 pub fn withdraw_one(api: &mut impl CkanApi, target: &Target) -> Result<Publication, String> {
     let line = publisher::withdraw_one(api, target).map_err(|err| err.to_string())?;
@@ -617,4 +702,75 @@ pub fn withdrawn(previous: &Mirror, published: &BTreeSet<(String, String)>) -> V
         });
     }
     gone
+}
+
+#[cfg(test)]
+mod erasure_tests {
+    use super::*;
+    use jcctl::publish::ckan::CkanError;
+    use serde_json::{json, Value};
+
+    /// A catalogue with one dataset of two DataStore tables and a file resource.
+    #[derive(Default)]
+    struct Catalogue {
+        calls: Vec<(String, Value)>,
+        down: bool,
+    }
+
+    impl CkanApi for Catalogue {
+        fn show(&self, _: &str, name: &str) -> Result<Option<Value>, CkanError> {
+            Ok((name == "bike-trips").then(|| {
+                json!({"resources": [
+                    {"id": "t1", "url_type": "datastore"},
+                    {"id": "t2", "url_type": "datastore"},
+                    {"id": "csv", "url_type": "upload"},
+                ]})
+            }))
+        }
+
+        fn action(&mut self, action: &str, payload: &Value) -> Result<Value, CkanError> {
+            if self.down {
+                return Err(CkanError::Unavailable("no route".into()));
+            }
+            self.calls.push((action.to_owned(), payload.clone()));
+            let total = if payload["resource_id"] == "t1" { 2 } else { 0 };
+            Ok(json!({ "total": total }))
+        }
+    }
+
+    #[test]
+    fn the_rows_of_the_entities_go_from_every_datastore_table_and_nothing_else() {
+        let ids = vec![
+            "urn:ngsi-ld:BikeTrip:t-1".to_owned(),
+            "urn:ngsi-ld:BikeTrip:t-2".to_owned(),
+        ];
+        let mut api = Catalogue::default();
+        assert_eq!(erase_rows_with(&mut api, "bike-trips", &ids), Ok(2));
+        let called: Vec<(&str, &str)> = api
+            .calls
+            .iter()
+            .map(|(a, p)| (a.as_str(), p["resource_id"].as_str().unwrap_or_default()))
+            .collect();
+        // t2 holds none of them: counted, never deleted; the file resource is never asked.
+        assert_eq!(
+            called,
+            [
+                ("datastore_search", "t1"),
+                ("datastore_delete", "t1"),
+                ("datastore_search", "t2")
+            ]
+        );
+        assert_eq!(api.calls[1].1["filters"]["entity_id"], json!(ids));
+        assert_eq!(api.calls[1].1["force"], true);
+
+        assert_eq!(
+            erase_rows_with(&mut Catalogue::default(), "gone-dataset", &ids),
+            Ok(0)
+        );
+        let mut down = Catalogue {
+            down: true,
+            ..Catalogue::default()
+        };
+        assert!(erase_rows_with(&mut down, "bike-trips", &ids).is_err());
+    }
 }

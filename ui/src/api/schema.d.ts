@@ -2765,6 +2765,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/spaces/{space}/erasures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Erase a Data Subject
+         * @description Erases the data subject from the space: the personal Attributes (or the whole Entity of a personal class) of every Entity naming it, from the broker's current state and every version, the CKAN DataStore copy, the Portal's trash and comments and the assistant's stored conversations (DM-126). Answers at once with the erasure, which stays open until every store reports done; the erasure log keeps the subject's keyed hash, never the value (DM-127). For the space's owners; audited with the reason.
+         */
+        post: operations["erase_subject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/spaces/{space}/erasures/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read an Erasure
+         * @description One erasure of the space: `open` until every store reports done, `done`, or `failed` once a store gave up after an hour, with the counts and the state of each store (DM-126, DM-127). For the space's owners.
+         */
+        get: operations["get_erasure"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/spaces/{space}/live": {
         parameters: {
             query?: never;
@@ -2883,6 +2923,26 @@ export interface paths {
          * @description What a draft of the space's `spec.retention` would delete now, per class and kind (`entity`, `history`), counted by the broker without deleting anything and at most 100 000 each. For the space's owners, who alone save retention (DM-85).
          */
         post: operations["preview_retention"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/spaces/{space}/subjects/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export a Data Subject
+         * @description Every Entity of the space naming the data subject in its class's `dataSubjectRef` slot, current state and stored history, answered to the caller's session alone (DM-124). The subject is in the body, never the URL. For the space's owners; audited with the reason.
+         */
+        post: operations["export_subject"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6486,6 +6546,13 @@ export interface components {
              *     without knowing where a kind lives in the repository. Computed, never read from Git.
              */
             sourceUrl?: string | null;
+        };
+        /** @description A request about one data subject. */
+        SubjectRequest: {
+            /** @description Why, for the audit record: the request's reference, the legal ground. */
+            reason: string;
+            /** @description The value of the class's `dataSubjectRef` slot. */
+            subject: string;
         };
         /** @description What one run did, and where the source stands afterwards. */
         SyncRunReport: {
@@ -15902,6 +15969,149 @@ export interface operations {
             };
         };
     };
+    erase_subject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "reason": "Art. 17 request 2026-10-19-07",
+                 *       "subject": "r-42"
+                 *     }
+                 */
+                "application/json": components["schemas"]["SubjectRequest"];
+            };
+        };
+        responses: {
+            /** @description The erasure, its Location and its state per store */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description No reason, a subject that cannot be searched for, or a model that names no subject */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller reads the space but does not own it */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No database, space surface or key */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_erasure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+                /** @description The erasure's id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The erasure */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller reads the space but does not own it */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space or erasure */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No database */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     watch: {
         parameters: {
             query: {
@@ -16289,6 +16499,86 @@ export interface operations {
                 };
             };
             /** @description No broker, or the broker did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    export_subject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "reason": "Art. 15 request 2026-10-19-07",
+                 *       "subject": "r-42"
+                 *     }
+                 */
+                "application/json": components["schemas"]["SubjectRequest"];
+            };
+        };
+        responses: {
+            /** @description The subject's Entities with their history */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description No reason, a subject that cannot be searched for, or a model that names no subject */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller reads the space but does not own it */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The space or the key is not available */
             503: {
                 headers: {
                     [name: string]: unknown;
