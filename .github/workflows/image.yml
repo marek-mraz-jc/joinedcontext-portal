@@ -1,4 +1,6 @@
-name: image
+# Display name `ship` (T-4721); the file keeps its name because pin-images verifies the signing
+# identity `.github/workflows/image.yml@refs/heads/main` and tasks/ci finds runs by it.
+name: ship
 # Builds, signs and pushes the Portal's two images, the binary and the `portal-ui` bundle it reads
 # its pages from (T-2485), and the build lane's images (AP-82: the builder carries the SDK of the
 # same commit), on every push to main and on tags. A push builds only what its paths need
@@ -55,6 +57,31 @@ jobs:
         with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
       - id: day
         run: echo "d=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+      # T-4721: the binary starts and answers before anything is pushed. Built into the local
+      # daemon from the same cache; the push build below reuses the builder's layers.
+      - if: matrix.name == 'portal'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          build-args: |
+            APT_REFRESH=${{ steps.day.outputs.d }}
+            JC_PORTAL_COMMIT=${{ github.sha }}
+          load: true
+          tags: portal-local:latest
+          cache-from: type=gha,scope=${{ matrix.name }}
+      - if: matrix.name == 'portal'
+        name: the Portal starts and serves /healthz, an anonymous page and its version
+        run: |
+          docker run -d --name portal -p 8080:8080 portal-local:latest
+          fail() { echo "SMOKE: $1"; docker logs portal | tail -40; exit 1; }
+          for _ in $(seq 30); do curl -sf localhost:8080/healthz >/dev/null && break; sleep 1; done
+          curl -sf localhost:8080/healthz >/dev/null || fail "/healthz not 200 after 30 s"
+          curl -sf localhost:8080/ | grep -qi '<html' || fail "/ serves no page"
+          curl -sf localhost:8080/api/v1/version | jq -e . >/dev/null || fail "/api/v1/version not JSON"
+          code=$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/api/v1/projects)
+          [ "$code" = 401 ] || fail "/api/v1/projects without a token answered $code, not 401"
+          echo "healthz 200, / page, version JSON, projects 401 without a token"
       - id: push
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
