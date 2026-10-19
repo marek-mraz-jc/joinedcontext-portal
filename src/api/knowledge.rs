@@ -866,16 +866,7 @@ pub async fn deployment_usage(
     {
         return Err(ApiError::NotFound(format!("project '{project}' not found")));
     }
-    named("deployment", &deployment)?;
-    if state
-        .mirror
-        .get(&project, "AssistantDeployment", &deployment)
-        .is_none()
-    {
-        return Err(ApiError::NotFound(format!(
-            "deployment '{deployment}' not found"
-        )));
-    }
+    deployed(&state, &project, &deployment)?;
     let (_, body) = ask(
         &state,
         reqwest::Method::GET,
@@ -910,31 +901,27 @@ pub async fn forget_answers(
     Path((project, deployment)): Path<(String, String)>,
 ) -> Result<Json<Value>, ApiError> {
     administers(&state, &user, &project, Verb::Approve)?;
-    named("deployment", &deployment)?;
-    if state
-        .mirror
-        .get(&project, "AssistantDeployment", &deployment)
-        .is_none()
-    {
-        return Err(ApiError::NotFound(format!(
-            "deployment '{deployment}' not found"
-        )));
-    }
+    deployed(&state, &project, &deployment)?;
     let path = format!("{project}/knowledge/deployments/{deployment}/answers");
     let (_, body) = ask(&state, reqwest::Method::DELETE, &path, None).await?;
     let actor = &user.0.identity.username;
     let message = format!("{actor} forgot the kept answers of {deployment}");
     let detail =
         json!({ "actor": actor, "deployment": deployment, "forgotten": body["forgotten"] });
-    record(
-        &state,
-        &project,
-        "knowledge.answers.forgotten",
-        message,
-        detail,
-    )
-    .await;
+    let kind = "knowledge.answers.forgotten";
+    record(&state, &project, kind, message, detail).await;
     Ok(Json(body))
+}
+
+/// `404` unless `deployment` names a mirrored AssistantDeployment of `project`.
+fn deployed(state: &AppState, project: &str, deployment: &str) -> Result<(), ApiError> {
+    named("deployment", deployment)?;
+    match state.mirror.get(project, "AssistantDeployment", deployment) {
+        Some(_) => Ok(()),
+        None => Err(ApiError::NotFound(format!(
+            "deployment '{deployment}' not found"
+        ))),
+    }
 }
 
 /// The filter of the stored conversations (API/05 §3.1); `jc-assistant` holds every bound.
@@ -1305,16 +1292,7 @@ pub async fn chat(
     {
         return Err(ApiError::NotFound(format!("project '{project}' not found")));
     }
-    named("deployment", &deployment)?;
-    if state
-        .mirror
-        .get(&project, "AssistantDeployment", &deployment)
-        .is_none()
-    {
-        return Err(ApiError::NotFound(format!(
-            "deployment '{deployment}' not found"
-        )));
-    }
+    deployed(&state, &project, &deployment)?;
     let base = state.config.knowledge_url.as_deref().ok_or_else(|| {
         ApiError::Unavailable(
             "this Portal has no knowledge assistant address (JC_PORTAL_KNOWLEDGE_URL)".into(),
