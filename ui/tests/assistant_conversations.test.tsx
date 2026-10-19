@@ -88,7 +88,7 @@ const SAME = {
   ],
 };
 
-function renderAs(verbs: string[]) {
+function renderAs(verbs: string[], link: { open?: string; against?: string } = {}) {
   const calls: { method: string; url: URL }[] = [];
   const permissions = {
     bootstrap: false, project: PROJECT,
@@ -115,7 +115,7 @@ function renderAs(verbs: string[]) {
   render(
     <QueryClientProvider client={client}>
       <I18nextProvider i18n={i18n}>
-        <ConversationsPage project={PROJECT} />
+        <ConversationsPage project={PROJECT} {...link} />
       </I18nextProvider>
     </QueryClientProvider>,
   );
@@ -298,5 +298,13 @@ describe("Asistent → Konverzácie", () => {
     await user.click(within(view).getByRole("button", { name: i18n.t("conversations.copyPair") }));
     const pair = JSON.parse((writeText.mock.calls[0] as unknown as [string])[0]) as { question: string }[];
     expect(pair.map((turn) => turn.question)).toEqual(["Aké je PM10?", "Aké je PM10?"]);
+  });
+
+  it("an eval run's link opens its conversation against the previous run's last turn", async () => {
+    renderAs(["read", "approve"], { open: ONE, against: TWO });
+    const view = await screen.findByRole("region", { name: i18n.t("conversations.compareTitle") });
+    expect(await within(view).findByTestId("compare-right-totals")).toHaveTextContent("cached 80 %");
+    await userEvent.setup().click(within(view).getByRole("button", { name: i18n.t("conversations.compareClose") }));
+    expect(screen.queryByRole("region", { name: i18n.t("conversations.compareTitle") })).toBeNull();
   });
 });

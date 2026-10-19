@@ -48,11 +48,20 @@ import type { ConversationFilter, ConversationStep, ConversationTurn } from "./c
  * redacted, for its administrator (`approve` on AssistantDeployment); every read is recorded.
  * One conversation opens as its turns, each with the steps that made the answer.
  */
-export function ConversationsPage({ project }: { project: string }): JSX.Element {
+export function ConversationsPage({
+  project,
+  open: opened,
+  against,
+}: {
+  project: string;
+  /** A conversation to open at once, and one to compare its last turn with (an eval run's link). */
+  open?: string;
+  against?: string;
+}): JSX.Element {
   const { t, i18n } = useTranslation();
   const { data: permissions, can } = usePermissions(project);
   const [filter, setFilter] = useState<ConversationFilter>({});
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(opened ?? null);
   const allowed = can("AssistantDeployment", "approve");
   const list = useQuery({
     queryKey: conversationKeys.list(project, filter),
@@ -199,7 +208,14 @@ export function ConversationsPage({ project }: { project: string }): JSX.Element
         </Button>
       ) : null}
       {open ? (
-        <ConversationDetail project={project} id={open} mayErase={can("AssistantDeployment", "delete")} onGone={() => setOpen(null)} />
+        <ConversationDetail
+          key={open}
+          project={project}
+          id={open}
+          against={open === opened ? against : undefined}
+          mayErase={can("AssistantDeployment", "delete")}
+          onGone={() => setOpen(null)}
+        />
       ) : null}
     </section>
   );
@@ -208,11 +224,13 @@ export function ConversationsPage({ project }: { project: string }): JSX.Element
 function ConversationDetail({
   project,
   id,
+  against,
   mayErase,
   onGone,
 }: {
   project: string;
   id: string;
+  against?: string;
   mayErase: boolean;
   onGone: () => void;
 }): JSX.Element {
@@ -221,8 +239,12 @@ function ConversationDetail({
   const [confirm, setConfirm] = useState(false);
   const [copied, setCopied] = useState<number | null>(null);
   const [same, setSame] = useState<number | null>(null);
-  const [compare, setCompare] = useState<{ turn: ConversationTurn; other: { conversation: string; turn: number } } | null>(null);
+  // `undefined` until a person picks: an eval link's `against` then compares the last turns.
+  const [picked, setCompare] = useState<Compare | null | undefined>(undefined);
   const one = useQuery({ queryKey: conversationKeys.one(project, id), queryFn: () => getConversation(project, id) });
+  const last = one.data?.turns.at(-1);
+  const compare =
+    picked !== undefined ? picked : against && last ? { turn: last, other: { conversation: against, turn: null } } : null;
   const erase = useMutation({
     mutationFn: () => eraseConversation(project, id),
     onSuccess: () => {
@@ -403,6 +425,12 @@ function SameList({
   );
 }
 
+/** Two turns to compare: a turn of this conversation, and another's turn (null: its last). */
+interface Compare {
+  turn: ConversationTurn;
+  other: { conversation: string; turn: number | null };
+}
+
 /**
  * Two turns side by side (T-4681): the totals, the visuals' spec changes, the steps aligned by
  * kind with their arguments, results and reasoning, and a word diff of the answers.
@@ -415,7 +443,7 @@ function CompareView({
 }: {
   project: string;
   left: ConversationTurn;
-  other: { conversation: string; turn: number };
+  other: Compare["other"];
   onClose: () => void;
 }): JSX.Element {
   const { t } = useTranslation();
@@ -424,7 +452,8 @@ function CompareView({
     queryKey: conversationKeys.one(project, other.conversation),
     queryFn: () => getConversation(project, other.conversation),
   });
-  const right = loaded.data?.turns.find((turn) => turn.turn === other.turn);
+  const turns = loaded.data?.turns ?? [];
+  const right = other.turn === null ? turns.at(-1) : turns.find((turn) => turn.turn === other.turn);
   const copy = (pair: [ConversationTurn, ConversationTurn]) => {
     void navigator.clipboard
       .writeText(JSON.stringify(pair, null, 2))
