@@ -8662,7 +8662,7 @@
           {
             "name": "sort",
             "in": "query",
-            "description": "`lastAt` (default) or `costUsd`.",
+            "description": "`lastAt` (default), `costUsd`, `tokens` or `totalMs`.",
             "required": false,
             "schema": {
               "type": [
@@ -8730,6 +8730,266 @@
           },
           "403": {
             "description": "The caller may not approve an AssistantDeployment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The knowledge assistant is not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/knowledge/conversations/export": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Export Stored Turns",
+        "description": "The project's stored assistant turns in the range as CSV, one row per turn, newest first, the questions as stored (redacted) and an unpriced turn's cost empty (API/05 §3.1). More than 20,000 turns is 400. Needs `approve` on AssistantDeployment; every call is recorded (API/01 §34).",
+        "operationId": "export_conversations",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deployment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "RFC 3339, inclusive.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "RFC 3339, exclusive.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "route",
+            "in": "query",
+            "description": "The route the turns took (`rag`, `data`, `direct`, …).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "text/csv, one row per turn",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A range value out of its bounds, or more than 20,000 turns",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not approve an AssistantDeployment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "60 calls on the stored conversations in a minute already",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The knowledge assistant is not reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/knowledge/conversations/usage": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Summarize Stored Turns",
+        "description": "What the project's stored assistant turns in the range add up to: questions, timeouts, errors, the cost of the priced turns (total, mean, p50, p90) with the unpriced counted apart, tokens, the speed per phase, the cost per stage and the newest 14 days (API/05 §3.1). Needs `approve` on AssistantDeployment; every call is recorded (API/01 §34).",
+        "operationId": "conversation_usage",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deployment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "RFC 3339, inclusive.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "RFC 3339, exclusive.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "route",
+            "in": "query",
+            "description": "The route the turns took (`rag`, `data`, `direct`, …).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A range value out of its bounds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not approve an AssistantDeployment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "60 calls on the stored conversations in a minute already",
             "content": {
               "application/json": {
                 "schema": {

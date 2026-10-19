@@ -533,6 +533,14 @@ routes:
     rule: "project-verb:approve:AssistantDeployment"
     expect: [401, 403, 403, 403, 403, 503, 403, 403]
     note: "503 after the check: no knowledge assistant in the fixture; assistant_conversations holds the rule with one (T-4670)"
+  - route: GET /projects/{project}/knowledge/conversations/usage
+    rule: "project-verb:approve:AssistantDeployment"
+    expect: [401, 403, 403, 403, 403, 503, 403, 403]
+    note: "503 after the check: no knowledge assistant in the fixture; assistant_conversations holds the rule with one (T-4728)"
+  - route: GET /projects/{project}/knowledge/conversations/export
+    rule: "project-verb:approve:AssistantDeployment"
+    expect: [401, 403, 403, 403, 403, 503, 403, 403]
+    note: "503 after the check: no knowledge assistant in the fixture; assistant_conversations holds the rule with one (T-4728)"
   - route: GET /projects/{project}/knowledge/conversations/{conversation}
     rule: "project-verb:approve:AssistantDeployment"
     expect: [401, 403, 403, 403, 403, 404, 403, 403]

@@ -25,17 +25,20 @@ import {
   TableRow,
 } from "../../components/ui";
 import { reasonOf } from "./KnowledgePage";
+import { UsageSummary } from "./UsageSummary";
 import { timeText } from "./knowledge";
 import {
   aligned,
   capped,
   conversationKeys,
+  costText,
   eraseConversation,
   evalCase,
   getConversation,
   listConversations,
   msText,
   sameQuestion,
+  tokensText,
   totals,
   usdText,
   visible,
@@ -122,6 +125,8 @@ export function ConversationsPage({
           >
             <option value="lastAt">{t("conversations.sort.lastAt")}</option>
             <option value="costUsd">{t("conversations.sort.costUsd")}</option>
+            <option value="tokens">{t("conversations.sort.tokens")}</option>
+            <option value="totalMs">{t("conversations.sort.totalMs")}</option>
           </Select>
         </Field>
         <Field id="conv-deployment" label={t("conversations.filter.deployment")} className="w-44">
@@ -150,6 +155,7 @@ export function ConversationsPage({
           className="mb-2"
         />
       </div>
+      <UsageSummary project={project} filter={filter} />
       {list.isError ? (
         <PageFailed error={list.error} onRetry={() => void list.refetch()}>
           {reasonOf(list.error, t("app.error.generic"))}
@@ -167,7 +173,9 @@ export function ConversationsPage({
               <TableHeaderCell>{t("conversations.column.lastAt")}</TableHeaderCell>
               <TableHeaderCell>{t("conversations.column.turns")}</TableHeaderCell>
               <TableHeaderCell>{t("conversations.column.route")}</TableHeaderCell>
+              <TableHeaderCell>{t("conversations.column.firstToken")}</TableHeaderCell>
               <TableHeaderCell>{t("conversations.column.slowest")}</TableHeaderCell>
+              <TableHeaderCell>{t("conversations.column.tokens")}</TableHeaderCell>
               <TableHeaderCell>{t("conversations.column.cost")}</TableHeaderCell>
               <TableHeaderCell>{t("conversations.column.status")}</TableHeaderCell>
             </TableRow>
@@ -185,10 +193,17 @@ export function ConversationsPage({
                 <TableCell>{timeText(row.lastAt, i18n.language)}</TableCell>
                 <TableCell>{row.turns}</TableCell>
                 <TableCell>{row.routes.join(", ")}</TableCell>
+                <TableCell>{msText(row.firstTokenMs)}</TableCell>
                 <TableCell>{msText(row.totalMs)}</TableCell>
                 <TableCell>
-                  {usdText(row.costUsd)}
-                  {row.uncosted > 0 ? (
+                  {tokensText(row.tokensIn, i18n.language)} / {tokensText(row.tokensOut, i18n.language)}
+                  {row.models && row.models.length > 0 ? (
+                    <div className="text-caption text-fg-muted">{row.models.join(", ")}</div>
+                  ) : null}
+                </TableCell>
+                <TableCell>
+                  {costText(row.costUsd, row.uncosted, t("conversations.unknownPrice"))}
+                  {row.uncosted > 0 && row.costUsd > 0 ? (
                     <span className="text-caption text-fg-muted"> {t("conversations.uncosted", { count: row.uncosted })}</span>
                   ) : null}
                 </TableCell>

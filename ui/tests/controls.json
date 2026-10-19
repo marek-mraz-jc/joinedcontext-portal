@@ -1246,6 +1246,14 @@
         "knowledge_pages.test.tsx"
       ]
     },
+    "src/pages/knowledge/UsageSummary.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "assistant_conversations.test.tsx"
+      ]
+    },
     "src/pages/mcp/ConnectorStar.tsx": {
       "controls": {
         "Button": 1

@@ -40,6 +40,7 @@ pub mod import;
 pub mod import_git;
 pub mod internal;
 pub mod knowledge;
+pub mod knowledge_usage;
 pub mod live;
 pub mod mqtt_measured;
 pub mod mutate;

@@ -338,3 +338,90 @@ async fn the_sixty_first_call_in_a_minute_waits_and_twenty_one_misses_are_a_reco
     .await;
     assert_eq!(other.status, 404, "another person's window is their own");
 }
+
+/// T-4728: the usage summary and the CSV export answer the assistant's administrator alone, pass
+/// the range on as asked, keep the CSV as the assistant wrote it, and are recorded.
+#[tokio::test]
+async fn the_usage_summary_and_the_export_are_the_administrators_alone_and_recorded() {
+    let (state, assistant, _realm) = rig().await;
+    let usage = format!("{LIST}/usage?deployment=obcan&route=data");
+    let export = format!("{LIST}/export?from=2026-10-18T00:00:00Z");
+    for who in [common::person("nobody"), common::person("jana")] {
+        for uri in [usage.as_str(), export.as_str()] {
+            let answer = common::send(&state, who.clone(), "GET", uri, None).await;
+            assert_eq!(
+                answer.status, 403,
+                "{} {uri}: {}",
+                who.username, answer.text
+            );
+        }
+    }
+    assert_eq!(
+        asked(&assistant).await,
+        0,
+        "a refusal never reaches the assistant"
+    );
+
+    Mock::given(method("GET"))
+        .and(path(format!("{ASSISTANT_PATH}/usage")))
+        .and(header("authorization", "Bearer the-portals-own-token"))
+        .and(query_param("deployment", "obcan"))
+        .and(query_param("route", "data"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "questions": 3, "uncostedQuestions": 1, "costUsd": {"total": 0.0146}
+        })))
+        .mount(&assistant)
+        .await;
+    let csv = "at,question\r\n2026-10-19T07:00:00Z,\"a, \"\"b\"\"\n[e-mail]\"\r\n";
+    Mock::given(method("GET"))
+        .and(path(format!("{ASSISTANT_PATH}/export")))
+        .and(query_param("from", "2026-10-18T00:00:00Z"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "text/csv; charset=utf-8")
+                .set_body_string(csv),
+        )
+        .mount(&assistant)
+        .await;
+
+    let summary = common::send(&state, common::person("eva"), "GET", &usage, None).await;
+    assert_eq!(summary.status, 200, "{}", summary.text);
+    let body: Value = serde_json::from_str(&summary.text).expect("json");
+    assert_eq!(body["uncostedQuestions"], 1);
+    let file = common::send(&state, admin(), "GET", &export, None).await;
+    assert_eq!(file.status, 200, "{}", file.text);
+    assert_eq!(file.text, csv, "the CSV is passed on byte for byte");
+
+    let records = recorded(&state).await;
+    assert!(records.iter().any(|r| r["actor"] == "eva"
+        && r["action"] == "summarized the stored conversations"
+        && r["of"]["route"] == "data"));
+    assert!(records
+        .iter()
+        .any(|r| r["actor"] == "anna" && r["action"] == "exported the stored conversations"));
+}
+
+/// The assistant's refusal of a range reaches the caller as the same 400, never as a CSV.
+#[tokio::test]
+async fn an_export_the_assistant_refuses_is_a_400_with_its_reason() {
+    let (state, assistant, _realm) = rig().await;
+    Mock::given(method("GET"))
+        .and(path(format!("{ASSISTANT_PATH}/export")))
+        .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+            "title": "Bad Request", "status": 400, "detail": "more than 20000 turns; narrow the range"
+        })))
+        .mount(&assistant)
+        .await;
+    let answer = common::send(&state, admin(), "GET", &format!("{LIST}/export"), None).await;
+    assert_eq!(answer.status, 400, "{}", answer.text);
+    assert!(answer.text.contains("narrow the range"), "{}", answer.text);
+    let unknown = common::send(
+        &state,
+        admin(),
+        "GET",
+        &format!("{LIST}/usage?bogus=1"),
+        None,
+    )
+    .await;
+    assert_eq!(unknown.status, 400, "{}", unknown.text);
+}
