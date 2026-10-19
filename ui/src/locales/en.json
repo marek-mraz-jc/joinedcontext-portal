@@ -3226,6 +3226,33 @@
         "inverseSame": "The inverse is a second field; give it another name.",
         "pickFirst": "Pick the target class and name both ends first."
       }
+    },
+    "personal": {
+      "title": "Personal data",
+      "classHolds": "This class holds personal data",
+      "slotHolds": "Personal data",
+      "legalBasis": "Legal basis",
+      "legalBasisHint": "GDPR Art. 6(1): why the data may be processed.",
+      "maxRetention": "Kept at most",
+      "maxRetentionHint": "An ISO 8601 duration, such as P90D for 90 days; older rows are deleted, every version included.",
+      "dataSubjectRef": "Data subject",
+      "dataSubjectRefHint": "The slot that identifies the person: export, rectification and erasure look them up by it.",
+      "purposeIn": "Purpose ({locale})",
+      "ingest": "Stored as",
+      "ingestHint": "What of the value reaches the broker.",
+      "basis": {
+        "consent": "Consent",
+        "contract": "Contract",
+        "legal-obligation": "Legal obligation",
+        "vital-interest": "Vital interest",
+        "public-task": "Public task",
+        "legitimate-interest": "Legitimate interest"
+      },
+      "ingestName": {
+        "keep": "The value",
+        "drop": "Nothing (dropped)",
+        "keyedHash": "A keyed hash"
+      }
     }
   },
   "apps": {

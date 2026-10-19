@@ -8,6 +8,7 @@
  */
 import { parseDocument, type Document } from "yaml";
 import { unitOf } from "../../units";
+import { classPersonalOf, personalDataProblems, type ClassPersonal } from "./personalData";
 
 /** The NGSI-LD kinds a slot may declare (DM-05), in the annotation Model Tools reads. */
 export const NGSI_LD_KINDS = [
@@ -96,6 +97,10 @@ export interface LinkmlSlot {
   on_delete?: string;
   /** The formula that computes the slot from its entity's other slots, as LinkML writes it (DM-80). */
   equals_expression?: string;
+  /** The slot holds personal data, as the `personalData` annotation (DM-120). */
+  personalData?: boolean;
+  /** What of the value reaches the broker, as the `ingest` annotation (DM-121); unset is `keep`. */
+  ingest?: string;
 }
 
 export interface LinkmlClass {
@@ -117,6 +122,8 @@ export interface LinkmlClass {
   slot_usage?: Record<string, SlotUsage>;
   /** The import the class came from, when it is not the model's own. */
   from?: string;
+  /** The personal-data annotations of the class (DM-120). */
+  personal?: ClassPersonal;
 }
 
 /** What a class may narrow of a slot it uses (LinkML `slot_usage`); only what it names. */
@@ -253,6 +260,8 @@ function slotOf(name: string, raw: Record<string, unknown>): LinkmlSlot {
     inlined: typeof raw.inlined === "boolean" ? raw.inlined : undefined,
     on_delete: text(annotated.on_delete),
     ...(text(raw.equals_expression) ? { equals_expression: text(raw.equals_expression) } : {}),
+    ...(annotated.personalData === true ? { personalData: true } : {}),
+    ...(text(annotated.ingest) ? { ingest: text(annotated.ingest) } : {}),
   };
 }
 
@@ -311,6 +320,7 @@ export function parseModel(source: string): LinkmlModel {
       slot_usage: Object.fromEntries(
         Object.entries(record(raw.slot_usage)).map(([slot, value]) => [slot, usageOf(record(value))]),
       ),
+      personal: classPersonalOf(record(raw.annotations)),
     };
   });
 
@@ -416,6 +426,8 @@ export function diagnose(
       path: "classes",
     });
   }
+
+  found.push(...personalDataProblems(model, at));
 
   const declared = new Set(model.slots.map((slot) => slot.name));
   for (const klass of model.classes) {

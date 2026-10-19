@@ -17,6 +17,7 @@ import {
 } from "./linkml";
 import type { Cardinality, LinkmlModel, LinkmlSlot, NgsiLdKind, OnDelete, Relationship } from "./linkml";
 import { unitOf } from "../../units";
+import { INGESTS, LEGAL_BASES, isDuration } from "./personalData";
 
 /**
  * The operations the editor can perform on a model, as plain data (DM-13, DM-31, DM-32).
@@ -94,7 +95,78 @@ export type Operation =
    * The fix for a relationship saved before inverses were required (DM-73): a multivalued
    * inverse on the target class, so the stored end stays the slot that holds the data today.
    */
-  | { op: "addInverse"; name: string; inverse: string };
+  | { op: "addInverse"; name: string; inverse: string }
+  /**
+   * A personal-data annotation (DM-120, DM-121): on a class `personalData`, `legalBasis`,
+   * `purpose` (in one `locale`), `maxRetention` and `dataSubjectRef`; on a slot `personalData`
+   * and `ingest`. An empty value or `false` removes it.
+   */
+  | {
+      op: "setPersonal";
+      target: "class" | "slot";
+      name: string;
+      field: PersonalField;
+      value: string | boolean;
+      locale?: string;
+    };
+
+export type PersonalField = "personalData" | "legalBasis" | "purpose" | "maxRetention" | "dataSubjectRef" | "ingest";
+
+const CLASS_PERSONAL: PersonalField[] = ["personalData", "legalBasis", "purpose", "maxRetention", "dataSubjectRef"];
+const SLOT_PERSONAL: PersonalField[] = ["personalData", "ingest"];
+
+/** The value a personal-data annotation may hold, refused with the reason otherwise. */
+function personalValue(model: LinkmlModel, operation: Extract<Operation, { op: "setPersonal" }>): unknown {
+  const { field, name, value } = operation;
+  if (field === "personalData") {
+    return value === true;
+  }
+  const typed = typeof value === "string" ? value.trim() : "";
+  if (typed === "") {
+    return undefined;
+  }
+  const allowed: Partial<Record<PersonalField, readonly string[]>> = { legalBasis: LEGAL_BASES, ingest: INGESTS };
+  const among = allowed[field];
+  if (among && !among.includes(typed)) {
+    refuse(`${field} '${typed}' of '${name}' is not one of ${among.join(", ")}`);
+  }
+  if (field === "maxRetention" && !isDuration(typed)) {
+    refuse(`maxRetention '${typed}' of class '${name}' is not an ISO 8601 duration such as P90D`);
+  }
+  if (field === "dataSubjectRef" && !classOf(model, name).slots.includes(typed)) {
+    refuse(`dataSubjectRef '${typed}' is not a slot of class '${name}'`);
+  }
+  // `keep` is the default and stays unwritten; a purpose keeps the spaces it was typed with.
+  return field === "ingest" && typed === "keep" ? undefined : field === "purpose" ? value : typed;
+}
+
+function setPersonal(document: Document, model: LinkmlModel, operation: Extract<Operation, { op: "setPersonal" }>): void {
+  const onClass = operation.target === "class";
+  if (onClass) {
+    classOf(model, operation.name);
+  } else {
+    slotOf(model, operation.name);
+  }
+  if (!(onClass ? CLASS_PERSONAL : SLOT_PERSONAL).includes(operation.field)) {
+    refuse(`a ${operation.target} carries no '${operation.field}' annotation`);
+  }
+  const locale = operation.locale?.trim();
+  if (operation.field === "purpose" && !locale) {
+    refuse(`the purpose of class '${operation.name}' is written per language`);
+  }
+  const path = [onClass ? "classes" : "slots", operation.name, "annotations", operation.field];
+  // A purpose written as one plain string is English; per-language text goes beside it.
+  const written = document.getIn(path, true);
+  if (operation.field === "purpose" && isScalar(written)) {
+    document.setIn(path, document.createNode({ en: written.value }));
+  }
+  setOrDelete(document, locale && operation.field === "purpose" ? [...path, locale] : path, personalValue(model, operation));
+  // The last annotation gone takes its empty map along.
+  const annotations = document.getIn(path.slice(0, -1), true);
+  if (isMap(annotations) && annotations.items.length === 0) {
+    document.deleteIn(path.slice(0, -1));
+  }
+}
 
 /** `unit` takes a UN/CEFACT common code (DM-06); `kind` an NGSI-LD kind; the rest their YAML value. */
 export type SlotField =
@@ -375,6 +447,9 @@ function renameKey(document: Document, section: string, name: string, to: string
 
 function mutate(document: Document, model: LinkmlModel, operation: Operation): void {
   switch (operation.op) {
+    case "setPersonal":
+      setPersonal(document, model, operation);
+      return;
     case "addClass": {
       requireName(operation.name, "class");
       if (model.classes.some((klass) => klass.name === operation.name)) {

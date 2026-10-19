@@ -3226,6 +3226,33 @@
         "inverseSame": "Das inverse Ende ist ein zweites Feld; einen anderen Namen geben.",
         "pickFirst": "Wählen Sie zuerst die Zielklasse und benennen Sie beide Enden."
       }
+    },
+    "personal": {
+      "title": "Personenbezogene Daten",
+      "classHolds": "Diese Klasse enthält personenbezogene Daten",
+      "slotHolds": "Personenbezogene Daten",
+      "legalBasis": "Rechtsgrundlage",
+      "legalBasisHint": "DSGVO Art. 6 Abs. 1: warum die Daten verarbeitet werden dürfen.",
+      "maxRetention": "Höchstens aufbewahrt",
+      "maxRetentionHint": "Eine ISO-8601-Dauer, etwa P90D für 90 Tage; ältere Zeilen werden gelöscht, jede Version eingeschlossen.",
+      "dataSubjectRef": "Betroffene Person",
+      "dataSubjectRefHint": "Das Attribut, das die Person identifiziert: Export, Berichtigung und Löschung finden sie darüber.",
+      "purposeIn": "Zweck ({locale})",
+      "ingest": "Gespeichert als",
+      "ingestHint": "Was vom Wert beim Broker ankommt.",
+      "basis": {
+        "consent": "Einwilligung",
+        "contract": "Vertrag",
+        "legal-obligation": "Rechtliche Verpflichtung",
+        "vital-interest": "Lebenswichtiges Interesse",
+        "public-task": "Öffentliche Aufgabe",
+        "legitimate-interest": "Berechtigtes Interesse"
+      },
+      "ingestName": {
+        "keep": "Der Wert",
+        "drop": "Nichts (verworfen)",
+        "keyedHash": "Ein Hash mit Schlüssel (HMAC)"
+      }
     }
   },
   "apps": {

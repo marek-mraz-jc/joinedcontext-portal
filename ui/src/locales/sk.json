@@ -3226,6 +3226,33 @@
         "inverseSame": "Inverzný koniec je druhé pole; dajte mu iný názov.",
         "pickFirst": "Najprv vyberte cieľovú triedu a pomenujte oba konce."
       }
+    },
+    "personal": {
+      "title": "Osobné údaje",
+      "classHolds": "Táto trieda obsahuje osobné údaje",
+      "slotHolds": "Osobné údaje",
+      "legalBasis": "Právny základ",
+      "legalBasisHint": "GDPR čl. 6 ods. 1: prečo sa údaje smú spracúvať.",
+      "maxRetention": "Uchovávať najviac",
+      "maxRetentionHint": "Trvanie podľa ISO 8601, napr. P90D pre 90 dní; staršie záznamy sa vymažú vrátane všetkých verzií.",
+      "dataSubjectRef": "Dotknutá osoba",
+      "dataSubjectRefHint": "Atribút, ktorý osobu identifikuje: podľa neho ju nájde export, oprava aj vymazanie.",
+      "purposeIn": "Účel ({locale})",
+      "ingest": "Uloží sa",
+      "ingestHint": "Čo z hodnoty sa dostane do brokera.",
+      "basis": {
+        "consent": "Súhlas",
+        "contract": "Zmluva",
+        "legal-obligation": "Zákonná povinnosť",
+        "vital-interest": "Životne dôležitý záujem",
+        "public-task": "Verejný záujem",
+        "legitimate-interest": "Oprávnený záujem"
+      },
+      "ingestName": {
+        "keep": "Hodnota",
+        "drop": "Nič (zahodí sa)",
+        "keyedHash": "Kľúčovaný odtlačok"
+      }
     }
   },
   "apps": {

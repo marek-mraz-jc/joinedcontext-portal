@@ -33,6 +33,7 @@ import { applyOperations } from "./operations";
 import { UnitPicker } from "../../components/pickers/UnitPicker";
 import type { Operation, SlotField } from "./operations";
 import { RelationshipEditor } from "./RelationshipEditor";
+import { ClassPersonalFields, SlotPersonalFields } from "./PersonalDataFields";
 
 /**
  * The structured view of the model: classes, slots, enums (DM-13).
@@ -455,6 +456,7 @@ export function LinkmlVisualEditor({
                 ))}
               </div>
             ) : null}
+            <ClassPersonalFields model={model} klass={activeClass} locales={locales} run={run} />
             {messagesFor(`classes.${activeClass.name}`).map((diagnostic) => (
               <p
                 key={diagnostic.message}
@@ -638,6 +640,7 @@ export function LinkmlVisualEditor({
                 onChange={(event) => setSlotField(activeSlot.name, "deprecated", event.target.checked)}
               />
             </div>
+            <SlotPersonalFields slot={activeSlot} run={run} />
             {activeSlot.upstream ? (
               <p className="text-xs text-surface-fg/70">
                 {t("models.upstream", { source: activeSlot.upstream })}
