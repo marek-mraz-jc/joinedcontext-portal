@@ -320,7 +320,7 @@ use crate::tools::model_tools::{
         crate::api::space_retention::RetentionDraft,
         crate::api::space_retention::RetentionCounts,
         crate::api::erasures::SubjectRequest,
-        crate::reconciler::views::RetentionCount,
+        crate::reconciler::space_rules::RetentionCount,
         crate::api::data_views::ViewList,
         crate::api::pipeline_templates::TemplateList,
         crate::ops::pipeline_templates::PipelineTemplate,

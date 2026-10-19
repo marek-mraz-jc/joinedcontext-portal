@@ -15,7 +15,7 @@ use utoipa::ToSchema;
 
 use crate::auth::CurrentUser;
 use crate::error::ApiError;
-use crate::reconciler::views::RetentionCount;
+use crate::reconciler::space_rules::RetentionCount;
 use crate::resource::is_dns1123;
 use crate::state::AppState;
 
