@@ -7910,7 +7910,7 @@
       "failureShare": "{timeouts} / {errors} der Fragen",
       "firstToken": "Erstes Wort (Median)",
       "phase": {
-        "route": "Weiterleitung",
+        "route": "Wegwahl",
         "work": "Suche und Werkzeuge",
         "answer": "Antwort schreiben"
       },
