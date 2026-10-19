@@ -223,7 +223,9 @@ jobs:
         run: |
           set -eu
           node --test scripts/app-coverage-gate.test.mjs scripts/apps-ci.test.mjs
-          git fetch -q --depth=100 origin main
+          # A branch push checks out one commit: fetch main into origin/main and deepen both, or
+          # merge-base finds no fork and the step fails with no message (T-4675 runs ci on agent/**).
+          git fetch -q --deepen=100 origin +refs/heads/main:refs/remotes/origin/main
           base=$(git merge-base HEAD origin/main)
           [ "$base" = "$(git rev-parse HEAD)" ] && base=$(git rev-parse HEAD~1)
           git show "$base:apps/coverage-pending.txt" > "$RUNNER_TEMP/pending-base.txt" 2>/dev/null || rm -f "$RUNNER_TEMP/pending-base.txt"
