@@ -7908,6 +7908,8 @@
       "spread": "medián {p50}, p90 {p90}, max {max}",
       "failures": "Časové limity / chyby",
       "failureShare": "{timeouts} / {errors} otázok",
+      "answerCache": "Odpovedané z uložených odpovedí",
+      "answerCacheNote": "{hits} otázok, ušetrené asi {ms} a {usd}",
       "firstToken": "Prvé slovo (medián)",
       "phase": {
         "route": "Smerovanie",

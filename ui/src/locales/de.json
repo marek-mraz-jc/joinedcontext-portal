@@ -7908,9 +7908,11 @@
       "spread": "Median {p50}, p90 {p90}, max {max}",
       "failures": "Zeitüberschreitungen / Fehler",
       "failureShare": "{timeouts} / {errors} der Fragen",
+      "answerCache": "Aus gespeicherten Antworten beantwortet",
+      "answerCacheNote": "{hits} Fragen, etwa {ms} und {usd} gespart",
       "firstToken": "Erstes Wort (Median)",
       "phase": {
-        "route": "Routing",
+        "route": "Wegwahl",
         "work": "Suche und Werkzeuge",
         "answer": "Antwort schreiben"
       },

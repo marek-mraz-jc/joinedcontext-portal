@@ -97,6 +97,7 @@ const USAGE = {
   questions: 21, timeouts: 7, errors: 1, uncostedQuestions: 1,
   costUsd: { total: 0.2082, mean: 0.0104, p50: 0.0099, p90: 0.0151 },
   tokens: { in: 58722, out: 235, cached: 1200, cachedShare: 0.2 },
+  answerCache: { hits: 3, hitShare: 0.1429, savedMs: 26400, savedUsd: 0.0312 },
   firstTokenMs: spreadOf(8100, 20000, 30000), totalMs: spreadOf(28900, 45000, 45200),
   phases: { route: spreadOf(1200, 2100, 3000), work: spreadOf(9000, 15000, 20000), answer: spreadOf(6000, 9000, 12000) },
   costByStage: [
@@ -314,6 +315,11 @@ describe("Asistent → Konverzácie", () => {
     expect(await within(summary).findByText("21", { selector: "dd" })).toBeInTheDocument();
     expect(within(summary).getByText("$0.21")).toBeInTheDocument();
     expect(within(summary).getByText(i18n.t("conversations.usage.uncosted", { count: 1 }))).toBeInTheDocument();
+    // T-4731: the answer cache's hits and what they saved
+    expect(within(summary).getByText(i18n.t("conversations.usage.answerCache"))).toBeInTheDocument();
+    expect(
+      within(summary).getByText(i18n.t("conversations.usage.answerCacheNote", { hits: 3, ms: "26.4 s", usd: "$0.03" })),
+    ).toBeInTheDocument();
     expect(within(summary).getByText("28.9 s")).toBeInTheDocument();
     expect(within(summary).getByText(/2026-10-19/)).toBeInTheDocument();
     // A stage nothing priced says so, never $0.

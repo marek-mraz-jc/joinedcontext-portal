@@ -184,6 +184,8 @@ export interface UsageSummary {
   uncostedQuestions: number;
   costUsd: { total: number | null; mean: number | null; p50: number | null; p90: number | null };
   tokens: { in: number | null; out: number | null; cached: number | null; cachedShare: number | null };
+  /** Turns answered from the kept answers, and the estimated time and cost they saved (T-4731). */
+  answerCache?: { hits: number; hitShare: number | null; savedMs: number | null; savedUsd: number | null };
   firstTokenMs: Spread;
   totalMs: Spread;
   phases: { route: Spread; work: Spread; answer: Spread };

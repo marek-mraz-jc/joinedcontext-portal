@@ -7908,6 +7908,8 @@
       "spread": "median {p50}, p90 {p90}, max {max}",
       "failures": "Timeouts / errors",
       "failureShare": "{timeouts} / {errors} of questions",
+      "answerCache": "Answered from kept answers",
+      "answerCacheNote": "{hits} questions, saved about {ms} and {usd}",
       "firstToken": "First word (median)",
       "phase": {
         "route": "Routing",

@@ -114,8 +114,19 @@ export function UsageSummary({ project, filter }: { project: string; filter: Con
               })}
             />
           </dl>
-          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <Figure label={t("conversations.usage.firstToken")} value={msText(s.firstTokenMs.p50)} note={spread(s.firstTokenMs)} />
+            {s.answerCache ? (
+              <Figure
+                label={t("conversations.usage.answerCache")}
+                value={shareText(s.answerCache.hitShare, locale)}
+                note={t("conversations.usage.answerCacheNote", {
+                  hits: s.answerCache.hits,
+                  ms: msText(s.answerCache.savedMs),
+                  usd: usdText(s.answerCache.savedUsd),
+                })}
+              />
+            ) : null}
             <Figure label={t("conversations.usage.phase.route")} value={msText(s.phases.route.p50)} note={spread(s.phases.route)} />
             <Figure label={t("conversations.usage.phase.work")} value={msText(s.phases.work.p50)} note={spread(s.phases.work)} />
             <Figure label={t("conversations.usage.phase.answer")} value={msText(s.phases.answer.p50)} note={spread(s.phases.answer)} />
