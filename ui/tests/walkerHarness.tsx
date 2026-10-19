@@ -114,6 +114,17 @@ function answer(path: string): Response | undefined {
     const none = { publisher: [], theme: [], format: [], licence: [], spatial: [], year: [] };
     return jsonResponse({ total: 0, page: 1, pageSize: 20, datasets: [], facets: none, unavailable: [] });
   }
+  // The assistant's usage summary (API/05 §3.1) is one object: an empty range, zeros and nulls.
+  if (path.endsWith("/knowledge/conversations/usage")) {
+    const spread = { p50: null, p90: null, max: null };
+    return jsonResponse({
+      questions: 0, timeouts: 0, errors: 0, uncostedQuestions: 0,
+      costUsd: { total: null, mean: null, p50: null, p90: null },
+      tokens: { in: null, out: null, cached: null, cachedShare: null },
+      firstTokenMs: spread, totalMs: spread, phases: { route: spread, work: spread, answer: spread },
+      costByStage: [], days: [],
+    });
+  }
   const last = decodeURIComponent(path.split("/").pop() ?? "");
   return MADE_UP.has(last) && path !== "/api/v1/projects/helsinki" ? problem(404, `${last} was not found`) : undefined;
 }
