@@ -13,6 +13,7 @@ import {
   validateReason,
   valueOf,
 } from "../src/components/entities/history/historyApi";
+import type { CsvRow, Measurement } from "../src/components/entities/history/historyApi";
 
 afterEach(() => {
   vi.restoreAllMocks();

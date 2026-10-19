@@ -11,7 +11,7 @@
     "actor": "Aktér",
     "operation": "Operace",
     "reason": "Důvod",
-    "reasonHint": "Vysvětlete změnu nejvýše 500 znaky",
+    "reasonHint": "Napište jednou dvěma větami proč; zůstane u změny.",
     "reasonRequired": "Důvod je povinný",
     "writtenAt": "Čas zápisu",
     "supersededAt": "Čas nahrazení",
@@ -34,8 +34,9 @@
     "confirmImport": "Potvrdit import",
     "importProgress": "Odesláno {sent} z {total}",
     "importResult": "Odesláno {sent} hodnot",
-    "importFailed": "Řádek {line} selhal: {reason}",
-    "cancel": "Zrušit"
+    "importFailed": "Řádek {line} se neuložil: {reason}. Opravte ho v souboru a importujte znovu.",
+    "cancel": "Zrušit",
+    "needsReason": "Nejdřív napište důvod a platnou hodnotu."
   },
   "app": {
     "title": "joinedcontext Portal",

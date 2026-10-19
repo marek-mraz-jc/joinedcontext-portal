@@ -10,6 +10,8 @@ import { diagnose, parseModel } from "../src/pages/models/linkml";
 import { applyOperations } from "../src/pages/models/operations";
 import type { Operation } from "../src/pages/models/operations";
 import { LinkmlVisualEditor } from "../src/pages/models/LinkmlVisualEditor";
+import { SlotPersonalFields } from "../src/pages/models/PersonalDataFields";
+import { isDuration } from "../src/pages/models/personalData";
 
 const TRIPS = `id: https://example.org/trips
 name: trips
@@ -151,5 +153,37 @@ describe("the editor's personal-data fields", () => {
     expect(screen.getByLabelText(/Kept at most/)).toBeTruthy();
     expect(screen.getByLabelText("Purpose (sk)")).toBeTruthy();
     expect(screen.getByLabelText(/Data subject/)).toBeTruthy();
+  });
+});
+
+describe("a retention is an ISO 8601 duration", () => {
+  it("takes days, months, weeks and times, and refuses the rest", () => {
+    for (const ok of ["P90D", "P1Y6M", "P2W", "PT12H", "P1DT30M"]) expect(isDuration(ok), ok).toBe(true);
+    for (const bad of ["P", "PT", "90D", "P1.5D", "P1DT", "forever", ""]) expect(isDuration(bad), bad).toBe(false);
+  });
+});
+
+describe("a slot's personal-data fields", () => {
+  it("offer what is stored only once the slot is personal, and send each choice as one operation", () => {
+    const sent: Operation[] = [];
+    const run = (operation: Operation) => (sent.push(operation), true);
+    const plain = parseModel(TRIPS).slots.find((s) => s.name === "rider")!;
+    const view = render(
+      <I18nextProvider i18n={i18n}>
+        <SlotPersonalFields slot={plain} run={run} />
+      </I18nextProvider>,
+    );
+    expect(screen.queryByLabelText(/Stored as/)).toBeNull();
+    fireEvent.click(screen.getByLabelText("Personal data"));
+    view.rerender(
+      <I18nextProvider i18n={i18n}>
+        <SlotPersonalFields slot={{ ...plain, personalData: true }} run={run} />
+      </I18nextProvider>,
+    );
+    fireEvent.change(screen.getByLabelText(/Stored as/), { target: { value: "keyedHash" } });
+    expect(sent).toEqual([
+      { op: "setPersonal", target: "slot", name: "rider", field: "personalData", value: true },
+      { op: "setPersonal", target: "slot", name: "rider", field: "ingest", value: "keyedHash" },
+    ]);
   });
 });

@@ -11,7 +11,7 @@
     "actor": "Aktér",
     "operation": "Operácia",
     "reason": "Dôvod",
-    "reasonHint": "Vysvetlite zmenu najviac 500 znakmi",
+    "reasonHint": "Napíšte jednou-dvoma vetami prečo; zostane pri zmene.",
     "reasonRequired": "Dôvod je povinný",
     "writtenAt": "Čas zápisu",
     "supersededAt": "Čas nahradenia",
@@ -34,8 +34,9 @@
     "confirmImport": "Potvrdiť import",
     "importProgress": "Odoslaných {sent} z {total}",
     "importResult": "Odoslaných {sent} hodnôt",
-    "importFailed": "Riadok {line} zlyhal: {reason}",
-    "cancel": "Zrušiť"
+    "importFailed": "Riadok {line} sa neuložil: {reason}. Opravte ho v súbore a importujte znova.",
+    "cancel": "Zrušiť",
+    "needsReason": "Najprv napíšte dôvod a platnú hodnotu."
   },
   "app": {
     "title": "joinedcontext Portal",

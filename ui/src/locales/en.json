@@ -11,7 +11,7 @@
     "actor": "Actor",
     "operation": "Operation",
     "reason": "Reason",
-    "reasonHint": "Explain the change in up to 500 characters",
+    "reasonHint": "Say why in a sentence or two; it stays with the change.",
     "reasonRequired": "Reason is required",
     "writtenAt": "Written at",
     "supersededAt": "Superseded at",
@@ -34,8 +34,9 @@
     "confirmImport": "Confirm import",
     "importProgress": "Sent {sent} of {total}",
     "importResult": "Sent {sent} values",
-    "importFailed": "Line {line} failed: {reason}",
-    "cancel": "Cancel"
+    "importFailed": "The row on line {line} was not saved: {reason}. Fix it in the file and import again.",
+    "cancel": "Cancel",
+    "needsReason": "Write a reason and a valid value first."
   },
   "app": {
     "title": "joinedcontext Portal",

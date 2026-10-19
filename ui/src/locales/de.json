@@ -11,7 +11,7 @@
     "actor": "Akteur",
     "operation": "Operation",
     "reason": "Begründung",
-    "reasonHint": "Erklären Sie die Änderung mit bis zu 500 Zeichen",
+    "reasonHint": "Sagen Sie in ein, zwei Sätzen, warum; es bleibt bei der Änderung.",
     "reasonRequired": "Begründung ist erforderlich",
     "writtenAt": "Schreibzeit",
     "supersededAt": "Ersetzungszeit",
@@ -34,8 +34,9 @@
     "confirmImport": "Import bestätigen",
     "importProgress": "{sent} von {total} gesendet",
     "importResult": "{sent} Werte gesendet",
-    "importFailed": "Zeile {line} fehlgeschlagen: {reason}",
-    "cancel": "Abbrechen"
+    "importFailed": "Die Zeile {line} wurde nicht gespeichert: {reason}. Korrigieren Sie sie in der Datei und importieren Sie erneut.",
+    "cancel": "Abbrechen",
+    "needsReason": "Schreiben Sie zuerst einen Grund und einen gültigen Wert."
   },
   "app": {
     "title": "joinedcontext Portal",

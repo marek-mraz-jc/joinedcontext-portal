@@ -1328,6 +1328,7 @@
       "tests": [
         "linkml_enum_values.test.tsx",
         "linkml_imports_enums.test.tsx",
+        "linkml_personal_data.test.tsx",
         "linkml_source_editor.test.tsx",
         "linkml_visual_editor.test.tsx",
         "relationship_editor.test.tsx"
@@ -1867,6 +1868,22 @@
       },
       "tests": [
         "workspaces_ui.test.tsx"
+      ]
+    },
+    "src/components/entities/history/AttributeHistory.tsx": {
+      "controls": {
+        "Button": 9
+      },
+      "tests": [
+        "attribute_history.test.tsx"
+      ]
+    },
+    "src/pages/models/PersonalDataFields.tsx": {
+      "controls": {
+        "Checkbox": 2
+      },
+      "tests": [
+        "linkml_personal_data.test.tsx"
       ]
     }
   }

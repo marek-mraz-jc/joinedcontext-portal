@@ -40,6 +40,11 @@ function formatValue(val: unknown): string {
   return typeof val === "string" ? val : JSON.stringify(val);
 }
 
+/** An instant in the person's language, never the browser's (UI-15). */
+function when(iso: string, language: string): string {
+  return new Date(iso).toLocaleString(language, { dateStyle: "medium", timeStyle: "medium" });
+}
+
 function toLocalInputString(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -145,6 +150,7 @@ function EditCurrent({ target, current }: { target: Target; current: unknown }):
           size="sm"
           loading={write.busy}
           disabled={!reasonOk(reason) || value === undefined}
+          title={!reasonOk(reason) || value === undefined ? t("attributeHistory.needsReason") : undefined}
           onClick={() => void save()}
         >
           {t("attributeHistory.save")}
@@ -208,6 +214,7 @@ function AddOldValue({ target }: { target: Target }): JSX.Element {
           size="sm"
           loading={write.busy}
           disabled={!reasonOk(reason) || !instant || value === undefined}
+          title={!reasonOk(reason) || !instant || value === undefined ? t("attributeHistory.needsReason") : undefined}
           onClick={() => void save()}
         >
           {t("attributeHistory.save")}
@@ -329,6 +336,7 @@ function CsvImport({
           size="sm"
           loading={write.busy}
           disabled={!reasonOk(reason) || count === 0}
+          title={!reasonOk(reason) || count === 0 ? t("attributeHistory.needsReason") : undefined}
           onClick={() => void confirm()}
         >
           {t("attributeHistory.confirmImport")}
@@ -351,7 +359,7 @@ function VersionDialog({
   revertTo?: Version;
   close: () => void;
 }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [text, setText] = useState(formatValue(measurement.current.value));
   const [reason, setReason] = useState("");
   const write = useWrite(target);
@@ -381,7 +389,7 @@ function VersionDialog({
         if (!open) close();
       }}
       title={t(revertTo ? "attributeHistory.revertTitle" : "attributeHistory.correctTitle")}
-      description={new Date(measurement.observedAt).toLocaleString()}
+      description={when(measurement.observedAt, i18n.language)}
       closeLabel={t("attributeHistory.cancel")}
       footer={
         <>
@@ -392,6 +400,7 @@ function VersionDialog({
             variant="primary"
             loading={write.busy}
             disabled={!reasonOk(reason) || value === undefined}
+            title={!reasonOk(reason) || value === undefined ? t("attributeHistory.needsReason") : undefined}
             onClick={() => void save()}
           >
             {t(revertTo ? "attributeHistory.revert" : "attributeHistory.save")}
@@ -430,14 +439,14 @@ function VersionRow({
   canEditHistory: boolean;
   open: (revertTo?: Version) => void;
 }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const current = version === measurement.current && !version.supersededAt;
   const written = version.provenance?.writtenAt;
   return (
     <TableRow>
       <TableCell className="font-mono text-caption">
         {first ? (
-          <span>{new Date(measurement.observedAt).toLocaleString()}</span>
+          <span>{when(measurement.observedAt, i18n.language)}</span>
         ) : (
           <span className="text-fg-muted">↳</span>
         )}
@@ -456,7 +465,7 @@ function VersionRow({
       <TableCell className="text-caption">{version.provenance?.operation ?? "—"}</TableCell>
       <TableCell className="text-caption">{version.provenance?.reason ?? "—"}</TableCell>
       <TableCell className="text-caption">
-        {written ? new Date(written).toLocaleString() : "—"}
+        {written ? when(written, i18n.language) : "—"}
       </TableCell>
       <TableCell className="text-right">
         {canEditHistory ? (
