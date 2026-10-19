@@ -1078,22 +1078,34 @@ pub async fn get_conversation(
     State(state): State<AppState>,
     Path((project, conversation)): Path<(String, String)>,
 ) -> Result<Json<Value>, ApiError> {
-    administers(&state, &user, &project, Verb::Approve)?;
+    let call = (Verb::Approve, reqwest::Method::GET, Some(""));
+    let what = ("read a stored conversation", json!(conversation));
+    transcript_call(&state, &user, (&project, &conversation), call, what)
+        .await
+        .map(Json)
+}
+
+/// One call on a stored conversation, as each of these routes makes it: the verb on
+/// AssistantDeployment, the per-person limit, the conversation's own path (`suffix` under it;
+/// `None`, a turn that cannot be stored, is a `404` the assistant is never asked),
+/// a `404` counted towards a probe, and the audit record of `what` once it answered.
+async fn transcript_call(
+    state: &AppState,
+    user: &CurrentUser,
+    (project, conversation): (&str, &str),
+    (verb, method, suffix): (Verb, reqwest::Method, Option<&str>),
+    (what, details): (&str, Value),
+) -> Result<Value, ApiError> {
+    administers(state, user, project, verb)?;
     admitted(&user.0.identity.subject, Instant::now())?;
-    let read = async {
-        let path = conversation_path(&state, &user, (&project, &conversation), Verb::Approve)?;
-        ask(&state, reqwest::Method::GET, &path, None).await
+    let call = async {
+        let path = conversation_path(state, user, (project, conversation), verb)?;
+        let suffix = suffix.ok_or_else(|| ApiError::NotFound("no such stored turn".into()))?;
+        ask(state, method, &format!("{path}{suffix}"), None).await
     };
-    let (_, body) = missed(&state, &user, &project, read.await).await?;
-    audited(
-        &state,
-        &user,
-        &project,
-        "read a stored conversation",
-        json!(conversation),
-    )
-    .await;
-    Ok(Json(body))
+    let (_, body) = missed(state, user, project, call.await).await?;
+    audited(state, user, project, what, details).await;
+    Ok(body)
 }
 
 #[utoipa::path(
@@ -1119,21 +1131,9 @@ pub async fn erase_conversation(
     State(state): State<AppState>,
     Path((project, conversation)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
-    administers(&state, &user, &project, Verb::Delete)?;
-    admitted(&user.0.identity.subject, Instant::now())?;
-    let erase = async {
-        let path = conversation_path(&state, &user, (&project, &conversation), Verb::Delete)?;
-        ask(&state, reqwest::Method::DELETE, &path, None).await
-    };
-    missed(&state, &user, &project, erase.await).await?;
-    audited(
-        &state,
-        &user,
-        &project,
-        "erased a stored conversation",
-        json!(conversation),
-    )
-    .await;
+    let call = (Verb::Delete, reqwest::Method::DELETE, Some(""));
+    let what = ("erased a stored conversation", json!(conversation));
+    transcript_call(&state, &user, (&project, &conversation), call, what).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1162,31 +1162,16 @@ pub async fn same_question(
     State(state): State<AppState>,
     Path((project, conversation, turn)): Path<(String, String, u32)>,
 ) -> Result<Json<Value>, ApiError> {
-    administers(&state, &user, &project, Verb::Approve)?;
-    admitted(&user.0.identity.subject, Instant::now())?;
-    let read = async {
-        let path = conversation_path(&state, &user, (&project, &conversation), Verb::Approve)?;
-        if !(1..=200).contains(&turn) {
-            return Err(ApiError::NotFound(format!("turn {turn} not found")));
-        }
-        ask(
-            &state,
-            reqwest::Method::GET,
-            &format!("{path}/turns/{turn}/same"),
-            None,
-        )
-        .await
-    };
-    let (_, body) = missed(&state, &user, &project, read.await).await?;
-    audited(
-        &state,
-        &user,
-        &project,
+    let suffix = format!("/turns/{turn}/same");
+    let stored = (1..=200).contains(&turn).then_some(suffix.as_str());
+    let call = (Verb::Approve, reqwest::Method::GET, stored);
+    let what = (
         "listed the turns of one question",
         json!({"conversation": conversation, "turn": turn}),
-    )
-    .await;
-    Ok(Json(body))
+    );
+    transcript_call(&state, &user, (&project, &conversation), call, what)
+        .await
+        .map(Json)
 }
 
 #[utoipa::path(

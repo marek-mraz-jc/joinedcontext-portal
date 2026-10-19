@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { usePermissions } from "../../api/permissions";
 import {
   Alert,
@@ -41,7 +42,7 @@ import {
   visualChanges,
   wordDiff,
 } from "./conversations";
-import type { ConversationFilter, ConversationStep, ConversationTurn } from "./conversations";
+import type { ConversationFilter, ConversationStep, ConversationTurn, DiffWord } from "./conversations";
 
 /**
  * Asistent → Konverzácie (API/01 §34, T-4670): the project's stored assistant conversations,
@@ -486,73 +487,88 @@ function CompareView({
 
 function Compared({ left, right }: { left: ConversationTurn; right: ConversationTurn }): JSX.Element {
   const { t } = useTranslation();
-  const changes = visualChanges(left.steps, right.steps);
-  const line = (turn: ConversationTurn) => {
-    const sum = totals(turn);
-    return t("conversations.totals", {
-      steps: sum.steps,
-      tools: sum.tools,
-      models: sum.models,
-      time: msText(sum.totalMs),
-      cost: usdText(sum.costUsd),
-      cached: sum.cachedShare === null ? "–" : `${Math.round(sum.cachedShare * 100)} %`,
-    });
-  };
   return (
     <>
       <div className="grid gap-2 text-caption md:grid-cols-2">
-        <p data-testid="compare-left-totals">{line(left)}</p>
-        <p data-testid="compare-right-totals">{line(right)}</p>
+        <p data-testid="compare-left-totals">{totalsText(t, left)}</p>
+        <p data-testid="compare-right-totals">{totalsText(t, right)}</p>
       </div>
-      <div className="text-caption">
-        <p className="font-semibold">{t("conversations.changes")}</p>
-        {changes.length === 0 ? (
-          <p className="text-fg-muted">{t("conversations.noChanges")}</p>
-        ) : (
-          <ul aria-label={t("conversations.changes")} className="list-disc pl-5">
-            {changes.map((change, i) => (
-              <li key={i}>{visible(change)}</li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <ChangeList changes={visualChanges(left.steps, right.steps)} />
       <ol aria-label={t("conversations.steps")} className="space-y-1 text-caption">
         {aligned(left.steps, right.steps).map(([a, b], i) => (
           <li key={i} className="grid gap-2 border-l border-border pl-3 md:grid-cols-2">
-            {[a, b].map((step, side) => (
-              <div key={side} data-side={side === 0 ? "left" : "right"}>
-                {step ? (
-                  <details>
-                    <summary className="cursor-pointer">
-                      <strong>{t(`conversations.kind.${step.kind}`)}</strong> {visible(step.model ?? step.name)}
-                      {step.endpoint ? ` · ${visible(step.endpoint)}` : ""} · {msText(step.durationMs)}
-                      {step.tokensIn !== null ? ` · ${step.tokensIn}/${step.tokensOut ?? 0} tok` : ""}
-                      {step.kind === "model" ? ` · ${usdText(step.costUsd)}` : ""}
-                    </summary>
-                    <StepBody step={step} />
-                  </details>
-                ) : (
-                  <span className="text-fg-muted">–</span>
-                )}
-              </div>
-            ))}
+            <ComparedStep step={a} side="left" />
+            <ComparedStep step={b} side="right" />
           </li>
         ))}
       </ol>
-      <div>
-        <p className="text-caption font-semibold">{t("conversations.answers")}</p>
-        <p className="whitespace-pre-wrap" data-testid="answer-diff">
-          {wordDiff(left.answer, right.answer).map((w, i) =>
-            w.change === "same" ? (
-              <span key={i}>{visible(w.word)} </span>
-            ) : w.change === "removed" ? (
-              <del key={i} className="text-danger">{visible(w.word)} </del>
-            ) : (
-              <ins key={i} className="text-success">{visible(w.word)} </ins>
-            ),
-          )}
-        </p>
-      </div>
+      <AnswerDiff left={left.answer} right={right.answer} />
     </>
+  );
+}
+
+/** A compared turn's header line: steps, tool and model calls, time, cost and cached share. */
+function totalsText(t: TFunction, turn: ConversationTurn): string {
+  const sum = totals(turn);
+  return t("conversations.totals", {
+    steps: sum.steps,
+    tools: sum.tools,
+    models: sum.models,
+    time: msText(sum.totalMs),
+    cost: usdText(sum.costUsd),
+    cached: sum.cachedShare === null ? "–" : `${Math.round(sum.cachedShare * 100)} %`,
+  });
+}
+
+/** The spec changes between the two turns' tables, charts and maps. */
+function ChangeList({ changes }: { changes: string[] }): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <div className="text-caption">
+      <p className="font-semibold">{t("conversations.changes")}</p>
+      {changes.length === 0 ? (
+        <p className="text-fg-muted">{t("conversations.noChanges")}</p>
+      ) : (
+        <ul aria-label={t("conversations.changes")} className="list-disc pl-5">
+          {changes.map((change, i) => (
+            <li key={i}>{visible(change)}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** One side of an aligned row: the step, or an empty cell where the other turn had one. */
+function ComparedStep({ step, side }: { step: ConversationStep | null; side: "left" | "right" }): JSX.Element {
+  const { t } = useTranslation();
+  if (!step) return <span data-side={side} className="text-fg-muted">–</span>;
+  return (
+    <details data-side={side}>
+      <summary className="cursor-pointer">
+        <strong>{t(`conversations.kind.${step.kind}`)}</strong> {visible(step.model ?? step.name)}
+        {step.endpoint ? ` · ${visible(step.endpoint)}` : ""} · {msText(step.durationMs)}
+        {step.tokensIn !== null ? ` · ${step.tokensIn}/${step.tokensOut ?? 0} tok` : ""}
+        {step.kind === "model" ? ` · ${usdText(step.costUsd)}` : ""}
+      </summary>
+      <StepBody step={step} />
+    </details>
+  );
+}
+
+/** The two answers as a word diff: what the second dropped struck out, what it added marked. */
+function AnswerDiff({ left, right }: { left: string; right: string }): JSX.Element {
+  const { t } = useTranslation();
+  const word = (w: DiffWord, i: number) =>
+    w.change === "same" ? <span key={i}>{visible(w.word)} </span>
+    : w.change === "removed" ? <del key={i} className="text-danger">{visible(w.word)} </del>
+    : <ins key={i} className="text-success">{visible(w.word)} </ins>;
+  return (
+    <div>
+      <p className="text-caption font-semibold">{t("conversations.answers")}</p>
+      <p className="whitespace-pre-wrap" data-testid="answer-diff">
+        {wordDiff(left, right).map(word)}
+      </p>
+    </div>
   );
 }
