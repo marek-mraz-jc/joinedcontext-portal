@@ -1554,6 +1554,28 @@
           "POST /api/v1/feedback"
         ]
       }
+    },
+    "personal-data": {
+      "subject-export": {
+        "live": {
+          "spec": "personal-data.spec.ts",
+          "test": "the owner of a space exports and erases a data subject with a reason, and nobody else may"
+        },
+        "personOnly": "answering a data subject's access request is the space owner's decision on a named person's data (DM-124, API/01 §46); no assistant tool reads a person's data out of a space",
+        "routes": [
+          "POST /api/v1/projects/{project}/spaces/{space}/subjects/export"
+        ]
+      },
+      "subject-erasure": {
+        "live": {
+          "spec": "personal-data.spec.ts",
+          "test": "the owner of a space exports and erases a data subject with a reason, and nobody else may"
+        },
+        "personOnly": "erasing a person's data is irreversible and the space owner's decision with a reason (DM-126, API/01 §46); no assistant tool erases",
+        "routes": [
+          "POST /api/v1/projects/{project}/spaces/{space}/erasures"
+        ]
+      }
     }
   },
   "unclaimed": {

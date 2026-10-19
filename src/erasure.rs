@@ -226,7 +226,7 @@ fn new_id(now: time::OffsetDateTime) -> String {
     )
 }
 
-/// Whether `id` is shaped as [`new_id`] mints them.
+/// Whether `id` is shaped as `new_id` mints them.
 pub fn is_id(id: &str) -> bool {
     id.len() == 24
         && id.starts_with("er-")
