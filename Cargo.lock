@@ -639,7 +639,7 @@ checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
 [[package]]
 name = "context-gateway"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=7be543ad3d4a45ce1303d23d45c67216df1832d6#7be543ad3d4a45ce1303d23d45c67216df1832d6"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=ec14de84f5dfdd3822e39891cf0e2bbc205a86b7#ec14de84f5dfdd3822e39891cf0e2bbc205a86b7"
 dependencies = [
  "arc-swap",
  "argon2",
@@ -2450,11 +2450,12 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "jc-core"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=7be543ad3d4a45ce1303d23d45c67216df1832d6#7be543ad3d4a45ce1303d23d45c67216df1832d6"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=ec14de84f5dfdd3822e39891cf0e2bbc205a86b7#ec14de84f5dfdd3822e39891cf0e2bbc205a86b7"
 dependencies = [
  "arc-swap",
  "axum",
  "chrono",
+ "form_urlencoded",
  "hyper-util",
  "jsonschema",
  "jsonwebtoken",
@@ -2475,7 +2476,7 @@ dependencies = [
 [[package]]
 name = "jc-dcat"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=7be543ad3d4a45ce1303d23d45c67216df1832d6#7be543ad3d4a45ce1303d23d45c67216df1832d6"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=ec14de84f5dfdd3822e39891cf0e2bbc205a86b7#ec14de84f5dfdd3822e39891cf0e2bbc205a86b7"
 dependencies = [
  "jc-core",
  "serde_json",
@@ -2484,7 +2485,7 @@ dependencies = [
 [[package]]
 name = "jc-manifest"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=7be543ad3d4a45ce1303d23d45c67216df1832d6#7be543ad3d4a45ce1303d23d45c67216df1832d6"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=ec14de84f5dfdd3822e39891cf0e2bbc205a86b7#ec14de84f5dfdd3822e39891cf0e2bbc205a86b7"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -2503,7 +2504,7 @@ dependencies = [
 [[package]]
 name = "jcctl"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=7be543ad3d4a45ce1303d23d45c67216df1832d6#7be543ad3d4a45ce1303d23d45c67216df1832d6"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=ec14de84f5dfdd3822e39891cf0e2bbc205a86b7#ec14de84f5dfdd3822e39891cf0e2bbc205a86b7"
 dependencies = [
  "aes-gcm",
  "age",

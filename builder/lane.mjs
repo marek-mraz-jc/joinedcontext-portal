@@ -829,13 +829,17 @@ export function browserChecks(appDir, bundleDir, reportDir, run = spawnSync) {
 
 /**
  * The files of a bundle that carry the preview's `data-jc-src` stamp (SDK-46): only the Portal's
- * preview transpiler writes it, so a published bundle that holds one leaks source positions.
+ * preview transpiler writes it, so a published bundle that holds one leaks source positions. A
+ * stamp is the attribute with its `{file}:{line}` value, as JSX props or as HTML; the attribute's
+ * bare name is the SDK's select module, which every bundle that keeps it carries (T-3578).
  */
+const STAMP = /data-jc-src["']?\s*[:=]\s*["'][^"'\n]*:\d+["']/;
+
 export function stampedFiles(bundleDir) {
   return readdirSync(bundleDir, { recursive: true, withFileTypes: true })
     .filter((entry) => entry.isFile() && /\.(?:html|m?js)$/.test(entry.name))
     .map((entry) => join(entry.parentPath, entry.name))
-    .filter((path) => readFileSync(path, "utf8").includes("data-jc-src"))
+    .filter((path) => STAMP.test(readFileSync(path, "utf8")))
     .map((path) => relative(bundleDir, path))
     .sort();
 }
