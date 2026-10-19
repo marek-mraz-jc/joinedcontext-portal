@@ -453,6 +453,8 @@ describe("every choice of every form reads as words", () => {
     "sources",
     "endpoint",
     "tools",
+    // An assistant's exclude list names the project's Endpoints by their names (T-4693).
+    "exclude",
   ]);
 
   function choices(node: unknown, name: string, found: { name: string; values: unknown[] }[] = []) {

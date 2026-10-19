@@ -152,6 +152,30 @@ spec:
         sk: "Vyberie endpointy podľa vydavateľa, kategórie, typu entity a prístupu, v tomto projekte a v projektoch zo scope.projects; endpoint pridaný neskôr, ktorý zodpovedá, sa pridá bez zmeny tu. Verejný kanál vyberá len verejné endpointy."
         cs: "Vybere endpointy podle vydavatele, kategorie, typu entity a přístupu, v tomto projektu a v projektech ze scope.projects; endpoint přidaný později, který odpovídá, se přidá bez změny zde. Veřejný kanál vybírá jen veřejné endpointy."
         de: "Wählt Endpoints nach Herausgeber, Kategorie, Entitätstyp und Zugriff, in diesem Projekt und den Projekten aus scope.projects; ein später hinzugefügter passender Endpoint kommt ohne Änderung hier dazu. Ein öffentlicher Kanal wählt nur öffentliche Endpoints."
+    select.projects:
+      help:
+        en: The projects whose Endpoints it picks; empty picks this project and those of scope.projects.
+        sk: Projekty, ktorých endpointy vyberie; prázdne vyberie tento projekt a projekty zo scope.projects.
+        cs: Projekty, jejichž endpointy vybere; prázdné vybere tento projekt a projekty ze scope.projects.
+        de: Die Projekte, deren Endpoints er wählt; leer wählt dieses Projekt und die aus scope.projects.
+    select.themes:
+      help:
+        en: The EU data themes an Endpoint must carry to be picked; empty picks any theme.
+        sk: Témy dát EÚ, ktoré endpoint musí niesť, aby bol vybraný; prázdne vyberie akúkoľvek tému.
+        cs: Témata dat EU, která endpoint musí nést, aby byl vybrán; prázdné vybere jakékoli téma.
+        de: Die EU-Datenthemen, die ein Endpoint tragen muss, um gewählt zu werden; leer wählt jedes Thema.
+    select.types:
+      help:
+        en: The entity types an Endpoint must serve to be picked; empty picks any type.
+        sk: Typy entít, ktoré endpoint musí poskytovať, aby bol vybraný; prázdne vyberie akýkoľvek typ.
+        cs: Typy entit, které endpoint musí poskytovat, aby byl vybrán; prázdné vybere jakýkoli typ.
+        de: Die Entitätstypen, die ein Endpoint liefern muss, um gewählt zu werden; leer wählt jeden Typ.
+    select.accessLevel:
+      help:
+        en: Who may read a picked Endpoint; a public channel takes public Endpoints only.
+        sk: Kto smie čítať vybraný endpoint; verejný kanál berie len verejné endpointy.
+        cs: Kdo smí číst vybraný endpoint; veřejný kanál bere jen veřejné endpointy.
+        de: Wer einen gewählten Endpoint lesen darf; ein öffentlicher Kanal nimmt nur öffentliche Endpoints.
     exclude:
       help:
         en: Endpoints it never reads, whatever the connectors or the selector say.
