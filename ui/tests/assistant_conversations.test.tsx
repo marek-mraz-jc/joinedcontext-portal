@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { queryKeys } from "../src/api/client";
 import { ConversationsPage } from "../src/pages/knowledge/ConversationsPage";
+import { UsageSummary } from "../src/pages/knowledge/UsageSummary";
 import {
   aligned,
   capped,
@@ -400,5 +401,43 @@ describe("Asistent → Konverzácie", () => {
     expect(await within(view).findByTestId("compare-right-totals")).toHaveTextContent("cached 80 %");
     await userEvent.setup().click(within(view).getByRole("button", { name: i18n.t("conversations.compareClose") }));
     expect(screen.queryByRole("region", { name: i18n.t("conversations.compareTitle") })).toBeNull();
+  });
+});
+
+describe("UsageSummary (T-4728)", () => {
+  it("reads an all-unpriced range as an unknown price and shows the export's refusal in words", async () => {
+    const user = userEvent.setup();
+    const unpriced = {
+      ...USAGE,
+      uncostedQuestions: 3,
+      costUsd: { total: null, mean: null, p50: null, p90: null },
+      costByStage: [],
+      days: [],
+    };
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(String(input), init);
+      const refused = new URL(request.url, "http://localhost").pathname.endsWith("/export");
+      const body = refused
+        ? { type: "about:blank", title: "Bad Request", status: 400, detail: "more than 20000 turns: narrow the range" }
+        : unpriced;
+      return Promise.resolve(new Response(JSON.stringify(body), {
+        status: refused ? 400 : 200,
+        headers: { "Content-Type": refused ? "application/problem+json" : "application/json" },
+      }));
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <I18nextProvider i18n={i18n}>
+          <UsageSummary project={PROJECT} filter={{}} />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    const summary = await screen.findByLabelText(i18n.t("conversations.usage.title"));
+    expect(await within(summary).findByText(i18n.t("conversations.unknownPrice"))).toBeInTheDocument();
+    expect(within(summary).getByText(i18n.t("conversations.usage.uncosted", { count: 3 }))).toBeInTheDocument();
+    expect(summary.textContent).not.toContain("$0.00");
+    await user.click(within(summary).getByRole("button", { name: i18n.t("conversations.usage.export") }));
+    expect(await within(summary).findByText(/narrow the range/)).toBeInTheDocument();
   });
 });

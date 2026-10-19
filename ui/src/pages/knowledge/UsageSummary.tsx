@@ -65,7 +65,13 @@ export function UsageSummary({ project, filter }: { project: string; filter: Con
     <Card className="space-y-4 p-4" aria-label={t("conversations.usage.title")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold">{t("conversations.usage.title")}</h2>
-        <Button variant="secondary" size="sm" onClick={() => void save()} disabled={exporting}>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => void save()}
+          disabled={exporting}
+          title={exporting ? t("conversations.usage.exporting") : undefined}
+        >
           {exporting ? t("conversations.usage.exporting") : t("conversations.usage.export")}
         </Button>
       </div>
