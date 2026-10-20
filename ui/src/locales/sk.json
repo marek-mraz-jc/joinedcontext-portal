@@ -2133,6 +2133,7 @@
         "file": "Súbor mapovania (bento.yaml)",
         "fileHint": "Procesory, ktoré táto pipeline spúšťa, tak ako ich repozitár drží vedľa jej manifestu. Prihlasovacie údaje sú odkazy, ktoré doplní runner, nikdy nie hodnoty.",
         "fileEdit": "Upraviť súbor mapovania; Navrhnúť ho pošle s manifestom",
+        "fileEditDisabled": "Súbor mapovania môžete upraviť, keď sa načíta.",
         "type": "Typ, ktorý mapovanie zapisuje"
       },
       "output": {

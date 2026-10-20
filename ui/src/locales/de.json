@@ -2133,6 +2133,7 @@
         "file": "Mapping-Datei (bento.yaml)",
         "fileHint": "Die Prozessoren, die diese Pipeline ausführt, so wie das Repository sie neben ihrem Manifest hält. Zugangsdaten erscheinen als Verweise, die der Runner füllt, nie als Werte.",
         "fileEdit": "Mapping-Datei bearbeiten; Vorschlagen sendet sie mit dem Manifest",
+        "fileEditDisabled": "Die Mapping-Datei lässt sich bearbeiten, sobald sie geladen ist.",
         "type": "Typ, den das Mapping schreibt"
       },
       "output": {

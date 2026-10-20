@@ -768,6 +768,7 @@ export function PipelineWorkbench({
                 label={t("pipelines.workbench.mapping.fileEdit")}
                 checked={mappingFile.editing}
                 disabled={mappingFile.state !== "loaded"}
+                disabledReason={t("pipelines.workbench.mapping.fileEditDisabled")}
                 onChange={(event) => mappingFile.onEditing(event.target.checked)}
               />
             </div>

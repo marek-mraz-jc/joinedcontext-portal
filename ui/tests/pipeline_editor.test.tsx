@@ -1105,7 +1105,11 @@ describe("the pipeline editor against the UI contract", () => {
     const dialog = await findFormPage();
     const file = await within(dialog).findByTestId("pipeline-mapping-file");
     expect(await within(file).findByRole("button", { name: /retry|try again/i })).toBeInTheDocument();
-    expect(within(dialog).getByLabelText(en.pipelines.workbench.mapping.fileEdit)).toBeDisabled();
+    const edit = within(dialog).getByLabelText(en.pipelines.workbench.mapping.fileEdit);
+    expect(edit).toHaveAttribute("aria-disabled", "true");
+    expect(edit).toHaveAccessibleDescription(en.pipelines.workbench.mapping.fileEditDisabled);
+    await userEvent.click(edit);
+    expect(edit).not.toBeChecked();
   });
 
   it("asks for no bento.yaml for a pipeline that maps in its own compute step", async () => {
