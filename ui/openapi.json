@@ -7183,7 +7183,7 @@
             }
           },
           "400": {
-            "description": "The saved source's URL is one the runner may not reach",
+            "description": "The saved source's URL is one the runner may not reach, or its input hands each message to one reader",
             "content": {
               "application/json": {
                 "schema": {

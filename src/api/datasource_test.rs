@@ -29,7 +29,7 @@ const RECORD_BYTES: usize = 64 * 1024;
 ///
 /// An `http` source is one fetch by the `http` processor, as the reconciler polls it: Bento's
 /// `http_client` input polls without pause (T-1192). Every other input runs as it would live;
-/// the stream is deleted once the wait ends.
+/// the stream is deleted once the wait ends, with its shared reader state taken off (`isolated`).
 pub(crate) fn connection_test(
     name: &str,
     project: &str,
@@ -45,6 +45,7 @@ pub(crate) fn connection_test(
             "the source's address: {reason}"
         )));
     }
+    let input = isolated(input).map_err(ApiError::BadRequest)?;
     let (input, mut processors) = match (&source.source_type, input) {
         (DataSourceType::Http | DataSourceType::GtfsRt, Value::Object(mut map)) => {
             let mut fetch = map.remove("http_client").unwrap_or_else(|| json!({}));
@@ -86,6 +87,57 @@ pub(crate) fn connection_test(
     config["input"] = input;
     config["pipeline"] = json!({ "processors": processors });
     Ok(config)
+}
+
+/// The inputs a test may read, each with the fields through which readers share messages. A
+/// consumer group, queue group or durable consumer hands each message to one of its readers and
+/// commits it there, so a test that joined it would take messages from the live pipelines; the
+/// test reads beside them instead. Any other input is refused: deny by default.
+const SHARED_FIELDS: &[(&str, &[&str])] = &[
+    ("http_client", &[]),
+    ("websocket", &[]),
+    ("mqtt", &[]),
+    ("nats", &["queue"]),
+    ("nats_jetstream", &["queue", "durable"]),
+    ("kafka_franz", &["consumer_group"]),
+];
+
+/// `input` (`{kind: config}`) reading beside the live pipelines, or why a test may not read it.
+fn isolated(mut input: Value) -> Result<Value, String> {
+    let Some((kind, config)) = input.as_object_mut().and_then(|map| map.iter_mut().next()) else {
+        return Err("the saved source has no input to read".into());
+    };
+    let refused = |why: &str| format!("Test connection does not read a {kind} source: {why}");
+    if config["bind"] == json!(true) {
+        return Err(refused(
+            "it binds an existing consumer, so a test read would take its messages",
+        ));
+    }
+    match (kind.as_str(), config.as_object_mut()) {
+        // An empty group keeps no offsets, so nothing is committed (Bento's kafka input).
+        ("kafka", Some(map)) => _ = map.insert("consumer_group".into(), json!("")),
+        ("mqtt", Some(map)) => isolated_mqtt(map),
+        (kind, Some(map)) => match SHARED_FIELDS.iter().find(|(name, _)| *name == kind) {
+            Some((_, fields)) => fields.iter().for_each(|field| _ = map.remove(*field)),
+            None => return Err(refused("its messages go to one reader each, so a test read would take them from the pipelines that use it")),
+        },
+        (_, None) => {}
+    }
+    Ok(input)
+}
+
+/// An MQTT read in a session of its own: no `$share/{group}/` subscription, which hands each
+/// message to one subscriber of the group, and a clean session the broker drops on disconnect.
+fn isolated_mqtt(map: &mut serde_json::Map<String, Value>) {
+    map.insert("clean_session".into(), json!(true));
+    if let Some(Value::Array(topics)) = map.get_mut("topics") {
+        for topic in topics.iter_mut() {
+            let shared = topic.as_str().and_then(|t| t.strip_prefix("$share/"));
+            if let Some(filter) = shared.and_then(|rest| rest.split_once('/')).map(|(_, f)| f) {
+                *topic = json!(filter);
+            }
+        }
+    }
 }
 
 /// The saved DataSource `name` of `project`, for a caller who may propose it: 404 for a caller who
@@ -131,7 +183,7 @@ pub(crate) fn saved_source(
     responses(
         (status = 200, description = "The records read in three seconds and the first of them, \
                                       or `skipped` with the reason in plain words", body = Probe),
-        (status = 400, description = "The saved source's URL is one the runner may not reach", body = ProblemDetails),
+        (status = 400, description = "The saved source's URL is one the runner may not reach, or its input hands each message to one reader", body = ProblemDetails),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
         (status = 403, description = "No grant proposes a DataSource in this project", body = ProblemDetails),
         (status = 404, description = "No such DataSource in this project", body = ProblemDetails),
@@ -208,6 +260,69 @@ mod tests {
                     Err(ApiError::BadRequest(_))
                 ),
                 "{source}"
+            );
+        }
+    }
+
+    fn input_of_test(kind: &str, input: Value) -> Value {
+        let source = spec(json!({ "type": kind, "input": input }));
+        connection_test("live", "helsinki", &source, "http://portal/x").expect("config")["input"]
+            [kind]
+            .clone()
+    }
+
+    #[test]
+    fn a_kafka_test_joins_no_consumer_group_and_commits_nothing() {
+        let input = json!({ "addresses": ["kafka.example:9092"], "topics": ["t"], "consumer_group": "live" });
+        assert_eq!(input_of_test("kafka", input.clone())["consumer_group"], "");
+        assert!(input_of_test("kafka_franz", input.clone())
+            .get("consumer_group")
+            .is_none());
+    }
+
+    #[test]
+    fn a_nats_test_joins_no_queue_group_or_durable_consumer() {
+        let input = json!({ "urls": ["nats://nats.example:4222"], "subject": "s", "queue": "live", "durable": "live" });
+        let jetstream = input_of_test("nats_jetstream", input.clone());
+        assert!(
+            jetstream.get("durable").is_none() && jetstream.get("queue").is_none(),
+            "{jetstream}"
+        );
+        assert!(input_of_test("nats", input).get("queue").is_none());
+    }
+
+    #[test]
+    fn an_mqtt_test_drops_a_shared_subscription_and_keeps_no_session() {
+        let source = spec(json!({ "type": "mqtt", "mqtt": {
+            "urls": ["tcp://mqtt.example:1883"], "topics": ["$share/live/hfp/#", "plain/#"], "cleanSession": false
+        } }));
+        let config =
+            connection_test("live", "helsinki", &source, "http://portal/x").expect("config");
+        assert_eq!(
+            config["input"]["mqtt"]["topics"],
+            json!(["hfp/#", "plain/#"])
+        );
+        assert_eq!(config["input"]["mqtt"]["clean_session"], true);
+    }
+
+    #[test]
+    fn a_queue_input_or_a_bound_consumer_is_refused_before_anything_runs() {
+        for (kind, input) in [
+            (
+                "amqp_0_9",
+                json!({ "urls": ["amqp://rabbit.example:5672"], "queue": "live" }),
+            ),
+            ("aws_sqs", json!({ "url": "https://sqs.example/live" })),
+            (
+                "nats_jetstream",
+                json!({ "urls": ["nats://nats.example:4222"], "stream": "s", "durable": "live", "bind": true }),
+            ),
+        ] {
+            let source = spec(json!({ "type": kind, "input": input }));
+            let refused = connection_test("live", "helsinki", &source, "http://portal/x");
+            assert!(
+                matches!(&refused, Err(ApiError::BadRequest(why)) if why.contains(kind)),
+                "{kind}: {refused:?}"
             );
         }
     }

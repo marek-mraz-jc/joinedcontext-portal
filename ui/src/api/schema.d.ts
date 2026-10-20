@@ -12521,7 +12521,7 @@ export interface operations {
                     "application/json": components["schemas"]["Probe"];
                 };
             };
-            /** @description The saved source's URL is one the runner may not reach */
+            /** @description The saved source's URL is one the runner may not reach, or its input hands each message to one reader */
             400: {
                 headers: {
                     [name: string]: unknown;
