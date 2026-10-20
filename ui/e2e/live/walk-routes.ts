@@ -81,7 +81,7 @@ export async function visits(page: Page, who: string): Promise<Visit[]> {
     ["/projects/$project/$plural/$name", `${P}/endpoints`, new RegExp(`^${P}/endpoints/[^/]+$`)],
     ["/projects/$project/$plural/$name", `${P}/apps`, new RegExp(`^${P}/apps/[^/]+$`)],
     ["/projects/$project/models/$name", `${P}/models`, new RegExp(`^${P}/models/[^/]+$`)],
-    ["/projects/$project/approvals/$id", `${P}/approvals`, new RegExp(`^${P}/approvals/chg-[0-9a-f]+$`)],
+    ["/projects/$project/approvals/$id", `${P}/approvals`, new RegExp(`^${P}/approvals/[^/]+$`)],
     ["/projects/$project/workspaces/$name/compare", `${P}/workspaces`, new RegExp(`^${P}/workspaces/[^/]+/compare$`)],
     ["/organization/$tab/$", "/organization/people", /^\/organization\/people\/(?!new$)[^/]+$/],
     ["/organization/$tab/$", "/organization/groups", /^\/organization\/groups\/(?!new$)[^/]+$/],

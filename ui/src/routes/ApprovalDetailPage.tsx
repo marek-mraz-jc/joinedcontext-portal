@@ -206,7 +206,7 @@ export function ApprovalDetailPage({
           <dd className="mt-1 text-sm font-medium text-surface-fg">
             {proposal.author.name}
             {proposal.author.email ? (
-              <span className="ml-1 text-xs text-surface-fg/60">({proposal.author.email})</span>
+              <span className="ml-1 text-xs text-fg-muted">({proposal.author.email})</span>
             ) : null}
           </dd>
         </div>
