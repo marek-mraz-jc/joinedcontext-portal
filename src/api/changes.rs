@@ -1701,7 +1701,7 @@ async fn approve_every_file(
             envelope.kind.as_str(),
             "Role" | "RoleBinding" | "ServiceAccount"
         );
-        changes_access |= is_access_kind(&envelope.kind);
+        changes_access |= needs_second_person(&envelope.kind);
         if file.deleted {
             // `delete` is its own verb on every kind, not only the access ones: a cascade that
             // removes a whole project is held to `approve` and `delete` on each kind it takes
@@ -1745,6 +1745,12 @@ async fn approve_every_file(
 /// the one who proposed it, administrator or not (PF-58, T-4833).
 pub(crate) fn is_access_kind(kind: &str) -> bool {
     matches!(kind, "Role" | "RoleBinding" | "Group" | "ServiceAccount")
+}
+
+/// Kinds a second person approves: the access kinds, and a DataModel, whose new version every
+/// space, Endpoint and pipeline of it validates against (PF-58, T-4830).
+pub(crate) fn needs_second_person(kind: &str) -> bool {
+    is_access_kind(kind) || kind == "DataModel"
 }
 
 /// Core approval function factored out for reuse by both the REST route and the operations registry.
@@ -1828,10 +1834,10 @@ pub async fn approve_change_for(
         }
     };
 
-    // Access is never granted by its own proposer: someone else approves it, an administrator of
-    // its kind or the bootstrap group (PF-58, T-4833).
-    if is_author && (changes_access || is_access_kind(&data.kind)) {
-        tracing::warn!(change = %id, kind = %data.kind, approver = %identity.username, "refused: the proposer of an access change may not approve it");
+    // Access is never granted, nor a model changed, by its own proposer: someone else approves
+    // it, an administrator of its kind or the bootstrap group (PF-58, T-4833, T-4830).
+    if is_author && (changes_access || needs_second_person(&data.kind)) {
+        tracing::warn!(change = %id, kind = %data.kind, approver = %identity.username, "refused: the proposer of an access or model change may not approve it");
         return Err(ApiError::SelfApproval(format!(
             "a change to {} is approved by a second administrator, never by its proposer (PF-58)",
             data.kind
@@ -2137,9 +2143,9 @@ pub async fn approve_as_proposed(
     let administers = !effective.bootstrap
         && effective.may(kind, jc_core::kinds::Verb::Approve)
         && effective.may(kind, jc_core::kinds::Verb::Delete);
-    // Access waits for a second administrator (PF-58).
+    // Access and a model wait for a second administrator (PF-58).
     if !administers
-        || is_access_kind(kind)
+        || needs_second_person(kind)
         || (change.status.lane == Lane::Red && confirm.is_none())
     {
         return change;

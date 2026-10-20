@@ -9,8 +9,13 @@ export type SpaceUsage = components["schemas"]["SpaceUsage"];
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 
-/** A count the broker has not given in this time is not coming: the page says so (T-4225). */
-export const USAGE_TIMEOUT_MS = 15_000;
+/**
+ * A count the broker has not given in this time is not coming: the page says so (T-4225). It
+ * outwaits the Portal's own 20 s wait for the broker (src/space_usage.rs TIMEOUT), so the page
+ * never drops an answer the Portal is about to give: at 15 s every Helsinki count on dev showed
+ * "—" while the Portal still waited (T-4825).
+ */
+export const USAGE_TIMEOUT_MS = 25_000;
 
 export function spaceUsageQuery(project: string, space: string) {
   return {
