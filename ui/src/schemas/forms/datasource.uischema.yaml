@@ -92,10 +92,10 @@ spec:
         de: Netzwerkadressen der Message-Broker; jede beginnt mit tcp://, tls://, ws:// oder wss:// und nennt Host und Port.
     mqtt.topics:
       help:
-        en: Message topics to subscribe to on the broker; + stands for one level of a topic and # for every level below it.
-        sk: Témy správ, ktoré sa majú odoberať na brokeri; + zastupuje jednu úroveň témy a # všetky úrovne pod ňou.
-        cs: Témata zpráv, která se mají odebírat na brokeru; + zastupuje jednu úroveň tématu a # všechny úrovně pod ní.
-        de: Nachrichten-Topics, die auf dem Broker abonniert werden sollen; + steht für eine Ebene eines Topics, # für alle Ebenen darunter.
+        en: "Message topics to subscribe to on the broker; + stands for one level of a topic and # for every level below it."
+        sk: "Témy správ, ktoré sa majú odoberať na brokeri; + zastupuje jednu úroveň témy a # všetky úrovne pod ňou."
+        cs: "Témata zpráv, která se mají odebírat na brokeru; + zastupuje jednu úroveň tématu a # všechny úrovně pod ní."
+        de: "Nachrichten-Topics, die auf dem Broker abonniert werden sollen; + steht für eine Ebene eines Topics, # für alle Ebenen darunter."
     mqtt.qos:
       help:
         en: How hard the broker tries to deliver each message; leave it empty for the broker's own, at most once.

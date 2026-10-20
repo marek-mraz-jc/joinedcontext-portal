@@ -99,7 +99,13 @@
     "mcp": "MCP servery",
     "home": "Domov",
     "inbox": "Doručené",
-    "mqttbrokers": "MQTT brokery"
+    "mqttbrokers": "MQTT brokery",
+    "knowledgesources": "Zdroje znalostí",
+    "assistantdeployments": "Nasadenia asistenta",
+    "datamodels": "Dátové modely",
+    "serviceaccounts": "Servisné účty",
+    "mappings": "Mapovania",
+    "layers": "Mapové vrstvy"
   },
   "auth": {
     "lead": "Prihláste sa účtom svojej organizácie a spravujte túto platformu.",
