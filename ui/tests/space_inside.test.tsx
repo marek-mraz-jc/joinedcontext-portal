@@ -864,7 +864,9 @@ describe("the space's own data", () => {
         source,
         access: { permissions: [{ resource: { type: "AirQualityObserved" }, actions: ["queryEntity"], attributes: "*" }] },
       });
-      expect(await screen.findByRole("button", { name: `${en.entityGrid.openRow}: Námestie SNP` })).toBeInTheDocument();
+      // The columns follow the answer (DM-102): the open button settles in the Name column once rows arrive.
+      await screen.findByRole("button", { name: /: Name$/ });
+      expect(screen.getByRole("button", { name: `${en.entityGrid.openRow}: Námestie SNP` })).toBeInTheDocument();
       expect(screen.queryByRole("spinbutton")).toBeNull();
       expect(screen.queryByRole("textbox", { name: /pm10|name/ })).toBeNull();
     });
