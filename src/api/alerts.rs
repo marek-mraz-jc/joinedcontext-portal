@@ -33,7 +33,9 @@ fn readable(
     target: &str,
 ) -> Result<(), ApiError> {
     match scope {
-        Scope::Pipeline => crate::api::pipelines::readable_pipeline(state, user, project, target),
+        Scope::Pipeline => {
+            crate::api::pipelines::readable_pipeline(state, user, project, target).map(|_| ())
+        }
         Scope::Space => crate::api::entity_trash::readable(state, user, project, target),
         Scope::Type => {
             let (space, _) = target

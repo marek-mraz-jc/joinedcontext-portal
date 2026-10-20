@@ -315,22 +315,7 @@ pub async fn get_samples(
     State(state): State<AppState>,
     Path((project, name)): Path<(String, String)>,
 ) -> Result<Json<PipelineSamples>, ApiError> {
-    let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
-    let pipeline = state.mirror.get(&project, "Pipeline", &name);
-    let Some(pipeline) = pipeline.filter(|p| {
-        effective.may_read_project()
-            && may_pipeline(
-                &effective,
-                &state,
-                &project,
-                &p.spec,
-                jc_core::kinds::Verb::Read,
-            )
-    }) else {
-        return Err(ApiError::NotFound(format!(
-            "pipeline '{name}' not found in project '{project}'"
-        )));
-    };
+    let pipeline = readable_pipeline(&state, &user, &project, &name)?;
     // A sample shows no more than the pipeline's targets serve: what any of them hides is out.
     // `None` when a target cannot be read, which withholds as much as a target that hides.
     let hidden: Option<Vec<String>> =
@@ -404,47 +389,38 @@ pub async fn get_bento(
     State(state): State<AppState>,
     Path((project, name)): Path<(String, String)>,
 ) -> Result<axum::response::Response, ApiError> {
-    use axum::http::{header, StatusCode};
     use axum::response::IntoResponse;
-    // The same gate as the pipeline's other reads: a caller who may not read it, or one asking
-    // another project, is told it is not there and the forge is not asked (T-4818).
-    let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
-    let Some(pipeline) = state.mirror.get(&project, "Pipeline", &name).filter(|p| {
-        effective.may_read_project()
-            && may_pipeline(
-                &effective,
-                &state,
-                &project,
-                &p.spec,
-                jc_core::kinds::Verb::Read,
-            )
-    }) else {
-        return Err(ApiError::NotFound(format!(
-            "pipeline '{name}' not found in project '{project}'"
-        )));
-    };
+    // Asked of the forge only once the caller may read the pipeline (T-4818).
+    let pipeline = readable_pipeline(&state, &user, &project, &name)?;
+    let text = read_bento(&state, &project, &pipeline).await?;
+    let yaml = [(axum::http::header::CONTENT_TYPE, "text/yaml; charset=utf-8")];
+    Ok((yaml, text).into_response())
+}
+
+/// The `bento.yaml` in the folder of the pipeline's manifest, on the default branch.
+async fn read_bento(
+    state: &AppState,
+    project: &str,
+    pipeline: &crate::resource::ResourceEnvelope,
+) -> Result<String, ApiError> {
     let info = crate::resource::by_kind("Pipeline")
         .ok_or_else(|| ApiError::Internal("kind Pipeline is not registered".into()))?;
-    let manifest = crate::api::mutate::resolve_repo_path(&pipeline, info, &project)?;
+    let manifest = crate::api::mutate::resolve_repo_path(pipeline, info, project)?;
     let path = match manifest.rsplit_once('/') {
         Some((folder, _)) => format!("{folder}/bento.yaml"),
         None => "bento.yaml".to_owned(),
     };
     let gitea = state
-        .forge_for(&project)
+        .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
     let branch = gitea.default_branch().await?;
     let file = gitea.get_file(&path, &branch).await?.ok_or_else(|| {
+        let name = &pipeline.metadata.name;
         ApiError::NotFound(format!(
             "pipeline '{name}' has no bento.yaml beside its manifest"
         ))
     })?;
-    Ok((
-        StatusCode::OK,
-        [(header::CONTENT_TYPE, "text/yaml; charset=utf-8")],
-        file.content,
-    )
-        .into_response())
+    Ok(file.content)
 }
 #[utoipa::path(
     get,
@@ -641,13 +617,14 @@ pub async fn get_rejected(
     Ok(Json(RejectedPage { items, total, next }))
 }
 
-/// Read on the pipeline, and a caller without it is told the pipeline is not there (PF-59).
+/// Read on the pipeline, and a caller without it is told the pipeline is not there (PF-59):
+/// the pipeline when the caller may read it.
 pub(crate) fn readable_pipeline(
     state: &AppState,
     user: &CurrentUser,
     project: &str,
     name: &str,
-) -> Result<(), ApiError> {
+) -> Result<crate::resource::ResourceEnvelope, ApiError> {
     let not_found = || {
         ApiError::NotFound(format!(
             "pipeline '{name}' not found in project '{project}'"
@@ -669,7 +646,6 @@ pub(crate) fn readable_pipeline(
                 jc_core::kinds::Verb::Read,
             )
         })
-        .map(|_| ())
         .ok_or_else(not_found)
 }
 
