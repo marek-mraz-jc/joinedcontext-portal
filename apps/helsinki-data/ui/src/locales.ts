@@ -106,6 +106,7 @@ const fi: Strings = {
   grid: {
     openRow: "Avaa",
     rowDetail: "Tiedot",
+    rowFields: "Kentät",
     close: "Sulje",
     id: "Tunniste",
     type: "Tyyppi",
@@ -159,6 +160,13 @@ const fi: Strings = {
     applying: "Tallennetaan…",
     refusedHere: "hylätty",
     notInList: "ei luettelossa",
+    reason: "Miksi muutat näitä arvoja",
+    reasonDefault: "Korjattu tietotaulukossa",
+    reasonNeeded: "Kerro, miksi muutat näitä arvoja.",
+    saved: "Tallennetut arvot:",
+    undo: "Kumoa",
+    undoReason: "Kumoaminen",
+    undone: "Muutos kumottiin.",
   },
 };
 
@@ -249,6 +257,7 @@ const en: Strings = {
   grid: {
     openRow: "Open",
     rowDetail: "Details",
+    rowFields: "Fields",
     close: "Close",
   },
 };

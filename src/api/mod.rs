@@ -21,6 +21,7 @@ pub mod changes;
 pub mod ckan;
 pub mod data_views;
 pub mod datamodels;
+pub mod datasource_test;
 pub mod delete;
 pub mod drafts;
 pub mod drift;
@@ -88,6 +89,7 @@ pub fn router() -> Router<AppState> {
         .merge(app_me::router())
         .merge(assistant::router())
         .merge(pipeline_test::router())
+        .merge(datasource_test::router())
         .merge(blueprints::router())
         .merge(branding::router())
         .merge(catalogue::router())

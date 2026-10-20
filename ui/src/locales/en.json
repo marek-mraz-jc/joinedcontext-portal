@@ -99,7 +99,8 @@
     "mcp": "MCP servers",
     "home": "Home",
     "inbox": "Inbox",
-    "mqttbrokers": "MQTT brokers"
+    "mqttbrokers": "MQTT brokers",
+    "csrs": "Context sources"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -195,7 +196,9 @@
     "missing": "{field} is required",
     "mapKey": "Key",
     "mapLanguage": "Language",
-    "mapAddLanguage": "Add a language"
+    "mapAddLanguage": "Add a language",
+    "advancedFields": "Advanced",
+    "advancedFieldsHint": "Runner settings most sources leave at their defaults."
   },
   "approvals": {
     "lead": "Every change to the project is a proposal here until an approver merges it.",
@@ -216,6 +219,7 @@
     "needsPublisher": "Letting an endpoint out to the public needs the `publisher` role; a steward alone cannot.",
     "ownProposal": "You cannot approve or reject your own proposal.",
     "ownAccessChange": "Access changes need a second person: another administrator approves your own change to roles, groups or service accounts.",
+    "ownModelChange": "A data model change needs a second person: another administrator approves your own change to a model.",
     "confirmPrompt": "For red lane, type the resource name to confirm:",
     "confirmLabel": "Resource name confirmation",
     "diffAdded": "Added",
@@ -515,6 +519,8 @@
       "open": "Look inside",
       "data": "Data",
       "dataEmpty": "Nothing here yet: no pipeline has written to this space.",
+      "addRow": "Add row",
+      "addRowTitle": "New {type}",
       "dataThroughEndpoints": "You can see this space through its endpoints:",
       "dataNoTypes": "This space names no data model, so there is no type to read.",
       "back": "← Context Spaces",
@@ -1737,6 +1743,18 @@
         "ckanDataset": "This is the dataset page, not a file. Open the CSV or JSON resource on it and copy its download address.",
         "layer": "Name the layer to read, or give the address of a GeoJSON file."
       }
+    },
+    "test": {
+      "title": "Test connection",
+      "hint": "Reads the saved source once on the project's runner, for at most three seconds, and shows the first record. Nothing is written; the credential stays in the secret store.",
+      "button": "Test connection",
+      "running": "Testing…",
+      "read": "Connected: {records, plural, one {# record} other {# records}} read ({bytes} bytes). The first one:",
+      "failed": "Nothing was read: {reason}. Check the address and the credentials, then test again."
+    },
+    "usedBy": {
+      "title": "Used by",
+      "none": "No pipeline reads this source yet."
     }
   },
   "pipelines": {
@@ -2950,7 +2968,9 @@
     "source": {
       "loading": "Loading model source…",
       "saveCheck": "Check",
-      "save": "Save model",
+      "save": "Propose v{version}",
+      "unchanged": "Nothing to propose: edit the model first.",
+      "diffSummary": "{added} added · {changed} changed · {removed} removed · v{from} → v{to}",
       "severity": {
         "none": "No change",
         "additive": "Additive change",
@@ -3212,6 +3232,8 @@
       "noClasses": "This model declares no class yet, so it generates no form.",
       "formClass": "Class",
       "formReadOnly": "This is the form the model generates, filled with its example; nothing is saved from here.",
+      "jsonType": {"number": "Number", "integer": "Whole number", "string": "Text", "boolean": "Yes or no", "object": "Group of fields", "array": "List"},
+      "asJson": "Shown as JSON.",
       "yaml": "The model's source (LinkML YAML)",
       "copyYaml": "Copy the YAML",
       "downloadYaml": "Download the YAML",
@@ -4044,6 +4066,13 @@
     "observedKeep": "keep when each value was observed",
     "observedNow": "these values were observed now",
     "applying": "Applying…",
+    "reason": "Why you change these values",
+    "reasonDefault": "Corrected in the data grid",
+    "reasonNeeded": "Say why you change these values.",
+    "saved": "Values saved:",
+    "undo": "Undo",
+    "undoReason": "Undo",
+    "undone": "The change was undone.",
     "refusedHere": "refused",
     "notInList": "not in the list",
     "relationSearch": "Search",
@@ -4092,9 +4121,15 @@
     },
     "openRow": "Open",
     "rowDetail": "Details",
+    "rowFields": "Fields",
+    "historyVersions": "Every version, with who changed it and why",
+    "historyVersionsRefused": "Your role may not read earlier versions in this space.",
+    "historySuperseded": "Replaced",
+    "historyChangedBy": "Changed by",
+    "historyReason": "Reason",
     "pasted": "cells pasted",
     "skipped": "skipped (not editable, off the page or not a listed value)",
-    "pasteTooLarge": "The copied range is too large to paste; paste at most 5000 cells at once.",
+    "pasteTooLarge": "The copied range is too large to paste at once; paste a smaller range, or import the rows from a file.",
     "loaded": "loaded",
     "of": "of",
     "mustBeInteger": "must be a whole number",
@@ -4108,7 +4143,31 @@
     "required": "is required",
     "toCorrect": "to correct before applying",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "columnMenu": "Column options",
+    "sortAsc": "Sort ascending",
+    "sortDesc": "Sort descending",
+    "filterColumn": "Filter",
+    "hideColumn": "Hide field",
+    "renameColumn": "Label in this view",
+    "renameReset": "Use the model's label",
+    "columnWidth": "Width",
+    "narrower": "Narrower",
+    "wider": "Wider",
+    "moveLeft": "Move left",
+    "moveRight": "Move right",
+    "details": "Details",
+    "kindText": "Text",
+    "kindNumber": "Number",
+    "kindBoolean": "Yes or no",
+    "kindDatetime": "Date and time",
+    "kindGeo": "Geographic location",
+    "kindRelationship": "Link to an entity",
+    "kindLanguage": "Text in several languages",
+    "kindStructured": "Structured value",
+    "kindList": "List",
+    "points": "points",
+    "openTarget": "Open"
   },
   "explore": {
     "title": "Explore data",
@@ -5356,6 +5415,22 @@
       "serviceAccount": "Service account",
       "interval": "Schema mirror interval",
       "expiresAt": "Expires at"
+    },
+    "page": {
+      "back": "Back to context sources",
+      "edit": "Edit",
+      "state": "State",
+      "lastErrorLabel": "Last error",
+      "none": "None",
+      "types": "Entity types",
+      "ids": "Entities",
+      "allIds": "Every entity of these types",
+      "attributes": "Attributes",
+      "allAttributes": "Every attribute",
+      "operations": "Operations forwarded",
+      "defaultOperations": "The broker's default for the mode",
+      "mode": "Mode",
+      "expires": "Expires"
     }
   },
   "organization": {

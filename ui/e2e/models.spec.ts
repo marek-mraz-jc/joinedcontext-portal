@@ -121,7 +121,8 @@ test.describe("the data models", () => {
 
   test("the space shows its model, and the model's name opens the model's page", async ({ page }) => {
     await stubApi(page);
-    await page.goto("/projects/helsinki/spaces/helsinki?lang=en");
+    // The model is the space's Data model tab since T-4825; the data rows are its first tab.
+    await page.goto("/projects/helsinki/spaces/helsinki?tab=model&lang=en");
     const model = page.locator("section").filter({ has: page.getByRole("heading", { level: 2, name: "Data model" }) });
     await expect(model.getByRole("group", { name: "The model's classes and what joins them" })).toBeVisible();
     await model.getByRole("tab", { name: "YAML" }).click();
@@ -255,6 +256,87 @@ test.describe("one plain model editor (T-4829)", () => {
       await expect(page.getByRole("table", { name: "Fields of Key performance indicator" })).toBeVisible();
       await expect(page.getByRole("button", { name: /^Add field to/ })).toHaveCount(0);
       await shot(page, `model-overview-viewer-${width}`);
+    });
+  }
+});
+
+// The generated schema as Model Tools writes it for the Helsinki models (B06, T-4830): an optional
+// enum as `anyOf [X, null]`, a value of two types as an untitled `anyOf`, GeoJSON coordinates with
+// no `items`; and the model's published v1.0.0 as a merged Change.
+const KPI_ARTIFACTS = {
+  jsonSchema: {
+    definitions: {
+      Any: {},
+      TransportMode: { type: "string", enum: ["bus", "tram"], title: "TransportMode" },
+      KeyPerformanceIndicator: {
+        type: "object",
+        properties: {
+          name: { type: "string", title: "Name" },
+          currentValue: { $ref: "#/definitions/Any", anyOf: [{ type: "number" }, { type: "string" }], description: "The number." },
+          mode: { anyOf: [{ $ref: "#/definitions/TransportMode" }, { type: "null" }], description: "What runs it." },
+          location: {
+            type: ["object", "null"],
+            "x-ngsi-ld-kind": "GeoProperty",
+            properties: {
+              type: { type: "string", enum: ["Point", "Polygon"] },
+              coordinates: { type: "array" },
+            },
+            required: ["type", "coordinates"],
+          },
+        },
+      },
+    },
+  },
+  example: { type: "KeyPerformanceIndicator", name: "Bus lines on time", currentValue: 94.5, location: { type: "Point", coordinates: [24.94, 60.17] } },
+};
+
+const PUBLISHED_CHANGE = {
+  apiVersion: "joinedcontext.com/v1alpha1",
+  kind: "Change",
+  metadata: { name: "chg-helsinki-00000007", namespace: "helsinki" },
+  status: { lane: "yellow", phase: "Merged", plan: { create: 1, update: 0, delete: 0 } },
+  summary: { key: "change.summary.create", params: { kind: "DataModel", name: "helsinki-kpi", fields: 6 } },
+  author: { name: "Aino Virtanen" },
+  createdAt: "2026-10-12T08:10:00Z",
+  decision: { by: "mikko@hel.fi", at: "2026-10-12T09:02:00Z" },
+};
+
+test.describe("a model change is proposed, and read back (T-4830)", () => {
+  for (const width of [1440, 400]) {
+    test(`the Form tab has no schema error, History lists v1.0.0, Propose waits for an edit at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+      await stubKpi(page, ["read", "propose"]);
+      await page.route("**/api/v1/tools/generate", (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(KPI_ARTIFACTS) }),
+      );
+      await page.route("**/api/v1/projects/helsinki/changes/history**", (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(list([PUBLISHED_CHANGE])) }),
+      );
+      await page.route("**/api/v1/projects/helsinki/datamodels/helsinki-kpi/source", (route) =>
+        route.fulfill({ status: 200, contentType: "text/plain", body: KPI_LINKML }),
+      );
+
+      await page.goto("/projects/helsinki/models/helsinki-kpi?tab=form&lang=en");
+      const panel = page.getByRole("tabpanel");
+      await expect(panel.getByLabel("Name")).toHaveValue("Bus lines on time");
+      await expect(panel).not.toContainText(/Unsupported field schema|Missing items definition|option \d/);
+      await expect(panel).not.toContainText(/\bT-\d{4}\b|Development\/\d+/);
+      await expect(panel.locator('[aria-invalid="true"]'), "a preview marks nothing invalid").toHaveCount(0);
+      await expect(panel.getByRole("combobox").filter({ has: page.locator("option", { hasText: "Number" }) })).toBeVisible();
+      await shot(page, `model-form-${width}`);
+
+      await page.getByRole("tab", { name: "History" }).click();
+      await expect(page.getByTestId("resource-history-item")).toHaveCount(1);
+      await expect(page.getByTestId("resource-history-item")).toContainText("chg-helsinki-00000007");
+      await shot(page, `model-history-${width}`);
+
+      await page.goto("/projects/helsinki/models?edit=helsinki-kpi&lang=en");
+      const propose = page.getByRole("button", { name: "Propose v1.0.0" });
+      await expect(propose).toHaveAttribute("aria-disabled", "true");
+      await expect(propose).toHaveAccessibleDescription("Nothing to propose: edit the model first.");
+      const overflow = await page.evaluate(() => (document.scrollingElement?.scrollWidth ?? 0) - window.innerWidth);
+      expect(overflow).toBeLessThanOrEqual(0);
+      await shot(page, `model-propose-unchanged-${width}`);
     });
   }
 });

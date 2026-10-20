@@ -22,7 +22,11 @@ export function useShownErrors(id: string, errors: string[] | undefined): string
   // Each sentence once (T-4207): rjsf adds a Check's `extraErrors` to its own live verdict on
   // the same field, and a choice of several branches fails once per branch.
   const unique = errors && errors.length > 1 ? [...new Set(errors)] : errors;
-  if (!unique || unique.length === 0 || touched === null || touched.all) {
+  // No sentence is no error: rjsf hands an anyOf chooser `[]`, which read as invalid (T-4830).
+  if (!unique || unique.length === 0) {
+    return undefined;
+  }
+  if (touched === null || touched.all) {
     return unique;
   }
   for (const seen of touched.ids) {

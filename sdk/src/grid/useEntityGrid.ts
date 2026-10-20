@@ -74,6 +74,18 @@ export interface GridLabels {
   observedKeep: string;
   observedNow: string;
   applying: string;
+  /**
+   * Why the person writes (DM-113): the review's field, the text it starts with, what is said
+   * while it is empty or too long, what one apply says once it landed, its Undo, and the reason
+   * an Undo writes with, before the original one.
+   */
+  reason: string;
+  reasonDefault: string;
+  reasonNeeded: string;
+  saved: string;
+  undo: string;
+  undoReason: string;
+  undone: string;
   refusedHere: string;
   /** Said beside a stored value the attribute's enum does not list (UI-86). */
   notInList: string;
@@ -87,6 +99,8 @@ export interface GridLabels {
   /** The row's detail panel (T-3097): the identifier opens it, the panel's name, and closing it. */
   openRow: string;
   rowDetail: string;
+  /** The detail's first tab, with the row's values (T-4828). */
+  rowFields: string;
   close: string;
   /** What a paste of a range did (T-3097): cells it set, cells it left, and a range too large. */
   pasted: string;
@@ -109,6 +123,34 @@ export interface GridLabels {
   /** A true/false attribute's two choices in its picker. */
   yes: string;
   no: string;
+  /** The column header menu (T-4827). */
+  columnMenu: string;
+  sortAsc: string;
+  sortDesc: string;
+  filterColumn: string;
+  hideColumn: string;
+  renameColumn: string;
+  renameReset: string;
+  columnWidth: string;
+  narrower: string;
+  wider: string;
+  moveLeft: string;
+  moveRight: string;
+  details: string;
+  /** What a header's icon says the column holds. */
+  kindText: string;
+  kindNumber: string;
+  kindBoolean: string;
+  kindDatetime: string;
+  kindGeo: string;
+  kindRelationship: string;
+  kindLanguage: string;
+  kindStructured: string;
+  kindList: string;
+  /** After a geometry's vertex count: `Polygon, 12 points`. */
+  points: string;
+  /** Before a relationship chip's target: "Open: Organization · unit-12". */
+  openTarget: string;
 }
 
 /**
@@ -116,6 +158,12 @@ export interface GridLabels {
  * operator existed still compiles and shows the default for the one it does not name.
  */
 export type GridLabelsInput = Partial<Omit<GridLabels, "ops">> & { ops?: Partial<GridLabels["ops"]> };
+
+/**
+ * The keys that put the first cell active when none is, rather than the one beyond it; Home, End
+ * and the page keys go where they say from there.
+ */
+const MOVE_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 
 export const DEFAULT_LABELS: GridLabels = {
   id: "ID",
@@ -168,6 +216,13 @@ export const DEFAULT_LABELS: GridLabels = {
   observedKeep: "keep when each value was observed",
   observedNow: "these values were observed now",
   applying: "Applying…",
+  reason: "Why you change these values",
+  reasonDefault: "Corrected in the data grid",
+  reasonNeeded: "Say why you change these values.",
+  saved: "Values saved:",
+  undo: "Undo",
+  undoReason: "Undo",
+  undone: "The change was undone.",
   refusedHere: "refused",
   notInList: "not in the list",
   relationSearch: "Search",
@@ -177,10 +232,11 @@ export const DEFAULT_LABELS: GridLabels = {
   relationMore: "and more",
   openRow: "Open",
   rowDetail: "Details",
+  rowFields: "Fields",
   close: "Close",
   pasted: "cells pasted",
   skipped: "skipped (not editable, off the page or not a listed value)",
-  pasteTooLarge: "The copied range is too large to paste; paste at most 5000 cells at once.",
+  pasteTooLarge: "The copied range is too large to paste at once; paste a smaller range, or import the rows from a file.",
   loaded: "loaded",
   of: "of",
   mustBeInteger: "must be a whole number",
@@ -195,6 +251,30 @@ export const DEFAULT_LABELS: GridLabels = {
   toCorrect: "to correct before applying",
   yes: "Yes",
   no: "No",
+  columnMenu: "Column options",
+  sortAsc: "Sort ascending",
+  sortDesc: "Sort descending",
+  filterColumn: "Filter",
+  hideColumn: "Hide field",
+  renameColumn: "Label in this view",
+  renameReset: "Use the model's label",
+  columnWidth: "Width",
+  narrower: "Narrower",
+  wider: "Wider",
+  moveLeft: "Move left",
+  moveRight: "Move right",
+  details: "Details",
+  kindText: "Text",
+  kindNumber: "Number",
+  kindBoolean: "Yes or no",
+  kindDatetime: "Date and time",
+  kindGeo: "Geographic location",
+  kindRelationship: "Link to an entity",
+  kindLanguage: "Text in several languages",
+  kindStructured: "Structured value",
+  kindList: "List",
+  points: "points",
+  openTarget: "Open",
 };
 
 export interface VisibleColumn {
@@ -203,6 +283,31 @@ export interface VisibleColumn {
   meta: MetaKey | null;
   label: string;
   pinned: boolean;
+  /** Pixels, as the config or the person's layout sets it; the table's own width without one. */
+  width?: number;
+}
+
+/**
+ * How a person arranged the columns (T-4827): the order of attributes, a width per attribute and
+ * a label of this view's own. It changes what the grid shows, never the data or the model.
+ */
+export interface ColumnLayout {
+  order?: readonly string[];
+  width?: Readonly<Record<string, number>>;
+  labels?: Readonly<Record<string, string>>;
+}
+
+/** Narrowest and widest a column is drawn, as the view store accepts them. */
+export const MIN_COLUMN_WIDTH = 40;
+export const MAX_COLUMN_WIDTH = 2000;
+
+/**
+ * An attribute's name as a header reads it when nothing labels it: a compact or full IRI loses its
+ * prefix (`ngsi-ld:status` and `https://…/vocab#status` read `status`).
+ */
+export function readableName(attr: string): string {
+  const local = attr.split(/[#/]/).filter(Boolean).at(-1) ?? attr;
+  return local.replace(/^[A-Za-z][\w.-]*:(?!\/)/, "") || attr;
 }
 
 export interface UseEntityGridOptions {
@@ -233,6 +338,8 @@ export interface UseEntityGridOptions {
    * drawn and not filtered. The primary attribute is never hidden; it names the row.
    */
   hidden?: readonly string[];
+  /** The person's own order, widths and labels of the columns (T-4827). */
+  layout?: ColumnLayout;
 }
 
 /** Rows one scrolling grid holds at most; past it the grid says to narrow the filter. */
@@ -275,7 +382,7 @@ export interface EntityGrid {
   /** Draws the area or removes it; either way the answer starts again at page one. */
   setArea(area: GeoArea | null): void;
   setOffset(offset: number): void;
-  setSort(attr: string): void;
+  setSort(attr: string, dir?: "asc" | "desc"): void;
   moveActive(key: string): boolean;
   getGridProps(): Record<string, unknown>;
   getHeaderProps(column: VisibleColumn, index: number): Record<string, unknown>;
@@ -306,6 +413,7 @@ function buildColumns(
   labels: GridLabels,
   relations: Record<string, RelationEnd> = {},
   hidden: readonly string[] = [],
+  layout: ColumnLayout = {},
 ): VisibleColumn[] {
   const cols: VisibleColumn[] = [];
 
@@ -328,7 +436,9 @@ function buildColumns(
     config.columns.length > 0
       ? config.columns.map((c) => c.attr)
       : [...new Set([...attributesOf(rows), ...Object.keys(relations)])];
-  const attrList = primary === undefined ? listed : [primary, ...listed.filter((attr) => attr !== primary)];
+  // The person's order first, then the rest as listed; the primary stays first, it names the row.
+  const ordered = [...new Set([...(layout.order ?? []).filter((attr) => listed.includes(attr)), ...listed])];
+  const attrList = primary === undefined ? ordered : [primary, ...ordered.filter((attr) => attr !== primary)];
   const colMap = new Map<string, GridColumn>();
   for (const c of config.columns) {
     colMap.set(c.attr, c);
@@ -338,11 +448,12 @@ function buildColumns(
   for (const attr of attrList) {
     if (left.has(attr) && attr !== primary) continue;
     const gridCol = colMap.get(attr);
-    const label = gridCol?.label ?? attr;
+    const label = layout.labels?.[attr] ?? gridCol?.label ?? readableName(attr);
+    const width = layout.width?.[attr] ?? gridCol?.width;
     // Only the primary is pinned: a second sticky column would sit over the first at the left edge.
     const pinned = attr === primary;
     const symbol = unitSymbol(unitOfColumn(rows, attr));
-    cols.push({ key: attr, attr, meta: null, label: symbol ? `${label} (${symbol})` : label, pinned });
+    cols.push({ key: attr, attr, meta: null, label: symbol ? `${label} (${symbol})` : label, pinned, ...(width ? { width } : {}) });
 
     const metaKeys = shown[attr] ?? [];
     for (const meta of metaKeys) {
@@ -462,7 +573,7 @@ export function filterKindOf(
 }
 
 export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
-  const { config, source, labels: labelsPartial, state: controlledState, onStateChange, query: queryPartial, enums, relations, virtual = false, hidden } = options;
+  const { config, source, labels: labelsPartial, state: controlledState, onStateChange, query: queryPartial, enums, relations, virtual = false, hidden, layout } = options;
   // The list by content, so a host that builds a new array each render does not rebuild columns.
   const hiddenKey = (hidden ?? []).join("\u0000");
   const labels = useMemo(() => mergeLabels(DEFAULT_LABELS, labelsPartial), [labelsPartial]);
@@ -515,8 +626,8 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   const nonceRef = useRef(0);
 
   const columns = useMemo(
-    () => buildColumns(config, rows, shown, labels, relations, hiddenKey === "" ? [] : hiddenKey.split("\u0000")),
-    [config, rows, shown, labels, relations, hiddenKey],
+    () => buildColumns(config, rows, shown, labels, relations, hiddenKey === "" ? [] : hiddenKey.split("\u0000"), layout),
+    [config, rows, shown, labels, relations, hiddenKey, layout],
   );
   // Sorting orders the loaded page only; the server's order decides which rows are on it (UI-66).
   const sortedRows = useMemo(() => {
@@ -729,8 +840,9 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   );
 
   const setSort = useCallback(
-    (attr: string) => {
-      const next = sort?.attr === attr && sort.dir === "asc" ? { attr, dir: "desc" as const } : { attr, dir: "asc" as const };
+    (attr: string, dir?: "asc" | "desc") => {
+      // A direction asked for is taken as it is; without one a second click turns the order round.
+      const next = { attr, dir: dir ?? (sort?.attr === attr && sort.dir === "asc" ? ("desc" as const) : ("asc" as const)) };
       if (onStateChange) {
         onStateChange({ offset, activeCell, selected, shown, sort: next, filters, filterText, edits });
       }
@@ -879,8 +991,10 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
       const maxRow = sortedRows.length - 1;
       const maxCol = columns.length - 1;
       let { row, col } = activeCell ?? { row: 0, col: 0 };
-
-      switch (key) {
+      // Nothing active yet: the first key that moves lands on the first cell, not one beyond it.
+      const landing = activeCell === null && MOVE_KEYS.has(key);
+      if (landing && maxRow < 0) return false;
+      if (!landing) switch (key) {
         case "ArrowUp":
           if (row > 0) row--;
           else return false;
@@ -986,9 +1100,11 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
         "aria-colindex": colIndex + 1,
         "aria-selected": isActive,
         "data-active": isActive ? "" : undefined,
+        // The cell a person clicks is the active one, so the keys go on from there (A04, UI-70).
+        onMouseDown: () => setActive(rowIndex, colIndex),
       };
     },
-    [activeCell, cellId],
+    [activeCell, cellId, setActive],
   );
 
   return {

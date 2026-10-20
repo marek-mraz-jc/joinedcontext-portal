@@ -354,6 +354,33 @@ export function bumpVersion(version: string, changes: ModelChange[]): string {
 }
 
 /**
+ * The version a proposal of this edit becomes, as the API bumps it (DM-22, DM-23): breaking the
+ * major, additive the minor, any other edit (a comment, a reordering) the patch. An unedited model
+ * keeps its version: there is nothing to propose.
+ */
+export function proposedVersion(version: string, changes: ModelChange[], edited: boolean): string {
+  if (!edited) return version;
+  if (severityOf(changes) !== "none") return bumpVersion(version, changes);
+  const [major = 0, minor = 0, patch = 0] = version.split(".").map((part) => Number.parseInt(part, 10) || 0);
+  return `${major}.${minor}.${patch + 1}`;
+}
+
+/** What an edit does to the model's fields, classes and enums, counted the way a reviewer reads a diff. */
+export type ChangeAction = "added" | "changed" | "removed";
+
+export function actionOf(change: ModelChange): ChangeAction {
+  if (/^a new \b|was added$|\bnow takes\b/.test(change.reason)) return "added";
+  if (/\bwas removed\b|\bno longer takes\b/.test(change.reason)) return "removed";
+  return "changed";
+}
+
+export function diffCounts(changes: ModelChange[]): Record<ChangeAction, number> {
+  const counts: Record<ChangeAction, number> = { added: 0, changed: 0, removed: 0 };
+  for (const change of changes) counts[actionOf(change)] += 1;
+  return counts;
+}
+
+/**
  * Why this edit may not be saved under the version it names, or `undefined` when it may.
  *
  * The editor refuses rather than warns: a breaking change saved under the same major is a

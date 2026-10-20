@@ -52,7 +52,7 @@
   {
     "name": "branch",
     "category": "Composition",
-    "summary": "The `branch` processor allows you to create a new request message via a [Bloblang mapping](/docs/guides/bloblang/about), execute a list of processors on the request messages, and, finally, map the res"
+    "summary": "The `branch` processor allows you to create a new request message via a [Bloblang mapping](/docs/guides/bloblang/about), execute a list of processors on the request messages, and, finally, map the result back into the source message using another mapping."
   },
   {
     "name": "cache",
@@ -62,7 +62,7 @@
   {
     "name": "cached",
     "category": "Utility",
-    "summary": "Cache the result of applying one or more processors to messages identified by a key. If the key already exists within the cache the contents of the message will be replaced with the cached result inst"
+    "summary": "Cache the result of applying one or more processors to messages identified by a key. If the key already exists within the cache the contents of the message will be replaced with the cached result instead of applying the processors."
   },
   {
     "name": "catch",
@@ -107,7 +107,7 @@
   {
     "name": "grok",
     "category": "Parsing",
-    "summary": "Parses messages into a structured format by attempting to apply a list of Grok expressions, the first expression to result in at least one value replaces the original message with a JSON object contai"
+    "summary": "Parses messages into a structured format by attempting to apply a list of Grok expressions, the first expression to result in at least one value replaces the original message with a JSON object containing the values."
   },
   {
     "name": "group_by",
@@ -117,7 +117,7 @@
   {
     "name": "group_by_value",
     "category": "Composition",
-    "summary": "Splits a batch of messages into N batches, where each resulting batch contains a group of messages determined by a [function interpolated string](/docs/configuration/interpolation#bloblang-queries) ev"
+    "summary": "Splits a batch of messages into N batches, where each resulting batch contains a group of messages determined by a [function interpolated string](/docs/configuration/interpolation#bloblang-queries) evaluated per message."
   },
   {
     "name": "http",
@@ -147,12 +147,12 @@
   {
     "name": "json_schema",
     "category": "Mapping",
-    "summary": "Checks messages against a provided JSONSchema definition but does not change the payload under any circumstances. If a message does not match the schema it can be caught using error handling methods o"
+    "summary": "Checks messages against a provided JSONSchema definition but does not change the payload under any circumstances."
   },
   {
     "name": "log",
     "category": "Utility",
-    "summary": "Prints a log event for each message. Messages always remain unchanged. The log message can be set using function interpolations described [here](/docs/configuration/interpolation#bloblang-queries) whi"
+    "summary": "Prints a log event for each message. Messages always remain unchanged."
   },
   {
     "name": "mapping",
@@ -197,22 +197,22 @@
   {
     "name": "nlp_classify_text",
     "category": "Machine Learning",
-    "summary": "Performs text classification using a Hugging Face \ud83e\udd17 NLP pipeline with an ONNX Runtime model."
+    "summary": "Performs text classification using a Hugging Face 🤗 NLP pipeline with an ONNX Runtime model."
   },
   {
     "name": "nlp_classify_tokens",
     "category": "Machine Learning",
-    "summary": "Performs token classification using a Hugging Face \ud83e\udd17 NLP pipeline with an ONNX Runtime model."
+    "summary": "Performs token classification using a Hugging Face 🤗 NLP pipeline with an ONNX Runtime model."
   },
   {
     "name": "nlp_extract_features",
     "category": "Machine Learning",
-    "summary": "Performs feature extraction using a Hugging Face \ud83e\udd17 NLP pipeline with an ONNX Runtime model."
+    "summary": "Performs feature extraction using a Hugging Face 🤗 NLP pipeline with an ONNX Runtime model."
   },
   {
     "name": "nlp_zero_shot_classify",
     "category": "Machine Learning",
-    "summary": "Performs zero-shot text classification using a Hugging Face \ud83e\udd17 NLP pipeline with an ONNX Runtime model."
+    "summary": "Performs zero-shot text classification using a Hugging Face 🤗 NLP pipeline with an ONNX Runtime model."
   },
   {
     "name": "noop",
@@ -222,12 +222,12 @@
   {
     "name": "opensnowcat",
     "category": "Parsing",
-    "summary": "Processes [OpenSnowcat](https://opensnowcat.io/)/[Snowplow enriched TSV](https://docs.snowplow.io/docs/fundamentals/canonical-event/understanding-the-enriched-tsv-format/) events. Convert enriched TSV"
+    "summary": "Processes [OpenSnowcat](https://opensnowcat.io/)/[Snowplow enriched TSV](https://docs.snowplow.io/docs/fundamentals/canonical-event/understanding-the-enriched-tsv-format/) events."
   },
   {
     "name": "parallel",
     "category": "Composition",
-    "summary": "A processor that applies a list of child processors to messages of a batch as though they were each a batch of one message (similar to the [`for_each`](/docs/components/processors/for_each) processor)"
+    "summary": "A processor that applies a list of child processors to messages of a batch as though they were each a batch of one message (similar to the [`for_each`](/docs/components/processors/for_each) processor), but where each message is processed in parallel."
   },
   {
     "name": "parquet_decode",
@@ -262,7 +262,7 @@
   {
     "name": "rate_limit",
     "category": "Utility",
-    "summary": "Throttles the throughput of a pipeline according to a specified [`rate_limit`](/docs/components/rate_limits/about) resource. Rate limits are shared across components and therefore apply globally to al"
+    "summary": "Throttles the throughput of a pipeline according to a specified [`rate_limit`](/docs/components/rate_limits/about) resource. Rate limits are shared across components and therefore apply globally to all processing pipelines."
   },
   {
     "name": "redis",
@@ -307,12 +307,12 @@
   {
     "name": "sleep",
     "category": "Utility",
-    "summary": "Sleep for a period of time specified as a duration string for each message. This processor will interpolate functions within the `duration` field, you can find a list of functions [here](/docs/configu"
+    "summary": "Sleep for a period of time specified as a duration string for each message. This processor will interpolate functions within the `duration` field, you can find a list of functions [here](/docs/configuration/interpolation#bloblang-queries)."
   },
   {
     "name": "split",
     "category": "Utility",
-    "summary": "Breaks message batches (synonymous with multiple part messages) into smaller batches. The size of the resulting batches are determined either by a discrete size or, if the field `byte_size` is non-zer"
+    "summary": "Breaks message batches (synonymous with multiple part messages) into smaller batches."
   },
   {
     "name": "sql_insert",

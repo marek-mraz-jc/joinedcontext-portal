@@ -3,7 +3,7 @@
  * tests/roles_matrix_tests.rs, the Portal offers a control exactly when the API takes the action.
  */
 import { describe, expect, it } from "vitest";
-import { approvalStanding, isAccessKind, proposeStanding } from "../src/api/approval";
+import { approvalStanding, isAccessKind, needsSecondPerson, proposeStanding } from "../src/api/approval";
 import { allows } from "../src/api/permissions";
 import type { Effective, Verb } from "../src/api/permissions";
 import cs from "../src/locales/cs.json";
@@ -61,7 +61,9 @@ describe("the controls each role is offered", () => {
           ? "needsRole"
           : isAccessKind(kind)
             ? "ownAccessChange"
-            : ROLES[role].includes("delete")
+            : kind === "DataModel"
+              ? "ownModelChange"
+              : ROLES[role].includes("delete")
               ? null
               : "ownProposal";
         expect(own.block).toBe(expected);
@@ -151,7 +153,7 @@ describe("what proposing leads to for each role", () => {
     ["admin", "approvedOnPropose"],
   ] as const)("%s: %s", (role, expected) => {
     for (const kind of KINDS) {
-      expect(proposeStanding(effective(role), kind), kind).toBe(expected && isAccessKind(kind) ? "secondApprover" : expected);
+      expect(proposeStanding(effective(role), kind), kind).toBe(expected && needsSecondPerson(kind) ? "secondApprover" : expected);
     }
   });
 
@@ -170,6 +172,23 @@ describe("what proposing leads to for each role", () => {
       ownAsAdministrator: false,
     });
     expect(approvalStanding(permissions, "admin@hel.fi", change(kind, "other@hel.fi")).block).toBeNull();
+  });
+
+  // T-4830: a data model is approved by a second person too; the approval page says so in words of models.
+  it("an administrator's own DataModel waits for a second person", () => {
+    const data: Effective = {
+      bootstrap: false,
+      project: "helsinki",
+      grants: [{ binding: "admins", role: "admin", scope: "organization", rule: { kinds: ["DataModel"], verbs: ROLES.admin } as never }],
+    };
+    const permissions = { data, can: (k: string, verb: Verb) => allows(data, k, verb) };
+    expect(proposeStanding(data, "DataModel")).toBe("secondApprover");
+    expect(approvalStanding(permissions, "admin@hel.fi", change("DataModel", "admin@hel.fi"))).toEqual({
+      block: "ownModelChange",
+      ownAsAdministrator: false,
+    });
+    expect(approvalStanding(permissions, "admin@hel.fi", change("DataModel", "other@hel.fi")).block).toBeNull();
+    for (const locale of [cs, de, en, sk]) expect(locale.approvals.ownModelChange).toBeTruthy();
   });
 
   it("the copy names the second person in every language", () => {
