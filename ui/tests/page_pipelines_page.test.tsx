@@ -175,9 +175,17 @@ describe("the pipelines page", () => {
       },
     });
     const paused = (await screen.findByText("aq-paused")).closest("tr") as HTMLElement;
-    expect(within(paused).getByText(en.pipelines.metrics.paused)).toBeInTheDocument();
+    expect(within(paused).getByText(en.phase.paused)).toBeInTheDocument();
     const live = screen.getByText("aq-live").closest("tr") as HTMLElement;
-    expect(await within(live).findByText(en.pipelines.metrics.unavailable)).toBeInTheDocument();
+    expect(await within(live).findByText(en.pipelines.lastRun.never)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        page.fetchMock.mock.calls.some(([input]) =>
+          String(input instanceof Request ? input.url : input).includes("/aq-live/metrics"),
+        ),
+      ).toBe(true),
+    );
+    expect(within(live).queryByText(/received/)).toBeNull();
     const asked = page.fetchMock.mock.calls.map(([input]) =>
       String(input instanceof Request ? input.url : input),
     );

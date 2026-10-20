@@ -64,6 +64,9 @@ const GroupPage = lazy(() => import("./pages/access/GroupPage").then((module) =>
 const PersonPage = lazy(() => import("./pages/organization/People").then((module) => ({ default: module.PersonPage })));
 const EndpointPage = lazy(() => import("./pages/endpoints/EndpointPage").then((module) => ({ default: module.EndpointPage })));
 const RegistrationPage = lazy(() => import("./routes/RegistrationPage").then((module) => ({ default: module.RegistrationPage })));
+const PipelineOverview = lazy(() =>
+  import("./pages/pipelines/PipelineOverview").then((module) => ({ default: module.PipelineOverview })),
+);
 const AssistantPage = lazy(() => import("./pages/assistant/AssistantPage").then((module) => ({ default: module.AssistantPage })));
 import { HandOff } from "./assistant/HandOff";
 import { hasPrefill } from "./assistant/state";
@@ -1036,7 +1039,7 @@ const sharedRedirectRoute = createRoute({
 });
 
 /** A resource's own page, for the kinds that have one (UI-01, T-2281, AP-68). */
-const DETAIL_PAGES = new Set(["spaces", "endpoints", "apps", "csrs"]);
+const DETAIL_PAGES = new Set(["spaces", "endpoints", "apps", "csrs", "pipelines"]);
 
 /**
  * One section of a project: its list, one of its forms as a page of its own (T-2474, UI-27), or
@@ -1130,6 +1133,8 @@ function DetailPage({
         <EndpointPage project={project} name={name} />
       ) : plural === "csrs" ? (
         <RegistrationPage project={project} name={name} />
+      ) : plural === "pipelines" ? (
+        <PipelineOverview project={project} name={name} />
       ) : (
         <AppPage project={project} name={name} />
       )}
@@ -1276,6 +1281,10 @@ export function createPortalRouter() {
     // Back and forward land where the page was left, not at its top (UI-89, T-3239).
     scrollRestoration: true,
     defaultNotFoundComponent: NotFound,
+    // An address no route matches whole is the root's not-found page (T-4817). The default
+    // ("fuzzy") hands it to the deepest partial match, and the section route draws its children
+    // itself, so `/pipelines/{name}/runs` rendered the `$name` page of another kind.
+    notFoundMode: "root",
     // What throws before a page is drawn — a loader, a `beforeLoad` — cannot be caught inside
     // the shell, because there is no shell yet. It gets the same words as the boundary at the
     // root rather than the router's own "Something went wrong!" (T-2426, UI-44).

@@ -395,8 +395,8 @@ describe("the trail to one item", () => {
   });
 
   it("names no organization an installation does not name, and opens an item's bare address on its form", async () => {
-    open("/projects/helsinki/pipelines/air-quality", "");
-    await waitFor(() => expect(window.location.pathname).toBe("/projects/helsinki/pipelines/air-quality/edit"));
+    open("/projects/helsinki/datasources/air-feed", "");
+    await waitFor(() => expect(window.location.pathname).toBe("/projects/helsinki/datasources/air-feed/edit"));
     const crumbs = await screen.findByRole("navigation", { name: "Breadcrumb" });
     expect(within(crumbs).getAllByRole("listitem")[0]).toHaveTextContent("helsinki");
   });

@@ -427,6 +427,37 @@ async fn a_reader_lists_the_runs_and_reads_one_runs_log_of_this_pipeline_only() 
     assert_eq!(runs["items"][0]["sent"], 3);
     assert_eq!(runs["items"][0]["rejected"], 1);
 
+    // The list page asks for the latest run only (T-4817).
+    let older = "2026-09-25T07:00:00Z";
+    state
+        .pipeline_log
+        .append(
+            "helsinki",
+            "stations",
+            older,
+            &[line("urn:s-old", Outcome::Sent)],
+        )
+        .await
+        .expect("kept");
+    let latest = send(
+        &state,
+        person("jana"),
+        "GET",
+        &format!("{RUNS}?limit=1"),
+        None,
+    )
+    .await;
+    assert_eq!(latest.status, StatusCode::OK, "{}", latest.text);
+    let latest: Value = serde_json::from_str(&latest.text).expect("json");
+    assert_eq!(
+        latest["items"].as_array().map(Vec::len),
+        Some(1),
+        "{latest}"
+    );
+    let all = send(&state, person("jana"), "GET", RUNS, None).await;
+    let all: Value = serde_json::from_str(&all.text).expect("json");
+    assert_eq!(all["items"].as_array().map(Vec::len), Some(2), "{all}");
+
     let page = send(
         &state,
         person("jana"),
