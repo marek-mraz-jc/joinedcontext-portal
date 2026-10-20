@@ -99,7 +99,8 @@
     "mcp": "MCP servers",
     "home": "Home",
     "inbox": "Inbox",
-    "mqttbrokers": "MQTT brokers"
+    "mqttbrokers": "MQTT brokers",
+    "csrs": "Context sources"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -195,7 +196,9 @@
     "missing": "{field} is required",
     "mapKey": "Key",
     "mapLanguage": "Language",
-    "mapAddLanguage": "Add a language"
+    "mapAddLanguage": "Add a language",
+    "advancedFields": "Advanced",
+    "advancedFieldsHint": "Runner settings most sources leave at their defaults."
   },
   "approvals": {
     "lead": "Every change to the project is a proposal here until an approver merges it.",
@@ -1703,6 +1706,18 @@
         "ckanDataset": "This is the dataset page, not a file. Open the CSV or JSON resource on it and copy its download address.",
         "layer": "Name the layer to read, or give the address of a GeoJSON file."
       }
+    },
+    "test": {
+      "title": "Test connection",
+      "hint": "Reads the saved source once on the project's runner, for at most three seconds, and shows the first record. Nothing is written; the credential stays in the secret store.",
+      "button": "Test connection",
+      "running": "Testing…",
+      "read": "Connected: {records, plural, one {# record} other {# records}} read ({bytes} bytes). The first one:",
+      "failed": "Nothing was read: {reason}."
+    },
+    "usedBy": {
+      "title": "Used by",
+      "none": "No pipeline reads this source yet."
     }
   },
   "pipelines": {
@@ -5224,6 +5239,22 @@
       "serviceAccount": "Service account",
       "interval": "Schema mirror interval",
       "expiresAt": "Expires at"
+    },
+    "page": {
+      "back": "Back to context sources",
+      "edit": "Edit",
+      "state": "State",
+      "lastError": "Last error",
+      "none": "None",
+      "types": "Entity types",
+      "ids": "Entities",
+      "allIds": "Every entity of these types",
+      "attributes": "Attributes",
+      "allAttributes": "Every attribute",
+      "operations": "Operations forwarded",
+      "defaultOperations": "The broker's default for the mode",
+      "mode": "Mode",
+      "expires": "Expires"
     }
   },
   "organization": {

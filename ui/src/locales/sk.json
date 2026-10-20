@@ -99,7 +99,8 @@
     "mcp": "MCP servery",
     "home": "Domov",
     "inbox": "Doručené",
-    "mqttbrokers": "MQTT brokery"
+    "mqttbrokers": "MQTT brokery",
+    "csrs": "Kontextové zdroje"
   },
   "auth": {
     "lead": "Prihláste sa účtom svojej organizácie a spravujte túto platformu.",
@@ -195,7 +196,9 @@
     "missing": "{field} je povinné",
     "mapKey": "Kľúč",
     "mapLanguage": "Jazyk",
-    "mapAddLanguage": "Pridať jazyk"
+    "mapAddLanguage": "Pridať jazyk",
+    "advancedFields": "Rozšírené",
+    "advancedFieldsHint": "Nastavenia spúšťača, ktoré väčšina zdrojov necháva predvolené."
   },
   "approvals": {
     "lead": "Každá zmena projektu je tu návrhom, kým ju schvaľovateľ nezlúči.",
@@ -1703,6 +1706,18 @@
         "ckanDataset": "Toto je stránka datasetu, nie súbor. Otvorte na nej zdroj CSV alebo JSON a skopírujte jeho adresu na stiahnutie.",
         "layer": "Zadajte vrstvu, ktorú čítať, alebo adresu súboru GeoJSON."
       }
+    },
+    "test": {
+      "title": "Otestovať pripojenie",
+      "hint": "Načíta uložený zdroj raz na spúšťači projektu, najviac tri sekundy, a ukáže prvý záznam. Nič sa nezapíše; prístupový údaj zostáva v úložisku tajomstiev.",
+      "button": "Otestovať pripojenie",
+      "running": "Testuje sa…",
+      "read": "Pripojené: {records, plural, one {načítaný # záznam} few {načítané # záznamy} other {načítaných # záznamov}} ({bytes} bajtov). Prvý z nich:",
+      "failed": "Nič sa nenačítalo: {reason}."
+    },
+    "usedBy": {
+      "title": "Používajú ho",
+      "none": "Tento zdroj zatiaľ nečíta žiadna pipeline."
     }
   },
   "pipelines": {
@@ -5224,6 +5239,22 @@
       "serviceAccount": "Servisný účet",
       "interval": "Interval zrkadlenia schém",
       "expiresAt": "Platí do"
+    },
+    "page": {
+      "back": "Späť na kontextové zdroje",
+      "edit": "Upraviť",
+      "state": "Stav",
+      "lastError": "Posledná chyba",
+      "none": "Žiadna",
+      "types": "Typy entít",
+      "ids": "Entity",
+      "allIds": "Každá entita týchto typov",
+      "attributes": "Atribúty",
+      "allAttributes": "Všetky atribúty",
+      "operations": "Preposielané operácie",
+      "defaultOperations": "Predvolené pre režim brokera",
+      "mode": "Režim",
+      "expires": "Platnosť do"
     }
   },
   "organization": {

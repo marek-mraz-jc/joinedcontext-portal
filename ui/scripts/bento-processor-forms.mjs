@@ -8,12 +8,13 @@
 // text box, a list of processors or a free map a YAML box (`ui:options.yaml`), a secret a `${VAR}`.
 import { readFileSync, writeFileSync } from "node:fs";
 import { alsoSecret } from "./also-secret.mjs";
+import { helpText } from "./help-text.mjs";
 
 const SCALAR = { string: "string", int: "integer", float: "number", bool: "boolean" };
 
-/** The first sentence of the runner's description, its Markdown links reduced to their text. */
+/** The runner's description in whole sentences, its Markdown links reduced to their text. */
 function sentence(text) {
-  return (text ?? "").split("\n")[0].replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").slice(0, 240);
+  return helpText((text ?? "").split("\n")[0].replace(/\[([^\]]*)\]\([^)]*\)/g, "$1"));
 }
 
 /** One field of the runner as a schema and its uiSchema; `undefined` for a deprecated field. */
