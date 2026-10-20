@@ -34,18 +34,21 @@ interface Opened {
   instant?: string[];
 }
 
-/** The names of the controls on the page a person can press: buttons in main, no tab, none disabled. */
-async function pressable(page: Page): Promise<string[]> {
-  return page.evaluate(() => {
+/** The page's frame outside `main`: header, navigation and the assistant dock (T-3986 shell pass). */
+const SHELL = "body button:not(main button):not([role='tab']), body [role='button']:not(main [role='button'])";
+
+/** The names of the controls on the page a person can press: buttons in main (or `selector`), no tab, none disabled. */
+async function pressable(page: Page, selector = "main button:not([role='tab']), main [role='button']"): Promise<string[]> {
+  return page.evaluate((selector) => {
     const names: string[] = [];
-    for (const element of document.querySelectorAll("main button:not([role='tab']), main [role='button']")) {
+    for (const element of document.querySelectorAll(selector)) {
       if (element.getClientRects().length === 0 || element.closest("[hidden], [inert], [role='dialog']")) continue;
       if ((element as HTMLButtonElement).disabled || element.getAttribute("aria-disabled") === "true") continue;
       const name = (element.getAttribute("aria-label") ?? element.textContent ?? "").replace(/\s+/g, " ").trim();
       if (name && !names.includes(name)) names.push(name);
     }
     return names;
-  });
+  }, selector);
 }
 
 /** The control a person would press by its name, the first visible one. */
@@ -146,4 +149,87 @@ test("every dialog on every page opens, says what it is and closes, for the stew
   }
   expect(report.filter((entry) => entry.dialog).length, "the walk opened dialogs").toBeGreaterThan(ONLY ? 0 : 10);
   expect(report.filter((entry) => entry.findings.length > 0).map(({ address, control: name, findings }) => ({ address, control: name, findings }))).toEqual([]);
+});
+
+/** What a shell control opens: a dialog, a menu or a list of options. */
+const POPUP = `${DIALOG}, [role='menu']:visible, [role='listbox']:visible`;
+
+test("every control of the frame around the page opens, says what it is and closes, for the steward", async ({ browser }) => {
+  test.setTimeout(900_000);
+  const home = `${P}/spaces`;
+  const { context, page } = await signIn(browser, STEWARD, `${home}?lang=en`);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const report: Opened[] = [];
+  const writes: string[] = [];
+  let current: string[] = [];
+  await page.route("**/api/**", (route) => {
+    const request = route.request();
+    if (request.method() === "GET" || request.method() === "HEAD") return route.continue();
+    writes.push(`${request.method()} ${new URL(request.url()).pathname}`);
+    return route.abort("blockedbyclient");
+  });
+  page.on("console", (message) => {
+    const text = message.text();
+    if (message.type() === "error" && !text.startsWith("Failed to load resource") && !/ERR_BLOCKED_BY_CLIENT/.test(text)) {
+      current.push(`console: ${text.slice(0, 200)}`);
+    }
+  });
+  page.on("pageerror", (error) => current.push(`console: ${error.message.slice(0, 200)}`));
+  const open = async () => {
+    await page.goto(`${home}?lang=en`, { waitUntil: "load" });
+    await page.locator("h1:visible").first().waitFor({ timeout: 30_000 }).catch(() => undefined);
+    await page.waitForTimeout(1500);
+  };
+
+  try {
+    await open();
+    // Sign out ends the session the walk runs in; its aborted POST is all it would show.
+    for (const name of (await pressable(page, SHELL)).filter((name) => name !== "Sign out")) {
+      if (page.url().split("?")[0] !== new URL(home, page.url()).href) await open();
+      const button = page.getByRole("button", { name, exact: true }).and(page.locator(SHELL)).first();
+      if ((await button.count()) === 0 || !(await button.isEnabled().catch(() => false))) continue;
+      current = [];
+      const before = writes.length;
+      await button.click({ timeout: 5_000 }).catch(() => undefined);
+      const popup = page.locator(POPUP).first();
+      if (!(await popup.waitFor({ timeout: 3_000 }).then(() => true, () => false))) {
+        // A toggle (the dock, the navigation) or a link-like control: judged by what it logs and sends.
+        report.push({ address: home, control: name, dialog: "", findings: [...current], screenshot: "", instant: writes.slice(before) });
+        await page.keyboard.press("Escape");
+        continue;
+      }
+      await page.waitForTimeout(800);
+      const role = (await popup.getAttribute("role")) ?? "";
+      const title = (
+        (await popup.getAttribute("aria-label")) ??
+        (await popup.getAttribute("aria-labelledby").then((id) => (id ? page.locator(`[id='${id}']`).first().textContent() : null))) ??
+        (await popup.locator("h1, h2, [id$='title']").first().textContent({ timeout: 1_000 }).catch(() => "")) ??
+        ""
+      ).trim();
+      const findings = [
+        ...current,
+        ...(title || role !== "dialog" ? [] : [`unnamed: the dialog "${name}" opens has no title`]),
+        ...(await axeViolations(page)).filter((violation) => /\((serious|critical)\)/.test(violation)).map((violation) => `axe: ${violation.slice(0, 200)}`),
+      ];
+      const screenshot = test.info().outputPath(`shell-${name.replace(/[^a-z0-9]+/gi, "-").slice(0, 60)}.png`);
+      await page.screenshot({ path: screenshot });
+      await shot(page, { area: "portal", route: home, state: `shell-${name.replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 40)}`, who: "steward", lang: "en" });
+      await page.keyboard.press("Escape");
+      if (!(await popup.waitFor({ state: "hidden", timeout: 3_000 }).then(() => true, () => false))) {
+        findings.push(`escape: the ${role} "${title || name}" stays open on Escape`);
+        await open();
+      }
+      report.push({ address: home, control: name, dialog: title || role, findings, screenshot });
+    }
+  } finally {
+    const body = JSON.stringify({ walked: [home], report, writes }, null, 2);
+    if (process.env.SHOTS_DIR) {
+      writeIndex(process.env.SHOTS_DIR);
+      writeFileSync(join(process.env.SHOTS_DIR, "walk-shell-steward.json"), body);
+    }
+    await test.info().attach("walk-shell-steward.json", { body, contentType: "application/json" });
+    await context.close();
+  }
+  expect(report.length, "the frame has controls").toBeGreaterThan(3);
+  expect(report.filter((entry) => entry.findings.length > 0).map(({ control: name, findings }) => ({ control: name, findings }))).toEqual([]);
 });

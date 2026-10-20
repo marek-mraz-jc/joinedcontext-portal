@@ -3,8 +3,14 @@ import type { ComponentPropsWithoutRef, ElementRef } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { clsx } from "clsx";
 
-/** Radix DropdownMenu with the Portal's surface: the root, trigger and portal are Radix's own. */
-export const Menu = DropdownMenu.Root;
+/**
+ * Radix DropdownMenu with the Portal's surface: the trigger and portal are Radix's own. The root is
+ * not modal by default: a modal menu marks the rest of the page aria-hidden while its links stay
+ * focusable (axe aria-hidden-focus, T-3986's shell pass); focus still moves in and Escape closes it.
+ */
+export function Menu({ modal = false, ...rest }: ComponentPropsWithoutRef<typeof DropdownMenu.Root>) {
+  return <DropdownMenu.Root modal={modal} {...rest} />;
+}
 export const MenuTrigger = DropdownMenu.Trigger;
 
 export const MenuContent = forwardRef<

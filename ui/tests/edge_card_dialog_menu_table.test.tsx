@@ -170,6 +170,25 @@ describe("Menu, at its edges", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
+
+  it("an_open_menu_hides_no_link_of_the_page_from_a_screen_reader", async () => {
+    wrap(
+      <>
+        <a href="/projects">Projects</a>
+        <Menu>
+          <MenuTrigger>Actions</MenuTrigger>
+          <MenuContent>
+            <MenuItem>Duplicate</MenuItem>
+          </MenuContent>
+        </Menu>
+      </>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Actions" }));
+    await screen.findByRole("menu");
+    // A modal menu set aria-hidden on the page around it while its links kept focus (axe aria-hidden-focus, T-3986).
+    expect(document.querySelector("[aria-hidden='true'] a, a[aria-hidden='true']")).toBeNull();
+    expect(screen.getByRole("link", { name: "Projects" })).toBeInTheDocument();
+  });
 });
 
 describe("Dialog, at its edges", () => {
