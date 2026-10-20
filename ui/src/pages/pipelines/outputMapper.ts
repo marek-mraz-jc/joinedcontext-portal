@@ -194,6 +194,15 @@ function timeOf(value: unknown): number | undefined {
 const isNumber = (value: unknown) =>
   typeof value === "number" || (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value)));
 
+/** A time field the sample lacks or cannot read as a time, named at `expiresAt`. */
+function expiresProblems(timed: string | undefined, records: Record<string, unknown>[], fields: Set<string>): MapperProblem[] {
+  if (timed === undefined || records.length === 0) return [];
+  if (!fields.has(timed)) return [{ attribute: "expiresAt", kind: "notInSample", field: timed }];
+  const value = records.map((record) => record[timed]).find((v) => v !== undefined && v !== null && v !== "");
+  if (value === undefined || timeOf(value) !== undefined) return [];
+  return [{ attribute: "expiresAt", kind: "notTime", field: timed, value: typeof value === "string" ? value : JSON.stringify(value) }];
+}
+
 /**
  * What would stop the entities from being written, in the sample's terms (T-3224): a required
  * attribute mapped to nothing, a field the sample does not have, a value the slot's type cannot
@@ -203,14 +212,7 @@ export function problemsOf(state: MapperState, attributes: Attribute[], records:
   const problems: MapperProblem[] = [];
   if (!state.idField) problems.push({ attribute: "", kind: "noId" });
   const fields = new Set(records.flatMap((record) => Object.keys(record)));
-  const timed = state.expires?.field;
-  if (timed !== undefined && records.length > 0) {
-    const value = records.map((record) => record[timed]).find((v) => v !== undefined && v !== null && v !== "");
-    if (!fields.has(timed)) problems.push({ attribute: "expiresAt", kind: "notInSample", field: timed });
-    else if (value !== undefined && timeOf(value) === undefined) {
-      problems.push({ attribute: "expiresAt", kind: "notTime", field: timed, value: typeof value === "string" ? value : JSON.stringify(value) });
-    }
-  }
+  problems.push(...expiresProblems(state.expires?.field, records, fields));
   for (const attribute of attributes) {
     const source = state.attributes[attribute.name];
     if (!source) {
@@ -234,6 +236,13 @@ export function problemsOf(state: MapperState, attributes: Attribute[], records:
     }
   }
   return problems;
+}
+
+/** The `expiresAt` the step writes for `record`, as the runner formats it; none without a time. */
+function expiresAtOf(expires: Expires, record: Record<string, unknown>, now: number): string | undefined {
+  const base = expires.field === undefined ? Math.floor(now / 1000) : timeOf(record[expires.field]);
+  if (base === undefined) return undefined;
+  return new Date((base + (plusSeconds(expires.plus) ?? 0)) * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
 /**
@@ -283,10 +292,8 @@ export function preview(
         ...(attribute.kind === "Property" && attribute.unit?.code && typeof value === "number" ? { unitCode: attribute.unit.code } : {}),
       };
     }
-    if (state.expires) {
-      const base = state.expires.field === undefined ? Math.floor(now / 1000) : timeOf(record[state.expires.field]);
-      if (base !== undefined) entity.expiresAt = new Date((base + (plusSeconds(state.expires.plus) ?? 0)) * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
-    }
+    const expiresAt = state.expires ? expiresAtOf(state.expires, record, now) : undefined;
+    if (expiresAt !== undefined) entity.expiresAt = expiresAt;
     return entity;
   });
 }
