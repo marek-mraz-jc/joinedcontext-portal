@@ -88,16 +88,17 @@ Both routes follow the `Origin` rules of §1.2, and the preflight allows `GET`, 
 | `delta` | `{"text": "…"}` | zero or more, the answer's next characters as the answering model streams them |
 | `answer` | `{"text": "… [1] … [2]"}` | once, the whole answer, after the last `delta` |
 | `citations` | `[{"n": 1, "url": "https://…/page#page=4", "title": "Ovzdušie"}, {"n": 2, "tool": "query_entities", "endpoint": "ovzdusie-verejne", "url": "https://…/dataset/ovzdusie", "title": "Kvalita ovzdušia"}]` | after `answer` |
-| `followups` | `{"questions": ["Kde je zberný dvor?", "…"]}` | after `citations`, at most once: up to 3 questions of at most 120 characters each that the router call proposed (T-4139), no extra model call; absent for a cached answer |
+| `followups` | `{"questions": ["Kde je zberný dvor?", "…"]}` | after `citations`, at most once: up to 3 questions of at most 120 characters each that the router call proposed (T-4139), no extra model call; a cached answer replays the ones it was sent with (T-4731) |
 | `error` | `{"status": 429, "title": "Budget Spent", "detail": "…"}` | instead of `answer` |
 | `done` | `{"tokens": 1834, "tokensIn": 1600, "tokensOut": 234, "modelCalls": 2, "firstTokenMs": 900, "totalMs": 3100, "cached": false, "costUsd": 0.000412, "stagesMs": {"route": 420, "search": 40, "judge": 380, "answer": 2100}, "judgeSkipped": false, "providers": {"route": "Groq", "judge": "Groq", "answer": "Google Vertex"}, "reasoningTokens": {"route": 0, "judge": 0, "answer": 64}}` | last, always; the token counts are the sums of each model response's `usage` (`prompt_tokens`, `completion_tokens`), `tokens` their total; `costUsd` is the sum of each response's `usage.cost`, present only when every call reported one, and 0 for a cached answer or one that made no call (T-4178); `stagesMs` is the wall time of each stage that ran, in milliseconds: `route` the router call, `search` and `judge` summed over the rounds, `answer` the streamed answer call from request to last token. A stage that did not run is absent. The question's own search and its judgement run beside the router call, so the stages may add up to more than `totalMs` (T-4293); `judgeSkipped` is true when the first round's passages covered the question and were not judged; `providers` names, per stage, the OpenRouter provider that served its last call, and `reasoningTokens` the reasoning tokens its calls spent (`usage.completion_tokens_details.reasoning_tokens`), each stage only when a call reported it (T-4360) |
 
 - Every model call of the answer reads the moment of the question beside it, local first: the deployment's weekday, date, time to the minute and zone abbreviation (CET or CEST, EET or EEST, from the IANA zone on that date), then UTC. The zone is that of the deployment's first city language (`sk` Europe/Bratislava, `cs` Europe/Prague, `fi` Europe/Helsinki), UTC alone without one. "Today", "now" and "this week" resolve against it, and a question about the date or time is answered from it, like "Je piatok 16. októbra 2026, 14:17 (CEST)." The chat shows the time of each message, the question's from `at`, in the visitor's time zone, with the UTC minute beside it. (T-4339)
 - Every numbered marker `[n]` in `answer` has its entry in `citations`: a passage cites its page URL (a PDF passage with `#page=N`), a tool result cites the tool and its Endpoint. (AG-102)
+- A passage's citation also carries `published`, `modified` and `crawled` of its page or document, RFC 3339 in UTC, each left out when unknown ([Architecture/22 §3](../Architecture/22-knowledge-assistant.md#3-database-sketch)); the answer call sees the same three dates beside each passage. (T-4749)
 - `title` is the first heading of the cited page or document, when it opens with one. A tool result's citation also carries the `url` and `title` of the page the deployment's sources hold about its Endpoint (the catalogue's or its dataset's, found by the Endpoint's address), when one exists. Both come from the deployment's own sources, public ones alone on a public channel. A channel shows the title and never the tool's name. (AG-117)
 - A passage citation may carry `cards`, what the cited passage itself publishes, read from its text and links without a model call: `{"kind": "contact", "name": "Klientske centrum", "phones": ["+421 48 4330 111"], "emails": ["podatelna@example.org"]}`, `{"kind": "place", "address": "Československej armády 26, 974 01 Banská Bystrica"}` or `{"kind": "procedure", "steps": ["Vyplňte žiadosť.", "…"]}`. `name` is the passage's last heading; empty lists and absent fields are left out; at most 3 cards per citation, 5 phones or e-mails per contact, 10 steps. The chat links a phone as `tel:`, an e-mail as `mailto:` and an address to an OpenStreetMap search only when each is well formed, and shows it as text otherwise. (T-4155)
 - The answer is in the language of the question; the deployment's `languages` only choose the greeting and the search stemmers. (AG-103)
-- An error the person can act on is an `error` event with a sentence: the conversation's budget is spent (`tokensPerConversation`), the model is unreachable, or a connector failed (the answer then goes on without it, and the `tool` event says `failed`). So is each cap of §1.2: a spent day (`tokensPerDay`, `costPerDayUsd`), a spent month, a spent share and unreadable spend; the chat shows a cap's sentence with no retry, since nothing changes before it resets. (AG-104, T-4286, T-4671)
+- An error the person can act on is an `error` event with a sentence: the conversation is long (`tokensPerConversation` reached; a question asked past `costPerConversationUsd` or `messagesPerConversation` is answered `429` before any event, §1.4; either way the chat offers a new conversation that asks the question again, T-4737), the model is unreachable, or a connector failed (the answer then goes on without it, and the `tool` event says `failed`). So is each cap of §1.2: a spent day (`tokensPerDay`, `costPerDayUsd`), a spent month, a spent share and unreadable spend; the chat shows a cap's sentence with no retry, since nothing changes before it resets. (AG-104, T-4286, T-4671)
 
 ### 1.4 The agent loop
 
@@ -109,7 +110,7 @@ Both routes follow the `Origin` rules of §1.2, and the preflight allows `GET`, 
 - `answer.routes` decides what one answer may use: `both` (default) lets the router search the sources and call the connectors; `rag` offers no connector and calls no tool, and its `data` and `tool` events never occur; `data` runs no `search` round and answers from the connectors' results alone. (MF-52, T-4281)
 - With `feedback: false` the chat shows no verdict buttons and `POST /api/v1/d/{publicId}/feedback` answers `404`. (MF-52, T-4281)
 - A question takes one routing call of the router model (route `rag`, `data` or both, and up to 3 search queries), at most 3 retrieval rounds the service runs itself (a follow-up round asks the router once more, with the passages' titles only), and one streamed call of the answer model. (AG-107)
-- Before each model call, the conversation's tokens so far plus the call's input estimate are checked against `tokensPerConversation`; the answering call's output is capped at `outputTokensPerAnswer`. (AG-107)
+- Before each model call, the conversation's tokens so far plus the call's input estimate are checked against `tokensPerConversation`, and, as each question starts, the conversation's model cost so far against `costPerConversationUsd` when the deployment sets it: past it, or past `messagesPerConversation`, the question is answered `429` `Conversation Budget Spent` with no model call; a question under way finishes. The answering call's output is capped at `outputTokensPerAnswer`. (AG-107, T-4737)
 - The first call sends the stable part (rules, the deployment's prompt, the tool list) as one cached prefix, marked `cache_control: {"type": "ephemeral"}`; every later call sends that prefix byte for byte, then the question and the tool results (T-3069). (AG-108)
 
 ### 1.5 Scripts over a large tool result
@@ -327,6 +328,10 @@ the service's own tables (T-4197):
 `reason` is `HTTP {status}` or the network error, at most 300 characters; no content of a page is
 in it. A source not crawled yet answers `404`.
 
+`DELETE …/knowledge/deployments/{deployment}/answers` forgets the answers the deployment keeps
+(Architecture/23 §4) and answers `200` `{"forgotten": n}`, `n` the answers forgotten, 0 when it
+kept none; a project or deployment it does not know forgets nothing and answers the same (T-4731).
+
 `GET …/knowledge/deployments/{deployment}/usage` answers `{"items": [{"day", "requests", "tokensIn",
 "tokensOut", "thumbsUp", "thumbsDown", "notes"}]}` for the last 30 days; `notes` counts the thumbs
 down that carry a note (§1.8).
@@ -352,6 +357,8 @@ answer timeout too, with what it reached (AG-99). The Portal reads them for its 
 
 ```text
 GET    …/knowledge/conversations?deployment=&from=&to=&status=&feedback=&slow=&minCostUsd=&q=&sort=&cursor=&limit=
+GET    …/knowledge/conversations/usage?deployment=&from=&to=&route=
+GET    …/knowledge/conversations/export?deployment=&from=&to=&route=
 GET    …/knowledge/conversations/{conversation}
 DELETE …/knowledge/conversations/{conversation}
 ```
@@ -363,11 +370,14 @@ DELETE …/knowledge/conversations/{conversation}
 | `totalMs`, `errors`, `timeouts` | the longest turn's time and the turns that ended in an error or the timeout |
 | `thumbsUp`, `thumbsDown` | the visitors' verdicts (§1.8) |
 | `costUsd`, `uncosted` | the sum of the priced model calls, and how many calls the provider sent no price for; with `uncosted > 0` the sum is a floor and the Portal says the price is unknown, never $0 |
+| `tokensIn`, `tokensOut`, `cachedTokens` | the turns' prompt and completion tokens, and the prompt tokens the provider read from its cache (`null` when no call reported any, T-4728) |
+| `firstTokenMs`, `models` | the first turn's time to its first token (`null` when none came), and the models its calls used |
 
 - `status` is `error`, `timeout` or `ok`; `feedback` is `up`, `down` or `none`; `slow=true` keeps
   conversations with a turn over 15 seconds; `minCostUsd` keeps those whose sum is at least that;
   `q` (2 to 100 characters) matches the questions and answers, case and diacritics ignored;
-  `sort` is `lastAt` (default, newest first) or `costUsd`. `limit` is 1 to 100, default 50, and
+  `sort` is `lastAt` (default, newest first), `costUsd`, `tokens` (in plus out) or `totalMs`
+  (the longest turn), each largest first. `limit` is 1 to 100, default 50, and
   `nextCursor` continues.
 - The detail answers `{"id", "deployment", "origin", "client", "turns": [...]}`. A turn carries
   `turn`, `at`, `question`, `answer`, `blocks` (the tables, chart and map specs it showed),
@@ -384,6 +394,32 @@ DELETE …/knowledge/conversations/{conversation}
   add up to the turn's time from the question's arrival, the connectors' setup included. `output` is whole up to 64 kB, beyond that its first 20 rows, with
   `outputBytes` the whole size (T-4681). A turn's `costUsd` is the sum of its steps', a
   conversation's the sum of its turns'.
+- `GET …/knowledge/conversations/usage` sums every turn in the filter (`deployment`, `from`
+  inclusive, `to` exclusive, both RFC 3339, `route`; another parameter is `400`) in one aggregate
+  (T-4728): `questions`, `timeouts`,
+  `errors` (an error that is not the timeout), `uncostedQuestions` (turns with a call the provider
+  sent no price for: they never count as $0), and over the other turns `costUsd` with `total`,
+  `mean`, `p50` and `p90`. `tokens` holds the means per question of `in`, `out` and `cached`, and
+  `cachedShare` (cached of all prompt tokens, `null` with none). `answerCache` holds `hits` (the
+  turns answered from the kept answers, route `cached`, T-4731), `hitShare` (hits of all
+  questions, `null` with none), and two estimates, `null` when the hits or the other turns are
+  none: `savedMs`, hits × (the other turns' mean `totalMs` − the hits' mean), and `savedUsd`,
+  hits × the other priced turns' mean cost. `firstTokenMs`, `totalMs` and
+  `phases` (`route`: the router call; `work`: search, tools and the data, judge and agent calls;
+  `answer`: the answer call; each the sum of its steps' durations in a turn) hold `p50`, `p90` and
+  `max`, `null` with no turn. `costByStage` splits the cost of every model call of those turns by
+  its `stage` (a timed-out turn's calls included): `stage`, `calls`, `costUsd` (`null` when no
+  call of it was priced) and `uncostedCalls`; a stage the assistant starts recording (follow-ups,
+  embeddings) appears there by itself. `days` lists up to the 14 newest UTC days of the filter with
+  `day`, `questions`, `costUsd`, `uncostedQuestions`, `p50TotalMs`, `timeouts` and `errors`. A
+  value nothing was measured for is `null`, never 0.
+- `GET …/knowledge/conversations/export` answers the same turns as `text/csv` (UTF-8, CRLF), one
+  row per turn, newest first: `at`, `deployment`, `conversation`, `turn`, `route`, `question`,
+  `firstTokenMs`, `totalMs`, `tokensIn`, `tokensOut`, `cachedTokens`, `models`, `costUsd` (empty
+  when a call was unpriced), `uncosted`, `timedOut`, `error`. The question is the stored,
+  redacted text; a cell holding a quote, comma or line break is quoted, and one starting with
+  `=`, `+`, `-`, `@`, a tab or a CR gets a leading `'` so a spreadsheet never runs it. More than 20,000 turns
+  is `400`: narrow the range.
 - `GET …/knowledge/conversations/{conversation}/turns/{turn}/same` lists the stored turns of the
   project whose question reads the same (case, diacritics and spacing ignored, matched by a hash),
   newest first, at most 50: `conversation`, `turn`, `at`, `deployment`, `totalMs`, `costUsd`,
@@ -421,12 +457,13 @@ alone. It takes no token: it answers only what is public.
 
 ```json
 {"hits": [{"title": "Klientske centrum", "url": "https://www.banskabystrica.sk/…", "publisher": "banskabystrica",
-  "description": "…", "published": null, "modified": "2026-09-30T08:12:00Z", "language": "sk",
+  "description": "…", "published": null, "modified": "2026-09-30T08:12:00Z", "crawled": "2026-10-19T03:12:40Z", "language": "sk",
   "text": "…", "score": 0.0325}]}
 ```
 
 `text` is at most 1,200 characters. The metadata is the page's or document's (AG-120), `null`
-where the source states none; a hit's `title` is the page's own, else the first heading of its
+where the source states none; `modified` falls back to the sitemap's `<lastmod>`, then the
+server's `Last-Modified`, and `crawled` is when the crawl last read it (T-4749); a hit's `title` is the page's own, else the first heading of its
 first passage.
 
 `POST /internal/v1/sources` with `{"sources": [{"project", "source"}]}` (1 to 20) answers what the

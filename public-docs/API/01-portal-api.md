@@ -3289,7 +3289,10 @@ POST /api/v1/projects/{project}/knowledge/sources/{source}/recrawl         queue
 GET  /api/v1/projects/{project}/knowledge/sources/{source}/errors          the pages and documents the last crawls could not read
 GET  /api/v1/projects/{project}/knowledge/deployments/{deployment}/usage   requests and tokens per day, 30 days
 POST /api/v1/projects/{project}/knowledge/deployments/{deployment}/chat    ask the assistant as the signed-in person
+DELETE /api/v1/projects/{project}/knowledge/deployments/{deployment}/answers  forget the answers the deployment keeps (T-4731)
 GET  /api/v1/projects/{project}/knowledge/conversations                    stored conversations, filtered (API/05 §3.1)
+GET  /api/v1/projects/{project}/knowledge/conversations/usage               the usage summary of the filtered turns (API/05 §3.1)
+GET  /api/v1/projects/{project}/knowledge/conversations/export              the filtered turns as CSV (API/05 §3.1)
 GET  /api/v1/projects/{project}/knowledge/conversations/{conversation}     one conversation, every turn with its steps
 GET  /api/v1/projects/{project}/knowledge/conversations/{conversation}/turns/{turn}/same  stored turns of the same question
 DELETE /api/v1/projects/{project}/knowledge/conversations/{conversation}   erase one conversation
@@ -3308,6 +3311,12 @@ DELETE /api/v1/projects/{project}/knowledge/conversations/{conversation}   erase
   person's own access token on for an `internal` deployment's connectors and keeps no copy
   ([API/05 §1.7](05-knowledge-assistant.md#17-in-the-portal), AG-115).
 - `recrawl` answers `202` with the queued job, or `409` when one is already queued or running.
+- `DELETE …/answers` needs `approve` on `AssistantDeployment` (the assistant's administrator),
+  anyone else `403` naming it, and answers `200` `{"forgotten": n}`: the deployment's kept answers
+  are gone, so its next question of each is answered anew (API/05 §3, T-4731). Every call writes
+  an audit record naming the caller, the project and the deployment. The Portal calls it itself,
+  with no caller, when it applies a Change to a `Policy` or an `Endpoint` that a connector of the
+  deployment reads, so no kept answer outlives the rule it was read under.
 - The `conversations` routes answer only a caller with `approve` on `AssistantDeployment` in the
   project (the assistant's administrator; `org-admin` holds it), anyone else `403` naming it, and
   `DELETE` needs `delete` on `AssistantDeployment`. Every call writes an audit record naming the

@@ -47,7 +47,7 @@ Every message, in both directions, is one text frame holding one JSON object wit
 | `x-gap` | server | none; notifications `x-from` to `x-to` were lost, so read the entities again over REST |
 | `x-closing` | server, before it closes | none; `x-reason` is `lifetime`, `overflow`, `view-removed`, `shutdown` or `idle` |
 
-A Subscription made over the socket lives on that connection only. The gateway serves every socket of an Endpoint from one subscription of its own to the broker and matches your filters itself ([ADR-N-049](../Decisions/adr-n-049-websocket-fan-out-per-endpoint.md)), so `GET {endpointUrl}/ngsi-ld/v1/subscriptions` does not list it. It ends 30 seconds after the connection closes unless you resume. Keep its id from `x-result`; it is the `x-subscription` of every `x-update` and `x-unsubscribe`.
+A Subscription made over the socket lives on that connection only. The gateway serves your sockets of an Endpoint from one broker subscription made as you, which the Endpoint's Policy decides as a read, and matches your filters itself ([ADR-N-049](../Decisions/adr-n-049-websocket-fan-out-per-endpoint.md)), so `GET {endpointUrl}/ngsi-ld/v1/subscriptions` does not list it. It ends 30 seconds after the connection closes unless you resume. Keep its id from `x-result`; it is the `x-subscription` of every `x-update` and `x-unsubscribe`.
 
 A notification carries only the attributes your grant reads. A change to an attribute you cannot read sends nothing. No message tells you that an entity left what you may read, because that message would itself reveal a hidden change. On `x-gap`, and on your own schedule, read the subscribed types again over REST: `GET {endpointUrl}/ngsi-ld/v1/entities?type=Vehicle` for the examples below.
 
@@ -70,7 +70,7 @@ The `ws-fanout` rig (EP-115) measures one gateway replica on a 4-vCPU GitHub run
 
 The server pings every 30 seconds and closes a connection that sent no pong for 60 seconds. Client libraries answer pings by themselves.
 
-When the context broker refuses the Endpoint's own subscription, the gateway serves no notification: every open connection closes with code `1011`, and every `x-subscribe` or `x-update` answers `x-result` with `x-status: 503`, whose ProblemDetails `detail` names the broker's answer. Try again later; the gateway retries every 30 seconds ([ADR-N-049](../Decisions/adr-n-049-websocket-fan-out-per-endpoint.md) §2 item 10).
+When the context broker refuses that subscription (your Policy reads none of the Endpoint's types, or the broker is down), the gateway serves you no notification: every open connection closes with code `1011`, and every `x-subscribe` or `x-update` answers `x-result` with `x-status: 503`, whose ProblemDetails `detail` names the broker's answer. Try again later; the gateway retries every 30 seconds ([ADR-N-049](../Decisions/adr-n-049-websocket-fan-out-per-endpoint.md) §2 item 10).
 
 ## 4. Resume after a reconnect
 
