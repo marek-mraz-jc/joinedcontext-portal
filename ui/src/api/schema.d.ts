@@ -6915,6 +6915,12 @@ export interface components {
             /** @description An enum attribute the rows are grouped by. */
             group?: string | null;
             hidden?: string[];
+            /** @description A label of the view's own, by attribute: shown as text, the model keeps its own (T-4827). */
+            labels?: {
+                [key: string]: string;
+            };
+            /** @description The columns in the order the view shows them, by attribute; the rest follow (T-4827). */
+            order?: string[];
             /** @description An NGSI-LD query, sent as the person's own `q` when the view opens. */
             q?: string | null;
             /** @description The view kind's own settings: card fields, the kanban's attribute, a calendar's dates. */
