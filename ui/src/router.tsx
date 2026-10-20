@@ -76,6 +76,7 @@ const Gallery = lazy(() => import("./pages/gallery/Gallery").then((module) => ({
 import { ORG_NAMESPACE } from "./api/manifest";
 import { isOrganizationTab, OrganizationPage } from "./pages/organization/OrganizationPage";
 import type { OrganizationTab } from "./pages/organization/OrganizationPage";
+import { AdminNav } from "./pages/organization/AdminNav";
 import { isProjectSettingsTab } from "./pages/projectSettings/tabs";
 import type { ProjectSettingsTab } from "./pages/projectSettings/tabs";
 import type { AuthState } from "./auth/AuthProvider";
@@ -640,7 +641,7 @@ function OrganizationView({ tab, form }: { tab: string; form: FormTarget | null 
     return <NoProject projects={projects} />;
   }
   return (
-    <Shell project={first}>
+    <Shell project={first} sidebar={(close) => <AdminNav project={first} active={tab} onNavigate={close} />}>
       <HandOff>
         <FormRouteHost
           project={ORG_NAMESPACE}
@@ -698,7 +699,7 @@ function OrganizationGroupView({ name }: { name: string }): React.JSX.Element {
     return <NoProject projects={projects} />;
   }
   return (
-    <Shell project={first}>
+    <Shell project={first} sidebar={(close) => <AdminNav project={first} active="groups" onNavigate={close} />}>
       <GroupPage name={name} />
     </Shell>
   );
@@ -712,7 +713,7 @@ function OrganizationPersonView({ id }: { id: string }): React.JSX.Element {
     return <NoProject projects={projects} />;
   }
   return (
-    <Shell project={first}>
+    <Shell project={first} sidebar={(close) => <AdminNav project={first} active="people" onNavigate={close} />}>
       <PersonPage id={id} />
     </Shell>
   );

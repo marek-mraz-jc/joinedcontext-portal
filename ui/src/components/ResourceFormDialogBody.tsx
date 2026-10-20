@@ -17,7 +17,7 @@ import { PORTAL_WIDGET_NAMES } from "./forms/widgetNames";
 import { shippedForms } from "../schemas/forms";
 import { api, ApiError, forPeople, queryKeys, unwrap } from "../api/client";
 import type { ResourceProposal } from "../api/manifest";
-import { Alert, Badge, Button, Checkbox, ExternalLink, FilePicker, Tabs, tabPanelProps, PageLoading } from "./ui";
+import { Alert, Badge, Button, Checkbox, deniedReason as refusal, ExternalLink, FilePicker, Tabs, tabPanelProps, PageLoading } from "./ui";
 import { FormFrame } from "./forms/FormRoute";
 import type { BadgeTone, DialogSize } from "./ui";
 import { ago } from "../pages/apps/CatalogCards";
@@ -239,7 +239,7 @@ export function ResourceFormDialogBody<T>({
   // `PermissionGuard` says it of a button (UI-44, PF-51); the API refuses the same proposal anyway.
   const { can, isLoading: permissionsLoading } = usePermissions(project ?? "");
   const deniedReason =
-    kind && project && !can(kind, "propose") ? t("permissions.denied", { verb: "propose", kind }) : undefined;
+    kind && project && !can(kind, "propose") ? refusal(t, project, "propose", kind) : undefined;
   // A proposal in flight closes the form as surely as a caller's own `disabled` does; what it
   // adds is that the button says which of the two it is (T-0962).
   const disabled = closed || submitting === true || deniedReason !== undefined;

@@ -324,7 +324,7 @@ describe("a group's page", () => {
     const { proposals } = renderGroup({ verbs: ["read"] });
     const members = await section(en.access.groupPage.members);
     const remove = within(members).getByRole("button", { name: "Remove jana@hel.fi from the group" });
-    await vi.waitFor(() => expectDenied(remove, "Disabled: your role does not permit 'propose' on 'Group' in this project"));
+    await vi.waitFor(() => expectDenied(remove, "Only an organization administrator can add or change groups."));
     const platform = await section(en.access.groupPage.platformRoles);
     expectDenied(within(platform).getByRole("button", { name: en.access.groupPage.addRole }));
     expect(proposals()).toHaveLength(0);

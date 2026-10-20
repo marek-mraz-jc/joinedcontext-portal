@@ -199,7 +199,7 @@ describe("organization models beside the project's (T-2883, DM-75, DM-79)", () =
 
   it("lists them on the Organization page's Data models tab", async () => {
     await renderRoute({ path: "/organization/models", answer: withOrganization(ORGANIZATION) });
-    expect(await screen.findByRole("tab", { name: en.organization.tab.models, selected: true })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: en.organization.tab.models, current: "page" })).toBeInTheDocument();
     const table = await screen.findByRole("table", { name: en.models.page.organizationCaption });
     expect(table).toHaveTextContent("org.stations.v2");
     expect(screen.queryByRole("link", { name: en.models.page.organizationOpen })).toBeNull();

@@ -168,17 +168,15 @@ export function ConversationsPage({
       {items.length > 0 ? (
         <Table caption={t("conversations.title")}>
           <TableHead>
-            <TableRow>
-              <TableHeaderCell>{t("conversations.column.question")}</TableHeaderCell>
-              <TableHeaderCell>{t("conversations.column.lastAt")}</TableHeaderCell>
-              <TableHeaderCell>{t("conversations.column.turns")}</TableHeaderCell>
-              <TableHeaderCell>{t("conversations.column.route")}</TableHeaderCell>
-              <TableHeaderCell>{t("conversations.column.firstToken")}</TableHeaderCell>
-              <TableHeaderCell>{t("conversations.column.slowest")}</TableHeaderCell>
-              <TableHeaderCell>{t("conversations.column.tokens")}</TableHeaderCell>
-              <TableHeaderCell>{t("conversations.column.cost")}</TableHeaderCell>
-              <TableHeaderCell>{t("conversations.column.status")}</TableHeaderCell>
-            </TableRow>
+            <TableHeaderCell>{t("conversations.column.question")}</TableHeaderCell>
+            <TableHeaderCell>{t("conversations.column.lastAt")}</TableHeaderCell>
+            <TableHeaderCell>{t("conversations.column.turns")}</TableHeaderCell>
+            <TableHeaderCell>{t("conversations.column.route")}</TableHeaderCell>
+            <TableHeaderCell>{t("conversations.column.firstToken")}</TableHeaderCell>
+            <TableHeaderCell>{t("conversations.column.slowest")}</TableHeaderCell>
+            <TableHeaderCell>{t("conversations.column.tokens")}</TableHeaderCell>
+            <TableHeaderCell>{t("conversations.column.cost")}</TableHeaderCell>
+            <TableHeaderCell>{t("conversations.column.status")}</TableHeaderCell>
           </TableHead>
           <TableBody>
             {items.map((row) => (
