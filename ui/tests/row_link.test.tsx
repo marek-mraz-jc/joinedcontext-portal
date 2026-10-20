@@ -287,7 +287,7 @@ const LISTS: Listed[] = [
     api: "/api/v1/projects/helsinki/csrs",
     body: list([manifest("ContextSourceRegistration", "weather", { contextSpaceRef: "air" })]),
     record: "weather",
-    opens: "/projects/helsinki/csrs/weather/edit",
+    opens: "/projects/helsinki/csrs/weather",
   },
   {
     list: "context spaces",

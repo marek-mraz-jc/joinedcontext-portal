@@ -106,6 +106,7 @@ const fi: Strings = {
   grid: {
     openRow: "Avaa",
     rowDetail: "Tiedot",
+    rowFields: "Kentät",
     close: "Sulje",
     id: "Tunniste",
     type: "Tyyppi",
@@ -256,6 +257,7 @@ const en: Strings = {
   grid: {
     openRow: "Open",
     rowDetail: "Details",
+    rowFields: "Fields",
     close: "Close",
   },
 };
