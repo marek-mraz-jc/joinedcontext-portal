@@ -215,6 +215,7 @@
     "needsRole": "Approving needs a role binding with `approve` in this project.",
     "needsPublisher": "Letting an endpoint out to the public needs the `publisher` role; a steward alone cannot.",
     "ownProposal": "You cannot approve or reject your own proposal.",
+    "ownAccessChange": "Access changes need a second person: another administrator approves your own change to roles, groups or service accounts.",
     "confirmPrompt": "For red lane, type the resource name to confirm:",
     "confirmLabel": "Resource name confirmation",
     "diffAdded": "Added",
@@ -427,6 +428,7 @@
     "review": "Review it in Approvals",
     "approvedOnPropose": "Approved as soon as you propose it: you may approve and remove {kind}.",
     "approveNotDelete": "Waits for an approver: you may approve {kind} but not remove them.",
+    "secondApprover": "Waits for a second administrator: you cannot approve your own change to {kind}; another person who may approve them does.",
     "approvedAsProposed": "Approved as you proposed it, applying:",
     "open": "Open the change"
   },
@@ -987,7 +989,26 @@
         "decimalPoint": "decimal point",
         "dates": "dates as {format}"
       },
-      "nothingToCreate": "No row is ready to create. Map the columns first."
+      "nothingToCreate": "No row is ready to create. Map the columns first.",
+      "expiry": {
+        "title": "When do these entities go away?",
+        "legend": "Imported entities are removed",
+        "never": "Never",
+        "fromColumn": "At the time a column gives",
+        "fixed": "At one fixed time",
+        "column": "When it goes away (expiresAt)",
+        "whichColumn": "Column with the time",
+        "columnHint": "A date and time per row; a row whose time is past is refused rather than deleted at once.",
+        "at": "Remove all at",
+        "atHint": "In your time zone.",
+        "history": {
+          "entity": "{type} keeps history {kept}.",
+          "type": "The type's rule keeps the history of {type}: {kept}.",
+          "space": "The space default keeps the history of {type}: {kept}.",
+          "platform": "No rule of this space sets the history of {type}: the platform default keeps it {kept}.",
+          "none": "{type} keeps history {kept}."
+        }
+      }
     },
     "export": {
       "label": "Export:",
@@ -1054,7 +1075,15 @@
       "spaceDefault": "Space default",
       "platformDefault": "Platform default",
       "perType": "Set per type",
-      "defaultAsNow": "{fallback} (as now)"
+      "defaultAsNow": "{fallback} (as now)",
+      "layer": {
+        "entity": "set by the entity itself",
+        "type": "from this type's rule",
+        "space": "from the space default",
+        "platform": "platform default",
+        "none": "until deleted"
+      },
+      "entityWins": "An entity's own expiresAt removes it at that time, and its own historyRetention sets its history: both win over the rules below."
     },
     "upload": {
       "open": "Upload CSV",
@@ -2226,7 +2255,28 @@
         "notNumber": "{field} holds “{value}”, which is not a number; {name} takes a number. Pick another field or change the sample.",
         "notBoolean": "{field} holds “{value}”, which is not true or false; {name} takes true or false. Pick another field or change the sample.",
         "notValue": "{field} holds “{value}”; {name} takes one of {values}. Pick another field or change the sample.",
-        "noId": "Choose the field each entity's id comes from."
+        "noId": "Choose the field each entity's id comes from.",
+        "notTime": "{field} holds {value}, which is no time: use RFC 3339 text such as 2026-10-20T14:30:00Z or Unix seconds."
+      },
+      "expiry": {
+        "title": "When do entities go away?",
+        "legend": "Entities of this type are removed",
+        "never": "Never",
+        "neverHint": "They stay until someone deletes them or a space rule removes them.",
+        "source": "At a time the source gives",
+        "sourceHint": "Each entity gets its own expiresAt: a time field of the record plus a while, for example observedAt plus 10 minutes for a bus position.",
+        "stale": "When the source stops sending them",
+        "staleHint": "Once an hour the pipeline deletes entities of this type it has not updated for the window.",
+        "from": "Time from",
+        "written": "The time the record is written",
+        "plus": "Plus",
+        "plusUnit": "Unit of the added time",
+        "after": "Not updated for",
+        "afterUnit": "Unit of the window",
+        "afterHint": "Entities of {type} not updated for this long are deleted, once an hour.",
+        "refusals": "The proposal is refused when the pipeline has more than one output, when another pipeline writes into the same space, or when no Policy grants this pipeline deleteBatch and queryBatch on the type; the refusal names the Policy to extend.",
+        "history": "History of {type} follows the space's rules.",
+        "spaceRules": "Retention of {space}"
       }
     },
     "debug": {
@@ -2495,7 +2545,7 @@
       "noEnd": "No end date",
       "grant": "Grant a role",
       "grantTitle": "Grant a role",
-      "grantLead": "The grant is proposed as a change. You can grant only what you hold yourself where it applies.",
+      "grantLead": "The grant is proposed as a change. You can grant only what you hold yourself where it applies. A second administrator approves it: nobody approves their own grant.",
       "subjectKind": "Give it to",
       "person": "A person",
       "groupOption": "A group",
@@ -8061,5 +8111,11 @@
       "days": "By day (UTC)",
       "day": "{questions} questions, {cost}, median {p50}, timeouts {timeouts}, errors {errors}"
     }
+  },
+  "retentionGuide": {
+    "2-every-way-data-is-removed": "Every way data is removed (User Guide)",
+    "which-one-wins": "Which rule wins (User Guide)",
+    "4-recipe-buses-and-live-vehicles": "Recipe: buses and live vehicles (User Guide)",
+    "8-recipe-data-imported-from-a-file": "Recipe: data imported from a file (User Guide)"
   }
 }

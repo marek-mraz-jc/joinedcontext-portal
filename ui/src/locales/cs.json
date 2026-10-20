@@ -215,6 +215,7 @@
     "needsRole": "Ke schválení je třeba přiřazená role s právem `approve` v tomto projektu.",
     "needsPublisher": "Zpřístupnění endpointu veřejnosti vyžaduje roli `publisher`; samotný steward to nemůže.",
     "ownProposal": "Nemůžete schválit ani zamítnout vlastní návrh.",
+    "ownAccessChange": "Změny přístupu schvaluje druhá osoba: vlastní změnu rolí, skupin či servisních účtů schválí jiný administrátor.",
     "confirmPrompt": "Pro červenou úroveň zadejte název prostředku pro potvrzení:",
     "confirmLabel": "Název prostředku pro potvrzení",
     "diffAdded": "Přidáno",
@@ -427,6 +428,7 @@
     "review": "Otevřít ve Schvalování",
     "approvedOnPropose": "Po navržení se schválí: {kind} můžete schvalovat i mazat.",
     "approveNotDelete": "Počká na schvalovatele: {kind} můžete schvalovat, ale ne mazat.",
+    "secondApprover": "Počká na druhého administrátora: vlastní změnu {kind} neschválíte, schválí ji jiná osoba, která je smí schvalovat.",
     "approvedAsProposed": "Schváleno při navržení, nasazuje se:",
     "open": "Otevřít změnu"
   },
@@ -987,7 +989,26 @@
         "decimalPoint": "desetinná tečka",
         "dates": "data jako {format}"
       },
-      "nothingToCreate": "Žádný řádek není připraven k vytvoření. Nejprve přiřaďte sloupce."
+      "nothingToCreate": "Žádný řádek není připraven k vytvoření. Nejprve přiřaďte sloupce.",
+      "expiry": {
+        "title": "Kdy tyto entity zmizí?",
+        "legend": "Importované entity se odstraní",
+        "never": "Nikdy",
+        "fromColumn": "V čase, který dá sloupec",
+        "fixed": "V jednom pevném čase",
+        "column": "Kdy zmizí (expiresAt)",
+        "whichColumn": "Sloupec s časem",
+        "columnHint": "Datum a čas pro každý řádek; řádek s časem v minulosti se odmítne, nesmaže se hned.",
+        "at": "Odstranit všechny v",
+        "atHint": "Ve vašem časovém pásmu.",
+        "history": {
+          "entity": "{type} uchovává historii {kept}.",
+          "type": "Pravidlo typu uchovává historii {type}: {kept}.",
+          "space": "Výchozí nastavení prostoru uchovává historii {type}: {kept}.",
+          "platform": "Žádné pravidlo tohoto prostoru neurčuje historii {type}: výchozí nastavení platformy ji uchovává {kept}.",
+          "none": "{type} uchovává historii {kept}."
+        }
+      }
     },
     "export": {
       "label": "Exportovat:",
@@ -1054,7 +1075,15 @@
       "spaceDefault": "Výchozí v prostoru",
       "platformDefault": "Výchozí v platformě",
       "perType": "Nastavuje se pro každý typ",
-      "defaultAsNow": "{fallback} (jako teď)"
+      "defaultAsNow": "{fallback} (jako teď)",
+      "layer": {
+        "entity": "nastavuje entita sama",
+        "type": "z pravidla tohoto typu",
+        "space": "z výchozího nastavení prostoru",
+        "platform": "výchozí nastavení platformy",
+        "none": "dokud je někdo nesmaže"
+      },
+      "entityWins": "Vlastní expiresAt entity ji v tu dobu odstraní a její vlastní historyRetention určí její historii: obojí má přednost před pravidly níže."
     },
     "upload": {
       "open": "Nahrát CSV",
@@ -2226,7 +2255,28 @@
         "notNumber": "{field} obsahuje „{value}“, což není číslo; {name} očekává číslo. Vyberte jiné pole nebo změňte vzorek.",
         "notBoolean": "{field} obsahuje „{value}“, což není true ani false; {name} očekává true nebo false. Vyberte jiné pole nebo změňte vzorek.",
         "notValue": "{field} obsahuje „{value}“; {name} očekává jednu z hodnot {values}. Vyberte jiné pole nebo změňte vzorek.",
-        "noId": "Vyberte pole, ze kterého vznikne id každé entity."
+        "noId": "Vyberte pole, ze kterého vznikne id každé entity.",
+        "notTime": "{field} obsahuje {value}, což není čas: použijte text RFC 3339, například 2026-10-20T14:30:00Z, nebo Unix sekundy."
+      },
+      "expiry": {
+        "title": "Kdy entity zmizí?",
+        "legend": "Entity tohoto typu se odstraní",
+        "never": "Nikdy",
+        "neverHint": "Zůstanou, dokud je někdo nesmaže nebo je neodstraní pravidlo prostoru.",
+        "source": "V čase, který dá zdroj",
+        "sourceHint": "Každá entita dostane vlastní expiresAt: časové pole záznamu plus nějaký čas, například observedAt plus 10 minut pro polohu autobusu.",
+        "stale": "Když je zdroj přestane posílat",
+        "staleHint": "Jednou za hodinu pipeline smaže entity tohoto typu, které během okna neaktualizovala.",
+        "from": "Čas z",
+        "written": "Čas zápisu záznamu",
+        "plus": "Přičíst",
+        "plusUnit": "Jednotka přidaného času",
+        "after": "Neaktualizováno po dobu",
+        "afterUnit": "Jednotka okna",
+        "afterHint": "Entity typu {type} neaktualizované takto dlouho se jednou za hodinu smažou.",
+        "refusals": "Návrh se odmítne, když má pipeline více než jeden výstup, když do stejného prostoru zapisuje jiná pipeline, nebo když žádná Policy nedává této pipeline deleteBatch a queryBatch na typ; odmítnutí pojmenuje Policy, kterou je třeba rozšířit.",
+        "history": "Historie typu {type} se řídí pravidly prostoru.",
+        "spaceRules": "Uchovávání v {space}"
       }
     },
     "debug": {
@@ -2495,7 +2545,7 @@
       "noEnd": "Bez konce",
       "grant": "Přidělit roli",
       "grantTitle": "Přidělit roli",
-      "grantLead": "Přidělení se navrhne jako změna. Přidělit můžete jen to, co sami máte tam, kde platí.",
+      "grantLead": "Přidělení se navrhne jako změna. Přidělit můžete jen to, co sami máte tam, kde platí. Schválí ho druhý administrátor: vlastní přidělení nikdo neschvaluje.",
       "subjectKind": "Komu",
       "person": "Osobě",
       "groupOption": "Skupině",
@@ -8061,5 +8111,11 @@
       "days": "Po dnech (UTC)",
       "day": "{questions} otázek, {cost}, medián {p50}, limity {timeouts}, chyby {errors}"
     }
+  },
+  "retentionGuide": {
+    "2-every-way-data-is-removed": "Všechny způsoby odstranění dat (Uživatelská příručka)",
+    "which-one-wins": "Které pravidlo platí (Uživatelská příručka)",
+    "4-recipe-buses-and-live-vehicles": "Recept: autobusy a vozidla živě (Uživatelská příručka)",
+    "8-recipe-data-imported-from-a-file": "Recept: data importovaná ze souboru (Uživatelská příručka)"
   }
 }
