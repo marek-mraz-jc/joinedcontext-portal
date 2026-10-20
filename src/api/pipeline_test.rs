@@ -284,6 +284,19 @@ pub(crate) async fn run_harness(
     spec: &PipelineSpec,
     sample: &Sample,
 ) -> Result<TestTrace, ApiError> {
+    run_stream(state, project, |capture| {
+        harness(spec, sample, capture).map_err(|e| ApiError::BadRequest(e.to_string()))
+    })
+    .await
+}
+
+/// One ephemeral stream on the project's runner: `config` builds it from its capture URL, the
+/// captured messages are the trace, the stream is deleted whatever happened.
+pub(crate) async fn run_stream(
+    state: &AppState,
+    project: &str,
+    config: impl FnOnce(&str) -> Result<Value, ApiError>,
+) -> Result<TestTrace, ApiError> {
     let runner = state
         .config
         .pipeline_runner_url
@@ -301,12 +314,7 @@ pub(crate) async fn run_harness(
         })?;
 
     let id = share::slug();
-    let config = harness(
-        spec,
-        sample,
-        &format!("{capture}/internal/pipeline-tests/{id}"),
-    )
-    .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    let config = config(&format!("{capture}/internal/pipeline-tests/{id}"))?;
     let (sender, mut receiver) = mpsc::unbounded_channel();
     let _slot = Slot::take(project, &id, sender)?;
 
@@ -486,7 +494,7 @@ pub(crate) async fn probe_source(state: &AppState, project: &str, spec: &Value) 
 
 /// The probe's answer from its trace: the records, or what the fetch or the parse said. A test
 /// stream the runner kept is already logged by `run_harness`, beside the answer, never in its place.
-fn answer_of(trace: TestTrace) -> Probe {
+pub(crate) fn answer_of(trace: TestTrace) -> Probe {
     match trace.errors.iter().find(|error| error.stage != "runner") {
         None if trace.input.events > 0 => Probe {
             records: Some(trace.input.events),

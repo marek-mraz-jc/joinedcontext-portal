@@ -83,3 +83,11 @@ describe("where switching project goes (T-2425, UI-05)", () => {
     }
   });
 });
+
+describe("context sources (T-4819)", () => {
+  it("sit in the sidebar right under data sources", () => {
+    const plurals = NAV_SECTIONS.map((section) => section.plural as string);
+    expect(plurals.indexOf("csrs")).toBe(plurals.indexOf("datasources") + 1);
+    expect(translated("nav.csrs")).toBe("Context sources");
+  });
+});

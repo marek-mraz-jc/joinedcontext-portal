@@ -11,6 +11,8 @@
 // reaches every other pipeline's credentials and files (PL-07, PL-16, PL-50).
 import { readFileSync, writeFileSync } from "node:fs";
 
+import { helpText } from "./help-text.mjs";
+
 const EXCLUDED = new Set(["command", "file", "subprocess", "wasm"]);
 
 const [outPath, rustPath] = process.argv.slice(2);
@@ -24,7 +26,7 @@ const catalog = listing.processors
   .map((processor) => ({
     name: processor.name,
     category: (processor.categories ?? [])[0] ?? "Utility",
-    summary: (processor.summary ?? "").split("\n")[0].slice(0, 200),
+    summary: helpText(processor.summary),
   }))
   .sort((a, b) => a.name.localeCompare(b.name));
 writeFileSync(outPath, `${JSON.stringify(catalog, null, 2)}\n`);

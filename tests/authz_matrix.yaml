@@ -751,6 +751,10 @@ routes:
     rule: "project-verb:propose:Pipeline"
     expect: [403, 403, allow, allow, 403, allow, 403, 403]
     body: {"pipeline": {"apiVersion": "joinedcontext.com/v1alpha1", "kind": "Pipeline", "metadata": {"name": "existing"}, "spec": {"class": "auto", "source": {"endpointRef": "existing"}, "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:helsinki:existing"}}, "sample": {}}
+  - route: POST /projects/{project}/datasources/{name}/test
+    rule: "project-verb:propose:DataSource"
+    expect: [403, 403, allow, allow, 403, allow, 404, 403]
+    note: "a saved source read once on the runner (T-4819); the fixture runs no runner, so an allowed caller gets its 503; a caller who may not read the project gets 404, as for every named resource"
   - route: GET /projects/{project}/mqttbrokers/{name}/measured
     rule: "project-verb:read:MqttBroker"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
