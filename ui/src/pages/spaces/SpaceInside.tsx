@@ -340,7 +340,6 @@ function SpaceData({
   endpoints,
   model,
   retention,
-  footer,
 }: {
   project: string;
   space: string;
@@ -350,8 +349,6 @@ function SpaceData({
   model?: Manifest;
   /** The space's retention rules, which the import names for the imported rows (T-4822). */
   retention?: RetentionRule[];
-  /** What the whole space holds, shown under the rows. */
-  footer?: ReactNode;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   // The type is in the address like the view, so back, reload and a sent link open it (T-4825).
@@ -841,7 +838,6 @@ function SpaceData({
         />
         </div>
       ) : null}
-      {footer}
       </div>
     </div>
   );
@@ -1183,12 +1179,14 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   // The space's alerts are being chosen (T-3261).
   const [alerting, setAlerting] = useState(false);
-  // What the whole space holds, the broker's count (T-2889); the table below breaks it down by
-  // type through the person's own endpoint.
-  const usage = useQuery(spaceUsageQuery(project, name));
   // The page opens on the rows; the model, quality, retention, endpoints and policies are tabs
   // beside them, kept in the address (T-4825: the whole model came before the grid, 14,515 px).
   const [tab, setTab] = useUrlParam<SpaceTab>("tab", "data", SPACE_TABS);
+  // What the whole space holds, the broker's count (T-2889), asked only on the model tab beside
+  // the types counted through the person's own endpoint. The data tab counts only through the
+  // grid's own answer (T-4885): this whole-tenant scan took longer than the page waits on
+  // helsinki and put "the count did not come" under a grid that had its count.
+  const usage = useQuery({ ...spaceUsageQuery(project, name), enabled: tab === "model" });
 
   const space = useQuery({
     queryKey: queryKeys.resource(project, "spaces", name),
@@ -1306,7 +1304,6 @@ export function SpaceInside({ project, name }: { project: string; name: string }
             endpoints={spaceEndpoints}
             model={model}
             retention={rulesOf(manifest)}
-            footer={<SpaceTotal usage={usage} />}
           />
         </div>
       ) : null}
@@ -1373,6 +1370,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                 ))}
               </TableBody>
             </Table>
+            <SpaceTotal usage={usage} />
           </>
         )}
       </Section>
@@ -1539,8 +1537,8 @@ const TAB_LABELS: Record<SpaceTab, string> = {
 };
 
 /**
- * What the whole space holds, the broker's count (T-2889), under the rows like a table's row
- * count: counting, the count with its size and broker, or why there is none (T-4825).
+ * What the whole space holds, the broker's count (T-2889), under the types table: counting, the
+ * count with its size and broker, or why there is none (T-4825).
  */
 function SpaceTotal({ usage }: { usage: UseQueryResult<SpaceUsage> }): JSX.Element {
   const { t, i18n } = useTranslation();
