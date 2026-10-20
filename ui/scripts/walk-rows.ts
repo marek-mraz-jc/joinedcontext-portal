@@ -229,7 +229,8 @@ function main(argv: string[]): number {
     walk.modules[module] = {
       walkedBy,
       date,
-      screenshots: (found.get(module) ?? []).map((name) => `${evidence}/${name}`),
+      // A shared component is drawn on most pages: five shots show it, more only bury the file.
+      screenshots: (found.get(module) ?? []).slice(0, 5).map((name) => `${evidence}/${name}`),
     };
     filled += 1;
   }

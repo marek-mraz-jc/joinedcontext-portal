@@ -10,116 +10,926 @@
     "src/assistant/Capabilities.tsx": null,
     "src/assistant/ConversationList.tsx": null,
     "src/assistant/EndpointPicker.tsx": null,
-    "src/components/ActivityFeed.tsx": null,
-    "src/components/AlertDialog.tsx": null,
-    "src/components/DeleteProjectDialog.tsx": null,
-    "src/components/DeleteResourceDialog.tsx": null,
-    "src/components/DuplicateProjectDialog.tsx": null,
-    "src/components/EditResourceDialog.tsx": null,
-    "src/components/EditResourceDialogBody.tsx": null,
+    "src/components/ActivityFeed.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/components/AlertDialog.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/DeleteProjectDialog.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/DeleteResourceDialog.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/DuplicateProjectDialog.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-settings-members-dialog-remove-demo-janitor-hel-fi-janitor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-settings-service-accounts-dialog-remove-agent-proxy-of-the-builder-runs-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-settings-danger-dialog-delete-project-helsinki-steward-en-1440.png"
+      ]
+    },
+    "src/components/EditResourceDialog.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/EditResourceDialogBody.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
     "src/components/ErrorBoundary.tsx": null,
     "src/components/FeedbackButton.tsx": null,
     "src/components/HelpMenu.tsx": null,
-    "src/components/ImportProjectDialog.tsx": null,
+    "src/components/ImportProjectDialog.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
     "src/components/JobsMenu.tsx": null,
     "src/components/LanguageSwitcher.tsx": null,
-    "src/components/ProjectRelease.tsx": null,
-    "src/components/ResourceFormDialogBody.tsx": null,
-    "src/components/ResourceHistory.tsx": null,
-    "src/components/SaveAsDialog.tsx": null,
+    "src/components/ProjectRelease.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-settings-members-dialog-remove-demo-janitor-hel-fi-janitor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-settings-service-accounts-dialog-remove-agent-proxy-of-the-builder-runs-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-settings-danger-dialog-delete-project-helsinki-steward-en-1440.png"
+      ]
+    },
+    "src/components/ResourceFormDialogBody.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/ResourceHistory.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/SaveAsDialog.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
     "src/components/SessionEndedDialog.tsx": null,
-    "src/components/WorkOnCopyDialog.tsx": null,
-    "src/components/dashboards/TemporalChart.tsx": null,
-    "src/components/drift/DriftResolutionModal.tsx": null,
-    "src/components/endpoints/QueryCard.tsx": null,
-    "src/components/endpoints/links.tsx": null,
-    "src/components/entities/AddFieldDialog.tsx": null,
-    "src/components/entities/EndpointDataView.tsx": null,
-    "src/components/entities/EntityFilters.tsx": null,
-    "src/components/entities/ViewBar.tsx": null,
-    "src/components/entities/ViewOptions.tsx": null,
-    "src/components/export/ExportButton.tsx": null,
-    "src/components/export/ExportModal.tsx": null,
-    "src/components/forms/FormRoute.tsx": null,
-    "src/components/forms/theme.tsx": null,
-    "src/components/forms/widgets/KnowledgeSourcesField.tsx": null,
-    "src/components/forms/widgets/ListFailed.tsx": null,
-    "src/components/forms/widgets/OperationsPicker.tsx": null,
-    "src/components/forms/widgets/ResourcePicker.tsx": null,
-    "src/components/layout/NewProject.tsx": null,
+    "src/components/WorkOnCopyDialog.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/dashboards/TemporalChart.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/drift/DriftResolutionModal.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/components/endpoints/QueryCard.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/components/endpoints/links.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/entities/AddFieldDialog.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/components/entities/EndpointDataView.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/entities/EntityFilters.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/entities/ViewBar.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/components/entities/ViewOptions.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/components/export/ExportButton.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/export/ExportModal.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/forms/FormRoute.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/forms/theme.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/forms/widgets/KnowledgeSourcesField.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/forms/widgets/ListFailed.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/forms/widgets/OperationsPicker.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/forms/widgets/ResourcePicker.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/layout/NewProject.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
     "src/components/layout/Shell.tsx": null,
     "src/components/layout/WorkspaceBar.tsx": null,
-    "src/components/pickers/Combobox.tsx": null,
-    "src/components/ui/Button.tsx": null,
-    "src/components/ui/Checkbox.tsx": null,
-    "src/components/ui/ConfirmDialog.tsx": null,
-    "src/components/ui/FileDropZone.tsx": null,
-    "src/components/ui/FilePicker.tsx": null,
-    "src/components/ui/Input.tsx": null,
-    "src/components/ui/PageState.tsx": null,
-    "src/components/ui/RadioGroup.tsx": null,
-    "src/components/ui/RowActions.tsx": null,
-    "src/components/ui/Switch.tsx": null,
-    "src/components/ui/Tabs.tsx": null,
+    "src/components/pickers/Combobox.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/ui/Button.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/ui/Checkbox.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/ui/ConfirmDialog.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/ui/FileDropZone.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/ui/FilePicker.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/ui/Input.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/ui/PageState.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/ui/RadioGroup.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/ui/RowActions.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/ui/Switch.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/ui/Tabs.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
     "src/navigation/PageTools.tsx": null,
-    "src/pages/access/AccessExplorer.tsx": null,
-    "src/pages/access/GroupPage.tsx": null,
-    "src/pages/access/Groups.tsx": null,
-    "src/pages/access/OrganizationDomain.tsx": null,
-    "src/pages/access/RoleBindings.tsx": null,
-    "src/pages/access/Roles.tsx": null,
-    "src/pages/access/ServiceAccounts.tsx": null,
+    "src/pages/access/AccessExplorer.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-settings-members-dialog-remove-demo-janitor-hel-fi-janitor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-settings-service-accounts-dialog-remove-agent-proxy-of-the-builder-runs-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-settings-danger-dialog-delete-project-helsinki-steward-en-1440.png"
+      ]
+    },
+    "src/pages/access/GroupPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/access/Groups.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/access/OrganizationDomain.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/access/RoleBindings.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/access/Roles.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/access/ServiceAccounts.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
     "src/pages/apps/ActionStep.tsx": null,
-    "src/pages/apps/AgentRunPage.tsx": null,
+    "src/pages/apps/AgentRunPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
     "src/pages/apps/AppBuildCard.tsx": null,
-    "src/pages/apps/AppBuildPanel.tsx": null,
-    "src/pages/apps/AppGenerator.tsx": null,
-    "src/pages/apps/AppOpenPage.tsx": null,
-    "src/pages/apps/AppPage.tsx": null,
-    "src/pages/apps/AppServices.tsx": null,
-    "src/pages/apps/AppTemplates.tsx": null,
-    "src/pages/apps/AppsCatalog.tsx": null,
-    "src/pages/apps/CatalogCards.tsx": null,
+    "src/pages/apps/AppBuildPanel.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/apps/AppGenerator.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/apps/AppOpenPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/apps/AppPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/apps/AppServices.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/apps/AppTemplates.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/apps/AppsCatalog.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/apps/CatalogCards.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
     "src/pages/apps/ChangeFollowCard.tsx": null,
     "src/pages/apps/ConversationPanel.tsx": null,
     "src/pages/apps/EndpointProposalCard.tsx": null,
     "src/pages/apps/EntityWriteCard.tsx": null,
     "src/pages/apps/KpiCard.tsx": null,
     "src/pages/apps/KpiPipelineCard.tsx": null,
-    "src/pages/apps/NewEndpointPanel.tsx": null,
+    "src/pages/apps/NewEndpointPanel.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
     "src/pages/apps/Prose.tsx": null,
-    "src/pages/apps/QuestionData.tsx": null,
+    "src/pages/apps/QuestionData.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
     "src/pages/apps/QuestionOptions.tsx": null,
-    "src/pages/apps/RenameShapesNotice.tsx": null,
-    "src/pages/apps/RolesAndMembers.tsx": null,
-    "src/pages/apps/RunPublication.tsx": null,
-    "src/pages/assistant/AgentAccess.tsx": null,
-    "src/pages/assistant/AssistantPage.tsx": null,
-    "src/pages/catalogue/CataloguePage.tsx": null,
+    "src/pages/apps/RenameShapesNotice.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/apps/RolesAndMembers.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/apps/RunPublication.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/assistant/AgentAccess.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/assistant/AssistantPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/catalogue/CataloguePage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-ckan-dialog-edit-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-ckan-dialog-remove-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-ckan-dialog-publish-a-dataset-steward-en-1440.png"
+      ]
+    },
     "src/pages/catalogue/DatasetPage.tsx": null,
-    "src/pages/catalogue/PublishDataset.tsx": null,
-    "src/pages/ckan/CkanAccessPanel.tsx": null,
-    "src/pages/ckan/CkanPage.tsx": null,
+    "src/pages/catalogue/PublishDataset.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-ckan-dialog-edit-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-ckan-dialog-remove-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-ckan-dialog-publish-a-dataset-steward-en-1440.png"
+      ]
+    },
+    "src/pages/ckan/CkanAccessPanel.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/ckan/CkanPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-ckan-dialog-edit-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-ckan-dialog-remove-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-ckan-dialog-publish-a-dataset-steward-en-1440.png"
+      ]
+    },
     "src/pages/connect/ConnectPage.tsx": null,
-    "src/pages/datasources/DataSourcesPage.tsx": null,
-    "src/pages/datasources/TemplateGallery.tsx": null,
-    "src/pages/endpoints/CatalogSection.tsx": null,
-    "src/pages/endpoints/EndpointPage.tsx": null,
-    "src/pages/endpoints/FilterProof.tsx": null,
-    "src/pages/endpoints/ModelPicker.tsx": null,
-    "src/pages/endpoints/Playground.tsx": null,
-    "src/pages/endpoints/SchemaProjectionPanel.tsx": null,
-    "src/pages/endpoints/ShareFlow.tsx": null,
-    "src/pages/endpoints/VisualizationsSection.tsx": null,
-    "src/pages/explore/ChartFromView.tsx": null,
-    "src/pages/explore/ExplorePage.tsx": null,
-    "src/pages/explore/ExportView.tsx": null,
-    "src/pages/explore/UseThisData.tsx": null,
-    "src/pages/flows/Gallery.tsx": null,
-    "src/pages/flows/Instantiate.tsx": null,
+    "src/pages/datasources/DataSourcesPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/datasources/TemplateGallery.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/endpoints/CatalogSection.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/endpoints/EndpointPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/endpoints/FilterProof.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/endpoints/ModelPicker.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/endpoints/Playground.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/endpoints/SchemaProjectionPanel.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/endpoints/ShareFlow.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/endpoints/VisualizationsSection.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/explore/ChartFromView.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/explore/ExplorePage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/explore/ExportView.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/explore/UseThisData.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/flows/Gallery.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/flows/Instantiate.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
     "src/pages/gallery/Gallery.tsx": null,
     "src/pages/home/HomePage.tsx": null,
-    "src/pages/import/ImportPage.tsx": null,
+    "src/pages/import/ImportPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
     "src/pages/inbox/InboxPage.tsx": null,
     "src/pages/knowledge/AssistantChat.tsx": null,
     "src/pages/knowledge/ConversationsPage.tsx": null,
@@ -130,68 +940,584 @@
     "src/pages/knowledge/UsageSummary.tsx": null,
     "src/pages/mcp/ConnectorStar.tsx": null,
     "src/pages/mcp/ConnectorsPage.tsx": null,
-    "src/pages/mcp/McpServerDialog.tsx": null,
-    "src/pages/mcp/McpServerPanels.tsx": null,
-    "src/pages/mcp/McpServersPage.tsx": null,
-    "src/pages/models/DiagramEditing.tsx": null,
-    "src/pages/models/LinkmlGraphView.tsx": null,
-    "src/pages/models/LinkmlPreviewPanel.tsx": null,
-    "src/pages/models/LinkmlVisualEditor.tsx": null,
-    "src/pages/models/MappingsEditor.tsx": null,
-    "src/pages/models/ModelFileDrop.tsx": null,
-    "src/pages/models/ModelPage.tsx": null,
-    "src/pages/models/ModelSubsetPicker.tsx": null,
-    "src/pages/models/ModelViews.tsx": null,
-    "src/pages/models/ModelsList.tsx": null,
-    "src/pages/models/ModelsPage.tsx": null,
-    "src/pages/models/RelationshipEditor.tsx": null,
-    "src/pages/models/ShareModel.tsx": null,
-    "src/pages/models/SmartDataModelsImport.tsx": null,
-    "src/pages/organization/OrganizationApplications.tsx": null,
-    "src/pages/organization/OrganizationPage.tsx": null,
-    "src/pages/organization/People.tsx": null,
-    "src/pages/pipelines/DebugPanel.tsx": null,
-    "src/pages/pipelines/OutputMapper.tsx": null,
-    "src/pages/pipelines/PipelineFlow.tsx": null,
-    "src/pages/pipelines/PipelineRejected.tsx": null,
-    "src/pages/pipelines/PipelineRuns.tsx": null,
-    "src/pages/pipelines/PipelineStudio.tsx": null,
-    "src/pages/pipelines/PipelineTemplates.tsx": null,
-    "src/pages/pipelines/PipelineTest.tsx": null,
-    "src/pages/pipelines/PipelineWorkbench.tsx": null,
-    "src/pages/pipelines/RecipeGallery.tsx": null,
-    "src/pages/pipelines/SlotUnit.tsx": null,
-    "src/pages/pipelines/SpaceChanges.tsx": null,
-    "src/pages/policies/TryAPerson.tsx": null,
-    "src/pages/spaces/AiField.tsx": null,
-    "src/pages/spaces/Comments.tsx": null,
-    "src/pages/spaces/DataViews.tsx": null,
-    "src/pages/spaces/FormView.tsx": null,
-    "src/pages/spaces/ImportRows.tsx": null,
-    "src/pages/spaces/PublicView.tsx": null,
-    "src/pages/spaces/SpaceComplete.tsx": null,
-    "src/pages/spaces/SpaceDrift.tsx": null,
-    "src/pages/spaces/SpaceInside.tsx": null,
-    "src/pages/spaces/SpaceRetention.tsx": null,
-    "src/pages/spaces/TypeApi.tsx": null,
-    "src/pages/spaces/UploadCsv.tsx": null,
-    "src/pages/sync/SyncSourcesPage.tsx": null,
+    "src/pages/mcp/McpServerDialog.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/mcp/McpServerPanels.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/mcp/McpServersPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/models/DiagramEditing.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/models/LinkmlGraphView.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/models/LinkmlPreviewPanel.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/models/LinkmlVisualEditor.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/models/MappingsEditor.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/models/ModelFileDrop.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/models/ModelPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/models/ModelSubsetPicker.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/models/ModelViews.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/models/ModelsList.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/models/ModelsPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/models/RelationshipEditor.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/models/ShareModel.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/models/SmartDataModelsImport.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/organization/OrganizationApplications.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/organization/OrganizationPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/organization/People.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/pipelines/DebugPanel.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/pipelines/OutputMapper.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/pipelines/PipelineFlow.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/pipelines/PipelineRejected.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/pipelines/PipelineRuns.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/pipelines/PipelineStudio.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/pipelines/PipelineTemplates.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/pipelines/PipelineTest.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/pipelines/PipelineWorkbench.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/pipelines/RecipeGallery.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/pipelines/SlotUnit.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/pipelines/SpaceChanges.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/policies/TryAPerson.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/spaces/AiField.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/spaces/Comments.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/spaces/DataViews.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/spaces/FormView.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/spaces/ImportRows.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/spaces/PublicView.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/spaces/SpaceComplete.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/spaces/SpaceDrift.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/spaces/SpaceInside.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/spaces/SpaceRetention.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/spaces/TypeApi.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/spaces/UploadCsv.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/sync/SyncSourcesPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
     "src/pages/workspaces/BringBackPage.tsx": null,
     "src/pages/workspaces/TryItPage.tsx": null,
     "src/router.tsx": null,
-    "src/routes/AllEndpointsPage.tsx": null,
+    "src/routes/AllEndpointsPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
     "src/routes/ApprovalDetailPage.tsx": null,
-    "src/routes/ApprovalsHistory.tsx": null,
-    "src/routes/ApprovalsPage.tsx": null,
-    "src/routes/DashboardsPage.tsx": null,
-    "src/routes/EndpointsPage.tsx": null,
+    "src/routes/ApprovalsHistory.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/routes/ApprovalsPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/routes/DashboardsPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/routes/EndpointsPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
     "src/routes/LoginPage.tsx": null,
-    "src/routes/PipelinesPage.tsx": null,
-    "src/routes/PoliciesPage.tsx": null,
-    "src/routes/RegistrationsPage.tsx": null,
-    "src/routes/ResourceListPage.tsx": null,
-    "src/routes/SpacesPage.tsx": null,
-    "src/routes/SubscriptionsPage.tsx": null,
-    "src/routes/WorkspacesPage.tsx": null
+    "src/routes/PipelinesPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/routes/PoliciesPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/routes/RegistrationsPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/routes/ResourceListPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/routes/SpacesPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/routes/SubscriptionsPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-send-the-invitation-to-t2688-1318-hel-fi-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-people-dialog-revoke-the-invitation-of-t2688-1318-hel-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/routes/WorkspacesPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-workspaces-dialog-work-on-a-copy-steward-en-1440.png"
+      ]
+    }
   }
 }
