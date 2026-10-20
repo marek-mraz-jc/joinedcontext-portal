@@ -4042,6 +4042,7 @@
     "filterRow": "Filtry",
     "sortPage": "Seřadit tuto stranu podle",
     "matching": "odpovídajících",
+    "noTotal": "endpoint u této odpovědi neuvádí celkový počet",
     "history": "Historie",
     "historyWindow": {
       "hour": "Poslední hodinu",
