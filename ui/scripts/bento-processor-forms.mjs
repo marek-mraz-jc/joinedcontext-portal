@@ -53,8 +53,10 @@ function field(node, path = "") {
   if (description) schema.description = description;
   const scalarDefault = node.default !== undefined && node.default !== null && typeof node.default !== "object";
   if (scalarDefault && !ui["ui:options"]?.yaml && !ui["ui:options"]?.secret) schema.default = node.default;
-  if (node.examples?.length && typeof node.examples[0] === "string" && schema.type === "string") {
-    ui["ui:placeholder"] = node.examples[0];
+  // A secret takes only `${VAR}`: its examples are credentials (Bento's docs carry real emulator keys).
+  const example = !ui["ui:options"]?.secret && node.examples?.length ? node.examples[0] : undefined;
+  if (typeof example === "string" && schema.type === "string") {
+    ui["ui:placeholder"] = example;
   }
   if (node.is_advanced) ui["ui:options"] = { ...ui["ui:options"], advanced: true };
   return { schema, ui, required: node.default === undefined && !node.is_advanced && !node.is_optional };
