@@ -1723,7 +1723,6 @@
       "name": "Pipelina",
       "class": "Beh",
       "phase": "Stav",
-      "stream": "Prúd",
       "secrets": "Prihlasovacie údaje",
       "id": "Názov",
       "title": "Titulok",
@@ -1792,17 +1791,8 @@
         "upsert": "Vytvoriť alebo zlúčiť",
         "replace": "Nahradiť celú entitu",
         "update-attrs": "Iba aktualizovať atribúty"
-      }
-    },
-    "metrics": {
-      "rate": "správ/s",
-      "received": "prijaté",
-      "errors": "chyby",
-      "latency": "ms p99",
-      "unavailable": "Bez čísel: runner neodpovedá.",
-      "paused": "Nebeží",
-      "scheduled": "Beží podľa svojho plánu",
-      "rejected": "odmietnuté"
+      },
+      "lastRun": "Posledný beh"
     },
     "pause": "Pozastaviť",
     "pauseHint": "Navrhne zmenu, ktorá túto pipelinu zastaví.",
@@ -2023,8 +2013,6 @@
       "lastSamplesWithheld": "Skryté: cieľový endpoint skrýva atribúty a pred mapovaním nesú ešte názvy zo zdroja. Vyberte výstup a uvidíte, čo sa zapísalo."
     },
     "emptyHint": "Pridajte zdroj údajov a pipeline tlačidlom, alebo požiadajte asistenta, aby ju postavil z toho, čo už máte.",
-    "credentialsOfSource": "Drží ich jeho zdroj údajov {name}",
-    "noCredential": "Žiadne",
     "expiryRemoves": "Entity, ktoré sa neaktualizovali {window}, sa odstraňujú",
     "expiryRefused": "Nič sa neodstraňuje: runner odmietol čistenie: {reason}",
     "writesType": "Zapisuje",
@@ -2356,6 +2344,60 @@
       "titleHelp": "Čo ukazuje galéria. Šablóna si ponechá kroky a mapovanie; prístupové údaje, zdroj a cieľ vynechá.",
       "titleNeeded": "Najprv šablóne dajte názov.",
       "saved": "Uložené ako šablóna „{title}“."
+    },
+    "readsSource": "Číta",
+    "filter": {
+      "find": "Nájsť pipeline",
+      "status": "Stav",
+      "class": "Spúšťanie",
+      "statusOption": {
+        "all": "Akýkoľvek stav",
+        "running": "Beží",
+        "paused": "Pozastavená",
+        "notWriting": "Nezapisuje"
+      },
+      "classOption": {
+        "all": "Akékoľvek spúšťanie",
+        "resident": "Stále bežiaca",
+        "scheduled": "Podľa plánu"
+      },
+      "shown": "{shown} z {total} pipeline",
+      "none": "Hľadaniu a filtrom nezodpovedá žiadna pipeline.",
+      "noneHint": "Vymažte hľadanie alebo vyberte iný stav či spúšťanie."
+    },
+    "lastRun": {
+      "unavailable": "Behy sa nepodarilo načítať",
+      "never": "Ešte nebežala",
+      "runFailedBadge": "Beh zlyhal",
+      "written": "{count, plural, one {# zapísaný} few {# zapísané} other {# zapísaných}}",
+      "rejected": "odmietnuté: {n}",
+      "failedCount": "zlyhané: {n}",
+      "sinceStart": "Od spustenia bežca:",
+      "received": "prijaté: {n}",
+      "errorCount": "chyby: {n}"
+    },
+    "overview": {
+      "back": "Späť na pipeline",
+      "facts": "Prehľad",
+      "noDataSource": "Bez zdroja údajov: číta endpoint alebo prijíma záznamy",
+      "noTarget": "Bez cieľového endpointu",
+      "inSpace": "v priestore",
+      "writes": "Zapisuje",
+      "writesUnknown": "Neuvedené",
+      "every": "Každých {period}",
+      "pushBased": "Na podnet: beží, keď prídu záznamy",
+      "lastRun": "Posledný beh",
+      "nextRun": "Ďalší beh",
+      "next": {
+        "paused": "Pozastavená: ďalší beh nebude",
+        "continuous": "Beží nepretržite",
+        "unknown": "Po aktuálnom behu"
+      },
+      "runs": "Behy a záznam",
+      "rejected": "Posledné odmietnuté záznamy",
+      "rejectedUnavailable": "Odmietnuté záznamy sa nepodarilo načítať.",
+      "noRejected": "Model neodmietol žiadny záznam tejto pipeline.",
+      "credentials": "Prihlasovacie údaje"
     }
   },
   "dashboards": {

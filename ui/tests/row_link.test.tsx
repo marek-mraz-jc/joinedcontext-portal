@@ -156,14 +156,22 @@ describe("a record link", () => {
           <RecordLink project="helsinki" plural="pipelines" name="ingest">
             Ingest the feed
           </RecordLink>
+          <RecordLink project="helsinki" plural="datasources" name="feed">
+            The feed
+          </RecordLink>
         </>
       ),
     });
     render(<RouterProvider router={createRouter({ routeTree: root, history: createMemoryHistory() })} />);
     expect(await screen.findByRole("link", { name: "air" })).toHaveAttribute("href", "/projects/helsinki/spaces/air");
     const pipeline = screen.getByRole("link", { name: "Ingest the feed" });
-    expect(pipeline).toHaveAttribute("href", "/projects/helsinki/pipelines/ingest/edit");
+    // A pipeline has its own page since T-4817; a data source still opens on its form.
+    expect(pipeline).toHaveAttribute("href", "/projects/helsinki/pipelines/ingest");
     expect(pipeline).toHaveAttribute("data-row-link");
+    expect(screen.getByRole("link", { name: "The feed" })).toHaveAttribute(
+      "href",
+      "/projects/helsinki/datasources/feed/edit",
+    );
   });
 });
 
@@ -247,7 +255,7 @@ const LISTS: Listed[] = [
     api: "/api/v1/projects/helsinki/pipelines",
     body: list([manifest("Pipeline", "ingest", { class: "resident" })]),
     record: "ingest",
-    opens: "/projects/helsinki/pipelines/ingest/edit",
+    opens: "/projects/helsinki/pipelines/ingest",
   },
   {
     list: "data sources",

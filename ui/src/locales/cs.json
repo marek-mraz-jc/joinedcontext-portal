@@ -1723,7 +1723,6 @@
       "name": "Pipelina",
       "class": "Běh",
       "phase": "Stav",
-      "stream": "Proud",
       "secrets": "Přihlašovací údaje",
       "id": "Název",
       "title": "Titulek",
@@ -1792,17 +1791,8 @@
         "upsert": "Vytvořit nebo sloučit",
         "replace": "Nahradit celou entitu",
         "update-attrs": "Pouze aktualizovat atributy"
-      }
-    },
-    "metrics": {
-      "rate": "zpráv/s",
-      "received": "přijato",
-      "errors": "chyby",
-      "latency": "ms p99",
-      "unavailable": "Bez čísel: runner neodpovídá.",
-      "paused": "Neběží",
-      "scheduled": "Běží podle svého plánu",
-      "rejected": "odmítnuté"
+      },
+      "lastRun": "Poslední běh"
     },
     "pause": "Pozastavit",
     "pauseHint": "Navrhne změnu, která tuto pipelinu zastaví.",
@@ -2023,8 +2013,6 @@
       "lastSamplesWithheld": "Skryto: cílový endpoint skrývá atributy a před mapováním nesou ještě názvy ze zdroje. Vyberte výstup a uvidíte, co se zapsalo."
     },
     "emptyHint": "Přidejte datový zdroj a pipeline tlačítkem, nebo požádejte asistenta, aby ji postavil z toho, co už máte.",
-    "credentialsOfSource": "Drží je jeho zdroj dat {name}",
-    "noCredential": "Žádné",
     "expiryRemoves": "Entity, které se neaktualizovaly {window}, se odstraňují",
     "expiryRefused": "Nic se neodstraňuje: runner odmítl úklid: {reason}",
     "writesType": "Zapisuje",
@@ -2356,6 +2344,60 @@
       "titleHelp": "Co ukazuje galerie. Šablona si ponechá kroky a mapování; přístupové údaje, zdroj a cíl vynechá.",
       "titleNeeded": "Nejprve šabloně dejte název.",
       "saved": "Uloženo jako šablona „{title}“."
+    },
+    "readsSource": "Čte",
+    "filter": {
+      "find": "Najít pipeline",
+      "status": "Stav",
+      "class": "Spouštění",
+      "statusOption": {
+        "all": "Jakýkoli stav",
+        "running": "Běží",
+        "paused": "Pozastavená",
+        "notWriting": "Nezapisuje"
+      },
+      "classOption": {
+        "all": "Jakékoli spouštění",
+        "resident": "Stále běžící",
+        "scheduled": "Podle plánu"
+      },
+      "shown": "{shown} z {total} pipeline",
+      "none": "Hledání a filtrům neodpovídá žádná pipeline.",
+      "noneHint": "Vymažte hledání nebo vyberte jiný stav či spouštění."
+    },
+    "lastRun": {
+      "unavailable": "Běhy se nepodařilo načíst",
+      "never": "Ještě neběžela",
+      "runFailedBadge": "Běh selhal",
+      "written": "{count, plural, one {# zapsaný} few {# zapsané} other {# zapsaných}}",
+      "rejected": "odmítnuté: {n}",
+      "failedCount": "selhané: {n}",
+      "sinceStart": "Od spuštění běžce:",
+      "received": "přijaté: {n}",
+      "errorCount": "chyby: {n}"
+    },
+    "overview": {
+      "back": "Zpět na pipeline",
+      "facts": "Přehled",
+      "noDataSource": "Bez zdroje dat: čte endpoint nebo přijímá záznamy",
+      "noTarget": "Bez cílového endpointu",
+      "inSpace": "v prostoru",
+      "writes": "Zapisuje",
+      "writesUnknown": "Neuvedeno",
+      "every": "Každých {period}",
+      "pushBased": "Na podnět: běží, když přijdou záznamy",
+      "lastRun": "Poslední běh",
+      "nextRun": "Další běh",
+      "next": {
+        "paused": "Pozastavená: další běh nebude",
+        "continuous": "Běží nepřetržitě",
+        "unknown": "Po aktuálním běhu"
+      },
+      "runs": "Běhy a záznam",
+      "rejected": "Poslední odmítnuté záznamy",
+      "rejectedUnavailable": "Odmítnuté záznamy se nepodařilo načíst.",
+      "noRejected": "Model neodmítl žádný záznam této pipeline.",
+      "credentials": "Přihlašovací údaje"
     }
   },
   "dashboards": {

@@ -77,6 +77,37 @@ export function PipelineRunsDialog({
   /** The pipeline runs from the queue (PL-78), so a steward may start one run now (T-4349). */
   runsFromQueue?: boolean;
 }): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <Dialog
+      open
+      onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          onClose();
+        }
+      }}
+      title={t("pipelines.runs.title", { name })}
+      description={t("pipelines.runs.lead")}
+      size="xl"
+      closeLabel={t("pipelines.runs.close")}
+    >
+      <PipelineRunsView project={project} name={name} initialRun={initialRun} runsFromQueue={runsFromQueue} />
+    </Dialog>
+  );
+}
+
+/** The runs table and the open run's log: in the dialog above and on a pipeline's own page (T-4817). */
+export function PipelineRunsView({
+  project,
+  name,
+  initialRun,
+  runsFromQueue = false,
+}: {
+  project: string;
+  name: string;
+  initialRun?: string;
+  runsFromQueue?: boolean;
+}): JSX.Element {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const time = new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "medium" });
@@ -141,19 +172,9 @@ export function PipelineRunsDialog({
   };
 
   return (
-    <Dialog
-      open
-      onOpenChange={(isOpen) => {
-        if (!isOpen) {
-          onClose();
-        }
-      }}
-      title={t("pipelines.runs.title", { name })}
-      description={t("pipelines.runs.lead")}
-      size="xl"
-      closeLabel={t("pipelines.runs.close")}
-      footer={
-        runsFromQueue ? (
+    <div className="flex flex-col gap-4">
+      {runsFromQueue ? (
+        <div className="flex justify-end">
           <Button
             variant="primary"
             disabled={runRefusal !== undefined || runNow.isPending}
@@ -162,127 +183,124 @@ export function PipelineRunsDialog({
           >
             {runNow.isPending ? t("pipelines.runs.starting") : t("pipelines.runs.runNow")}
           </Button>
-        ) : undefined
-      }
-    >
-      <div className="flex flex-col gap-4">
-        {started !== null ? (
-          <Alert tone="success" role="status">
-            {t("pipelines.runs.started", { run: label(started) })}
-          </Alert>
-        ) : null}
-        {runError !== null ? (
-          <Alert tone="danger" role="alert">
-            {runError}
-          </Alert>
-        ) : null}
-        {runs.isError ? (
-          <PageFailed error={runs.error} onRetry={() => void runs.refetch()} />
-        ) : runs.isPending ? (
-          <Table caption={t("pipelines.runs.caption")} status={t("app.loading")}>
-            <TableSkeleton columns={5} />
+        </div>
+      ) : null}
+      {started !== null ? (
+        <Alert tone="success" role="status">
+          {t("pipelines.runs.started", { run: label(started) })}
+        </Alert>
+      ) : null}
+      {runError !== null ? (
+        <Alert tone="danger" role="alert">
+          {runError}
+        </Alert>
+      ) : null}
+      {runs.isError ? (
+        <PageFailed error={runs.error} onRetry={() => void runs.refetch()} />
+      ) : runs.isPending ? (
+        <Table caption={t("pipelines.runs.caption")} status={t("app.loading")}>
+          <TableSkeleton columns={5} />
+        </Table>
+      ) : items.length === 0 ? (
+        <EmptyState
+          bare
+          icon="pipelines"
+          title={t("pipelines.runs.empty")}
+          description={t("pipelines.runs.emptyHint")}
+        />
+      ) : (
+        <>
+          {facts[0]?.silent ? (
+            <Alert tone="warning" role="status">
+              {t("pipelines.runs.silent", { before: items[1].sent.toLocaleString(locale) })}
+            </Alert>
+          ) : null}
+          <Table caption={t("pipelines.runs.caption")} maxHeight="max-h-64">
+            <TableHead>
+              <TableHeaderCell>{t("pipelines.runs.run")}</TableHeaderCell>
+              <TableHeaderCell>{t("pipelines.runs.sent")}</TableHeaderCell>
+              <TableHeaderCell>{t("pipelines.runs.rejected")}</TableHeaderCell>
+              <TableHeaderCell>{t("pipelines.runs.failed")}</TableHeaderCell>
+              <TableHeaderCell>{t("pipelines.runs.took")}</TableHeaderCell>
+              <TableHeaderCell>{t("pipelines.runs.delta")}</TableHeaderCell>
+              <TableHeaderCell>
+                <span className="sr-only">{t("pipelines.runs.log")}</span>
+              </TableHeaderCell>
+            </TableHead>
+            <TableBody>
+              {items.map((run, at) => (
+                <TableRow key={run.run}>
+                  <TableCell>
+                    <time dateTime={run.lastAt} className="whitespace-nowrap tabular-nums">
+                      {label(run.run)}
+                    </time>
+                  </TableCell>
+                  <TableCell>
+                    <span className="tabular-nums">{run.sent.toLocaleString(locale)}</span>
+                    {run.created != null && run.updated != null && run.unchanged != null ? (
+                      // What the written records did (T-3304); unknown for an older stream.
+                      <span className="block text-caption text-fg-muted">
+                        {t("pipelines.runs.split", {
+                          created: run.created,
+                          updated: run.updated,
+                          unchanged: run.unchanged,
+                        })}
+                      </span>
+                    ) : null}
+                  </TableCell>
+                  <TableCell>
+                    <span className={run.rejected > 0 ? "tabular-nums text-warning" : "tabular-nums"}>
+                      {run.rejected.toLocaleString(locale)}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className={run.failed > 0 ? "tabular-nums text-danger" : "tabular-nums"}>
+                      {run.failed.toLocaleString(locale)}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="whitespace-nowrap tabular-nums">{took(facts[at].seconds)}</span>
+                  </TableCell>
+                  <TableCell>
+                    {facts[at].silent ? (
+                      <Badge tone="warning">{t("pipelines.runs.silentBadge")}</Badge>
+                    ) : facts[at].delta === undefined ? (
+                      "—"
+                    ) : (
+                      <span className="tabular-nums">
+                        {facts[at].delta === 0
+                          ? t("pipelines.runs.same")
+                          : `${(facts[at].delta as number) > 0 ? "+" : "−"}${Math.abs(facts[at].delta as number).toLocaleString(locale)}`}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      aria-pressed={open === run.run}
+                      onClick={() => setPicked(run.run)}
+                    >
+                      {t("pipelines.runs.show", { run: label(run.run) })}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
           </Table>
-        ) : items.length === 0 ? (
-          <EmptyState
-            bare
-            icon="pipelines"
-            title={t("pipelines.runs.empty")}
-            description={t("pipelines.runs.emptyHint")}
-          />
-        ) : (
-          <>
-            {facts[0]?.silent ? (
-              <Alert tone="warning" role="status">
-                {t("pipelines.runs.silent", { before: items[1].sent.toLocaleString(locale) })}
-              </Alert>
-            ) : null}
-            <Table caption={t("pipelines.runs.caption")} maxHeight="max-h-64">
-              <TableHead>
-                <TableHeaderCell>{t("pipelines.runs.run")}</TableHeaderCell>
-                <TableHeaderCell>{t("pipelines.runs.sent")}</TableHeaderCell>
-                <TableHeaderCell>{t("pipelines.runs.rejected")}</TableHeaderCell>
-                <TableHeaderCell>{t("pipelines.runs.failed")}</TableHeaderCell>
-                <TableHeaderCell>{t("pipelines.runs.took")}</TableHeaderCell>
-                <TableHeaderCell>{t("pipelines.runs.delta")}</TableHeaderCell>
-                <TableHeaderCell>
-                  <span className="sr-only">{t("pipelines.runs.log")}</span>
-                </TableHeaderCell>
-              </TableHead>
-              <TableBody>
-                {items.map((run, at) => (
-                  <TableRow key={run.run}>
-                    <TableCell>
-                      <time dateTime={run.lastAt} className="whitespace-nowrap tabular-nums">
-                        {label(run.run)}
-                      </time>
-                    </TableCell>
-                    <TableCell>
-                      <span className="tabular-nums">{run.sent.toLocaleString(locale)}</span>
-                      {run.created != null && run.updated != null && run.unchanged != null ? (
-                        // What the written records did (T-3304); unknown for an older stream.
-                        <span className="block text-caption text-fg-muted">
-                          {t("pipelines.runs.split", {
-                            created: run.created,
-                            updated: run.updated,
-                            unchanged: run.unchanged,
-                          })}
-                        </span>
-                      ) : null}
-                    </TableCell>
-                    <TableCell>
-                      <span className={run.rejected > 0 ? "tabular-nums text-warning" : "tabular-nums"}>
-                        {run.rejected.toLocaleString(locale)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className={run.failed > 0 ? "tabular-nums text-danger" : "tabular-nums"}>
-                        {run.failed.toLocaleString(locale)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="whitespace-nowrap tabular-nums">{took(facts[at].seconds)}</span>
-                    </TableCell>
-                    <TableCell>
-                      {facts[at].silent ? (
-                        <Badge tone="warning">{t("pipelines.runs.silentBadge")}</Badge>
-                      ) : facts[at].delta === undefined ? (
-                        "—"
-                      ) : (
-                        <span className="tabular-nums">
-                          {facts[at].delta === 0
-                            ? t("pipelines.runs.same")
-                            : `${(facts[at].delta as number) > 0 ? "+" : "−"}${Math.abs(facts[at].delta as number).toLocaleString(locale)}`}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        size="sm"
-                        aria-pressed={open === run.run}
-                        onClick={() => setPicked(run.run)}
-                      >
-                        {t("pipelines.runs.show", { run: label(run.run) })}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            {open !== null ? (
-              <RunLog
-                key={open}
-                project={project}
-                name={name}
-                run={open}
-                title={label(open)}
-                time={time}
-                empty={items.some((run) => run.run === open && run.sent + run.rejected + run.failed === 0)}
-              />
-            ) : null}
-          </>
-        )}
-      </div>
-    </Dialog>
+          {open !== null ? (
+            <RunLog
+              key={open}
+              project={project}
+              name={name}
+              run={open}
+              title={label(open)}
+              time={time}
+              empty={items.some((run) => run.run === open && run.sent + run.rejected + run.failed === 0)}
+            />
+          ) : null}
+        </>
+      )}
+    </div>
   );
 }
 
