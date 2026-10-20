@@ -16,6 +16,7 @@ use serde_json::{json, Value};
 
 use crate::api::dry_run::Probe;
 use crate::api::pipeline_test::{answer_of, run_stream};
+use crate::auth::session::Identity;
 use crate::auth::CurrentUser;
 use crate::error::{ApiError, ProblemDetails};
 use crate::resource::is_dns1123;
@@ -87,6 +88,34 @@ pub(crate) fn connection_test(
     Ok(config)
 }
 
+/// The saved DataSource `name` of `project`, for a caller who may propose it: 404 for a caller who
+/// may not read the project or a source that is not there, 403 for one who may only read it.
+pub(crate) fn saved_source(
+    state: &AppState,
+    identity: &Identity,
+    project: &str,
+    name: &str,
+) -> Result<DataSourceSpec, ApiError> {
+    let unknown = || ApiError::NotFound(format!("no DataSource {name} in project {project}"));
+    if !(is_dns1123(project) && is_dns1123(name)) {
+        return Err(unknown());
+    }
+    let effective = crate::permissions::for_request(state, identity, project);
+    if !effective.may_read_project() {
+        return Err(unknown());
+    }
+    let envelope = state
+        .mirror
+        .get(project, "DataSource", name)
+        .ok_or_else(unknown)?;
+    let manifest =
+        serde_json::to_value(&envelope).map_err(|e| ApiError::Internal(e.to_string()))?;
+    // Running a source on the runner is what proposing one is for: a reader sees it, an author tests it.
+    effective.check("DataSource", Verb::Propose, Some(&manifest))?;
+    serde_json::from_value(envelope.spec.clone())
+        .map_err(|e| ApiError::BadRequest(format!("the saved source does not parse: {e}")))
+}
+
 /// `POST /api/v1/projects/{project}/datasources/{name}/test` (T-4819, MF-39).
 #[utoipa::path(
     post,
@@ -115,24 +144,7 @@ pub async fn test_datasource(
     State(state): State<AppState>,
     Path((project, name)): Path<(String, String)>,
 ) -> Result<Json<Probe>, ApiError> {
-    let unknown = || ApiError::NotFound(format!("no DataSource {name} in project {project}"));
-    if !(is_dns1123(&project) && is_dns1123(&name)) {
-        return Err(unknown());
-    }
-    let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
-    if !effective.may_read_project() {
-        return Err(unknown());
-    }
-    let envelope = state
-        .mirror
-        .get(&project, "DataSource", &name)
-        .ok_or_else(unknown)?;
-    let manifest =
-        serde_json::to_value(&envelope).map_err(|e| ApiError::Internal(e.to_string()))?;
-    // Running a source on the runner is what proposing one is for: a reader sees it, an author tests it.
-    effective.check("DataSource", Verb::Propose, Some(&manifest))?;
-    let source: DataSourceSpec = serde_json::from_value(envelope.spec.clone())
-        .map_err(|e| ApiError::BadRequest(format!("the saved source does not parse: {e}")))?;
+    let source = saved_source(&state, &user.0.identity, &project, &name)?;
     let trace = run_stream(&state, &project, |capture| {
         connection_test(&name, &project, &source, capture)
     })
@@ -198,5 +210,97 @@ mod tests {
                 "{source}"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn only_a_caller_who_proposes_the_saved_source_gets_it() {
+        use crate::config::Config;
+        use crate::permissions::ORG_NAMESPACE;
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        use crate::store::Mirror;
+        use std::sync::Arc;
+
+        let envelope = |kind: &str, name: &str, namespace: &str, spec: Value| ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: kind.to_owned(),
+            metadata: ObjectMeta::new(name, namespace),
+            spec,
+            status: None,
+        };
+        let mirror = Arc::new(Mirror::new());
+        for (role, verb, user) in [
+            ("author", "propose", "dev@hel.fi"),
+            ("reader", "read", "reader@hel.fi"),
+        ] {
+            mirror.upsert(envelope(
+                "Role",
+                role,
+                ORG_NAMESPACE,
+                json!({ "rules": [{ "kinds": ["DataSource"], "verbs": [verb] }] }),
+            ));
+            mirror.upsert(envelope(
+                "RoleBinding",
+                role,
+                ORG_NAMESPACE,
+                json!({ "subjects": [{ "user": user }], "role": role, "scope": { "project": "oulu" } }),
+            ));
+        }
+        mirror.upsert(envelope(
+            "DataSource",
+            "aq",
+            "oulu",
+            json!({ "type": "http", "http": { "url": "https://feeds.example/aq.json" } }),
+        ));
+        let state = AppState::new(Config::for_tests(), None).with_mirror(mirror);
+        let who = |email: &str| Identity {
+            client: None,
+            subject: format!("f:1:{email}"),
+            username: email.to_owned(),
+            email: Some(email.to_owned()),
+            name: None,
+            roles: Vec::new(),
+            groups: Vec::new(),
+        };
+        assert!(saved_source(&state, &who("dev@hel.fi"), "oulu", "aq").is_ok());
+        assert!(matches!(
+            saved_source(&state, &who("reader@hel.fi"), "oulu", "aq"),
+            Err(ApiError::Denied(_) | ApiError::Forbidden)
+        ));
+        assert!(matches!(
+            saved_source(&state, &who("stranger@hel.fi"), "oulu", "aq"),
+            Err(ApiError::NotFound(_))
+        ));
+        assert!(matches!(
+            saved_source(&state, &who("dev@hel.fi"), "oulu", "nope"),
+            Err(ApiError::NotFound(_))
+        ));
+        assert!(matches!(
+            saved_source(&state, &who("dev@hel.fi"), "Oulu!", "aq"),
+            Err(ApiError::NotFound(_))
+        ));
+        // The handler itself: a reader is refused before anything runs, and an author reaches the
+        // runner, which this state does not have.
+        let session = |email: &str| crate::auth::session::Session {
+            identity: who(email),
+            expires_at: 0,
+            issued_at: 0,
+            id_token: String::new(),
+            access_expires_at: 0,
+            refresh_token: None,
+        };
+        let path = || Path(("oulu".to_owned(), "aq".to_owned()));
+        let refused = test_datasource(
+            CurrentUser(session("reader@hel.fi")),
+            State(state.clone()),
+            path(),
+        )
+        .await;
+        assert!(matches!(
+            refused,
+            Err(ApiError::Denied(_) | ApiError::Forbidden)
+        ));
+        let unavailable =
+            test_datasource(CurrentUser(session("dev@hel.fi")), State(state), path()).await;
+        assert!(matches!(unavailable, Err(ApiError::Unavailable(_))));
     }
 }
