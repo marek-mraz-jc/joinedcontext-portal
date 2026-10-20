@@ -1508,6 +1508,14 @@
         "pipeline_step_form.test.tsx"
       ]
     },
+    "src/pages/pipelines/PipelineOverview.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "pipeline_overview.test.tsx"
+      ]
+    },
     "src/pages/pipelines/PipelineRejected.tsx": {
       "controls": {
         "Button": 4,
@@ -1818,6 +1826,7 @@
         "Button": 3
       },
       "tests": [
+        "pipeline_overview.test.tsx",
         "pipelines_view.test.tsx"
       ]
     },
