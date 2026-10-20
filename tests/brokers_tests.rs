@@ -88,12 +88,11 @@ async fn brokers(state: &AppState, who: &str) -> (StatusCode, Value) {
     (answer.status, body)
 }
 
-fn token() -> std::path::PathBuf {
-    let file = std::env::temp_dir().join(format!(
-        "brokers-tests-{}-{:?}",
-        std::process::id(),
-        std::time::SystemTime::now()
-    ));
+/// A token file of the test `tag`. The tests run in parallel and each removes its own file, so the
+/// names differ by test: with a clock-stamped name two tests can share one file, and when one test
+/// removes it the other reads no token and counts 0 entities (T-4816).
+fn token(tag: &str) -> std::path::PathBuf {
+    let file = std::env::temp_dir().join(format!("brokers-tests-{}-{tag}", std::process::id()));
     std::fs::write(&file, "admin-token").expect("write the token");
     file
 }
@@ -101,7 +100,7 @@ fn token() -> std::path::PathBuf {
 #[tokio::test]
 async fn each_broker_shows_its_spaces_version_health_and_load() {
     let server = broker().await;
-    let token = token();
+    let token = token("each-broker");
     let state = state(&server, &token, true);
     let (status, body) = brokers(&state, "jana").await;
     let _ = std::fs::remove_file(&token);
@@ -118,7 +117,8 @@ async fn each_broker_shows_its_spaces_version_health_and_load() {
             &main["entities"],
             &main["default"]
         ),
-        (&json!("up"), &json!("0.14.2"), &json!(42), &json!(true))
+        (&json!("up"), &json!("0.14.2"), &json!(42), &json!(true)),
+        "{main}"
     );
     assert_eq!(main["spaces"], json!(["ovzdusie/air"]));
     assert_eq!(main["features"], json!(["ogc"]));
@@ -141,7 +141,7 @@ async fn each_broker_shows_its_spaces_version_health_and_load() {
 #[tokio::test]
 async fn an_organization_without_brokers_shows_the_implicit_main() {
     let server = broker().await;
-    let token = token();
+    let token = token("implicit-main");
     let state = state(&server, &token, false);
     let (status, body) = brokers(&state, "jana").await;
     let _ = std::fs::remove_file(&token);
@@ -155,14 +155,15 @@ async fn an_organization_without_brokers_shows_the_implicit_main() {
             &main["health"],
             &main["entities"]
         ),
-        (&json!("main"), &json!(false), &json!("up"), &json!(42))
+        (&json!("main"), &json!(false), &json!("up"), &json!(42)),
+        "{main}"
     );
 }
 
 #[tokio::test]
 async fn only_an_administrator_sees_the_brokers() {
     let server = broker().await;
-    let token = token();
+    let token = token("administrator-only");
     let state = state(&server, &token, true);
     let (status, body) = brokers(&state, "peter").await;
     let _ = std::fs::remove_file(&token);
