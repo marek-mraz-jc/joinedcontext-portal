@@ -592,9 +592,9 @@ describe("the space's own data", () => {
     const before = reads();
     const stream = opened.find((source) => source.url.includes("/spaces/ovzdusie/live?type=AirQualityObserved"));
     expect(stream).toBeDefined();
-    act(() => stream?.emit("changed", { type: "AirQualityObserved", ids: [SPACE_ROWS[0].id], attrs: ["pm10"] }));
+    act(() => stream?.emit("changed", { type: "AirQualityObserved" }));
     await waitFor(() => expect(reads()).toBeGreaterThan(before));
-    expect(screen.getByTestId("view-live")).toHaveTextContent("1 entity changed (pm10); shown as they are now.");
+    expect(screen.getByTestId("view-live")).toHaveTextContent(/^Entities of this type changed at .+; shown as they are now\.$/);
     // Back to the grid, the stream is closed.
     await userEvent.click(screen.getByRole("tab", { name: en.spaces.views.kind.grid }));
     expect(stream?.closed).toBe(true);

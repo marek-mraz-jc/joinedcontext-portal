@@ -2,10 +2,14 @@
 //!
 //! An open data view watches one space and type. The first watcher of a pair has the Portal write
 //! one NGSI-LD subscription through the space surface with its own ServiceAccount, delivering to
-//! `/live-notify/{key}` on the Portal's public host; the gateway projects every notification and
-//! the hub passes on which entities and attributes changed, never their values, to every window
-//! watching that pair. A window then reads the rows again with the person's session, so a
-//! notification, forged or not, shows nobody anything their grants do not.
+//! `/live-notify/{key}` on the Portal's public host. The notification is read under the Portal's
+//! ServiceAccount, whose grants are not the person's, so the hub passes on only that the type
+//! changed: no entity id, no attribute name, no value (T-4876). A window then reads the rows again
+//! with the person's session, and the gateway narrows that read to the person's row and attribute
+//! grants; a notification, forged or not, shows nobody anything their grants do not.
+//!
+//! Channels and delivery keys belong to one (project, space, type): two projects with a space of
+//! the same name never hear each other.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -26,23 +30,24 @@ pub const RENEW_AFTER: Duration = Duration::from_secs(12 * 3600);
 /// How many changes a slow window may fall behind before it misses some and reads again.
 const BUFFER: usize = 256;
 
-/// What changed, by name: the type, the entities and the attributes.
+/// That entities of a type changed. Which ones, and which attributes, the window learns from its
+/// own read, as far as the person's grants reach (T-4876).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Changed {
     #[serde(rename = "type")]
     pub entity_type: String,
-    pub ids: Vec<String>,
-    pub attrs: Vec<String>,
 }
 
-type Pair = (String, String);
+/// (project, space, type).
+type Pair = (String, String, String);
 
 pub struct LiveHub {
     secret: Vec<u8>,
     /// The Portal's public origin, where the gateway delivers.
     public_base: String,
     channels: Mutex<HashMap<Pair, broadcast::Sender<Arc<Changed>>>>,
-    keys: Mutex<HashMap<String, Pair>>,
+    /// Every pair a window watched; a delivery key is checked against these in constant time.
+    keys: Mutex<std::collections::HashSet<Pair>>,
     written: Mutex<HashMap<Pair, Instant>>,
     writer: Option<Arc<SubscriptionSync>>,
 }
@@ -57,32 +62,57 @@ impl LiveHub {
             secret,
             public_base: public_base.trim_end_matches('/').to_owned(),
             channels: Mutex::new(HashMap::new()),
-            keys: Mutex::new(HashMap::new()),
+            keys: Mutex::new(std::collections::HashSet::new()),
             written: Mutex::new(HashMap::new()),
             writer,
         }
     }
 
-    /// The delivery key of one pair: an HMAC only this process can make.
-    pub fn key(&self, space: &str, entity_type: &str) -> String {
+    fn mac(&self, project: &str, space: &str, entity_type: &str) -> Hmac<Sha256> {
         let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(&self.secret).expect("any key length");
-        mac.update(space.as_bytes());
-        mac.update(&[0]);
+        for part in [project, space] {
+            mac.update(part.as_bytes());
+            mac.update(&[0]);
+        }
         mac.update(entity_type.as_bytes());
-        hex(&mac.finalize().into_bytes())
+        mac
+    }
+
+    /// The delivery key of one pair: an HMAC only this process can make.
+    pub fn key(&self, project: &str, space: &str, entity_type: &str) -> String {
+        hex(&self
+            .mac(project, space, entity_type)
+            .finalize()
+            .into_bytes())
+    }
+
+    /// The watched pair `key` was made for, compared in constant time with each.
+    fn pair_of(&self, key: &str) -> Option<Pair> {
+        let tag = unhex(key)?;
+        self.keys
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .iter()
+            .find(|(project, space, entity_type)| {
+                self.mac(project, space, entity_type)
+                    .verify_slice(&tag)
+                    .is_ok()
+            })
+            .cloned()
     }
 
     /// A window's stream of one pair's changes; the subscription is written when it is new or old.
     pub fn watch(
         self: &Arc<Self>,
+        project: &str,
         space: &str,
         entity_type: &str,
     ) -> broadcast::Receiver<Arc<Changed>> {
-        let pair = (space.to_owned(), entity_type.to_owned());
+        let pair = (project.to_owned(), space.to_owned(), entity_type.to_owned());
         self.keys
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .insert(self.key(space, entity_type), pair.clone());
+            .insert(pair.clone());
         let receiver = self
             .channels
             .lock()
@@ -103,8 +133,8 @@ impl LiveHub {
         if due {
             let hub = Arc::clone(self);
             tokio::spawn(async move {
-                if let Err(reason) = hub.write(&pair.0, &pair.1).await {
-                    tracing::warn!(space = %pair.0, r#type = %pair.1, %reason, "live-update subscription not written");
+                if let Err(reason) = hub.write(&pair.0, &pair.1, &pair.2).await {
+                    tracing::warn!(project = %pair.0, space = %pair.1, r#type = %pair.2, %reason, "live-update subscription not written");
                     // The next window tries again rather than waiting half a day.
                     hub.written
                         .lock()
@@ -117,7 +147,7 @@ impl LiveHub {
     }
 
     /// The subscription of one pair, as API/01 §32 describes it.
-    pub fn subscription(&self, id: &str, space: &str, entity_type: &str) -> Value {
+    pub fn subscription(&self, id: &str, project: &str, space: &str, entity_type: &str) -> Value {
         let expires = time::OffsetDateTime::now_utc() + LIFETIME;
         json!({
             "id": id,
@@ -127,7 +157,7 @@ impl LiveHub {
             "notification": {
                 "format": "keyValues",
                 "endpoint": {
-                    "uri": format!("{}/live-notify/{}", self.public_base, self.key(space, entity_type)),
+                    "uri": format!("{}/live-notify/{}", self.public_base, self.key(project, space, entity_type)),
                     "accept": "application/json"
                 }
             },
@@ -137,12 +167,13 @@ impl LiveHub {
         })
     }
 
-    async fn write(&self, space: &str, entity_type: &str) -> Result<(), String> {
+    async fn write(&self, project: &str, space: &str, entity_type: &str) -> Result<(), String> {
         let Some(writer) = &self.writer else {
             return Err("no gateway, realm client or organization domain to write with".into());
         };
-        // One id per pair, so a second write updates; the type is hashed into a name segment.
-        let digest = Sha256::digest(entity_type.as_bytes());
+        // One id per pair, so a second write updates; project and type are hashed into a name
+        // segment, so a same-named space of another project writes a subscription of its own.
+        let digest = Sha256::digest(format!("{project}\0{entity_type}").as_bytes());
         let id = writer.urn(space, &format!("portal-live-{}", &hex(&digest)[..16]));
         let token = writer.token().await?;
         writer
@@ -150,23 +181,20 @@ impl LiveHub {
                 &token,
                 space,
                 &id,
-                &self.subscription(&id, space, entity_type),
+                &self.subscription(&id, project, space, entity_type),
             )
             .await
     }
 
-    /// Passes one notification on; `false` for a key this process never made.
-    pub fn deliver(&self, key: &str, body: &Value) -> bool {
-        let Some(pair) = self
-            .keys
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .get(key)
-            .cloned()
-        else {
+    /// Passes one notification on as "this type changed"; `false` for a key this process never
+    /// made. The body is not read: nothing in it reaches a window (T-4876).
+    pub fn deliver(&self, key: &str) -> bool {
+        let Some(pair) = self.pair_of(key) else {
             return false;
         };
-        let changed = Arc::new(changed_of(&pair.1, body));
+        let changed = Arc::new(Changed {
+            entity_type: pair.2.clone(),
+        });
         if let Some(sender) = self
             .channels
             .lock()
@@ -180,33 +208,19 @@ impl LiveHub {
     }
 }
 
-/// Which entities and attributes a notification names; its values are dropped here.
-pub fn changed_of(entity_type: &str, body: &Value) -> Changed {
-    let mut ids = Vec::new();
-    let mut attrs = std::collections::BTreeSet::new();
-    for entity in body["data"].as_array().into_iter().flatten() {
-        if let Some(id) = entity["id"].as_str() {
-            ids.push(id.to_owned());
-        }
-        for key in entity
-            .as_object()
-            .into_iter()
-            .flat_map(|object| object.keys())
-        {
-            if !matches!(key.as_str(), "id" | "type" | "@context") {
-                attrs.insert(key.clone());
-            }
-        }
-    }
-    Changed {
-        entity_type: entity_type.to_owned(),
-        ids,
-        attrs: attrs.into_iter().collect(),
-    }
-}
-
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// The 32 bytes of a lowercase hex key; `None` for anything else.
+fn unhex(key: &str) -> Option<Vec<u8>> {
+    if key.len() != 64 {
+        return None;
+    }
+    (0..64)
+        .step_by(2)
+        .map(|i| u8::from_str_radix(key.get(i..i + 2)?, 16).ok())
+        .collect()
 }
 
 #[cfg(test)]
@@ -217,39 +231,40 @@ mod tests {
     fn a_key_names_one_pair_and_only_this_process_makes_it() {
         let hub = LiveHub::new("https://portal.example/", None);
         let other = LiveHub::new("https://portal.example", None);
-        assert_eq!(hub.key("bikes", "Station"), hub.key("bikes", "Station"));
-        assert_ne!(hub.key("bikes", "Station"), hub.key("bikes", "Road"));
-        assert_ne!(hub.key("bikes", "Station"), hub.key("bikesS", "tation"));
-        assert_ne!(hub.key("bikes", "Station"), other.key("bikes", "Station"));
-        let body = hub.subscription("urn:ngsi-ld:Subscription:x", "bikes", "Station");
+        let key = |hub: &LiveHub, project, space, t| hub.key(project, space, t);
+        assert_eq!(
+            key(&hub, "p", "bikes", "Station"),
+            key(&hub, "p", "bikes", "Station")
+        );
+        assert_ne!(
+            key(&hub, "p", "bikes", "Station"),
+            key(&hub, "p", "bikes", "Road")
+        );
+        assert_ne!(
+            key(&hub, "p", "bikes", "Station"),
+            key(&hub, "p", "bikesS", "tation")
+        );
+        assert_ne!(
+            key(&hub, "p", "bikes", "Station"),
+            key(&hub, "q", "bikes", "Station")
+        );
+        assert_ne!(
+            key(&hub, "p", "bikes", "Station"),
+            key(&hub, "pbikes", "", "Station")
+        );
+        assert_ne!(
+            key(&hub, "p", "bikes", "Station"),
+            key(&other, "p", "bikes", "Station")
+        );
+        let body = hub.subscription("urn:ngsi-ld:Subscription:x", "p", "bikes", "Station");
         assert_eq!(
             body["notification"]["endpoint"]["uri"],
             format!(
                 "https://portal.example/live-notify/{}",
-                hub.key("bikes", "Station")
+                hub.key("p", "bikes", "Station")
             )
         );
         assert_eq!(body["entities"], json!([{ "type": "Station" }]));
-    }
-
-    #[test]
-    fn a_notification_is_passed_on_by_name_without_its_values() {
-        let changed = changed_of(
-            "Station",
-            &json!({ "data": [
-                { "id": "urn:ngsi-ld:Station:1", "type": "Station", "free": 3, "name": "A" },
-                { "id": "urn:ngsi-ld:Station:2", "type": "Station", "free": 0 },
-                "not an entity"
-            ] }),
-        );
-        assert_eq!(
-            changed.ids,
-            ["urn:ngsi-ld:Station:1", "urn:ngsi-ld:Station:2"]
-        );
-        assert_eq!(changed.attrs, ["free", "name"]);
-        assert!(!serde_json::to_string(&changed)
-            .expect("json")
-            .contains("\"A\""));
     }
 
     #[tokio::test]
@@ -282,8 +297,8 @@ mod tests {
             "https://portal.example",
             Some(Arc::new(writer)),
         ));
-        let _a = hub.watch("bikes", "Station");
-        let _b = hub.watch("bikes", "Station");
+        let _a = hub.watch("p", "bikes", "Station");
+        let _b = hub.watch("p", "bikes", "Station");
         for _ in 0..50 {
             if !server
                 .received_requests()
@@ -312,26 +327,42 @@ mod tests {
             written[0]["notification"]["endpoint"]["uri"],
             format!(
                 "https://portal.example/live-notify/{}",
-                hub.key("bikes", "Station")
+                hub.key("p", "bikes", "Station")
             )
         );
     }
 
     #[tokio::test]
-    async fn a_watcher_hears_its_pair_and_an_unknown_key_is_refused() {
+    async fn a_watcher_hears_only_that_its_pair_changed_and_an_unknown_key_is_refused() {
         let hub = Arc::new(LiveHub::new("https://portal.example", None));
-        let mut stations = hub.watch("bikes", "Station");
-        let mut roads = hub.watch("bikes", "Road");
-        assert!(hub.deliver(
-            &hub.key("bikes", "Station"),
-            &json!({ "data": [{ "id": "urn:ngsi-ld:Station:1", "free": 1 }] })
-        ));
+        let mut stations = hub.watch("p", "bikes", "Station");
+        let mut roads = hub.watch("p", "bikes", "Road");
+        let mut elsewhere = hub.watch("q", "bikes", "Station");
+        assert!(hub.deliver(&hub.key("p", "bikes", "Station")));
+        let changed = stations.recv().await.expect("a change");
         assert_eq!(
-            stations.recv().await.expect("a change").ids,
-            ["urn:ngsi-ld:Station:1"]
+            serde_json::to_value(changed.as_ref()).expect("json"),
+            json!({ "type": "Station" }),
+            "no id, attribute name or value reaches a window"
         );
         assert!(roads.try_recv().is_err());
-        assert!(!hub.deliver("0".repeat(64).as_str(), &json!({})));
-        assert!(!hub.deliver(&LiveHub::new("x", None).key("bikes", "Station"), &json!({})));
+        assert!(
+            elsewhere.try_recv().is_err(),
+            "another project's same-named space"
+        );
+        assert!(!hub.deliver("0".repeat(64).as_str()));
+        assert!(!hub.deliver("not hex"));
+        assert!(!hub.deliver(&hub.key("p", "bikes", "Station")[..62]));
+        assert!(!hub.deliver(&LiveHub::new("x", None).key("p", "bikes", "Station")));
+        // A key made for a pair nobody watches is unknown too.
+        assert!(!hub.deliver(&hub.key("p", "bikes", "Tram")));
+    }
+
+    #[test]
+    fn a_key_reads_back_as_its_bytes_and_nothing_else_does() {
+        assert_eq!(unhex(&"0a".repeat(32)), Some(vec![10; 32]));
+        assert_eq!(unhex(&"0a".repeat(31)), None);
+        assert_eq!(unhex(&format!("{}zz", "0a".repeat(31))), None);
+        assert_eq!(unhex(&format!("é{}", "0".repeat(62))), None);
     }
 }

@@ -761,7 +761,7 @@
       "restore": "Put back",
       "restoreOne": "Put back {name}",
       "restoreRefused": "{name} was not put back: {reason}",
-      "liveChanged": "{count, plural, one {# entity} other {# entities}} changed ({attrs}); shown as they are now."
+      "liveChanged": "Entities of this type changed at {time}; shown as they are now."
     },
     "api": {
       "lead": "How a program reads {type}: through an Endpoint of this space, with its own token, and the webhooks that tell it when something changes.",

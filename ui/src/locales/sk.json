@@ -761,7 +761,7 @@
       "restore": "Vrátiť",
       "restoreOne": "Vrátiť {name}",
       "restoreRefused": "{name} sa nevrátil: {reason}",
-      "liveChanged": "{count, plural, one {Zmenila sa # entita} few {Zmenili sa # entity} other {Zmenilo sa # entít}} ({attrs}); zobrazené tak, ako sú teraz."
+      "liveChanged": "Entity tohto typu sa zmenili o {time}; zobrazené tak, ako sú teraz."
     },
     "api": {
       "lead": "Ako program číta {type}: cez endpoint tohto priestoru, s vlastným tokenom, a webhooky, ktoré mu povedia, keď sa niečo zmení.",
