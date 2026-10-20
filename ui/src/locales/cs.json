@@ -509,8 +509,6 @@
       "total": "Prostor obsahuje {count, plural, one {# entitu} few {# entity} other {# entit}}.",
       "open": "Prohlédnout obsah",
       "data": "Data",
-      "dataLead": "Vše, co tento prostor drží, nakolik to vaše oprávnění dovolí. Endpoint zobrazuje totéž, zúžené jeho politikou.",
-      "dataType": "Typ entity",
       "dataEmpty": "Zatím nic: do tohoto prostoru ještě nezapsala žádná pipeline.",
       "dataThroughEndpoints": "Tento prostor můžete vidět přes jeho endpointy:",
       "dataNoTypes": "Tento prostor nepojmenovává datový model, takže není co číst.",
@@ -543,7 +541,11 @@
       "lead": "Jeho datový model, entity, kdo je čte a co se s ním stalo.",
       "broker": "Běží na kontextovém brokeru {broker}.",
       "size": "Velikost",
-      "totalSize": "V úložišti brokera zabírá {size}, z toho historie {history}."
+      "totalSize": "V úložišti brokera zabírá {size}, z toho historie {history}.",
+      "sections": "Části prostoru",
+      "counting": "Počítám entity prostoru…",
+      "allRows": "Všechny řádky",
+      "savedViews": "Uložené pohledy"
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",

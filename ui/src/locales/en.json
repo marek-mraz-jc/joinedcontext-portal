@@ -509,8 +509,6 @@
       "total": "The space holds {count, plural, one {# entity} other {# entities}}.",
       "open": "Look inside",
       "data": "Data",
-      "dataLead": "Everything this space holds, as your grants allow it. What an endpoint shows is this, narrowed by its policy.",
-      "dataType": "Entity type",
       "dataEmpty": "Nothing here yet: no pipeline has written to this space.",
       "dataThroughEndpoints": "You can see this space through its endpoints:",
       "dataNoTypes": "This space names no data model, so there is no type to read.",
@@ -543,7 +541,11 @@
       "lead": "Its data model, its entities, who reads them and what happened to it.",
       "broker": "It lives on the context broker {broker}.",
       "size": "Size",
-      "totalSize": "It takes {size} in the broker's store, {history} of it history."
+      "totalSize": "It takes {size} in the broker's store, {history} of it history.",
+      "sections": "Parts of the space",
+      "counting": "Counting the space's entities…",
+      "allRows": "All rows",
+      "savedViews": "Saved views"
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
