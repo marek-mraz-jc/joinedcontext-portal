@@ -168,38 +168,33 @@ export function Station({ lang }: { lang: Lang }): React.JSX.Element {
   useEffect(() => {
     const onHashChange = () => {
       const next = readHash(window.location.hash).stationId;
-      if (next && next !== selectedId) {
-        setSelectedId(next);
-      }
+      // The same station again changes nothing: React keeps the state.
+      if (next) setSelectedId(next);
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
-  }, [selectedId]);
+  }, []);
 
+  // The default station only while none of the stations is chosen. An updater, not this render's
+  // selectedId: a station the address named before the effect ran must not be overwritten (T-4788).
   useEffect(() => {
-    if (stations.length > 0) {
-      if (!selectedId || !stations.some((s) => s.id === selectedId)) {
-        const topId = defaultStationId(stations);
-        if (topId) {
-          setSelectedId(topId);
-          try {
-            window.history.replaceState(null, "", writeHash(topId));
-          } catch {
-            // sandboxed preview may refuse
-          }
-        }
-      }
-    }
-  }, [stations, selectedId]);
+    if (stations.length === 0) return;
+    setSelectedId((current) =>
+      current && stations.some((s) => s.id === current) ? current : defaultStationId(stations),
+    );
+  }, [stations]);
 
-  const selectStation = (id: string) => {
-    setSelectedId(id);
+  // The address names the chosen station, for a reload or a shared link.
+  useEffect(() => {
+    if (!selectedId || readHash(window.location.hash).stationId === selectedId) return;
     try {
-      window.history.replaceState(null, "", writeHash(id));
+      window.history.replaceState(null, "", writeHash(selectedId));
     } catch {
       // sandboxed preview may refuse
     }
-  };
+  }, [selectedId]);
+
+  const selectStation = (id: string) => setSelectedId(id);
 
   const chosenStation: Row | undefined = useMemo(() => {
     return stations.find((s) => s.id === selectedId);

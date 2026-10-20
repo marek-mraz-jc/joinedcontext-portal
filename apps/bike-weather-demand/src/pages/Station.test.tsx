@@ -165,6 +165,24 @@ describe("the station page in words", () => {
     window.dispatchEvent(new HashChangeEvent("hashchange"));
     expect(list).toHaveValue(STATION_3.id);
   });
+
+  it("keeps a station the address named while the stations were arriving, over the default", async () => {
+    // The address names a station in the moment the stations are on screen and the page's effects
+    // have not run yet (a slow CI runner hit it, run 39343158555): the default must not win.
+    const observer = new MutationObserver(() => {
+      if (!document.querySelector(`option[value="${STATION_3.id}"]`)) return;
+      observer.disconnect();
+      window.location.hash = `#station?id=${encodeURIComponent(STATION_3.id)}`;
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    show(async () => OUTPUT);
+    const list = await screen.findByRole("combobox", { name: "Station" });
+    await waitFor(() => expect(list).toHaveValue(STATION_3.id));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(list).toHaveValue(STATION_3.id);
+    expect(window.location.hash).toBe(`#station?id=${encodeURIComponent(STATION_3.id)}`);
+  });
 });
 
 /** Unmounts what is on screen and shows the page again, for a second case in one test. */
