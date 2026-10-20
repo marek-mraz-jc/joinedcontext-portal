@@ -94,6 +94,13 @@ describe("the deployment form's sources (T-4282)", () => {
     await waitFor(() => expect(Number(/of (\d+)/.exec(count.textContent ?? "")?.[1])).toBeGreaterThan(before));
   });
 
+  it("a list of choices shows its help and names it to a screen reader (T-4824)", async () => {
+    await openForm();
+    const categories = screen.getAllByLabelText(/^Categories/)[0];
+    const help = screen.getAllByText(/^The EU data themes it is about/)[0];
+    expect(categories.getAttribute("aria-describedby")?.split(" ")).toContain(help.id);
+  });
+
   it("lays the form out in the capabilities, live data apart from knowledge", async () => {
     await openForm();
     for (const group of ["Deployment", "Knowledge"]) {

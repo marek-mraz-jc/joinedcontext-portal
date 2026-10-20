@@ -246,8 +246,10 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
         ? t("form.entry", { number: last + 1 })
         : label.replace(new RegExp(`-${last + 1}$`), ` ${last + 1}`)
       : label;
-  // An array or an object template writes its own heading and description; once is enough.
-  const ownHeading = schema.type === "array" || schema.type === "object";
+  // An array or an object template writes its own heading and description; once is enough. A
+  // list of choices (categories) is one select, drawn by no template: its help stays here (T-4824).
+  const multiSelect = schema.type === "array" && props.registry.schemaUtils.isMultiSelect(schema);
+  const ownHeading = (schema.type === "array" && !multiSelect) || schema.type === "object";
   // A widget draws only its control, so its help stays here; a `ui:field` draws its own heading
   // and help, as the templates do (KnowledgeSourcesField, EntitySelectorField's object).
   const custom = Boolean(props.uiSchema?.["ui:widget"]) && !props.uiSchema?.["ui:field"];
