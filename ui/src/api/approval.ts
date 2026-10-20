@@ -1,7 +1,14 @@
 import { allows, type Effective, type Rule, type Verb } from "./permissions";
 
 /** Why the approve button is off, or `null` when the API would take the approval. */
-export type ApprovalBlock = "needsRole" | "ownProposal" | "needsPublisher" | null;
+export type ApprovalBlock = "needsRole" | "ownProposal" | "ownAccessChange" | "needsPublisher" | null;
+
+/** Kinds that grant access: a second person approves them, never their proposer (PF-58, T-4833). */
+const ACCESS_KINDS = new Set(["Role", "RoleBinding", "Group", "ServiceAccount"]);
+
+export function isAccessKind(kind: string): boolean {
+  return ACCESS_KINDS.has(kind);
+}
 
 /** One field the change alters, as the plan lists it. */
 interface PlannedField {
@@ -96,6 +103,9 @@ export function approvalStanding(
   if (!isOwn(callerEmail, change)) {
     return { block: null, ownAsAdministrator: false };
   }
+  if (isAccessKind(kind)) {
+    return { block: "ownAccessChange", ownAsAdministrator: false };
+  }
   // The bootstrap group is not a binding, so it does not administer a kind (PF-58).
   const administers =
     permissions.data?.bootstrap !== true &&
@@ -113,13 +123,14 @@ export function changedKind(change: { summary: { params: unknown } }): string {
 }
 
 /** What proposing a change of one kind leads to for the caller (PF-58, PF-70). */
-export type ProposeStanding = "approvedOnPropose" | "approveNotDelete" | null;
+export type ProposeStanding = "approvedOnPropose" | "approveNotDelete" | "secondApprover" | null;
 
 /**
  * Whether the caller's change of `kind` is approved as they propose it: a binding grants them
  * `approve` and `delete` on it (PF-58). An approver without `delete`, a steward, proposes a change
  * that waits for another approver (PF-70); anyone without `approve` hears nothing new. The
- * bootstrap group is not a binding and counts for neither. A convenience; the API decides.
+ * bootstrap group is not a binding and counts for neither. An access kind always waits for a second
+ * approver (PF-58, T-4833). A convenience; the API decides.
  */
 export function proposeStanding(effective: Effective | undefined, kind: string): ProposeStanding {
   if (!effective || !Array.isArray(effective.grants) || effective.bootstrap === true) {
@@ -127,6 +138,9 @@ export function proposeStanding(effective: Effective | undefined, kind: string):
   }
   if (!allows(effective, kind, "approve")) {
     return null;
+  }
+  if (isAccessKind(kind)) {
+    return "secondApprover";
   }
   return allows(effective, kind, "delete") ? "approvedOnPropose" : "approveNotDelete";
 }
