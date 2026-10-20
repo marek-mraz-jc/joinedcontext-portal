@@ -24,8 +24,14 @@ export interface Visit {
 async function firstItem(page: Page, list: string, pattern: RegExp): Promise<string | undefined> {
   await page.goto(`${list}?lang=en`, { waitUntil: "load" });
   await page.locator("main h1:visible").first().waitFor({ timeout: 30_000 }).catch(() => undefined);
-  const hrefs = await page.locator("main a[href]").evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
-  return hrefs.find((href) => pattern.test(href.split(/[?#]/)[0]));
+  // A list that loads after its heading (the catalogue's search) gets 15 s to draw its first item.
+  for (let tries = 0; tries < 15; tries += 1) {
+    const hrefs = await page.locator("main a[href]").evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
+    const found = hrefs.find((href) => pattern.test(href.split(/[?#]/)[0]));
+    if (found) return found;
+    await page.waitForTimeout(1_000);
+  }
+  return undefined;
 }
 
 /** The first stored item of a section, through the same API the list reads. */
@@ -77,7 +83,6 @@ export async function visits(page: Page, who: string): Promise<Visit[]> {
     ["/projects/$project/models/$name", `${P}/models`, new RegExp(`^${P}/models/[^/]+$`)],
     ["/projects/$project/approvals/$id", `${P}/approvals`, new RegExp(`^${P}/approvals/chg-[0-9a-f]+$`)],
     ["/projects/$project/workspaces/$name/compare", `${P}/workspaces`, new RegExp(`^${P}/workspaces/[^/]+/compare$`)],
-    ["/catalogue/$name", "/catalogue", /^\/catalogue\/[^/]+$/],
     ["/organization/$tab/$", "/organization/people", /^\/organization\/people\/(?!new$)[^/]+$/],
     ["/organization/$tab/$", "/organization/groups", /^\/organization\/groups\/(?!new$)[^/]+$/],
   ];

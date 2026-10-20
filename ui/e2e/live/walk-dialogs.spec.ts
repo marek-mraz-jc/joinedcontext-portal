@@ -183,8 +183,14 @@ test("every control of the frame around the page opens, says what it is and clos
 
   try {
     await open();
+    // Beside the other walks the frame can draw after the heading: up to 15 s for its controls.
+    let names: string[] = [];
+    for (let tries = 0; tries < 15 && names.length === 0; tries += 1) {
+      names = await pressable(page, SHELL);
+      if (names.length === 0) await page.waitForTimeout(1_000);
+    }
     // Sign out ends the session the walk runs in; its aborted POST is all it would show.
-    for (const name of (await pressable(page, SHELL)).filter((name) => name !== "Sign out")) {
+    for (const name of names.filter((name) => name !== "Sign out")) {
       if (page.url().split("?")[0] !== new URL(home, page.url()).href) await open();
       const button = page.getByRole("button", { name, exact: true }).and(page.locator(SHELL)).first();
       if ((await button.count()) === 0 || !(await button.isEnabled().catch(() => false))) continue;
