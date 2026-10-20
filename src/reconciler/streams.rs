@@ -4845,35 +4845,29 @@ output:
             processors[1]["mutation"],
             "root = if errored() { deleted() }"
         );
-        let read: Vec<&str> = processors[2]["try"]
-            .as_array()
-            .expect("the member read")
-            .iter()
-            .filter_map(|step| step.as_object()?.keys().next().map(String::as_str))
-            .collect();
-        // A deflated member is inflated by the runner's bounded module (T-3953, PL-72).
-        assert_eq!(
-            read,
-            [
-                "mapping",
-                "unarchive",
-                "mapping",
-                "http",
-                "mapping",
-                "wasm",
-                "mapping"
-            ]
-        );
-        assert_eq!(
-            processors[2]["try"][5]["wasm"]["module_path"],
-            "/streams/inflate.wasm"
-        );
-        assert_eq!(
-            processors[2]["try"][3]["http"]["headers"]["Range"],
-            "${! @range }"
-        );
+        let keys = |steps: &serde_json::Value| -> Vec<String> {
+            steps
+                .as_array()
+                .expect("steps")
+                .iter()
+                .filter_map(|step| step.as_object()?.keys().next().cloned())
+                .collect()
+        };
+        assert_eq!(keys(&processors[2]["try"]), ["mapping", "unarchive"]);
         assert!(processors[3]["catch"].is_array());
-        assert_eq!(processors[4]["label"], COMPUTE_LABEL);
+        // Each member is a batch of its own and inflates through `unarchive: zip`, not the
+        // wasm module Bento never frees (T-4752, PL-72).
+        let each = &processors[4]["for_each"];
+        assert_eq!(keys(each), ["try", "catch"]);
+        let read = &each[0]["try"];
+        assert_eq!(
+            keys(read),
+            ["mapping", "http", "mapping", "unarchive", "mapping"]
+        );
+        assert_eq!(read[1]["http"]["headers"]["Range"], "${! @range }");
+        assert_eq!(read[3]["unarchive"]["format"], "zip");
+        assert!(!rendered.to_string().contains("inflate.wasm"));
+        assert_eq!(processors[5]["label"], COMPUTE_LABEL);
     }
 
     #[test]
