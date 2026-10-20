@@ -135,14 +135,18 @@ test.describe("pipelines", () => {
     page,
   }) => {
     await stubApi(page);
+    await page.clock.install();
 
     await page.goto("/projects/banskabystrica/pipelines?lang=en");
     const row = page.getByRole("row").filter({ hasText: "Air quality MQTT" });
     await expect(row.getByText("resident")).toBeVisible();
-    await expect(row.getByText("128,425")).toBeVisible();
-    // The next poll is five seconds out; the number has to change on its own.
-    await expect(row.getByText("128,450")).toBeVisible({ timeout: 15_000 });
-    await expect(row.getByText("mqtt-credentials/password → $MQTT_PASSWORD")).toBeVisible();
+    await expect(row.getByText(/128,425/)).toBeVisible();
+    // The row polls the runner every 15 s since T-4817; the number has to change on its own.
+    await page.clock.fastForward(15_000);
+    await expect(row.getByText(/128,450/)).toBeVisible();
+    // The credentials moved from the list to the pipeline's overview, names only (PL-17, T-4817).
+    await page.goto("/projects/banskabystrica/pipelines/aq-mqtt-ingest?lang=en");
+    await expect(page.getByText("mqtt-credentials/password", { exact: true })).toBeVisible();
   });
 
   // The buffer depth the metrics route answers is the queue on the wire into the output, amber

@@ -121,7 +121,8 @@ test.describe("the data models", () => {
 
   test("the space shows its model, and the model's name opens the model's page", async ({ page }) => {
     await stubApi(page);
-    await page.goto("/projects/helsinki/spaces/helsinki?lang=en");
+    // The model is the space's Data model tab since T-4825; the data rows are its first tab.
+    await page.goto("/projects/helsinki/spaces/helsinki?tab=model&lang=en");
     const model = page.locator("section").filter({ has: page.getByRole("heading", { level: 2, name: "Data model" }) });
     await expect(model.getByRole("group", { name: "The model's classes and what joins them" })).toBeVisible();
     await model.getByRole("tab", { name: "YAML" }).click();
