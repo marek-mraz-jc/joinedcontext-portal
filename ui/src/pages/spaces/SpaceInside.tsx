@@ -1,5 +1,6 @@
 import { AlertDialog } from "../../components/AlertDialog";
 import { useCallback, useMemo, useState } from "react";
+import { clsx } from "clsx";
 import type { JSX, ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
@@ -9,6 +10,7 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { bytesOfType, exactBytes, sizeText, spaceUsageQuery, usageRefusal } from "../../api/spaceUsage";
+import type { SpaceUsage } from "../../api/spaceUsage";
 import { asManifests, localized, refName } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
 import { ActivityFeed } from "../../components/ActivityFeed";
@@ -30,6 +32,7 @@ import { EntityFilters } from "../../components/entities/EntityFilters";
 import { enumsOfModel, filterSlotsOf, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import { AddFieldDialog } from "../../components/entities/AddFieldDialog";
 import { ViewBar } from "../../components/entities/ViewBar";
+import { dataViewsKey, listViews } from "../../api/dataViews";
 import { GroupCounts, groupTerm, ViewOptions } from "../../components/entities/ViewOptions";
 import type { ViewExtras } from "../../components/entities/ViewOptions";
 import type { DataView as SavedView, ViewConfig } from "../../api/dataViews";
@@ -76,12 +79,10 @@ import {
   Badge,
   Button,
   EmptyState,
-  Field,
   Icon,
   PageFailed,
   PageHeader,
   PageLoading,
-  Select,
   Table,
   TableBody,
   TableCell,
@@ -304,6 +305,7 @@ function SpaceData({
   endpoints,
   model,
   retention,
+  footer,
 }: {
   project: string;
   space: string;
@@ -313,12 +315,14 @@ function SpaceData({
   model?: Manifest;
   /** The space's retention rules, which the import names for the imported rows (T-4822). */
   retention?: RetentionRule[];
+  /** What the whole space holds, shown under the rows. */
+  footer?: ReactNode;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
-  const [chosen, setChosen] = useState("");
+  // The type is in the address like the view, so back, reload and a sent link open it (T-4825).
+  const [type, setType] = useUrlParam<string>("type", types[0] ?? "", types);
   // The type's alerts are being chosen (T-3261).
   const [alertingType, setAlertingType] = useState(false);
-  const type = types.includes(chosen) ? chosen : (types[0] ?? "");
   const modelSource = useModelSource(project, model);
   const enums = useMemo(
     () => enumsOfModel(modelSource, type, i18n.language),
@@ -436,10 +440,14 @@ function SpaceData({
 
   // The type and its attributes as the model titles them, the key where it gives no title; an
   // entity is led by its name, its URN the open button's tooltip (T-4264, T-4160 #6).
-  const typeTitle = useMemo(() => {
-    const cls = modelSource === undefined ? undefined : parseModel(modelSource).classes.find((c) => c.name === type);
-    return localized(cls?.title, i18n.language, type);
-  }, [modelSource, type, i18n.language]);
+  const titleOf = useCallback(
+    (name: string) => {
+      const cls = modelSource === undefined ? undefined : parseModel(modelSource).classes.find((c) => c.name === name);
+      return localized(cls?.title, i18n.language, name);
+    },
+    [modelSource, i18n.language],
+  );
+  const typeTitle = titleOf(type);
   const columns = useMemo(() => {
     const titled = (attr: string) => localized(typeSlots.find((slot) => slot.name === attr)?.title, i18n.language, attr);
     const named = attributes.includes("name");
@@ -480,25 +488,24 @@ function SpaceData({
     );
   }
   return (
-    <div className="flex flex-col gap-3">
-      <p className="text-body text-fg-muted">{t("spaces.inside.dataLead")}</p>
-      <Field id="space-inside-type" label={t("spaces.inside.dataType")} className="w-fit">
-        <Select
-          id="space-inside-type"
-          value={type}
-          onChange={(event) => {
-            setChosen(event.target.value);
-            applyView(null);
-            setSeen([]);
-          }}
-        >
-          {types.map((each) => (
-            <option key={each} value={each}>
-              {each}
-            </option>
-          ))}
-        </Select>
-      </Field>
+    // Baserow's shape (T-4825): the types and their saved views on the left, the rows beside them.
+    <div className="grid gap-4 lg:grid-cols-[14rem_minmax(0,1fr)]">
+      <TypeList
+        project={project}
+        space={space}
+        types={types}
+        type={type}
+        titleOf={titleOf}
+        selected={saved}
+        onType={(next) => {
+          if (next === type) return;
+          setType(next);
+          applyView(null);
+          setSeen([]);
+        }}
+        onView={applyView}
+      />
+      <div className="flex min-w-0 flex-col gap-3">
       {model && modelSource !== undefined && ownClass ? (
         <div className="flex flex-col gap-2">
           <PermissionGuard project={project} kind="DataModel" verb="propose">
@@ -712,7 +719,92 @@ function SpaceData({
         />
         </div>
       ) : null}
+      {footer}
+      </div>
     </div>
+  );
+}
+
+/**
+ * The space's entity types, each a button that opens it, and under the open one its saved views
+ * (API/01 §30): the left list of the data workspace (T-4825). The views come from the same query
+ * the view bar reads, so a view saved there appears here at once.
+ */
+function TypeList({
+  project,
+  space,
+  types,
+  type,
+  titleOf,
+  selected,
+  onType,
+  onView,
+}: {
+  project: string;
+  space: string;
+  types: string[];
+  type: string;
+  titleOf: (type: string) => string;
+  selected: SavedView | null;
+  onType: (type: string) => void;
+  onView: (view: SavedView | null) => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const views = useQuery({
+    queryKey: dataViewsKey(project, space),
+    retry: false,
+    queryFn: () => listViews(project, space),
+  });
+  const ofType = (views.data ?? []).filter((view) => view.type === type);
+  const item = (current: boolean) =>
+    clsx("w-full justify-start truncate text-left text-body", current && "bg-primary-soft font-medium text-primary-soft-fg");
+  return (
+    <nav aria-label={t("spaces.inside.types")} className="lg:border-r lg:border-border lg:pr-3">
+      <ul className="flex flex-col gap-0.5">
+        {types.map((each) => (
+          <li key={each}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={item(each === type)}
+              aria-current={each === type ? "true" : undefined}
+              title={each}
+              onClick={() => onType(each)}
+            >
+              {titleOf(each)}
+            </Button>
+            {each === type ? (
+              <ul aria-label={t("spaces.inside.savedViews")} className="ml-3 mt-0.5 flex flex-col gap-0.5 border-l border-border pl-2">
+                <li>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={item(selected === null)}
+                    aria-current={selected === null ? "true" : undefined}
+                    onClick={() => onView(null)}
+                  >
+                    {t("spaces.inside.allRows")}
+                  </Button>
+                </li>
+                {ofType.map((view) => (
+                  <li key={view.id}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={item(selected?.id === view.id)}
+                      aria-current={selected?.id === view.id ? "true" : undefined}
+                      onClick={() => onView(view)}
+                    >
+                      {view.title}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </nav>
   );
 }
 
@@ -972,6 +1064,9 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   // What the whole space holds, the broker's count (T-2889); the table below breaks it down by
   // type through the person's own endpoint.
   const usage = useQuery(spaceUsageQuery(project, name));
+  // The page opens on the rows; the model, quality, retention, endpoints and policies are tabs
+  // beside them, kept in the address (T-4825: the whole model came before the grid, 14,515 px).
+  const [tab, setTab] = useUrlParam<SpaceTab>("tab", "data", SPACE_TABS);
 
   const space = useQuery({
     queryKey: queryKeys.resource(project, "spaces", name),
@@ -1072,37 +1167,35 @@ export function SpaceInside({ project, name }: { project: string; name: string }
         />
       ) : null}
 
+      <Tabs
+        id="space-inside"
+        label={t("spaces.inside.sections")}
+        tabs={SPACE_TABS.map((value) => ({ value, label: t(TAB_LABELS[value]) }))}
+        value={tab}
+        onChange={setTab}
+      />
+
+      {tab === "data" ? (
+        <div {...tabPanelProps("space-inside", tab)}>
+          <SpaceData
+            project={project}
+            space={name}
+            types={types}
+            endpoints={spaceEndpoints}
+            model={model}
+            retention={rulesOf(manifest)}
+            footer={<SpaceTotal usage={usage} />}
+          />
+        </div>
+      ) : null}
+
+      {tab === "model" ? (
+        <div {...tabPanelProps("space-inside", tab)} className="space-y-6">
       <Section title={t("spaces.inside.model")}>
         <SpaceModel project={project} space={name} model={model} models={models} />
       </Section>
 
       <Section title={<Term name="entityType">{t("spaces.inside.types")}</Term>}>
-        {usage.data !== undefined ? (
-          <>
-            <p className="mb-3 text-body text-fg" data-testid="space-total">
-              {t("spaces.inside.total", { count: usage.data.entities })}
-            </p>
-            {usage.data.bytes ? (
-              <p
-                className="mb-3 text-body text-fg"
-                data-testid="space-size"
-                title={exactBytes(usage.data.bytes.entities + usage.data.bytes.attrInstances, i18n.language)}
-              >
-                {t("spaces.inside.totalSize", {
-                  size: sizeText(usage.data.bytes.entities + usage.data.bytes.attrInstances, i18n.language),
-                  history: sizeText(usage.data.bytes.attrInstances, i18n.language),
-                })}
-              </p>
-            ) : null}
-            <p className="mb-3 text-caption text-fg-muted" data-testid="space-broker">
-              {t("spaces.inside.broker", { broker: usage.data.broker })}
-            </p>
-          </>
-        ) : usage.isError ? (
-          <p className="mb-3 text-body text-fg-muted" data-testid="space-total">
-            {t("spaces.entitiesUnknown", { reason: usageRefusal(usage.error) })}
-          </p>
-        ) : null}
         {model === undefined ? (
           <SectionState query={models} empty={t("spaces.inside.noModel")} />
         ) : types.length === 0 ? (
@@ -1162,25 +1255,29 @@ export function SpaceInside({ project, name }: { project: string; name: string }
         )}
       </Section>
 
-      <Section title={t("spaces.inside.data")}>
-        <SpaceData project={project} space={name} types={types} endpoints={spaceEndpoints} model={model} retention={rulesOf(manifest)} />
-      </Section>
-
-      <Section title={t("spaces.quality.title")}>
-        <div className="space-y-4">
-          <SpaceQuality project={project} space={name} />
-          <SpaceChecks project={project} space={name} />
         </div>
-      </Section>
+      ) : null}
 
-      <Section title={t("spaces.retention.title")}>
-        <SpaceRetention project={project} space={name} manifest={manifest} types={types} />
-      </Section>
+      {tab === "quality" ? (
+        <div {...tabPanelProps("space-inside", tab)} className="space-y-6">
+          <div className="space-y-4">
+            <SpaceQuality project={project} space={name} />
+            <SpaceChecks project={project} space={name} />
+          </div>
+          <Section title={t("drift.section.title")}>
+            <SpaceDrift project={project} space={name} />
+          </Section>
+        </div>
+      ) : null}
 
-      <Section title={t("drift.section.title")}>
-        <SpaceDrift project={project} space={name} />
-      </Section>
+      {tab === "retention" ? (
+        <div {...tabPanelProps("space-inside", tab)}>
+          <SpaceRetention project={project} space={name} manifest={manifest} types={types} />
+        </div>
+      ) : null}
 
+      {tab === "endpoints" ? (
+      <div {...tabPanelProps("space-inside", tab)}>
       <Section title={<Term name="endpoint">{t("endpoints.title")}</Term>}>
         {spaceEndpoints.length === 0 ? (
           <SectionState query={endpoints} empty={t("spaces.inside.noEndpoints")} />
@@ -1238,7 +1335,11 @@ export function SpaceInside({ project, name }: { project: string; name: string }
           </Table>
         )}
       </Section>
+      </div>
+      ) : null}
 
+      {tab === "policies" ? (
+      <div {...tabPanelProps("space-inside", tab)}>
       <Section title={<Term name="policy">{t("spaces.inside.policies")}</Term>}>
         {spacePolicies.length === 0 ? (
           <SectionState query={policies} empty={t("spaces.inside.noPolicies")} />
@@ -1291,10 +1392,58 @@ export function SpaceInside({ project, name }: { project: string; name: string }
           </Table>
         )}
       </Section>
+      </div>
+      ) : null}
 
-      <Section title={t("activity.panelTitle")}>
-        <ActivityFeed project={project} compact fixed={{ space: name }} limit={10} />
-      </Section>
+      {tab === "activity" ? (
+        <div {...tabPanelProps("space-inside", tab)}>
+          <ActivityFeed project={project} compact fixed={{ space: name }} limit={10} />
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+const SPACE_TABS = ["data", "model", "quality", "retention", "endpoints", "policies", "activity"] as const;
+type SpaceTab = (typeof SPACE_TABS)[number];
+const TAB_LABELS: Record<SpaceTab, string> = {
+  data: "spaces.inside.data",
+  model: "spaces.inside.model",
+  quality: "spaces.quality.title",
+  retention: "spaces.retention.title",
+  endpoints: "endpoints.title",
+  policies: "spaces.inside.policies",
+  activity: "activity.panelTitle",
+};
+
+/**
+ * What the whole space holds, the broker's count (T-2889), under the rows like a table's row
+ * count: counting, the count with its size and broker, or why there is none (T-4825).
+ */
+function SpaceTotal({ usage }: { usage: UseQueryResult<SpaceUsage> }): JSX.Element {
+  const { t, i18n } = useTranslation();
+  if (usage.data !== undefined) {
+    const { bytes } = usage.data;
+    return (
+      <footer className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-2 text-caption text-fg-muted">
+        <span className="text-body text-fg" data-testid="space-total">
+          {t("spaces.inside.total", { count: usage.data.entities })}
+        </span>
+        {bytes ? (
+          <span data-testid="space-size" title={exactBytes(bytes.entities + bytes.attrInstances, i18n.language)}>
+            {t("spaces.inside.totalSize", {
+              size: sizeText(bytes.entities + bytes.attrInstances, i18n.language),
+              history: sizeText(bytes.attrInstances, i18n.language),
+            })}
+          </span>
+        ) : null}
+        <span data-testid="space-broker">{t("spaces.inside.broker", { broker: usage.data.broker })}</span>
+      </footer>
+    );
+  }
+  return (
+    <footer className="border-t border-border pt-2 text-body text-fg-muted" data-testid="space-total" role="status">
+      {usage.isError ? t("spaces.entitiesUnknown", { reason: usageRefusal(usage.error) }) : t("spaces.inside.counting")}
+    </footer>
   );
 }

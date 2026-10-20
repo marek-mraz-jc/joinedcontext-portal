@@ -110,7 +110,7 @@ describe("the drift list as the page reads it", () => {
 describe("drift on the space page (T-2867)", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
-    window.history.pushState({}, "", "/projects/banskabystrica/spaces/ovzdusie");
+    window.history.pushState({}, "", "/projects/banskabystrica/spaces/ovzdusie?tab=quality");
   });
   afterEach(() => {
     vi.unstubAllGlobals();

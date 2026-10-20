@@ -7,7 +7,7 @@
  * second endpoint they already have. It also hand-made its type chooser and painted eleven
  * strings with `text-surface-fg/70`, a token diluted by opacity rather than the muted token.
  */
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createRootRoute, createRouter } from "@tanstack/react-router";
@@ -65,7 +65,9 @@ function hangs(): Promise<Response> {
   return new Promise<Response>(() => undefined);
 }
 
-function show(answers: Partial<Record<string, Answer>> = {}, hanging: string[] = []) {
+function show(answers: Partial<Record<string, Answer>> = {}, hanging: string[] = [], tab = "") {
+  // The tab is in the address (T-4825); each render starts from its own.
+  window.history.replaceState({}, "", tab ? `/?tab=${tab}` : "/");
   const given = { ...OK, ...answers };
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const url = new URL(input instanceof Request ? input.url : String(input), window.location.origin);
@@ -78,7 +80,9 @@ function show(answers: Partial<Record<string, Answer>> = {}, hanging: string[] =
           ? "endpoints"
           : path.endsWith("/policies")
             ? "policies"
-            : "other";
+            : path.endsWith("/usage")
+              ? "usage"
+              : "other";
     if (hanging.includes(key)) {
       return hangs();
     }
@@ -122,13 +126,13 @@ describe("what a space holds, against the UI contract", () => {
   });
 
   it("says an endpoint list that failed is a failure, not an empty space", async () => {
-    show({ endpoints: problem("your role does not permit reading endpoints") });
+    show({ endpoints: problem("your role does not permit reading endpoints") }, [], "endpoints");
     expect(await screen.findByText("your role does not permit reading endpoints")).toBeInTheDocument();
     expect(screen.queryByText(en.spaces.inside.noEndpoints)).toBeNull();
   });
 
   it("offers to read the failed list again, and asks again when pressed", async () => {
-    const { fetchMock, user } = show({ policies: problem("the policy store is not answering", 503) });
+    const { fetchMock, user } = show({ policies: problem("the policy store is not answering", 503) }, [], "policies");
     await screen.findByText("the policy store is not answering");
     const before = fetchMock.mock.calls.length;
     await user.click(screen.getAllByRole("button", { name: en.app.error.retry })[0]);
@@ -158,25 +162,70 @@ describe("what a space holds, against the UI contract", () => {
     expect(fetchMock.mock.calls.length).toBeGreaterThan(before);
   });
 
-  it("chooses the entity type through a labelled, shared select", async () => {
-    show();
-    const select = await screen.findByLabelText(en.spaces.inside.dataType);
-    expect(select.tagName).toBe("SELECT");
-    expect(select).toHaveClass("focus-ring");
-    expect([...select.querySelectorAll("option")].map((option) => option.value)).toEqual([
-      "AirQualityObserved",
-      "AirQualityStation",
+  // T-4825: Baserow's shape. The page lands on the rows, the types in a left list, and the
+  // model, quality, retention, endpoints and policies are tabs kept in the address.
+  it("lands on the rows with the types in a left list and the rest as tabs", async () => {
+    const { user } = show();
+    const tabs = await screen.findAllByRole("tab");
+    expect(tabs.slice(0, 7).map((tab) => tab.textContent)).toEqual([
+      en.spaces.inside.data,
+      en.spaces.inside.model,
+      en.spaces.quality.title,
+      en.spaces.retention.title,
+      en.endpoints.title,
+      en.spaces.inside.policies,
+      en.activity.panelTitle,
     ]);
+    expect(screen.getByRole("tab", { name: en.spaces.inside.data })).toHaveAttribute("aria-selected", "true");
+    const list = await screen.findByRole("navigation", { name: en.spaces.inside.types });
+    const observed = within(list).getByRole("button", { name: "AirQualityObserved" });
+    expect(observed).toHaveAttribute("aria-current", "true");
+    expect(observed).toHaveClass("focus-ring");
+    // The open type carries its saved views, "All rows" first and chosen.
+    const views = within(list).getByRole("list", { name: en.spaces.inside.savedViews });
+    expect(within(views).getByRole("button", { name: en.spaces.inside.allRows })).toHaveAttribute("aria-current", "true");
+    // The model's types table is not on the landing page any more.
+    expect(screen.queryByRole("table", { name: en.spaces.inside.types })).toBeNull();
+
+    await user.click(within(list).getByRole("button", { name: "AirQualityStation" }));
+    expect(new URLSearchParams(window.location.search).get("type")).toBe("AirQualityStation");
+    expect(within(list).getByRole("button", { name: "AirQualityStation" })).toHaveAttribute("aria-current", "true");
+  });
+
+  it("opens the tab the address names, and a click puts the tab in the address", async () => {
+    const { user } = show({}, [], "model");
+    expect(await screen.findByRole("table", { name: en.spaces.inside.types })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: en.spaces.inside.types })).toBeNull();
+    await user.click(screen.getByRole("tab", { name: en.spaces.retention.title }));
+    expect(new URLSearchParams(window.location.search).get("tab")).toBe("retention");
+    expect(screen.getByRole("tab", { name: en.spaces.retention.title })).toHaveAttribute("aria-selected", "true");
+    await user.click(screen.getByRole("tab", { name: en.spaces.inside.data }));
+    expect(new URLSearchParams(window.location.search).get("tab")).toBeNull();
+  });
+
+  it("says the count is on its way, then the count, or why there is none (503)", async () => {
+    const counting = show({}, ["usage"]);
+    expect(await screen.findByTestId("space-total")).toHaveTextContent(en.spaces.inside.counting);
+    counting.unmount();
+    vi.unstubAllGlobals();
+
+    const counted = show({ usage: { status: 200, body: { entities: 532, broker: "main", observedAt: "2026-10-20T16:00:00Z" } } });
+    expect(await screen.findByTestId("space-total")).toHaveTextContent("The space holds 532 entities.");
+    counted.unmount();
+    vi.unstubAllGlobals();
+
+    show({ usage: { status: 503, body: { title: "Service Unavailable", status: 503, detail: "the broker took longer than 20 s to count the space; try again in a minute" } } });
+    expect(await screen.findByTestId("space-total")).toHaveTextContent("the broker took longer than 20 s to count the space");
   });
 
   it("has no axe violation, loaded and with a section that failed", async () => {
     const loaded = show();
-    await screen.findByLabelText(en.spaces.inside.dataType);
+    await screen.findByRole("navigation", { name: en.spaces.inside.types });
     await expectNoViolations(loaded.container);
     loaded.unmount();
     vi.unstubAllGlobals();
 
-    const failed = show({ endpoints: problem("not yours") });
+    const failed = show({ endpoints: problem("not yours") }, [], "endpoints");
     await screen.findByText("not yours");
     await expectNoViolations(failed.container);
   });
@@ -184,11 +233,14 @@ describe("what a space holds, against the UI contract", () => {
   it("shows no raw translation key in any locale the organisation offers", async () => {
     for (const locale of SUPPORTED_LOCALES) {
       await i18n.changeLanguage(locale);
-      const { container, unmount } = show();
-      await screen.findAllByRole("table");
-      expectNoRawKeys(container);
-      unmount();
-      vi.unstubAllGlobals();
+      for (const tab of ["", "model"]) {
+        const { container, unmount } = show({}, [], tab);
+        if (tab) await screen.findAllByRole("table");
+        else await screen.findByTestId("space-total");
+        expectNoRawKeys(container);
+        unmount();
+        vi.unstubAllGlobals();
+      }
     }
     await i18n.changeLanguage("en");
   });

@@ -3,9 +3,13 @@
  * tests/roles_matrix_tests.rs, the Portal offers a control exactly when the API takes the action.
  */
 import { describe, expect, it } from "vitest";
-import { approvalStanding, proposeStanding } from "../src/api/approval";
+import { approvalStanding, isAccessKind, proposeStanding } from "../src/api/approval";
 import { allows } from "../src/api/permissions";
 import type { Effective, Verb } from "../src/api/permissions";
+import cs from "../src/locales/cs.json";
+import de from "../src/locales/de.json";
+import en from "../src/locales/en.json";
+import sk from "../src/locales/sk.json";
 
 const KINDS = ["Endpoint", "Pipeline", "DataSource", "DataModel", "RoleBinding", "Dashboard", "App"];
 
@@ -53,7 +57,13 @@ describe("the controls each role is offered", () => {
         expect(other.block).toBe(ROLES[role].includes("approve") ? null : "needsRole");
 
         const own = approvalStanding(permissions, `${role}@hel.fi`, change(kind, `${role}@hel.fi`));
-        const expected = !ROLES[role].includes("approve") ? "needsRole" : ROLES[role].includes("delete") ? null : "ownProposal";
+        const expected = !ROLES[role].includes("approve")
+          ? "needsRole"
+          : isAccessKind(kind)
+            ? "ownAccessChange"
+            : ROLES[role].includes("delete")
+              ? null
+              : "ownProposal";
         expect(own.block).toBe(expected);
         expect(own.ownAsAdministrator).toBe(expected === null);
       });
@@ -141,7 +151,32 @@ describe("what proposing leads to for each role", () => {
     ["admin", "approvedOnPropose"],
   ] as const)("%s: %s", (role, expected) => {
     for (const kind of KINDS) {
-      expect(proposeStanding(effective(role), kind), kind).toBe(expected);
+      expect(proposeStanding(effective(role), kind), kind).toBe(expected && isAccessKind(kind) ? "secondApprover" : expected);
+    }
+  });
+
+  // PF-58, T-4833: access is approved by a second person, so even an administrator's own change
+  // to a role, binding, group or service account waits, and the form and the approval page say so.
+  it.each(["Role", "RoleBinding", "Group", "ServiceAccount"])("an administrator's own %s waits for a second person", (kind) => {
+    const data: Effective = {
+      bootstrap: false,
+      project: "helsinki",
+      grants: [{ binding: "admins", role: "admin", scope: "organization", rule: { kinds: [kind], verbs: ROLES.admin } as never }],
+    };
+    const permissions = { data, can: (k: string, verb: Verb) => allows(data, k, verb) };
+    expect(proposeStanding(data, kind)).toBe("secondApprover");
+    expect(approvalStanding(permissions, "admin@hel.fi", change(kind, "admin@hel.fi"))).toEqual({
+      block: "ownAccessChange",
+      ownAsAdministrator: false,
+    });
+    expect(approvalStanding(permissions, "admin@hel.fi", change(kind, "other@hel.fi")).block).toBeNull();
+  });
+
+  it("the copy names the second person in every language", () => {
+    for (const [lang, messages] of Object.entries({ en, sk, cs, de })) {
+      expect(messages.changes.secondApprover, lang).toContain("{kind}");
+      expect(messages.approvals.ownAccessChange, lang).toBeTruthy();
+      expect(messages.changes.approvedOnPropose, lang).toBeTruthy();
     }
   });
 

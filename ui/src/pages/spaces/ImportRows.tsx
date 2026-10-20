@@ -218,12 +218,10 @@ function MapStep({
         </summary>
         <Table caption={t("spaces.import.previewCaption")} maxHeight="max-h-80">
           <TableHead>
-            <TableRow>
-              <TableHeaderCell>#</TableHeaderCell>
-              {table.columns.map((column) => (
-                <TableHeaderCell key={column}>{column}</TableHeaderCell>
-              ))}
-            </TableRow>
+            <TableHeaderCell>#</TableHeaderCell>
+            {table.columns.map((column) => (
+              <TableHeaderCell key={column}>{column}</TableHeaderCell>
+            ))}
           </TableHead>
           <TableBody>
             {table.rows.slice(0, PREVIEW_ROWS).map((row, at) => (
@@ -241,11 +239,9 @@ function MapStep({
       </details>
       <Table caption={t("spaces.import.mapping")} maxHeight="max-h-80">
         <TableHead>
-          <TableRow>
-            <TableHeaderCell>{t("spaces.import.column")}</TableHeaderCell>
-            <TableHeaderCell>{t("spaces.import.field")}</TableHeaderCell>
-            <TableHeaderCell>{t("spaces.import.sample")}</TableHeaderCell>
-          </TableRow>
+          <TableHeaderCell>{t("spaces.import.column")}</TableHeaderCell>
+          <TableHeaderCell>{t("spaces.import.field")}</TableHeaderCell>
+          <TableHeaderCell>{t("spaces.import.sample")}</TableHeaderCell>
         </TableHead>
         <TableBody>
           {table.columns.map((column, at) => {

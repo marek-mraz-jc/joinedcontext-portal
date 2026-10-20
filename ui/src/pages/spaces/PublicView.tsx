@@ -239,12 +239,10 @@ export function PublicViewPage({ slug }: { slug: string }): JSX.Element {
           </p>
           <Table caption={type}>
             <TableHead>
-              <TableRow>
-                <TableHeaderCell>{t("entityGrid.id")}</TableHeaderCell>
-                {columns.map((column) => (
-                  <TableHeaderCell key={column}>{column}</TableHeaderCell>
-                ))}
-              </TableRow>
+              <TableHeaderCell>{t("entityGrid.id")}</TableHeaderCell>
+              {columns.map((column) => (
+                <TableHeaderCell key={column}>{column}</TableHeaderCell>
+              ))}
             </TableHead>
             <TableBody>
               {rows.data.map((row) => (

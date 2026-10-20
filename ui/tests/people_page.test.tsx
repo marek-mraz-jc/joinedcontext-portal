@@ -160,7 +160,7 @@ describe("Organization → People", () => {
     renderPage(<People />, { path: "/organization/people", answer: answer(sent, { verbs: ["update"] }) });
 
     expect(await screen.findByText(P.hidden)).toBeInTheDocument();
-    expectDenied(screen.getByRole("button", { name: P.new }), /create/);
+    expectDenied(screen.getByRole("button", { name: P.new }), "Only an organization administrator can add people.");
     expect(sent).toEqual([]);
   });
 
@@ -301,7 +301,7 @@ describe("a person's page", () => {
     const sent: Sent[] = [];
     renderPage(<PersonPage id="jana-id" />, { path: "/organization/people/jana-id", answer: answer(sent, { verbs: ["read"] }) });
 
-    const reason = /Disabled: your role does not permit/;
+    const reason = /^Only an organization administrator can /;
     await waitFor(() => expectDenied(screen.getByRole("button", { name: P.action.disable }), reason));
     for (const action of ["reset-password", "remove-second-factor", "sign-out", "delete"] as const) {
       expectDenied(screen.getByRole("button", { name: P.action[action] }), reason);
