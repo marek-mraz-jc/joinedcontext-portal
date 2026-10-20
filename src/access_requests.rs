@@ -455,7 +455,7 @@ macro_rules! select {
 
 /// Stores a new request; `Ok(false)` when the pipeline already has an open or granted one for
 /// that Endpoint (PL-90).
-pub async fn insert(pool: &PgPool, request: &AccessRequest) -> Result<bool, sqlx::Error> {
+pub(crate) async fn insert(pool: &PgPool, request: &AccessRequest) -> Result<bool, sqlx::Error> {
     let done = sqlx::query(
         "INSERT INTO access_requests (id, project, pipeline, endpoint_project, endpoint, space, operations, \
            types, until, reason, state, requested_by, requested_at) \
@@ -524,7 +524,7 @@ pub async fn outgoing(
 
 /// Moves a request from `from` to `to`, recording who decided, why and the Change; `Ok(false)`
 /// when it was no longer in `from` (another owner decided first).
-pub async fn decide(
+pub(crate) async fn decide(
     pool: &PgPool,
     id: &str,
     (from, to): (&str, &str),
