@@ -100,6 +100,12 @@
     "home": "Start",
     "inbox": "Eingang",
     "mqttbrokers": "MQTT-Broker",
+    "knowledgesources": "Wissensquellen",
+    "assistantdeployments": "Assistenten-Bereitstellungen",
+    "datamodels": "Datenmodelle",
+    "serviceaccounts": "Dienstkonten",
+    "mappings": "Zuordnungen",
+    "layers": "Kartenebenen",
     "csrs": "Kontextquellen"
   },
   "auth": {
@@ -3846,6 +3852,10 @@
     "factorFor": "Umrechnungsfaktor für {slot}",
     "golden": "Golden Test",
     "input": "Eingabebeispiel (JSON)",
+    "inputHelp": "Ein Quelldatensatz als JSON, etwa eine Entität, die die Quelle sendet; die Ausgabe daneben zeigt, was die Zuordnung daraus macht.",
+    "sourceHelp": "Das Modell, in dem die Datensätze ankommen.",
+    "targetHelp": "Das Modell, in das die Datensätze umgewandelt werden.",
+    "nameHelp": "Der Name der Zuordnung im Projekt: Kleinbuchstaben, Ziffern und Bindestriche; die Dateien des Golden-Tests heißen danach.",
     "output": "Transformierte Ausgabe",
     "unchecked": "Hier nicht ausgewertet, sie stammen aus nativem Bloblang: {slots}. CI führt sie über Bento aus.",
     "missing": "Das Eingabebeispiel enthält keinen Wert für: {slots}.",
@@ -3977,7 +3987,9 @@
     "nameInvalid": "Kleinbuchstaben, Ziffern und Bindestriche, am Anfang und am Ende ein Buchstabe oder eine Ziffer.",
     "nameReserved": "„org“ ist der eigene Namensraum der Organisation, nie ein Projekt.",
     "displayNameLabel": "Anzeigename",
+    "displayNameHint": "Der Name, den man im Projektmenü und im Katalog liest; leer gelassen, wird der Name oben gezeigt.",
     "descriptionLabel": "Beschreibung",
+    "descriptionHint": "Ein Satz dazu, wofür das Projekt da ist, unter seinem Namen in der Projektliste.",
     "notAllowed": "Diese Organisation lässt Sie kein Projekt eröffnen.",
     "nameNeeded": "Für ein neues Projekt wird ein verwendbarer Name benötigt.",
     "planLocked": "Schließen Sie den Dialog und beginnen Sie neu, um das zu ändern; der Plan wurde dafür erstellt."
@@ -4042,6 +4054,7 @@
     "filterRow": "Filter",
     "sortPage": "Diese Seite sortieren nach",
     "matching": "passend",
+    "noTotal": "der Endpoint nennt für diese Antwort keine Gesamtzahl",
     "history": "Verlauf",
     "historyWindow": {
       "hour": "Letzte Stunde",
@@ -4781,7 +4794,8 @@
       "green": "Geprüft {age}",
       "red": "Prüfung fehlgeschlagen {age}",
       "stale": "Seit der Prüfung geändert",
-      "waiting": "Besteht, sobald {changes} freigegeben ist · geprüft {age}"
+      "waiting": "Besteht, sobald {changes} freigegeben ist · geprüft {age}",
+      "refused": "Prüfung fehlgeschlagen: Grund siehe unten"
     },
     "proposeReason": {
       "none": "Führen Sie zuerst die Prüfung aus: Ohne frisches grünes Urteil wird nichts vorgeschlagen.",

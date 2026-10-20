@@ -4,7 +4,7 @@ import { I18nextProvider } from "react-i18next";
 import { describe, expect, it } from "vitest";
 import i18n from "../src/i18n";
 import { SchemaForm } from "../src/components/forms/SchemaForm";
-import { arrange, index, localized, mergeUi, paths, requiredProgress } from "../src/components/forms/uischema";
+import { arrange, index, localized, mergeUi, paths, requiredProgress, prefilled } from "../src/components/forms/uischema";
 import type { UiSchemaManifest } from "../src/components/forms/uischema";
 import type { JsonSchema } from "../src/components/forms/types";
 import en from "../src/locales/en.json";
@@ -689,5 +689,19 @@ describe("a page's uiSchema over the kind's arrangement (T-2754)", () => {
     });
     expect(mergeUi({ a: 1 }, undefined)).toEqual({ a: 1 });
     expect(mergeUi(undefined, { a: 1 })).toEqual({ a: 1 });
+  });
+});
+
+describe("a required field the form fills by itself (T-4824)", () => {
+  it("counts a default, or an object whose every required field has one, as filled", () => {
+    expect(prefilled({ type: "string", default: "PT20M" })).toBe(true);
+    expect(
+      prefilled({ type: "object", required: ["cpu", "memory"], properties: { cpu: { default: "1" }, memory: { default: "2Gi" } } }),
+    ).toBe(true);
+    // One required field without a default is a field the person types: its group stays open.
+    expect(prefilled({ type: "object", required: ["image", "digest"], properties: { image: { default: "x" }, digest: {} } })).toBe(false);
+    expect(prefilled({ type: "object", properties: { cpu: { default: "1" } } })).toBe(false);
+    expect(prefilled({ type: "string" })).toBe(false);
+    expect(prefilled(undefined)).toBe(false);
   });
 });
