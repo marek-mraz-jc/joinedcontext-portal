@@ -639,10 +639,9 @@ checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
 [[package]]
 name = "context-gateway"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=ec14de84f5dfdd3822e39891cf0e2bbc205a86b7#ec14de84f5dfdd3822e39891cf0e2bbc205a86b7"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=7ef8df50e96e417f5b645ec1a3fdb0f18d2f3535#7ef8df50e96e417f5b645ec1a3fdb0f18d2f3535"
 dependencies = [
  "arc-swap",
- "argon2",
  "axum",
  "base64 0.22.1",
  "chrono",
@@ -653,6 +652,7 @@ dependencies = [
  "jc-core",
  "jc-dcat",
  "jc-manifest",
+ "jc-relationships",
  "jsonschema",
  "jsonwebtoken",
  "metrics",
@@ -670,6 +670,7 @@ dependencies = [
  "serde_norway",
  "strsim",
  "thiserror 2.0.20",
+ "tikv-jemallocator",
  "tokio",
  "tokio-tungstenite",
  "tower",
@@ -2450,7 +2451,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "jc-core"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=ec14de84f5dfdd3822e39891cf0e2bbc205a86b7#ec14de84f5dfdd3822e39891cf0e2bbc205a86b7"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=7ef8df50e96e417f5b645ec1a3fdb0f18d2f3535#7ef8df50e96e417f5b645ec1a3fdb0f18d2f3535"
 dependencies = [
  "arc-swap",
  "axum",
@@ -2460,6 +2461,7 @@ dependencies = [
  "jsonschema",
  "jsonwebtoken",
  "regex",
+ "reqwest",
  "schemars 0.8.22",
  "serde",
  "serde_json",
@@ -2476,7 +2478,7 @@ dependencies = [
 [[package]]
 name = "jc-dcat"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=ec14de84f5dfdd3822e39891cf0e2bbc205a86b7#ec14de84f5dfdd3822e39891cf0e2bbc205a86b7"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=7ef8df50e96e417f5b645ec1a3fdb0f18d2f3535#7ef8df50e96e417f5b645ec1a3fdb0f18d2f3535"
 dependencies = [
  "jc-core",
  "serde_json",
@@ -2485,7 +2487,7 @@ dependencies = [
 [[package]]
 name = "jc-manifest"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=ec14de84f5dfdd3822e39891cf0e2bbc205a86b7#ec14de84f5dfdd3822e39891cf0e2bbc205a86b7"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=7ef8df50e96e417f5b645ec1a3fdb0f18d2f3535#7ef8df50e96e417f5b645ec1a3fdb0f18d2f3535"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -2502,9 +2504,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "jc-relationships"
+version = "0.1.0"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=7ef8df50e96e417f5b645ec1a3fdb0f18d2f3535#7ef8df50e96e417f5b645ec1a3fdb0f18d2f3535"
+dependencies = [
+ "jc-core",
+ "serde_json",
+]
+
+[[package]]
 name = "jcctl"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=ec14de84f5dfdd3822e39891cf0e2bbc205a86b7#ec14de84f5dfdd3822e39891cf0e2bbc205a86b7"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=7ef8df50e96e417f5b645ec1a3fdb0f18d2f3535#7ef8df50e96e417f5b645ec1a3fdb0f18d2f3535"
 dependencies = [
  "aes-gcm",
  "age",
@@ -5527,6 +5538,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ad99c4c6d32803332c548b1af0540b357b3f5fc0be8f6c6bfe8b2e6ae784070"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "tikv-jemalloc-sys"
+version = "0.7.1+5.3.1-0-g81034ce1f1373e37dc865038e1bc8eeecf559ce8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a2825c78386b4ae0314074867860ba9577875de945f05992c38815cbec327f0"
+dependencies = [
+ "cc",
+ "libc",
+]
+
+[[package]]
+name = "tikv-jemallocator"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "249f09e49ab1609436f34c776e84231bead18d6a955f119f939bdc1d847561bd"
+dependencies = [
+ "libc",
+ "tikv-jemalloc-sys",
 ]
 
 [[package]]
