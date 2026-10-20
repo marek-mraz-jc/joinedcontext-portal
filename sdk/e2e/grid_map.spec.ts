@@ -74,7 +74,7 @@ function Harness() {
         // The grid's own review dialog is covered by the unit tests; what this page proves is that
         // the pending geometry reaches the source as a GeoProperty.
         const pending = window.kitPending ?? [];
-        await applyChanges({ source, entities: pending, observed: "keep" });
+        await applyChanges({ reason: "Sensor stuck", source, entities: pending, observed: "keep" });
         setApplied(JSON.stringify(sent));
       },
     }, "apply through the source"),

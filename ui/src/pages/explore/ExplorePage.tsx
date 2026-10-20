@@ -7,14 +7,13 @@ import { parseGridConfig } from "@joinedcontext/sdk";
 import type { GridState, ResolvedGridConfig, RichRow } from "@joinedcontext/sdk";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized, refName } from "../../api/manifest";
-import { AccessPanel, deniedAttributes, useAccess } from "../../components/entities/AccessPanel";
+import { AccessPanel, deniedAttributes, editableAttributes, useAccess } from "../../components/entities/AccessPanel";
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { deleteEntity, enumsOfModel, fetchEntity, filterSlotsOf, qProblem, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import type { EntityQuery } from "../../components/entities/filters";
 import { Alert, Button, Dialog, EmptyState, Field, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
 import { TypeQuality } from "./TypeQuality";
-import { writesOf } from "../access/EffectivePermissions";
 import { TypeLink } from "../models/ModelLinks";
 import { localId } from "../apps/QueryResultCard";
 import { ExportView } from "./ExportView";
@@ -184,29 +183,11 @@ export function ExplorePage({
         (entry.resource?.type === undefined || entry.resource.type === query.type) &&
         (entry.actions ?? []).some((action) => action === "deleteEntity" || action === "deleteBatch"),
     );
-  /**
-   * The attributes this person may correct in place: the model's own slots, minus what the grant
-   * hides, and only where the grant names a write on this type. Unlike the delete above, an edit
-   * cell is offered only when the grant says yes — a cell that takes a value the endpoint will
-   * refuse loses the person's typing, while a disabled button loses nothing (UI-67).
-   */
-  const editableAttrs = useMemo(() => {
-    const grants = (access.data?.permissions ?? []).filter(
-      (entry) =>
-        (entry.resource?.type === undefined || entry.resource.type === query.type) &&
-        writesOf(entry.actions ?? []).length > 0,
-    );
-    if (grants.length === 0) {
-      return [];
-    }
-    const named = new Set(grants.flatMap((entry) => (Array.isArray(entry.attributes) ? entry.attributes : [])));
-    const unlimited = grants.some((entry) => entry.attributes === "*" || entry.attributes === undefined);
-    // A formula field is its pipeline's to write (DM-80): shown, never edited in place.
-    return slots
-      .filter((slot) => !slot.formula)
-      .map((slot) => slot.name)
-      .filter((attr) => !denied[attr] && (unlimited || named.has(attr)));
-  }, [access.data, query.type, slots, denied]);
+  // The attributes this person may correct in place, by the endpoint's own grant (UI-67).
+  const editableAttrs = useMemo(
+    () => editableAttributes(access.data, query.type, slots, denied),
+    [access.data, query.type, slots, denied],
+  );
 
   /**
    * What the grid is told to show. The endpoint is a slug and never a URL (EP-55), and the filters
