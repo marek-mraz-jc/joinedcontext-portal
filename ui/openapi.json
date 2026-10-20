@@ -11036,6 +11036,59 @@
         }
       }
     },
+    "/api/v1/projects/{project}/mqtt/allowance": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "The Project's MQTT Allowance",
+        "description": "What the project may run as MQTT edge brokers and what its committed brokers use of it (API/01 §47, PF-117, PF-118). Whoever may read the project. Written only as Organization spec.limits.mqtt or Project spec.quotas.mqtt, by an org admin.",
+        "operationId": "get_allowance",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The allowance and its usage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Allowance"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project, or not readable by the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/mqttbrokers/{name}/measured": {
       "get": {
         "tags": [
@@ -17600,6 +17653,76 @@
           }
         }
       },
+      "Allowance": {
+        "type": "object",
+        "description": "The project's MQTT allowance and its usage (API/01 §47).",
+        "required": [
+          "enabled",
+          "origin",
+          "raise",
+          "modes",
+          "addresses",
+          "ports",
+          "brokers",
+          "connections",
+          "messagesPerSecond",
+          "maxMessageBytes",
+          "portsInUse"
+        ],
+        "properties": {
+          "addresses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`platform`, `dedicatedPort`."
+          },
+          "brokers": {
+            "$ref": "#/components/schemas/Meter"
+          },
+          "connections": {
+            "$ref": "#/components/schemas/Meter"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "maxMessageBytes": {
+            "$ref": "#/components/schemas/Ceiling"
+          },
+          "messagesPerSecond": {
+            "$ref": "#/components/schemas/Meter"
+          },
+          "modes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`ingest`, `capture`, `relay`."
+          },
+          "origin": {
+            "$ref": "#/components/schemas/LimitOrigin",
+            "description": "`project` (its `spec.quotas.mqtt`), `organization` (`spec.limits.mqtt`) or `default`."
+          },
+          "ports": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          "portsInUse": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortInUse"
+            }
+          },
+          "raise": {
+            "type": "string",
+            "description": "The sentence a refusal ends with: who can raise the allowance, and where (PF-101)."
+          }
+        }
+      },
       "AnswerRequest": {
         "type": "object",
         "description": "An answer to one question the agent asked (AG-45).",
@@ -19039,6 +19162,20 @@
           },
           "label": {
             "type": "string"
+          }
+        }
+      },
+      "Ceiling": {
+        "type": "object",
+        "description": "A ceiling each broker is held to on its own.",
+        "required": [
+          "limit"
+        ],
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       },
@@ -21756,6 +21893,33 @@
         },
         "additionalProperties": false
       },
+      "Meter": {
+        "type": "object",
+        "description": "One summed limit: what the allowance gives, what the brokers use, and what is left.",
+        "required": [
+          "limit",
+          "used",
+          "left"
+        ],
+        "properties": {
+          "left": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Never below `0`; a project over a lowered allowance shows `used` above `limit` (PF-100).",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "used": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "Method": {
         "type": "string",
         "description": "Which of the two proofs verified the domain.",
@@ -23283,6 +23447,24 @@
           }
         },
         "additionalProperties": false
+      },
+      "PortInUse": {
+        "type": "object",
+        "description": "A dedicated port of the project and the broker holding it.",
+        "required": [
+          "port",
+          "broker"
+        ],
+        "properties": {
+          "broker": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
       },
       "Preferences": {
         "type": "object",
