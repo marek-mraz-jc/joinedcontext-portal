@@ -5,6 +5,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../api/client";
 import { asManifests, localized } from "../api/manifest";
+import type { Manifest } from "../api/manifest";
 import {
   ENDPOINT_LINKS,
   EndpointLink,
@@ -26,6 +27,8 @@ import {
   Button,
   EmptyState,
   Icon,
+  Input,
+  Select,
   Table,
   TableBody,
   TableCell,
@@ -38,6 +41,21 @@ import {
 } from "../components/ui";
 
 const COLUMNS = 6;
+/**
+ * Rows per page (T-4831): each row carries its representation links, about 130 px, so ten keep the
+ * page under three screens; the whole list was 22,822 px with no way to find one.
+ */
+export const ENDPOINTS_PER_PAGE = 10;
+
+/** One row of the table, matched by its project, space, name, title or slug. */
+function matchesEndpoint(row: { project: string; endpoint: Manifest }, needle: string, locale: string): boolean {
+  const wanted = needle.trim().toLowerCase();
+  if (wanted === "") return true;
+  const { project, endpoint } = row;
+  const slug = (endpoint.spec as { slug?: string }).slug ?? "";
+  return [project, spaceOf(endpoint) ?? "", endpoint.metadata.name, slug, localized(endpoint.metadata.title, locale, "")]
+    .some((value) => value.toLowerCase().includes(wanted));
+}
 
 /**
  * Every Endpoint of every project in one table (EP-08, EP-44, PF-61): the project and space it
@@ -49,6 +67,9 @@ export function AllEndpointsPage(): JSX.Element {
   const { t, i18n } = useTranslation();
   const { domain } = useBranding();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
+  const [needle, setNeedle] = useState("");
+  const [projectFilter, setProjectFilter] = useState("");
+  const [page, setPage] = useState(0);
   const endpoints = useQuery({
     queryKey: queryKeys.allEndpoints(),
     queryFn: async () => unwrap(await api.GET("/api/v1/endpoints")),
@@ -87,6 +108,9 @@ export function AllEndpointsPage(): JSX.Element {
     return (
       <div className="flex flex-col gap-section">
         {header}
+        {/* The filters' place, empty until the list is in: the table keeps its place, and so its
+            identity, when the rows arrive. */}
+        {null}
         <Table caption={t("allEndpoints.title")} status={t("app.loading")}>
           {head}
           <TableSkeleton columns={COLUMNS} />
@@ -125,24 +149,68 @@ export function AllEndpointsPage(): JSX.Element {
     );
   }
 
-  const rows = asManifests(endpoints.data?.items ?? []).map((endpoint) => ({
+  const all = asManifests(endpoints.data?.items ?? []).map((endpoint) => ({
     // The project is the manifest's own namespace, which is what the route answers with.
     project: endpoint.metadata.namespace ?? "",
     endpoint,
   }));
+  const projectNames = [...new Set(all.map((row) => row.project))].sort();
+  const matching = all.filter(
+    (row) => (projectFilter === "" || row.project === projectFilter) && matchesEndpoint(row, needle, locale),
+  );
+  const pages = Math.max(1, Math.ceil(matching.length / ENDPOINTS_PER_PAGE));
+  // A filter that leaves fewer pages keeps the person on the last one there is.
+  const current = Math.min(page, pages - 1);
+  const rows = matching.slice(current * ENDPOINTS_PER_PAGE, (current + 1) * ENDPOINTS_PER_PAGE);
 
   return (
     <div className="flex flex-col gap-section">
       {header}
+      {all.length > 0 ? (
+        <div className="flex flex-wrap items-end gap-3">
+          <Input
+            type="search"
+            aria-label={t("allEndpoints.find")}
+            placeholder={t("allEndpoints.find")}
+            value={needle}
+            onChange={(event) => {
+              setNeedle(event.target.value);
+              setPage(0);
+            }}
+            className="w-full max-w-sm"
+          />
+          <label className="flex flex-col gap-1 text-caption text-fg-muted">
+            {t("allEndpoints.field.project")}
+            <Select
+              value={projectFilter}
+              onChange={(event) => {
+                setProjectFilter(event.target.value);
+                setPage(0);
+              }}
+            >
+              <option value="">{t("allEndpoints.allProjects")}</option>
+              {projectNames.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </Select>
+          </label>
+        </div>
+      ) : null}
       <Table caption={t("allEndpoints.title")}>
         {head}
         <TableBody>
-          {rows.length === 0 ? (
+          {all.length === 0 ? (
             <TableEmpty columns={COLUMNS}>
               <EmptyState bare
             icon="endpoints"
             title={t("allEndpoints.empty")}
             description={t("allEndpoints.emptyHint")} />
+            </TableEmpty>
+          ) : rows.length === 0 ? (
+            <TableEmpty columns={COLUMNS}>
+              <EmptyState bare icon="search" title={t("allEndpoints.noMatch")} description={t("allEndpoints.noMatchHint")} />
             </TableEmpty>
           ) : (
             rows.map(({ project, endpoint }) => {
@@ -239,6 +307,39 @@ export function AllEndpointsPage(): JSX.Element {
           )}
         </TableBody>
       </Table>
+      {matching.length > ENDPOINTS_PER_PAGE ? (
+        <nav aria-label={t("allEndpoints.pages")} className="flex flex-wrap items-center justify-between gap-3">
+          <p role="status" className="text-body text-fg-muted">
+            {t("allEndpoints.range", {
+              from: current * ENDPOINTS_PER_PAGE + 1,
+              to: current * ENDPOINTS_PER_PAGE + rows.length,
+              count: matching.length,
+            })}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<Icon name="chevronLeft" className="size-4" />}
+              disabled={current === 0}
+              disabledReason={t("allEndpoints.firstPage")}
+              onClick={() => setPage(current - 1)}
+            >
+              {t("allEndpoints.previous")}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={current >= pages - 1}
+              disabledReason={t("allEndpoints.lastPage")}
+              onClick={() => setPage(current + 1)}
+            >
+              {t("allEndpoints.next")}
+              <Icon name="chevronRight" className="size-4" />
+            </Button>
+          </div>
+        </nav>
+      ) : null}
       <CkanInstancesAccess />
     </div>
   );

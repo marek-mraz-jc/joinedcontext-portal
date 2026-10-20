@@ -10,6 +10,7 @@ import { SaveAsResourceAction } from "./SaveAsDialog";
 import { WorkOnCopyAction } from "./WorkOnCopyDialog";
 import type { WorkOnCopyScope } from "./WorkOnCopyDialog";
 import { RowActions } from "./ui/RowActions";
+import { deniedReason } from "./ui/PermissionGuard";
 import { useEditForm } from "./forms/FormRoute";
 import type { RowAction } from "./ui/RowActions";
 
@@ -57,7 +58,7 @@ export function ResourceRowActions({
   const opens = (action: "edit" | "saveAs" | "copy" | "delete") => (open: boolean) =>
     setOpenAction(open ? action : null);
   const denied = (verb: "propose" | "delete") =>
-    permissions.can(target.kind, verb) ? undefined : t("permissions.denied", { verb, kind: target.kind });
+    permissions.can(target.kind, verb) ? undefined : deniedReason(t, target.home ?? project, verb, target.kind);
 
   const actions: RowAction[] = [
     {

@@ -478,7 +478,10 @@
     "newHint": "Fill the form, check it, then propose it; an approver reviews the change.",
     "propose": "Propose change",
     "emptyHintCreate": "Nothing of this kind is in the project yet. {new} opens the form.",
-    "askAssistant": "Ask the assistant for one"
+    "askAssistant": "Ask the assistant for one",
+    "leadOrganization": "Everything of this kind the organization holds. Each row opens what it names.",
+    "emptyHintOrganization": "Nothing of this kind is in the organization yet. This page lists and reads it; ask the assistant for one and decide what it proposes.",
+    "emptyHintCreateOrganization": "Nothing of this kind is in the organization yet. {new} opens the form."
   },
   "spaces": {
     "entitiesUnknown": "The count is not available: {reason}",
@@ -509,8 +512,6 @@
       "total": "The space holds {count, plural, one {# entity} other {# entities}}.",
       "open": "Look inside",
       "data": "Data",
-      "dataLead": "Everything this space holds, as your grants allow it. What an endpoint shows is this, narrowed by its policy.",
-      "dataType": "Entity type",
       "dataEmpty": "Nothing here yet: no pipeline has written to this space.",
       "dataThroughEndpoints": "You can see this space through its endpoints:",
       "dataNoTypes": "This space names no data model, so there is no type to read.",
@@ -543,7 +544,11 @@
       "lead": "Its data model, its entities, who reads them and what happened to it.",
       "broker": "It lives on the context broker {broker}.",
       "size": "Size",
-      "totalSize": "It takes {size} in the broker's store, {history} of it history."
+      "totalSize": "It takes {size} in the broker's store, {history} of it history.",
+      "sections": "Parts of the space",
+      "counting": "Counting the space's entities…",
+      "allRows": "All rows",
+      "savedViews": "Saved views"
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -1806,7 +1811,6 @@
     },
     "bloblangHint": "The Bloblang mapping is edited here and lands in the manifest; left empty, it stays in bento.yaml beside this manifest in the forge.",
     "bloblangFile": "Open bento.yaml",
-    "bentoMapping": "This pipeline keeps its mapping in bento.yaml beside the manifest, which is why the mapping box below starts empty. Open the file to read it; a mapping written below runs as the pipeline's compute step.",
     "studio": {
       "source": "1. Source",
       "sourceKind": "Read from",
@@ -2130,7 +2134,12 @@
         "addConversion": "Add to mapping",
         "bloblangHint": "Bloblang that turns one record into one entity: set its id, its type and the slots listed beside it.",
         "addLine": "Add to the mapping",
-        "addLineOf": "Add the line for {slot} to the mapping"
+        "addLineOf": "Add the line for {slot} to the mapping",
+        "file": "Mapping file (bento.yaml)",
+        "fileHint": "The processors this pipeline runs, as the repository holds them beside its manifest. Credentials appear as references the runner fills, never as values.",
+        "fileEdit": "Edit the mapping file; Propose sends it with the manifest",
+        "fileEditDisabled": "You can edit the mapping file once it has loaded.",
+        "type": "Type the mapping writes"
       },
       "output": {
         "title": "Mapped output",
@@ -3869,7 +3878,17 @@
       "instance": "{project} / {name}",
       "show": "Show every catalogue",
       "hide": "Hide the catalogues"
-    }
+    },
+    "find": "Find an endpoint by project, space, name or slug",
+    "allProjects": "Every project",
+    "noMatch": "No endpoint matches",
+    "noMatchHint": "Clear the search or choose every project to see them all.",
+    "pages": "Pages of endpoints",
+    "range": "{from}–{to} of {count}",
+    "previous": "Previous",
+    "next": "Next",
+    "firstPage": "This is the first page.",
+    "lastPage": "This is the last page."
   },
   "projects": {
     "loading": "Loading projects…",
@@ -4633,7 +4652,17 @@
     "pickedClear": "Edit everything"
   },
   "permissions": {
-    "denied": "Disabled: your role does not permit ''{verb}'' on ''{kind}'' in this project"
+    "denied": "Disabled: your role does not permit ''{verb}'' on ''{kind}'' in this project",
+    "deniedOrganization": "Only an organization administrator can {action} {kinds}.",
+    "action": {
+      "read": "see",
+      "propose": "add or change",
+      "approve": "approve changes to",
+      "delete": "delete",
+      "create": "add",
+      "update": "change",
+      "disable": "disable"
+    }
   },
   "drafts": {
     "touched": "Draft v{version}, last touched by {who} ({kind})",
@@ -5319,7 +5348,6 @@
     "title": "Administration",
     "adminOnly": "This page is for organization administrators. Ask one of them for what you need here.",
     "lead": "What is the same in every project: the organization's settings, its members, roles, groups and service accounts, and its projects. Every change here is proposed and approved.",
-    "tabsLabel": "Parts of the organization",
     "tab": {
       "settings": "Settings",
       "people": "People",
@@ -5889,7 +5917,23 @@
         "down": "Down",
         "unknown": "No address"
       }
-    }
+    },
+    "nav": {
+      "back": "Back to the projects"
+    },
+    "group": {
+      "access": "People and access",
+      "projects": "Projects and apps",
+      "platform": "Platform",
+      "settings": "Settings"
+    },
+    "groupLead": {
+      "access": "Who belongs to the organization and what each person, group and service account may do. Every change is proposed and approved.",
+      "projects": "What every project of the organization holds and publishes, in one place.",
+      "platform": "What the installation runs for every project: brokers, environments, data space membership and health.",
+      "settings": "The organization's domain, languages, contacts, policies and limits, and what setup still lacks."
+    },
+    "kindHidden": "Only an organization administrator whose role includes {kinds} sees them here. Ask an organization administrator to add them to your role."
   },
   "projectDelete": {
     "title": "Delete project {name}",
@@ -7817,6 +7861,10 @@
     "UiSchema": {
       "other": "form layouts",
       "new": "New form layout"
+    },
+    "Person": {
+      "other": "people",
+      "new": "New person"
     }
   },
   "connectors": {

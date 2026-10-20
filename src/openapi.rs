@@ -95,6 +95,7 @@ use crate::tools::model_tools::{
         crate::api::resources::get_resource,
         crate::api::pipelines::get_metrics,
         crate::api::pipelines::get_samples,
+        crate::api::pipelines::get_bento,
         crate::api::pipelines::get_stats,
         crate::api::pipelines::get_rejected,
         crate::api::pipelines::retry_rejected,

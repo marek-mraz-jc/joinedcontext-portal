@@ -114,7 +114,7 @@ describe("the assistant page's write controls carry the refusal (T-1584, UI-44)"
     await waitFor(() =>
       expect(
         screen.getAllByRole("button").map((node) => node.getAttribute("title") ?? ""),
-      ).toContain("Disabled: your role does not permit 'propose' on 'AgentProfile' in this project"),
+      ).toContain("Only an organization administrator can add or change agent profiles."),
     );
 
     for (const label of [en.assistantPage.continue, en.assistantPage.access.edit]) {

@@ -478,7 +478,10 @@
     "newHint": "Füllen Sie das Formular aus, prüfen Sie es und schlagen Sie es vor; eine freigebende Person prüft die Änderung.",
     "propose": "Änderung vorschlagen",
     "emptyHintCreate": "Von dieser Art ist noch nichts im Projekt. {new} öffnet das Formular.",
-    "askAssistant": "Den Assistenten um einen Vorschlag bitten"
+    "askAssistant": "Den Assistenten um einen Vorschlag bitten",
+    "leadOrganization": "Alles dieser Art, was die Organisation hält. Jede Zeile öffnet, was sie nennt.",
+    "emptyHintOrganization": "Von dieser Art ist noch nichts in der Organisation. Diese Seite listet und liest es; bitten Sie den Assistenten darum und entscheiden Sie über seinen Vorschlag.",
+    "emptyHintCreateOrganization": "Von dieser Art ist noch nichts in der Organisation. {new} öffnet das Formular."
   },
   "spaces": {
     "entitiesUnknown": "Die Anzahl ist nicht verfügbar: {reason}",
@@ -509,8 +512,6 @@
       "total": "Der Raum enthält {count, plural, one {# Entität} other {# Entitäten}}.",
       "open": "Inhalt ansehen",
       "data": "Daten",
-      "dataLead": "Alles, was dieser Raum hält, soweit Ihre Rechte es zulassen. Ein Endpunkt zeigt dasselbe, durch seine Policy verengt.",
-      "dataType": "Entitätstyp",
       "dataEmpty": "Noch nichts: keine Pipeline hat in diesen Raum geschrieben.",
       "dataThroughEndpoints": "Sie können diesen Raum über seine Endpunkte sehen:",
       "dataNoTypes": "Dieser Raum nennt kein Datenmodell, also gibt es keinen Typ zu lesen.",
@@ -543,7 +544,11 @@
       "lead": "Sein Datenmodell, seine Entitäten, wer sie liest und was mit ihm geschah.",
       "broker": "Er liegt auf dem Context-Broker {broker}.",
       "size": "Größe",
-      "totalSize": "Er belegt {size} im Speicher des Brokers, davon {history} Verlauf."
+      "totalSize": "Er belegt {size} im Speicher des Brokers, davon {history} Verlauf.",
+      "sections": "Teile des Raums",
+      "counting": "Die Entitäten des Raums werden gezählt…",
+      "allRows": "Alle Zeilen",
+      "savedViews": "Gespeicherte Ansichten"
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -1806,7 +1811,6 @@
     },
     "bloblangHint": "Das Bloblang-Mapping wird hier bearbeitet und landet im Manifest; leer bleibt es in bento.yaml neben diesem Manifest im Forge.",
     "bloblangFile": "bento.yaml öffnen",
-    "bentoMapping": "Diese Pipeline hält ihr Mapping in bento.yaml neben dem Manifest, deshalb ist das Mapping-Feld unten leer. Öffnen Sie die Datei, um es zu lesen; ein unten geschriebenes Mapping läuft als Rechenschritt der Pipeline.",
     "studio": {
       "source": "1. Quelle",
       "sourceKind": "Lesen aus",
@@ -2130,7 +2134,12 @@
         "addConversion": "Zum Mapping hinzufügen",
         "bloblangHint": "Bloblang, das aus einem Datensatz eine Entität macht: Setzen Sie ihre id, ihren Typ und die daneben aufgeführten Slots.",
         "addLine": "Zum Mapping hinzufügen",
-        "addLineOf": "Die Zeile für {slot} zum Mapping hinzufügen"
+        "addLineOf": "Die Zeile für {slot} zum Mapping hinzufügen",
+        "file": "Mapping-Datei (bento.yaml)",
+        "fileHint": "Die Prozessoren, die diese Pipeline ausführt, so wie das Repository sie neben ihrem Manifest hält. Zugangsdaten erscheinen als Verweise, die der Runner füllt, nie als Werte.",
+        "fileEdit": "Mapping-Datei bearbeiten; Vorschlagen sendet sie mit dem Manifest",
+        "fileEditDisabled": "Die Mapping-Datei lässt sich bearbeiten, sobald sie geladen ist.",
+        "type": "Typ, den das Mapping schreibt"
       },
       "output": {
         "title": "Abgebildete Ausgabe",
@@ -3869,7 +3878,17 @@
       "instance": "{project} / {name}",
       "show": "Alle Kataloge zeigen",
       "hide": "Kataloge ausblenden"
-    }
+    },
+    "find": "Endpoint nach Projekt, Raum, Name oder Slug finden",
+    "allProjects": "Alle Projekte",
+    "noMatch": "Kein Endpoint passt",
+    "noMatchHint": "Leeren Sie die Suche oder wählen Sie alle Projekte.",
+    "pages": "Seiten der Endpoints",
+    "range": "{from}–{to} von {count}",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "firstPage": "Das ist die erste Seite.",
+    "lastPage": "Das ist die letzte Seite."
   },
   "projects": {
     "loading": "Projekte werden geladen…",
@@ -4633,7 +4652,17 @@
     "pickedClear": "Alles bearbeiten"
   },
   "permissions": {
-    "denied": "Deaktiviert: Ihre Rolle erlaubt ''{verb}'' auf ''{kind}'' in diesem Projekt nicht"
+    "denied": "Deaktiviert: Ihre Rolle erlaubt ''{verb}'' auf ''{kind}'' in diesem Projekt nicht",
+    "deniedOrganization": "Nur die Organisationsadministration kann {kinds} {action}.",
+    "action": {
+      "read": "sehen",
+      "propose": "hinzufügen oder ändern",
+      "approve": "Änderungen genehmigen für",
+      "delete": "löschen",
+      "create": "hinzufügen",
+      "update": "ändern",
+      "disable": "deaktivieren"
+    }
   },
   "drafts": {
     "touched": "Entwurf v{version}, zuletzt bearbeitet von {who} ({kind})",
@@ -5319,7 +5348,6 @@
     "title": "Verwaltung",
     "adminOnly": "Diese Seite ist für die Administratoren der Organisation. Bitten Sie einen von ihnen um das, was Sie hier brauchen.",
     "lead": "Was in jedem Projekt gleich ist: die Einstellungen der Organisation, ihre Mitglieder, Rollen, Gruppen und Dienstkonten und ihre Projekte. Jede Änderung hier wird vorgeschlagen und genehmigt.",
-    "tabsLabel": "Bereiche der Organisation",
     "tab": {
       "settings": "Einstellungen",
       "people": "Personen",
@@ -5889,7 +5917,23 @@
         "down": "Ausgefallen",
         "unknown": "Keine Adresse"
       }
-    }
+    },
+    "nav": {
+      "back": "Zurück zu den Projekten"
+    },
+    "group": {
+      "access": "Personen und Zugriff",
+      "projects": "Projekte und Apps",
+      "platform": "Plattform",
+      "settings": "Einstellungen"
+    },
+    "groupLead": {
+      "access": "Wer zur Organisation gehört und was jede Person, Gruppe und jedes Dienstkonto darf. Jede Änderung wird vorgeschlagen und genehmigt.",
+      "projects": "Was alle Projekte der Organisation halten und veröffentlichen, an einem Ort.",
+      "platform": "Was die Installation für jedes Projekt betreibt: Broker, Umgebungen, Datenraum-Mitgliedschaft und Zustand.",
+      "settings": "Domain, Sprachen, Kontakte, Regeln und Grenzen der Organisation und was der Einrichtung noch fehlt."
+    },
+    "kindHidden": "Hier sieht sie nur eine Organisationsadministration, deren Rolle {kinds} umfasst. Bitten Sie die Organisationsadministration, sie Ihrer Rolle hinzuzufügen."
   },
   "projectDelete": {
     "title": "Projekt {name} löschen",
@@ -7817,6 +7861,10 @@
     "UiSchema": {
       "other": "Formularlayouts",
       "new": "Neues Formularlayout"
+    },
+    "Person": {
+      "other": "Personen",
+      "new": "Neue Person"
     }
   },
   "connectors": {
