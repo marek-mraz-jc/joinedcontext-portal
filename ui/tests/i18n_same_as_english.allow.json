@@ -92,7 +92,8 @@
     "REST API (JSON)",
     "HTTP endpoint",
     "1. Endpoint",
-    "/min"
+    "/min",
+    "MQTT"
   ],
   "cs": [
     "@context",
@@ -184,7 +185,8 @@
     "{seconds} s",
     "Čeština",
     "REST API (JSON)",
-    "/min"
+    "/min",
+    "MQTT"
   ],
   "de": [
     "@context",
@@ -312,6 +314,7 @@
     "Čeština",
     "Debug",
     "+ Debug",
-    "debug"
+    "debug",
+    "MQTT"
   ]
 }

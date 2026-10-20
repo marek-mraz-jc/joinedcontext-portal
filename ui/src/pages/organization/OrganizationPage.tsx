@@ -37,6 +37,7 @@ import { Roles } from "../access/Roles";
 import { ServiceAccounts } from "../access/ServiceAccounts";
 import { OrganizationApplications } from "./OrganizationApplications";
 import { OrganizationModels } from "../models/OrganizationModels";
+import { ProjectMqtt, ProjectMqttState } from "./ProjectMqtt";
 import { OrganizationSettings } from "./OrganizationSettings";
 import { OrganizationSetup, SetupReminder } from "./OrganizationSetup";
 import { People } from "./People";
@@ -200,14 +201,15 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
           <TableHead>
             <TableHeaderCell>{t("organization.projects.name")}</TableHeaderCell>
             <TableHeaderCell>{t("organization.projects.people")}</TableHeaderCell>
+            <TableHeaderCell>{t("mqttAllowance.admin.column")}</TableHeaderCell>
             <TableHeaderCell align="right">{t("approvals.actions")}</TableHeaderCell>
           </TableHead>
           {projects.isPending ? (
-            <TableSkeleton columns={3} />
+            <TableSkeleton columns={4} />
           ) : (
             <TableBody>
               {names.length === 0 ? (
-                <TableEmpty columns={3}>
+                <TableEmpty columns={4}>
                   <EmptyState
                     bare
                     title={t("organization.projects.empty")}
@@ -237,6 +239,9 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
                           : people(name)
                         : t("organization.projects.peopleHidden")}
                     </TableCell>
+                    <TableCell>
+                      <ProjectMqttState project={name} />
+                    </TableCell>
                     <TableCell align="right">
                       <span className="inline-flex items-center gap-2">
                         <Link
@@ -246,6 +251,7 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
                         >
                           {t("organization.projects.settings")}
                         </Link>
+                        <ProjectMqtt project={name} title={titles.get(name) || name} />
                         {/* The whole project leaves here and nowhere else (UI-87, CC-49). */}
                         <ExportButton
                           project={name}

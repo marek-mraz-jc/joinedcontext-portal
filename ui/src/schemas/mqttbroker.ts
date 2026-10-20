@@ -29,7 +29,15 @@ export interface MqttBrokerForm {
   roles?: MqttRoleForm[];
   limits?: { maxMessageBytes?: number; messagesPerSecond?: number; maxConnections?: number };
   port?: number;
+  mode?: string;
+  capture?: { messagesPerTopic?: number; window?: string };
 }
+
+/** The modes in plain words, each adding to the one before (T-4860, ADR-N-048 §2.10). */
+export const BROKER_MODES = ["ingest", "capture", "relay"] as const;
+
+/** A capture window: an ISO 8601 duration of at most a day, as jc-core reads it. */
+export const CAPTURE_WINDOW = "^PT(?=\\d)(\\d+H)?(\\d+M)?(\\d+S)?$";
 
 export function mqttBrokerSchema(t: (key: string) => string): JsonSchema {
   const title = (key: string) => t(`mqttbrokers.field.${key}`);
@@ -49,6 +57,20 @@ export function mqttBrokerSchema(t: (key: string) => string): JsonSchema {
     required: ["name", "roles"],
     properties: {
       name: { type: "string", title: title("name"), pattern: DNS1123, maxLength: 63 },
+      mode: {
+        type: "string",
+        title: title("mode"),
+        default: "ingest",
+        oneOf: BROKER_MODES.map((mode) => ({ const: mode, title: t(`mqttAllowance.modeLong.${mode}`) })),
+      },
+      capture: {
+        type: "object",
+        title: title("capture"),
+        properties: {
+          messagesPerTopic: { type: "integer", title: title("messagesPerTopic"), minimum: 1, maximum: 1000 },
+          window: { type: "string", title: title("window"), pattern: CAPTURE_WINDOW, maxLength: 16 },
+        },
+      },
       roles: {
         type: "array",
         title: title("roles"),
@@ -91,6 +113,10 @@ export function toMqttBrokerManifest(project: string, form: MqttBrokerForm, stor
   const limits = Object.fromEntries(
     Object.entries(form.limits ?? {}).filter(([, value]) => typeof value === "number"),
   );
+  // Capture settings only travel with the capture mode, which is the only one jc-core keeps them for.
+  const capture = Object.fromEntries(
+    Object.entries(form.capture ?? {}).filter(([, value]) => value !== undefined && value !== ""),
+  );
   return {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "MqttBroker",
@@ -108,6 +134,8 @@ export function toMqttBrokerManifest(project: string, form: MqttBrokerForm, stor
       }),
       ...(Object.keys(limits).length > 0 ? { limits } : {}),
       ...(typeof form.port === "number" ? { port: form.port } : {}),
+      ...(form.mode && form.mode !== "ingest" ? { mode: form.mode } : {}),
+      ...(form.mode === "capture" && Object.keys(capture).length > 0 ? { capture } : {}),
     },
   };
 }
@@ -126,5 +154,7 @@ export function fromMqttBrokerManifest(manifest: unknown): MqttBrokerForm {
     })),
     ...(spec.limits ? { limits: spec.limits } : {}),
     ...(typeof spec.port === "number" ? { port: spec.port } : {}),
+    mode: spec.mode ?? "ingest",
+    ...(spec.capture ? { capture: spec.capture } : {}),
   };
 }

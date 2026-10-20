@@ -3232,7 +3232,14 @@
       "noClasses": "Dieses Modell deklariert noch keine Klasse und erzeugt daher kein Formular.",
       "formClass": "Klasse",
       "formReadOnly": "Das ist das Formular, das das Modell erzeugt, mit seinem Beispiel gefüllt; hier wird nichts gespeichert.",
-      "jsonType": {"number": "Zahl", "integer": "Ganze Zahl", "string": "Text", "boolean": "Ja oder nein", "object": "Gruppe von Feldern", "array": "Liste"},
+      "jsonType": {
+        "number": "Zahl",
+        "integer": "Ganze Zahl",
+        "string": "Text",
+        "boolean": "Ja oder nein",
+        "object": "Gruppe von Feldern",
+        "array": "Liste"
+      },
       "asJson": "Als JSON angezeigt.",
       "yaml": "Die Quelle des Modells (LinkML YAML)",
       "copyYaml": "YAML kopieren",
@@ -5839,6 +5846,15 @@
           "requestsPerMinute": {
             "label": "Anfragen pro Minute pro Projekt",
             "hint": "Die meisten Anfragen pro Minute, die die Endpunkte eines Projekts bedienen."
+          },
+          "mqttBrokers": {
+            "label": "MQTT-Broker"
+          },
+          "mqttConnections": {
+            "label": "MQTT-Verbindungen"
+          },
+          "mqttMessagesPerSecond": {
+            "label": "MQTT-Nachrichten pro Sekunde"
           }
         },
         "nameCooldownDays": {
@@ -5936,6 +5952,24 @@
             "label": "Dateispeicher einer App (MiB)",
             "hint": "Wie viel eine App in ihren Dateien speichern darf; ein Projekt oder eine App kann weniger festlegen."
           }
+        },
+        "mqtt": {
+          "brokers": {
+            "label": "MQTT-Broker je Projekt",
+            "hint": "Wie viele Broker ein Projekt deklarieren darf."
+          },
+          "connections": {
+            "label": "MQTT-Verbindungen je Projekt",
+            "hint": "Summe der Verbindungsgrenzen der Broker eines Projekts."
+          },
+          "messagesPerSecond": {
+            "label": "MQTT-Nachrichten pro Sekunde je Projekt",
+            "hint": "Verbindungen × Nachrichten pro Sekunde je Gerät, über die Broker eines Projekts."
+          },
+          "maxMessageBytes": {
+            "label": "Größte MQTT-Nachricht (Byte)",
+            "hint": "Obergrenze der Nachrichtengröße jedes Brokers."
+          }
         }
       },
       "policies": {
@@ -5977,7 +6011,9 @@
       "pipelines": "Pipelines",
       "pipelinesHint": "Was Pipelines behalten und lesen.",
       "data": "Daten",
-      "dataHint": "Was man hochladen darf."
+      "dataHint": "Was man hochladen darf.",
+      "mqtt": "MQTT-Standard",
+      "mqttHint": "Was ein Projekt ohne eigenes MQTT-Kontingent betreiben darf."
     },
     "limits": {
       "title": "Richtlinien und Limits",
@@ -6005,7 +6041,8 @@
         "signIn": "Anmeldung",
         "people": "Personen",
         "agents": "Assistent",
-        "pipelinesAndData": "Pipelines und Daten"
+        "pipelinesAndData": "Pipelines und Daten",
+        "mqtt": "MQTT"
       },
       "origin": {
         "project": "das Projekt",
@@ -7764,7 +7801,11 @@
       "maxMessageBytes": "Größte Nachricht (Bytes)",
       "messagesPerSecond": "Nachrichten pro Sekunde je Gerät",
       "maxConnections": "Höchstens Verbindungen",
-      "port": "Eigener Port"
+      "port": "Eigener Port",
+      "mode": "Was der Broker tut",
+      "capture": "Aufbewahrte Nachrichten",
+      "messagesPerTopic": "Nachrichten je Thema",
+      "window": "Aufbewahrt für (z. B. PT1H, höchstens PT24H)"
     },
     "acl": {
       "caption": "Topic-Zugriff von {broker} nach Rolle",
@@ -7781,7 +7822,12 @@
       "password": "Passwort",
       "token": "Ein Access-Token des eigenen Clients des Geräts, mit seinem Schlüssel geholt; nie ein gespeichertes Passwort.",
       "pipeline": "Pipelines",
-      "brokerRef": "{broker} als Plattform-Broker einer MQTT-Datenquelle wählen."
+      "brokerRef": "{broker} als Plattform-Broker einer MQTT-Datenquelle wählen.",
+      "certificate": "Zertifikat",
+      "certificateIssued": "Von der Plattform für {host} bei einer öffentlichen Zertifizierungsstelle ausgestellt; Geräte prüfen es mit ihrem System-CA-Speicher.",
+      "example": "Ausprobieren",
+      "copyExample": "Befehl kopieren",
+      "exampleHint": "Setzen Sie zuerst TOKEN auf ein Zugriffstoken des Geräte-Clients; das Portal zeigt nie eines."
     },
     "measured": {
       "title": "Gemessen",
@@ -7820,6 +7866,9 @@
       "unread": "Keine Pipeline liest sie",
       "noEndpoint": "Kein Endpoint {endpoint} in diesem Projekt",
       "noPolicy": "Keine Policy {policy} in diesem Projekt"
+    },
+    "capture": {
+      "kept": "Behält die letzten {count} Nachrichten je Thema für {window}, um das Mapping zu bauen."
     }
   },
   "connect": {
@@ -8168,5 +8217,56 @@
     "which-one-wins": "Welche Regel gilt (Benutzerhandbuch)",
     "4-recipe-buses-and-live-vehicles": "Rezept: Busse und Live-Fahrzeuge (Benutzerhandbuch)",
     "8-recipe-data-imported-from-a-file": "Rezept: aus einer Datei importierte Daten (Benutzerhandbuch)"
+  },
+  "mqttAllowance": {
+    "field": {
+      "enabled": "MQTT-Broker erlaubt",
+      "enabledHint": "Aus: Das Projekt kann keinen Broker hinzufügen.",
+      "brokers": "Höchstens Broker",
+      "brokersHint": "Leer: Standard der Organisation.",
+      "connections": "Geräteverbindungen insgesamt",
+      "connectionsHint": "Summe der Verbindungsgrenzen aller Broker.",
+      "messagesPerSecond": "Nachrichten pro Sekunde insgesamt",
+      "messagesPerSecondHint": "Verbindungen × Nachrichten pro Sekunde je Gerät, über alle Broker summiert.",
+      "maxMessageBytes": "Größte Nachricht (Byte)",
+      "maxMessageBytesHint": "Kein Broker des Projekts darf größere Nachrichten annehmen.",
+      "modes": "Was Broker dürfen",
+      "modesHint": "Nichts angekreuzt: Geräte senden nur Daten.",
+      "addresses": "Adressen für Geräte",
+      "addressesHint": "Nichts angekreuzt: die Plattformadresse mit ihrem Zertifikat.",
+      "ports": "Eigene Ports des Projekts",
+      "portsHint": "Von 18830 bis 18849, jeder Port nur für ein Projekt."
+    },
+    "mode": {
+      "ingest": "Eingang",
+      "capture": "Eingang mit Aufbewahrung",
+      "relay": "Zweiwege"
+    },
+    "modeLong": {
+      "ingest": "Geräte senden Daten",
+      "capture": "…und die letzten Nachrichten behalten, um das Mapping zu bauen",
+      "relay": "…und Geräte können auch empfangen"
+    },
+    "address": {
+      "platform": "Plattformadresse (Port 8883, Zertifikat der Plattform)",
+      "dedicatedPort": "Eigener Port"
+    },
+    "admin": {
+      "button": "MQTT",
+      "action": "MQTT-Kontingent von {project}",
+      "column": "MQTT",
+      "on": "An · {used} von {limit} Brokern",
+      "off": "Aus"
+    },
+    "project": {
+      "offTitle": "MQTT ist für dieses Projekt aus",
+      "off": "Ein Administrator der Organisation kann es unter Verwaltung › Projekte › {project} › MQTT einschalten.",
+      "title": "Was dieses Projekt hinzufügen darf",
+      "left": "{used} von {limit} Brokern belegt, {connections} von {connectionsLimit} Verbindungen und {rate} Nachrichten pro Sekunde frei.",
+      "modes": "Modi, die das Projekt nutzen darf",
+      "addresses": "Adressen: {addresses}.",
+      "ports": "Portnummern: {ports}.",
+      "full": "Alle {limit} Broker sind belegt: ein neuer wird abgelehnt. Ein Administrator der Organisation kann das Limit unter Verwaltung › Projekte erhöhen."
+    }
   }
 }

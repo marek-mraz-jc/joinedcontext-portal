@@ -25,7 +25,7 @@ spec:
       kurzlebigen Token an, und jede Rolle sagt, in welche Topics ihre Accounts veröffentlichen oder
       welche sie abonnieren dürfen. Eine Pipeline liest den Broker innerhalb der Plattform; der
       Broker hat kein eigenes Passwort.
-  order: [name, roles, limits, port]
+  order: [name, mode, capture, roles, limits, port]
   groups:
     - title:
         en: The broker
@@ -37,7 +37,7 @@ spec:
         sk: Jeho názov, ktorý je súčasťou adresy, na ktorú sa zariadenia pripájajú.
         cs: Jeho název, který je součástí adresy, na niž se zařízení připojují.
         de: Sein Name, der Teil der Adresse ist, mit der sich Geräte verbinden.
-      fields: [name]
+      fields: [name, mode, capture]
     - title:
         en: Who may do what
         sk: Kto smie čo
@@ -68,6 +68,30 @@ spec:
         sk: Názov brokera v tomto projekte; malé písmená, číslice a spojovníky. Je súčasťou jeho adresy.
         cs: Název brokeru v tomto projektu; malá písmena, číslice a spojovníky. Je součástí jeho adresy.
         de: Der Name des Brokers in diesem Projekt; Kleinbuchstaben, Ziffern, Bindestriche. Er ist Teil seiner Adresse.
+    mode:
+      help:
+        en: What the broker does; only the modes the project's MQTT allowance names are accepted.
+        sk: Čo broker robí; prijaté sú len režimy, ktoré povoľuje MQTT povolenie projektu.
+        cs: Co broker dělá; přijaty jsou jen režimy, které povoluje MQTT povolení projektu.
+        de: Was der Broker tut; nur die Modi, die das MQTT-Kontingent des Projekts nennt, werden angenommen.
+    capture:
+      help:
+        en: Only with "…and keep the last messages"; the messages are kept so a steward can build the mapping, then dropped.
+        sk: Len s „…a uchová posledné správy“; správy sa uchovajú, aby správca zostavil mapovanie, potom sa zahodia.
+        cs: Jen s „…a uchová poslední zprávy“; zprávy se uchovají, aby správce sestavil mapování, pak se zahodí.
+        de: Nur mit „…und die letzten Nachrichten behalten“; die Nachrichten bleiben, bis das Mapping gebaut ist, dann werden sie verworfen.
+    capture.messagesPerTopic:
+      help:
+        en: How many of the newest messages are kept per topic; at most 1000.
+        sk: Koľko najnovších správ sa uchová na tému; najviac 1000.
+        cs: Kolik nejnovějších zpráv se uchová na téma; nejvýše 1000.
+        de: Wie viele der neuesten Nachrichten je Topic bleiben; höchstens 1000.
+    capture.window:
+      help:
+        en: How long a message is kept from its arrival, as PT1H or PT30M; at most PT24H.
+        sk: Ako dlho sa správa uchová od príchodu, napríklad PT1H alebo PT30M; najviac PT24H.
+        cs: Jak dlouho se zpráva uchová od příchodu, například PT1H nebo PT30M; nejvýše PT24H.
+        de: Wie lange eine Nachricht ab Eingang bleibt, etwa PT1H oder PT30M; höchstens PT24H.
     roles:
       help:
         en: One role per group of devices that may do the same; at least one.

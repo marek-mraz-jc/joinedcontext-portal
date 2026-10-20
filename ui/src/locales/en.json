@@ -3232,7 +3232,14 @@
       "noClasses": "This model declares no class yet, so it generates no form.",
       "formClass": "Class",
       "formReadOnly": "This is the form the model generates, filled with its example; nothing is saved from here.",
-      "jsonType": {"number": "Number", "integer": "Whole number", "string": "Text", "boolean": "Yes or no", "object": "Group of fields", "array": "List"},
+      "jsonType": {
+        "number": "Number",
+        "integer": "Whole number",
+        "string": "Text",
+        "boolean": "Yes or no",
+        "object": "Group of fields",
+        "array": "List"
+      },
       "asJson": "Shown as JSON.",
       "yaml": "The model's source (LinkML YAML)",
       "copyYaml": "Copy the YAML",
@@ -5839,6 +5846,15 @@
           "requestsPerMinute": {
             "label": "Requests per minute per project",
             "hint": "The most requests per minute the endpoints of one project serve."
+          },
+          "mqttBrokers": {
+            "label": "MQTT brokers"
+          },
+          "mqttConnections": {
+            "label": "MQTT connections"
+          },
+          "mqttMessagesPerSecond": {
+            "label": "MQTT messages per second"
           }
         },
         "nameCooldownDays": {
@@ -5936,6 +5952,24 @@
             "label": "App file storage (MiB)",
             "hint": "What one App may store in its files; a project or an App may set less."
           }
+        },
+        "mqtt": {
+          "brokers": {
+            "label": "MQTT brokers per project",
+            "hint": "How many brokers one project may declare."
+          },
+          "connections": {
+            "label": "MQTT connections per project",
+            "hint": "The sum of the connection limits of a project's brokers."
+          },
+          "messagesPerSecond": {
+            "label": "MQTT messages per second per project",
+            "hint": "Connections × messages per second per device, over a project's brokers."
+          },
+          "maxMessageBytes": {
+            "label": "Largest MQTT message (bytes)",
+            "hint": "The ceiling of each broker's message size."
+          }
         }
       },
       "policies": {
@@ -5977,7 +6011,9 @@
       "pipelines": "Pipelines",
       "pipelinesHint": "What pipelines keep and read.",
       "data": "Data",
-      "dataHint": "What a person may upload."
+      "dataHint": "What a person may upload.",
+      "mqtt": "MQTT default",
+      "mqttHint": "What a project without its own MQTT allowance may run."
     },
     "limits": {
       "title": "Policies and limits",
@@ -6005,7 +6041,8 @@
         "signIn": "Sign-in",
         "people": "People",
         "agents": "Assistant",
-        "pipelinesAndData": "Pipelines and data"
+        "pipelinesAndData": "Pipelines and data",
+        "mqtt": "MQTT"
       },
       "origin": {
         "project": "the project",
@@ -7764,7 +7801,11 @@
       "maxMessageBytes": "Largest message (bytes)",
       "messagesPerSecond": "Messages per second per device",
       "maxConnections": "Connections at most",
-      "port": "Dedicated port"
+      "port": "Dedicated port",
+      "mode": "What the broker does",
+      "capture": "Kept messages",
+      "messagesPerTopic": "Messages kept per topic",
+      "window": "Kept for (e.g. PT1H, at most PT24H)"
     },
     "acl": {
       "caption": "Topic access of {broker} by role",
@@ -7781,7 +7822,12 @@
       "password": "Password",
       "token": "An access token of the device's own client, fetched with its key; never a stored password.",
       "pipeline": "Pipelines",
-      "brokerRef": "Pick {broker} as the platform broker of an MQTT data source."
+      "brokerRef": "Pick {broker} as the platform broker of an MQTT data source.",
+      "certificate": "Certificate",
+      "certificateIssued": "Issued by the platform for {host} from a public certificate authority; devices check it with their system CA store.",
+      "example": "Try it",
+      "copyExample": "Copy the command",
+      "exampleHint": "Set TOKEN to an access token of the device's client first; the Portal never shows one."
     },
     "measured": {
       "title": "Measured",
@@ -7820,6 +7866,9 @@
       "unread": "No pipeline reads it",
       "noEndpoint": "No Endpoint {endpoint} in this project",
       "noPolicy": "No Policy {policy} in this project"
+    },
+    "capture": {
+      "kept": "Keeps the last {count} messages per topic for {window}, for building the mapping."
     }
   },
   "connect": {
@@ -8168,5 +8217,56 @@
     "which-one-wins": "Which rule wins (User Guide)",
     "4-recipe-buses-and-live-vehicles": "Recipe: buses and live vehicles (User Guide)",
     "8-recipe-data-imported-from-a-file": "Recipe: data imported from a file (User Guide)"
+  },
+  "mqttAllowance": {
+    "field": {
+      "enabled": "MQTT brokers allowed",
+      "enabledHint": "Off: the project cannot add a broker.",
+      "brokers": "Brokers at most",
+      "brokersHint": "Empty: the organization's default.",
+      "connections": "Device connections in total",
+      "connectionsHint": "The sum of every broker's connection limit.",
+      "messagesPerSecond": "Messages per second in total",
+      "messagesPerSecondHint": "Connections × messages per second per device, summed over the brokers.",
+      "maxMessageBytes": "Largest message (bytes)",
+      "maxMessageBytesHint": "No broker of the project may accept larger messages.",
+      "modes": "What brokers may do",
+      "modesHint": "None ticked: devices send data in, nothing more.",
+      "addresses": "Addresses devices may use",
+      "addressesHint": "None ticked: the platform address with its certificate.",
+      "ports": "Dedicated ports of this project",
+      "portsHint": "From 18830 to 18849, each port for one project only."
+    },
+    "mode": {
+      "ingest": "Ingest",
+      "capture": "Ingest and keep",
+      "relay": "Two-way"
+    },
+    "modeLong": {
+      "ingest": "Devices send data in",
+      "capture": "…and keep the last messages so you can build the mapping",
+      "relay": "…and devices can also receive"
+    },
+    "address": {
+      "platform": "Platform address (port 8883, certificate by the platform)",
+      "dedicatedPort": "Dedicated port"
+    },
+    "admin": {
+      "button": "MQTT",
+      "action": "MQTT allowance of {project}",
+      "column": "MQTT",
+      "on": "On · {used} of {limit} brokers",
+      "off": "Off"
+    },
+    "project": {
+      "offTitle": "MQTT is off for this project",
+      "off": "An organization administrator can turn it on in Administration › Projects › {project} › MQTT.",
+      "title": "What this project may add",
+      "left": "{used} of {limit} brokers in use, {connections} of {connectionsLimit} connections left, {rate} messages per second left.",
+      "modes": "Modes this project may use",
+      "addresses": "Addresses: {addresses}.",
+      "ports": "Ports: {ports}.",
+      "full": "All {limit} brokers are in use: a new one is refused. An organization administrator can raise the limit in Administration › Projects."
+    }
   }
 }

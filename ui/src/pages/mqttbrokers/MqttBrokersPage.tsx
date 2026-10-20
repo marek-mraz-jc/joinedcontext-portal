@@ -11,6 +11,7 @@ import { RecordLink, RECORD_LINK_STYLE } from "../../components/RecordLink";
 import { CopyUrlButton } from "../../components/endpoints/links";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import {
+  Alert,
   Badge,
   Card,
   Table,
@@ -21,6 +22,7 @@ import {
   TableRow,
 } from "../../components/ui";
 import { KindList } from "../../routes/ResourceListPage";
+import { useMqttAllowance } from "./allowance";
 import { connectionsOf } from "./connections";
 import type { Edge } from "./connections";
 
@@ -34,6 +36,7 @@ export function MqttBrokersPage({ project }: { project: string }): JSX.Element {
   const items = asManifests(brokers.data?.items ?? []);
   return (
     <div className="flex flex-col gap-section">
+      <AllowancePanel project={project} />
       <KindList project={project} plural="mqttbrokers" />
       {items.map((broker) => (
         <BrokerCard key={broker.metadata.name} project={project} broker={broker} />
@@ -66,7 +69,13 @@ export function brokerAddress(name: string, project: string, hostname: string, p
 function BrokerCard({ project, broker }: { project: string; broker: Manifest }): JSX.Element {
   const { t } = useTranslation();
   const name = broker.metadata.name;
-  const spec = (broker.spec ?? {}) as { roles?: Role[]; port?: number };
+  const spec = (broker.spec ?? {}) as {
+    roles?: Role[];
+    port?: number;
+    mode?: string;
+    capture?: { messagesPerTopic?: number; window?: string };
+  };
+  const mode = spec.mode ?? "ingest";
   const roles = spec.roles ?? [];
   const address = brokerAddress(name, project, window.location.hostname, spec.port);
   const devices = [...new Set(roles.flatMap((role) => role.serviceAccounts ?? []))];
@@ -89,7 +98,18 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
             <RecordLink project={project} plural="mqttbrokers" name={name} />
           </h2>
           <LifecycleBadge kind="phase" value={broker.status?.phase} />
+          <Badge tone="info" data-mode={mode}>
+            {t(`mqttAllowance.mode.${mode}`)}
+          </Badge>
         </div>
+        {mode === "capture" ? (
+          <p className="text-body text-fg-muted">
+            {t("mqttbrokers.capture.kept", {
+              count: spec.capture?.messagesPerTopic ?? 20,
+              window: spec.capture?.window ?? "PT1H",
+            })}
+          </p>
+        ) : null}
         <Table caption={caption}>
           <TableHead>
             <TableHeaderCell>{t("mqttbrokers.acl.role")}</TableHeaderCell>
@@ -133,6 +153,8 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
               t("mqttbrokers.connect.noAddress")
             )}
           </dd>
+          <dt className="text-fg-muted">{t("mqttbrokers.connect.certificate")}</dt>
+          <dd>{address ? t("mqttbrokers.connect.certificateIssued", { host: address.split(":")[0] }) : "—"}</dd>
           <dt className="text-fg-muted">{t("mqttbrokers.connect.client")}</dt>
           <dd>
             {devices.length > 0
@@ -145,9 +167,99 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
           </dd>
           <dt className="text-fg-muted">{t("mqttbrokers.connect.password")}</dt>
           <dd>{t("mqttbrokers.connect.token")}</dd>
+          {address && devices.length > 0 ? (
+            <>
+              <dt className="text-fg-muted">{t("mqttbrokers.connect.example")}</dt>
+              <dd className="flex flex-col items-start gap-2">
+                <pre className="max-w-full overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">
+                  {publishExample(address, `${project}-${devices[0]}`, publishTopic(roles))}
+                </pre>
+                <CopyUrlButton
+                  url={publishExample(address, `${project}-${devices[0]}`, publishTopic(roles))}
+                  label={t("mqttbrokers.connect.copyExample")}
+                />
+                <span className="text-caption text-fg-muted">{t("mqttbrokers.connect.exampleHint")}</span>
+              </dd>
+            </>
+          ) : null}
           <dt className="text-fg-muted">{t("mqttbrokers.connect.pipeline")}</dt>
           <dd>{t("mqttbrokers.connect.brokerRef", { broker: name })}</dd>
         </dl>
+      </section>
+    </Card>
+  );
+}
+
+/** The first topic a device may publish to, with `${clientid}` left for the shell to keep as typed. */
+export function publishTopic(roles: Role[]): string {
+  const filter = roles.flatMap((role) => role.publish ?? [])[0] ?? "devices/${clientid}/data";
+  return filter.replace(/\/#$/, "/data").replace(/\+/g, "1");
+}
+
+/**
+ * A mosquitto_pub line a device owner copies (T-4860): TLS with the system CA store, the client
+ * id as user name and `$TOKEN` where the device's access token goes. No token is ever filled in.
+ */
+export function publishExample(address: string, client: string, topic: string): string {
+  const [host, port] = address.split(":");
+  return [
+    `mosquitto_pub -h ${host} -p ${port}`,
+    `  --capath /etc/ssl/certs -i ${client} -u ${client} -P "$TOKEN"`,
+    `  -t '${topic.replaceAll("${clientid}", client)}' -m '{"temperature": 21.5}'`,
+  ].join(" \\\n");
+}
+
+/**
+ * What the project may still add (T-4860, API/01 §47): off with who can turn it on, or the
+ * brokers, connections and message rate left, the modes and the addresses it may use.
+ */
+function AllowancePanel({ project }: { project: string }): JSX.Element | null {
+  const { t, i18n } = useTranslation();
+  const allowance = useMqttAllowance(project);
+  if (allowance.isPending || allowance.isError) return null;
+  const data = allowance.data;
+  if (!data.enabled) {
+    return (
+      <Alert tone="info" title={t("mqttAllowance.project.offTitle")} data-allowance="off">
+        {t("mqttAllowance.project.off", { project })}
+      </Alert>
+    );
+  }
+  const number = new Intl.NumberFormat(i18n.resolvedLanguage ?? i18n.language ?? "en");
+  const full = data.brokers.left === 0;
+  return (
+    <Card>
+      <section aria-labelledby="mqtt-allowance" className="flex flex-col gap-3" data-allowance="on">
+        <h2 id="mqtt-allowance" className="text-title font-semibold text-fg">
+          {t("mqttAllowance.project.title")}
+        </h2>
+        <p className="text-body text-fg" data-allowance-left="">
+          {t("mqttAllowance.project.left", {
+            used: data.brokers.used,
+            limit: data.brokers.limit,
+            connections: number.format(data.connections.left),
+            connectionsLimit: number.format(data.connections.limit),
+            rate: number.format(data.messagesPerSecond.left),
+          })}
+        </p>
+        <ul className="flex flex-wrap gap-2" aria-label={t("mqttAllowance.project.modes")}>
+          {data.modes.map((mode) => (
+            <li key={mode}>
+              <Badge tone="neutral">{t(`mqttAllowance.modeLong.${mode}`)}</Badge>
+            </li>
+          ))}
+        </ul>
+        <p className="text-caption text-fg-muted">
+          {t("mqttAllowance.project.addresses", {
+            addresses: data.addresses.map((address) => t(`mqttAllowance.address.${address}`)).join(", "),
+          })}
+          {data.ports.length > 0 ? ` ${t("mqttAllowance.project.ports", { ports: data.ports.join(", ") })}` : ""}
+        </p>
+        {full ? (
+          <Alert tone="warning" data-allowance="full">
+            {t("mqttAllowance.project.full", { limit: data.brokers.limit })}
+          </Alert>
+        ) : null}
       </section>
     </Card>
   );
