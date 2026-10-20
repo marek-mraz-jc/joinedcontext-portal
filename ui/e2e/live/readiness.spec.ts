@@ -419,7 +419,7 @@ test("3. a space with its model: two classes, an enum, a slot of it and a relati
   await expect(page.getByRole("table", { name: "Relationships" })).toContainText("has many");
   await page.getByRole("button", { name: "Check" }).click();
   await expect(page.getByText(/Saves as version/)).toBeVisible({ timeout: 60_000 });
-  await page.getByRole("button", { name: "Save model" }).click();
+  await page.getByRole("button", { name: /^Propose v\d/ }).click();
   await approveAsked(approver, PROJECT, await proposedChange(page));
   await listed(page, PROJECT, "datamodels", MODEL);
   await expect(page.getByText(MODEL).first()).toBeVisible();

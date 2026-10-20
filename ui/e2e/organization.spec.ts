@@ -94,18 +94,19 @@ async function stubApi(page: Page): Promise<{ writes: string[] }> {
 }
 
 test.describe("the Organization page", () => {
-  test("opens on Settings and walks its tabs by keyboard, each at its own address", async ({ page }) => {
+  // The sections are the Administration sidebar's links since T-4831, no longer a tab list.
+  test("opens on Settings and walks its sections from the sidebar, each at its own address", async ({ page }) => {
     await stubApi(page);
     await page.goto("/organization?lang=en");
     await expect(page).toHaveURL(/\/organization\/settings$/);
     await expect(page.getByRole("heading", { level: 1, name: "Administration" })).toBeVisible();
     await expect(page.getByText("Only an organization administrator opens projects.")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Settings", exact: true })).toHaveAttribute("aria-current", "page");
 
-    await page.getByRole("tab", { name: "Settings" }).focus();
-    await page.keyboard.press("ArrowRight");
+    await page.getByRole("link", { name: "People", exact: true }).click();
     await expect(page).toHaveURL(/\/organization\/people$/);
-    await page.keyboard.press("ArrowRight");
-    await page.keyboard.press("ArrowRight");
+    await expect(page.getByRole("link", { name: "People", exact: true })).toHaveAttribute("aria-current", "page");
+    await page.getByRole("link", { name: "Roles", exact: true }).click();
     await expect(page).toHaveURL(/\/organization\/roles$/);
     await expect(page.getByRole("row", { name: /org-admin/ }).getByText("seeded")).toBeVisible();
   });

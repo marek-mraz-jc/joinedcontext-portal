@@ -447,7 +447,10 @@ async fn every_role_meets_every_route_and_operation_exactly_as_the_table_says() 
                 &answer,
                 &approve_other,
             );
+            // Access is never approved by its proposer, an administrator's neither (PF-58, T-4833).
+            let access = kind == "RoleBinding";
             let approve_own = match who {
+                Who::Admin | Who::Steward if access => refused("never by its proposer"),
                 Who::Admin => allowed(StatusCode::ACCEPTED),
                 Who::Steward => refused("cannot approve their own change"),
                 _ => refused("no role grants approve in project"),
@@ -540,7 +543,9 @@ async fn every_role_meets_every_route_and_operation_exactly_as_the_table_says() 
                 &approve_other,
             );
             // An operation never approves its caller's own change, an administrator's neither (AG-11).
-            let approve_own_by_operation = if who.may("approve") {
+            let approve_own_by_operation = if who.may("approve") && access {
+                refused("never by its proposer")
+            } else if who.may("approve") {
                 refused("cannot approve their own change")
             } else {
                 refused("no role grants approve in project")
