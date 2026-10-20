@@ -45,6 +45,7 @@ import {
   YamlFieldError,
 } from "../../schemas/kinds";
 import type { CatalogInput, DataSourceType, TypedDataSourceType } from "../../schemas/kinds";
+import { ConnectionTest } from "./ConnectionTest";
 import { useBentoInputs } from "./RunnerInputForm";
 import { TemplateGallery } from "./TemplateGallery";
 import { SecretRefContext } from "../../components/forms/widgets/SecretRef";
@@ -794,6 +795,7 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
               )}
             </div>
           ) : null}
+          {editing ? <ConnectionTest project={project} name={editing.metadata.name} /> : null}
         </div>
       </ResourceFormDialog>
       </SecretRefContext.Provider>

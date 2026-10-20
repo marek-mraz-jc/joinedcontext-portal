@@ -58,6 +58,8 @@ export interface GridLabels {
   sortPage: string;
   /** What the footer calls the endpoint's own count of matching entities. */
   matching: string;
+  /** Beside the loaded rows when the endpoint's answer carries no total (R22, T-4885). */
+  noTotal: string;
   /** The entry that opens one attribute's history, and the panel's own labels (T-1431). */
   history: string;
   historyLabels?: Partial<import("./EntityHistory").HistoryLabels>;
@@ -99,6 +101,8 @@ export interface GridLabels {
   /** The row's detail panel (T-3097): the identifier opens it, the panel's name, and closing it. */
   openRow: string;
   rowDetail: string;
+  /** The detail's first tab, with the row's values (T-4828). */
+  rowFields: string;
   close: string;
   /** What a paste of a range did (T-3097): cells it set, cells it left, and a range too large. */
   pasted: string;
@@ -202,6 +206,7 @@ export const DEFAULT_LABELS: GridLabels = {
   noFilter: "All",
   sortPage: "Sort this page by",
   matching: "matching",
+  noTotal: "the endpoint gives no total for this answer",
   history: "History",
   edit: "Edit",
   pending: "not applied yet",
@@ -230,6 +235,7 @@ export const DEFAULT_LABELS: GridLabels = {
   relationMore: "and more",
   openRow: "Open",
   rowDetail: "Details",
+  rowFields: "Fields",
   close: "Close",
   pasted: "cells pasted",
   skipped: "skipped (not editable, off the page or not a listed value)",

@@ -335,11 +335,12 @@ describe("space inside view", () => {
     expect(gatewayCalls.every((url) => url.origin === window.location.origin)).toBe(true);
   });
 
-  // T-2889: the whole space's count, the broker's, above the per-type breakdown.
+  // T-2889: the whole space's count, the broker's, under the per-type breakdown on the model tab (T-4885).
   it("says how many entities the whole space holds, and why when it cannot", async () => {
     renderInside({ status: 200, count: 42 }, { status: 200 }, {
       usage: { status: 200, body: { entities: 14232, broker: "canary", observedAt: "2026-09-25T11:40:00Z" } },
     });
+    await openTab(en.spaces.inside.model);
     expect(await screen.findByTestId("space-total")).toHaveTextContent("The space holds 14,232 entities.");
     // PF-116: the space's page names the broker it lives on.
     expect(screen.getByTestId("space-broker")).toHaveTextContent("It lives on the context broker canary.");
@@ -362,10 +363,10 @@ describe("space inside view", () => {
         },
       },
     });
+    await openTab(en.spaces.inside.model);
     const size = await screen.findByTestId("space-size");
     expect(size).toHaveTextContent(i18n.t("spaces.inside.totalSize", { size: "4 MiB", history: "1 MiB" }));
     expect(size).toHaveAttribute("title", "4,194,304 B");
-    await openTab(en.spaces.inside.model);
     const table = await screen.findByRole("table", { name: en.spaces.inside.types });
     const row = within(table).getByText("AirQualityObserved").closest("tr") as HTMLElement;
     expect(within(row).getByTitle("3,145,728 B")).toHaveTextContent("3 MiB");
@@ -375,9 +376,9 @@ describe("space inside view", () => {
     renderInside({ status: 200, count: 42 }, { status: 200 }, {
       usage: { status: 200, body: { entities: 42, broker: "main", observedAt: "2026-09-25T11:40:00Z" } },
     });
+    await openTab(en.spaces.inside.model);
     expect(await screen.findByTestId("space-total")).toBeInTheDocument();
     expect(screen.queryByTestId("space-size")).toBeNull();
-    await openTab(en.spaces.inside.model);
     const table = await screen.findByRole("table", { name: en.spaces.inside.types });
     const row = within(table).getByText("AirQualityObserved").closest("tr") as HTMLElement;
     expect(row.textContent).not.toMatch(/\d B|KiB|MiB/);
@@ -387,6 +388,7 @@ describe("space inside view", () => {
     renderInside({ status: 200, count: 42 }, { status: 200 }, {
       usage: { status: 503, body: { title: "Service Unavailable", status: 503, detail: "the broker answered 500" } },
     });
+    await openTab(en.spaces.inside.model);
     expect(await screen.findByTestId("space-total")).toHaveTextContent(
       i18n.t("spaces.entitiesUnknown", { reason: "the broker answered 500" }),
     );
@@ -619,6 +621,41 @@ describe("the space's own data", () => {
     const add = await screen.findByRole("button", { name: en.spaces.fields.add });
     await userEvent.click(add);
     expect(await screen.findByRole("dialog", { name: en.spaces.fields.title.replace("{type}", "AirQualityObserved") })).toBeInTheDocument();
+  });
+
+  // T-4828: a row opens as a dialog named in the address, with its comments as a tab.
+  it("opens the row a link names as a dialog with Fields, History and Comments, and closing drops it from the address", async () => {
+    const urn = SPACE_ROWS[0].id;
+    window.history.pushState({}, "", `/projects/banskabystrica/spaces/ovzdusie?row=${encodeURIComponent(urn)}`);
+    renderInside({ status: 200, count: 1 });
+    const dialog = await screen.findByRole("dialog", { name: `${en.entityGrid.rowDetail}: ${urn}` });
+    expect(within(dialog).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      en.entityGrid.rowFields,
+      en.entityGrid.history,
+      en.spaces.comments.title,
+    ]);
+    await userEvent.click(within(dialog).getByRole("button", { name: en.entityGrid.close }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(new URLSearchParams(window.location.search).get("row")).toBeNull();
+  });
+
+  it("puts the row opened from the grid into the address, and ignores a row parameter that is no URN", async () => {
+    window.history.pushState({}, "", "/projects/banskabystrica/spaces/ovzdusie?row=javascript%3Aalert(1)");
+    renderInside({ status: 200, count: 1 });
+    const urn = SPACE_ROWS[0].id;
+    await userEvent.click(await screen.findByRole("button", { name: `${en.entityGrid.openRow}: ${urn}` }));
+    expect(await screen.findByRole("dialog", { name: `${en.entityGrid.rowDetail}: ${urn}` })).toBeInTheDocument();
+    expect(new URLSearchParams(window.location.search).get("row")).toBe(urn);
+  });
+
+  it("opens the type's form from Add row and creates through the space surface", async () => {
+    const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200 }, {
+      source: "name: bb-air-quality\nclasses:\n  AirQualityObserved:\n    attributes:\n      no2: { range: float }\n",
+    });
+    await userEvent.click(await screen.findByRole("button", { name: en.spaces.inside.addRow }));
+    const dialog = await screen.findByRole("dialog", { name: en.spaces.inside.addRowTitle.replace("{type}", "AirQualityObserved") });
+    expect(within(dialog).getByRole("button", { name: en.spaces.form.submit })).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some((call) => urlOf(call[0]).pathname.includes("/temporal/"))).toBe(false);
   });
 
   it("offers no field to add while the model's source does not declare the type", async () => {

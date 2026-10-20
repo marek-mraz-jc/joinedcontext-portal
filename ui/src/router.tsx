@@ -21,7 +21,6 @@ import { ChunkFailed, ErrorPage, errorReference, isChunkLoadError } from "./comp
 import { NotFoundState } from "./components/NotFoundState";
 import { LoginPage } from "./routes/LoginPage";
 import { hasEditForm, ResourceListPage } from "./routes/ResourceListPage";
-import { EndpointDocs } from "./pages/endpoints/EndpointDocs";
 const InboxPage = lazy(() => import("./pages/inbox/InboxPage").then((module) => ({ default: module.InboxPage })));
 import { FormRouteHost } from "./components/forms/FormRoute";
 import type { FormTarget } from "./components/forms/FormRoute";
@@ -46,6 +45,7 @@ const McpServersPage = lazy(() => import("./pages/mcp/McpServersPage").then((mod
 const CataloguePage = lazy(() => import("./pages/catalogue/CataloguePage").then((module) => ({ default: module.CataloguePage })));
 const DatasetPage = lazy(() => import("./pages/catalogue/DatasetPage").then((module) => ({ default: module.DatasetPage })));
 import { parseCatalogueSearch } from "./pages/catalogue/search";
+const EndpointDocs = lazy(() => import("./pages/endpoints/EndpointDocs").then((module) => ({ default: module.EndpointDocs })));
 const PublicViewPage = lazy(() => import("./pages/spaces/PublicView").then((module) => ({ default: module.PublicViewPage })));
 const PublicFormPage = lazy(() => import("./pages/spaces/FormView").then((module) => ({ default: module.PublicFormPage })));
 import { useAuth } from "./auth/AuthProvider";
@@ -63,6 +63,7 @@ const AppOpenPage = lazy(() => import("./pages/apps/AppOpenPage").then((module) 
 const GroupPage = lazy(() => import("./pages/access/GroupPage").then((module) => ({ default: module.GroupPage })));
 const PersonPage = lazy(() => import("./pages/organization/People").then((module) => ({ default: module.PersonPage })));
 const EndpointPage = lazy(() => import("./pages/endpoints/EndpointPage").then((module) => ({ default: module.EndpointPage })));
+const RegistrationPage = lazy(() => import("./routes/RegistrationPage").then((module) => ({ default: module.RegistrationPage })));
 const PipelineOverview = lazy(() =>
   import("./pages/pipelines/PipelineOverview").then((module) => ({ default: module.PipelineOverview })),
 );
@@ -1039,7 +1040,7 @@ const sharedRedirectRoute = createRoute({
 });
 
 /** A resource's own page, for the kinds that have one (UI-01, T-2281, AP-68). */
-const DETAIL_PAGES = new Set(["spaces", "endpoints", "apps", "pipelines"]);
+const DETAIL_PAGES = new Set(["spaces", "endpoints", "apps", "csrs", "pipelines"]);
 
 /**
  * One section of a project: its list, one of its forms as a page of its own (T-2474, UI-27), or
@@ -1153,6 +1154,8 @@ function DetailPage({
         <SpaceInside project={project} name={name} />
       ) : plural === "endpoints" ? (
         <EndpointPage project={project} name={name} />
+      ) : plural === "csrs" ? (
+        <RegistrationPage project={project} name={name} />
       ) : plural === "pipelines" ? (
         <PipelineOverview project={project} name={name} />
       ) : (

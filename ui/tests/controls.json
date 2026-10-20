@@ -1020,6 +1020,14 @@
         "connect_page.test.tsx"
       ]
     },
+    "src/pages/datasources/ConnectionTest.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "context_sources_ui.test.tsx"
+      ]
+    },
     "src/pages/datasources/DataSourcesPage.tsx": {
       "controls": {
         "Button": 1
@@ -1702,7 +1710,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 10
+        "Button": 11
       },
       "tests": [
         "part_space_inside.test.tsx",
