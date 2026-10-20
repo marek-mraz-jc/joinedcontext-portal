@@ -159,6 +159,13 @@ const fi: Strings = {
     applying: "Tallennetaan…",
     refusedHere: "hylätty",
     notInList: "ei luettelossa",
+    reason: "Miksi muutat näitä arvoja",
+    reasonDefault: "Korjattu tietotaulukossa",
+    reasonNeeded: "Kerro, miksi muutat näitä arvoja.",
+    saved: "Tallennetut arvot:",
+    undo: "Kumoa",
+    undoReason: "Kumoaminen",
+    undone: "Muutos kumottiin.",
   },
 };
 
