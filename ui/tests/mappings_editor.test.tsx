@@ -307,8 +307,8 @@ describe("the editor on screen", () => {
   it("names each model choice by its label alone and says what the name and the example are for (T-4824)", () => {
     render(<Harness project="banskabystrica" spaceOf={() => "ovzdusie"} />);
     // A label wrapped round its select read the options into the select's name.
-    expect(screen.getByRole("combobox", { name: en.mappings.source })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: en.mappings.target })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: en.mappings.source })).toHaveAccessibleDescription(en.mappings.sourceHelp);
+    expect(screen.getByRole("combobox", { name: en.mappings.target })).toHaveAccessibleDescription(en.mappings.targetHelp);
     expect(screen.getByLabelText(en.mappings.name)).toHaveAccessibleDescription(en.mappings.nameHelp);
     expect(screen.getByLabelText(en.mappings.input)).toHaveAccessibleDescription(en.mappings.inputHelp);
   });

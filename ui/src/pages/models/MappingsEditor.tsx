@@ -198,7 +198,7 @@ export function MappingsEditor({
         <h2 id="mappings-pair" className="sr-only">
           {t("mappings.pair")}
         </h2>
-        <Field id="mappings-source" label={t("mappings.source")}>
+        <Field id="mappings-source" label={t("mappings.source")} help={t("mappings.sourceHelp")}>
           <Select
             id="mappings-source"
             value={sourceName}
@@ -217,7 +217,7 @@ export function MappingsEditor({
         <span aria-hidden="true" className="pb-2 text-lg text-fg-muted">
           →
         </span>
-        <Field id="mappings-target" label={t("mappings.target")}>
+        <Field id="mappings-target" label={t("mappings.target")} help={t("mappings.targetHelp")}>
           <Select
             id="mappings-target"
             value={targetName}

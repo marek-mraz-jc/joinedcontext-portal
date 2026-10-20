@@ -3836,6 +3836,8 @@
     "golden": "Golden Test",
     "input": "Eingabebeispiel (JSON)",
     "inputHelp": "Ein Quelldatensatz als JSON, etwa eine Entität, die die Quelle sendet; die Ausgabe daneben zeigt, was die Zuordnung daraus macht.",
+    "sourceHelp": "Das Modell, in dem die Datensätze ankommen.",
+    "targetHelp": "Das Modell, in das die Datensätze umgewandelt werden.",
     "nameHelp": "Der Name der Zuordnung im Projekt: Kleinbuchstaben, Ziffern und Bindestriche; die Dateien des Golden-Tests heißen danach.",
     "output": "Transformierte Ausgabe",
     "unchecked": "Hier nicht ausgewertet, sie stammen aus nativem Bloblang: {slots}. CI führt sie über Bento aus.",

@@ -3836,6 +3836,8 @@
     "golden": "Zlatý test",
     "input": "Vstupní příklad (JSON)",
     "inputHelp": "Zdrojový záznam jako JSON, například jedna entita, kterou zdroj posílá; výstup vedle něj ukazuje, co z něj mapování udělá.",
+    "sourceHelp": "Model, ve kterém záznamy přicházejí.",
+    "targetHelp": "Model, na který se záznamy převedou.",
     "nameHelp": "Název mapování v projektu: malá písmena, číslice a pomlčky; podle něj se jmenují soubory zlatého testu.",
     "output": "Transformovaný výstup",
     "unchecked": "Zde se nevyhodnocují, pocházejí z nativního bloblangu: {slots}. CI je spustí přes Bento.",
