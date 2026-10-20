@@ -5,7 +5,7 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ListFailed, reasonOf } from "../../components/forms/widgets/ListFailed";
 import { useTranslation } from "react-i18next";
-import { api, queryKeys, unwrap } from "../../api/client";
+import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests, knownSecretNames, overlay, plainTitle, prune, refName } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { useBranding } from "../../branding";
@@ -16,6 +16,7 @@ import { pipelineSchema, pipelineUiSchemaFor } from "../../schemas/kinds";
 import type { EndpointOption, PipelineShown } from "../../schemas/kinds";
 import { PipelineStudio } from "./PipelineStudio";
 import { PipelineWorkbench } from "./PipelineWorkbench";
+import type { MappingFile } from "./PipelineWorkbench";
 import type { UiSchema } from "../../components/forms/types";
 
 /** The form of a pipeline: `PipelineSpec` with every reference flattened to its name. */
@@ -423,6 +424,25 @@ export function workbenchUiSchema(base: UiSchema): UiSchema {
   } as UiSchema;
 }
 
+/**
+ * The `bento.yaml` beside a pipeline's manifest (PL-41, T-4818): its text, or `null` when the
+ * pipeline has none. Any other answer throws, so a forge that failed is never an empty mapping.
+ */
+export async function loadMappingFile(project: string, name: string): Promise<string | null> {
+  const path = `/api/v1/projects/${encodeURIComponent(project)}/pipelines/${encodeURIComponent(name)}/bento`;
+  // A `Request` on this origin, as the model source is read: the session travels with it.
+  const response = await globalThis.fetch(
+    new Request(`${window.location.origin}${path}`, { headers: { Accept: "text/yaml, text/plain, */*" } }),
+  );
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new ApiError(response.status, response.statusText || `HTTP ${response.status}`);
+  }
+  return response.text();
+}
+
 /** The known values plus the one already chosen, so an edit never loses its own reference. */
 function withCurrent(values: string[], current: string | undefined): string[] {
   return current && !values.includes(current) ? [...values, current] : values;
@@ -438,7 +458,15 @@ export interface PipelineEditorDialogProps {
   initial?: PipelineForm;
   pending: boolean;
   error: string | null;
-  onSubmit: (envelope: ReturnType<typeof toEnvelope>, draft?: { kind: string; name: string }) => void;
+  /**
+   * Proposes the manifest. `files` carries an edited `bento.yaml` beside it (T-4818); the proposal
+   * is then the manifest sent with its file rather than the draft, which holds no files.
+   */
+  onSubmit: (
+    envelope: ReturnType<typeof toEnvelope>,
+    draft?: { kind: string; name: string },
+    files?: Record<string, string>,
+  ) => void;
   /** The draft this form edits when the address named one (`?draft=`, AG-61, UI-47). */
   draftName?: string;
 }
@@ -487,6 +515,20 @@ export function PipelineEditorDialog({
   // Nothing drawn on the canvas is dropped between it and the proposal: Check and Propose both
   // stop and say what is missing (T-3969).
   const loss = canvasLoss(draft);
+
+  // The mapping an edited pipeline with no compute step runs is its `bento.yaml` (PL-41): loaded
+  // into step 4, read-only until Edit is on, and proposed with the manifest when changed (T-4818).
+  const fileName = editing && !toForm(editing).compute?.kind ? editing.metadata.name : undefined;
+  const loadedFile = useQuery({
+    queryKey: ["pipeline-bento", project, fileName],
+    enabled: fileName !== undefined,
+    retry: false,
+    refetchOnWindowFocus: false,
+    queryFn: () => loadMappingFile(project, fileName ?? ""),
+  });
+  const [fileEditing, setFileEditing] = useState(false);
+  const [fileText, setFileText] = useState<string | null>(null);
+  const fileChanged = fileText !== null && fileText !== loadedFile.data;
   const lossRefusal = loss ? { message: t(`pipelines.canvasLoss.${loss.key}`), field: loss.field } : undefined;
 
   const dataSources = useQuery({
@@ -561,6 +603,30 @@ export function PipelineEditorDialog({
     [project, base],
   );
 
+  const mappingFile: MappingFile | undefined =
+    fileName === undefined
+      ? undefined
+      : {
+          state: loadedFile.isPending
+            ? "loading"
+            : loadedFile.isError
+              ? "failed"
+              : loadedFile.data === null
+                ? "absent"
+                : "loaded",
+          text: fileText ?? loadedFile.data ?? "",
+          editing: fileEditing,
+          onEditing: setFileEditing,
+          onText: setFileText,
+          failure: (
+            <ListFailed
+              what="bento.yaml"
+              reason={reasonOf(loadedFile.error, t("form.invalid"))}
+              onRetry={() => void loadedFile.refetch()}
+            />
+          ),
+        };
+
   // The mapping is `compute.bloblang` in the form (PL-41); left empty it stays in `bento.yaml`
   // beside the manifest in the forge (Architecture/08 §3), so the dialog links there too.
   const bentoUrl = editing?.status?.sourceUrl?.replace(/pipeline\.yaml$/, "bento.yaml");
@@ -602,7 +668,68 @@ export function PipelineEditorDialog({
       error={error}
       source={source}
       onChange={(form) => setDraft(completeOutput(form))}
-      onSubmit={(form, draftRef) => onSubmit(toEnvelope(project, form, base), draftRef)}
+      onSubmit={(form, draftRef) =>
+        fileChanged
+          ? onSubmit(toEnvelope(project, form, base), undefined, { "bento.yaml": fileText ?? "" })
+          : onSubmit(toEnvelope(project, form, base), draftRef)
+      }
+      // The check runs by itself once typing rests, so Propose opens without a hidden step (T-4818).
+      autoCheck
+      afterFields={
+        <>
+          {editing ? null : (
+            <RecipeGallery
+              project={project}
+              orgDomain={orgDomain}
+              dataSources={dataSourceList}
+              endpoints={endpointList}
+              targets={endpointOptions}
+              onUse={(form) => setDraft(completeOutput(form))}
+            >
+              <TemplateList project={project} onUse={(form) => setDraft(completeOutput(form))} />
+            </RecipeGallery>
+          )}
+          <PipelineWorkbench
+            project={project}
+            draft={draft}
+            onChange={(form) => setDraft(completeOutput(form))}
+            dataSources={dataSourceList}
+            endpoints={endpointList}
+            targets={endpointOptions}
+            toManifest={source.toManifest}
+            onVerdict={(ok, tested) => setVerdict({ ok, bloblang: tested })}
+            mappingFile={mappingFile}
+          >
+            {/* What the six steps do not cover (several sources, processor steps, a KPI, the flow
+                view) stays one fold away, on the same draft (ADR-N-034). */}
+            <details className="rounded-lg border border-border p-3">
+              <summary className="cursor-pointer text-body font-semibold text-fg">
+                {t("pipelines.workbench.advanced")}
+                <span className="ml-2 font-normal text-caption text-fg-muted">
+                  {t("pipelines.workbench.advancedHint")}
+                </span>
+              </summary>
+              <div className="mt-3">
+                <PipelineStudio
+                  project={project}
+                  draft={draft}
+                  onChange={(form) => setDraft(completeOutput(form))}
+                  dataSources={dataSourceList}
+                  endpoints={endpointList}
+                  toManifest={source.toManifest}
+                  onVerdict={(ok, tested) => setVerdict({ ok, bloblang: tested })}
+                />
+              </div>
+            </details>
+          </PipelineWorkbench>
+          {draft?.compute?.kind === "bloblang" ? (
+            <Alert tone="info" actions={bentoFileLink}>
+              {t("pipelines.bloblangHint")}
+            </Alert>
+          ) : null}
+          <SaveAsTemplate project={project} manifest={() => toEnvelope(project, draft ?? {}, base)} />
+        </>
+      }
     >
       {dataSources.isError ? (
         <ListFailed
@@ -618,67 +745,6 @@ export function PipelineEditorDialog({
           onRetry={() => void endpoints.refetch()}
         />
       ) : null}
-      {editing && !draft?.compute?.kind && !(draft?.processors ?? []).length ? (
-        // An existing pipeline with no compute step keeps its mapping in `bento.yaml` (PL-41):
-        // the empty mapping box below is not an empty pipeline, and the page says so (T-3088).
-        <Alert
-          tone="info"
-          data-testid="pipeline-mapping-in-bento"
-          actions={bentoFileLink}
-        >
-          {t("pipelines.bentoMapping")}
-        </Alert>
-      ) : null}
-      {editing ? null : (
-        <RecipeGallery
-          project={project}
-          orgDomain={orgDomain}
-          dataSources={dataSourceList}
-          endpoints={endpointList}
-          targets={endpointOptions}
-          onUse={(form) => setDraft(completeOutput(form))}
-        >
-          <TemplateList project={project} onUse={(form) => setDraft(completeOutput(form))} />
-        </RecipeGallery>
-      )}
-      <PipelineWorkbench
-        project={project}
-        draft={draft}
-        onChange={(form) => setDraft(completeOutput(form))}
-        dataSources={dataSourceList}
-        endpoints={endpointList}
-        targets={endpointOptions}
-        toManifest={source.toManifest}
-        onVerdict={(ok, tested) => setVerdict({ ok, bloblang: tested })}
-      >
-        {/* What the six steps do not cover (several sources, processor steps, a KPI, the flow
-            view) stays one fold away, on the same draft (ADR-N-034). */}
-        <details className="rounded-lg border border-border p-3">
-          <summary className="cursor-pointer text-body font-semibold text-fg">
-            {t("pipelines.workbench.advanced")}
-            <span className="ml-2 font-normal text-caption text-fg-muted">
-              {t("pipelines.workbench.advancedHint")}
-            </span>
-          </summary>
-          <div className="mt-3">
-            <PipelineStudio
-              project={project}
-              draft={draft}
-              onChange={(form) => setDraft(completeOutput(form))}
-              dataSources={dataSourceList}
-              endpoints={endpointList}
-              toManifest={source.toManifest}
-              onVerdict={(ok, tested) => setVerdict({ ok, bloblang: tested })}
-            />
-          </div>
-        </details>
-      </PipelineWorkbench>
-      {draft?.compute?.kind === "bloblang" ? (
-        <Alert tone="info" actions={bentoFileLink}>
-          {t("pipelines.bloblangHint")}
-        </Alert>
-      ) : null}
-      <SaveAsTemplate project={project} manifest={() => toEnvelope(project, draft ?? {}, base)} />
     </ResourceFormDialog>
   );
 }

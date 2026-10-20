@@ -106,7 +106,8 @@ function renderEndpoints(
  */
 async function openProjectExport(): Promise<void> {
   await userEvent.click(await screen.findByRole("link", { name: en.nav.organization }));
-  await userEvent.click(await screen.findByRole("tab", { name: en.organization.tab.projects }));
+  // Projects is a section of Administration's side navigation (T-4831).
+  await userEvent.click(await screen.findByRole("link", { name: en.organization.tab.projects }));
   const table = await screen.findByRole("table", { name: en.organization.projects.caption });
   const row = (await within(table).findByRole("link", { name: "banskabystrica" })).closest("tr") as HTMLElement;
   await userEvent.click(within(row).getByRole("button", { name: en.organization.projects.export }));

@@ -1,12 +1,13 @@
 import { useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { PageFailed } from "../../components/ui/PageState";
 import { asManifests, localized, ORG_NAMESPACE } from "../../api/manifest";
 import { mayRead, useAdministers, usePermissions } from "../../api/permissions";
+import { kindPlural } from "../../kindWords";
 import { useProjects } from "../../api/projects";
 import { DeleteProjectAction } from "../../components/DeleteProjectDialog";
 import { ExportButton } from "../../components/export/ExportButton";
@@ -29,8 +30,6 @@ import {
   TableHeaderCell,
   TableRow,
   TableSkeleton,
-  Tabs,
-  tabPanelProps,
 } from "../../components/ui";
 import { Groups } from "../access/Groups";
 import { RoleBindings } from "../access/RoleBindings";
@@ -45,30 +44,16 @@ import { KindList } from "../../routes/ResourceListPage";
 import { ValidationHealth } from "./ValidationHealth";
 import { Brokers } from "./Brokers";
 import { McpServersPage } from "../mcp/McpServersPage";
+import { ORGANIZATION_GROUPS } from "./AdminNav";
+import type { OrganizationTab } from "./AdminNav";
 
-/** The tabs of `/organization/{tab}`, in the order Architecture/09 §14.1 lists them. */
-export const ORGANIZATION_TABS = [
-  "settings",
-  "people",
-  "members",
-  "roles",
-  "groups",
-  "service-accounts",
-  "blueprints",
-  "agentprofiles",
-  "dataspaceparticipants",
-  "environments",
-  "models",
-  "projects",
-  "applications",
-  "setup",
-  "health",
-  "brokers",
-  "endpoints",
-  "mcp-servers",
-] as const;
+/**
+ * The sections of `/organization/{tab}`, in the order of the side navigation's groups
+ * (Architecture/09 §14.1, T-4831).
+ */
+export const ORGANIZATION_TABS: readonly OrganizationTab[] = ORGANIZATION_GROUPS.flatMap((group) => group.tabs);
 
-export type OrganizationTab = (typeof ORGANIZATION_TABS)[number];
+export type { OrganizationTab };
 
 export function isOrganizationTab(value: string): value is OrganizationTab {
   return (ORGANIZATION_TABS as readonly string[]).includes(value);
@@ -282,6 +267,29 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
   );
 }
 
+/** The group a section is listed under in the side navigation. */
+function groupOf(tab: OrganizationTab): (typeof ORGANIZATION_GROUPS)[number]["id"] {
+  return ORGANIZATION_GROUPS.find((group) => (group.tabs as readonly string[]).includes(tab))?.id ?? "settings";
+}
+
+/**
+ * A kind the organization holds as plain manifests (T-4831): its list, or, when the role of the
+ * person reads none of that kind, a sentence saying who does, never the not-found page the API's
+ * `404` turned into (D-environments, 2026-10-20).
+ */
+function OrganizationKind({ plural, kind }: { plural: string; kind: string }): JSX.Element {
+  const { t } = useTranslation();
+  const permissions = usePermissions(ORG_NAMESPACE);
+  const reads = mayRead(permissions.data, kind);
+  if (reads === undefined) {
+    return <PageLoading label={t("app.loading")} />;
+  }
+  if (!reads) {
+    return <Alert tone="info">{t("organization.kindHidden", { kinds: kindPlural(kind, t) })}</Alert>;
+  }
+  return <KindList project={ORG_NAMESPACE} plural={plural} embedded />;
+}
+
 /**
  * The Administration page (T-2605, T-2879, UI-75, Architecture/09 §14.1): what is the same in
  * every project — the Organization manifest, its people, members, roles, groups and service
@@ -298,7 +306,6 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
  */
 export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor: string }): JSX.Element {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const { known, administers } = useAdministers();
   if (!known || !administers) {
     return (
@@ -315,31 +322,21 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
   }
   return (
     <div className="space-y-6">
-      <PageHeader title={t("organization.title")} description={t("organization.lead")} />
+      {/* Each section names itself in its own H2; the lead says what its group of the side
+          navigation is for (T-4831). */}
+      <PageHeader title={t("organization.title")} description={t(`organization.groupLead.${groupOf(tab)}`)} />
       {tab === "setup" ? null : <SetupReminder />}
-      <Tabs
-        id="organization"
-        label={t("organization.tabsLabel")}
-        value={tab}
-        onChange={(next) => void navigate({ to: "/organization/$tab", params: { tab: next } })}
-        tabs={ORGANIZATION_TABS.filter((value) => value !== "endpoints" || administers).map((value) => ({
-          value,
-          label: t(`organization.tab.${value}`),
-        }))}
-      />
-      <div {...tabPanelProps("organization", tab)} className="space-y-8">
+      <div className="space-y-8">
         {tab === "settings" ? <OrganizationSettings /> : null}
         {tab === "people" ? <People /> : null}
         {tab === "members" ? <OrganizationMembers /> : null}
         {tab === "roles" ? <Roles project={ORG_NAMESPACE} scope="organization" /> : null}
         {tab === "groups" ? <Groups project={ORG_NAMESPACE} /> : null}
         {tab === "service-accounts" ? <ServiceAccounts project={ORG_NAMESPACE} /> : null}
-        {tab === "blueprints" ? <KindList project={ORG_NAMESPACE} plural="blueprints" embedded /> : null}
-        {tab === "agentprofiles" ? <KindList project={ORG_NAMESPACE} plural="agentprofiles" embedded /> : null}
-        {tab === "dataspaceparticipants" ? (
-          <KindList project={ORG_NAMESPACE} plural="dataspaceparticipants" embedded />
-        ) : null}
-        {tab === "environments" ? <KindList project={ORG_NAMESPACE} plural="environments" embedded /> : null}
+        {tab === "blueprints" ? <OrganizationKind plural="blueprints" kind="Blueprint" /> : null}
+        {tab === "agentprofiles" ? <OrganizationKind plural="agentprofiles" kind="AgentProfile" /> : null}
+        {tab === "dataspaceparticipants" ? <OrganizationKind plural="dataspaceparticipants" kind="DataSpaceParticipant" /> : null}
+        {tab === "environments" ? <OrganizationKind plural="environments" kind="Environment" /> : null}
         {tab === "models" ? <OrganizationModels /> : null}
         {tab === "projects" ? <OrganizationProjects anchor={anchor} /> : null}
         {tab === "applications" ? <OrganizationApplications /> : null}

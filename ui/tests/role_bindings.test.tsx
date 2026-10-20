@@ -163,7 +163,7 @@ describe("people and roles", () => {
     renderAccess({ grants: READER });
 
     expect(await screen.findByText("demo.steward@hel.fi")).toBeInTheDocument();
-    expectDenied(screen.getByRole("button", { name: en.access.roles.grant }), /RoleBinding/);
+    expectDenied(screen.getByRole("button", { name: en.access.roles.grant }), /Only an organization administrator can add or change role assignments/);
     for (const button of within(roles()).queryAllByRole("button", { name: /^(Edit|Remove)\b/ })) {
       expectDenied(button);
     }

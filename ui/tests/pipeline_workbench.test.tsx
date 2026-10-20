@@ -446,6 +446,10 @@ describe("what the workbench reads from an answer", () => {
     expect(classOfMapping('root.type = "Tram"', ["Bus", "Tram"])).toBe("Tram");
     expect(classOfMapping('root.type = "Ferry"', ["Bus", "Tram"])).toBe("Bus");
     expect(classOfMapping("", [])).toBeUndefined();
+    // T-4818: a bento.yaml builds whole entities, `"type": "…"`; the first known class wins.
+    const bento = 'root = $rows.map_each(r -> { "type": "Property", "id": r.id })\n  "type": "AirQualityObserved",';
+    expect(classOfMapping(bento, ["Event", "AirQualityObserved"])).toBe("AirQualityObserved");
+    expect(classOfMapping('"type": "Ferry"', ["Event", "Tram"])).toBe("Event");
     expect(exampleOf({ range: "integer", kind: "Property" })).toBe("12");
     // T-2861: a relationship's example is an id of its target class, a list on a many end.
     expect(exampleOf({ range: "Station", kind: "Relationship" })).toBe('"urn:ngsi-ld:Station:…"');

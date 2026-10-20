@@ -201,14 +201,17 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
       envelope,
       name,
       draft,
+      files,
     }: {
       envelope: ReturnType<typeof toEnvelope>;
       name: string | null;
       /** The draft the form edited, so the proposal is taken from what was checked (AG-62). */
       draft?: { kind: string; name: string };
+      /** Files beside the manifest, an edited `bento.yaml` (T-4818). */
+      files?: Record<string, string>;
     }) => {
       setFormError(null);
-      const body = (draft ? { ...envelope, draft } : envelope);
+      const body = files ? { ...envelope, files } : draft ? { ...envelope, draft } : envelope;
       return unwrap(
         name === null
           ? await api.POST("/api/v1/projects/{project}/{plural}", {
@@ -601,8 +604,8 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
           pending={propose.isPending}
           error={formError}
           draftName={urlDraftName}
-          onSubmit={(envelope, draft) =>
-            propose.mutate({ envelope, name: editing ? editing.metadata.name : null, draft })
+          onSubmit={(envelope, draft, files) =>
+            propose.mutate({ envelope, name: editing ? editing.metadata.name : null, draft, files })
           }
         />
       ) : null}
