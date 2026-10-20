@@ -12,7 +12,7 @@ import { mergeObjects } from "@rjsf/utils";
 import type { ErrorSchema } from "@rjsf/utils";
 import type { JsonSchema, UiSchema } from "./forms/types";
 import { portalThemeWidgets } from "./forms/theme";
-import { arrange, index, mergeUi, paths } from "./forms/uischema";
+import { arrange, index, mergeUi, paths, prefilled } from "./forms/uischema";
 import { PORTAL_WIDGET_NAMES } from "./forms/widgetNames";
 import { shippedForms } from "../schemas/forms";
 import { api, ApiError, forPeople, queryKeys, unwrap } from "../api/client";
@@ -308,7 +308,8 @@ export function ResourceFormDialogBody<T>({
     const result = arrange(manifest, {
       locale: i18n.language,
       properties: arrangeable ? arrangeable.split("\u0000") : [],
-      required: schema.required,
+      // A required field its default fills may fold (T-4824).
+      required: (schema.required ?? []).filter((field) => !prefilled(schema.properties?.[field])),
       widgets: [...Object.keys(portalThemeWidgets), ...PORTAL_WIDGET_NAMES],
       advanced,
       // An example reads as this project's and this organization's own (T-2752).

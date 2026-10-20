@@ -12,7 +12,7 @@
  * pattern would reject.
  */
 import { describe, expect, it } from "vitest";
-import { arrange, localized, paths } from "../src/components/forms/uischema";
+import { arrange, localized, paths, prefilled } from "../src/components/forms/uischema";
 import type { UiSchemaManifest } from "../src/components/forms/uischema";
 import { shippedForms } from "../src/schemas/forms";
 import * as kinds from "../src/schemas/kinds";
@@ -142,18 +142,6 @@ function leaves(schema: unknown, prefix = "", found: Leaf[] = []): Leaf[] {
     }
   }
   return found;
-}
-
-/** Whether the form fills a field by itself: it has a default, or every field it requires has one. */
-function prefilled(schema: unknown): boolean {
-  const definition = schema as { default?: unknown; required?: string[]; properties?: Record<string, unknown> } | undefined;
-  if (definition?.default !== undefined) return true;
-  const required = definition?.required ?? [];
-  return (
-    definition?.properties !== undefined &&
-    required.length > 0 &&
-    required.every((field) => prefilled(definition.properties?.[field]))
-  );
 }
 
 /** The arrangement of one path, as `arrange` wrote it into the nested RJSF `uiSchema`. */
