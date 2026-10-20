@@ -31,6 +31,8 @@ describe("pasting a range (T-3097)", () => {
   });
 
   it("plans nothing for a range past the bound", () => {
+    // 500 cells, each a write the gateway checks against the model (T-4826, DM-86).
+    expect(MAX_PASTE_CELLS).toBe(500);
     const wide = [Array.from({ length: MAX_PASTE_CELLS + 1 }, () => "1")];
     expect(planPaste(wide, () => ({ id: "e1", attr: "a", current: "0" }))).toEqual({
       edits: [],

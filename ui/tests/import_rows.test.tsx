@@ -373,6 +373,41 @@ describe("the import dialog", () => {
     expect(screen.getByRole("button", { name: "Download the refused rows (CSV)" })).toBeInTheDocument();
   });
 
+  it("writes each row's expiresAt from the column picked and names the space's history rule (T-4822)", async () => {
+    await i18n.changeLanguage("en");
+    const user = userEvent.setup();
+    const send = vi.fn<Send>(async () => ({ status: 201 }));
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ImportRowsDialog
+          open
+          onOpenChange={() => {}}
+          target={TARGET}
+          slots={SLOTS}
+          send={send}
+          onImported={() => {}}
+          retention={[{ entityType: "*", history: "P90D" }]}
+        />
+      </I18nextProvider>,
+    );
+    await user.upload(
+      screen.getByLabelText("Choose a file"),
+      new File(["Title,ends\nKamppi,2999-01-01T00:00:00Z\nTöölö,2001-01-01T00:00:00Z\n"], "stations.csv"),
+    );
+    const expiry = await screen.findByTestId("import-expiry");
+    expect(within(expiry).getByRole("radio", { name: "Never" })).toBeChecked();
+    expect(within(expiry).getByText(/The space default keeps the history of BikeHireDockingStation: 90 days/)).toBeInTheDocument();
+    await user.click(within(expiry).getByRole("radio", { name: "At the time a column gives" }));
+    await user.selectOptions(within(expiry).getByRole("combobox", { name: "Column with the time" }), "ends");
+    expect(screen.getByRole("combobox", { name: "ends" })).toHaveValue("@expiresAt");
+    expect(screen.getByText("1 row is ready, 1 refused.")).toBeInTheDocument();
+    expect(screen.getByText(/is already past/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Create 1 row" }));
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    const [created] = send.mock.calls[0][0].body as Record<string, unknown>[];
+    expect(created.expiresAt).toBe("2999-01-01T00:00:00.000Z");
+  });
+
   it("shows how the file was read and previews its first rows (T-3248)", async () => {
     const user = userEvent.setup();
     render(

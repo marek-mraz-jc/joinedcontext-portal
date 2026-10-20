@@ -991,7 +991,26 @@
         "decimalPoint": "Dezimalpunkt",
         "dates": "Datum als {format}"
       },
-      "nothingToCreate": "Keine Zeile ist bereit zum Anlegen. Ordnen Sie zuerst die Spalten zu."
+      "nothingToCreate": "Keine Zeile ist bereit zum Anlegen. Ordnen Sie zuerst die Spalten zu.",
+      "expiry": {
+        "title": "Wann verschwinden diese Entitäten?",
+        "legend": "Importierte Entitäten werden entfernt",
+        "never": "Nie",
+        "fromColumn": "Zur Zeit aus einer Spalte",
+        "fixed": "Zu einer festen Zeit",
+        "column": "Wann sie verschwindet (expiresAt)",
+        "whichColumn": "Spalte mit der Zeit",
+        "columnHint": "Datum und Uhrzeit je Zeile; eine Zeile mit vergangener Zeit wird abgelehnt statt sofort gelöscht.",
+        "at": "Alle entfernen am",
+        "atHint": "In Ihrer Zeitzone.",
+        "history": {
+          "entity": "{type} behält die Historie {kept}.",
+          "type": "Die Regel des Typs behält die Historie von {type}: {kept}.",
+          "space": "Der Standard des Raums behält die Historie von {type}: {kept}.",
+          "platform": "Keine Regel dieses Raums setzt die Historie von {type}: der Plattformstandard behält sie {kept}.",
+          "none": "{type} behält die Historie {kept}."
+        }
+      }
     },
     "export": {
       "label": "Exportieren:",
@@ -1058,7 +1077,15 @@
       "spaceDefault": "Vorgabe des Raums",
       "platformDefault": "Vorgabe der Plattform",
       "perType": "Pro Typ festgelegt",
-      "defaultAsNow": "{fallback} (wie bisher)"
+      "defaultAsNow": "{fallback} (wie bisher)",
+      "layer": {
+        "entity": "von der Entität selbst gesetzt",
+        "type": "aus der Regel dieses Typs",
+        "space": "aus dem Standard des Raums",
+        "platform": "Plattformstandard",
+        "none": "bis sie gelöscht werden"
+      },
+      "entityWins": "Das eigene expiresAt einer Entität entfernt sie zu dieser Zeit, ihr eigenes historyRetention bestimmt ihre Historie: beide gehen den Regeln unten vor."
     },
     "upload": {
       "open": "CSV hochladen",
@@ -2230,7 +2257,28 @@
         "notNumber": "{field} enthält „{value}“, keine Zahl; {name} erwartet eine Zahl. Wählen Sie ein anderes Feld oder ändern Sie die Stichprobe.",
         "notBoolean": "{field} enthält „{value}“, weder true noch false; {name} erwartet true oder false. Wählen Sie ein anderes Feld oder ändern Sie die Stichprobe.",
         "notValue": "{field} enthält „{value}“; {name} erwartet einen der Werte {values}. Wählen Sie ein anderes Feld oder ändern Sie die Stichprobe.",
-        "noId": "Wählen Sie das Feld, aus dem die Id jeder Entität entsteht."
+        "noId": "Wählen Sie das Feld, aus dem die Id jeder Entität entsteht.",
+        "notTime": "{field} enthält {value}, das ist keine Zeit: RFC-3339-Text wie 2026-10-20T14:30:00Z oder Unix-Sekunden verwenden."
+      },
+      "expiry": {
+        "title": "Wann verschwinden Entitäten?",
+        "legend": "Entitäten dieses Typs werden entfernt",
+        "never": "Nie",
+        "neverHint": "Sie bleiben, bis jemand sie löscht oder eine Regel des Raums sie entfernt.",
+        "source": "Zu einer Zeit aus der Quelle",
+        "sourceHint": "Jede Entität erhält ihr eigenes expiresAt: ein Zeitfeld des Datensatzes plus eine Dauer, zum Beispiel observedAt plus 10 Minuten für eine Busposition.",
+        "stale": "Wenn die Quelle sie nicht mehr sendet",
+        "staleHint": "Stündlich löscht die Pipeline Entitäten dieses Typs, die sie im Fenster nicht aktualisiert hat.",
+        "from": "Zeit aus",
+        "written": "Zeitpunkt des Schreibens",
+        "plus": "Zuzüglich",
+        "plusUnit": "Einheit der Dauer",
+        "after": "Nicht aktualisiert seit",
+        "afterUnit": "Einheit des Fensters",
+        "afterHint": "Entitäten von {type}, die so lange nicht aktualisiert wurden, werden stündlich gelöscht.",
+        "refusals": "Der Vorschlag wird abgelehnt, wenn die Pipeline mehr als eine Ausgabe hat, eine andere Pipeline in denselben Raum schreibt oder keine Policy dieser Pipeline deleteBatch und queryBatch für den Typ gewährt; die Ablehnung nennt die zu erweiternde Policy.",
+        "history": "Die Historie von {type} folgt den Regeln des Raums.",
+        "spaceRules": "Aufbewahrung in {space}"
       }
     },
     "debug": {
@@ -3998,6 +4046,13 @@
     "observedKeep": "beibehalten, wann jeder Wert beobachtet wurde",
     "observedNow": "diese Werte wurden jetzt beobachtet",
     "applying": "Wird angewendet…",
+    "reason": "Warum Sie diese Werte ändern",
+    "reasonDefault": "In der Datentabelle korrigiert",
+    "reasonNeeded": "Nennen Sie, warum Sie diese Werte ändern.",
+    "saved": "Gespeicherte Werte:",
+    "undo": "Rückgängig",
+    "undoReason": "Rückgängig gemacht",
+    "undone": "Die Änderung wurde rückgängig gemacht.",
     "refusedHere": "abgelehnt",
     "notInList": "nicht in der Liste",
     "relationSearch": "Suchen",
@@ -4054,7 +4109,7 @@
     "historyReason": "Grund",
     "pasted": "Zellen eingefügt",
     "skipped": "übersprungen (nicht bearbeitbar, außerhalb der Seite oder kein zulässiger Wert)",
-    "pasteTooLarge": "Der kopierte Bereich ist zu groß zum Einfügen; fügen Sie höchstens 5000 Zellen auf einmal ein.",
+    "pasteTooLarge": "Der kopierte Bereich ist zu groß, um ihn auf einmal einzufügen; fügen Sie einen kleineren Bereich ein oder importieren Sie die Zeilen aus einer Datei.",
     "loaded": "geladen",
     "of": "von",
     "mustBeInteger": "muss eine ganze Zahl sein",
@@ -8047,5 +8102,11 @@
       "days": "Nach Tagen (UTC)",
       "day": "{questions} Fragen, {cost}, Median {p50}, Zeitlimits {timeouts}, Fehler {errors}"
     }
+  },
+  "retentionGuide": {
+    "2-every-way-data-is-removed": "Wie Daten entfernt werden (Benutzerhandbuch)",
+    "which-one-wins": "Welche Regel gilt (Benutzerhandbuch)",
+    "4-recipe-buses-and-live-vehicles": "Rezept: Busse und Live-Fahrzeuge (Benutzerhandbuch)",
+    "8-recipe-data-imported-from-a-file": "Rezept: aus einer Datei importierte Daten (Benutzerhandbuch)"
   }
 }

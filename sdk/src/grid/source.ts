@@ -61,7 +61,8 @@ export interface EntitySource {
   query(q: GridQuery, page: { offset: number; limit: number }): Promise<GridPage>;
   get(id: string): Promise<RichRow | null>;
   history?(id: string, attr: string, window: HistoryWindow): Promise<HistoryPoint[]>;
-  patch?(id: string, attrs: Record<string, unknown>): Promise<void>;
+  /** `reason` is why the person writes, sent as `JC-Reason` (DM-113). */
+  patch?(id: string, attrs: Record<string, unknown>, reason?: string): Promise<void>;
   remove?(id: string): Promise<void>;
 }
 
@@ -246,8 +247,8 @@ function ngsiSource(base: string, transport: Transport, language: string, hidden
       if (!ok(status)) refuse(status, body, "the history was refused");
       return historyOf(body, attr);
     },
-    async patch(id, attrs) {
-      const { status, body } = await transport({ method: "PATCH", path: `${entity(id)}/attrs`, body: attrs });
+    async patch(id, attrs, reason) {
+      const { status, body } = await transport({ method: "PATCH", path: `${entity(id)}/attrs`, body: attrs, reason });
       if (!ok(status)) refuse(status, body, "the write was refused");
     },
     async remove(id) {

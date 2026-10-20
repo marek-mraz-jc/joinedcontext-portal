@@ -13,6 +13,15 @@ import { SourceError } from "./source";
 /** At most this many entities in one batch: `MAX_ENTITIES` in `src/agents/entity_write.rs`. */
 export const MAX_ENTITIES = 50;
 
+/** The longest reason the gateway takes in `JC-Reason` (DM-113): 1 to 500 characters. */
+export const MAX_REASON = 500;
+
+/** Whether `reason` is one the gateway takes: 1 to 500 characters once trimmed (DM-113). */
+export function reasonOk(reason: string): boolean {
+  const trimmed = reason.trim();
+  return trimmed.length > 0 && trimmed.length <= MAX_REASON;
+}
+
 /** One attribute a person changed, as the grid and the card both hold it. */
 export interface AttributeChange {
   attribute: string;
@@ -84,6 +93,8 @@ export interface ApplyOptions {
    */
   source: Pick<EntitySource, "patch">;
   entities: EntityChange[];
+  /** Why the person writes, sent with every update as `JC-Reason` (DM-113); never empty. */
+  reason: string;
   observed?: Observed;
   /** What a refusal without a problem document is called, in the caller's language. */
   fallback?: string;
@@ -98,12 +109,15 @@ export interface ApplyOptions {
  * exactly the rows that did not land, and the ones that did are already correct.
  */
 export async function applyChanges(options: ApplyOptions): Promise<ApplyResult> {
-  const { source, entities, observed = "keep", fallback = "the update was refused", now } = options;
+  const { source, entities, reason, observed = "keep", fallback = "the update was refused", now } = options;
   if (entities.length > MAX_ENTITIES) {
     throw new Error(`one change reaches at most ${MAX_ENTITIES} entities; this one names ${entities.length}`);
   }
   if (!source.patch) {
     throw new Error("this surface does not take writes");
+  }
+  if (!reasonOk(reason)) {
+    throw new Error(`a write names why in 1 to ${MAX_REASON} characters`);
   }
   const applied: string[] = [];
   const refused: Refusal[] = [];
@@ -112,7 +126,7 @@ export async function applyChanges(options: ApplyOptions): Promise<ApplyResult> 
       continue;
     }
     try {
-      await source.patch(entity.id, attrsBody(entity.changes, observed, now));
+      await source.patch(entity.id, attrsBody(entity.changes, observed, now), reason.trim());
       applied.push(entity.id);
     } catch (err) {
       refused.push({ id: entity.id, detail: detailOf(err, fallback), slot: err instanceof SourceError ? err.slot : undefined });

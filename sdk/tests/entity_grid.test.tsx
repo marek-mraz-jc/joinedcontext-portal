@@ -272,7 +272,8 @@ describe("EntityGrid", () => {
     await screen.findByText("Kamppi");
     const grid = screen.getByRole("grid");
     grid.focus();
-    // id, name, bikes: two to the right is the bikes column of the first row.
+    // id, name, bikes: the first key lands on the id, two more to the right is the bikes column.
+    fireEvent.keyDown(grid, { key: "ArrowRight" });
     fireEvent.keyDown(grid, { key: "ArrowRight" });
     fireEvent.keyDown(grid, { key: "ArrowRight" });
     fireEvent.paste(grid, { clipboardData: { getData: () => "8\tignored\n4\n" } });

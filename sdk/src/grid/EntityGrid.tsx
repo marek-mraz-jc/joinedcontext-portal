@@ -5,8 +5,8 @@ import type { MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGr
 import { useEntityGrid } from "./useEntityGrid";
 import { opsForKind, valuesNeeded } from "./filters";
 import type { ColumnFilter, FilterColumn } from "./filters";
-import { applyChanges, MAX_ENTITIES } from "./apply";
-import type { Observed, Refusal } from "./apply";
+import { applyChanges, MAX_ENTITIES, MAX_REASON, reasonOk } from "./apply";
+import type { EntityChange, Observed, Refusal } from "./apply";
 import { EntityHistory } from "./EntityHistory";
 import { GridMap } from "./GridMap";
 import { unitTitle } from "../sdk/units";
@@ -26,6 +26,9 @@ import { parseClipboard, planPaste } from "./paste";
 import { problemOf } from "./rules";
 import type { ValueRule } from "./rules";
 import "./grid.css";
+
+/** The text boxes a typed character starts editing; a date or a picker opens with Enter instead. */
+const TYPED_INPUTS = new Set(["text", "number", "url", "search"]);
 
 export interface EntityGridProps extends UseEntityGridOptions {
   /**
@@ -159,6 +162,13 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const [observed, setObserved] = useState<Observed>("keep");
   const [applying, setApplying] = useState(false);
+  // Why the person writes, sent with each update (DM-113): a default they can change, never empty.
+  const [reason, setReason] = useState<string | null>(null);
+  const reasonText = reason ?? labels.reasonDefault;
+  // What the last apply wrote, with the values it replaced, so Undo can write those back.
+  const [lastApplied, setLastApplied] = useState<{ entities: EntityChange[]; reason: string } | null>(null);
+  const [undoNote, setUndoNote] = useState<string | null>(null);
+  const reasonHintId = React.useId();
   const [history, setHistory] = useState<{ attr: string; id: string; heading: string } | null>(null);
   // The row whose detail panel is open, by id, so a new page closes it rather than showing a row
   // that is no longer listed (T-3097).
@@ -208,10 +218,19 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     return found;
   }, [state.edits, rules, labels]);
   const refusedOf = useMemo(() => new Map(refused.map((one) => [one.id, one.detail])), [refused]);
-  // A refusal that names its attribute belongs on that cell too, beside the value (DM-70).
+  // A refusal that names its attribute belongs on that cell, beside the value (DM-70); one that
+  // names none, a 403 of the Policy, on every cell of the entity still pending, since each of
+  // them is what did not land.
   const refusedCell = useMemo(
-    () => new Map(refused.flatMap((one) => (one.slot ? [[`${one.id}\u0000${one.slot}`, one.detail] as const] : []))),
-    [refused],
+    () =>
+      new Map(
+        refused.flatMap((one) =>
+          (one.slot ? [one.slot] : Object.keys(state.edits[one.id] ?? {})).map(
+            (attr) => [`${one.id}\u0000${attr}`, one.detail] as const,
+          ),
+        ),
+      ),
+    [refused, state.edits],
   );
 
   // The computed ends of the page: one read per end for every row on it, through the grid's own
@@ -286,9 +305,13 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       const result = await applyChanges({
         source: hookOptions.source,
         entities: pendingChanges,
+        reason: reasonText,
         observed,
         fallback: labels.error,
       });
+      const landed = pendingChanges.filter((entity) => result.applied.includes(entity.id));
+      setLastApplied(landed.length > 0 ? { entities: landed, reason: reasonText.trim() } : null);
+      setUndoNote(null);
       // Every applied value leaves the pending list in one step: one call per value would keep
       // all but the last pending.
       setEdits(
@@ -304,7 +327,35 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     } finally {
       setApplying(false);
     }
-  }, [hookOptions.source, pendingChanges, observed, labels.error, state.edits, setEdits, reload]);
+  }, [hookOptions.source, pendingChanges, reasonText, observed, labels.error, state.edits, setEdits, reload]);
+
+  /**
+   * Writes back what the last apply replaced, as a correction with its own reason (DM-113): an
+   * attribute the apply added is written as NGSI-LD's null, so it goes again. What the endpoint
+   * refuses is said at its row, as any refusal.
+   */
+  const undo = useCallback(async () => {
+    if (!lastApplied) return;
+    setApplying(true);
+    try {
+      const back: EntityChange[] = lastApplied.entities.map((entity) => ({
+        id: entity.id,
+        changes: entity.changes.map((change) => ({ ...change, before: change.after, after: change.before ?? NGSI_LD_NULL })),
+      }));
+      const result = await applyChanges({
+        source: hookOptions.source,
+        entities: back,
+        reason: `${labels.undoReason}: ${lastApplied.reason}`.slice(0, MAX_REASON),
+        fallback: labels.error,
+      });
+      setRefused(result.refused);
+      setLastApplied(null);
+      if (result.refused.length === 0) setUndoNote(labels.undone);
+      reload();
+    } finally {
+      setApplying(false);
+    }
+  }, [lastApplied, hookOptions.source, labels.undoReason, labels.error, labels.undone, reload]);
 
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -577,27 +628,86 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     if (!activeCellId) return;
     document.getElementById(activeCellId)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   }, [activeCellId]);
+  // The cell being edited and its pending value when editing began, so Escape puts that back.
+  const entered = useRef<{ id: string; attr: string; before: unknown } | null>(null);
+  const cellAt = useCallback(
+    (row: number, col: number) => {
+      const id = rows[row]?.id;
+      const column = columns[col];
+      return id !== undefined && column && editable(column) && column.attr !== null ? { id, attr: column.attr } : null;
+    },
+    [rows, columns, editable],
+  );
+  const onGridFocus = useCallback(
+    (e: React.FocusEvent<HTMLTableElement>) => {
+      if (e.target === e.currentTarget) return;
+      // A cell's own id ends in -r{row}-c{col}: the control focused, by key or click, is that cell's.
+      const where = /-r(\d+)-c(\d+)$/.exec(e.target.closest('[role="gridcell"]')?.id ?? "");
+      if (!where) return;
+      // Tab goes from cell to cell in the page's own order and out of the grid after the last, so
+      // the active cell follows the focus rather than holding the key (WCAG 2.1.2).
+      const [row, col] = [Number(where[1]), Number(where[2])];
+      if (state.activeCell?.row !== row || state.activeCell.col !== col) grid.setActive(row, col);
+      const cell = cellAt(row, col);
+      if (cell && (entered.current?.id !== cell.id || entered.current.attr !== cell.attr)) {
+        entered.current = { ...cell, before: state.edits[cell.id]?.[cell.attr] };
+      }
+    },
+    [cellAt, state.edits, state.activeCell, grid],
+  );
+  /** Leaves a cell's control for the grid; Enter then goes one row down, as in a spreadsheet. */
+  const leaveCell = useCallback(
+    (table: HTMLTableElement, key: string) => {
+      entered.current = null;
+      table.focus();
+      if (key === "Enter") grid.moveActive("ArrowDown");
+    },
+    [grid],
+  );
   const onGridKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTableElement>) => {
       const onGrid = e.target === e.currentTarget;
-      if (!onGrid && e.key === "Escape") {
-        e.preventDefault();
-        e.currentTarget.focus();
-        return;
-      }
-      if (onGrid && (e.key === "Enter" || e.key === "F2") && activeCellId) {
-        const control = document
-          .getElementById(activeCellId)
-          ?.querySelector<HTMLElement>("input, select, textarea, button");
-        if (control) {
+      if (!onGrid) {
+        const control = e.target as HTMLElement;
+        if (e.key === "Escape") {
+          // Escape cancels what was typed since the cell was entered, then comes back to the grid.
           e.preventDefault();
-          control.focus();
+          const was = entered.current;
+          if (was) setEdit(was.id, was.attr, was.before);
+          leaveCell(e.currentTarget, "Escape");
+          return;
+        }
+        // In a cell's text box, Enter keeps the value and goes on, as in a spreadsheet; a picker's
+        // own button or list keeps its keys.
+        if (control.tagName === "INPUT" && control.closest('[role="gridcell"]') && e.key === "Enter") {
+          e.preventDefault();
+          leaveCell(e.currentTarget, e.key);
           return;
         }
       }
+      const control = activeCellId
+        ? document.getElementById(activeCellId)?.querySelector<HTMLElement>("input, select, textarea, button")
+        : null;
+      if (onGrid && (e.key === "Enter" || e.key === "F2") && control) {
+        e.preventDefault();
+        control.focus();
+        return;
+      }
+      // Typing on an editable cell starts editing it with that character, as Baserow and every
+      // spreadsheet do: the value is replaced, Escape brings it back.
+      const typed = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
+      const at = state.activeCell;
+      const cell = at ? cellAt(at.row, at.col) : null;
+      if (onGrid && typed && cell && control instanceof HTMLInputElement && TYPED_INPUTS.has(control.type)) {
+        e.preventDefault();
+        control.focus();
+        const stored = storedText(rows[at!.row]?.cells[cell.attr]);
+        setEdit(cell.id, cell.attr, e.key === stored ? undefined : coerce(e.key, stored, rules?.[cell.attr]));
+        return;
+      }
       gridProps.onKeyDown(e);
     },
-    [activeCellId, gridProps],
+    [activeCellId, gridProps, setEdit, leaveCell, state.activeCell, cellAt, rows, rules],
   );
 
   /**
@@ -698,6 +808,21 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         </p>
       )}
 
+      {editing && (lastApplied || undoNote) && pendingChanges.length === 0 && (
+        <div className="jc-grid-pending" role="status">
+          {lastApplied ? (
+            <>
+              <span>{`${labels.saved} ${lastApplied.entities.reduce((sum, entity) => sum + entity.changes.length, 0)}`}</span>
+              <button type="button" disabled={applying} onClick={() => void undo()}>
+                {labels.undo}
+              </button>
+            </>
+          ) : (
+            <span>{undoNote}</span>
+          )}
+        </div>
+      )}
+
       {pendingBar(false)}
 
       <div className="jc-grid-scroll" ref={scrollRef} onScroll={virtual ? onScroll : undefined}>
@@ -706,6 +831,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           className={`jc-grid-table${classNames?.table ? ` ${classNames.table}` : ""}`}
           {...gridProps}
           onKeyDown={onGridKeyDown}
+          onFocus={onGridFocus}
           onPaste={onGridPaste}
         >
           <thead className={`jc-grid-thead${classNames?.header ? ` ${classNames.header}` : ""}`}>
@@ -1003,9 +1129,25 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           {refused.map((one) => (
             <p key={one.id} className="jc-grid-error">{`${one.id}: ${one.detail}`}</p>
           ))}
+          <label className="jc-grid-reason">
+            <span>{labels.reason}</span>
+            <input
+              required
+              maxLength={MAX_REASON}
+              value={reasonText}
+              aria-invalid={reasonOk(reasonText) ? undefined : true}
+              aria-describedby={reasonOk(reasonText) ? undefined : reasonHintId}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </label>
+          {!reasonOk(reasonText) && (
+            <p id={reasonHintId} className="jc-grid-error">
+              {labels.reasonNeeded}
+            </p>
+          )}
           <button
             type="button"
-            disabled={applying || pendingChanges.length > MAX_ENTITIES}
+            disabled={applying || pendingChanges.length > MAX_ENTITIES || !reasonOk(reasonText)}
             onClick={() => void apply()}
           >
             {applying ? labels.applying : labels.apply}
@@ -1195,6 +1337,13 @@ function FilterCell({
  * (so "007" or "true" in a name stays text). Text the rule refuses is kept as typed, for the cell
  * to say why. Without a rule the stored value's shape is the guide.
  */
+/** A cell's stored value as its text box shows it: the value, not the unit beside it. */
+function storedText(cell: RichCell | RichCell[] | undefined): string {
+  const one = Array.isArray(cell) ? cell[0] : cell;
+  const own = one?.kind === "relationship" ? one.object : one?.value;
+  return own === undefined || own === null ? "" : String(own);
+}
+
 function coerce(next: string, before: string, rule?: ValueRule): unknown {
   switch (rule?.kind) {
     case "integer":

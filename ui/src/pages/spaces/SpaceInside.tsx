@@ -2,9 +2,9 @@ import { AlertDialog } from "../../components/AlertDialog";
 import { useCallback, useMemo, useState } from "react";
 import { clsx } from "clsx";
 import type { JSX, ReactNode } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
-import { attributesOf, matchesQ, originTransport, parseGridConfig, sourceFor } from "@joinedcontext/sdk";
+import { attributesOf, endpointSource, matchesQ, originTransport, parseGridConfig, sourceFor } from "@joinedcontext/sdk";
 import type { GridState, RichRow } from "@joinedcontext/sdk";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -27,9 +27,12 @@ import {
 import { useBranding } from "../../branding";
 import { SharedWithBadge } from "../../components/endpoints/sharing";
 import { useIdentity } from "../../auth/AuthProvider";
+import { accessQuery, deniedAttributes, editableAttributes } from "../../components/entities/AccessPanel";
+import type { GrantDocument } from "../../components/entities/AccessPanel";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { enumsOfModel, filterSlotsOf, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
+import type { FilterSlot } from "../../components/entities/filters";
 import { AddFieldDialog } from "../../components/entities/AddFieldDialog";
 import { ViewBar } from "../../components/entities/ViewBar";
 import { dataViewsKey, listViews } from "../../api/dataViews";
@@ -72,6 +75,8 @@ import { AiFieldPanel } from "./AiField";
 import { SpaceChecks } from "./SpaceChecks";
 import { SpaceQuality } from "./SpaceQuality";
 import { SpaceRetention } from "./SpaceRetention";
+import { rulesOf } from "./retention";
+import type { RetentionRule } from "./retention";
 import {
   Alert,
   Badge,
@@ -297,12 +302,42 @@ function useProjectList(project: string, plural: string) {
  * grant document (only `/api/endpoint/{slug}/access` does), and a cell that takes a value the
  * gateway will refuse loses the person's typing (UI-44).
  */
+/** The space's endpoints whose grants are read for a writer: a space rarely has more. */
+const MAX_ACCESS_READS = 10;
+
+/** Each endpoint's grant document, as one value `useQueries` keeps while none of them changes. */
+function grantsOf(results: UseQueryResult<GrantDocument>[]): (GrantDocument | undefined)[] {
+  return results.map((result) => result.data);
+}
+
+/** The first endpoint whose grant lets the person correct attributes of `type`, with those attributes. */
+function writerOf(
+  grants: (GrantDocument | undefined)[],
+  endpoints: Manifest[],
+  type: string,
+  slots: FilterSlot[],
+  t: (key: string) => string,
+): { slug: string; attrs: string[] } | null {
+  for (const [at, doc] of grants.entries()) {
+    const slug = slugOf(endpoints[at]);
+    const attrs = editableAttributes(doc, type, slots, deniedAttributes(doc, type, slots, t));
+    if (slug && attrs.length > 0) return { slug, attrs };
+  }
+  return null;
+}
+
+/** An endpoint's slug, which its gateway path is named by (EP-55). */
+function slugOf(endpoint: Manifest | undefined): string | undefined {
+  return typeof endpoint?.spec.slug === "string" ? endpoint.spec.slug : undefined;
+}
+
 function SpaceData({
   project,
   space,
   types,
   endpoints,
   model,
+  retention,
   footer,
 }: {
   project: string;
@@ -311,6 +346,8 @@ function SpaceData({
   endpoints: Manifest[];
   /** The space's DataModel: its enum slots are filtered by picking (UI-86). */
   model?: Manifest;
+  /** The space's retention rules, which the import names for the imported rows (T-4822). */
+  retention?: RetentionRule[];
   /** What the whole space holds, shown under the rows. */
   footer?: ReactNode;
 }): JSX.Element {
@@ -427,6 +464,19 @@ function SpaceData({
     () => sourceFor({ kind: "space", space }, originTransport(), i18n.language),
     [space, i18n.language],
   );
+  // Where a correction is written: the first of the space's endpoints whose grant, asked of the
+  // gateway once per endpoint, names a write on this type (T-4826). The grid reads the space and
+  // writes through that endpoint with the person's session, so its Policy decides every value
+  // (EP-55, UI-67); a person no endpoint lets write, a viewer, gets no editor at all.
+  const grants = useQueries({
+    queries: endpoints.slice(0, MAX_ACCESS_READS).map((endpoint) => accessQuery(slugOf(endpoint))),
+    combine: grantsOf,
+  });
+  const writer = useMemo(() => writerOf(grants, endpoints, type, slots, t), [grants, endpoints, type, slots, t]);
+  const gridSource = useMemo(
+    () => (writer ? { ...source, patch: endpointSource(writer.slug, originTransport(), i18n.language).patch } : source),
+    [writer, source, i18n.language],
+  );
 
   const probe = useQuery({
     queryKey: ["space-surface", space, type],
@@ -468,11 +518,11 @@ function SpaceData({
         type,
         ...(columns ? { columns } : {}),
         pageSize: 100,
-        mode: "view",
+        ...(writer ? { mode: "edit" as const, editableAttrs: writer.attrs } : { mode: "view" as const }),
         history: { enabled: true },
       }).config ?? null
     );
-  }, [space, type, columns]);
+  }, [space, type, columns, writer]);
 
   if (types.length === 0) {
     return (
@@ -621,6 +671,7 @@ function SpaceData({
             target={{ type, orgDomain, space }}
             slots={importSlots}
             send={originTransport()}
+            retention={retention}
             onImported={() => {
               setImported((n) => n + 1);
               void queryClient.invalidateQueries({ queryKey: ["space-view-rows", space] });
@@ -727,7 +778,7 @@ function SpaceData({
           onOpenRow={setOpenRow}
           project={project}
           config={config}
-          source={source}
+          source={gridSource}
           // The whole type by scrolling, a window drawn at a time (T-3097).
           virtual
           enums={enums}
@@ -1209,6 +1260,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
             types={types}
             endpoints={spaceEndpoints}
             model={model}
+            retention={rulesOf(manifest)}
             footer={<SpaceTotal usage={usage} />}
           />
         </div>

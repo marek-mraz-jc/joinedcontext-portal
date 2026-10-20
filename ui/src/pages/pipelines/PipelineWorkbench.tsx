@@ -743,6 +743,14 @@ export function PipelineWorkbench({
               onBloblang={(next) =>
                 onChange({ ...(draft ?? {}), compute: { ...(draft?.compute ?? {}), kind: "bloblang", bloblang: next } })
               }
+              expiry={draft?.expiry}
+              onExpiry={(expiry, next) =>
+                onChange({
+                  ...(draft ?? {}),
+                  expiry,
+                  ...(next === undefined ? {} : { compute: { ...(draft?.compute ?? {}), kind: "bloblang", bloblang: next } }),
+                })
+              }
             />
           ) : (
             <p className="text-caption text-fg-subtle">{t("pipelines.workbench.mapping.pickTarget")}</p>

@@ -164,6 +164,13 @@ const cs: Strings = {
     applying: "Ukládá se…",
     refusedHere: "zamítnuto",
     notInList: "není v seznamu",
+    reason: "Proč měníte tyto hodnoty",
+    reasonDefault: "Opraveno v tabulce dat",
+    reasonNeeded: "Napište, proč měníte tyto hodnoty.",
+    saved: "Uložené hodnoty:",
+    undo: "Vrátit zpět",
+    undoReason: "Vrácení zpět",
+    undone: "Změna byla vrácena zpět.",
   },
 };
 

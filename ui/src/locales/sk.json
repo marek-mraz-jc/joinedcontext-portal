@@ -991,7 +991,26 @@
         "decimalPoint": "desatinná bodka",
         "dates": "dátumy ako {format}"
       },
-      "nothingToCreate": "Žiadny riadok nie je pripravený na vytvorenie. Najprv priraďte stĺpce."
+      "nothingToCreate": "Žiadny riadok nie je pripravený na vytvorenie. Najprv priraďte stĺpce.",
+      "expiry": {
+        "title": "Kedy tieto entity zmiznú?",
+        "legend": "Importované entity sa odstránia",
+        "never": "Nikdy",
+        "fromColumn": "V čase, ktorý dá stĺpec",
+        "fixed": "V jednom pevnom čase",
+        "column": "Kedy zmizne (expiresAt)",
+        "whichColumn": "Stĺpec s časom",
+        "columnHint": "Dátum a čas pre každý riadok; riadok s časom v minulosti sa odmietne, nezmaže sa hneď.",
+        "at": "Odstrániť všetky o",
+        "atHint": "Vo vašom časovom pásme.",
+        "history": {
+          "entity": "{type} uchováva históriu {kept}.",
+          "type": "Pravidlo typu uchováva históriu {type}: {kept}.",
+          "space": "Predvoľba priestoru uchováva históriu {type}: {kept}.",
+          "platform": "Žiadne pravidlo tohto priestoru neurčuje históriu {type}: predvoľba platformy ju uchováva {kept}.",
+          "none": "{type} uchováva históriu {kept}."
+        }
+      }
     },
     "export": {
       "label": "Exportovať:",
@@ -1058,7 +1077,15 @@
       "spaceDefault": "Predvolené v priestore",
       "platformDefault": "Predvolené v platforme",
       "perType": "Nastavuje sa pre každý typ",
-      "defaultAsNow": "{fallback} (ako teraz)"
+      "defaultAsNow": "{fallback} (ako teraz)",
+      "layer": {
+        "entity": "nastavuje entita sama",
+        "type": "z pravidla tohto typu",
+        "space": "z predvoľby priestoru",
+        "platform": "predvoľba platformy",
+        "none": "kým ich niekto nezmaže"
+      },
+      "entityWins": "Vlastný expiresAt entity ju v tom čase odstráni a jej vlastný historyRetention určí jej históriu: obe majú prednosť pred pravidlami nižšie."
     },
     "upload": {
       "open": "Nahrať CSV",
@@ -2230,7 +2257,28 @@
         "notNumber": "{field} obsahuje „{value}“, čo nie je číslo; {name} očakáva číslo. Vyberte iné pole alebo zmeňte vzorku.",
         "notBoolean": "{field} obsahuje „{value}“, čo nie je true ani false; {name} očakáva true alebo false. Vyberte iné pole alebo zmeňte vzorku.",
         "notValue": "{field} obsahuje „{value}“; {name} očakáva jednu z hodnôt {values}. Vyberte iné pole alebo zmeňte vzorku.",
-        "noId": "Vyberte pole, z ktorého vznikne id každej entity."
+        "noId": "Vyberte pole, z ktorého vznikne id každej entity.",
+        "notTime": "{field} obsahuje {value}, čo nie je čas: použite text RFC 3339, napríklad 2026-10-20T14:30:00Z, alebo Unix sekundy."
+      },
+      "expiry": {
+        "title": "Kedy entity zmiznú?",
+        "legend": "Entity tohto typu sa odstránia",
+        "never": "Nikdy",
+        "neverHint": "Zostanú, kým ich niekto nezmaže alebo ich neodstráni pravidlo priestoru.",
+        "source": "V čase, ktorý dá zdroj",
+        "sourceHint": "Každá entita dostane vlastný expiresAt: časové pole záznamu plus nejaký čas, napríklad observedAt plus 10 minút pre polohu autobusu.",
+        "stale": "Keď ich zdroj prestane posielať",
+        "staleHint": "Raz za hodinu pipeline zmaže entity tohto typu, ktoré počas okna neaktualizovala.",
+        "from": "Čas z",
+        "written": "Čas zápisu záznamu",
+        "plus": "Pripočítať",
+        "plusUnit": "Jednotka pridaného času",
+        "after": "Neaktualizované počas",
+        "afterUnit": "Jednotka okna",
+        "afterHint": "Entity typu {type} neaktualizované takto dlho sa raz za hodinu zmažú.",
+        "refusals": "Návrh sa odmietne, keď má pipeline viac ako jeden výstup, keď do toho istého priestoru zapisuje iná pipeline, alebo keď žiadna Policy nedáva tejto pipeline deleteBatch a queryBatch na typ; odmietnutie pomenuje Policy, ktorú treba rozšíriť.",
+        "history": "História typu {type} sa riadi pravidlami priestoru.",
+        "spaceRules": "Uchovávanie v {space}"
       }
     },
     "debug": {
@@ -3998,6 +4046,13 @@
     "observedKeep": "ponechať, kedy bola hodnota pozorovaná",
     "observedNow": "tieto hodnoty boli pozorované teraz",
     "applying": "Uplatňujem…",
+    "reason": "Prečo tieto hodnoty meníte",
+    "reasonDefault": "Opravené v tabuľke dát",
+    "reasonNeeded": "Uveďte, prečo tieto hodnoty meníte.",
+    "saved": "Uložené hodnoty:",
+    "undo": "Vrátiť späť",
+    "undoReason": "Vrátené späť",
+    "undone": "Zmena bola vrátená späť.",
     "refusedHere": "odmietnuté",
     "notInList": "nie je v zozname",
     "relationSearch": "Hľadať",
@@ -4054,7 +4109,7 @@
     "historyReason": "Dôvod",
     "pasted": "buniek vložených",
     "skipped": "vynechaných (nedajú sa upraviť, sú mimo strany alebo nie sú v zozname hodnôt)",
-    "pasteTooLarge": "Skopírovaný rozsah je na vloženie príliš veľký; vložte naraz najviac 5000 buniek.",
+    "pasteTooLarge": "Skopírovaný rozsah je na jedno vloženie príliš veľký; vložte menší rozsah alebo riadky importujte zo súboru.",
     "loaded": "načítaných",
     "of": "z",
     "mustBeInteger": "musí byť celé číslo",
@@ -8047,5 +8102,11 @@
       "days": "Po dňoch (UTC)",
       "day": "{questions} otázok, {cost}, medián {p50}, limity {timeouts}, chyby {errors}"
     }
+  },
+  "retentionGuide": {
+    "2-every-way-data-is-removed": "Všetky spôsoby odstránenia dát (Používateľská príručka)",
+    "which-one-wins": "Ktoré pravidlo platí (Používateľská príručka)",
+    "4-recipe-buses-and-live-vehicles": "Recept: autobusy a vozidlá naživo (Používateľská príručka)",
+    "8-recipe-data-imported-from-a-file": "Recept: dáta importované zo súboru (Používateľská príručka)"
   }
 }

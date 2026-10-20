@@ -74,6 +74,18 @@ export interface GridLabels {
   observedKeep: string;
   observedNow: string;
   applying: string;
+  /**
+   * Why the person writes (DM-113): the review's field, the text it starts with, what is said
+   * while it is empty or too long, what one apply says once it landed, its Undo, and the reason
+   * an Undo writes with, before the original one.
+   */
+  reason: string;
+  reasonDefault: string;
+  reasonNeeded: string;
+  saved: string;
+  undo: string;
+  undoReason: string;
+  undone: string;
   refusedHere: string;
   /** Said beside a stored value the attribute's enum does not list (UI-86). */
   notInList: string;
@@ -118,6 +130,12 @@ export interface GridLabels {
  * operator existed still compiles and shows the default for the one it does not name.
  */
 export type GridLabelsInput = Partial<Omit<GridLabels, "ops">> & { ops?: Partial<GridLabels["ops"]> };
+
+/**
+ * The keys that put the first cell active when none is, rather than the one beyond it; Home, End
+ * and the page keys go where they say from there.
+ */
+const MOVE_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 
 export const DEFAULT_LABELS: GridLabels = {
   id: "ID",
@@ -170,6 +188,13 @@ export const DEFAULT_LABELS: GridLabels = {
   observedKeep: "keep when each value was observed",
   observedNow: "these values were observed now",
   applying: "Applying…",
+  reason: "Why you change these values",
+  reasonDefault: "Corrected in the data grid",
+  reasonNeeded: "Say why you change these values.",
+  saved: "Values saved:",
+  undo: "Undo",
+  undoReason: "Undo",
+  undone: "The change was undone.",
   refusedHere: "refused",
   notInList: "not in the list",
   relationSearch: "Search",
@@ -183,7 +208,7 @@ export const DEFAULT_LABELS: GridLabels = {
   close: "Close",
   pasted: "cells pasted",
   skipped: "skipped (not editable, off the page or not a listed value)",
-  pasteTooLarge: "The copied range is too large to paste; paste at most 5000 cells at once.",
+  pasteTooLarge: "The copied range is too large to paste at once; paste a smaller range, or import the rows from a file.",
   loaded: "loaded",
   of: "of",
   mustBeInteger: "must be a whole number",
@@ -882,8 +907,10 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
       const maxRow = sortedRows.length - 1;
       const maxCol = columns.length - 1;
       let { row, col } = activeCell ?? { row: 0, col: 0 };
-
-      switch (key) {
+      // Nothing active yet: the first key that moves lands on the first cell, not one beyond it.
+      const landing = activeCell === null && MOVE_KEYS.has(key);
+      if (landing && maxRow < 0) return false;
+      if (!landing) switch (key) {
         case "ArrowUp":
           if (row > 0) row--;
           else return false;
@@ -989,9 +1016,11 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
         "aria-colindex": colIndex + 1,
         "aria-selected": isActive,
         "data-active": isActive ? "" : undefined,
+        // The cell a person clicks is the active one, so the keys go on from there (A04, UI-70).
+        onMouseDown: () => setActive(rowIndex, colIndex),
       };
     },
-    [activeCell, cellId],
+    [activeCell, cellId, setActive],
   );
 
   return {
