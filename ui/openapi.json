@@ -25926,6 +25926,23 @@
               "type": "string"
             }
           },
+          "labels": {
+            "type": "object",
+            "description": "A label of the view's own, by attribute: shown as text, the model keeps its own (T-4827).",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "order": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The columns in the order the view shows them, by attribute; the rest follow (T-4827)."
+          },
           "q": {
             "type": [
               "string",

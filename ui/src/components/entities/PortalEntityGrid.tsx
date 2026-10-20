@@ -166,6 +166,30 @@ export function gridLabels(t: (key: string) => string): GridLabels {
     toCorrect: t("entityGrid.toCorrect"),
     yes: t("entityGrid.yes"),
     no: t("entityGrid.no"),
+    columnMenu: t("entityGrid.columnMenu"),
+    sortAsc: t("entityGrid.sortAsc"),
+    sortDesc: t("entityGrid.sortDesc"),
+    filterColumn: t("entityGrid.filterColumn"),
+    hideColumn: t("entityGrid.hideColumn"),
+    renameColumn: t("entityGrid.renameColumn"),
+    renameReset: t("entityGrid.renameReset"),
+    columnWidth: t("entityGrid.columnWidth"),
+    narrower: t("entityGrid.narrower"),
+    wider: t("entityGrid.wider"),
+    moveLeft: t("entityGrid.moveLeft"),
+    moveRight: t("entityGrid.moveRight"),
+    details: t("entityGrid.details"),
+    kindText: t("entityGrid.kindText"),
+    kindNumber: t("entityGrid.kindNumber"),
+    kindBoolean: t("entityGrid.kindBoolean"),
+    kindDatetime: t("entityGrid.kindDatetime"),
+    kindGeo: t("entityGrid.kindGeo"),
+    kindRelationship: t("entityGrid.kindRelationship"),
+    kindLanguage: t("entityGrid.kindLanguage"),
+    kindStructured: t("entityGrid.kindStructured"),
+    kindList: t("entityGrid.kindList"),
+    points: t("entityGrid.points"),
+    openTarget: t("entityGrid.openTarget"),
   };
 }
 
@@ -276,6 +300,8 @@ export function PortalEntityGrid({ project, config, source, view, onGridState, e
       config={config}
       source={built}
       labels={labels}
+      // Numbers and dates read in the person's language (T-4827).
+      locale={i18n.language}
       // The map's own strings. No `mapEngine`: `GeoEditor`'s own default imports Terra Draw when a
       // map loads, so a page whose config asks for no map never downloads the library at all.
       mapLabels={mapLabels}
