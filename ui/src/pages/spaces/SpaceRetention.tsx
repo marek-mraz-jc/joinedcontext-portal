@@ -20,8 +20,21 @@ import {
   TableHeaderCell,
   TableRow,
 } from "../../components/ui";
-import { ANY_TYPE, fromIso, HISTORY_FOREVER, HISTORY_OFF, shortens, toIso, UNITS, written } from "./retention";
-import type { RetentionRule, Unit } from "./retention";
+import { RetentionGuide } from "../../components/RetentionGuide";
+import {
+  ANY_TYPE,
+  effectiveCurrent,
+  effectiveHistory,
+  fromIso,
+  HISTORY_FOREVER,
+  HISTORY_OFF,
+  rulesOf,
+  shortens,
+  toIso,
+  UNITS,
+  written,
+} from "./retention";
+import type { Effective, RetentionRule, Unit } from "./retention";
 
 type Count = components["schemas"]["RetentionCount"];
 
@@ -50,11 +63,6 @@ function isoOf(cell: Cell): string | undefined | null {
   if (iso === undefined) return null;
   const stored = cell.stored === undefined ? undefined : fromIso(cell.stored);
   return stored !== undefined && toIso(stored) === iso ? cell.stored : iso;
-}
-
-function rulesOf(manifest: Manifest): RetentionRule[] {
-  const rules = (manifest.spec as { retention?: unknown } | undefined)?.retention;
-  return Array.isArray(rules) ? (rules as RetentionRule[]) : [];
 }
 
 /**
@@ -143,14 +151,25 @@ export function SpaceRetention({
     type !== ANY_TYPE && ruleOf(ANY_TYPE)?.history !== undefined
       ? t("spaces.retention.spaceDefault")
       : t("spaces.retention.platformDefault");
+  // Each cell says what holds for the type and which layer set it (DM-83, DM-97, T-4822).
   const plain = (type: string, kind: "current" | "history") => {
-    const iso = ruleOf(type)?.[kind];
     if (kind === "current" && type === ANY_TYPE) return t("spaces.retention.perType");
-    if (iso === HISTORY_OFF) return t("spaces.retention.offShown");
-    if (iso === HISTORY_FOREVER) return t("spaces.retention.forever");
-    if (iso === undefined) return kind === "history" ? fallback(type) : t("spaces.retention.forever");
-    const keep = fromIso(iso);
-    return keep === undefined ? iso : t(`spaces.retention.amount.${keep.unit}`, { count: keep.amount });
+    const rule: Effective = kind === "current" ? effectiveCurrent(type, held) : effectiveHistory(type, held);
+    const keep = rule.value === undefined ? undefined : fromIso(rule.value);
+    const value =
+      rule.value === undefined || rule.value === HISTORY_FOREVER
+        ? t("spaces.retention.forever")
+        : rule.value === HISTORY_OFF
+          ? t("spaces.retention.offShown")
+          : keep === undefined
+            ? rule.value
+            : t(`spaces.retention.amount.${keep.unit}`, { count: keep.amount });
+    return (
+      <span className="flex flex-col">
+        <span>{value}</span>
+        <span className="text-caption text-fg-muted">{t(`spaces.retention.layer.${rule.layer}`)}</span>
+      </span>
+    );
   };
   const removed = (type: string) => {
     const rows = (deleted.data ?? []).filter((row) => row.entityType === type);
@@ -249,6 +268,9 @@ export function SpaceRetention({
   return (
     <div className="space-y-3">
       <p className="text-body text-fg-muted">{t("spaces.retention.lead")}</p>
+      <p className="text-body text-fg-muted">
+        {t("spaces.retention.entityWins")} <RetentionGuide section="which-one-wins" />
+      </p>
       {!typed && <p className="text-body text-fg-muted">{t("spaces.retention.noTypes")}</p>}
       <Table caption={t("spaces.retention.caption")}>
         <TableHead>

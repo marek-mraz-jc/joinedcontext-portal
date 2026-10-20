@@ -69,6 +69,8 @@ import { AiFieldPanel } from "./AiField";
 import { SpaceChecks } from "./SpaceChecks";
 import { SpaceQuality } from "./SpaceQuality";
 import { SpaceRetention } from "./SpaceRetention";
+import { rulesOf } from "./retention";
+import type { RetentionRule } from "./retention";
 import {
   Alert,
   Badge,
@@ -301,6 +303,7 @@ function SpaceData({
   types,
   endpoints,
   model,
+  retention,
 }: {
   project: string;
   space: string;
@@ -308,6 +311,8 @@ function SpaceData({
   endpoints: Manifest[];
   /** The space's DataModel: its enum slots are filtered by picking (UI-86). */
   model?: Manifest;
+  /** The space's retention rules, which the import names for the imported rows (T-4822). */
+  retention?: RetentionRule[];
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const [chosen, setChosen] = useState("");
@@ -586,6 +591,7 @@ function SpaceData({
             target={{ type, orgDomain, space }}
             slots={importSlots}
             send={originTransport()}
+            retention={retention}
             onImported={() => {
               setImported((n) => n + 1);
               void queryClient.invalidateQueries({ queryKey: ["space-view-rows", space] });
@@ -1157,7 +1163,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
       </Section>
 
       <Section title={t("spaces.inside.data")}>
-        <SpaceData project={project} space={name} types={types} endpoints={spaceEndpoints} model={model} />
+        <SpaceData project={project} space={name} types={types} endpoints={spaceEndpoints} model={model} retention={rulesOf(manifest)} />
       </Section>
 
       <Section title={t("spaces.quality.title")}>

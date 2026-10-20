@@ -22,6 +22,47 @@ export interface MapperState {
   /** The field the entity's local id comes from. */
   idField?: string;
   attributes: Record<string, Source>;
+  /** When each entity goes away by itself: the `expiresAt` the step writes (TS 104 175 4.22). */
+  expires?: Expires;
+}
+
+/**
+ * An entity's `expiresAt` as a time the source gives plus a while (T-4822): `field` holds a
+ * time (RFC 3339 or Unix seconds), absent for the time the record is written; `plus` is an
+ * ISO 8601 duration in whole minutes, hours or days. The bus recipe: `observedAt` plus `PT10M`.
+ */
+export interface Expires {
+  field?: string;
+  plus?: string;
+}
+
+/** The longest `plus` a mapper writes: past it the space's own rules are the right tool. */
+const LONGEST_PLUS = 3650 * 86_400;
+
+/** Seconds of a `plus` the mapper writes: whole minutes up to 3650 days, else `undefined`. */
+export function plusSeconds(plus: string | undefined): number | undefined {
+  if (plus === undefined) return 0;
+  const match = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?)?$/.exec(plus);
+  if (!match || plus === "P" || plus.endsWith("T")) return undefined;
+  const [, d, h, m] = match.map((part) => Number(part ?? 0));
+  const total = d * 86_400 + h * 3600 + m * 60;
+  return total <= LONGEST_PLUS ? total : undefined;
+}
+
+/**
+ * The two lines that write `expiresAt`: the base time in Unix seconds, `null` when the record
+ * lacks the field (the entity then has no own expiry), plus the while, in UTC. A `plus` the
+ * mapper does not write is left out rather than written wrong.
+ */
+function expiresLines(expires: Expires): string[] {
+  const after = plusSeconds(expires.plus) ?? 0;
+  const base = expires.field
+    ? `if ${fieldPath(expires.field)} != null && ${fieldPath(expires.field)} != "" { ${fieldPath(expires.field)}.ts_unix() } else { null }`
+    : "now().ts_unix()";
+  return [
+    `let expires = ${base}`,
+    `root.expiresAt = if $expires != null { ($expires + ${after}).ts_format("2006-01-02T15:04:05Z", "UTC") } else { deleted() }`,
+  ];
 }
 
 /** The first line of a generated step: the map, so the editor can read it back. */
@@ -94,6 +135,7 @@ export function generate(state: MapperState, attributes: Attribute[], space: str
       `root.${name} = if $a${index} != null { { "type": ${JSON.stringify(attribute.kind)}, ${JSON.stringify(member)}: $a${index}${unit} } } else { deleted() }`,
     );
   });
+  if (state.expires) lines.push(...expiresLines(state.expires));
   return `${lines.join("\n")}\n`;
 }
 
@@ -138,7 +180,16 @@ export type MapperProblem =
   | { attribute: string; kind: "notNumber"; field: string; value: string }
   | { attribute: string; kind: "notBoolean"; field: string; value: string }
   | { attribute: string; kind: "notValue"; field: string; value: string; values: string[] }
-  | { attribute: ""; kind: "noId" };
+  | { attribute: ""; kind: "noId" }
+  | { attribute: "expiresAt"; kind: "notTime"; field: string; value: string };
+
+/** Unix seconds of a time as the runner's `ts_unix` reads it: RFC 3339 text or a number. */
+function timeOf(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/.test(value)) return undefined;
+  const ms = Date.parse(value);
+  return Number.isNaN(ms) ? undefined : Math.floor(ms / 1000);
+}
 
 const isNumber = (value: unknown) =>
   typeof value === "number" || (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value)));
@@ -152,6 +203,14 @@ export function problemsOf(state: MapperState, attributes: Attribute[], records:
   const problems: MapperProblem[] = [];
   if (!state.idField) problems.push({ attribute: "", kind: "noId" });
   const fields = new Set(records.flatMap((record) => Object.keys(record)));
+  const timed = state.expires?.field;
+  if (timed !== undefined && records.length > 0) {
+    const value = records.map((record) => record[timed]).find((v) => v !== undefined && v !== null && v !== "");
+    if (!fields.has(timed)) problems.push({ attribute: "expiresAt", kind: "notInSample", field: timed });
+    else if (value !== undefined && timeOf(value) === undefined) {
+      problems.push({ attribute: "expiresAt", kind: "notTime", field: timed, value: typeof value === "string" ? value : JSON.stringify(value) });
+    }
+  }
   for (const attribute of attributes) {
     const source = state.attributes[attribute.name];
     if (!source) {
@@ -188,6 +247,7 @@ export function preview(
   records: Record<string, unknown>[],
   space: string,
   orgDomain: string,
+  now: number = Date.now(),
 ): Record<string, unknown>[] {
   return records.slice(0, 3).map((record) => {
     const entity: Record<string, unknown> = {};
@@ -222,6 +282,10 @@ export function preview(
         [member]: value,
         ...(attribute.kind === "Property" && attribute.unit?.code && typeof value === "number" ? { unitCode: attribute.unit.code } : {}),
       };
+    }
+    if (state.expires) {
+      const base = state.expires.field === undefined ? Math.floor(now / 1000) : timeOf(record[state.expires.field]);
+      if (base !== undefined) entity.expiresAt = new Date((base + (plusSeconds(state.expires.plus) ?? 0)) * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
     }
     return entity;
   });

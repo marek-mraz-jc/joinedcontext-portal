@@ -83,3 +83,50 @@ export function written(rules: RetentionRule[]): RetentionRule[] {
       ...(history === HISTORY_FOREVER && reason !== undefined ? { reason } : {}),
     }));
 }
+
+/**
+ * The history the platform keeps when no rule sets one (DM-97): the broker's
+ * `ANTARES_RETENTION_HISTORY_DEFAULT`, which the platform deployment sets to `P28D`.
+ * ponytail: the Portal does not read the broker's setting; an installation that changes it shows
+ * this value until the Portal serves the broker's own.
+ */
+export const PLATFORM_HISTORY = "P28D";
+
+/** Where an effective rule comes from, most specific first (DM-97). */
+export type Layer = "entity" | "type" | "space" | "platform";
+
+/** A rule as it holds for a type, and the layer that set it. */
+export interface Effective {
+  /** A duration, `off` or `forever`; `undefined` for a current state kept until deleted. */
+  value?: string;
+  layer: Layer | "none";
+}
+
+/**
+ * The history kept for `type` (DM-97): an Entity's own `historyRetention` (a duration or `off`;
+ * anything else is ignored), then the type's rule, then the space's `*` rule, then the platform.
+ */
+export function effectiveHistory(type: string, rules: RetentionRule[], own?: string): Effective {
+  if (own !== undefined && (own === HISTORY_OFF || seconds(own) !== undefined)) return { value: own, layer: "entity" };
+  const ruled = rules.find((rule) => rule.entityType === type)?.history;
+  if (ruled !== undefined) return { value: ruled, layer: type === ANY_TYPE ? "space" : "type" };
+  const any = rules.find((rule) => rule.entityType === ANY_TYPE)?.history;
+  if (any !== undefined) return { value: any, layer: "space" };
+  return { value: PLATFORM_HISTORY, layer: "platform" };
+}
+
+/**
+ * How long an Entity of `type` stays without being modified (DM-83): its own `expiresAt` wins,
+ * then the type's `current` rule; without either it stays until deleted.
+ */
+export function effectiveCurrent(type: string, rules: RetentionRule[], ownExpiresAt?: string): Effective {
+  if (ownExpiresAt !== undefined) return { value: ownExpiresAt, layer: "entity" };
+  const ruled = type === ANY_TYPE ? undefined : rules.find((rule) => rule.entityType === type)?.current;
+  return ruled === undefined ? { layer: "none" } : { value: ruled, layer: "type" };
+}
+
+/** A space manifest's `spec.retention`, empty when it has none or something else. */
+export function rulesOf(manifest: { spec?: unknown }): RetentionRule[] {
+  const rules = (manifest.spec as { retention?: unknown } | undefined)?.retention;
+  return Array.isArray(rules) ? (rules as RetentionRule[]) : [];
+}

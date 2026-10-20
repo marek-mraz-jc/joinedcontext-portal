@@ -8,11 +8,15 @@ import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { download } from "@joinedcontext/sdk";
-import { Alert, Button, Dialog, Field, FilePicker, Select, safeHref } from "../../components/ui";
+import { Alert, Button, Dialog, Field, FilePicker, Input, RadioGroup, Select, safeHref } from "../../components/ui";
+import { RetentionGuide } from "../../components/RetentionGuide";
 import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui/Table";
 import type { Manifest } from "../../api/manifest";
 import { servedRepresentations } from "../../components/endpoints/links";
+import { effectiveHistory, fromIso, HISTORY_FOREVER, HISTORY_OFF } from "./retention";
+import type { RetentionRule } from "./retention";
 import {
+  EXPIRES_AT,
   EXPORTS,
   ID,
   createInBatches,
@@ -34,7 +38,7 @@ const LISTED = 50;
 
 type Step =
   | { kind: "file" }
-  | { kind: "map"; table: Rows; mapping: Mapping; name: string }
+  | { kind: "map"; table: Rows; mapping: Mapping; name: string; expiresAt?: string }
   | { kind: "writing"; sent: number; total: number }
   | { kind: "done"; created: number; rejected: Rejected[] };
 
@@ -45,6 +49,7 @@ export function ImportRowsDialog({
   slots,
   send,
   onImported,
+  retention = [],
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -54,13 +59,15 @@ export function ImportRowsDialog({
   send: Send;
   /** Called once rows were created, so the page reads the type again. */
   onImported: () => void;
+  /** The space's `spec.retention`, to say what its history rule does to the rows (T-4822). */
+  retention?: RetentionRule[];
 }): JSX.Element {
   const { t } = useTranslation();
   const [step, setStep] = useState<Step>({ kind: "file" });
   const [problem, setProblem] = useState<string | null>(null);
 
   const checked = useMemo(
-    () => (step.kind === "map" ? toEntities(step.table, step.mapping, slots, target) : null),
+    () => (step.kind === "map" ? toEntities(step.table, step.mapping, slots, target, undefined, step.expiresAt) : null),
     [step, slots, target],
   );
 
@@ -149,6 +156,9 @@ export function ImportRowsDialog({
           valid={checked.entities.length}
           refused={checked.rejected}
           onMapping={(mapping) => setStep({ ...step, mapping })}
+          onExpiry={(mapping, expiresAt) => setStep({ ...step, mapping, expiresAt })}
+          history={effectiveHistory(target.type, retention)}
+          type={target.type}
         />
       ) : null}
       {step.kind === "writing" ? (
@@ -167,12 +177,19 @@ function MapStep({
   valid,
   refused,
   onMapping,
+  onExpiry,
+  history,
+  type,
 }: {
-  step: { table: Rows; mapping: Mapping; name: string };
+  step: { table: Rows; mapping: Mapping; name: string; expiresAt?: string };
   slots: ImportSlot[];
   valid: number;
   refused: Rejected[];
   onMapping: (mapping: Mapping) => void;
+  /** Sets the mapping and the fixed time together, so neither change overwrites the other. */
+  onExpiry: (mapping: Mapping, expiresAt: string | undefined) => void;
+  history: ReturnType<typeof effectiveHistory>;
+  type: string;
 }): JSX.Element {
   const { t } = useTranslation();
   const { table, mapping } = step;
@@ -255,6 +272,9 @@ function MapStep({
                         {slot.required ? t("spaces.import.required", { name: slot.name }) : slot.name}
                       </option>
                     ))}
+                    <option value={EXPIRES_AT} disabled={used.has(EXPIRES_AT) && mapping[column] !== EXPIRES_AT}>
+                      {t("spaces.import.expiry.column")}
+                    </option>
                   </Select>
                 </TableCell>
                 <TableCell className="max-w-64 truncate text-fg-muted">
@@ -269,6 +289,14 @@ function MapStep({
           })}
         </TableBody>
       </Table>
+      <ImportExpiry
+        columns={table.columns}
+        mapping={mapping}
+        expiresAt={step.expiresAt}
+        onChange={onExpiry}
+        history={history}
+        type={type}
+      />
       {missing.length > 0 ? (
         <Alert tone="warning">{t("spaces.import.missing", { names: missing.join(", ") })}</Alert>
       ) : null}
@@ -277,6 +305,105 @@ function MapStep({
       </p>
       {refused.length > 0 ? <RefusedList rejected={refused} /> : null}
     </div>
+  );
+}
+
+/** A `datetime-local` value, in the person's time zone, for an instant. */
+function localInput(iso: string): string {
+  const date = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/**
+ * When the imported entities go away (T-4822): never, at the time a column gives, or at one
+ * fixed time; and what the space's history rule does with their history meanwhile (DM-97).
+ */
+function ImportExpiry({
+  columns,
+  mapping,
+  expiresAt,
+  onChange,
+  history,
+  type,
+}: {
+  columns: string[];
+  mapping: Mapping;
+  expiresAt?: string;
+  onChange: (mapping: Mapping, expiresAt: string | undefined) => void;
+  history: ReturnType<typeof effectiveHistory>;
+  type: string;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const column = Object.keys(mapping).find((name) => mapping[name] === EXPIRES_AT);
+  const mode = column !== undefined ? "column" : expiresAt !== undefined ? "fixed" : "never";
+  const without = Object.fromEntries(Object.entries(mapping).filter(([, target]) => target !== EXPIRES_AT));
+  const choose = (next: "never" | "column" | "fixed") => {
+    onChange(
+      next === "column" ? { ...without, [columns.find((name) => !mapping[name]) ?? columns[0]]: EXPIRES_AT } : without,
+      next === "fixed" ? new Date(Date.now() + 86_400_000).toISOString() : undefined,
+    );
+  };
+  const keep = history.value === undefined ? undefined : fromIso(history.value);
+  const kept =
+    history.value === HISTORY_OFF
+      ? t("spaces.retention.offShown")
+      : history.value === HISTORY_FOREVER || history.value === undefined
+        ? t("spaces.retention.forever")
+        : keep === undefined
+          ? history.value
+          : t(`spaces.retention.amount.${keep.unit}`, { count: keep.amount });
+  return (
+    <section aria-labelledby="import-expiry" className="flex flex-col gap-2 rounded border border-border p-3" data-testid="import-expiry">
+      <h3 id="import-expiry" className="text-body font-semibold">
+        {t("spaces.import.expiry.title")}
+      </h3>
+      <RadioGroup
+        name="import-expiry-mode"
+        legend={t("spaces.import.expiry.legend")}
+        value={mode}
+        layout="row"
+        options={[
+          { value: "never" as const, label: t("spaces.import.expiry.never") },
+          { value: "column" as const, label: t("spaces.import.expiry.fromColumn") },
+          { value: "fixed" as const, label: t("spaces.import.expiry.fixed") },
+        ]}
+        onChange={choose}
+      />
+      {mode === "column" ? (
+        <Field id="import-expiry-column" label={t("spaces.import.expiry.whichColumn")} description={t("spaces.import.expiry.columnHint")}>
+          <Select
+            id="import-expiry-column"
+            value={column}
+            onChange={(event) => onChange({ ...without, [event.target.value]: EXPIRES_AT }, undefined)}
+          >
+            {columns.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      ) : null}
+      {mode === "fixed" && expiresAt !== undefined ? (
+        <Field id="import-expiry-at" label={t("spaces.import.expiry.at")} description={t("spaces.import.expiry.atHint")}>
+          <Input
+            id="import-expiry-at"
+            type="datetime-local"
+            min={localInput(new Date().toISOString())}
+            value={localInput(expiresAt)}
+            onChange={(event) => {
+              const ms = Date.parse(event.target.value);
+              if (!Number.isNaN(ms)) onChange(mapping, new Date(ms).toISOString());
+            }}
+          />
+        </Field>
+      ) : null}
+      <p className="text-caption text-fg-muted">
+        {t(`spaces.import.expiry.history.${history.layer}`, { type, kept })}{" "}
+        <RetentionGuide section="8-recipe-data-imported-from-a-file" />
+      </p>
+    </section>
   );
 }
 
