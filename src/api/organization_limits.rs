@@ -222,10 +222,16 @@ pub async fn get_limits(
             let own = state
                 .mirror
                 .get(ORG_NAMESPACE, "Project", &project)
-                .is_some_and(|envelope| envelope.spec.get("quotas").is_some());
+                .and_then(|envelope| {
+                    serde_json::from_value::<jc_core::kinds::Quotas>(
+                        envelope.spec.get("quotas")?.clone(),
+                    )
+                    .ok()
+                })
+                .is_some_and(|quotas| quotas.sets_dimensions());
             let quotas = crate::quotas::effective(&state.mirror, &project);
             let used = crate::quotas::usage(&state.mirror, &project);
-            let quota = quotas
+            let mut quota: BTreeMap<String, QuotaUse> = quotas
                 .dimensions()
                 .into_iter()
                 .map(|(dimension, limit)| {
@@ -233,8 +239,27 @@ pub async fn get_limits(
                     (dimension.to_owned(), QuotaUse { limit, used })
                 })
                 .collect();
+            // The MQTT allowance (PF-117, API/01 §47): its own origin counts as the project's.
+            let (mqtt, mqtt_origin) = crate::mqtt_allowance::effective(&state.mirror, &project);
+            let held = crate::mqtt_allowance::usage(
+                &crate::mqtt_allowance::brokers(&state.mirror, &project),
+                None,
+            );
+            let clamp = |n: u64| Some(u32::try_from(n).unwrap_or(u32::MAX));
+            for (dimension, field, used) in [
+                ("mqttBrokers", "brokers", Some(held.brokers)),
+                ("mqttConnections", "connections", clamp(held.connections)),
+                (
+                    "mqttMessagesPerSecond",
+                    "messagesPerSecond",
+                    clamp(held.messages_per_second),
+                ),
+            ] {
+                let limit = Some(mqtt.limit(field));
+                quota.insert(dimension.to_owned(), QuotaUse { limit, used });
+            }
             ProjectQuota {
-                origin: if own {
+                origin: if own || mqtt_origin == LimitOrigin::Project {
                     LimitOrigin::Project
                 } else if organization_set {
                     LimitOrigin::Organization
