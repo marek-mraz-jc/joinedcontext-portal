@@ -2814,10 +2814,10 @@
     "title": "Editor modelov",
     "version": "Verzia {version}",
     "add": "Pridať",
-    "classes": "Triedy",
+    "classes": "Typy",
     "enums": "Číselníky",
-    "slots": "Atribúty",
-    "slot": "Atribút",
+    "slots": "Polia",
+    "slot": "Pole",
     "range": "Typ hodnoty",
     "kind": "Druh NGSI-LD",
     "kindHint": "Property, pokiaľ atribút nie je geometria, väzba alebo jazyková mapa",
@@ -2835,8 +2835,8 @@
       "language-map": "jedna hodnota na jazyk",
       "code": "zobrazenie dokumentu"
     },
-    "newClass": "Nová trieda",
-    "newSlot": "Nový atribút",
+    "newClass": "Nový typ",
+    "newSlot": "Nové pole",
     "newEnum": "Nový číselník",
     "newEnumValue": "Nová hodnota číselníka {name}",
     "removeEnumValue": "Odstrániť hodnotu {value}",
@@ -2940,8 +2940,8 @@
         "datetime": "Dátum a čas"
       }
     },
-    "addClass": "Pridať triedu",
-    "addSlot": "Pridať atribút",
+    "addClass": "Pridať typ",
+    "addSlot": "Pridať pole",
     "addEnum": "Pridať číselník",
     "addValue": "Pridať hodnotu do {name}",
     "loadingEditor": "Načítava sa editor…",
@@ -3164,20 +3164,25 @@
       "organizationEmpty": "Organizácia zatiaľ nezdieľa žiadny dátový model.",
       "organizationCaption": "Dátové modely organizácie",
       "importAs": "Importovať ako",
-      "organizationOpen": "Otvoriť na stránke Organizácia"
+      "organizationOpen": "Otvoriť na stránke Organizácia",
+      "addField": "Pridať pole",
+      "addFieldTo": "Pridať pole do {type}",
+      "typeCaption": "Polia typu {type}",
+      "noFields": "Zatiaľ žiadne pole.",
+      "addType": "Pridať typ"
     },
     "hints": {
-      "title": "Tento model zatiaľ nemá triedu. Tri kroky na začiatok:",
+      "title": "Tento model zatiaľ nemá typ. Tri kroky na začiatok:",
       "sdm": "Alebo importujte Smart Data Model: jeho triedy, polia a enumy prídu už napísané.",
       "sdmAction": "Importovať Smart Data Model",
-      "klass": "Pridajte triedu: pomenujte ju v poli pod Triedami, napríklad School.",
-      "klassAction": "Pomenovať prvú triedu",
+      "klass": "Pridajte typ: pomenujte ho v poli pod Typmi, napríklad School.",
+      "klassAction": "Pomenovať prvý typ",
       "relation": "Pridajte vzťah: pod Vzťahmi vyberte cieľovú triedu a kardinalitu, napríklad jedna School má veľa entít User.",
-      "field": "Pridajte pole: pri otvorenej triede ho pomenujte pod Atribútmi, napríklad name."
+      "field": "Pridajte pole: pri otvorenom type ho pomenujte pod Poľami, napríklad name."
     },
-    "rangeBasic": "Základné typy",
+    "rangeBasic": "Hodnoty",
     "rangeEnums": "Enumy",
-    "rangeClasses": "Triedy (otvorí Pridať vzťah)",
+    "rangeClasses": "Odkazy (otvorí Pridať vzťah)",
     "relationships": {
       "title": "Vzťahy",
       "intro": "Odkazy z {owner} na entity triedy. Entity ukladajú jeden koniec; inverzný sa počíta pri čítaní.",
@@ -3240,6 +3245,12 @@
         "inverseSame": "Inverzný koniec je druhé pole; dajte mu iný názov.",
         "pickFirst": "Najprv vyberte cieľovú triedu a pomenujte oba konce."
       }
+    },
+    "advanced": "Pokročilé (IRI, mixiny, profily)",
+    "word": {
+      "any": "Ľubovoľná hodnota",
+      "object": "Obsahuje {fields}",
+      "linkTo": "Odkaz na {target}"
     }
   },
   "apps": {

@@ -207,8 +207,8 @@ describe("relationship editor", () => {
   it("opens the form on a class picked as a range, and writes no one-sided slot", async () => {
     const { source, user, form } = renderEditor();
     await user.click(screen.getByRole("button", { name: "title" }));
-    const range = screen.getByLabelText("Range");
-    expect(within(range).getByRole("group", { name: "Classes (opens Add a relationship)" })).toBeInTheDocument();
+    const range = screen.getByLabelText("Type of value");
+    expect(within(range).getByRole("group", { name: "Links (opens Add a relationship)" })).toBeInTheDocument();
 
     await user.selectOptions(range, "User");
     expect(source()).toBe(SOURCE);

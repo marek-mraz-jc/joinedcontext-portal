@@ -1055,6 +1055,28 @@ const sectionRoute = createRoute({
     edit: typeof search.edit === "string" && search.edit !== "" ? search.edit : undefined,
     draft: typeof search.draft === "string" && search.draft !== "" ? search.draft : undefined,
   }),
+  // One list, one editor (T-4829): the generic DataModel list and its form opened version,
+  // source and lifecycle only. Every old address lands on the model page that edits it.
+  beforeLoad: ({ params, location, search }) => {
+    if (params.plural !== "datamodels") return;
+    const [, name, edit] = location.pathname.split(`/projects/${params.project}/datamodels`)[1]?.split("/") ?? [];
+    const model = name ? decodeURIComponent(name) : search.edit;
+    if (model === "new") {
+      throw redirect({ to: "/projects/$project/models", params: { project: params.project }, search: { new: "blank" }, replace: true });
+    }
+    if (model && (edit === "edit" || search.edit !== undefined)) {
+      throw redirect({ to: "/projects/$project/models", params: { project: params.project }, search: { edit: model }, replace: true });
+    }
+    if (model) {
+      throw redirect({ to: "/projects/$project/models/$name", params: { project: params.project, name: model }, replace: true });
+    }
+    throw redirect({
+      to: "/projects/$project/models",
+      params: { project: params.project },
+      search: search.draft ? { draft: search.draft } : {},
+      replace: true,
+    });
+  },
   component: function SectionRoute() {
     const { project, plural } = sectionRoute.useParams();
     const { edit } = sectionRoute.useSearch();

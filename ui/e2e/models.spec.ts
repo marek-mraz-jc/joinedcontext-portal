@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 
 // The Data models page as a person meets it (T-2765, T-2762; DM-61, DM-62): the list of the project's
 // models, one click to a model's own page, and its diagram, form and YAML. `vite preview` has no
@@ -98,7 +100,7 @@ test.describe("the data models", () => {
     await expect(page).toHaveURL(/\/projects\/helsinki\/models\/helsinki$/);
     await expect(page.getByRole("heading", { level: 1, name: "Helsinki city context" })).toBeVisible();
     await expect(page.getByRole("group", { name: "The model's classes and what joins them" })).toBeVisible();
-    await expect(page.getByRole("table", { name: "Classes" })).toContainText("refStation: Station");
+    await expect(page.getByRole("table", { name: "Fields of Alert" })).toContainText("Link to Station");
 
     await page.getByRole("tab", { name: "Form" }).click();
     // rjsf keys a select by index; the person reads the picked value.
@@ -135,4 +137,124 @@ test.describe("the data models", () => {
     await page.goto("/projects/helsinki/models/nope?lang=en");
     await expect(page.getByText("No data model named nope")).toBeVisible();
   });
+});
+
+// The KPI model as B05 drew it wrong (T-4829): a slot over LinkML `Any` and an inline period.
+const KPI_LINKML = [
+  "id: https://hel.fi/models/helsinki-kpi",
+  "name: helsinki-kpi",
+  "prefixes:",
+  "  jc: https://hel.fi/terms/",
+  "  linkml: https://w3id.org/linkml/",
+  "default_prefix: jc",
+  "default_range: string",
+  "slots:",
+  "  name: { slot_uri: jc:name, title: { en: Name, fi: Nimi } }",
+  "  currentValue: { slot_uri: jc:currentValue, range: Any, inlined: true, required: true }",
+  "  calculationPeriod: { slot_uri: jc:calculationPeriod, range: CalculationPeriod, inlined: true }",
+  "  startsAt: { slot_uri: jc:startsAt, range: datetime }",
+  "  endsAt: { slot_uri: jc:endsAt, range: datetime }",
+  "  computedBy: { slot_uri: jc:computedBy, range: uri, required: true }",
+  "  location: { slot_uri: jc:location, annotations: { ngsi_ld_kind: GeoProperty } }",
+  "classes:",
+  "  KeyPerformanceIndicator:",
+  "    class_uri: jc:KeyPerformanceIndicator",
+  "    title: { en: Key performance indicator, fi: Avainmittari }",
+  "    slots: [name, currentValue, calculationPeriod, computedBy, location]",
+  "  CalculationPeriod:",
+  "    class_uri: jc:CalculationPeriod",
+  "    slots: [startsAt, endsAt]",
+  "  Any:",
+  "    class_uri: linkml:Any",
+  "",
+].join("\n");
+
+async function stubKpi(page: Page, verbs: string[]): Promise<void> {
+  await page.route("**/api/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const json = (body: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+    if (path.endsWith("/auth/me")) return json(IDENTITY);
+    if (path === "/api/v1/projects") return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ProjectList", items: [{ name: "helsinki" }] });
+    if (path.endsWith("/permissions/me")) {
+      return json({ project: "helsinki", grants: [{ rule: { kinds: ["DataModel", "ContextSpace", "Endpoint"], verbs } }] });
+    }
+    if (path.endsWith("/datamodels")) {
+      return json(list([{
+        apiVersion: "joinedcontext.com/v1alpha1",
+        kind: "DataModel",
+        metadata: { name: "helsinki-kpi", namespace: "helsinki", title: "Helsinki indicators" },
+        spec: { contextSpaceRef: "helsinki-kpi", version: "1.0.0", lifecycle: "published", linkml: KPI_LINKML },
+      }]));
+    }
+    if (path === "/api/v1/tools/sdm-catalog") return json({ subjects: [] });
+    if (path.endsWith("/organizations")) {
+      return json(list([{ apiVersion: "joinedcontext.com/v1alpha1", kind: "Organization", metadata: { name: "hel" }, spec: { domain: "hel.fi", locales: ["en", "fi"], defaultLocale: "en" } }]));
+    }
+    return json(list([]));
+  });
+}
+
+/** Screenshots for the task, where `JC_EVIDENCE_DIR` asks for them. */
+async function shot(page: Page, name: string): Promise<void> {
+  const dir = process.env.JC_EVIDENCE_DIR;
+  if (!dir) return;
+  mkdirSync(dir, { recursive: true });
+  await page.screenshot({ path: join(dir, `${name}.png`), fullPage: true });
+}
+
+test.describe("one plain model editor (T-4829)", () => {
+  for (const width of [1440, 400]) {
+    test(`a steward reads the KPI in plain words and opens Add field at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+      await stubKpi(page, ["read", "propose"]);
+      await page.goto("/projects/helsinki/datamodels/helsinki-kpi?lang=en");
+      await expect(page).toHaveURL(/\/projects\/helsinki\/models\/helsinki-kpi(\?|$)/);
+      const diagram = page.getByRole("group", { name: "The model's classes and what joins them" });
+      await expect(diagram).toBeVisible();
+      await expect(diagram.getByText("Any", { exact: true })).toHaveCount(0);
+      await expect(diagram.getByText("CalculationPeriod", { exact: true })).toHaveCount(0);
+      const fields = page.getByRole("table", { name: "Fields of Key performance indicator" });
+      await expect(fields.getByRole("row", { name: /currentValue/ })).toContainText("Any value");
+      await expect(fields.getByRole("row", { name: /calculationPeriod/ })).toContainText("Holds startsAt, endsAt");
+      await expect(fields.getByRole("row", { name: /location/ })).toContainText("Location");
+      await expect(page.getByRole("table", { name: "Fields of Any" })).toHaveCount(0);
+      const overflow = await page.evaluate(() => (document.scrollingElement?.scrollWidth ?? 0) - window.innerWidth);
+      expect(overflow).toBeLessThanOrEqual(0);
+      await shot(page, `model-overview-steward-${width}`);
+
+      await page.getByRole("button", { name: "Add field to Key performance indicator" }).click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog.getByRole("button", { name: "Propose field" })).toBeVisible();
+      await expect(dialog.getByText(/IRI/)).toHaveCount(0);
+      await shot(page, `model-add-field-steward-${width}`);
+    });
+  }
+
+  test("the editor offers Smart Data Models first, mints the IRI, and keeps it under Advanced", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await stubKpi(page, ["read", "propose"]);
+    await page.goto("/projects/helsinki/models?new=blank&lang=en");
+    const types = page.getByRole("region", { name: "Types" });
+    await expect(types.getByRole("button", { name: "Import a Smart Data Model" })).toBeVisible();
+    await types.getByRole("textbox", { name: "New type" }).fill("School");
+    await types.getByRole("button", { name: "Add type" }).click();
+    await expect(page.getByRole("heading", { level: 2, name: "School" })).toBeVisible();
+    // Titles in the Organization's languages: fi for Helsinki.
+    await expect(page.getByLabel("Title (fi)")).toBeVisible();
+    await expect(page.getByLabel("Class IRI")).toBeHidden();
+    await shot(page, "model-editor-steward-1440");
+    await page.getByText("Advanced (IRIs, mixins, profiles)").first().click();
+    await expect(page.getByLabel("Class IRI")).toHaveValue(/^[a-z]+:School$/);
+  });
+
+  for (const width of [1440, 400]) {
+    test(`a viewer reads the same page with no Add field at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+      await stubKpi(page, ["read"]);
+      await page.goto("/projects/helsinki/models/helsinki-kpi?lang=en");
+      await expect(page.getByRole("table", { name: "Fields of Key performance indicator" })).toBeVisible();
+      await expect(page.getByRole("button", { name: /^Add field to/ })).toHaveCount(0);
+      await shot(page, `model-overview-viewer-${width}`);
+    });
+  }
 });

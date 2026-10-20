@@ -2814,11 +2814,11 @@
     "title": "Model editor",
     "version": "Version {version}",
     "add": "Add",
-    "classes": "Classes",
+    "classes": "Types",
     "enums": "Enums",
-    "slots": "Slots",
-    "slot": "Slot",
-    "range": "Range",
+    "slots": "Fields",
+    "slot": "Field",
+    "range": "Type of value",
     "kind": "NGSI-LD kind",
     "kindHint": "Property unless the attribute is a geometry, a link or a language map",
     "unit": "Unit",
@@ -2835,8 +2835,8 @@
       "language-map": "one value per language",
       "code": "document view"
     },
-    "newClass": "New class",
-    "newSlot": "New slot",
+    "newClass": "New type",
+    "newSlot": "New field",
     "newEnum": "New enum",
     "newEnumValue": "New value of {name}",
     "removeEnumValue": "Remove the value {value}",
@@ -2956,8 +2956,8 @@
         "datetime": "Date and time"
       }
     },
-    "addClass": "Add class",
-    "addSlot": "Add slot",
+    "addClass": "Add type",
+    "addSlot": "Add field",
     "addEnum": "Add enum",
     "addValue": "Add value to {name}",
     "loadingEditor": "Loading the editor…",
@@ -3164,20 +3164,25 @@
       "organizationEmpty": "The organization shares no data model yet.",
       "organizationCaption": "The organization's data models",
       "importAs": "Import as",
-      "organizationOpen": "Open on the Organization page"
+      "organizationOpen": "Open on the Organization page",
+      "addField": "Add field",
+      "addFieldTo": "Add field to {type}",
+      "typeCaption": "Fields of {type}",
+      "noFields": "No field yet.",
+      "addType": "Add type"
     },
     "hints": {
-      "title": "This model has no class yet. Three steps to start:",
+      "title": "This model has no type yet. Three steps to start:",
       "sdm": "Or import a Smart Data Model: its classes, fields and enums arrive written.",
       "sdmAction": "Import a Smart Data Model",
-      "klass": "Add a class: name it in the box under Classes, for example School.",
-      "klassAction": "Name the first class",
+      "klass": "Add a type: name it in the box under Types, for example School.",
+      "klassAction": "Name the first type",
       "relation": "Add a relationship: under Relationships, pick the target class and the cardinality, for example one School has many User entities.",
-      "field": "Add a field: with the class open, name it under Slots, for example name."
+      "field": "Add a field: with the type open, name it under Fields, for example name."
     },
-    "rangeBasic": "Basic types",
+    "rangeBasic": "Values",
     "rangeEnums": "Enums",
-    "rangeClasses": "Classes (opens Add a relationship)",
+    "rangeClasses": "Links (opens Add a relationship)",
     "relationships": {
       "title": "Relationships",
       "intro": "Links from {owner} to entities of a class. Entities store one end; the inverse is computed on read.",
@@ -3240,6 +3245,12 @@
         "inverseSame": "The inverse is a second field; give it another name.",
         "pickFirst": "Pick the target class and name both ends first."
       }
+    },
+    "advanced": "Advanced (IRIs, mixins, profiles)",
+    "word": {
+      "any": "Any value",
+      "object": "Holds {fields}",
+      "linkTo": "Link to {target}"
     }
   },
   "apps": {

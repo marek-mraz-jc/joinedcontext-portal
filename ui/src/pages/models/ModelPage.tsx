@@ -37,7 +37,12 @@ import { MappingsEditor } from "./MappingsEditor";
 import type { MappingModel } from "./MappingsEditor";
 import { ModelForm, ModelYaml, useImportSources } from "./ModelViews";
 import { ProposeLink, useProjectList, useProjectManifests } from "./ModelsList";
-import { classSlots, parseModel } from "./linkml";
+import { classSlots, isAnyClass, parseModel, valueClasses } from "./linkml";
+import { fieldWord, useFieldWords } from "../../components/entities/fieldTypes";
+import { AddFieldDialog } from "../../components/entities/AddFieldDialog";
+import { usePermissions } from "../../api/permissions";
+import { useOrgDomain } from "../../api/projects";
+import { spaceOf } from "../../components/endpoints/sharing";
 import type { LinkmlModel } from "./linkml";
 import { OrganizationCopyOffer, ShareWithOrganization } from "./ShareModel";
 import { spaceOfModel, USING_KINDS, usesOfModel } from "./modelUsage";
@@ -65,49 +70,112 @@ export function UseLink({ project, use }: { project: string; use: Pick<ModelUse,
   return <RecordLink project={project} plural={use.plural} name={use.name} className="font-mono" />;
 }
 
-/** The classes with their fields: what each slot is, and which class a relationship points at. */
-function ClassesTable({ model }: { model: LinkmlModel }): JSX.Element {
-  const { t } = useTranslation();
-  const classes = new Set(model.classes.map((one) => one.name));
-  const enums = new Set(model.enums.map((one) => one.name));
+/**
+ * The model's types as tables of fields in plain words (T-4829): "Number", "Link to Building",
+ * a value object's fields inside the field that holds it. Add field is the space's own dialog
+ * (B11), which proposes a DataModel Change and never writes. Who may not propose sees no button:
+ * a read-only page, not a disabled form (V03).
+ */
+function ClassCards({
+  project,
+  name,
+  source,
+  model,
+  space,
+  endpoints,
+}: {
+  project: string;
+  name: string;
+  source: string;
+  model: LinkmlModel;
+  space?: string;
+  endpoints: Manifest[];
+}): JSX.Element {
+  const { t, i18n } = useTranslation();
+  const word = useFieldWords();
+  const { can } = usePermissions(project);
+  const orgDomain = useOrgDomain(project);
+  const [adding, setAdding] = useState<string | null>(null);
+  const [proposed, setProposed] = useState<Change[]>([]);
+  const hidden = valueClasses(model);
+  const types = model.classes.filter((klass) => !isAnyClass(klass) && !hidden.has(klass.name));
+  const mayPropose = can("DataModel", "propose");
   return (
-    <Table caption={t("models.classes")}>
-      <TableHead>
-        <TableHeaderCell>{t("models.page.class")}</TableHeaderCell>
-        <TableHeaderCell>{t("models.slots")}</TableHeaderCell>
-      </TableHead>
-      <TableBody>
-        {model.classes.map((klass) => (
-          <TableRow key={klass.name}>
-            <TableCell primary>
-              {klass.name}
-              {klass.is_a ? <span className="block text-caption text-fg-muted">is_a {klass.is_a}</span> : null}
-            </TableCell>
-            <TableCell>
-              <ul className="flex flex-col gap-0.5">
-                {classSlots(model, klass).map((slot) => {
-                  const name = slot.name;
-                  const range = slot.range;
-                  return (
-                    <li key={name}>
-                      <span className="font-mono">{name}</span>
-                      {range ? <span className="text-fg-muted">: {range}</span> : null}
-                      {range && classes.has(range) ? (
-                        <Badge className="ml-2">{t("models.page.relationship")}</Badge>
-                      ) : range && enums.has(range) ? (
-                        <Badge className="ml-2">{t("models.page.enum")}</Badge>
-                      ) : null}
-                      {slot.required ? <span className="text-fg-muted"> · {t("models.required")}</span> : null}
-                      {slot.multivalued ? <span className="text-fg-muted"> · {t("models.multivalued")}</span> : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <section aria-labelledby="model-types" className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="model-types" className="text-sm font-semibold">
+          {t("models.classes")}
+        </h2>
+        {mayPropose ? (
+          <ProposeLink project={project} search={{ edit: name }}>
+            {t("models.page.addType")}
+          </ProposeLink>
+        ) : null}
+      </div>
+      {proposed.map((change) => (
+        <ChangeNotice key={change.metadata.name} change={change} project={project} />
+      ))}
+      <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {types.map((klass) => {
+          const fields = classSlots(model, klass);
+          const title = localized(klass.title, i18n.language, klass.name);
+          return (
+            <li key={klass.name} className="flex min-w-0 flex-col gap-2 rounded border border-border p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <h3 className="min-w-0 text-body font-semibold [overflow-wrap:anywhere]">
+                  {title}
+                  {title !== klass.name ? <span className="ml-2 font-mono text-caption text-fg-muted">{klass.name}</span> : null}
+                </h3>
+                {mayPropose ? (
+                  <Button size="sm" variant="secondary" aria-label={t("models.page.addFieldTo", { type: title })} onClick={() => setAdding(klass.name)}>
+                    {t("models.page.addField")}
+                  </Button>
+                ) : null}
+              </div>
+              {klass.description ? <p className="text-caption text-fg-muted">{klass.description}</p> : null}
+              {fields.length === 0 ? (
+                <p className="text-body text-fg-muted">{t("models.page.noFields")}</p>
+              ) : (
+                <Table caption={t("models.page.typeCaption", { type: title })}>
+                  <TableHead>
+                    <TableHeaderCell>{t("models.slot")}</TableHeaderCell>
+                    <TableHeaderCell>{t("models.range")}</TableHeaderCell>
+                  </TableHead>
+                  <TableBody>
+                    {fields.map((slot) => (
+                      <TableRow key={slot.name}>
+                        <TableCell primary>{localized(slot.title, i18n.language, slot.name)}</TableCell>
+                        <TableCell>
+                          {word(fieldWord(slot, model))}
+                          {slot.required ? <span className="text-fg-muted"> · {t("models.required")}</span> : null}
+                          {slot.multivalued ? <span className="text-fg-muted"> · {t("models.multivalued")}</span> : null}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {mayPropose && adding !== null ? (
+        <AddFieldDialog
+          project={project}
+          modelName={name}
+          source={source}
+          type={adding}
+          open
+          onOpenChange={(open) => {
+            if (!open) setAdding(null);
+          }}
+          onProposed={(change) => setProposed((before) => [...before, change])}
+          space={space}
+          endpoints={endpoints.filter((endpoint) => spaceOf(endpoint) === space)}
+          orgDomain={orgDomain}
+        />
+      ) : null}
+    </section>
   );
 }
 
@@ -296,7 +364,14 @@ export function ModelPage({
                     setView("form");
                   }}
                 />
-                <ClassesTable model={parsed} />
+                <ClassCards
+                  project={project}
+                  name={name}
+                  source={source.data}
+                  model={parsed}
+                  space={space}
+                  endpoints={all.endpoints ?? []}
+                />
                 {parsed.enums.length > 0 ? (
                   <section aria-labelledby="model-enums" className="flex flex-col gap-2">
                     <h2 id="model-enums" className="text-sm font-semibold">
