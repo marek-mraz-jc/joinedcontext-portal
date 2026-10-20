@@ -9,8 +9,11 @@
  * is opened and none is left to reject. Per dialog the walk asks: does it carry a name, does
  * Escape close it, no console error, no read answered >= 400, axe with no serious or critical
  * violation. A screenshot is saved per dialog (`SHOTS_DIR` as the walker); `WALK_ONLY=<regex>`
- * walks only the addresses it matches. The findings are attached as JSON.
+ * walks only the addresses it matches. The pages walked and the findings are attached as JSON
+ * and written to `SHOTS_DIR/walk-dialogs-steward.json`.
  */
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 import { axeViolations } from "../axe";
@@ -56,6 +59,7 @@ test("every dialog on every page opens, says what it is and closes, for the stew
   await page.setViewportSize({ width: 1440, height: 900 });
   const report: Opened[] = [];
   const writes: string[] = [];
+  const walked: string[] = [];
   let current: string[] = [];
   await page.route("**/api/**", (route) => {
     const request = route.request();
@@ -80,6 +84,7 @@ test("every dialog on every page opens, says what it is and closes, for the stew
     const hidden = await hiddenSections(page.request);
     const all = (await visits(page, "steward")).filter((visit) => !inHiddenSection(visit.address, hidden) && (!ONLY || ONLY.test(visit.address)));
     for (const visit of all) {
+      walked.push(visit.address);
       const open = async () => {
         await page.goto(`${visit.address}${visit.address.includes("?") ? "&" : "?"}lang=en`, { waitUntil: "load" });
         await page.locator("h1:visible").first().waitFor({ timeout: 30_000 }).catch(() => undefined);
@@ -129,8 +134,14 @@ test("every dialog on every page opens, says what it is and closes, for the stew
       }
     }
   } finally {
-    if (process.env.SHOTS_DIR) writeIndex(process.env.SHOTS_DIR);
-    await test.info().attach("walk-dialogs-steward.json", { body: JSON.stringify({ report, writes }, null, 2), contentType: "application/json" });
+    // Beside the screenshots too: a passing test's attachments are dropped, and the module rows
+    // of human_ui_walk.json are filled from the pages walked, not only from those with a dialog.
+    const body = JSON.stringify({ walked, report, writes }, null, 2);
+    if (process.env.SHOTS_DIR) {
+      writeIndex(process.env.SHOTS_DIR);
+      writeFileSync(join(process.env.SHOTS_DIR, "walk-dialogs-steward.json"), body);
+    }
+    await test.info().attach("walk-dialogs-steward.json", { body, contentType: "application/json" });
     await context.close();
   }
   expect(report.filter((entry) => entry.dialog).length, "the walk opened dialogs").toBeGreaterThan(ONLY ? 0 : 10);
