@@ -67,7 +67,10 @@ describe("the Context Spaces page", () => {
   });
 
   it("opens_under_one_h1_with_its_lead_and_no_axe_violation", async () => {
-    const { container } = await renderRoute({ path: PATH, answer: answering([space("air")]) });
+    const { container } = await renderRoute({
+      path: PATH,
+      answer: answering([space("air")]),
+    });
     await expectOneH1(en.spaces.title);
     expect(screen.getByText(en.spaces.lead)).toBeInTheDocument();
     await screen.findByRole("table");
@@ -75,15 +78,27 @@ describe("the Context Spaces page", () => {
   });
 
   it("a_full_quota_refuses_the_add_button_on_the_button_and_keeps_it_reachable", async () => {
-    await renderRoute({ path: PATH, answer: answering([space("air")], project(3, 3)) });
+    await renderRoute({
+      path: PATH,
+      answer: answering([space("air")], project(3, 3)),
+    });
     const add = await screen.findByRole("button", { name: en.spaces.add });
-    await waitFor(() => expectDenied(add, i18n.t("quota.exceeded", { limit: 3 })));
+    await waitFor(() =>
+      expectDenied(add, i18n.t("quota.exceeded", { limit: 3 })),
+    );
     // The banner stays too, for whoever reads the page rather than the control.
-    expect(screen.getAllByRole("status").some((node) => node.textContent?.includes("3"))).toBe(true);
+    expect(
+      screen
+        .getAllByRole("status")
+        .some((node) => node.textContent?.includes("3")),
+    ).toBe(true);
   });
 
   it("a_quota_with_room_leaves_the_add_button_alone", async () => {
-    await renderRoute({ path: PATH, answer: answering([space("air")], project(1, 3)) });
+    await renderRoute({
+      path: PATH,
+      answer: answering([space("air")], project(1, 3)),
+    });
     const add = await screen.findByRole("button", { name: en.spaces.add });
     await waitFor(() => expect(add).toBeEnabled());
     expect(add).not.toHaveAttribute("aria-disabled");
@@ -100,16 +115,22 @@ describe("the Context Spaces page", () => {
     const { calls } = await renderRoute({
       path: PATH,
       answer: (path) =>
-        path.endsWith("/spaces") ? problem(503, "The spaces could not be read right now.") : undefined,
+        path.endsWith("/spaces")
+          ? problem(503, "The spaces could not be read right now.")
+          : undefined,
     });
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("The spaces could not be read right now.");
     expect(screen.queryByText(en.spaces.empty)).toBeNull();
 
     const before = calls().filter((call) => call.endsWith("/spaces")).length;
-    await userEvent.click(within(alert).getByRole("button", { name: en.app.error.retry }));
+    await userEvent.click(
+      within(alert).getByRole("button", { name: en.app.error.retry }),
+    );
     await waitFor(() =>
-      expect(calls().filter((call) => call.endsWith("/spaces")).length).toBeGreaterThan(before),
+      expect(
+        calls().filter((call) => call.endsWith("/spaces")).length,
+      ).toBeGreaterThan(before),
     );
   });
 
@@ -117,26 +138,43 @@ describe("the Context Spaces page", () => {
     await renderRoute({ path: PATH, answer: answering([]) });
     expect(await screen.findByText(en.spaces.empty)).toBeInTheDocument();
     // The same control twice, so the first one is where a person is looking (UI-01).
-    expect(screen.getAllByRole("button", { name: en.spaces.add })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: en.spaces.add })).toHaveLength(
+      2,
+    );
   });
 
   // T-2889: how big each space is, from the broker's count (API/01 §28), sortable by it.
   it("shows_each_spaces_entity_count_and_sorts_the_biggest_first", async () => {
-    const counts: Record<string, number> = { air: 1200, bikes: 14232, noise: 0 };
+    const counts: Record<string, number> = {
+      air: 1200,
+      bikes: 14232,
+      noise: 0,
+    };
     await renderRoute({
       path: PATH,
       answer: (path) => {
         const usage = /\/spaces\/([a-z-]+)\/usage$/.exec(path);
-        if (usage) return jsonResponse({ entities: counts[usage[1]], observedAt: "2026-09-25T11:40:00Z" });
+        if (usage)
+          return jsonResponse({
+            entities: counts[usage[1]],
+            observedAt: "2026-09-25T11:40:00Z",
+          });
         return answering([space("air"), space("bikes"), space("noise")])(path);
       },
     });
     const table = await screen.findByRole("table");
-    await waitFor(() => expect(within(table).getAllByTestId("space-entities")).toHaveLength(3));
-    const shown = () => within(table).getAllByTestId("space-entities").map((cell) => cell.textContent);
+    await waitFor(() =>
+      expect(within(table).getAllByTestId("space-entities")).toHaveLength(3),
+    );
+    const shown = () =>
+      within(table)
+        .getAllByTestId("space-entities")
+        .map((cell) => cell.textContent);
     expect(shown()).toEqual(["1,200", "14,232", "0"]);
 
-    const sort = within(table).getByRole("button", { name: en.spaces.field.entities });
+    const sort = within(table).getByRole("button", {
+      name: en.spaces.field.entities,
+    });
     const header = sort.closest("th") as HTMLElement;
     expect(header).toHaveAttribute("aria-sort", "none");
     // A column a phone does without (UI-27, T-2946): at 400 px it pushed "Look inside" and the
@@ -155,7 +193,11 @@ describe("the Context Spaces page", () => {
   // T-2890: what each space takes in the broker's store, in binary units, exact in the tooltip.
   it("shows_each_spaces_size_in_binary_units_and_a_dash_where_the_broker_measured_none", async () => {
     const bytes: Record<string, unknown> = {
-      air: { entities: 1_048_576, attrInstances: 524_288, byType: { "https://x/Air": 1_048_576 } },
+      air: {
+        entities: 1_048_576,
+        attrInstances: 524_288,
+        byType: { "https://x/Air": 1_048_576 },
+      },
       bikes: { entities: 900, attrInstances: 0, byType: {} },
     };
     await renderRoute({
@@ -163,18 +205,30 @@ describe("the Context Spaces page", () => {
       answer: (path) => {
         const usage = /\/spaces\/([a-z-]+)\/usage$/.exec(path);
         if (usage) {
-          return jsonResponse({ entities: 3, broker: "main", observedAt: "2026-09-25T11:40:00Z", bytes: bytes[usage[1]] });
+          return jsonResponse({
+            entities: 3,
+            broker: "main",
+            observedAt: "2026-09-25T11:40:00Z",
+            bytes: bytes[usage[1]],
+          });
         }
         return answering([space("air"), space("bikes"), space("noise")])(path);
       },
     });
     const table = await screen.findByRole("table");
-    await waitFor(() => expect(within(table).getAllByTestId("space-size")).toHaveLength(2));
+    await waitFor(() =>
+      expect(within(table).getAllByTestId("space-size")).toHaveLength(2),
+    );
     const sizes = within(table).getAllByTestId("space-size");
     expect(sizes.map((cell) => cell.textContent)).toEqual(["1.5 MiB", "900 B"]);
-    expect(sizes[0]).toHaveAttribute("title", `${en.spaces.field.size}: 1,572,864 B`);
+    expect(sizes[0]).toHaveAttribute(
+      "title",
+      `${en.spaces.field.size}: 1,572,864 B`,
+    );
     // A line under the count, not a column: a column more ran the table past its frame at 768 px.
-    expect(within(table).queryByRole("columnheader", { name: en.spaces.field.size })).toBeNull();
+    expect(
+      within(table).queryByRole("columnheader", { name: en.spaces.field.size }),
+    ).toBeNull();
     expect(sizes[0].closest("td")).toHaveTextContent(/^3\s*1\.5 MiB$/);
   });
 
@@ -187,7 +241,9 @@ describe("the Context Spaces page", () => {
           : answering([space("air")])(path),
     });
     const table = await screen.findByRole("table");
-    const reason = i18n.t("spaces.entitiesUnknown", { reason: "the broker did not answer; try again in a minute" });
+    const reason = i18n.t("spaces.entitiesUnknown", {
+      reason: "the broker did not answer; try again in a minute",
+    });
     expect(await within(table).findByText(reason)).toBeInTheDocument();
     expect(within(table).queryByTestId("space-entities")).toBeNull();
   });
@@ -201,15 +257,59 @@ describe("the Context Spaces page", () => {
         answer: (path, request) =>
           path.endsWith("/usage")
             ? new Promise<Response>((_, reject) =>
-                request.signal.addEventListener("abort", () => reject(request.signal.reason)),
+                request.signal.addEventListener("abort", () =>
+                  reject(request.signal.reason),
+                ),
               )
             : answering([space("air")])(path),
       });
       const table = await screen.findByRole("table");
-      await waitFor(() => expect(within(table).getByText(en.spaces.entitiesCounting)).toBeInTheDocument());
+      await waitFor(() =>
+        expect(
+          within(table).getByText(en.spaces.entitiesCounting),
+        ).toBeInTheDocument(),
+      );
       expect(within(table).queryByText(en.app.loading)).toBeNull();
       await vi.advanceTimersByTimeAsync(USAGE_TIMEOUT_MS + 10);
-      expect(await within(table).findByText(i18n.t("spaces.entitiesSlow"))).toBeInTheDocument();
+      expect(
+        await within(table).findByText(i18n.t("spaces.entitiesSlow")),
+      ).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows_a_count_the_portal_gives_after_its_20_s_wait_for_the_broker", async () => {
+    // T-4825: the page gave up at 15 s while the Portal waited 20 s for a slow broker count.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await renderRoute({
+        path: PATH,
+        answer: (path, request) =>
+          path.endsWith("/usage")
+            ? new Promise<Response>((resolve, reject) => {
+                request.signal.addEventListener("abort", () =>
+                  reject(request.signal.reason),
+                );
+                setTimeout(
+                  () =>
+                    resolve(
+                      jsonResponse({
+                        entities: 1234,
+                        broker: "main",
+                        observedAt: "2026-10-20T19:00:00Z",
+                      }),
+                    ),
+                  19_500,
+                );
+              })
+            : answering([space("air")])(path),
+      });
+      const table = await screen.findByRole("table");
+      await vi.advanceTimersByTimeAsync(19_600);
+      expect(
+        await within(table).findByTestId("space-entities"),
+      ).toHaveTextContent("1,234");
     } finally {
       vi.useRealTimers();
     }
@@ -217,17 +317,26 @@ describe("the Context Spaces page", () => {
 
   it("names_the_count_column_in_the_same_case_as_the_others", async () => {
     await renderRoute({ path: PATH, answer: answering([space("air")]) });
-    const sort = await screen.findByRole("button", { name: en.spaces.field.entities });
+    const sort = await screen.findByRole("button", {
+      name: en.spaces.field.entities,
+    });
     expect(sort.className).toMatch(/\buppercase\b/);
   });
 
   it("survives_0_1_and_500_rows", async () => {
     for (const count of [0, 1, 500]) {
-      const items = Array.from({ length: count }, (_, index) => space(`space-${index}`));
-      const { unmount } = await renderRoute({ path: PATH, answer: answering(items) });
+      const items = Array.from({ length: count }, (_, index) =>
+        space(`space-${index}`),
+      );
+      const { unmount } = await renderRoute({
+        path: PATH,
+        answer: answering(items),
+      });
       const table = await screen.findByRole("table");
       await waitFor(() =>
-        expect(within(table).getAllByRole("row").length).toBe(count === 0 ? 2 : count + 1),
+        expect(within(table).getAllByRole("row").length).toBe(
+          count === 0 ? 2 : count + 1,
+        ),
       );
       unmount();
       vi.restoreAllMocks();
@@ -238,8 +347,15 @@ describe("the Context Spaces page", () => {
     await renderRoute({
       path: PATH,
       answer: answering([
-        space("air", { status: { phase: "Live", sourceUrl: "https://git.example.sk/hel/x.yaml" } }),
-        space("traffic", { status: { phase: "Live", sourceUrl: "javascript:alert(1)" } }),
+        space("air", {
+          status: {
+            phase: "Live",
+            sourceUrl: "https://git.example.sk/hel/x.yaml",
+          },
+        }),
+        space("traffic", {
+          status: { phase: "Live", sourceUrl: "javascript:alert(1)" },
+        }),
       ]),
     });
     const table = await screen.findByRole("table");
@@ -255,9 +371,15 @@ describe("the Context Spaces page", () => {
 
   it("says_everything_it_says_in_all_four_languages", async () => {
     for (const locale of LOCALES) {
-      const { unmount } = await renderRoute({ path: PATH, locale, answer: answering([]) });
+      const { unmount } = await renderRoute({
+        path: PATH,
+        locale,
+        answer: answering([]),
+      });
       await expectOneH1(i18n.t("spaces.title"));
-      expect(await screen.findByText(i18n.t("spaces.empty"))).toBeInTheDocument();
+      expect(
+        await screen.findByText(i18n.t("spaces.empty")),
+      ).toBeInTheDocument();
       if (locale !== "en") {
         expect(screen.queryByText(en.spaces.lead)).toBeNull();
       }
@@ -273,11 +395,15 @@ describe("the Context Spaces page", () => {
       answer: answering([space("air")]),
     });
     await screen.findByRole("table");
-    const literal = [...container.querySelectorAll<HTMLElement>("[style]")].filter((element) =>
+    const literal = [
+      ...container.querySelectorAll<HTMLElement>("[style]"),
+    ].filter((element) =>
       /#[0-9a-f]{3,8}|\brgba?\(/i.test(element.getAttribute("style") ?? ""),
     );
     expect(
-      literal.filter((element) => element.getAttribute("aria-hidden") !== "true").map((e) => e.outerHTML.slice(0, 120)),
+      literal
+        .filter((element) => element.getAttribute("aria-hidden") !== "true")
+        .map((e) => e.outerHTML.slice(0, 120)),
     ).toEqual([]);
   });
 });

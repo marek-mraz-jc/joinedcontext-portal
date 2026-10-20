@@ -319,27 +319,10 @@ fn outliers_of(sorted: &[(f64, u32)], ids: &[String]) -> (u64, Vec<String>) {
     (outside.len() as u64, examples)
 }
 
-/// Takes the system attributes `options=sysAttrs` adds off an entity and its attributes, so the
-/// model sees what was written, and answers the entity's `modifiedAt`.
-pub fn strip_system(entity: &mut Value) -> Option<DateTime<Utc>> {
-    let object = entity.as_object_mut()?;
-    let modified = object
-        .remove("modifiedAt")
-        .and_then(|at| at.as_str().and_then(|at| at.parse().ok()));
-    object.remove("createdAt");
-    for value in object.values_mut() {
-        let attributes: Vec<&mut Value> = match value {
-            Value::Array(items) => items.iter_mut().collect(),
-            other => vec![other],
-        };
-        for attribute in attributes {
-            if let Some(attribute) = attribute.as_object_mut() {
-                attribute.remove("createdAt");
-                attribute.remove("modifiedAt");
-            }
-        }
-    }
-    modified
+/// The entity's `modifiedAt`, which `options=sysAttrs` adds. The model check takes the entity as
+/// stored: the system members of DM-130 pass a closed class and are never reported (DM-131).
+pub fn modified_of(entity: &Value) -> Option<DateTime<Utc>> {
+    entity.get("modifiedAt")?.as_str()?.parse().ok()
 }
 
 /// Seconds between two runs of a five-field cron `schedule`, or `None` for one this reading does
@@ -518,12 +501,12 @@ impl Scanner {
             loop {
                 let page = self.watch.page(token, space, class, offset, PAGE).await?;
                 let full = page.len() == PAGE;
-                for mut entity in page {
+                for entity in page {
                     if tally.checked as usize >= PER_SPACE {
                         tally.truncated = true;
                         break 'classes;
                     }
-                    let modified = strip_system(&mut entity);
+                    let modified = modified_of(&entity);
                     let problems = schema.check(&entity);
                     tally.add(&entity, modified, &problems);
                 }
@@ -724,19 +707,38 @@ mod tests {
         assert_eq!(tally.newest("C"), None);
     }
 
+    /// DM-74, DM-131: a stored entity with its system members, an entity and an attribute
+    /// `expiresAt` among them, gives no problem against a closed class; an undeclared attribute
+    /// still does.
     #[test]
-    fn system_attributes_come_off_before_the_model_sees_the_entity() {
-        let mut entity = json!({
-            "id": "urn:x", "type": "A", "createdAt": "2026-09-01T00:00:00Z", "modifiedAt": "2026-09-25T01:00:00Z",
-            "name": {"type": "Property", "value": "n", "createdAt": "x", "modifiedAt": "y"},
-            "tags": [{"type": "Property", "value": 1, "modifiedAt": "y", "datasetId": "urn:d"}]
-        });
-        assert_eq!(strip_system(&mut entity), Some(at("2026-09-25T01:00:00Z")));
-        assert_eq!(
-            entity,
-            json!({"id": "urn:x", "type": "A", "name": {"type": "Property", "value": "n"},
-                   "tags": [{"type": "Property", "value": 1, "datasetId": "urn:d"}]})
+    fn a_stored_entity_with_its_system_members_passes_a_closed_class() {
+        let model = jcctl::model_schema::ModelSchema::compile(
+            "m",
+            "1.0.0",
+            &json!({ "definitions": { "Bus": {
+                "additionalProperties": false,
+                "properties": { "id": { "type": "string" }, "speed": { "type": "number", "x-ngsi-ld-kind": "Property" } }
+            } } }),
+            &["Bus".into()],
+            false,
         );
+        let mut entity = json!({
+            "id": "urn:ngsi-ld:Bus:hsl:1", "type": "Bus", "scope": "/fi/helsinki",
+            "createdAt": "2026-09-01T00:00:00Z", "modifiedAt": "2026-09-25T01:00:00Z",
+            "expiresAt": "2026-09-25T01:05:00Z",
+            "speed": {"type": "Property", "value": 9.5, "observedAt": "2026-09-25T01:00:00Z",
+                      "expiresAt": "2026-09-25T01:05:00Z", "createdAt": "2026-09-01T00:00:00Z",
+                      "modifiedAt": "2026-09-25T01:00:00Z", "datasetId": "urn:d"}
+        });
+        assert_eq!(modified_of(&entity), Some(at("2026-09-25T01:00:00Z")));
+        assert_eq!(model.check(&entity), []);
+        entity["colour"] = json!({"type": "Property", "value": "blue"});
+        let rules: Vec<(String, String)> = model
+            .check(&entity)
+            .into_iter()
+            .map(|p| (p.rule, p.path))
+            .collect();
+        assert_eq!(rules, [("sh:closed".to_owned(), "colour".to_owned())]);
     }
 
     #[test]

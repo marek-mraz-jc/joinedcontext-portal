@@ -776,6 +776,10 @@ routes:
     rule: "project-verb:read:MqttBroker"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
     note: "what the broker measures, read by the Portal from the broker's own HTTP API; the browser never reaches a broker (API/01 §44, T-4043)"
+  - route: GET /projects/{project}/pipelines/{name}/bento
+    rule: "project-verb:read:Pipeline"
+    expect: [401, 404, 404, 404, 404, 404, 404, 404]
+    note: "the fixture's forge holds no bento.yaml, so a caller the rule admits meets 404 after the check passed; pipeline_bento_tests holds the rule with one (T-4818)"
   - route: GET /projects/{project}/pipelines/{name}/metrics
     rule: "project-verb:read:Pipeline"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

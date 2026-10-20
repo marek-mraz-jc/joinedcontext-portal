@@ -14,7 +14,7 @@ import { useTranslation } from "react-i18next";
 import { readModelSource } from "../../api/datamodelSource";
 import { localized } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
-import { ActivityFeed } from "../../components/ActivityFeed";
+import { ResourceHistory } from "../../components/ResourceHistory";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import {
   Alert,
@@ -418,7 +418,8 @@ export function ModelPage({
               )
             ) : null}
             {view === "history" ? (
-              <ActivityFeed project={project} compact fixed={{ object: `datamodels/${name}` }} limit={20} />
+              // The merged and rejected Changes of this model, the published v1.0.0 one included (T-4830).
+              <ResourceHistory project={project} kind="DataModel" name={name} />
             ) : null}
             {view === "mappings" && source.data !== undefined ? (
               <ModelMappings
