@@ -17,6 +17,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { currentTokens } from "../sdk/tokens";
+import { SourceError } from "./source";
 import type { EntitySource, HistoryPoint, HistoryWindow } from "./source";
 // Its rules live beside the grid's: an application may show the history without the grid.
 import "./grid.css";
@@ -44,6 +45,13 @@ export interface HistoryLabels {
   close: string;
   loading: string;
   error: string;
+  /** The switch that asks for every version of each value, with who changed it and why (DM-114). */
+  versions: string;
+  /** What a 403 on that read means: the space's Policy grants this role no `readVersions`. */
+  versionsRefused: string;
+  supersededAt: string;
+  changedBy: string;
+  reason: string;
 }
 
 export const DEFAULT_HISTORY_LABELS: HistoryLabels = {
@@ -60,7 +68,18 @@ export const DEFAULT_HISTORY_LABELS: HistoryLabels = {
   close: "Close",
   loading: "Loading…",
   error: "Error",
+  versions: "Every version, with who changed it and why",
+  versionsRefused: "Your role may not read earlier versions in this space.",
+  supersededAt: "Replaced",
+  changedBy: "Changed by",
+  reason: "Reason",
 };
+
+/** Who wrote a version, as one line: the channel, then the actor where the broker names one. */
+export function changedBy(point: HistoryPoint): string {
+  const { channel, actor, operation } = point.provenance ?? {};
+  return [channel, operation, actor].filter((part) => part).join(" · ");
+}
 
 /** The window a choice asks for, in UTC, because a broker compares timestamps and not clocks. */
 export function windowOf(
@@ -237,6 +256,8 @@ export interface EntityHistoryProps {
   fractionDigits?: number;
   maxPoints?: number;
   labels?: Partial<HistoryLabels>;
+  /** Offer the switch to every version of each value; the gateway decides who gets them (DM-114). */
+  versions?: boolean;
   onClose?: () => void;
   now?: () => Date;
 }
@@ -257,6 +278,7 @@ export function EntityHistory(props: EntityHistoryProps): React.JSX.Element {
   const [custom, setCustom] = useState({ from: "", to: "" });
   const [points, setPoints] = useState<HistoryPoint[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [allVersions, setAllVersions] = useState(false);
 
   const read = useCallback(async () => {
     if (!source.history) {
@@ -265,12 +287,14 @@ export function EntityHistory(props: EntityHistoryProps): React.JSX.Element {
     setError(null);
     setPoints(null);
     try {
-      const got = await source.history(id, attr, windowOf(choice, custom, maxPoints, now));
+      const window = windowOf(choice, custom, maxPoints, now);
+      const got = await source.history(id, attr, allVersions ? { ...window, versions: true } : window);
       setPoints(got);
     } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : labels.error);
+      if (allVersions && err instanceof SourceError && err.status === 403) setError(labels.versionsRefused);
+      else setError(err instanceof Error && err.message ? err.message : labels.error);
     }
-  }, [source, id, attr, choice, custom, maxPoints, now, labels.error]);
+  }, [source, id, attr, choice, custom, maxPoints, now, allVersions, labels.error, labels.versionsRefused]);
 
   useEffect(() => {
     void read();
@@ -292,7 +316,8 @@ export function EntityHistory(props: EntityHistoryProps): React.JSX.Element {
     };
   }, [locale, digits]);
   const heading = props.heading ?? `${labels.title}: ${attr}`;
-  const series = points ? numericSeries(points) : null;
+  // The line follows the values that hold today: a replaced version is a row of the table only.
+  const series = points ? numericSeries(points.filter((point) => !point.supersededAt)) : null;
   const shown = (value: unknown): string => {
     if (value === null || value === undefined) return "";
     return typeof value === "number" ? number(value) : String(value);
@@ -322,6 +347,13 @@ export function EntityHistory(props: EntityHistoryProps): React.JSX.Element {
           </label>
         ))}
       </fieldset>
+
+      {props.versions && (
+        <label className="jc-grid-history-versions">
+          <input type="checkbox" checked={allVersions} onChange={(e) => setAllVersions(e.target.checked)} />
+          {labels.versions}
+        </label>
+      )}
 
       {choice === "custom" && (
         <fieldset>
@@ -358,6 +390,13 @@ export function EntityHistory(props: EntityHistoryProps): React.JSX.Element {
                 <th>{labels.at}</th>
                 <th>{labels.value}</th>
                 {unit && <th>{labels.unit}</th>}
+                {allVersions && (
+                  <>
+                    <th>{labels.supersededAt}</th>
+                    <th>{labels.changedBy}</th>
+                    <th>{labels.reason}</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -368,6 +407,13 @@ export function EntityHistory(props: EntityHistoryProps): React.JSX.Element {
                   </td>
                   <td>{shown(point.value)}</td>
                   {unit && <td>{unit}</td>}
+                  {allVersions && (
+                    <>
+                      <td>{point.supersededAt ? <time dateTime={point.supersededAt}>{stamp(point.supersededAt)}</time> : ""}</td>
+                      <td>{changedBy(point)}</td>
+                      <td>{point.provenance?.reason ?? ""}</td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
