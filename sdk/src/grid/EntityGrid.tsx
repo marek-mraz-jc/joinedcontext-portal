@@ -21,6 +21,7 @@ import { objectsOf, pointingAt, searchTargets } from "../relations";
 import type { TargetOption } from "../relations";
 import { NGSI_LD_NULL, RelationPicker } from "./RelationPicker";
 import { RowDetail } from "./RowDetail";
+import type { RowDetailTab } from "./RowDetail";
 import { parseClipboard, planPaste } from "./paste";
 import { problemOf } from "./rules";
 import type { ValueRule } from "./rules";
@@ -59,8 +60,17 @@ export interface EntityGridProps extends UseEntityGridOptions {
   mapLabels?: Partial<GridMapLabels>;
   geoLabels?: Partial<GeoLabels>;
   basemap?: string;
-  /** What the host adds under a row's detail, such as its comments (T-3106). */
+  /** What the host adds under a row's fields in its detail (T-3106). */
   detailExtra?: (row: RichRow) => React.ReactNode;
+  /** The host's own tabs in a row's detail after Fields and History, such as its comments (T-4828). */
+  detailTabs?: (row: RichRow) => RowDetailTab[];
+  /**
+   * The row whose detail is open, by id, for a host that keeps it in the address (`?row=<urn>`,
+   * T-4828): `undefined` leaves it to the grid, `null` closes it. A row not on the loaded page is
+   * read by its id and shown without editors until the grid loads it.
+   */
+  openRow?: string | null;
+  onOpenRow?: (id: string | null) => void;
   toolbar?: React.ReactNode;
   /** The bounds the "Draw area" action asks about; the host owns the map's viewport. */
   mapBounds?: () => [number, number, number, number] | null;
@@ -99,6 +109,9 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     marks,
     toolbar,
     detailExtra,
+    detailTabs,
+    openRow,
+    onOpenRow,
     mapEngine,
     mapAllowed,
     mapLabels,
@@ -149,7 +162,15 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const [history, setHistory] = useState<{ attr: string; id: string; heading: string } | null>(null);
   // The row whose detail panel is open, by id, so a new page closes it rather than showing a row
   // that is no longer listed (T-3097).
-  const [detailId, setDetailId] = useState<string | null>(null);
+  const [ownDetailId, setOwnDetailId] = useState<string | null>(null);
+  const detailId = openRow === undefined ? ownDetailId : openRow;
+  const setDetailId = useCallback(
+    (id: string | null) => {
+      setOwnDetailId(id);
+      onOpenRow?.(id);
+    },
+    [onOpenRow],
+  );
   // The primary column is the first one when it is an attribute: the config pinned it (T-3097).
   const primaryKey = columns[0]?.attr !== null && columns[0]?.pinned ? columns[0].key : null;
   const isPrimary = useCallback(
@@ -505,7 +526,48 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const mapAttr = mapConfig?.enabled ? mapAttrOf(rows, mapConfig.attr) : null;
   const mapPosition = mapConfig?.position ?? "right";
   const activeRowId = rows[state.activeCell?.row ?? -1]?.id ?? null;
-  const detailRow = detailId === null ? undefined : rows.find((row) => row.id === detailId);
+  const listedRow = detailId === null ? undefined : rows.find((row) => row.id === detailId);
+  // A deep link to a row the page has not loaded: read by its id, through the same source and Policy.
+  const [linked, setLinked] = useState<RichRow | null>(null);
+  const getRow = hookOptions.source.get;
+  React.useEffect(() => {
+    if (detailId === null || listedRow || loading) return;
+    let live = true;
+    // Gone, or not readable by this person: the same answer either way, and the link closes.
+    const missing = () => live && setDetailId(null);
+    getRow(detailId).then(
+      (row) => (row ? live && setLinked(row) : missing()),
+      missing,
+    );
+    return () => {
+      live = false;
+    };
+  }, [detailId, listedRow, loading, getRow, setDetailId]);
+  const detailRow = listedRow ?? (linked && linked.id === detailId ? linked : undefined);
+  const historyOn = Boolean(hookOptions.source.history) && hookOptions.config.history.enabled !== false;
+
+  // What is typed and not applied yet, with Review and Discard: under the toolbar, and inside the row
+  // dialog too, where the page behind is inert; Review there closes the dialog first (T-4828).
+  const pendingBar = (inDialog: boolean): React.ReactNode =>
+    editing && pendingChanges.length > 0 ? (
+      <div className="jc-grid-pending" role="status">
+        <span>{`${pendingChanges.length} ${labels.pending}`}</span>
+        {ruleProblems.size > 0 && <span className="jc-grid-to-correct">{`${ruleProblems.size} ${labels.toCorrect}`}</span>}
+        <button
+          type="button"
+          disabled={ruleProblems.size > 0}
+          onClick={() => {
+            if (inDialog) setDetailId(null);
+            setOpen(true);
+          }}
+        >
+          {labels.review}
+        </button>
+        <button type="button" onClick={() => { clearEdits(); setRefused([]); }}>
+          {labels.discard}
+        </button>
+      </div>
+    ) : null;
 
   // The table is the grid's one tab stop. Enter or F2 goes into the active cell's own control (its
   // input, list or picker), Escape comes back to the grid, and the active cell is kept in view.
@@ -636,18 +698,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         </p>
       )}
 
-      {editing && pendingChanges.length > 0 && (
-        <div className="jc-grid-pending" role="status">
-          <span>{`${pendingChanges.length} ${labels.pending}`}</span>
-          {ruleProblems.size > 0 && <span className="jc-grid-to-correct">{`${ruleProblems.size} ${labels.toCorrect}`}</span>}
-          <button type="button" disabled={ruleProblems.size > 0} onClick={() => setOpen(true)}>
-            {labels.review}
-          </button>
-          <button type="button" onClick={() => { clearEdits(); setRefused([]); }}>
-            {labels.discard}
-          </button>
-        </div>
-      )}
+      {pendingBar(false)}
 
       <div className="jc-grid-scroll" ref={scrollRef} onScroll={virtual ? onScroll : undefined}>
         <table
@@ -849,13 +900,38 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           row={detailRow}
           name={rowName(detailRow)}
           columns={columns}
-          renderValue={renderCellContent}
-          labels={{ rowDetail: labels.rowDetail, close: labels.close }}
+          // An edit is written against the row as the page loaded it, so a row read on its own shows
+          // its values without editors.
+          renderValue={listedRow ? renderCellContent : (row, column) => cellText(column.attr ? row.cells[column.attr] : undefined)}
+          labels={{
+            rowDetail: labels.rowDetail,
+            close: labels.close,
+            rowFields: labels.rowFields,
+            rowHistory: labels.history,
+            historyAttr: labels.attribute,
+          }}
+          history={
+            historyOn
+              ? (attr, label) => (
+                  <EntityHistory
+                    source={hookOptions.source}
+                    id={detailRow.id}
+                    attr={attr}
+                    heading={`${hookOptions.labels?.historyLabels?.title ?? labels.history}: ${label}`}
+                    maxPoints={hookOptions.config.history.maxPoints}
+                    labels={hookOptions.labels?.historyLabels}
+                    versions
+                  />
+                )
+              : undefined
+          }
+          tabs={detailTabs?.(detailRow)}
           onClose={() => {
             setDetailId(null);
             tableRef.current?.focus();
           }}
         >
+          {pendingBar(true)}
           {detailExtra?.(detailRow)}
         </RowDetail>
       )}

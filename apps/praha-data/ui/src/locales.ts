@@ -110,6 +110,7 @@ const cs: Strings = {
   grid: {
     openRow: "Otevřít",
     rowDetail: "Podrobnosti",
+    rowFields: "Pole",
     close: "Zavřít",
     id: "Identifikátor",
     type: "Typ",
@@ -257,6 +258,7 @@ const en: Strings = {
   grid: {
     openRow: "Open",
     rowDetail: "Details",
+    rowFields: "Fields",
     close: "Close",
   },
 };

@@ -1691,7 +1691,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 10
+        "Button": 11
       },
       "tests": [
         "part_space_inside.test.tsx",
