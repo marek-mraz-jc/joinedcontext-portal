@@ -80,6 +80,9 @@ function expected(who: string, response: Response): boolean {
   return status === 410 || (status === 404 && /\/agent-runs\/[^/]+\/(preview|events)/.test(response.url()));
 }
 
+/** Pages of the person's own things, outside any project (connectors, UI-98): a viewer writes there. */
+const OWN = new Set(["/connectors"]);
+
 /**
  * A write control the viewer can press, or one refused without a reason (UI-44). A tab is a place
  * to go, and a control that only edits the draft in hand — a term added to the filter being tried,
@@ -144,7 +147,7 @@ for (const [who, person] of [
             ...(await axeViolations(page))
               .filter((violation) => /\((serious|critical)\)/.test(violation))
               .map((violation) => `axe: ${violation.slice(0, 200)}`),
-            ...(who === "viewer" ? await viewerWrites(page) : []),
+            ...(who === "viewer" && !OWN.has(visit.route) ? await viewerWrites(page) : []),
           ];
           const screenshot = test.info().outputPath(`${who}-${lang}-${size.width}${visit.address.replace(/[^a-z0-9]+/gi, "-")}.png`);
           await page.screenshot({ path: screenshot, fullPage: true });

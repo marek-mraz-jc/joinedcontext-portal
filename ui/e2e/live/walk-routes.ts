@@ -46,13 +46,16 @@ export async function visits(page: Page, who: string): Promise<Visit[]> {
     { route: "/", address: "/" },
     { route: "/endpoints", address: "/endpoints" },
     { route: "/organization", address: "/organization" },
+    ...["/catalogue", "/glossary", "/connectors", "/playground"].map((route) => ({ route, address: route })),
     ...[...ORGANIZATION_TABS, ...(who === "steward" ? ["endpoints"] : [])].map((tab) => ({
       route: "/organization/$tab",
       address: `/organization/${tab}`,
     })),
     { route: "/organization/$tab/$", address: "/organization/people/new" },
     { route: "/organization/$tab/$", address: "/organization/groups/new" },
-    ...["workspaces", "activity", "approvals", "settings", "models", "explore", "ckan", "import", "assistant"].map((page) => ({
+    ...[
+      "home", "inbox", "workspaces", "activity", "approvals", "access", "settings", "models", "explore", "ckan", "mcp", "federation", "import", "assistant", "shared",
+    ].map((page) => ({
       route: `/projects/$project/${page}`,
       address: `${P}/${page}`,
     })),
@@ -74,6 +77,7 @@ export async function visits(page: Page, who: string): Promise<Visit[]> {
     ["/projects/$project/models/$name", `${P}/models`, new RegExp(`^${P}/models/[^/]+$`)],
     ["/projects/$project/approvals/$id", `${P}/approvals`, new RegExp(`^${P}/approvals/chg-[0-9a-f]+$`)],
     ["/projects/$project/workspaces/$name/compare", `${P}/workspaces`, new RegExp(`^${P}/workspaces/[^/]+/compare$`)],
+    ["/catalogue/$name", "/catalogue", /^\/catalogue\/[^/]+$/],
     ["/organization/$tab/$", "/organization/people", /^\/organization\/people\/(?!new$)[^/]+$/],
     ["/organization/$tab/$", "/organization/groups", /^\/organization\/groups\/(?!new$)[^/]+$/],
   ];
