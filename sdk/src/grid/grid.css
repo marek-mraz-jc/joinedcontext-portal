@@ -715,3 +715,134 @@
     min-width: min(45vw, 12rem);
   }
 }
+
+/* What a column holds, as a glyph before its label (T-4827); the glyph comes from data-icon so
+   the header's text is its label alone. */
+.jc-grid-kind {
+  display: inline-block;
+  min-width: 1.5em;
+  margin-right: var(--jc-space-1, 4px);
+  color: var(--jc-color-muted, #666);
+  font-size: var(--jc-font-size-sm, 12px);
+  text-align: center;
+}
+
+.jc-grid-kind::before {
+  content: attr(data-icon);
+}
+
+.jc-grid-th {
+  position: relative;
+}
+
+.jc-grid-th[draggable="true"] {
+  cursor: grab;
+}
+
+.jc-grid-th--drop {
+  box-shadow: inset 3px 0 0 var(--jc-color-accent, #0066cc);
+}
+
+/* The edge a pointer drags to resize; Narrower and Wider in the menu do the same by keyboard. */
+.jc-grid-resize {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.jc-grid-resize:hover {
+  background: var(--jc-color-line, #e0e0e0);
+}
+
+.jc-grid-col-menu {
+  min-width: 13rem;
+  text-align: left;
+  font-weight: normal;
+}
+
+.jc-grid-col-menu-row {
+  display: flex;
+  gap: var(--jc-space-1, 4px);
+  flex-wrap: wrap;
+}
+
+.jc-grid-col-menu button.jc-grid-meta-item {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--jc-radius-sm, 2px);
+  padding: 2px 6px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.jc-grid-col-menu button.jc-grid-meta-item:hover:not(:disabled),
+.jc-grid-col-menu button.jc-grid-meta-item[aria-pressed="true"] {
+  border-color: var(--jc-color-line, #e0e0e0);
+  background: var(--jc-color-surface, #fff);
+}
+
+.jc-grid-col-menu button.jc-grid-meta-item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.jc-grid-col-menu-field {
+  font-size: var(--jc-font-size-sm, 12px);
+  color: var(--jc-color-muted, #666);
+}
+
+.jc-grid-col-menu-input {
+  font: inherit;
+  padding: 2px 4px;
+}
+
+.jc-grid-col-menu-details summary {
+  cursor: pointer;
+  font-size: var(--jc-font-size-sm, 12px);
+}
+
+/* A relationship's target as a chip (T-4827). */
+.jc-cell-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.jc-cell-chip {
+  display: inline-block;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 6px;
+  border: 1px solid var(--jc-color-line, #e0e0e0);
+  border-radius: 999px;
+  background: var(--jc-color-card, #f5f5f5);
+  font: inherit;
+  font-size: var(--jc-font-size-sm, 12px);
+  color: inherit;
+}
+
+button.jc-cell-chip {
+  cursor: pointer;
+}
+
+button.jc-cell-chip:hover {
+  border-color: var(--jc-color-accent, #0066cc);
+}
+
+.jc-cell--number {
+  font-variant-numeric: tabular-nums;
+}
+
+.jc-grid-col-menu-input {
+  border: 1px solid var(--jc-color-line, #e0e0e0);
+  border-radius: var(--jc-radius-sm, 2px);
+  background: var(--jc-color-surface, #fff);
+  color: inherit;
+}
