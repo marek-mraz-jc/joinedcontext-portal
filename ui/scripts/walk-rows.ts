@@ -231,7 +231,12 @@ function main(argv: string[]): number {
   const table = routes(readFileSync(join(ui, "src/router.tsx"), "utf8"));
   const graph = importGraph(sources());
   const folders = new Set(readdirSync(join(ui, "src/pages")));
-  const found = pages ? rows({ ...pages, shots }, table, graph, folders) : new Map<string, string[]>();
+  // The page walker's findings (walker-<who>.json) fail a page too: a clean dialog walk is not enough.
+  const judged = ["steward", "viewer"].flatMap((who) => {
+    const file = join(directory, `walker-${who}.json`);
+    return existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Walked["report"]) : [];
+  });
+  const found = pages ? rows({ ...pages, report: [...pages.report, ...judged], shots }, table, graph, folders) : new Map<string, string[]>();
   if (frame) for (const [module, files] of shellRows({ report: frame.report, shots }, graph)) if (!found.has(module)) found.set(module, files);
 
   const file = join(ui, "tests/human_ui_walk.json");
