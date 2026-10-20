@@ -9,6 +9,9 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
+import { ConnectionTest } from "../src/pages/datasources/ConnectionTest";
+import type { Manifest } from "../src/api/manifest";
+import { lastError } from "../src/routes/RegistrationPage";
 
 const IDENTITY = { subject: "s1", username: "steward", email: "demo.steward@hel.fi", roles: ["portal-editor"] };
 const list = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
@@ -25,7 +28,7 @@ const READER = {
   metadata: { name: "air-quality-ingest", namespace: "helsinki", title: { en: "Air quality ingest" } },
   spec: { source: { dataSourceRef: { kind: "DataSource", name: "fmi-air-quality" } } },
 };
-const REGISTRATION = {
+const REGISTRATION: Manifest = {
   apiVersion: "joinedcontext.com/v1alpha1",
   kind: "ContextSourceRegistration",
   metadata: { name: "helsinki-indicators", namespace: "helsinki", title: { en: "Helsinki indicators" } },
@@ -108,7 +111,33 @@ describe("context sources and the connection test (T-4819)", () => {
     const section = await screen.findByTestId("datasource-connection", undefined, { timeout: 4000 });
     await userEvent.click(within(section).getByRole("button", { name: "Test connection" }));
     expect(
-      await within(section).findByText("Nothing was read: the feed did not answer within the test's three seconds."),
+      await within(section).findByText("Nothing was read: the feed did not answer within the test's three seconds. Check the address and the credentials, then test again."),
     ).toBeInTheDocument();
+  });
+
+  it("names the condition that refused the registration, and nothing when every condition holds", () => {
+    expect(lastError(REGISTRATION)?.message).toBe("the broker answered 409 Conflict");
+    expect(lastError({ ...REGISTRATION, status: { phase: "Live", conditions: [{ type: "RegistrationWritten", status: "True" }] } })).toBeUndefined();
+  });
+
+  it("posts the test for the source it is given and shows what came back", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = new URL((input as Request).url);
+      const body = url.pathname.endsWith("/test") ? { records: 1, bytes: 9, sample: { id: 1 } } : list([]);
+      return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <I18nextProvider i18n={i18n}>
+          <ConnectionTest project="helsinki" name="demo-counters" />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Test connection" }));
+    expect(await screen.findByText(/Connected: 1 record/)).toBeInTheDocument();
+    const posted = fetchMock.mock.calls.map((call) => call[0] as Request).filter((r) => r.url.endsWith("/test"));
+    expect(posted.map((r) => new URL(r.url).pathname)).toEqual(["/api/v1/projects/helsinki/datasources/demo-counters/test"]);
   });
 });

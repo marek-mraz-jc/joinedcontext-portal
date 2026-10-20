@@ -1713,7 +1713,7 @@
       "button": "Otestovat připojení",
       "running": "Testuje se…",
       "read": "Připojeno: {records, plural, one {načten # záznam} few {načteny # záznamy} other {načteno # záznamů}} ({bytes} bajtů). První z nich:",
-      "failed": "Nic se nenačetlo: {reason}."
+      "failed": "Nic se nenačetlo: {reason}. Zkontrolujte adresu a přihlašovací údaje a otestujte znovu."
     },
     "usedBy": {
       "title": "Používají ho",
@@ -5286,7 +5286,7 @@
       "back": "Zpět na kontextové zdroje",
       "edit": "Upravit",
       "state": "Stav",
-      "lastError": "Poslední chyba",
+      "lastErrorLabel": "Poslední chyba",
       "none": "Žádná",
       "types": "Typy entit",
       "ids": "Entity",

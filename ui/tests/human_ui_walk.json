@@ -931,6 +931,7 @@
       ]
     },
     "src/pages/connect/ConnectPage.tsx": null,
+    "src/pages/datasources/ConnectionTest.tsx": null,
     "src/pages/datasources/DataSourcesPage.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",

@@ -6,7 +6,7 @@ import { api, queryKeys, unwrap, whilePending } from "../api/client";
 import { localized } from "../api/manifest";
 import type { Manifest } from "../api/manifest";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
-import { PageHeader, Term } from "../components/ui";
+import { InlineError, PageHeader, Term } from "../components/ui";
 import { ResourcePageFailed } from "../components/ui/PageState";
 import { fromRegistrationEnvelope, targetOf } from "./RegistrationsPage";
 
@@ -116,16 +116,16 @@ export function RegistrationPage({ project, name }: { project: string; name: str
         <Row label={t("registrations.page.state")}>
           <LifecycleBadge kind="phase" value={manifest.status?.phase} />
         </Row>
-        <Row label={t("registrations.page.lastError")}>
+        <Row label={t("registrations.page.lastErrorLabel")}>
           {error ? (
-            <p role="alert" className="text-danger-fg">
+            <InlineError>
               {error.message}
               {error.lastTransitionTime ? (
                 <span className="block text-caption text-fg-muted">
                   {new Date(error.lastTransitionTime).toLocaleString(locale)}
                 </span>
               ) : null}
-            </p>
+            </InlineError>
           ) : (
             <span className="text-fg-muted">{none}</span>
           )}

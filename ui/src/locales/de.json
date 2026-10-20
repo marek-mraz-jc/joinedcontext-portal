@@ -1713,7 +1713,7 @@
       "button": "Verbindung testen",
       "running": "Wird getestet…",
       "read": "Verbunden: {records, plural, one {# Datensatz} other {# Datensätze}} gelesen ({bytes} Bytes). Der erste:",
-      "failed": "Nichts gelesen: {reason}."
+      "failed": "Nichts gelesen: {reason}. Prüfen Sie Adresse und Zugangsdaten und testen Sie erneut."
     },
     "usedBy": {
       "title": "Verwendet von",
@@ -5286,7 +5286,7 @@
       "back": "Zurück zu den Kontextquellen",
       "edit": "Bearbeiten",
       "state": "Zustand",
-      "lastError": "Letzter Fehler",
+      "lastErrorLabel": "Letzter Fehler",
       "none": "Keiner",
       "types": "Entitätstypen",
       "ids": "Entitäten",
