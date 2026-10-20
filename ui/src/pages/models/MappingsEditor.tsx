@@ -22,6 +22,7 @@ import {
   Alert,
   Badge,
   Button,
+  Field,
   Input,
   Select,
   Table,
@@ -197,9 +198,9 @@ export function MappingsEditor({
         <h2 id="mappings-pair" className="sr-only">
           {t("mappings.pair")}
         </h2>
-        <label className="flex flex-col gap-1 text-body font-medium text-fg">
-          {t("mappings.source")}
+        <Field id="mappings-source" label={t("mappings.source")}>
           <Select
+            id="mappings-source"
             value={sourceName}
             onChange={(event) => {
               setSourceName(event.target.value);
@@ -212,13 +213,13 @@ export function MappingsEditor({
               </option>
             ))}
           </Select>
-        </label>
+        </Field>
         <span aria-hidden="true" className="pb-2 text-lg text-fg-muted">
           →
         </span>
-        <label className="flex flex-col gap-1 text-body font-medium text-fg">
-          {t("mappings.target")}
+        <Field id="mappings-target" label={t("mappings.target")}>
           <Select
+            id="mappings-target"
             value={targetName}
             onChange={(event) => {
               setTargetName(event.target.value);
@@ -231,18 +232,18 @@ export function MappingsEditor({
               </option>
             ))}
           </Select>
-        </label>
+        </Field>
         {project ? (
-          <label className="flex flex-col gap-1 text-body font-medium text-fg">
-            {t("mappings.name")}
+          <Field id="mappings-name" label={t("mappings.name")} help={t("mappings.nameHelp")}>
             <Input
+              id="mappings-name"
               value={name}
               autoComplete="off"
               spellCheck={false}
               aria-invalid={badName || undefined}
               onChange={(event) => setTypedName(event.target.value)}
             />
-          </label>
+          </Field>
         ) : null}
         <div className="flex items-center gap-1.5 pb-1 text-body">
           <span className="text-fg-muted">{t("mappings.lane")}</span>
@@ -411,14 +412,14 @@ export function MappingsEditor({
         <h2 id="mappings-golden" className="text-title font-semibold text-fg">
           {t("mappings.golden")}
         </h2>
-        <label className="flex flex-col gap-1 text-body font-medium text-fg">
-          {t("mappings.input")}
+        <Field id="mappings-input" label={t("mappings.input")} help={t("mappings.inputHelp")}>
           <Textarea
+            id="mappings-input"
             className="h-32 font-mono text-xs"
             value={example}
             onChange={(event) => setExample(event.target.value)}
           />
-        </label>
+        </Field>
         {parsedExample.error ? (
           <Alert role="alert" tone="danger">
             {parsedExample.error}

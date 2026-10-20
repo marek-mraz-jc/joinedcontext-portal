@@ -3835,6 +3835,8 @@
     "factorFor": "Conversion factor for {slot}",
     "golden": "Golden test",
     "input": "Input example (JSON)",
+    "inputHelp": "A source record as JSON, such as one entity the source sends; the output beside it shows what the mapping makes of it.",
+    "nameHelp": "The mapping's name in the project: lower-case letters, digits and hyphens; the golden test files are named after it.",
     "output": "Transformed output",
     "unchecked": "Not evaluated here, they come from native bloblang: {slots}. CI runs them through Bento.",
     "missing": "The input example carries no value for: {slots}.",

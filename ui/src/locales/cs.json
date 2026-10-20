@@ -3835,6 +3835,8 @@
     "factorFor": "Převodní koeficient pro {slot}",
     "golden": "Zlatý test",
     "input": "Vstupní příklad (JSON)",
+    "inputHelp": "Zdrojový záznam jako JSON, například jedna entita, kterou zdroj posílá; výstup vedle něj ukazuje, co z něj mapování udělá.",
+    "nameHelp": "Název mapování v projektu: malá písmena, číslice a pomlčky; podle něj se jmenují soubory zlatého testu.",
     "output": "Transformovaný výstup",
     "unchecked": "Zde se nevyhodnocují, pocházejí z nativního bloblangu: {slots}. CI je spustí přes Bento.",
     "missing": "Vstupní příklad neobsahuje hodnotu pro: {slots}.",
