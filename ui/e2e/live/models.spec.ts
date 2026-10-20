@@ -29,8 +29,8 @@ test.setTimeout(600_000);
 
 /** Adds a class in the structure editor and leaves it the active one. */
 async function addClass(page: Page, name: string): Promise<void> {
-  await page.getByLabel("New class").fill(name);
-  await page.getByRole("button", { name: "Add class" }).click();
+  await page.getByLabel("New type").fill(name);
+  await page.getByRole("button", { name: "Add type" }).click();
   await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
 }
 
@@ -67,8 +67,8 @@ test("a steward builds a model with classes, an enum and a has-many relation, ed
 
     // A slot of Station whose range is the enum.
     await page.getByRole("button", { name: "Station", exact: true }).click();
-    await page.getByLabel("New slot").fill("band");
-    await page.getByRole("button", { name: "Add slot" }).click();
+    await page.getByLabel("New field").fill("band");
+    await page.getByRole("button", { name: "Add field" }).click();
     await page.getByLabel("Range", { exact: true }).selectOption("QualityBand");
 
     // One Station has many Sensors: the relationship form writes both ends (multivalued on the owner).

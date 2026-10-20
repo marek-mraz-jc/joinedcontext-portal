@@ -478,7 +478,10 @@
     "newHint": "Fill the form, check it, then propose it; an approver reviews the change.",
     "propose": "Propose change",
     "emptyHintCreate": "Nothing of this kind is in the project yet. {new} opens the form.",
-    "askAssistant": "Ask the assistant for one"
+    "askAssistant": "Ask the assistant for one",
+    "leadOrganization": "Everything of this kind the organization holds. Each row opens what it names.",
+    "emptyHintOrganization": "Nothing of this kind is in the organization yet. This page lists and reads it; ask the assistant for one and decide what it proposes.",
+    "emptyHintCreateOrganization": "Nothing of this kind is in the organization yet. {new} opens the form."
   },
   "spaces": {
     "entitiesUnknown": "The count is not available: {reason}",
@@ -509,8 +512,6 @@
       "total": "The space holds {count, plural, one {# entity} other {# entities}}.",
       "open": "Look inside",
       "data": "Data",
-      "dataLead": "Everything this space holds, as your grants allow it. What an endpoint shows is this, narrowed by its policy.",
-      "dataType": "Entity type",
       "dataEmpty": "Nothing here yet: no pipeline has written to this space.",
       "dataThroughEndpoints": "You can see this space through its endpoints:",
       "dataNoTypes": "This space names no data model, so there is no type to read.",
@@ -543,7 +544,11 @@
       "lead": "Its data model, its entities, who reads them and what happened to it.",
       "broker": "It lives on the context broker {broker}.",
       "size": "Size",
-      "totalSize": "It takes {size} in the broker's store, {history} of it history."
+      "totalSize": "It takes {size} in the broker's store, {history} of it history.",
+      "sections": "Parts of the space",
+      "counting": "Counting the space's entities…",
+      "allRows": "All rows",
+      "savedViews": "Saved views"
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -1806,7 +1811,6 @@
     },
     "bloblangHint": "The Bloblang mapping is edited here and lands in the manifest; left empty, it stays in bento.yaml beside this manifest in the forge.",
     "bloblangFile": "Open bento.yaml",
-    "bentoMapping": "This pipeline keeps its mapping in bento.yaml beside the manifest, which is why the mapping box below starts empty. Open the file to read it; a mapping written below runs as the pipeline's compute step.",
     "studio": {
       "source": "1. Source",
       "sourceKind": "Read from",
@@ -2130,7 +2134,12 @@
         "addConversion": "Add to mapping",
         "bloblangHint": "Bloblang that turns one record into one entity: set its id, its type and the slots listed beside it.",
         "addLine": "Add to the mapping",
-        "addLineOf": "Add the line for {slot} to the mapping"
+        "addLineOf": "Add the line for {slot} to the mapping",
+        "file": "Mapping file (bento.yaml)",
+        "fileHint": "The processors this pipeline runs, as the repository holds them beside its manifest. Credentials appear as references the runner fills, never as values.",
+        "fileEdit": "Edit the mapping file; Propose sends it with the manifest",
+        "fileEditDisabled": "You can edit the mapping file once it has loaded.",
+        "type": "Type the mapping writes"
       },
       "output": {
         "title": "Mapped output",
@@ -2814,11 +2823,11 @@
     "title": "Model editor",
     "version": "Version {version}",
     "add": "Add",
-    "classes": "Classes",
+    "classes": "Types",
     "enums": "Enums",
-    "slots": "Slots",
-    "slot": "Slot",
-    "range": "Range",
+    "slots": "Fields",
+    "slot": "Field",
+    "range": "Type of value",
     "kind": "NGSI-LD kind",
     "kindHint": "Property unless the attribute is a geometry, a link or a language map",
     "unit": "Unit",
@@ -2835,8 +2844,8 @@
       "language-map": "one value per language",
       "code": "document view"
     },
-    "newClass": "New class",
-    "newSlot": "New slot",
+    "newClass": "New type",
+    "newSlot": "New field",
     "newEnum": "New enum",
     "newEnumValue": "New value of {name}",
     "removeEnumValue": "Remove the value {value}",
@@ -2956,8 +2965,8 @@
         "datetime": "Date and time"
       }
     },
-    "addClass": "Add class",
-    "addSlot": "Add slot",
+    "addClass": "Add type",
+    "addSlot": "Add field",
     "addEnum": "Add enum",
     "addValue": "Add value to {name}",
     "loadingEditor": "Loading the editor…",
@@ -3164,20 +3173,25 @@
       "organizationEmpty": "The organization shares no data model yet.",
       "organizationCaption": "The organization's data models",
       "importAs": "Import as",
-      "organizationOpen": "Open on the Organization page"
+      "organizationOpen": "Open on the Organization page",
+      "addField": "Add field",
+      "addFieldTo": "Add field to {type}",
+      "typeCaption": "Fields of {type}",
+      "noFields": "No field yet.",
+      "addType": "Add type"
     },
     "hints": {
-      "title": "This model has no class yet. Three steps to start:",
+      "title": "This model has no type yet. Three steps to start:",
       "sdm": "Or import a Smart Data Model: its classes, fields and enums arrive written.",
       "sdmAction": "Import a Smart Data Model",
-      "klass": "Add a class: name it in the box under Classes, for example School.",
-      "klassAction": "Name the first class",
+      "klass": "Add a type: name it in the box under Types, for example School.",
+      "klassAction": "Name the first type",
       "relation": "Add a relationship: under Relationships, pick the target class and the cardinality, for example one School has many User entities.",
-      "field": "Add a field: with the class open, name it under Slots, for example name."
+      "field": "Add a field: with the type open, name it under Fields, for example name."
     },
-    "rangeBasic": "Basic types",
+    "rangeBasic": "Values",
     "rangeEnums": "Enums",
-    "rangeClasses": "Classes (opens Add a relationship)",
+    "rangeClasses": "Links (opens Add a relationship)",
     "relationships": {
       "title": "Relationships",
       "intro": "Links from {owner} to entities of a class. Entities store one end; the inverse is computed on read.",
@@ -3240,6 +3254,12 @@
         "inverseSame": "The inverse is a second field; give it another name.",
         "pickFirst": "Pick the target class and name both ends first."
       }
+    },
+    "advanced": "Advanced (IRIs, mixins, profiles)",
+    "word": {
+      "any": "Any value",
+      "object": "Holds {fields}",
+      "linkTo": "Link to {target}"
     }
   },
   "apps": {
@@ -3858,7 +3878,17 @@
       "instance": "{project} / {name}",
       "show": "Show every catalogue",
       "hide": "Hide the catalogues"
-    }
+    },
+    "find": "Find an endpoint by project, space, name or slug",
+    "allProjects": "Every project",
+    "noMatch": "No endpoint matches",
+    "noMatchHint": "Clear the search or choose every project to see them all.",
+    "pages": "Pages of endpoints",
+    "range": "{from}–{to} of {count}",
+    "previous": "Previous",
+    "next": "Next",
+    "firstPage": "This is the first page.",
+    "lastPage": "This is the last page."
   },
   "projects": {
     "loading": "Loading projects…",
@@ -4629,7 +4659,17 @@
     "pickedClear": "Edit everything"
   },
   "permissions": {
-    "denied": "Disabled: your role does not permit ''{verb}'' on ''{kind}'' in this project"
+    "denied": "Disabled: your role does not permit ''{verb}'' on ''{kind}'' in this project",
+    "deniedOrganization": "Only an organization administrator can {action} {kinds}.",
+    "action": {
+      "read": "see",
+      "propose": "add or change",
+      "approve": "approve changes to",
+      "delete": "delete",
+      "create": "add",
+      "update": "change",
+      "disable": "disable"
+    }
   },
   "drafts": {
     "touched": "Draft v{version}, last touched by {who} ({kind})",
@@ -5315,7 +5355,6 @@
     "title": "Administration",
     "adminOnly": "This page is for organization administrators. Ask one of them for what you need here.",
     "lead": "What is the same in every project: the organization's settings, its members, roles, groups and service accounts, and its projects. Every change here is proposed and approved.",
-    "tabsLabel": "Parts of the organization",
     "tab": {
       "settings": "Settings",
       "people": "People",
@@ -5885,7 +5924,23 @@
         "down": "Down",
         "unknown": "No address"
       }
-    }
+    },
+    "nav": {
+      "back": "Back to the projects"
+    },
+    "group": {
+      "access": "People and access",
+      "projects": "Projects and apps",
+      "platform": "Platform",
+      "settings": "Settings"
+    },
+    "groupLead": {
+      "access": "Who belongs to the organization and what each person, group and service account may do. Every change is proposed and approved.",
+      "projects": "What every project of the organization holds and publishes, in one place.",
+      "platform": "What the installation runs for every project: brokers, environments, data space membership and health.",
+      "settings": "The organization's domain, languages, contacts, policies and limits, and what setup still lacks."
+    },
+    "kindHidden": "Only an organization administrator whose role includes {kinds} sees them here. Ask an organization administrator to add them to your role."
   },
   "projectDelete": {
     "title": "Delete project {name}",
@@ -7813,6 +7868,10 @@
     "UiSchema": {
       "other": "form layouts",
       "new": "New form layout"
+    },
+    "Person": {
+      "other": "people",
+      "new": "New person"
     }
   },
   "connectors": {

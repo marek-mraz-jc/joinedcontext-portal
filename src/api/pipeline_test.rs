@@ -408,6 +408,62 @@ pub(crate) fn probe_plan(spec: &Value) -> Option<Result<String, Probe>> {
     }
 }
 
+/// Whether an `http` DataSource answers XML: its `Accept` header asks for XML, or its path ends
+/// in `.xml`. FMI's WFS is one (T-4818).
+fn answers_xml(spec: &Value, url: &str) -> bool {
+    let accepts_xml = spec["http"]["headers"].as_object().is_some_and(|headers| {
+        headers.iter().any(|(name, value)| {
+            name.eq_ignore_ascii_case("accept")
+                && value
+                    .as_str()
+                    .is_some_and(|v| v.to_ascii_lowercase().contains("xml"))
+        })
+    });
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    accepts_xml || path.to_ascii_lowercase().ends_with(".xml")
+}
+
+/// How one fetch of a DataSource at `url` is read, shared by the workbench's sample and the
+/// DataSource Check (MF-39, PL-43): a CSV split into rows, an XML feed taken as it is and turned
+/// into JSON by the same `xml` step a pipeline reading it starts with, anything else parsed as
+/// JSON. Reading XML as JSON failed on its first `<` and the page said the source answered a
+/// web page (T-4818). The spec's target is the minimum a PipelineSpec needs to exist.
+pub(crate) fn sampling(
+    spec: &Value,
+    url: String,
+) -> Result<(Sample, PipelineSpec), serde_json::Error> {
+    let path = url
+        .split(['?', '#'])
+        .next()
+        .unwrap_or(&url)
+        .to_ascii_lowercase();
+    let xml = answers_xml(spec, &url);
+    let format = if xml {
+        SampleFormat::Text
+    } else if path.ends_with(".csv") {
+        SampleFormat::Csv
+    } else {
+        SampleFormat::Json
+    };
+    let target = "urn:ngsi-ld:Endpoint:probe.local:probe:probe";
+    let plan = if xml {
+        serde_json::json!({
+            "class": "auto",
+            "sources": [{ "dataSourceRef": { "kind": "DataSource", "name": "probe" } }],
+            "steps": [{ "processor": { "xml": { "operator": "to_json", "cast": false } } }],
+            "outputs": [{ "targetEndpoint": target }],
+        })
+    } else {
+        serde_json::json!({ "class": "auto", "targetEndpoint": target })
+    };
+    let sample = Sample {
+        text: None,
+        url: Some(url),
+        format,
+    };
+    Ok((sample, serde_json::from_value(plan)?))
+}
+
 /// One fetch of an `http` DataSource on the project's runner, beside the dry run's plan
 /// (MF-39). Nothing here fails the dry run: a runner that is missing or busy, or a feed that
 /// does not answer, is a skipped probe with the reason.
@@ -416,19 +472,9 @@ pub(crate) async fn probe_source(state: &AppState, project: &str, spec: &Value) 
         Ok(url) => url,
         Err(skipped) => return Some(skipped),
     };
-    // The harness reads only `compute`, which a probe has none of; the rest is the minimum a
-    // PipelineSpec needs to exist.
-    let probe_spec: PipelineSpec = match serde_json::from_value(serde_json::json!({
-        "class": "auto",
-        "targetEndpoint": "urn:ngsi-ld:Endpoint:probe.local:probe:probe"
-    })) {
-        Ok(spec) => spec,
+    let (sample, probe_spec) = match sampling(spec, url) {
+        Ok(plan) => plan,
         Err(err) => return Some(Probe::skipped(format!("probe spec: {err}"))),
-    };
-    let sample = Sample {
-        text: None,
-        url: Some(url),
-        format: SampleFormat::Json,
     };
     Some(
         match run_harness(state, project, &probe_spec, &sample).await {
@@ -739,6 +785,40 @@ mod tests {
         foreign["metadata"]["namespace"] = json!("espoo");
         assert!(spec_of(&foreign, "helsinki").is_err());
         assert!(spec_of(&foreign, "espoo").is_ok());
+    }
+
+    /// T-4818: FMI's WFS answers XML, which the sample and the Check read as JSON and failed on
+    /// the first `<` ("the source answered a web page"). An XML source is fetched as it is and
+    /// turned into JSON by the `xml` step its pipeline starts with; JSON and CSV stay as they were.
+    #[test]
+    fn an_xml_source_is_sampled_through_the_xml_step_and_never_parsed_as_json() {
+        let fmi = json!({ "type": "http", "http": {
+            "url": "https://opendata.fmi.fi/wfs?service=WFS&request=getFeature",
+            "headers": { "accept": "application/xml" }
+        }});
+        let url = probe_plan(&fmi).expect("http").expect("probed");
+        let (sample, spec) = sampling(&fmi, url).expect("plan");
+        assert_eq!(sample.format, SampleFormat::Text);
+        let config = harness(&spec, &sample, "http://capture.local/c").expect("harness");
+        let steps = config["pipeline"]["processors"]
+            .as_array()
+            .expect("processors");
+        let xml = json!({ "xml": { "operator": "to_json", "cast": false } });
+        assert!(steps.contains(&xml), "{steps:?}");
+        assert!(!config.to_string().contains("parse_json"), "{config}");
+
+        let by_path = json!({ "type": "http", "http": { "url": "https://x.example/feed.XML" } });
+        let (sample, _) = sampling(&by_path, "https://x.example/feed.XML".into()).expect("plan");
+        assert_eq!(sample.format, SampleFormat::Text);
+        for (url, format) in [
+            ("https://x.example/bikes.json", SampleFormat::Json),
+            ("https://x.example/stops.csv?x=1", SampleFormat::Csv),
+        ] {
+            let spec = json!({ "type": "http", "http": { "url": url } });
+            let (sample, plan) = sampling(&spec, url.into()).expect("plan");
+            assert_eq!(sample.format, format, "{url}");
+            assert!(plan.steps().is_empty(), "{url}");
+        }
     }
 
     #[test]

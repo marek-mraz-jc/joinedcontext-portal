@@ -20,6 +20,11 @@ const IDENTITY = {
   roles: ["portal-editor"],
 };
 
+/** Opens one tab of the space's page (T-4825: the page lands on the rows). */
+async function openTab(name: string) {
+  await userEvent.click(await screen.findByRole("tab", { name }));
+}
+
 const SLUG = "k7m2qz4tv6xh3n5jb2ryd3wcfa";
 
 function list(items: unknown[]) {
@@ -306,6 +311,7 @@ describe("space inside view", () => {
     const fetchMock = renderInside({ status: 200, count: 42 });
 
     expect(await screen.findByRole("heading", { name: "Air quality" })).toBeInTheDocument();
+    await openTab(en.spaces.inside.model);
     const table = await screen.findByRole("table", { name: en.spaces.inside.types });
     const row = within(table).getByText("AirQualityObserved").closest("tr") as HTMLElement;
     expect(await within(row).findByText("42")).toBeInTheDocument();
@@ -358,6 +364,7 @@ describe("space inside view", () => {
     const size = await screen.findByTestId("space-size");
     expect(size).toHaveTextContent(i18n.t("spaces.inside.totalSize", { size: "4 MiB", history: "1 MiB" }));
     expect(size).toHaveAttribute("title", "4,194,304 B");
+    await openTab(en.spaces.inside.model);
     const table = await screen.findByRole("table", { name: en.spaces.inside.types });
     const row = within(table).getByText("AirQualityObserved").closest("tr") as HTMLElement;
     expect(within(row).getByTitle("3,145,728 B")).toHaveTextContent("3 MiB");
@@ -369,6 +376,7 @@ describe("space inside view", () => {
     });
     expect(await screen.findByTestId("space-total")).toBeInTheDocument();
     expect(screen.queryByTestId("space-size")).toBeNull();
+    await openTab(en.spaces.inside.model);
     const table = await screen.findByRole("table", { name: en.spaces.inside.types });
     const row = within(table).getByText("AirQualityObserved").closest("tr") as HTMLElement;
     expect(row.textContent).not.toMatch(/\d B|KiB|MiB/);
@@ -405,6 +413,7 @@ describe("space inside view", () => {
       },
     );
 
+    await openTab(en.spaces.inside.model);
     const table = await screen.findByRole("table", { name: en.spaces.inside.types });
     const row = within(table).getByText("StatisticalObservation").closest("tr") as HTMLElement;
     expect(await within(row).findByText("532")).toBeInTheDocument();
@@ -428,6 +437,7 @@ describe("space inside view", () => {
       },
     );
 
+    await openTab(en.spaces.inside.model);
     const table = await screen.findByRole("table", { name: en.spaces.inside.types });
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows[0]).toHaveTextContent("AirQualityObserved");
@@ -446,6 +456,7 @@ describe("space inside view", () => {
     };
     renderInside({ status: 200, count: 1 }, { status: 200 }, { endpoints: list([unpublished]) });
 
+    await openTab(en.endpoints.title);
     const endpointRow = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
     expect(within(endpointRow).getByText(en.spaces.inside.notPublished)).toBeInTheDocument();
     expect(
@@ -456,6 +467,7 @@ describe("space inside view", () => {
   it("lists only the endpoints and policies of this space, with a catalogue link per published endpoint", async () => {
     renderInside({ status: 200, count: 1 });
 
+    await openTab(en.endpoints.title);
     const endpointRow = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
     expect(within(endpointRow).getByText(en.endpoints.audience.public)).toBeInTheDocument();
     expect(within(endpointRow).getByRole("link", { name: "ngsi-ld" })).toHaveAttribute(
@@ -468,6 +480,7 @@ describe("space inside view", () => {
     ).toHaveAttribute("href", "https://data.city.example/dataset/public-air");
     expect(screen.queryByText("other-space")).not.toBeInTheDocument();
 
+    await openTab(en.spaces.inside.policies);
     const policyRow = (await screen.findByText("public-air-quality")).closest("tr") as HTMLElement;
     expect(within(policyRow).getByText("role:public")).toBeInTheDocument();
     expect(within(policyRow).getByText("queryEntity, retrieveEntity")).toBeInTheDocument();
@@ -475,6 +488,7 @@ describe("space inside view", () => {
 
   it("says a type's read met the endpoint's rate limit, with a retry, and not that it is unreadable (T-3161)", async () => {
     const fetchMock = renderInside({ status: 429 });
+    await openTab(en.spaces.inside.model);
     const table = await screen.findByRole("table", { name: en.spaces.inside.types });
     const row = within(table).getByText("AirQualityObserved").closest("tr") as HTMLElement;
     expect(await within(row).findByText(en.spaces.inside.tooMany)).toBeInTheDocument();
@@ -500,6 +514,7 @@ describe("space inside view", () => {
   it("says a type is not readable anonymously when the gateway refuses", async () => {
     renderInside({ status: 403 });
 
+    await openTab(en.spaces.inside.model);
     const table = await screen.findByRole("table", { name: en.spaces.inside.types });
     const row = within(table).getByText("AirQualityObserved").closest("tr") as HTMLElement;
     expect(await within(row).findByText(en.spaces.inside.notReadable)).toBeInTheDocument();
@@ -524,11 +539,9 @@ describe("the space's own data", () => {
   it("lists the model's types and reads the space surface, never an endpoint", async () => {
     const fetchMock = renderInside({ status: 200, count: 1 });
 
-    const chooser = await screen.findByLabelText(en.spaces.inside.dataType);
-    expect(Array.from((chooser as HTMLSelectElement).options).map((option) => option.value)).toEqual([
-      "AirQualityObserved",
-      "AirQualityStation",
-    ]);
+    const list = await screen.findByRole("navigation", { name: en.spaces.inside.types });
+    const types = within(list).getAllByRole("button").filter((button) => button.title !== "");
+    expect(types.map((button) => button.title)).toEqual(["AirQualityObserved", "AirQualityStation"]);
     expect(await screen.findByText("12 µg/m³")).toBeInTheDocument();
 
     const reads = fetchMock.mock.calls
@@ -775,6 +788,7 @@ describe("the space's own data", () => {
   it("folds an endpoint's representations into one line with a true count (T-2280)", async () => {
     renderInside({ status: 200, count: 1 });
 
+    await openTab(en.endpoints.title);
     const endpointRow = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
     const folded = within(endpointRow).getByText(/ngsi-ld, csv/);
     // Eleven listed, eight served (the three retired files are not, T-4600), two named: the count is

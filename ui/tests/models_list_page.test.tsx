@@ -199,7 +199,7 @@ describe("organization models beside the project's (T-2883, DM-75, DM-79)", () =
 
   it("lists them on the Organization page's Data models tab", async () => {
     await renderRoute({ path: "/organization/models", answer: withOrganization(ORGANIZATION) });
-    expect(await screen.findByRole("tab", { name: en.organization.tab.models, selected: true })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: en.organization.tab.models, current: "page" })).toBeInTheDocument();
     const table = await screen.findByRole("table", { name: en.models.page.organizationCaption });
     expect(table).toHaveTextContent("org.stations.v2");
     expect(screen.queryByRole("link", { name: en.models.page.organizationOpen })).toBeNull();
@@ -211,10 +211,12 @@ describe("a model's own page", () => {
     await renderRoute({ path: "/projects/helsinki/models/air", answer });
     expect(await screen.findByRole("heading", { name: "Air quality", level: 1 })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: en.models.graph.title })).toBeInTheDocument();
-    const classes = screen.getByRole("table", { name: en.models.classes });
-    const station = within(classes).getByText("refStation").closest("li") as HTMLElement;
-    expect(station).toHaveTextContent(`refStation: Station${en.models.page.relationship}`);
-    expect(within(classes).getByText("level").closest("li")).toHaveTextContent(en.models.page.enum);
+    // Each type a table of its fields in plain words (T-4829), never a range name.
+    const fields = screen.getByRole("table", { name: "Fields of AirQualityObserved" });
+    expect(within(fields).getByText("refStation").closest("tr")).toHaveTextContent("refStationLink to Station");
+    expect(within(fields).getByText("level").closest("tr")).toHaveTextContent(`level${en.spaces.fields.types.select}`);
+    expect(within(fields).getByText("pm10").closest("tr")).toHaveTextContent(`pm10${en.spaces.fields.types.number} · ${en.models.required}`);
+    expect(screen.getByRole("button", { name: "Add field to AirQualityObserved" })).toBeInTheDocument();
     expect(screen.getByText(/good \(Good\), bad/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: en.models.page.back })).toHaveAttribute("href", "/projects/helsinki/models");
     expect(screen.getByRole("link", { name: en.models.page.edit })).toHaveAttribute("href", "/projects/helsinki/models?edit=air");
@@ -272,6 +274,31 @@ describe("a model's own page", () => {
   it("says so for a model the project does not have", async () => {
     await renderRoute({ path: "/projects/helsinki/models/nope", answer });
     expect(await screen.findByText(en.models.page.notFound.replace("{name}", "nope"))).toBeInTheDocument();
+  });
+
+  it("opens the space's Add field dialog on a type, which proposes and never writes", async () => {
+    await renderRoute({ path: "/projects/helsinki/models/air", answer });
+    await userEvent.click(await screen.findByRole("button", { name: "Add field to Station" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("button", { name: en.spaces.fields.propose })).toBeInTheDocument();
+    expect(within(dialog).queryByText(/IRI/)).toBeNull();
+  });
+
+  it("gives a viewer the types read-only: no Add field, no Add type, nothing disabled", async () => {
+    await renderRoute({ path: "/projects/helsinki/models/air", answer, permissions: READER });
+    expect(await screen.findByRole("table", { name: "Fields of Station" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Add field to/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: en.models.page.addType })).toBeNull();
+    expect(screen.queryByRole("button", { name: en.models.page.addType })).toBeNull();
+  });
+
+  it("sends the old /datamodels addresses to the one model editor", async () => {
+    await renderRoute({ path: "/projects/helsinki/datamodels/air/edit", answer });
+    await waitFor(() => expect(`${window.location.pathname}${window.location.search}`).toBe("/projects/helsinki/models?edit=air"));
+    await renderRoute({ path: "/projects/helsinki/datamodels/air", answer });
+    await waitFor(() => expect(window.location.pathname).toBe("/projects/helsinki/models/air"));
+    await renderRoute({ path: "/projects/helsinki/datamodels", answer });
+    await waitFor(() => expect(window.location.pathname).toBe("/projects/helsinki/models"));
   });
 
   it("disables Edit, with the reason, for a person who may not propose a model", async () => {

@@ -25,8 +25,13 @@ use utoipa::ToSchema;
 
 /// How long one broker answer is shown before it is asked again.
 const FRESH: chrono::Duration = chrono::Duration::minutes(5);
-/// How long the Portal waits for the broker.
-const TIMEOUT: Duration = Duration::from_secs(5);
+/// How long a kept answer still stands in for a broker that did not answer: a count a few
+/// minutes old, with its `observedAt`, says more than a 503 (T-4825).
+const STALE: chrono::Duration = chrono::Duration::hours(1);
+/// How long the Portal waits for the broker. Its first answer after a five-minute gap counts the
+/// tenant's history and measures its size under two 5 s statement bounds (Antares
+/// `SIZE_SCAN_TIMEOUT`), so 5 s here cut every Helsinki count off on dev (T-4825).
+const TIMEOUT: Duration = Duration::from_secs(20);
 
 /// What one space holds.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
@@ -122,16 +127,20 @@ impl Counter {
             return Ok(kept.clone());
         }
         let token = self.token()?;
-        let response = self
+        let response = match self
             .http
             .get(format!("{broker}/q/tenants/{tenant}"))
             .bearer_auth(token)
             .send()
             .await
-            .map_err(|err| {
-                tracing::warn!(tenant, error = %err.without_url(), "the broker did not answer a space's counts");
-                "the broker did not answer; try again in a minute".to_owned()
-            })?;
+        {
+            Ok(response) => response,
+            Err(err) => {
+                let reason = unanswered(&err);
+                tracing::warn!(tenant, error = ?err.without_url(), "the broker did not answer a space's counts");
+                return self.kept(&key, now).ok_or(reason);
+            }
+        };
         let status = response.status();
         let body: Value = response.json().await.unwrap_or(Value::Null);
         let (entities, bytes) = match status {
@@ -141,9 +150,9 @@ impl Counter {
             StatusCode::NOT_FOUND if body["type"] == NO_TENANT => (0, None),
             status => {
                 tracing::warn!(tenant, %status, "the broker refused a space's counts");
-                return Err(format!(
-                    "the broker answered {status} for the space's counts"
-                ));
+                return self
+                    .kept(&key, now)
+                    .ok_or_else(|| format!("the broker answered {status} for the space's counts"));
             }
         };
         let usage = SpaceUsage {
@@ -157,6 +166,16 @@ impl Counter {
             .unwrap_or_else(|e| e.into_inner())
             .insert(key, usage.clone());
         Ok(usage)
+    }
+
+    /// The last answer for `key` while it is younger than [`STALE`].
+    fn kept(&self, key: &str, now: DateTime<Utc>) -> Option<SpaceUsage> {
+        self.cache
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(key)
+            .filter(|kept| now - kept.observed_at < STALE)
+            .cloned()
     }
 
     /// Whether the Portal has an address for broker `broker_name`.
@@ -238,6 +257,22 @@ impl Counter {
             return Err(format!("the broker answered {status} for its health"));
         }
         Ok(response.json().await.unwrap_or(Value::Null))
+    }
+}
+
+/// Why a broker sent no answer, in words that say where to look: a timeout is a slow count, a
+/// refused connection an address or a NetworkPolicy (T-4825).
+fn unanswered(err: &reqwest::Error) -> String {
+    if err.is_timeout() {
+        format!(
+            "the broker took longer than {} s to count the space; try again in a minute",
+            TIMEOUT.as_secs()
+        )
+    } else if err.is_connect() {
+        "the Portal cannot reach the broker (its address or a NetworkPolicy); try again in a minute"
+            .to_owned()
+    } else {
+        "the broker did not answer; try again in a minute".to_owned()
     }
 }
 
@@ -325,6 +360,76 @@ mod tests {
         let _ = std::fs::remove_file(&file);
         assert_eq!(on_main.map(|u| u.entities), Ok(3));
         assert_eq!(on_canary.map(|u| u.entities), Ok(7));
+    }
+
+    fn token_file(name: &str) -> PathBuf {
+        let file = std::env::temp_dir().join(format!("usage-{name}-{}", std::process::id()));
+        std::fs::write(&file, "t").expect("write the token");
+        file
+    }
+
+    /// T-4825: a count slower than the Portal waits says so, and a refused connection names
+    /// the address and the NetworkPolicy, never one "did not answer" for both.
+    #[tokio::test]
+    async fn a_slow_count_and_an_unreachable_broker_say_where_to_look() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let slow = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/q/tenants/air"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"counts": {"entities": 1}}))
+                    .set_delay(Duration::from_millis(500)),
+            )
+            .mount(&slow)
+            .await;
+        let file = token_file("slow");
+        let mut counter = Counter::new(Some(slow.uri()), Some(file.clone()));
+        counter.http = reqwest::Client::builder()
+            .timeout(Duration::from_millis(50))
+            .build()
+            .expect("client");
+        let late = counter.usage("main", "air").await.unwrap_err();
+        let mut closed = Counter::new(Some("http://127.0.0.1:9".into()), Some(file.clone()));
+        closed.http = counter.http.clone();
+        let refused = closed.usage("main", "air").await.unwrap_err();
+        let _ = std::fs::remove_file(&file);
+        assert!(late.contains("took longer than"), "{late}");
+        assert!(refused.contains("NetworkPolicy"), "{refused}");
+    }
+
+    /// T-4825: the last count stands in, with its own `observedAt`, while the broker is away.
+    #[tokio::test]
+    async fn a_kept_count_answers_while_the_broker_is_away() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let broker = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/q/tenants/air"))
+            .respond_with(ResponseTemplate::new(503))
+            .mount(&broker)
+            .await;
+        let file = token_file("kept");
+        let counter = Counter::new(Some(broker.uri()), Some(file.clone()));
+        let key = format!("{}/air", broker.uri());
+        let old = |minutes| SpaceUsage {
+            entities: 42,
+            broker: "main".into(),
+            observed_at: Utc::now() - chrono::Duration::minutes(minutes),
+            bytes: None,
+        };
+        counter
+            .cache
+            .write()
+            .expect("cache")
+            .insert(key.clone(), old(10));
+        let kept = counter.usage("main", "air").await;
+        counter.cache.write().expect("cache").insert(key, old(61));
+        let gone = counter.usage("main", "air").await;
+        let _ = std::fs::remove_file(&file);
+        assert_eq!(kept.map(|u| u.entities), Ok(42));
+        assert!(gone.unwrap_err().contains("503"));
     }
 
     #[tokio::test]

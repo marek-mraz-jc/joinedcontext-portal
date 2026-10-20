@@ -181,7 +181,7 @@ describe("the groups of the organization on Organization → Groups", () => {
     });
     expectDenied(
       screen.getByRole("button", { name: "New group" }),
-      "Disabled: your role does not permit 'propose' on 'Group' in this project",
+      "Only an organization administrator can add or change groups.",
     );
   });
 });
