@@ -203,19 +203,30 @@ describe("what a space holds, against the UI contract", () => {
     expect(new URLSearchParams(window.location.search).get("tab")).toBeNull();
   });
 
-  it("says the count is on its way, then the count, or why there is none (503)", async () => {
-    const counting = show({}, ["usage"]);
+  it("says the space's count is on its way, then the count, or why there is none (503), on the model tab", async () => {
+    const counting = show({}, ["usage"], "model");
     expect(await screen.findByTestId("space-total")).toHaveTextContent(en.spaces.inside.counting);
     counting.unmount();
     vi.unstubAllGlobals();
 
-    const counted = show({ usage: { status: 200, body: { entities: 532, broker: "main", observedAt: "2026-10-20T16:00:00Z" } } });
+    const counted = show({ usage: { status: 200, body: { entities: 532, broker: "main", observedAt: "2026-10-20T16:00:00Z" } } }, [], "model");
     expect(await screen.findByTestId("space-total")).toHaveTextContent("The space holds 532 entities.");
     counted.unmount();
     vi.unstubAllGlobals();
 
-    show({ usage: { status: 503, body: { title: "Service Unavailable", status: 503, detail: "the broker took longer than 20 s to count the space; try again in a minute" } } });
+    show({ usage: { status: 503, body: { title: "Service Unavailable", status: 503, detail: "the broker took longer than 20 s to count the space; try again in a minute" } } }, [], "model");
     expect(await screen.findByTestId("space-total")).toHaveTextContent("the broker took longer than 20 s to count the space");
+  });
+
+  // T-4885: the rows count through the grid's own answer; the whole-tenant scan under them failed
+  // on helsinki beside a grid that had its count ("100 of 121 loaded").
+  it("counts the rows only through the grid: the data tab never asks for the whole space's scan", async () => {
+    const { fetchMock } = show({ usage: { status: 503, body: { title: "Service Unavailable", status: 503, detail: "the broker took longer than 20 s to count the space" } } });
+    await screen.findByRole("navigation", { name: en.spaces.inside.types });
+    const asked = fetchMock.mock.calls.map(([input]) => (input instanceof Request ? input.url : String(input)));
+    expect(asked.filter((url) => url.includes("/usage"))).toEqual([]);
+    expect(screen.queryByTestId("space-total")).toBeNull();
+    expect(document.body.textContent).not.toContain("The count is not available");
   });
 
   it("has no axe violation, loaded and with a section that failed", async () => {
@@ -235,8 +246,8 @@ describe("what a space holds, against the UI contract", () => {
       await i18n.changeLanguage(locale);
       for (const tab of ["", "model"]) {
         const { container, unmount } = show({}, [], tab);
-        if (tab) await screen.findAllByRole("table");
-        else await screen.findByTestId("space-total");
+        if (tab) await screen.findByTestId("space-total");
+        else await screen.findByRole("tab", { selected: true });
         expectNoRawKeys(container);
         unmount();
         vi.unstubAllGlobals();

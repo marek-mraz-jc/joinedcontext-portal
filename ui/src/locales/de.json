@@ -4042,6 +4042,7 @@
     "filterRow": "Filter",
     "sortPage": "Diese Seite sortieren nach",
     "matching": "passend",
+    "noTotal": "der Endpoint nennt für diese Antwort keine Gesamtzahl",
     "history": "Verlauf",
     "historyWindow": {
       "hour": "Letzte Stunde",

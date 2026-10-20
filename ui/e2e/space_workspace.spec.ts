@@ -63,7 +63,7 @@ function kpi(n: number) {
   };
 }
 
-async function stubApi(page: Page): Promise<void> {
+async function stubApi(page: Page, counted = true): Promise<void> {
   await page.route("**/{api,cs}/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -77,7 +77,7 @@ async function stubApi(page: Page): Promise<void> {
     }
     if (path.endsWith("/entities")) {
       const rows = Array.from({ length: 12 }, (_, i) => kpi(i + 1));
-      return json(rows, 200, { "NGSILD-Results-Count": String(rows.length) });
+      return json(rows, 200, counted ? { "NGSILD-Results-Count": String(rows.length) } : {});
     }
     if (path === "/api/v1/projects") return json({ kind: "ProjectList", items: [{ name: PROJECT }] });
     if (path.endsWith(`/spaces/${SPACE}/usage`)) {
@@ -114,16 +114,37 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await expect(types.locator('button[aria-current="true"]').first()).toHaveAttribute("title", TYPES[0]);
     await expect(types.getByRole("button", { name: "Over target" })).toBeVisible();
     await expect(page.getByText("District 1", { exact: true })).toBeVisible();
-    await expect(page.getByTestId("space-total")).toHaveText("The space holds 14,232 entities.");
+    // The rows count through the grid's own answer; the whole space's scan is on the model tab (T-4885).
+    await expect(page.getByTestId("space-total")).toHaveCount(0);
+    await expect(page.getByText("12 of 12 loaded")).toBeVisible();
     // Nothing wider than the screen: the page body never scrolls sideways (UI-27).
     const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(sideways).toBeLessThanOrEqual(0);
     expect(await axeViolations(page)).toEqual([]);
     await shot(page, `look-inside-${label}`);
+    await page.getByText("12 of 12 loaded").scrollIntoViewIfNeeded();
+    await shot(page, `look-inside-footer-${label}`);
 
     await tabs.getByRole("tab", { name: "Data model" }).click();
     await expect(page).toHaveURL(/[?&]tab=model/);
     await expect(page.getByRole("table", { name: "Entity types" })).toBeVisible();
+    await expect(page.getByTestId("space-total")).toHaveText("The space holds 14,232 entities.");
     await shot(page, `model-tab-${label}`);
+    await page.getByTestId("space-total").scrollIntoViewIfNeeded();
+    await shot(page, `model-tab-total-${label}`);
+  });
+}
+
+// T-4885: an answer the gateway narrowed carries no total (R22); the footer says so in words.
+for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400", 400, 860]] as const) {
+  test(`A grid answer without a total says so (${label})`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await stubApi(page, false);
+    await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
+    const footer = page.getByText("12 loaded · the endpoint gives no total for this answer");
+    await expect(footer).toBeVisible();
+    await footer.scrollIntoViewIfNeeded();
+    await expect(page.getByTestId("space-total")).toHaveCount(0);
+    await shot(page, `grid-no-total-${label}`);
   });
 }
