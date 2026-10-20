@@ -194,6 +194,9 @@ function readableName(attr: string): string
 function queryFromFilters(columns: FilterColumn[], filters: Record<string, ColumnFilter>): { q?: string; idPattern?: string }
 function opsForKind(kind: FilterKind): FilterOp[]
 function andQ(...parts: (string | undefined)[]): string | undefined
+// The filter panel's AND/OR conditions and the search box as `q` (T-4883)
+function queryFromGroup(columns: FilterColumn[], group: FilterGroup): string | undefined
+function searchQuery(text: string, attrs: readonly string[]): string | undefined
 
 // Cells corrected by hand, applied through the source's own `patch` (T-1430; UI-67, AG-78)
 function applyChanges(options: { source, entities, observed?, fallback?, now? }): Promise<ApplyResult>

@@ -838,9 +838,12 @@ describe("the space's own data", () => {
     renderInside({ status: 200, count: 1 }, { status: 200, rows }, { source });
 
     const station = await screen.findByRole("columnheader", { name: /Station/ });
-    // First in the grid's own header row, where the URN used to lead.
+    // First in the grid's own header row, where the URN used to lead; only the row-number column
+    // with its select-all checkbox comes before it (T-4883).
     const row = station.closest("tr") as HTMLTableRowElement;
-    expect(within(row).getAllByRole("columnheader")[0]).toBe(station);
+    const headers = within(row).getAllByRole("columnheader");
+    expect(within(headers[0]!).getByRole("checkbox", { name: "Select all loaded rows" })).toBeInTheDocument();
+    expect(headers[1]).toBe(station);
     expect(within(row).getByRole("columnheader", { name: /Particles PM10/ })).toBeInTheDocument();
     expect(within(row).queryByRole("columnheader", { name: /^(pm10|ID)$/ })).toBeNull();
     const open = screen.getByRole("button", { name: `${en.entityGrid.openRow}: Námestie SNP` });

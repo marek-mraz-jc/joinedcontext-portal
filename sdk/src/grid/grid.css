@@ -1039,8 +1039,14 @@ button.jc-cell-chip:hover {
 }
 
 @media (width <= 640px) {
+  /* A phone has no hover: the row's name opens it, so the expand button gives its room back. */
   .jc-grid {
-    --jc-grid-rownum-width: 4.25rem;
+    --jc-grid-rownum-width: 2.75rem;
+  }
+
+  .jc-grid-expand,
+  .jc-grid-rownum-n {
+    display: none;
   }
 
   .jc-grid[data-row-size] td.jc-grid-pinned {

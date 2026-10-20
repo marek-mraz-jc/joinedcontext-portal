@@ -295,6 +295,14 @@
         "form_entity_filters.test.tsx"
       ]
     },
+    "src/components/entities/FilterPanel.tsx": {
+      "controls": {
+        "Button": 5
+      },
+      "tests": [
+        "grid_toolbar.test.tsx"
+      ]
+    },
     "src/components/entities/ViewBar.tsx": {
       "controls": {
         "Button": 7,
@@ -1710,7 +1718,8 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 11
+        "Button": 13,
+        "RadioGroup": 1
       },
       "tests": [
         "part_space_inside.test.tsx",
