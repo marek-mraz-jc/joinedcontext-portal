@@ -241,6 +241,7 @@ export function FormView({
   enums,
   settings,
   search = new URLSearchParams(window.location.search),
+  onCreated,
 }: {
   space: string;
   type: string;
@@ -248,6 +249,8 @@ export function FormView({
   enums: Record<string, FieldOption[]>;
   settings?: FormSettings;
   search?: URLSearchParams;
+  /** Called after the space took the new entity, for a host that reads its rows again (T-4828). */
+  onCreated?: () => void;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const fields = useMemo(() => fieldsOf(slots, enums, settings, i18n.language), [slots, enums, settings, i18n.language]);
@@ -265,9 +268,11 @@ export function FormView({
       conditions={settings?.conditions}
       initial={initial}
       locale={i18n.language}
-      send={async (entity) =>
-        originTransport()({ method: "POST", path: `/cs/${encodeURIComponent(space)}/ngsi-ld/v1/entities`, body: entity })
-      }
+      send={async (entity) => {
+        const answer = await originTransport()({ method: "POST", path: `/cs/${encodeURIComponent(space)}/ngsi-ld/v1/entities`, body: entity });
+        if (answer.status >= 200 && answer.status < 300) onCreated?.();
+        return answer;
+      }}
     />
   );
 }

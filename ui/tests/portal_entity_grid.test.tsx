@@ -54,7 +54,7 @@ describe("the Portal's entity grid", () => {
     await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
     expect(screen.getByRole("grid")).toBeInTheDocument();
     // The Portal's catalogue, not the SDK's defaults: the two differ on purpose here.
-    expect(screen.getByLabelText(`${en.entityGrid.showMetadata} availableBikeNumber`)).toBeInTheDocument();
+    expect(screen.getByLabelText(`${en.entityGrid.columnMenu}: Bikes`)).toBeInTheDocument();
     expect(screen.getByText(`${en.entityGrid.page} 1`)).toBeInTheDocument();
     expect(screen.getByLabelText(`${en.entityGrid.filter}: Bikes`)).toBeInTheDocument();
   });
@@ -82,14 +82,14 @@ describe("the Portal's entity grid", () => {
     await i18n.changeLanguage("en");
     const first = show();
     await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
-    fireEvent.click(screen.getByLabelText(`${en.entityGrid.showMetadata} availableBikeNumber`));
+    fireEvent.click(screen.getByLabelText(`${en.entityGrid.columnMenu}: Bikes`));
     fireEvent.click(screen.getByLabelText(en.entityGrid.observedAt));
-    await waitFor(() => expect(screen.getAllByText(/2026-09-19T08:00:00Z/).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText(/Sep 19, 2026/).length).toBeGreaterThan(0));
     first.unmount();
 
     // Back on the same project and type: the column is there without asking again.
     show();
-    await waitFor(() => expect(screen.getAllByText(/2026-09-19T08:00:00Z/).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText(/Sep 19, 2026/).length).toBeGreaterThan(0));
     screen.getByRole("grid");
 
     // Another project's grid of the same type starts from the Portal's defaults.
@@ -100,7 +100,7 @@ describe("the Portal's entity grid", () => {
       </I18nextProvider>,
     );
     await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
-    expect(screen.queryByText(/2026-09-19T08:00:00Z/)).toBeNull();
+    expect(screen.queryByText(/Sep 19, 2026/)).toBeNull();
     other.unmount();
   });
 
@@ -119,9 +119,9 @@ describe("the Portal's entity grid", () => {
     show();
     await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
     // The column still opens; only remembering it is lost.
-    fireEvent.click(screen.getByLabelText(`${en.entityGrid.showMetadata} availableBikeNumber`));
+    fireEvent.click(screen.getByLabelText(`${en.entityGrid.columnMenu}: Bikes`));
     fireEvent.click(screen.getByLabelText(en.entityGrid.observedAt));
-    await waitFor(() => expect(screen.getAllByText(/2026-09-19T08:00:00Z/).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText(/Sep 19, 2026/).length).toBeGreaterThan(0));
     // The write was attempted and refused, and the page carried on regardless.
     expect(attempts).toBeGreaterThan(0);
   });

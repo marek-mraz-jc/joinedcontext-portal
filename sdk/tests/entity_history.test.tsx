@@ -186,7 +186,7 @@ describe("the grid's own way in", () => {
     const plain = fixtureSource(entities);
     const { unmount } = render(<EntityGrid config={config} source={plain} />);
     await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
-    fireEvent.click(screen.getByLabelText("Show metadata for availableBikeNumber"));
+    fireEvent.click(screen.getByLabelText("Column options: Bikes"));
     // A source that cannot answer a temporal read offers nothing to click (SDK-29).
     expect(screen.queryByRole("button", { name: "History" })).toBeNull();
     unmount();
@@ -194,7 +194,7 @@ describe("the grid's own way in", () => {
     const temporal = { ...plain, history: async () => NUMBERS };
     render(<EntityGrid config={config} source={temporal} />);
     await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
-    fireEvent.click(screen.getByLabelText("Show metadata for availableBikeNumber"));
+    fireEvent.click(screen.getByLabelText("Column options: Bikes"));
     fireEvent.click(screen.getByRole("button", { name: "History" }));
 
     // The column as its label says it and the row by its name: the panel says which entity it
@@ -214,7 +214,7 @@ describe("the grid's own way in", () => {
     }).config!;
     render(<EntityGrid config={off} source={{ ...fixtureSource(entities), history: async () => NUMBERS }} />);
     await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
-    fireEvent.click(screen.getByLabelText("Show metadata for availableBikeNumber"));
+    fireEvent.click(screen.getByLabelText("Column options: Bikes"));
     expect(screen.queryByRole("button", { name: "History" })).toBeNull();
   });
 });

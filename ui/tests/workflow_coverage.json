@@ -529,7 +529,10 @@
           "spec": "runner-inputs.spec.ts",
           "test": "csv: declared from the runner's form, tested, approved; entities arrive and the counter moves"
         },
-        "assistant": "jc_datasource_check"
+        "assistant": "jc_datasource_check",
+        "routes": [
+          "POST /api/v1/projects/{project}/datasources/{name}/test"
+        ]
       },
       "read": {
         "live": {

@@ -99,7 +99,8 @@
     "mcp": "MCP servery",
     "home": "Domov",
     "inbox": "Doručené",
-    "mqttbrokers": "MQTT brokery"
+    "mqttbrokers": "MQTT brokery",
+    "csrs": "Kontextové zdroje"
   },
   "auth": {
     "lead": "Prihláste sa účtom svojej organizácie a spravujte túto platformu.",
@@ -195,7 +196,9 @@
     "missing": "{field} je povinné",
     "mapKey": "Kľúč",
     "mapLanguage": "Jazyk",
-    "mapAddLanguage": "Pridať jazyk"
+    "mapAddLanguage": "Pridať jazyk",
+    "advancedFields": "Rozšírené",
+    "advancedFieldsHint": "Nastavenia spúšťača, ktoré väčšina zdrojov necháva predvolené."
   },
   "approvals": {
     "lead": "Každá zmena projektu je tu návrhom, kým ju schvaľovateľ nezlúči.",
@@ -516,6 +519,8 @@
       "open": "Pozrieť obsah",
       "data": "Dáta",
       "dataEmpty": "Zatiaľ nič: do tohto priestoru ešte nezapísala žiadna pipeline.",
+      "addRow": "Pridať riadok",
+      "addRowTitle": "Nový záznam: {type}",
       "dataThroughEndpoints": "Tento priestor môžete vidieť cez jeho endpointy:",
       "dataNoTypes": "Tento priestor nepomenúva dátový model, takže nie je čo čítať.",
       "back": "← Kontextové priestory",
@@ -1738,6 +1743,18 @@
         "ckanDataset": "Toto je stránka datasetu, nie súbor. Otvorte na nej zdroj CSV alebo JSON a skopírujte jeho adresu na stiahnutie.",
         "layer": "Zadajte vrstvu, ktorú čítať, alebo adresu súboru GeoJSON."
       }
+    },
+    "test": {
+      "title": "Otestovať pripojenie",
+      "hint": "Načíta uložený zdroj raz na spúšťači projektu, najviac tri sekundy, a ukáže prvý záznam. Nič sa nezapíše; prístupový údaj zostáva v úložisku tajomstiev.",
+      "button": "Otestovať pripojenie",
+      "running": "Testuje sa…",
+      "read": "Pripojené: {records, plural, one {načítaný # záznam} few {načítané # záznamy} other {načítaných # záznamov}} ({bytes} bajtov). Prvý z nich:",
+      "failed": "Nič sa nenačítalo: {reason}. Skontrolujte adresu a prihlasovacie údaje a otestujte znova."
+    },
+    "usedBy": {
+      "title": "Používajú ho",
+      "none": "Tento zdroj zatiaľ nečíta žiadna pipeline."
     }
   },
   "pipelines": {
@@ -4159,6 +4176,12 @@
     },
     "openRow": "Otvoriť",
     "rowDetail": "Podrobnosti",
+    "rowFields": "Polia",
+    "historyVersions": "Každá verzia, kto ju zmenil a prečo",
+    "historyVersionsRefused": "Vaša rola v tomto priestore nesmie čítať staršie verzie.",
+    "historySuperseded": "Nahradené",
+    "historyChangedBy": "Zmenil",
+    "historyReason": "Dôvod",
     "pasted": "buniek vložených",
     "skipped": "vynechaných (nedajú sa upraviť, sú mimo strany alebo nie sú v zozname hodnôt)",
     "pasteTooLarge": "Skopírovaný rozsah je na jedno vloženie príliš veľký; vložte menší rozsah alebo riadky importujte zo súboru.",
@@ -4175,7 +4198,31 @@
     "required": "je povinné",
     "toCorrect": "treba opraviť pred použitím",
     "yes": "Áno",
-    "no": "Nie"
+    "no": "Nie",
+    "columnMenu": "Možnosti stĺpca",
+    "sortAsc": "Zoradiť vzostupne",
+    "sortDesc": "Zoradiť zostupne",
+    "filterColumn": "Filtrovať",
+    "hideColumn": "Skryť pole",
+    "renameColumn": "Názov v tomto pohľade",
+    "renameReset": "Použiť názov z modelu",
+    "columnWidth": "Šírka",
+    "narrower": "Užší",
+    "wider": "Širší",
+    "moveLeft": "Posunúť doľava",
+    "moveRight": "Posunúť doprava",
+    "details": "Podrobnosti",
+    "kindText": "Text",
+    "kindNumber": "Číslo",
+    "kindBoolean": "Áno alebo nie",
+    "kindDatetime": "Dátum a čas",
+    "kindGeo": "Zemepisná poloha",
+    "kindRelationship": "Odkaz na entitu",
+    "kindLanguage": "Text vo viacerých jazykoch",
+    "kindStructured": "Štruktúrovaná hodnota",
+    "kindList": "Zoznam",
+    "points": "bodov",
+    "openTarget": "Otvoriť"
   },
   "explore": {
     "title": "Prehliadať dáta",
@@ -5423,6 +5470,22 @@
       "serviceAccount": "Servisný účet",
       "interval": "Interval zrkadlenia schém",
       "expiresAt": "Platí do"
+    },
+    "page": {
+      "back": "Späť na kontextové zdroje",
+      "edit": "Upraviť",
+      "state": "Stav",
+      "lastErrorLabel": "Posledná chyba",
+      "none": "Žiadna",
+      "types": "Typy entít",
+      "ids": "Entity",
+      "allIds": "Každá entita týchto typov",
+      "attributes": "Atribúty",
+      "allAttributes": "Všetky atribúty",
+      "operations": "Preposielané operácie",
+      "defaultOperations": "Predvolené pre režim brokera",
+      "mode": "Režim",
+      "expires": "Platnosť do"
     }
   },
   "organization": {

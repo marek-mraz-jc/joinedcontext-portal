@@ -11,6 +11,7 @@ import { entityTypesOf, parseResultsCount, pickReadEndpoint, spaceOf } from "../
 import type { Manifest } from "../src/api/manifest";
 import { ApiError } from "../src/api/client";
 import { spaceUsageQuery, usageRefusal } from "../src/api/spaceUsage";
+import { readLayout, writeLayout } from "../src/components/entities/viewLayout";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -620,6 +621,41 @@ describe("the space's own data", () => {
     expect(await screen.findByRole("dialog", { name: en.spaces.fields.title.replace("{type}", "AirQualityObserved") })).toBeInTheDocument();
   });
 
+  // T-4828: a row opens as a dialog named in the address, with its comments as a tab.
+  it("opens the row a link names as a dialog with Fields, History and Comments, and closing drops it from the address", async () => {
+    const urn = SPACE_ROWS[0].id;
+    window.history.pushState({}, "", `/projects/banskabystrica/spaces/ovzdusie?row=${encodeURIComponent(urn)}`);
+    renderInside({ status: 200, count: 1 });
+    const dialog = await screen.findByRole("dialog", { name: `${en.entityGrid.rowDetail}: ${urn}` });
+    expect(within(dialog).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      en.entityGrid.rowFields,
+      en.entityGrid.history,
+      en.spaces.comments.title,
+    ]);
+    await userEvent.click(within(dialog).getByRole("button", { name: en.entityGrid.close }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(new URLSearchParams(window.location.search).get("row")).toBeNull();
+  });
+
+  it("puts the row opened from the grid into the address, and ignores a row parameter that is no URN", async () => {
+    window.history.pushState({}, "", "/projects/banskabystrica/spaces/ovzdusie?row=javascript%3Aalert(1)");
+    renderInside({ status: 200, count: 1 });
+    const urn = SPACE_ROWS[0].id;
+    await userEvent.click(await screen.findByRole("button", { name: `${en.entityGrid.openRow}: ${urn}` }));
+    expect(await screen.findByRole("dialog", { name: `${en.entityGrid.rowDetail}: ${urn}` })).toBeInTheDocument();
+    expect(new URLSearchParams(window.location.search).get("row")).toBe(urn);
+  });
+
+  it("opens the type's form from Add row and creates through the space surface", async () => {
+    const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200 }, {
+      source: "name: bb-air-quality\nclasses:\n  AirQualityObserved:\n    attributes:\n      no2: { range: float }\n",
+    });
+    await userEvent.click(await screen.findByRole("button", { name: en.spaces.inside.addRow }));
+    const dialog = await screen.findByRole("dialog", { name: en.spaces.inside.addRowTitle.replace("{type}", "AirQualityObserved") });
+    expect(within(dialog).getByRole("button", { name: en.spaces.form.submit })).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some((call) => urlOf(call[0]).pathname.includes("/temporal/"))).toBe(false);
+  });
+
   it("offers no field to add while the model's source does not declare the type", async () => {
     renderInside({ status: 200, count: 1 });
 
@@ -675,13 +711,103 @@ describe("the space's own data", () => {
 
     const picker = await screen.findByLabelText(en.spaces.saved.view);
     await waitFor(() => expect(within(picker).getAllByRole("option")).toHaveLength(2));
-    expect(await screen.findByRole("columnheader", { name: /no2/ })).toBeInTheDocument();
+    expect(await screen.findByRole("columnheader", { name: /no2/i })).toBeInTheDocument();
     await userEvent.selectOptions(picker, view.id);
 
     const marked = await screen.findAllByRole("img", { name: en.spaces.saved.toneLabel.replace("{when}", "pm10>50") });
     expect(marked).toHaveLength(1);
     expect(marked[0].closest("tr")).toHaveTextContent("52");
-    expect(screen.queryByRole("columnheader", { name: /no2/ })).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: /no2/i })).toBeNull();
+  });
+
+  // T-4827: values by what they hold, the model's order and labels, on the caller's own answer.
+  const KPI_MODEL = [
+    "name: bb-air-quality",
+    "classes:",
+    "  AirQualityObserved:",
+    "    attributes:",
+    "      secretNote: { range: string }",
+    "      refStation: { range: string, annotations: { ngsi_ld_kind: Relationship } }",
+    "      calculationPeriod: { range: string }",
+    "      pm10: { range: float, annotations: { label: { en: Particulates } } }",
+    "      name: { range: string, rank: 1 }",
+    "",
+  ].join("\n");
+  const KPI_ROWS = [
+    {
+      id: "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:1",
+      type: "AirQualityObserved",
+      name: { type: "Property", value: "Námestie SNP" },
+      pm10: { type: "Property", value: 12.5, unitCode: "GQ" },
+      calculationPeriod: { type: "Property", value: { start: "2026-10-01", end: "2026-10-31" } },
+      refStation: { type: "Relationship", object: "urn:ngsi-ld:Station:banskabystrica.sk:ovzdusie:7" },
+      "ngsi-ld:status": { type: "Property", value: "ok" },
+    },
+  ];
+  const headerNames = () =>
+    screen.getAllByRole("columnheader").map((th) => within(th).queryAllByRole("button")[0]?.textContent ?? "").filter(Boolean);
+
+  it("shows no raw JSON, URN or IRI, keeps the model's order and labels, and only what the answer carries", async () => {
+    renderInside({ status: 200, count: 1 }, { status: 200, rows: KPI_ROWS }, { source: KPI_MODEL });
+
+    expect(await screen.findByRole("columnheader", { name: /Particulates/ })).toBeInTheDocument();
+    await waitFor(() => expect(headerNames().slice(0, 5)).toEqual(["Name", "Ref station", "Calculation period", "Particulates (µg/m³)", "Status"]));
+    // DM-102: the model declares secretNote, the caller's answer does not carry it.
+    expect(screen.queryByRole("columnheader", { name: /secret/i })).toBeNull();
+    const grid = screen.getByRole("grid");
+    const cells = within(grid).getAllByRole("gridcell").map((cell) => cell.textContent ?? "");
+    expect(cells.join(" ")).not.toMatch(/[{}]|urn:|ngsi-ld:/);
+    expect(cells.join(" ")).toContain("start: Oct 1, 2026 · end: Oct 31, 2026");
+    expect(cells.join(" ")).toContain("12.5 µg/m³");
+    expect(screen.getByRole("button", { name: "Open: Station · 7" })).toHaveAttribute("title", "urn:ngsi-ld:Station:banskabystrica.sk:ovzdusie:7");
+  });
+
+  it("opens with the layout kept in this browser, even though the type arrives after the first render", async () => {
+    window.localStorage.clear();
+    writeLayout("banskabystrica", "ovzdusie", "AirQualityObserved", { labels: { "ngsi-ld:status": "State" }, hidden: ["calculationPeriod"] });
+    renderInside({ status: 200, count: 1 }, { status: 200, rows: KPI_ROWS }, { source: KPI_MODEL });
+    expect(await screen.findByRole("button", { name: `${en.entityGrid.columnMenu}: State` })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: /Calculation period/ })).toBeNull();
+    // Opening wrote nothing over it.
+    expect(readLayout("banskabystrica", "ovzdusie", "AirQualityObserved")).toMatchObject({ labels: { "ngsi-ld:status": "State" } });
+  });
+
+  it("keeps a renamed, moved and hidden column across a reload, and saves them with a view", async () => {
+    window.localStorage.clear();
+    const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200, rows: KPI_ROWS }, { source: KPI_MODEL });
+    await screen.findByRole("columnheader", { name: /Particulates/ });
+    await userEvent.click(screen.getByRole("button", { name: `${en.entityGrid.columnMenu}: Status` }));
+    const field = screen.getByLabelText(en.entityGrid.renameColumn);
+    await userEvent.clear(field);
+    await userEvent.type(field, "State{Enter}");
+    await userEvent.click(screen.getByRole("button", { name: `${en.entityGrid.columnMenu}: State` }));
+    await userEvent.click(screen.getByRole("button", { name: en.entityGrid.hideColumn }));
+    await userEvent.click(screen.getByRole("button", { name: `${en.entityGrid.columnMenu}: Ref station` }));
+    await userEvent.click(screen.getByRole("button", { name: en.entityGrid.moveRight }));
+    await waitFor(() => expect(headerNames().slice(0, 3)).toEqual(["Name", "Calculation period", "Ref station"]));
+    expect(screen.queryByRole("columnheader", { name: /State/ })).toBeNull();
+
+    // "All rows" keeps them in this browser: a reload reads them back (viewLayout.readLayout).
+    const keptKey = Object.keys(window.localStorage).find((key) => key.endsWith(".ovzdusie.AirQualityObserved") && key.startsWith("jc.space-columns."));
+    expect(keptKey).toBeDefined();
+    const [, , project] = keptKey!.split(".");
+    expect(readLayout(project, "ovzdusie", "AirQualityObserved")).toMatchObject({ labels: { "ngsi-ld:status": "State" }, hidden: ["ngsi-ld:status"] });
+
+    await userEvent.click(screen.getByRole("button", { name: en.spaces.saved.saveNew }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.type(within(dialog).getByRole("textbox", { name: new RegExp(en.spaces.saved.title) }), "Mine");
+    await userEvent.click(within(dialog).getByRole("button", { name: en.spaces.saved.confirm }));
+    const posted = await waitFor(() => {
+      const call = fetchMock.mock.calls.find(
+        ([input]) => input instanceof Request && input.method === "POST" && urlOf(input).pathname.endsWith("/spaces/ovzdusie/views"),
+      );
+      expect(call).toBeDefined();
+      return call![0] as Request;
+    });
+    const body = (await posted.clone().json()) as { config: Record<string, unknown> };
+    expect(body.config.labels).toEqual({ "ngsi-ld:status": "State" });
+    expect(body.config.hidden).toEqual(["ngsi-ld:status"]);
+    expect((body.config.order as string[]).indexOf("refStation")).toBeGreaterThan((body.config.order as string[]).indexOf("calculationPeriod"));
   });
 
   // T-4264, T-4160 #6: the grid leads with the entity's name, its URN the button's tooltip, and the
@@ -773,7 +899,9 @@ describe("the space's own data", () => {
         source,
         access: { permissions: [{ resource: { type: "AirQualityObserved" }, actions: ["queryEntity"], attributes: "*" }] },
       });
-      expect(await screen.findByRole("button", { name: `${en.entityGrid.openRow}: Námestie SNP` })).toBeInTheDocument();
+      // The columns follow the answer (DM-102): the open button settles in the Name column once rows arrive.
+      await screen.findByRole("button", { name: /: Name$/ });
+      expect(screen.getByRole("button", { name: `${en.entityGrid.openRow}: Námestie SNP` })).toBeInTheDocument();
       expect(screen.queryByRole("spinbutton")).toBeNull();
       expect(screen.queryByRole("textbox", { name: /pm10|name/ })).toBeNull();
     });
