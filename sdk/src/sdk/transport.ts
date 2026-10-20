@@ -10,6 +10,11 @@ export interface JcRequest {
   raw?: { data: Blob | ArrayBuffer | string; contentType: string };
   /** `"blob"`: a successful answer's body is read as a `Blob`, whatever its type. */
   as?: "blob";
+  /**
+   * Why a write is made, in the person's words: sent as `JC-Reason`, percent-encoded so any
+   * language fits a header, and kept with the write's provenance (DM-113).
+   */
+  reason?: string;
 }
 
 export interface JcResponse {
@@ -54,6 +59,9 @@ export function originTransport(fetchImpl?: typeof fetch, doc?: Document): Trans
         headers["content-type"] = request.raw.contentType;
       } else if (request.body !== undefined) {
         headers["content-type"] = "application/json";
+      }
+      if (request.reason !== undefined) {
+        headers["JC-Reason"] = encodeURIComponent(request.reason);
       }
     }
 

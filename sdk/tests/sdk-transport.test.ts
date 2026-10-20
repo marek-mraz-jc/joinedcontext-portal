@@ -8,6 +8,21 @@ function bridgeFor(base: { slug: string; orgDomain: string; space: string }) {
 }
 
 describe("originTransport", () => {
+  // DM-113: the reason travels percent-encoded, so a Slovak sentence or a line break cannot break
+  // the header, and the gateway keeps it with the write's provenance as written.
+  it("sends a write's reason as JC-Reason, percent-encoded, and none without one", async () => {
+    const sent: Record<string, string>[] = [];
+    const fakeFetch = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      sent.push(init?.headers as Record<string, string>);
+      return new Response(null, { status: 204 });
+    }) as unknown as typeof fetch;
+    const transport = originTransport(fakeFetch, { cookie: "" } as Document);
+    await transport({ method: "PATCH", path: "/cs/x/ngsi-ld/v1/entities/e/attrs", body: {}, reason: "Snímač zamrzol\nráno" });
+    await transport({ method: "PATCH", path: "/cs/x/ngsi-ld/v1/entities/e/attrs", body: {} });
+    expect(sent[0]["JC-Reason"]).toBe("Sn%C3%ADma%C4%8D%20zamrzol%0Ar%C3%A1no");
+    expect(sent[1]["JC-Reason"]).toBeUndefined();
+  });
+
   it("includes CSRF header and content-type on PATCH, and omits them on GET", async () => {
     const calls: { url: string; init?: RequestInit }[] = [];
     const fakeFetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
