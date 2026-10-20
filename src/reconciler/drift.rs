@@ -186,7 +186,8 @@ impl Watch {
         .map(|found| found.as_array().cloned().unwrap_or_default())
     }
 
-    /// Every stored version of one entity's attributes, as the space's temporal surface answers.
+    /// The stored versions of one entity's attributes, as the space's temporal surface answers
+    /// them: the newest 1,000 per Attribute, the broker's maximum.
     pub(crate) async fn history(
         &self,
         token: &str,
@@ -201,7 +202,10 @@ impl Watch {
         url.path_segments_mut()
             .map_err(|()| "the space surface has no path".to_owned())?
             .push(id);
-        self.fetch(token, url.as_str(), &[]).await
+        // the broker's maximum per Attribute: with no lastN it serves its default of 100
+        // (T-4804). ponytail: an Attribute past 1,000 versions exports its newest 1,000;
+        // following the 206 range is the upgrade.
+        self.fetch(token, url.as_str(), &[("lastN", "1000")]).await
     }
 
     async fn fetch(&self, token: &str, url: &str, query: &[(&str, &str)]) -> Result<Value, String> {
@@ -482,5 +486,36 @@ mod tests {
             store.of("mesto").is_some(),
             "the project still answers: nothing drifted, as of the last scan"
         );
+    }
+
+    /// T-4804: the broker serves 100 values per Attribute when no lastN is named, so a
+    /// data-subject export asks its maximum, 1,000.
+    #[tokio::test]
+    async fn an_entity_history_asks_the_broker_s_maximum_per_attribute() {
+        use wiremock::matchers::{method, path, query_param};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(
+                "/cs/ovzdusie/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:A:1",
+            ))
+            .and(query_param("lastN", "1000"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"id": "urn:ngsi-ld:A:1"})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let watch = Watch::new(
+            server.uri(),
+            &format!("{}/realms/city", server.uri()),
+            "portal".to_owned(),
+            ClientAuth::Secret("s".into()),
+        );
+        let history = watch
+            .history("t", "ovzdusie", "urn:ngsi-ld:A:1")
+            .await
+            .expect("the history");
+        assert_eq!(history["id"], "urn:ngsi-ld:A:1");
     }
 }
