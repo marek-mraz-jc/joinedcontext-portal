@@ -718,11 +718,23 @@ export function createClient(config: JcConfig, transport: Transport): Client {
 
   const schema = async (endpoint?: string): Promise<Schema> => {
     if (endpoint === undefined && known.length > 1) {
-      // Every endpoint's schema, merged; a type two endpoints serve keeps the first one's.
+      // Every endpoint's schema the caller may read, merged; a type two endpoints serve keeps the
+      // first one's. An endpoint that refuses the caller (401/403: a public App's visitor beside
+      // the steward's write endpoint, T-3579) is left out; when none may be read, or one fails
+      // otherwise, the merge fails with that endpoint's problem.
       const merged: Schema = {};
+      let refused: ProblemError | undefined;
+      let read = 0;
       for (const e of [...known].reverse()) {
-        Object.assign(merged, await schema(e.name));
+        try {
+          Object.assign(merged, await schema(e.name));
+          read += 1;
+        } catch (err) {
+          if (!(err instanceof ProblemError) || (err.status !== 401 && err.status !== 403)) throw err;
+          refused = err;
+        }
       }
+      if (read === 0 && refused) throw refused;
       return merged;
     }
     const { slug, name } = resolveEndpoint(known, undefined, endpoint);

@@ -49,6 +49,36 @@ static HTTP: LazyLock<reqwest::Client> = LazyLock::new(|| {
         .unwrap_or_default()
 });
 
+/// The client of the CKAN reads (T-4776). A `CkanInstance` manifest names the catalogue, so its
+/// URL is an outside one: a name resolving into the cluster is refused by the resolver, a redirect
+/// is followed only to a public `https` address and only a few hops, and no proxy from the
+/// environment resolves past the guard. [`HTTP`] keeps the reads of the installation's own gateway.
+static CKAN_HTTP: LazyLock<reqwest::Client> = LazyLock::new(|| {
+    let redirect = reqwest::redirect::Policy::custom(|attempt| {
+        if crate::sync::guard::follows(attempt.url(), attempt.previous().len(), CKAN_REDIRECTS) {
+            attempt.follow()
+        } else {
+            attempt.stop()
+        }
+    });
+    reqwest::Client::builder()
+        .user_agent("joinedcontext-portal catalogue")
+        .no_proxy()
+        .dns_resolver(Arc::new(crate::sync::guard::PublicOnly))
+        .redirect(redirect)
+        .connect_timeout(Duration::from_secs(5))
+        .timeout(Duration::from_secs(10))
+        .build()
+        .unwrap_or_default()
+});
+
+/// How many redirects a CKAN read follows.
+const CKAN_REDIRECTS: usize = 3;
+
+/// The longest CKAN answer read: a search of [`ROWS`] packages is a few megabytes, so a host that
+/// streams more is cut off instead of filling the Portal's memory (T-4776).
+const MAX_CKAN_ANSWER: usize = 32 * 1024 * 1024;
+
 /// A catalogue's base URL and the search text.
 type SearchKey = (String, String);
 
@@ -648,15 +678,50 @@ enum Failure {
 
 /// A CKAN action as an anonymous caller: no token is ever sent (EP-67).
 async fn action(base: &str, action: &str, params: &[(&str, &str)]) -> Result<Value, Failure> {
+    // An address written into the URL is never resolved, so the resolver never judges it.
+    if let Some(ip) = crate::sync::guard::internal_host(base) {
+        return Err(Failure::Unreachable(format!(
+            "{base} names the internal address {ip}; a catalogue is read on the public internet only"
+        )));
+    }
+    action_with(&CKAN_HTTP, base, action, params).await
+}
+
+/// One CKAN action through `http`, its answer read up to [`MAX_CKAN_ANSWER`].
+async fn action_with(
+    http: &reqwest::Client,
+    base: &str,
+    action: &str,
+    params: &[(&str, &str)],
+) -> Result<Value, Failure> {
     let url = format!("{base}/api/3/action/{action}");
-    let response = HTTP
+    let mut response = http
         .get(&url)
         .query(params)
         .send()
         .await
         .map_err(|e| Failure::Unreachable(format!("{base} did not answer: {e}")))?;
     let status = response.status();
-    let body: Value = response.json().await.map_err(|e| {
+    let too_long =
+        || Failure::Unreachable(format!("{base} answered more than {MAX_CKAN_ANSWER} bytes"));
+    if response
+        .content_length()
+        .is_some_and(|len| len > MAX_CKAN_ANSWER as u64)
+    {
+        return Err(too_long());
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|e| Failure::Unreachable(format!("{base} broke off its answer: {e}")))?
+    {
+        if bytes.len() + chunk.len() > MAX_CKAN_ANSWER {
+            return Err(too_long());
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    let body: Value = serde_json::from_slice(&bytes).map_err(|e| {
         Failure::Unreachable(format!(
             "{base} answered {status} with no CKAN document: {e}"
         ))
@@ -1208,6 +1273,61 @@ pub fn router() -> axum::Router<AppState> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// A local server answering every request with `head` and then `body` bytes of `x`.
+    async fn answering(head: &'static str, body: usize) -> String {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("a port");
+        let addr = listener.local_addr().expect("an address");
+        tokio::spawn(async move {
+            while let Ok((mut socket, _)) = listener.accept().await {
+                tokio::spawn(async move {
+                    let _ = socket.read(&mut [0u8; 2048]).await;
+                    let _ = socket.write_all(head.as_bytes()).await;
+                    let chunk = vec![b'x'; 64 * 1024];
+                    let mut left = body;
+                    while left > 0
+                        && socket
+                            .write_all(&chunk[..left.min(chunk.len())])
+                            .await
+                            .is_ok()
+                    {
+                        left -= left.min(chunk.len());
+                    }
+                });
+            }
+        });
+        format!("http://{addr}")
+    }
+
+    /// T-4776: a `CkanInstance` naming an address inside the cluster is not read, though a
+    /// service answers there like CKAN.
+    #[tokio::test]
+    async fn a_catalogue_inside_the_cluster_is_not_read() {
+        let inside = answering(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 27\r\n\r\n{\"success\":true,\"result\":1}",
+            0,
+        )
+        .await;
+        assert!(matches!(
+            action(&inside, "package_search", &[]).await,
+            Err(Failure::Unreachable(reason)) if reason.contains("internal address")
+        ));
+    }
+
+    /// T-4776: a catalogue that streams past the cap is cut off rather than read whole.
+    #[tokio::test]
+    async fn an_answer_past_the_cap_is_not_read() {
+        let base = answering(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n",
+            MAX_CKAN_ANSWER + 1024 * 1024,
+        )
+        .await;
+        let read = action_with(&reqwest::Client::new(), &base, "package_search", &[]).await;
+        assert!(matches!(read, Err(Failure::Unreachable(reason)) if reason.contains("more than")));
+    }
 
     fn dataset(name: &str, org: &str, extras: Value, formats: &[&str], private: bool) -> Value {
         json!({

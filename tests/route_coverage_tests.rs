@@ -4,6 +4,11 @@
 
 use joinedcontext_portal::ops;
 
+#[path = "common/routes.rs"]
+mod routes;
+
+use routes::{routes_in, routes_in_source};
+
 /// Every route the Portal serves, and the operation behind it (AG-59, CC-48, T-0840).
 ///
 /// The third column is the operation's name, or the sentence saying why the route has none.
@@ -255,83 +260,6 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/webhooks/sync/{project}/{name}", "a foreign catalogue calling in"),
 ];
 
-/// Every `.route("…", …)` under `src/`, as `(METHOD, path)` with the `/api/v1` prefix off.
-///
-/// ponytail: the source is the inventory because `axum`'s `Router` cannot be asked what it
-/// holds. A router built inside a `#[cfg(test)]` module is a fixture, so the scan stops there.
-fn routes_in_source() -> Vec<(String, String)> {
-    let mut found = Vec::new();
-    let mut stack = vec![std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src")];
-    while let Some(dir) = stack.pop() {
-        for entry in std::fs::read_dir(&dir).expect("read the crate's sources") {
-            let path = entry.expect("a directory entry").path();
-            if path.is_dir() {
-                stack.push(path);
-                continue;
-            }
-            if path.extension().and_then(|ext| ext.to_str()) != Some("rs") {
-                continue;
-            }
-            let text = std::fs::read_to_string(&path).expect("read a source file");
-            let text = text.split("\n#[cfg(test)]").next().unwrap_or_default();
-            found.extend(routes_in(text));
-        }
-    }
-    found.sort();
-    found.dedup();
-    found
-}
-
-fn routes_in(text: &str) -> Vec<(String, String)> {
-    let mut found = Vec::new();
-    let mut from = 0;
-    while let Some(at) = text[from..].find(".route(") {
-        let open = from + at + ".route(".len() - 1;
-        let mut depth = 0usize;
-        let mut end = open;
-        for (offset, ch) in text[open..].char_indices() {
-            match ch {
-                '(' => depth += 1,
-                ')' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        end = open + offset;
-                        break;
-                    }
-                }
-                _ => {}
-            }
-        }
-        let call = &text[open..=end];
-        from = end + 1;
-        let Some(path) = call.split('"').nth(1) else {
-            continue;
-        };
-        let path = path.strip_prefix("/api/v1").unwrap_or(path);
-        for method in ["get", "post", "put", "patch", "delete"] {
-            if names_method(call, method) {
-                found.push((method.to_uppercase(), path.to_owned()));
-            }
-        }
-    }
-    found
-}
-
-/// `get(` as a method of this route, not the tail of a handler's name.
-fn names_method(call: &str, method: &str) -> bool {
-    let needle = format!("{method}(");
-    let mut from = 0;
-    while let Some(at) = call[from..].find(&needle) {
-        let start = from + at;
-        let before = call[..start].chars().next_back().unwrap_or(' ');
-        if !before.is_alphanumeric() && before != '_' {
-            return true;
-        }
-        from = start + needle.len();
-    }
-    false
-}
-
 #[test]
 fn every_route_is_an_operation_or_says_why_it_is_not() {
     let mut expected: std::collections::HashMap<(String, String), &str> = ROUTE_COVERAGE
@@ -415,5 +343,40 @@ fn a_route_is_published_in_the_words_of_its_operation() {
     assert!(
         differ.is_empty(),
         "published in other words than their operation's: {differ:?}"
+    );
+}
+
+#[test]
+#[should_panic(expected = "path is not a string literal")]
+fn a_route_under_a_constant_path_is_refused_not_skipped() {
+    routes_in("Router::new().route(MCP_PATH, post(message))");
+}
+
+#[test]
+#[should_panic(expected = "method this inventory cannot read")]
+fn a_route_on_any_method_is_refused_not_skipped() {
+    routes_in(r#"Router::new().route("/hidden", any(handler))"#);
+}
+
+#[test]
+#[should_panic(expected = "nested under another prefix")]
+fn a_router_nested_under_another_prefix_is_refused() {
+    routes_in(r#"Router::new().nest("/internal", internal::router())"#);
+}
+
+#[test]
+#[should_panic(expected = "hides its routes")]
+fn a_service_mounted_beside_the_routes_is_refused() {
+    routes_in(r#"Router::new().nest_service("/files", ServeDir::new("x"))"#);
+}
+
+#[test]
+fn a_route_is_read_with_each_method_and_the_api_prefix_off() {
+    assert_eq!(
+        routes_in(r#"Router::new().nest("/api/v1", api()).route("/api/v1/x", get(a).post(b))"#),
+        [
+            ("GET".to_owned(), "/x".to_owned()),
+            ("POST".to_owned(), "/x".to_owned())
+        ]
     );
 }

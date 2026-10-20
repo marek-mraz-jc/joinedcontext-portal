@@ -25,7 +25,8 @@ interface Props {
  */
 export function FeaturedCard({ lang, featured, ofDay, known, picks, onToggle }: Props) {
   const { steward } = useAccess();
-  const [notes, setNotes] = useState<Record<number, string>>({});
+  // By event: a note typed while the server still features the event (id -1) keeps its draft.
+  const [notes, setNotes] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -60,9 +61,9 @@ export function FeaturedCard({ lang, featured, ofDay, known, picks, onToggle }: 
             const name = row ? nameOf(row) : localOf(one.eventId);
             const local = localOf(one.eventId);
             const today = ofDay.has(one.eventId);
-            const draft = notes[one.id] ?? one.note;
+            const draft = notes[one.eventId] ?? one.note;
             return (
-              <li key={`${one.id}-${one.eventId}`} className="app-event">
+              <li key={one.eventId} className="app-event">
                 <div className="app-event-pick">
                   {today ? (
                     <label>
@@ -87,7 +88,7 @@ export function FeaturedCard({ lang, featured, ofDay, known, picks, onToggle }: 
                   >
                     <label>
                       <span>{t(lang, "note")}</span>
-                      <input value={draft} maxLength={200} onChange={(event) => setNotes((all) => ({ ...all, [one.id]: event.target.value }))} />
+                      <input value={draft} maxLength={200} onChange={(event) => setNotes((all) => ({ ...all, [one.eventId]: event.target.value }))} />
                     </label>
                     <button type="submit" className="jc-button" disabled={busy || one.id < 0 || draft.trim() === one.note}>
                       {t(lang, "saveNote")}
