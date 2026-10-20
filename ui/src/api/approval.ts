@@ -1,7 +1,19 @@
 import { allows, type Effective, type Rule, type Verb } from "./permissions";
 
 /** Why the approve button is off, or `null` when the API would take the approval. */
-export type ApprovalBlock = "needsRole" | "ownProposal" | "needsPublisher" | null;
+export type ApprovalBlock = "needsRole" | "ownProposal" | "ownAccessChange" | "ownModelChange" | "needsPublisher" | null;
+
+/** Kinds that grant access: a second person approves them, never their proposer (PF-58, T-4833). */
+const ACCESS_KINDS = new Set(["Role", "RoleBinding", "Group", "ServiceAccount"]);
+
+export function isAccessKind(kind: string): boolean {
+  return ACCESS_KINDS.has(kind);
+}
+
+/** Kinds a second person approves: access, and a data model every space validates against (T-4830). */
+export function needsSecondPerson(kind: string): boolean {
+  return isAccessKind(kind) || kind === "DataModel";
+}
 
 /** One field the change alters, as the plan lists it. */
 interface PlannedField {
@@ -96,6 +108,9 @@ export function approvalStanding(
   if (!isOwn(callerEmail, change)) {
     return { block: null, ownAsAdministrator: false };
   }
+  if (needsSecondPerson(kind)) {
+    return { block: isAccessKind(kind) ? "ownAccessChange" : "ownModelChange", ownAsAdministrator: false };
+  }
   // The bootstrap group is not a binding, so it does not administer a kind (PF-58).
   const administers =
     permissions.data?.bootstrap !== true &&
@@ -113,13 +128,14 @@ export function changedKind(change: { summary: { params: unknown } }): string {
 }
 
 /** What proposing a change of one kind leads to for the caller (PF-58, PF-70). */
-export type ProposeStanding = "approvedOnPropose" | "approveNotDelete" | null;
+export type ProposeStanding = "approvedOnPropose" | "approveNotDelete" | "secondApprover" | null;
 
 /**
  * Whether the caller's change of `kind` is approved as they propose it: a binding grants them
  * `approve` and `delete` on it (PF-58). An approver without `delete`, a steward, proposes a change
  * that waits for another approver (PF-70); anyone without `approve` hears nothing new. The
- * bootstrap group is not a binding and counts for neither. A convenience; the API decides.
+ * bootstrap group is not a binding and counts for neither. An access kind or a DataModel always waits for a
+ * second approver (PF-58, T-4833, T-4830). A convenience; the API decides.
  */
 export function proposeStanding(effective: Effective | undefined, kind: string): ProposeStanding {
   if (!effective || !Array.isArray(effective.grants) || effective.bootstrap === true) {
@@ -127,6 +143,9 @@ export function proposeStanding(effective: Effective | undefined, kind: string):
   }
   if (!allows(effective, kind, "approve")) {
     return null;
+  }
+  if (needsSecondPerson(kind)) {
+    return "secondApprover";
   }
   return allows(effective, kind, "delete") ? "approvedOnPropose" : "approveNotDelete";
 }

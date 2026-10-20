@@ -73,16 +73,51 @@ async function gatewayFetch(slug: string, path: string, init?: RequestInit): Pro
   return response;
 }
 
-/** The caller's grants on one endpoint, read with their session and kept for this page only. */
-export function useAccess(slug: string | undefined) {
-  return useQuery({
+/** The read of one endpoint's grants for the caller, for `useQuery` and `useQueries` alike. */
+export function accessQuery(slug: string | undefined) {
+  return {
     queryKey: ["access", slug],
     enabled: Boolean(slug),
     retry: false,
     // Nothing of one person's grants outlives their page (R17): no reuse across a sign-in.
     gcTime: 0,
     queryFn: async () => (await (await gatewayFetch(slug!, "/access")).json()) as GrantDocument,
-  });
+  };
+}
+
+/** The caller's grants on one endpoint, read with their session and kept for this page only. */
+export function useAccess(slug: string | undefined) {
+  return useQuery(accessQuery(slug));
+}
+
+/**
+ * The attributes of `slots` the caller may correct in place on `type`: the model's own slots,
+ * minus what the grant hides, and only where a grant names a write on this type. An edit cell is
+ * offered only when the grant says yes: a cell that takes a value the endpoint will refuse loses
+ * the person's typing (UI-67). The gateway still decides every write; this only spares the person
+ * an editor they cannot use.
+ */
+export function editableAttributes(
+  doc: GrantDocument | undefined,
+  type: string | undefined,
+  slots: FilterSlot[],
+  denied: Record<string, string>,
+): string[] {
+  const grants = (doc?.permissions ?? []).filter(
+    (entry) =>
+      (entry.resource?.type === undefined || entry.resource.type === type || entry.resource.type === "*") &&
+      writesOf(entry.actions ?? []).length > 0,
+  );
+  if (!type || grants.length === 0) {
+    return [];
+  }
+  const named = new Set(grants.flatMap((entry) => (Array.isArray(entry.attributes) ? entry.attributes : [])));
+  const unlimited = grants.some((entry) => entry.attributes === "*" || entry.attributes === undefined);
+  // A formula field is its pipeline's to write (DM-80): shown, never edited in place.
+  return slots
+    .filter((slot) => !slot.formula)
+    .map((slot) => slot.name)
+    .filter((attr) => !denied[attr] && (unlimited || named.has(attr)));
 }
 
 /**

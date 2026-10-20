@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { OutputMapper } from "../src/pages/pipelines/OutputMapper";
 import { HEADER } from "../src/pages/pipelines/outputMapper";
+import type { Expiry } from "../src/pages/pipelines/ExpiryChoice";
 
 const ATTRIBUTES = {
   model: "bb-air-quality",
@@ -61,9 +62,11 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 let written: string[] = [];
+let swept: (Expiry | undefined)[] = [];
 
 function Host({ initial }: { initial: string }) {
   const [bloblang, setBloblang] = useState(initial);
+  const [expiry, setExpiry] = useState<Expiry | undefined>(undefined);
   return (
     <OutputMapper
       project="bb"
@@ -75,6 +78,15 @@ function Host({ initial }: { initial: string }) {
         written.push(next);
         setBloblang(next);
       }}
+      expiry={expiry}
+      onExpiry={(next, step) => {
+        swept.push(next);
+        setExpiry(next);
+        if (step !== undefined) {
+          written.push(step);
+          setBloblang(step);
+        }
+      }}
     />
   );
 }
@@ -82,6 +94,7 @@ function Host({ initial }: { initial: string }) {
 /** The mapper on a page of its own, beside the route its link to the data model opens. */
 function show(initial = "") {
   written = [];
+  swept = [];
   const root = createRootRoute({ component: Outlet });
   const page = createRoute({ getParentRoute: () => root, path: "/", component: () => <Host initial={initial} /> });
   const elsewhere = createRoute({ getParentRoute: () => root, path: "$", component: () => <p>another page</p> });
@@ -144,6 +157,36 @@ describe("the output mapper in the workbench", () => {
     await waitFor(() => expect(written.at(-1)?.startsWith(HEADER)).toBe(true));
     await user.click(await screen.findByRole("button", { name: "Restore the hand-written code" }));
     expect(written.at(-1)).toBe("root = this\n");
+  });
+
+  it("offers one expiry choice: an own expiresAt from a time field, the pipeline's sweep, or never (T-4822)", async () => {
+    await i18n.changeLanguage("en");
+    const user = userEvent.setup();
+    show();
+    await pickType(user);
+    const expiry = await screen.findByTestId("mapper-expiry");
+    expect(within(expiry).getByRole("radio", { name: /Never/ })).toBeChecked();
+    expect(written.at(-1)).not.toContain("expiresAt");
+
+    await user.click(within(expiry).getByRole("radio", { name: /At a time the source gives/ }));
+    await waitFor(() => expect(written.at(-1)).toContain("root.expiresAt"));
+    // The field that reads as a time, plus the 10 minutes the bus recipe starts with.
+    expect(written.at(-1)).toContain("this.observed.ts_unix()");
+    expect(written.at(-1)).toContain("($expires + 600)");
+    expect(screen.getByTestId("mapper-preview").textContent).toContain('"expiresAt": "2026-10-07T08:10:00Z"');
+    await user.selectOptions(within(expiry).getByRole("combobox", { name: "Time from" }), "");
+    await waitFor(() => expect(written.at(-1)).toContain("now().ts_unix()"));
+    await user.selectOptions(within(expiry).getByRole("combobox", { name: "Time from" }), "status");
+    expect(await within(expiry).findByText(/status holds working, which is no time/)).toBeInTheDocument();
+
+    await user.click(within(expiry).getByRole("radio", { name: /When the source stops sending them/ }));
+    await waitFor(() => expect(swept.at(-1)).toEqual({ after: "14d", types: ["AirQualityObserved"] }));
+    expect(written.at(-1)).not.toContain("expiresAt");
+    expect(within(expiry).getByText(/more than one output/)).toBeInTheDocument();
+
+    await user.click(within(expiry).getByRole("radio", { name: /Never/ }));
+    await waitFor(() => expect(swept.at(-1)).toBeUndefined());
+    expect(written.at(-1)).not.toContain("expiresAt");
   });
 
   it("has nothing axe finds", async () => {

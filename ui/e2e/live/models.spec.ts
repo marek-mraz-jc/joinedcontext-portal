@@ -3,7 +3,7 @@
  * as a person does it, and the viewer's refusal.
  *
  * - a new model in the structure editor: two classes, an enum with a value, a slot whose range is
- *   the enum, a one-to-many relationship, one line typed into the source, a Check, and Save model,
+ *   the enum, a one-to-many relationship, one line typed into the source, a Check, and Propose,
  *   whose Change the approver rejects;
  * - a model drafted from a CSV sample, and a Smart Data Model imported into a model being built;
  * - a removal proposed from the models' list, rejected, so the model stays.
@@ -95,7 +95,7 @@ test("a steward builds a model with classes, an enum and a has-many relation, ed
     const saved = page.waitForRequest(
       (request) => request.method() === "PUT" && /\/datamodels\/[^/]+\/source/.test(request.url()) && !request.url().includes("dryRun"),
     );
-    await page.getByRole("button", { name: "Save model" }).click();
+    await page.getByRole("button", { name: /^Propose v\d/ }).click();
     const body = (await saved).postData() ?? "";
     for (const part of ["Station", "Sensor", "QualityBand", "multivalued: true", `# edited in the source by the journey ${SUFFIX}`]) {
       expect(body, `the saved source carries ${part}`).toContain(part);

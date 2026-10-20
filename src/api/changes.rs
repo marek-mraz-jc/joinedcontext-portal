@@ -1617,7 +1617,7 @@ async fn approve_every_file(
     project: &str,
     gitea: &GiteaClient,
     pr: &PullRequest,
-) -> Result<(Lane, bool), ApiError> {
+) -> Result<(Lane, bool, bool), ApiError> {
     // The caller's grants, per project, computed where each file actually lives (PF-50, T-1682).
     // Asking the project in the *path* once would check a file under `projects/other/` against a
     // binding that never reached it: an organization-scoped grant covers every project and is
@@ -1627,6 +1627,7 @@ async fn approve_every_file(
         std::collections::HashMap::new();
     let mut lane = Lane::Green;
     let mut deletes_every_kind = true;
+    let mut changes_access = false;
     for file in gitea.pull_request_files(pr.number).await? {
         // A file outside `projects/` belongs to the organization — `users/`, `environments/`,
         // `blueprints/`, `org.yaml` — and is decided where the approval is made, as before.
@@ -1700,6 +1701,7 @@ async fn approve_every_file(
             envelope.kind.as_str(),
             "Role" | "RoleBinding" | "ServiceAccount"
         );
+        changes_access |= needs_second_person(&envelope.kind);
         if file.deleted {
             // `delete` is its own verb on every kind, not only the access ones: a cascade that
             // removes a whole project is held to `approve` and `delete` on each kind it takes
@@ -1736,7 +1738,19 @@ async fn approve_every_file(
             change::classify_manifest(&envelope, Operation::Create),
         );
     }
-    Ok((lane, deletes_every_kind))
+    Ok((lane, deletes_every_kind, changes_access))
+}
+
+/// Who may do what: a change to one of these kinds is approved by a second person, never by
+/// the one who proposed it, administrator or not (PF-58, T-4833).
+pub(crate) fn is_access_kind(kind: &str) -> bool {
+    matches!(kind, "Role" | "RoleBinding" | "Group" | "ServiceAccount")
+}
+
+/// Kinds a second person approves: the access kinds, and a DataModel, whose new version every
+/// space, Endpoint and pipeline of it validates against (PF-58, T-4830).
+pub(crate) fn needs_second_person(kind: &str) -> bool {
+    is_access_kind(kind) || kind == "DataModel"
 }
 
 /// Core approval function factored out for reuse by both the REST route and the operations registry.
@@ -1804,7 +1818,7 @@ pub async fn approve_change_for(
     // Every file of the merge request, not only the headline (T-0832, MF-21, CC-63): each
     // manifest needs approve on its kind, the PF-52 hold when it grants access, and its own
     // lane; a native file approves under the kind its directory names.
-    let (bundle_lane, deletes_every_kind) =
+    let (bundle_lane, deletes_every_kind, changes_access) =
         approve_every_file(state, identity, project, gitea, &pr).await?;
     merges_after(id, &awaited_changes(state, gitea, &pr, project).await?)?;
 
@@ -1820,6 +1834,15 @@ pub async fn approve_change_for(
         }
     };
 
+    // Access is never granted, nor a model changed, by its own proposer: someone else approves
+    // it, an administrator of its kind or the bootstrap group (PF-58, T-4833, T-4830).
+    if is_author && (changes_access || needs_second_person(&data.kind)) {
+        tracing::warn!(change = %id, kind = %data.kind, approver = %identity.username, "refused: the proposer of an access or model change may not approve it");
+        return Err(ApiError::SelfApproval(format!(
+            "a change to {} is approved by a second administrator, never by its proposer (PF-58)",
+            data.kind
+        )));
+    }
     // An author's own change is approved only by a person, and only as an administrator of every
     // kind in it (PF-58); an agent never does (AG-11).
     if is_author
@@ -2104,8 +2127,8 @@ pub(crate) async fn merge_if_only(
 /// A change a person just proposed with their own session, approved in the same call when they
 /// administer every kind it touches (PF-58): the button's one approval path, so the checks, the
 /// merge and its commit message are the same. Anyone else's change comes back as it was, waiting
-/// for an approver (PF-70), and so does an administrator's red-lane change without its typed
-/// name (CC-39). Only the Portal's session doors call this; an agent run, a bearer caller and MCP
+/// for an approver (PF-70), and so do an administrator's access change, which a second person
+/// approves (PF-58, T-4833), and their red-lane change without its typed name (CC-39). Only the Portal's session doors call this; an agent run, a bearer caller and MCP
 /// never do (AG-11, AG-82).
 pub async fn approve_as_proposed(
     state: &AppState,
@@ -2120,7 +2143,11 @@ pub async fn approve_as_proposed(
     let administers = !effective.bootstrap
         && effective.may(kind, jc_core::kinds::Verb::Approve)
         && effective.may(kind, jc_core::kinds::Verb::Delete);
-    if !administers || (change.status.lane == Lane::Red && confirm.is_none()) {
+    // Access and a model wait for a second administrator (PF-58).
+    if !administers
+        || needs_second_person(kind)
+        || (change.status.lane == Lane::Red && confirm.is_none())
+    {
         return change;
     }
     match approve_change_for(

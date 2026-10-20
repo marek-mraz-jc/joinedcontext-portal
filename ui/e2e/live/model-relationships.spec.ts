@@ -171,7 +171,7 @@ test("1. a steward builds all four cardinalities in the model editor and publish
   const saved = page.waitForRequest(
     (request) => request.method() === "PUT" && /\/datamodels\/[^/]+\/source/.test(request.url()) && !request.url().includes("dryRun"),
   );
-  await page.getByRole("button", { name: "Save model" }).click();
+  await page.getByRole("button", { name: /^Propose v\d/ }).click();
   const source = (await saved).postData() ?? "";
   // Both ends of each, the delete rule on the source end, required only on the stored end.
   for (const part of ["inverse: school", "inverse: users", "inverse: students", "inverse: owner", "inverse: reports", "on_delete: cascade", "on_delete: set-null", "required: true"]) {
