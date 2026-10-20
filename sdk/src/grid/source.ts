@@ -33,12 +33,27 @@ export interface GridPage {
 export interface HistoryPoint {
   at: string;
   value: unknown;
+  /** When a later version replaced this one; only in a `versions` answer (DM-114). */
+  supersededAt?: string;
+  /** Who wrote this version, through what and why (ADR-N-054 §2.3); only in a `versions` answer. */
+  provenance?: Provenance;
+}
+
+/** The provenance the broker keeps per version: the fields a person reads, as the broker sent them. */
+export interface Provenance {
+  channel?: string;
+  actor?: string;
+  operation?: string;
+  reason?: string;
+  writtenAt?: string;
 }
 
 export interface HistoryWindow {
   from?: string;
   to?: string;
   lastN?: number;
+  /** Every version of each measurement (`versions=all`): the gateway answers 403 without `readVersions`. */
+  versions?: boolean;
 }
 
 /** What a grid can do follows what its source offers: an absent capability switches its feature off. */
@@ -144,9 +159,10 @@ function entitiesQuery(q: GridQuery, offset: number, limit: number): string {
 }
 
 function historyQuery(attr: string, window: HistoryWindow): string {
-  const { from, to, lastN } = window;
+  const { from, to, lastN, versions } = window;
   return queryString({
     attrs: attr,
+    versions: versions ? "all" : undefined,
     timerel: from && to ? "between" : from ? "after" : to ? "before" : undefined,
     timeAt: from ?? to,
     endTimeAt: from && to ? to : undefined,
@@ -154,13 +170,29 @@ function historyQuery(attr: string, window: HistoryWindow): string {
   });
 }
 
+/** The text fields of a version's provenance; anything else the broker adds is not shown. */
+function provenanceOf(raw: unknown): Provenance | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const kept: Provenance = {};
+  for (const key of ["channel", "actor", "operation", "reason", "writtenAt"] as const) {
+    const value = (raw as Record<string, unknown>)[key];
+    if (typeof value === "string") kept[key] = value;
+  }
+  return kept;
+}
+
 /** The instances of one attribute in a temporal answer: `[{value, observedAt}]`, or `{values: [[v, t]]}`. */
 export function historyOf(body: unknown, attr: string): HistoryPoint[] {
   const attribute = typeof body === "object" && body !== null ? (body as Record<string, unknown>)[attr] : undefined;
   if (Array.isArray(attribute)) {
     return attribute.flatMap((instance) => {
-      const at = (instance as { observedAt?: unknown })?.observedAt;
-      return typeof at === "string" ? [{ at, value: (instance as { value?: unknown }).value }] : [];
+      const { observedAt: at, value, supersededAt, provenance } = (instance ?? {}) as Record<string, unknown>;
+      if (typeof at !== "string") return [];
+      const point: HistoryPoint = { at, value };
+      if (typeof supersededAt === "string") point.supersededAt = supersededAt;
+      const kept = provenanceOf(provenance);
+      if (kept) point.provenance = kept;
+      return [point];
     });
   }
   const values = (attribute as { values?: unknown } | undefined)?.values;

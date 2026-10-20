@@ -1833,6 +1833,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/datasources/{name}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Data Source Connection Test
+         * @description Reads a saved data source once on the project's runner and answers its first record, or why there was none. Nothing is written.
+         */
+        post: operations["test_datasource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/drafts": {
         parameters: {
             query?: never;
@@ -6915,6 +6935,12 @@ export interface components {
             /** @description An enum attribute the rows are grouped by. */
             group?: string | null;
             hidden?: string[];
+            /** @description A label of the view's own, by attribute: shown as text, the model keeps its own (T-4827). */
+            labels?: {
+                [key: string]: string;
+            };
+            /** @description The columns in the order the view shows them, by attribute; the rest follow (T-4827). */
+            order?: string[];
             /** @description An NGSI-LD query, sent as the person's own `q` when the view opens. */
             q?: string | null;
             /** @description The view kind's own settings: card fields, the kanban's attribute, a calendar's dates. */
@@ -12488,6 +12514,85 @@ export interface operations {
                 };
             };
             /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    test_datasource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+                /** @description DataSource name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The records read in three seconds and the first of them, or `skipped` with the reason in plain words */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Probe"];
+                };
+            };
+            /** @description The saved source's URL is one the runner may not reach, or its input hands each message to one reader */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No grant proposes a DataSource in this project */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such DataSource in this project */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A test of this project is already running */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No pipeline runner is configured, or it did not answer */
             503: {
                 headers: {
                     [name: string]: unknown;

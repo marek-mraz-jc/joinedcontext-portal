@@ -7143,6 +7143,108 @@
         }
       }
     },
+    "/api/v1/projects/{project}/datasources/{name}/test": {
+      "post": {
+        "tags": [
+          "datasources"
+        ],
+        "summary": "Data Source Connection Test",
+        "description": "Reads a saved data source once on the project's runner and answers its first record, or why there was none. Nothing is written.",
+        "operationId": "test_datasource",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "DataSource name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The records read in three seconds and the first of them, or `skipped` with the reason in plain words",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Probe"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The saved source's URL is one the runner may not reach, or its input hands each message to one reader",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No grant proposes a DataSource in this project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such DataSource in this project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A test of this project is already running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No pipeline runner is configured, or it did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/drafts": {
       "get": {
         "tags": [
@@ -25925,6 +26027,23 @@
             "items": {
               "type": "string"
             }
+          },
+          "labels": {
+            "type": "object",
+            "description": "A label of the view's own, by attribute: shown as text, the model keeps its own (T-4827).",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "order": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The columns in the order the view shows them, by attribute; the rest follow (T-4827)."
           },
           "q": {
             "type": [

@@ -1073,3 +1073,133 @@ async fn the_runner_error_shown_to_the_person_carries_no_runner_url_or_credentia
         }
     }
 }
+
+/// A project where `dev@hel.fi` proposes and `reader@hel.fi` only reads, holding one saved
+/// NATS DataSource (T-4819).
+fn with_saved_source(project: &str) -> Arc<Mirror> {
+    let mirror = mirror(project);
+    mirror.upsert(org(
+        "Role",
+        "source-reader",
+        json!({ "rules": [{ "kinds": ["DataSource"], "verbs": ["read"] }] }),
+    ));
+    mirror.upsert(org(
+        "RoleBinding",
+        "readers",
+        json!({
+            "subjects": [{ "user": "reader@hel.fi" }],
+            "role": "source-reader",
+            "scope": { "project": project }
+        }),
+    ));
+    mirror.upsert(ResourceEnvelope {
+        api_version: API_VERSION.to_owned(),
+        kind: "DataSource".to_owned(),
+        metadata: ObjectMeta::new("demo-counters", project),
+        spec: json!({
+            "type": "nats",
+            "input": {
+                "urls": ["nats://demo:${DEMO_FEED_PASSWORD}@demo-nats.dev.svc.cluster.local:4222"],
+                "subject": "helsinki.demo.counters"
+            }
+        }),
+        status: None,
+    });
+    mirror
+}
+
+/// T-4819: Test connection runs the saved source's own input on the runner and answers its first
+/// record; the `${VAR}` stays for the runner to fill and never comes back in the answer.
+#[tokio::test]
+async fn a_saved_source_is_tested_with_its_own_input_and_answers_its_first_record() {
+    let runner = MockServer::start().await;
+    let (create, delete) = runner_mocks(ResponseTemplate::new(200));
+    create.mount(&runner).await;
+    delete.mount(&runner).await;
+    let state = AppState::new(config(Some(&runner)), None).with_mirror(with_saved_source("espoo"));
+    let record = [json!({ "input": "{\"count\":7}", "error": null })];
+    let empty = json!({});
+    let (answer, harness) = tokio::join!(
+        send(
+            &state,
+            "dev@hel.fi",
+            "/api/v1/projects/espoo/datasources/demo-counters/test",
+            &empty
+        ),
+        play_runner(&runner, &state, &record),
+    );
+    assert_eq!(answer.0, StatusCode::OK, "{}", answer.1);
+    assert_eq!(answer.1["records"], 1, "{}", answer.1);
+    assert_eq!(answer.1["sample"]["count"], 7, "{}", answer.1);
+    assert_eq!(
+        harness["input"]["nats"]["subject"],
+        "helsinki.demo.counters"
+    );
+    assert!(
+        !answer.1.to_string().contains("DEMO_FEED_PASSWORD"),
+        "{}",
+        answer.1
+    );
+    runner.verify().await;
+}
+
+/// T-4819: a read that failed is said in plain words, not as the runner's error chain.
+#[tokio::test]
+async fn a_failed_read_is_said_in_plain_words() {
+    let runner = MockServer::start().await;
+    let (create, delete) = runner_mocks(ResponseTemplate::new(200));
+    create.mount(&runner).await;
+    delete.mount(&runner).await;
+    let state = AppState::new(config(Some(&runner)), None).with_mirror(with_saved_source("hanko"));
+    let failed = [
+        json!({ "input": "", "error": "fetch: nats: dial tcp 10.0.0.9:4222: connect: connection refused" }),
+    ];
+    let empty = json!({});
+    let (answer, _) = tokio::join!(
+        send(
+            &state,
+            "dev@hel.fi",
+            "/api/v1/projects/hanko/datasources/demo-counters/test",
+            &empty
+        ),
+        play_runner(&runner, &state, &failed),
+    );
+    assert_eq!(answer.0, StatusCode::OK, "{}", answer.1);
+    assert_eq!(
+        answer.1["skipped"], "the feed could not be reached: connection refused",
+        "{}",
+        answer.1
+    );
+}
+
+/// T-4819: anonymous is 401, a reader is 403, an unknown source is 404, and none reaches the runner.
+#[tokio::test]
+async fn testing_a_source_needs_a_session_and_a_grant_that_proposes_it() {
+    let state = AppState::new(config(None), None).with_mirror(with_saved_source("turku"));
+    let uri = "/api/v1/projects/turku/datasources/demo-counters/test";
+    let response = server::app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(uri)
+                .header(header::COOKIE, format!("{CSRF_COOKIE}={CSRF}"))
+                .header(CSRF_HEADER, CSRF)
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let (status, body) = send(&state, "reader@hel.fi", uri, &json!({})).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    let (status, body) = send(&state, "stranger@hel.fi", uri, &json!({})).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
+    let (status, body) = send(
+        &state,
+        "dev@hel.fi",
+        "/api/v1/projects/turku/datasources/nope/test",
+        &json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
+}

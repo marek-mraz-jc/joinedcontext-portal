@@ -1,8 +1,11 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import type { RichRow, RichCell } from "./model";
 import { cellText } from "./model";
-import type { MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
-import { useEntityGrid } from "./useEntityGrid";
+import type { ColumnLayout, MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
+import { MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, useEntityGrid } from "./useEntityGrid";
+import { CellView, columnKind, formatDate } from "./cells";
+import type { CellLabels, ColumnKind } from "./cells";
+import { ColumnMenu } from "./ColumnMenu";
 import { opsForKind, valuesNeeded } from "./filters";
 import type { ColumnFilter, FilterColumn } from "./filters";
 import { applyChanges, MAX_ENTITIES, MAX_REASON, reasonOk } from "./apply";
@@ -21,6 +24,7 @@ import { objectsOf, pointingAt, searchTargets } from "../relations";
 import type { TargetOption } from "../relations";
 import { NGSI_LD_NULL, RelationPicker } from "./RelationPicker";
 import { RowDetail } from "./RowDetail";
+import type { RowDetailTab } from "./RowDetail";
 import { parseClipboard, planPaste } from "./paste";
 import { problemOf } from "./rules";
 import type { ValueRule } from "./rules";
@@ -62,8 +66,17 @@ export interface EntityGridProps extends UseEntityGridOptions {
   mapLabels?: Partial<GridMapLabels>;
   geoLabels?: Partial<GeoLabels>;
   basemap?: string;
-  /** What the host adds under a row's detail, such as its comments (T-3106). */
+  /** What the host adds under a row's fields in its detail (T-3106). */
   detailExtra?: (row: RichRow) => React.ReactNode;
+  /** The host's own tabs in a row's detail after Fields and History, such as its comments (T-4828). */
+  detailTabs?: (row: RichRow) => RowDetailTab[];
+  /**
+   * The row whose detail is open, by id, for a host that keeps it in the address (`?row=<urn>`,
+   * T-4828): `undefined` leaves it to the grid, `null` closes it. A row not on the loaded page is
+   * read by its id and shown without editors until the grid loads it.
+   */
+  openRow?: string | null;
+  onOpenRow?: (id: string | null) => void;
   toolbar?: React.ReactNode;
   /** The bounds the "Draw area" action asks about; the host owns the map's viewport. */
   mapBounds?: () => [number, number, number, number] | null;
@@ -81,7 +94,52 @@ export interface EntityGridProps extends UseEntityGridOptions {
   rowTone?: (row: RichRow) => { tone: string; label: string } | undefined;
   className?: string;
   classNames?: Partial<Record<"root" | "table" | "header" | "row" | "cell" | "pager", string>>;
+  /** The reader's language tag, for numbers and dates (`fi`, `en-GB`); the browser's without it. */
+  locale?: string;
+  /**
+   * Every change the header menu makes to the order, widths or labels (T-4827), for a host that
+   * keeps them in a saved view; without it the grid keeps them itself until it unmounts.
+   */
+  onLayout?: (next: ColumnLayout) => void;
+  /** "Hide field" in the header menu, for a host that holds `hidden`; without it the grid hides it itself. */
+  onHide?: (attr: string) => void;
 }
+
+/** The glyph a header shows for what its column holds; the kind's name is what a screen reader hears. */
+const KIND_ICON: Record<ColumnKind, string> = {
+  text: "Aa",
+  number: "#",
+  boolean: "✓",
+  datetime: "◷",
+  geo: "⌖",
+  relationship: "↗",
+  language: "文",
+  structured: "{}",
+  list: "≡",
+};
+
+const KIND_LABEL: Record<ColumnKind, keyof GridLabelsAll> = {
+  text: "kindText",
+  number: "kindNumber",
+  boolean: "kindBoolean",
+  datetime: "kindDatetime",
+  geo: "kindGeo",
+  relationship: "kindRelationship",
+  language: "kindLanguage",
+  structured: "kindStructured",
+  list: "kindList",
+};
+type GridLabelsAll = import("./useEntityGrid").GridLabels;
+
+/** `list` with `attr` moved to `index`, every other name in its order. */
+export function moveTo(list: readonly string[], attr: string, index: number): string[] {
+  const rest = list.filter((each) => each !== attr);
+  const at = Math.max(0, Math.min(index, rest.length));
+  return [...rest.slice(0, at), attr, ...rest.slice(at)];
+}
+
+const DRAG_TYPE = "application/x-jc-grid-column";
+const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 
 /** Whether a pending value is a geometry, so a geo cell stays a geo cell while it is changed. */
 function isGeometry(value: unknown): boolean {
@@ -102,6 +160,9 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     marks,
     toolbar,
     detailExtra,
+    detailTabs,
+    openRow,
+    onOpenRow,
     mapEngine,
     mapAllowed,
     mapLabels,
@@ -113,10 +174,24 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     rowTone,
     className,
     classNames,
+    locale,
+    onLayout,
+    onHide,
     ...hookOptions
   } = props;
 
-  const grid = useEntityGrid(hookOptions);
+  // The header menu's order, widths and labels: the host's when it keeps them, else the grid's own.
+  const [ownLayout, setOwnLayout] = useState<ColumnLayout>(() => hookOptions.layout ?? {});
+  const [ownHidden, setOwnHidden] = useState<string[]>([]);
+  const layout = onLayout ? (hookOptions.layout ?? {}) : ownLayout;
+  const setLayout = useCallback((next: ColumnLayout) => (onLayout ? onLayout(next) : setOwnLayout(next)), [onLayout]);
+  const hostHidden = hookOptions.hidden;
+  const hiddenNow = useMemo(
+    () => (onHide || ownHidden.length === 0 ? hostHidden : [...(hostHidden ?? []), ...ownHidden]),
+    [onHide, hostHidden, ownHidden],
+  );
+  const grid = useEntityGrid({ ...hookOptions, layout, hidden: hiddenNow });
+  const where = locale ?? (typeof navigator !== "undefined" ? navigator.language : "en");
   const selection = useEntitySelection();
   const { rows, columns, loading, error, labels, state, cellOf, toggleMeta, setOffset, setSort, setFilter, setFilterText, filterColumns, askedQuery, setEdit, clearEdits, pendingChanges, reload, setEdits, getGridProps, getHeaderProps, getRowProps, getCellProps } = grid;
 
@@ -159,7 +234,15 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const [history, setHistory] = useState<{ attr: string; id: string; heading: string } | null>(null);
   // The row whose detail panel is open, by id, so a new page closes it rather than showing a row
   // that is no longer listed (T-3097).
-  const [detailId, setDetailId] = useState<string | null>(null);
+  const [ownDetailId, setOwnDetailId] = useState<string | null>(null);
+  const detailId = openRow === undefined ? ownDetailId : openRow;
+  const setDetailId = useCallback(
+    (id: string | null) => {
+      setOwnDetailId(id);
+      onOpenRow?.(id);
+    },
+    [onOpenRow],
+  );
   // The primary column is the first one when it is an attribute: the config pinned it (T-3097).
   const primaryKey = columns[0]?.attr !== null && columns[0]?.pinned ? columns[0].key : null;
   const isPrimary = useCallback(
@@ -338,6 +421,10 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
 
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const cellLabels = useMemo<CellLabels>(
+    () => ({ yes: labels.yes, no: labels.no, points: labels.points, openTarget: labels.openTarget }),
+    [labels.yes, labels.no, labels.points, labels.openTarget],
+  );
 
   const totalPages = useMemo(() => {
     if (grid.total !== undefined) {
@@ -434,21 +521,9 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       );
     }
 
-    // Relationship button
-    if (column.attr && cell && !Array.isArray(cell) && cell.kind === "relationship" && onOpenRelationship) {
-      const urn = typeof cell.object === "string" ? cell.object : Array.isArray(cell.object) ? cell.object.join(", ") : text;
-      return (
-        <button
-          type="button"
-          className="jc-grid-rel-btn"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (typeof cell.object === "string") onOpenRelationship(cell.object);
-          }}
-        >
-          {urn}
-        </button>
-      );
+    // A relationship is a chip naming its target, which opens it (T-4827).
+    if (column.attr && column.meta === null && cell && !Array.isArray(cell) && cell.kind === "relationship" && onOpenRelationship) {
+      return <CellView cell={cell} locale={where} labels={cellLabels} onOpen={onOpenRelationship} />;
     }
 
     if (column.attr && editable(column)) {
@@ -515,8 +590,14 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     const options = column.attr ? hookOptions.enums?.[column.attr] : undefined;
     const one = Array.isArray(cell) ? undefined : cell;
     const option = options && one?.kind !== "relationship" ? options.find((o) => o.value === String(one?.value)) : undefined;
-    return <>{option ? optionLabel(option) : text}</>;
-  }, [cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, isPrimary, rowName, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell, ruleProblems, rules, labels.yes, labels.no]);
+    if (option) return <>{optionLabel(option)}</>;
+    // The value by what it holds: a number with its unit, a local date, a point, a chip (T-4827).
+    if (column.attr !== null && column.meta === null) {
+      return <CellView cell={cell} locale={where} labels={cellLabels} onOpen={onOpenRelationship} />;
+    }
+    // A timestamp column (observed, created, modified) in the reader's own time.
+    return <>{ISO_TIMESTAMP.test(text) ? formatDate(text, where) : text}</>;
+  }, [where, cellLabels, cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, isPrimary, rowName, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell, ruleProblems, rules, labels.yes, labels.no]);
 
   // Metadata menu toggle
   const toggleMenu = useCallback((attr: string) => {
@@ -526,6 +607,74 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const handleMetaCheck = useCallback((attr: string, meta: MetaKey) => {
     toggleMeta(attr, meta);
   }, [toggleMeta]);
+
+  /** The attributes in the order the header shows them: what Move and a drop rearrange. */
+  const order = useMemo(() => columns.filter((c) => c.attr !== null && c.meta === null).map((c) => c.attr!), [columns]);
+  // The primary column stays first: nothing moves in front of it.
+  const firstMovable = columns.some((c) => c.pinned && c.attr !== null) ? 1 : 0;
+  const [dragOver, setDragOver] = useState<string | null>(null);
+  const kindOf = useMemo(() => {
+    const kinds = new Map<string, ColumnKind>();
+    const sample = rows.slice(0, 50);
+    for (const col of columns) {
+      if (col.meta === "observedAt" || col.meta === "createdAt" || col.meta === "modifiedAt" || col.key.startsWith("entity:")) kinds.set(col.key, "datetime");
+      else if (col.attr === null || col.meta !== null) kinds.set(col.key, "text");
+      else kinds.set(col.key, columnKind(sample.map((row) => row.cells[col.attr!]), rules?.[col.attr]?.kind, Boolean(relations?.[col.attr])));
+    }
+    return kinds;
+  }, [columns, rows, rules, relations]);
+  /** A column's label without the unit the grid adds: what Rename starts from. */
+  const baseLabel = (col: VisibleColumn): string => col.label.replace(/ \([^()]*\)$/, "");
+  const closeMenu = useCallback(() => {
+    const attr = openMenu;
+    setOpenMenu(null);
+    // Back to the button that opened the menu, so a keyboard carries on where it was.
+    if (attr) tableRef.current?.querySelector<HTMLElement>(`th[data-col-attr="${attr.replace(/["\\]/g, "\\$&")}"] .jc-grid-meta-btn`)?.focus();
+  }, [openMenu]);
+  const focusFilter = useCallback((key: string) => {
+    setOpenMenu(null);
+    const cells = tableRef.current?.querySelectorAll<HTMLElement>("[data-filter-for]") ?? [];
+    for (const cell of cells) {
+      if (cell.dataset.filterFor === key) cell.querySelector<HTMLElement>("select, input")?.focus();
+    }
+  }, []);
+  const hideColumn = useCallback((attr: string) => {
+    setOpenMenu(null);
+    if (onHide) onHide(attr);
+    else setOwnHidden((before) => [...before, attr]);
+  }, [onHide]);
+  const renameColumn = useCallback((attr: string, text: string | undefined) => {
+    const { [attr]: _gone, ...rest } = layout.labels ?? {};
+    setLayout({ ...layout, labels: text === undefined ? rest : { ...rest, [attr]: text } });
+  }, [layout, setLayout]);
+  const widthOf = (attr: string, fallback?: number): number =>
+    fallback ?? tableRef.current?.querySelector<HTMLElement>(`th[data-col-attr="${attr.replace(/["\\]/g, "\\$&")}"]`)?.offsetWidth ?? 0;
+  const widen = (attr: string, current: number | undefined, delta: number) => {
+    const from = widthOf(attr, current) || 160;
+    const next = Math.max(MIN_COLUMN_WIDTH, Math.min(MAX_COLUMN_WIDTH, Math.round(from + delta)));
+    setLayout({ ...layout, width: { ...(layout.width ?? {}), [attr]: next } });
+  };
+  /** Dragging a header's edge: the column follows the pointer and keeps its width when let go. */
+  const startResize = (e: React.PointerEvent<HTMLElement>, attr: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const th = e.currentTarget.closest("th");
+    if (!th) return;
+    const startX = e.clientX;
+    const startWidth = th.offsetWidth;
+    let width = startWidth;
+    const move = (ev: PointerEvent) => {
+      width = Math.max(MIN_COLUMN_WIDTH, Math.min(MAX_COLUMN_WIDTH, Math.round(startWidth + ev.clientX - startX)));
+      th.style.width = th.style.minWidth = th.style.maxWidth = `${width}px`;
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      if (width !== startWidth) setLayout({ ...layout, width: { ...(layout.width ?? {}), [attr]: width } });
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
 
   // Close menu on outside click
   React.useEffect(() => {
@@ -556,7 +705,48 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const mapAttr = mapConfig?.enabled ? mapAttrOf(rows, mapConfig.attr) : null;
   const mapPosition = mapConfig?.position ?? "right";
   const activeRowId = rows[state.activeCell?.row ?? -1]?.id ?? null;
-  const detailRow = detailId === null ? undefined : rows.find((row) => row.id === detailId);
+  const listedRow = detailId === null ? undefined : rows.find((row) => row.id === detailId);
+  // A deep link to a row the page has not loaded: read by its id, through the same source and Policy.
+  const [linked, setLinked] = useState<RichRow | null>(null);
+  const getRow = hookOptions.source.get;
+  React.useEffect(() => {
+    if (detailId === null || listedRow || loading) return;
+    let live = true;
+    // Gone, or not readable by this person: the same answer either way, and the link closes.
+    const missing = () => live && setDetailId(null);
+    getRow(detailId).then(
+      (row) => (row ? live && setLinked(row) : missing()),
+      missing,
+    );
+    return () => {
+      live = false;
+    };
+  }, [detailId, listedRow, loading, getRow, setDetailId]);
+  const detailRow = listedRow ?? (linked && linked.id === detailId ? linked : undefined);
+  const historyOn = Boolean(hookOptions.source.history) && hookOptions.config.history.enabled !== false;
+
+  // What is typed and not applied yet, with Review and Discard: under the toolbar, and inside the row
+  // dialog too, where the page behind is inert; Review there closes the dialog first (T-4828).
+  const pendingBar = (inDialog: boolean): React.ReactNode =>
+    editing && pendingChanges.length > 0 ? (
+      <div className="jc-grid-pending" role="status">
+        <span>{`${pendingChanges.length} ${labels.pending}`}</span>
+        {ruleProblems.size > 0 && <span className="jc-grid-to-correct">{`${ruleProblems.size} ${labels.toCorrect}`}</span>}
+        <button
+          type="button"
+          disabled={ruleProblems.size > 0}
+          onClick={() => {
+            if (inDialog) setDetailId(null);
+            setOpen(true);
+          }}
+        >
+          {labels.review}
+        </button>
+        <button type="button" onClick={() => { clearEdits(); setRefused([]); }}>
+          {labels.discard}
+        </button>
+      </div>
+    ) : null;
 
   // The table is the grid's one tab stop. Enter or F2 goes into the active cell's own control (its
   // input, list or picker), Escape comes back to the grid, and the active cell is kept in view.
@@ -761,18 +951,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         </div>
       )}
 
-      {editing && pendingChanges.length > 0 && (
-        <div className="jc-grid-pending" role="status">
-          <span>{`${pendingChanges.length} ${labels.pending}`}</span>
-          {ruleProblems.size > 0 && <span className="jc-grid-to-correct">{`${ruleProblems.size} ${labels.toCorrect}`}</span>}
-          <button type="button" disabled={ruleProblems.size > 0} onClick={() => setOpen(true)}>
-            {labels.review}
-          </button>
-          <button type="button" onClick={() => { clearEdits(); setRefused([]); }}>
-            {labels.discard}
-          </button>
-        </div>
-      )}
+      {pendingBar(false)}
 
       <div className="jc-grid-scroll" ref={scrollRef} onScroll={virtual ? onScroll : undefined}>
         <table
@@ -785,13 +964,32 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         >
           <thead className={`jc-grid-thead${classNames?.header ? ` ${classNames.header}` : ""}`}>
             <tr>
-              {columns.map((col, i) => (
+              {columns.map((col, i) => {
+                const kind = kindOf.get(col.key) ?? "text";
+                const kindLabel = labels[KIND_LABEL[kind]] as string;
+                const own = col.attr !== null && col.meta === null ? col.attr : null;
+                const at = own === null ? -1 : order.indexOf(own);
+                const movable = own !== null && !col.pinned;
+                return (
                 <th
                   key={col.key}
-                  className={`jc-grid-th${col.pinned ? " jc-grid-pinned" : ""}`}
-                  style={col.attr && hookOptions.config.columns?.find((c) => c.attr === col.attr)?.width ? { width: hookOptions.config.columns.find((c) => c.attr === col.attr)!.width } : undefined}
+                  className={`jc-grid-th${col.pinned ? " jc-grid-pinned" : ""}${dragOver === col.key ? " jc-grid-th--drop" : ""}`}
+                  style={col.width ? { width: col.width, minWidth: col.width, maxWidth: col.width } : undefined}
+                  data-col-attr={own ?? undefined}
+                  draggable={movable}
+                  onDragStart={movable ? (e) => { e.dataTransfer.setData(DRAG_TYPE, own!); e.dataTransfer.effectAllowed = "move"; } : undefined}
+                  onDragOver={movable ? (e) => { if (e.dataTransfer.types.includes(DRAG_TYPE)) { e.preventDefault(); setDragOver(col.key); } } : undefined}
+                  onDragLeave={movable ? () => setDragOver(null) : undefined}
+                  onDrop={movable ? (e) => {
+                    e.preventDefault();
+                    setDragOver(null);
+                    const dragged = e.dataTransfer.getData(DRAG_TYPE);
+                    if (dragged && dragged !== own) setLayout({ ...layout, order: moveTo(order, dragged, order.indexOf(own!)) });
+                  } : undefined}
                   {...getHeaderProps(col, i)}
                 >
+                  {/* The glyph is drawn by CSS from data-icon, so the header's text stays its label. */}
+                  <span className="jc-grid-kind" data-icon={KIND_ICON[kind]} data-kind={kind} role="img" aria-label={kindLabel} title={kindLabel} />
                   <button
                     type="button"
                     className="jc-grid-sort-btn"
@@ -804,21 +1002,36 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                     {col.label}
                     {state.sort?.attr === (col.attr ?? col.key) ? (state.sort.dir === "asc" ? " ↑" : " ↓") : ""}
                   </button>
-                  {col.attr && !col.meta && (
+                  {own !== null && (
                     <button
                       type="button"
                       className="jc-grid-meta-btn"
-                      aria-label={`${labels.showMetadata} ${col.attr}`}
-                      onClick={() => toggleMenu(col.attr!)}
+                      aria-label={`${labels.columnMenu}: ${col.label}`}
+                      aria-haspopup="dialog"
+                      aria-expanded={openMenu === own}
+                      onClick={() => toggleMenu(own)}
                     >
                       ⋮
                     </button>
                   )}
-                  {col.attr && !col.meta && openMenu === col.attr && (
-                    <div className="jc-grid-meta-menu" ref={menuRef}>
-                      {/* How this attribute got to its value, where its metadata already is: the
-                          entry is absent when the source cannot answer a temporal read or the
-                          config switched history off (T-1431). */}
+                  {own !== null && openMenu === own && (
+                    <ColumnMenu
+                      ref={menuRef}
+                      label={layout.labels?.[own] ?? baseLabel(col)}
+                      labels={labels}
+                      sorted={state.sort?.attr === own ? state.sort.dir : null}
+                      onSort={(dir) => { setSort(own, dir); closeMenu(); }}
+                      onFilter={filterable.has(col.key) && !asText ? () => focusFilter(col.key) : undefined}
+                      onHide={col.pinned ? undefined : () => hideColumn(own)}
+                      renamed={layout.labels?.[own] !== undefined}
+                      onRename={(text) => renameColumn(own, text)}
+                      onWiden={(delta) => widen(own, col.width, delta)}
+                      onMove={movable ? (delta) => setLayout({ ...layout, order: moveTo(order, own, at + delta) }) : undefined}
+                      canMoveLeft={movable && at > firstMovable}
+                      canMoveRight={movable && at < order.length - 1}
+                      onClose={closeMenu}
+                      details={
+                        <>
                       {hookOptions.source.history && hookOptions.config.history.enabled !== false && (
                         <button
                           type="button"
@@ -856,10 +1069,17 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                           </label>
                         );
                       })}
-                    </div>
+                        </>
+                      }
+                    />
+                  )}
+                  {own !== null && (
+                    // The edge a pointer drags; a keyboard has Narrower and Wider in the menu.
+                    <span className="jc-grid-resize" aria-hidden="true" onPointerDown={(e) => startResize(e, own)} />
                   )}
                 </th>
-              ))}
+                );
+              })}
             </tr>
             {filterable.size > 0 && (
               <tr className="jc-grid-filter-row" aria-label={labels.filterRow}>
@@ -870,7 +1090,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                   // header cell is a header that names nothing to a screen reader.
                   if (!column || asText) return <td key={`filter-${col.key}`} className={className} />;
                   return (
-                    <th key={`filter-${col.key}`} className={className}>
+                    <th key={`filter-${col.key}`} className={className} data-filter-for={col.key}>
                       <FilterCell
                         column={column}
                         label={col.label}
@@ -975,13 +1195,38 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           row={detailRow}
           name={rowName(detailRow)}
           columns={columns}
-          renderValue={renderCellContent}
-          labels={{ rowDetail: labels.rowDetail, close: labels.close }}
+          // An edit is written against the row as the page loaded it, so a row read on its own shows
+          // its values without editors.
+          renderValue={listedRow ? renderCellContent : (row, column) => cellText(column.attr ? row.cells[column.attr] : undefined)}
+          labels={{
+            rowDetail: labels.rowDetail,
+            close: labels.close,
+            rowFields: labels.rowFields,
+            rowHistory: labels.history,
+            historyAttr: labels.attribute,
+          }}
+          history={
+            historyOn
+              ? (attr, label) => (
+                  <EntityHistory
+                    source={hookOptions.source}
+                    id={detailRow.id}
+                    attr={attr}
+                    heading={`${hookOptions.labels?.historyLabels?.title ?? labels.history}: ${label}`}
+                    maxPoints={hookOptions.config.history.maxPoints}
+                    labels={hookOptions.labels?.historyLabels}
+                    versions
+                  />
+                )
+              : undefined
+          }
+          tabs={detailTabs?.(detailRow)}
           onClose={() => {
             setDetailId(null);
             tableRef.current?.focus();
           }}
         >
+          {pendingBar(true)}
           {detailExtra?.(detailRow)}
         </RowDetail>
       )}

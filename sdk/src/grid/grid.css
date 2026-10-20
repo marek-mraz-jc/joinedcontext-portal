@@ -618,10 +618,73 @@
   outline-offset: 2px;
 }
 
-/* The row whole: label above value on a phone, side by side from a tablet up. */
+/* The row whole, a modal dialog (T-4828): the whole screen on a phone, a centred card from a
+   tablet up; label above value on a phone, side by side from a tablet up. */
 .jc-grid-detail {
-  border-top: 1px solid var(--jc-color-border, #d0d7de);
-  padding: 0.75rem;
+  box-sizing: border-box;
+  /* A host's CSS reset (Tailwind preflight) zeroes the margin the browser centres a modal with. */
+  margin: auto;
+  width: min(56rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  padding: 1rem;
+  border: 1px solid var(--jc-color-border, #d0d7de);
+  border-radius: 0.5rem;
+  background: var(--jc-color-surface, #fff);
+  color: inherit;
+}
+
+.jc-grid-detail::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+
+@media (max-width: 639px) {
+  .jc-grid-detail {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
+}
+
+.jc-grid-detail-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+  border-bottom: 1px solid var(--jc-color-border, #d0d7de);
+}
+
+.jc-grid-detail-tabs [role="tab"] {
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.jc-grid-detail-tabs [role="tab"][aria-selected="true"] {
+  border-bottom-color: var(--jc-color-primary, #0969da);
+  font-weight: 600;
+}
+
+.jc-grid-detail-tabs [role="tab"]:focus-visible {
+  outline: 2px solid var(--jc-color-focus, #0969da);
+  outline-offset: -2px;
+}
+
+.jc-grid-detail-attr {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.75rem 0;
 }
 
 .jc-grid-detail-head {
@@ -732,4 +795,135 @@
   .jc-grid td.jc-grid-pinned {
     min-width: min(45vw, 12rem);
   }
+}
+
+/* What a column holds, as a glyph before its label (T-4827); the glyph comes from data-icon so
+   the header's text is its label alone. */
+.jc-grid-kind {
+  display: inline-block;
+  min-width: 1.5em;
+  margin-right: var(--jc-space-1, 4px);
+  color: var(--jc-color-muted, #666);
+  font-size: var(--jc-font-size-sm, 12px);
+  text-align: center;
+}
+
+.jc-grid-kind::before {
+  content: attr(data-icon);
+}
+
+.jc-grid-th {
+  position: relative;
+}
+
+.jc-grid-th[draggable="true"] {
+  cursor: grab;
+}
+
+.jc-grid-th--drop {
+  box-shadow: inset 3px 0 0 var(--jc-color-accent, #0066cc);
+}
+
+/* The edge a pointer drags to resize; Narrower and Wider in the menu do the same by keyboard. */
+.jc-grid-resize {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.jc-grid-resize:hover {
+  background: var(--jc-color-line, #e0e0e0);
+}
+
+.jc-grid-col-menu {
+  min-width: 13rem;
+  text-align: left;
+  font-weight: normal;
+}
+
+.jc-grid-col-menu-row {
+  display: flex;
+  gap: var(--jc-space-1, 4px);
+  flex-wrap: wrap;
+}
+
+.jc-grid-col-menu button.jc-grid-meta-item {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--jc-radius-sm, 2px);
+  padding: 2px 6px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.jc-grid-col-menu button.jc-grid-meta-item:hover:not(:disabled),
+.jc-grid-col-menu button.jc-grid-meta-item[aria-pressed="true"] {
+  border-color: var(--jc-color-line, #e0e0e0);
+  background: var(--jc-color-surface, #fff);
+}
+
+.jc-grid-col-menu button.jc-grid-meta-item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.jc-grid-col-menu-field {
+  font-size: var(--jc-font-size-sm, 12px);
+  color: var(--jc-color-muted, #666);
+}
+
+.jc-grid-col-menu-input {
+  font: inherit;
+  padding: 2px 4px;
+}
+
+.jc-grid-col-menu-details summary {
+  cursor: pointer;
+  font-size: var(--jc-font-size-sm, 12px);
+}
+
+/* A relationship's target as a chip (T-4827). */
+.jc-cell-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.jc-cell-chip {
+  display: inline-block;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 6px;
+  border: 1px solid var(--jc-color-line, #e0e0e0);
+  border-radius: 999px;
+  background: var(--jc-color-card, #f5f5f5);
+  font: inherit;
+  font-size: var(--jc-font-size-sm, 12px);
+  color: inherit;
+}
+
+button.jc-cell-chip {
+  cursor: pointer;
+}
+
+button.jc-cell-chip:hover {
+  border-color: var(--jc-color-accent, #0066cc);
+}
+
+.jc-cell--number {
+  font-variant-numeric: tabular-nums;
+}
+
+.jc-grid-col-menu-input {
+  border: 1px solid var(--jc-color-line, #e0e0e0);
+  border-radius: var(--jc-radius-sm, 2px);
+  background: var(--jc-color-surface, #fff);
+  color: inherit;
 }

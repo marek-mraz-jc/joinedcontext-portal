@@ -1,12 +1,12 @@
 import { AlertDialog } from "../../components/AlertDialog";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { clsx } from "clsx";
 import type { JSX, ReactNode } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
-import { attributesOf, endpointSource, matchesQ, originTransport, parseGridConfig, sourceFor } from "@joinedcontext/sdk";
+import { attributesOf, endpointSource, matchesQ, originTransport, parseGridConfig, sourceFor, targetName } from "@joinedcontext/sdk";
 import type { GridState, RichRow } from "@joinedcontext/sdk";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { bytesOfType, exactBytes, sizeText, spaceUsageQuery, usageRefusal } from "../../api/spaceUsage";
@@ -35,6 +35,8 @@ import { enumsOfModel, filterSlotsOf, relationsOfModel, rulesOfModel, useModelSo
 import type { FilterSlot } from "../../components/entities/filters";
 import { AddFieldDialog } from "../../components/entities/AddFieldDialog";
 import { ViewBar } from "../../components/entities/ViewBar";
+import { columnLabel, displayOrder } from "../../components/entities/displayOrder";
+import { readLayout, writeLayout } from "../../components/entities/viewLayout";
 import { dataViewsKey, listViews } from "../../api/dataViews";
 import { GroupCounts, groupTerm, ViewOptions } from "../../components/entities/ViewOptions";
 import type { ViewExtras } from "../../components/entities/ViewOptions";
@@ -81,6 +83,7 @@ import {
   Alert,
   Badge,
   Button,
+  Dialog,
   EmptyState,
   Icon,
   PageFailed,
@@ -97,7 +100,7 @@ import {
   Term,
 } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
-import { useUrlParam } from "../../navigation/urlState";
+import { useUrlParam, useUrlUrn } from "../../navigation/urlState";
 
 const SAMPLE_LIMIT = 3;
 
@@ -353,6 +356,10 @@ function SpaceData({
   const { t, i18n } = useTranslation();
   // The type is in the address like the view, so back, reload and a sent link open it (T-4825).
   const [type, setType] = useUrlParam<string>("type", types[0] ?? "", types);
+  // The open row is in the address too, so a link opens it in its dialog (T-4828).
+  const [openRow, setOpenRow] = useUrlUrn("row");
+  // "+ Row": the type's form in a dialog, creating through the space surface (T-4828).
+  const [creating, setCreating] = useState(false);
   // The type's alerts are being chosen (T-3261).
   const [alertingType, setAlertingType] = useState(false);
   const modelSource = useModelSource(project, model);
@@ -360,7 +367,7 @@ function SpaceData({
     () => enumsOfModel(modelSource, type, i18n.language),
     [modelSource, type, i18n.language],
   );
-  const relations = useMemo(() => relationsOfModel(modelSource, type), [modelSource, type]);
+  const modelRelations = useMemo(() => relationsOfModel(modelSource, type), [modelSource, type]);
   const rules = useMemo(() => rulesOfModel(modelSource, type), [modelSource, type]);
   const slots = useMemo(() => filterSlotsOf(modelSource, type), [modelSource, type]);
   // The grid, or a view over the same rows (ADR-N-042 §3.2): the other views share one filter.
@@ -388,17 +395,26 @@ function SpaceData({
   const [gridView, setGridView] = useState<Pick<GridState, "filterText" | "sort">>({ filterText: null, sort: null });
   const [asked, setAsked] = useState<{ q?: string; idPattern?: string }>({});
   // What the view hides, colours and groups by (T-3099), and the group the grid is narrowed to.
-  const [extras, setExtras] = useState<ViewExtras>({});
+  const [extras, setExtras] = useState<ViewExtras>(() => readLayout(project, space, type) ?? {});
   const [group, setGroup] = useState<string | null>(null);
   const [seen, setSeen] = useState<string[]>([]);
   // A form view's fields, conditions and prefill (T-3103, API/01 §30): its `settings`.
   const [formSettings, setFormSettings] = useState<FormSettings>({});
-  const applyView = useCallback((next: SavedView | null) => {
+  const applyView = useCallback((next: SavedView | null, forType: string = type) => {
     setSaved(next);
     // A saved view opens as the kind it was saved as, with its filter for the views beside the grid.
     if (next && (DATA_VIEWS as readonly string[]).includes(next.kind)) setView(next.kind as DataView);
     setQ(next?.config.q ?? undefined);
-    setExtras({ hidden: next?.config.hidden, colour: next?.config.colour, group: next?.config.group });
+    // "All rows" keeps the person's own columns in this browser; a saved view brings its own.
+    const kept = next ? undefined : readLayout(project, space, forType);
+    setExtras({
+      hidden: next ? next.config.hidden : kept?.hidden,
+      colour: next?.config.colour,
+      group: next?.config.group,
+      width: next ? next.config.width : kept?.width,
+      order: next ? next.config.order : kept?.order,
+      labels: next ? next.config.labels : kept?.labels,
+    });
     setFormSettings(next?.kind === "form" ? ((next.config.settings ?? {}) as FormSettings) : {});
     setGroup(null);
     const first = next?.config.sort?.[0];
@@ -406,7 +422,7 @@ function SpaceData({
       filterText: next?.config.q ?? null,
       sort: first ? { attr: first.attr, dir: first.desc ? "desc" : "asc" } : null,
     });
-  }, [setView]);
+  }, [setView, project, space, type]);
   const onGridState = useCallback((next: GridState) => {
     setGridView((before) =>
       before.filterText === next.filterText && before.sort?.attr === next.sort?.attr && before.sort?.dir === next.sort?.dir
@@ -438,11 +454,13 @@ function SpaceData({
     const cls = parsed.classes.find((c) => c.name === type);
     return cls ? classSlots(parsed, cls) : [];
   }, [modelSource, type]);
-  const attributes = useMemo(() => {
-    const cls = modelSource === undefined ? undefined : parseModel(modelSource).classes.find((c) => c.name === type);
-    const declared = cls && modelSource !== undefined ? classSlots(parseModel(modelSource), cls).map((slot) => slot.name) : [];
-    return [...new Set([...declared, ...seen])].sort();
-  }, [modelSource, type, seen]);
+  // The columns in the model's display order (DM-98), of what the person's own answer carries
+  // (DM-102): a slot their grant leaves out never becomes a column, a label or a chip's end.
+  const attributes = useMemo(() => displayOrder(typeSlots, seen), [typeSlots, seen]);
+  const relations = useMemo(
+    () => Object.fromEntries(Object.entries(modelRelations).filter(([attr]) => seen.includes(attr))),
+    [modelRelations, seen],
+  );
   // The first colour rule a row matches marks it, with the rule as the reason a screen reader hears.
   const rowTone = useCallback(
     (row: RichRow) => {
@@ -494,14 +512,42 @@ function SpaceData({
   );
   const typeTitle = titleOf(type);
   const columns = useMemo(() => {
-    const titled = (attr: string) => localized(typeSlots.find((slot) => slot.name === attr)?.title, i18n.language, attr);
+    const titled = (attr: string) => columnLabel(typeSlots.find((slot) => slot.name === attr), attr, i18n.language);
     const named = attributes.includes("name");
-    if (!named && !typeSlots.some((slot) => slot.title)) return undefined;
+    if (attributes.length === 0) return undefined;
     return [
       ...(named ? [{ attr: "name", pinned: true, label: titled("name") }] : []),
       ...attributes.filter((attr) => attr !== "name").map((attr) => ({ attr, label: titled(attr) })),
     ];
   }, [attributes, typeSlots, i18n.language]);
+  // What the header menu changed, as the view keeps it (T-4827): on "All rows" in this browser too.
+  const layout = useMemo(() => ({ order: extras.order, width: extras.width, labels: extras.labels }), [extras.order, extras.width, extras.labels]);
+  const onLayout = useCallback(
+    (next: { order?: readonly string[]; width?: Readonly<Record<string, number>>; labels?: Readonly<Record<string, string>> }) =>
+      setExtras((before) => ({ ...before, order: next.order ? [...next.order] : before.order, width: next.width ? { ...next.width } : before.width, labels: next.labels ? { ...next.labels } : before.labels })),
+    [],
+  );
+  const onHide = useCallback((attr: string) => setExtras((before) => ({ ...before, hidden: [...new Set([...(before.hidden ?? []), attr])] })), []);
+  // The kept layout is read for each type before anything is written for it: the type can arrive
+  // after the first render (the model loads), and writing first would store an empty layout. The
+  // read happens while rendering, React's way to follow a changed input without an extra pass.
+  const layoutKey = `${project}\u0000${space}\u0000${type}`;
+  const [loadedFor, setLoadedFor] = useState(type === "" ? null : layoutKey);
+  if (saved === null && type !== "" && loadedFor !== layoutKey) {
+    setLoadedFor(layoutKey);
+    const kept = readLayout(project, space, type);
+    if (kept) setExtras((before) => ({ ...before, ...kept }));
+  }
+  useEffect(() => {
+    if (saved !== null || type === "" || loadedFor !== layoutKey) return;
+    writeLayout(project, space, type, { hidden: extras.hidden, width: extras.width, order: extras.order, labels: extras.labels });
+  }, [saved, loadedFor, layoutKey, project, space, type, extras.hidden, extras.width, extras.order, extras.labels]);
+  // A chip opens its target in the explorer, read through the person's own grant (T-4827).
+  const navigate = useNavigate();
+  const openTarget = useCallback(
+    (urn: string) => void navigate({ to: "/projects/$project/explore", params: { project }, search: { space, type: targetName(urn).type, entityId: urn } }),
+    [navigate, project, space],
+  );
 
   const config = useMemo(() => {
     if (type === "") {
@@ -545,7 +591,7 @@ function SpaceData({
         onType={(next) => {
           if (next === type) return;
           setType(next);
-          applyView(null);
+          applyView(null, next);
           setSeen([]);
         }}
         onView={applyView}
@@ -611,6 +657,29 @@ function SpaceData({
       ) : null}
       {probe.isSuccess && view !== "api" ? (
         <div className="flex flex-wrap items-end gap-3">
+          {view === "grid" && typeSlots.length > 0 ? (
+            // The same right as Import beside it; the space's Policy decides the write itself.
+            <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+              <Button onClick={() => setCreating(true)}>{t("spaces.inside.addRow")}</Button>
+            </PermissionGuard>
+          ) : null}
+          <Dialog
+            open={creating}
+            onOpenChange={setCreating}
+            title={t("spaces.inside.addRowTitle", { type: typeTitle })}
+            closeLabel={t("app.close")}
+            size="lg"
+          >
+            <FormView
+              space={space}
+              type={type}
+              slots={typeSlots}
+              enums={enums}
+              settings={formSettings}
+              search={new URLSearchParams()}
+              onCreated={() => setImported((n) => n + 1)}
+            />
+          </Dialog>
           {importSlots.length > 0 ? (
             // The same right as the upload link above: the space has no grant document of its own (T-4263).
             <PermissionGuard project={project} kind="ContextSpace" verb="propose">
@@ -743,7 +812,11 @@ function SpaceData({
           // A new key after an import, or a view applied, reads the type again: nothing typed under
           // the last one carries over.
           key={`${space}-${type}-${saved?.id ?? ""}-${imported}`}
-          detailExtra={(row) => <CommentsPanel project={project} space={space} urn={row.id} />}
+          detailTabs={(row) => [
+            { id: "comments", label: t("spaces.comments.title"), content: <CommentsPanel project={project} space={space} urn={row.id} /> },
+          ]}
+          openRow={openRow}
+          onOpenRow={setOpenRow}
           project={project}
           config={config}
           source={gridSource}
@@ -758,6 +831,10 @@ function SpaceData({
           onQuery={setAsked}
           onRows={onRows}
           hidden={extras.hidden}
+          onHide={onHide}
+          layout={layout}
+          onLayout={onLayout}
+          onOpenRelationship={openTarget}
           rowTone={rowTone}
           query={groupQuery}
           empty={<p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>}

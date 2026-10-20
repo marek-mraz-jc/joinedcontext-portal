@@ -362,10 +362,10 @@ it("shows what a value is measured in, and when it was observed", async () => {
 
   // A count is in "one" (C62), which has no symbol: the number alone, the unit named on hover.
   expect(screen.getByText("5").closest("td")).toHaveAttribute("title", "one (C62)");
-  await userEvent.click(screen.getByLabelText(`${en.entityGrid.showMetadata} availableBikeNumber`));
+  await userEvent.click(screen.getByLabelText(`${en.entityGrid.columnMenu}: availableBikeNumber`));
   await userEvent.click(screen.getByLabelText(en.entityGrid.observedAt));
   await waitFor(() =>
-    expect(screen.getAllByText("2026-09-19T08:00:00Z").length).toBeGreaterThan(0),
+    expect(screen.getAllByText(/Sep 19, 2026/).length).toBeGreaterThan(0),
   );
 });
 

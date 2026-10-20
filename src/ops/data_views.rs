@@ -30,6 +30,10 @@ pub const MAX_CONFIG_BYTES: usize = 64 * 1024;
 /// Views one person keeps in one space: a list a person reads, not a dump.
 pub const MAX_PER_PERSON: i64 = 200;
 const MAX_ATTR: usize = 256;
+/// Attributes a view orders or labels at most: a type's columns, not a dump.
+pub const MAX_COLUMNS: usize = 256;
+/// A view's own column label, in characters (T-4827).
+pub const MAX_LABEL: usize = 80;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -65,6 +69,12 @@ pub struct ViewConfig {
     /// Column widths in pixels, by attribute.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub width: BTreeMap<String, u32>,
+    /// The columns in the order the view shows them, by attribute; the rest follow (T-4827).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub order: Vec<String>,
+    /// A label of the view's own, by attribute: shown as text, the model keeps its own (T-4827).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub labels: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub colour: Vec<ColourRule>,
     /// The view kind's own settings: card fields, the kanban's attribute, a calendar's dates.
@@ -176,11 +186,26 @@ impl ViewConfig {
             .map(|key| key.attr.as_str())
             .chain(self.group.as_deref())
             .chain(self.hidden.iter().map(String::as_str))
-            .chain(self.width.keys().map(String::as_str));
+            .chain(self.width.keys().map(String::as_str))
+            .chain(self.order.iter().map(String::as_str))
+            .chain(self.labels.keys().map(String::as_str));
         for name in names {
             if !is_attr(name) {
                 return invalid(format!("'{name}' is not an attribute name"));
             }
+        }
+        if self.order.len() > MAX_COLUMNS || self.labels.len() > MAX_COLUMNS {
+            return invalid(format!(
+                "config.order and config.labels name at most {MAX_COLUMNS} attributes"
+            ));
+        }
+        if let Some((attr, _)) = self.labels.iter().find(|(_, label)| {
+            let length = label.trim().chars().count();
+            length == 0 || label.chars().count() > MAX_LABEL || label.chars().any(char::is_control)
+        }) {
+            return invalid(format!(
+                "config.labels['{attr}'] is 1 to {MAX_LABEL} characters without control characters"
+            ));
         }
         if self.width.values().any(|w| !(40..=2000).contains(w)) {
             return invalid("config.width is between 40 and 2000 pixels".into());
@@ -637,6 +662,8 @@ mod tests {
                 "group": "status",
                 "hidden": ["dateLastReported"],
                 "width": { "name": 240 },
+                "order": ["name", "ngsi-ld:status"],
+                "labels": { "ngsi-ld:status": "Tila" },
                 "colour": [{ "when": "availableBikeNumber==0", "colour": "danger" }],
                 "settings": {}
             }
@@ -668,6 +695,17 @@ mod tests {
         assert!(bad(json!({ "config": { "sort": [{ "attr": "a" }, { "attr": "b" }, { "attr": "c" }, { "attr": "d" }] } })).contains("sort"));
         assert!(bad(json!({ "config": { "hidden": ["a b"] } })).contains("'a b'"));
         assert!(bad(json!({ "config": { "width": { "a": 5 } } })).contains("width"));
+        assert!(bad(json!({ "config": { "order": ["a", "b c"] } })).contains("'b c'"));
+        assert!(
+            bad(json!({ "config": { "labels": { "a": "  " } } })).contains("config.labels['a']")
+        );
+        assert!(
+            bad(json!({ "config": { "labels": { "a": "x".repeat(MAX_LABEL + 1) } } }))
+                .contains("config.labels")
+        );
+        assert!(bad(json!({ "config": { "labels": { "a": "line\nbreak" } } })).contains("control"));
+        let many: Vec<String> = (0..=MAX_COLUMNS).map(|i| format!("a{i}")).collect();
+        assert!(bad(json!({ "config": { "order": many } })).contains("at most"));
         assert!(
             bad(json!({ "config": { "colour": [{ "when": "a==1", "colour": "#ff0000" }] } }))
                 .contains("#ff0000")
