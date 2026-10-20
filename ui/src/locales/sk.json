@@ -100,6 +100,12 @@
     "home": "Domov",
     "inbox": "Doručené",
     "mqttbrokers": "MQTT brokery",
+    "knowledgesources": "Zdroje znalostí",
+    "assistantdeployments": "Nasadenia asistenta",
+    "datamodels": "Dátové modely",
+    "serviceaccounts": "Servisné účty",
+    "mappings": "Mapovania",
+    "layers": "Mapové vrstvy",
     "csrs": "Kontextové zdroje"
   },
   "auth": {
@@ -3846,6 +3852,10 @@
     "factorFor": "Prevodný koeficient pre {slot}",
     "golden": "Zlatý test",
     "input": "Vstupný príklad (JSON)",
+    "inputHelp": "Zdrojový záznam ako JSON, napríklad jedna entita, ktorú zdroj posiela; výstup vedľa neho ukazuje, čo z neho mapovanie urobí.",
+    "sourceHelp": "Model, v ktorom záznamy prichádzajú.",
+    "targetHelp": "Model, na ktorý sa záznamy premenia.",
+    "nameHelp": "Názov mapovania v projekte: malé písmená, číslice a pomlčky; podľa neho sa volajú súbory zlatého testu.",
     "output": "Transformovaný výstup",
     "unchecked": "Tu sa nevyhodnocujú, pochádzajú z natívneho bloblangu: {slots}. CI ich spustí cez Bento.",
     "missing": "Vstupný príklad neobsahuje hodnotu pre: {slots}.",
@@ -3977,7 +3987,9 @@
     "nameInvalid": "Malé písmená, číslice a spojovníky, na začiatku a na konci písmeno alebo číslica.",
     "nameReserved": "„org“ je vlastný menný priestor organizácie, nikdy nie projekt.",
     "displayNameLabel": "Zobrazovaný názov",
+    "displayNameHint": "Názov, ktorý ľudia čítajú v ponuke projektov a v katalógu; ak ho necháte prázdny, zobrazí sa názov vyššie.",
     "descriptionLabel": "Popis",
+    "descriptionHint": "Jedna veta o tom, na čo projekt slúži, zobrazená pod jeho názvom v zozname projektov.",
     "notAllowed": "Táto organizácia vám neumožňuje otvoriť projekt.",
     "nameNeeded": "Na otvorenie projektu je potrebné použiteľné meno.",
     "planLocked": "Ak to chcete zmeniť, zatvorte okno a začnite znova; plán bol pripravený pre túto hodnotu."
@@ -4782,7 +4794,8 @@
       "green": "Skontrolované {age}",
       "red": "Kontrola zlyhala {age}",
       "stale": "Zmenené od kontroly",
-      "waiting": "Prejde po schválení {changes} · skontrolované {age}"
+      "waiting": "Prejde po schválení {changes} · skontrolované {age}",
+      "refused": "Kontrola zlyhala: dôvod je nižšie"
     },
     "proposeReason": {
       "none": "Najprv spustite kontrolu: nič sa nenavrhuje bez čerstvého zeleného verdiktu.",
