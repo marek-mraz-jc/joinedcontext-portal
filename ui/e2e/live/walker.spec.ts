@@ -18,7 +18,7 @@
  * known and owed is in `walker.allow.json`, each entry naming its task, and only shrinks. The
  * mocked copy of the same checks runs in the fast suite (`tests/walker_pages.test.tsx`).
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
@@ -157,8 +157,13 @@ for (const [who, person] of [
       }
       if (who === "viewer") refused = await endpointsRefused(page);
     } finally {
-      if (process.env.SHOTS_DIR) writeIndex(process.env.SHOTS_DIR);
-      await test.info().attach(`walker-${who}.json`, { body: JSON.stringify(report, null, 2), contentType: "application/json" });
+      const body = JSON.stringify(report, null, 2);
+      if (process.env.SHOTS_DIR) {
+        writeIndex(process.env.SHOTS_DIR);
+        // walk-rows.ts fills no row from a page this walker found anything on (T-3986).
+        writeFileSync(join(process.env.SHOTS_DIR, `walker-${who}.json`), body);
+      }
+      await test.info().attach(`walker-${who}.json`, { body, contentType: "application/json" });
       await context.close();
     }
     expect(refused, "the cross-project Endpoints reach no one but an administrator").toEqual([]);
