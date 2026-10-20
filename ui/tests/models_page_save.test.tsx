@@ -28,6 +28,14 @@ slots:
     required: true
 `;
 
+/** The Propose button, whatever version the edit makes (T-4830). */
+const PROPOSE = /^Propose v\d+\.\d+\.\d+$/;
+
+/** The published model with one optional slot more: an edit there is something to propose. */
+const EDITED_LINKML = PUBLISHED_LINKML.replace("      - dateObserved\n", "      - dateObserved\n      - pm10\n").concat(
+  "  pm10:\n    range: float\n",
+);
+
 function renderWithClient(
   ui: React.ReactElement,
   queryClient = new QueryClient({
@@ -78,6 +86,8 @@ describe("ModelsPage save and source loading (DM-56)", () => {
   });
 
   afterEach(() => {
+    // A hand-off replays on its route until the person leaves it; each test starts without one.
+    settlePrefill("/elsewhere");
     global.fetch = originalFetch;
     vi.restoreAllMocks();
   });
@@ -195,6 +205,8 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     });
     global.fetch = fetchMock;
 
+    // An edit, so there is something to propose (T-4830).
+    rememberPrefill("/", { source: EDITED_LINKML });
     renderWithClient(
       <ModelsPage
         project="ovzdusie"
@@ -206,7 +218,7 @@ describe("ModelsPage save and source loading (DM-56)", () => {
       />,
     );
 
-    const saveBtn = await screen.findByRole("button", { name: /save model/i });
+    const saveBtn = await screen.findByRole("button", { name: PROPOSE });
     await user.click(saveBtn);
 
     await waitFor(() => {
@@ -220,6 +232,29 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     await waitFor(() => {
       expect(screen.getByText(/mr-88/i)).toBeInTheDocument();
     });
+  });
+
+  it("keeps Propose closed on an unedited model, then shows the diff and the version an edit makes (T-4830)", async () => {
+    global.fetch = vi.fn().mockImplementation((req: RequestInfo | URL) => {
+      const url = typeof req === "string" ? req : req instanceof Request ? req.url : req.toString();
+      if (url.includes("/datamodels/air-quality/source")) return Promise.resolve(new Response(PUBLISHED_LINKML, { status: 200 }));
+      return Promise.resolve(new Response(JSON.stringify({ items: [] }), { status: 200 }));
+    });
+    const view = renderWithClient(
+      <ModelsPage project="ovzdusie" baseline={{ name: "air-quality", version: "1.0.0", lifecycle: "published" }} />,
+    );
+    const closed = await screen.findByRole("button", { name: "Propose v1.0.0" });
+    await waitFor(() => expect(closed).toHaveAttribute("aria-disabled", "true"));
+    expect(closed).toHaveAccessibleDescription(en.models.source.unchanged);
+    view.unmount();
+
+    rememberPrefill("/", { source: EDITED_LINKML });
+    renderWithClient(
+      <ModelsPage project="ovzdusie" baseline={{ name: "air-quality", version: "1.0.0", lifecycle: "published" }} />,
+    );
+    const open = await screen.findByRole("button", { name: "Propose v1.1.0" });
+    await waitFor(() => expect(open).not.toHaveAttribute("aria-disabled", "true"));
+    expect(screen.getByText("1 added · 0 changed · 0 removed · v1.0.0 → v1.1.0")).toBeVisible();
   });
 
   it("Save shows problem detail on 400 response", async () => {
@@ -252,6 +287,8 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     });
     global.fetch = fetchMock;
 
+    // An edit, so there is something to propose (T-4830).
+    rememberPrefill("/", { source: EDITED_LINKML });
     renderWithClient(
       <ModelsPage
         project="ovzdusie"
@@ -263,7 +300,7 @@ describe("ModelsPage save and source loading (DM-56)", () => {
       />,
     );
 
-    const saveBtn = await screen.findByRole("button", { name: /save model/i });
+    const saveBtn = await screen.findByRole("button", { name: PROPOSE });
     await user.click(saveBtn);
 
     await waitFor(() => {
@@ -297,7 +334,7 @@ describe("ModelsPage save and source loading (DM-56)", () => {
       <ModelsPage project="ovzdusie" baseline={{ name: "air-quality", version: "1.0.0", lifecycle: "published" }} />,
     );
 
-    const saveBtn = await screen.findByRole("button", { name: /save model/i });
+    const saveBtn = await screen.findByRole("button", { name: PROPOSE });
     await waitFor(() => expect(saveBtn).toHaveAttribute("aria-disabled", "true"));
     expect(saveBtn).toHaveAccessibleDescription(/fix the errors the editor lists before saving\. left: 1\./i);
     expect(screen.getByText(/fix the errors the editor lists before saving\. left: 1\./i, { selector: "p" })).toBeVisible();
@@ -333,10 +370,12 @@ describe("ModelsPage save and source loading (DM-56)", () => {
       return Promise.resolve(new Response("{}", { status: 200 }));
     });
 
+    // An edit, so there is something to propose (T-4830).
+    rememberPrefill("/", { source: EDITED_LINKML });
     renderWithClient(
       <ModelsPage project="ovzdusie" baseline={{ name: "air-quality", version: "1.0.0", lifecycle: "published" }} />,
     );
-    await user.click(await screen.findByRole("button", { name: /save model/i }));
+    await user.click(await screen.findByRole("button", { name: PROPOSE }));
     expect(
       await screen.findByText(
         "the model breaks 1 relationship rule; nothing was saved (DM-68): slots.station: inverse-missing: station (Reading → Station) names no inverse",
@@ -388,7 +427,7 @@ describe("ModelsPage save and source loading (DM-56)", () => {
         await screen.findByRole("heading", { name: `${en.models.severity.breaking} · ${en.lane.red}` }),
       ).toBeInTheDocument();
       expect(screen.getByText("the slot was removed; a renamed slot is a removal and an addition", { exact: false })).toBeInTheDocument();
-      const save = screen.getByRole("button", { name: en.models.source.save });
+      const save = screen.getByRole("button", { name: PROPOSE });
       expect(save).toBeDisabled();
 
       await user.click(screen.getByRole("checkbox", { name: "Save it as version 2.0.0, a breaking change" }));
@@ -409,7 +448,7 @@ describe("ModelsPage save and source loading (DM-56)", () => {
       const alert = await screen.findByRole("alert");
       expect(alert).toHaveTextContent(en.models.source.handOffRefused);
       expect(alert).toHaveTextContent("unknown slot 'pm25'");
-      expect(screen.getByRole("button", { name: en.models.source.save })).toBeEnabled();
+      expect(screen.getByRole("button", { name: PROPOSE })).toBeEnabled();
     });
   });
 
@@ -464,7 +503,7 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     renderWithClient(<ModelsPage project="ovzdusie" />);
 
     // A blank draft has no manifest, so nothing can be saved until it is named and placed.
-    expect(screen.queryByRole("button", { name: /save model/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: PROPOSE })).not.toBeInTheDocument();
 
     await user.click(await screen.findByRole("tab", { name: en.models.view.editor }));
     const name = await screen.findByLabelText(en.models.create.name);
@@ -478,11 +517,11 @@ describe("ModelsPage save and source loading (DM-56)", () => {
 
     // A name the project already carries would fork a second model under one name.
     expect(await screen.findByRole("alert")).toHaveTextContent(/already has a model named/i);
-    expect(screen.getByRole("button", { name: /save model/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: PROPOSE })).toBeDisabled();
 
     await user.clear(name);
     await user.type(name, "Bikes");
-    await user.click(screen.getByRole("button", { name: /save model/i }));
+    await user.click(screen.getByRole("button", { name: PROPOSE }));
 
     await waitFor(() => {
       expect(requests(fetchMock)).toContainEqual({
@@ -511,7 +550,7 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     renderWithClient(<ModelsPage project="ovzdusie" baseline={{ name: "air-quality", version: "1.0.0", lifecycle: "published" }} />);
 
     const reason = en.permissions.denied.replaceAll("''", "'").replace("{verb}", "propose").replace("{kind}", "DataModel");
-    for (const name of [en.models.source.saveCheck, en.models.source.save]) {
+    for (const name of [en.models.source.saveCheck, PROPOSE]) {
       const button = await screen.findByRole("button", { name });
       await waitFor(() => expect(button).toHaveAttribute("aria-disabled", "true"));
       expect(button).toHaveAccessibleDescription(reason);
@@ -577,7 +616,7 @@ describe("ModelsPage save and source loading (DM-56)", () => {
       expect(await screen.findByLabelText(en.models.create.name)).toHaveValue("air-quality-observed");
       expect(screen.queryByRole("button", { name: /remove/i })).not.toBeInTheDocument();
 
-      await user.click(screen.getByRole("button", { name: /save model/i }));
+      await user.click(screen.getByRole("button", { name: PROPOSE }));
       await waitFor(() => {
         expect(requests(fetchMock)).toContainEqual({
           url: "/api/v1/projects/ovzdusie/datamodels/air-quality-observed/source?space=air",
@@ -614,7 +653,7 @@ describe("ModelsPage save and source loading (DM-56)", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent(
         en.models.create.spaceTaken.replaceAll("{space}", "air").replaceAll("{model}", "air-quality"),
       );
-      expect(screen.queryByRole("button", { name: /save model/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: PROPOSE })).not.toBeInTheDocument();
     } finally {
       window.history.replaceState(null, "", "/");
     }

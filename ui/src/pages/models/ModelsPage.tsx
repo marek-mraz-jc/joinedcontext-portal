@@ -37,7 +37,8 @@ import { blankSource, diagnose, parseModel } from "./linkml";
 import { applyOperations } from "./operations";
 import type { Operation } from "./operations";
 import {
-  bumpVersion,
+  diffCounts,
+  proposedVersion,
   classifyChanges,
   laneOf,
   refusalToSave,
@@ -282,7 +283,10 @@ export function ModelsPage({
     [publishedSource, model],
   );
   const severity = severityOf(changes);
-  const nextVersion = published ? bumpVersion(published.version, changes) : "1.0.0";
+  // Nothing to propose until the text moves away from the version it started from (T-4830).
+  const moved = publishedSource === undefined || publishedSource.trim() !== source.trim();
+  const nextVersion = published ? proposedVersion(published.version, changes, moved) : "1.0.0";
+  const counts = diffCounts(changes);
   const lane = laneOf(changes, published?.lifecycle ?? "draft");
   const refusal = published
     ? refusalToSave(changes, published.version, published.version)
@@ -480,12 +484,19 @@ export function ModelsPage({
                     saving ||
                     checking ||
                     taken ||
+                    !moved ||
                     blocking > 0 ||
                     (severity === "breaking" && !breakingConfirmed)
                   }
-                  disabledReason={blocking > 0 ? t("models.source.fixErrors", { count: blocking }) : undefined}
+                  disabledReason={
+                    blocking > 0
+                      ? t("models.source.fixErrors", { count: blocking })
+                      : !moved
+                        ? t("models.source.unchanged")
+                        : undefined
+                  }
                 >
-                  {t("models.source.save")}
+                  {t("models.source.save", { version: nextVersion })}
                 </Button>
               </PermissionGuard>
               {published ? (
@@ -547,6 +558,11 @@ export function ModelsPage({
           <h2 id="models-changes" className="text-sm font-semibold">
             {t(`models.severity.${severity}`)} · {t(`lane.${lane}`)}
           </h2>
+          {moved ? (
+            <p className="mt-1 text-body">
+              {t("models.source.diffSummary", { ...counts, from: published.version, to: nextVersion })}
+            </p>
+          ) : null}
           {refusal ? (
             <InlineError className="mt-1">
               {refusal}

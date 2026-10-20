@@ -35,7 +35,7 @@ export function ChangedFields({ project, id }: { project: string; id: string }):
  * newest first, each with who proposed it, when it closed and what it changed. "Restore this
  * version" reads the manifest a merged change wrote and hands it to the editor, which checks and
  * proposes it like any edit; nothing is written here. A person who may not propose the kind
- * sees the history and no restore.
+ * sees the history and no restore, and so does a read-only page that passes no `onRestore`.
  */
 export function ResourceHistory({
   project,
@@ -46,7 +46,7 @@ export function ResourceHistory({
   project: string;
   kind: string;
   name: string;
-  onRestore: (manifest: unknown, change: string) => void;
+  onRestore?: (manifest: unknown, change: string) => void;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
@@ -80,7 +80,7 @@ export function ResourceHistory({
       }
       return { manifest, id };
     },
-    onSuccess: ({ manifest, id }) => onRestore(manifest, id),
+    onSuccess: ({ manifest, id }) => onRestore?.(manifest, id),
   });
   const dateFormatter = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" });
 
@@ -133,7 +133,7 @@ export function ResourceHistory({
                 >
                   {t("approvals.history.whatChanged")}
                 </Button>
-                {change.status.phase === "Merged" && can(kind, "propose") ? (
+                {onRestore && change.status.phase === "Merged" && can(kind, "propose") ? (
                   <Button
                     size="sm"
                     variant="secondary"
