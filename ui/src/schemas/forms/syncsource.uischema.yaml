@@ -70,11 +70,23 @@ spec:
         cs: Rozvrh a pravidla
         de: Zeitplan und Regeln
       description:
-        en: Run interval, merge mode, conflict policy and cleanup options.
-        sk: Interval spúšťania, režim zlučovania, riešenie konfliktov a voľby čistenia.
-        cs: Interval spouštění, režim slučování, řešení konfliktů a volby čištění.
-        de: Ausführungsintervall, Zusammenführungsmodus, Konfliktregeln und Bereinigungsoptionen.
-      fields: [interval, mode, conflictPolicy, prune, autoMerge]
+        en: How often the source is read, whether it is mirrored or imported once, and what wins a name clash.
+        sk: Ako často sa zdroj číta, či sa zrkadlí alebo importuje raz, a čo vyhrá pri zhode názvov.
+        cs: Jak často se zdroj čte, zda se zrcadlí nebo importuje jednou, a co vyhraje při shodě názvů.
+        de: Wie oft die Quelle gelesen wird, ob sie gespiegelt oder einmal importiert wird und was bei gleichen Namen gilt.
+      fields: [interval, mode, conflictPolicy]
+    - title:
+        en: Cleanup and automatic merge
+        sk: Čistenie a automatické zlúčenie
+        cs: Čištění a automatické sloučení
+        de: Bereinigung und automatisches Zusammenführen
+      description:
+        en: Whether resources the source drops are removed here, and whether passing changes apply without review.
+        sk: Či sa tu odstránia prostriedky, ktoré zdroj vypustí, a či sa zmeny, ktoré prejdú kontrolami, nasadia bez schválenia.
+        cs: Zda se zde odstraní prostředky, které zdroj vypustí, a zda se změny, které projdou kontrolami, nasadí bez schválení.
+        de: Ob Ressourcen, die die Quelle entfernt, auch hier entfernt werden und ob geprüfte Änderungen ohne Freigabe gelten.
+      folded: true
+      fields: [prune, autoMerge]
   fields:
     name:
       help:

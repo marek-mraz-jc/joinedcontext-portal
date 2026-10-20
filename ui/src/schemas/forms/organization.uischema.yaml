@@ -70,6 +70,7 @@ spec:
         sk: Čo organizácia povoľuje a koľko pre ňu platforma urobí, každé v rozsahu, ktorý nastaví prevádzkovateľ.
         cs: Co organizace povoluje a kolik pro ni platforma udělá, každé v rozsahu, který nastaví provozovatel.
         de: Was die Organisation erlaubt und wie viel die Plattform für sie leistet, jeweils im Bereich, den der Betreiber setzt.
+      folded: true
       fields: [policies, limits]
   fields:
     policies.apps.services:

@@ -100,6 +100,12 @@
     "home": "Domů",
     "inbox": "Doručené",
     "mqttbrokers": "MQTT brokery",
+    "knowledgesources": "Zdroje znalostí",
+    "assistantdeployments": "Nasazení asistenta",
+    "datamodels": "Datové modely",
+    "serviceaccounts": "Servisní účty",
+    "mappings": "Mapování",
+    "layers": "Mapové vrstvy",
     "csrs": "Kontextové zdroje"
   },
   "auth": {
@@ -3850,6 +3856,10 @@
     "factorFor": "Převodní koeficient pro {slot}",
     "golden": "Zlatý test",
     "input": "Vstupní příklad (JSON)",
+    "inputHelp": "Zdrojový záznam jako JSON, například jedna entita, kterou zdroj posílá; výstup vedle něj ukazuje, co z něj mapování udělá.",
+    "sourceHelp": "Model, ve kterém záznamy přicházejí.",
+    "targetHelp": "Model, na který se záznamy převedou.",
+    "nameHelp": "Název mapování v projektu: malá písmena, číslice a pomlčky; podle něj se jmenují soubory zlatého testu.",
     "output": "Transformovaný výstup",
     "unchecked": "Zde se nevyhodnocují, pocházejí z nativního bloblangu: {slots}. CI je spustí přes Bento.",
     "missing": "Vstupní příklad neobsahuje hodnotu pro: {slots}.",
@@ -3981,7 +3991,9 @@
     "nameInvalid": "Malá písmena, číslice a spojovníky, na začátku a na konci písmeno nebo číslice.",
     "nameReserved": "„org“ je vlastní jmenný prostor organizace, nikdy ne projekt.",
     "displayNameLabel": "Zobrazovaný název",
+    "displayNameHint": "Název, který lidé čtou v nabídce projektů a v katalogu; když ho necháte prázdný, zobrazí se název výše.",
     "descriptionLabel": "Popis",
+    "descriptionHint": "Jedna věta o tom, k čemu projekt slouží, zobrazená pod jeho názvem v seznamu projektů.",
     "notAllowed": "Tato organizace vám neumožňuje otevřít projekt.",
     "nameNeeded": "K otevření projektu je potřeba použitelné jméno.",
     "planLocked": "Chcete-li to změnit, zavřete okno a začněte znovu; plán byl připraven pro tuto hodnotu."
@@ -4046,6 +4058,7 @@
     "filterRow": "Filtry",
     "sortPage": "Seřadit tuto stranu podle",
     "matching": "odpovídajících",
+    "noTotal": "endpoint u této odpovědi neuvádí celkový počet",
     "history": "Historie",
     "historyWindow": {
       "hour": "Poslední hodinu",
@@ -4785,7 +4798,8 @@
       "green": "Zkontrolováno {age}",
       "red": "Kontrola selhala {age}",
       "stale": "Změněno od kontroly",
-      "waiting": "Projde po schválení {changes} · zkontrolováno {age}"
+      "waiting": "Projde po schválení {changes} · zkontrolováno {age}",
+      "refused": "Kontrola selhala: důvod je níže"
     },
     "proposeReason": {
       "none": "Nejprve spusťte kontrolu: nic se nenavrhuje bez čerstvého zeleného verdiktu.",

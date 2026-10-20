@@ -47,10 +47,11 @@ spec:
         cs: Limity a pracovní prostor
         de: Grenzen und Arbeitsbereich
       description:
-        en: The bounds every run is held to, and the resources its workspace gets.
-        sk: Hranice každého behu a prostriedky jeho pracovného priestoru.
-        cs: Hranice každého běhu a prostředky jeho pracovního prostoru.
-        de: Die Grenzen jedes Laufs und die Ressourcen seines Arbeitsbereichs.
+        en: The bounds every run is held to, and the resources its workspace gets; the reference profile's values are filled in.
+        sk: Hranice každého behu a prostriedky jeho pracovného priestoru; hodnoty referenčného profilu sú vyplnené.
+        cs: Hranice každého běhu a prostředky jeho pracovního prostoru; hodnoty referenčního profilu jsou vyplněné.
+        de: Die Grenzen jedes Laufs und die Ressourcen seines Arbeitsbereichs; die Werte des Referenzprofils sind eingetragen.
+      folded: true
       fields: [limits, workspace]
     - title:
         en: Reach
@@ -62,6 +63,7 @@ spec:
         sk: Hostitelia, ktorých beh smie čítať, nástroje, ktoré nesie, a čo v portáli smie volať.
         cs: Hostitelé, které běh smí číst, nástroje, které nese, a co v portálu smí volat.
         de: Die lesbaren Hosts, die mitgeführten Werkzeuge und was ein Lauf im Portal aufrufen darf.
+      folded: true
       fields: [egress, tools, access]
   fields:
     name:

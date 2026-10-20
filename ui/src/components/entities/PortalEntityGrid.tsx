@@ -94,6 +94,7 @@ export function gridLabels(t: (key: string) => string): GridLabels {
     filterRow: t("entityGrid.filterRow"),
     sortPage: t("entityGrid.sortPage"),
     matching: t("entityGrid.matching"),
+    noTotal: t("entityGrid.noTotal"),
     history: t("entityGrid.history"),
     historyLabels: {
       title: t("entityGrid.history"),
