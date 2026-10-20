@@ -481,7 +481,10 @@
     "newHint": "Vyplňte formulář, zkontrolujte jej a navrhněte; změnu posoudí schvalovatel.",
     "propose": "Navrhnout změnu",
     "emptyHintCreate": "V projektu zatím nic tohoto druhu není. {new} otevře formulář.",
-    "askAssistant": "Požádat asistenta o návrh"
+    "askAssistant": "Požádat asistenta o návrh",
+    "leadOrganization": "Vše tohoto druhu, co organizace drží. Každý řádek otevře, co pojmenovává.",
+    "emptyHintOrganization": "V organizaci zatím nic tohoto druhu není. Tato stránka to zobrazuje a čte; požádejte asistenta a rozhodněte o jeho návrhu.",
+    "emptyHintCreateOrganization": "V organizaci zatím nic tohoto druhu není. {new} otevře formulář."
   },
   "spaces": {
     "entitiesUnknown": "Počet není k dispozici: {reason}",
@@ -512,8 +515,6 @@
       "total": "Prostor obsahuje {count, plural, one {# entitu} few {# entity} other {# entit}}.",
       "open": "Prohlédnout obsah",
       "data": "Data",
-      "dataLead": "Vše, co tento prostor drží, nakolik to vaše oprávnění dovolí. Endpoint zobrazuje totéž, zúžené jeho politikou.",
-      "dataType": "Typ entity",
       "dataEmpty": "Zatím nic: do tohoto prostoru ještě nezapsala žádná pipeline.",
       "dataThroughEndpoints": "Tento prostor můžete vidět přes jeho endpointy:",
       "dataNoTypes": "Tento prostor nepojmenovává datový model, takže není co číst.",
@@ -546,7 +547,11 @@
       "lead": "Jeho datový model, entity, kdo je čte a co se s ním stalo.",
       "broker": "Běží na kontextovém brokeru {broker}.",
       "size": "Velikost",
-      "totalSize": "V úložišti brokera zabírá {size}, z toho historie {history}."
+      "totalSize": "V úložišti brokera zabírá {size}, z toho historie {history}.",
+      "sections": "Části prostoru",
+      "counting": "Počítám entity prostoru…",
+      "allRows": "Všechny řádky",
+      "savedViews": "Uložené pohledy"
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -1821,7 +1826,6 @@
     },
     "bloblangHint": "Bloblang mapování se upravuje zde a ukládá do manifestu; prázdné zůstává v bento.yaml vedle tohoto manifestu ve forge.",
     "bloblangFile": "Otevřít bento.yaml",
-    "bentoMapping": "Tato pipeline má mapování v souboru bento.yaml vedle manifestu, proto je pole mapování níže prázdné. Otevřete soubor a přečtěte si ho; mapování napsané níže běží jako výpočetní krok pipeline.",
     "studio": {
       "source": "1. Zdroj",
       "sourceKind": "Číst z",
@@ -2145,7 +2149,12 @@
         "addConversion": "Přidat do mapování",
         "bloblangHint": "Bloblang, který z jednoho záznamu udělá jednu entitu: nastavte její id, typ a sloty uvedené vedle.",
         "addLine": "Přidat do mapování",
-        "addLineOf": "Přidat řádek pro {slot} do mapování"
+        "addLineOf": "Přidat řádek pro {slot} do mapování",
+        "file": "Soubor mapování (bento.yaml)",
+        "fileHint": "Procesory, které tato pipeline spouští, tak jak je repozitář drží vedle jejího manifestu. Přihlašovací údaje jsou odkazy, které doplní runner, nikdy ne hodnoty.",
+        "fileEdit": "Upravit soubor mapování; Navrhnout jej pošle s manifestem",
+        "fileEditDisabled": "Soubor mapování můžete upravit, až se načte.",
+        "type": "Typ, který mapování zapisuje"
       },
       "output": {
         "title": "Namapovaný výstup",
@@ -3884,7 +3893,17 @@
       "instance": "{project} / {name}",
       "show": "Zobrazit všechny katalogy",
       "hide": "Skrýt katalogy"
-    }
+    },
+    "find": "Najít endpoint podle projektu, prostoru, názvu nebo slugu",
+    "allProjects": "Všechny projekty",
+    "noMatch": "Žádný endpoint neodpovídá",
+    "noMatchHint": "Vymažte hledání nebo zvolte všechny projekty.",
+    "pages": "Strany endpointů",
+    "range": "{from}–{to} z {count}",
+    "previous": "Předchozí",
+    "next": "Další",
+    "firstPage": "Toto je první strana.",
+    "lastPage": "Toto je poslední strana."
   },
   "projects": {
     "loading": "Načítám projekty…",
@@ -4648,7 +4667,17 @@
     "pickedClear": "Upravovat vše"
   },
   "permissions": {
-    "denied": "Vypnuto: vaše role nedovoluje ''{verb}'' na ''{kind}'' v tomto projektu"
+    "denied": "Vypnuto: vaše role nedovoluje ''{verb}'' na ''{kind}'' v tomto projektu",
+    "deniedOrganization": "Jen administrátor organizace může {action}: {kinds}.",
+    "action": {
+      "read": "vidět",
+      "propose": "přidat nebo změnit",
+      "approve": "schválit změny",
+      "delete": "smazat",
+      "create": "přidat",
+      "update": "změnit",
+      "disable": "vypnout"
+    }
   },
   "drafts": {
     "touched": "Koncept v{version}, naposledy upravil {who} ({kind})",
@@ -5350,7 +5379,6 @@
     "title": "Administrace",
     "adminOnly": "Tato stránka je pro administrátory organizace. O to, co zde potřebujete, požádejte některého z nich.",
     "lead": "Co je stejné v každém projektu: nastavení organizace, její členové, role, skupiny a servisní účty a její projekty. Každá změna se zde navrhuje a schvaluje.",
-    "tabsLabel": "Části organizace",
     "tab": {
       "settings": "Nastavení",
       "people": "Lidé",
@@ -5920,7 +5948,23 @@
         "down": "Nedostupný",
         "unknown": "Bez adresy"
       }
-    }
+    },
+    "nav": {
+      "back": "Zpět na projekty"
+    },
+    "group": {
+      "access": "Lidé a přístup",
+      "projects": "Projekty a aplikace",
+      "platform": "Platforma",
+      "settings": "Nastavení"
+    },
+    "groupLead": {
+      "access": "Kdo patří do organizace a co smí každý člověk, skupina a servisní účet. Každá změna se navrhne a schválí.",
+      "projects": "Co drží a zveřejňují všechny projekty organizace, na jednom místě.",
+      "platform": "Co instalace provozuje pro každý projekt: brokery, prostředí, členství v datovém prostoru a stav.",
+      "settings": "Doména organizace, jazyky, kontakty, pravidla a limity a co ještě chybí v nastavení."
+    },
+    "kindHidden": "Zde je vidí jen administrátor organizace, jehož role zahrnuje {kinds}. Požádejte administrátora organizace, aby je přidal do vaší role."
   },
   "projectDelete": {
     "title": "Smazat projekt {name}",
@@ -7848,6 +7892,10 @@
     "UiSchema": {
       "other": "rozvržení formulářů",
       "new": "Nové rozvržení formuláře"
+    },
+    "Person": {
+      "other": "lidi",
+      "new": "Nový člověk"
     }
   },
   "connectors": {

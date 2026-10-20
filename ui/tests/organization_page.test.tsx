@@ -138,34 +138,12 @@ afterEach(() => {
 });
 
 describe("the Organization page", () => {
-  // UI-16, UI-75: one H1, one tab list, the tab of the address selected.
-  it("names itself once and offers an administrator the eighteen tabs, the address's one selected", async () => {
+  // UI-16, T-4831: one H1, no tab strip; the sections live in the side navigation's groups.
+  it("names itself once, with its group's lead, and draws no tab strip", async () => {
     renderAt("roles");
     expect(await screen.findByRole("heading", { level: 1, name: en.organization.title })).toBeInTheDocument();
-    await screen.findByRole("tab", { name: en.organization.tab.endpoints });
-    const tabs = within(screen.getByRole("tablist", { name: en.organization.tabsLabel })).getAllByRole("tab");
-    expect(tabs.map((tab) => tab.textContent)).toEqual([
-      en.organization.tab.settings,
-      en.organization.tab.people,
-      en.organization.tab.members,
-      en.organization.tab.roles,
-      en.organization.tab.groups,
-      en.organization.tab["service-accounts"],
-      en.organization.tab.blueprints,
-      en.organization.tab.agentprofiles,
-      en.organization.tab.dataspaceparticipants,
-      en.organization.tab.environments,
-      en.organization.tab.models,
-      en.organization.tab.projects,
-      en.organization.tab.applications,
-      en.organization.tab.setup,
-      en.organization.tab.health,
-      en.organization.tab.brokers,
-      en.organization.tab.endpoints,
-      en.organization.tab["mcp-servers"],
-    ]);
-    expect(screen.getByRole("tab", { name: en.organization.tab.roles })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", "organization-tab-roles");
+    expect(await screen.findByText(en.organization.groupLead.access)).toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).toBeNull();
   });
 
   // PF-61, T-2877, UI-75: every endpoint of every project is an administration view. An
@@ -179,7 +157,6 @@ describe("the Organization page", () => {
 
     const viewer = renderAt("endpoints", { permissions: VIEWER });
     expect(await screen.findByText(en.organization.adminOnly)).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: en.organization.tab.endpoints })).not.toBeInTheDocument();
     expect(screen.queryByRole("table", { name: en.allEndpoints.title })).not.toBeInTheDocument();
     expect(viewer.requests).not.toContain("GET /api/v1/endpoints");
     cleanup();
@@ -193,14 +170,38 @@ describe("the Organization page", () => {
       } as unknown as Effective,
     });
     expect(await screen.findByText(en.organization.adminOnly)).toBeInTheDocument();
-    expect(screen.queryAllByRole("tab")).toHaveLength(0);
+    expect(screen.queryByRole("heading", { level: 2 })).toBeNull();
   });
 
-  it("moves to the tab a person picks, at the tab's own address", async () => {
-    const user = userEvent.setup();
-    renderAt("settings");
-    await user.click(await screen.findByRole("tab", { name: en.organization.tab.projects }));
-    await waitFor(() => expect(window.location.pathname).toBe("/organization/projects"));
+  // T-4831 (D-environments): the API's 404 for a kind the role reads none of was the Portal's
+  // "This page does not exist"; it says who sees them instead, and asks the API for nothing.
+  it("tells an administrator whose role reads no environments who does, instead of a missing page", async () => {
+    const { requests } = renderAt("environments");
+    expect(
+      await screen.findByText(en.organization.kindHidden.replace("{kinds}", en.kinds.Environment.other)),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(en.app.notFound.title)).toBeNull();
+    expect(requests).not.toContain("GET /api/v1/projects/org/environments");
+  });
+
+  // T-4831 (D-agentprofiles): the refusal names who may, in words, not 'propose' on 'AgentProfile'.
+  it("says in words that only an organization administrator adds agent profiles", async () => {
+    renderAt("agentprofiles", {
+      permissions: {
+        ...ADMIN,
+        grants: [
+          ...(ADMIN as unknown as { grants: unknown[] }).grants,
+          { role: "viewer", binding: "everyone", rule: { kinds: ["AgentProfile"], verbs: ["read"] } },
+        ],
+      } as unknown as Effective,
+    });
+    const add = await screen.findByRole("button", { name: en.kinds.AgentProfile.new });
+    await waitFor(() =>
+      expectDenied(add, "Only an organization administrator can add or change agent profiles."),
+    );
+    expect(document.body.textContent).not.toContain("does not permit");
+    // The list says it is the organization's, not a project's.
+    expect(screen.getByText(en.resourceList.leadOrganization.replace("{kind}", en.organization.tab.agentprofiles))).toBeInTheDocument();
   });
 
   // PF-61, PF-65, PF-78: the projects policy in plain words, not the manifest's tokens.

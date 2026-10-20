@@ -171,6 +171,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/projects/{project}/datasources/{name}/test", "a steward tests a saved data source's connection from its page (T-4819); an agent checks a draft source with jc_resource_propose and dryRun, whose probe fetches an http source"),
 ("GET", "/projects/{project}/pipelines/{name}/metrics", "jc_pipeline_metrics"),
 ("GET", "/projects/{project}/pipelines/{name}/samples", "a person opens a node of a running pipeline in the studio to see what last crossed it (T-3974); an agent reads a pipeline's records through its run log with jc_pipeline_metrics and the rejected list"),
+("GET", "/projects/{project}/pipelines/{name}/bento", "the editor shows the bento.yaml a pipeline runs when it has no compute step (T-4818); an agent reads the same file through the forge, and a proposal writes it as a file beside the manifest"),
 ("GET", "/projects/{project}/pipelines/{name}/stats", "the canvas' live counts per node (PL-68); an agent reads the same counters with jc_pipeline_metrics"),
 ("GET", "/projects/{project}/pipelines/{name}/rejected", "the pipeline page's rejected list (PL-61, ADR-N-034); an agent asks why a record fails with jc_pipeline_validate on the record itself"),
 ("POST", "/projects/{project}/pipelines/{name}/rejected/retry", "a person replays the records they picked on the pipeline page once the fix merged (PL-61); an agent changes the mapping with jc_pipeline_propose and lets the next run bring them"),

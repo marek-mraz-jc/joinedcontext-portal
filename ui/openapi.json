@@ -11461,6 +11461,78 @@
         }
       }
     },
+    "/api/v1/projects/{project}/pipelines/{name}/bento": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Read Pipeline Mapping File",
+        "description": "The `bento.yaml` beside a Pipeline's manifest, as the repository holds it: the processors the runner runs when the manifest carries no compute step (PL-03, PL-41). Credentials in it are `${NAME}` references the runner fills (PL-16), never values.",
+        "operationId": "get_bento",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Pipeline name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file in YAML",
+            "content": {
+              "text/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found, or it has no bento.yaml",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Git forge unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/pipelines/{name}/metrics": {
       "get": {
         "tags": [

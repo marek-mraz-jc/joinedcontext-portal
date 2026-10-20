@@ -255,7 +255,7 @@ export function BrandMark({ short = false }: { short?: boolean }): JSX.Element {
   );
 }
 
-function navLinkClass(active: boolean): string {
+export function navLinkClass(active: boolean): string {
   return clsx(NAV_LINK, active && NAV_LINK_ACTIVE);
 }
 
@@ -349,6 +349,7 @@ function PageStopped({
 export function Shell({
   project,
   fill = false,
+  sidebar,
   children,
 }: {
   project: string;
@@ -358,6 +359,12 @@ export function Shell({
    * the menu button at every width so the page gets the room. The App's Open page is one.
    */
   fill?: boolean;
+  /**
+   * The sidebar's own navigation instead of the project's (T-4831): Administration lists its
+   * sections there and shows no project switcher, since nothing on its pages belongs to a project.
+   * It is handed the function that closes the drawer on a phone.
+   */
+  sidebar?: (closeNav: () => void) => ReactNode;
   children: ReactNode;
 }): JSX.Element {
   const { t } = useTranslation();
@@ -566,6 +573,7 @@ export function Shell({
             navOpen ? "fixed bottom-0 left-0 top-14 flex shadow-3" : "hidden",
           )}
         >
+          {sidebar ? sidebar(closeNav) : (<>
           <div className="flex flex-col gap-2">
             <ProjectSelector active={project} />
             {/* Opening a project is a setting of the organization, so the control is always
@@ -707,8 +715,9 @@ export function Shell({
               </Link>
             </li>
           </ul>
+          </>)}
           {/* The signed-in person at the bottom (UI-83). The organization is one button in the
-              header, and its page holds every part of it as tabs (owner, 2026-09-24). */}
+              header; its sections are Administration's own sidebar (T-4831). */}
           <ProfileBlock />
         </nav>
         {fill ? (
