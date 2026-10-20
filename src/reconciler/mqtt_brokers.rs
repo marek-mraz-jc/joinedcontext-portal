@@ -95,22 +95,7 @@ pub fn declared(mirror: &Mirror) -> Vec<Broker> {
         })
         .collect();
     brokers.sort_by(|a, b| (&a.project, &a.name).cmp(&(&b.project, &b.name)));
-    // The project's MQTT allowance, judged in name order like a quota: a broker past what is
-    // left is not rendered, and a release it already has keeps running (PF-100, PF-118).
-    let mut allowances: BTreeMap<String, (MqttAllowance, MqttUsage)> = BTreeMap::new();
-    for broker in &mut brokers {
-        let Ok(spec) = &broker.spec else {
-            continue;
-        };
-        let (allowance, used) = allowances.entry(broker.project.clone()).or_insert_with(|| {
-            let (allowance, _) = crate::mqtt_allowance::effective(mirror, &broker.project);
-            (allowance, MqttUsage::default())
-        });
-        match allowance.refusal(&broker.project, used, spec, None) {
-            Some(reason) => broker.spec = Err(reason),
-            None => used.add(spec),
-        }
-    }
+    judge_allowances(mirror, &mut brokers);
     let mut ports: BTreeMap<u16, String> = BTreeMap::new();
     for broker in &mut brokers {
         let Some(port) = broker.spec.as_ref().ok().and_then(|spec| spec.port) else {
@@ -129,6 +114,25 @@ pub fn declared(mirror: &Mirror) -> Vec<Broker> {
         }
     }
     brokers
+}
+
+/// The project's MQTT allowance, judged in name order like a quota: a broker past what is left
+/// is not rendered, and a release it already has keeps running (PF-100, PF-118).
+fn judge_allowances(mirror: &Mirror, brokers: &mut [Broker]) {
+    let mut allowances: BTreeMap<String, (MqttAllowance, MqttUsage)> = BTreeMap::new();
+    for broker in brokers {
+        let Ok(spec) = &broker.spec else {
+            continue;
+        };
+        let (allowance, used) = allowances.entry(broker.project.clone()).or_insert_with(|| {
+            let (allowance, _) = crate::mqtt_allowance::effective(mirror, &broker.project);
+            (allowance, MqttUsage::default())
+        });
+        match allowance.refusal(&broker.project, used, spec, None) {
+            Some(reason) => broker.spec = Err(reason),
+            None => used.add(spec),
+        }
+    }
 }
 
 fn known_accounts(spec: &MqttBrokerSpec, accounts: &BTreeSet<String>) -> Result<(), String> {

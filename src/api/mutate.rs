@@ -1446,24 +1446,9 @@ async fn check_content(
     }
 
     // 4b-mqtt. A broker inside what the project's MQTT allowance leaves, and a project's own
-    //       allowance written only by an org admin, inside the operator's bounds (PF-117,
-    //       PF-118, ADR-N-048 §2.9).
+    //       allowance written only by an org admin (PF-117, PF-118, ADR-N-048 §2.9).
     if operation != Operation::Delete {
-        match kind {
-            "MqttBroker" => crate::mqtt_allowance::check(
-                &state.mirror,
-                project,
-                &envelope.metadata.name,
-                &envelope.spec,
-            )?,
-            "Project" => crate::mqtt_allowance::check_project(
-                state,
-                identity,
-                &envelope.metadata.name,
-                &envelope.spec,
-            )?,
-            _ => {}
-        }
+        crate::mqtt_allowance::check_manifest(state, identity, project, envelope)?;
     }
 
     // 4b-contact. A catalogue record publishes its contact point to everyone, so a person's own

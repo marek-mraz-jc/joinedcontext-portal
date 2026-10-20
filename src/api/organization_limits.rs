@@ -240,26 +240,13 @@ pub async fn get_limits(
                 })
                 .collect();
             // The MQTT allowance (PF-117, API/01 §47): its own origin counts as the project's.
-            let (mqtt, mqtt_origin) = crate::mqtt_allowance::effective(&state.mirror, &project);
-            let held = crate::mqtt_allowance::usage(
-                &crate::mqtt_allowance::brokers(&state.mirror, &project),
-                None,
-            );
-            let clamp = |n: u64| Some(u32::try_from(n).unwrap_or(u32::MAX));
-            for (dimension, field, used) in [
-                ("mqttBrokers", "brokers", Some(held.brokers)),
-                ("mqttConnections", "connections", clamp(held.connections)),
-                (
-                    "mqttMessagesPerSecond",
-                    "messagesPerSecond",
-                    clamp(held.messages_per_second),
-                ),
-            ] {
-                let limit = Some(mqtt.limit(field));
+            let (mqtt, mqtt_own) = crate::mqtt_allowance::quota_rows(&state.mirror, &project);
+            for (dimension, limit, used) in mqtt {
+                let (limit, used) = (Some(limit), Some(used));
                 quota.insert(dimension.to_owned(), QuotaUse { limit, used });
             }
             ProjectQuota {
-                origin: if own || mqtt_origin == LimitOrigin::Project {
+                origin: if own || mqtt_own {
                     LimitOrigin::Project
                 } else if organization_set {
                     LimitOrigin::Organization

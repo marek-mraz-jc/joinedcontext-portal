@@ -81,6 +81,44 @@ pub fn check(mirror: &Mirror, project: &str, name: &str, spec: &Value) -> Result
     }
 }
 
+/// The checks of this module a proposal of `envelope` passes on every door (step 4b-mqtt of
+/// the verdict); a deletion is never checked.
+pub fn check_manifest(
+    state: &crate::state::AppState,
+    identity: &crate::auth::session::Identity,
+    project: &str,
+    envelope: &crate::resource::ResourceEnvelope,
+) -> Result<(), ApiError> {
+    let name = &envelope.metadata.name;
+    match envelope.kind.as_str() {
+        "MqttBroker" => check(&state.mirror, project, name, &envelope.spec),
+        "Project" => check_project(state, identity, name, &envelope.spec),
+        _ => Ok(()),
+    }
+}
+
+/// The MQTT rows of a project on the organization limits page (API/01 §46): `(dimension,
+/// limit, used)`, and whether the project's own `spec.quotas.mqtt` sets them.
+pub fn quota_rows(mirror: &Mirror, project: &str) -> (Vec<(&'static str, u32, u32)>, bool) {
+    let (allowance, origin) = effective(mirror, project);
+    let used = usage(&brokers(mirror, project), None);
+    let clamp = |n: u64| u32::try_from(n).unwrap_or(u32::MAX);
+    let rows = vec![
+        ("mqttBrokers", allowance.limit("brokers"), used.brokers),
+        (
+            "mqttConnections",
+            allowance.limit("connections"),
+            clamp(used.connections),
+        ),
+        (
+            "mqttMessagesPerSecond",
+            allowance.limit("messagesPerSecond"),
+            clamp(used.messages_per_second),
+        ),
+    ];
+    (rows, origin == LimitOrigin::Project)
+}
+
 /// Refuses a change of a Project's `spec.quotas.mqtt` by anybody but an org admin, since the
 /// allowance is the organization's to give whatever the caller's verbs on `Project` (PF-117),
 /// and a number outside the operator's bound (PF-97).
@@ -103,8 +141,10 @@ pub fn check_project(
     else {
         return Ok(());
     };
-    allowance
-        .check_bounds(&state.config.organization_bounds, "spec.quotas.mqtt")
+    state
+        .config
+        .organization_bounds
+        .check_mqtt(&allowance, "spec.quotas.mqtt")
         .map_err(|e| {
             ApiError::BadRequest(format!(
                 "{e}; the operator moves the bound in the deployment \
@@ -245,6 +285,21 @@ mod tests {
         let mut ported = broker(10);
         ported["port"] = json!(18831);
         assert!(refused(&mirror, "cams", &ported).contains("not assigned to project helsinki"));
+    }
+
+    #[test]
+    fn the_limits_page_rows_carry_the_allowance_and_the_usage() {
+        let mirror = holding(
+            None,
+            Some(json!({"enabled": true, "brokers": 3})),
+            &[("a", 10)],
+        );
+        let (rows, own) = quota_rows(&mirror, "helsinki");
+        assert!(own);
+        assert_eq!(rows[0], ("mqttBrokers", 3, 1));
+        assert_eq!(rows[1], ("mqttConnections", 1000, 10));
+        let (_, own) = quota_rows(&holding(None, None, &[]), "helsinki");
+        assert!(!own);
     }
 
     #[test]
