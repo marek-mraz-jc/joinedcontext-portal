@@ -183,6 +183,17 @@ describe("the station page in words", () => {
     expect(list).toHaveValue(STATION_3.id);
     expect(window.location.hash).toBe(`#station?id=${encodeURIComponent(STATION_3.id)}`);
   });
+
+  it("falls back to the default when the address names a station the list does not hold", async () => {
+    show(async () => OUTPUT);
+    const list = await screen.findByRole("combobox", { name: "Station" });
+    await waitFor(() => expect(list).not.toHaveValue(""));
+    const first = (list as HTMLSelectElement).value;
+    window.location.hash = "#station?id=urn%3Angsi-ld%3ABikeHireDockingStation%3Agone";
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    await waitFor(() => expect(window.location.hash).toBe(`#station?id=${encodeURIComponent(first)}`));
+    expect(list).toHaveValue(first);
+  });
 });
 
 /** Unmounts what is on screen and shows the page again, for a second case in one test. */

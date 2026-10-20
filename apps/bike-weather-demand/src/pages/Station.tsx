@@ -182,7 +182,8 @@ export function Station({ lang }: { lang: Lang }): React.JSX.Element {
     setSelectedId((current) =>
       current && stations.some((s) => s.id === current) ? current : defaultStationId(stations),
     );
-  }, [stations]);
+    // selectedId too: an address naming a station the list does not hold falls back to the default.
+  }, [stations, selectedId]);
 
   // The address names the chosen station, for a reload or a shared link.
   useEffect(() => {
