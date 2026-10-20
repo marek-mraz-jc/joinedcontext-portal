@@ -274,12 +274,6 @@
       ],
       "reason": "the id format is what this help line explains, shown under the field as copyable detail"
     },
-    "pipelines.metrics.errors": {
-      "rules": [
-        "next-step"
-      ],
-      "reason": "a column heading of the metrics table, not a message"
-    },
     "pipelines.runs.failed": {
       "rules": [
         "next-step"

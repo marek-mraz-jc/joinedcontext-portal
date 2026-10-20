@@ -256,7 +256,7 @@ describe("a model's own page", () => {
     const used = within(screen.getByRole("tabpanel"));
     expect(used.getByRole("link", { name: "ilma" })).toHaveAttribute("href", "/projects/helsinki/spaces/ilma");
     expect(used.getByRole("link", { name: "air-public" })).toHaveAttribute("href", "/projects/helsinki/endpoints/air-public");
-    expect(used.getByRole("link", { name: "air-ingest" })).toHaveAttribute("href", "/projects/helsinki/pipelines/air-ingest/edit");
+    expect(used.getByRole("link", { name: "air-ingest" })).toHaveAttribute("href", "/projects/helsinki/pipelines/air-ingest");
     expect(used.getByRole("link", { name: "city" })).toHaveAttribute("href", "/projects/helsinki/dashboards/city/edit");
     expect(used.queryByRole("link", { name: "bikes-public" })).toBeNull();
   });

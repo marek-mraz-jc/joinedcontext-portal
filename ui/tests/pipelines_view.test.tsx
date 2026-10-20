@@ -196,21 +196,22 @@ describe("pipelines view", () => {
     expect(within(await rowOf("aq-mqtt-ingest")).queryByTestId("pipeline-expiry-refused")).toBeNull();
   });
 
-  it("shows the live counters of a resident stream", async () => {
+  it("shows a resident stream's totals since its runner started, its errors a link to its runs", async () => {
     renderPipelines();
 
     const row = await rowOf("aq-mqtt-ingest");
-    expect(await within(row).findByText("128,401")).toBeInTheDocument();
-    expect(within(row).getByText("3")).toBeInTheDocument();
-    expect(within(row).getByText("42.5")).toBeInTheDocument();
+    expect(await within(row).findByText(/128,401 received/)).toBeInTheDocument();
+    const errors = within(row).getByRole("link", { name: "3 errors" });
+    expect(errors).toHaveAttribute("href", "/projects/banskabystrica/pipelines/aq-mqtt-ingest#runs");
+    // The p99 latency read as "ms p99 10,000.0" with no word of what it was (T-4817): the page of
+    // the pipeline is where a person reads its stream.
+    expect(within(row).queryByText("42.5")).toBeNull();
   });
 
-  it("names the secret reference but never a secret value (PL-17)", async () => {
+  it("never shows a secret value (PL-17)", async () => {
     renderPipelines();
 
-    const row = await rowOf("aq-mqtt-ingest");
-    expect(within(row).getByText(/mqtt-credentials\/password/)).toBeInTheDocument();
-    expect(within(row).queryByText(/hunter2/)).not.toBeInTheDocument();
+    await rowOf("aq-mqtt-ingest");
     expect(screen.queryByText(/hunter2/)).not.toBeInTheDocument();
   });
 
@@ -218,7 +219,8 @@ describe("pipelines view", () => {
     renderPipelines({ status: 503, title: "Service Unavailable" }, 503);
 
     const row = await rowOf("aq-mqtt-ingest");
-    expect(await within(row).findByText(en.pipelines.metrics.unavailable)).toBeInTheDocument();
+    expect(await within(row).findByText(en.pipelines.lastRun.never)).toBeInTheDocument();
+    expect(within(row).queryByText(/received/)).toBeNull();
     // The manifest is still Live: a runner that is down is not a broken pipeline.
     expect(within(row).getByText(en.phase.live)).toBeInTheDocument();
   });
@@ -227,7 +229,7 @@ describe("pipelines view", () => {
     const fetchMock = renderPipelines();
 
     const row = await rowOf("parking-daily");
-    expect(within(row).getByText(en.pipelines.metrics.paused)).toBeInTheDocument();
+    expect(within(row).getByText(en.phase.paused)).toBeInTheDocument();
     expect(
       fetchMock.mock.calls.some((call) =>
         new URL((call[0] as Request).url).pathname.includes("parking-daily/metrics"),
@@ -246,11 +248,11 @@ describe("pipelines view", () => {
 
   // T-2759: the list said "Live" beside "Paused" beside a Pause button, for a scheduled pipeline
   // that was running and for a paused one that was not.
-  it("says a scheduled pipeline runs on its schedule, and polls no stream for it", async () => {
+  it("says when a scheduled pipeline last ran, and polls no stream for it", async () => {
     const fetchMock = renderPipelines();
     const row = await rowOf("air-hourly");
-    expect(within(row).getByText(en.pipelines.metrics.scheduled)).toBeInTheDocument();
-    expect(within(row).queryByText(en.pipelines.metrics.paused)).toBeNull();
+    expect(await within(row).findByText(en.pipelines.lastRun.never)).toBeInTheDocument();
+    expect(within(row).queryByText(en.phase.paused)).toBeNull();
     expect(within(row).getByText(en.phase.live)).toBeInTheDocument();
     expect(within(row).getByRole("button", { name: en.pipelines.pause })).toBeInTheDocument();
     expect(
@@ -295,12 +297,12 @@ describe("pipelines view", () => {
     expect(within(await rowOf("air-hourly")).queryByText(en.pipelines.notWriting)).toBeNull();
   });
 
-  it("names where a pipeline's credential is when it holds none of its own", async () => {
+  // T-4817: "Held by its data source …" took a column on every row; the source's name says it.
+  it("names the data source a pipeline reads under its title", async () => {
     renderPipelines();
-    expect(
-      within(await rowOf("air-hourly")).getByText("Held by its data source air-feed"),
-    ).toBeInTheDocument();
-    expect(within(await rowOf("parking-daily")).getByText(en.pipelines.noCredential)).toBeInTheDocument();
+    const row = await rowOf("air-hourly");
+    expect(within(row).getByText("air-feed")).toBeInTheDocument();
+    expect(within(row).queryByText(/Held by its data source/)).toBeNull();
   });
 
   it("proposes a change instead of stopping a running pipeline directly (CC-35)", async () => {

@@ -632,7 +632,7 @@ describe("pipeline editor", () => {
   it("shows a paused pipeline as paused, with a Resume rather than a Pause", async () => {
     renderPipelines();
     const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
-    expect(within(row).getByText(en.pipelines.metrics.paused)).toBeInTheDocument();
+    expect(within(row).getByText(en.phase.paused)).toBeInTheDocument();
     expect(within(row).getByRole("button", { name: en.pipelines.resume })).toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: en.pipelines.pause })).not.toBeInTheDocument();
   });

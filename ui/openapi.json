@@ -11663,6 +11663,19 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Runs per answer, 1…200 (default 200): the pipeline list asks for the latest one (T-4817).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
           }
         ],
         "responses": {

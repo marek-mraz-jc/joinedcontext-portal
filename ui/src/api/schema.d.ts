@@ -15682,7 +15682,10 @@ export interface operations {
     };
     get_runs: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Runs per answer, 1…200 (default 200): the pipeline list asks for the latest one (T-4817). */
+                limit?: number | null;
+            };
             header?: never;
             path: {
                 /** @description Project name */
