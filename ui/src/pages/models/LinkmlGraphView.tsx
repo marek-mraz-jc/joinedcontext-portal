@@ -201,10 +201,14 @@ function cut(text: string): string {
   return text.length > CHARS ? `${text.slice(0, CHARS - 1)}…` : text;
 }
 
-/** What a row says its value is: a reference names its class and how many, a list says `[]`. */
+/**
+ * What a row says its value is: a reference names its class and how many, a list says `[]`, a
+ * value object lists the fields it holds inside the entity (T-4829).
+ */
 function typeText(row: GraphRow): string {
   if (row.key === "fk") return `→ ${row.type} ${row.multiplicity ?? ""}`.trimEnd();
-  return row.multivalued ? `${row.type}[]` : row.type;
+  const type = row.inline ? `{ ${row.inline.join(", ")} }` : row.type;
+  return row.multivalued ? `${type}[]` : type;
 }
 
 /**
