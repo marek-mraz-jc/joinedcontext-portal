@@ -21,7 +21,6 @@ import { ChunkFailed, ErrorPage, errorReference, isChunkLoadError } from "./comp
 import { NotFoundState } from "./components/NotFoundState";
 import { LoginPage } from "./routes/LoginPage";
 import { hasEditForm, ResourceListPage } from "./routes/ResourceListPage";
-import { EndpointDocs } from "./pages/endpoints/EndpointDocs";
 const InboxPage = lazy(() => import("./pages/inbox/InboxPage").then((module) => ({ default: module.InboxPage })));
 import { FormRouteHost } from "./components/forms/FormRoute";
 import type { FormTarget } from "./components/forms/FormRoute";
@@ -46,6 +45,7 @@ const McpServersPage = lazy(() => import("./pages/mcp/McpServersPage").then((mod
 const CataloguePage = lazy(() => import("./pages/catalogue/CataloguePage").then((module) => ({ default: module.CataloguePage })));
 const DatasetPage = lazy(() => import("./pages/catalogue/DatasetPage").then((module) => ({ default: module.DatasetPage })));
 import { parseCatalogueSearch } from "./pages/catalogue/search";
+const EndpointDocs = lazy(() => import("./pages/endpoints/EndpointDocs").then((module) => ({ default: module.EndpointDocs })));
 const PublicViewPage = lazy(() => import("./pages/spaces/PublicView").then((module) => ({ default: module.PublicViewPage })));
 const PublicFormPage = lazy(() => import("./pages/spaces/FormView").then((module) => ({ default: module.PublicFormPage })));
 import { useAuth } from "./auth/AuthProvider";
