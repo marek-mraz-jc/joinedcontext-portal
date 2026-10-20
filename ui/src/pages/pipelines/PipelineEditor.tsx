@@ -18,6 +18,7 @@ import { PipelineStudio } from "./PipelineStudio";
 import { PipelineWorkbench } from "./PipelineWorkbench";
 import type { MappingFile } from "./PipelineWorkbench";
 import type { UiSchema } from "../../components/forms/types";
+import type { Lifetime } from "./ExpiryChoice";
 
 /** The form of a pipeline: `PipelineSpec` with every reference flattened to its name. */
 export interface PipelineForm {
@@ -60,6 +61,8 @@ export interface PipelineForm {
   allowFeedback?: boolean;
   /** Stale-entity expiry: off unless both are given (PL-64). */
   expiry?: { after?: string; types?: string[] };
+  /** When entities and attributes end by themselves, the runner's step after the mapping (PL-80). */
+  lifetime?: Lifetime[];
   secretRefs?: { name?: string; key?: string; envVar?: string }[];
   quotas?: { maxMemoryMb?: number; cpuMillicores?: number };
 }
@@ -148,6 +151,7 @@ const OWNED_SPEC = [
   "output",
   "allowFeedback",
   "expiry",
+  "lifetime",
   "secretRefs",
   "quotas",
   "sources",
@@ -269,6 +273,7 @@ export function toEnvelope(project: string, form: PipelineForm, base?: Manifest)
     compute,
     allowFeedback,
     expiry,
+    lifetime,
     secretRefs,
     quotas,
     processors,
@@ -287,6 +292,7 @@ export function toEnvelope(project: string, form: PipelineForm, base?: Manifest)
     allowFeedback: allowFeedback ? true : undefined,
     // An emptied expiry is gone, not an empty object the manifest refuses: off means absent.
     expiry: expiry?.after || expiry?.types?.length ? expiry : undefined,
+    lifetime: lifetime?.length ? lifetime : undefined,
     secretRefs,
     quotas,
   }) as Record<string, unknown>;

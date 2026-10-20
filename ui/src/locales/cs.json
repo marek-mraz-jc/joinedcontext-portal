@@ -2265,7 +2265,7 @@
         "never": "Nikdy",
         "neverHint": "Zůstanou, dokud je někdo nesmaže nebo je neodstraní pravidlo prostoru.",
         "source": "V čase, který dá zdroj",
-        "sourceHint": "Každá entita dostane vlastní expiresAt: časové pole záznamu plus nějaký čas, například observedAt plus 10 minut pro polohu autobusu.",
+        "sourceHint": "Každá entita dostane vlastní expiresAt: časový atribut plus určitou dobu, například observedOn plus 10 minut, nebo čas zápisu záznamu plus určitou dobu. Pipeline ho zapíše po vašem mapování.",
         "stale": "Když je zdroj přestane posílat",
         "staleHint": "Jednou za hodinu pipeline smaže entity tohoto typu, které během okna neaktualizovala.",
         "from": "Čas z",
@@ -2277,7 +2277,11 @@
         "afterHint": "Entity typu {type} neaktualizované takto dlouho se jednou za hodinu smažou.",
         "refusals": "Návrh se odmítne, když má pipeline více než jeden výstup, když do stejného prostoru zapisuje jiná pipeline, nebo když žádná Policy nedává této pipeline deleteBatch a queryBatch na typ; odmítnutí pojmenuje Policy, kterou je třeba rozšířit.",
         "history": "Historie typu {type} se řídí pravidly prostoru.",
-        "spaceRules": "Uchovávání v {space}"
+        "spaceRules": "Uchovávání v {space}",
+        "noTimeSlot": "Zatím není namapován žádný atribut data a času typu {type}, proto se konec počítá od času zápisu záznamu.",
+        "inManifest": "Životnost typu {type} je nastavena v manifestu pipeline (pevné datum, strop nebo vybrané atributy). Změňte ji v zobrazení YAML; tento editor ji ponechá beze změny.",
+        "migrated": "Čas konce, který tento krok dosud zapisoval, je nyní nastavením životnosti pipeline níže. Uloží se s vaším dalším návrhem.",
+        "migrateField": "Tento krok zapisuje expiresAt z pole záznamu {field} a z tohoto pole není namapován žádný atribut data a času. Namapujte ho na atribut data a času nebo níže zvolte jiný čas; do té doby si krok ponechá vlastní řádky expiresAt."
       }
     },
     "debug": {

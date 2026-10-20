@@ -77,4 +77,14 @@ describe("the Pipeline form", () => {
     expect(out.spec.enabled).toBe(false);
     expect(out.metadata.title).toEqual({ en: "City news from the hel.fi RSS feed" });
   });
+
+  it("carries spec.lifetime both ways and drops a lifetime the form emptied (T-4839)", () => {
+    const lifetime = [{ type: "NewsArticle", entity: { from: "datePublished", plus: "P30D" } }];
+    const timed = { ...stored, spec: { ...stored.spec, lifetime } };
+    const form = fromManifest(timed);
+    expect(form.lifetime).toEqual(lifetime);
+    expect(pipelineEnvelope("helsinki", form, timed)).toEqual(timed);
+    expect(pipelineEnvelope("helsinki", { ...form, lifetime: undefined }, timed).spec.lifetime).toBeUndefined();
+    expect(pipelineEnvelope("helsinki", { ...form, lifetime: [] }, timed).spec.lifetime).toBeUndefined();
+  });
 });
