@@ -4,8 +4,11 @@
  * of it is pending.
  */
 
-/** Cells one paste fills at most: a spreadsheet's whole sheet is not a correction. */
-export const MAX_PASTE_CELLS = 5000;
+/**
+ * Cells one paste fills at most: a spreadsheet's whole sheet is not a correction, and each cell
+ * becomes a write the gateway checks against its model (DM-86). A larger load is an import.
+ */
+export const MAX_PASTE_CELLS = 500;
 
 /** The rows and cells of copied text: tab between cells, a line break between rows. */
 export function parseClipboard(text: string): string[][] {
