@@ -216,6 +216,7 @@
     "needsPublisher": "Zpřístupnění endpointu veřejnosti vyžaduje roli `publisher`; samotný steward to nemůže.",
     "ownProposal": "Nemůžete schválit ani zamítnout vlastní návrh.",
     "ownAccessChange": "Změny přístupu schvaluje druhá osoba: vlastní změnu rolí, skupin či servisních účtů schválí jiný administrátor.",
+    "ownModelChange": "Změnu datového modelu schvaluje druhá osoba: vlastní změnu modelu schválí jiný administrátor.",
     "confirmPrompt": "Pro červenou úroveň zadejte název prostředku pro potvrzení:",
     "confirmLabel": "Název prostředku pro potvrzení",
     "diffAdded": "Přidáno",
@@ -3009,7 +3010,9 @@
     "source": {
       "loading": "Načítá se zdroj modelu…",
       "saveCheck": "Zkontrolovat",
-      "save": "Uložit model",
+      "save": "Navrhnout v{version}",
+      "unchanged": "Není co navrhnout: nejprve upravte model.",
+      "diffSummary": "přidáno {added} · změněno {changed} · odebráno {removed} · v{from} → v{to}",
       "severity": {
         "none": "Beze změny",
         "additive": "Rozšiřující změna",
@@ -3164,6 +3167,8 @@
       "noClasses": "Tento model zatím nedeklaruje žádnou třídu, takže negeneruje formulář.",
       "formClass": "Třída",
       "formReadOnly": "Toto je formulář, který model generuje, vyplněný jeho příkladem; odsud se nic neukládá.",
+      "jsonType": {"number": "Číslo", "integer": "Celé číslo", "string": "Text", "boolean": "Ano nebo ne", "object": "Skupina polí", "array": "Seznam"},
+      "asJson": "Zobrazeno jako JSON.",
       "yaml": "Zdroj modelu (LinkML YAML)",
       "copyYaml": "Kopírovat YAML",
       "downloadYaml": "Stáhnout YAML",

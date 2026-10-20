@@ -216,6 +216,7 @@
     "needsPublisher": "Einen Endpunkt für die Öffentlichkeit freizugeben braucht die Rolle `publisher`; ein Steward allein kann es nicht.",
     "ownProposal": "Sie können Ihren eigenen Vorschlag nicht freigeben oder ablehnen.",
     "ownAccessChange": "Zugriffsänderungen brauchen eine zweite Person: Ihre eigene Änderung an Rollen, Gruppen oder Dienstkonten genehmigt eine andere Administratorin oder ein anderer Administrator.",
+    "ownModelChange": "Eine Änderung am Datenmodell braucht eine zweite Person: Ihre eigene Änderung an einem Modell genehmigt eine andere Administratorin oder ein anderer Administrator.",
     "confirmPrompt": "Für die rote Stufe geben Sie zur Bestätigung den Ressourcennamen ein:",
     "confirmLabel": "Ressourcenname zur Bestätigung",
     "diffAdded": "Hinzugefügt",
@@ -3009,7 +3010,9 @@
     "source": {
       "loading": "Modellquelle wird geladen…",
       "saveCheck": "Prüfen",
-      "save": "Modell speichern",
+      "save": "v{version} vorschlagen",
+      "unchanged": "Nichts vorzuschlagen: Bearbeiten Sie zuerst das Modell.",
+      "diffSummary": "{added} hinzugefügt · {changed} geändert · {removed} entfernt · v{from} → v{to}",
       "severity": {
         "none": "Keine Änderung",
         "additive": "Erweiternde Änderung",
@@ -3164,6 +3167,8 @@
       "noClasses": "Dieses Modell deklariert noch keine Klasse und erzeugt daher kein Formular.",
       "formClass": "Klasse",
       "formReadOnly": "Das ist das Formular, das das Modell erzeugt, mit seinem Beispiel gefüllt; hier wird nichts gespeichert.",
+      "jsonType": {"number": "Zahl", "integer": "Ganze Zahl", "string": "Text", "boolean": "Ja oder nein", "object": "Gruppe von Feldern", "array": "Liste"},
+      "asJson": "Als JSON angezeigt.",
       "yaml": "Die Quelle des Modells (LinkML YAML)",
       "copyYaml": "YAML kopieren",
       "downloadYaml": "YAML herunterladen",

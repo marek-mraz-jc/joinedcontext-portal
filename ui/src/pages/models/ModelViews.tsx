@@ -19,6 +19,7 @@ import { Alert, Button, Field, Select, Skeleton, Tabs, tabPanelProps } from "../
 import { download } from "./diagramExport";
 import { LinkmlGraphView } from "./LinkmlGraphView";
 import type { Artifacts } from "./LinkmlPreviewPanel";
+import { formReady } from "./formSchema";
 import { importName, parseModel } from "./linkml";
 import { useProjectList } from "./ModelsList";
 
@@ -109,7 +110,15 @@ export function ModelForm({ source, initialClass }: { source: string; initialCla
   if (classes.length === 0) {
     return <p className="text-body text-fg-muted">{t("models.page.noClasses")}</p>;
   }
-  const schema = classSchema(artifacts.data?.jsonSchema, current);
+  const generated = classSchema(artifacts.data?.jsonSchema, current);
+  const form = generated
+    ? formReady(
+        generated as Record<string, unknown>,
+        exampleOf(artifacts.data?.example, current),
+        (type) => t(`models.page.jsonType.${type}`, { defaultValue: type }),
+        t("models.page.asJson"),
+      )
+    : undefined;
   const failed =
     artifacts.error instanceof ApiError ? (artifacts.error.problem?.detail ?? artifacts.error.message) : null;
   return (
@@ -138,11 +147,11 @@ export function ModelForm({ source, initialClass }: { source: string; initialCla
             {t("app.error.retry")}
           </Button>
         </Alert>
-      ) : schema ? (
+      ) : form ? (
         <SchemaForm
           key={current}
-          schema={schema}
-          formData={exampleOf(artifacts.data?.example, current)}
+          schema={form.schema as JsonSchema}
+          formData={form.data as Record<string, unknown> | undefined}
           disabled
           onSubmit={() => undefined}
           submitLabel={t("models.formPreview")}
