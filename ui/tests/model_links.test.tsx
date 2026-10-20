@@ -153,7 +153,7 @@ describe("the links", () => {
 
 describe("the places that name a model or a type", () => {
   it("the space's entity types", async () => {
-    await renderRoute({ path: "/projects/helsinki/spaces/ilma", answer });
+    await renderRoute({ path: "/projects/helsinki/spaces/ilma?tab=model", answer });
     const types = await screen.findByRole("table", { name: en.spaces.inside.types });
     expect(await within(types).findByRole("link", { name: "Station" })).toHaveAttribute("href", "/projects/helsinki/models/air?class=Station");
   });

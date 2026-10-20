@@ -512,8 +512,6 @@
       "total": "Der Raum enthält {count, plural, one {# Entität} other {# Entitäten}}.",
       "open": "Inhalt ansehen",
       "data": "Daten",
-      "dataLead": "Alles, was dieser Raum hält, soweit Ihre Rechte es zulassen. Ein Endpunkt zeigt dasselbe, durch seine Policy verengt.",
-      "dataType": "Entitätstyp",
       "dataEmpty": "Noch nichts: keine Pipeline hat in diesen Raum geschrieben.",
       "dataThroughEndpoints": "Sie können diesen Raum über seine Endpunkte sehen:",
       "dataNoTypes": "Dieser Raum nennt kein Datenmodell, also gibt es keinen Typ zu lesen.",
@@ -546,7 +544,11 @@
       "lead": "Sein Datenmodell, seine Entitäten, wer sie liest und was mit ihm geschah.",
       "broker": "Er liegt auf dem Context-Broker {broker}.",
       "size": "Größe",
-      "totalSize": "Er belegt {size} im Speicher des Brokers, davon {history} Verlauf."
+      "totalSize": "Er belegt {size} im Speicher des Brokers, davon {history} Verlauf.",
+      "sections": "Teile des Raums",
+      "counting": "Die Entitäten des Raums werden gezählt…",
+      "allRows": "Alle Zeilen",
+      "savedViews": "Gespeicherte Ansichten"
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",

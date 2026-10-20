@@ -70,7 +70,7 @@ afterEach(() => {
 
 describe("the space's data model", () => {
   it("links the model and shows its diagram, form and YAML", async () => {
-    await renderRoute({ path: "/projects/helsinki/spaces/ilma", answer: answer([MODEL]) });
+    await renderRoute({ path: "/projects/helsinki/spaces/ilma?tab=model", answer: answer([MODEL]) });
     const model = await section();
     expect(model.getByRole("link", { name: "Air quality" })).toHaveAttribute("href", "/projects/helsinki/models/air");
     expect(model.getByText("v1.2.0")).toBeInTheDocument();
@@ -86,7 +86,7 @@ describe("the space's data model", () => {
   });
 
   it("offers Create and Import for this space when it has no model", async () => {
-    await renderRoute({ path: "/projects/helsinki/spaces/ilma", answer: answer([]) });
+    await renderRoute({ path: "/projects/helsinki/spaces/ilma?tab=model", answer: answer([]) });
     const model = await section();
     expect(await model.findByText(en.spaces.inside.modelEmpty)).toBeInTheDocument();
     expect(model.getByRole("link", { name: en.spaces.inside.modelCreate })).toHaveAttribute(
@@ -100,7 +100,7 @@ describe("the space's data model", () => {
   });
 
   it("shows a viewer Edit, Create and Import disabled with the reason", async () => {
-    await renderRoute({ path: "/projects/helsinki/spaces/ilma", answer: answer([MODEL]), permissions: READER });
+    await renderRoute({ path: "/projects/helsinki/spaces/ilma?tab=model", answer: answer([MODEL]), permissions: READER });
     const model = await section();
     expect(await model.findByRole("button", { name: en.models.page.edit })).toHaveAttribute("aria-disabled", "true");
     expect(model.queryByRole("link", { name: en.models.page.edit })).toBeNull();
@@ -108,7 +108,7 @@ describe("the space's data model", () => {
   });
 
   it("shows a viewer of an empty space the ways as disabled", async () => {
-    await renderRoute({ path: "/projects/helsinki/spaces/ilma", answer: answer([]), permissions: READER });
+    await renderRoute({ path: "/projects/helsinki/spaces/ilma?tab=model", answer: answer([]), permissions: READER });
     const model = await section();
     expect(await model.findByRole("button", { name: en.spaces.inside.modelCreate })).toHaveAttribute("aria-disabled", "true");
     expect(model.getByRole("button", { name: en.spaces.inside.modelImport })).toHaveAttribute("aria-disabled", "true");
