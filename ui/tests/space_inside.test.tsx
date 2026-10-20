@@ -147,9 +147,11 @@ function renderInside(
     source?: string;
     /** The saved data views of the space (API/01 §30). */
     views?: unknown[];
+    /** What the endpoint's gateway answers for the caller's grants (EP-55). */
+    access?: unknown;
   } = {},
 ) {
-  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+  const fetchMock = vi.fn((input: RequestInfo | URL, _init?: RequestInit) => {
     const url = urlOf(input);
     const path = url.pathname;
     const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
@@ -162,6 +164,9 @@ function renderInside(
 
     if (path.endsWith("/auth/me")) {
       return json(IDENTITY);
+    }
+    if (path === `/api/endpoint/${SLUG}/access`) {
+      return json(seed.access ?? { permissions: [] });
     }
     if (path.startsWith(`/api/endpoint/${SLUG}/ngsi-ld/v1/entities`)) {
       if (gateway.status !== 200) {
@@ -713,6 +718,65 @@ describe("the space's own data", () => {
     const open = screen.getByRole("button", { name: `${en.entityGrid.openRow}: Námestie SNP` });
     expect(open).toHaveAttribute("title", rows[0].id);
     expect(screen.getByRole("button", { name: en.alerts.forType.replace("{type}", "Air quality reading") })).toBeInTheDocument();
+  });
+
+  // T-4826: the grid edits only where the gateway's grant names a write on the type, and the write
+  // goes through that endpoint with the person's reason; a viewer gets no editor at all.
+  describe("editing in the grid", () => {
+    const rows = [
+      {
+        id: "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:1",
+        type: "AirQualityObserved",
+        name: { type: "Property", value: "Námestie SNP" },
+        pm10: { type: "Property", value: 12, unitCode: "GQ" },
+      },
+    ];
+    const source = [
+      "id: https://banskabystrica.sk/models/air",
+      "name: bb-air-quality",
+      "classes:",
+      "  AirQualityObserved:",
+      "    slots: [name, pm10]",
+      "slots:",
+      "  name: { range: string }",
+      "  pm10: { range: float }",
+      "",
+    ].join("\n");
+    const steward = {
+      permissions: [
+        { resource: { type: "AirQualityObserved" }, actions: ["queryEntity"], attributes: "*" },
+        { resource: { type: "AirQualityObserved" }, actions: ["updateAttrs"], attributes: ["pm10"] },
+      ],
+    };
+
+    it("offers an editor for the attributes the grant lets the steward write, and sends the reason", async () => {
+      const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200, rows }, { source, access: steward });
+      const cell = await screen.findByRole("spinbutton", { name: /pm10/ });
+      // The grant names pm10 only: the name stays text, with no editor.
+      expect(screen.queryByDisplayValue("Námestie SNP")).toBeNull();
+      await userEvent.clear(cell);
+      await userEvent.type(cell, "14");
+      await userEvent.click(screen.getByRole("button", { name: en.entityGrid.review }));
+      await userEvent.click(screen.getByRole("button", { name: en.entityGrid.apply }));
+
+      await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(true));
+      const [path, init] = fetchMock.mock.calls.find(([, each]) => each?.method === "PATCH")!;
+      // Written through the endpoint that granted it, never the read-only space surface.
+      expect(String(path)).toBe(`/api/endpoint/${SLUG}/ngsi-ld/v1/entities/${encodeURIComponent(rows[0].id)}/attrs`);
+      expect((init!.headers as Record<string, string>)["JC-Reason"]).toBe(encodeURIComponent(en.entityGrid.reasonDefault));
+      expect(JSON.parse(String(init!.body))).toEqual({ pm10: { type: "Property", value: 14, unitCode: "GQ" } });
+      expect(await screen.findByRole("button", { name: en.entityGrid.undo })).toBeInTheDocument();
+    });
+
+    it("gives a viewer, whose grant names no write, no editor", async () => {
+      renderInside({ status: 200, count: 1 }, { status: 200, rows }, {
+        source,
+        access: { permissions: [{ resource: { type: "AirQualityObserved" }, actions: ["queryEntity"], attributes: "*" }] },
+      });
+      expect(await screen.findByRole("button", { name: `${en.entityGrid.openRow}: Námestie SNP` })).toBeInTheDocument();
+      expect(screen.queryByRole("spinbutton")).toBeNull();
+      expect(screen.queryByRole("textbox", { name: /pm10|name/ })).toBeNull();
+    });
   });
 
   it("says nothing has been written to an empty space", async () => {

@@ -13,6 +13,8 @@ import type { components } from "../../api/schema";
 import { RecordLink } from "../../components/RecordLink";
 import { TypePicker } from "../../components/pickers/TypePicker";
 import { Alert, Badge, Button, Field, Input, Select } from "../../components/ui";
+import { ExpiryChoice } from "./ExpiryChoice";
+import type { Expiry } from "./ExpiryChoice";
 import { autoMatch, generate, idFieldOf, preview, problemsOf, readBack } from "./outputMapper";
 import type { Attribute, MapperProblem, MapperState, Source } from "./outputMapper";
 
@@ -26,6 +28,10 @@ export interface OutputMapperProps {
   /** The compute step as it stands. */
   bloblang: string;
   onBloblang: (bloblang: string) => void;
+  /** The pipeline's stale-entity sweep (PL-64), offered beside the step's own `expiresAt`. */
+  expiry?: Expiry;
+  /** Sets the sweep and, when it changes too, the step: one change, so neither overwrites the other. */
+  onExpiry?: (expiry: Expiry | undefined, bloblang?: string) => void;
 }
 
 type Choice = "" | "expression" | "value" | "point" | `field:${string}`;
@@ -49,7 +55,7 @@ async function attributesOf(project: string, space: string, type: string): Promi
   throw new ApiError(response.status, typeof detail === "string" ? detail : response.statusText);
 }
 
-export function OutputMapper({ project, space, orgDomain, records, bloblang, onBloblang }: OutputMapperProps): JSX.Element {
+export function OutputMapper({ project, space, orgDomain, records, bloblang, onBloblang, expiry, onExpiry }: OutputMapperProps): JSX.Element {
   const { t } = useTranslation();
   const fields = useMemo(() => [...new Set(records.flatMap((record) => Object.keys(record)))], [records]);
   // The type the step writes: from its own map once the attributes are known, else the one picked.
@@ -102,6 +108,8 @@ export function OutputMapper({ project, space, orgDomain, records, bloblang, onB
         return t("pipelines.mapper.problem.notValue", { field: problem.field, value: problem.value, name, values: problem.values.join(", ") });
       case "noId":
         return t("pipelines.mapper.problem.noId");
+      case "notTime":
+        return t("pipelines.mapper.problem.notTime", { field: problem.field, value: problem.value });
     }
   };
 
@@ -122,6 +130,7 @@ export function OutputMapper({ project, space, orgDomain, records, bloblang, onB
   };
 
   const noId = problems.find((problem) => problem.kind === "noId");
+  const expiresProblem = problemOf("expiresAt");
 
   return (
     <div className="flex flex-col gap-3" data-testid="output-mapper">
@@ -296,6 +305,23 @@ export function OutputMapper({ project, space, orgDomain, records, bloblang, onB
               );
             })}
           </ul>
+
+          <ExpiryChoice
+            project={project}
+            space={space}
+            type={current.type}
+            fields={fields}
+            expires={current.expires}
+            expiry={expiry}
+            problem={expiresProblem ? say(expiresProblem, "expiresAt") : undefined}
+            onExpires={(expires) => write({ ...current, expires })}
+            onMode={(expires, next) => {
+              const step = generate({ ...current, expires }, attributes, space);
+              if (onExpiry) onExpiry(next, step);
+              else onBloblang(step);
+            }}
+            onExpiry={onExpiry ? (next) => onExpiry(next) : undefined}
+          />
 
           <p className="text-caption text-fg-muted">
             {t("pipelines.mapper.missingAttribute")}{" "}

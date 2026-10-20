@@ -7,7 +7,7 @@
  * re-read from the endpoint, and nothing is sent for a surface that takes no writes.
  */
 import { describe, expect, it } from "vitest";
-import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
+import { act, render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { EntityGrid } from "../src/grid/EntityGrid";
 import { parseGridConfig } from "../src/grid/config";
 import { fixtureSource, SourceError } from "../src/grid/source";
@@ -50,9 +50,11 @@ function configOf(extra: Record<string, unknown> = {}) {
 function writable(refuse?: (id: string) => SourceError | undefined) {
   const inner = fixtureSource(entities);
   const written: { id: string; attrs: Record<string, unknown> }[] = [];
+  const reasons: (string | undefined)[] = [];
   const reads = { count: 0 };
   return {
     written,
+    reasons,
     reads,
     source: {
       query: async (...args: Parameters<typeof inner.query>) => {
@@ -60,8 +62,9 @@ function writable(refuse?: (id: string) => SourceError | undefined) {
         return inner.query(...args);
       },
       get: inner.get,
-      patch: async (id: string, attrs: Record<string, unknown>) => {
+      patch: async (id: string, attrs: Record<string, unknown>, reason?: string) => {
         written.push({ id, attrs });
+        reasons.push(reason);
         const problem = refuse?.(id);
         if (problem) {
           throw problem;
@@ -226,7 +229,8 @@ describe("edit mode", () => {
 
     await waitFor(() => expect(written).toHaveLength(2));
     // The endpoint's own sentence, where the person can see it, and the value still theirs.
-    expect(await screen.findByText(new RegExp("may not write availableBikeNumber"))).toBeInTheDocument();
+    // In the review and at the cell itself (T-4826).
+    expect(await screen.findAllByText(new RegExp("may not write availableBikeNumber"))).toHaveLength(2);
     await waitFor(() => expect(screen.getByText(`1 ${DEFAULT_LABELS.pending}`)).toBeInTheDocument());
     expect(screen.getByDisplayValue("2")).toBeInTheDocument();
   });
@@ -400,5 +404,134 @@ describe("a geometry cell in edit mode (T-1443, UI-72)", () => {
     expect(screen.queryByDisplayValue("[object Object]")).toBeNull();
     // The cell still says what it holds, so the table stays the record of the row.
     expect(screen.getByText("Point")).toBeInTheDocument();
+  });
+});
+
+/** Reviews what is pending and applies it, with the reason the person typed when they give one. */
+async function applyPending(reason?: string) {
+  fireEvent.click(screen.getByRole("button", { name: DEFAULT_LABELS.review }));
+  const panel = screen.getByRole("region", { name: DEFAULT_LABELS.review });
+  if (reason !== undefined) {
+    fireEvent.change(within(panel).getByRole("textbox", { name: DEFAULT_LABELS.reason }), { target: { value: reason } });
+  }
+  fireEvent.click(within(panel).getByRole("button", { name: DEFAULT_LABELS.apply }));
+}
+
+describe("editing from the keyboard and with a reason (T-4826, DM-113)", () => {
+  it("makes the clicked cell active, and the keys go on from there", async () => {
+    const { source } = writable();
+    render(<EntityGrid config={configOf()} source={source} />);
+    const kallio = await screen.findByDisplayValue("Kallio");
+    const grid = screen.getByRole("grid");
+    fireEvent.mouseDown(kallio.closest('[role="gridcell"]')!);
+    expect(grid.getAttribute("aria-activedescendant")).toBe(kallio.closest('[role="gridcell"]')!.id);
+    grid.focus();
+    fireEvent.keyDown(grid, { key: "ArrowRight" });
+    // The bikes cell of the same, second row: not row 0, where the old grid jumped (A04).
+    const active = document.getElementById(grid.getAttribute("aria-activedescendant")!)!;
+    expect(within(active).getByDisplayValue("3")).toBeInTheDocument();
+  });
+
+  it("starts editing with the character typed, and Escape puts the value back", async () => {
+    const { source } = writable();
+    render(<EntityGrid config={configOf()} source={source} />);
+    const five = await screen.findByDisplayValue("5");
+    fireEvent.mouseDown(five.closest('[role="gridcell"]')!);
+    const grid = screen.getByRole("grid");
+    grid.focus();
+    fireEvent.keyDown(grid, { key: "7" });
+    const input = screen.getByDisplayValue("7");
+    expect(input).toHaveFocus();
+    expect(screen.getByText(`1 ${DEFAULT_LABELS.pending}`)).toBeInTheDocument();
+
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(grid).toHaveFocus();
+    expect(screen.getByDisplayValue("5")).toBeInTheDocument();
+    expect(screen.queryByText(`1 ${DEFAULT_LABELS.pending}`)).toBeNull();
+  });
+
+  it("keeps the value on Enter and moves down; a cell focused by Tab becomes the active one", async () => {
+    const { source } = writable();
+    render(<EntityGrid config={configOf()} source={source} />);
+    const grid = screen.getByRole("grid");
+    const kamppi = await screen.findByDisplayValue("Kamppi");
+    const activeText = () => document.getElementById(grid.getAttribute("aria-activedescendant")!)!.querySelector("input")?.value;
+
+    act(() => kamppi.focus());
+    expect(activeText()).toBe("Kamppi");
+    fireEvent.change(kamppi, { target: { value: "Kamppi 2" } });
+    fireEvent.keyDown(kamppi, { key: "Enter" });
+    expect(grid).toHaveFocus();
+    expect(activeText()).toBe("Kallio");
+    expect(screen.getByDisplayValue("Kamppi 2")).toBeInTheDocument();
+
+    // Tab is the browser's: the next cell's box takes the focus, and the active cell follows it.
+    act(() => screen.getByDisplayValue("3").focus());
+    expect(activeText()).toBe("3");
+  });
+
+  it("sends the default reason with each update, or the one the person typed", async () => {
+    const first = writable();
+    const { unmount } = render(<EntityGrid config={configOf()} source={first.source} />);
+    fireEvent.change(await screen.findByDisplayValue("5"), { target: { value: "4" } });
+    await applyPending();
+    await waitFor(() => expect(first.reasons).toEqual([DEFAULT_LABELS.reasonDefault]));
+    unmount();
+
+    const second = writable();
+    render(<EntityGrid config={configOf()} source={second.source} />);
+    fireEvent.change(await screen.findByDisplayValue("5"), { target: { value: "4" } });
+    await applyPending("  Counter reset at 06:00  ");
+    await waitFor(() => expect(second.reasons).toEqual(["Counter reset at 06:00"]));
+  });
+
+  it("holds Apply while the reason is empty, and says why", async () => {
+    const { written, source } = writable();
+    render(<EntityGrid config={configOf()} source={source} />);
+    fireEvent.change(await screen.findByDisplayValue("5"), { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("button", { name: DEFAULT_LABELS.review }));
+    const panel = screen.getByRole("region", { name: DEFAULT_LABELS.review });
+    const field = within(panel).getByRole("textbox", { name: DEFAULT_LABELS.reason });
+    fireEvent.change(field, { target: { value: "   " } });
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(within(panel).getByText(DEFAULT_LABELS.reasonNeeded)).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: DEFAULT_LABELS.apply })).toBeDisabled();
+    expect(written).toHaveLength(0);
+  });
+
+  it("offers Undo after an apply, which writes the replaced value back with its own reason", async () => {
+    const { written, reasons, source } = writable();
+    render(<EntityGrid config={configOf()} source={source} />);
+    fireEvent.change(await screen.findByDisplayValue("5"), { target: { value: "4" } });
+    await applyPending("Sensor stuck");
+    fireEvent.click(await screen.findByRole("button", { name: DEFAULT_LABELS.undo }));
+    await waitFor(() => expect(written).toHaveLength(2));
+    expect(written[1]).toEqual({
+      id: "urn:ngsi-ld:BikeHireDockingStation:hel:helsinki:001",
+      attrs: { availableBikeNumber: { type: "Property", value: 5, unitCode: "C62" } },
+    });
+    expect(reasons[1]).toBe(`${DEFAULT_LABELS.undoReason}: Sensor stuck`);
+    expect(await screen.findByText(DEFAULT_LABELS.undone)).toBeInTheDocument();
+  });
+
+  it("shows the gateway's 400 at the cell it names, and keeps the value typed", async () => {
+    const { source } = writable(() => new SourceError(400, "availableBikeNumber must be at least 0", "availableBikeNumber"));
+    render(<EntityGrid config={configOf()} source={source} />);
+    fireEvent.change(await screen.findByDisplayValue("5"), { target: { value: "-1" } });
+    await applyPending();
+    const input = await screen.findByDisplayValue("-1");
+    await waitFor(() => expect(input).toHaveAttribute("aria-invalid", "true"));
+    const message = document.getElementById(input.getAttribute("aria-describedby")!);
+    expect(message?.textContent).toBe("availableBikeNumber must be at least 0");
+  });
+
+  it("shows a 403 that names no attribute at each cell of the entity it refused", async () => {
+    const { source } = writable(() => new SourceError(403, "your role may not write this entity"));
+    render(<EntityGrid config={configOf()} source={source} />);
+    fireEvent.change(await screen.findByDisplayValue("5"), { target: { value: "4" } });
+    await applyPending();
+    const input = await screen.findByDisplayValue("4");
+    await waitFor(() => expect(input).toHaveAttribute("aria-invalid", "true"));
+    expect(document.getElementById(input.getAttribute("aria-describedby")!)?.textContent).toBe("your role may not write this entity");
   });
 });
