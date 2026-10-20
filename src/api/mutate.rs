@@ -848,6 +848,16 @@ async fn propose_engine(
     }
     // 4d. Nobody grants above their own rights (PF-52, AG-77).
     crate::permissions::within_own_rights(state, identity, &body_val, "proposer")?;
+    // 4e. A pipeline reaches only what its proposer reads and writes (PL-94).
+    if operation != Operation::Delete {
+        crate::pipeline_rights::check(
+            state,
+            identity,
+            project,
+            &body_val,
+            jc_core::kinds::Verb::Propose,
+        )?;
+    }
 
     if operation != Operation::Delete {
         check_organization_names(state, identity, project, kind_info.kind, &envelope).await?;

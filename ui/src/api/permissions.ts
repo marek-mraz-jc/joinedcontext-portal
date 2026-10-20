@@ -41,6 +41,26 @@ export function allows(effective: Effective | undefined, kind: string, verb: Ver
 }
 
 /**
+ * Whether a grant lets the caller `verb` on `kind` in `space`: one of the project, or one bound
+ * to that very space (the server's `Effective::may_in`, T-4593). `propose` implies `read`. No
+ * document yet means yes, as `allows` reads it; the API still decides.
+ */
+export function allowsIn(effective: Effective | undefined, kind: string, verb: Verb, space: string): boolean {
+  if (!effective || !Array.isArray(effective.grants) || effective.bootstrap === true) {
+    return true;
+  }
+  return effective.grants.some((grant) => {
+    const rule = grant.rule as Rule;
+    const verbs = rule.verbs ?? [];
+    return (
+      Boolean(rule.kinds?.includes(kind)) &&
+      (verbs.includes(verb) || (verb === "read" && verbs.includes("propose"))) &&
+      (!grant.space || grant.space === space)
+    );
+  });
+}
+
+/**
  * Whether any grant lets the caller propose something in the project (T-4263): a create address
  * nothing opened tells a role without one that it may look, not create, instead of a warning that
  * the address might be wrong. No document yet means yes, as `allows` reads it.
