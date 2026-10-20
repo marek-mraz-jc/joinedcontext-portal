@@ -1939,7 +1939,7 @@ impl ViewSync {
             })?;
         if !response.status().is_success() {
             let what = format!("model tools refused the data model {name}");
-            return Err(ViewOutcome::Failed(refusal(&what, response).await));
+            return Err(ViewOutcome::Failed(refusal(&what, response, None).await));
         }
         let artifacts: crate::tools::model_tools::Artifacts =
             response.json().await.map_err(|err| {
@@ -1993,7 +1993,7 @@ impl ViewSync {
             return Ok(None);
         }
         if !response.status().is_success() {
-            return Err(refusal(&format!("GET {path}"), response).await);
+            return Err(refusal(&format!("GET {path}"), response, Some(token)).await);
         }
         response
             .json()
@@ -2061,7 +2061,7 @@ impl ViewSync {
         let response = self
             .http
             .post(format!("{base}/q/erasures/{tenant}"))
-            .bearer_auth(token)
+            .bearer_auth(&token)
             .json(&json!({
                 "entities": entities,
                 "attrs": attrs,
@@ -2073,7 +2073,7 @@ impl ViewSync {
             .await
             .map_err(|err| format!("the broker did not answer: {}", err.without_url()))?;
         if !response.status().is_success() {
-            return Err(refusal("the broker refused the erasure", response).await);
+            return Err(refusal("the broker refused the erasure", response, Some(&token)).await);
         }
         let record: Value = response
             .json()
@@ -2116,12 +2116,17 @@ impl ViewSync {
                 .get(format!("{base}/q/retention/{tenant}/deleted")),
         };
         let response = request
-            .bearer_auth(token)
+            .bearer_auth(&token)
             .send()
             .await
             .map_err(|err| format!("the broker did not answer: {}", err.without_url()))?;
         if !response.status().is_success() {
-            return Err(refusal("the broker refused the retention count", response).await);
+            return Err(refusal(
+                "the broker refused the retention count",
+                response,
+                Some(&token),
+            )
+            .await);
         }
         let answer: Value = response
             .json()
@@ -2141,7 +2146,12 @@ impl ViewSync {
         match sent {
             Ok(response) if response.status().is_success() => ViewOutcome::Written,
             Ok(response) => ViewOutcome::Failed(
-                refusal(&format!("the broker refused PUT {path}"), response).await,
+                refusal(
+                    &format!("the broker refused PUT {path}"),
+                    response,
+                    Some(token),
+                )
+                .await,
             ),
             Err(err) => ViewOutcome::Failed(format!("the broker did not answer PUT {path}: {err}")),
         }
@@ -2158,7 +2168,7 @@ impl ViewSync {
         match response.status().is_success() || response.status() == reqwest::StatusCode::NOT_FOUND
         {
             true => Ok(()),
-            false => Err(refusal(&format!("DELETE {path}"), response).await),
+            false => Err(refusal(&format!("DELETE {path}"), response, Some(token)).await),
         }
     }
 }
@@ -2169,8 +2179,10 @@ fn lock<T>(held: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// `what: status: detail`, the detail of a problem document when it is one, cut short.
-async fn refusal(what: &str, response: reqwest::Response) -> String {
+/// `what: status: detail`, the detail of a problem document when it is one, cut short; the
+/// request's bearer `token`, when a broker repeats it, is replaced before the cut (T-4772), so
+/// no status or API error ever carries it.
+async fn refusal(what: &str, response: reqwest::Response, token: Option<&str>) -> String {
     let status = response.status();
     let body = response.text().await.unwrap_or_default();
     let detail = serde_json::from_str::<Value>(&body)
@@ -2183,6 +2195,9 @@ async fn refusal(what: &str, response: reqwest::Response) -> String {
         })
         .unwrap_or(body);
     let mut said = detail.trim().replace('\n', " ");
+    if let Some(token) = token.filter(|token| !token.is_empty()) {
+        said = said.replace(token, "[redacted]");
+    }
     if said.len() > 300 {
         let mut end = 300;
         while !said.is_char_boundary(end) {
@@ -4263,6 +4278,15 @@ mod tests {
             .respond_with(ResponseTemplate::new(400).set_body_json(json!({"detail": "type twice"})))
             .mount(&server)
             .await;
+        // A broker that repeats the request's credential in its refusal (T-4772): the admin
+        // token never reaches a status or an API error.
+        Mock::given(method("POST"))
+            .and(path("/q/retention/echoed/preview"))
+            .respond_with(ResponseTemplate::new(401).set_body_json(
+                json!({"detail": format!("Authorization: Bearer {TOKEN} is not valid here")}),
+            ))
+            .mount(&server)
+            .await;
         let file = token_file();
         let sync = ViewSync::new(server.uri(), &file);
         lock(&sync.compiled).insert(
@@ -4281,6 +4305,7 @@ mod tests {
         let preview = sync.retention_counts("city-air", Some(&rules), &[]).await;
         let deleted = sync.retention_counts("city-air", None, &rules).await;
         let refused = sync.retention_counts("refused", Some(&rules), &[]).await;
+        let echoed = sync.retention_counts("echoed", Some(&rules), &[]).await;
         let _ = std::fs::remove_file(&file);
         let unreadable = ViewSync::new(server.uri(), "/nonexistent/token")
             .retention_counts("city-air", None, &rules)
@@ -4295,6 +4320,12 @@ mod tests {
             "{refused:?}"
         );
         assert!(unreadable.is_err());
+        assert!(
+            echoed
+                .as_ref()
+                .is_err_and(|e| !e.contains(TOKEN) && e.contains("[redacted]")),
+            "{echoed:?}"
+        );
     }
 
     /// DM-91: a space's `maxAge` rules reach the broker's sweep under the core context's IRIs
