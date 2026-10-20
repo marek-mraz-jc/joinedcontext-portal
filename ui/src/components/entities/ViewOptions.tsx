@@ -13,7 +13,7 @@ import type { ViewConfig } from "../../api/dataViews";
 import { Button, Checkbox, Field, Input, Select } from "../ui";
 
 export const TONES = ["neutral", "info", "success", "warning", "danger"] as const;
-export type ViewExtras = Pick<ViewConfig, "hidden" | "colour" | "group">;
+export type ViewExtras = Pick<ViewConfig, "hidden" | "colour" | "group" | "width" | "order" | "labels">;
 type ColourRule = NonNullable<ViewConfig["colour"]>[number];
 
 /** Groups counted at most: an enum longer than this is a list to filter, not to count. */

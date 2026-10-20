@@ -4,6 +4,7 @@ import { EntityGrid } from "../src/grid/EntityGrid";
 import { parseGridConfig } from "../src/grid/config";
 import { fixtureSource } from "../src/grid/source";
 import { DEFAULT_LABELS, useEntityGrid } from "../src/grid/useEntityGrid";
+import { formatDate } from "../src/grid/cells";
 
 const bikeEntities: Record<string, unknown>[] = [
   {
@@ -111,7 +112,7 @@ describe("EntityGrid", () => {
     });
 
     // Click the menu button for availableBikeNumber
-    const menuBtn = screen.getByLabelText("Show metadata for availableBikeNumber");
+    const menuBtn = screen.getByLabelText("Column options: Bikes");
     fireEvent.click(menuBtn);
 
     // Check the observedAt checkbox
@@ -121,8 +122,9 @@ describe("EntityGrid", () => {
 
     // Now the observedAt column should appear
     await waitFor(() => {
-      expect(screen.getByText("2026-01-01T10:00:00Z")).toBeInTheDocument();
-      expect(screen.getByText("2026-01-01T11:00:00Z")).toBeInTheDocument();
+      // An observed time reads in the reader's own locale and zone (T-4827).
+      expect(screen.getByText(formatDate("2026-01-01T10:00:00Z", navigator.language))).toBeInTheDocument();
+      expect(screen.getByText(formatDate("2026-01-01T11:00:00Z", navigator.language))).toBeInTheDocument();
     });
   });
 
@@ -137,7 +139,8 @@ describe("EntityGrid", () => {
     );
     await waitFor(() => {
       const buttons = screen.getAllByRole("button");
-      const relBtn = buttons.find((b) => b.textContent === "urn:ngsi-ld:Device:hel:001");
+      // A chip names its target by the end of its id, the URN is its title (T-4827).
+      const relBtn = buttons.find((b) => b.textContent === "001" && b.title === "urn:ngsi-ld:Device:hel:001");
       expect(relBtn).toBeInTheDocument();
       fireEvent.click(relBtn!);
       expect(onOpen).toHaveBeenCalledWith("urn:ngsi-ld:Device:hel:001");
@@ -479,6 +482,21 @@ describe("EntityGrid", () => {
       noFilter: "Všetky",
       sortPage: "Zoradiť túto stranu podľa",
       matching: "vyhovujúcich",
+      columnMenu: "Možnosti stĺpca",
+      sortAsc: "Zoradiť vzostupne",
+      sortDesc: "Zoradiť zostupne",
+      filterColumn: "Filtrovať",
+      hideColumn: "Skryť pole",
+      renameColumn: "Názov v tomto pohľade",
+      renameReset: "Názov z modelu",
+      columnWidth: "Šírka",
+      narrower: "Užší",
+      wider: "Širší",
+      moveLeft: "Posunúť doľava",
+      moveRight: "Posunúť doprava",
+      details: "Podrobnosti",
+      close: "Zavrieť",
+      history: "História",
     };
     render(
       <EntityGrid
@@ -490,7 +508,7 @@ describe("EntityGrid", () => {
     await waitFor(() => {
       expect(screen.getByText("Kamppi")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByLabelText("Zobraziť metadáta pre availableBikeNumber"));
+    fireEvent.click(screen.getByLabelText("Možnosti stĺpca: Bikes"));
     // Every visible string is the host's: none of the English defaults that differ from Slovak shows.
     const text = document.body.textContent ?? "";
     const pairs: [string, string][] = Object.entries(DEFAULT_LABELS).flatMap(([key, english]) =>
