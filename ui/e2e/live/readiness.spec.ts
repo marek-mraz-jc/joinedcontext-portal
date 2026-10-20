@@ -399,8 +399,8 @@ test("3. a space with its model: two classes, an enum, a slot of it and a relati
   await editor.getByLabel("Name", { exact: true }).fill(MODEL);
   await editor.getByLabel("Space", { exact: true }).selectOption(SPACE);
   for (const name of ["Station", "Sensor"]) {
-    await page.getByLabel("New class").fill(name);
-    await page.getByRole("button", { name: "Add class" }).click();
+    await page.getByLabel("New type").fill(name);
+    await page.getByRole("button", { name: "Add type" }).click();
     await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
   }
   await page.getByLabel("New enum").fill("QualityBand");
@@ -410,8 +410,8 @@ test("3. a space with its model: two classes, an enum, a slot of it and a relati
     await page.getByRole("button", { name: "Add value to QualityBand" }).click();
   }
   await page.getByRole("button", { name: "Station", exact: true }).click();
-  await page.getByLabel("New slot").fill("band");
-  await page.getByRole("button", { name: "Add slot" }).click();
+  await page.getByLabel("New field").fill("band");
+  await page.getByRole("button", { name: "Add field" }).click();
   await page.getByLabel("Range", { exact: true }).selectOption("QualityBand");
   await page.getByRole("radio", { name: "One to many" }).check();
   await page.getByLabel("Target class").selectOption("Sensor");

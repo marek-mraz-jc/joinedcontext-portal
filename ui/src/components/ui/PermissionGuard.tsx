@@ -3,6 +3,24 @@ import type { JSX, ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import { usePermissions } from "../../api/permissions";
 import type { Verb } from "../../api/permissions";
+import { ORG_NAMESPACE } from "../../api/manifest";
+import { kindPlural } from "../../kindWords";
+
+type Translate = (key: string, options?: Record<string, unknown>) => string;
+
+/**
+ * Why a control is refused. At organization scope it names who may, in words (T-4831): "Only an
+ * organization administrator can add or change agent profiles.", never the verb and the kind's
+ * code name the raw sentence quoted to an administrator on Agent profiles.
+ */
+export function deniedReason(t: Translate, project: string, verb: Verb, kind: string): string {
+  return project === ORG_NAMESPACE
+    ? t("permissions.deniedOrganization", {
+        action: t(`permissions.action.${verb}`, { defaultValue: verb }),
+        kinds: kindPlural(kind, t),
+      })
+    : t("permissions.denied", { verb, kind });
+}
 
 /**
  * Disabled with a reason (T-0603, UI-44, PF-50, PF-51): a control whose verb the caller's
@@ -36,7 +54,7 @@ export function PermissionGuard({
   }
   return cloneElement(children, {
     disabled: true,
-    disabledReason: t("permissions.denied", { verb, kind }),
+    disabledReason: deniedReason(t, project, verb, kind),
   });
 }
 

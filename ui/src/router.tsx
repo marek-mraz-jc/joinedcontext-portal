@@ -79,6 +79,7 @@ const Gallery = lazy(() => import("./pages/gallery/Gallery").then((module) => ({
 import { ORG_NAMESPACE } from "./api/manifest";
 import { isOrganizationTab, OrganizationPage } from "./pages/organization/OrganizationPage";
 import type { OrganizationTab } from "./pages/organization/OrganizationPage";
+import { AdminNav } from "./pages/organization/AdminNav";
 import { isProjectSettingsTab } from "./pages/projectSettings/tabs";
 import type { ProjectSettingsTab } from "./pages/projectSettings/tabs";
 import type { AuthState } from "./auth/AuthProvider";
@@ -643,7 +644,7 @@ function OrganizationView({ tab, form }: { tab: string; form: FormTarget | null 
     return <NoProject projects={projects} />;
   }
   return (
-    <Shell project={first}>
+    <Shell project={first} sidebar={(close) => <AdminNav project={first} active={tab} onNavigate={close} />}>
       <HandOff>
         <FormRouteHost
           project={ORG_NAMESPACE}
@@ -701,7 +702,7 @@ function OrganizationGroupView({ name }: { name: string }): React.JSX.Element {
     return <NoProject projects={projects} />;
   }
   return (
-    <Shell project={first}>
+    <Shell project={first} sidebar={(close) => <AdminNav project={first} active="groups" onNavigate={close} />}>
       <GroupPage name={name} />
     </Shell>
   );
@@ -715,7 +716,7 @@ function OrganizationPersonView({ id }: { id: string }): React.JSX.Element {
     return <NoProject projects={projects} />;
   }
   return (
-    <Shell project={first}>
+    <Shell project={first} sidebar={(close) => <AdminNav project={first} active="people" onNavigate={close} />}>
       <PersonPage id={id} />
     </Shell>
   );
@@ -1055,6 +1056,28 @@ const sectionRoute = createRoute({
     edit: typeof search.edit === "string" && search.edit !== "" ? search.edit : undefined,
     draft: typeof search.draft === "string" && search.draft !== "" ? search.draft : undefined,
   }),
+  // One list, one editor (T-4829): the generic DataModel list and its form opened version,
+  // source and lifecycle only. Every old address lands on the model page that edits it.
+  beforeLoad: ({ params, location, search }) => {
+    if (params.plural !== "datamodels") return;
+    const [, name, edit] = location.pathname.split(`/projects/${params.project}/datamodels`)[1]?.split("/") ?? [];
+    const model = name ? decodeURIComponent(name) : search.edit;
+    if (model === "new") {
+      throw redirect({ to: "/projects/$project/models", params: { project: params.project }, search: { new: "blank" }, replace: true });
+    }
+    if (model && (edit === "edit" || search.edit !== undefined)) {
+      throw redirect({ to: "/projects/$project/models", params: { project: params.project }, search: { edit: model }, replace: true });
+    }
+    if (model) {
+      throw redirect({ to: "/projects/$project/models/$name", params: { project: params.project, name: model }, replace: true });
+    }
+    throw redirect({
+      to: "/projects/$project/models",
+      params: { project: params.project },
+      search: search.draft ? { draft: search.draft } : {},
+      replace: true,
+    });
+  },
   component: function SectionRoute() {
     const { project, plural } = sectionRoute.useParams();
     const { edit } = sectionRoute.useSearch();

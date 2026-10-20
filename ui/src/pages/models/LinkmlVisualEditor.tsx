@@ -33,6 +33,14 @@ import { applyOperations } from "./operations";
 import { UnitPicker } from "../../components/pickers/UnitPicker";
 import type { Operation, SlotField } from "./operations";
 import { RelationshipEditor } from "./RelationshipEditor";
+import { fieldWord, FIELD_RANGE, useFieldWords } from "../../components/entities/fieldTypes";
+
+/** A basic range as the Add field dialog names it, or the range itself where it has no word. */
+const RANGE_TYPE = new Map(
+  Object.entries(FIELD_RANGE)
+    .filter(([type]) => type !== "email" && type !== "file" && type !== "formula")
+    .map(([type, { range }]) => [range, type]),
+);
 
 /**
  * The structured view of the model: classes, slots, enums (DM-13).
@@ -64,6 +72,7 @@ export function LinkmlVisualEditor({
   initialClass,
 }: LinkmlVisualEditorProps): JSX.Element {
   const { t, i18n } = useTranslation();
+  const word = useFieldWords();
   const model = useMemo(() => parseModel(source), [source]);
   const newClassInput = useRef<HTMLInputElement>(null);
 
@@ -238,6 +247,12 @@ export function LinkmlVisualEditor({
               </li>
             ))}
           </ul>
+          {/* Smart Data Models first (T-4829): an official type arrives with its fields written. */}
+          {onImport ? (
+            <Button size="sm" variant="secondary" className="mt-2 w-full" onClick={onImport}>
+              {t("models.hints.sdmAction")}
+            </Button>
+          ) : null}
           <div className="mt-2 flex gap-1">
             <Input
               ref={newClassInput}
@@ -372,20 +387,6 @@ export function LinkmlVisualEditor({
               {activeClass.name}
             </h2>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field id="class-uri" label={t("models.classUri")}>
-                <Input
-                  id="class-uri"
-                  value={activeClass.class_uri ?? ""}
-                  onChange={(event) =>
-                    run({
-                      op: "setClass",
-                      name: activeClass.name,
-                      field: "class_uri",
-                      value: event.target.value,
-                    })
-                  }
-                />
-              </Field>
               {/* T-1088, DM-13: the hierarchy the model declares, editable where it is read.
                   A parent can only be another class of this model, so it is a choice, not a
                   free text a typo turns into a dangling reference. */}
@@ -412,19 +413,6 @@ export function LinkmlVisualEditor({
                     ))}
                 </Select>
               </Field>
-              <Field id="class-mixins" label={t("models.classMixins")}>
-                <Input
-                  id="class-mixins"
-                  value={(activeClass.mixins ?? []).join(", ")}
-                  onChange={(event) =>
-                    run({
-                      op: "setClassMixins",
-                      name: activeClass.name,
-                      mixins: event.target.value.split(","),
-                    })
-                  }
-                />
-              </Field>
               <Field id="class-description" label={t("models.description")}>
                 <Input
                   id="class-description"
@@ -440,6 +428,40 @@ export function LinkmlVisualEditor({
                 />
               </Field>
             </div>
+            {/* What only a modeller needs (T-4829): the IRI is minted from the organisation's
+                prefix when the type is added, so a steward never has to type one. */}
+            <details className="rounded border border-border p-2">
+              <summary className="cursor-pointer text-body font-medium">{t("models.advanced")}</summary>
+              <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  <Field id="class-uri" label={t("models.classUri")}>
+                    <Input
+                      id="class-uri"
+                      value={activeClass.class_uri ?? ""}
+                      onChange={(event) =>
+                        run({
+                          op: "setClass",
+                          name: activeClass.name,
+                          field: "class_uri",
+                          value: event.target.value,
+                        })
+                      }
+                    />
+                  </Field>
+              <Field id="class-mixins" label={t("models.classMixins")}>
+                <Input
+                  id="class-mixins"
+                  value={(activeClass.mixins ?? []).join(", ")}
+                  onChange={(event) =>
+                    run({
+                      op: "setClassMixins",
+                      name: activeClass.name,
+                      mixins: event.target.value.split(","),
+                    })
+                  }
+                />
+              </Field>
+              </div>
+            </details>
             {locales.length > 0 ? (
               <div className="grid gap-3 sm:grid-cols-2">
                 {locales.map((locale) => (
@@ -499,7 +521,7 @@ export function LinkmlVisualEditor({
                         {slot?.deprecated ? ` (${t("models.deprecated")})` : ""}
                       </Button>
                     </TableCell>
-                    <TableCell>{slot?.range ?? "—"}</TableCell>
+                    <TableCell>{slot ? word(fieldWord(slot, model)) : "—"}</TableCell>
                     <TableCell>{slot?.kind ?? DEFAULT_KIND}</TableCell>
                     <TableCell>{slot?.unit?.ucum_code ?? "—"}</TableCell>
                     <TableCell>{slot ? t(`models.affordance.${slotAffordance(slot, model.enums.map((one) => one.name))}`) : "—"}</TableCell>
@@ -548,11 +570,14 @@ export function LinkmlVisualEditor({
                 >
                   <option value="">—</option>
                   <optgroup label={t("models.rangeBasic")}>
-                    {RANGES.map((range) => (
-                      <option key={range} value={range}>
-                        {range}
-                      </option>
-                    ))}
+                    {RANGES.map((range) => {
+                      const type = RANGE_TYPE.get(range);
+                      return (
+                        <option key={range} value={range}>
+                          {type ? `${t(`spaces.fields.types.${type}`)} (${range})` : range}
+                        </option>
+                      );
+                    })}
                   </optgroup>
                   {model.enums.length > 0 ? (
                     <optgroup label={t("models.rangeEnums")}>
@@ -567,7 +592,7 @@ export function LinkmlVisualEditor({
                     <optgroup label={t("models.rangeClasses")}>
                       {model.classes.map((klass) => (
                         <option key={klass.name} value={klass.name}>
-                          {klass.name}
+                          {t("models.word.linkTo", { target: klass.name })}
                         </option>
                       ))}
                     </optgroup>
@@ -589,6 +614,20 @@ export function LinkmlVisualEditor({
                   ))}
                 </Select>
               </Field>
+              <Field id="slot-unit" label={t("models.unit")} help={t("models.unitHint")}>
+                <UnitPicker
+                  id="slot-unit"
+                  label={t("models.unit")}
+                  labelled
+                  clearable
+                  value={unitCode(activeSlot.unit) ?? ""}
+                  onChange={(code) => setSlotField(activeSlot.name, "unit", code)}
+                />
+              </Field>
+            </div>
+            <details className="rounded border border-border p-2" open={iriError !== null}>
+              <summary className="cursor-pointer text-body font-medium">{t("models.advanced")}</summary>
+              <div className="mt-2 grid gap-3 sm:grid-cols-2">
               <Field id="slot-uri" label={t("models.slotUri")} help={t("models.slotUriHint")}>
                 <Input
                   id="slot-uri"
@@ -610,17 +649,8 @@ export function LinkmlVisualEditor({
                   }
                 />
               </Field>
-              <Field id="slot-unit" label={t("models.unit")} help={t("models.unitHint")}>
-                <UnitPicker
-                  id="slot-unit"
-                  label={t("models.unit")}
-                  labelled
-                  clearable
-                  value={unitCode(activeSlot.unit) ?? ""}
-                  onChange={(code) => setSlotField(activeSlot.name, "unit", code)}
-                />
-              </Field>
-            </div>
+              </div>
+            </details>
             <div className="flex flex-wrap gap-4 text-sm">
               <Checkbox
                 label={t("models.required")}
