@@ -105,7 +105,8 @@
     "datamodels": "Datenmodelle",
     "serviceaccounts": "Dienstkonten",
     "mappings": "Zuordnungen",
-    "layers": "Kartenebenen"
+    "layers": "Kartenebenen",
+    "csrs": "Kontextquellen"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -201,7 +202,9 @@
     "missing": "{field} ist erforderlich",
     "mapKey": "Schlüssel",
     "mapLanguage": "Sprache",
-    "mapAddLanguage": "Sprache hinzufügen"
+    "mapAddLanguage": "Sprache hinzufügen",
+    "advancedFields": "Erweitert",
+    "advancedFieldsHint": "Runner-Einstellungen, die die meisten Quellen auf dem Standard lassen."
   },
   "approvals": {
     "lead": "Jede Änderung am Projekt ist hier ein Vorschlag, bis eine freigebende Person sie zusammenführt.",
@@ -1746,6 +1749,18 @@
         "ckanDataset": "Das ist die Datensatzseite, keine Datei. Öffnen Sie dort die CSV- oder JSON-Ressource und kopieren Sie ihre Download-Adresse.",
         "layer": "Nennen Sie den zu lesenden Layer oder geben Sie die Adresse einer GeoJSON-Datei an."
       }
+    },
+    "test": {
+      "title": "Verbindung testen",
+      "hint": "Liest die gespeicherte Quelle einmal auf dem Runner des Projekts, höchstens drei Sekunden lang, und zeigt den ersten Datensatz. Es wird nichts geschrieben; die Zugangsdaten bleiben im Secret-Speicher.",
+      "button": "Verbindung testen",
+      "running": "Wird getestet…",
+      "read": "Verbunden: {records, plural, one {# Datensatz} other {# Datensätze}} gelesen ({bytes} Bytes). Der erste:",
+      "failed": "Nichts gelesen: {reason}. Prüfen Sie Adresse und Zugangsdaten und testen Sie erneut."
+    },
+    "usedBy": {
+      "title": "Verwendet von",
+      "none": "Noch keine Pipeline liest diese Quelle."
     }
   },
   "pipelines": {
@@ -5413,6 +5428,22 @@
       "serviceAccount": "Dienstkonto",
       "interval": "Intervall der Schemaspiegelung",
       "expiresAt": "Läuft ab am"
+    },
+    "page": {
+      "back": "Zurück zu den Kontextquellen",
+      "edit": "Bearbeiten",
+      "state": "Zustand",
+      "lastErrorLabel": "Letzter Fehler",
+      "none": "Keiner",
+      "types": "Entitätstypen",
+      "ids": "Entitäten",
+      "allIds": "Jede Entität dieser Typen",
+      "attributes": "Attribute",
+      "allAttributes": "Alle Attribute",
+      "operations": "Weitergeleitete Operationen",
+      "defaultOperations": "Standard des Brokers für den Modus",
+      "mode": "Modus",
+      "expires": "Läuft ab"
     }
   },
   "organization": {

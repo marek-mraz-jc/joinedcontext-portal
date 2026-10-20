@@ -809,13 +809,45 @@ export function runnerFieldHelp(text: string): string {
 }
 
 /**
+ * Per runner input, the top-level fields a steward fills to connect: the address, what to read,
+ * and the credential (T-4819). Every other field of these inputs folds under "Advanced". An input
+ * not named here keeps the runner's own `advanced` flag.
+ */
+export const STEWARD_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  nats: ["urls", "subject", "queue", "auth"],
+  nats_jetstream: ["urls", "subject", "stream", "durable", "queue", "bind", "deliver", "auth"],
+  mqtt: ["urls", "topics", "client_id", "user", "password"],
+  http_client: ["url", "verb", "headers", "basic_auth", "oauth2", "timeout"],
+  amqp_0_9: ["urls", "queue"],
+  kafka: ["addresses", "topics", "consumer_group", "sasl"],
+  websocket: ["url", "basic_auth", "oauth"],
+  sql_select: ["driver", "dsn", "table", "columns", "where"],
+};
+
+/** Runner tuning the runner does not mark advanced and no steward sets on a first connection. */
+const RUNNER_TUNING = ["auto_replay_nacks"];
+
+/** Whether the runner requires a field: no default, not advanced, not marked optional. */
+function runnerRequires(f: CatalogField): boolean {
+  return (f.default === null || f.default === undefined) && !f.advanced && !f.optional;
+}
+
+/** Whether a field folds under "Advanced"; a field the runner requires never does. */
+export function runnerAdvanced(input: CatalogInput, f: CatalogField): boolean {
+  if (runnerRequires(f)) return false;
+  const steward = STEWARD_FIELDS[input.name];
+  if (steward) return !steward.includes(f.path.split(".")[0]);
+  return f.advanced || RUNNER_TUNING.includes(f.path);
+}
+
+/**
  * Generates JSON Schema and UiSchema from a runner input's field tree (PL-50).
  *
  * Nested dot paths become nested objects; arrays of objects and free-form objects edit as YAML;
- * secret fields use the `secretRef` widget; advanced fields are ordered last in `ui:order`.
+ * secret fields use the `secretRef` widget; advanced fields (`runnerAdvanced`) are ordered last
+ * and tagged `ui:options.advanced`, which the form folds under "Advanced" (T-4819).
  */
 export function runnerInputSchema(input: CatalogInput): { schema: JsonSchema; uiSchema: UiSchema } {
-  // ponytail: advanced: true fields are ordered last in ui:order and tagged with ui:options: { advanced: true }. A collapsible fold widget in SchemaForm is a follow-up.
   const schema: JsonSchema = {
     type: "object",
     properties: {},
@@ -866,7 +898,7 @@ export function runnerInputSchema(input: CatalogInput): { schema: JsonSchema; ui
       if (f.description) {
         objSchema.description = runnerFieldHelp(f.description);
       }
-      if (f.advanced) {
+      if (runnerAdvanced(input, f)) {
         objUi["ui:options"] = {
           ...((objUi["ui:options"] as Record<string, unknown>) || {}),
           advanced: true,
@@ -908,7 +940,7 @@ export function runnerInputSchema(input: CatalogInput): { schema: JsonSchema; ui
       propSchema.description = runnerFieldHelp(f.description);
     }
 
-    if (f.advanced) {
+    if (runnerAdvanced(input, f)) {
       propUi["ui:options"] = {
         ...((propUi["ui:options"] as Record<string, unknown>) || {}),
         advanced: true,
@@ -924,8 +956,7 @@ export function runnerInputSchema(input: CatalogInput): { schema: JsonSchema; ui
       objUi[leafKey] = propUi;
     }
 
-    // Required is what the runner requires: no default, not advanced, not marked optional.
-    if ((f.default === null || f.default === undefined) && !f.advanced && !f.optional) {
+    if (runnerRequires(f)) {
       if (!objSchema.required) {
         objSchema.required = [];
       }
@@ -949,7 +980,7 @@ export function runnerInputSchema(input: CatalogInput): { schema: JsonSchema; ui
       const fieldPath = prefix ? `${prefix}.${k}` : k;
       const f = input.fields.find((field) => field.path === fieldPath);
       const opts = (targetUi[k] as { "ui:options"?: { advanced?: boolean } } | undefined)?.["ui:options"];
-      const isAdv = Boolean(f?.advanced || opts?.advanced);
+      const isAdv = Boolean((f && runnerAdvanced(input, f)) || opts?.advanced);
       if (isAdv) {
         advanced.push(k);
       } else {

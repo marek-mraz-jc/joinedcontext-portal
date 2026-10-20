@@ -400,18 +400,21 @@ function Fieldset({
   title,
   description,
   folded,
+  open,
   children,
 }: {
   title?: ReactNode;
   description?: ReactNode;
   /** Folded shut until the person opens it: `<details>` does the work, keyboard included. */
   folded?: boolean;
+  /** Opens a folded set, for a field in it the person has to see. */
+  open?: boolean;
   children: ReactNode;
 }): React.JSX.Element {
   const box = "flex flex-col gap-4 rounded-lg border border-border bg-surface-subtle/60 p-4";
   if (folded && title) {
     return (
-      <details className={box}>
+      <details className={box} open={open || undefined}>
         <summary className="cursor-pointer text-body font-semibold text-fg marker:text-fg-muted">
           {title}
           {description ? (
@@ -521,6 +524,9 @@ function ObjectFields(props: ObjectFieldTemplateProps): React.JSX.Element {
     // exactly once: what no group names follows the groups, in the order rjsf ordered it.
     const groups = groupsOf(uiSchema);
     const grouped = new Set(groups.flatMap((group) => group.fields));
+    const advanced = (name: string) =>
+      (uiSchema?.[name] as { "ui:options"?: { advanced?: unknown } } | undefined)?.["ui:options"]?.advanced === true;
+    const folded = properties.filter((prop) => !grouped.has(prop.name) && advanced(prop.name));
     return (
       <div className="flex flex-col gap-4">
         {title ? <h2 className="text-title font-semibold text-fg">{title}</h2> : null}
@@ -540,10 +546,22 @@ function ObjectFields(props: ObjectFieldTemplateProps): React.JSX.Element {
           </Fieldset>
         ))}
         <Cells
-          properties={properties.filter((prop) => !grouped.has(prop.name))}
+          properties={properties.filter((prop) => !grouped.has(prop.name) && !advanced(prop.name))}
           schema={props.schema}
           uiSchema={uiSchema}
         />
+        {folded.length > 0 ? (
+          // Runner tuning a steward rarely sets folds shut under one handle (T-4819); a field in
+          // it with an error opens it, so a refused value is never hidden.
+          <Fieldset
+            title={t("form.advancedFields")}
+            description={t("form.advancedFieldsHint")}
+            folded
+            open={folded.some((prop) => props.errorSchema?.[prop.name] !== undefined)}
+          >
+            <Cells properties={folded} schema={props.schema} uiSchema={uiSchema} />
+          </Fieldset>
+        ) : null}
       </div>
     );
   }

@@ -16,6 +16,9 @@ export const NAV_SECTIONS = [
   { plural: "subscriptions", labelKey: "nav.subscriptions", icon: "inbox" },
   // A source is what a pipeline reads, so it sits in front of the pipelines (MF-35).
   { plural: "datasources", labelKey: "nav.datasources", icon: "datasources" },
+  // Context sources a hub space's broker forwards to: a member's Endpoint or an external broker
+  // (MF-36, PF-48). Its list had no entry and was reachable only by its address (T-4819).
+  { plural: "csrs", labelKey: "nav.csrs", icon: "link" },
   // The project's MQTT brokers, which a data source reads and a device publishes to (MF-54, T-3839).
   { plural: "mqttbrokers", labelKey: "nav.mqttbrokers", icon: "datasources" },
   { plural: "pipelines", labelKey: "nav.pipelines", icon: "pipelines" },

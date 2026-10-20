@@ -105,7 +105,8 @@
     "datamodels": "Datové modely",
     "serviceaccounts": "Servisní účty",
     "mappings": "Mapování",
-    "layers": "Mapové vrstvy"
+    "layers": "Mapové vrstvy",
+    "csrs": "Kontextové zdroje"
   },
   "auth": {
     "lead": "Přihlaste se účtem své organizace a spravujte tuto platformu.",
@@ -201,7 +202,9 @@
     "missing": "{field} je povinné",
     "mapKey": "Klíč",
     "mapLanguage": "Jazyk",
-    "mapAddLanguage": "Přidat jazyk"
+    "mapAddLanguage": "Přidat jazyk",
+    "advancedFields": "Rozšířené",
+    "advancedFieldsHint": "Nastavení spouštěče, která většina zdrojů nechává výchozí."
   },
   "approvals": {
     "lead": "Každá změna projektu je zde návrhem, dokud ji schvalovatel nesloučí.",
@@ -1746,6 +1749,18 @@
         "ckanDataset": "Tohle je stránka datasetu, ne soubor. Otevřete na ní zdroj CSV nebo JSON a zkopírujte jeho adresu ke stažení.",
         "layer": "Zadejte vrstvu ke čtení, nebo adresu souboru GeoJSON."
       }
+    },
+    "test": {
+      "title": "Otestovat připojení",
+      "hint": "Načte uložený zdroj jednou na spouštěči projektu, nejvýše tři sekundy, a ukáže první záznam. Nic se nezapíše; přístupový údaj zůstává v úložišti tajemství.",
+      "button": "Otestovat připojení",
+      "running": "Testuje se…",
+      "read": "Připojeno: {records, plural, one {načten # záznam} few {načteny # záznamy} other {načteno # záznamů}} ({bytes} bajtů). První z nich:",
+      "failed": "Nic se nenačetlo: {reason}. Zkontrolujte adresu a přihlašovací údaje a otestujte znovu."
+    },
+    "usedBy": {
+      "title": "Používají ho",
+      "none": "Tento zdroj zatím nečte žádná pipeline."
     }
   },
   "pipelines": {
@@ -5413,6 +5428,22 @@
       "serviceAccount": "Servisní účet",
       "interval": "Interval zrcadlení schémat",
       "expiresAt": "Platí do"
+    },
+    "page": {
+      "back": "Zpět na kontextové zdroje",
+      "edit": "Upravit",
+      "state": "Stav",
+      "lastErrorLabel": "Poslední chyba",
+      "none": "Žádná",
+      "types": "Typy entit",
+      "ids": "Entity",
+      "allIds": "Každá entita těchto typů",
+      "attributes": "Atributy",
+      "allAttributes": "Všechny atributy",
+      "operations": "Přeposílané operace",
+      "defaultOperations": "Výchozí pro režim brokera",
+      "mode": "Režim",
+      "expires": "Platnost do"
     }
   },
   "organization": {
