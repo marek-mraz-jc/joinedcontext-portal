@@ -121,6 +121,10 @@ export interface LinkmlSlot {
   pattern?: string;
   minimum_value?: number;
   maximum_value?: number;
+  /** Where the slot stands in the display order, lower first (DM-98). */
+  rank?: number;
+  /** `annotations.label`: the slot's label per language, before its title (DM-100). */
+  label?: Record<string, string>;
   /** The profiles this slot belongs to, as LinkML `subsets`: which of them a projection takes. */
   subsets?: string[];
   /** The other end of a relationship, as LinkML `inverse` (DM-64). */
@@ -266,7 +270,8 @@ function slotOf(name: string, raw: Record<string, unknown>): LinkmlSlot {
     multivalued: raw.multivalued === true,
     deprecated: raw.deprecated === true,
     description: text(raw.description),
-    title: languageMap(raw.title),
+    // LinkML's own `title` is one string: read as English, as an enum value's is (T-4827).
+    title: typeof raw.title === "string" && raw.title !== "" ? { en: raw.title } : languageMap(raw.title),
     slot_uri: text(raw.slot_uri),
     unit:
       Object.keys(unit).length > 0
@@ -289,8 +294,20 @@ function slotOf(name: string, raw: Record<string, unknown>): LinkmlSlot {
     ...(raw.identifier === true ? { identifier: true } : {}),
     inlined: typeof raw.inlined === "boolean" ? raw.inlined : undefined,
     on_delete: text(annotated.on_delete),
+    ...(typeof raw.rank === "number" ? { rank: raw.rank } : {}),
+    ...(labelOf(annotated.label) ? { label: labelOf(annotated.label) } : {}),
     ...(text(raw.equals_expression) ? { equals_expression: text(raw.equals_expression) } : {}),
   };
+}
+
+/**
+ * `annotations.label` as a language map: LinkML writes an annotation as a plain value or as
+ * `{ tag, value }`, and a label per language as a map; a single string is the model's own language.
+ */
+function labelOf(raw: unknown): Record<string, string> | undefined {
+  const value = typeof raw === "object" && raw !== null && "value" in raw ? (raw as { value: unknown }).value : raw;
+  if (typeof value === "string") return value.trim() === "" ? undefined : { "": value };
+  return languageMap(value);
 }
 
 /** A list of names as the metamodel writes them: a YAML sequence of strings, or nothing. */
