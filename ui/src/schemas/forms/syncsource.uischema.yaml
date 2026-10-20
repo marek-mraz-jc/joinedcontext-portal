@@ -74,6 +74,7 @@ spec:
         sk: Interval spúšťania, režim zlučovania, riešenie konfliktov a voľby čistenia.
         cs: Interval spouštění, režim slučování, řešení konfliktů a volby čištění.
         de: Ausführungsintervall, Zusammenführungsmodus, Konfliktregeln und Bereinigungsoptionen.
+      folded: true
       fields: [interval, mode, conflictPolicy, prune, autoMerge]
   fields:
     name:
