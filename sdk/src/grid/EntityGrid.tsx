@@ -1285,10 +1285,14 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
 
       {virtual ? (
         <div className={`jc-grid-pager${classNames?.pager ? ` ${classNames.pager}` : ""}`} role="status">
+          {/* The total is the endpoint's own count, from the same answer as the rows (T-4885): an
+              answer the gateway narrowed carries none (R22), and the footer says so in words. */}
           <span className="jc-grid-total">
-            {grid.total !== undefined
-              ? `${rows.length} ${labels.of} ${grid.total} ${labels.loaded}`
-              : `${rows.length} ${labels.loaded}`}
+            {grid.loading && rows.length === 0
+              ? labels.loading
+              : grid.total !== undefined
+                ? `${rows.length} ${labels.of} ${grid.total} ${labels.loaded}`
+                : `${rows.length} ${labels.loaded} · ${labels.noTotal}`}
           </span>
           {grid.loadingMore && <span className="jc-grid-loading-more">{labels.loading}</span>}
         </div>

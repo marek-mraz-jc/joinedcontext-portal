@@ -4025,6 +4025,7 @@
     "filterRow": "Filters",
     "sortPage": "Sort this page by",
     "matching": "matching",
+    "noTotal": "the endpoint gives no total for this answer",
     "history": "History",
     "historyWindow": {
       "hour": "Last hour",

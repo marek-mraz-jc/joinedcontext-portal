@@ -335,11 +335,12 @@ describe("space inside view", () => {
     expect(gatewayCalls.every((url) => url.origin === window.location.origin)).toBe(true);
   });
 
-  // T-2889: the whole space's count, the broker's, above the per-type breakdown.
+  // T-2889: the whole space's count, the broker's, under the per-type breakdown on the model tab (T-4885).
   it("says how many entities the whole space holds, and why when it cannot", async () => {
     renderInside({ status: 200, count: 42 }, { status: 200 }, {
       usage: { status: 200, body: { entities: 14232, broker: "canary", observedAt: "2026-09-25T11:40:00Z" } },
     });
+    await openTab(en.spaces.inside.model);
     expect(await screen.findByTestId("space-total")).toHaveTextContent("The space holds 14,232 entities.");
     // PF-116: the space's page names the broker it lives on.
     expect(screen.getByTestId("space-broker")).toHaveTextContent("It lives on the context broker canary.");
@@ -362,10 +363,10 @@ describe("space inside view", () => {
         },
       },
     });
+    await openTab(en.spaces.inside.model);
     const size = await screen.findByTestId("space-size");
     expect(size).toHaveTextContent(i18n.t("spaces.inside.totalSize", { size: "4 MiB", history: "1 MiB" }));
     expect(size).toHaveAttribute("title", "4,194,304 B");
-    await openTab(en.spaces.inside.model);
     const table = await screen.findByRole("table", { name: en.spaces.inside.types });
     const row = within(table).getByText("AirQualityObserved").closest("tr") as HTMLElement;
     expect(within(row).getByTitle("3,145,728 B")).toHaveTextContent("3 MiB");
@@ -375,9 +376,9 @@ describe("space inside view", () => {
     renderInside({ status: 200, count: 42 }, { status: 200 }, {
       usage: { status: 200, body: { entities: 42, broker: "main", observedAt: "2026-09-25T11:40:00Z" } },
     });
+    await openTab(en.spaces.inside.model);
     expect(await screen.findByTestId("space-total")).toBeInTheDocument();
     expect(screen.queryByTestId("space-size")).toBeNull();
-    await openTab(en.spaces.inside.model);
     const table = await screen.findByRole("table", { name: en.spaces.inside.types });
     const row = within(table).getByText("AirQualityObserved").closest("tr") as HTMLElement;
     expect(row.textContent).not.toMatch(/\d B|KiB|MiB/);
@@ -387,6 +388,7 @@ describe("space inside view", () => {
     renderInside({ status: 200, count: 42 }, { status: 200 }, {
       usage: { status: 503, body: { title: "Service Unavailable", status: 503, detail: "the broker answered 500" } },
     });
+    await openTab(en.spaces.inside.model);
     expect(await screen.findByTestId("space-total")).toHaveTextContent(
       i18n.t("spaces.entitiesUnknown", { reason: "the broker answered 500" }),
     );

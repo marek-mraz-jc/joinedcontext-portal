@@ -340,6 +340,32 @@ describe("EntityGrid", () => {
     expect(within(panel).getAllByRole("textbox").length).toBeGreaterThan(0);
   });
 
+  // T-4885: the footer's total comes from the same answer as the rows; while the first page is on
+  // its way it says so, and an answer with no total (the gateway narrowed it, R22) is named in words.
+  it("footer: loading, then the endpoint's total, or words for an answer without one", async () => {
+    const rows = [{ id: "urn:ngsi-ld:BikeHireDockingStation:a", type: "BikeHireDockingStation", name: { type: "Property", value: "Kamppi" } }];
+    const config = parseGridConfig({
+      source: { kind: "fixture", name: "few" },
+      type: "BikeHireDockingStation",
+      columns: [{ attr: "name", label: "Name" }],
+      pageSize: 50,
+    }).config!;
+    const counted = fixtureSource(rows);
+    let release: () => void = () => undefined;
+    const slow = { ...counted, query: (q: Parameters<typeof counted.query>[0], page: Parameters<typeof counted.query>[1]) =>
+      new Promise<Awaited<ReturnType<typeof counted.query>>>((done) => { release = () => void counted.query(q, page).then(done); }) };
+    const { container, unmount } = render(<EntityGrid config={config} source={slow} virtual />);
+    await waitFor(() => expect(container.querySelector(".jc-grid-total")).toHaveTextContent(DEFAULT_LABELS.loading));
+    release();
+    await screen.findByText("1 of 1 loaded");
+    unmount();
+
+    const narrowed = { ...counted, query: async (q: Parameters<typeof counted.query>[0], page: Parameters<typeof counted.query>[1]) =>
+      ({ ...(await counted.query(q, page)), total: undefined }) };
+    render(<EntityGrid config={config} source={narrowed} virtual />);
+    await screen.findByText(`1 loaded · ${DEFAULT_LABELS.noTotal}`);
+  });
+
   // T-3097: a scrolling grid draws the rows in sight and loads the next page as the person nears
   // the end; the footer counts what is loaded of the whole set, and the rows keep their places.
   it("scrolls through more rows than a page, drawing only a window and loading as it goes", async () => {
