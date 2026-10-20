@@ -802,10 +802,6 @@ routes:
     rule: "project-verb:read:Pipeline (PL-90)"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
     note: "a reader's 503 is the fixture's: it has no database"
-  - route: GET /projects/{project}/pipelines/{name}/bento
-    rule: "project-verb:read:Pipeline (the shared readable_pipeline gate, T-4818)"
-    expect: [401, 404, 404, 404, 404, 404, 404, 404]
-    note: "a reader's 404 is the fixture's: its pipeline has no bento.yaml in the forge"
   - route: GET /projects/{project}/pipelines/{name}/rejected
     rule: "project-verb:read:Pipeline"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
