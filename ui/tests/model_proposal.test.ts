@@ -3,6 +3,8 @@
  * every generated schema without an error, and no help text cites a task or a spec page.
  */
 import { describe, expect, it } from "vitest";
+import { renderHook } from "@testing-library/react";
+import { useShownErrors } from "../src/components/forms/touched";
 import { classifyChanges, diffCounts, proposedVersion } from "../src/pages/models/breaking_detector";
 import { formReady } from "../src/pages/models/formSchema";
 import { parseModel } from "../src/pages/models/linkml";
@@ -101,5 +103,12 @@ describe("help texts", () => {
   it("the check sees one", () => {
     expect(internal.test("a zero reads as a measurement (Development/10 §5)")).toBe(true);
     expect(internal.test("never shows English prose (T-4727)")).toBe(true);
+  });
+});
+
+describe("a field's shown errors", () => {
+  it("an empty list is no error, so an anyOf chooser is not marked invalid", () => {
+    expect(renderHook(() => useShownErrors("root_currentValue", [])).result.current).toBeUndefined();
+    expect(renderHook(() => useShownErrors("root_x", ["is required", "is required"])).result.current).toEqual(["is required"]);
   });
 });

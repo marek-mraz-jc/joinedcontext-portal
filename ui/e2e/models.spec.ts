@@ -320,6 +320,7 @@ test.describe("a model change is proposed, and read back (T-4830)", () => {
       await expect(panel.getByLabel("Name")).toHaveValue("Bus lines on time");
       await expect(panel).not.toContainText(/Unsupported field schema|Missing items definition|option \d/);
       await expect(panel).not.toContainText(/\bT-\d{4}\b|Development\/\d+/);
+      await expect(panel.locator('[aria-invalid="true"]'), "a preview marks nothing invalid").toHaveCount(0);
       await expect(panel.getByRole("combobox").filter({ has: page.locator("option", { hasText: "Number" }) })).toBeVisible();
       await shot(page, `model-form-${width}`);
 
