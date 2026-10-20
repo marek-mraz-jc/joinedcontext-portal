@@ -216,6 +216,7 @@
     "needsPublisher": "Letting an endpoint out to the public needs the `publisher` role; a steward alone cannot.",
     "ownProposal": "You cannot approve or reject your own proposal.",
     "ownAccessChange": "Access changes need a second person: another administrator approves your own change to roles, groups or service accounts.",
+    "ownModelChange": "A data model change needs a second person: another administrator approves your own change to a model.",
     "confirmPrompt": "For red lane, type the resource name to confirm:",
     "confirmLabel": "Resource name confirmation",
     "diffAdded": "Added",
@@ -2950,7 +2951,9 @@
     "source": {
       "loading": "Loading model source…",
       "saveCheck": "Check",
-      "save": "Save model",
+      "save": "Propose v{version}",
+      "unchanged": "Nothing to propose: edit the model first.",
+      "diffSummary": "{added} added · {changed} changed · {removed} removed · v{from} → v{to}",
       "severity": {
         "none": "No change",
         "additive": "Additive change",
@@ -3212,6 +3215,8 @@
       "noClasses": "This model declares no class yet, so it generates no form.",
       "formClass": "Class",
       "formReadOnly": "This is the form the model generates, filled with its example; nothing is saved from here.",
+      "jsonType": {"number": "Number", "integer": "Whole number", "string": "Text", "boolean": "Yes or no", "object": "Group of fields", "array": "List"},
+      "asJson": "Shown as JSON.",
       "yaml": "The model's source (LinkML YAML)",
       "copyYaml": "Copy the YAML",
       "downloadYaml": "Download the YAML",
