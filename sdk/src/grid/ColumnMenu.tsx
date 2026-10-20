@@ -119,6 +119,9 @@ export const ColumnMenu = React.forwardRef<HTMLDivElement, ColumnMenuProps>(func
           {details}
         </details>
       )}
+      <button type="button" className="jc-grid-meta-item" onClick={onClose}>
+        {labels.close}
+      </button>
     </div>
   );
 });

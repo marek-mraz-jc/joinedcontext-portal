@@ -494,6 +494,7 @@ describe("EntityGrid", () => {
       moveLeft: "Posunúť doľava",
       moveRight: "Posunúť doprava",
       details: "Podrobnosti",
+      close: "Zavrieť",
       history: "História",
     };
     render(

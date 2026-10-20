@@ -140,6 +140,11 @@ describe("the column header menu (T-4827)", () => {
     fireEvent.keyDown(menu, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Column options: Count" }));
+    // A touch screen has no Escape: the menu's own Close does the same.
+    openMenu("Count");
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Column options: Count" }));
   });
 
   it("a layout the host kept comes back applied after a remount", async () => {
