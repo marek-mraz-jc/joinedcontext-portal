@@ -3839,7 +3839,9 @@
     "nameInvalid": "Malé písmená, číslice a spojovníky, na začiatku a na konci písmeno alebo číslica.",
     "nameReserved": "„org“ je vlastný menný priestor organizácie, nikdy nie projekt.",
     "displayNameLabel": "Zobrazovaný názov",
+    "displayNameHint": "Názov, ktorý ľudia čítajú v ponuke projektov a v katalógu; ak ho necháte prázdny, zobrazí sa názov vyššie.",
     "descriptionLabel": "Popis",
+    "descriptionHint": "Jedna veta o tom, na čo projekt slúži, zobrazená pod jeho názvom v zozname projektov.",
     "notAllowed": "Táto organizácia vám neumožňuje otvoriť projekt.",
     "nameNeeded": "Na otvorenie projektu je potrebné použiteľné meno.",
     "planLocked": "Ak to chcete zmeniť, zatvorte okno a začnite znova; plán bol pripravený pre túto hodnotu."

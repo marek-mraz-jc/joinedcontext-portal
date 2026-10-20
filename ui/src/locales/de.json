@@ -3839,7 +3839,9 @@
     "nameInvalid": "Kleinbuchstaben, Ziffern und Bindestriche, am Anfang und am Ende ein Buchstabe oder eine Ziffer.",
     "nameReserved": "„org“ ist der eigene Namensraum der Organisation, nie ein Projekt.",
     "displayNameLabel": "Anzeigename",
+    "displayNameHint": "Der Name, den man im Projektmenü und im Katalog liest; leer gelassen, wird der Name oben gezeigt.",
     "descriptionLabel": "Beschreibung",
+    "descriptionHint": "Ein Satz dazu, wofür das Projekt da ist, unter seinem Namen in der Projektliste.",
     "notAllowed": "Diese Organisation lässt Sie kein Projekt eröffnen.",
     "nameNeeded": "Für ein neues Projekt wird ein verwendbarer Name benötigt.",
     "planLocked": "Schließen Sie den Dialog und beginnen Sie neu, um das zu ändern; der Plan wurde dafür erstellt."

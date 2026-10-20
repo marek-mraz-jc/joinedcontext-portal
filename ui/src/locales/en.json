@@ -3839,7 +3839,9 @@
     "nameInvalid": "Lowercase letters, digits and hyphens, starting and ending with a letter or a digit.",
     "nameReserved": "'org' is the organization's own namespace, never a project.",
     "displayNameLabel": "Display name",
+    "displayNameHint": "The name people read in the project menu and on the catalogue; leave it empty to show the name above.",
     "descriptionLabel": "Description",
+    "descriptionHint": "One sentence on what the project is for, shown under its name in the project list.",
     "notAllowed": "This organization does not let you open a project.",
     "nameNeeded": "A usable name is needed to open a project.",
     "planLocked": "Close the dialog and start again to change this; the plan was made for it."
