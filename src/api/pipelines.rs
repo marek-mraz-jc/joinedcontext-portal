@@ -625,6 +625,12 @@ pub struct LogQuery {
     pub before: Option<i64>,
 }
 
+#[derive(Debug, Default, serde::Deserialize, utoipa::IntoParams)]
+pub struct RunsQuery {
+    /// Runs per answer, 1…200 (default 200): the pipeline list asks for the latest one (T-4817).
+    pub limit: Option<usize>,
+}
+
 /// One page of a run's log.
 #[derive(Debug, Serialize, ToSchema)]
 #[schema(as = PipelineLogPage)]
@@ -644,6 +650,7 @@ pub struct LogPage {
     params(
         ("project" = String, Path, description = "Project name"),
         ("name" = String, Path, description = "Pipeline name"),
+        RunsQuery,
     ),
     responses(
         (status = 200, description = "The runs, latest first", body = RunList),
@@ -656,11 +663,13 @@ pub async fn get_runs(
     user: CurrentUser,
     State(state): State<AppState>,
     Path((project, name)): Path<(String, String)>,
+    axum::extract::Query(query): axum::extract::Query<RunsQuery>,
 ) -> Result<Json<RunList>, ApiError> {
     readable_pipeline(&state, &user, &project, &name)?;
+    let limit = query.limit.unwrap_or(crate::pipeline_log::RUNS_KEPT);
     let items = state
         .pipeline_log
-        .runs(&project, &name, crate::pipeline_log::RUNS_KEPT)
+        .runs(&project, &name, limit)
         .await
         .map_err(|error| {
             tracing::warn!(%project, pipeline = %name, %error, "the runs could not be read");

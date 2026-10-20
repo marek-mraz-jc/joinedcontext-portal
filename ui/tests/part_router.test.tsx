@@ -169,3 +169,23 @@ describe("a section the API does not serve", () => {
     expect(screen.queryByText(en.app.notFound.title)).toBeNull();
   });
 });
+
+// T-4817: `/pipelines/air-quality/runs` drew the Application "Air quality" under Pipelines: the
+// router handed an address no route matched whole to the deepest partial match, `$name`.
+describe("an unknown sub-path of a resource", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    window.history.pushState({}, "", "/");
+  });
+
+  it.each([
+    "/projects/helsinki/pipelines/air-quality/runs",
+    "/projects/helsinki/spaces/air/whatever",
+    "/projects/helsinki/endpoints/air/edit/more",
+  ])("%s is the not-found page, never another kind's page", async (path) => {
+    await renderRoute({ path });
+    expect(await screen.findByText(en.app.notFound.title)).toBeInTheDocument();
+    expect(screen.queryByText(en.apps.build.notOnForge)).toBeNull();
+  });
+});
+
