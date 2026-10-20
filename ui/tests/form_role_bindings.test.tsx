@@ -311,7 +311,7 @@ describe("the role list (T-1759)", () => {
     // Refused once the person's permissions are read; the empty list's own Grant (T-3246) is the
     // same control and is held to the same.
     await waitFor(async () => {
-      for (const button of screen.getAllByRole("button", { name: /Grant a role/ })) expectDenied(button, /propose/);
+      for (const button of screen.getAllByRole("button", { name: /Grant a role/ })) expectDenied(button, /Only an organization administrator can add or change role assignments/);
     });
   });
 });

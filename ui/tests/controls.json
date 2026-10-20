@@ -1457,6 +1457,7 @@
         "organization_health.test.tsx",
         "organization_limits.test.tsx",
         "organization_page.test.tsx",
+        "organization_route.test.tsx",
         "organization_setup.test.tsx",
         "page_all_endpoints_page.test.tsx"
       ]
@@ -1760,7 +1761,7 @@
     },
     "src/routes/AllEndpointsPage.tsx": {
       "controls": {
-        "Button": 3
+        "Button": 5
       },
       "tests": [
         "page_all_endpoints_page.test.tsx"

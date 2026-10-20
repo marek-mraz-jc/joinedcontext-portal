@@ -134,6 +134,24 @@ describe("Organization settings: policies and limits", () => {
     expect(within(helsinki).getAllByText(en.organization.limits.noLimit).length).toBeGreaterThan(0);
   });
 
+  // T-4831 (D-settings): a TableRow inside TableHead nested a second <tr>, and the header cells
+  // stood off the body's columns. One header row, as many header cells as each row has cells.
+  it("lines each table's header up with its rows", async () => {
+    renderSettings();
+    await screen.findByRole("row", { name: /helsinki/ });
+    const tables = screen.getAllByRole("table");
+    expect(tables.length).toBe(SECTIONS.length + 1);
+    for (const table of tables) {
+      expect(table.querySelectorAll("thead tr")).toHaveLength(1);
+      expect(table.querySelectorAll("thead tr tr")).toHaveLength(0);
+      const headers = table.querySelectorAll("thead th").length;
+      for (const row of table.querySelectorAll("tbody tr")) {
+        const cells = [...row.children].reduce((sum, cell) => sum + Number(cell.getAttribute("colspan") ?? 1), 0);
+        expect(cells).toBe(headers);
+      }
+    }
+  });
+
   it("says why when the limits cannot be read, and keeps the rest of the page", async () => {
     renderPage(<OrganizationPage tab="settings" anchor="helsinki" />, {
       path: "/organization/settings",

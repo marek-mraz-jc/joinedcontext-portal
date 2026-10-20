@@ -478,7 +478,10 @@
     "newHint": "Fill the form, check it, then propose it; an approver reviews the change.",
     "propose": "Propose change",
     "emptyHintCreate": "Nothing of this kind is in the project yet. {new} opens the form.",
-    "askAssistant": "Ask the assistant for one"
+    "askAssistant": "Ask the assistant for one",
+    "leadOrganization": "Everything of this kind the organization holds. Each row opens what it names.",
+    "emptyHintOrganization": "Nothing of this kind is in the organization yet. This page lists and reads it; ask the assistant for one and decide what it proposes.",
+    "emptyHintCreateOrganization": "Nothing of this kind is in the organization yet. {new} opens the form."
   },
   "spaces": {
     "entitiesUnknown": "The count is not available: {reason}",
@@ -3869,7 +3872,17 @@
       "instance": "{project} / {name}",
       "show": "Show every catalogue",
       "hide": "Hide the catalogues"
-    }
+    },
+    "find": "Find an endpoint by project, space, name or slug",
+    "allProjects": "Every project",
+    "noMatch": "No endpoint matches",
+    "noMatchHint": "Clear the search or choose every project to see them all.",
+    "pages": "Pages of endpoints",
+    "range": "{from}–{to} of {count}",
+    "previous": "Previous",
+    "next": "Next",
+    "firstPage": "This is the first page.",
+    "lastPage": "This is the last page."
   },
   "projects": {
     "loading": "Loading projects…",
@@ -4633,7 +4646,17 @@
     "pickedClear": "Edit everything"
   },
   "permissions": {
-    "denied": "Disabled: your role does not permit ''{verb}'' on ''{kind}'' in this project"
+    "denied": "Disabled: your role does not permit ''{verb}'' on ''{kind}'' in this project",
+    "deniedOrganization": "Only an organization administrator can {action} {kinds}.",
+    "action": {
+      "read": "see",
+      "propose": "add or change",
+      "approve": "approve changes to",
+      "delete": "delete",
+      "create": "add",
+      "update": "change",
+      "disable": "disable"
+    }
   },
   "drafts": {
     "touched": "Draft v{version}, last touched by {who} ({kind})",
@@ -5319,7 +5342,6 @@
     "title": "Administration",
     "adminOnly": "This page is for organization administrators. Ask one of them for what you need here.",
     "lead": "What is the same in every project: the organization's settings, its members, roles, groups and service accounts, and its projects. Every change here is proposed and approved.",
-    "tabsLabel": "Parts of the organization",
     "tab": {
       "settings": "Settings",
       "people": "People",
@@ -5889,7 +5911,23 @@
         "down": "Down",
         "unknown": "No address"
       }
-    }
+    },
+    "nav": {
+      "back": "Back to the projects"
+    },
+    "group": {
+      "access": "People and access",
+      "projects": "Projects and apps",
+      "platform": "Platform",
+      "settings": "Settings"
+    },
+    "groupLead": {
+      "access": "Who belongs to the organization and what each person, group and service account may do. Every change is proposed and approved.",
+      "projects": "What every project of the organization holds and publishes, in one place.",
+      "platform": "What the installation runs for every project: brokers, environments, data space membership and health.",
+      "settings": "The organization's domain, languages, contacts, policies and limits, and what setup still lacks."
+    },
+    "kindHidden": "Only an organization administrator whose role includes {kinds} sees them here. Ask an organization administrator to add them to your role."
   },
   "projectDelete": {
     "title": "Delete project {name}",
@@ -7817,6 +7855,10 @@
     "UiSchema": {
       "other": "form layouts",
       "new": "New form layout"
+    },
+    "Person": {
+      "other": "people",
+      "new": "New person"
     }
   },
   "connectors": {

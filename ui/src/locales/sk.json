@@ -478,7 +478,10 @@
     "newHint": "Vyplňte formulár, skontrolujte ho a navrhnite; zmenu posúdi schvaľovateľ.",
     "propose": "Navrhnúť zmenu",
     "emptyHintCreate": "V projekte zatiaľ nič z tohto druhu nie je. {new} otvorí formulár.",
-    "askAssistant": "Požiadať asistenta o návrh"
+    "askAssistant": "Požiadať asistenta o návrh",
+    "leadOrganization": "Všetko tohto druhu, čo organizácia drží. Každý riadok otvorí, čo pomenúva.",
+    "emptyHintOrganization": "V organizácii zatiaľ nič z tohto druhu nie je. Táto stránka to zobrazuje a číta; požiadajte asistenta a rozhodnite o jeho návrhu.",
+    "emptyHintCreateOrganization": "V organizácii zatiaľ nič z tohto druhu nie je. {new} otvorí formulár."
   },
   "spaces": {
     "entitiesUnknown": "Počet nie je k dispozícii: {reason}",
@@ -3869,7 +3872,17 @@
       "instance": "{project} / {name}",
       "show": "Zobraziť všetky katalógy",
       "hide": "Skryť katalógy"
-    }
+    },
+    "find": "Nájsť endpoint podľa projektu, priestoru, názvu alebo slugu",
+    "allProjects": "Všetky projekty",
+    "noMatch": "Žiadny endpoint nezodpovedá",
+    "noMatchHint": "Vymažte hľadanie alebo zvoľte všetky projekty.",
+    "pages": "Strany endpointov",
+    "range": "{from}–{to} z {count}",
+    "previous": "Predchádzajúca",
+    "next": "Ďalšia",
+    "firstPage": "Toto je prvá strana.",
+    "lastPage": "Toto je posledná strana."
   },
   "projects": {
     "loading": "Načítavam projekty…",
@@ -4633,7 +4646,17 @@
     "pickedClear": "Upravovať všetko"
   },
   "permissions": {
-    "denied": "Vypnuté: vaša rola nedovoľuje ''{verb}'' na ''{kind}'' v tomto projekte"
+    "denied": "Vypnuté: vaša rola nedovoľuje ''{verb}'' na ''{kind}'' v tomto projekte",
+    "deniedOrganization": "Len administrátor organizácie môže {action}: {kinds}.",
+    "action": {
+      "read": "vidieť",
+      "propose": "pridať alebo zmeniť",
+      "approve": "schváliť zmeny",
+      "delete": "zmazať",
+      "create": "pridať",
+      "update": "zmeniť",
+      "disable": "vypnúť"
+    }
   },
   "drafts": {
     "touched": "Koncept v{version}, naposledy upravil {who} ({kind})",
@@ -5319,7 +5342,6 @@
     "title": "Administrácia",
     "adminOnly": "Táto stránka je pre administrátorov organizácie. O to, čo tu potrebujete, požiadajte niektorého z nich.",
     "lead": "Čo je rovnaké v každom projekte: nastavenia organizácie, jej členovia, roly, skupiny a servisné účty a jej projekty. Každá zmena sa tu navrhuje a schvaľuje.",
-    "tabsLabel": "Časti organizácie",
     "tab": {
       "settings": "Nastavenia",
       "people": "Ľudia",
@@ -5889,7 +5911,23 @@
         "down": "Nedostupný",
         "unknown": "Bez adresy"
       }
-    }
+    },
+    "nav": {
+      "back": "Späť na projekty"
+    },
+    "group": {
+      "access": "Ľudia a prístup",
+      "projects": "Projekty a aplikácie",
+      "platform": "Platforma",
+      "settings": "Nastavenia"
+    },
+    "groupLead": {
+      "access": "Kto patrí do organizácie a čo smie každý človek, skupina a servisný účet. Každá zmena sa navrhne a schváli.",
+      "projects": "Čo držia a zverejňujú všetky projekty organizácie, na jednom mieste.",
+      "platform": "Čo inštalácia prevádzkuje pre každý projekt: brokery, prostredia, členstvo v dátovom priestore a stav.",
+      "settings": "Doména organizácie, jazyky, kontakty, pravidlá a limity a čo ešte chýba v nastavení."
+    },
+    "kindHidden": "Tu ich vidí len administrátor organizácie, ktorého rola zahŕňa {kinds}. Požiadajte administrátora organizácie, aby ich pridal do vašej roly."
   },
   "projectDelete": {
     "title": "Zmazať projekt {name}",
@@ -7817,6 +7855,10 @@
     "UiSchema": {
       "other": "rozloženia formulárov",
       "new": "Nové rozloženie formulára"
+    },
+    "Person": {
+      "other": "ľudí",
+      "new": "Nový človek"
     }
   },
   "connectors": {

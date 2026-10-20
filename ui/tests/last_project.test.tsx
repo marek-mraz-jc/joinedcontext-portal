@@ -70,12 +70,17 @@ describe("the project a page outside any project opens on (T-2753)", () => {
     expect(preferredProject(["banskabystrica", "helsinki"])).toBe("helsinki");
   });
 
+  // Administration shows no project switcher since T-4831: its way back opens the project last
+  // worked in, and visiting it changes nothing about which one that is.
   for (const path of ["/organization/settings", "/organization/members", "/endpoints"]) {
     it(`keeps helsinki on ${path}`, async () => {
       rememberProject("helsinki");
       renderAt(path);
-      await waitFor(async () => expect(await selected()).toContain("helsinki"));
-      expect(await selected()).not.toContain("banskabystrica");
+      expect(await screen.findByRole("link", { name: en.organization.nav.back })).toHaveAttribute(
+        "href",
+        "/projects/helsinki/home",
+      );
+      expect(preferredProject(["banskabystrica", "helsinki"])).toBe("helsinki");
     });
   }
 

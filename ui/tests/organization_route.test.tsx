@@ -10,6 +10,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
+import userEvent from "@testing-library/user-event";
+import { ORGANIZATION_GROUPS } from "../src/pages/organization/AdminNav";
+import { ORGANIZATION_TABS } from "../src/pages/organization/OrganizationPage";
 
 const IDENTITY = { subject: "b7c1e0f4", username: "jana.kovacova", roles: ["portal-viewer"] };
 const EMPTY_LIST = { apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] };
@@ -52,28 +55,42 @@ describe("the Organization page's addresses (T-2605)", () => {
     vi.restoreAllMocks();
   });
 
-  it("opens /organization on its Settings tab", async () => {
+  it("opens /organization on its Settings section", async () => {
     renderAt("/organization");
     await waitFor(() => expect(window.location.pathname).toBe("/organization/settings"));
-    expect(await screen.findByRole("tab", { name: en.organization.tab.settings })).toHaveAttribute(
-      "aria-selected",
-      "true",
+    const nav = await screen.findByRole("navigation", { name: "Main navigation" });
+    expect(await within(nav).findByRole("link", { name: en.organization.tab.settings })).toHaveAttribute(
+      "aria-current",
+      "page",
     );
   });
 
-  // Owner, 2026-09-24: the organization is one button in the header, and its page holds every
-  // part of it as tabs; the sidebar lists none of them.
-  it("has one Administration entry in the header, and the sidebar lists no organization tab", async () => {
+  // T-4831 (owner 2026-10-20): Administration has its own sidebar, its sections in four named
+  // groups, and no project switcher, since nothing on it belongs to a project.
+  it("lists every section in the side navigation's four groups, with no project switcher", async () => {
     renderAt("/organization/members");
     const nav = await screen.findByRole("navigation", { name: "Main navigation" });
-    expect(within(nav).queryByRole("region", { name: en.nav.organization })).toBeNull();
-    for (const label of Object.values(en.organization.tab)) {
-      expect(within(nav).queryByRole("link", { name: label })).toBeNull();
+    for (const group of ORGANIZATION_GROUPS) {
+      const list = await within(nav).findByRole("list", { name: en.organization.group[group.id] });
+      expect(within(list).getAllByRole("link").map((link) => link.textContent)).toEqual(
+        group.tabs.map((tab) => en.organization.tab[tab]),
+      );
+      for (const tab of group.tabs) {
+        expect(within(list).getByRole("link", { name: en.organization.tab[tab] })).toHaveAttribute(
+          "href",
+          `/organization/${tab}`,
+        );
+      }
     }
+    expect(within(nav).getByRole("link", { name: en.organization.tab.members })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).queryByRole("button", { name: en.nav.projects })).toBeNull();
+    expect(within(nav).getByRole("link", { name: en.organization.nav.back })).toHaveAttribute(
+      "href",
+      "/projects/helsinki/home",
+    );
     const header = screen.getByRole("banner");
     const links = await within(header).findAllByRole("link", { name: en.nav.organization });
     expect(links).toHaveLength(1);
-    expect(links[0]).toHaveAttribute("href", "/organization/settings");
     expect(links[0]).toHaveAttribute("aria-current", "page");
   });
 
@@ -100,10 +117,31 @@ describe("the Organization page's addresses (T-2605)", () => {
     expect(within(header).queryByRole("button", { name: /Export project/i })).toBeNull();
   });
 
-  it("holds every part of the organization as a tab of its page", async () => {
+  // V04, T-4831: who does not administer the organization meets no section link in its sidebar.
+  it("gives somebody who does not administer only the way back", async () => {
+    renderAt("/organization/members", {
+      project: "org",
+      bootstrap: false,
+      grants: [{ role: "viewer", binding: "everyone", rule: { kinds: ["Project"], verbs: ["read"] } }],
+    });
+    expect(await screen.findByText(en.organization.adminOnly)).toBeInTheDocument();
+    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    expect(within(nav).getByRole("link", { name: en.organization.nav.back })).toBeInTheDocument();
+    for (const tab of ORGANIZATION_TABS) {
+      expect(within(nav).queryByRole("link", { name: en.organization.tab[tab] })).toBeNull();
+    }
+  });
+
+  // T-4831: every section is reachable from the side navigation, and none is a missing page.
+  it("opens each section from the side navigation at its own address", async () => {
+    const user = userEvent.setup();
     renderAt("/organization/settings");
-    for (const label of Object.values(en.organization.tab)) {
-      expect(await screen.findByRole("tab", { name: label })).toBeInTheDocument();
+    const nav = await screen.findByRole("navigation", { name: "Main navigation" });
+    for (const tab of ORGANIZATION_TABS) {
+      await user.click(await within(nav).findByRole("link", { name: en.organization.tab[tab] }));
+      await waitFor(() => expect(window.location.pathname).toBe(`/organization/${tab}`));
+      expect(within(nav).getByRole("link", { name: en.organization.tab[tab] })).toHaveAttribute("aria-current", "page");
+      expect(screen.queryByText(en.app.notFound.title)).toBeNull();
     }
   });
 

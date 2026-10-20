@@ -478,7 +478,10 @@
     "newHint": "Füllen Sie das Formular aus, prüfen Sie es und schlagen Sie es vor; eine freigebende Person prüft die Änderung.",
     "propose": "Änderung vorschlagen",
     "emptyHintCreate": "Von dieser Art ist noch nichts im Projekt. {new} öffnet das Formular.",
-    "askAssistant": "Den Assistenten um einen Vorschlag bitten"
+    "askAssistant": "Den Assistenten um einen Vorschlag bitten",
+    "leadOrganization": "Alles dieser Art, was die Organisation hält. Jede Zeile öffnet, was sie nennt.",
+    "emptyHintOrganization": "Von dieser Art ist noch nichts in der Organisation. Diese Seite listet und liest es; bitten Sie den Assistenten darum und entscheiden Sie über seinen Vorschlag.",
+    "emptyHintCreateOrganization": "Von dieser Art ist noch nichts in der Organisation. {new} öffnet das Formular."
   },
   "spaces": {
     "entitiesUnknown": "Die Anzahl ist nicht verfügbar: {reason}",
@@ -3869,7 +3872,17 @@
       "instance": "{project} / {name}",
       "show": "Alle Kataloge zeigen",
       "hide": "Kataloge ausblenden"
-    }
+    },
+    "find": "Endpoint nach Projekt, Raum, Name oder Slug finden",
+    "allProjects": "Alle Projekte",
+    "noMatch": "Kein Endpoint passt",
+    "noMatchHint": "Leeren Sie die Suche oder wählen Sie alle Projekte.",
+    "pages": "Seiten der Endpoints",
+    "range": "{from}–{to} von {count}",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "firstPage": "Das ist die erste Seite.",
+    "lastPage": "Das ist die letzte Seite."
   },
   "projects": {
     "loading": "Projekte werden geladen…",
@@ -4633,7 +4646,17 @@
     "pickedClear": "Alles bearbeiten"
   },
   "permissions": {
-    "denied": "Deaktiviert: Ihre Rolle erlaubt ''{verb}'' auf ''{kind}'' in diesem Projekt nicht"
+    "denied": "Deaktiviert: Ihre Rolle erlaubt ''{verb}'' auf ''{kind}'' in diesem Projekt nicht",
+    "deniedOrganization": "Nur die Organisationsadministration kann {kinds} {action}.",
+    "action": {
+      "read": "sehen",
+      "propose": "hinzufügen oder ändern",
+      "approve": "Änderungen genehmigen für",
+      "delete": "löschen",
+      "create": "hinzufügen",
+      "update": "ändern",
+      "disable": "deaktivieren"
+    }
   },
   "drafts": {
     "touched": "Entwurf v{version}, zuletzt bearbeitet von {who} ({kind})",
@@ -5319,7 +5342,6 @@
     "title": "Verwaltung",
     "adminOnly": "Diese Seite ist für die Administratoren der Organisation. Bitten Sie einen von ihnen um das, was Sie hier brauchen.",
     "lead": "Was in jedem Projekt gleich ist: die Einstellungen der Organisation, ihre Mitglieder, Rollen, Gruppen und Dienstkonten und ihre Projekte. Jede Änderung hier wird vorgeschlagen und genehmigt.",
-    "tabsLabel": "Bereiche der Organisation",
     "tab": {
       "settings": "Einstellungen",
       "people": "Personen",
@@ -5889,7 +5911,23 @@
         "down": "Ausgefallen",
         "unknown": "Keine Adresse"
       }
-    }
+    },
+    "nav": {
+      "back": "Zurück zu den Projekten"
+    },
+    "group": {
+      "access": "Personen und Zugriff",
+      "projects": "Projekte und Apps",
+      "platform": "Plattform",
+      "settings": "Einstellungen"
+    },
+    "groupLead": {
+      "access": "Wer zur Organisation gehört und was jede Person, Gruppe und jedes Dienstkonto darf. Jede Änderung wird vorgeschlagen und genehmigt.",
+      "projects": "Was alle Projekte der Organisation halten und veröffentlichen, an einem Ort.",
+      "platform": "Was die Installation für jedes Projekt betreibt: Broker, Umgebungen, Datenraum-Mitgliedschaft und Zustand.",
+      "settings": "Domain, Sprachen, Kontakte, Regeln und Grenzen der Organisation und was der Einrichtung noch fehlt."
+    },
+    "kindHidden": "Hier sieht sie nur eine Organisationsadministration, deren Rolle {kinds} umfasst. Bitten Sie die Organisationsadministration, sie Ihrer Rolle hinzuzufügen."
   },
   "projectDelete": {
     "title": "Projekt {name} löschen",
@@ -7817,6 +7855,10 @@
     "UiSchema": {
       "other": "Formularlayouts",
       "new": "Neues Formularlayout"
+    },
+    "Person": {
+      "other": "Personen",
+      "new": "Neue Person"
     }
   },
   "connectors": {
