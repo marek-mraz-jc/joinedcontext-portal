@@ -461,6 +461,13 @@ async fn fixture() -> AppState {
             .mirror
             .upsert(envelope(kind, EXISTING, PROJECT, json!({})));
     }
+    // A saved source the connection test reads (T-4819); the fixture runs no runner, so it is 503.
+    state.mirror.upsert(envelope(
+        "DataSource",
+        EXISTING,
+        PROJECT,
+        json!({ "type": "http", "http": { "url": "https://feeds.example/existing.json" } }),
+    ));
     state.mirror.upsert(envelope(
         "MqttBroker",
         EXISTING,

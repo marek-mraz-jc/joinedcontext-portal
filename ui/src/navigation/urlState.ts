@@ -24,3 +24,30 @@ export function useUrlParam<T extends string>(key: string, fallback: T, allowed:
   );
   return [value, set];
 }
+
+/** The longest entity id the address carries; NGSI-LD names no limit, a URL does. */
+const MAX_URN = 1024;
+
+/**
+ * One entity named in the address's query (`?row=<urn>`, T-4828), so a link opens that row. Only an
+ * NGSI-LD URN up to 1024 characters is read; anything else reads as none. Opening is a new history
+ * entry, so back closes it; `null` removes the parameter.
+ */
+export function useUrlUrn(key: string): [string | null, (next: string | null) => void] {
+  const router = useRouter();
+  const raw = useRouterState({ select: (state) => new URLSearchParams(state.location.searchStr).get(key) });
+  const value = raw !== null && raw.startsWith("urn:") && raw.length <= MAX_URN ? raw : null;
+  const set = useCallback(
+    (next: string | null) => {
+      const { pathname, search, hash } = router.history.location;
+      const query = new URLSearchParams(search);
+      if ((query.get(key) ?? null) === next) return;
+      if (next === null) query.delete(key);
+      else query.set(key, next);
+      const rest = query.toString();
+      router.history.push(`${pathname}${rest ? `?${rest}` : ""}${hash}`);
+    },
+    [router, key],
+  );
+  return [value, set];
+}
