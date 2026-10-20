@@ -1338,7 +1338,7 @@
     },
     "src/pages/models/LinkmlVisualEditor.tsx": {
       "controls": {
-        "Button": 9,
+        "Button": 10,
         "Checkbox": 3
       },
       "tests": [
@@ -1369,7 +1369,7 @@
     },
     "src/pages/models/ModelPage.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "models_list_page.test.tsx"

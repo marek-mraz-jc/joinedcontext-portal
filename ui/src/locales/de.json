@@ -2772,11 +2772,11 @@
     "title": "Modelleditor",
     "version": "Version {version}",
     "add": "Hinzufügen",
-    "classes": "Klassen",
+    "classes": "Typen",
     "enums": "Wertelisten",
-    "slots": "Attribute",
-    "slot": "Attribut",
-    "range": "Wertebereich",
+    "slots": "Felder",
+    "slot": "Feld",
+    "range": "Werttyp",
     "kind": "NGSI-LD-Art",
     "kindHint": "Property, sofern das Attribut keine Geometrie, Beziehung oder Sprachkarte ist",
     "unit": "Einheit",
@@ -2793,8 +2793,8 @@
       "language-map": "ein Wert je Sprache",
       "code": "Dokumentansicht"
     },
-    "newClass": "Neue Klasse",
-    "newSlot": "Neues Attribut",
+    "newClass": "Neuer Typ",
+    "newSlot": "Neues Feld",
     "newEnum": "Neue Werteliste",
     "newEnumValue": "Neuer Wert von {name}",
     "removeEnumValue": "Wert {value} entfernen",
@@ -2898,8 +2898,8 @@
         "datetime": "Datum und Uhrzeit"
       }
     },
-    "addClass": "Klasse hinzufügen",
-    "addSlot": "Attribut hinzufügen",
+    "addClass": "Typ hinzufügen",
+    "addSlot": "Feld hinzufügen",
     "addEnum": "Werteliste hinzufügen",
     "addValue": "Wert zu {name} hinzufügen",
     "loadingEditor": "Editor wird geladen…",
@@ -3122,7 +3122,12 @@
       "organizationEmpty": "Die Organisation teilt noch kein Datenmodell.",
       "organizationCaption": "Datenmodelle der Organisation",
       "importAs": "Importieren als",
-      "organizationOpen": "Auf der Seite Organisation öffnen"
+      "organizationOpen": "Auf der Seite Organisation öffnen",
+      "addField": "Feld hinzufügen",
+      "addFieldTo": "Feld zu {type} hinzufügen",
+      "typeCaption": "Felder von {type}",
+      "noFields": "Noch kein Feld.",
+      "addType": "Typ hinzufügen"
     },
     "hints": {
       "title": "Dieses Modell hat noch keine Klasse. Drei Schritte zum Anfang:",
@@ -3133,9 +3138,9 @@
       "relation": "Eine Beziehung hinzufügen: unter Beziehungen die Zielklasse und die Kardinalität wählen, zum Beispiel eine School hat viele User-Entitäten.",
       "field": "Ein Feld hinzufügen: bei geöffneter Klasse unter Attribute benennen, zum Beispiel name."
     },
-    "rangeBasic": "Grundtypen",
+    "rangeBasic": "Werte",
     "rangeEnums": "Aufzählungen",
-    "rangeClasses": "Klassen (öffnet Beziehung hinzufügen)",
+    "rangeClasses": "Verweise (öffnet Beziehung hinzufügen)",
     "relationships": {
       "title": "Beziehungen",
       "intro": "Verweise von {owner} auf Entitäten einer Klasse. Entitäten speichern ein Ende; das inverse wird beim Lesen berechnet.",
@@ -3198,6 +3203,12 @@
         "inverseSame": "Das inverse Ende ist ein zweites Feld; einen anderen Namen geben.",
         "pickFirst": "Wählen Sie zuerst die Zielklasse und benennen Sie beide Enden."
       }
+    },
+    "advanced": "Erweitert (IRIs, Mixins, Profile)",
+    "word": {
+      "any": "Beliebiger Wert",
+      "object": "Enthält {fields}",
+      "linkTo": "Verweis auf {target}"
     }
   },
   "apps": {

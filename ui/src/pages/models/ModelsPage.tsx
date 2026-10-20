@@ -6,7 +6,7 @@ import { api, queryKeys, unwrap, whilePending } from "../../api/client";
 import { readModelSource, writeModelSource } from "../../api/datamodelSource";
 import type { ProblemDetails } from "../../api/client";
 import { asManifests, refName } from "../../api/manifest";
-import { useOrgDomain } from "../../api/projects";
+import { useOrgDomain, useOrgLocales } from "../../api/projects";
 import type { Change } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
@@ -90,10 +90,13 @@ function manifestName(name: string): string | undefined {
 
 export function ModelsPage({
   project,
-  locales = ["sk", "en", "de", "cs"],
+  locales: given,
   baseline,
 }: ModelsPageProps): JSX.Element {
   const { t } = useTranslation();
+  // Titles in the Organization's languages (T-4829): Helsinki's include fi.
+  const orgLocales = useOrgLocales(project);
+  const locales = given ?? orgLocales;
   // A new model's IRIs are minted under the organization's own domain (DM-13), never a guess.
   const orgDomain = useOrgDomain(project);
   // Who may not propose a model sees the drawing without edit handles (T-3589); the API refuses

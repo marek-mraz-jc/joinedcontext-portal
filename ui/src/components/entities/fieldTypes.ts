@@ -3,8 +3,9 @@
  * NGSI-LD kind, so adding a field is a DataModel Change made of the model editor's own operations,
  * never a column bolted onto a table.
  */
+import { useTranslation } from "react-i18next";
 import type { NgsiLdKind, LinkmlModel, LinkmlSlot } from "../../pages/models/linkml";
-import { classSlots, edit, RANGES, UPSTREAM_ANNOTATION } from "../../pages/models/linkml";
+import { classSlots, edit, isAnyClass, RANGES, UPSTREAM_ANNOTATION, valueClasses } from "../../pages/models/linkml";
 import type { Applied, Operation } from "../../pages/models/operations";
 import { applyOperations, isName } from "../../pages/models/operations";
 import { checkFormulas, parseFormula, rangeOf } from "./formula";
@@ -49,6 +50,57 @@ export const FIELD_RANGE: Record<FieldType, { range?: string; kind: NgsiLdKind }
   // what the formula yields.
   formula: { range: "float", kind: "Property" },
 };
+
+/**
+ * What a slot is, in the words of the Add field dialog (T-4829): a steward reads "Number" or
+ * "Link to Building", never `float` or a range IRI. `any` is a slot over LinkML `Any`; `object` a
+ * value object written inside the entity, with the fields it holds.
+ */
+export type FieldWord =
+  | { type: FieldType; target?: string }
+  | { type: "any" }
+  | { type: "object"; target: string; fields: string[] };
+
+/** A field's type in plain words (T-4829): "Number", "Link to Building", "any value". */
+export function useFieldWords(): (word: FieldWord) => string {
+  const { t } = useTranslation();
+  return (word) =>
+    word.type === "any"
+      ? t("models.word.any")
+      : word.type === "object"
+        ? t("models.word.object", { fields: word.fields.join(", ") })
+        : word.type === "relationship" && word.target
+          ? t("models.word.linkTo", { target: word.target })
+          : t(`spaces.fields.types.${word.type}`);
+}
+
+const RANGE_WORD: Record<string, FieldType> = {
+  float: "number",
+  double: "number",
+  decimal: "number",
+  integer: "integer",
+  date: "date",
+  datetime: "datetime",
+  boolean: "boolean",
+  uri: "url",
+  uriorcurie: "url",
+};
+
+export function fieldWord(slot: LinkmlSlot, model: LinkmlModel): FieldWord {
+  if (slot.kind === "GeoProperty") return { type: "location" };
+  if (slot.equals_expression) return { type: "formula" };
+  const klass = slot.range === undefined ? undefined : model.classes.find((one) => one.name === slot.range);
+  if (klass && isAnyClass(klass)) return { type: "any" };
+  if (klass && valueClasses(model).has(klass.name)) {
+    return { type: "object", target: klass.name, fields: classSlots(model, klass).map((one) => one.name) };
+  }
+  if (klass || slot.kind === "Relationship") return { type: "relationship", target: slot.range };
+  if (slot.range !== undefined && model.enums.some((one) => one.name === slot.range)) {
+    return { type: slot.multivalued ? "multiSelect" : "select" };
+  }
+  if (slot.pattern === EMAIL_PATTERN) return { type: "email" };
+  return { type: RANGE_WORD[slot.range ?? model.default_range ?? "string"] ?? "text" };
+}
 
 /** An address with one `@` and a dot after it: the same check the grid makes at the cell. */
 export const EMAIL_PATTERN = "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$";
