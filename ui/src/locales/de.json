@@ -4596,7 +4596,8 @@
       "green": "Geprüft {age}",
       "red": "Prüfung fehlgeschlagen {age}",
       "stale": "Seit der Prüfung geändert",
-      "waiting": "Besteht, sobald {changes} freigegeben ist · geprüft {age}"
+      "waiting": "Besteht, sobald {changes} freigegeben ist · geprüft {age}",
+      "refused": "Prüfung fehlgeschlagen: Grund siehe unten"
     },
     "proposeReason": {
       "none": "Führen Sie zuerst die Prüfung aus: Ohne frisches grünes Urteil wird nichts vorgeschlagen.",

@@ -4596,7 +4596,8 @@
       "green": "Skontrolované {age}",
       "red": "Kontrola zlyhala {age}",
       "stale": "Zmenené od kontroly",
-      "waiting": "Prejde po schválení {changes} · skontrolované {age}"
+      "waiting": "Prejde po schválení {changes} · skontrolované {age}",
+      "refused": "Kontrola zlyhala: dôvod je nižšie"
     },
     "proposeReason": {
       "none": "Najprv spustite kontrolu: nič sa nenavrhuje bez čerstvého zeleného verdiktu.",

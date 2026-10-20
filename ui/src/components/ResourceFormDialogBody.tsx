@@ -906,12 +906,20 @@ export function ResourceFormDialogBody<T>({
     return { message: t("form.missing", { field: titleAt(schema, path) }), field: path.join(".") };
   }
 
+  /**
+   * What the form held when Check was last pressed: a check the server refused outright (an
+   * invalid manifest answers with a problem, not a verdict) leaves no verdict, and the chip says
+   * the check failed rather than "not checked yet" until the form changes (T-4824).
+   */
+  const [checkedDigest, setCheckedDigest] = useState<string | null>(null);
+
   /** The check runs on what the active view holds: the form, or the YAML read back into it. */
   function runCheck() {
     if (!canCheck) {
       return;
     }
     setStopped(null);
+    setCheckedDigest(currentDigest);
     if (checkRefusal) {
       setStopped({ ...checkRefusal, form: formData });
       return;
@@ -1022,9 +1030,10 @@ export function ResourceFormDialogBody<T>({
   // The age in the person's language: the verdict sentence is translated, and an English
   // "12s ago" inside a German one was half a translation (T-1753).
   const verdictAge = internalVerdict?.checkedAt ? ago(internalVerdict.checkedAt, now, t) : "";
+  const refusedCheck = verdictState === "none" && checkedDigest === currentDigest && Boolean(error ?? ownCheck.error);
   const verdictChip = (
-    <Badge data-testid="draft-verdict" tone={VERDICT_TONE[verdictState]}>
-      {verdictState === "none" && t("drafts.verdict.none")}
+    <Badge data-testid="draft-verdict" tone={refusedCheck ? "danger" : VERDICT_TONE[verdictState]}>
+      {verdictState === "none" && (refusedCheck ? t("drafts.verdict.refused") : t("drafts.verdict.none"))}
       {verdictState === "green" && t("drafts.verdict.green", { age: verdictAge })}
       {verdictState === "waiting" &&
         t("drafts.verdict.waiting", { changes: (internalVerdict?.waitsOn ?? []).join(", "), age: verdictAge })}

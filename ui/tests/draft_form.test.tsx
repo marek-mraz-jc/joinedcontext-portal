@@ -936,7 +936,10 @@ describe("ResourceFormDialog shared drafts and verdict gates (AG-61, AG-62, UI-4
     // In the footer, where the Check was pressed, and said once.
     expect(check.parentElement).toContainElement(message);
     expect(screen.getAllByText("Tick at least one class to expose.")).toHaveLength(1);
-    expect(screen.getByTestId("draft-verdict")).toHaveTextContent(en.drafts.verdict.none);
+    // A refused check is a failed one, not "not checked yet", until the form changes (T-4824).
+    expect(screen.getByTestId("draft-verdict")).toHaveTextContent(en.drafts.verdict.refused);
+    fireEvent.change(screen.getByLabelText(/Name/i), { target: { value: "refused-feed-2" } });
+    await waitFor(() => expect(screen.getByTestId("draft-verdict")).toHaveTextContent(en.drafts.verdict.none));
 
     refuse = false;
     fireEvent.click(screen.getByRole("button", { name: en.form.check }));

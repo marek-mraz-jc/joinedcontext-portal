@@ -4596,7 +4596,8 @@
       "green": "Checked {age}",
       "red": "Check failed {age}",
       "stale": "Changed since the check",
-      "waiting": "Passes once {changes} is approved · checked {age}"
+      "waiting": "Passes once {changes} is approved · checked {age}",
+      "refused": "Check failed: see the reason below"
     },
     "proposeReason": {
       "none": "Run the check first: nothing is proposed without a fresh green verdict.",
