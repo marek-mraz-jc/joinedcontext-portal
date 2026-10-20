@@ -1601,7 +1601,17 @@
         "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
       ]
     },
-    "src/routes/ApprovalDetailPage.tsx": null,
+    "src/routes/ApprovalDetailPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/approval-1531b/portal-projects-helsinki-approvals-chg-00000001-dialog-reject-steward-en-1440.png",
+        "evidence/deployer/T-3986/approval-1531b/portal-projects-helsinki-approvals-chg-00000001-open-steward-en-1440.png",
+        "evidence/deployer/T-3986/approval-1531b/portal-projects-helsinki-approvals-chg-00000001-open-steward-en-2560.png",
+        "evidence/deployer/T-3986/approval-1531b/portal-projects-helsinki-approvals-chg-00000001-open-viewer-en-1440.png",
+        "evidence/deployer/T-3986/approval-1531b/portal-projects-helsinki-approvals-chg-00000001-open-viewer-en-2560.png"
+      ]
+    },
     "src/routes/ApprovalsHistory.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
