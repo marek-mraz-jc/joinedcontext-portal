@@ -2455,6 +2455,61 @@
       "rejectedUnavailable": "Odmítnuté záznamy se nepodařilo načíst.",
       "noRejected": "Model neodmítl žádný záznam této pipeline.",
       "credentials": "Přihlašovací údaje"
+    },
+    "access": {
+      "section": "Přístup k jiným prostorům",
+      "lead": "Požádejte vlastníka jiného prostoru o čtení nebo zápis pro tuto pipeline. Dokud to neschválí, nic se neudělí.",
+      "none": "Tato pipeline nežádala o přístup k jinému prostoru.",
+      "request": "Požádat o přístup",
+      "project": "Vlastnící projekt",
+      "projectHelp": "Projekt, kterému prostor patří, jak ho uvádí stránka katalogu.",
+      "endpoint": "Endpoint",
+      "operationsLegend": "Co tam pipeline dělá",
+      "operations": {
+        "read": "Čtení",
+        "write": "Zápis"
+      },
+      "types": "Typy a atributy",
+      "typesHelp": "Uveďte každý typ entity a každý atribut, který pipeline potřebuje, oddělené čárkami. Žádost nikdy nežádá o všechny.",
+      "type": "Typ entity",
+      "attrs": "Atributy",
+      "addType": "Přidat typ",
+      "removeType": "Odebrat",
+      "removeTypeOf": "Odebrat typ {n}",
+      "tooManyTypes": "Žádost uvádí nejvýše 20 typů.",
+      "untilLabel": "Datum konce",
+      "untilHelp": "Přístup skončí na konci tohoto dne. Prázdné znamená bez konce.",
+      "reason": "Proč to pipeline potřebuje",
+      "send": "Odeslat žádost",
+      "cancel": "Zrušit",
+      "sent": "Žádost odeslána. Rozhodnou o ní vlastníci prostoru; její stav uvidíte zde.",
+      "missing": {
+        "endpoint": "Uveďte vlastnící projekt a endpoint.",
+        "types": "Uveďte alespoň jeden typ, každý s jeho atributy.",
+        "reason": "Napište, proč to pipeline potřebuje."
+      },
+      "state": {
+        "pending": "Čeká na vlastníka",
+        "approved": "Schváleno",
+        "declined": "Zamítnuto",
+        "revoked": "Odebráno",
+        "ended": "Skončeno"
+      },
+      "until": "Do {date}",
+      "noEnd": "Bez data konce",
+      "decided": "{who}: {reason}",
+      "inbox": "Pipeline žádající o přístup",
+      "inboxLead": "Pipeline jiných prostorů a projektů, které žádají číst nebo zapisovat do tohoto prostoru. Schválení navrhne přístup jako změnu tohoto projektu.",
+      "inboxEmpty": "Žádná pipeline nežádala o přístup k tomuto prostoru.",
+      "on": "na {endpoint}, žádá {who}",
+      "decisionReason": "Důvod pro žadatele",
+      "approve": "Schválit",
+      "approveOf": "Schválit přístup pro {account}",
+      "decline": "Zamítnout",
+      "declineOf": "Zamítnout přístup pro {account}",
+      "revoke": "Odebrat přístup",
+      "revokeOf": "Odebrat přístup {account}",
+      "reasonFirst": "Nejprve napište důvod."
     }
   },
   "dashboards": {
