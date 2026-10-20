@@ -75,12 +75,10 @@ export function TypeQuality({ project, space, type }: { project: string; space: 
           <p className="text-body">{t("explore.quality.summary", { count: own.count, newest: when(own.newest) })}</p>
           <Table caption={t("explore.quality.attributes", { type })}>
             <TableHead>
-              <TableRow>
-                <TableHeaderCell>{t("explore.quality.attribute")}</TableHeaderCell>
-                <TableHeaderCell>{t("explore.quality.completeness")}</TableHeaderCell>
-                <TableHeaderCell>{t("explore.quality.range")}</TableHeaderCell>
-                <TableHeaderCell>{t("explore.quality.outliers")}</TableHeaderCell>
-              </TableRow>
+              <TableHeaderCell>{t("explore.quality.attribute")}</TableHeaderCell>
+              <TableHeaderCell>{t("explore.quality.completeness")}</TableHeaderCell>
+              <TableHeaderCell>{t("explore.quality.range")}</TableHeaderCell>
+              <TableHeaderCell>{t("explore.quality.outliers")}</TableHeaderCell>
             </TableHead>
             <TableBody>
               {own.attributes.map((attribute) => {

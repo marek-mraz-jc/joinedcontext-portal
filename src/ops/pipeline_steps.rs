@@ -19,7 +19,7 @@ use crate::error::ApiError;
 use crate::pipeline_validation::Problem;
 use crate::state::AppState;
 use jc_core::kinds::{PipelineSpec, Verb};
-use jcctl::pipeline_test::{Sample, SampleFormat, MAX_MESSAGES};
+use jcctl::pipeline_test::{Sample, MAX_MESSAGES};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
@@ -189,7 +189,11 @@ fn no_steps() -> Result<PipelineSpec, OpError> {
 /// The sample a DataSource of this project gives: its feed fetched once, as a DataSource Check
 /// fetches it (MF-39). A source with a credential or one that streams has no sample a dry run
 /// may read, and the answer says what to give instead.
-fn sample_of_data_source(state: &AppState, project: &str, name: &str) -> Result<Sample, OpError> {
+fn sample_of_data_source(
+    state: &AppState,
+    project: &str,
+    name: &str,
+) -> Result<(Sample, PipelineSpec), OpError> {
     let source = state
         .mirror
         .get(project, "DataSource", name)
@@ -200,19 +204,8 @@ fn sample_of_data_source(state: &AppState, project: &str, name: &str) -> Result<
         })?;
     let instead = "give the sample as text (a file of the feed) or as a URL instead";
     match pipeline_test::probe_plan(&source.spec) {
-        Some(Ok(url)) => {
-            let path = url.split(['?', '#']).next().unwrap_or(&url);
-            let format = if path.to_ascii_lowercase().ends_with(".csv") {
-                SampleFormat::Csv
-            } else {
-                SampleFormat::Json
-            };
-            Ok(Sample {
-                text: None,
-                url: Some(url),
-                format,
-            })
-        }
+        Some(Ok(url)) => pipeline_test::sampling(&source.spec, url)
+            .map_err(|e| OpError::Api(ApiError::Internal(format!("the sampling spec: {e}")))),
         Some(Err(skipped)) => Err(OpError::Api(ApiError::BadRequest(format!(
             "DataSource '{name}' cannot be sampled: {}; {instead}",
             skipped.skipped.unwrap_or_default()
@@ -321,9 +314,9 @@ pub fn operations() -> Vec<Operation> {
             run: |_caller, state, project, val| {
                 Box::pin(async move {
                     let input: SampleSourceInput = parse_input(val)?;
-                    let sample = match (input.data_source, input.sample) {
+                    let (sample, plan) = match (input.data_source, input.sample) {
                         (Some(name), None) => sample_of_data_source(state, project, &name)?,
-                        (None, Some(sample)) => sample,
+                        (None, Some(sample)) => (sample, no_steps()?),
                         _ => {
                             return Err(OpError::InvalidInput {
                                 path: "/dataSource".into(),
@@ -332,7 +325,7 @@ pub fn operations() -> Vec<Operation> {
                         }
                     };
                     let trace =
-                        pipeline_test::run_harness(state, project, &no_steps()?, &sample).await?;
+                        pipeline_test::run_harness(state, project, &plan, &sample).await?;
                     let fields = fields_of(&trace.mapping);
                     Ok(json!({
                         "count": trace.mapping.len(),

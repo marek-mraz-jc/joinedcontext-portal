@@ -8,7 +8,7 @@ import { safeHref } from "./ui";
 export const RECORD_LINK_STYLE = "focus-ring text-primary-soft-fg underline-offset-2 hover:underline";
 
 /** Kinds with a page of their own (the router's DETAIL_PAGES); every other kind opens on its edit form. */
-const DETAIL = new Set(["spaces", "endpoints", "apps"]);
+const DETAIL = new Set(["spaces", "endpoints", "apps", "pipelines"]);
 
 /**
  * The link to one record: its own page where it has one, else its edit form (T-2875). It is also

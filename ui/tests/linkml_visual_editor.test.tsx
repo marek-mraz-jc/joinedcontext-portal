@@ -75,8 +75,8 @@ describe("LinkML visual editor", () => {
   it("creates a class, and the YAML keeps the comment that was already there", async () => {
     const { source, user } = renderEditor();
 
-    await user.type(screen.getByLabelText("New class"), "WeatherObserved");
-    await user.click(screen.getByRole("button", { name: "Add class" }));
+    await user.type(screen.getByLabelText("New type"), "WeatherObserved");
+    await user.click(screen.getByRole("button", { name: "Add type" }));
 
     expect(parseModel(source()).classes.map((klass) => klass.name)).toEqual([
       "AirQualityObserved",
@@ -89,9 +89,9 @@ describe("LinkML visual editor", () => {
   it("adds a slot to the open class and lists it with its range", async () => {
     const { source, user } = renderEditor();
 
-    await user.type(screen.getByLabelText("New slot"), "pm25");
+    await user.type(screen.getByLabelText("New field"), "pm25");
     const slots = screen.getByRole("table");
-    await user.click(screen.getByRole("button", { name: "Add slot" }));
+    await user.click(screen.getByRole("button", { name: "Add field" }));
 
     const model = parseModel(source());
     expect(model.classes[0].slots).toEqual(["pm10", "pm25"]);
@@ -103,7 +103,7 @@ describe("LinkML visual editor", () => {
     const { source, user } = renderEditor();
 
     await user.click(screen.getByRole("button", { name: "pm10" }));
-    await user.selectOptions(screen.getByLabelText("Range"), "integer");
+    await user.selectOptions(screen.getByLabelText("Type of value"), "integer");
     await user.selectOptions(screen.getByLabelText("NGSI-LD kind"), "GeoProperty");
     // The unit is searched, not scrolled for (T-2809): the UCUM spelling finds µg/m³.
     await user.type(screen.getByRole("combobox", { name: "Unit" }), "ug/m3");

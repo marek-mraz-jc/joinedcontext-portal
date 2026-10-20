@@ -9,12 +9,14 @@
  * the survey flagged three lines — that every link on it is built by the Portal and checked
  * before it is a link.
  */
-import { cleanup, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { OrganizationPage } from "../src/pages/organization/OrganizationPage";
-import { AllEndpointsPage } from "../src/routes/AllEndpointsPage";
+import { AllEndpointsPage, ENDPOINTS_PER_PAGE } from "../src/routes/AllEndpointsPage";
+import userEvent from "@testing-library/user-event";
+import { expectDenied } from "./checks";
 import {
   expectHeadingOutline,
   expectNoAxeViolations,
@@ -145,7 +147,7 @@ describe("all endpoints", () => {
     await waitFor(() => {
       expect(table).not.toHaveAttribute("aria-busy");
     });
-    expect(table.querySelectorAll("tbody tr")).toHaveLength(Math.max(rows, 1));
+    expect(table.querySelectorAll("tbody tr")).toHaveLength(Math.min(Math.max(rows, 1), ENDPOINTS_PER_PAGE));
     expectHeadingOutline(container);
   });
 
@@ -248,5 +250,33 @@ describe("all endpoints", () => {
     const { container } = renderAll({ fails: { status: 503, detail: "Not answering." } });
     await screen.findByRole("alert");
     await expectNoAxeViolations(container);
+  });
+
+  // T-4831 (D-endpoints, 2026-10-20): all endpoints were one 22,822 px table with no filter.
+  it("pages the list ten at a time and finds an endpoint by name or project", async () => {
+    const user = userEvent.setup();
+    renderAll({ rows: 25 });
+    const table = await screen.findByRole("table", { name: en.allEndpoints.title });
+    await waitFor(() => expect(table.querySelectorAll("tbody tr")).toHaveLength(ENDPOINTS_PER_PAGE));
+    expect(screen.getByText("1–10 of 25")).toBeInTheDocument();
+    expectDenied(screen.getByRole("button", { name: en.allEndpoints.previous }), en.allEndpoints.firstPage);
+
+    await user.click(screen.getByRole("button", { name: en.allEndpoints.next }));
+    expect(within(table).getByText("Air quality 10")).toBeInTheDocument();
+    expect(within(table).queryByText("Air quality 0")).toBeNull();
+
+    // A search goes back to the first page of what it matches.
+    await user.type(screen.getByRole("searchbox", { name: en.allEndpoints.find }), "air-2");
+    // air-2 and air-20..air-24
+    expect(table.querySelectorAll("tbody tr")).toHaveLength(6);
+    expect(screen.queryByRole("navigation", { name: en.allEndpoints.pages })).toBeNull();
+
+    await user.clear(screen.getByRole("searchbox", { name: en.allEndpoints.find }));
+    await user.selectOptions(screen.getByRole("combobox", { name: en.allEndpoints.field.project }), "city-3");
+    // city-3 holds air-3, air-10, air-17, air-24
+    expect(table.querySelectorAll("tbody tr")).toHaveLength(4);
+
+    await user.type(screen.getByRole("searchbox", { name: en.allEndpoints.find }), "nothing-like-it");
+    expect(within(table).getByText(en.allEndpoints.noMatch)).toBeInTheDocument();
   });
 });

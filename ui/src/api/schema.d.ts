@@ -2609,6 +2609,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/pipelines/{name}/bento": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Pipeline Mapping File
+         * @description The `bento.yaml` beside a Pipeline's manifest, as the repository holds it: the processors the runner runs when the manifest carries no compute step (PL-03, PL-41). Credentials in it are `${NAME}` references the runner fills (PL-16), never values.
+         */
+        get: operations["get_bento"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/pipelines/{name}/metrics": {
         parameters: {
             query?: never;
@@ -15489,6 +15509,58 @@ export interface operations {
             };
         };
     };
+    get_bento: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Pipeline name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file in YAML */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/yaml": string;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Pipeline not found, or it has no bento.yaml */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Git forge unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     get_metrics: {
         parameters: {
             query?: never;
@@ -15682,7 +15754,10 @@ export interface operations {
     };
     get_runs: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Runs per answer, 1…200 (default 200): the pipeline list asks for the latest one (T-4817). */
+                limit?: number | null;
+            };
             header?: never;
             path: {
                 /** @description Project name */

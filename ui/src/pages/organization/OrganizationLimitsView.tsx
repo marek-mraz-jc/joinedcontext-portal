@@ -54,12 +54,12 @@ export function OrganizationLimitsView({
               {t(`organization.limits.section.${section}`)}
             </h3>
             <Table caption={t(`organization.limits.section.${section}`)}>
+              {/* TableHead is the header row itself: a TableRow inside it nested a second <tr>, and
+                  the header cells slid off the body's columns (T-4831). */}
               <TableHead>
-                <TableRow>
-                  <TableHeaderCell scope="col">{t("organization.limits.setting")}</TableHeaderCell>
-                  <TableHeaderCell scope="col">{t("organization.limits.inForce")}</TableHeaderCell>
-                  <TableHeaderCell scope="col">{t("organization.limits.range")}</TableHeaderCell>
-                </TableRow>
+                <TableHeaderCell scope="col">{t("organization.limits.setting")}</TableHeaderCell>
+                <TableHeaderCell scope="col">{t("organization.limits.inForce")}</TableHeaderCell>
+                <TableHeaderCell scope="col">{t("organization.limits.range")}</TableHeaderCell>
               </TableHead>
               <TableBody>
                 {section === "applications" ? (
@@ -120,15 +120,13 @@ export function OrganizationLimitsView({
         <p className="text-body text-fg-muted">{t("organization.limits.perProjectLead")}</p>
         <Table caption={t("organization.limits.perProject")}>
           <TableHead>
-            <TableRow>
-              <TableHeaderCell scope="col">{t("organization.limits.project")}</TableHeaderCell>
-              <TableHeaderCell scope="col">{t("organization.limits.whose")}</TableHeaderCell>
-              {[...COUNTED, ...RUNTIME].map((dimension) => (
-                <TableHeaderCell key={dimension} scope="col">
-                  {t(`organization.limit.projects.quota.${dimension}.label`)}
-                </TableHeaderCell>
-              ))}
-            </TableRow>
+            <TableHeaderCell scope="col">{t("organization.limits.project")}</TableHeaderCell>
+            <TableHeaderCell scope="col">{t("organization.limits.whose")}</TableHeaderCell>
+            {[...COUNTED, ...RUNTIME].map((dimension) => (
+              <TableHeaderCell key={dimension} scope="col">
+                {t(`organization.limit.projects.quota.${dimension}.label`)}
+              </TableHeaderCell>
+            ))}
           </TableHead>
           <TableBody>
             {(limits.projects ?? []).length === 0 ? (

@@ -7,7 +7,7 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { NotFoundState } from "../components/NotFoundState";
-import { asManifests, isChange, localized } from "../api/manifest";
+import { asManifests, isChange, localized, ORG_NAMESPACE } from "../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../api/manifest";
 import { proposeChecked } from "../api/proposal";
 import { ChangeNotice } from "../components/ChangeNotice";
@@ -303,6 +303,8 @@ export function KindList({
   // own language where the navigation already has a word for it, and read as words where it
   // does not — never the bare URL segment the table used as its caption (UI-01, UI-16).
   const title = t(`nav.${plural}`, { defaultValue: humanizeName(plural) });
+  // The organization's own kinds are the organization's, not a project's (T-4831).
+  const holder = project === ORG_NAMESPACE ? "Organization" : "";
   const newButton =
     createKind && form && !(ONE_PER_ORGANIZATION.has(plural) && (list.data === undefined || items.length > 0)) ? (
       <PermissionGuard project={project} kind={createKind} verb="propose">
@@ -326,12 +328,12 @@ export function KindList({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-title font-semibold text-fg">{title}</h2>
-            <p className="text-body text-fg-muted">{t("resourceList.lead", { kind: title })}</p>
+            <p className="text-body text-fg-muted">{t(`resourceList.lead${holder}`, { kind: title })}</p>
           </div>
           {newButton}
         </div>
       ) : (
-        <PageHeader title={title} description={t("resourceList.lead", { kind: title })} actions={newButton} />
+        <PageHeader title={title} description={t(`resourceList.lead${holder}`, { kind: title })} actions={newButton} />
       )}
       {change ? <ChangeNotice change={change} project={project} /> : null}
       <ResourceList
@@ -351,8 +353,8 @@ export function KindList({
             // A page with no create action names none in its hint (T-2488).
             description={
               newButton && createKind
-                ? t("resourceList.emptyHintCreate", { new: kindNew(createKind, t) })
-                : t(`resourceList.emptyHintFor.${plural}`, { defaultValue: t("resourceList.emptyHint") })
+                ? t(`resourceList.emptyHintCreate${holder}`, { new: kindNew(createKind, t) })
+                : t(`resourceList.emptyHintFor.${plural}`, { defaultValue: t(`resourceList.emptyHint${holder}`) })
             }
             action={
               newButton ??

@@ -63,6 +63,9 @@ const AppOpenPage = lazy(() => import("./pages/apps/AppOpenPage").then((module) 
 const GroupPage = lazy(() => import("./pages/access/GroupPage").then((module) => ({ default: module.GroupPage })));
 const PersonPage = lazy(() => import("./pages/organization/People").then((module) => ({ default: module.PersonPage })));
 const EndpointPage = lazy(() => import("./pages/endpoints/EndpointPage").then((module) => ({ default: module.EndpointPage })));
+const PipelineOverview = lazy(() =>
+  import("./pages/pipelines/PipelineOverview").then((module) => ({ default: module.PipelineOverview })),
+);
 const AssistantPage = lazy(() => import("./pages/assistant/AssistantPage").then((module) => ({ default: module.AssistantPage })));
 import { HandOff } from "./assistant/HandOff";
 import { hasPrefill } from "./assistant/state";
@@ -76,6 +79,7 @@ const Gallery = lazy(() => import("./pages/gallery/Gallery").then((module) => ({
 import { ORG_NAMESPACE } from "./api/manifest";
 import { isOrganizationTab, OrganizationPage } from "./pages/organization/OrganizationPage";
 import type { OrganizationTab } from "./pages/organization/OrganizationPage";
+import { AdminNav } from "./pages/organization/AdminNav";
 import { isProjectSettingsTab } from "./pages/projectSettings/tabs";
 import type { ProjectSettingsTab } from "./pages/projectSettings/tabs";
 import type { AuthState } from "./auth/AuthProvider";
@@ -640,7 +644,7 @@ function OrganizationView({ tab, form }: { tab: string; form: FormTarget | null 
     return <NoProject projects={projects} />;
   }
   return (
-    <Shell project={first}>
+    <Shell project={first} sidebar={(close) => <AdminNav project={first} active={tab} onNavigate={close} />}>
       <HandOff>
         <FormRouteHost
           project={ORG_NAMESPACE}
@@ -698,7 +702,7 @@ function OrganizationGroupView({ name }: { name: string }): React.JSX.Element {
     return <NoProject projects={projects} />;
   }
   return (
-    <Shell project={first}>
+    <Shell project={first} sidebar={(close) => <AdminNav project={first} active="groups" onNavigate={close} />}>
       <GroupPage name={name} />
     </Shell>
   );
@@ -712,7 +716,7 @@ function OrganizationPersonView({ id }: { id: string }): React.JSX.Element {
     return <NoProject projects={projects} />;
   }
   return (
-    <Shell project={first}>
+    <Shell project={first} sidebar={(close) => <AdminNav project={first} active="people" onNavigate={close} />}>
       <PersonPage id={id} />
     </Shell>
   );
@@ -1035,7 +1039,7 @@ const sharedRedirectRoute = createRoute({
 });
 
 /** A resource's own page, for the kinds that have one (UI-01, T-2281, AP-68). */
-const DETAIL_PAGES = new Set(["spaces", "endpoints", "apps"]);
+const DETAIL_PAGES = new Set(["spaces", "endpoints", "apps", "pipelines"]);
 
 /**
  * One section of a project: its list, one of its forms as a page of its own (T-2474, UI-27), or
@@ -1052,6 +1056,28 @@ const sectionRoute = createRoute({
     edit: typeof search.edit === "string" && search.edit !== "" ? search.edit : undefined,
     draft: typeof search.draft === "string" && search.draft !== "" ? search.draft : undefined,
   }),
+  // One list, one editor (T-4829): the generic DataModel list and its form opened version,
+  // source and lifecycle only. Every old address lands on the model page that edits it.
+  beforeLoad: ({ params, location, search }) => {
+    if (params.plural !== "datamodels") return;
+    const [, name, edit] = location.pathname.split(`/projects/${params.project}/datamodels`)[1]?.split("/") ?? [];
+    const model = name ? decodeURIComponent(name) : search.edit;
+    if (model === "new") {
+      throw redirect({ to: "/projects/$project/models", params: { project: params.project }, search: { new: "blank" }, replace: true });
+    }
+    if (model && (edit === "edit" || search.edit !== undefined)) {
+      throw redirect({ to: "/projects/$project/models", params: { project: params.project }, search: { edit: model }, replace: true });
+    }
+    if (model) {
+      throw redirect({ to: "/projects/$project/models/$name", params: { project: params.project, name: model }, replace: true });
+    }
+    throw redirect({
+      to: "/projects/$project/models",
+      params: { project: params.project },
+      search: search.draft ? { draft: search.draft } : {},
+      replace: true,
+    });
+  },
   component: function SectionRoute() {
     const { project, plural } = sectionRoute.useParams();
     const { edit } = sectionRoute.useSearch();
@@ -1127,6 +1153,8 @@ function DetailPage({
         <SpaceInside project={project} name={name} />
       ) : plural === "endpoints" ? (
         <EndpointPage project={project} name={name} />
+      ) : plural === "pipelines" ? (
+        <PipelineOverview project={project} name={name} />
       ) : (
         <AppPage project={project} name={name} />
       )}
@@ -1273,6 +1301,10 @@ export function createPortalRouter() {
     // Back and forward land where the page was left, not at its top (UI-89, T-3239).
     scrollRestoration: true,
     defaultNotFoundComponent: NotFound,
+    // An address no route matches whole is the root's not-found page (T-4817). The default
+    // ("fuzzy") hands it to the deepest partial match, and the section route draws its children
+    // itself, so `/pipelines/{name}/runs` rendered the `$name` page of another kind.
+    notFoundMode: "root",
     // What throws before a page is drawn — a loader, a `beforeLoad` — cannot be caught inside
     // the shell, because there is no shell yet. It gets the same words as the boundary at the
     // root rather than the router's own "Something went wrong!" (T-2426, UI-44).

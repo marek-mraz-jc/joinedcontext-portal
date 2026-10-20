@@ -75,6 +75,16 @@ async function approved(answer: { status(): number; text(): Promise<string>; jso
 test.beforeAll(async ({ browser }) => {
   steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/apps?lang=en`);
   viewer = await signIn(browser, VIEWER, `/projects/${PROJECT}/apps?lang=en`);
+  // A run that died before its afterAll left its space and model in the demo project, where
+  // every steward saw them in the model list (T-4829): each run first removes what earlier runs
+  // left, spaces before the models they name.
+  for (const plural of ["spaces", "datamodels"]) {
+    const listed = await steward.page.request.get(`/api/v1/projects/${PROJECT}/${plural}`);
+    const items = listed.ok() ? (((await listed.json()) as { items?: { metadata?: { name?: string } }[] }).items ?? []) : [];
+    for (const name of items.map((item) => item.metadata?.name ?? "").filter((name) => /^t4668-(space|model)-\d{4}$/.test(name))) {
+      await removeCompletely(steward, PROJECT, plural, name).catch(() => undefined);
+    }
+  }
 });
 
 test.afterAll(async () => {

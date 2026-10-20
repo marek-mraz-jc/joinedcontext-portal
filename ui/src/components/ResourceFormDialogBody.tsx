@@ -17,7 +17,7 @@ import { PORTAL_WIDGET_NAMES } from "./forms/widgetNames";
 import { shippedForms } from "../schemas/forms";
 import { api, ApiError, forPeople, queryKeys, unwrap } from "../api/client";
 import type { ResourceProposal } from "../api/manifest";
-import { Alert, Badge, Button, Checkbox, ExternalLink, FilePicker, Tabs, tabPanelProps, PageLoading } from "./ui";
+import { Alert, Badge, Button, Checkbox, deniedReason as refusal, ExternalLink, FilePicker, Tabs, tabPanelProps, PageLoading } from "./ui";
 import { FormFrame } from "./forms/FormRoute";
 import type { BadgeTone, DialogSize } from "./ui";
 import { ago } from "../pages/apps/CatalogCards";
@@ -109,7 +109,16 @@ export interface ResourceFormDialogProps<T> {
   plural?: string;
   onSubmit: (data: T, draft?: { kind: string; name: string }) => void;
   onChange?: (data: T | undefined) => void;
+  /**
+   * Runs the check by itself once the form has rested `AUTO_CHECK_MS` after a change (T-4818), so
+   * the verdict Propose waits for comes without a hidden step. A form with an empty required
+   * field, or one the dialog refuses to check, is not sent: its fields already say why.
+   */
+  autoCheck?: boolean;
 }
+
+/** How long the form rests after a change before an automatic check runs. */
+const AUTO_CHECK_MS = 1200;
 
 type View = "form" | "yaml" | "history";
 
@@ -229,6 +238,7 @@ export function ResourceFormDialogBody<T>({
   onVerdictChange,
   onSubmit,
   onChange,
+  autoCheck = false,
 }: ResourceFormDialogProps<T>): JSX.Element {
   const { t, i18n } = useTranslation();
   const branding = useBranding();
@@ -239,7 +249,7 @@ export function ResourceFormDialogBody<T>({
   // `PermissionGuard` says it of a button (UI-44, PF-51); the API refuses the same proposal anyway.
   const { can, isLoading: permissionsLoading } = usePermissions(project ?? "");
   const deniedReason =
-    kind && project && !can(kind, "propose") ? t("permissions.denied", { verb: "propose", kind }) : undefined;
+    kind && project && !can(kind, "propose") ? refusal(t, project, "propose", kind) : undefined;
   // A proposal in flight closes the form as surely as a caller's own `disabled` does; what it
   // adds is that the button says which of the two it is (T-0962).
   const disabled = closed || submitting === true || deniedReason !== undefined;
@@ -959,6 +969,27 @@ export function ResourceFormDialogBody<T>({
       check(form);
     }
   }
+
+  // The automatic check reads what the latest render holds; it is keyed on the form alone, so a
+  // verdict arriving re-renders without sending the same form again.
+  const autoChecked = useRef<T | undefined>(undefined);
+  const autoRun = useRef<(form: T) => void>(() => undefined);
+  useEffect(() => {
+    autoRun.current = (form: T) => {
+      if (!canCheck || disabled || checkRefusal || schemaRefusals(form)?.missing) {
+        return;
+      }
+      autoChecked.current = form;
+      (onCheck ?? ((next: T) => ownCheck.mutate(next)))(form);
+    };
+  });
+  useEffect(() => {
+    if (!autoCheck || view !== "form" || formData === undefined || autoChecked.current === formData) {
+      return;
+    }
+    const timer = setTimeout(() => autoRun.current(formData), AUTO_CHECK_MS);
+    return () => clearTimeout(timer);
+  }, [autoCheck, view, formData]);
 
   // The field a stopped check names is opened, scrolled to and focused once it is on screen,
   // with every fold around it opened (T-3970); `advanced` reruns it once those fields show.
