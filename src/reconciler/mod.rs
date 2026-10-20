@@ -26,6 +26,7 @@ pub mod realm;
 pub mod registrations;
 pub mod representations;
 pub mod run_queue;
+pub mod space_rules;
 pub mod stall;
 pub mod streams;
 pub mod subscriptions;
