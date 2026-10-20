@@ -1,6 +1,6 @@
-//! Access is approved by a second person (PF-58, T-4833).
+//! Access and data models are approved by a second person (PF-58, T-4833, T-4830).
 //!
-//! A change to a Role, RoleBinding, Group or ServiceAccount is never approved by the person who
+//! A change to a Role, RoleBinding, Group, ServiceAccount or DataModel is never approved by the person who
 //! proposed it, even when they administer the kind; another administrator approves it. Proposing
 //! through the Portal leaves such a change pending.
 
@@ -22,7 +22,13 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 const PROPOSER: &str = "jana.kovacova@banskabystrica.sk";
 const SECOND: &str = "eva.hruba@banskabystrica.sk";
-const ACCESS_KINDS: [&str; 4] = ["Role", "RoleBinding", "Group", "ServiceAccount"];
+const ACCESS_KINDS: [&str; 5] = [
+    "Role",
+    "RoleBinding",
+    "Group",
+    "ServiceAccount",
+    "DataModel",
+];
 
 fn person(email: &str) -> Identity {
     let user = email.split('@').next().unwrap_or_default().to_owned();
@@ -57,6 +63,7 @@ fn manifest(kind: &str) -> (String, String) {
             "scope": { "organization": "bb" }
         }),
         "Group" => json!({ "members": [{ "user": PROPOSER }] }),
+        "DataModel" => json!({ "version": "1.1.0", "linkml": "models/air.linkml.yaml" }),
         _ => json!({
             "owner": { "user": PROPOSER },
             "purpose": "the air-quality adapter",

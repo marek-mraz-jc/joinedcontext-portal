@@ -261,14 +261,15 @@ describe("a model's own page", () => {
     expect(used.queryByRole("link", { name: "bikes-public" })).toBeNull();
   });
 
-  it("reads its history as the activity of the model", async () => {
+  it("reads its history as the model's closed Changes (T-4830)", async () => {
     const { calls, fetchMock } = await renderRoute({ path: "/projects/helsinki/models/air", answer });
     await userEvent.click(await screen.findByRole("tab", { name: en.models.page.view.history }));
-    await waitFor(() => expect(calls()).toContain("GET /api/v1/projects/helsinki/activity"));
-    const activity = fetchMock.mock.calls
+    await waitFor(() => expect(calls()).toContain("GET /api/v1/projects/helsinki/changes/history"));
+    const history = fetchMock.mock.calls
       .map((call) => (call[0] as Request).url)
-      .find((url) => url.includes("/activity"));
-    expect(new URL(activity ?? "").searchParams.get("object")).toBe("datamodels/air");
+      .find((url) => url.includes("/changes/history"));
+    const query = new URL(history ?? "").searchParams;
+    expect([query.get("kind"), query.get("name")]).toEqual(["DataModel", "air"]);
   });
 
   it("says so for a model the project does not have", async () => {
