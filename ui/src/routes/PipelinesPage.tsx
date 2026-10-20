@@ -1,13 +1,12 @@
 import { AlertDialog } from "../components/AlertDialog";
 import { useFormRoute, useOpenFromAddress } from "../components/forms/FormRoute";
 import { RecordLink } from "../components/RecordLink";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { asManifests, isChange, localized } from "../api/manifest";
-import { proposeChecked } from "../api/proposal";
 import type { Change, Manifest } from "../api/manifest";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { ChangeNotice } from "../components/ChangeNotice";
@@ -17,6 +16,15 @@ import { ResourceRowActions } from "../components/ResourceRowActions";
 import { PipelineEditorDialog, expiryWindow } from "../pages/pipelines/PipelineEditor";
 import { PipelineRejectedDialog } from "../pages/pipelines/PipelineRejected";
 import { PipelineRunsDialog } from "../pages/pipelines/PipelineRuns";
+import {
+  LastRunCell,
+  dataSourceOf,
+  proposeEnabled,
+  executionClass,
+  useLastRun,
+  useStreamCounters,
+} from "../pages/pipelines/PipelineOverview";
+import type { PipelineSpec } from "../pages/pipelines/PipelineOverview";
 import type { PipelineForm, toEnvelope } from "../pages/pipelines/PipelineEditor";
 import { takeEditRequest, takePrefill } from "../assistant/state";
 import { useProjectUsage } from "../components/ProjectQuota";
@@ -35,47 +43,10 @@ import {
   TableHeaderCell,
   TableRow,
   SourceLink,
+  Input,
+  Select,
 } from "../components/ui";
 
-interface SecretRef {
-  name?: string;
-  key?: string;
-  envVar?: string;
-}
-
-interface PipelineSpec {
-  class?: string;
-  period?: string;
-  schedule?: string;
-  enabled?: boolean;
-  secretRefs?: SecretRef[];
-  source?: { dataSourceRef?: { name?: string } | string };
-  output?: { type?: string };
-  expiry?: { after?: string };
-}
-
-/** The data source a pipeline reads, by name, when it names one. */
-function dataSourceOf(spec: PipelineSpec): string | undefined {
-  const ref = spec.source?.dataSourceRef;
-  const name = typeof ref === "string" ? ref : ref?.name;
-  return name && name.trim() !== "" ? name : undefined;
-}
-
-/** Bento's own duration notation, `250ms` / `45s` / `5m` / `1h` (Architecture/08 §1). */
-function periodSeconds(period: string | undefined): number | undefined {
-  const match = /^(\d+(?:\.\d+)?)(ms|s|m|h)$/.exec(period?.trim() ?? "");
-  if (!match) {
-    return undefined;
-  }
-  const value = Number(match[1]);
-  const factor = { ms: 0.001, s: 1, m: 60, h: 3600 }[match[2] as "ms" | "s" | "m" | "h"];
-  return value * factor;
-}
-
-/**
- * The 30-second rule (Architecture/08 §1): `auto` runs push-based and sub-30-second pipelines
- * in the resident runner, everything slower as a CronJob. An explicit class always wins.
- */
 /**
  * Why a Live stream lands nothing, from its `StreamWriting` condition, or `null` when it writes
  * (T-2967): the reconciler sets it when the runner counts errors and nothing sent, or records
@@ -88,124 +59,64 @@ export function notWriting(pipeline: Manifest): string | null {
   return condition ? (condition.message ?? condition.reason ?? "") : null;
 }
 
-export function executionClass(spec: PipelineSpec): "resident" | "scheduled" {
-  if (spec.class === "resident" || spec.class === "scheduled") {
-    return spec.class;
-  }
-  if (spec.schedule) {
-    return "scheduled";
-  }
-  const seconds = periodSeconds(spec.period);
-  return seconds === undefined || seconds < 30 ? "resident" : "scheduled";
-}
+export { executionClass };
 
-/**
- * Live counters of one resident stream, polled while the pipeline is running. The runner
- * reports totals, so the rate is the difference between two polls; a runner that is down
- * leaves the row without numbers rather than turning it red (the manifest is still fine).
- */
-function StreamMetrics({
+/** When one row's pipeline last ran, with a resident runner's totals beside it (T-4817). */
+function RowLastRun({
   project,
   name,
-  running,
-  resident,
+  counted,
+  now,
 }: {
   project: string;
   name: string;
-  running: boolean;
-  /** A scheduled pipeline has no stream to count; it is not paused for that (T-2759). */
-  resident: boolean;
+  /** A running resident stream: its runner has counters to read. */
+  counted: boolean;
+  now: number;
 }): JSX.Element {
-  const { t, i18n } = useTranslation();
-  // In the person's language, never the browser's: 1 234,5 in Slovak, 1,234.5 in English (T-3278).
-  const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
-  const tenths = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  const previous = useRef<{ received: number; at: number } | null>(null);
-
-  const metrics = useQuery({
-    queryKey: [...queryKeys.resource(project, "pipelines", name), "metrics"],
-    enabled: running && resident,
-    refetchInterval: 5_000,
-    retry: false,
-    queryFn: async () => {
-      const data = await unwrap(
-        await api.GET("/api/v1/projects/{project}/pipelines/{name}/metrics", {
-          params: { path: { project, name } },
-        }),
-      );
-      // Sampled here rather than during render: the fetch is the event that produces a new
-      // pair, and a ref written in render would lose the pair on every re-render.
-      const at = Date.now();
-      const before = previous.current;
-      const received = data.received ?? null;
-      const rate =
-        received !== null && before && at > before.at
-          ? ((received - before.received) / (at - before.at)) * 1000
-          : null;
-      if (received !== null) {
-        previous.current = { received, at };
-      }
-      return { ...data, rate };
-    },
-  });
-
-  if (!running) {
-    return <span className="text-caption text-fg-subtle">{t("pipelines.metrics.paused")}</span>;
-  }
-  if (!resident) {
-    return <span className="text-caption text-fg-subtle">{t("pipelines.metrics.scheduled")}</span>;
-  }
-  if (metrics.isError || (metrics.isFetched && !metrics.data)) {
-    return (
-      <span className="text-caption text-fg-subtle">{t("pipelines.metrics.unavailable")}</span>
-    );
-  }
-  if (!metrics.data) {
-    return <span className="text-caption text-fg-subtle">{t("app.loading")}</span>;
-  }
-
-  const { received, errors, rejected, latencyP99Ms, rate } = metrics.data;
+  const last = useLastRun(project, name);
+  const counters = useStreamCounters(project, name, counted);
   return (
-    <dl className="grid grid-cols-[auto_auto] gap-x-2 gap-y-0.5 text-caption">
-      {rate !== null ? (
-        <>
-          <dt className="text-fg-subtle">{t("pipelines.metrics.rate")}</dt>
-          <dd className="font-medium tabular-nums text-fg">{tenths.format(rate)}</dd>
-        </>
-      ) : null}
-      {received != null ? (
-        <>
-          <dt className="text-fg-subtle">{t("pipelines.metrics.received")}</dt>
-          <dd className="tabular-nums text-fg">{received.toLocaleString(locale)}</dd>
-        </>
-      ) : null}
-      {errors != null ? (
-        <>
-          <dt className="text-fg-subtle">{t("pipelines.metrics.errors")}</dt>
-          <dd className={errors > 0 ? "font-medium tabular-nums text-danger" : "tabular-nums text-fg"}>
-            {errors.toLocaleString(locale)}
-          </dd>
-        </>
-      ) : null}
-      {rejected != null ? (
-        <>
-          <dt className="text-fg-subtle">{t("pipelines.metrics.rejected")}</dt>
-          <dd className={rejected > 0 ? "font-medium tabular-nums text-warning" : "tabular-nums text-fg"}>
-            {rejected.toLocaleString(locale)}
-          </dd>
-        </>
-      ) : null}
-      {latencyP99Ms != null ? (
-        <>
-          <dt className="text-fg-subtle">{t("pipelines.metrics.latency")}</dt>
-          <dd className="tabular-nums text-fg">{tenths.format(latencyP99Ms)}</dd>
-        </>
-      ) : null}
-    </dl>
+    <LastRunCell
+      project={project}
+      name={name}
+      run={last.data}
+      failed={last.isError}
+      // "4 min ago" moves on with each refetch rather than staying where the page opened.
+      now={Math.max(now, last.dataUpdatedAt)}
+      counters={counted ? counters.data : undefined}
+    />
   );
 }
 
-const COLUMNS = 6;
+type StatusFilter = "all" | "running" | "paused" | "notWriting";
+type ClassFilter = "all" | "resident" | "scheduled";
+
+/** Whether a pipeline passes the list's search and filters (T-4817). */
+export function pipelineMatches(
+  pipeline: Manifest,
+  needle: string,
+  status: StatusFilter,
+  klass: ClassFilter,
+  locale: string,
+): boolean {
+  const spec = pipeline.spec as PipelineSpec;
+  const running = spec.enabled !== false;
+  if (status === "running" && !running) return false;
+  if (status === "paused" && running) return false;
+  if (status === "notWriting" && notWriting(pipeline) === null) return false;
+  if (klass !== "all" && executionClass(spec) !== klass) return false;
+  const words = needle.trim().toLowerCase();
+  if (words === "") return true;
+  return [
+    pipeline.metadata.name,
+    localized(pipeline.metadata.title, locale, ""),
+    dataSourceOf(spec) ?? "",
+    spec.output?.type ?? "",
+  ].some((text) => text.toLowerCase().includes(words));
+}
+
+const COLUMNS = 5;
 
 /** Ingestion pipelines of one project: what runs where, how it is doing, and its credentials. */
 export function PipelinesPage({ project }: { project: string }): JSX.Element {
@@ -241,6 +152,11 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
   const [runOpened, setRunOpened] = useState<string | null>(null);
   // The pipeline whose alerts are being chosen (T-3261).
   const [alertOf, setAlertOf] = useState<string | null>(null);
+  const [needle, setNeedle] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [classFilter, setClassFilter] = useState<ClassFilter>("all");
+  // One clock per page view: every row's "4 min ago" is measured from the same instant.
+  const [now] = useState(() => Date.now());
 
   const list = useQuery({
     queryKey: queryKeys.list(project, "pipelines"),
@@ -258,17 +174,7 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
   const toggle = useMutation({
     mutationFn: async ({ pipeline, run }: { pipeline: Manifest; run: boolean }) => {
       setError(null);
-      // `status` is the API's own computation (MF-04); a write never sends it back.
-      const body = {
-        apiVersion: pipeline.apiVersion,
-        kind: pipeline.kind,
-        metadata: pipeline.metadata,
-        spec: { ...pipeline.spec, enabled: run },
-      };
-      // The gate wants a green check for exactly this manifest, whatever door it came through
-      // (PF-57): a click that only wrote was answered with "The manifest has not been checked"
-      // and changed nothing, on every strict installation (T-2264).
-      return proposeChecked(project, "pipelines", body, false);
+      return proposeEnabled(project, pipeline, run);
     },
     onSuccess: (result) => {
       if (isChange(result)) {
@@ -353,17 +259,19 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
   }
 
   const head = (
-    <TableHead>
+    <TableHead className="max-sm:hidden">
       <TableHeaderCell>{t("pipelines.field.name")}</TableHeaderCell>
       <TableHeaderCell secondary>{t("pipelines.field.class")}</TableHeaderCell>
       <TableHeaderCell>{t("pipelines.field.phase")}</TableHeaderCell>
-      <TableHeaderCell secondary>{t("pipelines.field.stream")}</TableHeaderCell>
-      <TableHeaderCell secondary>{t("pipelines.field.secrets")}</TableHeaderCell>
+      <TableHeaderCell>{t("pipelines.field.lastRun")}</TableHeaderCell>
       <TableHeaderCell align="right">{t("approvals.actions")}</TableHeaderCell>
     </TableHead>
   );
 
   const pipelines = asManifests(list.data?.items ?? []);
+  const shown = pipelines.filter((pipeline) =>
+    pipelineMatches(pipeline, needle, statusFilter, classFilter, locale),
+  );
   // On a routed list the editor is a page at `/pipelines/new` and `/pipelines/{name}/edit`
   // (T-2474): the controls go to the address, and the address opens the editor.
   const formRoute = useFormRoute();
@@ -417,6 +325,48 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
         </Alert>
       ) : null}
 
+      {pipelines.length > 0 ? (
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
+          <Input
+            type="search"
+            aria-label={t("pipelines.filter.find")}
+            placeholder={t("pipelines.filter.find")}
+            value={needle}
+            onChange={(event) => setNeedle(event.target.value)}
+            className="sm:max-w-sm"
+          />
+          <Select
+            aria-label={t("pipelines.filter.status")}
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+            className="sm:w-auto"
+          >
+            {(["all", "running", "paused", "notWriting"] as const).map((value) => (
+              <option key={value} value={value}>
+                {t(`pipelines.filter.statusOption.${value}`)}
+              </option>
+            ))}
+          </Select>
+          <Select
+            aria-label={t("pipelines.filter.class")}
+            value={classFilter}
+            onChange={(event) => setClassFilter(event.target.value as ClassFilter)}
+            className="sm:w-auto"
+          >
+            {(["all", "resident", "scheduled"] as const).map((value) => (
+              <option key={value} value={value}>
+                {t(`pipelines.filter.classOption.${value}`)}
+              </option>
+            ))}
+          </Select>
+          {shown.length !== pipelines.length ? (
+            <p role="status" className="text-caption text-fg-subtle sm:self-center">
+              {t("pipelines.filter.shown", { shown: shown.length, total: pipelines.length })}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* An empty list is where a person decides what to do next, so it says what the
           two ways in are rather than only that there is nothing here (UI-01). */}
       <ResourceList
@@ -424,8 +374,16 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
         caption={t("pipelines.title")}
         head={head}
         columns={COLUMNS}
-        count={pipelines.length}
+        count={shown.length}
         empty={
+          pipelines.length > 0 ? (
+            <EmptyState
+              bare
+              icon="pipelines"
+              title={t("pipelines.filter.none")}
+              description={t("pipelines.filter.noneHint")}
+            />
+          ) : (
           <EmptyState
             bare
             icon="pipelines"
@@ -439,17 +397,49 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
               </PermissionGuard>
             }
           />
+          )
         }
       >
-        {pipelines.map((pipeline) => {
+        {shown.map((pipeline) => {
           const spec = pipeline.spec as PipelineSpec;
           const klass = executionClass(spec);
           // Absent means running: a pipeline is only paused by an explicit `false`.
           const running = spec.enabled !== false;
           const stalled = notWriting(pipeline);
+          const counted = running && klass === "resident";
+          const source = dataSourceOf(spec);
+          const phase = (
+            <>
+              {/* The row said "Live" beside a stream that said "Paused" (T-2759): a paused
+                  pipeline is applied and stopped, and stopped is what a person needs to read. */}
+              <LifecycleBadge
+                kind="phase"
+                value={
+                  !running && ["live", "applied", "synced"].includes((pipeline.status?.phase ?? "").toLowerCase())
+                    ? "paused"
+                    : pipeline.status?.phase
+                }
+              />
+              {/* Live says the stream is deployed; whether anything lands is this condition
+                  (T-2967): hsl-hfp-vehicles read Live for half an hour of writing nothing. */}
+              {stalled !== null ? (
+                <div className="mt-1">
+                  <Badge tone="warning" title={stalled || undefined}>
+                    {t("pipelines.notWriting")}
+                    {stalled ? <span className="sr-only">: {stalled}</span> : null}
+                  </Badge>
+                </div>
+              ) : null}
+            </>
+          );
           return (
-            <TableRow key={pipeline.metadata.name}>
-              <TableCell primary>
+            // A phone has no room for columns: the row becomes a card, the state and the last run
+            // under the title and the menu as its one action (T-4817).
+            <TableRow
+              key={pipeline.metadata.name}
+              className="max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:border-b max-sm:border-border"
+            >
+              <TableCell primary className="max-sm:col-start-1 max-sm:pb-1">
                 <div>
                   <RecordLink project={project} plural="pipelines" name={pipeline.metadata.name}>
                     {localized(pipeline.metadata.title, locale, pipeline.metadata.name)}
@@ -458,6 +448,11 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
                 {pipeline.metadata.title ? (
                   <div className="mt-0.5 font-mono text-caption text-fg-subtle">
                     {pipeline.metadata.name}
+                  </div>
+                ) : null}
+                {source ? (
+                  <div className="mt-0.5 text-caption text-fg-subtle">
+                    {t("pipelines.readsSource")} <span className="font-mono">{source}</span>
                   </div>
                 ) : null}
                 {typeof spec.output?.type === "string" && spec.output.type !== "" ? (
@@ -489,60 +484,11 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
                   {t(`pipelines.class.${klass}`)}
                 </Badge>
               </TableCell>
-              <TableCell>
-                {/* The row said "Live" beside a stream that said "Paused" (T-2759): a paused
-                    pipeline is applied and stopped, and stopped is what a person needs to read. */}
-                <LifecycleBadge
-                  kind="phase"
-                  value={
-                    !running && ["live", "applied", "synced"].includes((pipeline.status?.phase ?? "").toLowerCase())
-                      ? "paused"
-                      : pipeline.status?.phase
-                  }
-                />
-                {/* Live says the stream is deployed; whether anything lands is this condition
-                    (T-2967): hsl-hfp-vehicles read Live for half an hour of writing nothing. */}
-                {stalled !== null ? (
-                  <div className="mt-1">
-                    <Badge tone="warning" title={stalled || undefined}>
-                      {t("pipelines.notWriting")}
-                      {stalled ? <span className="sr-only">: {stalled}</span> : null}
-                    </Badge>
-                  </div>
-                ) : null}
+              <TableCell className="max-sm:col-start-1 max-sm:py-1">{phase}</TableCell>
+              <TableCell className="max-sm:col-start-1 max-sm:pt-1">
+                <RowLastRun project={project} name={pipeline.metadata.name} counted={counted} now={now} />
               </TableCell>
-              <TableCell secondary>
-                <StreamMetrics
-                  project={project}
-                  name={pipeline.metadata.name}
-                  running={running}
-                  resident={klass === "resident"}
-                />
-              </TableCell>
-              <TableCell secondary>
-                {/* Names only: a secret's value is resolved by the reconciler and never
-                    leaves the cluster, so there is nothing here to mask (PL-17). */}
-                {(spec.secretRefs ?? []).length === 0 ? (
-                  // An empty cell read as missing data (T-2759): a pipeline that holds no
-                  // credential of its own reads through its data source, which holds it.
-                  <span className="text-caption text-fg-subtle">
-                    {dataSourceOf(spec)
-                      ? t("pipelines.credentialsOfSource", { name: dataSourceOf(spec) })
-                      : t("pipelines.noCredential")}
-                  </span>
-                ) : null}
-                <ul className="flex flex-col gap-1">
-                  {(spec.secretRefs ?? []).map((ref) => (
-                    <li key={`${ref.name}/${ref.key}`}>
-                      <Badge mono>
-                        {ref.name}/{ref.key}
-                        {ref.envVar ? ` → $${ref.envVar}` : ""}
-                      </Badge>
-                    </li>
-                  ))}
-                </ul>
-              </TableCell>
-              <TableCell align="right">
+              <TableCell align="right" className="max-sm:col-start-2 max-sm:row-span-3 max-sm:row-start-1">
                 <div className="flex items-center justify-end gap-1.5">
                   {/* Running or paused is what a person comes to this row for; the rest is in the
                       menu at its end (T-2287). */}
@@ -575,18 +521,24 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
                       formRoute ? formRoute.openEdit(pipeline.metadata.name) : openEditor(pipeline)
                     }
                     primary={
-                      <Button
-                        size="sm"
-                        disabled={toggle.isPending}
-                        onClick={() => toggle.mutate({ pipeline, run: !running })}
-                        title={t(running ? "pipelines.pauseHint" : "pipelines.resumeHint")}
-                      >
-                        {t(running ? "pipelines.pause" : "pipelines.resume")}
-                      </Button>
+                      // On a phone the row's one action is its menu; Pause is on the pipeline's page.
+                      <span className="hidden sm:inline-flex">
+                        <Button
+                          size="sm"
+                          className="whitespace-nowrap"
+                          disabled={toggle.isPending}
+                          onClick={() => toggle.mutate({ pipeline, run: !running })}
+                          title={t(running ? "pipelines.pauseHint" : "pipelines.resumeHint")}
+                        >
+                          {t(running ? "pipelines.pause" : "pipelines.resume")}
+                          </Button>
+                      </span>
                     }
                   />
                   {pipeline.status?.sourceUrl ? (
-                    <SourceLink href={pipeline.status.sourceUrl} label={t("spaces.field.source")} />
+                    <span className="hidden sm:inline-flex">
+                      <SourceLink href={pipeline.status.sourceUrl} label={t("spaces.field.source")} />
+                    </span>
                   ) : null}
                 </div>
               </TableCell>
