@@ -51,10 +51,14 @@ describe("the Retention section (DM-82, DM-85)", () => {
     const vehicle = within(table).getByRole("row", { name: /Vehicle/ });
     expect(within(vehicle).getByText("5 minutes")).toBeInTheDocument();
     expect(within(vehicle).getByText("8 hours")).toBeInTheDocument();
+    // T-4822: each cell names the layer that set it.
+    expect(within(vehicle).getAllByText(en.spaces.retention.layer.type)).toHaveLength(2);
     expect(await within(vehicle).findByText("0 values, 42 history records")).toBeInTheDocument();
     const stop = within(table).getByRole("row", { name: /Stop/ });
     expect(within(stop).getByText(en.spaces.retention.forever)).toBeInTheDocument();
-    expect(within(stop).getByText(en.spaces.retention.platformDefault)).toBeInTheDocument();
+    expect(within(stop).getByText(en.spaces.retention.layer.none)).toBeInTheDocument();
+    expect(within(stop).getByText("28 days")).toBeInTheDocument();
+    expect(within(stop).getByText(en.spaces.retention.layer.platform)).toBeInTheDocument();
     // DM-97: the space's default row comes last and sets history only.
     const rows = within(table).getAllByRole("row");
     const any = rows[rows.length - 1];
@@ -217,7 +221,8 @@ describe("the Retention section (DM-82, DM-85)", () => {
     );
     const table = await screen.findByRole("table", { name: en.spaces.retention.caption });
     const stop = within(table).getByRole("row", { name: /Stop/ });
-    expect(within(stop).getByText(en.spaces.retention.spaceDefault)).toBeInTheDocument();
+    expect(within(stop).getByText("90 days")).toBeInTheDocument();
+    expect(within(stop).getByText(en.spaces.retention.layer.space)).toBeInTheDocument();
     const any = within(table).getByRole("row", { name: new RegExp(en.spaces.retention.anyType) });
     expect(within(any).getByText("90 days")).toBeInTheDocument();
     expect(await within(any).findByText("0 values, 7 history records")).toBeInTheDocument();
