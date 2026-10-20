@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { EntityWriteCard, entityWriteOf } from "../src/pages/apps/EntityWriteCard";
+import { expectNoAxeViolations } from "./page_contract";
 
 const STATION = "urn:ngsi-ld:BikeHireDockingStation:hel.fi:helsinki:kaivopuisto";
 const STEP = {
@@ -98,5 +99,12 @@ describe("the change to entities card", () => {
     expect(screen.queryByRole("button", { name: en.agentRun.write.apply })).not.toBeInTheDocument();
     expect(entityWriteOf({ ...STEP, status: "failed" })).toBeNull();
     expect(entityWriteOf({ ...STEP, tool: "change_resource" })).toBeNull();
+  });
+
+  // T-3986: the app builder draws this card only in a model run, which the live walk cannot start (spend guard).
+  it("has_no_serious_axe_violation_as_a_model_run_draws_it", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
+    card();
+    await expectNoAxeViolations(document.body);
   });
 });

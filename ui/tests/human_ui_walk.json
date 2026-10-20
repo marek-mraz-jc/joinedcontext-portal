@@ -557,7 +557,11 @@
         "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
       ]
     },
-    "src/pages/apps/ActionStep.tsx": null,
+    "src/pages/apps/ActionStep.tsx": {
+      "walkedBy": "deployer (no live walk: a model run draws it; axe in tests/action_inspector.test.tsx)",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
     "src/pages/apps/AgentRunPage.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
@@ -569,7 +573,11 @@
         "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
       ]
     },
-    "src/pages/apps/AppBuildCard.tsx": null,
+    "src/pages/apps/AppBuildCard.tsx": {
+      "walkedBy": "deployer (no live walk: a model run draws it; axe in tests/app_build_card.test.tsx)",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
     "src/pages/apps/AppBuildPanel.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
@@ -658,12 +666,36 @@
         "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
       ]
     },
-    "src/pages/apps/ChangeFollowCard.tsx": null,
-    "src/pages/apps/ConversationPanel.tsx": null,
-    "src/pages/apps/EndpointProposalCard.tsx": null,
-    "src/pages/apps/EntityWriteCard.tsx": null,
-    "src/pages/apps/KpiCard.tsx": null,
-    "src/pages/apps/KpiPipelineCard.tsx": null,
+    "src/pages/apps/ChangeFollowCard.tsx": {
+      "walkedBy": "deployer (no live walk: a model run draws it; axe in tests/change_follow_card.test.tsx)",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/apps/ConversationPanel.tsx": {
+      "walkedBy": "deployer (no live walk: a model run draws it; axe in tests/conversation_panel.test.tsx)",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/apps/EndpointProposalCard.tsx": {
+      "walkedBy": "deployer (no live walk: a model run draws it; axe in tests/endpoint_proposal_card.test.tsx)",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/apps/EntityWriteCard.tsx": {
+      "walkedBy": "deployer (no live walk: a model run draws it; axe in tests/entity_write_card.test.tsx)",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/apps/KpiCard.tsx": {
+      "walkedBy": "deployer (no live walk: a model run draws it; axe in tests/kpi_card.test.tsx)",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
+    "src/pages/apps/KpiPipelineCard.tsx": {
+      "walkedBy": "deployer (no live walk: a model run draws it; axe in tests/part_kpi_pipeline_card.test.tsx)",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
     "src/pages/apps/NewEndpointPanel.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
@@ -675,7 +707,11 @@
         "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
       ]
     },
-    "src/pages/apps/Prose.tsx": null,
+    "src/pages/apps/Prose.tsx": {
+      "walkedBy": "deployer (no live walk: a model run draws it; axe in tests/prose.test.tsx)",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
     "src/pages/apps/QuestionData.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
@@ -687,7 +723,11 @@
         "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
       ]
     },
-    "src/pages/apps/QuestionOptions.tsx": null,
+    "src/pages/apps/QuestionOptions.tsx": {
+      "walkedBy": "deployer (no live walk: a model run draws it; axe in tests/question_options.test.tsx)",
+      "date": "2026-10-20",
+      "screenshots": []
+    },
     "src/pages/apps/RenameShapesNotice.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
@@ -924,13 +964,31 @@
       ]
     },
     "src/pages/gallery/Gallery.tsx": null,
-    "src/pages/home/HomePage.tsx": null,
+    "src/pages/home/HomePage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/new-pages-1320/portal-projects-helsinki-home-open-steward-en-1440.png",
+        "evidence/deployer/T-3986/new-pages-1320/portal-projects-helsinki-home-open-steward-en-2560.png",
+        "evidence/deployer/T-3986/new-pages-1320/portal-projects-helsinki-home-open-viewer-en-1440.png",
+        "evidence/deployer/T-3986/new-pages-1320/portal-projects-helsinki-home-open-viewer-en-2560.png"
+      ]
+    },
     "src/pages/import/ImportPage.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
       "screenshots": []
     },
-    "src/pages/inbox/InboxPage.tsx": null,
+    "src/pages/inbox/InboxPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/new-pages-1320/portal-projects-helsinki-inbox-open-steward-en-1440.png",
+        "evidence/deployer/T-3986/new-pages-1320/portal-projects-helsinki-inbox-open-steward-en-2560.png",
+        "evidence/deployer/T-3986/new-pages-1320/portal-projects-helsinki-inbox-open-viewer-en-1440.png",
+        "evidence/deployer/T-3986/new-pages-1320/portal-projects-helsinki-inbox-open-viewer-en-2560.png"
+      ]
+    },
     "src/pages/knowledge/AssistantChat.tsx": null,
     "src/pages/knowledge/ConversationsPage.tsx": null,
     "src/pages/knowledge/IndexStatus.tsx": null,
@@ -939,7 +997,17 @@
     "src/pages/knowledge/UploadedFiles.tsx": null,
     "src/pages/knowledge/UsageSummary.tsx": null,
     "src/pages/mcp/ConnectorStar.tsx": null,
-    "src/pages/mcp/ConnectorsPage.tsx": null,
+    "src/pages/mcp/ConnectorsPage.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/new-pages-1320/portal-connectors-dialog-new-connector-steward-en-1440.png",
+        "evidence/deployer/T-3986/new-pages-1320/portal-connectors-open-steward-en-1440.png",
+        "evidence/deployer/T-3986/new-pages-1320/portal-connectors-open-steward-en-2560.png",
+        "evidence/deployer/T-3986/new-pages-1320/portal-connectors-open-viewer-en-1440.png",
+        "evidence/deployer/T-3986/new-pages-1320/portal-connectors-open-viewer-en-2560.png"
+      ]
+    },
     "src/pages/mcp/McpServerDialog.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",

@@ -13,6 +13,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { KpiCard, formatValue, keepMessage, kpiOf } from "../src/pages/apps/KpiCard";
 import type { Kpi } from "../src/pages/apps/KpiCard";
+import { expectNoAxeViolations } from "./page_contract";
 
 const SLUG = "kpislug0000000000000000000";
 const ENTITY = {
@@ -165,5 +166,12 @@ describe("the indicator card", () => {
     expect(formatValue(18.4444, "en")).toBe("18.44");
     expect(formatValue(123.456, "en")).toBe("123.5");
     expect(formatValue(0.00314, "en")).toBe("0.0031");
+  });
+
+  // T-3986: the app builder draws this card only in a model run, which the live walk cannot start (spend guard).
+  it("has_no_serious_axe_violation_as_a_model_run_draws_it", async () => {
+    renderCard();
+    await screen.findByRole("region", { name: en.agentRun.kpi.title });
+    await expectNoAxeViolations(document.body);
   });
 });

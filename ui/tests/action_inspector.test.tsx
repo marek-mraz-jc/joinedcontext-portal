@@ -12,6 +12,7 @@ import en from "../src/locales/en.json";
 import { errorText } from "../src/pages/apps/ActionStep";
 import { ConversationPanel } from "../src/pages/apps/ConversationPanel";
 import type { RunEvent } from "../src/pages/apps/useAgentRun";
+import { expectNoAxeViolations } from "./page_contract";
 
 const EVENTS: RunEvent[] = [
   {
@@ -231,5 +232,12 @@ describe("the action inspector", () => {
     expect(errorText({ error: { message: "timeout" } }, t)).toBe("timeout");
     renderPanel(true, [EVENTS[0]]);
     expect(screen.queryByTestId("step-reason")).toBeNull();
+  });
+
+  // T-3986: the app builder draws this card only in a model run, which the live walk cannot start (spend guard).
+  it("has_no_serious_axe_violation_as_a_model_run_draws_it", async () => {
+    renderPanel();
+    expect(screen.getAllByRole("group")).toHaveLength(2);
+    await expectNoAxeViolations(document.body);
   });
 });

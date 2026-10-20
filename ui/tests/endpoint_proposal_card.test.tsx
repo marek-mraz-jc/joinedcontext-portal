@@ -14,6 +14,7 @@ import en from "../src/locales/en.json";
 import { takePrefill } from "../src/assistant/state";
 import { EndpointProposalCard, proposalOf } from "../src/pages/apps/EndpointProposalCard";
 import type { Proposal } from "../src/pages/apps/EndpointProposalCard";
+import { expectNoAxeViolations } from "./page_contract";
 
 const SLUG = "k7m2p9q4r6s8t3v5w7x2y4z6a8";
 
@@ -133,5 +134,12 @@ describe("the endpoint proposal card", () => {
     expect(proposalOf({ slug: SLUG })).toBeNull();
     expect(proposalOf("x")).toBeNull();
     expect(proposalOf(null)).toBeNull();
+  });
+
+  // T-3986: the app builder draws this card only in a model run, which the live walk cannot start (spend guard).
+  it("has_no_serious_axe_violation_as_a_model_run_draws_it", async () => {
+    renderCard();
+    await screen.findByRole("region", { name: en.agentRun.proposal.title });
+    await expectNoAxeViolations(document.body);
   });
 });

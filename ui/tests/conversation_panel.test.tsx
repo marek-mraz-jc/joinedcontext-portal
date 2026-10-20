@@ -14,6 +14,7 @@ import en from "../src/locales/en.json";
 import { ConversationPanel, answeredSearches, line } from "../src/pages/apps/ConversationPanel";
 import { EVENT_KINDS, openQuestions } from "../src/pages/apps/useAgentRun";
 import type { RunEvent } from "../src/pages/apps/useAgentRun";
+import { expectNoAxeViolations } from "./page_contract";
 
 const sent = vi.fn();
 
@@ -685,5 +686,13 @@ describe("words the model is still writing", () => {
     panel([asked, { seq: 2, kind: "partial", payload: { text: "<img src=x onerror=alert(1)>" } }]);
     expect(screen.getByTestId("partial-line")).toHaveTextContent("<img src=x onerror=alert(1)>");
     expect(document.querySelector("img[src='x']")).toBeNull();
+  });
+
+  // T-3986: a model run draws these turns, which the live walk cannot start (spend guard).
+  it("has_no_serious_axe_violation_as_a_model_run_draws_it", async () => {
+    const { container } = panel([
+      { seq: 1, kind: "message", payload: { text: "## Stations\n\n- Töölö\n\n| Station | Free bikes |\n|---|---|\n| Töölö | 0 |" } },
+    ]);
+    await expectNoAxeViolations(container);
   });
 });

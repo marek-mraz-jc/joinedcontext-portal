@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { ChangeFollowCard, followedChangeOf } from "../src/pages/apps/ChangeFollowCard";
+import { expectNoAxeViolations } from "./page_contract";
 
 const PROJECT = "helsinki";
 const ID = "chg-0000003a";
@@ -177,5 +178,12 @@ describe("a proposed change, followed to a working result", () => {
     setup({ phase: "Rejected" });
     expect(await within(card()).findByText(en.agentRun.follow.rejected)).toBeInTheDocument();
     expect(within(card()).queryByText(en.agentRun.follow.test.later)).toBeNull();
+  });
+
+  // T-3986: the app builder draws this card only in a model run, which the live walk cannot start (spend guard).
+  it("has_no_serious_axe_violation_as_a_model_run_draws_it", async () => {
+    setup();
+    await within(card()).findByRole("button", { name: en.agentRun.follow.approve });
+    await expectNoAxeViolations(document.body);
   });
 });

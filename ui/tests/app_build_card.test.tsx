@@ -14,6 +14,7 @@ import en from "../src/locales/en.json";
 import { AppBuildCard, appBuildOf } from "../src/pages/apps/AppBuildCard";
 import { slugOf } from "../src/pages/apps/AppGenerator";
 import type { AppBuild } from "../src/pages/apps/AppBuildCard";
+import { expectNoAxeViolations } from "./page_contract";
 
 const PROJECT = "helsinki";
 const SLUG = "k7m2qz4tv6xh3n5jb2ryd3wcfa";
@@ -179,5 +180,12 @@ describe("AppBuildCard", () => {
     expect(appBuildOf({ endpoints: ["alerts"], access: "admin", visibility: "project", prompt: "a map" })).toBeNull();
     expect(appBuildOf({ endpoints: [], access: "read", visibility: "project", prompt: "a map" })).toBeNull();
     expect(appBuildOf({ endpoints: ["alerts"], access: "read", visibility: "project", prompt: "  " })).toBeNull();
+  });
+
+  // T-3986: the app builder draws this card only in a model run, which the live walk cannot start (spend guard).
+  it("has_no_serious_axe_violation_as_a_model_run_draws_it", async () => {
+    renderCard(BUILD);
+    await screen.findByRole("button", { name: en.apps.buildCard.build });
+    await expectNoAxeViolations(document.body);
   });
 });

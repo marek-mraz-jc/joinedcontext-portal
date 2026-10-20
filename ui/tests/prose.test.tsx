@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { Prose, blocksOf, shortId } from "../src/pages/apps/Prose";
+import { expectNoAxeViolations } from "./page_contract";
 
 function prose(text: string, onOpenLink?: (href: string) => void) {
   return render(
@@ -93,5 +94,11 @@ describe("an answer's Markdown", () => {
     expect(writeText).toHaveBeenCalledWith(URN);
     expect(await screen.findByRole("button", { name: en.agentRun.prose.copied })).toBeInTheDocument();
     expect(screen.getAllByRole("button")).toHaveLength(1);
+  });
+
+  // T-3986: the app builder draws this card only in a model run, which the live walk cannot start (spend guard).
+  it("has_no_serious_axe_violation_as_a_model_run_draws_it", async () => {
+    prose("## Events\n\n- Jazz\n\n| Station | Free bikes |\n|---|---|\n| Töölö | 0 |\n\n```json\n{}\n```");
+    await expectNoAxeViolations(document.body);
   });
 });
