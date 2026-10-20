@@ -56,6 +56,8 @@ export const MAX_BYTES = 50 * 1024 * 1024;
 
 /** Mapping targets of two columns that together make the entity's point location (T-3840). */
 export const LATITUDE = "@latitude";
+/** The mapping target of a column that holds each entity's `expiresAt` (TS 104 175 4.22, T-4822). */
+export const EXPIRES_AT = "@expiresAt";
 export const LONGITUDE = "@longitude";
 
 /** The slots of one class of the space's model, with `required` from the class's own usage. */
@@ -518,6 +520,18 @@ function valueOf(text: string, slot: ImportSlot): unknown | Error {
 }
 
 /**
+ * An entity's `expiresAt` from a cell or the fixed one, in UTC: refused when it is no time, or a
+ * time already past, which would delete the entity the moment it is written.
+ */
+export function expiresOf(text: string | undefined, now: number = Date.now()): string | undefined | Error {
+  if (text === undefined || text === "") return undefined;
+  const ms = Date.parse(isoDateOf(text));
+  if (Number.isNaN(ms)) return new Error(`expiresAt: \`${text}\` is not a date and time`);
+  if (ms <= now) return new Error(`expiresAt: ${new Date(ms).toISOString()} is already past`);
+  return new Date(ms).toISOString();
+}
+
+/**
  * Every row as an NGSI-LD entity of the target type, or the reasons it is not one: an id that
  * names another type or space, a required slot left empty, a value outside its slot's range or
  * enum. A row with no id column gets a fresh local id.
@@ -528,6 +542,9 @@ export function toEntities(
   slots: ImportSlot[],
   target: Target,
   freshId: () => string = () => crypto.randomUUID(),
+  /** One `expiresAt` for every row (T-4822); a column mapped to `EXPIRES_AT` wins for its row. */
+  expiresAt?: string,
+  now: number = Date.now(),
 ): { entities: { row: number; entity: Record<string, unknown> }[]; rejected: Rejected[] } {
   const entities: { row: number; entity: Record<string, unknown> }[] = [];
   const rejected: Rejected[] = [];
@@ -582,6 +599,10 @@ export function toEntities(
         problems.push(`${geoSlot.name}: \`${record[latColumn] ?? ""}\`, \`${record[lonColumn] ?? ""}\` is not a latitude and a longitude`);
       }
     }
+    const expiresColumn = Object.keys(mapping).find((column) => mapping[column] === EXPIRES_AT);
+    const expires = expiresOf(expiresColumn ? (record[expiresColumn] ?? "").trim() || expiresAt : expiresAt, now);
+    if (expires instanceof Error) problems.push(expires.message);
+    else if (expires !== undefined) entity.expiresAt = expires;
     for (const slot of slots) {
       if (slot.required && entity[slot.name] === undefined) problems.push(`${slot.name} is required`);
     }
