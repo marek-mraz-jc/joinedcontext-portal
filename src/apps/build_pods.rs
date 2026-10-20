@@ -26,6 +26,12 @@ pub const APP_LABEL: &str = "joinedcontext.com/build-app";
 /// What a build pod is to the network policies: a runner, walled in like the shared one (AP-81).
 const RUNNER_NAME: &str = "gitea-runner";
 
+/// The annotation a Job gets once its token Secret is written. A Job without it lost its token
+/// half way through a pass, and the Portal learns that from the Job alone: its Role in the
+/// runner's namespace reads no Secret, so the forge's own credentials there stay out of its
+/// reach (T-4798).
+pub const TOKEN_WRITTEN: &str = "joinedcontext.com/build-token-written";
+
 /// How long a finished Job, its pod and its token Secret stay for a person to read the logs.
 const FINISHED_TTL_SECONDS: u64 = 600;
 
@@ -243,6 +249,14 @@ pub fn job(settings: &Settings, class: Class, app: &str, id: u64) -> Value {
     })
 }
 
+/// Whether `job` carries [`TOKEN_WRITTEN`], set only after its token Secret was applied.
+fn token_was_written(job: &Value) -> bool {
+    job.pointer("/metadata/annotations")
+        .and_then(|annotations| annotations.get(TOKEN_WRITTEN))
+        .and_then(Value::as_str)
+        == Some("true")
+}
+
 /// The Secret holding the repository's registration token, owned by its Job so it goes with it.
 pub fn token_secret(settings: &Settings, app: &str, id: u64, job_uid: &str, token: &str) -> Value {
     let name = job_name(app, id);
@@ -309,18 +323,13 @@ pub async fn dispatch_once(
             continue;
         };
         let name = job_name(&app, id);
-        if kube
+        if let Some(existing) = kube
             .get("batch/v1", "Job", &settings.namespace, &name)
             .await?
-            .is_some()
         {
             // A Job whose token never arrived (a pass that stopped half way) would wait for it
             // until its deadline; removing it lets the next pass start the job again.
-            if kube
-                .get("v1", "Secret", &settings.namespace, &name)
-                .await?
-                .is_none()
-            {
+            if !token_was_written(&existing) {
                 kube.delete("batch/v1", "Job", &settings.namespace, &name)
                     .await?;
             }
@@ -332,7 +341,8 @@ pub async fn dispatch_once(
             .repository_registration_token()
             .await?;
         kube.apply(&claim(settings, &app)).await?;
-        kube.apply(&job(settings, class, &app, id)).await?;
+        let mut build = job(settings, class, &app, id);
+        kube.apply(&build).await?;
         let uid = kube
             .get("batch/v1", "Job", &settings.namespace, &name)
             .await?
@@ -344,6 +354,8 @@ pub async fn dispatch_once(
             })?;
         kube.apply(&token_secret(settings, &app, id, &uid, &token))
             .await?;
+        build["metadata"]["annotations"] = json!({ TOKEN_WRITTEN: "true" });
+        kube.apply(&build).await?;
         pass.started.push(name);
     }
 

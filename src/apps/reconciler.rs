@@ -68,8 +68,8 @@ pub struct Settings {
     /// `JC_ME_URL` for its caller's roles (AP-109, AP-134). `None`: no pod-backed App runs.
     pub service_url: Option<String>,
     /// The Portal's own namespace: where the pull Secret is kept and the Portal's
-    /// ServiceAccount lives. Apps ran here before each project had its own (AP-116), so it is
-    /// also where their old objects are removed from.
+    /// ServiceAccount lives. No App object is read or written here since each project has its
+    /// own (AP-116, T-4798).
     pub namespace: String,
     /// The installation's release name, the first part of each project's apps namespace
     /// `{release}-{project}-apps` (AP-116). `None`: no pod-backed App runs.

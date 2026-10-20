@@ -256,9 +256,7 @@ impl Converger {
                         .map_err(ConvergeError::Wasm)?;
                 }
             }
-            // Where it ran before projects had namespaces, and where it runs now; a namespace
-            // that cannot be named held nothing of it.
-            self.delete_objects(&self.settings.namespace, &name).await?;
+            // A namespace that cannot be named held nothing of it.
             if let Ok(namespace) = self.settings.apps_namespace(&project) {
                 self.delete_objects(&namespace, &name).await?;
             }
@@ -327,12 +325,6 @@ impl Converger {
         ] {
             self.kube.apply(object).await?;
         }
-        // The app ran in the Portal's namespace before its project had one: once a pod of it
-        // is up in the project's, the old objects go, which is what empties the shared namespace
-        // (AP-116). Until then they keep serving, and a later run removes them.
-        if namespace != self.settings.namespace && self.available(&namespace, &name).await? {
-            self.delete_objects(&self.settings.namespace, &name).await?;
-        }
         Ok(Outcome::Applied)
     }
 
@@ -382,49 +374,22 @@ impl Converger {
         Ok(Outcome::NamespaceDeleted)
     }
 
-    /// The endpoint slug this app already has, or a fresh one the first time it is deployed.
-    /// Read in the project's namespace, then in the Portal's, where an app deployed before
-    /// projects had namespaces kept it (AP-116, EP-02).
+    /// The endpoint slug this app already has, or a fresh one the first time it is deployed
+    /// (EP-02). Read in the project's namespace only: the Portal's own namespace holds platform
+    /// credentials, and its Role names the one Secret there it reads (T-4798).
     async fn slug_of(&self, namespace: &str, name: &str) -> Result<EndpointSlug, ConvergeError> {
         let secret_name = format!("app-{name}-endpoint");
-        let mut found = None;
-        for place in [namespace, self.settings.namespace.as_str()] {
-            found = self.kube.get("v1", "Secret", place, &secret_name).await?;
-            if found.is_some() {
-                break;
-            }
-        }
-        let Some(secret) = found else {
+        let Some(secret) = self
+            .kube
+            .get("v1", "Secret", namespace, &secret_name)
+            .await?
+        else {
             return Ok(generate_slug());
         };
         let slug = secret_value(&secret, "endpoint-slug").ok_or(ConvergeError::ForeignSecret {
             name: name.to_owned(),
         })?;
         EndpointSlug::new(&slug).map_err(|err| ConvergeError::Render(RenderError::Slug(err)))
-    }
-
-    /// Whether the app's Deployment in `namespace` has a pod up at its current spec.
-    async fn available(&self, namespace: &str, name: &str) -> Result<bool, ConvergeError> {
-        let Some(deployment) = self
-            .kube
-            .get("apps/v1", "Deployment", namespace, &format!("app-{name}"))
-            .await?
-        else {
-            return Ok(false);
-        };
-        let number = |pointer: &str| deployment.pointer(pointer).and_then(Value::as_u64);
-        Ok(
-            match (
-                number("/metadata/generation"),
-                number("/status/observedGeneration"),
-                number("/status/availableReplicas"),
-            ) {
-                (Some(generation), Some(observed), Some(available)) => {
-                    observed >= generation && available >= 1
-                }
-                _ => false,
-            },
-        )
     }
 
     /// Removes the four objects of one app from one namespace; removing what is not there
