@@ -1816,7 +1816,6 @@
     },
     "bloblangHint": "Bloblang mapování se upravuje zde a ukládá do manifestu; prázdné zůstává v bento.yaml vedle tohoto manifestu ve forge.",
     "bloblangFile": "Otevřít bento.yaml",
-    "bentoMapping": "Tato pipeline má mapování v souboru bento.yaml vedle manifestu, proto je pole mapování níže prázdné. Otevřete soubor a přečtěte si ho; mapování napsané níže běží jako výpočetní krok pipeline.",
     "studio": {
       "source": "1. Zdroj",
       "sourceKind": "Číst z",
@@ -2142,7 +2141,11 @@
         "addConversion": "Přidat do mapování",
         "bloblangHint": "Bloblang, který z jednoho záznamu udělá jednu entitu: nastavte její id, typ a sloty uvedené vedle.",
         "addLine": "Přidat do mapování",
-        "addLineOf": "Přidat řádek pro {slot} do mapování"
+        "addLineOf": "Přidat řádek pro {slot} do mapování",
+        "file": "Soubor mapování (bento.yaml)",
+        "fileHint": "Procesory, které tato pipeline spouští, tak jak je repozitář drží vedle jejího manifestu. Přihlašovací údaje jsou odkazy, které doplní runner, nikdy ne hodnoty.",
+        "fileEdit": "Upravit soubor mapování; Navrhnout jej pošle s manifestem",
+        "type": "Typ, který mapování zapisuje"
       },
       "output": {
         "title": "Namapovaný výstup",

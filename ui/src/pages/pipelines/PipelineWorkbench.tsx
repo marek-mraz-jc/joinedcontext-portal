@@ -13,6 +13,7 @@ import {
   Alert,
   Badge,
   Button,
+  Checkbox,
   Field,
   FilePicker,
   RadioGroup,
@@ -109,10 +110,15 @@ export function exampleOf(slot: Pick<LinkmlSlot, "range" | "kind" | "multivalued
   }
 }
 
-/** The class a mapping writes: the one its `root.type` names, else the model's first. */
+/**
+ * The class a mapping writes: the first of the model's classes its `root.type = "…"` or a
+ * `"type": "…"` member names (a `bento.yaml` builds whole entities, T-4818), else the model's first.
+ */
 export function classOfMapping(bloblang: string, classes: string[]): string | undefined {
-  const named = /root\.type\s*=\s*"([A-Za-z][A-Za-z0-9_]*)"/.exec(bloblang)?.[1];
-  return named && classes.includes(named) ? named : classes[0];
+  const named = [...bloblang.matchAll(/(?:root\.type\s*=|"type"\s*:)\s*"([A-Za-z][A-Za-z0-9_]*)"/g)]
+    .map((match) => match[1])
+    .find((name) => classes.includes(name));
+  return named ?? classes[0];
 }
 
 /** The sample the mapping is tried on, from the file the person gave or from the source. */
@@ -297,6 +303,23 @@ export interface PipelineWorkbenchProps {
   onVerdict: (ok: boolean, bloblang: string) => void;
   /** More of the dialog under the six steps: the folded advanced editor. */
   children?: ReactNode;
+  /**
+   * The `bento.yaml` the pipeline runs when it has no compute step (PL-41, T-4818): step 4 shows
+   * it in place of the Bloblang box, read-only until the person switches Edit on.
+   */
+  mappingFile?: MappingFile;
+}
+
+/** The `bento.yaml` beside an edited pipeline, as the editor loaded it (T-4818). */
+export interface MappingFile {
+  /** `loading` until the forge answered, `absent` for a pipeline with no such file. */
+  state: "loading" | "loaded" | "absent" | "failed";
+  text: string;
+  editing: boolean;
+  onEditing: (editing: boolean) => void;
+  onText: (text: string) => void;
+  /** Why the file could not be read, with a retry, when `state` is `failed`. */
+  failure?: ReactNode;
 }
 
 /**
@@ -317,6 +340,7 @@ export function PipelineWorkbench({
   toManifest,
   onVerdict,
   children,
+  mappingFile,
 }: PipelineWorkbenchProps): JSX.Element {
   const { t } = useTranslation();
   const [file, setFile] = useState<{ name: string; text: string; format: SampleFormat } | null>(null);
@@ -508,7 +532,13 @@ export function PipelineWorkbench({
     }
   }, [modelText]);
   const classNames = parsed?.classes.map((c) => c.name) ?? [];
-  const writtenClass = classOfMapping(bloblang, classNames);
+  // The mapping file stands in for the Bloblang box while the pipeline has no compute step.
+  const fileShown = mappingFile !== undefined && bloblang.trim() === "" && mappingFile.state !== "absent";
+  const [pickedClass, setPickedClass] = useState<string | undefined>(undefined);
+  const writtenClass =
+    pickedClass && classNames.includes(pickedClass)
+      ? pickedClass
+      : classOfMapping(fileShown ? mappingFile.text : bloblang, classNames);
   const klass = parsed?.classes.find((c) => c.name === writtenClass);
   const slots = parsed && klass ? classSlots(parsed, klass).filter((slot) => !["id", "type"].includes(slot.name)) : [];
 
@@ -689,6 +719,7 @@ export function PipelineWorkbench({
       </Step>
 
       <Step number={4} id="workbench-mapping" title={t("pipelines.workbench.mapping.title")} hint={t("pipelines.workbench.mapping.hint")}>
+        {fileShown ? null : (
         <RadioGroup
           name="workbench-mapping-mode"
           legend={t("pipelines.mapper.mode")}
@@ -700,7 +731,8 @@ export function PipelineWorkbench({
           ]}
           onChange={setMappingMode}
         />
-        {mappingMode === "map" ? (
+        )}
+        {mappingMode === "map" && !fileShown ? (
           targetSpace ? (
             <OutputMapper
               project={project}
@@ -717,6 +749,29 @@ export function PipelineWorkbench({
           )
         ) : (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          {fileShown ? (
+            <div className="flex flex-col gap-2" data-testid="pipeline-mapping-file">
+              {mappingFile.state === "failed" ? mappingFile.failure : null}
+              <Field id="workbench-bento" label={t("pipelines.workbench.mapping.file")} description={t("pipelines.workbench.mapping.fileHint")}>
+                <Textarea
+                  id="workbench-bento"
+                  rows={18}
+                  spellCheck={false}
+                  className="font-mono"
+                  readOnly={!mappingFile.editing}
+                  aria-busy={mappingFile.state === "loading"}
+                  value={mappingFile.state === "loading" ? t("app.loading") : mappingFile.text}
+                  onChange={(event) => mappingFile.onText(event.target.value)}
+                />
+              </Field>
+              <Checkbox
+                label={t("pipelines.workbench.mapping.fileEdit")}
+                checked={mappingFile.editing}
+                disabled={mappingFile.state !== "loaded"}
+                onChange={(event) => mappingFile.onEditing(event.target.checked)}
+              />
+            </div>
+          ) : (
           <Field id="workbench-bloblang" label={t("pipelines.field.bloblang")} description={t("pipelines.workbench.mapping.bloblangHint")}>
             <Textarea
               id="workbench-bloblang"
@@ -729,12 +784,24 @@ export function PipelineWorkbench({
               }
             />
           </Field>
+          )}
           <div aria-labelledby="workbench-slots-title" role="region" className="flex flex-col gap-2">
             <FormHeading sub id="workbench-slots-title" className="text-caption font-semibold text-fg">
               {writtenClass
                 ? t("pipelines.workbench.mapping.slotsOf", { type: writtenClass })
                 : t("pipelines.workbench.mapping.slots")}
             </FormHeading>
+            {classNames.length > 1 ? (
+              <Field id="workbench-slots-type" label={t("pipelines.workbench.mapping.type")}>
+                <Select id="workbench-slots-type" value={writtenClass ?? ""} onChange={(event) => setPickedClass(event.target.value)}>
+                  {classNames.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : null}
             {slots.length === 0 ? (
               <p className="text-caption text-fg-subtle">
                 {draft?.targetEndpoint ? t("pipelines.workbench.mapping.noModel") : t("pipelines.workbench.mapping.pickTarget")}
@@ -775,13 +842,16 @@ export function PipelineWorkbench({
                             <p className="min-w-0 flex-1 text-fg-subtle [overflow-wrap:anywhere]">
                               {t("pipelines.workbench.mapping.example")} <code className="font-mono">{line}</code>
                             </p>
-                            <Button size="xs" variant="secondary" onClick={() => addLine(line)} aria-label={t("pipelines.workbench.mapping.addLineOf", { slot: slot.name })}>
-                              {t("pipelines.workbench.mapping.addLine")}
-                            </Button>
+                            {/* A line added would start a compute step beside the file; the file is edited in place. */}
+                            {fileShown ? null : (
+                              <Button size="xs" variant="secondary" onClick={() => addLine(line)} aria-label={t("pipelines.workbench.mapping.addLineOf", { slot: slot.name })}>
+                                {t("pipelines.workbench.mapping.addLine")}
+                              </Button>
+                            )}
                           </div>
                         );
                       })()}
-                      {unit && slot.kind === "Property" ? (
+                      {unit && slot.kind === "Property" && !fileShown ? (
                         <SlotUnit
                           slot={slot.name}
                           code={unit}

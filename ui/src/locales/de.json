@@ -1816,7 +1816,6 @@
     },
     "bloblangHint": "Das Bloblang-Mapping wird hier bearbeitet und landet im Manifest; leer bleibt es in bento.yaml neben diesem Manifest im Forge.",
     "bloblangFile": "bento.yaml öffnen",
-    "bentoMapping": "Diese Pipeline hält ihr Mapping in bento.yaml neben dem Manifest, deshalb ist das Mapping-Feld unten leer. Öffnen Sie die Datei, um es zu lesen; ein unten geschriebenes Mapping läuft als Rechenschritt der Pipeline.",
     "studio": {
       "source": "1. Quelle",
       "sourceKind": "Lesen aus",
@@ -2142,7 +2141,11 @@
         "addConversion": "Zum Mapping hinzufügen",
         "bloblangHint": "Bloblang, das aus einem Datensatz eine Entität macht: Setzen Sie ihre id, ihren Typ und die daneben aufgeführten Slots.",
         "addLine": "Zum Mapping hinzufügen",
-        "addLineOf": "Die Zeile für {slot} zum Mapping hinzufügen"
+        "addLineOf": "Die Zeile für {slot} zum Mapping hinzufügen",
+        "file": "Mapping-Datei (bento.yaml)",
+        "fileHint": "Die Prozessoren, die diese Pipeline ausführt, so wie das Repository sie neben ihrem Manifest hält. Zugangsdaten erscheinen als Verweise, die der Runner füllt, nie als Werte.",
+        "fileEdit": "Mapping-Datei bearbeiten; Vorschlagen sendet sie mit dem Manifest",
+        "type": "Typ, den das Mapping schreibt"
       },
       "output": {
         "title": "Abgebildete Ausgabe",

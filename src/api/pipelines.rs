@@ -384,6 +384,70 @@ pub async fn get_samples(
 
 #[utoipa::path(
     get,
+    path = "/api/v1/projects/{project}/pipelines/{name}/bento",
+    summary = "Read Pipeline Mapping File",
+    description = "The `bento.yaml` beside a Pipeline's manifest, as the repository holds it: the processors the runner runs when the manifest carries no compute step (PL-03, PL-41). Credentials in it are `${NAME}` references the runner fills (PL-16), never values.",
+    tag = "resources",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("name" = String, Path, description = "Pipeline name"),
+    ),
+    responses(
+        (status = 200, description = "The file in YAML", content_type = "text/yaml", body = String),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 404, description = "Pipeline not found, or it has no bento.yaml", body = ProblemDetails),
+        (status = 503, description = "Git forge unavailable", body = ProblemDetails),
+    )
+)]
+pub async fn get_bento(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+) -> Result<axum::response::Response, ApiError> {
+    use axum::http::{header, StatusCode};
+    use axum::response::IntoResponse;
+    // The same gate as the pipeline's other reads: a caller who may not read it, or one asking
+    // another project, is told it is not there and the forge is not asked (T-4818).
+    let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
+    let Some(pipeline) = state.mirror.get(&project, "Pipeline", &name).filter(|p| {
+        effective.may_read_project()
+            && may_pipeline(
+                &effective,
+                &state,
+                &project,
+                &p.spec,
+                jc_core::kinds::Verb::Read,
+            )
+    }) else {
+        return Err(ApiError::NotFound(format!(
+            "pipeline '{name}' not found in project '{project}'"
+        )));
+    };
+    let info = crate::resource::by_kind("Pipeline")
+        .ok_or_else(|| ApiError::Internal("kind Pipeline is not registered".into()))?;
+    let manifest = crate::api::mutate::resolve_repo_path(&pipeline, info, &project)?;
+    let path = match manifest.rsplit_once('/') {
+        Some((folder, _)) => format!("{folder}/bento.yaml"),
+        None => "bento.yaml".to_owned(),
+    };
+    let gitea = state
+        .forge_for(&project)
+        .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let branch = gitea.default_branch().await?;
+    let file = gitea.get_file(&path, &branch).await?.ok_or_else(|| {
+        ApiError::NotFound(format!(
+            "pipeline '{name}' has no bento.yaml beside its manifest"
+        ))
+    })?;
+    Ok((
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "text/yaml; charset=utf-8")],
+        file.content,
+    )
+        .into_response())
+}
+#[utoipa::path(
+    get,
     path = "/api/v1/projects/{project}/pipelines/{name}/metrics",
     summary = "Read Pipeline Counters",
     description = "What the runner has counted for one pipeline: state, messages, errors and latency.",
@@ -1081,6 +1145,7 @@ pub fn router() -> Router<AppState> {
             "/projects/{project}/pipelines/{name}/samples",
             get(get_samples),
         )
+        .route("/projects/{project}/pipelines/{name}/bento", get(get_bento))
         .route(
             "/projects/{project}/pipelines/{name}/rejected",
             get(get_rejected),

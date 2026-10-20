@@ -160,7 +160,8 @@ const CHANGE = {
   status: { lane: "yellow", phase: "PendingApproval", plan: { create: 1 } },
 };
 
-function renderPipelines(pipelines: Manifest[] = [EXISTING]) {
+/** The `bento.yaml` the editor loads (T-4818): its text, the status the read fails with, or none. */
+function renderPipelines(pipelines: Manifest[] = [EXISTING], bento?: string | number) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const request = input as Request;
     // The client sends Requests; the pipeline test posts a plain URL string.
@@ -189,6 +190,13 @@ function renderPipelines(pipelines: Manifest[] = [EXISTING]) {
     }
     if (request.method !== "GET") {
       return json(CHANGE, 202);
+    }
+    if (path.endsWith("/bento")) {
+      return Promise.resolve(
+        typeof bento === "string"
+          ? new Response(bento, { status: 200, headers: { "Content-Type": "text/yaml" } })
+          : new Response("{}", { status: bento ?? 404, headers: { "Content-Type": "application/json" } }),
+      );
     }
     if (path.startsWith("/api/endpoint/")) {
       return json(SAMPLE);
@@ -1045,30 +1053,70 @@ describe("the pipeline editor against the UI contract", () => {
     expect(dialog.querySelector('a[href^="javascript:"]')).toBeNull();
   });
 
-  /// T-3088: a pipeline with no compute step keeps its mapping in bento.yaml; its edit page
-  /// said nothing and showed an empty mapping box, which read as a pipeline that maps nothing.
-  it("says that an existing pipeline without a compute step maps in bento.yaml, and links the file", async () => {
+  /// T-4818 (after T-3088): a pipeline with no compute step runs the bento.yaml beside its
+  /// manifest. The editor shows that file read-only, an Edit switch opens it, and the proposal
+  /// carries the edited file beside the manifest.
+  it("shows the bento.yaml a pipeline runs, read-only until Edit, and proposes the edited file", async () => {
+    const { compute: _dropped, ...spec } = EXISTING.spec as Record<string, unknown>;
+    const file = 'pipeline:\n  processors:\n    - mapping: |\n        root = { "type": "AirQualityObserved" }\n';
+    const fetchMock = renderPipelines([{ ...EXISTING, spec } as Manifest], file);
+    const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
+    await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
+    const dialog = await findFormPage();
+    const box = await within(dialog).findByLabelText(en.pipelines.workbench.mapping.file);
+    await waitFor(() => expect(box).toHaveValue(file));
+    expect(box).toHaveAttribute("readonly");
+    expect(within(dialog).queryByLabelText(en.pipelines.field.bloblang)).toBeNull();
+
+    await userEvent.click(within(dialog).getByLabelText(en.pipelines.workbench.mapping.fileEdit));
+    expect(box).not.toHaveAttribute("readonly");
+    fireEvent.change(box, { target: { value: `${file}# checked\n` } });
+    // Basics first: the name and execution sit above the six steps (T-4818).
+    const name = within(dialog).getByLabelText(/^Name/);
+    expect(name.compareDocumentPosition(within(dialog).getByTestId("pipeline-workbench")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // No Check is pressed: the dialog checks by itself once the form rests, and Propose opens.
+    await waitFor(() => expectOpen(within(dialog).getByRole("button", { name: en.pipelines.propose })));
+    await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.propose }));
+    await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
+    const sent = (await writes(fetchMock)[0].clone().json()) as Record<string, unknown>;
+    expect(sent.files).toEqual({ "bento.yaml": `${file}# checked\n` });
+    expect(sent.draft).toBeUndefined();
+    expect((sent.metadata as { name: string }).name).toBe("aq-mqtt-ingest");
+  });
+
+  it("offers the mapping box when the pipeline has no bento.yaml, and says so when it cannot be read", async () => {
     const { compute: _dropped, ...spec } = EXISTING.spec as Record<string, unknown>;
     renderPipelines([{ ...EXISTING, spec } as Manifest]);
     const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
     await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
     await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
     const dialog = await findFormPage();
-    const notice = within(dialog).getByTestId("pipeline-mapping-in-bento");
-    expect(notice).toHaveTextContent(en.pipelines.bentoMapping);
-    expect(within(notice).getByRole("link", { name: /bento\.yaml/ })).toHaveAttribute(
-      "href",
-      "https://git.example.sk/bb/org/src/branch/main/projects/banskabystrica/pipelines/aq-mqtt-ingest/bento.yaml",
-    );
+    expect(await within(dialog).findByLabelText(en.pipelines.field.bloblang)).toHaveValue("");
+    expect(within(dialog).queryByTestId("pipeline-mapping-file")).toBeNull();
   });
 
-  it("says nothing of bento.yaml for a pipeline that maps in its own compute step", async () => {
-    renderPipelines();
+  it("names a mapping file the forge did not answer as failed, never as an empty mapping", async () => {
+    const { compute: _dropped, ...spec } = EXISTING.spec as Record<string, unknown>;
+    renderPipelines([{ ...EXISTING, spec } as Manifest], 503);
     const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
     await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
     await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
     const dialog = await findFormPage();
-    expect(within(dialog).queryByTestId("pipeline-mapping-in-bento")).toBeNull();
+    const file = await within(dialog).findByTestId("pipeline-mapping-file");
+    expect(await within(file).findByRole("button", { name: /retry|try again/i })).toBeInTheDocument();
+    expect(within(dialog).getByLabelText(en.pipelines.workbench.mapping.fileEdit)).toBeDisabled();
+  });
+
+  it("asks for no bento.yaml for a pipeline that maps in its own compute step", async () => {
+    const fetchMock = renderPipelines();
+    const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
+    await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
+    const dialog = await findFormPage();
+    expect(within(dialog).queryByTestId("pipeline-mapping-file")).toBeNull();
+    const asked = fetchMock.mock.calls.map((call) => String((call[0] as Request).url ?? call[0]));
+    expect(asked.some((url) => url.endsWith("/bento"))).toBe(false);
   });
 
   /// T-1775: the sampled entities are the shared `Table`, so the caption names it, the headers
