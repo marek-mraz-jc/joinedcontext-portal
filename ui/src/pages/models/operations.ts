@@ -9,6 +9,7 @@ import {
   RANGES,
   edit,
   flagsOf,
+  mintIri,
   parseModel,
   relationships,
   reservedNamespace,
@@ -380,8 +381,10 @@ function mutate(document: Document, model: LinkmlModel, operation: Operation): v
       if (model.classes.some((klass) => klass.name === operation.name)) {
         refuse(`class '${operation.name}' already exists`);
       }
+      // Without an IRI of its own the class gets the organisation's (T-4829): nobody has to type one.
+      const classUri = operation.class_uri ?? mintIri(model, operation.name);
       document.setIn(["classes", operation.name], {
-        ...(operation.class_uri ? { class_uri: operation.class_uri } : {}),
+        ...(classUri ? { class_uri: classUri } : {}),
         ...(operation.description ? { description: operation.description } : {}),
         ...(operation.is_a ? { is_a: operation.is_a } : {}),
         slots: [],
@@ -490,8 +493,9 @@ function mutate(document: Document, model: LinkmlModel, operation: Operation): v
       }
       // The IRI and the kind go through the same checks a later edit would.
       const declared = parseModel(document.toString());
-      if (operation.slot_uri !== undefined) {
-        setSlotField(document, declared, operation.name, "slot_uri", operation.slot_uri);
+      const slotUri = operation.slot_uri ?? mintIri(model, operation.name);
+      if (slotUri !== undefined) {
+        setSlotField(document, declared, operation.name, "slot_uri", slotUri);
       }
       if (operation.kind !== undefined) {
         setSlotField(document, declared, operation.name, "kind", operation.kind);

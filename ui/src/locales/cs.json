@@ -2862,10 +2862,10 @@
     "title": "Editor modelů",
     "version": "Verze {version}",
     "add": "Přidat",
-    "classes": "Třídy",
+    "classes": "Typy",
     "enums": "Číselníky",
-    "slots": "Atributy",
-    "slot": "Atribut",
+    "slots": "Pole",
+    "slot": "Pole",
     "range": "Typ hodnoty",
     "kind": "Druh NGSI-LD",
     "kindHint": "Property, pokud atribut není geometrie, vazba nebo jazyková mapa",
@@ -2883,8 +2883,8 @@
       "language-map": "jedna hodnota na jazyk",
       "code": "zobrazení dokumentu"
     },
-    "newClass": "Nová třída",
-    "newSlot": "Nový atribut",
+    "newClass": "Nový typ",
+    "newSlot": "Nové pole",
     "newEnum": "Nový číselník",
     "newEnumValue": "Nová hodnota číselníku {name}",
     "removeEnumValue": "Odebrat hodnotu {value}",
@@ -2988,8 +2988,8 @@
         "datetime": "Datum a čas"
       }
     },
-    "addClass": "Přidat třídu",
-    "addSlot": "Přidat atribut",
+    "addClass": "Přidat typ",
+    "addSlot": "Přidat pole",
     "addEnum": "Přidat číselník",
     "addValue": "Přidat hodnotu do {name}",
     "loadingEditor": "Načítá se editor…",
@@ -3212,7 +3212,12 @@
       "organizationEmpty": "Organizace zatím nesdílí žádný datový model.",
       "organizationCaption": "Datové modely organizace",
       "importAs": "Importovat jako",
-      "organizationOpen": "Otevřít na stránce Organizace"
+      "organizationOpen": "Otevřít na stránce Organizace",
+      "addField": "Přidat pole",
+      "addFieldTo": "Přidat pole do {type}",
+      "typeCaption": "Pole typu {type}",
+      "noFields": "Zatím žádné pole.",
+      "addType": "Přidat typ"
     },
     "hints": {
       "title": "Tento model zatím nemá třídu. Tři kroky na začátek:",
@@ -3223,9 +3228,9 @@
       "relation": "Přidejte vztah: pod Vztahy vyberte cílovou třídu a kardinalitu, například jedna School má mnoho entit User.",
       "field": "Přidejte pole: s otevřenou třídou ho pojmenujte pod Atributy, například name."
     },
-    "rangeBasic": "Základní typy",
+    "rangeBasic": "Hodnoty",
     "rangeEnums": "Enumy",
-    "rangeClasses": "Třídy (otevře Přidat vztah)",
+    "rangeClasses": "Odkazy (otevře Přidat vztah)",
     "relationships": {
       "title": "Vztahy",
       "intro": "Odkazy z {owner} na entity třídy. Entity ukládají jeden konec; inverzní se počítá při čtení.",
@@ -3288,6 +3293,12 @@
         "inverseSame": "Inverzní konec je druhé pole; dejte mu jiný název.",
         "pickFirst": "Nejprve vyberte cílovou třídu a pojmenujte oba konce."
       }
+    },
+    "advanced": "Pokročilé (IRI, mixiny, profily)",
+    "word": {
+      "any": "Libovolná hodnota",
+      "object": "Obsahuje {fields}",
+      "linkTo": "Odkaz na {target}"
     }
   },
   "apps": {

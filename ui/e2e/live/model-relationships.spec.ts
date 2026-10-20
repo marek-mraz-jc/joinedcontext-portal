@@ -157,8 +157,8 @@ test("1. a steward builds all four cardinalities in the model editor and publish
   await editor.getByLabel("Name", { exact: true }).fill(MODEL);
   await editor.getByLabel("Space", { exact: true }).selectOption(SPACE);
   for (const name of CLASSES) {
-    await page.getByLabel("New class").fill(name);
-    await page.getByRole("button", { name: "Add class" }).click();
+    await page.getByLabel("New type").fill(name);
+    await page.getByRole("button", { name: "Add type" }).click();
     await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
   }
   await relate(page, "School", { cardinality: "One to many", to: "User", name: "users", inverse: "school", requiredOn: "User" });

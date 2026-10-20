@@ -45,6 +45,43 @@ export const RESERVED_NAMESPACES = [
 /** A slot carrying this annotation cites an upstream term, so a reserved IRI is a citation. */
 export const UPSTREAM_ANNOTATION = "upstream_source";
 
+/**
+ * The IRI the organisation mints for a new class or slot (T-4829): `{default_prefix}:{name}`,
+ * only under a prefix the model declares and no one else owns. Otherwise none, and `diagnose`
+ * still asks for one: a guessed namespace would be squatting.
+ */
+export function mintIri(model: LinkmlModel, name: string): string | undefined {
+  const prefix = model.default_prefix;
+  if (!prefix || !model.prefixes[prefix] || !/^[A-Za-z_][A-Za-z0-9_-]*$/.test(name)) return undefined;
+  const iri = `${prefix}:${name}`;
+  return reservedNamespace(iri, model.prefixes) === undefined ? iri : undefined;
+}
+
+/** LinkML's `Any`: a slot ranging over it takes any value, so it is no class a reader follows. */
+export function isAnyClass(klass: Pick<LinkmlClass, "name" | "class_uri">): boolean {
+  return klass.class_uri === "linkml:Any" || klass.class_uri === "https://w3id.org/linkml/Any" || (klass.class_uri === undefined && klass.name === "Any");
+}
+
+/**
+ * The classes only ever written inside another entity (`inlined: true` on every slot ranging
+ * over them, T-4829): value objects such as a calculation period, with no `id` of their own.
+ */
+export function valueClasses(model: LinkmlModel): Set<string> {
+  const names = new Set(model.classes.map((klass) => klass.name));
+  const inline = new Set<string>();
+  const referenced = new Set<string>();
+  for (const klass of model.classes) {
+    for (const slot of classSlots(model, klass)) {
+      if (slot.range === undefined || !names.has(slot.range)) continue;
+      if (isAnyClass(model.classes.find((one) => one.name === slot.range) ?? { name: "" })) continue;
+      (slot.inlined === true ? inline : referenced).add(slot.range);
+    }
+    if (klass.is_a !== undefined) referenced.add(klass.is_a);
+    for (const mixin of klass.mixins ?? []) referenced.add(mixin);
+  }
+  return new Set([...inline].filter((name) => !referenced.has(name)));
+}
+
 /** The LinkML ranges the editor offers, and how a dashboard may use each of them (DM-20). */
 export const RANGES = [
   "string",
@@ -895,6 +932,8 @@ export interface GraphRow {
   multivalued?: boolean;
   /** The model declares no identifier: every NGSI-LD entity still has its `id`, a URN. */
   implied?: boolean;
+  /** A value object written inside the entity (T-4829): its own fields, drawn in this box. */
+  inline?: string[];
 }
 
 /**
@@ -934,6 +973,9 @@ export interface GraphEdge {
 }
 
 export type Multiplicity = "1" | "0..1" | "1..*" | "*";
+
+/** The type a row shows for a slot over LinkML `Any`. */
+export const ANY_VALUE = "any value";
 
 /** How many entities of the other class one end holds: its `multivalued` and `required` flags. */
 export function multiplicity(end: RelationshipEnd): Multiplicity {
@@ -975,8 +1017,18 @@ export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: Grap
     const parent = klass.is_a === undefined ? undefined : byName.get(klass.is_a);
     return own ?? (parent === undefined ? undefined : keyOf(parent, seen));
   };
+  // `Any` and value objects are no boxes (T-4829): a slot over `Any` takes "any value", and a
+  // value object's fields are drawn inside the box of the class that holds it.
+  const anyNames = new Set(model.classes.filter(isAnyClass).map((klass) => klass.name));
+  const values = valueClasses(model);
+  const pointsAt = (slot: LinkmlSlot): boolean =>
+    slot.range !== undefined && byName.has(slot.range) && !anyNames.has(slot.range) && !values.has(slot.range);
   const typeOf = (slot: LinkmlSlot): string =>
-    slot.kind === "GeoProperty" ? "GeoProperty" : (slot.range ?? model.default_range ?? "string");
+    slot.kind === "GeoProperty"
+      ? "GeoProperty"
+      : slot.range !== undefined && anyNames.has(slot.range)
+        ? ANY_VALUE
+        : (slot.range ?? model.default_range ?? "string");
   const rowsOf = (klass: LinkmlClass): GraphRow[] => {
     const key = keyOf(klass);
     const declared = classSlots(model, klass);
@@ -988,10 +1040,12 @@ export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: Grap
     ];
     for (const slot of declared) {
       if (slot.name === key?.name) continue;
-      const reference = slot.range !== undefined && byName.has(slot.range);
+      const reference = pointsAt(slot);
+      const held = slot.range !== undefined && values.has(slot.range) ? byName.get(slot.range) : undefined;
       rows.push({
         name: slot.name,
         type: typeOf(slot),
+        ...(held ? { inline: classSlots(model, held).map((one) => one.name) } : {}),
         ...(reference ? { key: "fk" as const, multiplicity: multiplicity({ class: klass.name, slot: slot.name, multivalued: slot.multivalued === true, required: slot.required === true }) } : {}),
         ...(slot.multivalued === true ? { multivalued: true } : {}),
       });
@@ -1003,7 +1057,7 @@ export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: Grap
     return rows;
   };
 
-  const nodes: GraphNode[] = model.classes.map((klass) => ({
+  const nodes: GraphNode[] = model.classes.filter((klass) => !anyNames.has(klass.name) && !values.has(klass.name)).map((klass) => ({
     name: klass.name,
     kind: "class",
     slots: [...klass.slots, ...(klass.attributes ?? []).map((slot) => slot.name).filter((name) => !klass.slots.includes(name))],
@@ -1027,6 +1081,7 @@ export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: Grap
   const ends = new Set(pairs.flatMap((pair) => [pair.source, pair.target].map((end) => `${end.class}.${end.slot}`)));
   const edges: GraphEdge[] = [];
   for (const klass of model.classes) {
+    if (anyNames.has(klass.name) || values.has(klass.name)) continue;
     if (klass.is_a !== undefined && byName.has(klass.is_a)) {
       edges.push({ from: klass.name, to: klass.is_a, kind: "is_a" });
     }
@@ -1039,7 +1094,7 @@ export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: Grap
       if (ends.has(`${klass.name}.${slot.name}`)) {
         continue;
       }
-      if (slot.range !== undefined && byName.has(slot.range)) {
+      if (slot.range !== undefined && pointsAt(slot)) {
         edges.push({
           from: klass.name,
           to: slot.range,

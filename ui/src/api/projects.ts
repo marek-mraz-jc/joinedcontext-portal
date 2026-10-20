@@ -1,8 +1,9 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, queryKeys, unwrap } from "./client";
 import { asManifests, localized } from "./manifest";
 import { useTranslation } from "react-i18next";
-import { useBranding } from "../branding";
+import { offeredLocales, useBranding } from "../branding";
 
 /** The projects the configuration repository holds, as `GET /api/v1/projects` lists them (PF-05). */
 export function useProjects() {
@@ -59,6 +60,30 @@ export function useOrgDomain(project: string): string {
   const first = asManifests(organizations.data?.items ?? [])[0];
   const domain = (first?.spec as { domain?: string } | undefined)?.domain;
   return domain || branding.orgDomain || project;
+}
+
+/**
+ * The languages a model's titles are written in (T-4829, DM-15): the Organization's `locales`,
+ * else what the installation offers. Same query as `useOrgDomain`, so no second request.
+ */
+export function useOrgLocales(project: string): string[] {
+  const branding = useBranding();
+  const organizations = useQuery({
+    queryKey: queryKeys.list(project, "organizations"),
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/{plural}", {
+          params: { path: { project, plural: "organizations" } },
+        }),
+      ),
+  });
+  const first = asManifests(organizations.data?.items ?? [])[0];
+  const locales = (first?.spec as { locales?: unknown } | undefined)?.locales;
+  // One string, so the list keeps its identity while the answer stands still.
+  const own = Array.isArray(locales)
+    ? locales.filter((one): one is string => typeof one === "string" && /^[a-z]{2,3}$/.test(one)).join(",")
+    : "";
+  return useMemo(() => (own !== "" ? own.split(",") : offeredLocales(branding)), [own, branding]);
 }
 
 /** Where the last project a person worked in is remembered, in this browser only (T-2753). */
