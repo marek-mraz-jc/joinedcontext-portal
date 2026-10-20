@@ -93,7 +93,8 @@ async fn a_feedback_arrives_scrubbed_without_its_author_and_an_administrator_rea
     assert_eq!(item["screenshot"], json!(true));
     let text = item["text"].as_str().expect("text");
     assert!(text.starts_with("The Approve button stays grey."), "{text}");
-    for leaked in ["jana", "358", "jc_3f9c"] {
+    // "+358", not "358": the digits alone turn up in createdAt's nanoseconds.
+    for leaked in ["jana", "+358", "123 4567", "jc_3f9c"] {
         assert!(!answer.text.contains(leaked), "{leaked} in {}", answer.text);
     }
     // Nobody is named: the item has exactly these members.
