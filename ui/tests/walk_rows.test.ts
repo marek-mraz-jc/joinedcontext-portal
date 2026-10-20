@@ -4,7 +4,7 @@
  * kind's own folder counts only when that kind was walked.
  */
 import { describe, expect, it } from "vitest";
-import { closure, routeOf, routes, rows } from "../scripts/walk-rows";
+import { closure, routeOf, routes, rows, shellRows } from "../scripts/walk-rows";
 import type { Graph } from "../scripts/walk-rows";
 
 const ROUTER = `
@@ -102,6 +102,18 @@ describe("walk rows (T-3986)", () => {
     );
     expect([...found.keys()].sort()).toEqual(["src/components/ui/Button.tsx", "src/pages/spaces/SpacesPage.tsx"]);
     expect(found.get("src/pages/spaces/SpacesPage.tsx")).toEqual(["spaces-dialog.png"]);
+  });
+
+  it("fills what Shell draws from a clean shell pass, and nothing from one with a finding", () => {
+    const shots = [
+      { file: "shell-language.png", route: "/projects/helsinki/spaces", state: "shell-language" },
+      { file: "spaces-dialog.png", route: "/projects/helsinki/spaces", state: "dialog-new" },
+    ];
+    const clean = shellRows({ report: [{ address: "/projects/helsinki/spaces", findings: [] }], shots }, graph);
+    expect([...clean.keys()]).toContain("src/components/layout/Shell.tsx");
+    expect(clean.get("src/components/layout/Shell.tsx")).toEqual(["shell-language.png"]);
+    expect(shellRows({ report: [{ address: "/projects/helsinki/spaces", findings: ["axe: x"] }], shots }, graph).size).toBe(0);
+    expect(shellRows({ report: [], shots }, graph).size).toBe(0);
   });
 
   it("fills nothing from an empty walk", () => {

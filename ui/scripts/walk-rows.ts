@@ -169,7 +169,7 @@ const kindOf = (address: string): string | undefined => address.match(/^\/projec
 export interface Walked {
   walked: string[];
   report: { address: string; findings: string[] }[];
-  shots: { file: string; route: string }[];
+  shots: { file: string; route: string; state?: string }[];
 }
 
 /** The modules the walk proves, each with the screenshots of the pages that drew it. */
@@ -199,13 +199,31 @@ export function rows({ walked, report, shots }: Walked, table: Route[], graph: G
   return result;
 }
 
+/**
+ * The frame's modules, from the shell pass (walk-shell-steward.json): everything Shell draws, when
+ * no control of it had a finding, with the pass's screenshots. Nothing from a pass with a finding.
+ */
+export function shellRows({ report, shots }: Pick<Walked, "report" | "shots">, graph: Graph): Map<string, string[]> {
+  if (report.length === 0 || report.some((entry) => entry.findings.length > 0)) return new Map();
+  const files = shots.filter((shot) => shot.state?.startsWith("shell-")).map((shot) => shot.file);
+  const shell = [...SKIP][0];
+  return new Map([...closure(graph, [shell], new Set())].map((module) => [module, files]));
+}
+
 function main(argv: string[]): number {
   const [directory, walkedBy, flag] = argv;
   if (!directory || !walkedBy) {
     console.error("usage: node scripts/walk-rows.ts <walk dir> <walkedBy> [--check]");
     return 2;
   }
-  const { walked, report } = JSON.parse(readFileSync(join(directory, "walk-dialogs-steward.json"), "utf8")) as Pick<Walked, "walked" | "report">;
+  const read = (name: string) =>
+    existsSync(join(directory, name)) ? (JSON.parse(readFileSync(join(directory, name), "utf8")) as Pick<Walked, "walked" | "report">) : undefined;
+  const pages = read("walk-dialogs-steward.json");
+  const frame = read("walk-shell-steward.json");
+  if (!pages && !frame) {
+    console.error(`${directory} holds neither walk-dialogs-steward.json nor walk-shell-steward.json`);
+    return 2;
+  }
   const shotsFile = join(directory, "shots.jsonl");
   const shots = existsSync(shotsFile)
     ? readFileSync(shotsFile, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line) as Walked["shots"][number])
@@ -213,7 +231,8 @@ function main(argv: string[]): number {
   const table = routes(readFileSync(join(ui, "src/router.tsx"), "utf8"));
   const graph = importGraph(sources());
   const folders = new Set(readdirSync(join(ui, "src/pages")));
-  const found = rows({ walked, report, shots }, table, graph, folders);
+  const found = pages ? rows({ ...pages, shots }, table, graph, folders) : new Map<string, string[]>();
+  if (frame) for (const [module, files] of shellRows({ report: frame.report, shots }, graph)) if (!found.has(module)) found.set(module, files);
 
   const file = join(ui, "tests/human_ui_walk.json");
   const walk = JSON.parse(readFileSync(file, "utf8")) as {
