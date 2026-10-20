@@ -167,7 +167,8 @@ async function stubApi(page: Page, options: { write?: boolean } = {}): Promise<S
       return json(grant(options.write === true));
     }
     if (request.method() !== "GET") {
-      writes.push(`${request.method()} ${path} ${request.postData() ?? ""}`);
+      // The reason travels with each write (DM-113), so it is kept beside the body.
+      writes.push(`${request.method()} ${path} ${request.postData() ?? ""} reason=${request.headers()["jc-reason"] ?? ""}`);
       return route.fulfill({ status: 204, body: "" });
     }
     if (path.includes("/temporal/entities/")) {
@@ -380,3 +381,96 @@ test.describe("the entity grid", () => {
   });
 });
 
+// T-4826: the space's own grid, as Baserow edits a table: click a cell, type over it, apply with a
+// reason, Undo. The grant decides who gets an editor; the gateway decides each write.
+const SPACE_PAGE = "/projects/helsinki/spaces/mobility?lang=en";
+const SHOTS = process.env.SHOTS_DIR ?? "test-results";
+
+/** The space record and its side reads, which the explorer's stub does not answer. */
+async function stubSpace(page: Page, refuse?: string): Promise<void> {
+  await page.route("**/api/v1/projects/helsinki/spaces/mobility**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const json = (body: unknown) => route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+    if (path.endsWith("/usage")) return json({ entities: 3, broker: "main", observedAt: "2026-10-20T16:00:00Z" });
+    if (path.endsWith("/views")) return json({ items: [] });
+    if (path.endsWith("/mobility")) return json(SPACES.items[0]);
+    return json(list([]));
+  });
+  if (refuse) {
+    // The Policy refuses this one entity: a 403 problem, as the gateway answers it.
+    await page.route(`**/api/endpoint/${SLUG}/ngsi-ld/v1/entities/${encodeURIComponent(refuse)}/attrs`, (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: "application/problem+json",
+        body: JSON.stringify({ type: "https://uri.etsi.org/ngsi-ld/errors/Forbidden", title: "Forbidden", detail: "your role may not write this dock" }),
+      }),
+    );
+  }
+}
+
+for (const width of [1440, 400]) {
+  test.describe(`the space grid at ${width} px`, () => {
+    test.use({ viewport: { width, height: width > 600 ? 900 : 860 } });
+
+    test("edits a value inline, sends the reason, and undoes it", async ({ page }) => {
+      const { writes } = await stubApi(page, { write: true });
+      await stubSpace(page);
+      await page.goto(SPACE_PAGE);
+      const cell = page.getByLabel("Edit availableBikeNumber").first();
+      await expect(cell).toHaveValue("0");
+
+      // Click the cell, type over it, Enter keeps the value and goes one row down.
+      await cell.click();
+      await page.keyboard.press("ControlOrMeta+a");
+      await page.keyboard.type("4");
+      await page.keyboard.press("Enter");
+      await expect(cell).toHaveValue("4");
+      await page.getByRole("button", { name: "Review the changes" }).click();
+      const review = page.getByRole("region", { name: "Review the changes" });
+      await review.getByRole("textbox", { name: "Why you change these values" }).fill("Counter reset at 06:00");
+      await page.screenshot({ path: `${SHOTS}/t4826-edit-steward-${width}.png` });
+      await review.getByRole("button", { name: "Apply" }).click();
+
+      await expect.poll(() => writes.length).toBe(1);
+      expect(writes[0]).toContain(`PATCH /api/endpoint/${SLUG}/ngsi-ld/v1/entities/${encodeURIComponent(EMPTY_DOCK)}/attrs`);
+      expect(writes[0]).toContain('"availableBikeNumber":{"type":"Property","value":4');
+      expect(writes[0]).toContain(`reason=${encodeURIComponent("Counter reset at 06:00")}`);
+
+      const undo = page.getByRole("button", { name: "Undo" });
+      await expect(undo).toBeVisible();
+      await undo.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `${SHOTS}/t4826-undo-steward-${width}.png` });
+      await undo.click();
+      await expect.poll(() => writes.length).toBe(2);
+      expect(writes[1]).toContain('"availableBikeNumber":{"type":"Property","value":0');
+      expect(writes[1]).toContain(`reason=${encodeURIComponent("Undo: Counter reset at 06:00")}`);
+      await expect(page.getByText("The change was undone.")).toBeVisible();
+    });
+
+    test("shows the gateway's refusal at the cell", async ({ page }) => {
+      await stubApi(page, { write: true });
+      await stubSpace(page, FULL_DOCK);
+      await page.goto(SPACE_PAGE);
+      const cell = page.getByLabel("Edit availableBikeNumber").nth(1);
+      await expect(cell).toHaveValue("7");
+      await cell.fill("6");
+      await page.getByRole("button", { name: "Review the changes" }).click();
+      await page.getByRole("region", { name: "Review the changes" }).getByRole("button", { name: "Apply" }).click();
+      await expect(cell).toHaveAttribute("aria-invalid", "true");
+      await expect(page.getByRole("gridcell").getByText("your role may not write this dock")).toBeVisible();
+      await cell.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `${SHOTS}/t4826-refused-steward-${width}.png` });
+    });
+
+    test("gives a viewer no editor", async ({ page }) => {
+      const { writes } = await stubApi(page, { write: false });
+      await stubSpace(page);
+      await page.goto(SPACE_PAGE);
+      await expect(page.getByRole("grid")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Open: Rautatientori" }).first()).toBeVisible();
+      await expect(page.getByLabel("Edit availableBikeNumber")).toHaveCount(0);
+      await page.screenshot({ path: `${SHOTS}/t4826-viewer-${width}.png` });
+      expect(writes).toEqual([]);
+    });
+  });
+}

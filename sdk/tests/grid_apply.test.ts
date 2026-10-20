@@ -6,22 +6,24 @@
  * belongs to its entity, in the endpoint's own words, and the entities that landed stay landed.
  */
 import { describe, expect, it } from "vitest";
-import { applyChanges, attrsBody, MAX_ENTITIES } from "../src/grid/apply";
+import { applyChanges, attrsBody, MAX_ENTITIES, MAX_REASON } from "../src/grid/apply";
 import { SourceError } from "../src/grid/source";
 
 /** A source that records what it was asked to write and refuses whichever entity a test names. */
 function recording(refuse: (id: string) => SourceError | undefined = () => undefined) {
   const sent: { id: string; attrs: Record<string, unknown> }[] = [];
+  const reasons: (string | undefined)[] = [];
   const source = {
-    patch: async (id: string, attrs: Record<string, unknown>) => {
+    patch: async (id: string, attrs: Record<string, unknown>, reason?: string) => {
       sent.push({ id, attrs });
+      reasons.push(reason);
       const problem = refuse(id);
       if (problem) {
         throw problem;
       }
     },
   };
-  return { sent, source };
+  return { sent, reasons, source };
 }
 
 const ONE = {
@@ -30,9 +32,22 @@ const ONE = {
 };
 
 describe("applying edited cells", () => {
+  it("sends the person's reason with every update, trimmed (DM-113)", async () => {
+    const { reasons, source } = recording();
+    await applyChanges({ reason: "  Sensor stuck at 0  ", source, entities: [ONE, { id: "urn:ngsi-ld:Bike:hel:helsinki:002", changes: [{ attribute: "name", after: "x" }] }] });
+    expect(reasons).toEqual(["Sensor stuck at 0", "Sensor stuck at 0"]);
+  });
+
+  it("sends nothing without a reason, or with one longer than the gateway takes", async () => {
+    const { sent, source } = recording();
+    await expect(applyChanges({ reason: "   ", source, entities: [ONE] })).rejects.toThrow(/names why/);
+    await expect(applyChanges({ reason: "x".repeat(MAX_REASON + 1), source, entities: [ONE] })).rejects.toThrow(/names why/);
+    expect(sent).toHaveLength(0);
+  });
+
   it("sends one PATCH per entity, with only what changed and the unit it was measured in", async () => {
     const { sent, source } = recording();
-    const result = await applyChanges({
+    const result = await applyChanges({ reason: "Sensor stuck",
       source,
       entities: [ONE, { id: "urn:ngsi-ld:Bike:hel:helsinki:002", changes: [{ attribute: "name", after: "Kallio" }] }],
     });
@@ -77,7 +92,7 @@ describe("applying edited cells", () => {
         ? new SourceError(403, "availableBikeNumber is not yours to write")
         : undefined,
     );
-    const result = await applyChanges({
+    const result = await applyChanges({ reason: "Sensor stuck",
       source,
       entities: [ONE, { id: "urn:ngsi-ld:Bike:hel:helsinki:002", changes: [{ attribute: "name", after: "x" }] }],
     });
@@ -94,18 +109,18 @@ describe("applying edited cells", () => {
     // The endpoint's own sentence is what the source carries; a refusal without one still names
     // the status, so a person is never told only that something went wrong.
     const { source } = recording(() => new SourceError(412, ""));
-    const result = await applyChanges({ source, entities: [ONE], fallback: "the update was refused" });
+    const result = await applyChanges({ reason: "Sensor stuck", source, entities: [ONE], fallback: "the update was refused" });
     expect(result.refused).toEqual([{ id: ONE.id, detail: "the update was refused (412)" }]);
 
     const conflict = recording(() => new SourceError(409, "the entity changed since you read it"));
-    const second = await applyChanges({ source: conflict.source, entities: [ONE] });
+    const second = await applyChanges({ reason: "Sensor stuck", source: conflict.source, entities: [ONE] });
     expect(second.refused[0].detail).toBe("the entity changed since you read it");
     // And the cell stays the person's: nothing applied, so nothing is forgotten.
     expect(second.applied).toEqual([]);
   });
 
   it("refuses to apply to a surface that takes no writes", async () => {
-    await expect(applyChanges({ source: {}, entities: [ONE] })).rejects.toThrow(/does not take writes/);
+    await expect(applyChanges({ reason: "Sensor stuck", source: {}, entities: [ONE] })).rejects.toThrow(/does not take writes/);
   });
 
   it("refuses a batch beyond the platform's own cap instead of sending half of it", async () => {
@@ -114,7 +129,7 @@ describe("applying edited cells", () => {
       id: `urn:ngsi-ld:Bike:hel:helsinki:${i}`,
       changes: [{ attribute: "name", after: `n${i}` }],
     }));
-    await expect(applyChanges({ source, entities: many })).rejects.toThrow(/at most 50/);
+    await expect(applyChanges({ reason: "Sensor stuck", source, entities: many })).rejects.toThrow(/at most 50/);
     expect(sent).toHaveLength(0);
     // The cap itself: `MAX_ENTITIES` in `src/agents/entity_write.rs`.
     expect(MAX_ENTITIES).toBe(50);
@@ -122,14 +137,14 @@ describe("applying edited cells", () => {
 
   it("sends nothing for an entity whose cells are all back to what they were", async () => {
     const { sent, source } = recording();
-    const result = await applyChanges({ source, entities: [{ id: ONE.id, changes: [] }] });
+    const result = await applyChanges({ reason: "Sensor stuck", source, entities: [{ id: ONE.id, changes: [] }] });
     expect(sent).toHaveLength(0);
     expect(result).toEqual({ applied: [], refused: [] });
   });
 
   it("sends a value that looks like markup or a secret as data, unchanged", async () => {
     const { sent, source } = recording();
-    await applyChanges({
+    await applyChanges({ reason: "Sensor stuck",
       source,
       entities: [{ id: ONE.id, changes: [{ attribute: "name", after: "<b>x</b> hunter2" }] }],
     });

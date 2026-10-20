@@ -273,7 +273,7 @@ describe("writing the note", () => {
     show({ write: () => problem(403, refusal) });
     await typeNote(user, "Overené.");
 
-    expect(await screen.findByText(new RegExp(refusal))).toBeInTheDocument();
+    expect((await screen.findAllByText(new RegExp(refusal)))[0]).toBeInTheDocument();
     // The value is still the person's: it stays pending rather than being thrown away.
     expect(noteBox(0)).toHaveValue("Overené.");
     expect(screen.getAllByRole("status").map((one) => one.textContent).join(" ")).toContain(
@@ -297,7 +297,7 @@ describe("writing the note", () => {
     await typeNote(user, "a".repeat(NOTE_MAX + 1));
 
     expect(calls.filter((call) => call.method === "PATCH")).toHaveLength(0);
-    expect(await screen.findByText(new RegExp(noteWords(sk).tooLong(NOTE_MAX)))).toBeInTheDocument();
+    expect((await screen.findAllByText(new RegExp(noteWords(sk).tooLong(NOTE_MAX))))[0]).toBeInTheDocument();
   });
 });
 

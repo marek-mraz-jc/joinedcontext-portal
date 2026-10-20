@@ -310,6 +310,24 @@
   padding: 0;
 }
 
+/* Why the values change (DM-113): the label over a box as wide as the panel, on a phone too. */
+.jc-grid-reason {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.jc-grid-reason input {
+  inline-size: 100%;
+  min-inline-size: 0;
+  box-sizing: border-box;
+  /* A field the eye finds at rest, not only once focused: it is the one thing the panel asks. */
+  border: 1px solid var(--jc-color-line, #e0e0e0);
+  border-radius: var(--jc-radius-sm, 2px);
+  padding: var(--jc-space-1, 4px) var(--jc-space-2, 8px);
+  font: inherit;
+}
+
 /* One attribute's history (T-1431): the panel sits under the grid, the line is drawn in a box the
    panel's width decides, and the table under it carries the numbers themselves. */
 .jc-grid-history {

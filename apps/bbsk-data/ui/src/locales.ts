@@ -149,6 +149,13 @@ const sk: Strings = {
     applying: "Ukladá sa…",
     refusedHere: "zamietnuté",
     notInList: "nie je v zozname",
+    reason: "Prečo meníte tieto hodnoty",
+    reasonDefault: "Opravené v tabuľke údajov",
+    reasonNeeded: "Napíšte, prečo meníte tieto hodnoty.",
+    saved: "Uložené hodnoty:",
+    undo: "Vrátiť späť",
+    undoReason: "Vrátenie späť",
+    undone: "Zmena bola vrátená späť.",
   },
 };
 
@@ -282,6 +289,13 @@ const en: Strings = {
     applying: "Saving…",
     refusedHere: "refused",
     notInList: "not in the list",
+    reason: "Why you change these values",
+    reasonDefault: "Corrected in the data grid",
+    reasonNeeded: "Say why you change these values.",
+    saved: "Values saved:",
+    undo: "Undo",
+    undoReason: "Undo",
+    undone: "The change was undone.",
   },
 };
 
