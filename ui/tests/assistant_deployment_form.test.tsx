@@ -5,6 +5,7 @@
  */
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { getDefaultFormState, type RJSFSchema } from "@rjsf/utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import validator from "../src/components/forms/validator";
 import { portalFields } from "../src/components/forms/widgets";
@@ -25,6 +26,12 @@ const SOURCES: Record<string, unknown[]> = {
   helsinki: [source("helsinki", "web", "public"), source("helsinki", "intranet", "internal")],
   espoo: [source("espoo", "espoo-web", "public", "Espoo city pages")],
 };
+
+/** A folded group: a `<details>` whose summary starts with its title. */
+function foldedGroup(title: string): HTMLDetailsElement | undefined {
+  const summary = Array.from(document.querySelectorAll("details > summary")).find((node) => node.textContent?.startsWith(title));
+  return (summary?.parentElement as HTMLDetailsElement | null) ?? undefined;
+}
 
 async function openForm() {
   const proposals: unknown[] = [];
@@ -89,8 +96,14 @@ describe("the deployment form's sources (T-4282)", () => {
 
   it("lays the form out in the capabilities, live data apart from knowledge", async () => {
     await openForm();
-    for (const group of ["Deployment", "Knowledge", "Live data", "How it answers", "Language", "Widget", "Where it may appear", "Limits and budget"]) {
+    for (const group of ["Deployment", "Knowledge"]) {
       expect(screen.getAllByRole("group", { name: group }).length, group).toBeGreaterThan(0);
+    }
+    // The rest opens on a click: a new internal deployment needs a name, a channel and its sources (T-4824).
+    for (const group of ["Live data", "How it answers", "Language", "Widget", "Where it may appear", "Limits and budget"]) {
+      const folded = foldedGroup(group);
+      expect(folded, group).toBeDefined();
+      expect((folded as HTMLDetailsElement).open, group).toBe(false);
     }
     expect(screen.getByLabelText(/^Answers from/)).toHaveDisplayValue("Knowledge and live data");
   });
@@ -99,7 +112,7 @@ describe("the deployment form's sources (T-4282)", () => {
   // toggle, the suggestions, what it answers from and the feedback buttons.
   it("the Widget group holds the language mode, its toggle and the chat's other settings", async () => {
     await openForm();
-    const widget = screen.getByRole("group", { name: "Widget" });
+    const widget = foldedGroup("Widget") as HTMLElement;
     const mode = within(widget).getByLabelText(/^Language the chat opens in/);
     expect(mode).toHaveDisplayValue("The visitor's browser language");
     expect(within(mode as HTMLElement).getAllByRole("option").map((o) => o.textContent)).toEqual([
@@ -147,6 +160,15 @@ describe("the deployment form's sources (T-4282)", () => {
 
 describe("the deployment manifest (T-4282)", () => {
   const t = (key: string) => key;
+
+  it("a new deployment's budget is whole: the defaults the form fills pass jc-core's budget rule (T-4824)", () => {
+    const defaults = getDefaultFormState(validator, assistantDeploymentSchema(t) as RJSFSchema, {}) as {
+      budget: { tokensPerDay: number; tokensPerConversation: number };
+    };
+    expect(defaults.budget.tokensPerDay).toBe(2_000_000);
+    expect(defaults.budget.tokensPerConversation).toBeGreaterThan(0);
+    expect(defaults.budget.tokensPerConversation).toBeLessThanOrEqual(defaults.budget.tokensPerDay);
+  });
 
   it("widget.language and widget.languageToggle are saved and read back as the form shows them (T-4343)", () => {
     for (const widget of [{ language: "ask", languageToggle: false }, { language: "fixed", languageToggle: true }, { language: "browser" }]) {
