@@ -147,9 +147,16 @@ async fn a_queued_app_build_gets_one_pod_its_own_cache_and_its_repositorys_token
             "/api/v1/namespaces/dev/persistentvolumeclaims/build-cache-bikes",
             "/apis/batch/v1/namespaces/dev/jobs/build-bikes-42",
             "/api/v1/namespaces/dev/secrets/build-bikes-42",
+            "/apis/batch/v1/namespaces/dev/jobs/build-bikes-42",
         ],
-        "the claim and the Job first, the token last and owned by the Job"
+        "the claim and the Job first, the token owned by the Job, then the Job marked"
     );
+    assert!(applied[1].1["metadata"].get("annotations").is_none());
+    assert_eq!(
+        applied[3].1["metadata"]["annotations"]["joinedcontext.com/build-token-written"], "true",
+        "the mark comes only after the token"
+    );
+    assert_eq!(applied[3].1["spec"], applied[1].1["spec"], "the same Job");
     let pod = &applied[1].1["spec"]["template"]["spec"];
     assert_eq!(
         pod["containers"][0]["image"],
@@ -220,13 +227,6 @@ async fn a_job_left_without_its_token_is_removed_with_its_pods_for_the_next_pass
         )
         .mount(&server)
         .await;
-    Mock::given(method("GET"))
-        .and(path(format!(
-            "/api/v1/namespaces/{NS}/secrets/build-bikes-42"
-        )))
-        .respond_with(ResponseTemplate::new(404))
-        .mount(&server)
-        .await;
     Mock::given(method("DELETE"))
         .and(path(format!(
             "/apis/batch/v1/namespaces/{NS}/jobs/build-bikes-42"
@@ -251,6 +251,59 @@ async fn a_job_left_without_its_token_is_removed_with_its_pods_for_the_next_pass
         pass.started.is_empty(),
         "started on the next pass, not this one"
     );
+    no_secret_read(&server).await;
+}
+
+/// The Portal reads no Secret in the runner's namespace (T-4798): a Job marked as holding its
+/// token is left to run, judged by the Job alone.
+#[tokio::test]
+async fn a_job_marked_with_its_token_is_left_alone_and_no_secret_is_read() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/orgs/joinedcontext/actions/jobs"))
+        .respond_with(queued(json!([job(42, "helsinki_bikes", "app-build-rust")])))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "/apis/batch/v1/namespaces/{NS}/jobs/build-bikes-42"
+        )))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({ "metadata": {
+            "uid": "u",
+            "annotations": { "joinedcontext.com/build-token-written": "true" },
+        } })),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("DELETE"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+        .expect(0)
+        .mount(&server)
+        .await;
+    no_claims(&server).await;
+
+    let (kube, forge) = clients(&server);
+    let pass = dispatch_once(
+        &kube,
+        &forge,
+        &mirror(&[("helsinki", "bikes")]),
+        &settings(),
+    )
+    .await
+    .expect("the pass");
+    assert!(pass.started.is_empty());
+    no_secret_read(&server).await;
+}
+
+async fn no_secret_read(server: &MockServer) {
+    let requests = server.received_requests().await.expect("recorded");
+    let read: Vec<&str> = requests
+        .iter()
+        .filter(|r| r.method.as_str() != "PATCH" && r.url.path().contains("/secrets/"))
+        .map(|r| r.url.path())
+        .collect();
+    assert!(read.is_empty(), "{read:?}");
 }
 
 #[tokio::test]

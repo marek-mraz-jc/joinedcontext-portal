@@ -3,8 +3,8 @@
 //! The converger runs against a stubbed API server, so what is asserted is what leaves the
 //! Portal: the first pod-backed App of a project creates `{release}-{project}-apps` with its
 //! labels, Pod Security `restricted`, a default-deny policy admitting APISIX only, the pull
-//! Secret and the Portal's RoleBinding, before the App's objects go into it; the App's old
-//! objects leave the shared namespace; the last pod-backed App retired removes the namespace;
+//! Secret and the Portal's RoleBinding, before the App's objects go into it; in the Portal's own
+//! namespace it only reads the pull Secret; the last pod-backed App retired removes the namespace;
 //! and a repository that holds no retired App never removes one.
 
 use std::path::PathBuf;
@@ -92,33 +92,11 @@ fn scratch(tag: &str, apps: &[(&str, &str, &str, &str)]) -> (Repository, PathBuf
 
 /// The Deployment of `air` in its project's namespace.
 const AIR: &str = "/apis/apps/v1/namespaces/dev-ovzdusie-apps/deployments/app-air";
-/// Where `air` ran before its project had a namespace.
-const AIR_LEGACY: &str = "/apis/apps/v1/namespaces/joinedcontext/deployments/app-air";
 
-/// A Deployment the API server has seen at `generation` with `available` pods up.
-fn rolled_out(generation: u64, observed: u64, available: u64) -> Value {
-    json!({
-        "apiVersion": "apps/v1",
-        "kind": "Deployment",
-        "metadata": { "name": "app-air", "namespace": "dev-ovzdusie-apps", "generation": generation },
-        "status": { "observedGeneration": observed, "availableReplicas": available },
-    })
-}
-
-/// Accepts every write, answers the pull Secret from the Portal's namespace and `air`'s new
-/// Deployment as rolled out; every other read is a 404 (nothing deployed yet).
+/// Accepts every write and answers the pull Secret from the Portal's namespace; every other
+/// read is a 404 (nothing deployed yet).
 async fn cluster() -> MockServer {
-    cluster_where(rolled_out(1, 1, 1)).await
-}
-
-/// The same, with `air`'s new Deployment in the state `deployment`.
-async fn cluster_where(deployment: Value) -> MockServer {
     let api = MockServer::start().await;
-    Mock::given(method("GET"))
-        .and(path(AIR))
-        .respond_with(ResponseTemplate::new(200).set_body_json(deployment))
-        .mount(&api)
-        .await;
     Mock::given(method("GET"))
         .and(path(PULL))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
@@ -266,48 +244,42 @@ async fn the_first_pod_backed_app_creates_its_projects_namespace_before_its_obje
         copy["metadata"].get("resourceVersion").is_none() && copy["metadata"].get("uid").is_none()
     );
 
-    // The app's objects in the shared namespace go once it runs in its project's.
     let deleted = calls(&requests, "DELETE");
-    assert!(deleted.contains(&AIR_LEGACY.to_owned()), "{deleted:?}");
     assert!(
         !deleted.iter().any(|d| d.starts_with(NS)),
         "nothing in the new namespace is removed"
     );
 }
 
-/// The old objects keep serving until the new Deployment has a pod up at its current spec; the
-/// next run removes them (AP-116).
+/// The Portal's own namespace holds the platform's credentials (database, Keycloak, forge), and
+/// its Role there names only the pull Secret for reading (T-4798): no App, live or retired,
+/// makes the converger read, write or delete anything else in it.
 #[tokio::test]
-async fn the_old_objects_stay_until_the_new_deployment_is_available() {
-    for (state, deployment) in [
-        ("no pod up", rolled_out(1, 1, 0)),
-        ("an older spec up", rolled_out(2, 1, 1)),
-        ("no status yet", json!({ "metadata": { "generation": 1 } })),
-    ] {
-        let api = cluster_where(deployment).await;
-        let (repository, root) = scratch("ready", &[("air", "ovzdusie", "fullstack", "published")]);
+async fn in_the_portals_own_namespace_only_the_pull_secret_is_read() {
+    for lifecycle in ["published", "retired"] {
+        let api = cluster().await;
+        let (repository, root) = scratch(
+            &format!("own-{lifecycle}"),
+            &[
+                ("air", "ovzdusie", "fullstack", lifecycle),
+                ("bus", "ovzdusie", "fullstack", "published"),
+            ],
+        );
         let report = converger(&api, settings())
             .converge(&repository, &Default::default())
             .await;
         let _ = std::fs::remove_dir_all(&root);
         assert!(
-            report
-                .iter()
-                .any(|(id, o)| id.contains("air") && matches!(o, Ok(Outcome::Applied))),
-            "{state}: {report:?}"
+            report.iter().all(|(_, o)| o.is_ok()),
+            "{lifecycle}: {report:?}"
         );
         let requests = api.received_requests().await.expect("recorded");
-        assert!(
-            calls(&requests, "PATCH").contains(&AIR.to_owned()),
-            "{state}"
-        );
-        let deleted = calls(&requests, "DELETE");
-        assert!(
-            !deleted
-                .iter()
-                .any(|d| d.contains("/namespaces/joinedcontext/")),
-            "{state}: {deleted:?}"
-        );
+        let touched: Vec<String> = requests
+            .iter()
+            .filter(|r| r.url.path().contains("/namespaces/joinedcontext/"))
+            .map(|r| format!("{} {}", r.method, r.url.path()))
+            .collect();
+        assert_eq!(touched, vec![format!("GET {PULL}")], "{lifecycle}");
     }
 }
 

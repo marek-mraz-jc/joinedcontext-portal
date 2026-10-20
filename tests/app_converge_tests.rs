@@ -315,15 +315,10 @@ async fn a_retired_app_has_its_objects_deleted() {
         .filter(|request| request.method.as_str() == "DELETE")
         .map(|request| request.url.path())
         .collect();
-    // In the project's namespace, and where it ran before projects had one (AP-116).
-    assert_eq!(deleted.len(), 8, "{deleted:?}");
+    // In the project's namespace only: the Portal's own holds no App object (AP-116, T-4798).
+    assert_eq!(deleted.len(), 4, "{deleted:?}");
     for api_path in [DEPLOYMENT, SERVICE, SECRET, POLICY] {
         assert!(deleted.contains(&api_path), "{api_path} was not deleted");
-        let legacy = api_path.replace("/dev-ovzdusie-apps/", "/joinedcontext/");
-        assert!(
-            deleted.contains(&legacy.as_str()),
-            "{legacy} was not deleted"
-        );
     }
 }
 
