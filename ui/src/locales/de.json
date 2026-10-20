@@ -1748,7 +1748,6 @@
       "name": "Pipeline",
       "class": "Ausführung",
       "phase": "Status",
-      "stream": "Stream",
       "secrets": "Zugangsdaten",
       "id": "Name",
       "title": "Titel",
@@ -1817,17 +1816,8 @@
         "upsert": "Anlegen oder zusammenführen",
         "replace": "Ganze Entität ersetzen",
         "update-attrs": "Nur Attribute aktualisieren"
-      }
-    },
-    "metrics": {
-      "rate": "Nachr./s",
-      "received": "empfangen",
-      "errors": "Fehler",
-      "latency": "ms p99",
-      "unavailable": "Keine Zahlen: der Runner antwortet nicht.",
-      "paused": "Läuft nicht",
-      "scheduled": "Läuft nach seinem Zeitplan",
-      "rejected": "abgelehnt"
+      },
+      "lastRun": "Letzter Lauf"
     },
     "pause": "Pausieren",
     "pauseHint": "Schlägt eine Änderung vor, die diese Pipeline anhält.",
@@ -2048,8 +2038,6 @@
       "lastSamplesWithheld": "Zurückgehalten: Der Ziel-Endpunkt verbirgt Attribute, und vor der Zuordnung tragen sie noch die Namen der Quelle. Wählen Sie die Ausgabe, um zu sehen, was geschrieben wurde."
     },
     "emptyHint": "Fügen Sie mit der Schaltfläche eine Datenquelle und eine Pipeline hinzu, oder lassen Sie den Assistenten eine aus dem bauen, was Sie schon haben.",
-    "credentialsOfSource": "Liegen bei seiner Datenquelle {name}",
-    "noCredential": "Keine",
     "expiryRemoves": "Entitäten, die {window} lang nicht aktualisiert wurden, werden entfernt",
     "expiryRefused": "Nichts wird entfernt: Der Runner hat die Bereinigung abgelehnt: {reason}",
     "writesType": "Schreibt",
@@ -2402,6 +2390,60 @@
       "titleHelp": "Was die Galerie zeigt. Die Vorlage behält die Schritte und das Mapping; Zugangsdaten, Quelle und Ziel bleiben weg.",
       "titleNeeded": "Geben Sie der Vorlage zuerst einen Titel.",
       "saved": "Als Vorlage „{title}“ gespeichert."
+    },
+    "readsSource": "Liest",
+    "filter": {
+      "find": "Pipeline suchen",
+      "status": "Status",
+      "class": "Ausführung",
+      "statusOption": {
+        "all": "Jeder Status",
+        "running": "Läuft",
+        "paused": "Pausiert",
+        "notWriting": "Schreibt nicht"
+      },
+      "classOption": {
+        "all": "Jede Ausführung",
+        "resident": "Dauerhaft",
+        "scheduled": "Nach Zeitplan"
+      },
+      "shown": "{shown} von {total} Pipelines",
+      "none": "Keine Pipeline passt zu Suche und Filtern.",
+      "noneHint": "Leeren Sie die Suche oder wählen Sie einen anderen Status oder eine andere Ausführung."
+    },
+    "lastRun": {
+      "unavailable": "Läufe konnten nicht gelesen werden",
+      "never": "Noch nicht gelaufen",
+      "runFailedBadge": "Lauf fehlgeschlagen",
+      "written": "{count, plural, one {# geschrieben} other {# geschrieben}}",
+      "rejected": "{n} abgelehnt",
+      "failedCount": "{n} fehlgeschlagen",
+      "sinceStart": "Seit dem Start des Runners:",
+      "received": "{n} empfangen",
+      "errorCount": "{n} Fehler"
+    },
+    "overview": {
+      "back": "Zurück zu den Pipelines",
+      "facts": "Auf einen Blick",
+      "noDataSource": "Keine Datenquelle: liest einen Endpunkt oder empfängt Datensätze",
+      "noTarget": "Kein Zielendpunkt",
+      "inSpace": "im Space",
+      "writes": "Schreibt",
+      "writesUnknown": "Nicht angegeben",
+      "every": "Alle {period}",
+      "pushBased": "Push-basiert: läuft, wenn Datensätze eintreffen",
+      "lastRun": "Letzter Lauf",
+      "nextRun": "Nächster Lauf",
+      "next": {
+        "paused": "Pausiert: kein nächster Lauf",
+        "continuous": "Läuft dauerhaft",
+        "unknown": "Nach dem laufenden Lauf"
+      },
+      "runs": "Läufe und Protokoll",
+      "rejected": "Zuletzt abgelehnte Datensätze",
+      "rejectedUnavailable": "Die abgelehnten Datensätze konnten nicht gelesen werden.",
+      "noRejected": "Das Modell hat keinen Datensatz dieser Pipeline abgelehnt.",
+      "credentials": "Zugangsdaten"
     }
   },
   "dashboards": {

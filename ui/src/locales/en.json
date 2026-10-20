@@ -1748,7 +1748,6 @@
       "name": "Pipeline",
       "class": "Execution",
       "phase": "Status",
-      "stream": "Stream",
       "secrets": "Credentials",
       "id": "Name",
       "title": "Title",
@@ -1817,17 +1816,8 @@
         "upsert": "Create or merge",
         "replace": "Replace the whole entity",
         "update-attrs": "Update attributes only"
-      }
-    },
-    "metrics": {
-      "rate": "msg/s",
-      "received": "received",
-      "errors": "errors",
-      "latency": "ms p99",
-      "unavailable": "No numbers: the runner is not answering.",
-      "paused": "Not running",
-      "scheduled": "Runs on its schedule",
-      "rejected": "rejected"
+      },
+      "lastRun": "Last run"
     },
     "pause": "Pause",
     "pauseHint": "Proposes a change that stops this pipeline.",
@@ -2048,8 +2038,6 @@
       "lastSamplesWithheld": "Withheld: the target endpoint hides attributes, and before the mapping they carry the source's own names. Select the output to see what was written."
     },
     "emptyHint": "Add a data source and a pipeline with the button, or ask the assistant to build one from what you already have.",
-    "credentialsOfSource": "Held by its data source {name}",
-    "noCredential": "None",
     "expiryRemoves": "Entities not updated for {window} are removed",
     "expiryRefused": "Nothing is removed: the runner refused the sweep: {reason}",
     "writesType": "Writes",
@@ -2402,6 +2390,60 @@
       "titleHelp": "What the gallery shows. The template keeps the steps and the mapping; credentials, the source and the target are left out.",
       "titleNeeded": "Give the template a title first.",
       "saved": "Saved as template \"{title}\"."
+    },
+    "readsSource": "Reads",
+    "filter": {
+      "find": "Find a pipeline",
+      "status": "Status",
+      "class": "Execution",
+      "statusOption": {
+        "all": "Any status",
+        "running": "Running",
+        "paused": "Paused",
+        "notWriting": "Not writing"
+      },
+      "classOption": {
+        "all": "Any execution",
+        "resident": "Resident",
+        "scheduled": "Scheduled"
+      },
+      "shown": "{shown} of {total} pipelines",
+      "none": "No pipeline matches the search and filters.",
+      "noneHint": "Clear the search or pick another status or execution."
+    },
+    "lastRun": {
+      "unavailable": "Runs could not be read",
+      "never": "Has not run yet",
+      "runFailedBadge": "Run failed",
+      "written": "{count, plural, one {# written} other {# written}}",
+      "rejected": "{n} rejected",
+      "failedCount": "{n} failed",
+      "sinceStart": "Since the runner started:",
+      "received": "{n} received",
+      "errorCount": "{n} errors"
+    },
+    "overview": {
+      "back": "Back to pipelines",
+      "facts": "At a glance",
+      "noDataSource": "No data source: it reads an endpoint or a push input",
+      "noTarget": "No target endpoint",
+      "inSpace": "in space",
+      "writes": "Writes",
+      "writesUnknown": "Not declared",
+      "every": "Every {period}",
+      "pushBased": "Push-based: runs as records arrive",
+      "lastRun": "Last run",
+      "nextRun": "Next run",
+      "next": {
+        "paused": "Paused: no next run",
+        "continuous": "Runs continuously",
+        "unknown": "After the current run"
+      },
+      "runs": "Runs and log",
+      "rejected": "Last rejected records",
+      "rejectedUnavailable": "The rejected records could not be read.",
+      "noRejected": "The model has refused no record of this pipeline.",
+      "credentials": "Credentials"
     }
   },
   "dashboards": {
