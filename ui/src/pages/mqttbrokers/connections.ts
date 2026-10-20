@@ -60,7 +60,8 @@ export function urnName(urn: unknown): string | undefined {
   return parts[parts.length - 1] || undefined;
 }
 
-function readsOf(spec: Spec): string[] {
+/** The DataSources a pipeline reads, by name, from `source` and every entry of `sources`. */
+export function readsOf(spec: Spec): string[] {
   const sources = [spec.source, ...(Array.isArray(spec.sources) ? spec.sources : [])] as Array<Spec | undefined>;
   return sources.map((source) => refName(source?.dataSourceRef)).filter((name): name is string => !!name);
 }

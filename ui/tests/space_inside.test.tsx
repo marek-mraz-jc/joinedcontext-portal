@@ -623,6 +623,41 @@ describe("the space's own data", () => {
     expect(await screen.findByRole("dialog", { name: en.spaces.fields.title.replace("{type}", "AirQualityObserved") })).toBeInTheDocument();
   });
 
+  // T-4828: a row opens as a dialog named in the address, with its comments as a tab.
+  it("opens the row a link names as a dialog with Fields, History and Comments, and closing drops it from the address", async () => {
+    const urn = SPACE_ROWS[0].id;
+    window.history.pushState({}, "", `/projects/banskabystrica/spaces/ovzdusie?row=${encodeURIComponent(urn)}`);
+    renderInside({ status: 200, count: 1 });
+    const dialog = await screen.findByRole("dialog", { name: `${en.entityGrid.rowDetail}: ${urn}` });
+    expect(within(dialog).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      en.entityGrid.rowFields,
+      en.entityGrid.history,
+      en.spaces.comments.title,
+    ]);
+    await userEvent.click(within(dialog).getByRole("button", { name: en.entityGrid.close }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(new URLSearchParams(window.location.search).get("row")).toBeNull();
+  });
+
+  it("puts the row opened from the grid into the address, and ignores a row parameter that is no URN", async () => {
+    window.history.pushState({}, "", "/projects/banskabystrica/spaces/ovzdusie?row=javascript%3Aalert(1)");
+    renderInside({ status: 200, count: 1 });
+    const urn = SPACE_ROWS[0].id;
+    await userEvent.click(await screen.findByRole("button", { name: `${en.entityGrid.openRow}: ${urn}` }));
+    expect(await screen.findByRole("dialog", { name: `${en.entityGrid.rowDetail}: ${urn}` })).toBeInTheDocument();
+    expect(new URLSearchParams(window.location.search).get("row")).toBe(urn);
+  });
+
+  it("opens the type's form from Add row and creates through the space surface", async () => {
+    const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200 }, {
+      source: "name: bb-air-quality\nclasses:\n  AirQualityObserved:\n    attributes:\n      no2: { range: float }\n",
+    });
+    await userEvent.click(await screen.findByRole("button", { name: en.spaces.inside.addRow }));
+    const dialog = await screen.findByRole("dialog", { name: en.spaces.inside.addRowTitle.replace("{type}", "AirQualityObserved") });
+    expect(within(dialog).getByRole("button", { name: en.spaces.form.submit })).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some((call) => urlOf(call[0]).pathname.includes("/temporal/"))).toBe(false);
+  });
+
   it("offers no field to add while the model's source does not declare the type", async () => {
     renderInside({ status: 200, count: 1 });
 

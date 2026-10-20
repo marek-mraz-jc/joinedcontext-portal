@@ -1,0 +1,3 @@
+# Bento 1.21.1's documented example for a CosmosDB connection string (the public emulator key), copied into a
+# secret field's placeholder by ui/scripts/bento-processor-forms.mjs before it dropped examples on secret fields.
+cf4fb8ba5f14b454ed320db8e820449b9191c1f4:ui/src/schemas/bento-processor-forms.json:generic-api-key:1

@@ -14,7 +14,7 @@
      "advanced": false,
      "optional": false,
      "default": null,
-     "description": "A list of URLs to connect to. The first URL to successfully establish a connection will be used until the connection is closed. If an item of the list contains commas it will be expanded into multiple"
+     "description": "A list of URLs to connect to. The first URL to successfully establish a connection will be used until the connection is closed. If an item of the list contains commas it will be expanded into multiple URLs."
     },
     {
      "path": "queue",
@@ -94,7 +94,7 @@
      "advanced": true,
      "optional": false,
      "default": false,
-     "description": "Acknowledge messages automatically as they are consumed rather than waiting for acknowledgments from downstream. This can improve throughput and prevent the pipeline from blocking but at the cost of e"
+     "description": "Acknowledge messages automatically as they are consumed rather than waiting for acknowledgments from downstream. This can improve throughput and prevent the pipeline from blocking but at the cost of eliminating delivery guarantees."
     },
     {
      "path": "nack_reject_patterns",
@@ -104,7 +104,7 @@
      "advanced": true,
      "optional": false,
      "default": [],
-     "description": "A list of regular expression patterns whereby if a message that has failed to be delivered by Bento has an error that matches it will be dropped (or delivered to a dead-letter queue if one exists). By"
+     "description": "A list of regular expression patterns whereby if a message that has failed to be delivered by Bento has an error that matches it will be dropped (or delivered to a dead-letter queue if one exists)."
     },
     {
      "path": "prefetch_count",
@@ -174,7 +174,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -184,7 +184,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -221,7 +221,7 @@
      "advanced": false,
      "optional": true,
      "default": null,
-     "description": "A list of URLs to connect to. The first URL to successfully establish a connection will be used until the connection is closed. If an item of the list contains commas it will be expanded into multiple"
+     "description": "A list of URLs to connect to. The first URL to successfully establish a connection will be used until the connection is closed. If an item of the list contains commas it will be expanded into multiple URLs."
     },
     {
      "path": "source_address",
@@ -311,7 +311,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -321,7 +321,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -388,7 +388,7 @@
      "advanced": false,
      "optional": false,
      "default": null,
-     "description": "One or more Kinesis data streams to consume from. Streams can either be specified by their name or full ARN. Shards of a stream are automatically balanced across consumers by coordinating through the "
+     "description": "One or more Kinesis data streams to consume from. Streams can either be specified by their name or full ARN. Shards of a stream are automatically balanced across consumers by coordinating through the provided DynamoDB table."
     },
     {
      "path": "dynamodb",
@@ -458,7 +458,7 @@
      "advanced": false,
      "optional": false,
      "default": 1024,
-     "description": "The maximum gap between the in flight sequence versus the latest acknowledged sequence at a given time. Increasing this limit enables parallel processing and batching at the output level to work on in"
+     "description": "The maximum gap between the in flight sequence versus the latest acknowledged sequence at a given time. Increasing this limit enables parallel processing and batching at the output level to work on individual shards."
     },
     {
      "path": "auto_replay_nacks",
@@ -468,7 +468,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "commit_period",
@@ -658,7 +658,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "Allow the credentials to trigger refreshing prior to the credentials actually expiring. This is beneficial so race conditions with expiring credentials do not cause requests to fail. For example '10s'"
+     "description": "Allow the credentials to trigger refreshing prior to the credentials actually expiring. This is beneficial so race conditions with expiring credentials do not cause requests to fail."
     },
     {
      "path": "batching",
@@ -805,7 +805,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "Allow the credentials to trigger refreshing prior to the credentials actually expiring. This is beneficial so race conditions with expiring credentials do not cause requests to fail. For example '10s'"
+     "description": "Allow the credentials to trigger refreshing prior to the credentials actually expiring. This is beneficial so race conditions with expiring credentials do not cause requests to fail."
     },
     {
      "path": "force_path_style_urls",
@@ -835,7 +835,7 @@
      "advanced": false,
      "optional": true,
      "default": null,
-     "description": "The way in which the bytes of a data source should be converted into discrete messages, codecs are useful for specifying how large files or continuous streams of data might be processed in small chunk"
+     "description": "The way in which the bytes of a data source should be converted into discrete messages, codecs are useful for specifying how large files or continuous streams of data might be processed in small chunks rather than loading it all in memory."
     },
     {
      "path": "max_buffer",
@@ -857,7 +857,7 @@
      "default": {
       "to_the_end": {}
      },
-     "description": "The [scanner](/docs/components/scanners/about) by which the stream of bytes consumed will be broken out into individual messages. Scanners are useful for processing large sources of data without holdi"
+     "description": "The [scanner](/docs/components/scanners/about) by which the stream of bytes consumed will be broken out into individual messages. Scanners are useful for processing large sources of data without holding the entirety of it within memory."
     },
     {
      "path": "sqs",
@@ -917,7 +917,7 @@
      "advanced": false,
      "optional": false,
      "default": "",
-     "description": "A [dot path](/docs/configuration/field_paths) of a field to extract an enveloped JSON payload for further extracting the key and bucket from SQS messages. This is specifically useful when subscribing "
+     "description": "A [dot path](/docs/configuration/field_paths) of a field to extract an enveloped JSON payload for further extracting the key and bucket from SQS messages."
     },
     {
      "path": "sqs.delay_period",
@@ -1134,7 +1134,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "Allow the credentials to trigger refreshing prior to the credentials actually expiring. This is beneficial so race conditions with expiring credentials do not cause requests to fail. For example '10s'"
+     "description": "Allow the credentials to trigger refreshing prior to the credentials actually expiring. This is beneficial so race conditions with expiring credentials do not cause requests to fail."
     }
    ]
   },
@@ -1211,7 +1211,7 @@
      "advanced": false,
      "optional": true,
      "default": null,
-     "description": "The way in which the bytes of a data source should be converted into discrete messages, codecs are useful for specifying how large files or continuous streams of data might be processed in small chunk"
+     "description": "The way in which the bytes of a data source should be converted into discrete messages, codecs are useful for specifying how large files or continuous streams of data might be processed in small chunks rather than loading it all in memory."
     },
     {
      "path": "max_buffer",
@@ -1233,7 +1233,7 @@
      "default": {
       "to_the_end": {}
      },
-     "description": "The [scanner](/docs/components/scanners/about) by which the stream of bytes consumed will be broken out into individual messages. Scanners are useful for processing large sources of data without holdi"
+     "description": "The [scanner](/docs/components/scanners/about) by which the stream of bytes consumed will be broken out into individual messages. Scanners are useful for processing large sources of data without holding the entirety of it within memory."
     },
     {
      "path": "delete_objects",
@@ -1253,7 +1253,7 @@
      "advanced": false,
      "optional": true,
      "default": null,
-     "description": "EXPERIMENTAL: An optional source of download targets, configured as a [regular Bento input](/docs/components/inputs/about). Each message yielded by this input should be a single structured object cont"
+     "description": "EXPERIMENTAL: An optional source of download targets, configured as a [regular Bento input](/docs/components/inputs/about)."
     }
    ]
   },
@@ -1320,7 +1320,7 @@
      "advanced": false,
      "optional": false,
      "default": null,
-     "description": "A [Bloblang mapping](/docs/guides/bloblang/about) which should evaluate to a single partition key value or an array of partition key values of type string, integer or boolean. Currently, hierarchical "
+     "description": "A [Bloblang mapping](/docs/guides/bloblang/about) which should evaluate to a single partition key value or an array of partition key values of type string, integer or boolean."
     },
     {
      "path": "query",
@@ -1360,7 +1360,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     }
    ]
   },
@@ -1447,7 +1447,7 @@
      "advanced": true,
      "optional": false,
      "default": false,
-     "description": "If set to `true` the queue is polled on each read request for information such as the queue message lag. These properties are added to consumed messages as metadata, but will also have a negative perf"
+     "description": "If set to `true` the queue is polled on each read request for information such as the queue message lag. These properties are added to consumed messages as metadata, but will also have a negative performance impact."
     }
    ]
   },
@@ -1504,7 +1504,7 @@
      "advanced": true,
      "optional": false,
      "default": false,
-     "description": "Whether to automatically acknowledge messages as they are consumed rather than waiting for acknowledgments from downstream. This can improve throughput but at the cost of eliminating delivery guarante"
+     "description": "Whether to automatically acknowledge messages as they are consumed rather than waiting for acknowledgments from downstream. This can improve throughput but at the cost of eliminating delivery guarantees."
     },
     {
      "path": "nack_reject_patterns",
@@ -1514,7 +1514,7 @@
      "advanced": true,
      "optional": false,
      "default": [],
-     "description": "A list of regular expression patterns whereby if a message that has failed to be delivered by Bento has an error that matches it will be nacked (or sent to dead letter queue if configured). By default"
+     "description": "A list of regular expression patterns whereby if a message that has failed to be delivered by Bento has an error that matches it will be nacked (or sent to dead letter queue if configured)."
     },
     {
      "path": "renew_lock",
@@ -1759,7 +1759,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -1769,7 +1769,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -1899,14 +1899,14 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     }
    ]
   },
   {
    "name": "cockroachdb_changefeed",
    "group": "databases",
-   "summary": "Listens to a [CockroachDB Core Changefeed](https://www.cockroachlabs.com/docs/stable/changefeed-examples) and creates a message for each row received. Each message is a json object looking like: ",
+   "summary": "Listens to a [CockroachDB Core Changefeed](https://www.cockroachlabs.com/docs/stable/changefeed-examples) and creates a message for each row received. Each message is a json object looking like:",
    "fields": [
     {
      "path": "dsn",
@@ -1956,7 +1956,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -1966,7 +1966,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -1996,7 +1996,7 @@
      "advanced": false,
      "optional": true,
      "default": null,
-     "description": "A [cache resource](https://warpstreamlabs.github.io/bento/docs/components/caches/about) to use for storing the current latest cursor that has been successfully delivered, this allows Bento to continue"
+     "description": "A [cache resource](https://warpstreamlabs.github.io/bento/docs/components/caches/about) to use for storing the current latest cursor that has been successfully delivered, this allows Bento to continue from that cursor upon restart, rather than consume the entire state of the table."
     },
     {
      "path": "options",
@@ -2016,7 +2016,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     }
    ]
   },
@@ -2033,7 +2033,7 @@
      "advanced": false,
      "optional": false,
      "default": null,
-     "description": "A list of file paths to read from. Each file will be read sequentially until the list is exhausted, at which point the input will close. Glob patterns are supported, including super globs (double star"
+     "description": "A list of file paths to read from. Each file will be read sequentially until the list is exhausted, at which point the input will close. Glob patterns are supported, including super globs (double star)."
     },
     {
      "path": "parse_header_row",
@@ -2043,7 +2043,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether to reference the first row as a header row. If set to true the output structure for messages will be an object where field keys are determined by the header row. Otherwise, each message will c"
+     "description": "Whether to reference the first row as a header row. If set to true the output structure for messages will be an object where field keys are determined by the header row."
     },
     {
      "path": "delimiter",
@@ -2083,7 +2083,7 @@
      "advanced": true,
      "optional": false,
      "default": 1,
-     "description": "Optionally process records in batches. This can help to speed up the consumption of exceptionally large CSV files. When the end of the file is reached the remaining records are processed as a (potenti"
+     "description": "Optionally process records in batches. This can help to speed up the consumption of exceptionally large CSV files. When the end of the file is reached the remaining records are processed as a (potentially smaller) batch."
     },
     {
      "path": "auto_replay_nacks",
@@ -2093,7 +2093,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "expected_headers",
@@ -2250,7 +2250,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -2260,7 +2260,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -2280,7 +2280,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     }
    ]
   },
@@ -2337,7 +2337,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "poll_period",
@@ -2347,7 +2347,7 @@
      "advanced": false,
      "optional": false,
      "default": "1m",
-     "description": "The length of time (as a duration string) to wait between each poll for backlogged messages. This field can be set empty, in which case requests are made at the limit set by the rate limit. This field"
+     "description": "The length of time (as a duration string) to wait between each poll for backlogged messages. This field can be set empty, in which case requests are made at the limit set by the rate limit. This field also supports cron expressions."
     },
     {
      "path": "limit",
@@ -2411,7 +2411,7 @@
      "advanced": false,
      "optional": false,
      "default": null,
-     "description": "A set of URLs (schemes, hosts and ports only) that can be used to communicate with a logical etcd cluster. If multiple endpoints are provided, the Client will attempt to use them all in the event that"
+     "description": "A set of URLs (schemes, hosts and ports only) that can be used to communicate with a logical etcd cluster. If multiple endpoints are provided, the Client will attempt to use them all in the event that one or more of them are unusable."
     },
     {
      "path": "auth",
@@ -2541,7 +2541,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -2551,7 +2551,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -2731,7 +2731,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     }
    ]
   },
@@ -2758,7 +2758,7 @@
      "advanced": false,
      "optional": true,
      "default": null,
-     "description": "The way in which the bytes of a data source should be converted into discrete messages, codecs are useful for specifying how large files or continuous streams of data might be processed in small chunk"
+     "description": "The way in which the bytes of a data source should be converted into discrete messages, codecs are useful for specifying how large files or continuous streams of data might be processed in small chunks rather than loading it all in memory."
     },
     {
      "path": "max_buffer",
@@ -2780,7 +2780,7 @@
      "default": {
       "lines": {}
      },
-     "description": "The [scanner](/docs/components/scanners/about) by which the stream of bytes consumed will be broken out into individual messages. Scanners are useful for processing large sources of data without holdi"
+     "description": "The [scanner](/docs/components/scanners/about) by which the stream of bytes consumed will be broken out into individual messages. Scanners are useful for processing large sources of data without holding the entirety of it within memory."
     },
     {
      "path": "delete_on_finish",
@@ -2800,7 +2800,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     }
    ]
   },
@@ -2857,7 +2857,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     }
    ]
   },
@@ -2961,7 +2961,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "job_labels",
@@ -3048,7 +3048,7 @@
      "advanced": false,
      "optional": true,
      "default": null,
-     "description": "The way in which the bytes of a data source should be converted into discrete messages, codecs are useful for specifying how large files or continuous streams of data might be processed in small chunk"
+     "description": "The way in which the bytes of a data source should be converted into discrete messages, codecs are useful for specifying how large files or continuous streams of data might be processed in small chunks rather than loading it all in memory."
     },
     {
      "path": "max_buffer",
@@ -3070,7 +3070,7 @@
      "default": {
       "to_the_end": {}
      },
-     "description": "The [scanner](/docs/components/scanners/about) by which the stream of bytes consumed will be broken out into individual messages. Scanners are useful for processing large sources of data without holdi"
+     "description": "The [scanner](/docs/components/scanners/about) by which the stream of bytes consumed will be broken out into individual messages. Scanners are useful for processing large sources of data without holding the entirety of it within memory."
     },
     {
      "path": "delete_objects",
@@ -3117,7 +3117,7 @@
      "advanced": false,
      "optional": false,
      "default": "",
-     "description": "An optional endpoint to override the default of `pubsub.googleapis.com:443`. This can be used to connect to a region specific pubsub endpoint. For a list of valid values check out [this document.](htt"
+     "description": "An optional endpoint to override the default of `pubsub.googleapis.com:443`. This can be used to connect to a region specific pubsub endpoint."
     },
     {
      "path": "sync",
@@ -3187,7 +3187,7 @@
      "advanced": true,
      "optional": true,
      "default": null,
-     "description": "EXPERIMENTAL: A [Bloblang mapping](/docs/guides/bloblang/about) that attempts to extract an object containing tracing propagation information, which will then be used as the root tracing span for the "
+     "description": "EXPERIMENTAL: A [Bloblang mapping](/docs/guides/bloblang/about) that attempts to extract an object containing tracing propagation information, which will then be used as the root tracing span for the message."
     },
     {
      "path": "new_root_span_with_link",
@@ -3244,7 +3244,7 @@
      "advanced": false,
      "optional": true,
      "default": null,
-     "description": "An optional field to define the start point to read from the changestreams. If not set then the current time is used. The timestamp format should conform to RFC3339, for details on valid start times p"
+     "description": "An optional field to define the start point to read from the changestreams. If not set then the current time is used."
     },
     {
      "path": "end_time",
@@ -3291,7 +3291,7 @@
      "advanced": false,
      "optional": false,
      "default": "1s",
-     "description": "The time interval at which messages should be generated, expressed either as a duration string or as a cron expression. If set to an empty string messages will be generated as fast as downstream servi"
+     "description": "The time interval at which messages should be generated, expressed either as a duration string or as a cron expression. If set to an empty string messages will be generated as fast as downstream services can process them."
     },
     {
      "path": "count",
@@ -3321,7 +3321,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     }
    ]
   },
@@ -3438,7 +3438,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -3448,7 +3448,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -3588,7 +3588,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     }
    ]
   },
@@ -3982,7 +3982,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -3992,7 +3992,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -4012,7 +4012,7 @@
      "advanced": true,
      "optional": false,
      "default": null,
-     "description": "Specify which response headers should be added to resulting messages as metadata. Header keys are lowercased before matching, so ensure that your patterns target lowercased versions of the header keys"
+     "description": "Specify which response headers should be added to resulting messages as metadata. Header keys are lowercased before matching, so ensure that your patterns target lowercased versions of the header keys that you expect."
     },
     {
      "path": "extract_headers.include_prefixes",
@@ -4104,7 +4104,7 @@
      "advanced": true,
      "optional": false,
      "default": [],
-     "description": "A list of status codes whereby the request should be considered to have failed but retries should not be attempted. This is useful for preventing wasted retries for requests that will never succeed. N"
+     "description": "A list of status codes whereby the request should be considered to have failed but retries should not be attempted. This is useful for preventing wasted retries for requests that will never succeed."
     },
     {
      "path": "successful_on",
@@ -4114,7 +4114,7 @@
      "advanced": true,
      "optional": false,
      "default": [],
-     "description": "A list of status codes whereby the attempt should be considered successful, this is useful for dropping requests that return non-2XX codes indicating that the message has been dealt with, such as a 30"
+     "description": "A list of status codes whereby the attempt should be considered successful, this is useful for dropping requests that return non-2XX codes indicating that the message has been dealt with, such as a 303 See Other or a 409 Conflict."
     },
     {
      "path": "proxy_url",
@@ -4424,7 +4424,7 @@
      "advanced": false,
      "optional": true,
      "default": null,
-     "description": "The way in which the bytes of a data source should be converted into discrete messages, codecs are useful for specifying how large files or continuous streams of data might be processed in small chunk"
+     "description": "The way in which the bytes of a data source should be converted into discrete messages, codecs are useful for specifying how large files or continuous streams of data might be processed in small chunks rather than loading it all in memory."
     },
     {
      "path": "stream.max_buffer",
@@ -4446,7 +4446,7 @@
      "default": {
       "lines": {}
      },
-     "description": "The [scanner](/docs/components/scanners/about) by which the stream of bytes consumed will be broken out into individual messages. Scanners are useful for processing large sources of data without holdi"
+     "description": "The [scanner](/docs/components/scanners/about) by which the stream of bytes consumed will be broken out into individual messages. Scanners are useful for processing large sources of data without holding the entirety of it within memory."
     },
     {
      "path": "auto_replay_nacks",
@@ -4456,7 +4456,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     }
    ]
   },
@@ -4717,7 +4717,7 @@
      "advanced": false,
      "optional": false,
      "default": null,
-     "description": "A list of topics to consume from. Multiple comma separated topics can be listed in a single element. Partitions are automatically distributed across consumers of a topic. Alternatively, it's possible "
+     "description": "A list of topics to consume from. Multiple comma separated topics can be listed in a single element. Partitions are automatically distributed across consumers of a topic."
     },
     {
      "path": "target_version",
@@ -4777,7 +4777,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -4787,7 +4787,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -5067,7 +5067,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "Allow the credentials to trigger refreshing prior to the credentials actually expiring. This is beneficial so race conditions with expiring credentials do not cause requests to fail. For example '10s'"
+     "description": "Allow the credentials to trigger refreshing prior to the credentials actually expiring. This is beneficial so race conditions with expiring credentials do not cause requests to fail."
     },
     {
      "path": "consumer_group",
@@ -5107,7 +5107,7 @@
      "advanced": true,
      "optional": false,
      "default": true,
-     "description": "Determines whether to consume from the oldest available offset, otherwise messages are consumed from the latest offset. The setting is applied when creating a new consumer group or the saved offset no"
+     "description": "Determines whether to consume from the oldest available offset, otherwise messages are consumed from the latest offset. The setting is applied when creating a new consumer group or the saved offset no longer exists."
     },
     {
      "path": "checkpoint_limit",
@@ -5117,7 +5117,7 @@
      "advanced": false,
      "optional": false,
      "default": 1024,
-     "description": "The maximum number of messages of the same topic and partition that can be processed at a given time. Increasing this limit enables parallel processing and batching at the output level to work on indi"
+     "description": "The maximum number of messages of the same topic and partition that can be processed at a given time. Increasing this limit enables parallel processing and batching at the output level to work on individual partitions."
     },
     {
      "path": "auto_replay_nacks",
@@ -5127,7 +5127,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "commit_period",
@@ -5167,7 +5167,7 @@
      "advanced": true,
      "optional": true,
      "default": null,
-     "description": "EXPERIMENTAL: A [Bloblang mapping](/docs/guides/bloblang/about) that attempts to extract an object containing tracing propagation information, which will then be used as the root tracing span for the "
+     "description": "EXPERIMENTAL: A [Bloblang mapping](/docs/guides/bloblang/about) that attempts to extract an object containing tracing propagation information, which will then be used as the root tracing span for the message."
     },
     {
      "path": "new_root_span_with_link",
@@ -5304,7 +5304,7 @@
      "advanced": false,
      "optional": true,
      "default": null,
-     "description": "An optional consumer group to consume as. When specified the partitions of specified topics are automatically distributed across consumers sharing a consumer group, and partition offsets are automatic"
+     "description": "An optional consumer group to consume as."
     },
     {
      "path": "client_id",
@@ -5334,7 +5334,7 @@
      "advanced": true,
      "optional": false,
      "default": 1024,
-     "description": ":::caution "
+     "description": ":::caution"
     },
     {
      "path": "auto_replay_nacks",
@@ -5344,7 +5344,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "commit_period",
@@ -5364,7 +5364,7 @@
      "advanced": true,
      "optional": false,
      "default": true,
-     "description": "Determines whether to consume from the oldest available offset, otherwise messages are consumed from the latest offset. The setting is applied when creating a new consumer group or the saved offset no"
+     "description": "Determines whether to consume from the oldest available offset, otherwise messages are consumed from the latest offset. The setting is applied when creating a new consumer group or the saved offset no longer exists."
     },
     {
      "path": "reconnect_on_unknown_topic_or_partition",
@@ -5416,7 +5416,7 @@
      "advanced": true,
      "optional": false,
      "default": "50MiB",
-     "description": "This sets the maximum amount of bytes a broker will try to send during a fetch. Note that brokers may not obey this limit if it has records larger than this limit. Also note that this client sends a f"
+     "description": "This sets the maximum amount of bytes a broker will try to send during a fetch. Note that brokers may not obey this limit if it has records larger than this limit."
     },
     {
      "path": "fetch_max_partition_bytes",
@@ -5426,7 +5426,7 @@
      "advanced": true,
      "optional": false,
      "default": "1MiB",
-     "description": "Sets the maximum amount of bytes that will be consumed for a single partition in a fetch request. Note that if a single batch is larger than this number, that batch will still be returned so the clien"
+     "description": "Sets the maximum amount of bytes that will be consumed for a single partition in a fetch request. Note that if a single batch is larger than this number, that batch will still be returned so the client can make progress."
     },
     {
      "path": "fetch_max_wait",
@@ -5516,7 +5516,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -5526,7 +5526,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -5546,7 +5546,7 @@
      "advanced": true,
      "optional": true,
      "default": null,
-     "description": "Specify one or more methods of SASL authentication. SASL is tried in order; if the broker supports the first mechanism, all connections will use that mechanism. If the first mechanism fails, the clien"
+     "description": "Specify one or more methods of SASL authentication. SASL is tried in order; if the broker supports the first mechanism, all connections will use that mechanism."
     },
     {
      "path": "multi_header",
@@ -5566,7 +5566,7 @@
      "advanced": true,
      "optional": false,
      "default": null,
-     "description": "Allows you to configure a [batching policy](/docs/configuration/batching) that applies to individual topic partitions in order to batch messages together before flushing them for processing. Batching "
+     "description": "Allows you to configure a [batching policy](/docs/configuration/batching) that applies to individual topic partitions in order to batch messages together before flushing them for processing."
     },
     {
      "path": "rate_limit",
@@ -5586,7 +5586,7 @@
      "advanced": true,
      "optional": true,
      "default": null,
-     "description": "EXPERIMENTAL: A [Bloblang mapping](/docs/guides/bloblang/about) that attempts to extract an object containing tracing propagation information, which will then be used as the root tracing span for the "
+     "description": "EXPERIMENTAL: A [Bloblang mapping](/docs/guides/bloblang/about) that attempts to extract an object containing tracing propagation information, which will then be used as the root tracing span for the message."
     },
     {
      "path": "new_root_span_with_link",
@@ -5974,7 +5974,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "batch_size",
@@ -6191,7 +6191,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -6201,7 +6201,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -6251,7 +6251,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     }
    ]
   },
@@ -6298,7 +6298,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "sub_filters",
@@ -6365,7 +6365,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "nak_delay",
@@ -6445,7 +6445,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -6455,7 +6455,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -6525,7 +6525,7 @@
      "advanced": true,
      "optional": true,
      "default": null,
-     "description": "EXPERIMENTAL: A [Bloblang mapping](/docs/guides/bloblang/about) that attempts to extract an object containing tracing propagation information, which will then be used as the root tracing span for the "
+     "description": "EXPERIMENTAL: A [Bloblang mapping](/docs/guides/bloblang/about) that attempts to extract an object containing tracing propagation information, which will then be used as the root tracing span for the message."
     },
     {
      "path": "new_root_span_with_link",
@@ -6682,7 +6682,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -6692,7 +6692,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -6762,7 +6762,7 @@
      "advanced": true,
      "optional": true,
      "default": null,
-     "description": "EXPERIMENTAL: A [Bloblang mapping](/docs/guides/bloblang/about) that attempts to extract an object containing tracing propagation information, which will then be used as the root tracing span for the "
+     "description": "EXPERIMENTAL: A [Bloblang mapping](/docs/guides/bloblang/about) that attempts to extract an object containing tracing propagation information, which will then be used as the root tracing span for the message."
     },
     {
      "path": "new_root_span_with_link",
@@ -6819,7 +6819,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "ignore_deletes",
@@ -6899,7 +6899,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -6909,7 +6909,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -7006,7 +7006,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "tls",
@@ -7056,7 +7056,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -7066,7 +7066,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -7283,7 +7283,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -7293,7 +7293,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -7363,7 +7363,7 @@
      "advanced": true,
      "optional": true,
      "default": null,
-     "description": "EXPERIMENTAL: A [Bloblang mapping](/docs/guides/bloblang/about) that attempts to extract an object containing tracing propagation information, which will then be used as the root tracing span for the "
+     "description": "EXPERIMENTAL: A [Bloblang mapping](/docs/guides/bloblang/about) that attempts to extract an object containing tracing propagation information, which will then be used as the root tracing span for the message."
     },
     {
      "path": "new_root_span_with_link",
@@ -7450,7 +7450,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -7460,7 +7460,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -7547,7 +7547,7 @@
      "advanced": false,
      "optional": false,
      "default": null,
-     "description": "A list of file paths to read from. Each file will be read sequentially until the list is exhausted, at which point the input will close. Glob patterns are supported, including super globs (double star"
+     "description": "A list of file paths to read from. Each file will be read sequentially until the list is exhausted, at which point the input will close. Glob patterns are supported, including super globs (double star)."
     },
     {
      "path": "batch_count",
@@ -7557,7 +7557,7 @@
      "advanced": true,
      "optional": false,
      "default": 1,
-     "description": "Optionally process records in batches. This can help to speed up the consumption of exceptionally large files. When the end of the file is reached the remaining records are processed as a (potentially"
+     "description": "Optionally process records in batches. This can help to speed up the consumption of exceptionally large files. When the end of the file is reached the remaining records are processed as a (potentially smaller) batch."
     },
     {
      "path": "auto_replay_nacks",
@@ -7567,7 +7567,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     }
    ]
   },
@@ -7644,7 +7644,7 @@
      "advanced": false,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "auth",
@@ -7741,7 +7741,7 @@
   {
    "name": "read_until",
    "group": "utility",
-   "summary": "Reads messages from a child input until a consumed message passes a [Bloblang query](/docs/guides/bloblang/about/), at which point the input closes. It is also possible to configure a timeout after wh",
+   "summary": "Reads messages from a child input until a consumed message passes a [Bloblang query](/docs/guides/bloblang/about/), at which point the input closes.",
    "fields": [
     {
      "path": "input",
@@ -7898,7 +7898,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -7908,7 +7908,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -7938,7 +7938,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "max_in_flight",
@@ -7948,7 +7948,7 @@
      "advanced": true,
      "optional": false,
      "default": 0,
-     "description": "Optionally sets a limit on the number of messages that can be flowing through a Bento stream pending acknowledgment from the input at any given time. Once a message has been either acknowledged or rej"
+     "description": "Optionally sets a limit on the number of messages that can be flowing through a Bento stream pending acknowledgment from the input at any given time."
     },
     {
      "path": "timeout",
@@ -8055,7 +8055,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -8065,7 +8065,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -8105,7 +8105,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     }
    ]
   },
@@ -8192,7 +8192,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -8202,7 +8202,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -8222,7 +8222,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "match",
@@ -8319,7 +8319,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -8329,7 +8329,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -8369,7 +8369,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "limit",
@@ -8502,7 +8502,7 @@
      "advanced": true,
      "optional": false,
      "default": 0,
-     "description": "Optionally sets a limit on the number of messages that can be flowing through a Bento stream pending acknowledgment from the input at any given time. Once a message has been either acknowledged or rej"
+     "description": "Optionally sets a limit on the number of messages that can be flowing through a Bento stream pending acknowledgment from the input at any given time."
     },
     {
      "path": "update_streams_interval",
@@ -8549,7 +8549,7 @@
      "advanced": true,
      "optional": false,
      "default": null,
-     "description": "EXPERIMENTAL: Provides a way to perform outer joins of arbitrarily structured and unordered data resulting from the input sequence, even when the overall size of the data surpasses the memory availabl"
+     "description": "EXPERIMENTAL: Provides a way to perform outer joins of arbitrarily structured and unordered data resulting from the input sequence, even when the overall size of the data surpasses the memory available on the machine."
     },
     {
      "path": "sharded_join.type",
@@ -8559,7 +8559,7 @@
      "advanced": true,
      "optional": false,
      "default": "none",
-     "description": "The type of join to perform. A `full-outer` ensures that all identifiers seen in any of the input sequences are sent, and is performed by consuming all input sequences before flushing the joined resul"
+     "description": "The type of join to perform. A `full-outer` ensures that all identifiers seen in any of the input sequences are sent, and is performed by consuming all input sequences before flushing the joined results."
     },
     {
      "path": "sharded_join.id_path",
@@ -8569,7 +8569,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "A [dot path](/docs/configuration/field_paths) that points to a common field within messages of each fragmented data set and can be used to join them. Messages that are not structured or are missing th"
+     "description": "A [dot path](/docs/configuration/field_paths) that points to a common field within messages of each fragmented data set and can be used to join them. Messages that are not structured or are missing this field will be dropped."
     },
     {
      "path": "sharded_join.iterations",
@@ -8579,7 +8579,7 @@
      "advanced": true,
      "optional": false,
      "default": 1,
-     "description": "The total number of iterations (shards), increasing this number will increase the overall time taken to process the data, but reduces the memory used in the process. The real memory usage required is "
+     "description": "The total number of iterations (shards), increasing this number will increase the overall time taken to process the data, but reduces the memory used in the process."
     },
     {
      "path": "sharded_join.merge_strategy",
@@ -8589,7 +8589,7 @@
      "advanced": true,
      "optional": false,
      "default": "array",
-     "description": "The chosen strategy to use when a data join would otherwise result in a collision of field values. The strategy `array` means non-array colliding values are placed into an array and colliding arrays a"
+     "description": "The chosen strategy to use when a data join would otherwise result in a collision of field values. The strategy `array` means non-array colliding values are placed into an array and colliding arrays are merged."
     },
     {
      "path": "inputs",
@@ -8686,7 +8686,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "codec",
@@ -8696,7 +8696,7 @@
      "advanced": false,
      "optional": true,
      "default": null,
-     "description": "The way in which the bytes of a data source should be converted into discrete messages, codecs are useful for specifying how large files or continuous streams of data might be processed in small chunk"
+     "description": "The way in which the bytes of a data source should be converted into discrete messages, codecs are useful for specifying how large files or continuous streams of data might be processed in small chunks rather than loading it all in memory."
     },
     {
      "path": "max_buffer",
@@ -8718,7 +8718,7 @@
      "default": {
       "to_the_end": {}
      },
-     "description": "The [scanner](/docs/components/scanners/about) by which the stream of bytes consumed will be broken out into individual messages. Scanners are useful for processing large sources of data without holdi"
+     "description": "The [scanner](/docs/components/scanners/about) by which the stream of bytes consumed will be broken out into individual messages. Scanners are useful for processing large sources of data without holding the entirety of it within memory."
     },
     {
      "path": "delete_on_finish",
@@ -8758,7 +8758,7 @@
      "advanced": false,
      "optional": false,
      "default": "1s",
-     "description": "The minimum period of time since a file was last updated before attempting to consume it. Increasing this period decreases the likelihood that a file will be consumed whilst it is still being written "
+     "description": "The minimum period of time since a file was last updated before attempting to consume it. Increasing this period decreases the likelihood that a file will be consumed whilst it is still being written to."
     },
     {
      "path": "watcher.poll_interval",
@@ -8815,7 +8815,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "codec",
@@ -8825,7 +8825,7 @@
      "advanced": false,
      "optional": true,
      "default": null,
-     "description": "The way in which the bytes of a data source should be converted into discrete messages, codecs are useful for specifying how large files or continuous streams of data might be processed in small chunk"
+     "description": "The way in which the bytes of a data source should be converted into discrete messages, codecs are useful for specifying how large files or continuous streams of data might be processed in small chunks rather than loading it all in memory."
     },
     {
      "path": "max_buffer",
@@ -8847,7 +8847,7 @@
      "default": {
       "lines": {}
      },
-     "description": "The [scanner](/docs/components/scanners/about) by which the stream of bytes consumed will be broken out into individual messages. Scanners are useful for processing large sources of data without holdi"
+     "description": "The [scanner](/docs/components/scanners/about) by which the stream of bytes consumed will be broken out into individual messages. Scanners are useful for processing large sources of data without holding the entirety of it within memory."
     }
    ]
   },
@@ -8884,7 +8884,7 @@
      "advanced": false,
      "optional": true,
      "default": null,
-     "description": "An optional [`cache`](/docs/components/caches/about) within which this input should write it's bound address once known. The key of the cache item containing the address will be the label of the compo"
+     "description": "An optional [`cache`](/docs/components/caches/about) within which this input should write it's bound address once known. The key of the cache item containing the address will be the label of the component suffixed with `_address` (e.g."
     },
     {
      "path": "tls",
@@ -8934,7 +8934,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "codec",
@@ -8944,7 +8944,7 @@
      "advanced": false,
      "optional": true,
      "default": null,
-     "description": "The way in which the bytes of a data source should be converted into discrete messages, codecs are useful for specifying how large files or continuous streams of data might be processed in small chunk"
+     "description": "The way in which the bytes of a data source should be converted into discrete messages, codecs are useful for specifying how large files or continuous streams of data might be processed in small chunks rather than loading it all in memory."
     },
     {
      "path": "max_buffer",
@@ -8966,7 +8966,7 @@
      "default": {
       "lines": {}
      },
-     "description": "The [scanner](/docs/components/scanners/about) by which the stream of bytes consumed will be broken out into individual messages. Scanners are useful for processing large sources of data without holdi"
+     "description": "The [scanner](/docs/components/scanners/about) by which the stream of bytes consumed will be broken out into individual messages. Scanners are useful for processing large sources of data without holding the entirety of it within memory."
     }
    ]
   },
@@ -9003,7 +9003,7 @@
      "advanced": false,
      "optional": false,
      "default": null,
-     "description": "The query to execute. The style of placeholder to use depends on the driver, some drivers require question marks (`?`) whereas others expect incrementing dollar signs (`$1`, `$2`, and so on) or colons"
+     "description": "The query to execute. The style of placeholder to use depends on the driver, some drivers require question marks (`?`) whereas others expect incrementing dollar signs (`$1`, `$2`, and so on) or colons (`:1`, `:2` and so on)."
     },
     {
      "path": "args_mapping",
@@ -9023,7 +9023,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "init_files",
@@ -9083,7 +9083,7 @@
      "advanced": true,
      "optional": true,
      "default": 2,
-     "description": "An optional maximum number of connections in the idle connection pool. If conn_max_open is greater than 0 but less than the new conn_max_idle, then the new conn_max_idle will be reduced to match the c"
+     "description": "An optional maximum number of connections in the idle connection pool. If conn_max_open is greater than 0 but less than the new conn_max_idle, then the new conn_max_idle will be reduced to match the conn_max_open limit."
     },
     {
      "path": "conn_max_open",
@@ -9093,7 +9093,7 @@
      "advanced": true,
      "optional": true,
      "default": null,
-     "description": "An optional maximum number of open connections to the database. If conn_max_idle is greater than 0 and the new conn_max_open is less than conn_max_idle, then conn_max_idle will be reduced to match the"
+     "description": "An optional maximum number of open connections to the database. If conn_max_idle is greater than 0 and the new conn_max_open is less than conn_max_idle, then conn_max_idle will be reduced to match the new conn_max_open limit."
     },
     {
      "path": "secret_name",
@@ -9103,7 +9103,7 @@
      "advanced": true,
      "optional": true,
      "default": null,
-     "description": "An optional field that can be used to get the Username + Password from AWS Secrets Manager. This will overwrite the Username + Password in the DSN with the values from the Secret only if the driver is"
+     "description": "An optional field that can be used to get the Username + Password from AWS Secrets Manager. This will overwrite the Username + Password in the DSN with the values from the Secret only if the driver is set to `postgres`."
     },
     {
      "path": "iam_enabled",
@@ -9113,7 +9113,7 @@
      "advanced": true,
      "optional": true,
      "default": false,
-     "description": "An optional field used to generate an IAM authentication token to connect to an Amazon Relational Database (RDS) DB instance. This will overwrite the Password in the DSN with the generated token only "
+     "description": "An optional field used to generate an IAM authentication token to connect to an Amazon Relational Database (RDS) DB instance."
     },
     {
      "path": "azure",
@@ -9133,7 +9133,7 @@
      "advanced": true,
      "optional": true,
      "default": false,
-     "description": "An optional field used to generate an entra token to connect to 'Azure Database for PostgreSQL flexible server', This will create a new connection string with the host, user and database from the DSN "
+     "description": "An optional field used to generate an entra token to connect to 'Azure Database for PostgreSQL flexible server', This will create a new connection string with the host, user and database from the DSN field - you may need to URL encode the dsn!"
     },
     {
      "path": "azure.token_request_options",
@@ -9295,7 +9295,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "Allow the credentials to trigger refreshing prior to the credentials actually expiring. This is beneficial so race conditions with expiring credentials do not cause requests to fail. For example '10s'"
+     "description": "Allow the credentials to trigger refreshing prior to the credentials actually expiring. This is beneficial so race conditions with expiring credentials do not cause requests to fail."
     }
    ]
   },
@@ -9352,7 +9352,7 @@
      "advanced": false,
      "optional": true,
      "default": null,
-     "description": "An optional where clause to add. Placeholder arguments are populated with the `args_mapping` field. Placeholders should always be question marks, and will automatically be converted to dollar syntax w"
+     "description": "An optional where clause to add. Placeholder arguments are populated with the `args_mapping` field."
     },
     {
      "path": "args_mapping",
@@ -9392,7 +9392,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "init_files",
@@ -9452,7 +9452,7 @@
      "advanced": true,
      "optional": true,
      "default": 2,
-     "description": "An optional maximum number of connections in the idle connection pool. If conn_max_open is greater than 0 but less than the new conn_max_idle, then the new conn_max_idle will be reduced to match the c"
+     "description": "An optional maximum number of connections in the idle connection pool. If conn_max_open is greater than 0 but less than the new conn_max_idle, then the new conn_max_idle will be reduced to match the conn_max_open limit."
     },
     {
      "path": "conn_max_open",
@@ -9462,7 +9462,7 @@
      "advanced": true,
      "optional": true,
      "default": null,
-     "description": "An optional maximum number of open connections to the database. If conn_max_idle is greater than 0 and the new conn_max_open is less than conn_max_idle, then conn_max_idle will be reduced to match the"
+     "description": "An optional maximum number of open connections to the database. If conn_max_idle is greater than 0 and the new conn_max_open is less than conn_max_idle, then conn_max_idle will be reduced to match the new conn_max_open limit."
     },
     {
      "path": "secret_name",
@@ -9472,7 +9472,7 @@
      "advanced": true,
      "optional": true,
      "default": null,
-     "description": "An optional field that can be used to get the Username + Password from AWS Secrets Manager. This will overwrite the Username + Password in the DSN with the values from the Secret only if the driver is"
+     "description": "An optional field that can be used to get the Username + Password from AWS Secrets Manager. This will overwrite the Username + Password in the DSN with the values from the Secret only if the driver is set to `postgres`."
     },
     {
      "path": "iam_enabled",
@@ -9482,7 +9482,7 @@
      "advanced": true,
      "optional": true,
      "default": false,
-     "description": "An optional field used to generate an IAM authentication token to connect to an Amazon Relational Database (RDS) DB instance. This will overwrite the Password in the DSN with the generated token only "
+     "description": "An optional field used to generate an IAM authentication token to connect to an Amazon Relational Database (RDS) DB instance."
     },
     {
      "path": "azure",
@@ -9502,7 +9502,7 @@
      "advanced": true,
      "optional": true,
      "default": false,
-     "description": "An optional field used to generate an entra token to connect to 'Azure Database for PostgreSQL flexible server', This will create a new connection string with the host, user and database from the DSN "
+     "description": "An optional field used to generate an entra token to connect to 'Azure Database for PostgreSQL flexible server', This will create a new connection string with the host, user and database from the DSN field - you may need to URL encode the dsn!"
     },
     {
      "path": "azure.token_request_options",
@@ -9664,7 +9664,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "Allow the credentials to trigger refreshing prior to the credentials actually expiring. This is beneficial so race conditions with expiring credentials do not cause requests to fail. For example '10s'"
+     "description": "Allow the credentials to trigger refreshing prior to the credentials actually expiring. This is beneficial so race conditions with expiring credentials do not cause requests to fail."
     }
    ]
   },
@@ -9681,7 +9681,7 @@
      "advanced": false,
      "optional": true,
      "default": null,
-     "description": "The way in which the bytes of a data source should be converted into discrete messages, codecs are useful for specifying how large files or continuous streams of data might be processed in small chunk"
+     "description": "The way in which the bytes of a data source should be converted into discrete messages, codecs are useful for specifying how large files or continuous streams of data might be processed in small chunks rather than loading it all in memory."
     },
     {
      "path": "max_buffer",
@@ -9703,7 +9703,7 @@
      "default": {
       "lines": {}
      },
-     "description": "The [scanner](/docs/components/scanners/about) by which the stream of bytes consumed will be broken out into individual messages. Scanners are useful for processing large sources of data without holdi"
+     "description": "The [scanner](/docs/components/scanners/about) by which the stream of bytes consumed will be broken out into individual messages. Scanners are useful for processing large sources of data without holding the entirety of it within memory."
     },
     {
      "path": "auto_replay_nacks",
@@ -9713,7 +9713,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     }
    ]
   },
@@ -9797,7 +9797,7 @@
      "advanced": false,
      "optional": false,
      "default": [],
-     "description": "An optional list of additional fields to obtain for each tweet, by default only the fields `id` and `text` are returned. For more info refer to the [twitter API docs.](https://developer.twitter.com/en"
+     "description": "An optional list of additional fields to obtain for each tweet, by default only the fields `id` and `text` are returned. For more info refer to the [twitter API docs.](https://developer.twitter.com/en/docs/twitter-api/fields)"
     },
     {
      "path": "poll_period",
@@ -9807,7 +9807,7 @@
      "advanced": false,
      "optional": false,
      "default": "1m",
-     "description": "The length of time (as a duration string) to wait between each search request. This field can be set empty, in which case requests are made at the limit set by the rate limit. This field also supports"
+     "description": "The length of time (as a duration string) to wait between each search request. This field can be set empty, in which case requests are made at the limit set by the rate limit. This field also supports cron expressions."
     },
     {
      "path": "backfill_period",
@@ -9944,7 +9944,7 @@
      "advanced": false,
      "optional": false,
      "default": true,
-     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If se"
+     "description": "Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent."
     },
     {
      "path": "tls",
@@ -9994,7 +9994,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host c"
+     "description": "An optional root certificate authority to use. This is a string, representing a certificate chain from the parent trusted root certificate, to possible intermediate signing certificates, to the host certificate."
     },
     {
      "path": "tls.root_cas_file",
@@ -10004,7 +10004,7 @@
      "advanced": true,
      "optional": false,
      "default": "",
-     "description": "An optional path of a root certificate authority file to use. This is a file, often with a .pem extension, containing a certificate chain from the parent trusted root certificate, to possible intermed"
+     "description": "An optional path of a root certificate authority file to use."
     },
     {
      "path": "tls.client_certs",
@@ -10034,7 +10034,7 @@
      "advanced": true,
      "optional": true,
      "default": null,
-     "description": "An optional limit to the number of consecutive retry attempts that will be made before abandoning the connection altogether and gracefully terminating the input. When all inputs terminate in this way "
+     "description": "An optional limit to the number of consecutive retry attempts that will be made before abandoning the connection altogether and gracefully terminating the input. When all inputs terminate in this way the service (or stream) will shut down."
     },
     {
      "path": "oauth",

@@ -5,11 +5,13 @@
 //         ../../joinedcontext-platform/crates/jc-core/src/kinds/bento_inputs.rs
 // Writes the trimmed catalog the Data Sources form is generated from: per input its name,
 // the runner's one-line summary, the operator group and the field tree (path, type, kind,
-// secret, advanced, optional, default, first sentence of the description). Nested objects are walked;
+// secret, advanced, optional, default, the description's whole sentences up to HELP_CHARS). Nested
+// objects are walked;
 // arrays of objects are kept as one field the form edits as YAML.
 import { readFileSync, writeFileSync } from "node:fs";
 
 import { alsoSecret } from "./also-secret.mjs";
+import { helpText } from "./help-text.mjs";
 
 const GROUPS = {
   brokers: ["amqp_0_9", "amqp_1", "beanstalkd", "kafka", "kafka_franz", "mqtt", "nanomsg", "nats", "nats_jetstream", "nats_kv", "nats_object_store", "nats_stream", "nsq", "pulsar", "redis_list", "redis_pubsub", "redis_streams", "zmq4n"],
@@ -33,7 +35,7 @@ function fields(node, prefix = "") {
       advanced: Boolean(child.is_advanced),
       optional: Boolean(child.is_optional),
       default: child.default ?? null,
-      description: (child.description ?? "").split("\n")[0].slice(0, 200),
+      description: helpText(child.description),
     });
     if (child.type === "object" && child.kind === "scalar") {
       out.push(...fields(child, path));
@@ -54,7 +56,7 @@ const catalog = listing.inputs
   .map((input) => ({
     name: input.name,
     group: groupOf.get(input.name) ?? "utility",
-    summary: (input.summary ?? "").split("\n")[0].slice(0, 200),
+    summary: helpText(input.summary),
     fields: fields(input.config),
   }))
   .sort((a, b) => a.name.localeCompare(b.name));

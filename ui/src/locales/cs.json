@@ -99,7 +99,8 @@
     "mcp": "MCP servery",
     "home": "Domů",
     "inbox": "Doručené",
-    "mqttbrokers": "MQTT brokery"
+    "mqttbrokers": "MQTT brokery",
+    "csrs": "Kontextové zdroje"
   },
   "auth": {
     "lead": "Přihlaste se účtem své organizace a spravujte tuto platformu.",
@@ -195,7 +196,9 @@
     "missing": "{field} je povinné",
     "mapKey": "Klíč",
     "mapLanguage": "Jazyk",
-    "mapAddLanguage": "Přidat jazyk"
+    "mapAddLanguage": "Přidat jazyk",
+    "advancedFields": "Rozšířené",
+    "advancedFieldsHint": "Nastavení spouštěče, která většina zdrojů nechává výchozí."
   },
   "approvals": {
     "lead": "Každá změna projektu je zde návrhem, dokud ji schvalovatel nesloučí.",
@@ -516,6 +519,8 @@
       "open": "Prohlédnout obsah",
       "data": "Data",
       "dataEmpty": "Zatím nic: do tohoto prostoru ještě nezapsala žádná pipeline.",
+      "addRow": "Přidat řádek",
+      "addRowTitle": "Nový záznam: {type}",
       "dataThroughEndpoints": "Tento prostor můžete vidět přes jeho endpointy:",
       "dataNoTypes": "Tento prostor nepojmenovává datový model, takže není co číst.",
       "back": "← Kontextové prostory",
@@ -1738,6 +1743,18 @@
         "ckanDataset": "Tohle je stránka datasetu, ne soubor. Otevřete na ní zdroj CSV nebo JSON a zkopírujte jeho adresu ke stažení.",
         "layer": "Zadejte vrstvu ke čtení, nebo adresu souboru GeoJSON."
       }
+    },
+    "test": {
+      "title": "Otestovat připojení",
+      "hint": "Načte uložený zdroj jednou na spouštěči projektu, nejvýše tři sekundy, a ukáže první záznam. Nic se nezapíše; přístupový údaj zůstává v úložišti tajemství.",
+      "button": "Otestovat připojení",
+      "running": "Testuje se…",
+      "read": "Připojeno: {records, plural, one {načten # záznam} few {načteny # záznamy} other {načteno # záznamů}} ({bytes} bajtů). První z nich:",
+      "failed": "Nic se nenačetlo: {reason}. Zkontrolujte adresu a přihlašovací údaje a otestujte znovu."
+    },
+    "usedBy": {
+      "title": "Používají ho",
+      "none": "Tento zdroj zatím nečte žádná pipeline."
     }
   },
   "pipelines": {
@@ -4105,6 +4122,12 @@
     },
     "openRow": "Otevřít",
     "rowDetail": "Podrobnosti",
+    "rowFields": "Pole",
+    "historyVersions": "Každá verze, kdo ji změnil a proč",
+    "historyVersionsRefused": "Vaše role v tomto prostoru nesmí číst starší verze.",
+    "historySuperseded": "Nahrazeno",
+    "historyChangedBy": "Změnil",
+    "historyReason": "Důvod",
     "pasted": "buněk vloženo",
     "skipped": "vynecháno (nelze upravit, mimo stránku nebo není v seznamu hodnot)",
     "pasteTooLarge": "Zkopírovaný rozsah je na jedno vložení příliš velký; vložte menší rozsah nebo řádky importujte ze souboru.",
@@ -5393,6 +5416,22 @@
       "serviceAccount": "Servisní účet",
       "interval": "Interval zrcadlení schémat",
       "expiresAt": "Platí do"
+    },
+    "page": {
+      "back": "Zpět na kontextové zdroje",
+      "edit": "Upravit",
+      "state": "Stav",
+      "lastErrorLabel": "Poslední chyba",
+      "none": "Žádná",
+      "types": "Typy entit",
+      "ids": "Entity",
+      "allIds": "Každá entita těchto typů",
+      "attributes": "Atributy",
+      "allAttributes": "Všechny atributy",
+      "operations": "Přeposílané operace",
+      "defaultOperations": "Výchozí pro režim brokera",
+      "mode": "Režim",
+      "expires": "Platnost do"
     }
   },
   "organization": {

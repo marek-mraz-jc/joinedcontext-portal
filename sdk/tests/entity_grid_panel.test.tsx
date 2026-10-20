@@ -49,7 +49,7 @@ describe("a grid row opened inside and outside an App's shell", () => {
   it("opens its own row detail where no shell holds a panel", async () => {
     render(<EntityGrid config={config} source={fixtureSource(stations)} />);
     fireEvent.click(await screen.findByRole("button", { name: /Kamppi/ }));
-    // The grid's own detail: a complementary region headed by the row's name.
-    await waitFor(() => expect(screen.getByRole("complementary", { name: /Kamppi/ })).toBeInTheDocument());
+    // The grid's own detail: a modal dialog headed by the row's name.
+    await waitFor(() => expect(screen.getByRole("dialog", { name: /Kamppi/ })).toBeInTheDocument());
   });
 });

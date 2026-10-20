@@ -96,6 +96,7 @@ const sk: Strings = {
   grid: {
     openRow: "Otvoriť",
     rowDetail: "Podrobnosti",
+    rowFields: "Polia",
     close: "Zavrieť",
     id: "Identifikátor",
     type: "Typ",
@@ -236,6 +237,7 @@ const en: Strings = {
   grid: {
     openRow: "Open",
     rowDetail: "Details",
+    rowFields: "Fields",
     close: "Close",
     id: "Identifier",
     type: "Type",

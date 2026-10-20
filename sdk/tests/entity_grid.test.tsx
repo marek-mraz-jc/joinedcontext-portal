@@ -241,7 +241,7 @@ describe("EntityGrid", () => {
     await screen.findByText("Kamppi");
 
     fireEvent.click(screen.getByRole("button", { name: "Open: Kamppi" }));
-    const panel = screen.getByRole("complementary", { name: "Details: Kamppi" });
+    const panel = screen.getByRole("dialog", { name: "Details: Kamppi" });
     expect(screen.getByRole("heading", { name: "Details: Kamppi" })).toHaveFocus();
     // The grid's columns, then what the entity carries beyond them.
     const terms = Array.from(panel.querySelectorAll("dt")).map((dt) => dt.textContent);
@@ -249,10 +249,10 @@ describe("EntityGrid", () => {
 
     const bikes = panel.querySelector<HTMLInputElement>("dd input")!;
     fireEvent.change(bikes, { target: { value: "7" } });
-    expect(screen.getByText("1 not applied yet")).toBeInTheDocument();
+    expect(within(panel).getByText("1 not applied yet")).toBeInTheDocument();
 
     fireEvent.keyDown(screen.getByRole("heading", { name: "Details: Kamppi" }), { key: "Escape" });
-    expect(screen.queryByRole("complementary")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("grid")).toHaveFocus();
   });
 
@@ -305,7 +305,7 @@ describe("EntityGrid", () => {
     await screen.findByText("Kamppi");
     expect(screen.queryByText(/^notes on/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Open: Kamppi" }));
-    const panel = screen.getByRole("complementary", { name: "Details: Kamppi" });
+    const panel = screen.getByRole("dialog", { name: "Details: Kamppi" });
     expect(panel).toHaveTextContent(/notes on urn:ngsi-ld:BikeHireDockingStation:/);
   });
 
@@ -334,7 +334,7 @@ describe("EntityGrid", () => {
     expect(open.closest("td")).toHaveClass("jc-grid-pinned");
 
     fireEvent.click(open);
-    const panel = screen.getByRole("complementary", { name: "Details: Kamppi" });
+    const panel = screen.getByRole("dialog", { name: "Details: Kamppi" });
     expect(within(panel).getByText("urn:ngsi-ld:BikeHireDockingStation:hel:helsinki:001")).toBeInTheDocument();
     expect(within(panel).queryByRole("button", { name: /^Open/ })).toBeNull();
     expect(within(panel).getAllByRole("textbox").length).toBeGreaterThan(0);

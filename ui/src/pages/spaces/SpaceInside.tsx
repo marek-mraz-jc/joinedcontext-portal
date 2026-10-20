@@ -83,6 +83,7 @@ import {
   Alert,
   Badge,
   Button,
+  Dialog,
   EmptyState,
   Icon,
   PageFailed,
@@ -99,7 +100,7 @@ import {
   Term,
 } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
-import { useUrlParam } from "../../navigation/urlState";
+import { useUrlParam, useUrlUrn } from "../../navigation/urlState";
 
 const SAMPLE_LIMIT = 3;
 
@@ -352,6 +353,10 @@ function SpaceData({
   const { t, i18n } = useTranslation();
   // The type is in the address like the view, so back, reload and a sent link open it (T-4825).
   const [type, setType] = useUrlParam<string>("type", types[0] ?? "", types);
+  // The open row is in the address too, so a link opens it in its dialog (T-4828).
+  const [openRow, setOpenRow] = useUrlUrn("row");
+  // "+ Row": the type's form in a dialog, creating through the space surface (T-4828).
+  const [creating, setCreating] = useState(false);
   // The type's alerts are being chosen (T-3261).
   const [alertingType, setAlertingType] = useState(false);
   const modelSource = useModelSource(project, model);
@@ -649,6 +654,29 @@ function SpaceData({
       ) : null}
       {probe.isSuccess && view !== "api" ? (
         <div className="flex flex-wrap items-end gap-3">
+          {view === "grid" && typeSlots.length > 0 ? (
+            // The same right as Import beside it; the space's Policy decides the write itself.
+            <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+              <Button onClick={() => setCreating(true)}>{t("spaces.inside.addRow")}</Button>
+            </PermissionGuard>
+          ) : null}
+          <Dialog
+            open={creating}
+            onOpenChange={setCreating}
+            title={t("spaces.inside.addRowTitle", { type: typeTitle })}
+            closeLabel={t("app.close")}
+            size="lg"
+          >
+            <FormView
+              space={space}
+              type={type}
+              slots={typeSlots}
+              enums={enums}
+              settings={formSettings}
+              search={new URLSearchParams()}
+              onCreated={() => setImported((n) => n + 1)}
+            />
+          </Dialog>
           {importSlots.length > 0 ? (
             // The same right as the upload link above: the space has no grant document of its own (T-4263).
             <PermissionGuard project={project} kind="ContextSpace" verb="propose">
@@ -781,7 +809,11 @@ function SpaceData({
           // A new key after an import, or a view applied, reads the type again: nothing typed under
           // the last one carries over.
           key={`${space}-${type}-${saved?.id ?? ""}-${imported}`}
-          detailExtra={(row) => <CommentsPanel project={project} space={space} urn={row.id} />}
+          detailTabs={(row) => [
+            { id: "comments", label: t("spaces.comments.title"), content: <CommentsPanel project={project} space={space} urn={row.id} /> },
+          ]}
+          openRow={openRow}
+          onOpenRow={setOpenRow}
           project={project}
           config={config}
           source={gridSource}
