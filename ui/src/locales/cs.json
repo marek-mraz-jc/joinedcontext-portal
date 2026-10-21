@@ -472,6 +472,7 @@
     "lead": "Úprava se navrhne jako změna; schvalovatel ji posoudí dřív, než se cokoli změní.",
     "propose": "Navrhnout změnu",
     "renamed": "Ponechte název {name}; jiný název by byl nový zdroj.",
+    "parseError": "Řádek {line}: {reason}. Opravte YAML, abyste mohli navrhnout změnu.",
     "button": "Upravit",
     "action": "Upravit {name}",
     "loading": "Načítá se {name}…",

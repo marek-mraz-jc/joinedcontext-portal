@@ -1436,6 +1436,59 @@
         }
       }
     },
+    "/api/v1/kinds/{kind}/schema": {
+      "get": {
+        "tags": [
+          "forms"
+        ],
+        "summary": "Get Kind Schema",
+        "description": "The draft-07 JSON Schema of a manifest kind, as jc-core exports it (MF-09). Any signed-in caller may read it; it describes fields, never data. An unknown kind is 404.",
+        "operationId": "kind_schema",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "description": "The manifest kind, e.g. `Policy`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The kind's JSON Schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such kind",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/mcp": {
       "post": {
         "tags": [

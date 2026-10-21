@@ -472,6 +472,7 @@
     "lead": "Your edit is proposed as a change; an approver reviews it before anything changes.",
     "propose": "Propose change",
     "renamed": "Keep the name {name}; a different name would be a new resource.",
+    "parseError": "Line {line}: {reason}. Fix the YAML to propose the change.",
     "button": "Edit",
     "action": "Edit {name}",
     "loading": "Reading {name}…",
