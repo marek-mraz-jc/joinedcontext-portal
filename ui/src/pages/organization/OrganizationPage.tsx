@@ -50,17 +50,8 @@ import { ORGANIZATION_GROUPS } from "./AdminNav";
 const Agents = lazy(() => import("./Agents").then((module) => ({ default: module.Agents })));
 import type { OrganizationTab } from "./AdminNav";
 
-/**
- * The sections of `/organization/{tab}`, in the order of the side navigation's groups
- * (Architecture/09 §14.1, T-4831).
- */
-export const ORGANIZATION_TABS: readonly OrganizationTab[] = ORGANIZATION_GROUPS.flatMap((group) => group.tabs);
-
 export type { OrganizationTab };
-
-export function isOrganizationTab(value: string): value is OrganizationTab {
-  return (ORGANIZATION_TABS as readonly string[]).includes(value);
-}
+export { isOrganizationTab, ORGANIZATION_TABS } from "./AdminNav";
 
 /**
  * Organization → Members (PF-59, T-2605): the bindings at organization scope, shown only to a

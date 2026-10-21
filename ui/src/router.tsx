@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect } from "react";
+import { keepCopy } from "./components/layout/keepCopy";
 import {
   createRootRouteWithContext,
   createRoute,
@@ -62,6 +63,7 @@ const AppPage = lazy(() => import("./pages/apps/AppPage").then((module) => ({ de
 const AppOpenPage = lazy(() => import("./pages/apps/AppOpenPage").then((module) => ({ default: module.AppOpenPage })));
 const GroupPage = lazy(() => import("./pages/access/GroupPage").then((module) => ({ default: module.GroupPage })));
 const AgentPage = lazy(() => import("./pages/organization/Agents").then((module) => ({ default: module.AgentPage })));
+const OrganizationPage = lazy(() => import("./pages/organization/OrganizationPage").then((module) => ({ default: module.OrganizationPage })));
 const PersonPage = lazy(() => import("./pages/organization/People").then((module) => ({ default: module.PersonPage })));
 const EndpointPage = lazy(() => import("./pages/endpoints/EndpointPage").then((module) => ({ default: module.EndpointPage })));
 const RegistrationPage = lazy(() => import("./routes/RegistrationPage").then((module) => ({ default: module.RegistrationPage })));
@@ -79,9 +81,8 @@ const BringBackPage = lazy(() => import("./pages/workspaces/BringBackPage").then
 const TryItPage = lazy(() => import("./pages/workspaces/TryItPage").then((module) => ({ default: module.TryItPage })));
 const Gallery = lazy(() => import("./pages/gallery/Gallery").then((module) => ({ default: module.Gallery })));
 import { ORG_NAMESPACE } from "./api/manifest";
-import { isOrganizationTab, OrganizationPage } from "./pages/organization/OrganizationPage";
-import type { OrganizationTab } from "./pages/organization/OrganizationPage";
-import { AdminNav } from "./pages/organization/AdminNav";
+import { AdminNav, isOrganizationTab } from "./pages/organization/AdminNav";
+import type { OrganizationTab } from "./pages/organization/AdminNav";
 import { isProjectSettingsTab } from "./pages/projectSettings/tabs";
 import type { ProjectSettingsTab } from "./pages/projectSettings/tabs";
 import type { AuthState } from "./auth/AuthProvider";
@@ -391,6 +392,8 @@ const protectedRoute = createRoute({
     workspace:
       typeof search.workspace === "string" && search.workspace !== "" ? search.workspace : undefined,
   }),
+  // And every link below keeps it, until Leave or another project says otherwise (T-4868).
+  search: { middlewares: [keepCopy] },
   component: function ProtectedRoute() {
     return (
       <WorkspaceProvider>

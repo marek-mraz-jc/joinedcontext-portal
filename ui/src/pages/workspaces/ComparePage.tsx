@@ -17,10 +17,15 @@ function operationOrder(op: string): number {
   return OPERATION_ORDER.indexOf(op as (typeof OPERATION_ORDER)[number]);
 }
 
+/**
+ * The resource a file holds, by its name: `projects/{project}/{plural}/{name}.yaml`, or
+ * `projects/{project}/{plural}/{name}/pipeline.yaml` for a kind kept in a folder of its own, which
+ * read as "pipeline" for every pipeline (T-4868).
+ */
 function fileName(path: string): string {
   const segments = path.split("/");
-  const last = segments[segments.length - 1] ?? path;
-  return last.replace(/\.yaml$/, "");
+  const name = segments[0] === "projects" && segments.length > 4 ? segments[3] : segments[segments.length - 1];
+  return (name ?? path).replace(/\.ya?ml$/, "");
 }
 
 /** The list of files from a comparison, grouped by kind and ordered by operation. */
@@ -146,6 +151,19 @@ export function ComparePage({
       title={t("workspaces.compare.titleOf", { name })}
       description={
         comparison ? t("workspaces.compare.summary", { added, changed, removed }) : undefined
+      }
+      actions={
+        // The next step after reading what the copy changes (T-4868): it was only in the copy's
+        // bar, which a person reading this page had left behind.
+        files.length > 0 ? (
+          <Link
+            to="/projects/$project/workspaces/$name/bring-back"
+            params={{ project, name }}
+            className={buttonClass("primary", "md")}
+          >
+            {t("workspaces.bar.bringBack")}
+          </Link>
+        ) : undefined
       }
     />
   );
