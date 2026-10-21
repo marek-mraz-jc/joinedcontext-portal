@@ -954,11 +954,14 @@ fn administrators(
 /// `Role` (on the organization), `RoleBinding` (on its scope) or `ServiceAccount` (through each of
 /// its roles the organization defines, on that role's scope) would grant must be one `identity`
 /// holds there, under no constraint the new rule drops. `who` is "proposer" or "approver"; any
-/// other kind and the bootstrap group pass.
+/// other kind and the bootstrap group pass. `before` is the manifest the change replaces: a
+/// ServiceAccount whose grants are all among its grants there only takes access away, which the
+/// kind's own `propose`/`approve` already decides (T-5016).
 pub fn within_own_rights(
     state: &AppState,
     identity: &Identity,
     manifest: &Value,
+    before: Option<&Value>,
     who: &str,
 ) -> Result<(), ApiError> {
     let mirror = &state.mirror;
@@ -1012,7 +1015,8 @@ pub fn within_own_rights(
                 let account: ServiceAccountSpec =
                     serde_json::from_value(spec).map_err(unreadable)?;
                 let mut grants = Vec::new();
-                for granted in &account.roles {
+                let narrows = before.is_some_and(|before| only_drops_grants(before, &account));
+                for granted in account.roles.iter().filter(|_| !narrows) {
                     let target = Reach::of(&granted.scope).ok_or_else(no_scope)?;
                     if let Some(rules) = rules_at(&granted.role, &target) {
                         grants.push((rules, target));
@@ -1057,6 +1061,24 @@ pub fn within_own_rights(
         "a {noun} may not grant more than its {who} holds: missing {} (PF-52)",
         missing.join(", ")
     )))
+}
+
+/// Whether every grant of `head` is one `before` held, each matched once and compared whole, so a
+/// widened grant (a wider scope, more types or operations, a longer window) counts as new.
+fn only_drops_grants(before: &Value, head: &ServiceAccountSpec) -> bool {
+    let Some(mut held) = before
+        .get("spec")
+        .and_then(|spec| serde_json::from_value::<ServiceAccountSpec>(spec.clone()).ok())
+        .map(|spec| spec.roles)
+    else {
+        return false;
+    };
+    head.roles.iter().all(|grant| {
+        held.iter()
+            .position(|kept| kept == grant)
+            .map(|at| held.remove(at))
+            .is_some()
+    })
 }
 
 fn in_group(identity: &Identity, group: &str) -> bool {
@@ -1268,6 +1290,48 @@ mod tests {
             spec,
             status: None,
         }
+    }
+
+    #[test]
+    fn only_a_subset_of_the_grants_held_before_drops_grants() {
+        let grant = |project: &str| serde_json::json!({ "role": "editor", "scope": { "project": project } });
+        let account = |roles: Value| {
+            serde_json::json!({ "spec": { "owner": { "user": "jana@hel.fi" }, "purpose": "ci",
+                                          "roles": roles, "credentials": [] } })
+        };
+        let spec = |roles: Value| -> ServiceAccountSpec {
+            serde_json::from_value(account(roles)["spec"].clone()).expect("spec")
+        };
+        let before = account(serde_json::json!([grant("a"), grant("b")]));
+        assert!(only_drops_grants(
+            &before,
+            &spec(serde_json::json!([grant("b")]))
+        ));
+        assert!(only_drops_grants(
+            &before,
+            &spec(serde_json::json!([grant("a"), grant("b")]))
+        ));
+        // A grant held once cannot be counted twice, a new scope is new, a widened grant is new.
+        assert!(!only_drops_grants(
+            &before,
+            &spec(serde_json::json!([grant("a"), grant("a")]))
+        ));
+        assert!(!only_drops_grants(
+            &before,
+            &spec(serde_json::json!([grant("c")]))
+        ));
+        let mut wider = grant("a");
+        wider["types"] = serde_json::json!(["Vehicle"]);
+        let typed = account(serde_json::json!([wider]));
+        assert!(!only_drops_grants(
+            &typed,
+            &spec(serde_json::json!([grant("a")]))
+        ));
+        // Nothing to compare with measures every grant.
+        assert!(!only_drops_grants(
+            &Value::Null,
+            &spec(serde_json::json!([grant("a")]))
+        ));
     }
 
     #[test]

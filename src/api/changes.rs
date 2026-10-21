@@ -1728,7 +1728,19 @@ async fn approve_every_file(
             continue;
         }
         if access {
-            crate::permissions::within_own_rights(state, identity, &manifest, "approver")?;
+            let replaced = state
+                .mirror
+                .get(namespace, &envelope.kind, &envelope.metadata.name)
+                .map(serde_json::to_value)
+                .transpose()
+                .map_err(|e| ApiError::Internal(e.to_string()))?;
+            crate::permissions::within_own_rights(
+                state,
+                identity,
+                &manifest,
+                replaced.as_ref(),
+                "approver",
+            )?;
         }
         // The approver reads every source and may write every target too (PL-94).
         crate::pipeline_rights::check(
@@ -1870,7 +1882,19 @@ pub async fn approve_change_for(
             (_, Some(head)) => {
                 let manifest =
                     serde_json::to_value(head).map_err(|e| ApiError::Internal(e.to_string()))?;
-                crate::permissions::within_own_rights(state, identity, &manifest, "approver")?;
+                let base = data
+                    .base_envelope
+                    .as_ref()
+                    .map(serde_json::to_value)
+                    .transpose()
+                    .map_err(|e| ApiError::Internal(e.to_string()))?;
+                crate::permissions::within_own_rights(
+                    state,
+                    identity,
+                    &manifest,
+                    base.as_ref(),
+                    "approver",
+                )?;
             }
             (_, None) => {}
         }
