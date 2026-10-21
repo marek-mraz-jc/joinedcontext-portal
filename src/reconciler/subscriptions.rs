@@ -363,7 +363,9 @@ impl SubscriptionSync {
             tracing::debug!(%space, %id, status = %response.status(), "deliveries not read");
             return None;
         }
-        let stored: Value = response.json().await.ok()?;
+        let stored: Value = crate::capped::json(response, crate::capped::ANSWER_BYTES)
+            .await
+            .ok()?;
         stored
             .get("notification")
             .map(Deliveries::from_notification)
@@ -392,7 +394,9 @@ impl SubscriptionSync {
 /// error page is not, and neither belongs in a status field whole.
 async fn refusal(what: &str, response: reqwest::Response) -> String {
     let status = response.status();
-    let body = response.text().await.unwrap_or_default();
+    let body = crate::capped::text(response, crate::capped::ANSWER_BYTES)
+        .await
+        .unwrap_or_default();
     // A problem document says it in `detail` (or `title`): that sentence, not its JSON (T-4866).
     let sentence = serde_json::from_str::<Value>(&body)
         .ok()
