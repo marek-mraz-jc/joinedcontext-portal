@@ -140,3 +140,32 @@ export function matchOperationsPreset(operations: readonly string[] | undefined)
     null
   );
 }
+
+/**
+ * The preset a role reads as on a list, from its shape alone (T-4990): a list does not know what
+ * its author could offer, so `matchRolePreset` cannot answer there. The shape is the preset's
+ * verbs, each rule's kinds inside what the preset allows; anything else is a role written by hand.
+ */
+export function presetOfRules(rules: { kinds?: string[]; verbs?: string[] }[] | undefined): AccessPreset | null {
+  if (!rules || rules.length === 0) return null;
+  if (rules.some((rule) => Object.keys(rule).some((name) => name !== "kinds" && name !== "verbs"))) {
+    return null;
+  }
+  const verbs = (rule: { verbs?: string[] }) => [...(rule.verbs ?? [])].sort().join(",");
+  const reads = rules.filter((rule) => verbs(rule) === "read");
+  const rest = rules.filter((rule) => verbs(rule) !== "read");
+  if (reads.length !== 1 || (reads[0].kinds ?? []).length === 0) return null;
+  if (rest.length === 0) return "reader";
+  if (rest.length !== 1) return null;
+  const kinds = rest[0].kinds ?? [];
+  if (kinds.length === 0) return null;
+  const within = (allowed: readonly string[]) => kinds.every((kind) => allowed.includes(kind));
+  if (verbs(rest[0]) === "propose") {
+    if (kinds.length === 1 && kinds[0] === "Entity") return "writer";
+    return within(PIPELINE_KINDS) ? "pipelineWriter" : null;
+  }
+  if (verbs(rest[0]) === "approve,propose") {
+    return kinds.some((kind) => (ACCESS_KINDS as readonly string[]).includes(kind)) ? null : "steward";
+  }
+  return null;
+}

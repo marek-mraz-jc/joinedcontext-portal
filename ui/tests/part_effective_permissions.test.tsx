@@ -128,11 +128,14 @@ describe("the access matrix against the UI contract", () => {
     const row = await rowOf("AirQualityObserved");
 
     const [, read, write] = Array.from(row.querySelectorAll("th, td"));
-    expect(within(read as HTMLElement).getByText("queryEntity")).toBeInTheDocument();
-    // The column is headed "Write", and the operation is spelled out inside it: the warning
+    // By area in words (T-4990), the operation names behind each area for a screen reader.
+    expect(within(read as HTMLElement).getByText(i18n.t("access.words.area.read"))).toBeInTheDocument();
+    expect(within(read as HTMLElement).getByText(/queryEntity/)).toBeInTheDocument();
+    // The column is headed "Write", and the area is spelled out inside it: the warning
     // tone of the chip adds to that, it never carries it alone.
-    expect(within(write as HTMLElement).getByText("updateAttrs")).toBeInTheDocument();
-    expect(within(read as HTMLElement).queryByText("updateAttrs")).toBeNull();
+    expect(within(write as HTMLElement).getByText(i18n.t("access.words.area.change"))).toBeInTheDocument();
+    expect(within(write as HTMLElement).getByText(/updateAttrs/)).toBeInTheDocument();
+    expect(within(read as HTMLElement).queryByText(/updateAttrs/)).toBeNull();
     const header = screen.getAllByRole("columnheader").map((cell) => cell.textContent);
     expect(header).toContain(i18n.t("access.matrix.write"));
   });
@@ -215,7 +218,9 @@ describe("the access matrix against the UI contract", () => {
       expect(list.className).not.toContain("whitespace-nowrap");
     }
     expect(row.querySelectorAll(".truncate, .overflow-hidden")).toHaveLength(0);
-    expect(within(row).getAllByText(/Entity|Attrs/).length).toBeGreaterThan(4);
+    // Six operations read as three areas, each with its names for a screen reader.
+    expect(within(row).getAllByText(/Entity|Attrs/).length).toBe(3);
+    expect(within(row).getByText(i18n.t("access.words.area.delete"))).toBeInTheDocument();
   });
 
   it("says a row with no write, and one with no constraint, in words", async () => {

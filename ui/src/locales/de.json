@@ -3181,7 +3181,8 @@
       "grantIn": "{role} in {where}",
       "grantOrg": "{role} in der ganzen Organisation",
       "emptyHint": "Ein Dienstkonto ist der Weg, auf dem ein Programm außerhalb des Portals dieses Projekt liest oder schreibt: ein Skript, eine Pipeline anderswo, eine andere Plattform. Jedes meldet sich mit einem eigenen Keycloak-Client an und hat nur die Rolle, die Sie ihm geben.",
-      "emptyOrganization": "Die Organisation hat kein eigenes Dienstkonto. Die Dienstkonten eines Projekts stehen in seinen Einstellungen und unter Agenten."
+      "emptyOrganization": "Die Organisation hat kein eigenes Dienstkonto. Die Dienstkonten eines Projekts stehen in seinen Einstellungen und unter Agenten.",
+      "emptyHintOrganization": "Ein Dienstkonto der Organisation ist der Weg, auf dem ein Programm außerhalb des Portals über ihre Projekte hinweg liest oder schreibt: ein Skript, eine Pipeline anderswo, eine andere Plattform. Jedes meldet sich mit einem eigenen Keycloak-Client an und hat nur die Rolle, die Sie ihm geben."
     },
     "matrix": {
       "title": "Datenzugriff",
@@ -3264,7 +3265,13 @@
       "checked": "Zuletzt geprüft {when}.",
       "publish": "Veröffentlichen Sie diesen TXT-Eintrag im DNS der Domain:",
       "copy": "Eintrag kopieren",
-      "copied": "Eintrag kopiert"
+      "copied": "Eintrag kopiert",
+      "steps": {
+        "title": "Die Domain in drei Schritten verifizieren",
+        "wait": "Warten Sie, bis der Eintrag im DNS sichtbar ist; das dauert meist wenige Minuten, höchstens einen Tag.",
+        "check": "Das Portal prüft den Eintrag bei der nächsten Synchronisation erneut und markiert die Domain als verifiziert.",
+        "lastCheck": "Letzte Prüfung: {reason}"
+      }
     },
     "groupPage": {
       "lead": "Wer in dieser Gruppe ist und was die Gruppe darf.",
@@ -3420,6 +3427,33 @@
         "starts": "{grant} beginnt {when}",
         "noGrant": "Keine Berechtigung nennt es"
       }
+    },
+    "words": {
+      "verb": {
+        "read": "Lesen",
+        "propose": "Vorschlagen",
+        "approve": "Genehmigen",
+        "delete": "Löschen",
+        "create": "Anlegen",
+        "update": "Ändern",
+        "disable": "Abschalten"
+      },
+      "area": {
+        "read": "Entitäten lesen",
+        "history": "Verlauf lesen",
+        "subscribe": "Abonnements verwalten",
+        "create": "Entitäten anlegen",
+        "change": "Entitäten ändern",
+        "delete": "Entitäten löschen",
+        "registrations": "Registrierungen verwalten",
+        "federate": "Föderieren"
+      },
+      "kinds": "{count, plural, one {# Art} other {# Arten}}",
+      "everyKind": "jede Art",
+      "noKind": "noch keine Art",
+      "nothing": "Noch nichts gewährt",
+      "endpointRole": "Jeder Aufrufer des Endpoints {endpoint}",
+      "endpointTier": "App-Rolle {tier} auf dem Endpoint {endpoint}"
     }
   },
   "flows": {
