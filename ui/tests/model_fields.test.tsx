@@ -97,6 +97,16 @@ describe("the Fields tab of a model's page", () => {
     expect(screen.getByText(/Facts from the space ilma/)).toBeInTheDocument();
   });
 
+  it("names the rules the daily run found broken on a field", async () => {
+    const broken = { ...REPORT, invalid: 3, rules: [{ rule: "MaxInclusive", path: "pm10", count: 3, examples: [] }] };
+    await renderRoute({ path: "/projects/helsinki/models/air?tab=fields", answer: answer(jsonResponse(broken)) });
+    const table = await screen.findByRole("table", { name: en.models.fields.caption.replace("{type}", "AirQualityObserved") });
+    const pm10 = within(table).getByText("pm10").closest("tr") as HTMLElement;
+    expect(await within(pm10).findByText("3 entities break MaxInclusive")).toBeInTheDocument();
+    const level = within(table).getByText("level").closest("tr") as HTMLElement;
+    expect(level).not.toHaveTextContent("break");
+  });
+
   it("says when the daily run has not read the space yet", async () => {
     await renderRoute({ path: "/projects/helsinki/models/air?tab=fields", answer: answer(null) });
     expect(await screen.findByText(en.models.fields.notYet.replace("{space}", "ilma"))).toBeInTheDocument();

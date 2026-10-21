@@ -84,6 +84,8 @@ export function ModelFields({ project, model, space }: { project: string; model:
     if (own === undefined || own.count === 0) return t("models.fields.noEntities");
     const attribute = own.attributes.find((one) => one.name === name);
     const share = (attribute?.present ?? 0) / own.count;
+    // The rules the run found broken on this field, e.g. MinInclusive on pm10.
+    const broken = report.rules.filter((rule) => rule.path === name);
     return (
       <span className="flex flex-col gap-0.5">
         <span>
@@ -95,6 +97,14 @@ export function ModelFields({ project, model, space }: { project: string; model:
         {attribute?.min !== undefined && attribute.min !== null && attribute.max !== undefined && attribute.max !== null ? (
           <span className="text-caption text-fg-muted">
             {t("models.fields.seenRange", { min: number.format(attribute.min), max: number.format(attribute.max) })}
+          </span>
+        ) : null}
+        {broken.length > 0 ? (
+          <span className="text-caption text-danger">
+            {t("models.fields.broken", {
+              count: broken.reduce((sum, rule) => sum + rule.count, 0),
+              rules: broken.map((rule) => rule.rule).join(", "),
+            })}
           </span>
         ) : null}
       </span>

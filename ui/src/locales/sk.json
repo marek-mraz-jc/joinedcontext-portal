@@ -4029,6 +4029,7 @@
       "anyValue": "Akákoľvek hodnota typu",
       "noEntities": "Zatiaľ žiadna entita tohto typu",
       "seenRange": "videné {min} – {max}",
+      "broken": "{count, plural, one {# entita porušuje} few {# entity porušujú} other {# entít porušuje}} {rules}",
       "queryAction": "Dopytovať",
       "queryLabel": "Otvoriť Prieskum na entitách {type}, ktoré majú {field}"
     }
@@ -8493,7 +8494,8 @@
     "event": {
       "failure": "zlyhá",
       "stale": "jej údaje zastarajú",
-      "zero": "nič nezapíše"
+      "zero": "nič nezapíše",
+      "invalid": "jeho dáta porušia pravidlo modelu, ktoré deň predtým neporušili"
     },
     "delivery": "Ako",
     "portal": "V Portáli, hneď",

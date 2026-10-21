@@ -4365,7 +4365,7 @@ export interface components {
         /** @enum {string} */
         AlertDelivery: "portal" | "digest";
         /** @enum {string} */
-        AlertEvent: "failure" | "stale" | "zero";
+        AlertEvent: "failure" | "stale" | "zero" | "invalid";
         /** @enum {string} */
         AlertKind: "refusalSpike" | "spendShare" | "offHoursWrite";
         /** @description How long a subscription stays muted, or `null` to unmute. */

@@ -1,6 +1,6 @@
 /**
- * "Alert me" on a pipeline or a space (API/01 §37, PL-71, T-3261): which of failure, stale data and
- * zero output to be told about, now or as a daily digest, muted for a while or stopped. E-mail is
+ * "Alert me" on a pipeline or a space (API/01 §37, PL-71, T-3261): which of failure, stale data,
+ * zero output and a newly broken model rule (T-5066) to be told about, now or as a daily digest, muted for a while or stopped. E-mail is
  * shown and refused with its reason: the Portal has no mail relay yet.
  */
 import { useState } from "react";
@@ -13,7 +13,7 @@ import { Alert, Button, Checkbox, Dialog, RadioGroup, Select } from "./ui";
 
 type Subscription = components["schemas"]["AlertSubscription"];
 type Event = Subscription["events"][number];
-const EVENTS: Event[] = ["failure", "stale", "zero"];
+const EVENTS: Event[] = ["failure", "stale", "zero", "invalid"];
 export const ALERTS_KEY = ["alerts"];
 
 export interface AlertDialogProps {

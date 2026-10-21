@@ -4029,6 +4029,7 @@
       "anyValue": "Jeder Wert des Typs",
       "noEntities": "Noch keine Entität dieses Typs",
       "seenRange": "gesehen {min} – {max}",
+      "broken": "{count, plural, one {# Entität verletzt} other {# Entitäten verletzen}} {rules}",
       "queryAction": "Abfragen",
       "queryLabel": "Explore für die {type}-Entitäten mit {field} öffnen"
     }
@@ -8493,7 +8494,8 @@
     "event": {
       "failure": "sie fehlschlägt",
       "stale": "ihre Daten veralten",
-      "zero": "sie nichts schreibt"
+      "zero": "sie nichts schreibt",
+      "invalid": "seine Daten eine Modellregel verletzen, die sie am Vortag nicht verletzten"
     },
     "delivery": "Wie",
     "portal": "Im Portal, sofort",

@@ -19523,7 +19523,8 @@
         "enum": [
           "failure",
           "stale",
-          "zero"
+          "zero",
+          "invalid"
         ]
       },
       "AlertKind": {

@@ -4029,6 +4029,7 @@
       "anyValue": "Any value of the type",
       "noEntities": "No entity of this type yet",
       "seenRange": "seen {min} – {max}",
+      "broken": "{count, plural, one {# entity breaks} other {# entities break}} {rules}",
       "queryAction": "Query",
       "queryLabel": "Open Explore on the {type} entities that have {field}"
     }
@@ -8493,7 +8494,8 @@
     "event": {
       "failure": "it fails",
       "stale": "its data goes stale",
-      "zero": "it writes nothing"
+      "zero": "it writes nothing",
+      "invalid": "its data breaks a model rule it did not break the day before"
     },
     "delivery": "How",
     "portal": "In the Portal, as it happens",
