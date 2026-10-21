@@ -8,8 +8,8 @@
  * Every format is read with what the browser has: CSV and JSON as text, XML with `DOMParser`, and
  * an XLSX workbook as the ZIP of XML it is, unpacked with `DecompressionStream`.
  */
-import { classSlots, parseModel } from "../models/linkml";
-import type { NgsiLdKind } from "../models/linkml";
+import { classSlots, importName, parseModel } from "../models/linkml";
+import type { LinkmlClass, NgsiLdKind } from "../models/linkml";
 
 /** A file read into rows of text, numbers and flags, keyed by its column names. */
 export interface Table {
@@ -60,32 +60,68 @@ export const LATITUDE = "@latitude";
 export const EXPIRES_AT = "@expiresAt";
 export const LONGITUDE = "@longitude";
 
-/** The slots of one class of the space's model, with `required` from the class's own usage. */
+/**
+ * The geometry NGSI-LD gives every entity (ETSI GS CIM 009 §4.5.4): a class whose `is_a` chain ends
+ * at `ngsi-ld-core`'s `Entity` carries it without listing it, so a GeoJSON file's points have a field.
+ */
+const CORE_LOCATION: ImportSlot = { name: "location", kind: "GeoProperty", required: false };
+
+/**
+ * The slots of one class of the space's model with those it inherits along `is_a` (a child's own
+ * wins a name both carry), with `required` from each class's own usage.
+ */
 export function importSlotsOf(source: string | undefined, type: string): ImportSlot[] {
   if (source === undefined || !type) return [];
   const model = parseModel(source);
-  const klass = model.classes.find((c) => c.name === type);
-  if (!klass) return [];
-  return classSlots(model, klass)
-    .filter((slot) => slot.name !== "id" && slot.name !== "type")
-    .map((slot) => ({
-      name: slot.name,
-      range: slot.range,
-      kind: slot.kind,
-      required: slot.required === true,
-      values: model.enums.find((e) => e.name === slot.range)?.permissible_values.map((v) => v.name),
-      minimum: slot.minimum_value,
-      maximum: slot.maximum_value,
-    }));
+  const byName = new Map(model.classes.map((c) => [c.name, c]));
+  const chain: LinkmlClass[] = [];
+  for (let at = byName.get(type); at && !chain.includes(at); at = at.is_a ? byName.get(at.is_a) : undefined) chain.push(at);
+  if (chain.length === 0) return [];
+  const slots = new Map<string, ImportSlot>();
+  for (const klass of chain.reverse()) {
+    for (const slot of classSlots(model, klass)) {
+      if (slot.name === "id" || slot.name === "type") continue;
+      slots.set(slot.name, {
+        name: slot.name,
+        range: slot.range,
+        kind: slot.kind,
+        required: slot.required === true,
+        values: model.enums.find((e) => e.name === slot.range)?.permissible_values.map((v) => v.name),
+        minimum: slot.minimum_value,
+        maximum: slot.maximum_value,
+      });
+    }
+  }
+  const root = chain[0];
+  const core = (model.imports ?? []).some((name) => importName(name) === "ngsi-ld-core");
+  if (core && root.is_a === "Entity" && !byName.has("Entity") && !slots.has(CORE_LOCATION.name)) {
+    slots.set(CORE_LOCATION.name, CORE_LOCATION);
+  }
+  return [...slots.values()];
 }
 
 // ---------------------------------------------------------------------------------------------
 // Reading a file
 // ---------------------------------------------------------------------------------------------
 
+/** A file over `MAX_BYTES`, refused before a byte is read. */
+export class FileTooLarge extends Error {
+  constructor(readonly bytes: number) {
+    super(`a file of at most ${MAX_BYTES / 1024 / 1024} MB`);
+  }
+}
+
+/** Why a file was not read, in the person's words: its size against the limit, or the reader's reason. */
+export function unreadableText(t: (key: string, options?: Record<string, unknown>) => string, error: unknown): string {
+  if (error instanceof FileTooLarge) {
+    return t("spaces.import.tooLarge", { size: (error.bytes / 1024 / 1024).toFixed(1), limit: MAX_BYTES / 1024 / 1024 });
+  }
+  return t("spaces.import.unreadable", { reason: error instanceof Error ? error.message : String(error) });
+}
+
 /** The file as rows, by its extension; an error names what could not be read. */
 export async function readTable(file: File): Promise<Table> {
-  if (file.size > MAX_BYTES) throw new Error(`a file of at most ${MAX_BYTES / 1024 / 1024} MB`);
+  if (file.size > MAX_BYTES) throw new FileTooLarge(file.size);
   const name = file.name.toLowerCase();
   if (name.endsWith(".csv") || name.endsWith(".tsv") || name.endsWith(".txt")) {
     const { text, encoding } = decodeText(new Uint8Array(await file.arrayBuffer()));
@@ -564,6 +600,8 @@ export function toEntities(
     }
     const entity: Record<string, unknown> = { id, type: target.type };
     const problems: string[] = [];
+    // A slot whose value was refused is reported once, as refused, never again as missing.
+    const refusedSlots = new Set<string>();
     for (const [column, slotName] of Object.entries(mapping)) {
       const slot = bySlot.get(slotName);
       const text = (record[column] ?? "").trim();
@@ -571,6 +609,7 @@ export function toEntities(
       const value = valueOf(text, slot);
       if (value instanceof Error) {
         problems.push(value.message);
+        refusedSlots.add(slot.name);
       } else if (slot.kind === "Relationship") {
         entity[slot.name] = { type: "Relationship", object: value };
       } else if (slot.kind === "GeoProperty") {
@@ -604,7 +643,7 @@ export function toEntities(
     if (expires instanceof Error) problems.push(expires.message);
     else if (expires !== undefined) entity.expiresAt = expires;
     for (const slot of slots) {
-      if (slot.required && entity[slot.name] === undefined) problems.push(`${slot.name} is required`);
+      if (slot.required && entity[slot.name] === undefined && !refusedSlots.has(slot.name)) problems.push(`${slot.name} is required`);
     }
     if (problems.length > 0) {
       rejected.push({ row, id, reason: problems.join("; ") });
@@ -632,8 +671,8 @@ function said(body: unknown, status: number): string {
 /**
  * Creates the entities in batches through the space surface with the person's session. A batch
  * the gateway answers 201 is created whole; a 207 names which ids failed and why (NGSI-LD batch
- * result); any other answer refuses the batch whole with the gateway's words. `onProgress` is
- * told how many have been sent.
+ * result); a 401 or 403 stops the import and names the refusal as `denied`; any other answer
+ * refuses the batch whole with the gateway's words. `onProgress` is told how many have been sent.
  */
 export async function createInBatches(
   send: Send,
@@ -642,7 +681,7 @@ export async function createInBatches(
   onProgress: (sent: number) => void = () => {},
   // `upsert` makes the same file imported twice the same entities, not a refusal (T-3840).
   operation: "create" | "upsert" = "create",
-): Promise<{ created: number; rejected: Rejected[] }> {
+): Promise<{ created: number; rejected: Rejected[]; denied?: string }> {
   let created = 0;
   const rejected: Rejected[] = [];
   const path = `/cs/${encodeURIComponent(space)}/ngsi-ld/v1/entityOperations/${operation}`;
@@ -666,6 +705,13 @@ export async function createInBatches(
         rejected.push({ row: rowOf.get(id) ?? 0, id, reason: said(error.error, 207) });
       }
       created += batch.filter((item) => !failed.has(String(item.entity.id))).length;
+    } else if (answer.status === 401 || answer.status === 403) {
+      // The person may not create these entities at all: the next batch would be refused the same
+      // way, so nothing more is sent and every row left is reported with the one reason.
+      const reason = said(answer.body, answer.status);
+      for (const item of entities.slice(at)) rejected.push({ row: item.row, id: String(item.entity.id), reason });
+      onProgress(entities.length);
+      return { created, rejected, denied: reason };
     } else {
       const reason = said(answer.body, answer.status);
       for (const item of batch) rejected.push({ row: item.row, id: String(item.entity.id), reason });
