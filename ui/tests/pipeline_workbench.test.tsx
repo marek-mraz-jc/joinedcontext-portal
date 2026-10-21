@@ -365,9 +365,12 @@ describe("the pipeline workbench", () => {
     const ends = within(rows[1]).getByRole("list", { name: en.pipelines.workbench.validation.expiresLabel });
     expect(ends).toHaveTextContent("Entity expires 2026-10-20T12:08:00Z");
     expect(ends).toHaveTextContent("pm10 expires 2026-10-20T12:05:00Z");
-    // The verdict is kept on the dialog's draft, for the proposal (T-4840).
+    // The run of the mapping keeps its record check on the dialog's draft, for the proposal;
+    // the records shown back to the validation step keep nothing (T-4840).
+    const tried = seen.ops.find((op) => op.name === "jc_pipeline_try_mapping");
+    expect(tried?.body.draft).toEqual({ kind: "Pipeline", name: "air-draft" });
     await waitFor(() => expect(seen.ops.at(-1)?.name).toBe("jc_pipeline_validate"));
-    expect(seen.ops.at(-1)?.body.draft).toEqual({ kind: "Pipeline", name: "air-draft" });
+    expect(seen.ops.at(-1)?.body.draft).toBeUndefined();
   });
 
   it("names_each_slot_of_the_target_model_with_its_type_whether_required_its_values_and_an_example", async () => {
