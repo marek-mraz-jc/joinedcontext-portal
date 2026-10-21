@@ -1108,8 +1108,210 @@ fn replay_stream(records: &[Value], project: &str, slug: &str) -> Value {
     })
 }
 
+/// The pipeline's snapshot rule, or 409 when it has none (PL-97).
+fn snapshot_of(
+    pipeline: &crate::resource::ResourceEnvelope,
+) -> Result<jc_core::kinds::SourceDeletes, ApiError> {
+    crate::pipeline_source_deletes::snapshot_rule(&pipeline.spec).ok_or_else(|| {
+        ApiError::Conflict(format!(
+            "pipeline '{}' does not delete what its source drops: set spec.sourceDeletes.mode \
+             to snapshot",
+            pipeline.metadata.name
+        ))
+    })
+}
+
+fn ledger_unavailable(error: sqlx::Error) -> ApiError {
+    tracing::warn!(%error, "the source ledger could not be read");
+    ApiError::Unavailable("the pipeline's source ledger could not be read; try again".into())
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/pipelines/{name}/source-deletes",
+    summary = "Preview Source Deletes",
+    description = "The dry run of a snapshot pipeline (PL-97): how many entities its source ledger holds, the ids one more complete run without them deletes, the ids due now, and the held run if one is held. Nothing is deleted.",
+    tag = "pipelines",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("name" = String, Path, description = "Pipeline name"),
+    ),
+    responses(
+        (status = 200, description = "The ledger and the dry run", body = crate::pipeline_source_deletes::Overview),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 404, description = "Pipeline not found", body = ProblemDetails),
+        (status = 409, description = "The pipeline is not a snapshot pipeline", body = ProblemDetails),
+        (status = 503, description = "The ledger could not be read", body = ProblemDetails)
+    )
+)]
+pub async fn get_source_deletes(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+) -> Result<Json<crate::pipeline_source_deletes::Overview>, ApiError> {
+    let pipeline = readable_pipeline(&state, &user, &project, &name)?;
+    let rule = snapshot_of(&pipeline)?;
+    let (rows, hold) = state
+        .source_ledger
+        .book(&project, &name)
+        .await
+        .map_err(ledger_unavailable)?;
+    Ok(Json(crate::pipeline_source_deletes::overview(
+        &rows, hold, &rule,
+    )))
+}
+
+/// A person's answer to a held run (PL-97).
+#[derive(Debug, serde::Deserialize, ToSchema)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+#[schema(as = PipelineSourceDecision)]
+pub struct SourceDecision {
+    /// `delete` deletes the due ids once, past the share; `keep` counts every id as read again.
+    pub decision: SourceChoice,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum SourceChoice {
+    Delete,
+    Keep,
+}
+
+/// What a decision did.
+#[derive(Debug, Serialize, ToSchema)]
+#[schema(as = PipelineSourceDecided)]
+pub struct SourceDecided {
+    /// The ids handed to the runner to delete; 0 on keep.
+    pub deleting: usize,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/projects/{project}/pipelines/{name}/source-deletes",
+    summary = "Release or Keep Source Deletes",
+    description = "Answers a snapshot pipeline's held run (PL-97): `delete` hands the due ids to the runner once, deleted through the pipeline's own Endpoint and grant like any of its deletes; `keep` clears every miss, so nothing is deleted until complete runs miss the ids again. Needs approve on Pipeline, and each answer is an activity event `pipeline.source-delete`.",
+    tag = "pipelines",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("name" = String, Path, description = "Pipeline name"),
+    ),
+    request_body(content = SourceDecision, example = json!({ "decision": "keep" })),
+    responses(
+        (status = 202, description = "Done, or the deletes handed to the runner", body = SourceDecided),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 403, description = "The caller may not approve the pipeline", body = ProblemDetails),
+        (status = 404, description = "Pipeline not found", body = ProblemDetails),
+        (status = 409, description = "Not a snapshot pipeline, or nothing is due", body = ProblemDetails),
+        (status = 503, description = "The ledger or the runner did not answer", body = ProblemDetails)
+    )
+)]
+pub async fn post_source_deletes(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+    Json(request): Json<SourceDecision>,
+) -> Result<(axum::http::StatusCode, Json<SourceDecided>), ApiError> {
+    let deleting = source_decision(&state, &user, &project, &name, request.decision).await?;
+    Ok((
+        axum::http::StatusCode::ACCEPTED,
+        Json(SourceDecided { deleting }),
+    ))
+}
+
+/// A steward's answer to a held run, checked and put on the activity feed.
+async fn source_decision(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    name: &str,
+    choice: SourceChoice,
+) -> Result<usize, ApiError> {
+    let pipeline = readable_pipeline(state, user, project, name)?;
+    let effective = crate::permissions::for_request(state, &user.0.identity, project);
+    if !may_pipeline(
+        &effective,
+        state,
+        project,
+        &pipeline.spec,
+        jc_core::kinds::Verb::Approve,
+    ) {
+        return Err(ApiError::Denied(format!(
+            "releasing or keeping held source deletes needs approve on Pipeline in project {project}"
+        )));
+    }
+    let rule = snapshot_of(&pipeline)?;
+    let deleting = decide(state, project, name, &rule, choice).await?;
+    let actor = &user.0.identity.username;
+    let summary = match choice {
+        SourceChoice::Delete => {
+            format!("{actor} released {deleting} source deletes of pipeline {name}")
+        }
+        SourceChoice::Keep => {
+            format!("{actor} kept the entities pipeline {name} would have deleted")
+        }
+    };
+    let event = crate::activity::ActivityEvent {
+        time: chrono::Utc::now(),
+        project: project.to_owned(),
+        space: None,
+        kind: "pipeline.source-delete".to_owned(),
+        source: "portal".to_owned(),
+        summary,
+        severity: "info".to_owned(),
+        correlation_id: None,
+        details: serde_json::json!({ "object": format!("pipelines/{name}"), "actor": actor }),
+    };
+    if let Err(error) = state.activity.append(&[event]).await {
+        tracing::warn!(%project, pipeline = %name, %error, "the decision is not on the activity feed");
+    }
+    Ok(deleting)
+}
+
+/// Keeps every id, or hands the due ids to the runner once and clears the hold.
+async fn decide(
+    state: &AppState,
+    project: &str,
+    name: &str,
+    rule: &jc_core::kinds::SourceDeletes,
+    choice: SourceChoice,
+) -> Result<usize, ApiError> {
+    let ledger = &state.source_ledger;
+    if choice == SourceChoice::Keep {
+        ledger
+            .keep(project, name)
+            .await
+            .map_err(ledger_unavailable)?;
+        return Ok(0);
+    }
+    let (rows, hold) = ledger
+        .book(project, name)
+        .await
+        .map_err(ledger_unavailable)?;
+    let due = crate::pipeline_source_deletes::doomed(&rows, rule);
+    if due.is_empty() {
+        return Err(ApiError::Conflict(format!(
+            "pipeline '{name}' has no entity due for deletion"
+        )));
+    }
+    let run = hold.map_or_else(|| "released".to_owned(), |hold| hold.run);
+    let deleting = crate::pipeline_source_deletes::launch(state, project, name, &run, &due)
+        .await
+        .map_err(|reason| {
+            ApiError::Unavailable(format!("the deletes were not started: {reason}"))
+        })?;
+    ledger
+        .settle(project, name, &[], None)
+        .await
+        .map_err(ledger_unavailable)?;
+    Ok(deleting)
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route(
+            "/projects/{project}/pipelines/{name}/source-deletes",
+            get(get_source_deletes).post(post_source_deletes),
+        )
         .route(
             "/projects/{project}/pipelines/{name}/rejected/retry",
             axum::routing::post(retry_rejected),

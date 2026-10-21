@@ -96,6 +96,8 @@
     "1. Endpoint",
     "/min",
     "MQTT",
+    "Agent",
+    "MCP server",
     "OGC Features",
     "OData"
   ],
@@ -193,6 +195,8 @@
     "REST API (JSON)",
     "/min",
     "MQTT",
+    "Agent",
+    "MCP server",
     "OGC Features",
     "OData"
   ],

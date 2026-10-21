@@ -1251,6 +1251,55 @@
       "unitOf": "Unit: {unit}",
       "noMatchHint": "Choose All pipelines and All verdicts to see every row."
     },
+    "personal": {
+      "title": "A person's data",
+      "lead": "Answer a person's request about the data this space holds on them: export everything that names them, or erase it from current values, history and every copy. Only an owner of the space can do this, and each request is recorded with its reason. The space's model must name which attribute identifies the person.",
+      "hint": {
+        "subject": "The value the model's person attribute holds, exactly as stored, for example r-42. It is sent only in the request and is never kept or shown in the log.",
+        "reason": "Why you act, recorded with the request, for example: Art. 17 request 2026-10-19-07."
+      },
+      "subject": "Person's identifier",
+      "subjectError": {
+        "required": "Enter the person's identifier.",
+        "tooLong": "Use at most {max} characters.",
+        "characters": "Remove quotes, backslashes and control characters."
+      },
+      "reason": "Reason",
+      "reasonError": {
+        "required": "Enter the reason, for example the request's reference.",
+        "tooLong": "Use at most {max} characters."
+      },
+      "export": "Export the person's data",
+      "erase": "Erase the person's data…",
+      "confirmTitle": "Erase this person's data from {space}?",
+      "confirmLead": "The erasure cannot be undone. It removes the values from current state, every history version and every copy; a record without values stays.",
+      "confirm": "Erase",
+      "nothing": "The space holds nothing about this person. Erasing still records the request.",
+      "wouldErase": {
+        "attrs": "{count, plural, one {{type}: the personal attributes ({attrs}) of # entity} other {{type}: the personal attributes ({attrs}) of # entities}}",
+        "entity": "{count, plural, one {{type}: # whole entity} other {{type}: # whole entities}}"
+      },
+      "state": {
+        "open": "Erasure {id} is running ({count} entities). This page checks again every few seconds.",
+        "done": "Erasure {id} is done: every store reports its entities erased ({count} entities).",
+        "failed": "Erasure {id} failed in a store after an hour of retries. Read the error below and ask the platform team to fix that store; the erasure stays logged."
+      },
+      "store": "{store}: {state}, {count} removed",
+      "stores": {
+        "broker": "Current values and history",
+        "portal": "Trash and comments",
+        "ckanDatastore": "Open data tables",
+        "conversations": "Assistant conversations",
+        "exports": "Export files",
+        "caches": "Caches"
+      },
+      "storeState": {
+        "pending": "waiting",
+        "done": "done",
+        "failed": "failed: read the error and retry later"
+      },
+      "exported": "{count, plural, one {Exported # record to a file in your downloads.} other {Exported # records to a file in your downloads.}}"
+    },
     "viewHints": {
       "moveReason": "Kept with each move in the change history, e.g. \"Moved after the venue cancelled\".",
       "moveStart": "Pick a day, e.g. 2026-11-03.",
@@ -2377,7 +2426,16 @@
         "caption": "Mapped records",
         "record": "Record",
         "written": "As written",
-        "problems": "Problems"
+        "problems": "Problems",
+        "recordN": "Record {n}",
+        "problemCount": "{count, plural, one {# problem} other {# problems}}",
+        "recordCaption": "Attributes of {id} as written",
+        "value": "Value",
+        "check": "Check",
+        "expires": "Expires",
+        "observedAt": "observed {at}",
+        "entityLifetime": "entity lifetime",
+        "passes": "passes"
       },
       "validation": {
         "title": "Validation",
@@ -2400,7 +2458,27 @@
         "hint": "Name the endpoint the records are written through; saving proposes a change.",
         "lands": "The records land in the space {space}, checked against the model {model}.",
         "landsUnmodelled": "The records land in the space {space}, which names no data model yet.",
-        "save": "Name the pipeline below and propose it: nothing is written until the change is approved."
+        "save": "Name the pipeline below and propose it: nothing is written until the change is approved.",
+        "card": "What the pipeline writes",
+        "space": "Space",
+        "model": "Model",
+        "type": "Writes type",
+        "noType": "Pick the type in step 4",
+        "explain": "What the space's model accepts for a {type}, and what this endpoint lets the pipeline write. A field the endpoint does not grant is refused before you propose, not at runtime.",
+        "caption": "Attributes of {type}",
+        "field": "Field",
+        "kind": "Kind",
+        "value": "Value",
+        "required": "Required",
+        "writable": "Writable here",
+        "locked": "not writable",
+        "judging": "checking…",
+        "lifetimeKind": "entity lifetime",
+        "instant": "instant",
+        "inLifetime": "set in Lifetime",
+        "isRequired": "required",
+        "optional": "optional",
+        "isWritable": "writable"
       },
       "changes": {
         "title": "What would change in {space}",
@@ -2418,6 +2496,11 @@
           "update": "Updated",
           "unchanged": "No change"
         }
+      },
+      "lifetime": {
+        "title": "Lifetime",
+        "hint": "When the entities, or some of their fields, leave the space. Saved as the pipeline's lifetime, never as mapping code.",
+        "pickType": "Pick the target and the type the mapping writes first: the lifetime is set per type."
       }
     },
     "mapper": {
@@ -2465,28 +2548,9 @@
         "notTime": "{field} holds {value}, which is no time: use RFC 3339 text such as 2026-10-20T14:30:00Z or Unix seconds."
       },
       "expiry": {
-        "title": "When do entities go away?",
-        "legend": "Entities of this type are removed",
-        "never": "Never",
-        "neverHint": "They stay until someone deletes them or a space rule removes them.",
-        "source": "At a time the source gives",
-        "sourceHint": "Each entity gets its own expiresAt: a time attribute plus a while, for example observedOn plus 10 minutes, or the time the record is written plus a while. The pipeline writes it after your mapping.",
-        "stale": "When the source stops sending them",
-        "staleHint": "Once an hour the pipeline deletes entities of this type it has not updated for the window.",
-        "from": "Time from",
-        "written": "The time the record is written",
-        "plus": "Plus",
-        "plusUnit": "Unit of the added time",
-        "after": "Not updated for",
-        "afterUnit": "Unit of the window",
-        "afterHint": "Entities of {type} not updated for this long are deleted, once an hour.",
-        "refusals": "The proposal is refused when the pipeline has more than one output, when another pipeline writes into the same space, or when no Policy grants this pipeline deleteBatch and queryBatch on the type; the refusal names the Policy to extend.",
-        "history": "History of {type} follows the space's rules.",
-        "spaceRules": "Retention of {space}",
-        "noTimeSlot": "No date-time attribute of {type} is mapped yet, so the end counts from the time the record is written.",
-        "inManifest": "The lifetime of {type} is set in the pipeline's manifest (a fixed date, a cap or chosen attributes). Change it in the YAML view; this editor keeps it as it is.",
-        "migrated": "The end time this step used to write is now the pipeline's lifetime setting below. It is saved with your next proposal.",
-        "migrateField": "This step writes expiresAt from the record field {field}, and no date-time attribute is mapped from that field. Map it to a date-time attribute or pick another time below; until then the step keeps its own expiresAt lines."
+        "migrated": "The end time this step used to write is now the pipeline's lifetime, in the Lifetime step. It is saved with your next proposal.",
+        "migrateField": "This step writes expiresAt from the record field {field}, and no date-time attribute is mapped from that field. Map it to a date-time attribute, pick an end in the Lifetime step, or drop the step's own lines.",
+        "drop": "Drop the step's own expiresAt"
       }
     },
     "debug": {
@@ -2665,6 +2729,68 @@
       "rejectedUnavailable": "The rejected records could not be read.",
       "noRejected": "The model has refused no record of this pipeline.",
       "credentials": "Credentials"
+    },
+    "lifetime": {
+      "legend": "What happens to each {type}",
+      "keep": "Keep entities",
+      "keepHint": "They stay until someone deletes them or the space rule removes stale ones.",
+      "entity": "Whole entity expires",
+      "entityHint": "The {type} disappears at a time you set.",
+      "attributes": "Only some fields expire",
+      "attributesHint": "The {type} stays; chosen fields vanish when they get old.",
+      "stale": "Delete when the source stops sending them",
+      "staleHint": "Once an hour the pipeline deletes entities of this type it has not updated for a while. Refused when the pipeline has more than one output or no Policy grants it deleteBatch on the type.",
+      "kind": {
+        "legend": "Ends",
+        "from": "From a field",
+        "fromHint": "A time the record carries, plus a while.",
+        "rolling": "After each write",
+        "rollingHint": "Every write starts the time again.",
+        "at": "On a fixed date",
+        "atHint": "One date and time for all of them."
+      },
+      "from": "Time from",
+      "observedAt": "observedAt (newest of its fields)",
+      "noTimeSlot": "The type has no date-time attribute: the end counts from the newest observedAt of its fields.",
+      "plus": "Plus",
+      "keepFor": "Keep for",
+      "unitOf": "Unit of {what}",
+      "cap": "At most after the write",
+      "noCap": "no limit",
+      "capOf": "{span}",
+      "at": "Date and time",
+      "atHint": "In your time zone; saved in UTC.",
+      "attribute": "Field",
+      "remove": "Remove",
+      "removeOf": "Remove the end of {name}",
+      "add": "Add a field",
+      "noAttributes": "This endpoint lets the pipeline write no field of {type}, so no field can expire.",
+      "after": "Not updated for",
+      "afterUnit": "Unit of the window",
+      "afterHint": "Entities of {type} not updated for this long are deleted, once an hour.",
+      "history": "History of {type} follows the space's rules whatever you pick here.",
+      "spaceRules": "Retention of {space}",
+      "span": "{count} {unit}",
+      "noSpan": "no time",
+      "problem": {
+        "date": "Give a date and a time.",
+        "past": "The date is in the past: every entity would be removed at once. Pick a later one.",
+        "span": "Give how long to keep them: at least a minute."
+      },
+      "says": {
+        "keep": "Each {type} stays until someone deletes it or the space rule removes it.",
+        "entity": "Each {type} is removed {end}.",
+        "renewed": "A newer write moves the end on.",
+        "attribute": "The {name} of each {type} vanishes {end}.",
+        "from": "{span} after its {from}",
+        "fromExact": "at its {from}",
+        "observedAt": "last observedAt",
+        "cap": "and at most {span} after the write",
+        "rolling": "{span} after its last write",
+        "at": "on {date}",
+        "stale": "Once an hour, the pipeline deletes each {type} it has not updated for {span}."
+      },
+      "allAdded": "Every field the endpoint grants has an end already."
     },
     "access": {
       "section": "Access to other spaces",
@@ -2896,7 +3022,8 @@
       },
       "grantIn": "{role} in {where}",
       "grantOrg": "{role} in the whole organization",
-      "emptyHint": "A service account is how a program outside the Portal reads or writes this project: a script, a pipeline elsewhere, another platform. Each signs in with its own Keycloak client and holds only the role you give it."
+      "emptyHint": "A service account is how a program outside the Portal reads or writes this project: a script, a pipeline elsewhere, another platform. Each signs in with its own Keycloak client and holds only the role you give it.",
+      "emptyOrganization": "The organization has no service account of its own. A project's service accounts are on that project's settings and in Agents."
     },
     "matrix": {
       "title": "Data access",
@@ -5817,7 +5944,8 @@
       "health": "Health",
       "endpoints": "All endpoints",
       "mcp-servers": "Organization MCP servers",
-      "brokers": "Brokers"
+      "brokers": "Brokers",
+      "agents": "Agents"
     },
     "settings": {
       "title": "Settings",
@@ -6414,7 +6542,116 @@
       "platform": "What the installation runs for every project: brokers, environments, data space membership and health.",
       "settings": "The organization's domain, languages, contacts, policies and limits, and what setup still lacks."
     },
-    "kindHidden": "Only an organization administrator whose role includes {kinds} sees them here. Ask an organization administrator to add them to your role."
+    "kindHidden": "Only an organization administrator whose role includes {kinds} sees them here. Ask an organization administrator to add them to your role.",
+    "agents": {
+      "title": "Agents",
+      "lead": "Every AI agent of the organization and its projects you may see: assistants, agent profiles, MCP servers, service accounts and the runs going on now. Open one to see what it reaches and to pause an assistant.",
+      "caption": "Agents of the organization",
+      "empty": "No agent yet",
+      "emptyHint": "Assistants, agent profiles, MCP servers and service accounts appear here once a project declares one.",
+      "column": {
+        "name": "Agent",
+        "owner": "Owner",
+        "actsAs": "Acts as",
+        "reach": "Reaches",
+        "lastActivity": "Last activity",
+        "spend": "Spend",
+        "state": "State"
+      },
+      "kind": {
+        "AssistantDeployment": "Assistant",
+        "AgentProfile": "Agent profile",
+        "McpServer": "MCP server",
+        "ServiceAccount": "Service account",
+        "AgentRun": "Run"
+      },
+      "organization": "Organization",
+      "ownerProject": "Project {project}",
+      "actsAs": {
+        "self": "Its own account",
+        "caller": "The person who calls it"
+      },
+      "actsAsLong": {
+        "self": "Its own service account: it holds the rights granted to that account, whoever asks.",
+        "caller": "The person or client who calls it: it reads and writes only what that caller may."
+      },
+      "reachNone": "Nothing named",
+      "reachCount": "Spaces: {spaces} · Endpoints: {endpoints}",
+      "spendNone": "No token budget",
+      "spendCapOnly": {
+        "day": "Cap {cap} tokens a day",
+        "run": "Cap {cap} tokens a run"
+      },
+      "spendUsedOnly": {
+        "day": "{used} tokens today",
+        "run": "{used} tokens so far"
+      },
+      "spendOf": {
+        "day": "{used} of {cap} tokens today",
+        "run": "{used} of {cap} tokens"
+      },
+      "state": {
+        "active": "Active",
+        "paused": "Paused",
+        "running": "Running",
+        "waiting": "Waiting for a person"
+      },
+      "noActivity": "None recorded",
+      "back": "All agents",
+      "gone": "This agent is not in the list",
+      "goneHint": "It was removed, or your roles no longer let you see it.",
+      "tabsLabel": "About this agent",
+      "tab": {
+        "overview": "Overview",
+        "access": "Access",
+        "activity": "Activity",
+        "settings": "Settings"
+      },
+      "spaces": "Spaces",
+      "endpoints": "Endpoints",
+      "none": "None",
+      "pause": "Pause assistant",
+      "resume": "Resume assistant",
+      "pauseLead": "Pausing stops every answer of this assistant until it is resumed. It is a change the project reviews before it applies.",
+      "resumeLead": "This assistant answers nobody now. Resuming is a change the project reviews before it applies.",
+      "pauseSent": "Pause sent for review. The assistant stops once the change is approved.",
+      "resumeSent": "Resume sent for review. The assistant answers again once the change is approved.",
+      "openChange": "Open the change",
+      "openHome": "Open its page",
+      "noPause": "This kind has no pause switch. To stop it, remove it on its page.",
+      "runStop": "A run stops when you cancel it on its application's page.",
+      "activityLead": "What it read and wrote is on its own page.",
+      "runSettings": "A run follows the agent profile {profile}; its settings are there.",
+      "openManifest": "Edit it on its page",
+      "setting": {
+        "channel": "Channel",
+        "enabled": "Answers",
+        "role": "Role",
+        "purpose": "Purpose",
+        "audience": "Audience",
+        "credentials": "Credentials",
+        "model": {
+          "answer": "Answer model",
+          "router": "Router model",
+          "provider": "Model provider",
+          "name": "Model",
+          "maxTokensPerRun": "Tokens a run"
+        },
+        "budget": {
+          "tokensPerDay": "Tokens a day",
+          "costPerDayUsd": "Cost a day (USD)"
+        },
+        "rateLimit": {
+          "requestsPerMinute": "Requests a minute"
+        },
+        "limits": {
+          "stepsPerRun": "Steps a run",
+          "wallClock": "Longest run",
+          "concurrentRunsPerOrganization": "Runs at once",
+          "requestsPerMinute": "Requests a minute"
+        }
+      }
+    }
   },
   "projectDelete": {
     "title": "Delete project {name}",
@@ -7614,7 +7851,8 @@
       "writes": "Writes",
       "offeredBy": "Offered by: {members}"
     },
-    "leadOrganization": "The organization's MCP servers: one address over Endpoints of several projects, for everyone the audience admits."
+    "leadOrganization": "The organization's MCP servers: one address over Endpoints of several projects, for everyone the audience admits.",
+    "emptyOrganization": "The organization has no MCP server of its own yet. A project's servers are on that project's MCP page and in Agents."
   },
   "notifications": {
     "label": "{count, plural, =0 {Notifications} one {Notifications, # unread} other {Notifications, # unread}}",

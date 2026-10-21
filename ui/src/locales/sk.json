@@ -1251,6 +1251,55 @@
       "unitOf": "Jednotka: {unit}",
       "noMatchHint": "Vyberte Všetky pipeline a Všetky verdikty, aby ste videli každý riadok."
     },
+    "personal": {
+      "title": "Údaje o osobe",
+      "lead": "Vybavte žiadosť osoby o údaje, ktoré o nej tento priestor má: exportujte všetko, čo ju uvádza, alebo to vymažte z aktuálnych hodnôt, histórie a všetkých kópií. Môže to urobiť len vlastník priestoru a každá žiadosť sa zaznamená s dôvodom. Model priestoru musí určovať, ktorý atribút identifikuje osobu.",
+      "hint": {
+        "subject": "Hodnota atribútu osoby v modeli presne tak, ako je uložená, napríklad r-42. Posiela sa len v žiadosti a nikde sa neukladá ani nezobrazuje v zázname.",
+        "reason": "Prečo konáte, zaznamená sa so žiadosťou, napríklad: žiadosť podľa čl. 17 2026-10-19-07."
+      },
+      "subject": "Identifikátor osoby",
+      "subjectError": {
+        "required": "Zadajte identifikátor osoby.",
+        "tooLong": "Použite najviac {max} znakov.",
+        "characters": "Odstráňte úvodzovky, spätné lomky a riadiace znaky."
+      },
+      "reason": "Dôvod",
+      "reasonError": {
+        "required": "Zadajte dôvod, napríklad číslo žiadosti.",
+        "tooLong": "Použite najviac {max} znakov."
+      },
+      "export": "Exportovať údaje osoby",
+      "erase": "Vymazať údaje osoby…",
+      "confirmTitle": "Vymazať údaje tejto osoby z priestoru {space}?",
+      "confirmLead": "Výmaz sa nedá vrátiť. Odstráni hodnoty z aktuálneho stavu, zo všetkých verzií histórie a zo všetkých kópií; zostane len záznam bez hodnôt.",
+      "confirm": "Vymazať",
+      "nothing": "Priestor o tejto osobe nič nemá. Výmaz aj tak zaznamená žiadosť.",
+      "wouldErase": {
+        "attrs": "{count, plural, one {{type}: osobné atribúty ({attrs}) # entity} few {{type}: osobné atribúty ({attrs}) # entít} many {{type}: osobné atribúty ({attrs}) # entít} other {{type}: osobné atribúty ({attrs}) # entít}}",
+        "entity": "{count, plural, one {{type}: # celá entita} few {{type}: # celé entity} many {{type}: # celých entít} other {{type}: # celých entít}}"
+      },
+      "state": {
+        "open": "Výmaz {id} prebieha (entity: {count}). Stránka to každých pár sekúnd overí znova.",
+        "done": "Výmaz {id} je hotový: každé úložisko hlási vymazanie (entity: {count}).",
+        "failed": "Výmaz {id} zlyhal v jednom úložisku po hodine pokusov. Prečítajte si chybu nižšie a požiadajte tím platformy o opravu úložiska; výmaz zostáva zaznamenaný."
+      },
+      "store": "{store}: {state}, odstránené {count}",
+      "stores": {
+        "broker": "Aktuálne hodnoty a história",
+        "portal": "Kôš a komentáre",
+        "ckanDatastore": "Tabuľky otvorených dát",
+        "conversations": "Konverzácie s asistentom",
+        "exports": "Exportované súbory",
+        "caches": "Vyrovnávacie pamäte"
+      },
+      "storeState": {
+        "pending": "čaká",
+        "done": "hotovo",
+        "failed": "zlyhalo: prečítajte si chybu a skúste neskôr"
+      },
+      "exported": "{count, plural, one {Exportovaný # záznam do súboru v stiahnutých súboroch.} few {Exportované # záznamy do súboru v stiahnutých súboroch.} many {Exportovaných # záznamov do súboru v stiahnutých súboroch.} other {Exportovaných # záznamov do súboru v stiahnutých súboroch.}}"
+    },
     "viewHints": {
       "moveReason": "Uloží sa pri každom presune do histórie zmien, napr. „Presunuté, lebo miesto zrušili“.",
       "moveStart": "Vyberte deň, napr. 2026-11-03.",
@@ -2377,7 +2426,16 @@
         "caption": "Namapované záznamy",
         "record": "Záznam",
         "written": "Ako sa zapíše",
-        "problems": "Problémy"
+        "problems": "Problémy",
+        "recordN": "Záznam {n}",
+        "problemCount": "{count, plural, one {# problém} few {# problémy} other {# problémov}}",
+        "recordCaption": "Atribúty {id} tak, ako sa zapíšu",
+        "value": "Hodnota",
+        "check": "Kontrola",
+        "expires": "Vyprší",
+        "observedAt": "pozorované {at}",
+        "entityLifetime": "životnosť entity",
+        "passes": "prešlo"
       },
       "validation": {
         "title": "Validácia",
@@ -2400,7 +2458,27 @@
         "hint": "Určte endpoint, cez ktorý sa záznamy zapíšu; uloženie navrhne zmenu.",
         "lands": "Záznamy pristanú v priestore {space}, kontrolované voči modelu {model}.",
         "landsUnmodelled": "Záznamy pristanú v priestore {space}, ktorý zatiaľ nemenuje dátový model.",
-        "save": "Pomenujte pipeline nižšie a navrhnite ju: nič sa nezapíše, kým zmenu neschvália."
+        "save": "Pomenujte pipeline nižšie a navrhnite ju: nič sa nezapíše, kým zmenu neschvália.",
+        "card": "Čo pipeline zapisuje",
+        "space": "Priestor",
+        "model": "Model",
+        "type": "Zapisuje typ",
+        "noType": "Typ vyberte v kroku 4",
+        "explain": "Čo model priestoru prijíma pre {type} a čo tento endpoint dovolí pipeline zapísať. Pole, ktoré endpoint nepovoľuje, sa odmietne pred návrhom, nie až za behu.",
+        "caption": "Atribúty typu {type}",
+        "field": "Pole",
+        "kind": "Druh",
+        "value": "Hodnota",
+        "required": "Povinné",
+        "writable": "Zapisovateľné tu",
+        "locked": "nezapisovateľné",
+        "judging": "overuje sa…",
+        "lifetimeKind": "životnosť entity",
+        "instant": "okamih",
+        "inLifetime": "nastavuje sa v kroku Životnosť",
+        "isRequired": "povinné",
+        "optional": "nepovinné",
+        "isWritable": "zapisovateľné"
       },
       "changes": {
         "title": "Čo by sa zmenilo v {space}",
@@ -2418,6 +2496,11 @@
           "update": "Zmenená",
           "unchanged": "Bez zmeny"
         }
+      },
+      "lifetime": {
+        "title": "Životnosť",
+        "hint": "Kedy entity alebo niektoré ich polia opustia priestor. Uloží sa ako životnosť pipeline, nikdy ako kód mapovania.",
+        "pickType": "Najprv vyberte cieľ a typ, ktorý mapovanie zapisuje: životnosť sa nastavuje pre každý typ."
       }
     },
     "mapper": {
@@ -2465,28 +2548,9 @@
         "notTime": "{field} obsahuje {value}, čo nie je čas: použite text RFC 3339, napríklad 2026-10-20T14:30:00Z, alebo Unix sekundy."
       },
       "expiry": {
-        "title": "Kedy entity zmiznú?",
-        "legend": "Entity tohto typu sa odstránia",
-        "never": "Nikdy",
-        "neverHint": "Zostanú, kým ich niekto nezmaže alebo ich neodstráni pravidlo priestoru.",
-        "source": "V čase, ktorý dá zdroj",
-        "sourceHint": "Každá entita dostane vlastné expiresAt: časový atribút plus určitý čas, napríklad observedOn plus 10 minút, alebo čas zápisu záznamu plus určitý čas. Pipeline ho zapíše po vašom mapovaní.",
-        "stale": "Keď ich zdroj prestane posielať",
-        "staleHint": "Raz za hodinu pipeline zmaže entity tohto typu, ktoré počas okna neaktualizovala.",
-        "from": "Čas z",
-        "written": "Čas zápisu záznamu",
-        "plus": "Pripočítať",
-        "plusUnit": "Jednotka pridaného času",
-        "after": "Neaktualizované počas",
-        "afterUnit": "Jednotka okna",
-        "afterHint": "Entity typu {type} neaktualizované takto dlho sa raz za hodinu zmažú.",
-        "refusals": "Návrh sa odmietne, keď má pipeline viac ako jeden výstup, keď do toho istého priestoru zapisuje iná pipeline, alebo keď žiadna Policy nedáva tejto pipeline deleteBatch a queryBatch na typ; odmietnutie pomenuje Policy, ktorú treba rozšíriť.",
-        "history": "História typu {type} sa riadi pravidlami priestoru.",
-        "spaceRules": "Uchovávanie v {space}",
-        "noTimeSlot": "Zatiaľ nie je namapovaný žiadny atribút dátumu a času typu {type}, preto sa koniec počíta od času zápisu záznamu.",
-        "inManifest": "Životnosť typu {type} je nastavená v manifeste pipeline (pevný dátum, strop alebo vybrané atribúty). Zmeňte ju v zobrazení YAML; tento editor ju ponechá bez zmeny.",
-        "migrated": "Čas konca, ktorý tento krok doteraz zapisoval, je teraz nastavením životnosti pipeline nižšie. Uloží sa s vaším ďalším návrhom.",
-        "migrateField": "Tento krok zapisuje expiresAt z poľa záznamu {field} a z tohto poľa nie je namapovaný žiadny atribút dátumu a času. Namapujte ho na atribút dátumu a času alebo nižšie zvoľte iný čas; dovtedy si krok ponechá vlastné riadky expiresAt."
+        "migrated": "Čas konca, ktorý tento krok zapisoval, je teraz životnosťou pipeline v kroku Životnosť. Uloží sa s vaším ďalším návrhom.",
+        "migrateField": "Tento krok zapisuje expiresAt z poľa záznamu {field} a z neho sa nemapuje žiadny atribút s dátumom a časom. Namapujte ho na taký atribút, vyberte koniec v kroku Životnosť alebo zahoďte vlastné riadky kroku.",
+        "drop": "Zahodiť vlastné expiresAt kroku"
       }
     },
     "debug": {
@@ -2665,6 +2729,68 @@
       "rejectedUnavailable": "Odmietnuté záznamy sa nepodarilo načítať.",
       "noRejected": "Model neodmietol žiadny záznam tejto pipeline.",
       "credentials": "Prihlasovacie údaje"
+    },
+    "lifetime": {
+      "legend": "Čo sa stane s každou entitou {type}",
+      "keep": "Ponechať entity",
+      "keepHint": "Zostanú, kým ich niekto nezmaže alebo ich pravidlo priestoru neodstráni.",
+      "entity": "Celá entita vyprší",
+      "entityHint": "Entita {type} zmizne v čase, ktorý nastavíte.",
+      "attributes": "Vypršia len niektoré polia",
+      "attributesHint": "Entita {type} zostane; vybrané polia zmiznú, keď zostarnú.",
+      "stale": "Zmazať, keď ich zdroj prestane posielať",
+      "staleHint": "Raz za hodinu pipeline zmaže entity tohto typu, ktoré istý čas neaktualizovala. Odmietne sa, keď má pipeline viac výstupov alebo jej žiadna Policy nepovoľuje deleteBatch na typ.",
+      "kind": {
+        "legend": "Koniec",
+        "from": "Od poľa",
+        "fromHint": "Čas zo záznamu plus nejaký čas.",
+        "rolling": "Po každom zápise",
+        "rollingHint": "Každý zápis začne čas odznova.",
+        "at": "K pevnému dátumu",
+        "atHint": "Jeden dátum a čas pre všetky."
+      },
+      "from": "Čas od",
+      "observedAt": "observedAt (najnovší z jej polí)",
+      "noTimeSlot": "Typ nemá atribút s dátumom a časom: koniec sa počíta od najnovšieho observedAt jej polí.",
+      "plus": "Pridať",
+      "keepFor": "Ponechať",
+      "unitOf": "Jednotka: {what}",
+      "cap": "Najviac po zápise",
+      "noCap": "bez limitu",
+      "capOf": "{span}",
+      "at": "Dátum a čas",
+      "atHint": "Vo vašom časovom pásme; uloží sa v UTC.",
+      "attribute": "Pole",
+      "remove": "Odstrániť",
+      "removeOf": "Odstrániť koniec poľa {name}",
+      "add": "Pridať pole",
+      "noAttributes": "Tento endpoint nedovolí pipeline zapísať žiadne pole typu {type}, takže žiadne pole nemôže vypršať.",
+      "after": "Neaktualizované",
+      "afterUnit": "Jednotka okna",
+      "afterHint": "Entity typu {type}, ktoré sa tak dlho neaktualizovali, sa raz za hodinu zmažú.",
+      "history": "História typu {type} sa riadi pravidlami priestoru bez ohľadu na voľbu tu.",
+      "spaceRules": "Uchovávanie v {space}",
+      "span": "{count} {unit}",
+      "noSpan": "žiadny čas",
+      "problem": {
+        "date": "Zadajte dátum a čas.",
+        "past": "Dátum je v minulosti: všetky entity by sa odstránili naraz. Vyberte neskorší.",
+        "span": "Zadajte, ako dlho ich ponechať: aspoň minútu."
+      },
+      "says": {
+        "keep": "Každá entita {type} zostane, kým ju niekto nezmaže alebo ju pravidlo priestoru neodstráni.",
+        "entity": "Každá entita {type} sa odstráni {end}.",
+        "renewed": "Novší zápis posunie koniec ďalej.",
+        "attribute": "Pole {name} každej entity {type} zmizne {end}.",
+        "from": "{span} po jej {from}",
+        "fromExact": "v jej {from}",
+        "observedAt": "poslednom observedAt",
+        "cap": "a najneskôr {span} po zápise",
+        "rolling": "{span} po jej poslednom zápise",
+        "at": "{date}",
+        "stale": "Raz za hodinu pipeline zmaže každú entitu {type}, ktorú neaktualizovala {span}."
+      },
+      "allAdded": "Každé pole, ktoré endpoint povoľuje, už má koniec."
     },
     "access": {
       "section": "Prístup k iným priestorom",
@@ -2896,7 +3022,8 @@
       },
       "grantIn": "{role} v {where}",
       "grantOrg": "{role} v celej organizácii",
-      "emptyHint": "Servisný účet je spôsob, ako program mimo Portálu číta alebo zapisuje tento projekt: skript, pipeline inde, iná platforma. Každý sa prihlasuje vlastným klientom v Keycloaku a má len rolu, ktorú mu dáte."
+      "emptyHint": "Servisný účet je spôsob, ako program mimo Portálu číta alebo zapisuje tento projekt: skript, pipeline inde, iná platforma. Každý sa prihlasuje vlastným klientom v Keycloaku a má len rolu, ktorú mu dáte.",
+      "emptyOrganization": "Organizácia nemá vlastný servisný účet. Servisné účty projektu sú v nastaveniach projektu a v sekcii Agenti."
     },
     "matrix": {
       "title": "Prístup k údajom",
@@ -5817,7 +5944,8 @@
       "health": "Stav overenia",
       "endpoints": "Všetky endpointy",
       "mcp-servers": "MCP servery organizácie",
-      "brokers": "Brokery"
+      "brokers": "Brokery",
+      "agents": "Agenti"
     },
     "settings": {
       "title": "Nastavenia",
@@ -6414,7 +6542,116 @@
       "platform": "Čo inštalácia prevádzkuje pre každý projekt: brokery, prostredia, členstvo v dátovom priestore a stav.",
       "settings": "Doména organizácie, jazyky, kontakty, pravidlá a limity a čo ešte chýba v nastavení."
     },
-    "kindHidden": "Tu ich vidí len administrátor organizácie, ktorého rola zahŕňa {kinds}. Požiadajte administrátora organizácie, aby ich pridal do vašej roly."
+    "kindHidden": "Tu ich vidí len administrátor organizácie, ktorého rola zahŕňa {kinds}. Požiadajte administrátora organizácie, aby ich pridal do vašej roly.",
+    "agents": {
+      "title": "Agenti",
+      "lead": "Všetci AI agenti organizácie a jej projektov, ktorých smiete vidieť: asistenti, profily agentov, MCP servery, servisné účty a práve bežiace behy. Otvorte agenta a uvidíte, kam siaha, a asistenta môžete pozastaviť.",
+      "caption": "Agenti organizácie",
+      "empty": "Zatiaľ žiadny agent",
+      "emptyHint": "Asistenti, profily agentov, MCP servery a servisné účty sa tu zobrazia, keď ich projekt deklaruje.",
+      "column": {
+        "name": "Agent",
+        "owner": "Vlastník",
+        "actsAs": "Koná ako",
+        "reach": "Siaha na",
+        "lastActivity": "Posledná aktivita",
+        "spend": "Spotreba",
+        "state": "Stav"
+      },
+      "kind": {
+        "AssistantDeployment": "Asistent",
+        "AgentProfile": "Profil agenta",
+        "McpServer": "MCP server",
+        "ServiceAccount": "Servisný účet",
+        "AgentRun": "Beh"
+      },
+      "organization": "Organizácia",
+      "ownerProject": "Projekt {project}",
+      "actsAs": {
+        "self": "Vlastný účet",
+        "caller": "Osoba, ktorá ho volá"
+      },
+      "actsAsLong": {
+        "self": "Vlastný servisný účet: má práva pridelené tomuto účtu, nech sa pýta ktokoľvek.",
+        "caller": "Osoba alebo klient, ktorý ho volá: číta a zapisuje len to, čo smie tento volajúci."
+      },
+      "reachNone": "Nič neuvedené",
+      "reachCount": "Priestory: {spaces} · Endpointy: {endpoints}",
+      "spendNone": "Bez rozpočtu tokenov",
+      "spendCapOnly": {
+        "day": "Strop {cap} tokenov za deň",
+        "run": "Strop {cap} tokenov za beh"
+      },
+      "spendUsedOnly": {
+        "day": "{used} tokenov dnes",
+        "run": "{used} tokenov doteraz"
+      },
+      "spendOf": {
+        "day": "{used} z {cap} tokenov dnes",
+        "run": "{used} z {cap} tokenov"
+      },
+      "state": {
+        "active": "Aktívny",
+        "paused": "Pozastavený",
+        "running": "Beží",
+        "waiting": "Čaká na človeka"
+      },
+      "noActivity": "Nič nezaznamenané",
+      "back": "Všetci agenti",
+      "gone": "Tento agent nie je v zozname",
+      "goneHint": "Bol odstránený alebo vám ho vaše roly už nedovoľujú vidieť.",
+      "tabsLabel": "O tomto agentovi",
+      "tab": {
+        "overview": "Prehľad",
+        "access": "Prístup",
+        "activity": "Aktivita",
+        "settings": "Nastavenia"
+      },
+      "spaces": "Priestory",
+      "endpoints": "Endpointy",
+      "none": "Žiadne",
+      "pause": "Pozastaviť asistenta",
+      "resume": "Obnoviť asistenta",
+      "pauseLead": "Pozastavenie zastaví všetky odpovede asistenta, kým ho neobnovíte. Je to zmena, ktorú projekt pred použitím posúdi.",
+      "resumeLead": "Tento asistent teraz nikomu neodpovedá. Obnovenie je zmena, ktorú projekt pred použitím posúdi.",
+      "pauseSent": "Pozastavenie odoslané na posúdenie. Asistent prestane odpovedať po schválení zmeny.",
+      "resumeSent": "Obnovenie odoslané na posúdenie. Asistent začne znova odpovedať po schválení zmeny.",
+      "openChange": "Otvoriť zmenu",
+      "openHome": "Otvoriť jeho stránku",
+      "noPause": "Tento druh nemá vypínač. Ak ho chcete zastaviť, odstráňte ho na jeho stránke.",
+      "runStop": "Beh zastavíte zrušením na stránke jeho aplikácie.",
+      "activityLead": "Čo čítal a zapísal, je na jeho vlastnej stránke.",
+      "runSettings": "Beh sa riadi profilom agenta {profile}; jeho nastavenia sú tam.",
+      "openManifest": "Upraviť na jeho stránke",
+      "setting": {
+        "channel": "Kde odpovedá",
+        "enabled": "Odpovedá",
+        "role": "Rola",
+        "purpose": "Účel",
+        "audience": "Publikum",
+        "credentials": "Prihlasovacie údaje",
+        "model": {
+          "answer": "Model odpovedí",
+          "router": "Model smerovania",
+          "provider": "Poskytovateľ modelu",
+          "name": "Model",
+          "maxTokensPerRun": "Tokeny za beh"
+        },
+        "budget": {
+          "tokensPerDay": "Tokeny za deň",
+          "costPerDayUsd": "Náklady za deň (USD)"
+        },
+        "rateLimit": {
+          "requestsPerMinute": "Požiadavky za minútu"
+        },
+        "limits": {
+          "stepsPerRun": "Kroky za beh",
+          "wallClock": "Najdlhší beh",
+          "concurrentRunsPerOrganization": "Súbežné behy",
+          "requestsPerMinute": "Požiadavky za minútu"
+        }
+      }
+    }
   },
   "projectDelete": {
     "title": "Zmazať projekt {name}",
@@ -7614,7 +7851,8 @@
       "writes": "Zapisuje",
       "offeredBy": "Ponúka: {members}"
     },
-    "leadOrganization": "MCP servery organizácie: jedna adresa nad endpointmi viacerých projektov pre všetkých, ktorých publikum pripúšťa."
+    "leadOrganization": "MCP servery organizácie: jedna adresa nad endpointmi viacerých projektov pre všetkých, ktorých publikum pripúšťa.",
+    "emptyOrganization": "Organizácia zatiaľ nemá vlastný MCP server. Servery projektu sú na jeho stránke MCP a v sekcii Agenti."
   },
   "notifications": {
     "label": "{count, plural, =0 {Upozornenia} one {Upozornenia, # neprečítané} few {Upozornenia, # neprečítané} other {Upozornenia, # neprečítaných}}",

@@ -20,7 +20,7 @@ import { PipelineStudio } from "./PipelineStudio";
 import { PipelineWorkbench } from "./PipelineWorkbench";
 import type { MappingFile } from "./PipelineWorkbench";
 import type { UiSchema } from "../../components/forms/types";
-import type { Lifetime } from "./ExpiryChoice";
+import type { Lifetime } from "./lifetime";
 
 /** The form of a pipeline: `PipelineSpec` with every reference flattened to its name. */
 export interface PipelineForm {

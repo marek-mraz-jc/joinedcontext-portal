@@ -141,6 +141,10 @@ pub(crate) async fn keep(
         step: step.and_then(|s| i32::try_from(s).ok()),
         run: Some(run.clone()),
     };
+    if outcome == Outcome::Rejected {
+        let id = vec![record_id(&refused.record)];
+        crate::pipeline_source_deletes::note_seen(state, project, name, &run, &id, false).await;
+    }
     let line = NewLine {
         record_id: record_id(&refused.record),
         step: reason.step,
@@ -235,6 +239,12 @@ pub(crate) async fn log_sent(
             (id.as_str().unwrap_or_default().to_owned(), hash)
         })
         .collect();
+    let ids: Vec<String> = sent
+        .sent
+        .iter()
+        .filter_map(|id| id.as_str().map(str::to_owned))
+        .collect();
+    crate::pipeline_source_deletes::note_seen(state, project, name, &run, &ids, true).await;
     let kept = match state.pipeline_log.append(project, name, &run, &lines).await {
         Ok(()) if written.is_empty() => Ok(()),
         Ok(()) => state
@@ -321,6 +331,35 @@ pub async fn sampled(
     StatusCode::NO_CONTENT
 }
 
+/// `POST /internal/pipelines/{project}/{name}/source-deletes`: what one chunk of a delete stream
+/// deleted, found gone or had refused (PL-97, T-4891).
+pub async fn source_deletes(
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> StatusCode {
+    if crate::auth::internal::authenticate_pipeline_of(&state, &headers, &project, &name)
+        .await
+        .is_err()
+    {
+        return StatusCode::UNAUTHORIZED;
+    }
+    let Ok(report) = serde_json::from_slice::<crate::pipeline_source_deletes::Report>(&body) else {
+        return StatusCode::BAD_REQUEST;
+    };
+    if state.mirror.get(&project, "Pipeline", &name).is_none() {
+        return StatusCode::NOT_FOUND;
+    }
+    match crate::pipeline_source_deletes::reported(&state, &project, &name, report).await {
+        Ok(()) => StatusCode::NO_CONTENT,
+        Err(error) => {
+            tracing::warn!(%project, pipeline = %name, %error, "a source-delete report was not kept");
+            StatusCode::SERVICE_UNAVAILABLE
+        }
+    }
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route(
@@ -334,6 +373,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/internal/pipelines/{project}/{name}/samples",
             post(sampled),
+        )
+        .route(
+            "/internal/pipelines/{project}/{name}/source-deletes",
+            post(source_deletes),
         )
         .layer(DefaultBodyLimit::max(BODY_LIMIT))
 }

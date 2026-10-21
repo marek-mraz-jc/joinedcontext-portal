@@ -616,6 +616,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Agents
+         * @description Every agent identity of the organization and its projects the caller may read: assistant deployments, agent profiles, MCP servers, service accounts and runs not yet ended (API/01 §48, AG-126).
+         */
+        get: operations["list_agents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organization/brokers": {
         parameters: {
             query?: never;
@@ -2897,6 +2917,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/pipelines/{name}/source-deletes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview Source Deletes
+         * @description The dry run of a snapshot pipeline (PL-97): how many entities its source ledger holds, the ids one more complete run without them deletes, the ids due now, and the held run if one is held. Nothing is deleted.
+         */
+        get: operations["get_source_deletes"];
+        put?: never;
+        /**
+         * Release or Keep Source Deletes
+         * @description Answers a snapshot pipeline's held run (PL-97): `delete` hands the due ids to the runner once, deleted through the pipeline's own Endpoint and grant like any of its deletes; `keep` clears every miss, so nothing is deleted until complete runs miss the ids again. Needs approve on Pipeline, and each answer is an activity event `pipeline.source-delete`.
+         */
+        post: operations["post_source_deletes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/pipelines/{name}/stats": {
         parameters: {
             query?: never;
@@ -3891,6 +3935,41 @@ export interface components {
         AgentAccessList: {
             items: components["schemas"]["ProfileAccess"][];
         };
+        /**
+         * @description Whose rights an agent uses (AG-94, AG-115).
+         * @enum {string}
+         */
+        AgentActsAs: "self" | "caller";
+        /** @description One agent identity (API/01 §48). */
+        AgentItem: {
+            actsAs: components["schemas"]["AgentActsAs"];
+            endpoints: string[];
+            /** @description `AssistantDeployment`, `AgentProfile`, `McpServer`, `ServiceAccount` or `AgentRun`. */
+            kind: string;
+            lastActivity?: string | null;
+            name: string;
+            owner: components["schemas"]["AgentOwner"];
+            /** @description The agent profile a run executes, for `AgentRun` only. */
+            profile?: string | null;
+            /** @description The namespace: a project, or `org` for the organization's own manifests. */
+            project: string;
+            /** @description The run's id, for `AgentRun` only. */
+            runId?: string | null;
+            spaces: string[];
+            spend: components["schemas"]["AgentSpend"];
+            state: components["schemas"]["AgentState"];
+            title?: string | null;
+        };
+        /** @description Who answers for an agent. */
+        AgentOwner: {
+            name: string;
+            /** @description `person` or `project`. */
+            type: string;
+        };
+        /** @description Every agent the caller may read. */
+        AgentRegistry: {
+            items: components["schemas"]["AgentItem"][];
+        };
         AgentRun: {
             allowsWrite: boolean;
             appClass: string;
@@ -3974,6 +4053,20 @@ export interface components {
          * @enum {string}
          */
         AgentRunStatus: "queued" | "starting" | "interviewing" | "building" | "testing" | "previewing" | "awaiting_approval" | "published" | "failed" | "cancelled" | "expired";
+        /** @description Tokens spent against a cap. */
+        AgentSpend: {
+            /** Format: int64 */
+            cap?: number | null;
+            /** @description `day` or `run`. */
+            per?: string | null;
+            /** Format: int64 */
+            used?: number | null;
+        };
+        /**
+         * @description Whether an agent answers now.
+         * @enum {string}
+         */
+        AgentState: "active" | "paused" | "running" | "waiting";
         /** @enum {string} */
         AlertDelivery: "portal" | "digest";
         /** @enum {string} */
@@ -5392,6 +5485,11 @@ export interface components {
          * @enum {string}
          */
         Health: "up" | "down" | "unknown";
+        /**
+         * @description Why a run deleted nothing and alerts the pipeline's subscribers.
+         * @enum {string}
+         */
+        HoldReason: "share-exceeded" | "empty" | "incomplete";
         /** @description Who is signed in. Returned by `GET /api/v1/auth/me` and used by every protected route. */
         Identity: {
             email?: string | null;
@@ -6096,6 +6194,42 @@ export interface components {
              *     mapping carry the source's own field names, so only `output` is served.
              */
             withheld: boolean;
+        };
+        /** @description What a decision did. */
+        PipelineSourceDecided: {
+            /** @description The ids handed to the runner to delete; 0 on keep. */
+            deleting: number;
+        };
+        /** @description A person's answer to a held run (PL-97). */
+        PipelineSourceDecision: {
+            /** @description `delete` deletes the due ids once, past the share; `keep` counts every id as read again. */
+            decision: components["schemas"]["SourceChoice"];
+        };
+        /**
+         * @description The ledger as the pipeline's page shows it, with the dry run: what the next complete run that
+         *     misses them again would delete (PL-97).
+         */
+        PipelineSourceDeletes: {
+            /** @description The ids whose misses already reached the rule and wait for a delete or a release. */
+            due: string[];
+            hold?: null | components["schemas"]["PipelineSourceHold"];
+            /** @description The ids in the ledger. */
+            ledger: number;
+            /** Format: int32 */
+            maxShare: number;
+            /** Format: int32 */
+            misses: number;
+            /** @description The ids at their last miss: one more complete run without them deletes them. */
+            next: string[];
+        };
+        /** @description A run that deleted nothing, as the pipeline's page and its alert say it. */
+        PipelineSourceHold: {
+            /** @description The ids in the ledger. */
+            ledger: number;
+            reason: components["schemas"]["HoldReason"];
+            run: string;
+            /** @description The ids the run would have deleted. */
+            would: number;
         };
         PipelineStats: {
             /**
@@ -6837,6 +6971,8 @@ export interface components {
             attr: string;
             desc?: boolean;
         };
+        /** @enum {string} */
+        SourceChoice: "delete" | "keep";
         /** @description Result returned for `PUT /source?dryRun=All`. */
         SourceDryRunResult: {
             artifacts: components["schemas"]["Artifacts"];
@@ -8658,6 +8794,53 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_agents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The agents */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentRegistry"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller reads no agent kind anywhere */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The run store did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
             };
         };
     };
@@ -16784,6 +16967,146 @@ export interface operations {
             };
             /** @description Pipeline not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_source_deletes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Pipeline name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The ledger and the dry run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PipelineSourceDeletes"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Pipeline not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The pipeline is not a snapshot pipeline */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The ledger could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    post_source_deletes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Pipeline name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "decision": "keep"
+                 *     }
+                 */
+                "application/json": components["schemas"]["PipelineSourceDecision"];
+            };
+        };
+        responses: {
+            /** @description Done, or the deletes handed to the runner */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PipelineSourceDecided"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not approve the pipeline */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Pipeline not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not a snapshot pipeline, or nothing is due */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The ledger or the runner did not answer */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -48,6 +48,7 @@ pub mod pipeline_outcomes;
 pub mod pipeline_rights;
 pub mod pipeline_samples;
 pub mod pipeline_secrets;
+pub mod pipeline_source_deletes;
 pub mod pipeline_stats;
 pub mod pipeline_status;
 pub mod pipeline_validation;

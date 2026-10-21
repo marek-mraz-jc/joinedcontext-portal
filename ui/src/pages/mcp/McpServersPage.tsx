@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
-import { asManifests, localized } from "../../api/manifest";
+import { asManifests, localized, ORG_NAMESPACE } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { useProjects } from "../../api/projects";
 import { useBranding } from "../../branding";
@@ -86,7 +86,7 @@ export function McpServersPage({ project, embedded = false }: { project: string;
       ) : null}
       {servers.isLoading ? <p role="status">{t("app.loading")}</p> : null}
       {!servers.isLoading && !servers.isError && items.length === 0 ? (
-        <EmptyState title={t("mcp.empty")} description={t("mcp.emptyHint")} icon="endpoints" action={create} />
+        <EmptyState title={t(project === ORG_NAMESPACE ? "mcp.emptyOrganization" : "mcp.empty")} description={t("mcp.emptyHint")} icon="endpoints" action={create} />
       ) : null}
       {items.map((server) => (
         <ServerCard
