@@ -9416,5 +9416,44 @@
       "surfaceMissing": "Das Gateway bietet diese Schnittstelle nicht an: prüfen Sie spec.enabledRepresentations und ob der Endpoint angewendet ist.",
       "slowSurface": "Die Schnittstelle antwortet langsam: prüfen Sie die Last des Brokers und den Filter des Endpoints."
     }
+  },
+  "accessibility": {
+    "title": "Erklärung zur Barrierefreiheit",
+    "link": "Barrierefreiheit",
+    "lead": "{organisation} möchte, dass alle dieses Portal und seinen Open-Data-Katalog nutzen können, auch Menschen, die nur mit der Tastatur, einem Screenreader oder einer Vergrößerung arbeiten.",
+    "law": {
+      "heading": "Rechtsgrundlage",
+      "body": "Diese Erklärung gilt für {host}. Die Barrierefreiheit regeln das slowakische Gesetz Nr. 95/2019 Slg. über Informationstechnologien in der öffentlichen Verwaltung und die Verordnung Nr. 78/2020 Slg. über Standards für Informationstechnologien der öffentlichen Verwaltung, die WCAG 2.1 Stufe AA als Standard nimmt."
+    },
+    "status": {
+      "heading": "Stand der Vereinbarkeit",
+      "body": "Diese Website ist teilweise mit WCAG 2.1 Stufe AA vereinbar. Die unten genannten Inhalte sind noch nicht vollständig barrierefrei."
+    },
+    "gaps": {
+      "heading": "Nicht barrierefreie Inhalte",
+      "maps": "Karten zeigen Orte nur als Bild. Dieselben Orte mit Adressen und Koordinaten stehen in der Tabelle des Datensatzes und in seinem Download.",
+      "charts": "Diagramme zeigen Zahlen nur als Bild. Dieselben Zahlen stehen in der Tabelle des Datensatzes und in seinem Download.",
+      "screenReader": "Der Test mit den Screenreadern NVDA und VoiceOver steht noch aus; ein Screenreader liest manche Bedienelemente womöglich unklar vor.",
+      "thirdParty": "Das Fenster des KI-Assistenten und die Dokumente, die Herausgeber hochladen (PDF, Tabellen), erstellen andere; ihre Barrierefreiheit können wir nicht zusichern."
+    },
+    "method": {
+      "heading": "Wie wir geprüft haben",
+      "body": "Durch Selbstbewertung. Das Werkzeug axe-core prüft jede Seite, die der automatische Rundgang des Portals besucht, auf Englisch und Slowakisch, in Desktop- und Telefonbreite, und die Prüfung schlägt bei jedem schweren oder kritischen Befund fehl. Die fünf wichtigsten Abläufe haben wir nur mit der Tastatur durchlaufen."
+    },
+    "dates": {
+      "heading": "Datum",
+      "body": "Diese Erklärung wurde am {prepared} erstellt und zuletzt am {reviewed} überprüft."
+    },
+    "contact": {
+      "heading": "Feedback und Kontakt",
+      "body": "Sind Sie auf eine Barriere gestoßen? Nennen Sie uns die Adresse der Seite und was Sie tun wollten.",
+      "write": "Schreiben Sie an",
+      "noEmail": "Diese Installation hat noch keine Kontaktadresse veröffentlicht; wenden Sie sich an ihren Betreiber, {organisation}."
+    },
+    "enforcement": {
+      "heading": "Durchsetzung",
+      "body": "Wenn unsere Antwort Sie nicht zufriedenstellt, wenden Sie sich an das Ministerium für Investitionen, regionale Entwicklung und Informatisierung der Slowakischen Republik, das die Barrierefreiheit von Websites der öffentlichen Verwaltung beaufsichtigt."
+    },
+    "footer": "Über diese Seite"
   }
 }
