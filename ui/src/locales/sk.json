@@ -106,7 +106,8 @@
     "serviceaccounts": "Servisné účty",
     "mappings": "Mapovania",
     "layers": "Mapové vrstvy",
-    "csrs": "Kontextové zdroje"
+    "csrs": "Kontextové zdroje",
+    "health": "Zdravie"
   },
   "auth": {
     "lead": "Prihláste sa účtom svojej organizácie a spravujte túto platformu.",
@@ -9307,5 +9308,47 @@
     "result": "Výsledok skriptu",
     "text": "Uložený text",
     "json": "Podrobnosti v JSON"
+  },
+  "health": {
+    "title": "Zdravie",
+    "lead": "Každá kontrola pipeline, kontextových priestorov, Endpointov, modelov a zdrojov údajov tohto projektu, chyby navrchu. Portál ich kontroluje každých pár minút.",
+    "caption": "Kontroly zdravia",
+    "empty": "Zatiaľ nič neskontrolované",
+    "emptyHint": "Portál skontroluje zdroje pár minút po štarte. Pridajte pipeline, kontextový priestor alebo Endpoint, alebo sa vráťte o pár minút.",
+    "summary": "{errors, plural, one {# chyba} few {# chyby} other {# chýb}} a {warnings, plural, one {# varovanie} few {# varovania} other {# varovaní}} z {total} kontrol: pod každou je oprava.",
+    "allWell": "Všetkých {total} kontrol je v poriadku.",
+    "kind": "Zobraziť",
+    "kindHint": "Zúžte zoznam na jeden druh zdroja, napr. Pipeline.",
+    "allKinds": "Všetky druhy",
+    "kinds": {
+      "pipeline": "Pipeline",
+      "space": "Kontextový priestor",
+      "endpoint": "Endpoint",
+      "model": "Model",
+      "datasource": "Zdroj údajov"
+    },
+    "noneOfKind": "Žiadne kontroly tohto druhu",
+    "noneOfKindHint": "Vyberte Všetky druhy a uvidíte každú kontrolu.",
+    "status": "Stav",
+    "project": "Projekt",
+    "resource": "Zdroj",
+    "found": "Čo našla",
+    "history": "Posledných 7 dní",
+    "lastOk": "Naposledy v poriadku",
+    "since": "od {at}",
+    "checks": {
+      "reconcile": "nasadenie",
+      "runs": "behy",
+      "freshness": "aktuálnosť"
+    },
+    "nothingFound": "Nie je čo opraviť.",
+    "fix": "Oprava:",
+    "historyLabel": "{total} meraní za posledných 7 dní: {errors} chýb, {warnings} varovaní.",
+    "never": "nikdy",
+    "adminTitle": "Zdroje projektov",
+    "adminLead": "Kontroly všetkých projektov, chyby navrchu.",
+    "broken": "Nefunguje",
+    "look": "Treba pozrieť",
+    "working": "Funguje"
   }
 }

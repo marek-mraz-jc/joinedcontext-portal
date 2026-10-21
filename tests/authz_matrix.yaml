@@ -212,6 +212,9 @@ routes:
   - route: GET /organization/health
     rule: "org-admin"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]
+  - route: GET /organization/health-checks
+    rule: "org-admin"
+    expect: [401, 403, 403, 403, 403, allow, 403, 403]
   - route: GET /organization/agents
     rule: "signed-in, filtered per namespace by read on each agent kind; 403 for a caller who reads none (AG-126)"
     expect: [401, allow, allow, allow, allow, allow, 403, allow]
@@ -366,6 +369,9 @@ routes:
     note: "a 404 where the rule allows is an object the fixture does not hold; the check before it passed"
   - route: GET /projects/{project}/app-checks
     rule: "project-verb:read:App"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/health-checks
+    rule: "project-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
   - route: GET /projects/{project}/spaces/{space}/quality
     rule: "space-read"

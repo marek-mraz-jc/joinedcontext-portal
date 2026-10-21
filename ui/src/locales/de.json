@@ -106,7 +106,8 @@
     "serviceaccounts": "Dienstkonten",
     "mappings": "Zuordnungen",
     "layers": "Kartenebenen",
-    "csrs": "Kontextquellen"
+    "csrs": "Kontextquellen",
+    "health": "Zustand"
   },
   "auth": {
     "lead": "Melden Sie sich mit dem Konto Ihrer Organisation an, um diese Plattform zu verwalten.",
@@ -9307,5 +9308,47 @@
     "result": "Skriptergebnis",
     "text": "Gespeicherter Text",
     "json": "Details als JSON"
+  },
+  "health": {
+    "title": "Zustand",
+    "lead": "Jede Prüfung der Pipelines, Kontexträume, Endpoints, Modelle und Datenquellen dieses Projekts, Fehler zuerst. Das Portal prüft sie alle paar Minuten.",
+    "caption": "Zustandsprüfungen",
+    "empty": "Noch nichts geprüft",
+    "emptyHint": "Das Portal prüft die Ressourcen wenige Minuten nach dem Start. Legen Sie eine Pipeline, einen Kontextraum oder einen Endpoint an, oder schauen Sie in ein paar Minuten wieder vorbei.",
+    "summary": "{errors, plural, one {# Fehler} other {# Fehler}} und {warnings, plural, one {# Warnung} other {# Warnungen}} unter {total} Prüfungen: die Behebung steht unter jeder.",
+    "allWell": "Alle {total} Prüfungen sind in Ordnung.",
+    "kind": "Anzeigen",
+    "kindHint": "Die Liste auf eine Art von Ressource einschränken, z. B. Pipelines.",
+    "allKinds": "Alle Arten",
+    "kinds": {
+      "pipeline": "Pipeline",
+      "space": "Kontextraum",
+      "endpoint": "Endpoint",
+      "model": "Modell",
+      "datasource": "Datenquelle"
+    },
+    "noneOfKind": "Keine Prüfungen dieser Art",
+    "noneOfKindHint": "Wählen Sie Alle Arten, um jede Prüfung zu sehen.",
+    "status": "Status",
+    "project": "Projekt",
+    "resource": "Ressource",
+    "found": "Befund",
+    "history": "Letzte 7 Tage",
+    "lastOk": "Zuletzt in Ordnung",
+    "since": "seit {at}",
+    "checks": {
+      "reconcile": "angewendet",
+      "runs": "Läufe",
+      "freshness": "Aktualität"
+    },
+    "nothingFound": "Nichts zu beheben.",
+    "fix": "Behebung:",
+    "historyLabel": "{total} Messungen in den letzten 7 Tagen: {errors} Fehler, {warnings} Warnungen.",
+    "never": "nie",
+    "adminTitle": "Ressourcen der Projekte",
+    "adminLead": "Die Prüfungen aller Projekte, Fehler zuerst.",
+    "broken": "Defekt",
+    "look": "Prüfen",
+    "working": "Funktioniert"
   }
 }

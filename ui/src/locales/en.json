@@ -106,7 +106,8 @@
     "serviceaccounts": "Service accounts",
     "mappings": "Mappings",
     "layers": "Map layers",
-    "csrs": "Context sources"
+    "csrs": "Context sources",
+    "health": "Health"
   },
   "auth": {
     "lead": "Sign in with your organisation account to manage this platform.",
@@ -9307,5 +9308,47 @@
     "result": "Script result",
     "text": "Stored text",
     "json": "Details as JSON"
+  },
+  "health": {
+    "title": "Health",
+    "lead": "Every check of this project's pipelines, Context Spaces, Endpoints, models and data sources, errors first. The Portal checks them every few minutes.",
+    "caption": "Health checks",
+    "empty": "Nothing checked yet",
+    "emptyHint": "The Portal checks the resources a few minutes after it starts. Add a pipeline, a Context Space or an Endpoint, or come back in a few minutes.",
+    "summary": "{errors, plural, one {# error} other {# errors}} and {warnings, plural, one {# warning} other {# warnings}} among {total} checks: read the fix under each.",
+    "allWell": "All {total} checks are ok.",
+    "kind": "Show",
+    "kindHint": "Narrow the list to one kind of resource, e.g. Pipelines.",
+    "allKinds": "All kinds",
+    "kinds": {
+      "pipeline": "Pipeline",
+      "space": "Context Space",
+      "endpoint": "Endpoint",
+      "model": "Model",
+      "datasource": "Data source"
+    },
+    "noneOfKind": "No checks of this kind",
+    "noneOfKindHint": "Choose All kinds to see every check.",
+    "status": "Status",
+    "project": "Project",
+    "resource": "Resource",
+    "found": "What it found",
+    "history": "Last 7 days",
+    "lastOk": "Last ok",
+    "since": "since {at}",
+    "checks": {
+      "reconcile": "applied",
+      "runs": "runs",
+      "freshness": "freshness"
+    },
+    "nothingFound": "Nothing to fix.",
+    "fix": "Fix:",
+    "historyLabel": "{total} readings in the last 7 days: {errors} errors, {warnings} warnings.",
+    "never": "never",
+    "adminTitle": "Projects' resources",
+    "adminLead": "Every project's checks, errors first.",
+    "broken": "Broken",
+    "look": "Needs a look",
+    "working": "Working"
   }
 }

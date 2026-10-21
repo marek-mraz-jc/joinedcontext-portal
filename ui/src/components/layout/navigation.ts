@@ -34,6 +34,8 @@ export const NAV_SECTIONS = [
   // What the reconciler, the pipelines, the gateway, the broker and the catalogue did, in one
   // place, so "is it working" has an answer that is not a Grafana login (UI-31).
   { plural: "activity", labelKey: "nav.activity", icon: "refresh" },
+  // What is broken in the project and how to fix it, one row per check of a resource (T-5067).
+  { plural: "health", labelKey: "nav.health", icon: "warning" },
   // Who may read and write the context data, beside the platform roles that say who may
   // change the manifests: a policy is authored like every other kind (T-2326, R5).
   { plural: "policies", labelKey: "nav.policies", icon: "access" },

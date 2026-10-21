@@ -182,15 +182,15 @@ enum Inner {
 
 type Stamp = time::OffsetDateTime;
 
-fn chrono_of(stamp: Stamp) -> DateTime<Utc> {
+pub(crate) fn chrono_of(stamp: Stamp) -> DateTime<Utc> {
     DateTime::from_timestamp(stamp.unix_timestamp(), stamp.nanosecond()).unwrap_or_default()
 }
 
-fn stamp_of(at: DateTime<Utc>) -> Stamp {
+pub(crate) fn stamp_of(at: DateTime<Utc>) -> Stamp {
     Stamp::from_unix_timestamp(at.timestamp()).unwrap_or(Stamp::UNIX_EPOCH)
 }
 
-fn rfc3339(at: DateTime<Utc>) -> String {
+pub(crate) fn rfc3339(at: DateTime<Utc>) -> String {
     at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
 
@@ -980,6 +980,8 @@ pub struct Evaluator {
     /// the last hourly reading of them.
     runs: Option<Arc<crate::pipeline_log::LogStore>>,
     health: tokio::sync::Mutex<Option<(DateTime<Utc>, Vec<Signal>)>>,
+    /// The health log every run's signals are written to (T-5067).
+    log: Option<Arc<crate::health_log::HealthStore>>,
     running: AtomicBool,
 }
 
@@ -996,6 +998,7 @@ impl Evaluator {
             holds: None,
             runs: None,
             health: tokio::sync::Mutex::new(None),
+            log: None,
             running: AtomicBool::new(false),
         }
     }
@@ -1013,6 +1016,12 @@ impl Evaluator {
     /// 80 % (T-5048).
     pub fn with_run_health(mut self, runs: Arc<crate::pipeline_log::LogStore>) -> Self {
         self.runs = Some(runs);
+        self
+    }
+
+    /// Writes every resource's checks to the health log with this run's signals (T-5067).
+    pub fn with_health_log(mut self, log: Arc<crate::health_log::HealthStore>) -> Self {
+        self.log = Some(log);
         self
     }
 
@@ -1081,6 +1090,12 @@ impl Evaluator {
         let (pipelines, mut signals) = read_pipelines(&self.mirror, &self.quality);
         self.add_holds(&mut signals).await?;
         self.add_health(&pipelines, &mut signals, now).await?;
+        if let Some(log) = &self.log {
+            let findings = crate::health_log::derive(&self.mirror, &signals);
+            if let Err(error) = log.record_due(now, findings).await {
+                tracing::warn!(%error, "the health log was not written");
+            }
+        }
         let open = self.store.open_incidents().await?;
         let (opening, closing) = step(&open, &signals);
         let subscriptions = self.store.all().await?;
