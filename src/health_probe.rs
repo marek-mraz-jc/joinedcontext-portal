@@ -370,7 +370,7 @@ mod tests {
     fn a_private_surface_that_asks_for_a_token_is_up() {
         let guarded = judge_surface("bbsk", "internal", "ngsi-ld", false, &answer(401, 40));
         assert_eq!(guarded.status, Status::Ok);
-        assert!(guarded.fix.is_empty());
+        assert!(guarded.fix.text.is_empty());
     }
 
     #[test]

@@ -211,7 +211,7 @@ function Resource({ item, project }: { item: Check; project?: string }): JSX.Ele
         {item.name}
       </a>
       <span className="text-caption text-fg-muted">
-        {t(`health.kinds.${item.kind}`)} · {t(`health.checks.${item.check}`, { defaultValue: item.check })}
+        {t(`health.kinds.${item.kind}`)} · {(CHECKS as readonly string[]).includes(item.check) ? t(`health.checks.${item.check}`) : item.check}
       </span>
       {project ? null : (
         <span className="text-caption text-fg-muted">
