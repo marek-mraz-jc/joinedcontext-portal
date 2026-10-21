@@ -1889,6 +1889,8 @@ export const KIND_PATTERN = "^[A-Z][A-Za-z0-9]{1,63}$";
 export function roleUiSchema(kindsKnown: boolean): UiSchema {
   return {
     rules: {
+      // Reader, Writer, Steward, Pipeline writer first; the rule list under Custom (T-4832).
+      ...(kindsKnown ? { "ui:field": "rolePreset" } : {}),
       items: {
         ...(kindsKnown ? { kinds: { "ui:widget": "checkboxes" } } : {}),
         verbs: { "ui:widget": "checkboxes" },
@@ -2366,9 +2368,11 @@ export function serviceAccountSchema(
   };
 }
 
-/** The operations picker for each grant, as the Policy form has it (T-2282). */
+/** The operations picker for each grant, as the Policy form has it (T-2282), behind a preset (T-4832). */
 export const serviceAccountUiSchema: UiSchema = {
-  roles: { items: { operations: { "ui:widget": "operations" } } },
+  roles: {
+    items: { operations: { "ui:widget": "operations", "ui:options": { presets: true } } },
+  },
 };
 
 /**

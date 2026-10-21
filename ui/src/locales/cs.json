@@ -2853,6 +2853,31 @@
       "personHelp": "Lidé organizace podle e-mailu; vyhledávání výše seznam zúží.",
       "accountHelp": "Servisní účty projektu, tedy programy, které volají endpointy.",
       "nameHelp": "Název přesně tak, jak je zapsán v Keycloaku."
+    },
+    "presets": {
+      "legend": "Přístup",
+      "advanced": "Rozšířené",
+      "unavailable": "Tohle celé sami nedržíte, proto to nemůžete udělit.",
+      "reader": {
+        "label": "Čtenář",
+        "description": "Čte data a nastavení; nic nemění."
+      },
+      "writer": {
+        "label": "Zapisovatel",
+        "description": "Čte a navrhuje nebo provádí změny hodnot dat."
+      },
+      "steward": {
+        "label": "Správce",
+        "description": "Čte, navrhuje a schvaluje změny dat a jejich nastavení; ne toho, kdo má přístup."
+      },
+      "pipelineWriter": {
+        "label": "Zápis z pipeline",
+        "description": "Přivádí data: vytváří a mění entity, navrhuje pipeline a jejich zdroje."
+      },
+      "custom": {
+        "label": "Vlastní",
+        "description": "Každé oprávnění vyberete sami."
+      }
     }
   },
   "flows": {
@@ -3267,7 +3292,14 @@
       "noClasses": "Tento model zatím nedeklaruje žádnou třídu, takže negeneruje formulář.",
       "formClass": "Třída",
       "formReadOnly": "Toto je formulář, který model generuje, vyplněný jeho příkladem; odsud se nic neukládá.",
-      "jsonType": {"number": "Číslo", "integer": "Celé číslo", "string": "Text", "boolean": "Ano nebo ne", "object": "Skupina polí", "array": "Seznam"},
+      "jsonType": {
+        "number": "Číslo",
+        "integer": "Celé číslo",
+        "string": "Text",
+        "boolean": "Ano nebo ne",
+        "object": "Skupina polí",
+        "array": "Seznam"
+      },
       "asJson": "Zobrazeno jako JSON.",
       "yaml": "Zdroj modelu (LinkML YAML)",
       "copyYaml": "Kopírovat YAML",

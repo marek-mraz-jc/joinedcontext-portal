@@ -347,6 +347,14 @@
         "form_examples_fill.test.tsx"
       ]
     },
+    "src/components/forms/widgets/AccessPresetChoice.tsx": {
+      "controls": {
+        "RadioGroup": 1
+      },
+      "tests": [
+        "access_presets.test.tsx"
+      ]
+    },
     "src/components/forms/widgets/KnowledgeSourcesField.tsx": {
       "controls": {
         "Checkbox": 1
