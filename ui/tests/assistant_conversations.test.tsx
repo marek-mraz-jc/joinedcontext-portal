@@ -115,6 +115,9 @@ const SAME = {
   ],
 };
 
+/** The project's assistants, as the picker reads them; `[]` is a project without one. */
+let deployments: string[] = ["obcan"];
+
 function renderAs(verbs: string[], link: { open?: string; against?: string } = {}) {
   const calls: { method: string; url: URL }[] = [];
   const permissions = {
@@ -131,6 +134,8 @@ function renderAs(verbs: string[], link: { open?: string; against?: string } = {
     const body = request.method === "DELETE" ? null
       : url.pathname.endsWith("/permissions/me") ? permissions
       : url.pathname.endsWith("/conversations/usage") ? USAGE
+      : url.pathname.endsWith("/assistantdeployments")
+        ? { items: deployments.map((name) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "AssistantDeployment", metadata: { name, namespace: PROJECT, title: { en: "Citizen desk" } }, spec: {} })) }
       : url.pathname.endsWith("/same") ? SAME
       : url.pathname.endsWith(TWO) ? OTHER
       : url.pathname.endsWith(ONE) ? DETAIL : LIST;
@@ -337,7 +342,8 @@ describe("Asistent → Konverzácie", () => {
     await waitFor(() => {
       expect(calls.some((c) => c.url.searchParams.get("sort") === "tokens")).toBe(true);
     });
-    await user.type(screen.getByLabelText(i18n.t("conversations.filter.deployment")), "obcan");
+    await user.type(screen.getByLabelText(i18n.t("conversations.filter.deployment")), "citi");
+    await user.click(await screen.findByRole("option", { name: /Citizen desk/ }));
     await waitFor(() => {
       expect(calls.some((c) => c.url.pathname.endsWith("/usage") && c.url.searchParams.get("deployment") === "obcan")).toBe(true);
     });
@@ -347,6 +353,28 @@ describe("Asistent → Konverzácie", () => {
     await waitFor(() => expect(createObjectURL).toHaveBeenCalledOnce());
     expect(await saved[0].text()).toBe(CSV);
     expect(calls.some((c) => c.url.pathname.endsWith("/conversations/export"))).toBe(true);
+  });
+
+  it("filters by an assistant picked from the project's own, and says how to add one when it has none (T-4948)", async () => {
+    const user = userEvent.setup();
+    deployments = ["obcan"];
+    const calls = renderAs(["read", "approve"]);
+    const picker = await screen.findByRole("combobox", { name: i18n.t("conversations.filter.deployment") });
+    await user.click(picker);
+    await user.click(await screen.findByRole("option", { name: /Citizen desk/ }));
+    await waitFor(() => {
+      expect(calls.some((c) => c.url.pathname.endsWith("/conversations") && c.url.searchParams.get("deployment") === "obcan")).toBe(true);
+    });
+    expect((picker as HTMLInputElement).value).toBe("Citizen desk");
+  });
+
+  it("says how to add an assistant when the project has none (T-4948)", async () => {
+    const user = userEvent.setup();
+    deployments = [];
+    renderAs(["read", "approve"]);
+    await user.click(await screen.findByRole("combobox", { name: i18n.t("conversations.filter.deployment") }));
+    expect(await screen.findByText(/Add one under Assistant → Deployments/)).toBeInTheDocument();
+    deployments = ["obcan"];
   });
 
   it("one who may delete erases a conversation after confirming", async () => {
