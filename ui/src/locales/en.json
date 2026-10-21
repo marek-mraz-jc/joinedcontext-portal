@@ -971,6 +971,8 @@
       "choose": "Choose a file",
       "empty": "The file holds no rows under its header.",
       "unreadable": "The file could not be read: {reason}",
+      "tooLarge": "The file is {size} MB; an import reads at most {limit} MB. Split it into smaller files, or remove the columns you do not need, and import each part.",
+      "denied": "Nothing was written: the space {space} does not let your role create {type} entities ({reason}). Ask a project owner for a Policy on this space that grants your role batch create on {type}, then import the file again.",
       "read": "{name}: {rows, plural, one {# row} other {# rows}}, {columns, plural, one {# column} other {# columns}}.",
       "mapping": "Which field each column feeds",
       "column": "Column",
@@ -2275,7 +2277,13 @@
         "countFirst": "The first {count, plural, one {# record} other {# records}} with {fields, plural, one {# field} other {# fields}}; the source has more",
         "caption": "Sample records",
         "notJson": "The source answered a web page, not data. Check the address of its data source.",
-        "details": "Engine message"
+        "details": "Engine message",
+        "listening": "Listening to {source} for messages: {elapsed} of {seconds} s, up to {max} messages",
+        "listenAgain": "Listen again",
+        "streamCount": "{count} of {max} messages arrived within {seconds} s, with {fields, plural, one {# field} other {# fields}}",
+        "streamSkipped": "{count, plural, one {# message was not kept} other {# messages were not kept}}",
+        "streamEmptyTitle": "No message arrived within {seconds} s",
+        "streamEmpty": "The topic may be quiet right now, or the broker refused the data source's connection or credentials. Listen again, or check the data source's address, topic and credential."
       },
       "mapping": {
         "title": "Mapping",
@@ -2671,6 +2679,61 @@
         "reads": "Reads space {other} through endpoint {endpoint} ({operation})",
         "writes": "Writes space {other} through endpoint {endpoint} ({operation})"
       }
+    },
+    "access": {
+      "section": "Access to other spaces",
+      "lead": "Ask the owner of another space for this pipeline's read or write there. Nothing is granted until they approve.",
+      "none": "This pipeline has asked for no access to another space.",
+      "request": "Request access",
+      "project": "Owning project",
+      "projectHelp": "The project that owns the space, as its catalog page names it.",
+      "endpoint": "Endpoint",
+      "operationsLegend": "What the pipeline does there",
+      "operations": {
+        "read": "Read",
+        "write": "Write"
+      },
+      "types": "Types and attributes",
+      "typesHelp": "Name each entity type and every attribute the pipeline needs, separated by commas. A request never asks for all of them.",
+      "type": "Entity type",
+      "attrs": "Attributes",
+      "addType": "Add a type",
+      "removeType": "Remove",
+      "removeTypeOf": "Remove type {n}",
+      "tooManyTypes": "A request names at most 20 types.",
+      "untilLabel": "End date",
+      "untilHelp": "The grant ends at the end of this day. Leave it empty for no end.",
+      "reason": "Why the pipeline needs it",
+      "send": "Send request",
+      "cancel": "Cancel",
+      "sent": "Request sent. The space's owners decide it; its state shows here.",
+      "missing": {
+        "endpoint": "Name the owning project and the endpoint.",
+        "types": "Name at least one type, each with its attributes.",
+        "reason": "Say why the pipeline needs it."
+      },
+      "state": {
+        "pending": "Waiting for the owner",
+        "approved": "Approved",
+        "declined": "Declined",
+        "revoked": "Revoked",
+        "ended": "Ended"
+      },
+      "until": "Until {date}",
+      "noEnd": "No end date",
+      "decided": "{who}: {reason}",
+      "inbox": "Pipelines asking for access",
+      "inboxLead": "Pipelines of other spaces and projects asking to read or write this space. Approving proposes the grant as a change of this project.",
+      "inboxEmpty": "No pipeline has asked for access to this space.",
+      "on": "on {endpoint}, asked by {who}",
+      "decisionReason": "Reason for the requester",
+      "approve": "Approve",
+      "approveOf": "Approve access for {account}",
+      "decline": "Decline",
+      "declineOf": "Decline access for {account}",
+      "revoke": "Revoke",
+      "revokeOf": "Revoke access of {account}",
+      "reasonFirst": "Write the reason first."
     }
   },
   "dashboards": {
@@ -5607,7 +5670,17 @@
       "expiresAt": "Expires at",
       "isActive": "Deliver notifications",
       "receiver": "Sends to",
-      "watches": "Watches"
+      "watches": "Watches",
+      "deliveries": "Deliveries"
+    },
+    "delivery": {
+      "none": "No notification yet: it is sent when a watched entity changes.",
+      "ok": "Delivered",
+      "failing": "Failing",
+      "lastSuccess": "Last delivered {at}",
+      "lastFailure": "Last failure {at}",
+      "counts": "{sent} sent, {failed} failed",
+      "failingHint": "The receiver did not accept the last notification: check that its address answers over https and accepts a POST."
     }
   },
   "registrations": {

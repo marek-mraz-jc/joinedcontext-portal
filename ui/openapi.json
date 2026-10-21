@@ -3292,6 +3292,321 @@
         }
       }
     },
+    "/api/v1/projects/{project}/access-requests": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "List Access Requests Into A Project",
+        "description": "The requests into the spaces of this project the caller owns, incoming (PL-91).",
+        "operationId": "list_incoming",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "The owning project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requests, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No database",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/access-requests/{id}/approve": {
+      "post": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Approve An Access Request",
+        "description": "Proposes the grant as a Change of this project, authored by the caller: the Endpoint admitting the pipeline's project and one Policy for its account (PL-91). The requester may not approve their own request.",
+        "operationId": "approve_request",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "The owning project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The request",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "The Change that grants it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an owner of the space, or the requester themself",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Already decided, or the endpoint is gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/access-requests/{id}/decline": {
+      "post": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Decline An Access Request",
+        "description": "Declines a pending request with a reason the requester reads (PL-91). Nothing is proposed.",
+        "operationId": "decline_request",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "The owning project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The request",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Decision"
+              },
+              "example": {
+                "reason": "The KPI project ended"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The request, declined",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No reason",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an owner of the space",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Already decided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/access-requests/{id}/revoke": {
+      "post": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Revoke An Approved Access Request",
+        "description": "Proposes the grant's Policy ended now, and the Endpoint without the pipeline's project when nothing else names it (PL-93).",
+        "operationId": "revoke_request",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "The owning project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The request",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Decision"
+              },
+              "example": {
+                "reason": "The KPI project ended"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "The Change that revokes it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No reason",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an owner of the space",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not approved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/access/explore": {
       "post": {
         "tags": [
@@ -11578,6 +11893,186 @@
           },
           "503": {
             "description": "No pipeline runner is configured, or it did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/pipelines/{name}/access-requests": {
+      "get": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "List A Pipeline's Access Requests",
+        "description": "The pipeline's requests and their state, outgoing (PL-90): names and the grant asked for, never the space's data.",
+        "operationId": "list_outgoing",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "The pipeline's project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "The pipeline",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requests, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such pipeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No database",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Request Access For A Pipeline",
+        "description": "Asks an owner of another space's Endpoint for the pipeline's read or write there (PL-90). Grants nothing until an owner approves it.",
+        "operationId": "file_request",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "The pipeline's project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "The pipeline",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewRequest"
+              },
+              "example": {
+                "endpoint": {
+                  "name": "air-quality",
+                  "project": "helsinki"
+                },
+                "operations": "read",
+                "reason": "Daily air-quality KPI for the city board",
+                "types": [
+                  {
+                    "attrs": [
+                      "pm10",
+                      "no2"
+                    ],
+                    "type": "AirQualityObserved"
+                  }
+                ],
+                "until": "2027-01-01T00:00:00Z"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The request, pending",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request names too much, too little or a bad name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not propose this pipeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such pipeline or endpoint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Already granted, already asked, or the deployment's streams share one account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No database",
             "content": {
               "application/json": {
                 "schema": {
@@ -20439,6 +20934,19 @@
           }
         }
       },
+      "Decision": {
+        "type": "object",
+        "description": "Why an owner declines or revokes.",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "Digest": {
         "type": "object",
         "description": "What `scripts/publish-health.py` writes for one check.",
@@ -20908,6 +21416,23 @@
           "read",
           "readWrite"
         ]
+      },
+      "EndpointName": {
+        "type": "object",
+        "description": "The Endpoint a request names.",
+        "required": [
+          "project",
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       },
       "EndpointStandards": {
         "type": "object",
@@ -22534,6 +23059,41 @@
         },
         "additionalProperties": false
       },
+      "NewRequest": {
+        "type": "object",
+        "description": "The body a requester sends.",
+        "required": [
+          "endpoint",
+          "operations",
+          "types",
+          "reason"
+        ],
+        "properties": {
+          "endpoint": {
+            "$ref": "#/components/schemas/EndpointName"
+          },
+          "operations": {
+            "$ref": "#/components/schemas/Operations"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TypeGrant"
+            }
+          },
+          "until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The grant's end, RFC 3339; none is no end."
+          }
+        },
+        "additionalProperties": false
+      },
       "Node": {
         "type": "object",
         "description": "One object in the graph.",
@@ -23017,6 +23577,14 @@
             "type": "string"
           }
         }
+      },
+      "Operations": {
+        "type": "string",
+        "description": "What the pipeline asks to do through the Endpoint.",
+        "enum": [
+          "read",
+          "write"
+        ]
       },
       "OrganizationLimits": {
         "type": "object",
@@ -26043,6 +26611,17 @@
             },
             "description": "The last run of each scheduled job of a `wasm` App, as its shard reports it (AP-154):\ncomputed by the reconciler, never read from Git."
           },
+          "notifications": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SubscriptionDeliveries",
+                "description": "What a `Subscription`'s space reports of its deliveries (T-4866): computed by the\nreconciler after each write, never read from Git, and only ever on a Subscription."
+              }
+            ]
+          },
           "observedRevision": {
             "type": [
               "string",
@@ -26086,6 +26665,54 @@
           "subject": {
             "type": "string",
             "description": "The value of the class's `dataSubjectRef` slot."
+          }
+        },
+        "additionalProperties": false
+      },
+      "SubscriptionDeliveries": {
+        "type": "object",
+        "description": "What the space says of one subscription's deliveries (TS 104 175 §5.2.14, the\nNotificationParams members the broker maintains), kept in `status.notifications` so a person\nsees whether the receiver gets what it watches (T-4866). Never the endpoint, a header or a\npayload: only an outcome, two counts and three instants.",
+        "properties": {
+          "lastFailure": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastNotification": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastSuccess": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`ok` when the last notification was delivered, `failed` when it was not."
+          },
+          "timesFailed": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "timesSent": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
           }
         },
         "additionalProperties": false
@@ -26480,6 +27107,26 @@
             "type": "string"
           }
         }
+      },
+      "TypeGrant": {
+        "type": "object",
+        "description": "One entity type and the attributes asked for on it, each written out.",
+        "required": [
+          "type",
+          "attrs"
+        ],
+        "properties": {
+          "attrs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       },
       "TypeQuality": {
         "type": "object",

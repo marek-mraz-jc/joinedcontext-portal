@@ -5,6 +5,7 @@
 // default of 128 (ci-full readme, 534379bd).
 #![recursion_limit = "256"]
 
+pub mod access_requests;
 pub mod activity;
 pub mod agents;
 pub mod alerts;

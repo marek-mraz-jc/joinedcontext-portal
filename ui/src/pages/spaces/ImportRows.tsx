@@ -25,6 +25,7 @@ import {
   rejectedCsv,
   suggestMapping,
   toEntities,
+  unreadableText,
 } from "./importRows";
 import type { ImportSlot, Mapping, Rejected, Send, Table as Rows, Target } from "./importRows";
 
@@ -40,7 +41,7 @@ type Step =
   | { kind: "file" }
   | { kind: "map"; table: Rows; mapping: Mapping; name: string; expiresAt?: string }
   | { kind: "writing"; sent: number; total: number }
-  | { kind: "done"; created: number; rejected: Rejected[] };
+  | { kind: "done"; created: number; rejected: Rejected[]; denied?: string };
 
 export function ImportRowsDialog({
   open,
@@ -89,7 +90,7 @@ export function ImportRowsDialog({
       }
       setStep({ kind: "map", table, mapping: suggestMapping(table.columns, slots), name: file.name });
     } catch (error) {
-      setProblem(t("spaces.import.unreadable", { reason: error instanceof Error ? error.message : String(error) }));
+      setProblem(unreadableText(t, error));
     }
   };
 
@@ -101,7 +102,7 @@ export function ImportRowsDialog({
       setStep({ kind: "writing", sent, total }),
     );
     const rejected = [...checked.rejected, ...answer.rejected].sort((a, b) => a.row - b.row);
-    setStep({ kind: "done", created: answer.created, rejected });
+    setStep({ kind: "done", created: answer.created, rejected, denied: answer.denied });
     if (answer.created > 0) onImported();
   };
 
@@ -166,7 +167,7 @@ export function ImportRowsDialog({
           {t("spaces.import.writing", { sent: step.sent, total: step.total })}
         </p>
       ) : null}
-      {step.kind === "done" ? <Report created={step.created} rejected={step.rejected} type={target.type} /> : null}
+      {step.kind === "done" ? <Report created={step.created} rejected={step.rejected} type={target.type} space={target.space} denied={step.denied} /> : null}
     </Dialog>
   );
 }
@@ -256,6 +257,8 @@ function MapStep({
                 <TableCell>
                   <Select
                     id={id}
+                    // Wide enough to read the choice at 400 px; the table scrolls sideways instead.
+                    className="min-w-44"
                     value={mapping[column] ?? ""}
                     onChange={(event) => onMapping({ ...mapping, [column]: event.target.value })}
                   >
@@ -417,8 +420,30 @@ function RefusedList({ rejected }: { rejected: Rejected[] }): JSX.Element {
   );
 }
 
-function Report({ created, rejected, type }: { created: number; rejected: Rejected[]; type: string }): JSX.Element {
+function Report({
+  created,
+  rejected,
+  type,
+  space,
+  denied,
+}: {
+  created: number;
+  rejected: Rejected[];
+  type: string;
+  space: string;
+  /** The gateway's words when it refused the person the write itself. */
+  denied?: string;
+}): JSX.Element {
   const { t } = useTranslation();
+  if (denied !== undefined) {
+    // One reason for every row: the list and its download would repeat it, so the sentence says
+    // what happened and who can change it.
+    return (
+      <Alert role="alert" tone="danger">
+        {t("spaces.import.denied", { type, space, reason: denied })}
+      </Alert>
+    );
+  }
   return (
     <div className="flex flex-col gap-3">
       <Alert role="status" tone={rejected.length === 0 ? "success" : created > 0 ? "warning" : "danger"}>

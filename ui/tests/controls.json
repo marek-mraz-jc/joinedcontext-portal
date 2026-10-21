@@ -1496,6 +1496,15 @@
         "people_page.test.tsx"
       ]
     },
+    "src/pages/pipelines/AccessRequests.tsx": {
+      "controls": {
+        "Button": 8,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "access_requests.test.tsx"
+      ]
+    },
     "src/pages/pipelines/DebugPanel.tsx": {
       "controls": {
         "Button": 2
@@ -1621,7 +1630,7 @@
     },
     "src/pages/pipelines/PipelineWorkbench.tsx": {
       "controls": {
-        "Button": 1,
+        "Button": 2,
         "Checkbox": 1,
         "FilePicker": 1,
         "RadioGroup": 1
@@ -1929,6 +1938,7 @@
       },
       "tests": [
         "form_required_reference_check.test.tsx",
+        "subscription_deliveries.test.tsx",
         "subscription_form.test.tsx"
       ]
     },

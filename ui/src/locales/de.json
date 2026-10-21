@@ -971,6 +971,8 @@
       "choose": "Datei wählen",
       "empty": "Die Datei enthält unter ihrer Kopfzeile keine Zeilen.",
       "unreadable": "Die Datei lässt sich nicht lesen: {reason}",
+      "tooLarge": "Die Datei hat {size} MB; ein Import liest höchstens {limit} MB. Teilen Sie sie in kleinere Dateien auf oder entfernen Sie nicht benötigte Spalten und importieren Sie jeden Teil.",
+      "denied": "Nichts wurde geschrieben: Der Raum {space} erlaubt Ihrer Rolle nicht, {type}-Entitäten anzulegen ({reason}). Bitten Sie einen Projektverantwortlichen um eine Policy auf diesem Raum, die Ihrer Rolle das Anlegen von {type} im Stapel erlaubt, und importieren Sie die Datei dann erneut.",
       "read": "{name}: {rows, plural, one {# Zeile} other {# Zeilen}}, {columns, plural, one {# Spalte} other {# Spalten}}.",
       "mapping": "Welches Feld jede Spalte füllt",
       "column": "Spalte",
@@ -2275,7 +2277,13 @@
         "countFirst": "Die ersten {count, plural, one {# Datensatz} other {# Datensätze}} mit {fields, plural, one {# Feld} other {# Feldern}}; die Quelle hat mehr",
         "caption": "Datensätze der Stichprobe",
         "notJson": "Die Quelle hat eine Webseite geliefert, keine Daten. Prüfen Sie die Adresse ihrer Datenquelle.",
-        "details": "Meldung der Engine"
+        "details": "Meldung der Engine",
+        "listening": "Höre {source} zu: {elapsed} von {seconds} s, höchstens {max} Nachrichten",
+        "listenAgain": "Erneut zuhören",
+        "streamCount": "{count} von {max} Nachrichten kamen innerhalb von {seconds} s an, mit {fields, plural, one {# Feld} other {# Feldern}}",
+        "streamSkipped": "{count, plural, one {# Nachricht wurde nicht behalten} other {# Nachrichten wurden nicht behalten}}",
+        "streamEmptyTitle": "Innerhalb von {seconds} s kam keine Nachricht an",
+        "streamEmpty": "Das Topic ist vielleicht gerade still, oder der Broker hat die Verbindung oder die Zugangsdaten der Datenquelle abgelehnt. Hören Sie erneut zu oder prüfen Sie Adresse, Topic und Zugangsdaten der Datenquelle."
       },
       "mapping": {
         "title": "Abbildung",
@@ -2671,6 +2679,61 @@
         "reads": "Liest Bereich {other} über Endpunkt {endpoint} ({operation})",
         "writes": "Schreibt in Bereich {other} über Endpunkt {endpoint} ({operation})"
       }
+    },
+    "access": {
+      "section": "Zugriff auf andere Räume",
+      "lead": "Bitten Sie den Eigentümer eines anderen Raums um Lese- oder Schreibzugriff für diese Pipeline. Bis zur Genehmigung wird nichts gewährt.",
+      "none": "Diese Pipeline hat keinen Zugriff auf einen anderen Raum angefragt.",
+      "request": "Zugriff anfragen",
+      "project": "Besitzendes Projekt",
+      "projectHelp": "Das Projekt, dem der Raum gehört, wie seine Katalogseite es nennt.",
+      "endpoint": "Endpunkt",
+      "operationsLegend": "Was die Pipeline dort tut",
+      "operations": {
+        "read": "Lesen",
+        "write": "Schreiben"
+      },
+      "types": "Typen und Attribute",
+      "typesHelp": "Nennen Sie jeden Entitätstyp und jedes Attribut, das die Pipeline braucht, durch Kommas getrennt. Eine Anfrage fragt nie nach allen.",
+      "type": "Entitätstyp",
+      "attrs": "Attribute",
+      "addType": "Typ hinzufügen",
+      "removeType": "Entfernen",
+      "removeTypeOf": "Typ {n} entfernen",
+      "tooManyTypes": "Eine Anfrage nennt höchstens 20 Typen.",
+      "untilLabel": "Enddatum",
+      "untilHelp": "Der Zugriff endet am Ende dieses Tages. Leer bedeutet ohne Ende.",
+      "reason": "Warum die Pipeline ihn braucht",
+      "send": "Anfrage senden",
+      "cancel": "Abbrechen",
+      "sent": "Anfrage gesendet. Die Eigentümer des Raums entscheiden; ihr Stand erscheint hier.",
+      "missing": {
+        "endpoint": "Nennen Sie das besitzende Projekt und den Endpunkt.",
+        "types": "Nennen Sie mindestens einen Typ, jeden mit seinen Attributen.",
+        "reason": "Schreiben Sie, warum die Pipeline ihn braucht."
+      },
+      "state": {
+        "pending": "Wartet auf den Eigentümer",
+        "approved": "Genehmigt",
+        "declined": "Abgelehnt",
+        "revoked": "Entzogen",
+        "ended": "Beendet"
+      },
+      "until": "Bis {date}",
+      "noEnd": "Kein Enddatum",
+      "decided": "{who}: {reason}",
+      "inbox": "Pipelines, die Zugriff anfragen",
+      "inboxLead": "Pipelines anderer Räume und Projekte, die diesen Raum lesen oder beschreiben wollen. Eine Genehmigung schlägt den Zugriff als Änderung dieses Projekts vor.",
+      "inboxEmpty": "Keine Pipeline hat Zugriff auf diesen Raum angefragt.",
+      "on": "auf {endpoint}, angefragt von {who}",
+      "decisionReason": "Begründung für den Anfragenden",
+      "approve": "Genehmigen",
+      "approveOf": "Zugriff für {account} genehmigen",
+      "decline": "Ablehnen",
+      "declineOf": "Zugriff für {account} ablehnen",
+      "revoke": "Entziehen",
+      "revokeOf": "Zugriff von {account} entziehen",
+      "reasonFirst": "Schreiben Sie zuerst die Begründung."
     }
   },
   "dashboards": {
@@ -5607,7 +5670,17 @@
       "expiresAt": "Läuft ab am",
       "isActive": "Benachrichtigungen senden",
       "receiver": "Sendet an",
-      "watches": "Beobachtet"
+      "watches": "Beobachtet",
+      "deliveries": "Zustellungen"
+    },
+    "delivery": {
+      "none": "Noch keine Benachrichtigung: sie wird gesendet, wenn sich eine beobachtete Entität ändert.",
+      "ok": "Zugestellt",
+      "failing": "Fehlgeschlagen",
+      "lastSuccess": "Zuletzt zugestellt {at}",
+      "lastFailure": "Letzter Fehler {at}",
+      "counts": "{sent} gesendet, {failed} fehlgeschlagen",
+      "failingHint": "Der Empfänger hat die letzte Benachrichtigung nicht angenommen: Prüfen Sie, ob seine Adresse über https antwortet und POST annimmt."
     }
   },
   "registrations": {
