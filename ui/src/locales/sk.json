@@ -2898,7 +2898,8 @@
       "views": "Zobrazenia pipeline",
       "view": {
         "list": "Zoznam",
-        "map": "Mapa tokov dát"
+        "map": "Mapa tokov dát",
+        "health": "Zdravie zdrojov"
       },
       "title": "Mapa tokov dát",
       "space": "Priestor",
@@ -3012,6 +3013,32 @@
       "missingList": "Identifikátory chýbajúce v priestore ({count})",
       "spaceRemovals": "Odstránené v zdroji ({count})",
       "spaceRemovalsLead": "Entity, ktoré pipeline zmazali, lebo ich zdroj už neuvádzal. Vrátia sa, až keď sa objavia v zdroji."
+    },
+    "health": {
+      "caption": "Zdravie každého zdroja",
+      "lead": "Najnovší beh každej pipeline oproti týždňu pred ním; zdroje, ktoré treba riešiť, sú navrchu. Zdroj zčervenie, keď jeho najnovší beh nezapísal nič a log hovorí prečo, alebo zapísal o viac ako 80 % menej ako jeho 7-dňový medián. Po 3 neúspešných behoch za sebou alebo takom poklese dostanú jeho sledovatelia upozornenie.",
+      "empty": "Zatiaľ niet pipelines na kontrolu",
+      "emptyHint": "Pridajte pipeline na karte Zoznam. Jej zdravie sa tu ukáže po prvom behu.",
+      "summary": "{broken, plural, one {# z {total} zdrojov treba} other {# z {total} zdrojov treba}} skontrolovať; {alerted, plural, =0 {upozornenie zatiaľ nešlo} one {upozornenie šlo pre #} other {upozornenie šlo pre #}}.",
+      "allWell": "Všetkých {total} zdrojov v najnovšom behu zapísalo dáta alebo nenašlo nič nové.",
+      "source": "Zdroj",
+      "state": "Stav",
+      "lastSuccess": "Posledné doručenie",
+      "lastSent": "Najnovší beh zapísal",
+      "change": "Oproti 7-dňovému mediánu",
+      "lastLogLine": "Posledná chyba",
+      "never": "Nikdy",
+      "failedRuns": "{count, plural, one {# neúspešný beh} few {# neúspešné behy za sebou} other {# neúspešných behov za sebou}}",
+      "alerted": "Sledovatelia dostali upozornenie",
+      "median": "medián {median}",
+      "openRuns": "Behy a log {name}",
+      "states": {
+        "ok": "Doručuje",
+        "empty": "Nič nenašiel",
+        "drift": "Pokles",
+        "failing": "Zlyháva",
+        "never": "Ešte nebežal"
+      }
     }
   },
   "dashboards": {
