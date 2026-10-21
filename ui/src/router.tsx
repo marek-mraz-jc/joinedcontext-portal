@@ -1083,10 +1083,19 @@ const sectionRoute = createRoute({
   // `?edit=<name>` opens the kind's own editor on that resource (T-2281): the assistant's hand-off
   // and older links; the endpoint's settings page links the edit address itself.
   // `?draft=<name>` opens the kind's form on that draft (AG-61, AG-73).
-  validateSearch: (search: Record<string, unknown>): { edit?: string; draft?: string } => ({
-    edit: typeof search.edit === "string" && search.edit !== "" ? search.edit : undefined,
-    draft: typeof search.draft === "string" && search.draft !== "" ? search.draft : undefined,
-  }),
+  // `?dataType=`, `?dataQ=` and `?dataSort=` hold what an endpoint's Data section shows (T-5082).
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { edit?: string; draft?: string; dataType?: string; dataQ?: string; dataSort?: string } => {
+    const text = (value: unknown) => (typeof value === "string" && value !== "" ? value : undefined);
+    return {
+      edit: text(search.edit),
+      draft: text(search.draft),
+      dataType: text(search.dataType),
+      dataQ: text(search.dataQ),
+      dataSort: text(search.dataSort),
+    };
+  },
   // One list, one editor (T-4829): the generic DataModel list and its form opened version,
   // source and lifecycle only. Every old address lands on the model page that edits it.
   beforeLoad: ({ params, location, search }) => {

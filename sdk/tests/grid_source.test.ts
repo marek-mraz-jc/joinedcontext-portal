@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { JcRequest, JcResponse } from "../src/sdk/transport";
-import { endpointSource, spaceSource, fixtureSource, historyOf, sourceFor, SourceError } from "../src/grid/source";
+import { endpointSource, spaceSource, fixtureSource, historyOf, orderRows, sourceFor, SourceError } from "../src/grid/source";
 import { areaQuery, ringOfBounds } from "../src/grid/geoarea";
 
 function stubTransport(responses: Map<string, (req: JcRequest) => JcResponse>): (req: JcRequest) => Promise<JcResponse> {
@@ -301,5 +301,56 @@ describe("the count the footer shows (T-1429, R22)", () => {
         raw,
       ).toBeUndefined();
     }
+  });
+});
+
+// The order of the whole answer (T-5082): the endpoint is asked with `orderBy`, and the fixture
+// orders as the broker does, per kind of value, an entity without the attribute last either way.
+describe("orderBy", () => {
+  it("is sent to the endpoint as CIM 009 writes it, and only when asked", async () => {
+    const paths: string[] = [];
+    const transport = async (req: JcRequest): Promise<JcResponse> => {
+      paths.push(req.path);
+      return { status: 200, body: [] };
+    };
+    const source = endpointSource("air", transport);
+    expect(source.orders).toBe(true);
+    await source.query({ type: "Bike", orderBy: "availableBikeNumber;desc" }, { offset: 0, limit: 5 });
+    await source.query({ type: "Bike" }, { offset: 0, limit: 5 });
+    expect(new URL(paths[0], "http://x").searchParams.get("orderBy")).toBe("availableBikeNumber;desc");
+    expect(paths[1]).not.toContain("orderBy");
+  });
+
+  const row = (id: string, attrs: Record<string, unknown>) =>
+    fixtureSource([{ id, type: "T", ...attrs }]).get(id) as Promise<NonNullable<Awaited<ReturnType<ReturnType<typeof fixtureSource>["get"]>>>>;
+
+  it("orders text, numbers, dates and missing values as the broker does", async () => {
+    const rows = await Promise.all([
+      row("urn:ngsi-ld:T:a", { name: { type: "Property", value: "Žilina" }, n: { type: "Property", value: 10 }, at: { type: "Property", value: "2026-03-01T00:00:00Z" } }),
+      row("urn:ngsi-ld:T:b", { name: { type: "Property", value: "Banská Bystrica" }, n: { type: "Property", value: 9 }, at: { type: "Property", value: "2025-12-31T23:59:59Z" } }),
+      row("urn:ngsi-ld:T:c", {}),
+      row("urn:ngsi-ld:T:d", { name: { type: "Property", value: "Košice" }, n: { type: "Property", value: -1 }, at: { type: "Property", value: "2026-01-15T08:00:00Z" } }),
+    ]);
+    const ids = (orderBy: string) => orderRows(rows, orderBy).map((each) => each.id.slice(-1)).join("");
+    // Numbers by value, not by their text: 9 before 10.
+    expect(ids("n")).toBe("dbac");
+    expect(ids("n;desc")).toBe("abdc");
+    expect(ids("name")).toBe("bdac");
+    expect(ids("name;desc")).toBe("adbc");
+    // ISO 8601 instants order as text, which is their time order.
+    expect(ids("at")).toBe("bdac");
+    expect(ids("at;desc")).toBe("adbc");
+    expect(ids("id;desc")).toBe("dcba");
+  });
+
+  it("orders the whole fixture before it pages", async () => {
+    const source = fixtureSource([
+      { id: "urn:ngsi-ld:T:1", type: "T", n: { type: "Property", value: 2 } },
+      { id: "urn:ngsi-ld:T:2", type: "T", n: { type: "Property", value: 1 } },
+      { id: "urn:ngsi-ld:T:3", type: "T", n: { type: "Property", value: 3 } },
+    ]);
+    const page = await source.query({ type: "T", orderBy: "n;desc" }, { offset: 1, limit: 1 });
+    expect(page.rows.map((each) => each.id)).toEqual(["urn:ngsi-ld:T:1"]);
+    expect(page.total).toBe(3);
   });
 });

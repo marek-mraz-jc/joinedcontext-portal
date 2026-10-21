@@ -13,13 +13,17 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
-import { EndpointDataView } from "../src/components/entities/EndpointDataView";
+import { EndpointDataView, fieldsOf, sortOfLink } from "../src/components/entities/EndpointDataView";
 import { expectNoAxeViolations, json, renderPart } from "./page_contract";
 
 const SCHEMA = {
   $defs: {
     AirQualityObserved: {
-      properties: { co2: {}, temperature: {}, location: {} },
+      properties: {
+        co2: {},
+        temperature: { type: "number", description: "Air temperature in degrees Celsius" },
+        location: {},
+      },
     },
     WeatherObserved: {
       properties: { temperature: {}, windSpeed: {} },
@@ -130,9 +134,104 @@ describe("what an endpoint answers", () => {
     expect(screen.queryByRole("grid")).not.toBeInTheDocument();
   });
 
+  it("says why when the endpoint refuses its schema, instead of loading for ever", async () => {
+    show({}, (url) =>
+      url.pathname.endsWith("/schema/index.json")
+        ? new Response(JSON.stringify({ detail: "no grant on this endpoint" }), { status: 403, headers: { "Content-Type": "application/problem+json" } })
+        : answer(url),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("no grant on this endpoint");
+    expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+  });
+
   it("has no axe violation", async () => {
     const { container } = show({ space: "ovzdusie" });
     await waitFor(() => expect(screen.getByRole("grid")).toBeInTheDocument());
     await expectNoAxeViolations(container);
+  });
+});
+
+/** Every entities read the grid sent, as URLs. */
+const entityReads = () =>
+  (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls
+    .map((call) => new URL(String(call[0] instanceof Request ? call[0].url : call[0]), "http://portal.test"))
+    .filter((url) => url.pathname.includes("/ngsi-ld/v1/entities"));
+
+// T-5082: the Endpoint page's Data section. The endpoint orders the whole answer, the address holds
+// what is shown, the Fields say what each column is, and the rows leave as CSV under the endpoint's
+// own limits.
+describe("the data section of an endpoint", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  it("opens a link's type, query and order, and asks the endpoint for that order", async () => {
+    const links: unknown[] = [];
+    show({ link: { type: "WeatherObserved", q: "temperature>20", sort: "temperature;desc" }, onLink: (next) => links.push(next) });
+    await waitFor(() => expect(columns().some((header) => header.includes("windSpeed"))).toBe(true));
+    await waitFor(() => expect(entityReads().some((url) => url.searchParams.get("orderBy") === "temperature;desc")).toBe(true));
+    const read = entityReads().find((url) => url.searchParams.get("orderBy") === "temperature;desc");
+    expect(read?.searchParams.get("q")).toBe("temperature>20");
+    expect(read?.searchParams.get("type")).toBe("WeatherObserved");
+    expect(links).toContainEqual({ type: "WeatherObserved", q: "temperature>20", sort: "temperature;desc" });
+  });
+
+  it("sorts every row through the endpoint and writes the order into the link", async () => {
+    const user = userEvent.setup();
+    const links: { sort?: string }[] = [];
+    show({ onLink: (next) => links.push(next) });
+    const header = await screen.findByRole("button", { name: `${en.entityGrid.sortAll} temperature` });
+    await user.click(header);
+    await waitFor(() => expect(entityReads().at(-1)?.searchParams.get("orderBy")).toBe("temperature"));
+    expect(entityReads().at(-1)?.searchParams.has("offset")).toBe(false);
+    await waitFor(() => expect(links.at(-1)?.sort).toBe("temperature"));
+  });
+
+  it("keeps an order a link names only for a column of the type", () => {
+    expect(sortOfLink("temperature;desc", ["temperature"])).toEqual({ attr: "temperature", dir: "desc" });
+    expect(sortOfLink("id", ["temperature"])).toEqual({ attr: "id", dir: "asc" });
+    expect(sortOfLink("secret", ["temperature"])).toBeNull();
+    expect(sortOfLink("temperature;sideways", ["temperature"])).toBeNull();
+    expect(sortOfLink("temperature;desc;x", ["temperature"])).toBeNull();
+    expect(sortOfLink(undefined, ["temperature"])).toBeNull();
+  });
+
+  it("names each field's type and description from the schema", async () => {
+    expect(fieldsOf(SCHEMA.$defs.AirQualityObserved, ["co2", "temperature"])).toEqual([
+      { name: "co2", kind: "", description: "" },
+      { name: "temperature", kind: "number", description: "Air temperature in degrees Celsius" },
+    ]);
+    expect(fieldsOf({ properties: { at: { anyOf: [{ type: "string", format: "date-time" }, { type: "null" }] } } }, ["at"])).toEqual([
+      { name: "at", kind: "date-time", description: "" },
+    ]);
+    const user = userEvent.setup();
+    show();
+    await user.click(await screen.findByText(en.endpoints.data.fields, { selector: "summary" }));
+    expect(await screen.findByText("Air temperature in degrees Celsius")).toBeVisible();
+    expect(screen.getAllByText(en.endpoints.data.noDescription).length).toBeGreaterThan(0);
+  });
+
+  it("downloads the rows of the current query and order, only where the endpoint serves CSV", async () => {
+    show({ link: { q: "co2>400", sort: "co2;desc" } });
+    await waitFor(() => expect(screen.getByRole("grid")).toBeInTheDocument());
+    expect(screen.queryByRole("link", { name: en.endpoints.data.csv })).not.toBeInTheDocument();
+
+    show({ link: { q: "co2>400", sort: "co2;desc" }, csv: true });
+    const link = await screen.findByRole("link", { name: en.endpoints.data.csv });
+    const href = new URL(link.getAttribute("href") ?? "", "http://portal.test");
+    expect(href.pathname).toBe("/api/endpoint/air-quality/file.csv");
+    expect(Object.fromEntries(href.searchParams)).toEqual({ type: "AirQualityObserved", q: "co2>400", orderBy: "co2;desc" });
+  });
+
+  it("opens and leaves the full window, by the button and by Escape", async () => {
+    const user = userEvent.setup();
+    show();
+    const full = await screen.findByRole("button", { name: en.endpoints.data.full });
+    expect(full).toHaveAttribute("aria-pressed", "false");
+    await user.click(full);
+    expect(screen.getByRole("dialog", { name: en.endpoints.data.title })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: en.endpoints.data.fullLeave })).toHaveAttribute("aria-pressed", "true");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

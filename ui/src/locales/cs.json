@@ -1431,7 +1431,16 @@
       "hiddenColumn": "skryto projekcí",
       "same": "Tento endpoint odpovídá tuto stranu přesně tak, jak ji prostor drží.",
       "spaceRefused": "Tento endpoint číst smíte, prostor za ním ne, takže není s čím porovnávat.",
-      "typeHelp": "Který typ záznamů tabulka zobrazuje; vyberte jiný a uvidíte jeho řádky, např. měření kvality ovzduší."
+      "typeHelp": "Který typ záznamů tabulka zobrazuje; vyberte jiný a uvidíte jeho řádky, např. měření kvality ovzduší.",
+      "full": "Celé okno",
+      "fullLeave": "Zavřít celé okno",
+      "csv": "Stáhnout tyto řádky jako CSV",
+      "csvHelp": "Soubor obsahuje všechny řádky aktuálního dotazu a pořadí do limitu stahování endpointu; stejný dotaz je v jeho adrese i pro skript.",
+      "fields": "Pole",
+      "fieldType": "Typ",
+      "noDescription": "Model neuvádí popis.",
+      "section": "Data",
+      "sectionLead": "Řádky, které vám tento endpoint odpovídá s vaším vlastním přístupem: řaďte, filtrujte a sdílejte adresu toho, co vidíte."
     },
     "projection": {
       "title": "Zveřejněné atributy",
@@ -4778,6 +4787,7 @@
     "editAsText": "Upravit jako text",
     "filterRow": "Filtry",
     "sortPage": "Seřadit tuto stranu podle",
+    "sortAll": "Seřadit všechny řádky podle",
     "matching": "odpovídajících",
     "noTotal": "endpoint u této odpovědi neuvádí celkový počet",
     "history": "Historie",

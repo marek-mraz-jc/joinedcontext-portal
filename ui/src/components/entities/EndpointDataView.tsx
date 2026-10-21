@@ -6,17 +6,53 @@
  * endpoint may publish at all (EP-46, EP-61). An attribute the steward hides is left out of the
  * columns here too, so the effect of a tick in the form is visible as data and not only as a name.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { EntityCompare, enumsOf, originTransport, parseGridConfig, relationsOf, sourceFor } from "@joinedcontext/sdk";
 import { fetchJson, publishedTypes } from "../../pages/endpoints/SchemaProjectionPanel";
-import { Button, Field, Select } from "../ui";
+import { Button, Field, InlineError, Select, safeHref } from "../ui";
 import { gridLabels, PortalEntityGrid } from "./PortalEntityGrid";
 
 interface SchemaIndex {
   models?: { name?: string; version?: number }[];
+}
+
+/** What a link to this view holds (T-5082): the type, the query as typed, and the order. */
+export interface DataLink {
+  type?: string;
+  q?: string;
+  /** `attr` or `attr;desc`, as `orderBy` takes it (CIM 009 4.23). */
+  sort?: string;
+}
+
+type Sort = { attr: string; dir: "asc" | "desc" } | null;
+
+/** A link's order, kept only when it names a column of the type: nothing else reaches `orderBy`. */
+export function sortOfLink(raw: string | undefined, attributes: string[]): Sort {
+  const [attr, dir, ...rest] = (raw ?? "").split(";");
+  if (rest.length > 0 || (dir !== undefined && dir !== "asc" && dir !== "desc")) return null;
+  return attr === "id" || attributes.includes(attr) ? { attr, dir: dir === "desc" ? "desc" : "asc" } : null;
+}
+
+/** One row of the Fields table: an attribute, its type and its description in the schema. */
+export interface FieldRow {
+  name: string;
+  kind: string;
+  description: string;
+}
+
+/** The Fields of one type from the endpoint's JSON Schema, in the column order. */
+export function fieldsOf(definition: unknown, attributes: string[]): FieldRow[] {
+  const properties = ((definition ?? {}) as { properties?: Record<string, unknown> }).properties ?? {};
+  return attributes.map((name) => {
+    const property = (properties[name] ?? {}) as { type?: unknown; format?: unknown; $ref?: unknown; description?: unknown; anyOf?: unknown };
+    const branch = Array.isArray(property.anyOf) ? ((property.anyOf.find((each) => each && typeof each === "object") ?? {}) as typeof property) : property;
+    const ref = typeof branch.$ref === "string" ? branch.$ref.split("/").pop() : undefined;
+    const kind = typeof branch.format === "string" ? branch.format : typeof branch.type === "string" ? branch.type : ref ?? "";
+    return { name, kind, description: typeof property.description === "string" ? property.description : "" };
+  });
 }
 
 export interface EndpointDataViewProps {
@@ -30,6 +66,12 @@ export interface EndpointDataViewProps {
    * one there is nothing to compare against and the button is absent.
    */
   space?: string;
+  /** Where the view opens: a shared link's type, query and order (T-5082). */
+  link?: DataLink;
+  /** Every change of type, query or order, for a host that writes them into its address. */
+  onLink?: (next: DataLink) => void;
+  /** The endpoint serves `file.csv`, so the current query can be downloaded as a table. */
+  csv?: boolean;
 }
 
 export function EndpointDataView({
@@ -37,9 +79,15 @@ export function EndpointDataView({
   slug,
   hidden = [],
   space,
+  link,
+  onLink,
+  csv = false,
 }: EndpointDataViewProps): JSX.Element {
   const { t, i18n } = useTranslation();
-  const [chosen, setChosen] = useState<string>("");
+  const [chosen, setChosen] = useState<string>(link?.type ?? "");
+  const [full, setFull] = useState(false);
+  // The query the grid last asked, for the link and the download of exactly these rows.
+  const [asked, setAsked] = useState<string | undefined>(link?.q);
   const [comparing, setComparing] = useState(false);
   const base = `${window.location.origin}/api/endpoint/${slug}/schema`;
 
@@ -58,6 +106,25 @@ export function EndpointDataView({
 
   const types = useMemo(() => publishedTypes(schema.data), [schema.data]);
   const type = types.find((each) => each.name === chosen) ?? types[0];
+  const columns = useMemo(() => (type ? type.attributes.filter((attribute) => !hidden.includes(attribute)) : []), [type, hidden]);
+  // The order and the typed query the grid opens with; the grid holds them from then on.
+  const [view, setView] = useState<{ filterText: string | null; sort: Sort } | null>(null);
+  const opened = view ?? { filterText: link?.q ?? null, sort: sortOfLink(link?.sort, columns) };
+  const sortText = opened.sort ? `${opened.sort.attr}${opened.sort.dir === "desc" ? ";desc" : ""}` : undefined;
+  useEffect(() => {
+    if (type) onLink?.({ type: type.name, q: asked || undefined, sort: sortText });
+  }, [type, asked, sortText, onLink]);
+  const onQuery = useCallback((query: { q?: string }) => setAsked(query.q), []);
+
+  // Escape leaves the full window, as it closes a dialog.
+  useEffect(() => {
+    if (!full) return;
+    const leave = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFull(false);
+    };
+    window.addEventListener("keydown", leave);
+    return () => window.removeEventListener("keydown", leave);
+  }, [full]);
   // The endpoint's own schema names its enums: such a column is filtered by picking (UI-86).
   const enums = useMemo(() => {
     const document = (schema.data ?? {}) as { definitions?: Record<string, unknown>; $defs?: Record<string, unknown> };
@@ -74,8 +141,7 @@ export function EndpointDataView({
     if (!type) {
       return null;
     }
-    const columns = type.attributes
-      .filter((attribute) => !hidden.includes(attribute))
+    const shown = columns
       // `name` is the label attribute of the Smart Data Models: the primary field, first and pinned,
       // and what opens a row (T-3097).
       .map((attribute) => ({ attr: attribute, ...(attribute === "name" ? { pinned: true } : {}) }));
@@ -83,7 +149,7 @@ export function EndpointDataView({
       parseGridConfig({
         source: { kind: "endpoint", slug },
         type: type.name,
-        columns,
+        columns: shown,
         pageSize: 25,
         // Read only here: a value is corrected in the explorer, where the person chose the endpoint
         // for that purpose.
@@ -91,7 +157,7 @@ export function EndpointDataView({
         history: { enabled: true },
       }).config ?? null
     );
-  }, [slug, type, hidden]);
+  }, [slug, type, columns]);
 
   const compareLabels = useMemo(
     () => ({
@@ -111,7 +177,27 @@ export function EndpointDataView({
     [t],
   );
   const labels = useMemo(() => gridLabels(t), [t]);
+  const fields = useMemo(() => {
+    const document = (schema.data ?? {}) as { definitions?: Record<string, unknown>; $defs?: Record<string, unknown> };
+    return type ? fieldsOf({ ...document.$defs, ...document.definitions }[type.name], columns) : [];
+  }, [schema.data, type, columns]);
+  // The whole answer of this query as one table, built by the endpoint under its own limits and
+  // read with the person's own session, as the rows above are (EP-08, EP-44).
+  const download = type
+    ? safeHref(
+        `/api/endpoint/${encodeURIComponent(slug)}/file.csv?${new URLSearchParams({
+          type: type.name,
+          ...(asked ? { q: asked } : {}),
+          ...(sortText ? { orderBy: sortText } : {}),
+        }).toString()}`,
+      )
+    : undefined;
 
+  // A refused or failed schema read says why, in the surface's own sentence (a 403 names the grant).
+  const failed = index.error ?? schema.error;
+  if (failed) {
+    return <InlineError>{failed.message}</InlineError>;
+  }
   if (index.isPending || schema.isPending) {
     return <p role="status">{t("endpoints.projection.loading")}</p>;
   }
@@ -120,12 +206,22 @@ export function EndpointDataView({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div
+      className={full ? "fixed inset-0 z-50 flex flex-col gap-3 overflow-auto bg-bg p-4" : "flex flex-col gap-3"}
+      role={full ? "dialog" : undefined}
+      aria-modal={full ? true : undefined}
+      aria-label={full ? t("endpoints.data.title") : undefined}
+    >
       <Field id={`endpoint-data-type-${slug}`} label={t("endpoints.data.type")} description={t("endpoints.data.typeHelp")}>
         <Select
           id={`endpoint-data-type-${slug}`}
           value={type.name}
-          onChange={(event) => setChosen(event.target.value)}
+          onChange={(event) => {
+            setChosen(event.target.value);
+            // Another type has other columns: its query and order start empty.
+            setView({ filterText: null, sort: null });
+            setAsked(undefined);
+          }}
         >
           {types.map((each) => (
             <option key={each.name} value={each.name}>
@@ -136,11 +232,40 @@ export function EndpointDataView({
       </Field>
       {/* Two doors on the same page of entities: what this endpoint's filter and projection leave
           out is marked on the space's side (T-1435). */}
-      {space ? (
-        <Button size="sm" variant="secondary" onClick={() => setComparing((each) => !each)}>
-          {comparing ? t("endpoints.data.compareClose") : t("endpoints.data.compare")}
+      <div className="flex flex-wrap items-center gap-2">
+        {space ? (
+          <Button size="sm" variant="secondary" onClick={() => setComparing((each) => !each)}>
+            {comparing ? t("endpoints.data.compareClose") : t("endpoints.data.compare")}
+          </Button>
+        ) : null}
+        <Button size="sm" variant="secondary" aria-pressed={full} onClick={() => setFull((each) => !each)}>
+          {full ? t("endpoints.data.fullLeave") : t("endpoints.data.full")}
         </Button>
-      ) : null}
+        {csv && download ? (
+          <a className="focus-ring rounded-sm text-caption text-primary-soft-fg underline hover:no-underline" href={download} download>
+            {t("endpoints.data.csv")}
+          </a>
+        ) : null}
+      </div>
+      {csv ? <p className="text-caption text-fg-muted">{t("endpoints.data.csvHelp")}</p> : null}
+      <details className="rounded border border-border p-2">
+        <summary className="cursor-pointer text-body font-medium text-fg">{t("endpoints.data.fields")}</summary>
+        {/* A list rather than a table: three columns do not fit a phone, one entry a line does. */}
+        <ul className="mt-2 divide-y divide-border" aria-label={t("endpoints.data.fields")}>
+          {fields.map((field) => (
+            <li key={field.name} className="flex flex-col gap-0.5 py-2">
+              <span className="text-body">
+                <span className="font-mono">{field.name}</span>
+                <span className="text-caption text-fg-muted">
+                  {" · "}
+                  {t("endpoints.data.fieldType")}: {field.kind || "—"}
+                </span>
+              </span>
+              <span className="text-caption text-fg-muted">{field.description || t("endpoints.data.noDescription")}</span>
+            </li>
+          ))}
+        </ul>
+      </details>
 
       {comparing && space ? (
         <EntityCompare
@@ -152,7 +277,16 @@ export function EndpointDataView({
           gridLabels={labels}
         />
       ) : (
-        <PortalEntityGrid key={`${slug}-${type.name}`} project={project} config={config} enums={enums} relations={relations} />
+        <PortalEntityGrid
+          key={`${slug}-${type.name}`}
+          project={project}
+          config={config}
+          enums={enums}
+          relations={relations}
+          view={opened}
+          onGridState={(next) => setView({ filterText: next.filterText ?? null, sort: next.sort ?? null })}
+          onQuery={onQuery}
+        />
       )}
     </div>
   );

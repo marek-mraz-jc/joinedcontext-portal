@@ -1408,7 +1408,16 @@
       "hiddenColumn": "durch die Projektion verborgen",
       "same": "Dieser Endpunkt antwortet diese Seite genau so, wie der Raum sie hält.",
       "spaceRefused": "Sie dürfen diesen Endpunkt lesen, aber nicht den Raum dahinter, also gibt es nichts zu vergleichen.",
-      "typeHelp": "Welchen Datensatztyp die Tabelle zeigt; einen anderen wählen, um seine Zeilen zu sehen, z. B. die Luftqualitätsmessungen."
+      "typeHelp": "Welchen Datensatztyp die Tabelle zeigt; einen anderen wählen, um seine Zeilen zu sehen, z. B. die Luftqualitätsmessungen.",
+      "full": "Ganzes Fenster",
+      "fullLeave": "Ganzes Fenster verlassen",
+      "csv": "Diese Zeilen als CSV herunterladen",
+      "csvHelp": "Die Datei enthält alle Zeilen der aktuellen Abfrage und Reihenfolge bis zum Download-Limit des Endpoints; dieselbe Abfrage steht in seiner Adresse auch für ein Skript.",
+      "fields": "Felder",
+      "fieldType": "Typ",
+      "noDescription": "Das Modell gibt keine Beschreibung an.",
+      "section": "Daten",
+      "sectionLead": "Die Zeilen, die dieser Endpoint Ihnen mit Ihrem eigenen Zugriff antwortet: sortieren, filtern und die Adresse des Gesehenen teilen."
     },
     "projection": {
       "title": "Veröffentlichte Attribute",
@@ -4778,6 +4787,7 @@
     "editAsText": "Als Text bearbeiten",
     "filterRow": "Filter",
     "sortPage": "Diese Seite sortieren nach",
+    "sortAll": "Alle Zeilen sortieren nach",
     "matching": "passend",
     "noTotal": "der Endpoint nennt für diese Antwort keine Gesamtzahl",
     "history": "Verlauf",
