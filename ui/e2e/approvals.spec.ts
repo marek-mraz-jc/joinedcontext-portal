@@ -104,8 +104,8 @@ test.describe("approvals", () => {
 
     await expect(page).toHaveURL(/\/approvals\/chg-1a2b3c4d$/);
     await expect(page.getByRole("heading", { name: summary })).toBeVisible();
-    // The field in words with its path underneath, the value as text (T-1385).
-    await expect(page.getByRole("cell", { name: "Audience spec.audience" })).toBeVisible();
+    // The field in words (its path only on hover), the value as text (T-1385, T-4991).
+    await expect(page.getByRole("cell", { name: "Audience", exact: true })).toBeVisible();
     await expect(page.getByRole("cell", { name: "internal", exact: true })).toBeVisible();
     // The token appears only as the redaction marker, never as its value.
     await expect(page.getByText("Redacted").first()).toBeVisible();
@@ -147,6 +147,43 @@ test.describe("approvals", () => {
     await page.screenshot({ path: test.info().outputPath("approval-detail-400.png"), fullPage: true });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.screenshot({ path: test.info().outputPath("approval-detail-1440.png"), fullPage: true });
+  });
+
+  test("at 375 px a create's field table fits the screen and shows labels, not spec paths (T-4991)", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 900 });
+    const create = {
+      ...PROPOSAL,
+      summary: { key: "change.summary.create", params: { kind: "KnowledgeSource", name: "t4869-files-mvhnojg5", fields: 6 } },
+      planFields: [
+        { path: "metadata.name", to: "t4869-files-mvhnojg5" },
+        { path: "metadata.namespace", to: "helsinki" },
+        { path: "spec.maxPages", to: 1000 },
+        { path: "spec.pdf.maxBytes", to: 52428800 },
+        { path: "spec.pdf.maxPages", to: 500 },
+        { path: "spec.source", to: "https://www.hel.fi/static/liitteet-2019/Kaupunginkanslia/Rap/kaupunkiymparisto.pdf" },
+      ],
+    };
+    await stubApi(page);
+    await page.route(`**/changes/${PROPOSAL.metadata.name}`, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(create) }),
+    );
+    await page.goto(`/projects/helsinki/approvals/${PROPOSAL.metadata.name}?lang=en`);
+    const table = page.getByRole("table", { name: "Change type" });
+    await expect(table.getByText("Pdf › Max pages")).toBeVisible();
+    await expect(page.getByText("spec.pdf.maxPages", { exact: true })).toHaveCount(0);
+    await expect(table.getByRole("columnheader", { name: "Before" })).toHaveCount(0);
+    const inside = await table.evaluate((el) => {
+      const box = el.closest(".overflow-x-auto") ?? el;
+      return box.scrollWidth - box.clientWidth;
+    });
+    expect(inside).toBe(0);
+    const sideways = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(sideways).toBe(0);
+    await page.screenshot({ path: test.info().outputPath("approval-create-375.png"), fullPage: true });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.screenshot({ path: test.info().outputPath("approval-create-1440.png"), fullPage: true });
   });
 
   test("the approvals routes have no axe violations", async ({ page }) => {

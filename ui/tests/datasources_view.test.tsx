@@ -7,7 +7,7 @@ import i18n from "../src/i18n";
 import { expectOpen } from "./checks";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
-import { endpointOf, knownSecretNames, toEnvelope } from "../src/pages/datasources/DataSourcesPage";
+import { endpointOf, endpointView, knownSecretNames, toEnvelope } from "../src/pages/datasources/DataSourcesPage";
 import { rememberPrefill } from "../src/assistant/state";
 import type { Manifest } from "../src/api/manifest";
 import { digestOf } from "../src/api/digest";
@@ -175,7 +175,7 @@ describe("data sources view", () => {
     const cells = within(row).getAllByRole("cell");
     expect(cells[0]).toHaveTextContent("mqtt-mesto");
     expect(cells[1]).toHaveTextContent(en.datasources.type.mqtt);
-    expect(cells[2]).toHaveTextContent("tls://mqtt.banskabystrica.sk:8883");
+    expect(cells[2]).toHaveTextContent("mqtt.banskabystrica.sk:8883");
     expect(cells[3]).toHaveTextContent("mqtt-mesto");
 
     const feed = (await screen.findByText("mhd-vehicles")).closest("tr") as HTMLElement;
@@ -185,6 +185,17 @@ describe("data sources view", () => {
 
   // T-3211: a person adding their first source most often has the address of a file or an API,
   // so a new source opens on HTTP and no other connection's fields.
+  it("names the secret an address template reads in the list, never the template (T-4991)", async () => {
+    const templated = {
+      ...SOURCES,
+      items: [{ ...SOURCES.items[1], spec: { type: "nats", input: { urls: ["nats://demo:${DEMO_FEED_PASSWORD}@nats.example:4222"] } } }],
+    };
+    renderDataSources({ "/api/v1/projects/banskabystrica/datasources": templated });
+    expect(await screen.findByText(en.datasources.secretFrom.replace("{name}", "DEMO_FEED_PASSWORD"))).toBeInTheDocument();
+    expect(screen.getByText("nats.example:4222")).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("${DEMO_FEED_PASSWORD}");
+  });
+
   it("opens a new source on the HTTP connection and no other", async () => {
     renderDataSources();
 
@@ -412,7 +423,7 @@ describe("data sources view", () => {
     await userEvent.type(within(dialog).getByLabelText(/Name/), "mqtt-novy");
     await userEvent.click(within(dialog).getByRole("button", { name: en.datasources.check }));
 
-    expect(await within(dialog).findByText("spec.mqtt.urls")).toBeInTheDocument();
+    expect(await within(dialog).findByTitle("spec.mqtt.urls")).toBeInTheDocument();
     const dry = writes(fetchMock);
     expect(dry).toHaveLength(1);
     expect(new URL(dry[0].url).searchParams.get("dryRun")).toBe("All");
@@ -531,6 +542,30 @@ describe("the manifest a data source form describes", () => {
     expect(endpointOf(mqtt.spec)).toBe("tls://mqtt.banskabystrica.sk:8883");
     expect(endpointOf(gtfs.spec)).toBe("https://gtfs.banskabystrica.sk/vp.pb");
     expect(knownSecretNames(SOURCES.items as unknown as Manifest[])).toEqual(["mqtt-mesto"]);
+  });
+
+  it("shows an address as host and path, the query on hover and no credential (T-4991)", () => {
+    const nats = endpointView("nats://demo:${DEMO_FEED_PASSWORD}@demo-nats.dev.svc.cluster.local:4222");
+    expect(nats).toEqual({ shown: "demo-nats.dev.svc.cluster.local:4222", full: "nats://demo-nats.dev.svc.cluster.local:4222", secrets: ["DEMO_FEED_PASSWORD"] });
+    expect(JSON.stringify(nats)).not.toContain("${");
+    const wfs = endpointView("https://kartta.hel.fi/ws/geoserver/avoindata/wfs?service=WFS&typeNames=avoindata:Kaupunginosajako");
+    expect(wfs.shown).toBe("kartta.hel.fi/ws/geoserver/avoindata/wfs");
+    expect(wfs.full).toContain("?service=WFS");
+    // A literal password in the address is dropped, not shown.
+    expect(endpointView("postgres://reader:hunter2@db.example.org/city")).toEqual({ shown: "db.example.org/city", full: "postgres://db.example.org/city", secrets: [] });
+    // A raw @, / or ? inside the password leaves no part of it in the cell or the title (T-4991 review).
+    for (const leaky of ["https://user:p@ss@host.example/x", "https://user:pa/ss@host.example/x", "https://user:pa?ss@host.example/x", "postgres://reader:hunter@2@host.example/x"]) {
+      const view = endpointView(leaky);
+      expect(view.shown).toBe("host.example/x");
+      expect(view.full).toBe(`${leaky.split("://")[0]}://host.example/x`);
+    }
+    expect(endpointView("https://user:p/a@ss@host.example/x").shown).toBe("host.example/x");
+    // An @ only in the path keeps the host.
+    expect(endpointView("https://host.example/users/@me").shown).toBe("host.example/users/@me");
+    expect(endpointView("http://[::1]:8080/@me").shown).toBe("[::1]:8080/@me");
+    expect(endpointView("wss://mqtt.hsl.fi:443/").shown).toBe("mqtt.hsl.fi:443");
+    expect(endpointView("/data/in.csv, /data/b.csv").shown).toBe("/data/in.csv, /data/b.csv");
+    expect(endpointView("https://x.example/${TOKEN}/feed").shown).toBe("x.example/…/feed");
   });
 
   it("endpointOf returns addresses, paths, dsn, url or type name for runner inputs", () => {

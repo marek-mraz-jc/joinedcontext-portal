@@ -17,6 +17,7 @@ import { conditionCount, EMPTY_GROUP, FilterPanel, readGroup } from "../src/comp
 import { FooterAggregate, percent, ToolbarPopover } from "../src/components/entities/GridToolbar";
 import { mayDelete } from "../src/components/entities/AccessPanel";
 import type { Aggregation } from "../src/components/entities/GridToolbar";
+import { viewerWriteFindings } from "./pageChecks";
 
 const L = en.spaces.toolbar;
 const COLUMNS: FilterColumn[] = [
@@ -76,6 +77,23 @@ describe("FilterPanel", () => {
     await user.click(screen.getAllByRole("button", { name: L.removeCondition })[0]!);
     tree = seen.mock.lastCall![0] as FilterGroup;
     expect(queryFromGroup(COLUMNS, tree)).toBe("seats>100");
+  });
+
+  // T-5005/T-5006: the live walker read "Add condition" and "Add condition group" as writes a viewer
+  // could press; they only edit the filter in hand, so its viewer-write rule passes them, and a real
+  // write control beside them is still found.
+  it("holds no write control a viewer could press, in the walker's viewer-write rule", async () => {
+    const user = userEvent.setup();
+    wrap(
+      <main>
+        <Panel seen={vi.fn()} />
+        <button type="button">New endpoint</button>
+      </main>,
+    );
+    await user.click(screen.getByRole("button", { name: L.addCondition }));
+    await user.click(screen.getByRole("button", { name: L.addGroup }));
+    expect(screen.getByRole("button", { name: L.removeGroup })).toBeInTheDocument();
+    expect(viewerWriteFindings(false)).toEqual(['viewer-write: "New endpoint" can be pressed']);
   });
 
   it("picks an enum's values instead of typing them", async () => {

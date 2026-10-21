@@ -1850,6 +1850,7 @@
     "plan": "Planned change",
     "secretHint": "Credentials stay in the secret store. A form takes the name and the key of a reference, never the value itself.",
     "noSecret": "none",
+    "secretFrom": "secret from {name}",
     "type": {
       "mqtt": "MQTT broker",
       "http": "HTTP endpoint",

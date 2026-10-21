@@ -1850,6 +1850,7 @@
     "plan": "Plánovaná změna",
     "secretHint": "Přihlašovací údaje zůstávají v úložišti tajemství. Formulář bere název a klíč odkazu, nikdy samotnou hodnotu.",
     "noSecret": "žádné",
+    "secretFrom": "tajemství z {name}",
     "type": {
       "mqtt": "MQTT broker",
       "http": "HTTP koncový bod",

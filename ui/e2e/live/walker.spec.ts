@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import type { Page, Response } from "@playwright/test";
 import { axeViolations } from "../axe";
-import { pageFindings, unexcused } from "../../tests/pageChecks";
+import { pageFindings, unexcused, viewerWriteFindings } from "../../tests/pageChecks";
 import type { Excused } from "../../tests/pageChecks";
 import { STEWARD, VIEWER, hiddenSections, inHiddenSection, signIn } from "./portal";
 import { secretMasks, shot, writeIndex } from "./shoot";
@@ -83,32 +83,6 @@ function expected(who: string, response: Response): boolean {
 /** Pages of the person's own things, outside any project (connectors, UI-98): a viewer writes there. */
 const OWN = new Set(["/connectors"]);
 
-/**
- * A write control the viewer can press, or one refused without a reason (UI-44). A tab is a place
- * to go, and a control that only edits the draft in hand — a term added to the filter being tried,
- * a colour rule of one's own view, a line of a mapping whose Propose is refused — writes nothing.
- * "Add to my connectors" writes the person's own preferences (UI-98): a viewer may add an Endpoint
- * they read, and the server refuses one they cannot (T-4949, connectors_tests.rs).
- */
-async function viewerWrites(page: Page): Promise<string[]> {
-  return page.evaluate(() => {
-    const found: string[] = [];
-    const draftOnly = /^(Add to the query|Add a colour rule|Add the line for .+ to the mapping|Add to my connectors)$/;
-    for (const button of document.querySelectorAll("main button:not([role='tab']), main a[role='button']")) {
-      const name = (button.getAttribute("aria-label") ?? button.textContent ?? "").replace(/\s+/g, " ").trim();
-      if (!/^(New|Edit|Remove|Delete|Propose|Add|Create|Publish|Approve)\b/.test(name) || draftOnly.test(name)) continue;
-      if (button.getClientRects().length === 0 || button.closest("[hidden], [inert]")) continue;
-      const refused = button.getAttribute("aria-disabled") === "true" || (button as HTMLButtonElement).disabled;
-      const reason = (button.getAttribute("aria-describedby") ?? "")
-        .split(/\s+/)
-        .some((id) => (document.getElementById(id)?.textContent ?? "").trim().length > 0);
-      if (!refused) found.push(`viewer-write: "${name}" can be pressed`);
-      else if (!reason) found.push(`viewer-write: "${name}" is refused without a reason`);
-    }
-    return found;
-  });
-}
-
 for (const [who, person] of [
   ["steward", STEWARD],
   ["viewer", VIEWER],
@@ -153,7 +127,7 @@ for (const [who, person] of [
             ...(await axeViolations(page))
               .filter((violation) => /\((serious|critical)\)/.test(violation))
               .map((violation) => `axe: ${violation.slice(0, 200)}`),
-            ...(who === "viewer" && !OWN.has(visit.route) ? await viewerWrites(page) : []),
+            ...(who === "viewer" && !OWN.has(visit.route) ? await page.evaluate(viewerWriteFindings, true) : []),
           ];
           const screenshot = test.info().outputPath(`${who}-${lang}-${size.width}${visit.address.replace(/[^a-z0-9]+/gi, "-")}.png`);
           await page.screenshot({ path: screenshot, fullPage: true, mask: secretMasks(page) });

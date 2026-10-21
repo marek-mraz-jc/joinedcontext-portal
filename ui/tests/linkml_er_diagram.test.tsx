@@ -218,6 +218,23 @@ describe("reading it without the picture", () => {
     expect(width()).toBeCloseTo(natural);
   });
 
+  it("fits a drawing wider than its frame to the frame's width on load, and never enlarges one (T-4991)", () => {
+    const wide = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+    try {
+      Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 216 });
+      const narrow = renderPart(<LinkmlGraphView source={SCHOOLS} />);
+      const svg = narrow.container.querySelector("svg[role='group']") as SVGSVGElement;
+      expect(Number(svg.getAttribute("width"))).toBeCloseTo(200);
+      narrow.unmount();
+
+      Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 100000 });
+      const roomy = renderPart(<LinkmlGraphView source={SCHOOLS} />);
+      expect(roomy.getByText("Zoom 100 %")).toBeInTheDocument();
+    } finally {
+      if (wide) Object.defineProperty(HTMLElement.prototype, "clientWidth", wide);
+    }
+  });
+
   it("draws names that arrive as markup as text", () => {
     const hostile = SCHOOLS.replaceAll("pupils", '"<img src=x onerror=alert(1)>"');
     const { container } = renderPart(<LinkmlGraphView source={hostile} />);
