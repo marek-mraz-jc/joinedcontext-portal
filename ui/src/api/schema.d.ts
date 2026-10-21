@@ -2762,7 +2762,7 @@ export interface paths {
         };
         /**
          * List The Endpoints A Pipeline May Ask For
-         * @description The Endpoints of other Context Spaces a pipeline's access request may name, each with the types and attribute names of its space's model (PL-90): the request form's choices, and the same rule the request door applies. Names only, never data.
+         * @description The Endpoints of other Context Spaces the caller may read, or whose audience is the organization or the public, each with the types and attribute names of its space's model (PL-90): the request form's choices. Any other Endpoint is asked for by its typed name. Names only, never data.
          */
         get: operations["list_requestable"];
         put?: never;

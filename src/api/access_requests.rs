@@ -102,7 +102,7 @@ async fn owned_request(
         .await
         .map_err(store_error)?
         .ok_or_else(gone)?;
-    if !effective.may_read_in("ContextSpace", Some(&request.space)) {
+    if request.space.is_empty() || !effective.may_read_in("ContextSpace", Some(&request.space)) {
         return Err(gone());
     }
     if !effective.may_in("ContextSpace", Verb::Approve, Some(&request.space)) {
@@ -138,10 +138,11 @@ async fn record(state: &AppState, user: &CurrentUser, request: &AccessRequest, w
         correlation_id: None,
         details: details.clone(),
     };
-    let events = [
-        event(&request.endpoint_project, Some(&request.space)),
-        event(&request.project, None),
-    ];
+    let mut events = vec![event(&request.project, None)];
+    // A typed name that names no Endpoint has no owner to tell (T-4946).
+    if !request.space.is_empty() {
+        events.push(event(&request.endpoint_project, Some(&request.space)));
+    }
     if let Err(err) = state.activity.append(&events).await {
         tracing::warn!(error = %err, "an access request step was not recorded");
     }
@@ -211,23 +212,43 @@ pub struct RequestableType {
     pub attrs: Vec<String>,
 }
 
-/// Whether the pipeline of `project` on `space` may ask for `endpoint`, and what it may name
-/// there (PL-90, T-4946). The form's list and the request's door use this one rule: an Endpoint
-/// of another Context Space, in this project or another, whose name is a name and which names its
-/// space. A request exists to reach an Endpoint the pipeline cannot read yet, so the caller's
-/// read right on the owning project is not asked; the answer carries names, never data.
+/// The Context Space of `endpoint` when it is another space than the pipeline's own.
+fn other_space<'a>(
+    (project, space): (&str, Option<&str>),
+    endpoint: &'a crate::resource::ResourceEnvelope,
+) -> Option<&'a str> {
+    let owner = endpoint.metadata.namespace.as_deref().unwrap_or_default();
+    let endpoint_space = crate::resource::reference_name(&endpoint.spec["contextSpaceRef"])?;
+    (endpoint.kind == "Endpoint" && !(owner == project && Some(endpoint_space) == space))
+        .then_some(endpoint_space)
+}
+
+/// Whether the request form offers `endpoint` to the pipeline of `project` on `space`, with what
+/// it may name there (PL-90, T-4946): an Endpoint of another Context Space that the caller may
+/// read in its project, or whose audience is the organization or the public. The form's list and
+/// the door's model check use this one rule, so neither tells the caller of an Endpoint, a type or
+/// an attribute they may not read (PF-59, PF-61).
 fn requestable(
     state: &AppState,
-    (project, space): (&str, Option<&str>),
+    user: &CurrentUser,
+    pipeline: (&str, Option<&str>),
     endpoint: &crate::resource::ResourceEnvelope,
 ) -> Option<Requestable> {
     let owner = endpoint.metadata.namespace.as_deref().unwrap_or_default();
     let name = endpoint.metadata.name.as_str();
-    if endpoint.kind != "Endpoint" || !is_dns1123(owner) || !is_dns1123(name) {
+    if !is_dns1123(owner) || !is_dns1123(name) {
         return None;
     }
-    let endpoint_space = crate::resource::reference_name(&endpoint.spec["contextSpaceRef"])?;
-    if owner == project && Some(endpoint_space) == space {
+    let endpoint_space = other_space(pipeline, endpoint)?;
+    let open = matches!(
+        endpoint.spec["audience"].as_str(),
+        Some("organization" | "public")
+    );
+    let readable = || {
+        let effective = crate::permissions::for_request(state, &user.0.identity, owner);
+        effective.may_read_project() && effective.may_read_in("Endpoint", Some(endpoint_space))
+    };
+    if !open && !readable() {
         return None;
     }
     let types = state
@@ -288,7 +309,7 @@ fn unserved(endpoint: &Requestable, types: &[requests::TypeGrant]) -> Vec<String
     get,
     path = "/api/v1/projects/{project}/pipelines/{name}/access-requests/endpoints",
     summary = "List The Endpoints A Pipeline May Ask For",
-    description = "The Endpoints of other Context Spaces a pipeline's access request may name, each with the types and attribute names of its space's model (PL-90): the request form's choices, and the same rule the request door applies. Names only, never data.",
+    description = "The Endpoints of other Context Spaces the caller may read, or whose audience is the organization or the public, each with the types and attribute names of its space's model (PL-90): the request form's choices. Any other Endpoint is asked for by its typed name. Names only, never data.",
     tag = "pipelines",
     params(
         ("project" = String, Path, description = "The pipeline's project"),
@@ -310,7 +331,7 @@ pub(crate) async fn list_requestable(
         .mirror
         .matching(|env| env.kind == "Endpoint")
         .iter()
-        .filter_map(|endpoint| requestable(&state, (&project, space.as_deref()), endpoint))
+        .filter_map(|endpoint| requestable(&state, &user, (&project, space.as_deref()), endpoint))
         .collect();
     items.sort_by(|a, b| (&a.project, &a.name).cmp(&(&b.project, &b.name)));
     Ok(Json(json!({ "items": items })))
@@ -366,7 +387,17 @@ pub(crate) async fn file_request(
         )));
     }
     record(&state, &user, &request, "asked for access").await;
-    Ok((StatusCode::CREATED, Json(request.view(requested_at))).into_response())
+    Ok((StatusCode::CREATED, Json(outgoing(&request, requested_at))).into_response())
+}
+
+/// The request as its pipeline's side reads it: without the Endpoint's space, which would tell
+/// whether a typed name exists (T-4946).
+fn outgoing(request: &AccessRequest, at: OffsetDateTime) -> Value {
+    let mut view = request.view(at);
+    if let Some(fields) = view.as_object_mut() {
+        fields.remove("space");
+    }
+    view
 }
 
 /// The request as it will be stored, or why it is refused (PL-90).
@@ -391,26 +422,52 @@ fn new_request(
         project: owner,
         name,
     } = body.endpoint;
-    // The form's own rule (T-4946): a name it would not offer is not found, typed or forged.
-    let endpoint = (is_dns1123(&owner) && is_dns1123(&name))
-        .then(|| state.mirror.get(&owner, "Endpoint", &name))
-        .flatten()
-        .and_then(|endpoint| requestable(state, (project, pipeline_space), &endpoint))
-        .ok_or_else(|| {
-            ApiError::NotFound(format!(
-                "endpoint.name: endpoint '{name}' not found in project '{owner}', or it serves the pipeline's own space"
-            ))
-        })?;
-    let unserved = unserved(&endpoint, &types);
-    if !unserved.is_empty() {
-        return Err(ApiError::Invalid {
-            detail: format!(
-                "the request names types or attributes endpoint '{owner}/{name}' does not serve (PL-90)"
-            ),
-            errors: unserved,
-        });
+    if !is_dns1123(&owner) || !is_dns1123(&name) {
+        return Err(ApiError::BadRequest(format!(
+            "endpoint.name: '{owner}/{name}' is no project and endpoint name (lowercase letters, digits and '-')"
+        )));
     }
-    let space = endpoint.space;
+    let held = state.mirror.get(&owner, "Endpoint", &name);
+    // The pipeline's own project and space are the caller's to read: saying so leaks nothing.
+    if owner == project
+        && held
+            .as_ref()
+            .is_some_and(|endpoint| other_space((project, pipeline_space), endpoint).is_none())
+    {
+        return Err(ApiError::BadRequest(format!(
+            "endpoint.name: endpoint '{name}' serves the pipeline's own space; a pipeline writes and reads its own space without a request"
+        )));
+    }
+    let offered = held
+        .as_ref()
+        .and_then(|endpoint| requestable(state, user, (project, pipeline_space), endpoint));
+    // T-4946: a name the form offers is checked against its model here. Any other typed name, an
+    // Endpoint the caller may not read or one that does not exist, gets the same answer: the
+    // request waits, unchecked, for an owner of the Endpoint's space, who judges its types and
+    // attributes. A name that exists nowhere waits with no space, where no owner ever sees it.
+    let space = match offered {
+        Some(endpoint) => {
+            let unserved = unserved(&endpoint, &types);
+            if !unserved.is_empty() {
+                return Err(ApiError::Invalid {
+                    detail: format!(
+                        "the request names types or attributes endpoint '{owner}/{name}' does not serve (PL-90)"
+                    ),
+                    errors: unserved,
+                });
+            }
+            Some(endpoint.space)
+        }
+        None => None,
+    };
+    let checked = space.is_some();
+    let space = space
+        .or_else(|| {
+            held.as_ref()
+                .and_then(|endpoint| other_space((project, pipeline_space), endpoint))
+                .map(str::to_owned)
+        })
+        .unwrap_or_default();
     let request = AccessRequest {
         id: requests::new_id(),
         project: project.to_owned(),
@@ -437,12 +494,14 @@ fn new_request(
         )));
     }
     let policies = policies_of(state, &request.endpoint_project);
-    if requests::already_granted(
-        &policies,
-        &request.account(),
-        &request.types,
-        request.operations,
-    ) {
+    if checked
+        && requests::already_granted(
+            &policies,
+            &request.account(),
+            &request.types,
+            request.operations,
+        )
+    {
         return Err(ApiError::Conflict(format!(
             "pipeline '{pipeline}' already holds this access on endpoint '{}/{}'",
             request.endpoint_project, request.endpoint
@@ -478,7 +537,7 @@ pub(crate) async fn list_outgoing(
         .map_err(store_error)?;
     let at = now();
     Ok(Json(
-        json!({ "items": found.iter().map(|r| r.view(at)).collect::<Vec<_>>() }),
+        json!({ "items": found.iter().map(|r| outgoing(r, at)).collect::<Vec<_>>() }),
     ))
 }
 
@@ -510,7 +569,9 @@ pub(crate) async fn list_incoming(
     let at = now();
     let items: Vec<Value> = found
         .iter()
-        .filter(|r| effective.may_in("ContextSpace", Verb::Approve, Some(&r.space)))
+        .filter(|r| {
+            !r.space.is_empty() && effective.may_in("ContextSpace", Verb::Approve, Some(&r.space))
+        })
         .map(|r| r.view(at))
         .collect();
     Ok(Json(json!({ "items": items })))

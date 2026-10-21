@@ -131,6 +131,29 @@ describe("access requests on the pages (PL-90, PL-91, PL-93)", () => {
     expect(await screen.findByText(L.sent)).toBeInTheDocument();
   });
 
+  it("asks for an Endpoint the list does not offer by its typed name, with typed types the owners check", async () => {
+    serve([]);
+    wrap(<PipelineAccessRequests project="city-kpis" name="air-index" />);
+    await userEvent.click(await screen.findByRole("button", { name: L.request }));
+    expect(screen.getByText(L.endpointHelp)).toBeInTheDocument();
+    await userEvent.type(screen.getByRole("combobox", { name: L.endpoint }), "Not a name{Enter}");
+    expect(await screen.findByText(L.endpointTypedBad.replace("{name}", "not a name"))).toBeInTheDocument();
+    await userEvent.clear(screen.getByRole("combobox", { name: L.endpoint }));
+    await userEvent.type(screen.getByRole("combobox", { name: L.endpoint }), "parks/trees{Enter}");
+    expect(await screen.findByText(L.typedTypeHelp)).toBeInTheDocument();
+    await userEvent.type(screen.getByRole("combobox", { name: L.type }), "TreeObserved{Enter}");
+    await userEvent.type(screen.getByRole("combobox", { name: L.attrs }), "height{Enter}");
+    await userEvent.type(screen.getByLabelText(new RegExp(L.reason)), "tree index");
+    await userEvent.click(screen.getByRole("button", { name: L.send }));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].body).toEqual({
+      endpoint: { project: "parks", name: "trees" },
+      operations: "read",
+      types: [{ type: "TreeObserved", attrs: ["height"] }],
+      reason: "tree index",
+    });
+  });
+
   it("says why an Endpoint offers no type, and how to go on when none is offered at all", async () => {
     serve([]);
     wrap(<PipelineAccessRequests project="city-kpis" name="air-index" />);

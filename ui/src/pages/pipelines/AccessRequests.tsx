@@ -22,7 +22,8 @@ export interface AccessRequestView {
   pipeline: { project: string; name: string };
   account: string;
   endpoint: { project: string; name: string };
-  space: string;
+  /** Only on the owners' side: the pipeline's side never learns whether a typed name exists. */
+  space?: string;
   operations: "read" | "write";
   types: { type: string; attrs: string[] }[];
   until: string | null;
@@ -37,6 +38,9 @@ export interface AccessRequestView {
 }
 
 const KEY = "access-requests";
+
+/** A typed `project/endpoint`, both DNS-1123 labels as the server checks them. */
+const TYPED_ENDPOINT = /^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?\/[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$/;
 
 type NewRequest = components["schemas"]["NewRequest"];
 
@@ -162,7 +166,10 @@ export function PipelineAccessRequests({ project, name }: { project: string; nam
   });
   const endpoints = offered.data?.items ?? [];
   const target = endpoints.find((one) => `${one.project}/${one.name}` === chosen);
-  const [owner, endpoint] = target ? [target.project, target.name] : ["", ""];
+  // An Endpoint the list does not offer is asked for by its typed name; its owners check the
+  // types and attributes then, so those are typed too (T-4946).
+  const typed = !target && TYPED_ENDPOINT.test(chosen);
+  const [owner, endpoint] = target ? [target.project, target.name] : typed ? chosen.split("/") : ["", ""];
   const typesOf = (type: string) => target?.types.find((one) => one.type === type)?.attrs ?? [];
   const failedList = offered.isError ? { reason: problem(offered.error, t("app.error.generic")), retry: () => void offered.refetch() } : undefined;
 
@@ -207,7 +214,13 @@ export function PipelineAccessRequests({ project, name }: { project: string; nam
             {t("pipelines.access.request")}
           </h3>
           <p className="text-caption text-fg-muted">{t("pipelines.access.lead")}</p>
-          <Field id={`${ids}-endpoint`} label={t("pipelines.access.endpoint")} help={t("pipelines.access.endpointHelp")} required>
+          <Field
+            id={`${ids}-endpoint`}
+            label={t("pipelines.access.endpoint")}
+            help={t("pipelines.access.endpointHelp")}
+            errors={chosen && !target && !typed ? [t("pipelines.access.endpointTypedBad", { name: chosen })] : undefined}
+            required
+          >
             <Combobox
               id={`${ids}-endpoint`}
               label={t("pipelines.access.endpoint")}
@@ -225,6 +238,13 @@ export function PipelineAccessRequests({ project, name }: { project: string; nam
               onChange={(values) => {
                 setChosen(values[0] ?? "");
                 setRows([{ type: "", attrs: [] }]);
+              }}
+              create={{
+                label: (text) => t("pipelines.access.endpointTyped", { name: text }),
+                onCreate: (text) => {
+                  setChosen(text.trim().toLowerCase());
+                  setRows([{ type: "", attrs: [] }]);
+                },
               }}
             />
           </Field>
@@ -247,19 +267,33 @@ export function PipelineAccessRequests({ project, name }: { project: string; nam
                 <Field
                   id={`${ids}-type-${at}`}
                   label={t("pipelines.access.type")}
-                  help={target && target.types.length === 0 ? t("pipelines.access.noTypes") : t("pipelines.access.typeHelp")}
+                  help={
+                    typed
+                      ? t("pipelines.access.typedTypeHelp")
+                      : target && target.types.length === 0
+                        ? t("pipelines.access.noTypes")
+                        : t("pipelines.access.typeHelp")
+                  }
                 >
                   <Combobox
                     id={`${ids}-type-${at}`}
                     label={t("pipelines.access.type")}
                     labelled
-                    disabled={!target}
+                    disabled={!target && !typed}
                     value={row.type ? [row.type] : []}
                     options={(target?.types ?? [])
                       .filter((one) => one.type === row.type || !rows.some((other) => other.type === one.type))
                       .map((one) => ({ value: one.type, label: one.type, group: target?.space ?? "" }))}
-                    empty={target ? t("pipelines.access.noTypes") : t("pipelines.access.endpointFirst")}
+                    empty={typed ? t("pipelines.access.typedTypeHelp") : target ? t("pipelines.access.noTypes") : t("pipelines.access.endpointFirst")}
                     onChange={(values) => setRows(rows.map((r, i) => (i === at ? { type: values[0] ?? "", attrs: [] } : r)))}
+                    create={
+                      typed
+                        ? {
+                            label: (text) => t("picker.type.create", { name: text }),
+                            onCreate: (text) => setRows(rows.map((r, i) => (i === at ? { type: text.trim(), attrs: [] } : r))),
+                          }
+                        : undefined
+                    }
                   />
                 </Field>
                 <Field id={`${ids}-attrs-${at}`} label={t("pipelines.access.attrs")} help={t("pipelines.access.attrsHelp")}>
@@ -273,6 +307,15 @@ export function PipelineAccessRequests({ project, name }: { project: string; nam
                     options={typesOf(row.type).map((attr) => ({ value: attr, label: attr, group: row.type }))}
                     empty={row.type ? t("pipelines.access.noAttrs", { type: row.type }) : t("pipelines.access.typeFirst")}
                     onChange={(values) => setRows(rows.map((r, i) => (i === at ? { ...r, attrs: values } : r)))}
+                    create={
+                      typed
+                        ? {
+                            label: (text) => t("picker.createNamed", { name: text }),
+                            onCreate: (text) =>
+                              setRows(rows.map((r, i) => (i === at && !r.attrs.includes(text.trim()) ? { ...r, attrs: [...r.attrs, text.trim()] } : r))),
+                          }
+                        : undefined
+                    }
                   />
                 </Field>
                 {rows.length > 1 ? (

@@ -143,7 +143,7 @@ for (const [width, height] of [[1440, 900], [400, 860]] as const) {
       await shot(page, "refusal", width);
     });
 
-    test("the form offers the Endpoints, then their types and attributes, never a box to type a name in", async ({ page }) => {
+    test("the form offers the Endpoints, then their types and attributes", async ({ page }) => {
       await stubApi(page, []);
       await page.goto("/projects/espoo/pipelines/parking-sync?lang=en#access");
       const section = page.getByTestId("pipeline-access");
@@ -170,13 +170,36 @@ for (const [width, height] of [[1440, 900], [400, 860]] as const) {
       await shot(page, "picker-no-types", width);
     });
 
+    test("an Endpoint the list does not offer is asked for by its typed name", async ({ page }) => {
+      await stubApi(page, []);
+      await page.goto("/projects/espoo/pipelines/parking-sync?lang=en#access");
+      const section = page.getByTestId("pipeline-access");
+      await section.getByRole("button", { name: "Request access" }).click();
+      const endpoint = section.getByRole("combobox", { name: "Endpoint" });
+      await endpoint.click();
+      await endpoint.fill("parks/trees");
+      await expect(page.getByRole("option", { name: /Ask for parks\/trees/ })).toBeVisible();
+      await shot(page, "picker-typed", width);
+      await endpoint.press("Enter");
+      await expect(section.getByText(/check this name against their data model/).first()).toBeVisible();
+      const type = section.getByRole("combobox", { name: "Entity type" });
+      await type.fill("TreeObserved");
+      await type.press("Enter");
+      const attrs = section.getByRole("combobox", { name: "Attributes" });
+      await attrs.fill("height");
+      await attrs.press("Enter");
+      await attrs.scrollIntoViewIfNeeded();
+      await shot(page, "picker-typed-filled", width);
+      expect(await axeViolations(page)).toEqual([]);
+    });
+
     test("with no Endpoint to ask for, the form says how one comes to be", async ({ page }) => {
       await stubApi(page, [], false, []);
       await page.goto("/projects/espoo/pipelines/parking-sync?lang=en#access");
       const section = page.getByTestId("pipeline-access");
       await section.getByRole("button", { name: "Request access" }).click();
       await section.getByRole("combobox", { name: "Endpoint" }).click();
-      await expect(page.getByText(/No Endpoint of another space exists yet/)).toBeVisible();
+      await expect(page.getByText(/No Endpoint of another space is yours to read/)).toBeVisible();
       await shot(page, "picker-empty", width);
     });
 
