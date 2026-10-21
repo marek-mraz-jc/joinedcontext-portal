@@ -56,6 +56,7 @@ pub mod quality;
 pub mod quality_checks;
 pub mod quotas;
 pub mod reconciler;
+pub mod record_check;
 pub mod references;
 pub mod request_id;
 pub mod resource;

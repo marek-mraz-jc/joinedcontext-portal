@@ -121,7 +121,7 @@ export function EndpointDataView({
 
   return (
     <div className="flex flex-col gap-3">
-      <Field id={`endpoint-data-type-${slug}`} label={t("endpoints.data.type")}>
+      <Field id={`endpoint-data-type-${slug}`} label={t("endpoints.data.type")} description={t("endpoints.data.typeHelp")}>
         <Select
           id={`endpoint-data-type-${slug}`}
           value={type.name}

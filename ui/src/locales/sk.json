@@ -1347,7 +1347,8 @@
       "missingRow": "nie je v tomto endpointe (filter alebo politika)",
       "hiddenColumn": "skryté projekciou",
       "same": "Tento endpoint odpovedá túto stranu presne tak, ako ju priestor drží.",
-      "spaceRefused": "Tento endpoint čítať smiete, priestor za ním nie, takže niet s čím porovnávať."
+      "spaceRefused": "Tento endpoint čítať smiete, priestor za ním nie, takže niet s čím porovnávať.",
+      "typeHelp": "Ktorý typ záznamov tabuľka zobrazuje; vyberte iný a uvidíte jeho riadky, napr. merania kvality ovzdušia."
     },
     "projection": {
       "title": "Zverejnené atribúty",
@@ -2349,11 +2350,19 @@
       },
       "validation": {
         "title": "Validácia",
-        "hint": "Zapíšu sa len záznamy, ktoré model priestoru prijme; ostatné idú do zoznamu odmietnutých.",
+        "hint": "Zapíšu sa len záznamy, ktoré prijme model priestoru, cieľový endpoint a životnosť; ostatné idú do zoznamu odmietnutých.",
         "waiting": "Verdikty prídu, keď mapovanie vytvorí záznamy.",
         "valid": "platný",
         "allValid": "{count, plural, one {# záznam je platný} few {Všetky # záznamy sú platné} other {Všetkých # záznamov je platných}} voči {model} {version}.",
-        "someRejected": "{count, plural, one {# záznam porušuje} few {# záznamy porušujú} other {# záznamov porušuje}} {model} {version} a nezapíše sa; platných: {valid}."
+        "someRejected": "{count, plural, one {# záznam porušuje} few {# záznamy porušujú} other {# záznamov porušuje}} {model} {version} a nezapíše sa; platných: {valid}.",
+        "source": {
+          "model": "Model",
+          "endpoint": "Endpoint",
+          "lifetime": "Životnosť"
+        },
+        "expiresLabel": "Platnosť, s ktorou sa záznam zapíše",
+        "expiresEntity": "Entita vyprší {at}",
+        "expiresAttribute": "{name} vyprší {at}"
       },
       "target": {
         "title": "Cieľ",
@@ -2948,7 +2957,6 @@
       "deleteCascade": "Zmazaním skupiny ju tá istá zmena odstráni aj z {bindings} priradení rolí platformy a {apps} rolí aplikácií.",
       "members": "Členovia",
       "email": "E-mail osoby",
-      "emailHelp": "Vyberte osobu z organizácie alebo zadajte celý e-mail niekoho, kto sa ešte neprihlásil, napr. jana.novak@example.org.",
       "addMember": "Pridať člena",
       "removeMember": "Odobrať {member} zo skupiny",
       "remove": "Odobrať",
@@ -2989,7 +2997,16 @@
       "noCkan": "Táto skupina nespravuje žiadny katalóg.",
       "ckanInstance": "{project} / {name}",
       "ckanVia": "cez rolu {role}",
-      "appNotLoaded": "Aplikácia sa ešte načítava alebo ju nemôžete čítať."
+      "appNotLoaded": "Aplikácia sa ešte načítava alebo ju nemôžete čítať.",
+      "hint": {
+        "email": "Vyberte osobu z organizácie alebo zadajte celý e-mail niekoho, kto sa ešte neprihlásil, napr. jana.novak@example.org.",
+        "where": "Kde rola platí: celá organizácia alebo jeden projekt, napr. helsinki.",
+        "space": "Ponechajte celý projekt alebo zúžte rolu na jeden kontextový priestor, napr. air-quality.",
+        "role": "Čo môžu členovia robiť, napr. viewer číta, steward aj navrhuje zmeny.",
+        "project": "Projekt, do ktorého aplikácia patrí, napr. helsinki.",
+        "app": "Aplikácia, ktorej rolu skupina dostane, napr. air-quality-dashboard.",
+        "appRole": "Jedna z rolí, ktoré aplikácia definuje, napr. reader."
+      }
     },
     "explorer": {
       "title": "Pozrite, k čomu má niekto prístup",
@@ -4414,7 +4431,15 @@
     "kindStructured": "Štruktúrovaná hodnota",
     "kindList": "Zoznam",
     "points": "bodov",
-    "openTarget": "Otvoriť"
+    "openTarget": "Otvoriť",
+    "hint": {
+      "filterText": "Vyberte test a napíšte slová, napr. obsahuje Espoo.",
+      "filterNumber": "Vyberte test a napíšte číslo, napr. väčšie ako 40.",
+      "filterDate": "Vyberte test a zvoľte dátum, napr. po 2026-10-01.",
+      "filterEnum": "Vyberte test; pri „ktorákoľvek z“ zvoľte jednu alebo viac povolených hodnôt:",
+      "filterOther": "Vyberte test, napr. má hodnotu alebo prázdne.",
+      "editAsText": "Napíšte dopyt NGSI-LD sami, napr. pm10>40;name~=\"Espoo\"."
+    }
   },
   "explore": {
     "title": "Prehliadať dáta",
@@ -8169,7 +8194,8 @@
       "copy": "Kopírovať konfiguráciu"
     },
     "tools": "{count, plural, one {# nástroj} few {# nástroje} other {# nástrojov}}",
-    "noTools": "Konektor teraz neponúka anonymným volajúcim žiadne nástroje."
+    "noTools": "Konektor teraz neponúka anonymným volajúcim žiadne nástroje.",
+    "lead": "Pridajte tieto dáta do AI asistenta, napríklad Claude alebo ChatGPT: skopírujte adresu do klienta a pýtajte sa."
   },
   "kinds": {
     "AgentProfile": {

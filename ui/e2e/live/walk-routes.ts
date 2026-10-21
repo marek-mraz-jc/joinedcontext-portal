@@ -85,6 +85,8 @@ export async function visits(page: Page, who: string): Promise<Visit[]> {
     ["/projects/$project/workspaces/$name/compare", `${P}/workspaces`, new RegExp(`^${P}/workspaces/[^/]+/compare$`)],
     ["/organization/$tab/$", "/organization/people", /^\/organization\/people\/(?!new$)[^/]+$/],
     ["/organization/$tab/$", "/organization/groups", /^\/organization\/groups\/(?!new$)[^/]+$/],
+    // A dataset page, back since T-4949 put the publisher's commands and JSON in code blocks.
+    ["/catalogue/$name", "/catalogue", /^\/catalogue\/[^/]+$/],
   ];
   for (const [route, list, pattern] of items) {
     const address = await firstItem(page, list, pattern);
@@ -95,6 +97,9 @@ export async function visits(page: Page, who: string): Promise<Visit[]> {
     found.push({ route: "/projects/$project/workspaces/$name/try-it", address: `${copy}/try-it` });
     found.push({ route: "/projects/$project/workspaces/$name/bring-back", address: `${copy}/bring-back` });
   }
+  // The public setup page of a named MCP server (T-4169), back since T-4949 let it reach its server.
+  const server = await firstName(page, "mcpservers");
+  if (server) found.push({ route: "/connect/$project/$name", address: `/connect/${PROJECT}/${encodeURIComponent(server)}` });
   for (const section of FORMS) {
     const name = await firstName(page, section);
     if (name) found.push({ route: "/projects/$project/$plural/$name/edit", address: `${P}/${section}/${encodeURIComponent(name)}/edit` });

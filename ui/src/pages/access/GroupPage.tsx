@@ -306,7 +306,7 @@ function Members({
         </ul>
       )}
       <form
-        className="flex flex-wrap items-end gap-2"
+        className="flex max-w-xl flex-col gap-3"
         onSubmit={(event) => {
           event.preventDefault();
           if (email && !held) {
@@ -315,7 +315,7 @@ function Members({
           }
         }}
       >
-        <Field id={field} label={t("access.groupPage.email")} description={t("access.groupPage.emailHelp")}>
+        <Field id={field} label={t("access.groupPage.email")} description={t("access.groupPage.hint.email")}>
           <PersonPicker
             id={field}
             label={t("access.groupPage.email")}
@@ -326,7 +326,7 @@ function Members({
           />
         </Field>
         <PermissionGuard project={ORG_NAMESPACE} kind="Group" verb="propose">
-          <Button type="submit" size="sm" disabled={busy || reason !== undefined} disabledReason={reason}>
+          <Button type="submit" size="sm" className="self-start" disabled={busy || reason !== undefined} disabledReason={reason}>
             {t("access.groupPage.addMember")}
           </Button>
         </PermissionGuard>
@@ -458,7 +458,7 @@ function PlatformRoles({
         </ul>
       )}
       <form
-        className="flex flex-wrap items-end gap-2"
+        className="flex max-w-xl flex-col gap-3"
         onSubmit={(event) => {
           event.preventDefault();
           if (chosen && !refusal) {
@@ -467,7 +467,7 @@ function PlatformRoles({
           }
         }}
       >
-        <Field id={`${ids}-where`} label={t("access.groupPage.where")}>
+        <Field id={`${ids}-where`} label={t("access.groupPage.where")} description={t("access.groupPage.hint.where")}>
           <Select
             id={`${ids}-where`}
             value={target}
@@ -485,7 +485,7 @@ function PlatformRoles({
           </Select>
         </Field>
         {target ? (
-          <Field id={`${ids}-space`} label={t("access.groupPage.space")}>
+          <Field id={`${ids}-space`} label={t("access.groupPage.space")} description={t("access.groupPage.hint.space")}>
             <Select id={`${ids}-space`} value={space} onChange={(event) => setSpace(event.target.value)}>
               <option value="">{t("access.groupPage.wholeProject")}</option>
               {asManifests(spaces.data?.items ?? []).map((s) => (
@@ -496,7 +496,7 @@ function PlatformRoles({
             </Select>
           </Field>
         ) : null}
-        <Field id={`${ids}-role`} label={t("access.groupPage.role")}>
+        <Field id={`${ids}-role`} label={t("access.groupPage.role")} description={t("access.groupPage.hint.role")}>
           <Select id={`${ids}-role`} value={role} onChange={(event) => setRole(event.target.value)}>
             <option value="">{t("access.groupPage.pickRole")}</option>
             {choices.map((choice) => (
@@ -509,7 +509,7 @@ function PlatformRoles({
           </Select>
         </Field>
         <PermissionGuard project={ORG_NAMESPACE} kind="RoleBinding" verb="propose">
-          <Button type="submit" size="sm" disabled={busy || reason !== undefined} disabledReason={reason}>
+          <Button type="submit" size="sm" className="self-start" disabled={busy || reason !== undefined} disabledReason={reason}>
             {t("access.groupPage.addRole")}
           </Button>
         </PermissionGuard>
@@ -588,7 +588,7 @@ function ApplicationRoles({
         </ul>
       )}
       <form
-        className="flex flex-wrap items-end gap-2"
+        className="flex max-w-xl flex-col gap-3"
         onSubmit={(event) => {
           event.preventDefault();
           if (app && role && !already) {
@@ -597,7 +597,7 @@ function ApplicationRoles({
           }
         }}
       >
-        <Field id={`${ids}-project`} label={t("access.groupPage.project")}>
+        <Field id={`${ids}-project`} label={t("access.groupPage.project")} description={t("access.groupPage.hint.project")}>
           <Select
             id={`${ids}-project`}
             value={project}
@@ -615,7 +615,7 @@ function ApplicationRoles({
             ))}
           </Select>
         </Field>
-        <Field id={`${ids}-app`} label={t("access.groupPage.app")}>
+        <Field id={`${ids}-app`} label={t("access.groupPage.app")} description={t("access.groupPage.hint.app")}>
           <Select
             id={`${ids}-app`}
             value={appName}
@@ -632,7 +632,7 @@ function ApplicationRoles({
             ))}
           </Select>
         </Field>
-        <Field id={`${ids}-role`} label={t("access.groupPage.role")}>
+        <Field id={`${ids}-role`} label={t("access.groupPage.role")} description={t("access.groupPage.hint.appRole")}>
           <Select id={`${ids}-role`} value={role} onChange={(event) => setRole(event.target.value)}>
             <option value="">{t("access.groupPage.pickRole")}</option>
             {roles.map((r) => (
@@ -643,7 +643,7 @@ function ApplicationRoles({
           </Select>
         </Field>
         <PermissionGuard project={project || ORG_NAMESPACE} kind="App" verb="propose">
-          <Button type="submit" size="sm" disabled={busy || reason !== undefined} disabledReason={reason}>
+          <Button type="submit" size="sm" className="self-start" disabled={busy || reason !== undefined} disabledReason={reason}>
             {t("access.groupPage.addAppRole")}
           </Button>
         </PermissionGuard>

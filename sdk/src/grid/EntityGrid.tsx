@@ -219,6 +219,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const grid = useEntityGrid({ ...hookOptions, layout, hidden: hiddenNow });
   const where = locale ?? (typeof navigator !== "undefined" ? navigator.language : "en");
   const selection = useEntitySelection();
+  const queryHintId = React.useId();
   const { rows, columns, loading, error, labels, state, cellOf, toggleMeta, setOffset, setSort, setFilter, setFilterText, filterColumns, askedQuery, setEdit, clearEdits, pendingChanges, reload, setEdits, getGridProps, getHeaderProps, getRowProps, getCellProps } = grid;
 
   // A column offers a filter when it holds something `q` can ask about and the config allows it:
@@ -1434,6 +1435,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
               // (a `|`, a bracket), so taking it over is how those are written at all.
               <input
                 className="jc-grid-query-input"
+                aria-describedby={queryHintId}
                 value={state.filterText ?? ""}
                 onChange={(e) => setFilterText(e.target.value)}
               />
@@ -1452,11 +1454,15 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           <label className="jc-grid-query-switch">
             <input
               type="checkbox"
+              aria-describedby={queryHintId}
               checked={asText}
               onChange={(e) => setFilterText(e.target.checked ? (askedQuery.q ?? "") : null)}
             />
             {labels.editAsText}
           </label>
+          <span id={queryHintId} className="jc-grid-query-hint">
+            {labels.editAsTextHint}
+          </span>
         </div>
       )}
 
@@ -1520,6 +1526,33 @@ function queryText(asked: { q?: string; idPattern?: string }): string {
   return parts.join("&");
 }
 
+type FilterCellLabels = Pick<
+  GridLabelsAll,
+  "filter" | "value" | "upperValue" | "noFilter" | "unit" | "filterHintText" | "filterHintNumber" | "filterHintDate" | "filterHintEnum" | "filterHintOther"
+> & { ops: Record<string, string> };
+
+/**
+ * The one line under a column's filter (UI-16), from the attribute's model: what to type for its
+ * kind, the unit of a number and the allowed values of an enum (T-4949).
+ */
+function filterHint(column: FilterColumn, labels: FilterCellLabels): string {
+  switch (column.kind) {
+    case "number":
+      return column.unit ? `${labels.filterHintNumber} ${labels.unit}: ${column.unit}.` : labels.filterHintNumber;
+    case "date":
+      return labels.filterHintDate;
+    case "enum":
+      return `${labels.filterHintEnum} ${(column.options ?? []).map(optionLabel).join(", ")}.`;
+    case "text":
+    case "id":
+    case "relationship":
+    case "untyped":
+      return labels.filterHintText;
+    default:
+      return labels.filterHintOther;
+  }
+}
+
 /**
  * One column's filter: the operators its content allows, and the value(s) the chosen one needs.
  * A filter is sent only once it is complete, so nothing narrows while it is being typed.
@@ -1533,10 +1566,12 @@ function FilterCell({
 }: {
   column: FilterColumn;
   label: string;
-  labels: { filter: string; value: string; upperValue: string; noFilter: string; ops: Record<string, string> };
+  labels: FilterCellLabels;
   filter: ColumnFilter | undefined;
   onChange: (next: ColumnFilter | undefined) => void;
 }): React.JSX.Element {
+  const hintId = React.useId();
+  const hint = filterHint(column, labels);
   const ops = opsForKind(column.kind);
   const op = filter?.op ?? ops[0];
   const needed = valuesNeeded(op);
@@ -1545,8 +1580,13 @@ function FilterCell({
   const picking = column.kind === "enum" && op === "anyOf";
   return (
     <div className="jc-grid-filter-cell">
+      <span id={hintId} className="jc-grid-sr-only">
+        {hint}
+      </span>
       <select
         aria-label={`${labels.filter}: ${label}`}
+        aria-describedby={hintId}
+        title={hint}
         value={filter ? op : ""}
         onChange={(e) => {
           const next = e.target.value as ColumnFilter["op"] | "";

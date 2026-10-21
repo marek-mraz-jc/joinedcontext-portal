@@ -1324,7 +1324,8 @@
       "missingRow": "nicht in diesem Endpunkt (Filter oder Policy)",
       "hiddenColumn": "durch die Projektion verborgen",
       "same": "Dieser Endpunkt antwortet diese Seite genau so, wie der Raum sie hält.",
-      "spaceRefused": "Sie dürfen diesen Endpunkt lesen, aber nicht den Raum dahinter, also gibt es nichts zu vergleichen."
+      "spaceRefused": "Sie dürfen diesen Endpunkt lesen, aber nicht den Raum dahinter, also gibt es nichts zu vergleichen.",
+      "typeHelp": "Welchen Datensatztyp die Tabelle zeigt; einen anderen wählen, um seine Zeilen zu sehen, z. B. die Luftqualitätsmessungen."
     },
     "projection": {
       "title": "Veröffentlichte Attribute",
@@ -2349,11 +2350,19 @@
       },
       "validation": {
         "title": "Validierung",
-        "hint": "Nur Datensätze, die das Modell des Raums annimmt, werden geschrieben; der Rest kommt auf die Liste der abgelehnten.",
+        "hint": "Geschrieben werden nur Datensätze, die das Modell des Raums, der Ziel-Endpoint und die Lebensdauer annehmen; die übrigen kommen in die Liste der abgelehnten.",
         "waiting": "Die Urteile folgen, sobald die Abbildung Datensätze erzeugt.",
         "valid": "gültig",
         "allValid": "{count, plural, one {# Datensatz ist} other {Alle # Datensätze sind}} gültig gegen {model} {version}.",
-        "someRejected": "{count, plural, one {# Datensatz verletzt} other {# Datensätze verletzen}} {model} {version} und würden nicht geschrieben; {valid} gültig."
+        "someRejected": "{count, plural, one {# Datensatz verletzt} other {# Datensätze verletzen}} {model} {version} und würden nicht geschrieben; {valid} gültig.",
+        "source": {
+          "model": "Modell",
+          "endpoint": "Endpoint",
+          "lifetime": "Lebensdauer"
+        },
+        "expiresLabel": "Ablauf, mit dem der Datensatz geschrieben wird",
+        "expiresEntity": "Entität läuft ab {at}",
+        "expiresAttribute": "{name} läuft ab {at}"
       },
       "target": {
         "title": "Ziel",
@@ -2948,7 +2957,6 @@
       "deleteCascade": "Wer diese Gruppe löscht, nimmt sie mit derselben Änderung auch aus {bindings} Rollenzuweisung(en) der Plattform und {apps} Anwendungsrolle(n).",
       "members": "Mitglieder",
       "email": "E-Mail der Person",
-      "emailHelp": "Wählen Sie eine Person der Organisation oder geben Sie die vollständige E-Mail einer Person ein, die sich noch nicht angemeldet hat, z. B. jana.novak@example.org.",
       "addMember": "Mitglied hinzufügen",
       "removeMember": "{member} aus der Gruppe entfernen",
       "remove": "Entfernen",
@@ -2989,7 +2997,16 @@
       "noCkan": "Diese Gruppe verwaltet keinen Katalog.",
       "ckanInstance": "{project} / {name}",
       "ckanVia": "über die Rolle {role}",
-      "appNotLoaded": "Die App wird noch geladen, oder Sie dürfen sie nicht lesen."
+      "appNotLoaded": "Die App wird noch geladen, oder Sie dürfen sie nicht lesen.",
+      "hint": {
+        "email": "Wählen Sie eine Person der Organisation oder geben Sie die vollständige E-Mail einer Person ein, die sich noch nicht angemeldet hat, z. B. jana.novak@example.org.",
+        "where": "Wo die Rolle gilt: die ganze Organisation oder ein Projekt, z. B. helsinki.",
+        "space": "Das ganze Projekt behalten oder die Rolle auf einen Kontextraum begrenzen, z. B. air-quality.",
+        "role": "Was die Mitglieder dort dürfen, z. B. viewer liest, steward schlägt auch Änderungen vor.",
+        "project": "Das Projekt, zu dem die Anwendung gehört, z. B. helsinki.",
+        "app": "Die Anwendung, deren Rolle die Gruppe erhält, z. B. air-quality-dashboard.",
+        "appRole": "Eine der Rollen, die die Anwendung festlegt, z. B. reader."
+      }
     },
     "explorer": {
       "title": "Sehen, worauf jemand zugreifen kann",
@@ -4414,7 +4431,15 @@
     "kindStructured": "Strukturierter Wert",
     "kindList": "Liste",
     "points": "Punkte",
-    "openTarget": "Öffnen"
+    "openTarget": "Öffnen",
+    "hint": {
+      "filterText": "Einen Test wählen, dann die Wörter tippen, z. B. enthält Espoo.",
+      "filterNumber": "Einen Test wählen, dann eine Zahl tippen, z. B. größer als 40.",
+      "filterDate": "Einen Test wählen, dann ein Datum, z. B. nach 2026-10-01.",
+      "filterEnum": "Einen Test wählen; bei „eines von“ einen oder mehrere erlaubte Werte wählen:",
+      "filterOther": "Einen Test wählen, z. B. hat einen Wert oder leer.",
+      "editAsText": "Die NGSI-LD-Abfrage selbst schreiben, z. B. pm10>40;name~=\"Espoo\"."
+    }
   },
   "explore": {
     "title": "Daten erkunden",
@@ -8169,7 +8194,8 @@
       "copy": "Konfiguration kopieren"
     },
     "tools": "{count, plural, one {# Werkzeug} other {# Werkzeuge}}",
-    "noTools": "Der Konnektor bietet anonymen Aufrufern gerade keine Werkzeuge an."
+    "noTools": "Der Konnektor bietet anonymen Aufrufern gerade keine Werkzeuge an.",
+    "lead": "Diese Daten einem KI-Assistenten wie Claude oder ChatGPT hinzufügen: die Adresse in den Client kopieren und Fragen stellen."
   },
   "kinds": {
     "AgentProfile": {

@@ -202,6 +202,27 @@ describe("a group's page", () => {
     await expectNoViolations(members);
   });
 
+  // T-4949, UI-16: every field says what to enter, with an example, wired to the field.
+  it("gives every field a hint with an example", async () => {
+    const user = userEvent.setup();
+    renderGroup();
+    const g = en.access.groupPage;
+    const members = await section(g.members);
+    expect(within(members).getByLabelText(g.email)).toHaveAccessibleDescription(g.hint.email);
+    const platform = await section(g.platformRoles);
+    expect(within(platform).getByLabelText(g.where)).toHaveAccessibleDescription(g.hint.where);
+    expect(within(platform).getByLabelText(g.role)).toHaveAccessibleDescription(g.hint.role);
+    await user.selectOptions(within(platform).getByLabelText(g.where), "helsinki");
+    expect(within(platform).getByLabelText(g.space)).toHaveAccessibleDescription(g.hint.space);
+    const apps = await section(g.appRoles);
+    expect(within(apps).getByLabelText(g.project)).toHaveAccessibleDescription(g.hint.project);
+    expect(within(apps).getByLabelText(g.app)).toHaveAccessibleDescription(g.hint.app);
+    expect(within(apps).getByLabelText(g.role)).toHaveAccessibleDescription(g.hint.appRole);
+    for (const hint of [g.hint.email, g.hint.where, g.hint.role, g.hint.space, g.hint.project, g.hint.app, g.hint.appRole]) {
+      expect(hint).toMatch(/e\.g\. /);
+    }
+  });
+
   it("lists the catalogues the group's bindings let it manage, and none without one", async () => {
     renderGroup({ ckan: true });
     const reached = await section(en.access.groupPage.ckanTitle);
