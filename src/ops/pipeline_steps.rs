@@ -429,6 +429,59 @@ fn target(
     Ok((space, schema))
 }
 
+/// `jc_pipeline_try_mapping`'s input in bounds: a candidate, and one of sample and messages.
+fn try_mapping_valid(val: &Value) -> Result<(), OpError> {
+    let input: TryMappingInput = parse_input(val.clone())?;
+    if input.pipeline.is_none() && input.draft.is_none() {
+        return Err(OpError::InvalidInput {
+            path: "/pipeline".into(),
+            message: "either pipeline or draft is required".into(),
+        });
+    }
+    match (&input.sample, &input.messages) {
+        (Some(_), None) => Ok(()),
+        (None, Some(messages)) => messages_bounded(messages),
+        _ => Err(OpError::InvalidInput {
+            path: "/sample".into(),
+            message: "give exactly one of sample and messages".into(),
+        }),
+    }
+}
+
+/// `jc_pipeline_try_mapping`: the candidate run over the sample, or over a streamed sample's
+/// messages one each.
+async fn try_mapping(
+    caller: &super::Caller,
+    state: &AppState,
+    project: &str,
+    val: Value,
+) -> Result<Value, OpError> {
+    try_mapping_valid(&val)?;
+    let input: TryMappingInput = parse_input(val)?;
+    let (pipeline, _) = candidate(state, project, input.pipeline, input.draft.as_ref()).await?;
+    let trace = match (input.sample, input.messages) {
+        (Some(sample), _) => {
+            pipeline_test::execute_test_pipeline(
+                &caller.identity,
+                state,
+                project,
+                pipeline_test::TestRequest { pipeline, sample },
+            )
+            .await?
+        }
+        (None, messages) => {
+            let messages = messages.unwrap_or_default();
+            let spec = pipeline_test::tested_spec(&caller.identity, state, project, &pipeline)?;
+            pipeline_test::run_messages(state, project, &spec, &messages).await?
+        }
+    };
+    Ok(json!({
+        "input": trace.input,
+        "records": trace.mapping,
+        "errors": trace.errors,
+    }))
+}
+
 /// This module's operations in the registry (`super::init_registry`).
 pub fn operations() -> Vec<Operation> {
     vec![
@@ -502,62 +555,8 @@ pub fn operations() -> Vec<Operation> {
             kind: "Pipeline",
             verb: Some(Verb::Propose),
             lane: Lane::Green,
-            validate: |val| {
-                let input: TryMappingInput = parse_input(val.clone())?;
-                if input.pipeline.is_none() && input.draft.is_none() {
-                    return Err(OpError::InvalidInput {
-                        path: "/pipeline".into(),
-                        message: "either pipeline or draft is required".into(),
-                    });
-                }
-                match (&input.sample, &input.messages) {
-                    (Some(_), None) => Ok(()),
-                    (None, Some(messages)) => messages_bounded(messages),
-                    _ => Err(OpError::InvalidInput {
-                        path: "/sample".into(),
-                        message: "give exactly one of sample and messages".into(),
-                    }),
-                }
-            },
-            run: |caller, state, project, val| {
-                Box::pin(async move {
-                    let input: TryMappingInput = parse_input(val)?;
-                    let (pipeline, _) =
-                        candidate(state, project, input.pipeline, input.draft.as_ref()).await?;
-                    let trace = match (input.sample, input.messages) {
-                        (Some(sample), None) => {
-                            pipeline_test::execute_test_pipeline(
-                                &caller.identity,
-                                state,
-                                project,
-                                pipeline_test::TestRequest { pipeline, sample },
-                            )
-                            .await?
-                        }
-                        (None, Some(messages)) => {
-                            messages_bounded(&messages)?;
-                            let spec = pipeline_test::tested_spec(
-                                &caller.identity,
-                                state,
-                                project,
-                                &pipeline,
-                            )?;
-                            pipeline_test::run_messages(state, project, &spec, &messages).await?
-                        }
-                        _ => {
-                            return Err(OpError::InvalidInput {
-                                path: "/sample".into(),
-                                message: "give exactly one of sample and messages".into(),
-                            })
-                        }
-                    };
-                    Ok(json!({
-                        "input": trace.input,
-                        "records": trace.mapping,
-                        "errors": trace.errors,
-                    }))
-                })
-            },
+            validate: try_mapping_valid,
+            run: |caller, state, project, val| Box::pin(try_mapping(caller, state, project, val)),
         },
         Operation {
             name: "jc_pipeline_validate",
