@@ -487,7 +487,7 @@ pub(crate) fn plan_flow(
         )?;
         // Nobody grants above their own rights, a blueprint's Role or RoleBinding included
         // (PF-52).
-        crate::permissions::within_own_rights(state, identity, &body, "proposer")?;
+        crate::permissions::within_own_rights(state, identity, &body, None, "proposer")?;
         // A blueprint's Pipeline reaches only what its proposer reads and writes (PL-94).
         crate::pipeline_rights::check(
             state,

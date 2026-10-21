@@ -846,8 +846,21 @@ async fn propose_engine(
             Some(&body_val),
         )?;
     }
-    // 4d. Nobody grants above their own rights (PF-52, AG-77).
-    crate::permissions::within_own_rights(state, identity, &body_val, "proposer")?;
+    // 4d. Nobody grants above their own rights (PF-52, AG-77), measured against what the change
+    //     replaces, so a revoke is not held to the grants it leaves (T-5016).
+    let replaced = state
+        .mirror
+        .get(project, kind_info.kind, &envelope.metadata.name)
+        .map(serde_json::to_value)
+        .transpose()
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    crate::permissions::within_own_rights(
+        state,
+        identity,
+        &body_val,
+        replaced.as_ref(),
+        "proposer",
+    )?;
     // 4e. A pipeline reaches only what its proposer reads and writes (PL-94).
     if operation != Operation::Delete {
         crate::pipeline_rights::check(
