@@ -1680,6 +1680,8 @@
       "lead": "One MCP address for every endpoint. Add it once to an AI assistant: open endpoints answer without signing in, and signing in adds the ones you may read. The assistant picks the endpoint, reads its attributes, model and access, and each call runs under that endpoint's own policy.",
       "claude": "Copy for Claude Code",
       "json": "Copy for another MCP client",
+      "claudeLine": "Claude Code command",
+      "jsonLine": "Configuration for another MCP client",
       "vscode": "Add to VS Code",
       "cursor": "Add to Cursor"
     },
