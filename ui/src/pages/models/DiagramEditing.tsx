@@ -14,7 +14,7 @@ import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Button, ConfirmDialog, Dialog, Field, Input, Select } from "../../components/ui";
 import { classifyChanges } from "./breaking_detector";
-import { CARDINALITIES, RANGES, parseModel } from "./linkml";
+import { CARDINALITIES, RANGES, newTypeParent, parseModel } from "./linkml";
 import type { Cardinality, GraphEdge } from "./linkml";
 import { applyOperations, isName } from "./operations";
 import type { Operation } from "./operations";
@@ -109,7 +109,7 @@ export function useDiagramEditing(source: string, onChange?: (source: string) =>
           title={t("models.graph.edit.addClassTitle")}
           label={t("models.graph.edit.className")}
           taken={(name) => model.classes.some((klass) => klass.name === name)}
-          run={(name) => run([{ op: "addClass", name }])}
+          run={(name) => run([{ op: "addClass", name, ...newTypeParent(model) }])}
           onClose={() => setClassOpen(false)}
         />
       ) : null}

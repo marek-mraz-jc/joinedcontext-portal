@@ -94,7 +94,10 @@ export function DeleteResourceDialog({
         ? t("app.error.generic")
         : null;
   const blocked = preview.error instanceof ApiError && preview.error.status === 409 ? preview.error : null;
-  const referenced = (remove.error instanceof ApiError && remove.error.status === 409) || blocked !== null;
+  // The dry run answers the reference check, so only its refusal is "still in use". A 409 from the
+  // removal itself after a clean dry run is another one (a removal already open, CC-34): its detail
+  // says which, and calling it "still in use" sent people looking for references (T-5066).
+  const referenced = blocked !== null;
 
   return (
     <Dialog

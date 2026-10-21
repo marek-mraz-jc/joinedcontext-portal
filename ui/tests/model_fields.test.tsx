@@ -127,6 +127,17 @@ describe("the Fields tab of a model's page", () => {
     expect(await within(table).findByText("100%")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: en.models.page.addField })).toBeNull();
     expect(screen.queryByRole("link", { name: en.models.page.edit })).toBeNull();
+    // Removal is refused with its reason, as Edit is (UI-44), never a button that does nothing.
+    const remove = screen.getByRole("button", { name: en.resourceDelete.action.replace("{name}", "air") });
+    expect(remove).toHaveAttribute("aria-disabled", "true");
+    expect(remove).toHaveAccessibleDescription(/does not permit 'delete' on 'DataModel'/);
+  });
+
+  it("lets a steward propose removing the model from its page, the name typed back first", async () => {
+    await renderRoute({ path: "/projects/helsinki/models/air", answer: answer(jsonResponse(REPORT)) });
+    (await screen.findByRole("button", { name: en.resourceDelete.action.replace("{name}", "air") })).click();
+    const dialog = await screen.findByRole("dialog", { name: en.resourceDelete.title.replace("{name}", "air") });
+    expect(within(dialog).getByRole("button", { name: en.resourceDelete.propose })).toHaveAttribute("aria-disabled", "true");
   });
 });
 

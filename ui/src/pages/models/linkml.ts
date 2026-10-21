@@ -213,6 +213,16 @@ export const EMPTY_MODEL: LinkmlModel = {
   enums: [],
 };
 
+/**
+ * The parent a type added in the editor takes: `Entity` where the model has it, by importing
+ * `ngsi-ld-core` or declaring it, so the type is an NGSI-LD entity type an Endpoint serves (DM-09).
+ * Without it Check refused a model built only from "Add type" for having no entity (T-5066).
+ */
+export function newTypeParent(model: LinkmlModel): { is_a?: string } {
+  const hasEntity = (model.imports ?? []).includes("ngsi-ld-core") || model.classes.some((klass) => klass.name === "Entity");
+  return hasEntity ? { is_a: "Entity" } : {};
+}
+
 /** A new model, as the editor starts one (DM-13). */
 export function blankSource(organizationDomain: string, name: string): string {
   const prefix = organizationDomain.split(".")[0] || "org";
