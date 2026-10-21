@@ -322,6 +322,14 @@
         "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
       ]
     },
+    "src/components/entities/FilterPanel.tsx": {
+      "walkedBy": "worker-t4883",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/worker-t4883/T-4883/grid-filter-desktop-1440.png",
+        "evidence/worker-t4883/T-4883/grid-filter-phone-400.png"
+      ]
+    },
     "src/components/entities/ViewBar.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
@@ -386,6 +394,16 @@
         "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
         "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
         "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/components/forms/widgets/AccessPresetChoice.tsx": {
+      "walkedBy": "worker-t4832",
+      "date": "2026-10-21",
+      "screenshots": [
+        "evidence/T-4832/role-preset-1440.png",
+        "evidence/T-4832/role-custom-400.png",
+        "evidence/T-4832/service-account-preset-1440.png",
+        "evidence/T-4832/service-account-custom-400.png"
       ]
     },
     "src/components/forms/widgets/KnowledgeSourcesField.tsx": {

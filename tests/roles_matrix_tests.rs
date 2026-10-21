@@ -447,8 +447,9 @@ async fn every_role_meets_every_route_and_operation_exactly_as_the_table_says() 
                 &answer,
                 &approve_other,
             );
-            // Access is never approved by its proposer, an administrator's neither (PF-58, T-4833).
-            let access = kind == "RoleBinding";
+            // Access and a model are never approved by their proposer, an administrator's neither
+            // (PF-58, T-4833, T-4830).
+            let access = matches!(kind, "RoleBinding" | "DataModel");
             let approve_own = match who {
                 Who::Admin | Who::Steward if access => refused("never by its proposer"),
                 Who::Admin => allowed(StatusCode::ACCEPTED),

@@ -4,6 +4,7 @@ import { KnowledgeSourcesField } from "./KnowledgeSourcesField";
 import { DataModelPickerWidget, FormProjectContext, TypePickerWidget } from "./ModelWidgets";
 import { OperationsPicker } from "./OperationsPicker";
 import { ResourcePicker } from "./ResourcePicker";
+import { RolePresetField } from "./RolePresetField";
 import { SecretRefWidget } from "./SecretRef";
 import { AssigneePicker, AttributeSuggest } from "./SuggestWidgets";
 import { CronScheduleWidget } from "./CronSchedule";
@@ -35,4 +36,5 @@ export const portalWidgets = {
 export const portalFields = {
   entitySelector: EntitySelectorField,
   knowledgeSources: KnowledgeSourcesField,
+  rolePreset: RolePresetField,
 };

@@ -108,14 +108,84 @@ pub fn app_user(person: Option<&AppPerson>) -> serde_json::Value {
     })
 }
 
-/// Whether the person may open the app at all. `visibility: roles` needs a signed-in person
-/// holding one of its roles (AP-93); the other visibilities keep their meaning, beyond "is there
-/// a session" the endpoint's authorization decides (AP-18).
-pub fn may_open(spec: &AppSpec, person: Option<&AppPerson>) -> bool {
-    match spec.visibility {
-        AppVisibility::Public => true,
-        AppVisibility::Roles => person.is_some_and(|person| !person.roles.is_empty()),
-        _ => person.is_some(),
+/// The annotation naming the Keycloak subject who created an App: who a `private` App opens for
+/// (Architecture/16 §1). The Portal writes it on the create from the proposer's session and keeps
+/// it on every update, so no manifest chooses its own owner.
+pub const OWNER_ANNOTATION: &str = "joinedcontext.com/owner";
+
+/// Sets [`OWNER_ANNOTATION`] on an App about to be proposed: the proposer on a create, the stored
+/// value on an update, whatever the proposal wrote.
+pub fn stamp_owner(
+    annotations: &mut BTreeMap<String, String>,
+    stored: Option<&BTreeMap<String, String>>,
+    proposer: &Identity,
+) {
+    let owner = match stored {
+        Some(stored) => stored.get(OWNER_ANNOTATION).cloned(),
+        None => Some(proposer.subject.clone()),
+    };
+    match owner {
+        Some(owner) => annotations.insert(OWNER_ANNOTATION.to_owned(), owner),
+        None => annotations.remove(OWNER_ANNOTATION),
+    };
+}
+
+/// Where a signed-in person stands toward one App's project, the facts its visibility asks.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Standing {
+    /// The subject [`OWNER_ANNOTATION`] names.
+    pub owner: bool,
+    /// The App carries no [`OWNER_ANNOTATION`] (written before T-4910) and the person may propose
+    /// an App in its project: who could have authored it.
+    pub author: bool,
+    /// A binding in force covers the App's project, or the bootstrap group (PF-59).
+    pub project_member: bool,
+    /// A binding in force anywhere in the organization (DM-75).
+    pub organization_member: bool,
+}
+
+/// Whether a person with `standing` opens an App of `visibility`; deny by default. `public` is
+/// anyone, `roles` a role holder (AP-93), `organization` an organization member, `project` a
+/// member of its project, `private` its owner (Architecture/16 §1).
+pub fn admits(visibility: AppVisibility, person: Option<&AppPerson>, standing: Standing) -> bool {
+    match (visibility, person) {
+        (AppVisibility::Public, _) => true,
+        (_, None) => false,
+        (AppVisibility::Roles, Some(person)) => !person.roles.is_empty(),
+        (AppVisibility::Organization, Some(_)) => standing.organization_member,
+        (AppVisibility::Project, Some(_)) => standing.project_member,
+        (AppVisibility::Private, Some(_)) => standing.owner || standing.author,
+    }
+}
+
+/// Whether the person may open App `name` of `project` at all: the one check of the static host,
+/// functions, services and `…/apps/{name}/me` (T-4910). Each answers a refusal as the same `404` as
+/// a name never created, except the `403` page of a `roles` App (AP-18, AP-93).
+pub fn may_open(
+    state: &AppState,
+    project: &str,
+    name: &str,
+    spec: &AppSpec,
+    person: Option<&AppPerson>,
+) -> bool {
+    let standing = match (spec.visibility, person) {
+        (AppVisibility::Public | AppVisibility::Roles, _) | (_, None) => Standing::default(),
+        (_, Some(person)) => standing(state, project, name, &person.identity),
+    };
+    admits(spec.visibility, person, standing)
+}
+
+fn standing(state: &AppState, project: &str, name: &str, identity: &Identity) -> Standing {
+    let rights = crate::permissions::for_request(state, identity, project);
+    let owner = state
+        .mirror
+        .get(project, "App", name)
+        .and_then(|app| app.metadata.annotations.get(OWNER_ANNOTATION).cloned());
+    Standing {
+        owner: owner.as_deref() == Some(identity.subject.as_str()),
+        author: owner.is_none() && rights.may("App", jc_core::kinds::Verb::Propose),
+        project_member: rights.may_read_project(),
+        organization_member: crate::permissions::is_organization_member(state, identity),
     }
 }
 
@@ -343,18 +413,100 @@ mod tests {
         assert_eq!(app_user(None), serde_json::Value::Null);
     }
 
-    /// AP-93: `roles` needs a role, `public` nobody, every other visibility a session.
+    /// T-4910: each visibility against each caller; deny by default. A role holder with no binding
+    /// opens only `roles` and `public`, an owner outside the project only their `private` App.
     #[test]
-    fn who_may_open_follows_the_visibility() {
-        let mut spec = spec();
-        assert!(!may_open(&spec, None));
-        assert!(!may_open(&spec, Some(&person(&[]))));
-        assert!(may_open(&spec, Some(&person(&["viewer"]))));
-        spec.visibility = AppVisibility::Organization;
-        assert!(!may_open(&spec, None));
-        assert!(may_open(&spec, Some(&person(&[]))));
-        spec.visibility = AppVisibility::Public;
-        assert!(may_open(&spec, None));
+    fn who_may_open_follows_the_visibility_and_the_callers_standing() {
+        use AppVisibility::{Organization, Private, Project, Public, Roles};
+        let holder = person(&["viewer"]);
+        let nobody = person(&[]);
+        let realm = Standing::default();
+        let org = Standing {
+            organization_member: true,
+            ..realm
+        };
+        let member = Standing {
+            project_member: true,
+            ..org
+        };
+        let owner = Standing {
+            owner: true,
+            ..realm
+        };
+        let author = Standing {
+            author: true,
+            ..member
+        };
+        // (caller, standing, [public, roles, organization, project, private])
+        let table: [(&str, Option<&AppPerson>, Standing, [bool; 5]); 7] = [
+            ("anonymous", None, realm, [true, false, false, false, false]),
+            (
+                "realm user of another organization",
+                Some(&nobody),
+                realm,
+                [true, false, false, false, false],
+            ),
+            (
+                "same organization, other project",
+                Some(&nobody),
+                org,
+                [true, false, true, false, false],
+            ),
+            (
+                "project member",
+                Some(&nobody),
+                member,
+                [true, false, true, true, false],
+            ),
+            (
+                "owner",
+                Some(&nobody),
+                owner,
+                [true, false, false, false, true],
+            ),
+            (
+                "author of an App without an owner",
+                Some(&nobody),
+                author,
+                [true, false, true, true, true],
+            ),
+            (
+                "role holder",
+                Some(&holder),
+                realm,
+                [true, true, false, false, false],
+            ),
+        ];
+        for (caller, who, standing, expected) in table {
+            for (visibility, expected) in [Public, Roles, Organization, Project, Private]
+                .into_iter()
+                .zip(expected)
+            {
+                assert_eq!(
+                    admits(visibility, who, standing),
+                    expected,
+                    "{caller} opening {visibility:?}"
+                );
+            }
+        }
+    }
+
+    /// T-4910: the owner is the proposer of the create and the stored owner after, whatever the
+    /// manifest wrote; an App stored without one stays without one.
+    #[test]
+    fn the_owner_is_the_creator_and_no_manifest_picks_it() {
+        let olga = person(&[]).identity;
+        let forged = BTreeMap::from([(OWNER_ANNOTATION.to_owned(), "sub-mallory".to_owned())]);
+        let mut created = forged.clone();
+        stamp_owner(&mut created, None, &olga);
+        assert_eq!(created[OWNER_ANNOTATION], olga.subject);
+        let stored = BTreeMap::from([(OWNER_ANNOTATION.to_owned(), "sub-olga".to_owned())]);
+        let mut updated = forged.clone();
+        stamp_owner(&mut updated, Some(&stored), &olga);
+        assert_eq!(updated[OWNER_ANNOTATION], "sub-olga");
+        let mut legacy = forged;
+        stamp_owner(&mut legacy, Some(&BTreeMap::new()), &olga);
+        assert!(!legacy.contains_key(OWNER_ANNOTATION));
     }
 
     /// AP-93: the refusal names the app and its roles in the person's language, escapes what the

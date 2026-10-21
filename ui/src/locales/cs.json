@@ -1117,6 +1117,111 @@
       "write": "{count, plural, =0 {Není co zapsat} one {Zapsat # řádek} few {Zapsat # řádky} other {Zapsat # řádků}}",
       "done": "{written, plural, =0 {Nezapsal se žádný řádek} one {Zapsán # řádek} few {Zapsány # řádky} other {Zapsáno # řádků}}, {refused, plural, =0 {žádný odmítnutý.} other {odmítnutých: #.}}",
       "preview": "Náhled {count, plural, one {první # entity} few {prvních # entit} other {prvních # entit}} jako NGSI-LD"
+    },
+    "toolbar": {
+      "filter": "Filtr",
+      "hide": "Skrýt pole",
+      "group": "Seskupit",
+      "colour": "Barva řádku",
+      "rowSize": "Výška řádku",
+      "rowSizes": {
+        "small": "Malá: jeden řádek",
+        "medium": "Střední: dva řádky",
+        "large": "Velká: čtyři řádky"
+      },
+      "search": "Hledat v řádcích",
+      "searchPlaceholder": "Hledat",
+      "more": "Více",
+      "noFilters": "Žádné podmínky: zobrazí se každý řádek, který vám endpoint dovolí číst.",
+      "filterFull": "Pohled má nejvýše {n} podmínek.",
+      "noFilterable": "Žádné pole tohoto typu nelze filtrovat na endpointu.",
+      "addCondition": "Přidat podmínku",
+      "addGroup": "Přidat skupinu podmínek",
+      "where": "Kde",
+      "join": "Spojení podmínek",
+      "and": "a",
+      "or": "nebo",
+      "removeGroup": "Odebrat skupinu",
+      "field": "Pole",
+      "operator": "Operátor",
+      "value": "Hodnota",
+      "upperValue": "Horní hodnota",
+      "removeCondition": "Odebrat podmínku",
+      "selectRow": "Vybrat řádek",
+      "selectAll": "Vybrat všechny načtené řádky",
+      "aggregateOf": "Souhrn pole {field}",
+      "aggregate": {
+        "none": "Nic",
+        "count": "Počet",
+        "filled": "Vyplněné",
+        "empty": "Prázdné",
+        "percentFilled": "Procento vyplněných",
+        "percentEmpty": "Procento prázdných"
+      },
+      "aggregateFailed": "Endpoint nevrátil počet; zkuste znovu nebo zužte filtr.",
+      "aggregateFailedShort": "Nespočteno",
+      "aggregateNone": "Nespočteno",
+      "selection": "Vybrané řádky",
+      "selected": "Vybráno: {n}",
+      "deleteSelected": "Smazat vybrané",
+      "deleteNotGranted": "Žádný endpoint tohoto prostoru vám nedovoluje mazat tento typ.",
+      "clearSelection": "Zrušit výběr",
+      "deleteRefused": "Nesmazané řádky: {n}",
+      "deleteTitle": "Smazat řádky ({n})?",
+      "deleteBody": "Každý řádek se maže přes Policy prostoru, která ho může odmítnout. Kopie každého smazaného řádku zůstane 30 dní ve vašem koši."
+    },
+    "temporal": {
+      "title": "Jak vznikají řádky historie",
+      "lead": "Každý atribut, který pipeline zapisuje do tohoto prostoru, jak jej prostor zaznamenává a odkud bere čas každého řádku. Verdikt jiný než OK říká, co změnit.",
+      "summary": "Řádky podle verdiktu",
+      "count": "{verdict}: {n}",
+      "failed": "Audit se nepodařilo načíst: {detail}. Zkuste stránku načíst znovu.",
+      "empty": "Do tohoto prostoru nezapisuje žádná pipeline, kterou můžete číst",
+      "emptyHint": "Pipeline, jejíž cílový Endpoint patří tomuto prostoru, se zde zobrazí s každým atributem, který mapuje.",
+      "unread": "Mapování {pipelines} se nepodařilo načíst z repozitáře, jeho řádky chybí. Zkuste stránku načíst znovu.",
+      "pipelineFilter": "Pipeline",
+      "allPipelines": "Všechny pipeline",
+      "verdictFilter": "Verdikt",
+      "allVerdicts": "Všechny verdikty",
+      "noMatch": "Těmto filtrům neodpovídá žádný řádek",
+      "caption": "Jak se zápisy každé pipeline mění na řádky historie",
+      "attribute": "Atribut",
+      "kept": "Uchovává se",
+      "verdictColumn": "Verdikt",
+      "of": "{type} z pipeline {pipeline}",
+      "none": "žádné",
+      "datasets": "Identifikátory datové sady: {n}",
+      "history": "Historie {history}",
+      "lifetime": "Konec entity: {lifetime}",
+      "recordMode": {
+        "every": "Uchovat každé měření",
+        "onChange": "Uchovat jen změny",
+        "none": "Uchovat jen poslední hodnotu"
+      },
+      "source": {
+        "mapped": "Ze záznamu",
+        "constant": "Pevný čas",
+        "received": "Čas přijetí"
+      },
+      "verdict": {
+        "ok": "Řádky odpovídají měřením",
+        "loses-history": "Ztrácí historii",
+        "unbounded-growth": "Roste bez omezení",
+        "duplicates-rows": "Duplikuje řádky",
+        "stamped-on-receive": "Čas přijetí"
+      },
+      "fix": {
+        "loses-history": "Každý zápis má stejný čas, takže nahradí předchozí: mapujte observedAt ze záznamu.",
+        "unbounded-growth": "Historie se uchovává navždy: nastavte dobu na kartě Uchovávání.",
+        "duplicates-rows": "Nezměněná hodnota je při každém zápisu nový řádek: mapujte observedAt ze záznamu nebo uchovejte jen změny.",
+        "stamped-on-receive": "Měření bez vlastního času: mapujte observedAt ze záznamu."
+      },
+      "expiresMapped": "její expiresAt z mapování",
+      "expiry": "neaktuální po {after}",
+      "rows": "Řádky",
+      "timeOf": "Čas: {source}",
+      "unitOf": "Jednotka: {unit}",
+      "noMatchHint": "Vyberte Všechny pipeline a Všechny verdikty, abyste viděli každý řádek."
     }
   },
   "endpoints": {
@@ -2836,6 +2941,31 @@
       "personHelp": "Lidé organizace podle e-mailu; vyhledávání výše seznam zúží.",
       "accountHelp": "Servisní účty projektu, tedy programy, které volají endpointy.",
       "nameHelp": "Název přesně tak, jak je zapsán v Keycloaku."
+    },
+    "presets": {
+      "legend": "Přístup",
+      "advanced": "Rozšířené",
+      "unavailable": "Tohle celé sami nedržíte, proto to nemůžete udělit.",
+      "reader": {
+        "label": "Čtenář",
+        "description": "Čte data a nastavení; nic nemění."
+      },
+      "writer": {
+        "label": "Zapisovatel",
+        "description": "Čte a navrhuje nebo provádí změny hodnot dat."
+      },
+      "steward": {
+        "label": "Správce",
+        "description": "Čte, navrhuje a schvaluje změny dat a jejich nastavení; ne toho, kdo má přístup."
+      },
+      "pipelineWriter": {
+        "label": "Zápis z pipeline",
+        "description": "Přivádí data: vytváří a mění entity, navrhuje pipeline a jejich zdroje."
+      },
+      "custom": {
+        "label": "Vlastní",
+        "description": "Každé oprávnění vyberete sami."
+      }
     }
   },
   "flows": {
@@ -3250,7 +3380,14 @@
       "noClasses": "Tento model zatím nedeklaruje žádnou třídu, takže negeneruje formulář.",
       "formClass": "Třída",
       "formReadOnly": "Toto je formulář, který model generuje, vyplněný jeho příkladem; odsud se nic neukládá.",
-      "jsonType": {"number": "Číslo", "integer": "Celé číslo", "string": "Text", "boolean": "Ano nebo ne", "object": "Skupina polí", "array": "Seznam"},
+      "jsonType": {
+        "number": "Číslo",
+        "integer": "Celé číslo",
+        "string": "Text",
+        "boolean": "Ano nebo ne",
+        "object": "Skupina polí",
+        "array": "Seznam"
+      },
       "asJson": "Zobrazeno jako JSON.",
       "yaml": "Zdroj modelu (LinkML YAML)",
       "copyYaml": "Kopírovat YAML",
