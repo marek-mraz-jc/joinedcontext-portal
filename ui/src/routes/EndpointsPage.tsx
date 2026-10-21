@@ -30,12 +30,9 @@ import { WorkOnCopyAction } from "../components/WorkOnCopyDialog";
 import { ExportButton } from "../components/export/ExportButton";
 import { SchemaProjectionPanel } from "../pages/endpoints/SchemaProjectionPanel";
 import {
-  ENDPOINT_LINKS,
-  EndpointLink,
   endpointUrl,
-  REPRESENTATION_PATHS,
-  representationUrl,
   alwaysServed,
+  RepresentationSummary,
   servedRepresentations,
 } from "../components/endpoints/links";
 import { useBranding } from "../branding";
@@ -1286,67 +1283,46 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
             slug?: string;
             enabledRepresentations?: string[];
           };
-          const slug = spec.slug ?? "";
           return (
             <TableRow key={endpoint.metadata.name}>
-              <TableCell primary>
-                {/* The name opens the endpoint's own page, where every setting is (T-2281). */}
-                <Link
-                  data-row-link=""
-                  to="/projects/$project/$plural/$name"
-                  params={{ plural: "endpoints", project, name: endpoint.metadata.name }}
-                  className="text-primary-soft-fg underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-border-focus"
-                >
-                  {localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
-                </Link>
-                {/* Below `sm` a row is the title, the state and the action (UI-27): these two
-                    lines wrapped word by word in the narrow column, eight lines a row (T-4214). */}
-                {endpoint.metadata.title ? (
-                  <div className="mt-0.5 hidden font-mono text-caption text-fg-subtle sm:block">
-                    {endpoint.metadata.name}
-                  </div>
-                ) : null}
-                {/* An App's own endpoint, written by the Portal beside it (T-2759): said so, since
-                    nobody created it on this page and editing it here is undone by the App. */}
-                {endpoint.metadata.annotations?.["joinedcontext.com/generated-by"] === "portal/app-reconciler" ? (
-                  <div className="mt-0.5 hidden text-caption text-fg-subtle sm:block">
-                    {t("endpoints.ofApp", { app: endpoint.metadata.name.replace(/^app-/, "") })}
-                  </div>
-                ) : null}
+              <TableCell primary className="align-middle">
+                {/* The name opens the endpoint's own page, where every setting and every surface
+                    link is (T-2281); the whole row opens it, so the name is no underlined link
+                    and the row stays one line (T-4989). */}
+                <div className="flex min-w-0 max-w-xs items-baseline gap-2 whitespace-nowrap">
+                  <Link
+                    data-row-link=""
+                    to="/projects/$project/$plural/$name"
+                    params={{ plural: "endpoints", project, name: endpoint.metadata.name }}
+                    className="focus-ring max-w-full shrink-0 truncate rounded-sm text-fg hover:text-primary-soft-fg"
+                  >
+                    {localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
+                  </Link>
+                  {/* Below `sm` a row is the title, the state and the action (UI-27, T-4214). */}
+                  {endpoint.metadata.title ? (
+                    <span className="hidden truncate font-mono text-caption font-normal text-fg-subtle sm:inline">
+                      {endpoint.metadata.name}
+                    </span>
+                  ) : null}
+                  {/* An App's own endpoint, written by the Portal beside it (T-2759): said so, since
+                      nobody created it on this page and editing it here is undone by the App. */}
+                  {endpoint.metadata.annotations?.["joinedcontext.com/generated-by"] === "portal/app-reconciler" ? (
+                    <span className="hidden truncate text-caption font-normal text-fg-subtle sm:inline">
+                      {t("endpoints.ofApp", { app: endpoint.metadata.name.replace(/^app-/, "") })}
+                    </span>
+                  ) : null}
+                </div>
               </TableCell>
-              <TableCell secondary>
+              <TableCell secondary className="align-middle">
                 <SharedWithBadge endpoint={endpoint} />
               </TableCell>
-              <TableCell secondary>
-                <ul className="flex flex-wrap gap-1">
-                  {servedRepresentations(spec).map((rep) => (
-                    <li key={rep}>
-                      {slug && REPRESENTATION_PATHS[rep] ? (
-                        <EndpointLink href={representationUrl(slug, rep, domain)}>
-                          {rep}
-                        </EndpointLink>
-                      ) : (
-                        <Badge mono>{rep}</Badge>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-                {slug ? (
-                  <ul className="mt-1.5 flex flex-wrap gap-1">
-                    {ENDPOINT_LINKS.map((link) => (
-                      <li key={link.key}>
-                        <EndpointLink muted href={endpointUrl(slug, link.path)}>
-                          {t(`endpoints.link.${link.key}`)}
-                        </EndpointLink>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
+              <TableCell secondary className="align-middle">
+                <RepresentationSummary served={servedRepresentations(spec)} />
               </TableCell>
-              <TableCell>
+              <TableCell className="align-middle">
                 <LifecycleBadge kind="phase" value={endpoint.status?.phase} />
               </TableCell>
-              <TableCell align="right">
+              <TableCell align="right" className="align-middle">
                 <EndpointRowActions
                   project={project}
                   endpoint={endpoint}
@@ -1430,65 +1406,48 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                 const label = localized(endpoint.metadata.title, locale, endpoint.metadata.name);
                 return (
                   <TableRow key={`${source}/${endpoint.metadata.name}`}>
-                    <TableCell secondary>
-                      <div className="flex flex-col gap-0.5">
+                    <TableCell secondary className="align-middle">
+                      {/* Project and Context Space on one line (T-4989). */}
+                      <div className="flex min-w-0 max-w-xs items-baseline gap-1 whitespace-nowrap">
                         <Link
                           to="/projects/$project/$plural"
                           params={{ project: source, plural: "endpoints" }}
-                          className="focus-ring rounded-sm font-medium text-fg hover:underline"
+                          className="focus-ring shrink-0 rounded-sm font-medium text-fg hover:text-primary-soft-fg"
                         >
                           {source}
                         </Link>
                         {space ? (
-                          <Link
-                            to="/projects/$project/$plural/$name"
-                            params={{ plural: "spaces", project: source, name: space }}
-                            className="focus-ring inline-flex items-center gap-1 rounded-sm font-mono text-caption text-primary-soft-fg hover:underline"
-                          >
-                            {space}
-                            <Icon name="chevronRight" className="size-3.5" />
-                          </Link>
+                          <>
+                            <span aria-hidden="true" className="text-fg-subtle">/</span>
+                            <Link
+                              to="/projects/$project/$plural/$name"
+                              params={{ plural: "spaces", project: source, name: space }}
+                              title={space}
+                              className="focus-ring truncate rounded-sm font-mono text-caption text-fg-muted hover:text-primary-soft-fg"
+                            >
+                              {space}
+                            </Link>
+                          </>
                         ) : null}
                       </div>
                     </TableCell>
-                    <TableCell primary>
-                      <div>{label}</div>
-                      {endpoint.metadata.title ? (
-                        <div className="mt-0.5 font-mono text-caption text-fg-subtle">
-                          {endpoint.metadata.name}
-                        </div>
-                      ) : null}
-                      <div className="mt-1">
-                        <SharedWithBadge endpoint={endpoint} />
+                    <TableCell primary className="align-middle">
+                      <div className="flex min-w-0 max-w-48 items-center gap-2 whitespace-nowrap sm:max-w-sm">
+                        <span className="max-w-full shrink-0 truncate" title={label}>{label}</span>
+                        {endpoint.metadata.title ? (
+                          <span className="hidden truncate font-mono text-caption font-normal text-fg-subtle sm:inline">
+                            {endpoint.metadata.name}
+                          </span>
+                        ) : null}
+                        <span className="hidden min-w-0 sm:inline-flex">
+                          <SharedWithBadge endpoint={endpoint} />
+                        </span>
                       </div>
                     </TableCell>
-                    <TableCell secondary>
-                      <ul className="flex flex-wrap gap-1">
-                        {servedRepresentations(spec).map((rep) => (
-                          <li key={rep}>
-                            {slug && REPRESENTATION_PATHS[rep] ? (
-                              <EndpointLink href={representationUrl(slug, rep, domain)}>
-                                {rep}
-                              </EndpointLink>
-                            ) : (
-                              <Badge mono>{rep}</Badge>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                      {slug ? (
-                        <ul className="mt-1.5 flex flex-wrap gap-1">
-                          {ENDPOINT_LINKS.map((link) => (
-                            <li key={link.key}>
-                              <EndpointLink muted href={endpointUrl(slug, link.path)}>
-                                {t(`endpoints.link.${link.key}`)}
-                              </EndpointLink>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
+                    <TableCell secondary className="align-middle">
+                      <RepresentationSummary served={servedRepresentations(spec)} />
                     </TableCell>
-                    <TableCell align="right">
+                    <TableCell align="right" className="align-middle">
                       {declared ? (
                         <div className="flex flex-col items-end gap-1">
                           <Badge tone="success">{t("endpoints.shared.referenced")}</Badge>

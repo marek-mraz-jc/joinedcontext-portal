@@ -72,24 +72,32 @@ export function admitsPerson(endpoint: Manifest, groups: readonly string[], proj
   return audience === "project-list" && [owner, ...allowedProjects].some((project) => project !== "" && groups.includes(project));
 }
 
+const SHOWN_PROJECTS = 1;
+
 /** The audience as a chip, and for `project-list` the projects it names, so the owner sees who. */
 export function SharedWithBadge({ endpoint }: { endpoint: Manifest }): JSX.Element {
   const { t } = useTranslation();
   const { audience, allowedProjects } = sharingOf(endpoint);
   const listed = audience === "project-list";
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex min-w-0 items-center gap-1 whitespace-nowrap">
       <Badge tone={AUDIENCE_TONE[audience] ?? "neutral"}>{t(`endpoints.audience.${audience}`)}</Badge>
       {listed && allowedProjects.length > 0 ? (
+        // One line in a row (T-4989): one project named, the rest counted; every name stays
+        // in the list a screen reader reads, and the title shows them all.
         <ul
           aria-label={t("endpoints.sharedWith")}
-          className="flex flex-wrap items-center gap-1 text-caption text-fg-muted"
+          title={allowedProjects.join(", ")}
+          className="flex min-w-0 items-center gap-1 text-caption text-fg-muted"
         >
-          {allowedProjects.map((name) => (
-            <li key={name}>
+          {allowedProjects.map((name, index) => (
+            <li key={name} className={index < SHOWN_PROJECTS ? undefined : "sr-only"}>
               <Badge mono>{name}</Badge>
             </li>
           ))}
+          {allowedProjects.length > SHOWN_PROJECTS ? (
+            <li aria-hidden="true">{t("endpoints.field.more", { count: allowedProjects.length - SHOWN_PROJECTS })}</li>
+          ) : null}
         </ul>
       ) : null}
     </div>

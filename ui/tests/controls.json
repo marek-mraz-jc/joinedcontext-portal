@@ -265,6 +265,7 @@
       "tests": [
         "browser_security.test.tsx",
         "endpoint_reads_name_a_type.test.tsx",
+        "endpoint_representation_summary.test.tsx",
         "endpoint_representations.test.ts",
         "part_endpoint_links.test.tsx"
       ]
@@ -1868,7 +1869,7 @@
     },
     "src/routes/AllEndpointsPage.tsx": {
       "controls": {
-        "Button": 5
+        "Button": 4
       },
       "tests": [
         "page_all_endpoints_page.test.tsx"

@@ -1,4 +1,5 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -106,7 +107,7 @@ describe("all endpoints view", () => {
     vi.restoreAllMocks();
   });
 
-  it("lists every endpoint of every project with its links and a way inside the space", async () => {
+  it("lists every endpoint of every project in one-line rows with a way inside the space", async () => {
     renderAt();
     const table = await screen.findByRole("table", { name: "All endpoints" });
     // The old address opens the Organization page's Endpoints tab (T-2877).
@@ -125,31 +126,15 @@ describe("all endpoints view", () => {
       "/projects/banskabystrica/spaces/ovzdusie",
     );
     expect(within(bb).getByText("Public")).toBeInTheDocument();
-    expect(within(bb).getByRole("link", { name: "ngsi-ld" })).toHaveAttribute(
-      "href",
-      `${window.location.origin}/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa/ngsi-ld/v1/types`,
-    );
-    expect(within(bb).getByRole("link", { name: "csv" })).toHaveAttribute(
-      "href",
-      `${window.location.origin}/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa/file.csv`,
-    );
-    expect(within(bb).getByRole("link", { name: "index" })).toHaveAttribute(
-      "href",
-      `${window.location.origin}/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa/`,
-    );
-    // The dataset the Endpoint publishes, on its CkanInstance's site, not a host guessed from the
-    // Portal's own (`data.portal.…` has no certificate, T-3018).
-    await waitFor(() => {
-      expect(within(bb).getByRole("link", { name: "catalogue" })).toHaveAttribute(
-        "href",
-        "https://data.city.example/dataset/ovzdusie-bb",
-      );
-    });
+    // One line a row (T-4989): the surfaces as one summary and the row opening the endpoint's
+    // page, where each surface link and the catalogue entry are.
+    expect(within(bb).getByText("NGSI-LD, MCP, CSV")).toBeInTheDocument();
+    expect(within(bb).queryByRole("link", { name: "csv" })).not.toBeInTheDocument();
+    expect(within(bb).queryByRole("link", { name: "catalogue" })).not.toBeInTheDocument();
+    expect(bb.querySelector("a[data-row-link]")).toHaveAttribute("href", "/projects/banskabystrica/endpoints/public-air");
 
     const hel = within(table).getByText("helsinki-events").closest("tr") as HTMLTableRowElement;
     expect(within(hel).getByText("Organization")).toBeInTheDocument();
-    // An Endpoint that publishes nowhere promises no catalogue entry.
-    expect(within(hel).queryByRole("link", { name: "catalogue" })).not.toBeInTheDocument();
     expect(within(table).getByText("helsinki-bikes")).toBeInTheDocument();
 
     // One request, answered by the route that decides what is in it — not one per project.
@@ -157,9 +142,8 @@ describe("all endpoints view", () => {
     expect(paths).toContain("/api/v1/endpoints");
     // No fan-out across projects any more: helsinki's own list is never fetched for this page.
     expect(paths).not.toContain("/api/v1/projects/helsinki/endpoints");
-    // Only a project that publishes an Endpoint is asked for its catalogues.
-    expect(paths).toContain("/api/v1/projects/banskabystrica/ckaninstances");
-    expect(paths).not.toContain("/api/v1/projects/helsinki/ckaninstances");
+    // The list asks no project for its catalogues: the entry is on the endpoint's page (T-4989).
+    expect(paths).not.toContain("/api/v1/projects/banskabystrica/ckaninstances");
   });
 
   // PF-61, PF-107 (T-3046): a public Endpoint of any project carries the project page's own
@@ -174,12 +158,15 @@ describe("all endpoints view", () => {
     await waitFor(() => {
       expect(within(table).getAllByRole("row")).toHaveLength(4);
     });
+    // One menu a row keeps the table to its width (T-4989); it holds Edit and Remove.
     const bikes = within(table).getByText("helsinki-bikes").closest("tr") as HTMLTableRowElement;
-    expect(within(bikes).getByRole("button", { name: "Edit helsinki/helsinki-bikes" })).toBeInTheDocument();
-    expect(within(bikes).getByRole("button", { name: "Remove helsinki/helsinki-bikes" })).toBeInTheDocument();
+    await userEvent.click(within(bikes).getByRole("button", { name: "More actions for helsinki/helsinki-bikes" }));
+    expect(await screen.findByRole("menuitem", { name: "Edit" })).not.toHaveAttribute("aria-disabled");
+    await userEvent.click(screen.getByRole("menuitem", { name: "Remove" }));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("helsinki/helsinki-bikes");
+    await userEvent.keyboard("{Escape}");
     const events = within(table).getByText("helsinki-events").closest("tr") as HTMLTableRowElement;
-    expect(within(events).queryByRole("button", { name: /Edit/ })).toBeNull();
-    expect(within(events).queryByRole("button", { name: /Remove/ })).toBeNull();
+    expect(within(events).queryByRole("button", { name: /More actions/ })).toBeNull();
 
     const show = screen.getByRole("button", { name: en.allEndpoints.ckan.show });
     expect(show).toHaveAttribute("aria-expanded", "false");
