@@ -1558,6 +1558,15 @@ async fn the_pipeline_above_the_quota_is_refused_with_the_count_and_the_limit() 
             }
         })
     };
+    // An MQTT feed waits for pushes, so its pipeline stays resident (PL-78).
+    state.mirror.upsert(
+        serde_json::from_value(json!({
+            "apiVersion": API_VERSION, "kind": "DataSource",
+            "metadata": { "name": "mqtt-mesto", "namespace": "ovzdusie" },
+            "spec": { "type": "mqtt", "mqtt": { "urls": ["tcp://mqtt.banskabystrica.sk:1883"], "topics": ["air/#"] } }
+        }))
+        .expect("a data source"),
+    );
     state
         .mirror
         .upsert(serde_json::from_value::<ResourceEnvelope>(pipeline("first")).expect("a pipeline"));

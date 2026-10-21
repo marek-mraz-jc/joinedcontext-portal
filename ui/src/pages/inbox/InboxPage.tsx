@@ -5,7 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
 import type { components } from "../../api/schema";
-import { useDecision, useDecisions } from "../../api/decision";
+import { useDecision, useDecisions, useDecisionsError } from "../../api/decision";
 import { useProjects } from "../../api/projects";
 import { PlanDiffViewer } from "../../components/diff/PlanDiffViewer";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
@@ -127,7 +127,18 @@ function Decision({ project, change }: { project: string; change: ChangeProposal
 
 /** The changes one project holds for this person; nothing when there are none. */
 function ProjectDecisions({ project }: { project: string }): JSX.Element | null {
+  const { t } = useTranslation();
   const changes = useDecisions(project);
+  const failed = useDecisionsError(project);
+  if (failed) {
+    return (
+      <li>
+        <Alert role="alert" tone="danger">
+          {t("inbox.listFailed", { project, reason: failed })}
+        </Alert>
+      </li>
+    );
+  }
   if (changes.length === 0) return null;
   return (
     <>

@@ -646,11 +646,27 @@ pub(crate) async fn tick<R: Runner>(queue: &Mutex<RunQueue>, runner: &R, now: Da
 /// The stream of one run: every clock fires once, at once. An `http_client` input (a GTFS-RT
 /// feed) polls without end, so it becomes the one tick and the `http` processor an `http`
 /// DataSource is rendered with (PL-47).
+///
+/// A write that still fails after its own retries ends the run as a `failed` line with the
+/// target's words. A resident stream nacks it back to its input to replay it, but a run has no
+/// later message to wait for: the replay looped until [`RUN_TIMEOUT`] and logged nothing
+/// (T-4952). The next run writes the record again, each write an idempotent upsert.
 pub fn one_run(stream: &Value) -> Value {
     let report = outcome_url(stream);
     let mut stream = stream.clone();
     if let Some(input) = stream.get_mut("input") {
         once(input, report.as_deref());
+    }
+    if report.is_some() {
+        if let Some(processors) = stream
+            .pointer_mut("/pipeline/processors")
+            .and_then(Value::as_array_mut)
+        {
+            processors.push(serde_json::json!({ "catch": [{ "mutation": format!(
+                "meta {} = \"the write failed: \" + error().re_replace_all(\"[a-z]+://[^\\\\s'\\\"]+\", \"the target\")",
+                crate::pipeline_log::FAILED_KEY
+            ) }] }));
+        }
     }
     stream
 }

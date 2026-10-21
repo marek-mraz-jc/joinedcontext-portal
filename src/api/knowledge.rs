@@ -199,7 +199,9 @@ async fn sent(request: reqwest::RequestBuilder) -> Result<reqwest::Response, Api
     if status.is_success() {
         return Ok(answer);
     }
-    let body: Value = answer.json().await.unwrap_or(Value::Null);
+    let body: Value = crate::capped::json(answer, crate::capped::ANSWER_BYTES)
+        .await
+        .unwrap_or(Value::Null);
     let detail = || {
         body.get("detail")
             .and_then(Value::as_str)
@@ -232,7 +234,8 @@ pub(super) async fn ask_with(
 ) -> Result<(StatusCode, Value), ApiError> {
     let answer = sent(with(request(state, method, path, timeout).await?)).await?;
     let status = StatusCode::from_u16(answer.status().as_u16()).unwrap_or(StatusCode::OK);
-    Ok((status, answer.json().await.unwrap_or(Value::Null)))
+    let body = crate::capped::json(answer, crate::capped::ANSWER_BYTES).await;
+    Ok((status, body.unwrap_or(Value::Null)))
 }
 
 /// The assistant's answer to a GET of `path` with `query`, as text: a CSV export.
@@ -243,10 +246,15 @@ pub(super) async fn ask_text(
     query: &impl serde::Serialize,
 ) -> Result<String, ApiError> {
     let request = request(state, reqwest::Method::GET, path, timeout).await?;
-    sent(request.query(query)).await?.text().await.map_err(|err| {
-        tracing::warn!(error = %err.without_url(), "the knowledge assistant's answer broke off");
-        ApiError::Unavailable("the knowledge assistant's answer broke off; try again shortly".into())
-    })
+    let answer = sent(request.query(query)).await?;
+    crate::capped::text(answer, crate::capped::ANSWER_BYTES)
+        .await
+        .map_err(|err| {
+            tracing::warn!(error = %err, "the knowledge assistant's answer broke off");
+            ApiError::Unavailable(
+                "the knowledge assistant's answer broke off; try again shortly".into(),
+            )
+        })
 }
 
 /// What a source is, from its manifest: for the list, beside what it holds.
@@ -1325,7 +1333,9 @@ pub async fn chat(
     })?;
     let status = answer.status().as_u16();
     if !(200..300).contains(&status) {
-        let body: Value = answer.json().await.unwrap_or(Value::Null);
+        let body: Value = crate::capped::json(answer, crate::capped::ANSWER_BYTES)
+            .await
+            .unwrap_or(Value::Null);
         let detail = body
             .get("detail")
             .and_then(Value::as_str)
@@ -1436,14 +1446,6 @@ pub fn router() -> Router<AppState> {
         .route(
             "/projects/{project}/knowledge/conversations",
             get(list_conversations),
-        )
-        .route(
-            "/projects/{project}/knowledge/conversations/usage",
-            get(super::knowledge_usage::conversation_usage),
-        )
-        .route(
-            "/projects/{project}/knowledge/conversations/export",
-            get(super::knowledge_usage::export_conversations),
         )
         .route(
             "/projects/{project}/knowledge/conversations/{conversation}",

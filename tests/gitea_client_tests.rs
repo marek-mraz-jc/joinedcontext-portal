@@ -511,8 +511,12 @@ fn git_error_converts_to_api_error() {
     let conflict = GitError::Conflict("branch exists".into());
     assert!(matches!(ApiError::from(conflict), ApiError::Conflict(_)));
 
+    // The forge down or refusing the Portal's own token is an outage, not the caller's fault (T-4966).
     let transport = GitError::Transport("connection reset".into());
-    assert!(matches!(ApiError::from(transport), ApiError::Internal(_)));
+    assert!(matches!(
+        ApiError::from(transport),
+        ApiError::Unavailable(_)
+    ));
 
     let config = GitError::Config("missing var".into());
     assert!(matches!(ApiError::from(config), ApiError::Internal(_)));
@@ -521,7 +525,13 @@ fn git_error_converts_to_api_error() {
         status: 500,
         message: "internal".into(),
     };
-    assert!(matches!(ApiError::from(api), ApiError::Internal(_)));
+    assert!(matches!(ApiError::from(api), ApiError::Unavailable(_)));
+
+    let refused = GitError::Api {
+        status: 422,
+        message: "invalid".into(),
+    };
+    assert!(matches!(ApiError::from(refused), ApiError::Internal(_)));
 }
 
 #[tokio::test]

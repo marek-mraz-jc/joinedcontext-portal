@@ -104,21 +104,26 @@ pub fn contract(portal: &Build, ui: Option<&Build>) -> &'static str {
     }
 }
 
+/// One client for every health read of the `portal-ui` bundle, not one per request (T-4965).
+static UI_CLIENT: std::sync::LazyLock<reqwest::Client> =
+    std::sync::LazyLock::new(reqwest::Client::new);
+/// A `version.json` holds a few hashes; anything longer is not one.
+const VERSION_BYTES: usize = 64 * 1024;
+
 /// The bundle's `version.json`: from `portal-ui` when configured, else the embedded build's.
 async fn ui_build(ui_url: Option<&str>) -> Option<Build> {
     let bytes = match ui_url {
-        Some(ui) => reqwest::Client::new()
-            .get(format!("{ui}/version.json"))
-            .timeout(std::time::Duration::from_secs(5))
-            .send()
-            .await
-            .ok()?
-            .error_for_status()
-            .ok()?
-            .bytes()
-            .await
-            .ok()?
-            .to_vec(),
+        Some(ui) => {
+            let answer = UI_CLIENT
+                .get(format!("{ui}/version.json"))
+                .timeout(std::time::Duration::from_secs(5))
+                .send()
+                .await
+                .ok()?
+                .error_for_status()
+                .ok()?;
+            crate::capped::bytes(answer, VERSION_BYTES).await.ok()?
+        }
         None => crate::assets::Assets::get("version.json")?
             .data
             .into_owned(),
