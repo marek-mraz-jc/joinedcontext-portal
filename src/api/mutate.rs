@@ -1938,8 +1938,8 @@ fn check_replace(
     }
 }
 
-/// Refuses an Endpoint that lists a representation its space's model cannot serve (EP-125), with
-/// `jcctl validate`'s sentence. A spec that does not parse is judged by the kind's own check.
+/// Refuses an Endpoint whose representation mapping does not fit its space's model (EP-125), with
+/// `jcctl validate`'s sentences, one line per gap. A spec that does not parse is judged by the kind's own check.
 async fn check_surfaces(
     state: &AppState,
     project: &str,
@@ -1950,14 +1950,13 @@ async fn check_surfaces(
     let Ok(endpoint) = serde_json::from_value::<EndpointSpec>(spec.clone()) else {
         return Ok(());
     };
-    let wanted: Vec<_> = endpoint
+    let Some(wanted) = endpoint
         .served_representations()
         .into_iter()
-        .filter(|r| r.requirement().is_some())
-        .collect();
-    if wanted.is_empty() {
+        .find(|r| r.needs_model())
+    else {
         return Ok(());
-    }
+    };
     let space = endpoint.context_space_ref.name();
     // The space's own model, a published version first: jcctl validate's choice (EP-125).
     let model = state
@@ -1979,8 +1978,7 @@ async fn check_surfaces(
     // A draft can still change under a public feed (DM-26).
     if let Some((lifecycle, _)) = model.as_ref().filter(|(l, _)| !published(*l)) {
         return Err(ApiError::BadRequest(format!(
-            "Endpoint {project}/{name}: `{}` needs a published data model in space {space}; its model is {} (EP-125, DM-26)",
-            wanted[0],
+            "Endpoint {project}/{name}: `{wanted}` needs a published data model in space {space}; its model is {} (EP-125, DM-26)",
             lifecycle.as_str()
         )));
     }
@@ -1990,26 +1988,19 @@ async fn check_surfaces(
         }
         None => None,
     };
-    for representation in wanted {
-        let gap = match &linkml {
-            // A space without a model has no type at all.
-            None => Ok(representation
-                .requirement()
-                .map(|need| format!("the type {}", need.entity_type))),
-            Some(text) => representation.model_gap(text),
-        };
-        let detail = match gap {
-            Ok(None) => continue,
-            Ok(Some(gap)) => format!(
-                "Endpoint {project}/{name}: `{representation}` needs {gap} in the data model of space {space} (EP-125)"
-            ),
-            Err(err) => format!(
-                "Endpoint {project}/{name}: `{representation}` cannot be checked against the data model of space {space}: {err} (EP-125)"
-            ),
-        };
-        return Err(ApiError::BadRequest(detail));
+    let at = format!("Endpoint {project}/{name}, space {space}");
+    match endpoint.representation_gaps(linkml.as_deref()) {
+        Ok(gaps) if gaps.is_empty() => Ok(()),
+        Ok(gaps) => Err(ApiError::BadRequest(
+            gaps.iter()
+                .map(|gap| format!("{at}: {gap} (EP-125)"))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )),
+        Err(err) => Err(ApiError::BadRequest(format!(
+            "{at}: the representations cannot be checked against the data model: {err} (EP-125)"
+        ))),
     }
-    Ok(())
 }
 
 /// Whether a model in this lifecycle backs a domain-standard representation (EP-125, DM-26);
