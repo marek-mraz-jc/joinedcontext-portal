@@ -308,6 +308,14 @@ The Context Space has as many WebSocket connections open as it holds.
 
 What to do: The space has as many WebSocket connections open as it holds; close one or connect again in a minute.
 
+### `fan-out-full` {#fan-out-full}
+
+**Service Unavailable**, status 503.
+
+Every Endpoint fan-out the gateway replica may serve has a client, so it opens no new one ([API/07 §3](07-websocket.md)).
+
+What to do: The gateway serves as many WebSocket fan-outs as it may; connect again in a minute.
+
 ### `no-view` {#no-view}
 
 **The access surface of this endpoint is not served**, status 503.
