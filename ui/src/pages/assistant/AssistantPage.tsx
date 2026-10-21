@@ -58,6 +58,25 @@ function formatTitle(run: RunRecord, endpointTitles: Map<string, string>): strin
 
 const RUNS_PER_PAGE = 20;
 
+/** One App's runs, the newest first; a conversation stands alone (T-4994). */
+interface RunGroup {
+  key: string;
+  runs: RunRecord[];
+}
+
+/** Groups `runs` (newest first) by the App they built, keeping the order of each group's newest run. */
+export function groupRuns(runs: RunRecord[]): RunGroup[] {
+  const groups = new Map<string, RunGroup>();
+  for (const run of runs) {
+    const app = run.kind && run.kind !== "conversation" ? (run.appName ?? run.title) : null;
+    const key = app ? `${run.kind}:${app}` : `run:${run.id}`;
+    const group = groups.get(key);
+    if (group) group.runs.push(run);
+    else groups.set(key, { key, runs: [run] });
+  }
+  return [...groups.values()];
+}
+
 /**
  * The central assistant page listing conversations and autonomous work runs (UI-54, AG-71).
  *
@@ -124,6 +143,16 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
     });
   }, [runsQuery.data, statusFilter]);
 
+  const groups = useMemo(() => groupRuns(filteredRuns), [filteredRuns]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggle = (key: string) =>
+    setExpanded((now) => {
+      const next = new Set(now);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
   const continueMutation = useMutation({
     mutationFn: async (priorRunId: string) => {
       const result = await api.POST("/api/v1/projects/{project}/assistant/conversations", {
@@ -138,6 +167,20 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
       void queryClient.invalidateQueries({ queryKey: ["projects", project, "agent-runs"] });
     },
   });
+
+  const secs = (ms: number) => t("agentRun.timing.seconds", { seconds: seconds(ms, i18n.language) });
+  /** "First frame 38.8 s · First version 44.0 s" on one line, one figure when both are the same. */
+  const timing = (frame: number | null | undefined, version: number | null | undefined): string => {
+    if (frame != null && version != null && seconds(frame, i18n.language) === seconds(version, i18n.language)) {
+      return `${t("assistantPage.timing.both")} ${secs(frame)}`;
+    }
+    return [
+      frame != null ? `${t("agentRun.timing.firstFrame")} ${secs(frame)}` : null,
+      version != null ? `${t("agentRun.timing.firstVersion")} ${secs(version)}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  };
 
   const handleOpen = (run: RunRecord) => {
     rememberRun({ project, runId: run.id });
@@ -240,14 +283,16 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
             <TableHeaderCell align="right">{t("assistantPage.actions")}</TableHeaderCell>
           </TableHead>
           <TableBody>
-            {filteredRuns.slice(0, shown).map((run) => {
+            {groups.slice(0, shown).flatMap((group) =>
+              (expanded.has(group.key) ? group.runs : group.runs.slice(0, 1)).map((run, index) => ({ group, run, index })),
+            ).map(({ group, run, index }) => {
               const ended = TERMINAL_STATES.includes(run.status);
               const isEndedConversation = run.kind === "conversation" && ended;
               const title = formatTitle(run, endpointTitles);
               return (
                 <TableRow key={run.id}>
                   <TableCell className="max-w-[28rem]">
-                    <div className="flex min-w-0 flex-col gap-0.5">
+                    <div className={`flex min-w-0 flex-col gap-0.5${index > 0 ? " border-l-2 border-border pl-3" : ""}`}>
                       <span className="truncate font-semibold text-fg" title={title}>
                         {title}
                       </span>
@@ -267,6 +312,19 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
                           </>
                         ) : null}
                       </span>
+                      {index === 0 && group.runs.length > 1 ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="self-start px-0 underline"
+                          aria-expanded={expanded.has(group.key)}
+                          onClick={() => toggle(group.key)}
+                        >
+                          {expanded.has(group.key)
+                            ? t("assistantPage.group.latestOnly")
+                            : t("assistantPage.group.all", { count: group.runs.length })}
+                        </Button>
+                      ) : null}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -292,28 +350,7 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
                   </TableCell>
                   <TableCell className="hidden whitespace-nowrap text-caption text-fg-muted md:table-cell">
                     {run.firstFrameMs != null || run.firstVersionMs != null ? (
-                      <dl className="grid grid-cols-[auto_auto] gap-x-2">
-                        {run.firstFrameMs != null ? (
-                          <>
-                            <dt>{t("agentRun.timing.firstFrame")}</dt>
-                            <dd className="text-right tabular-nums">
-                              {t("agentRun.timing.seconds", {
-                                seconds: seconds(run.firstFrameMs, i18n.language),
-                              })}
-                            </dd>
-                          </>
-                        ) : null}
-                        {run.firstVersionMs != null ? (
-                          <>
-                            <dt>{t("agentRun.timing.firstVersion")}</dt>
-                            <dd className="text-right tabular-nums">
-                              {t("agentRun.timing.seconds", {
-                                seconds: seconds(run.firstVersionMs, i18n.language),
-                              })}
-                            </dd>
-                          </>
-                        ) : null}
-                      </dl>
+                      <span className="tabular-nums">{timing(run.firstFrameMs, run.firstVersionMs)}</span>
                     ) : (
                       "—"
                     )}
@@ -352,10 +389,10 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
             })}
           </TableBody>
         </Table>
-        {filteredRuns.length > shown ? (
+        {groups.length > shown ? (
           <div className="mt-3 flex justify-center">
             <Button onClick={() => setShown((count) => count + RUNS_PER_PAGE)}>
-              {t("assistantPage.showMore", { count: Math.min(RUNS_PER_PAGE, filteredRuns.length - shown), left: filteredRuns.length - shown })}
+              {t("assistantPage.showMore", { count: Math.min(RUNS_PER_PAGE, groups.length - shown), left: groups.length - shown })}
             </Button>
           </div>
         ) : null}

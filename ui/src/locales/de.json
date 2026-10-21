@@ -5543,7 +5543,14 @@
     "table": {
       "name": "Name"
     },
-    "testRun": "Testlauf"
+    "testRun": "Testlauf",
+    "group": {
+      "all": "Alle {count} Läufe zeigen",
+      "latestOnly": "Nur den neuesten Lauf zeigen"
+    },
+    "timing": {
+      "both": "Erstes Bild und erste Version"
+    }
   },
   "activity": {
     "title": "Aktivität",
@@ -8083,7 +8090,8 @@
       "typeFirst": "Zuerst eine Frage eingeben.",
       "none": "Nichts in dieser Quelle beantwortet „{q}“.",
       "hits": "Treffer für „{q}“"
-    }
+    },
+    "languagesMore": "+{count} weitere"
   },
   "mcp": {
     "title": "MCP-Server",
@@ -9145,7 +9153,13 @@
       "byStage": "Kosten nach Schritt",
       "calls": "{count} Aufrufe",
       "days": "Nach Tagen (UTC)",
-      "day": "{questions} Fragen, {cost}, Median {p50}, Zeitlimits {timeouts}, Fehler {errors}"
+      "day": "{questions} Fragen, {cost}, Median {p50}, Zeitlimits {timeouts}, Fehler {errors}",
+      "none": "Keine Fragen in diesem Zeitraum. Erweitern Sie die Daten oder entfernen Sie einen Filter.",
+      "notRecorded": {
+        "both": "Kosten und Tokens nicht erfasst: Der Modellanbieter hat für diese Fragen keine gemeldet.",
+        "cost": "Kosten nicht erfasst: Der Modellanbieter hat für diese Fragen keinen Preis gesendet.",
+        "tokens": "Tokens nicht erfasst: Der Modellanbieter hat für diese Fragen keine Tokenzahlen gemeldet."
+      }
     }
   },
   "retentionGuide": {
