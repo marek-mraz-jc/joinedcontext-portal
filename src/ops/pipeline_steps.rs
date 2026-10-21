@@ -83,6 +83,14 @@ struct RecordVerdict {
     index: usize,
     ok: bool,
     problems: Vec<Problem>,
+    /// Where its write is judged (T-4840): the Endpoint, each finding from the model, the
+    /// Endpoint and the lifetime, and the ends the record would be written with.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    endpoint: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    findings: Option<Vec<crate::record_check::Finding>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    expires: Option<crate::record_check::Expires>,
 }
 
 fn sample_schema() -> Value {
@@ -195,7 +203,10 @@ fn validate_output_schema() -> Value {
                     "properties": {
                         "index": { "type": "integer" },
                         "ok": { "type": "boolean" },
-                        "problems": { "type": "array", "description": "Each rule broken: its SHACL component, the attribute and why" }
+                        "problems": { "type": "array", "description": "Each rule broken: its SHACL component, the attribute and why" },
+                        "endpoint": { "type": "string", "description": "The Endpoint the record is written through" },
+                        "findings": { "type": "array", "description": "Each reason the record would not be written: its source (model, endpoint, lifetime), rule, field and reason (T-4840)" },
+                        "expires": { "type": "object", "description": "The expiresAt of the entity and of each attribute the record would be written with" }
                     }
                 }
             }
@@ -458,14 +469,17 @@ async fn try_mapping(
 ) -> Result<Value, OpError> {
     try_mapping_valid(&val)?;
     let input: TryMappingInput = parse_input(val)?;
-    let (pipeline, _) = candidate(state, project, input.pipeline, input.draft.as_ref()).await?;
+    let (pipeline, draft) = candidate(state, project, input.pipeline, input.draft.as_ref()).await?;
     let trace = match (input.sample, input.messages) {
         (Some(sample), _) => {
             pipeline_test::execute_test_pipeline(
                 &caller.identity,
                 state,
                 project,
-                pipeline_test::TestRequest { pipeline, sample },
+                pipeline_test::TestRequest {
+                    pipeline: pipeline.clone(),
+                    sample,
+                },
             )
             .await?
         }
@@ -475,6 +489,16 @@ async fn try_mapping(
             pipeline_test::run_messages(state, project, &spec, &messages).await?
         }
     };
+    // The records the mapping made, judged where their write is: the record check a proposal
+    // needs (T-4840), kept beside the draft's own verdict.
+    if let Some(draft) = draft {
+        let checked = crate::record_check::check_trace(state, project, &pipeline, &trace.mapping)?;
+        let shown = &trace.mapping[..trace.mapping.len().min(crate::record_check::MAX_RECORDS)];
+        let mut records = checked.verdict(&pipeline, shown);
+        records.ok &= trace.errors.is_empty();
+        crate::ops::proposals::record_records(caller, state, project, &draft, &pipeline, records)
+            .await;
+    }
     Ok(json!({
         "input": trace.input,
         "records": trace.mapping,
@@ -544,7 +568,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_pipeline_try_mapping",
             title: "Try a Pipeline Mapping",
-            description: "Runs a candidate pipeline's steps over a sample on the project's runner without writing: each record as it would be written and every failure at its step and line (the workbench's mapped output, ADR-N-034)",
+            description: "Runs a candidate pipeline's steps over a sample on the project's runner without writing: each record as it would be written and every failure at its step and line (the workbench's mapped output, ADR-N-034); the record check of what it made is kept on the draft for its proposal (T-4840)",
             input: try_mapping_input_schema,
             output: try_mapping_output_schema,
             annotations: OperationAnnotations {
@@ -561,7 +585,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_pipeline_validate",
             title: "Validate Pipeline Records",
-            description: "Checks records against the data model of the space a pipeline writes into, the check the runner's validation stage makes before it writes: a verdict per record with each rule it broke (the workbench's validation step, PL-59, ADR-N-034)",
+            description: "Checks records where a pipeline's write is judged: the data model of the space it writes into (the runner's validation stage), the target Endpoint's Policies and view, and the lifetime: a verdict per record with each finding and the expiresAt it would get (the workbench's validation step, PL-59, ADR-N-034, T-4840)",
             input: validate_input_schema,
             output: validate_output_schema,
             annotations: OperationAnnotations {
@@ -587,19 +611,38 @@ pub fn operations() -> Vec<Operation> {
                     let input: ValidateInput = parse_input(val)?;
                     let pipeline = match (input.pipeline, input.draft.as_ref()) {
                         (None, None) => None,
-                        (pipeline, draft) => Some(candidate(state, project, pipeline, draft).await?.0),
+                        (pipeline, draft) => Some(candidate(state, project, pipeline, draft).await?),
                     };
-                    let (space, schema) = target(state, project, input.space, pipeline.as_ref())?;
+                    let (space, schema) =
+                        target(state, project, input.space, pipeline.as_ref().map(|p| &p.0))?;
+                    // With a pipeline, each record is judged where its write is (T-4840); with a
+                    // space alone, by the model only. Records a caller types prove nothing about
+                    // the mapping, so no verdict is kept here: only the harness run
+                    // (jc_pipeline_test) sets the record check a proposal needs.
+                    let checked = match &pipeline {
+                        Some((manifest, _)) => Some(crate::record_check::check_records(
+                            state,
+                            project,
+                            manifest,
+                            &input.records,
+                            chrono::Utc::now(),
+                        )?),
+                        None => None,
+                    };
                     let verdicts: Vec<RecordVerdict> = input
                         .records
                         .iter()
                         .enumerate()
                         .map(|(index, record)| {
                             let problems = schema.check(record);
+                            let check = checked.as_ref().map(|c| c.records[index].clone());
                             RecordVerdict {
                                 index,
-                                ok: problems.is_empty(),
+                                ok: check.as_ref().map_or(problems.is_empty(), |c| c.ok),
                                 problems,
+                                endpoint: check.as_ref().and_then(|c| c.endpoint.clone()),
+                                expires: check.as_ref().and_then(|c| c.expires.clone()),
+                                findings: check.map(|c| c.findings),
                             }
                         })
                         .collect();
