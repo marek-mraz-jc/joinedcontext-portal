@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { api, unwrap } from "../../api/client";
-import type { components } from "../../api/schema";
 import type { JsonSchema } from "../../components/forms/types";
 import { DEDICATED_PORTS } from "../../schemas/mqttbroker";
 
@@ -10,7 +9,6 @@ import { DEDICATED_PORTS } from "../../schemas/mqttbroker";
  * `spec.limits.mqtt`, written through a Change only an org admin may propose; the API answers 403
  * to anybody else, so this form is a convenience, never the control.
  */
-export type Allowance = components["schemas"]["Allowance"];
 
 /** The broker modes, in the order a person reads them: each one adds to the one before. */
 export const MQTT_MODES = ["ingest", "capture", "relay"] as const;
