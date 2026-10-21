@@ -29,7 +29,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import type { Page, Request } from "@playwright/test";
-import { STEWARD, VIEWER, portalReady, signIn } from "./portal";
+import { STEWARD, VIEWER, journeyMarkerOnPortalOnly, portalReady, signIn } from "./portal";
 import { shot, writeIndex } from "./shoot";
 import type { Shot } from "./shoot";
 
@@ -619,21 +619,9 @@ for (const [who, person] of [
         blocked.add(`${method} ${path}`);
         return route.abort("blockedbyclient");
       });
-      // The live config's journey marker fails the CORS preflight of another origin (a basemap, a
-      // framed App's host), which photographs them blank (worker-8, 2026-10-16): only the Portal's
-      // own host is told the run is a journey. Registered last, so it runs first and falls through.
-      await context.setExtraHTTPHeaders({});
-      const portalHost = new URL(page.url()).host;
-      await context.route(
-        (url) => url.host === portalHost,
-        (route) =>
-          route.fallback({
-            headers: {
-              ...route.request().headers(),
-              "x-jc-run-origin": "journey",
-            },
-          }),
-      );
+      // Another origin (a basemap, a framed App's host) photographed blank with the journey marker
+      // (worker-8, 2026-10-16). Registered last, so it runs first and falls through.
+      await journeyMarkerOnPortalOnly(context, new URL(page.url()).host);
       const counted = (request: { resourceType(): string }) =>
         request.resourceType() !== "eventsource";
       page.on("request", (request) => {

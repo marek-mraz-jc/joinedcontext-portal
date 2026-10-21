@@ -20,6 +20,20 @@ export function inHiddenSection(address: string, hidden: string[]): boolean {
   return section !== undefined && hidden.includes(section);
 }
 
+/**
+ * Sends the live config's journey marker (`X-JC-Run-Origin`, AG-93) to the Portal's own host only.
+ * Any other origin a page reads (the API host's MCP route, a basemap, a framed App) would have to
+ * allow the header in its CORS preflight, so the browser blocked those reads and the walk judged a
+ * page no person sees (T-5025). `context.request` bypasses routes and so carries no marker after this.
+ */
+export async function journeyMarkerOnPortalOnly(context: BrowserContext, portalHost: string): Promise<void> {
+  await context.setExtraHTTPHeaders({});
+  await context.route(
+    (url) => url.host === portalHost,
+    (route) => route.fallback({ headers: { ...route.request().headers(), "x-jc-run-origin": "journey" } }),
+  );
+}
+
 /** The two demo people of the Load journey: one proposes, the other approves (CC-34). */
 export const STEWARD = { user: "demo.steward@hel.fi", password: process.env.PORTAL_PASSWORD ?? "" };
 export const APPROVER = { user: "demo.approver@hel.fi", password: process.env.APPROVER_PASSWORD ?? "" };
