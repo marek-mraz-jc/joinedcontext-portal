@@ -305,6 +305,28 @@ describe("compare", () => {
     const details = pipelines.querySelector("details")!;
     expect(details).not.toHaveAttribute("open");
     expect(screen.queryByRole("status", { name: /also changed/ })).toBeNull();
+    // The way on is on the page itself, not only in the copy's bar (T-4868).
+    expect(screen.getByRole("link", { name: "Bring back" })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/^\/projects\/helsinki\/workspaces\/air-v2\/bring-back/),
+    );
+  });
+
+  it("names a resource kept in a folder of its own by the folder, not its file (T-4868)", async () => {
+    handler = (_req, url) =>
+      url.pathname.endsWith("/compare")
+        ? json({
+            files: [
+              file("projects/helsinki/pipelines/air-quality/pipeline.yaml", "Pipeline", "Update"),
+              file("projects/helsinki/datasources/fmi-air-quality.yaml", "DataSource", "Update"),
+            ],
+            conflicts: [],
+          })
+        : undefined;
+    show(<ComparePage project="helsinki" name="air-v2" />);
+    expect(await screen.findByText("air-quality")).toBeInTheDocument();
+    expect(screen.getByText("fmi-air-quality")).toBeInTheDocument();
+    expect(screen.queryByText("pipeline")).toBeNull();
   });
 
   it("points at the bring back page when the project changed the same files", async () => {

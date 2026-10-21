@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RichRow, RichCell } from "./model";
 import { cellText } from "./model";
 import type { ColumnLayout, MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
@@ -103,6 +103,24 @@ export interface EntityGridProps extends UseEntityGridOptions {
   onLayout?: (next: ColumnLayout) => void;
   /** "Hide field" in the header menu, for a host that holds `hidden`; without it the grid hides it itself. */
   onHide?: (attr: string) => void;
+  /**
+   * The per-column filter row; `false` for a host that asks through a filter panel of its own and
+   * hands the query in as `query` (T-4883).
+   */
+  filterRow?: boolean;
+  /** Every column the endpoint can be asked about, with its kind, for a host's own filter panel. */
+  onFilterColumns?: (columns: FilterColumn[]) => void;
+  /**
+   * A leading column with the row's number, a checkbox and an expand button (T-4883), with the
+   * names a screen reader hears; the checked rows are the host's (`selected`).
+   */
+  rowNumbers?: { selectRow: string; selectAll: string };
+  selected?: readonly string[];
+  onSelectedChange?: (ids: string[]) => void;
+  /** Rows of one line (`small`), two or four (T-4883); without it a cell keeps the grid's own wrapping. */
+  rowSize?: "small" | "medium" | "large";
+  /** What a column's footer cell shows, such as the host's aggregation of the whole filtered set. */
+  footer?: (column: VisibleColumn) => React.ReactNode;
 }
 
 /** The glyph a header shows for what its column holds; the kind's name is what a screen reader hears. */
@@ -139,6 +157,7 @@ export function moveTo(list: readonly string[], attr: string, index: number): st
 }
 
 const DRAG_TYPE = "application/x-jc-grid-column";
+const EMPTY_IDS: readonly string[] = [];
 const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 
 /** Whether a pending value is a geometry, so a geo cell stays a geo cell while it is changed. */
@@ -177,6 +196,13 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     locale,
     onLayout,
     onHide,
+    filterRow = true,
+    onFilterColumns,
+    rowNumbers,
+    selected = EMPTY_IDS,
+    onSelectedChange,
+    rowSize,
+    footer,
     ...hookOptions
   } = props;
 
@@ -209,6 +235,22 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     return byKey;
   }, [filterColumns, allowed]);
   const asText = state.filterText !== null;
+  useEffect(() => {
+    onFilterColumns?.([...filterable.values()]);
+  }, [filterable, onFilterColumns]);
+  // Shift-click checks the range from the row clicked before (T-4883).
+  const lastChecked = useRef<number | null>(null);
+  const checkRow = (rowIndex: number, id: string, range: boolean) => {
+    if (!onSelectedChange) return;
+    const on = !selected.includes(id);
+    const from = range && lastChecked.current !== null ? Math.min(lastChecked.current, rowIndex) : rowIndex;
+    const to = range && lastChecked.current !== null ? Math.max(lastChecked.current, rowIndex) : rowIndex;
+    const ids = rows.slice(from, to + 1).map((row) => row.id);
+    lastChecked.current = rowIndex;
+    onSelectedChange(on ? [...new Set([...selected, ...ids])] : selected.filter((each) => !ids.includes(each)));
+  };
+  const allChecked = rows.length > 0 && rows.every((row) => selected.includes(row.id));
+  const lead = rowNumbers ? 1 : 0;
   // Edit mode needs a place to write: without one the grid is a reader, whatever the config says.
   // A source that takes no writes switches the feature off, whatever the config says (SDK-29).
   const editing = hookOptions.config.mode === "edit" && Boolean(hookOptions.source.patch);
@@ -242,6 +284,11 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       onOpenRow?.(id);
     },
     [onOpenRow],
+  );
+  // Inside an App's shell a row opens in the shell's one entity panel (SDK-40), else in the grid's own.
+  const openDetail = useCallback(
+    (row: RichRow) => (selection.inShell ? selection.select({ id: row.id, type: row.type }) : setDetailId(row.id)),
+    [selection, setDetailId],
   );
   // The primary column is the first one when it is an attribute: the config pinned it (T-3097).
   const primaryKey = columns[0]?.attr !== null && columns[0]?.pinned ? columns[0].key : null;
@@ -462,8 +509,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           title={row.id}
           onClick={(e) => {
             e.stopPropagation();
-            if (selection.inShell) selection.select({ id: row.id, type: row.type });
-            else setDetailId(row.id);
+            openDetail(row);
           }}
         >
           {column.key === "id" ? text : text || row.id}
@@ -597,7 +643,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     }
     // A timestamp column (observed, created, modified) in the reader's own time.
     return <>{ISO_TIMESTAMP.test(text) ? formatDate(text, where) : text}</>;
-  }, [where, cellLabels, cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, isPrimary, rowName, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell, ruleProblems, rules, labels.yes, labels.no]);
+  }, [where, cellLabels, cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, isPrimary, rowName, openDetail, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell, ruleProblems, rules, labels.yes, labels.no]);
 
   // Metadata menu toggle
   const toggleMenu = useCallback((attr: string) => {
@@ -927,7 +973,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
 
   return (
     // `data-jc-sdk`: the grid's own controls are the SDK suite's to test, not each App's (T-3373).
-    <div className={rootClass} data-density={hookOptions.config.density} data-jc-sdk="grid">
+    <div className={rootClass} data-density={hookOptions.config.density} data-row-size={rowSize} data-row-numbers={rowNumbers ? "" : undefined} data-jc-sdk="grid">
       {toolbar && <div className="jc-grid-toolbar">{toolbar}</div>}
 
       {pasteNote && (
@@ -964,6 +1010,17 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         >
           <thead className={`jc-grid-thead${classNames?.header ? ` ${classNames.header}` : ""}`}>
             <tr>
+              {rowNumbers && (
+                <th className="jc-grid-rownum" scope="col">
+                  <input
+                    type="checkbox"
+                    aria-label={rowNumbers.selectAll}
+                    checked={allChecked}
+                    disabled={!onSelectedChange || rows.length === 0}
+                    onChange={() => onSelectedChange?.(allChecked ? [] : rows.map((row) => row.id))}
+                  />
+                </th>
+              )}
               {columns.map((col, i) => {
                 const kind = kindOf.get(col.key) ?? "text";
                 const kindLabel = labels[KIND_LABEL[kind]] as string;
@@ -1081,8 +1138,9 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                 );
               })}
             </tr>
-            {filterable.size > 0 && (
+            {filterRow && filterable.size > 0 && (
               <tr className="jc-grid-filter-row" aria-label={labels.filterRow}>
+                {rowNumbers && <td className="jc-grid-rownum" />}
                 {columns.map((col) => {
                   const column = filterable.get(col.key);
                   const className = `jc-grid-filter${col.pinned ? " jc-grid-pinned" : ""}`;
@@ -1107,7 +1165,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           <tbody className={`jc-grid-tbody${classNames?.row ? ` ${classNames.row}` : ""}`}>
             {spacerAbove > 0 && (
               <tr className="jc-grid-spacer" aria-hidden="true">
-                <td colSpan={columns.length} style={{ height: spacerAbove }} />
+                <td colSpan={columns.length + lead} style={{ height: spacerAbove }} />
               </tr>
             )}
             {shownRows.map((row, shownIndex) => {
@@ -1123,7 +1181,38 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                 data-mark={marks?.rows?.[row.id] ? "row" : undefined}
                 title={marks?.rows?.[row.id] ?? rowTitle(row.id)}
                 {...getRowProps(row, rowIndex)}
+                aria-selected={rowNumbers ? selected.includes(row.id) : undefined}
               >
+                {rowNumbers && (
+                  <td className="jc-grid-rownum">
+                    <span className="jc-grid-rownum-n" aria-hidden="true">{rowIndex + 1 + (virtual ? 0 : state.offset)}</span>
+                    <input
+                      type="checkbox"
+                      aria-label={`${rowNumbers.selectRow}: ${rowName(row)}`}
+                      checked={selected.includes(row.id)}
+                      disabled={!onSelectedChange}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        checkRow(rowIndex, row.id, e.shiftKey);
+                      }}
+                      onChange={() => undefined}
+                    />
+                    {/* A pointer's shortcut: the row's name is the same button for a keyboard and a screen reader. */}
+                    <button
+                      type="button"
+                      className="jc-grid-expand"
+                      tabIndex={-1}
+                      aria-hidden="true"
+                      title={labels.openRow}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openDetail(row);
+                      }}
+                    >
+                      ⤢
+                    </button>
+                  </td>
+                )}
                 {columns.map((col, colIndex) => (
                   <td
                     key={`${row.id}-${col.key}`}
@@ -1147,10 +1236,22 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
             })}
             {spacerBelow > 0 && (
               <tr className="jc-grid-spacer" aria-hidden="true">
-                <td colSpan={columns.length} style={{ height: spacerBelow }} />
+                <td colSpan={columns.length + lead} style={{ height: spacerBelow }} />
               </tr>
             )}
           </tbody>
+          {footer && rows.length > 0 && (
+            <tfoot className="jc-grid-tfoot">
+              <tr>
+                {rowNumbers && <td className="jc-grid-rownum" />}
+                {columns.map((col) => (
+                  <td key={`foot-${col.key}`} className={`jc-grid-foot${col.pinned ? " jc-grid-pinned" : ""}`}>
+                    {footer(col)}
+                  </td>
+                ))}
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 

@@ -14,9 +14,9 @@ import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { Alert, Button, Field, Input, PageHeader, Select } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
-import { asUser, withMember, withoutMember } from "../apps/RolesAndMembers";
+import { asUser, withMember, withoutMember } from "../apps/members";
 import { usePeopleChoices } from "../organization/People";
-import type { RolesSpec } from "../apps/RolesAndMembers";
+import type { RolesSpec } from "../apps/members";
 import {
   appRolesNaming,
   bindingsNaming,
