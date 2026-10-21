@@ -15,6 +15,7 @@ import { CkanAccessPanel } from "./CkanAccessPanel";
 import { PublishDatasetDialog, useCatalogueFacets } from "../catalogue/PublishDataset";
 import { Combobox } from "../../components/pickers/Combobox";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
+import { usePermissions } from "../../api/permissions";
 import type { components } from "../../api/schema";
 import {
   Alert,
@@ -235,6 +236,9 @@ function Instances({
   submitting: boolean;
 }): JSX.Element {
   const { t } = useTranslation();
+  const permissions = usePermissions(project);
+  // A role that may not propose a catalogue reads why, not a form whose submit only refuses (T-4997).
+  const mayPropose = permissions.data === undefined || permissions.can("CkanInstance", "propose");
   const [draft, setDraft] = useState<InstanceDraft>(EMPTY_DRAFT);
   const [shown, setShown] = useState<Partial<Record<Fault, string>>>({});
   // The CKAN organizations the Portal's catalogue lists; a new instance's own may be typed (T-4948).
@@ -298,129 +302,130 @@ function Instances({
         </Table>
       ) : null}
 
-      <form
-        className="max-w-4xl space-y-2"
-        noValidate
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (sending.current || submitting) return;
-          const found = faults(draft);
-          setShown(found);
-          const first = (["name", "url", "secretName", "secretKey"] as const).find((field) => found[field]);
-          if (first) {
-            fields.current[first]?.focus();
-            return;
-          }
-          // Nothing is cleared here: what the steward typed survives a refusal, and a proposal
-          // that came back remounts this form from the page above (T-1765).
-          sending.current = true;
-          onSubmit(draft);
-        }}
-      >
-        <Field
-          id="ckan-instance-name"
-          label={t("ckan.instances.name")}
-          description={t("ckan.instances.nameHelp")}
-          required
-          errors={shown.name ? [t(shown.name)] : undefined}
+      {!mayPropose ? (
+        <Alert role="status" tone="info">
+          {t("form.mayNotCreate")}
+        </Alert>
+      ) : (
+        <form
+          className="max-w-4xl space-y-2"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (sending.current || submitting) return;
+            const found = faults(draft);
+            setShown(found);
+            const first = (["name", "url", "secretName", "secretKey"] as const).find((field) => found[field]);
+            if (first) {
+              fields.current[first]?.focus();
+              return;
+            }
+            // Nothing is cleared here: what the steward typed survives a refusal, and a proposal
+            // that came back remounts this form from the page above (T-1765).
+            sending.current = true;
+            onSubmit(draft);
+          }}
         >
-          <Input
+          <Field
             id="ckan-instance-name"
-            ref={(node) => {
-              fields.current.name = node;
-            }}
-            value={draft.name}
-            onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-          />
-        </Field>
-        <Field
-          id="ckan-instance-url"
-          label={t("ckan.instances.url")}
-          description={t("ckan.instances.urlHelp")}
-          required
-          errors={shown.url ? [t(shown.url)] : undefined}
-        >
-          <Input
+            label={t("ckan.instances.name")}
+            description={t("ckan.instances.nameHelp")}
+            required
+            errors={shown.name ? [t(shown.name)] : undefined}
+          >
+            <Input
+              id="ckan-instance-name"
+              ref={(node) => {
+                fields.current.name = node;
+              }}
+              value={draft.name}
+              onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+            />
+          </Field>
+          <Field
             id="ckan-instance-url"
-            ref={(node) => {
-              fields.current.url = node;
-            }}
-            type="url"
-            value={draft.url}
-            placeholder="https://opendata.example.org"
-            onChange={(event) => setDraft({ ...draft, url: event.target.value })}
-          />
-        </Field>
-        <Field
-          id="ckan-instance-org"
-          label={t("ckan.instances.organization")}
-          description={t("ckan.instances.organizationHelp")}
-        >
-          <Combobox
+            label={t("ckan.instances.url")}
+            description={t("ckan.instances.urlHelp")}
+            required
+            errors={shown.url ? [t(shown.url)] : undefined}
+          >
+            <Input
+              id="ckan-instance-url"
+              ref={(node) => {
+                fields.current.url = node;
+              }}
+              type="url"
+              value={draft.url}
+              placeholder="https://opendata.example.org"
+              onChange={(event) => setDraft({ ...draft, url: event.target.value })}
+            />
+          </Field>
+          <Field
             id="ckan-instance-org"
-            labelled
             label={t("ckan.instances.organization")}
-            value={draft.organizationDefault ? [draft.organizationDefault] : []}
-            onChange={(values) => setDraft({ ...draft, organizationDefault: values[0] ?? "" })}
-            options={(facets.data?.publisher ?? []).map((org) => ({
-              value: org.value,
-              label: org.label,
-              detail: org.value,
-              group: t("ckan.instances.organizationsKnown"),
-            }))}
-            loading={facets.isPending}
-            empty={t("ckan.instances.organizationNone")}
-            create={{
-              label: (name) => t("picker.createNamed", { name }),
-              onCreate: (name) => setDraft({ ...draft, organizationDefault: name.trim().toLowerCase() }),
-            }}
-          />
-        </Field>
-        <Field
-          id="ckan-instance-secret"
-          label={t("ckan.instances.tokenRef")}
-          description={t("ckan.instances.tokenHelp")}
-          required
-          errors={shown.secretName ? [t(shown.secretName)] : undefined}
-        >
-          <Input
+            description={t("ckan.instances.organizationHelp")}
+          >
+            <Combobox
+              id="ckan-instance-org"
+              labelled
+              label={t("ckan.instances.organization")}
+              value={draft.organizationDefault ? [draft.organizationDefault] : []}
+              onChange={(values) => setDraft({ ...draft, organizationDefault: values[0] ?? "" })}
+              options={(facets.data?.publisher ?? []).map((org) => ({
+                value: org.value,
+                label: org.label,
+                detail: org.value,
+                group: t("ckan.instances.organizationsKnown"),
+              }))}
+              loading={facets.isPending}
+              empty={t("ckan.instances.organizationNone")}
+              create={{
+                label: (name) => t("picker.createNamed", { name }),
+                onCreate: (name) => setDraft({ ...draft, organizationDefault: name.trim().toLowerCase() }),
+              }}
+            />
+          </Field>
+          <Field
             id="ckan-instance-secret"
-            ref={(node) => {
-              fields.current.secretName = node;
-            }}
-            value={draft.secretName}
-            autoComplete="off"
-            spellCheck={false}
-            onChange={(event) => setDraft({ ...draft, secretName: event.target.value })}
-          />
-        </Field>
-        <Field
-          id="ckan-instance-secret-key"
-          label={t("ckan.instances.secretKey")}
-          description={t("ckan.instances.secretKeyHelp")}
-          required
-          errors={shown.secretKey ? [t(shown.secretKey)] : undefined}
-        >
-          <Input
+            label={t("ckan.instances.tokenRef")}
+            description={t("ckan.instances.tokenHelp")}
+            required
+            errors={shown.secretName ? [t(shown.secretName)] : undefined}
+          >
+            <Input
+              id="ckan-instance-secret"
+              ref={(node) => {
+                fields.current.secretName = node;
+              }}
+              value={draft.secretName}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(event) => setDraft({ ...draft, secretName: event.target.value })}
+            />
+          </Field>
+          <Field
             id="ckan-instance-secret-key"
-            ref={(node) => {
-              fields.current.secretKey = node;
-            }}
-            value={draft.secretKey}
-            autoComplete="off"
-            spellCheck={false}
-            onChange={(event) => setDraft({ ...draft, secretKey: event.target.value })}
-          />
-        </Field>
-        {/* The catalogue is proposed as this project's `CkanInstance`, so that is the permission
-            the control needs. Without the guard a viewer filled the form and met the 403 only
-            after pressing it (T-2243, UI-44). */}
-        <PermissionGuard project={project} kind="CkanInstance" verb="propose">
+            label={t("ckan.instances.secretKey")}
+            description={t("ckan.instances.secretKeyHelp")}
+            required
+            errors={shown.secretKey ? [t(shown.secretKey)] : undefined}
+          >
+            <Input
+              id="ckan-instance-secret-key"
+              ref={(node) => {
+                fields.current.secretKey = node;
+              }}
+              value={draft.secretKey}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(event) => setDraft({ ...draft, secretKey: event.target.value })}
+            />
+          </Field>
           <Button type="submit" variant="primary" loading={submitting}>
             {t("ckan.instances.propose")}
           </Button>
-        </PermissionGuard>
-      </form>
+        </form>
+      )}
     </section>
   );
 }

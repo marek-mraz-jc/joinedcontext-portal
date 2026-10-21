@@ -16,7 +16,7 @@ import {
   safeHref,
   Select,
 } from "../../components/ui";
-import { PermissionGuard } from "../../components/ui/PermissionGuard";
+import { usePermissions } from "../../api/permissions";
 import type { components } from "../../api/schema";
 import { pastedSecrets } from "../../api/pastedSecrets";
 import { useBranding } from "../../branding";
@@ -67,6 +67,7 @@ export function ImportPage({ project }: { project: string }): JSX.Element {
   const [report, setReport] = useState<ImportReport | null>(null);
   const [change, setChange] = useState<Change | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const permissions = usePermissions(project);
 
   const post = async (dryRun: boolean) => {
     if (!file) {
@@ -131,6 +132,19 @@ export function ImportPage({ project }: { project: string }): JSX.Element {
       t("import.report.renamed", { count: Object.keys(report.renamed ?? {}).length }),
       t("import.report.files", { count: report.nativeFiles }),
     ].join(" · ");
+
+  // An import is one proposal of every manifest in the bundle: a role that may propose nothing
+  // here reads why, not a drop zone whose last step is a 403 (T-4997, T-4263).
+  if (permissions.data !== undefined && !permissions.can("*", "propose")) {
+    return (
+      <div className="flex flex-col gap-section">
+        <PageHeader title={t("import.title")} description={t("import.lead")} />
+        <Alert role="status" tone="info">
+          {t("form.mayNotCreate")}
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-section">
@@ -215,17 +229,15 @@ export function ImportPage({ project }: { project: string }): JSX.Element {
           >
             {t("import.check")}
           </Button>
-          <PermissionGuard project={project} kind="*" verb="propose">
-            <Button
-              variant="primary"
-              onClick={() => propose.mutate()}
-              disabled={!report || pasted.length > 0}
-              disabledReason={pasted.length > 0 ? t("import.clearPasted") : t("import.checkFirst")}
-              loading={propose.isPending}
-            >
-              {t("import.propose")}
-            </Button>
-          </PermissionGuard>
+          <Button
+            variant="primary"
+            onClick={() => propose.mutate()}
+            disabled={!report || pasted.length > 0}
+            disabledReason={pasted.length > 0 ? t("import.clearPasted") : t("import.checkFirst")}
+            loading={propose.isPending}
+          >
+            {t("import.propose")}
+          </Button>
           {!report && file ? (
             <span role="status" className="text-caption text-fg-muted">
               {t("import.checkFirst")}

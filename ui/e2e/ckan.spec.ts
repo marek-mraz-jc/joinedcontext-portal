@@ -190,17 +190,15 @@ test.describe("the open-data page", () => {
     expect(writes).toEqual([]);
   });
 
-  test("a viewer finds Propose catalogue disabled with the reason, and pressing it sends nothing", async ({ page }) => {
+  test("a viewer reads why there is no catalogue form, and still sees the catalogues (T-4997)", async ({ page }) => {
     const { writes } = await stubApi(page, { verbs: ["read"] });
     await page.goto("/projects/helsinki/ckan?lang=en");
-    const propose = page.getByRole("button", { name: "Propose catalogue" });
-    await expect(propose).toHaveAttribute("aria-disabled", "true");
-    await expect(propose).toHaveAccessibleDescription(
-      "Disabled: your role does not permit 'propose' on 'CkanInstance' in this project",
-    );
-    await page.getByLabel("Name").fill("open-data");
-    await page.getByLabel("API token secret").fill("ckan-open-data-token");
-    await propose.click({ force: true });
+    await expect(
+      page.getByText("Your role lets you look at these, not create one here.", { exact: false }),
+    ).toBeVisible();
+    await expect(page.getByRole("table", { name: "Catalogues" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Propose catalogue" })).toHaveCount(0);
+    await expect(page.getByLabel("API token secret")).toHaveCount(0);
     expect(writes).toEqual([]);
   });
 
