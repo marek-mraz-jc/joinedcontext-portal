@@ -12085,6 +12085,79 @@
         }
       }
     },
+    "/api/v1/projects/{project}/pipeline-health": {
+      "get": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "List Pipeline Health",
+        "description": "Each pipeline the caller approves, with its health from its kept runs (T-5048, PL-62): when it last sent records, how many its newest run sent against the median of the 7 days before, how many runs failed in a row, and the newest failed or rejected line of its log with every URL's query cut off. `alert` is true after 3 failed runs in a row or a drop of more than 80 %, the same test that opens a failure or zero-output alert. Needs approve on Pipeline (a steward).",
+        "operationId": "get_pipeline_health",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pipelines' health, by name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineHealthList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller approves no pipeline of the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The runs could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/pipelines/test": {
       "post": {
         "tags": [
@@ -25422,6 +25495,112 @@
         ],
         "title": "Phase",
         "description": "Lifecycle phase enumeration."
+      },
+      "PipelineHealth": {
+        "type": "object",
+        "description": "What the health view shows for one pipeline.",
+        "required": [
+          "pipeline",
+          "state",
+          "failedRuns",
+          "alert"
+        ],
+        "properties": {
+          "alert": {
+            "type": "boolean",
+            "description": "The check names it: failed [`ALERT_STREAK`] runs in a row, or a drop."
+          },
+          "changePercent": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The newest run against that median, in percent: -100 sent nothing, 0 the same."
+          },
+          "failedRuns": {
+            "type": "integer",
+            "description": "Failed runs in a row, newest first.",
+            "minimum": 0
+          },
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The newest failed or rejected line of the log, URLs without their query."
+          },
+          "lastErrorAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When that line was taken, RFC 3339."
+          },
+          "lastRunAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The newest run, RFC 3339."
+          },
+          "lastSent": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How many records the newest run sent.",
+            "minimum": 0
+          },
+          "lastSuccessAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The newest run that sent at least one record, RFC 3339."
+          },
+          "medianSent": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "The median of what the runs of the 7 days before the newest one sent."
+          },
+          "pipeline": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/PipelineHealthState"
+          }
+        }
+      },
+      "PipelineHealthList": {
+        "type": "object",
+        "description": "The health of every pipeline a steward looks after (T-5048).",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineHealth"
+            },
+            "description": "One per pipeline, by name."
+          }
+        }
+      },
+      "PipelineHealthState": {
+        "type": "string",
+        "enum": [
+          "ok",
+          "empty",
+          "drift",
+          "failing",
+          "never"
+        ]
       },
       "PipelineLogLine": {
         "type": "object",

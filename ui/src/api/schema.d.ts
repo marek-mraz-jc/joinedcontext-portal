@@ -2809,6 +2809,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/pipeline-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Pipeline Health
+         * @description Each pipeline the caller approves, with its health from its kept runs (T-5048, PL-62): when it last sent records, how many its newest run sent against the median of the 7 days before, how many runs failed in a row, and the newest failed or rejected line of its log with every URL's query cut off. `alert` is true after 3 failed runs in a row or a drop of more than 80 %, the same test that opens a failure or zero-output alert. Needs approve on Pipeline (a steward).
+         */
+        get: operations["get_pipeline_health"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/pipelines/test": {
         parameters: {
             query?: never;
@@ -6485,6 +6505,45 @@ export interface components {
          * @description Lifecycle phase enumeration.
          */
         Phase: "Draft" | "Pending" | "Deploying" | "Live" | "Error" | "Drifted";
+        /** @description What the health view shows for one pipeline. */
+        PipelineHealth: {
+            /** @description The check names it: failed [`ALERT_STREAK`] runs in a row, or a drop. */
+            alert: boolean;
+            /**
+             * Format: int64
+             * @description The newest run against that median, in percent: -100 sent nothing, 0 the same.
+             */
+            changePercent?: number | null;
+            /** @description Failed runs in a row, newest first. */
+            failedRuns: number;
+            /** @description The newest failed or rejected line of the log, URLs without their query. */
+            lastError?: string | null;
+            /** @description When that line was taken, RFC 3339. */
+            lastErrorAt?: string | null;
+            /** @description The newest run, RFC 3339. */
+            lastRunAt?: string | null;
+            /**
+             * Format: int64
+             * @description How many records the newest run sent.
+             */
+            lastSent?: number | null;
+            /** @description The newest run that sent at least one record, RFC 3339. */
+            lastSuccessAt?: string | null;
+            /**
+             * Format: double
+             * @description The median of what the runs of the 7 days before the newest one sent.
+             */
+            medianSent?: number | null;
+            pipeline: string;
+            state: components["schemas"]["PipelineHealthState"];
+        };
+        /** @description The health of every pipeline a steward looks after (T-5048). */
+        PipelineHealthList: {
+            /** @description One per pipeline, by name. */
+            items: components["schemas"]["PipelineHealth"][];
+        };
+        /** @enum {string} */
+        PipelineHealthState: "ok" | "empty" | "drift" | "failing" | "never";
         /** @description One line of a run's log. */
         PipelineLogLine: {
             /** @description When the Portal took the line, RFC 3339. */
@@ -16939,6 +16998,65 @@ export interface operations {
             };
             /** @description No binding of the caller covers the project */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_pipeline_health: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pipelines' health, by name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PipelineHealthList"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller approves no pipeline of the project */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Project not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The runs could not be read */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

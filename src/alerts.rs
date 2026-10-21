@@ -884,6 +884,39 @@ pub fn held_signals(
     }
 }
 
+/// The incident a source's health opens (T-5048): `failure` after 3 failed runs in a row,
+/// `zero` for a newest run more than 80 % under the week's median.
+pub fn health_signal(project: &str, health: &crate::pipeline_health::Health) -> Option<Signal> {
+    if !health.alert {
+        return None;
+    }
+    let key = |event| (project.to_owned(), health.pipeline.clone(), event);
+    Some(
+        if health.failed_runs >= crate::pipeline_health::ALERT_STREAK {
+            Signal {
+                key: key(Event::Failure),
+                detail: format!(
+                    "{} runs in a row sent nothing: {}",
+                    health.failed_runs,
+                    health
+                        .last_error
+                        .as_deref()
+                        .unwrap_or("the log names no error")
+                ),
+            }
+        } else {
+            Signal {
+                key: key(Event::Zero),
+                detail: format!(
+                    "the last run sent {} records against a 7-day median of {}",
+                    health.last_sent.unwrap_or_default(),
+                    health.median_sent.unwrap_or_default()
+                ),
+            }
+        },
+    )
+}
+
 /// Whether a subscription covers a pipeline.
 pub fn covers(subscription: &Subscription, pipeline: &Watched) -> bool {
     if subscription.project != pipeline.project {
@@ -943,6 +976,10 @@ pub struct Evaluator {
     pub store: Arc<AlertStore>,
     /// The held source deletes, each a `failure` of its pipeline (PL-97, T-4891).
     holds: Option<Arc<crate::pipeline_source_deletes::Ledger>>,
+    /// The runs whose health opens `failure` and `zero` incidents (T-5048), and the signals of
+    /// the last hourly reading of them.
+    runs: Option<Arc<crate::pipeline_log::LogStore>>,
+    health: tokio::sync::Mutex<Option<(DateTime<Utc>, Vec<Signal>)>>,
     running: AtomicBool,
 }
 
@@ -957,6 +994,8 @@ impl Evaluator {
             quality,
             store,
             holds: None,
+            runs: None,
+            health: tokio::sync::Mutex::new(None),
             running: AtomicBool::new(false),
         }
     }
@@ -968,6 +1007,52 @@ impl Evaluator {
     ) -> Self {
         self.holds = Some(ledger);
         self
+    }
+
+    /// Alerts the subscribers of a source that failed 3 runs in a row or dropped by more than
+    /// 80 % (T-5048).
+    pub fn with_run_health(mut self, runs: Arc<crate::pipeline_log::LogStore>) -> Self {
+        self.runs = Some(runs);
+        self
+    }
+
+    /// The health signals, read again once an hour: a run ends at most a few times a day.
+    async fn add_health(
+        &self,
+        pipelines: &[Watched],
+        signals: &mut Vec<Signal>,
+        now: DateTime<Utc>,
+    ) -> Result<(), sqlx::Error> {
+        let Some(runs) = &self.runs else {
+            return Ok(());
+        };
+        let mut cached = self.health.lock().await;
+        if cached
+            .as_ref()
+            .is_none_or(|(at, _)| now - *at >= Duration::hours(1))
+        {
+            let mut read = Vec::new();
+            for pipeline in pipelines {
+                let health = crate::pipeline_health::of_pipelines(
+                    runs,
+                    &pipeline.project,
+                    std::slice::from_ref(&pipeline.name),
+                )
+                .await?;
+                read.extend(
+                    health
+                        .iter()
+                        .filter_map(|h| health_signal(&pipeline.project, h)),
+                );
+            }
+            *cached = Some((now, read));
+        }
+        for signal in cached.iter().flat_map(|(_, read)| read) {
+            if !signals.iter().any(|held| held.key == signal.key) {
+                signals.push(signal.clone());
+            }
+        }
+        Ok(())
     }
 
     async fn add_holds(&self, signals: &mut Vec<Signal>) -> Result<(), sqlx::Error> {
@@ -995,6 +1080,7 @@ impl Evaluator {
     pub async fn run(&self, now: DateTime<Utc>) -> Result<(), sqlx::Error> {
         let (pipelines, mut signals) = read_pipelines(&self.mirror, &self.quality);
         self.add_holds(&mut signals).await?;
+        self.add_health(&pipelines, &mut signals, now).await?;
         let open = self.store.open_incidents().await?;
         let (opening, closing) = step(&open, &signals);
         let subscriptions = self.store.all().await?;
@@ -1321,6 +1407,92 @@ mod tests {
             "another event"
         );
         assert!(store.open_incidents().await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_source_failing_three_runs_in_a_row_opens_a_failure_once_an_hour_is_read() {
+        let mirror = mirror();
+        let store = Arc::new(AlertStore::new(None));
+        let runs = Arc::new(crate::pipeline_log::LogStore::new(None));
+        let evaluator = Evaluator::new(
+            Arc::clone(&mirror),
+            Arc::new(crate::quality::Store::default()),
+            Arc::clone(&store),
+        )
+        .with_run_health(Arc::clone(&runs));
+        store
+            .upsert(
+                "mikko",
+                "helsinki",
+                Scope::Pipeline,
+                "bikes",
+                &[Event::Failure],
+                Delivery::Portal,
+            )
+            .await
+            .unwrap();
+        mirror.upsert(pipeline("bikes", json!({ "phase": "Live" })));
+        let broken = |message: &str| crate::pipeline_log::NewLine {
+            record_id: String::new(),
+            step: None,
+            outcome: crate::pipeline_log::Outcome::Failed,
+            message: message.to_owned(),
+        };
+        for run in ["r1", "r2"] {
+            runs.append(
+                "helsinki",
+                "bikes",
+                run,
+                &[broken("GET https://feed.example/x?key=k1 answered 404")],
+            )
+            .await
+            .unwrap();
+        }
+        evaluator.run(at("2026-10-07T08:00:00Z")).await.unwrap();
+        assert!(
+            store.open_incidents().await.unwrap().is_empty(),
+            "two failed runs"
+        );
+        runs.append(
+            "helsinki",
+            "bikes",
+            "r3",
+            &[broken("GET https://feed.example/x?key=k1 answered 404")],
+        )
+        .await
+        .unwrap();
+        evaluator.run(at("2026-10-07T08:30:00Z")).await.unwrap();
+        assert!(
+            store.open_incidents().await.unwrap().is_empty(),
+            "read again after an hour"
+        );
+        evaluator.run(at("2026-10-07T09:00:00Z")).await.unwrap();
+        let told = store.notices(&["mikko".into()]).await.unwrap();
+        assert_eq!(told.len(), 1);
+        assert_eq!(
+            (told[0].event, told[0].change.as_str()),
+            (Event::Failure, "opened")
+        );
+        assert_eq!(
+            told[0].detail,
+            "3 runs in a row sent nothing: GET https://feed.example/x answered 404"
+        );
+    }
+
+    #[test]
+    fn a_drop_is_a_zero_signal_and_a_healthy_source_none() {
+        let mut health = crate::pipeline_health::health("bikes", &[], None);
+        assert_eq!(health_signal("helsinki", &health), None);
+        health.alert = true;
+        health.last_sent = Some(3);
+        health.median_sent = Some(40.0);
+        assert_eq!(
+            health_signal("helsinki", &health),
+            Some(Signal {
+                key: ("helsinki".into(), "bikes".into(), Event::Zero),
+                detail: "the last run sent 3 records against a 7-day median of 40".into()
+            })
+        );
     }
 
     #[tokio::test]
