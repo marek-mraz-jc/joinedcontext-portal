@@ -2348,11 +2348,19 @@
       },
       "validation": {
         "title": "Validace",
-        "hint": "Zapíší se jen záznamy, které model prostoru přijme; ostatní jdou do seznamu odmítnutých.",
+        "hint": "Zapíší se jen záznamy, které přijme model prostoru, cílový endpoint a životnost; ostatní jdou do seznamu odmítnutých.",
         "waiting": "Verdikty přijdou, až mapování vytvoří záznamy.",
         "valid": "platný",
         "allValid": "{count, plural, one {# záznam je platný} few {Všechny # záznamy jsou platné} other {Všech # záznamů je platných}} vůči {model} {version}.",
-        "someRejected": "{count, plural, one {# záznam porušuje} few {# záznamy porušují} other {# záznamů porušuje}} {model} {version} a nezapíše se; platných: {valid}."
+        "someRejected": "{count, plural, one {# záznam porušuje} few {# záznamy porušují} other {# záznamů porušuje}} {model} {version} a nezapíše se; platných: {valid}.",
+        "source": {
+          "model": "Model",
+          "endpoint": "Endpoint",
+          "lifetime": "Životnost"
+        },
+        "expiresLabel": "Platnost, se kterou se záznam zapíše",
+        "expiresEntity": "Entita vyprší {at}",
+        "expiresAttribute": "{name} vyprší {at}"
       },
       "target": {
         "title": "Cíl",

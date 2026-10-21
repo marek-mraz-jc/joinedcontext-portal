@@ -2348,11 +2348,19 @@
       },
       "validation": {
         "title": "Validation",
-        "hint": "Only records the space's model accepts are written; the rest go to the rejected list.",
+        "hint": "Only records the space's model, the target Endpoint and the lifetime accept are written; the rest go to the rejected list.",
         "waiting": "The verdicts follow once the mapping makes records.",
         "valid": "valid",
         "allValid": "{count, plural, one {# record is} other {All # records are}} valid against {model} {version}.",
-        "someRejected": "{count, plural, one {# record breaks} other {# records break}} {model} {version} and would not be written; {valid} valid."
+        "someRejected": "{count, plural, one {# record breaks} other {# records break}} {model} {version} and would not be written; {valid} valid.",
+        "source": {
+          "model": "Model",
+          "endpoint": "Endpoint",
+          "lifetime": "Lifetime"
+        },
+        "expiresLabel": "Expiry the record is written with",
+        "expiresEntity": "Entity expires {at}",
+        "expiresAttribute": "{name} expires {at}"
       },
       "target": {
         "title": "Target",
