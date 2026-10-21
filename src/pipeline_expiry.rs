@@ -74,6 +74,15 @@ pub fn check(
         Some(expiry) => problems(state, project, name, &pipeline, expiry),
         None => swept_by_another(&state.mirror, project, name, &pipeline),
     };
+    let ungranted = source_delete_grants(&state.mirror, project, &pipeline);
+    if problems.is_empty() && !ungranted.is_empty() {
+        return Err(ApiError::Invalid {
+            detail: "spec.sourceDeletes deletes through the pipeline's Endpoint, and no Policy \
+                     lets it (PL-99)"
+                .to_owned(),
+            errors: ungranted,
+        });
+    }
     if problems.is_empty() {
         return Ok(());
     }
@@ -168,16 +177,7 @@ fn problems(
         }
     }
 
-    let policies: Vec<(String, PolicySpec)> = mirror
-        .list(project, "Policy", &crate::store::ListOptions::default())
-        .items
-        .into_iter()
-        .filter_map(|p| {
-            serde_json::from_value(p.spec.clone())
-                .ok()
-                .map(|spec| (p.metadata.name, spec))
-        })
-        .collect();
+    let policies = policies(mirror, project);
     for (operation, wire) in [
         (Operation::QueryBatch, "queryBatch"),
         (Operation::DeleteBatch, "deleteBatch"),
@@ -185,7 +185,7 @@ fn problems(
         let missing: Vec<&str> = expiry
             .types
             .iter()
-            .filter(|t| !granted(&policies, &space, operation, t))
+            .filter(|t| !granted(&policies, &space, operation, Some(t)))
             .map(String::as_str)
             .collect();
         if !missing.is_empty() {
@@ -201,14 +201,69 @@ fn problems(
     problems
 }
 
+fn policies(mirror: &Mirror, project: &str) -> Vec<(String, PolicySpec)> {
+    mirror
+        .list(project, "Policy", &crate::store::ListOptions::default())
+        .items
+        .into_iter()
+        .filter_map(|p| {
+            serde_json::from_value(p.spec.clone())
+                .ok()
+                .map(|spec| (p.metadata.name, spec))
+        })
+        .collect()
+}
+
+/// A `snapshot` or `events` pipeline deletes through each output Endpoint: every output's space
+/// must grant the pipelines account `queryBatch` and `deleteBatch` on the output's type, or on
+/// every type for an untyped output (PL-99). The Portal never widens a grant for it.
+fn source_delete_grants(mirror: &Mirror, project: &str, pipeline: &PipelineSpec) -> Vec<String> {
+    use jc_core::kinds::SourceDeleteMode;
+    let deletes = pipeline.source_deletes.as_ref().is_some_and(|rule| {
+        matches!(
+            rule.mode,
+            SourceDeleteMode::Snapshot | SourceDeleteMode::Events
+        )
+    });
+    if !deletes {
+        return Vec::new();
+    }
+    let policies = policies(mirror, project);
+    let mut problems = Vec::new();
+    for output in pipeline.outputs() {
+        let Some(space) = space_of_endpoint(mirror, project, output.target_endpoint.local_id())
+        else {
+            continue;
+        };
+        let entity_type = output.entity_type.as_deref();
+        for (operation, wire) in [
+            (Operation::QueryBatch, "queryBatch"),
+            (Operation::DeleteBatch, "deleteBatch"),
+        ] {
+            if granted(&policies, &space, operation, entity_type) {
+                continue;
+            }
+            let extend = pipeline_policy(&policies, &space)
+                .map_or_else(|| "a Policy".to_owned(), |name| format!("Policy {name}"));
+            problems.push(format!(
+                "no Policy grants the pipelines account {wire} on {} in space {space}: add it \
+                 to {extend} in the same change, knowing that it lets the pipeline delete what \
+                 its source drops",
+                entity_type.unwrap_or("every type")
+            ));
+        }
+    }
+    problems
+}
+
 /// Whether a permission Policy on `space` for the pipelines account grants `operation` on every
 /// entity of `entity_type`: named directly or through its group, over no `information` (every
-/// type) or over the type with no id narrowing it.
+/// type) or over the type with no id narrowing it. `None` asks for every type.
 fn granted(
     policies: &[(String, PolicySpec)],
     space: &str,
     operation: Operation,
-    entity_type: &str,
+    entity_type: Option<&str>,
 ) -> bool {
     policies.iter().any(|(_, policy)| {
         !policy.effect.is_prohibition()
@@ -220,7 +275,7 @@ fn granted(
             && (policy.information.is_empty()
                 || policy.information.iter().any(|info| {
                     info.entities.iter().any(|selector| {
-                        selector.entity_type == entity_type
+                        Some(selector.entity_type.as_str()) == entity_type
                             && selector.id.is_none()
                             && selector.id_pattern.is_none()
                     })
@@ -510,6 +565,57 @@ mod tests {
             json!([{ "entities": [{ "type": "Vehicle" }] }]),
         ));
         assert_eq!(refusals(&state, "vehicles", spec), Vec::<String>::new());
+    }
+
+    /// PL-99: a pipeline that deletes what its source drops needs the pipelines account's
+    /// queryBatch and deleteBatch in every space it writes, on its type or on every type.
+    #[test]
+    fn source_deletes_need_the_delete_grant_and_never_and_lease_do_not() {
+        let state = AppState::new(Config::for_tests(), None);
+        state.mirror.upsert(endpoint("ep-stops", "stops"));
+        state.mirror.upsert(grant(
+            "stops-pipelines-write",
+            "stops",
+            json!(["upsertBatch", "queryBatch"]),
+            json!([]),
+        ));
+        let with = |deletes: Value, typed: bool| {
+            let mut spec = pipeline_spec("ep-stops", None);
+            spec["sourceDeletes"] = deletes;
+            if typed {
+                spec["outputs"][0]["type"] = json!("Stop");
+            }
+            spec
+        };
+        let snapshot = json!({ "mode": "snapshot" });
+        let found = refusals(&state, "stops", with(snapshot.clone(), false));
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(found[0].contains("deleteBatch on every type in space stops"));
+        assert!(found[0].contains("Policy stops-pipelines-write"));
+        let events = json!({ "mode": "events", "deletedWhen": "this.status == \"withdrawn\"" });
+        assert_eq!(refusals(&state, "stops", with(events, true)).len(), 1);
+        for passes in [json!({ "mode": "never" }), json!({ "mode": "lease" })] {
+            assert!(refusals(&state, "stops", with(passes, false)).is_empty());
+        }
+        // The type named, or every type, is the grant.
+        state.mirror.upsert(grant(
+            "stops-delete",
+            "stops",
+            json!(["deleteBatch"]),
+            json!([{ "entities": [{ "type": "Stop" }] }]),
+        ));
+        assert!(refusals(&state, "stops", with(snapshot.clone(), true)).is_empty());
+        assert_eq!(
+            refusals(&state, "stops", with(snapshot.clone(), false)).len(),
+            1
+        );
+        state.mirror.upsert(grant(
+            "stops-delete-all",
+            "stops",
+            json!(["deleteBatch"]),
+            json!([]),
+        ));
+        assert!(refusals(&state, "stops", with(snapshot, false)).is_empty());
     }
 
     #[test]

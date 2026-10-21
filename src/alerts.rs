@@ -868,6 +868,22 @@ pub fn read_pipelines(
     (watched, signals)
 }
 
+/// A held source delete is a `failure` of its pipeline, unless the pipeline already fails.
+pub fn held_signals(
+    signals: &mut Vec<Signal>,
+    holds: Vec<(String, String, crate::pipeline_source_deletes::Hold)>,
+) {
+    for (project, name, hold) in holds {
+        let key = (project, name, Event::Failure);
+        if !signals.iter().any(|signal| signal.key == key) {
+            signals.push(Signal {
+                key,
+                detail: hold.detail(),
+            });
+        }
+    }
+}
+
 /// Whether a subscription covers a pipeline.
 pub fn covers(subscription: &Subscription, pipeline: &Watched) -> bool {
     if subscription.project != pipeline.project {
@@ -925,6 +941,8 @@ pub struct Evaluator {
     pub mirror: Arc<Mirror>,
     pub quality: Arc<crate::quality::Store>,
     pub store: Arc<AlertStore>,
+    /// The held source deletes, each a `failure` of its pipeline (PL-97, T-4891).
+    holds: Option<Arc<crate::pipeline_source_deletes::Ledger>>,
     running: AtomicBool,
 }
 
@@ -938,8 +956,25 @@ impl Evaluator {
             mirror,
             quality,
             store,
+            holds: None,
             running: AtomicBool::new(false),
         }
+    }
+
+    /// Alerts the subscribers of a pipeline whose source deletes are held (PL-97).
+    pub fn with_source_holds(
+        mut self,
+        ledger: Arc<crate::pipeline_source_deletes::Ledger>,
+    ) -> Self {
+        self.holds = Some(ledger);
+        self
+    }
+
+    async fn add_holds(&self, signals: &mut Vec<Signal>) -> Result<(), sqlx::Error> {
+        if let Some(ledger) = &self.holds {
+            held_signals(signals, ledger.holds().await?);
+        }
+        Ok(())
     }
 
     /// Starts a run in the background unless one is under way; the sync never waits.
@@ -958,7 +993,8 @@ impl Evaluator {
 
     /// One pass: open and close incidents, notify subscribers, write the digests that are due.
     pub async fn run(&self, now: DateTime<Utc>) -> Result<(), sqlx::Error> {
-        let (pipelines, signals) = read_pipelines(&self.mirror, &self.quality);
+        let (pipelines, mut signals) = read_pipelines(&self.mirror, &self.quality);
+        self.add_holds(&mut signals).await?;
         let open = self.store.open_incidents().await?;
         let (opening, closing) = step(&open, &signals);
         let subscriptions = self.store.all().await?;
