@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { goSignedIn } from "./live/portal";
+import { BOOT_RETRY, goSignedIn } from "./live/portal";
+
+// The edge's minute is the live wait; the stub has no rate window to sit out.
+BOOT_RETRY.waitMs = 1_000;
 
 // T-5068: the walker's viewer sign-in met the shell's "The Portal did not load" notice (the entry
 // script failed during a rollout) and waited 60 s for a navigation that never came. The real
