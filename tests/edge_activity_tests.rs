@@ -965,3 +965,104 @@ async fn a_record_this_installation_cannot_place_is_rejected_on_its_own() {
         .expect("a page");
     assert_eq!(page.items.len(), 1, "a shapeless batch wrote something");
 }
+
+/// T-4876, PF-59: a reader bound to one context space reads that space's events and the project's
+/// own, never another space's, in the list and in the live tail alike.
+#[tokio::test]
+async fn a_reader_bound_to_one_space_follows_only_that_spaces_activity() {
+    use joinedcontext_portal::permissions::ORG_NAMESPACE;
+    let config = Config::for_tests();
+    let mirror = mirror();
+    let envelope = |kind: &str, name: &str, namespace: &str, spec: Value| ResourceEnvelope {
+        api_version: API_VERSION.into(),
+        kind: kind.into(),
+        metadata: ObjectMeta {
+            name: name.into(),
+            namespace: Some(namespace.into()),
+            ..Default::default()
+        },
+        spec,
+        status: None,
+    };
+    mirror.upsert(envelope("ContextSpace", "noise", PROJECT, json!({})));
+    mirror.upsert(envelope(
+        "Role",
+        "space-reader",
+        ORG_NAMESPACE,
+        json!({ "rules": [{ "kinds": ["ContextSpace", "Project"], "verbs": ["read"] }] }),
+    ));
+    mirror.upsert(envelope(
+        "RoleBinding",
+        "noise-readers",
+        ORG_NAMESPACE,
+        json!({ "subjects": [{ "user": "sami" }], "role": "space-reader",
+                "scope": { "contextSpace": "noise" } }),
+    ));
+    let state = AppState::new(config.clone(), None).with_mirror(mirror);
+    let app = server::app(state.clone());
+    let sami = cookie(&config, "sami", vec![]);
+    let at = |space: Option<&str>, kind: &str, minutes: i64| ActivityEvent {
+        space: space.map(str::to_owned),
+        ..event_at(
+            PROJECT,
+            kind,
+            "info",
+            "endpoints/x",
+            Utc::now() - Duration::minutes(minutes),
+        )
+    };
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/v1/projects/{PROJECT}/activity/stream"))
+                .header(header::COOKIE, &sami)
+                .body(Body::empty())
+                .expect("a request"),
+        )
+        .await
+        .expect("a response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let mut body = response.into_body();
+    state
+        .activity
+        .append(&[
+            at(Some("air-quality"), "pipeline.error", 3),
+            at(Some("noise"), "endpoint.traffic", 2),
+            at(None, "project.changed", 1),
+        ])
+        .await
+        .expect("appended");
+
+    let (status, list) = get(
+        &app,
+        Some(&sami),
+        &format!("/api/v1/projects/{PROJECT}/activity"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let mut kinds: Vec<&str> = list["items"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|item| item["kind"].as_str())
+        .collect();
+    kinds.sort_unstable();
+    assert_eq!(kinds, ["endpoint.traffic", "project.changed"], "{list}");
+
+    let mut tail = String::new();
+    while let Ok(Some(Ok(frame))) =
+        tokio::time::timeout(std::time::Duration::from_millis(300), body.frame()).await
+    {
+        if let Ok(data) = frame.into_data() {
+            tail.push_str(&String::from_utf8_lossy(&data));
+        }
+    }
+    assert!(tail.contains("event: endpoint.traffic"), "{tail}");
+    assert!(tail.contains("event: project.changed"), "{tail}");
+    assert!(
+        !tail.contains("pipeline.error"),
+        "another space's event: {tail}"
+    );
+}
