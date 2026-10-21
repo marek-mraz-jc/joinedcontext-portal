@@ -1937,19 +1937,32 @@ async fn check_surfaces(
         return Ok(());
     }
     let space = endpoint.context_space_ref.name();
+    // The space's own model, a published version first: jcctl validate's choice (EP-125).
     let model = state
         .mirror
         .list(project, "DataModel", &crate::store::ListOptions::default())
         .items
         .into_iter()
-        .find(|model| {
-            serde_json::from_value::<DataModelSpec>(model.spec.clone()).is_ok_and(|m| {
-                m.context_space_ref.as_deref() == Some(space)
-                    && m.lifecycle != DataModelLifecycle::Mirrored
-                    && m.validate().is_ok()
-            })
-        });
-    let linkml = match model {
+        .filter_map(|model| {
+            serde_json::from_value::<DataModelSpec>(model.spec.clone())
+                .ok()
+                .filter(|m| {
+                    m.context_space_ref.as_deref() == Some(space)
+                        && m.lifecycle != DataModelLifecycle::Mirrored
+                        && m.validate().is_ok()
+                })
+                .map(|m| (m.lifecycle, model))
+        })
+        .min_by_key(|(lifecycle, _)| !published(*lifecycle));
+    // A draft can still change under a public feed (DM-26).
+    if let Some((lifecycle, _)) = model.as_ref().filter(|(l, _)| !published(*l)) {
+        return Err(ApiError::BadRequest(format!(
+            "Endpoint {project}/{name}: `{}` needs a published data model in space {space}; its model is {} (EP-125, DM-26)",
+            wanted[0],
+            lifecycle.as_str()
+        )));
+    }
+    let linkml = match model.map(|(_, model)| model) {
         Some(model) => {
             Some(crate::api::datamodels::read_source(state, project, &model.metadata.name).await?)
         }
@@ -1975,6 +1988,13 @@ async fn check_surfaces(
         return Err(ApiError::BadRequest(detail));
     }
     Ok(())
+}
+
+/// Whether a model in this lifecycle backs a domain-standard representation (EP-125, DM-26);
+/// jc-core's `DataModelLifecycle::backs_surfaces` once the platform pin carries it.
+fn published(lifecycle: jc_core::kinds::DataModelLifecycle) -> bool {
+    use jc_core::kinds::DataModelLifecycle::{Deprecated, Published};
+    matches!(lifecycle, Published | Deprecated)
 }
 
 async fn check_projection(state: &AppState, project: &str, spec: &Value) -> Result<(), ApiError> {
