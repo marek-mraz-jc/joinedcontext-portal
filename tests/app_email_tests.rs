@@ -148,6 +148,7 @@ fn state(relay: &str, db: sqlx::PgPool, project: &str, app_spec: Value) -> AppSt
         .mirror
         .upsert(organization(Some(json!(["identity", "data", "email"]))));
     state.mirror.upsert(envelope("App", APP, project, app_spec));
+    common::bind(&state.mirror, "jana", project);
     state
 }
 
