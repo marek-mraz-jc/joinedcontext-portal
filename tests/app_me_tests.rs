@@ -60,6 +60,9 @@ fn state_with(lifecycle: &str) -> AppState {
     state
         .mirror
         .upsert(envelope("App", "air-quality", "helsinki", app(lifecycle)));
+    for who in ["jana", "vera", "otto"] {
+        common::bind(&state.mirror, who, "helsinki");
+    }
     state
 }
 
@@ -165,4 +168,15 @@ async fn an_unpublished_app_is_not_found_and_an_anonymous_caller_is_refused() {
         StatusCode::UNAUTHORIZED,
         "nothing learnt without a token"
     );
+}
+
+/// T-4910: a person the project App keeps out, with a valid token of its client, gets the `404` of an
+/// App that is not there, the same answer as a draft.
+#[tokio::test]
+async fn a_person_outside_the_project_learns_nothing_of_a_project_app() {
+    let pavol = common::REALM.person_token("air-quality", "pavol", &["viewer"]);
+    let (status, text, _) = ask(&state_with("published"), ME, Some(&pavol)).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{text}");
+    let (_, draft, _) = ask(&state_with("draft"), ME, Some(&pavol)).await;
+    assert_eq!(text, draft);
 }

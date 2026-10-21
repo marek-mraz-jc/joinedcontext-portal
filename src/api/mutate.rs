@@ -870,6 +870,18 @@ async fn propose_engine(
     //     role taken away, or of a retired App, is removed. A project in its own repository
     //     (layout 2) cannot carry an organization file in its Change, so its Apps keep their
     //     access as written. A build write leaves the App as it is on main (AP-73).
+    // 4g. An App's owner is who created it, never what the manifest says (T-4910).
+    if kind_info.kind == "App" && operation != Operation::Delete && !build_write {
+        let stored = state
+            .mirror
+            .get(project, "App", &envelope.metadata.name)
+            .map(|app| app.metadata.annotations);
+        crate::apps::roles::stamp_owner(
+            &mut envelope.metadata.annotations,
+            stored.as_ref(),
+            identity,
+        );
+    }
     let default_groups = if kind_info.kind == "App"
         && operation != Operation::Delete
         && !build_write
