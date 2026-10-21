@@ -2,8 +2,8 @@
 //!
 //! A person subscribes to a pipeline, a space or a type in a space. After every sync the leader
 //! reads the pipelines' state: a pipeline in `Error` is a `failure`, a `StreamWriting` condition
-//! that is `False` is `zero` output, and the daily quality run's `stale` freshness is `stale`
-//! (DM-74). An incident opens when a signal starts and closes when it clears; each unmuted
+//! that is `False` is `zero` output, the daily quality run's `stale` freshness is `stale`
+//! (DM-74), and a rule the run finds broken in a space for the first time is `invalid` (T-5066). An incident opens when a signal starts and closes when it clears; each unmuted
 //! subscriber whose subscription covers the pipeline gets one notice for the opening and one for
 //! the recovery, or, on `digest`, one notice a day. Durable with a database, in memory without.
 
@@ -42,6 +42,8 @@ pub enum Event {
     Failure,
     Stale,
     Zero,
+    /// The daily quality run found a rule and path the space's data did not break the day before.
+    Invalid,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -76,6 +78,7 @@ impl Event {
             Self::Failure => "failure",
             Self::Stale => "stale",
             Self::Zero => "zero",
+            Self::Invalid => "invalid",
         }
     }
     fn parse(text: &str) -> Option<Self> {
@@ -83,6 +86,7 @@ impl Event {
             "failure" => Self::Failure,
             "stale" => Self::Stale,
             "zero" => Self::Zero,
+            "invalid" => Self::Invalid,
             _ => return None,
         })
     }
@@ -248,13 +252,13 @@ pub fn checked(new: &NewSubscription) -> Result<(Scope, Vec<Event>, Delivery), S
     let scope = Scope::parse(&new.scope)
         .ok_or_else(|| format!("`{}` is not pipeline, space or type", new.scope))?;
     if new.events.is_empty() {
-        return Err("name at least one of failure, stale and zero".into());
+        return Err("name at least one of failure, stale, zero and invalid".into());
     }
     let mut events = BTreeSet::new();
     for event in &new.events {
         events.insert(
             Event::parse(event)
-                .ok_or_else(|| format!("`{event}` is not failure, stale or zero"))?,
+                .ok_or_else(|| format!("`{event}` is not failure, stale, zero or invalid"))?,
         );
     }
     let delivery =
@@ -845,6 +849,17 @@ pub fn read_pipelines(
                 });
             }
         }
+        let fresh: Vec<String> = spaces
+            .iter()
+            .flat_map(|space| quality.new_rules(&project, space))
+            .collect();
+        if !fresh.is_empty() {
+            // Rule and path only: the entity ids stay behind the space's Policy.
+            signals.push(Signal {
+                key: (project.clone(), name.clone(), Event::Invalid),
+                detail: fresh.join(", "),
+            });
+        }
         for space in &spaces {
             if let Some(report) = quality.get(&project, space) {
                 if report.freshness.iter().any(|row| {
@@ -1308,6 +1323,37 @@ mod tests {
             .expect("an endpoint"),
         );
         mirror
+    }
+
+    #[test]
+    fn a_rule_broken_for_the_first_time_is_an_invalid_signal_naming_rule_and_path_only() {
+        let mirror = mirror();
+        mirror.upsert(pipeline("bikes", json!({ "phase": "Live" })));
+        let quality = crate::quality::Store::default();
+        let mut tally = crate::quality::Tally::default();
+        let entity = json!({ "id": "urn:ngsi-ld:BikeHireDockingStation:secret-1", "type": "BikeHireDockingStation" });
+        let problem = crate::pipeline_validation::Problem {
+            rule: "MinInclusive".into(),
+            path: "freeSlotNumber".into(),
+            message: "below 0".into(),
+        };
+        tally.add(&entity, None, &[problem]);
+        let report = tally.into_quality(chrono::Utc::now(), Vec::new());
+        quality.put("helsinki", "mobility", report.clone());
+        let (_, signals) = read_pipelines(&mirror, &quality);
+        assert_eq!(
+            signals,
+            vec![Signal {
+                key: ("helsinki".into(), "bikes".into(), Event::Invalid),
+                detail: "MinInclusive freeSlotNumber".into()
+            }]
+        );
+        quality.put("helsinki", "mobility", report);
+        let (_, signals) = read_pipelines(&mirror, &quality);
+        assert!(
+            signals.is_empty(),
+            "the same rule the next day opens nothing"
+        );
     }
 
     #[test]

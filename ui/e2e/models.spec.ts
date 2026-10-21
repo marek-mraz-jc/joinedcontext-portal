@@ -340,3 +340,50 @@ test.describe("a model change is proposed, and read back (T-4830)", () => {
     });
   }
 });
+
+/** The last daily quality run of the space, as GET …/spaces/{space}/quality answers it (DM-74). */
+const QUALITY = {
+  observedAt: "2026-10-21T03:00:00Z",
+  checked: 120,
+  invalid: 0,
+  truncated: false,
+  rules: [],
+  freshness: [],
+  types: [
+    {
+      type: "Alert",
+      count: 120,
+      newest: "2026-10-21T02:55:00Z",
+      attributes: [
+        { name: "category", present: 118, outliers: 0, outlierExamples: [] },
+        { name: "refStation", present: 60, outliers: 0, outlierExamples: [] },
+      ],
+    },
+    { type: "Station", count: 0, attributes: [] },
+  ],
+};
+
+test.describe("a model's fields beside what its space holds (T-5066)", () => {
+  for (const width of [1440, 400]) {
+    test(`the Fields tab at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await stubApi(page);
+      await page.route("**/api/v1/projects/helsinki/spaces/helsinki/quality", (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(QUALITY) }),
+      );
+      await page.goto("/projects/helsinki/models/helsinki?tab=fields&lang=en");
+      const alert = page.getByRole("table", { name: "Fields of Alert, what each allows and what the space holds" });
+      const category = alert.getByRole("row").filter({ hasText: "category" });
+      await expect(category).toContainText("traffic (Traffic), weather");
+      await expect(category).toContainText("98%");
+      await expect(page.getByRole("table", { name: "Fields of Station, what each allows and what the space holds" })).toContainText(
+        "No entity of this type yet",
+      );
+      const query = category.getByRole("link", { name: "Open Explore on the Alert entities that have category" });
+      await expect(query).toHaveAttribute("href", "/projects/helsinki/explore?space=helsinki&type=Alert&q=category");
+      await shot(page, `model-fields-${width}`);
+      await query.click();
+      await expect(page).toHaveURL(/\/projects\/helsinki\/explore\?space=helsinki&type=Alert&q=category/);
+    });
+  }
+});
