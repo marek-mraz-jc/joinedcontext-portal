@@ -653,6 +653,16 @@
           "POST /api/v1/projects/{project}/pipelines/{name}/rejected/retry"
         ]
       },
+      "source-deletes": {
+        "live": {
+          "spec": "pipeline-source-report.spec.ts",
+          "test": "a steward reads each snapshot pipeline's source vs space and a keep on a clean one changes nothing"
+        },
+        "personOnly": "a person with approve on Pipeline releases or keeps a held run's deletes after checking the source; an agent proposes a changed spec.sourceDeletes with jc_resource_propose and never decides a delete (PL-97, T-4892)",
+        "routes": [
+          "POST /api/v1/projects/{project}/pipelines/{name}/source-deletes"
+        ]
+      },
       "run-now": {
         "live": {
           "spec": "pipeline-run-now.spec.ts",

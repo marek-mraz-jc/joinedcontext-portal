@@ -22,6 +22,7 @@ import { endpointUrn } from "./PipelineEditor";
 import { PipelineRejectedDialog } from "./PipelineRejected";
 import { PipelineAccessRequests } from "./AccessRequests";
 import { PipelineRunsView } from "./PipelineRuns";
+import { PipelineSourceReport } from "./PipelineSourceReport";
 
 type Run = components["schemas"]["PipelineRun"];
 type Rejected = components["schemas"]["Rejected"];
@@ -36,6 +37,7 @@ export interface PipelineSpec {
   targetEndpoint?: string;
   output?: { type?: string };
   expiry?: { after?: string };
+  sourceDeletes?: { mode?: string };
 }
 
 /** The data source a pipeline reads, by name, when it names one. */
@@ -504,6 +506,14 @@ export function PipelineOverview({ project, name }: { project: string; name: str
           initialRun={openRun}
           runsFromQueue={runsFromQueue}
         />
+      </section>
+
+      <section id="source" aria-labelledby="pipeline-source" className="flex scroll-mt-4 flex-col gap-3">
+        <h2 id="pipeline-source" className="text-title text-fg">
+          {t("pipelines.source.section")}
+        </h2>
+        <p className="text-sm text-fg-muted">{t("pipelines.source.lead")}</p>
+        <PipelineSourceReport project={project} name={name} snapshot={spec.sourceDeletes?.mode === "snapshot"} />
       </section>
 
       <section id="access" aria-labelledby="pipeline-access" className="flex scroll-mt-4 flex-col gap-3">
