@@ -74,6 +74,13 @@
   text-overflow: ellipsis;
 }
 
+/* The row's name may wrap anywhere, so the table's own sizing gave its column the width of one
+   letter and a long text column took the rest: names ran over four lines at 1440 (T-4992). It
+   keeps 180 px, or 40% of a phone's width, before the other columns share the rest. */
+.jc-grid :is(th, td).jc-grid-pinned {
+  min-width: min(11.25rem, 40vw);
+}
+
 .jc-grid td.jc-grid-pinned {
   position: sticky;
   left: 0;

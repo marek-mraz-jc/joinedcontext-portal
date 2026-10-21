@@ -596,7 +596,9 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
                   ? t(`datasources.type.${typeOf(source.spec)}`, { defaultValue: typeOf(source.spec) })
                   : inputLabel(typeOf(source.spec))}
               </TableCell>
-              <TableCell className="break-all font-mono text-caption">
+              {/* At least 12rem wide, so a phone scrolls the table sideways instead of breaking
+                  the address every nine characters into a 25-line row (T-4992). */}
+              <TableCell className="min-w-48 font-mono text-caption [overflow-wrap:anywhere]">
                 {endpointOf(source.spec)}
               </TableCell>
               <TableCell className="text-caption">

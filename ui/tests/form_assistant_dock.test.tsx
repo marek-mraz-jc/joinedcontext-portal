@@ -47,7 +47,10 @@ function reads(url: URL): Response | undefined {
 }
 
 /** Mounts the dock with `start` answering the conversation it starts. */
-function renderDock(start: () => Response = () => json({ id: "01J8ZQ4T7K9M2N3P4Q5R6S7T8V", status: "queued" }, 202)) {
+function renderDock(
+  start: () => Response = () => json({ id: "01J8ZQ4T7K9M2N3P4Q5R6S7T8V", status: "queued" }, 202),
+  launcherSlot: HTMLElement | null = null,
+) {
   const started: unknown[] = [];
   vi.stubGlobal(
     "fetch",
@@ -62,7 +65,7 @@ function renderDock(start: () => Response = () => json({ id: "01J8ZQ4T7K9M2N3P4Q
     }),
   );
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  const rootRoute = createRootRoute({ component: () => <AssistantDock project={PROJECT} /> });
+  const rootRoute = createRootRoute({ component: () => <AssistantDock project={PROJECT} launcherSlot={launcherSlot} /> });
   const router = createRouter({ routeTree: rootRoute });
   render(
     <QueryClientProvider client={client}>
@@ -105,6 +108,52 @@ describe("the closed bubble (UI-16)", () => {
     }
     expect(bubble).toHaveAttribute("aria-expanded", "false");
     expect(bubble.className).toContain("focus-ring");
+  });
+});
+
+describe("the closed bubble on a phone (T-4992)", () => {
+  function phoneWidth(phone: boolean) {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: phone && query.includes("max-width"),
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }));
+  }
+
+  it("sits_in_the_header_slot_and_floats_over_no_row", async () => {
+    phoneWidth(true);
+    const header = document.createElement("div");
+    document.body.append(header);
+    try {
+      renderDock(undefined, header);
+      const bubble = await within(header).findByRole("button", { name: en.assistant.open });
+      expect(bubble.className).not.toContain("fixed");
+      expect(screen.getAllByRole("button", { name: en.assistant.open })).toHaveLength(1);
+      await userEvent.click(bubble);
+      expect(await screen.findByLabelText(en.assistant.empty.composer)).toBeInTheDocument();
+      expect(within(header).queryByRole("button", { name: en.assistant.open })).toBeNull();
+    } finally {
+      header.remove();
+    }
+  });
+
+  it("floats_at_the_corner_from_sm_up_even_with_a_slot", async () => {
+    phoneWidth(false);
+    const header = document.createElement("div");
+    document.body.append(header);
+    try {
+      renderDock(undefined, header);
+      const bubble = await screen.findByRole("button", { name: en.assistant.open });
+      expect(header).not.toContainElement(bubble);
+      expect(bubble.className).toContain("fixed");
+    } finally {
+      header.remove();
+    }
   });
 });
 

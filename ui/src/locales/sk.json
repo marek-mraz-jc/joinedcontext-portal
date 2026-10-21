@@ -567,7 +567,8 @@
       "sections": "Časti priestoru",
       "counting": "Počítam entity priestoru…",
       "allRows": "Všetky riadky",
-      "savedViews": "Uložené pohľady"
+      "savedViews": "Uložené pohľady",
+      "typeHint": "Ktorý druh entít ukazujú riadky nižšie, napríklad Event."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",

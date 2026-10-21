@@ -555,6 +555,32 @@ describe("the space's own data", () => {
     expect(surface.every((url) => url.searchParams.get("type") === "AirQualityObserved")).toBe(true);
   });
 
+  it("offers the types as a picker above the grid for a phone, and picking one reads that type (T-4992)", async () => {
+    const fetchMock = renderInside({ status: 200, count: 1 });
+
+    const picker = await screen.findByRole("combobox", { name: en.spaces.inside.type });
+    expect(picker).toHaveAccessibleDescription(en.spaces.inside.typeHint);
+    expect(within(picker).getAllByRole("option").map((option) => (option as HTMLOptionElement).value)).toEqual([
+      "AirQualityObserved",
+      "AirQualityStation",
+    ]);
+    expect(picker).toHaveValue("AirQualityObserved");
+
+    fetchMock.mockClear();
+    await userEvent.selectOptions(picker, "AirQualityStation");
+    expect(picker).toHaveValue("AirQualityStation");
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls
+          .map((call) => urlOf(call[0]))
+          .some((url) => url.pathname.startsWith("/cs/ovzdusie/") && url.searchParams.get("type") === "AirQualityStation"),
+      ).toBe(true),
+    );
+    // The list beside the grid follows the picker, for the width that shows it.
+    const list = screen.getByRole("navigation", { name: en.spaces.inside.types });
+    expect(within(list).getByTitle("AirQualityStation")).toHaveAttribute("aria-current", "true");
+  });
+
   it("shows the same entities as cards, read through the space surface (T-3100)", async () => {
     const fetchMock = renderInside({ status: 200, count: 1 });
     await userEvent.click(await screen.findByRole("tab", { name: en.spaces.views.kind.gallery }));
