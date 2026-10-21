@@ -1506,6 +1506,14 @@
         "retention_expiry.test.ts"
       ]
     },
+    "src/pages/pipelines/FlowMapView.tsx": {
+      "controls": {
+        "Button": 11
+      },
+      "tests": [
+        "flow_map.test.tsx"
+      ]
+    },
     "src/pages/pipelines/OutputMapper.tsx": {
       "controls": {
         "Button": 2

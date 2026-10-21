@@ -2536,6 +2536,87 @@
       "rejectedUnavailable": "Odmietnuté záznamy sa nepodarilo načítať.",
       "noRejected": "Model neodmietol žiadny záznam tejto pipeline.",
       "credentials": "Prihlasovacie údaje"
+    },
+    "map": {
+      "views": "Zobrazenia pipeline",
+      "view": {
+        "list": "Zoznam",
+        "map": "Mapa tokov dát"
+      },
+      "title": "Mapa tokov dát",
+      "space": "Priestor",
+      "allSpaces": "Všetky priestory",
+      "legend": "Farby čiar",
+      "empty": "V tomto projekte zatiaľ netečú žiadne dáta.",
+      "emptySpace": "Tento priestor zatiaľ nečíta ani nezapisuje žiadna pipeline.",
+      "emptyHint": "Pridajte zdroj údajov alebo MQTT broker a pošlite ho do priestoru: mapa odtiaľ nakreslí každú cestu.",
+      "missingTitle": "{count, plural, one {# ceste chýba potrebné oprávnenie} few {# cestám chýba potrebné oprávnenie} other {# cestám chýba potrebné oprávnenie}}",
+      "paused": "Pozastavená",
+      "noPhase": "Ešte nenasadená",
+      "sent": "{count, plural, one {# záznam v poslednom behu} few {# záznamy v poslednom behu} other {# záznamov v poslednom behu}}",
+      "opaque": "Endpoint iného projektu",
+      "opaqueOwner": "Projekt {project}; jeho podrobnosti nemôžete čítať",
+      "from": "Z {name}",
+      "to": "Do {name}",
+      "close": "Zavrieť",
+      "grants": "Oprávnenia",
+      "byPolicy": "Povolené politikou {policy}",
+      "fix": "Oprava: {fix}",
+      "counts": "odoslané {sent}, odmietnuté {rejected}, zlyhané {failed}",
+      "perMinute": "{rate} záznamov za minútu",
+      "openPipeline": "Otvoriť pipeline",
+      "openRuns": "Behy",
+      "openRejected": "Odmietnuté záznamy",
+      "edit": "Upraviť",
+      "openEndpoint": "Otvoriť endpoint",
+      "openSpace": "Otvoriť priestor",
+      "brokerFirst": "Pipeline číta broker cez zdroj údajov. Vytvorte ho pre tento broker a potom ho pošlite do priestoru.",
+      "newDataSource": "Vytvoriť zdroj údajov pre tento broker",
+      "sendTarget": "Zapisovať do",
+      "sendTargetLater": "Vybrať v editore",
+      "sendTargetOption": "{endpoint} (priestor {space})",
+      "send": "Poslať do priestoru",
+      "kind": {
+        "MqttBroker": "MQTT broker",
+        "DataSource": "Zdroj údajov",
+        "Pipeline": "Pipeline",
+        "Endpoint": "Endpoint",
+        "ContextSpace": "Priestor"
+      },
+      "role": {
+        "ingest": "príjem",
+        "derived": "odvodená",
+        "kpi": "KPI"
+      },
+      "grant": {
+        "granted": "povolené",
+        "missing": "chýba oprávnenie",
+        "external": "povoľuje vlastník"
+      },
+      "group": {
+        "sources": "Zdroje",
+        "pipelines": "Pipeliny",
+        "endpoints": "Endpointy",
+        "spaces": "Priestory"
+      },
+      "fact": {
+        "name": "Názov",
+        "owner": "Vlastník",
+        "sourceType": "Pripojenie",
+        "hosts": "Servery",
+        "topics": "Témy",
+        "space": "Priestor",
+        "slug": "Adresa",
+        "audience": "Publikum",
+        "state": "Stav",
+        "lastRun": "Posledný beh",
+        "counts": "Záznamy",
+        "rate": "Rýchlosť"
+      },
+      "edge": {
+        "reads": "Číta priestor {other} cez endpoint {endpoint} ({operation})",
+        "writes": "Zapisuje do priestoru {other} cez endpoint {endpoint} ({operation})"
+      }
     }
   },
   "dashboards": {

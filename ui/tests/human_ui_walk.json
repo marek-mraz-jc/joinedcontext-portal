@@ -1335,6 +1335,22 @@
       ]
     },
     "src/pages/pipelines/ExpiryChoice.tsx": null,
+    "src/pages/pipelines/FlowMapView.tsx": {
+      "walkedBy": "worker-t4862",
+      "date": "2026-10-21",
+      "screenshots": [
+        "evidence/worker-t4862/T-4862/flow-map-1440.png",
+        "evidence/worker-t4862/T-4862/flow-map-detail-1440.png",
+        "evidence/worker-t4862/T-4862/flow-map-send-1440.png",
+        "evidence/worker-t4862/T-4862/flow-map-editor-1440.png",
+        "evidence/worker-t4862/T-4862/flow-map-400.png",
+        "evidence/worker-t4862/T-4862/flow-map-detail-400.png",
+        "evidence/worker-t4862/T-4862/flow-map-empty-1440.png",
+        "evidence/worker-t4862/T-4862/flow-map-empty-400.png",
+        "evidence/worker-t4862/T-4862/flow-map-error-1440.png",
+        "evidence/worker-t4862/T-4862/flow-map-error-400.png"
+      ]
+    },
     "src/pages/pipelines/OutputMapper.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
