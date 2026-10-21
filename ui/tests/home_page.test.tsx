@@ -7,6 +7,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { HomePage } from "../src/pages/home/HomePage";
 import "../src/pages/home/firstRun";
+import { SharedWithMe } from "../src/pages/home/SharedWithMe";
 import { expectNoViolations } from "./checks";
 import { json, list, renderPage } from "./page_contract";
 
@@ -23,6 +24,8 @@ interface World {
   onWelcomeClosed?: () => void;
   /** What `GET /api/v1/projects` lists for the person (PF-109). */
   projects?: { name: string; sample: boolean }[];
+  /** What `GET /api/v1/shared-apps` lists for the person (AP-174). */
+  shared?: unknown[];
 }
 
 function show(world: World) {
@@ -39,6 +42,7 @@ function show(world: World) {
         const grants = world.verbs.length > 0 ? [{ rule: { kinds: ["ContextSpace", "DataSource", "Pipeline", "Endpoint", "Dashboard"], verbs: world.verbs } }] : [];
         return json({ project: "helsinki", grants });
       }
+      if (path === "/api/v1/shared-apps") return json(world.shared ?? []);
       if (path === "/api/v1/preferences") return json(world.dismissed ? { firstRunDismissed: true } : {});
       if (path === "/api/v1/projects") return json({ apiVersion: "v1", kind: "List", items: world.projects ?? [{ name: "helsinki", sample: false }] });
       if (path === "/api/v1/projects/helsinki/spaces") return json(list((world.spaces ?? []).map((s) => named(s))));
@@ -196,5 +200,43 @@ describe("the sample project (PF-109, T-3234)", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(screen.queryByRole("link", { name: en.home.sample.try })).toBeNull();
     expect(screen.queryByText(en.home.sample.badge)).toBeNull();
+  });
+});
+
+describe("shared with me (AP-174, T-4913)", () => {
+  it("lists each app the server shares, opening on its own address in a new tab", async () => {
+    show({
+      verbs: ["read"],
+      dismissed: true,
+      shared: [
+        { project: "espoo", name: "air-map", title: { en: "Air quality map" }, description: "Stations by PM10" },
+        { project: "vantaa", name: "noise", title: null, description: null },
+      ],
+    });
+    const section = await screen.findByRole("region", { name: en.home.shared.title });
+    const map = await within(section).findByRole("link", { name: /Air quality map/ });
+    expect(map).toHaveAttribute("href", "http://localhost:3000/apps/air-map/?lang=en");
+    expect(map).toHaveAttribute("target", "_blank");
+    expect(map).toHaveTextContent("Stations by PM10");
+    expect(map).toHaveTextContent(en.home.shared.from.replace("{project}", "espoo"));
+    // An App without a title is named by its name, never left blank.
+    expect(within(section).getByRole("link", { name: /noise/ })).toBeInTheDocument();
+  });
+
+  it("says what happens next when nothing is shared", async () => {
+    show({ verbs: ["read"], dismissed: true, shared: [] });
+    const section = await screen.findByRole("region", { name: en.home.shared.title });
+    expect(await within(section).findByText(en.home.shared.empty)).toBeInTheDocument();
+    expect(within(section).queryByRole("link")).toBeNull();
+  });
+});
+
+describe("shared with me on its own", () => {
+  it("says the list did not load and offers to try again", async () => {
+    renderPage(<SharedWithMe />, {
+      answer: (url) => (url.pathname === "/api/v1/shared-apps" ? json({ title: "Unavailable", status: 503 }, 503) : undefined),
+    });
+    const section = await screen.findByRole("region", { name: en.home.shared.title });
+    expect(await within(section).findByRole("button", { name: /try again|retry/i })).toBeInTheDocument();
   });
 });

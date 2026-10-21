@@ -2958,3 +2958,69 @@ async fn a_space_steward_approves_a_deletion_in_its_own_space_and_no_other() {
         );
     }
 }
+
+/// AP-175 (T-4913): making an App public is decided by a second person, as a public publication
+/// of data (EP-142): its proposer is refused even holding approve and delete on App, and a
+/// publisher who did not propose it approves it.
+#[tokio::test]
+async fn the_proposer_never_approves_making_their_own_app_public() {
+    let admin = json!([{ "kinds": ["App"], "verbs": ["read", "propose", "approve", "delete"] }]);
+    let (server, state) = change_of_file_by(
+        PUBLIC_APP_BRANCH,
+        PUBLIC_APP_PATH,
+        &app_yaml(Some("public")),
+        admin.clone(),
+        "jana.approver@banskabystrica.sk",
+    )
+    .await;
+    let (status, body) = approve_endpoint(state, Some("air-desk")).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert!(body.contains("never by its proposer"), "{body}");
+    assert!(!merged_66(&server).await);
+
+    // The same administrator approves their own App shared with the organization (PF-58).
+    let (server, state) = change_of_file_by(
+        PUBLIC_APP_BRANCH,
+        PUBLIC_APP_PATH,
+        &app_yaml(Some("organization")),
+        admin,
+        "jana.approver@banskabystrica.sk",
+    )
+    .await;
+    let (status, body) = approve_endpoint(state, Some("air-desk")).await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+    assert!(merged_66(&server).await);
+}
+
+#[tokio::test]
+async fn an_agent_or_service_account_never_approves_making_an_app_public() {
+    use joinedcontext_portal::api::changes::{approve_change_for, ApprovedBy};
+    for (identity, by, says) in [
+        (person(None), ApprovedBy::Operation, "AP-175"),
+        (person(Some("ckan-bot")), ApprovedBy::Person, "AP-175"),
+    ] {
+        let (server, state) = change_of_file(
+            PUBLIC_APP_BRANCH,
+            PUBLIC_APP_PATH,
+            &app_yaml(Some("public")),
+            app_publisher_rules(),
+        )
+        .await;
+        let refused = approve_change_for(
+            &state,
+            &identity,
+            "ovzdusie",
+            "chg-00000042",
+            Some("air-desk"),
+            by,
+        )
+        .await
+        .expect_err("a person decides");
+        assert!(
+            matches!(refused, joinedcontext_portal::error::ApiError::Denied(_)),
+            "a 403: {refused:?}"
+        );
+        assert!(refused.to_string().contains(says), "{refused}");
+        assert!(!merged_66(&server).await);
+    }
+}

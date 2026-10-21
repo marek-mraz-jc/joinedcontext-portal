@@ -4268,7 +4268,54 @@
       "ms": "{count} ms",
       "note": "Úloha běží pod vlastní identitou aplikace a zapisuje jen přes její Endpoint. Seznam ukazuje běhy od posledního spuštění hostitele."
     },
-    "editWithAssistant": "Upravit pomocí asistenta"
+    "editWithAssistant": "Upravit pomocí asistenta",
+    "share": {
+      "action": "Sdílet",
+      "title": "Sdílet {name}",
+      "description": "Vyberte, kdo aplikaci otevře. Vaše volba jde schvalovateli jako změna; dokud ji neschválí, nic se nemění.",
+      "now": "Kdo ji otevírá teď: {audience}",
+      "legend": "Kdo aplikaci otevře",
+      "hint": "Příklad: vyberte Všichni v organizaci, aby ji kolegové z jiných projektů našli v části Sdíleno se mnou.",
+      "choice": {
+        "private": {
+          "label": "Jen vy",
+          "reach": "Nikdo jiný ji neotevře, ani členové projektu."
+        },
+        "project": {
+          "label": "Všichni v projektu",
+          "reach": "Členové projektu {project}: {people}"
+        },
+        "organization": {
+          "label": "Všichni v organizaci",
+          "reach": "Všichni v {organization}: {people}"
+        },
+        "roles": {
+          "label": "Lidé s rolí",
+          "reach": "Držitelé rolí {roles}: {people}"
+        },
+        "public": {
+          "label": "Kdokoli na internetu",
+          "reach": "Kdokoli s adresou, bez přihlášení. Schválí to publikující nebo správce organizace, ne vy."
+        }
+      },
+      "people": "{count, plural, one {# člověk} few {# lidé} other {# lidí}}",
+      "counting": "počítám lidi…",
+      "theOrganization": "organizaci",
+      "rolesNone": "Aplikace zatím nemá role. Nejprve je přidejte v části Role a členové na stránce aplikace.",
+      "publicRefused": "Organizace nepovoluje veřejné aplikace. Správce organizace je může povolit v nastavení organizace.",
+      "privatePublished": "Zveřejněná aplikace nikdy není soukromá: vyberte, kdo další ji otevře, nebo ji vyřaďte.",
+      "countFailed": "Počet lidí se nenačetl. Volbu můžete přesto vybrat a navrhnout.",
+      "address": "Adresa",
+      "addressHint": "Pošlete tuto adresu lidem, se kterými aplikaci sdílíte. Příklad: vložte ji do e-mailu.",
+      "copy": "Kopírovat odkaz",
+      "copied": "Odkaz zkopírován.",
+      "copyFailed": "Prohlížeč kopírování nedovolil. Označte adresu a zkopírujte ji ručně.",
+      "propose": "Navrhnout změnu",
+      "cancel": "Zrušit",
+      "same": "Takto ji otevírají teď. Pro návrh změny vyberte jinou volbu.",
+      "proposed": "Změna čeká na schválení. Aplikace si ponechá současné publikum, dokud ji schvalovatel neschválí.",
+      "retired": "Vyřazenou aplikaci neotevře nikdo; nejprve ji znovu zveřejněte."
+    }
   },
   "appLifecycle": {
     "draft": "Návrh",
@@ -8243,6 +8290,14 @@
       "body": "Rozhlédněte se: každá stránka tu ukazuje, co projekt opravdu obsahuje. Měnit můžete jen to, co vám dovoluje vaše role, a nic tu nezasahuje do vašich vlastních projektů.",
       "lead": "Chcete nejdřív vidět všechny funkce naplněné daty?",
       "try": "Vyzkoušejte to na ukázkových datech"
+    },
+    "shared": {
+      "title": "Sdíleno se mnou",
+      "lead": "Aplikace, které jiné projekty sdílely s celou organizací a které můžete otevřít.",
+      "loading": "Hledám aplikace sdílené s vámi…",
+      "empty": "Zatím s vámi nikdo nic nesdílí. Když jiný projekt sdílí aplikaci s celou organizací, objeví se zde.",
+      "from": "Z projektu {project}",
+      "newTab": "(otevře se na nové kartě)"
     }
   },
   "alerts": {
