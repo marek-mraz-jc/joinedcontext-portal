@@ -89,6 +89,39 @@ const BENTO_PIPELINE = {
 };
 const BENTO = 'pipeline:\n  processors:\n    - xml:\n        operator: to_json\n    - mapping: |\n        root = { "type": "AirQualityObserved" }\n';
 
+/** The target space's model holds two classes, so the mapping step asks which one it writes (T-4971). */
+const SPACES = list([
+  {
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "ContextSpace",
+    metadata: { name: "air", namespace: "helsinki" },
+    spec: { dataModelRef: { kind: "DataModel", name: "air" } },
+  },
+]);
+const LINKML = [
+  "id: https://hel.fi/models/air",
+  "name: air",
+  "classes:",
+  "  AirQualityObserved:",
+  "    slots: [pm10]",
+  "  WeatherObserved:",
+  "    slots: [temperature]",
+  "slots:",
+  "  pm10:",
+  "    range: float",
+  "  temperature:",
+  "    range: float",
+  "",
+].join("\n");
+const DATAMODELS = list([
+  {
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "DataModel",
+    metadata: { name: "air", namespace: "helsinki" },
+    spec: { linkml: LINKML, classes: ["AirQualityObserved", "WeatherObserved"] },
+  },
+]);
+
 async function stubApi(page: Page, pipelines: unknown[] = []): Promise<{ writes: string[] }> {
   const writes: string[] = [];
   await page.route("**/api/v1/**", async (route) => {
@@ -146,6 +179,12 @@ async function stubApi(page: Page, pipelines: unknown[] = []): Promise<{ writes:
     }
     if (path.endsWith("/endpoints")) {
       return json(ENDPOINTS);
+    }
+    if (path.endsWith("/spaces")) {
+      return json(SPACES);
+    }
+    if (path.endsWith("/datamodels")) {
+      return json(DATAMODELS);
     }
     return json(list([]));
   });
@@ -242,5 +281,23 @@ test.describe("pipeline editor", () => {
     const body = JSON.parse((put ?? "").split(" ").slice(2).join(" ")) as { files?: Record<string, string>; draft?: unknown };
     expect(body.files).toEqual({ "bento.yaml": `${BENTO}# checked\n` });
     expect(body.draft).toBeUndefined();
+  });
+
+  // T-4971: the class picker of a model with several classes carries its one-line hint (UI-16),
+  // as the live walker's field-hint check asks of every field on the edit page.
+  test("the class a mapping writes is picked with a hint when the model has several", async ({ page }) => {
+    await stubApi(page, [BENTO_PIPELINE]);
+    for (const width of [1440, 400]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/projects/helsinki/pipelines?lang=en");
+      const row = page.getByRole("row").filter({ hasText: "air-quality" });
+      await row.getByRole("button", { name: /More actions/ }).click();
+      await page.getByRole("menuitem", { name: "Edit" }).click();
+      const picker = page.getByTestId("form-page").getByRole("combobox", { name: "Type the mapping writes" });
+      await expect(picker).toBeVisible();
+      await expect(picker).toHaveAccessibleDescription(/pick the one each record becomes/);
+      await picker.scrollIntoViewIfNeeded();
+      if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/t4971-class-picker-${width}.png` });
+    }
   });
 });

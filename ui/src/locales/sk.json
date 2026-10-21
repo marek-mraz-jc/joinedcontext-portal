@@ -2335,7 +2335,8 @@
         "fileHint": "Procesory, ktoré táto pipeline spúšťa, tak ako ich repozitár drží vedľa jej manifestu. Prihlasovacie údaje sú odkazy, ktoré doplní runner, nikdy nie hodnoty.",
         "fileEdit": "Upraviť súbor mapovania; Navrhnúť ho pošle s manifestom",
         "fileEditDisabled": "Súbor mapovania môžete upraviť, keď sa načíta.",
-        "type": "Typ, ktorý mapovanie zapisuje"
+        "type": "Typ, ktorý mapovanie zapisuje",
+        "typeHint": "Model má niekoľko tried: vyberte tú, ktorou sa stane každý záznam, napríklad meranie kvality ovzdušia. Zoznam nižšie ukazuje, čo prijíma."
       },
       "output": {
         "title": "Namapovaný výstup",
@@ -5224,7 +5225,18 @@
       },
       "assistant": {
         "transcript": "Čítanie uložených konverzácií"
-      }
+      },
+      "knowledge": {
+        "file": {
+          "uploaded": "Súbor pridaný do zdroja znalostí",
+          "removed": "Súbor odstránený zo zdroja znalostí"
+        },
+        "answers": {
+          "forgotten": "Uložené odpovede zabudnuté"
+        }
+      },
+      "access-request": "Žiadosť o prístup",
+      "personal-data": "Žiadosť o osobné údaje"
     },
     "sources": {
       "reconciler": "Konfigurácia",
