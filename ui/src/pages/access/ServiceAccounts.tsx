@@ -323,7 +323,7 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
       {change ? <ChangeNotice change={change} project={project} /> : null}
 
 {accounts.length === 0 ? (
-        <EmptyState title={t("access.accounts.empty")} description={t("access.accounts.emptyHint")} icon="access" action={addButton} />
+        <EmptyState title={t(project === ORG_NAMESPACE ? "access.accounts.emptyOrganization" : "access.accounts.empty")} description={t("access.accounts.emptyHint")} icon="access" action={addButton} />
       ) : (
         <ul className="space-y-4">
           {accounts.map((account) => {

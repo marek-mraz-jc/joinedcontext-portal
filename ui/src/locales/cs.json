@@ -2871,7 +2871,8 @@
       },
       "grantIn": "{role} v {where}",
       "grantOrg": "{role} v celé organizaci",
-      "emptyHint": "Servisní účet je způsob, jak program mimo Portál čte nebo zapisuje tento projekt: skript, pipeline jinde, jiná platforma. Každý se přihlašuje vlastním klientem v Keycloaku a má jen roli, kterou mu dáte."
+      "emptyHint": "Servisní účet je způsob, jak program mimo Portál čte nebo zapisuje tento projekt: skript, pipeline jinde, jiná platforma. Každý se přihlašuje vlastním klientem v Keycloaku a má jen roli, kterou mu dáte.",
+      "emptyOrganization": "Organizace nemá vlastní servisní účet. Servisní účty projektu jsou v nastavení projektu a v sekci Agenti."
     },
     "matrix": {
       "title": "Přístup k datům",
@@ -5828,7 +5829,8 @@
       "health": "Stav ověření",
       "endpoints": "Všechny koncové body",
       "mcp-servers": "MCP servery organizace",
-      "brokers": "Brokery"
+      "brokers": "Brokery",
+      "agents": "Agenti"
     },
     "settings": {
       "title": "Nastavení",
@@ -6425,7 +6427,116 @@
       "platform": "Co instalace provozuje pro každý projekt: brokery, prostředí, členství v datovém prostoru a stav.",
       "settings": "Doména organizace, jazyky, kontakty, pravidla a limity a co ještě chybí v nastavení."
     },
-    "kindHidden": "Zde je vidí jen administrátor organizace, jehož role zahrnuje {kinds}. Požádejte administrátora organizace, aby je přidal do vaší role."
+    "kindHidden": "Zde je vidí jen administrátor organizace, jehož role zahrnuje {kinds}. Požádejte administrátora organizace, aby je přidal do vaší role.",
+    "agents": {
+      "title": "Agenti",
+      "lead": "Všichni AI agenti organizace a jejích projektů, které smíte vidět: asistenti, profily agentů, MCP servery, servisní účty a právě běžící běhy. Otevřete agenta a uvidíte, kam sahá, a asistenta můžete pozastavit.",
+      "caption": "Agenti organizace",
+      "empty": "Zatím žádný agent",
+      "emptyHint": "Asistenti, profily agentů, MCP servery a servisní účty se zde objeví, jakmile je projekt deklaruje.",
+      "column": {
+        "name": "Agent",
+        "owner": "Vlastník",
+        "actsAs": "Jedná jako",
+        "reach": "Sahá na",
+        "lastActivity": "Poslední aktivita",
+        "spend": "Spotřeba",
+        "state": "Stav"
+      },
+      "kind": {
+        "AssistantDeployment": "Asistent",
+        "AgentProfile": "Profil agenta",
+        "McpServer": "MCP server",
+        "ServiceAccount": "Servisní účet",
+        "AgentRun": "Běh"
+      },
+      "organization": "Organizace",
+      "ownerProject": "Projekt {project}",
+      "actsAs": {
+        "self": "Vlastní účet",
+        "caller": "Osoba, která ho volá"
+      },
+      "actsAsLong": {
+        "self": "Vlastní servisní účet: má práva přidělená tomuto účtu, ať se ptá kdokoli.",
+        "caller": "Osoba nebo klient, který ho volá: čte a zapisuje jen to, co smí tento volající."
+      },
+      "reachNone": "Nic neuvedeno",
+      "reachCount": "Prostory: {spaces} · Endpointy: {endpoints}",
+      "spendNone": "Bez rozpočtu tokenů",
+      "spendCapOnly": {
+        "day": "Strop {cap} tokenů za den",
+        "run": "Strop {cap} tokenů za běh"
+      },
+      "spendUsedOnly": {
+        "day": "{used} tokenů dnes",
+        "run": "{used} tokenů zatím"
+      },
+      "spendOf": {
+        "day": "{used} z {cap} tokenů dnes",
+        "run": "{used} z {cap} tokenů"
+      },
+      "state": {
+        "active": "Aktivní",
+        "paused": "Pozastavený",
+        "running": "Běží",
+        "waiting": "Čeká na člověka"
+      },
+      "noActivity": "Nic nezaznamenáno",
+      "back": "Všichni agenti",
+      "gone": "Tento agent není v seznamu",
+      "goneHint": "Byl odstraněn, nebo vám ho vaše role už nedovolují vidět.",
+      "tabsLabel": "O tomto agentovi",
+      "tab": {
+        "overview": "Přehled",
+        "access": "Přístup",
+        "activity": "Aktivita",
+        "settings": "Nastavení"
+      },
+      "spaces": "Prostory",
+      "endpoints": "Endpointy",
+      "none": "Žádné",
+      "pause": "Pozastavit asistenta",
+      "resume": "Obnovit asistenta",
+      "pauseLead": "Pozastavení zastaví všechny odpovědi asistenta, dokud ho neobnovíte. Je to změna, kterou projekt před použitím posoudí.",
+      "resumeLead": "Tento asistent teď nikomu neodpovídá. Obnovení je změna, kterou projekt před použitím posoudí.",
+      "pauseSent": "Pozastavení odesláno k posouzení. Asistent přestane odpovídat po schválení změny.",
+      "resumeSent": "Obnovení odesláno k posouzení. Asistent začne znovu odpovídat po schválení změny.",
+      "openChange": "Otevřít změnu",
+      "openHome": "Otevřít jeho stránku",
+      "noPause": "Tento druh nemá vypínač. Chcete-li ho zastavit, odstraňte ho na jeho stránce.",
+      "runStop": "Běh zastavíte zrušením na stránce jeho aplikace.",
+      "activityLead": "Co četl a zapsal, je na jeho vlastní stránce.",
+      "runSettings": "Běh se řídí profilem agenta {profile}; jeho nastavení jsou tam.",
+      "openManifest": "Upravit na jeho stránce",
+      "setting": {
+        "channel": "Kanál",
+        "enabled": "Odpovídá",
+        "role": "Role",
+        "purpose": "Účel",
+        "audience": "Publikum",
+        "credentials": "Přihlašovací údaje",
+        "model": {
+          "answer": "Model odpovědí",
+          "router": "Model směrování",
+          "provider": "Poskytovatel modelu",
+          "name": "Model",
+          "maxTokensPerRun": "Tokeny za běh"
+        },
+        "budget": {
+          "tokensPerDay": "Tokeny za den",
+          "costPerDayUsd": "Náklady za den (USD)"
+        },
+        "rateLimit": {
+          "requestsPerMinute": "Požadavky za minutu"
+        },
+        "limits": {
+          "stepsPerRun": "Kroky za běh",
+          "wallClock": "Nejdelší běh",
+          "concurrentRunsPerOrganization": "Souběžné běhy",
+          "requestsPerMinute": "Požadavky za minutu"
+        }
+      }
+    }
   },
   "projectDelete": {
     "title": "Smazat projekt {name}",
@@ -7625,7 +7736,8 @@
       "writes": "Zapisuje",
       "offeredBy": "Nabízí: {members}"
     },
-    "leadOrganization": "MCP servery organizace: jedna adresa nad endpointy více projektů pro všechny, které publikum připouští."
+    "leadOrganization": "MCP servery organizace: jedna adresa nad endpointy více projektů pro všechny, které publikum připouští.",
+    "emptyOrganization": "Organizace zatím nemá vlastní MCP server. Servery projektu jsou na jeho stránce MCP a v sekci Agenti."
   },
   "notifications": {
     "label": "{count, plural, =0 {Upozornění} one {Upozornění, # nepřečtené} few {Upozornění, # nepřečtená} other {Upozornění, # nepřečtených}}",
