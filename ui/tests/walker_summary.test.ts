@@ -26,7 +26,7 @@ describe("the walker summary (T-4950)", () => {
 
   it("takes data out of a label", () => {
     expect(ruleAndLabel('raw-json: {"type":"Point"}')).toEqual(["raw-json", ""]);
-    expect(ruleAndLabel("http: 500 GET /api/v1/projects/helsinki/spaces/urn:ngsi-ld:A:1")).toEqual(["http", "500 GET /api/v1/projects/helsinki/spaces/*"]);
+    expect(ruleAndLabel("http: 500 GET /api/v1/projects/helsinki/spaces/urn:ngsi-ld:A:1")).toEqual(["http", "500 GET /api/v1/projects/*/spaces/*"]);
     expect(ruleAndLabel("field-hint: Entity type")).toEqual(["field-hint", ""]);
     expect(ruleAndLabel("axe: scrollable-region-focusable (serious): Scrollable region — pre")).toEqual(["axe", "scrollable-region-focusable"]);
   });

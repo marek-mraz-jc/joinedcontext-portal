@@ -58,6 +58,8 @@ walk() {
 (
   cd "$work/portal/ui" || exit 2
   pnpm install --frozen-lockfile --prefer-offline >"$dir/install.log" 2>&1 || exit 2
+  # A walker older than T-4950 writes its report only beside the UX shots.
+  grep -q WALK_REPORT_DIR e2e/live/walker.spec.ts || export SHOTS_DIR="$dir"
   walk steward &
   sleep 30
   walk viewer

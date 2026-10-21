@@ -72,7 +72,8 @@ export function ruleAndLabel(finding: string): [string, string] {
   const rule = at < 0 ? finding : finding.slice(0, at);
   const detail = at < 0 ? "" : finding.slice(at + 1).trim();
   // A path segment with a digit or a colon (but the API version) is an item, not the place: `403 GET /api/v1/…/*`.
-  if (rule === "http") return [rule, detail.replace(/\/[^/\s]*[0-9:][^/\s]*/g, (segment) => (/^\/v\d+$/.test(segment) ? segment : "/*"))];
+  // The project too: the inbox asks every project the person is in, and one fault is one task.
+  if (rule === "http") return [rule, detail.replace(/\/projects\/[^/\s]+/, "/projects/*").replace(/\/[^/\s]*[0-9:][^/\s]*/g, (segment) => (/^\/v\d+$/.test(segment) ? segment : "/*"))];
   if (rule === "console") return [rule, detail.replace(/\d+/g, "#").slice(0, 80)];
   if (rule === "axe") return [rule, detail.split(/\s/)[0]];
   if (rule === "viewer-write") return [rule, detail.slice(0, 120)];
