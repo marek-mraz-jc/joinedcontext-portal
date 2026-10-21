@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { pageFindings } from "./pageChecks";
+import { edgeRetryMs, pageFindings } from "./pageChecks";
 
 // T-4950: the rules that make a page explain itself, each with a page that passes and one that fails.
 const findings = (check: string) =>
@@ -16,6 +16,18 @@ describe("the walkers' boot check", () => {
     expect(pageFindings({ namespaces: [], layout: false })).toEqual([
       "boot: the Portal did not load, The Portal did not load. Load the page again.",
     ]);
+  });
+});
+
+describe("the walkers' wait on the edge's 429", () => {
+  it("waits the seconds Retry-After names, plus one, at most a minute", () => {
+    expect(edgeRetryMs("8")).toBe(9_000);
+    expect(edgeRetryMs("0")).toBe(1_000);
+    expect(edgeRetryMs("3600")).toBe(61_000);
+  });
+
+  it("waits a third of the edge's window on no or a garbled header", () => {
+    for (const header of [undefined, "", "soon", "-5", "1.5", "Wed, 21 Oct 2026 07:28:00 GMT"]) expect(edgeRetryMs(header)).toBe(20_000);
   });
 });
 
