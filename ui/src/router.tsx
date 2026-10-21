@@ -81,6 +81,7 @@ import { ORG_NAMESPACE } from "./api/manifest";
 import { isOrganizationTab, OrganizationPage } from "./pages/organization/OrganizationPage";
 import type { OrganizationTab } from "./pages/organization/OrganizationPage";
 import { AdminNav } from "./pages/organization/AdminNav";
+import { AgentPage } from "./pages/organization/Agents";
 import { isProjectSettingsTab } from "./pages/projectSettings/tabs";
 import type { ProjectSettingsTab } from "./pages/projectSettings/tabs";
 import type { AuthState } from "./auth/AuthProvider";
@@ -684,6 +685,9 @@ const organizationFormRoute = createRoute({
     if (person !== null) {
       return <OrganizationPersonView id={person} />;
     }
+    if (tab === "agents" && rest !== "") {
+      return <OrganizationAgentView path={rest} />;
+    }
     const form = formOfRest(rest);
     return rest === "" || form !== null ? <OrganizationView tab={tab} form={form} /> : <NotFound />;
   },
@@ -705,6 +709,20 @@ function OrganizationGroupView({ name }: { name: string }): React.JSX.Element {
   return (
     <Shell project={first} sidebar={(close) => <AdminNav project={first} active="groups" onNavigate={close} />}>
       <GroupPage name={name} />
+    </Shell>
+  );
+}
+
+/** An agent's page in the Organization's shell (AG-128, T-4849): `agents/{project}/{kind}/{name}`. */
+function OrganizationAgentView({ path }: { path: string }): React.JSX.Element {
+  const projects = useProjects();
+  const first = preferredProject(projects.data);
+  if (!first) {
+    return <NoProject projects={projects} />;
+  }
+  return (
+    <Shell project={first} sidebar={(close) => <AdminNav project={first} active="agents" onNavigate={close} />}>
+      <AgentPage path={path} />
     </Shell>
   );
 }

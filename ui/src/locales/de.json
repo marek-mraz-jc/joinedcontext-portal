@@ -2712,7 +2712,8 @@
       },
       "grantIn": "{role} in {where}",
       "grantOrg": "{role} in der ganzen Organisation",
-      "emptyHint": "Ein Dienstkonto ist der Weg, auf dem ein Programm außerhalb des Portals dieses Projekt liest oder schreibt: ein Skript, eine Pipeline anderswo, eine andere Plattform. Jedes meldet sich mit einem eigenen Keycloak-Client an und hat nur die Rolle, die Sie ihm geben."
+      "emptyHint": "Ein Dienstkonto ist der Weg, auf dem ein Programm außerhalb des Portals dieses Projekt liest oder schreibt: ein Skript, eine Pipeline anderswo, eine andere Plattform. Jedes meldet sich mit einem eigenen Keycloak-Client an und hat nur die Rolle, die Sie ihm geben.",
+      "emptyOrganization": "Die Organisation hat kein eigenes Dienstkonto. Die Dienstkonten eines Projekts stehen in seinen Einstellungen und unter Agenten."
     },
     "matrix": {
       "title": "Datenzugriff",
@@ -5594,7 +5595,8 @@
       "health": "Prüfstatus",
       "endpoints": "Alle Endpunkte",
       "mcp-servers": "MCP-Server der Organisation",
-      "brokers": "Broker"
+      "brokers": "Broker",
+      "agents": "Agenten"
     },
     "settings": {
       "title": "Einstellungen",
@@ -6161,7 +6163,116 @@
       "platform": "Was die Installation für jedes Projekt betreibt: Broker, Umgebungen, Datenraum-Mitgliedschaft und Zustand.",
       "settings": "Domain, Sprachen, Kontakte, Regeln und Grenzen der Organisation und was der Einrichtung noch fehlt."
     },
-    "kindHidden": "Hier sieht sie nur eine Organisationsadministration, deren Rolle {kinds} umfasst. Bitten Sie die Organisationsadministration, sie Ihrer Rolle hinzuzufügen."
+    "kindHidden": "Hier sieht sie nur eine Organisationsadministration, deren Rolle {kinds} umfasst. Bitten Sie die Organisationsadministration, sie Ihrer Rolle hinzuzufügen.",
+    "agents": {
+      "title": "Agenten",
+      "lead": "Alle KI-Agenten der Organisation und ihrer Projekte, die Sie sehen dürfen: Assistenten, Agentenprofile, MCP-Server, Dienstkonten und die laufenden Ausführungen. Öffnen Sie einen, um zu sehen, worauf er zugreift, und um einen Assistenten anzuhalten.",
+      "caption": "Agenten der Organisation",
+      "empty": "Noch kein Agent",
+      "emptyHint": "Assistenten, Agentenprofile, MCP-Server und Dienstkonten erscheinen hier, sobald ein Projekt einen deklariert.",
+      "column": {
+        "name": "Name",
+        "owner": "Verantwortlich",
+        "actsAs": "Handelt als",
+        "reach": "Erreicht",
+        "lastActivity": "Letzte Aktivität",
+        "spend": "Verbrauch",
+        "state": "Zustand"
+      },
+      "kind": {
+        "AssistantDeployment": "Assistent",
+        "AgentProfile": "Agentenprofil",
+        "McpServer": "MCP-Server",
+        "ServiceAccount": "Dienstkonto",
+        "AgentRun": "Ausführung"
+      },
+      "organization": "Organisation",
+      "ownerProject": "Projekt {project}",
+      "actsAs": {
+        "self": "Eigenes Konto",
+        "caller": "Die aufrufende Person"
+      },
+      "actsAsLong": {
+        "self": "Sein eigenes Dienstkonto: Es hat die Rechte dieses Kontos, wer auch immer fragt.",
+        "caller": "Die Person oder der Client, der ihn aufruft: Er liest und schreibt nur, was dieser Aufrufer darf."
+      },
+      "reachNone": "Nichts angegeben",
+      "reachCount": "Räume: {spaces} · Endpunkte: {endpoints}",
+      "spendNone": "Kein Token-Budget",
+      "spendCapOnly": {
+        "day": "Obergrenze {cap} Tokens am Tag",
+        "run": "Obergrenze {cap} Tokens je Ausführung"
+      },
+      "spendUsedOnly": {
+        "day": "{used} Tokens heute",
+        "run": "{used} Tokens bisher"
+      },
+      "spendOf": {
+        "day": "{used} von {cap} Tokens heute",
+        "run": "{used} von {cap} Tokens"
+      },
+      "state": {
+        "active": "Aktiv",
+        "paused": "Angehalten",
+        "running": "Läuft",
+        "waiting": "Wartet auf eine Person"
+      },
+      "noActivity": "Nichts erfasst",
+      "back": "Alle Agenten",
+      "gone": "Dieser Agent ist nicht in der Liste",
+      "goneHint": "Er wurde entfernt, oder Ihre Rollen erlauben Ihnen nicht mehr, ihn zu sehen.",
+      "tabsLabel": "Über diesen Agenten",
+      "tab": {
+        "overview": "Übersicht",
+        "access": "Zugriff",
+        "activity": "Aktivität",
+        "settings": "Einstellungen"
+      },
+      "spaces": "Räume",
+      "endpoints": "Endpunkte",
+      "none": "Keine",
+      "pause": "Assistenten anhalten",
+      "resume": "Assistenten fortsetzen",
+      "pauseLead": "Anhalten stoppt jede Antwort dieses Assistenten, bis er fortgesetzt wird. Es ist eine Änderung, die das Projekt vor dem Anwenden prüft.",
+      "resumeLead": "Dieser Assistent antwortet gerade niemandem. Fortsetzen ist eine Änderung, die das Projekt vor dem Anwenden prüft.",
+      "pauseSent": "Anhalten zur Prüfung gesendet. Der Assistent hört auf, sobald die Änderung genehmigt ist.",
+      "resumeSent": "Fortsetzen zur Prüfung gesendet. Der Assistent antwortet wieder, sobald die Änderung genehmigt ist.",
+      "openChange": "Änderung öffnen",
+      "openHome": "Seite öffnen",
+      "noPause": "Diese Art hat keinen Ausschalter. Um ihn zu stoppen, entfernen Sie ihn auf seiner Seite.",
+      "runStop": "Eine Ausführung stoppen Sie, indem Sie sie auf der Seite ihrer Anwendung abbrechen.",
+      "activityLead": "Was er gelesen und geschrieben hat, steht auf seiner eigenen Seite.",
+      "runSettings": "Eine Ausführung folgt dem Agentenprofil {profile}; seine Einstellungen stehen dort.",
+      "openManifest": "Auf seiner Seite bearbeiten",
+      "setting": {
+        "channel": "Kanal",
+        "enabled": "Antwortet",
+        "role": "Rolle",
+        "purpose": "Zweck",
+        "audience": "Zielgruppe",
+        "credentials": "Zugangsdaten",
+        "model": {
+          "answer": "Antwortmodell",
+          "router": "Routing-Modell",
+          "provider": "Modellanbieter",
+          "name": "Modell",
+          "maxTokensPerRun": "Tokens je Ausführung"
+        },
+        "budget": {
+          "tokensPerDay": "Tokens am Tag",
+          "costPerDayUsd": "Kosten am Tag (USD)"
+        },
+        "rateLimit": {
+          "requestsPerMinute": "Anfragen pro Minute"
+        },
+        "limits": {
+          "stepsPerRun": "Schritte je Ausführung",
+          "wallClock": "Längste Ausführung",
+          "concurrentRunsPerOrganization": "Gleichzeitige Ausführungen",
+          "requestsPerMinute": "Anfragen pro Minute"
+        }
+      }
+    }
   },
   "projectDelete": {
     "title": "Projekt {name} löschen",
@@ -7318,7 +7429,8 @@
       "writes": "Schreibt",
       "offeredBy": "Angeboten von: {members}"
     },
-    "leadOrganization": "Die MCP-Server der Organisation: eine Adresse über Endpoints mehrerer Projekte, für alle, die die Zielgruppe zulässt."
+    "leadOrganization": "Die MCP-Server der Organisation: eine Adresse über Endpoints mehrerer Projekte, für alle, die die Zielgruppe zulässt.",
+    "emptyOrganization": "Die Organisation hat noch keinen eigenen MCP-Server. Die Server eines Projekts stehen auf seiner MCP-Seite und unter Agenten."
   },
   "notifications": {
     "label": "{count, plural, =0 {Benachrichtigungen} one {Benachrichtigungen, # ungelesen} other {Benachrichtigungen, # ungelesen}}",

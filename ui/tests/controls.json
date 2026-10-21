@@ -741,6 +741,7 @@
         "Button": 1
       },
       "tests": [
+        "organization_agents.test.tsx",
         "service_accounts_view.test.tsx",
         "serviceaccount_form.test.tsx"
       ]
@@ -1317,7 +1318,8 @@
         "Button": 3
       },
       "tests": [
-        "mcp_servers.test.tsx"
+        "mcp_servers.test.tsx",
+        "organization_agents.test.tsx"
       ]
     },
     "src/pages/models/DiagramEditing.tsx": {
@@ -1453,6 +1455,14 @@
       },
       "tests": [
         "sdm_import.test.tsx"
+      ]
+    },
+    "src/pages/organization/Agents.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "organization_agents.test.tsx"
       ]
     },
     "src/pages/organization/OrganizationApplications.tsx": {
