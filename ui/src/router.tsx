@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect } from "react";
+import { keepCopy } from "./components/layout/keepCopy";
 import {
   createRootRouteWithContext,
   createRoute,
@@ -390,6 +391,8 @@ const protectedRoute = createRoute({
     workspace:
       typeof search.workspace === "string" && search.workspace !== "" ? search.workspace : undefined,
   }),
+  // And every link below keeps it, until Leave or another project says otherwise (T-4868).
+  search: { middlewares: [keepCopy] },
   component: function ProtectedRoute() {
     return (
       <WorkspaceProvider>
