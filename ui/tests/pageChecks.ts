@@ -22,6 +22,7 @@ export type PageCheck =
   | "purpose-line"
   | "empty-state-next-step"
   | "field-hint"
+  | "error-text"
   | "raw-i18n-key"
   | "raw-json"
   | "bare-urn"
@@ -93,6 +94,29 @@ export function pageFindings(options: PageCheckOptions): string[] {
         (labels && labels.length > 0 ? text(labels[0]) : text(control.id ? document.querySelector(`label[for="${CSS.escape(control.id)}"]`) : null));
       say("field-hint", label || control.getAttribute("name") || control.getAttribute("placeholder") || control.outerHTML.slice(0, 100));
     }
+  }
+
+  // A refused value says what to change (T-4950): a field marked invalid carries a message wired
+  // to it, and the message is more than a bare "Invalid"; a form's own refusal names what to fix,
+  // not only that something failed. The field's message names the field by being wired to it.
+  const generic = /^(error|invalid( (value|input))?|required|this field is required|failed|request failed|bad request|forbidden|unprocessable( entity)?|something went wrong|\d{3}( [a-z ]+)?)[.!]?$/i;
+  const wired = new Set<string>();
+  for (const control of root.querySelectorAll("[aria-invalid='true']")) {
+    if (!shown(control)) continue;
+    const ids = (control.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean);
+    ids.forEach((id) => wired.add(id));
+    const labels = (control as HTMLInputElement).labels;
+    const name = control.getAttribute("aria-label") ?? (labels && labels.length > 0 ? text(labels[0]) : control.getAttribute("name") ?? "a field");
+    const messages = ids.map((id) => document.getElementById(id)).filter((hint) => hint?.getAttribute("role") === "alert" || hint?.closest("[role='alert']"));
+    const said = messages.map(text).filter(Boolean);
+    if (said.length === 0) say("error-text", `${name}: marked invalid with no message`);
+    else if (said.every((message) => generic.test(message))) say("error-text", `${name}: "${said.join(" ")}" does not say what to change`);
+  }
+  for (const alert of root.querySelectorAll("form [role='alert']")) {
+    const owner = alert.closest("[id]");
+    if (!shown(alert) || (owner !== null && wired.has(owner.id))) continue;
+    const said = text(alert);
+    if (said && generic.test(said)) say("error-text", `the form says only "${said}"`);
   }
 
   // What a person reads is words, never the machinery behind them.
