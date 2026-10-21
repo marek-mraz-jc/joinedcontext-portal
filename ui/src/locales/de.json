@@ -7411,7 +7411,11 @@
       "format": "Format",
       "licence": "Lizenz",
       "spatial": "Gebiet",
-      "year": "Zeitraum"
+      "year": "Zeitraum",
+      "hint": "Haken Sie die Werte an, die ein Datensatz haben muss. Zwei Werte eines Filters bedeuten einen oder den anderen, z. B. zwei Herausgeber.",
+      "open": "{count, plural, =0 {Filter} other {Filter (#)}}",
+      "close": "Filter schließen",
+      "show": "{count, plural, =0 {Kein Datensatz} one {# Datensatz anzeigen} other {# Datensätze anzeigen}}"
     },
     "results": {
       "label": "Datensätze",
@@ -7471,7 +7475,8 @@
         "websocket": "Live-Aktualisierungen bei jeder Datenänderung.",
         "model": "Das Datenmodell als {format}."
       },
-      "forDevelopers": "Für Entwickler"
+      "forDevelopers": "Für Entwickler",
+      "moreFormats": "{count, plural, one {+# Format} other {+# Formate}}"
     },
     "use": {
       "title": "Diese Daten nutzen",

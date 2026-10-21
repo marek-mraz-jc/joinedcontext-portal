@@ -999,7 +999,7 @@
     },
     "src/pages/catalogue/CataloguePage.tsx": {
       "controls": {
-        "Button": 6,
+        "Button": 8,
         "Checkbox": 1
       },
       "tests": [

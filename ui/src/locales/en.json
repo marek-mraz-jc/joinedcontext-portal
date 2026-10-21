@@ -7411,7 +7411,11 @@
       "format": "Format",
       "licence": "Licence",
       "spatial": "Area",
-      "year": "Period"
+      "year": "Period",
+      "hint": "Tick the values a dataset must have. Two values of one filter mean either, e.g. two publishers.",
+      "open": "{count, plural, =0 {Filters} other {Filters (#)}}",
+      "close": "Close filters",
+      "show": "{count, plural, =0 {Show no dataset} one {Show # dataset} other {Show # datasets}}"
     },
     "results": {
       "label": "Datasets",
@@ -7471,7 +7475,8 @@
         "websocket": "Live updates as the data changes.",
         "model": "The data model as {format}."
       },
-      "forDevelopers": "For developers"
+      "forDevelopers": "For developers",
+      "moreFormats": "{count, plural, one {+# format} other {+# formats}}"
     },
     "use": {
       "title": "Use this data",

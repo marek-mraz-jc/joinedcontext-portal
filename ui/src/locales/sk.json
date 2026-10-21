@@ -7411,7 +7411,11 @@
       "format": "Formát",
       "licence": "Licencia",
       "spatial": "Územie",
-      "year": "Obdobie"
+      "year": "Obdobie",
+      "hint": "Zaškrtnite hodnoty, ktoré musí dataset mať. Dve hodnoty jedného filtra znamenajú jednu alebo druhú, napr. dvaja vydavatelia.",
+      "open": "{count, plural, =0 {Filtre} other {Filtre (#)}}",
+      "close": "Zavrieť filtre",
+      "show": "{count, plural, =0 {Žiadny dataset} one {Zobraziť # dataset} few {Zobraziť # datasety} other {Zobraziť # datasetov}}"
     },
     "results": {
       "label": "Datasety",
@@ -7471,7 +7475,8 @@
         "websocket": "Živé aktualizácie pri každej zmene dát.",
         "model": "Dátový model vo formáte {format}."
       },
-      "forDevelopers": "Pre vývojárov"
+      "forDevelopers": "Pre vývojárov",
+      "moreFormats": "{count, plural, one {+# formát} few {+# formáty} other {+# formátov}}"
     },
     "use": {
       "title": "Použiť tieto dáta",
