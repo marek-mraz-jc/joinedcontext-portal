@@ -7090,7 +7090,9 @@
       "queued": "Ve frontě",
       "running": "Prochází se",
       "failed": "Poslední procházení selhalo",
-      "crawled": "Projitý"
+      "crawled": "Projitý",
+      "indexing": "Indexuje se",
+      "read": "Přečteno"
     },
     "type": {
       "website": "Web",
@@ -7146,7 +7148,8 @@
       "findPages": "Najít stránky",
       "findPagesHelp": "Podle názvu nebo adresy, 2 až 100 znaků; na velikosti písmen a diakritice nezáleží. Zobrazí se nejvýše 100 stránek.",
       "noPagesFound": "Žádná stránka tohoto zdroje nemá „{q}“ v názvu ani v adrese.",
-      "modified": "změněno {at}"
+      "modified": "změněno {at}",
+      "filePage": "{name}, strana {page}"
     },
     "field": {
       "name": "Název",
@@ -7272,6 +7275,7 @@
       "question": "Vaše otázka",
       "send": "Odeslat",
       "failed": "Odpověď se nepodařilo načíst. Zkuste znovu.",
+      "modelUnavailable": "Model asistenta neodpověděl. Otázka zůstala v poli: zkuste to za minutu znovu.",
       "liveData": "Živá data",
       "sourceNumber": "Zdroj {n}",
       "data": "Data, která odpověď přečetla",
@@ -7313,7 +7317,8 @@
       "noneHint": "Nahrajte PDF, tabulku nebo textový soubor, ze kterého bude asistent odpovídat.",
       "name": "Soubor",
       "remove": "Odstranit",
-      "removeOf": "Odstranit {name}"
+      "removeOf": "Odstranit {name}",
+      "notTakenUp": "Asistent tento zdroj ještě nepřevzal; trvá to asi minutu po schválení. Stránka to ověřuje sama: soubory nahrajte, až se tlačítko vrátí."
     },
     "index": {
       "title": "Stav indexu",

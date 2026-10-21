@@ -187,10 +187,12 @@ export function sources(citations: Citation[]): { list: Source[]; position: Reco
   const position: Record<number, number> = {};
   for (const citation of citations) {
     const url = citation.url && /^https?:\/\//i.test(citation.url) ? citation.url : null;
+    // An uploaded file's passage cites `upload:{source}/{file}`: a name, never a link (T-4869).
+    const file = citation.url?.startsWith("upload:") ? citation.url.replace(/#page=\d+$/, "") : null;
     const live = Boolean(citation.tool);
-    const key = url ?? (live ? `live:${citation.endpoint ?? ""}` : null);
+    const key = url ?? file ?? (live ? `live:${citation.endpoint ?? ""}` : null);
     if (!key) continue;
-    const title = citation.title?.trim() || null;
+    const title = citation.title?.trim() || (file ? file.slice(file.indexOf("/") + 1) || null : null);
     let at = byKey.get(key);
     if (at === undefined) {
       at = list.length;
