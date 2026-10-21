@@ -466,20 +466,20 @@ describe("the files of a bundle (T-0861)", () => {
     });
 
     const heading = await screen.findByRole("heading", { name: en.approvals.diffType });
-    expect(screen.getByText("spec.audience")).toBeInTheDocument();
+    expect(screen.getByTitle("spec.audience")).toBeInTheDocument();
     // A file without a manifest has nothing to diff field by field, so it is not a button.
     expect(screen.queryByRole("button", { name: "README.md" })).toBeNull();
 
     const file = screen.getByRole("button", { name: "users/assignments/mallory-admin.yaml" });
     fireEvent.click(file);
     expect(heading).toHaveTextContent("users/assignments/mallory-admin.yaml");
-    expect(screen.getByText("spec.role")).toBeInTheDocument();
-    expect(screen.queryByText("spec.audience")).toBeNull();
+    expect(screen.getByTitle("spec.role")).toBeInTheDocument();
+    expect(screen.queryByTitle("spec.audience")).toBeNull();
     expect(file).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(file);
     expect(heading).toHaveTextContent(en.approvals.diffType);
-    expect(screen.getByText("spec.audience")).toBeInTheDocument();
+    expect(screen.getByTitle("spec.audience")).toBeInTheDocument();
   });
 
   it("shows no file section for a change the API listed no files for", async () => {

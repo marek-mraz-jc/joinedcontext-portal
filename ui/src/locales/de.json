@@ -1850,6 +1850,7 @@
     "plan": "Geplante Änderung",
     "secretHint": "Zugangsdaten bleiben im Secret-Store. Das Formular nimmt Name und Schlüssel einer Referenz, niemals den Wert selbst.",
     "noSecret": "keine",
+    "secretFrom": "Geheimnis aus {name}",
     "type": {
       "mqtt": "MQTT-Broker",
       "http": "HTTP-Endpunkt",
