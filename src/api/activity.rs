@@ -95,6 +95,7 @@ impl ActivityQuery {
             object: self.object,
             limit: self.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT),
             cursor,
+            reach: None,
         })
     }
 }
@@ -145,7 +146,9 @@ pub async fn list_activity(
     Query(query): Query<ActivityQuery>,
 ) -> Result<Json<ActivityList>, ApiError> {
     member_of(&state, &user, &project)?;
-    let filter = query.into_filter()?;
+    let mut filter = query.into_filter()?;
+    filter.reach =
+        crate::permissions::for_request(&state, &user.0.identity, &project).spaces_reached();
     let page = state
         .activity
         .list(&project, &filter)
@@ -184,6 +187,7 @@ pub async fn stream_activity(
     member_of(&state, &user, &project)?;
     let filter = query.into_filter()?;
     let project_of_stream = project.clone();
+    let identity = user.0.identity;
 
     let live = state.activity_events.subscribe(&project).await;
     let stream = BroadcastStream::new(live).filter_map(
@@ -191,7 +195,17 @@ pub async fn stream_activity(
             // A lagging browser misses events rather than the rest of the tail: it reconnects
             // with `since` and the store replays what it lost.
             let event = item.ok()?;
-            if event.project != project_of_stream || !filter.matches(&event) {
+            // Checked against the bindings of this moment, as the draft stream is: a revoked
+            // space binding stops that space's events without a reconnect (T-4876).
+            if event.project != project_of_stream
+                || !filter.matches(&event)
+                || !(ActivityFilter {
+                    reach: crate::permissions::for_request(&state, &identity, &project_of_stream)
+                        .spaces_reached(),
+                    ..Default::default()
+                })
+                .matches(&event)
+            {
                 return None;
             }
             Some(Ok(Event::default()

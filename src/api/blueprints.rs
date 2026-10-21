@@ -488,6 +488,14 @@ pub(crate) fn plan_flow(
         // Nobody grants above their own rights, a blueprint's Role or RoleBinding included
         // (PF-52).
         crate::permissions::within_own_rights(state, identity, &body, "proposer")?;
+        // A blueprint's Pipeline reaches only what its proposer reads and writes (PL-94).
+        crate::pipeline_rights::check(
+            state,
+            identity,
+            project,
+            &body,
+            jc_core::kinds::Verb::Propose,
+        )?;
         // A name the organization holds once is refused as at every other door (PF-84, AP-14a,
         // AP-114, AP-115).
         let name = &manifest.metadata.name;
