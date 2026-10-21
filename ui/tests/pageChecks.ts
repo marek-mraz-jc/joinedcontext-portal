@@ -18,6 +18,8 @@ export interface PageCheckOptions {
 }
 
 export type PageCheck =
+  // The Portal never drew the page (index.html's fallback, T-4201): nothing else can be judged.
+  | "boot"
   | "one-h1"
   | "purpose-line"
   | "empty-state-next-step"
@@ -37,6 +39,10 @@ export type PageCheck =
   | "viewer-write";
 
 export function pageFindings(options: PageCheckOptions): string[] {
+  // The app never replaced index.html's fallback (its script or a chunk did not load, as when the
+  // edge answers 429): the rules below would judge the fallback, so the walk says that instead (T-5069).
+  const boot = document.getElementById("boot-failed");
+  if (boot) return [`boot: the Portal did not load, ${(boot.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 120)}`];
   const found: string[] = [];
   const root = document.querySelector("main") ?? document.body;
   const say = (check: string, detail: string) => found.push(`${check}: ${detail.replace(/\s+/g, " ").trim().slice(0, 160)}`);
