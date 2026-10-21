@@ -35,11 +35,12 @@ pipeline:
       map jc_lifetime {
         root = this
         if this.type == "Bus" {
-          let end = (this.without("id", "type", "scope", "@context", "createdAt", "modifiedAt", "deletedAt", "expiresAt").values().map_each(a -> if a.type() == "array" { a } else { [a] }).flatten().map_each(i -> if i.type() == "object" { i.observedAt.or("").ts_unix().catch(null) } else { null }).filter(t -> t != null).max().catch(null)).(t -> if t != null { t + 600 } else { null })
+          let start = this.without("id", "type", "scope", "@context", "createdAt", "modifiedAt", "deletedAt", "expiresAt").values().map_each(a -> if a.type() == "array" { a } else { [a] }).flatten().map_each(i -> if i.type() == "object" { i.observedAt.or("").ts_unix().catch(null) } else { null }).filter(t -> t != null).max().catch(null)
+          let end = if $start != null { $start + 600 } else { null }
           if $end != null {
             root.expiresAt = $end.ts_format("2006-01-02T15:04:05Z", "UTC")
           }
-          if $end == null {
+          if $start == null {
             root._jc_lifetime_from = true
           }
         }

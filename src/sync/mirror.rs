@@ -332,12 +332,24 @@ fn branch_name(key: &str) -> String {
     format!("mirror/{slug}")
 }
 
-/// A file's text without the line that only says when it was fetched.
-fn without_fetch_time(text: &str) -> String {
-    text.lines()
-        .filter(|line| !line.trim_start().starts_with("fetchedAt:"))
-        .collect::<Vec<_>>()
-        .join("\n")
+/// A file's content without the field that only says when it was fetched, compared as values
+/// so the layout a commit gives it (T-5052) changes nothing; a text that is not one YAML
+/// document compares as written.
+fn without_fetch_time(text: &str) -> Result<serde_norway::Value, &str> {
+    let mut value: serde_norway::Value = serde_norway::from_str(text).map_err(|_| text)?;
+    drop_fetch_time(&mut value);
+    Ok(value)
+}
+
+fn drop_fetch_time(value: &mut serde_norway::Value) {
+    match value {
+        serde_norway::Value::Mapping(map) => {
+            map.remove("fetchedAt");
+            map.values_mut().for_each(drop_fetch_time);
+        }
+        serde_norway::Value::Sequence(items) => items.iter_mut().for_each(drop_fetch_time),
+        _ => {}
+    }
 }
 
 /// Whether the branch already proposes these files, but for when they were fetched: then the
@@ -396,7 +408,9 @@ mod tests {
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
         let server = MockServer::start().await;
-        let stored = "spec:\n  source:\n    remote:\n      sha256: abc\n      fetchedAt: '2026-10-05T03:00:00Z'\n";
+        // As a commit lays it out (T-5052): the fetch time shares a flow line with the sha.
+        let stored =
+            "spec:\n  source:\n    remote: { sha256: abc, fetchedAt: '2026-10-05T03:00:00Z' }\n";
         Mock::given(method("GET"))
             .and(path("/api/v1/repos/o/r/contents/models/air.yaml"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
