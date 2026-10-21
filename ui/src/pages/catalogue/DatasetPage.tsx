@@ -143,14 +143,20 @@ function Dataset({ detail, back }: { detail: DatasetDetail; back: JSX.Element })
     [t("catalogue.dataset.modifiedLabel"), date(detail.modified)],
   ];
 
+  // The notes are the publisher's Markdown: the first paragraph says what the dataset is.
+  const blocks = notesBlocks(detail.notes ?? "");
+  const lead = blocks[0]?.code === false ? blocks[0] : undefined;
+  const rest = lead ? blocks.slice(1) : blocks;
+
   return (
     <div className="flex flex-col gap-section">
       {back}
       <PageHeader
         title={detail.title}
-        description={detail.notes}
+        description={lead ? <Inline text={lead.text} /> : undefined}
         actions={<ExternalLink href={detail.catalogueUrl}>{t("catalogue.dataset.inCatalogue")}</ExternalLink>}
       />
+      {rest.length > 0 ? <Blocks blocks={rest} className="max-w-prose text-body text-fg-muted" /> : null}
 
       <Card>
         <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
@@ -225,7 +231,7 @@ function Resources({ detail }: { detail: DatasetDetail }): JSX.Element {
                   {resource.description ? (
                     <details className="mt-0.5 text-caption">
                       <summary className="cursor-pointer text-fg-muted">{t("catalogue.dataset.forDevelopers")}</summary>
-                      <div className="mt-1 whitespace-pre-wrap text-fg-muted [overflow-wrap:anywhere]">{resource.description}</div>
+                      <Blocks blocks={notesBlocks(resource.description)} className="mt-1 text-fg-muted [overflow-wrap:anywhere]" />
                     </details>
                   ) : null}
                 </TableCell>
@@ -260,6 +266,60 @@ const MODEL_FORMATS = new Set(["linkml", "jsonschema", "jsonld", "shacl", "owl",
  * One sentence in the page's language of what a resource is, by its CKAN format (T-4264, T-4160
  * #16): "Tabuľka CSV na stiahnutie". A format the catalogue has no sentence for says nothing.
  */
+/** One block of a publisher's Markdown text: a paragraph, or an indented code block. */
+export interface NotesBlock {
+  code: boolean;
+  text: string;
+}
+
+/**
+ * The publisher's Markdown (CKAN notes and resource descriptions, written by jcctl publish) in
+ * the two shapes it uses: paragraphs with `code` spans, and blocks indented by four spaces that
+ * hold commands and JSON (T-4949). Nothing is parsed as HTML: every block is rendered as text.
+ */
+export function notesBlocks(text: string): NotesBlock[] {
+  return text
+    .replace(/\r\n/g, "\n")
+    .split(/\n[ \t]*\n/)
+    .filter((block) => block.trim() !== "")
+    .map((block) => {
+      const lines = block.split("\n").filter((line) => line.trim() !== "");
+      const code = lines.every((line) => /^( {4}|\t)/.test(line));
+      return code
+        ? { code, text: lines.map((line) => line.replace(/^( {4}|\t)/, "")).join("\n") }
+        : { code, text: block.trim() };
+    });
+}
+
+/** A paragraph with its `code` spans in code. */
+function Inline({ text }: { text: string }): JSX.Element {
+  return (
+    <>
+      {text.split(/(`[^`\n]+`)/).map((part, index) =>
+        /^`[^`]+`$/.test(part) ? <code key={index}>{part.slice(1, -1)}</code> : part,
+      )}
+    </>
+  );
+}
+
+function Blocks({ blocks, className }: { blocks: NotesBlock[]; className?: string }): JSX.Element {
+  return (
+    <div className={`flex flex-col gap-2 ${className ?? ""}`}>
+      {blocks.map((block, index) =>
+        block.code ? (
+          <pre key={index} className="whitespace-pre-wrap rounded bg-surface-muted p-2 text-caption [overflow-wrap:anywhere]">
+            <code>{block.text}</code>
+          </pre>
+        ) : (
+          <p key={index} className="whitespace-pre-line">
+            <Inline text={block.text} />
+          </p>
+        ),
+      )}
+    </div>
+  );
+}
+
 export function resourceSays(format: string, t: (key: string, options?: Record<string, unknown>) => string): string | null {
   const key = format.toLowerCase().replace(/[^a-z0-9]/g, "");
   if (MODEL_FORMATS.has(key)) return t("catalogue.dataset.says.model", { format });

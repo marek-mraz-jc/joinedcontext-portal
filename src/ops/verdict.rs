@@ -50,6 +50,39 @@ pub struct Verdict {
     /// approved, and its own change cannot merge before them. Empty for every other verdict.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub waits_on: Vec<String>,
+    /// A Pipeline's record check (T-4840): what its sample's records got from the space's model,
+    /// the target Endpoint and the lifetime. A later check of another kind keeps it, and the
+    /// proposal of a Pipeline needs it green and fresh for the spec it proposes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub records: Option<Box<RecordsVerdict>>,
+}
+
+/// The record check a Pipeline's proposal needs (T-4840): green, of the spec proposed.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RecordsVerdict {
+    pub ok: bool,
+    /// The records checked and how many of them would not be written.
+    pub checked: usize,
+    pub rejected: usize,
+    /// [`digest_of`] the Pipeline's `spec` the records came from.
+    pub spec_digest: String,
+    /// [`digest_of`] the records, so the proposal names the sample its verdict was given on.
+    pub sample_digest: String,
+}
+
+/// Why a Pipeline's proposal is refused for its record check (T-4840), `None` when it may go.
+pub fn records_refusal(verdict: &Verdict, manifest: &Value) -> Option<&'static str> {
+    if manifest.get("kind").and_then(Value::as_str) != Some("Pipeline") {
+        return None;
+    }
+    let spec = manifest.get("spec")?;
+    match &verdict.records {
+        None => Some("records_unchecked"),
+        Some(records) if records.spec_digest != digest_of(spec) => Some("records_stale"),
+        Some(records) if !records.ok => Some("records_failed"),
+        Some(_) => None,
+    }
 }
 
 impl Verdict {
@@ -61,7 +94,17 @@ impl Verdict {
             checked_at: Utc::now(),
             input_digest: digest_of(input),
             waits_on: Vec::new(),
+            records: None,
         }
+    }
+
+    /// This verdict with the record check `earlier` held, when this one made none: a dry run of
+    /// a Pipeline after its test does not forget what the test found (T-4840).
+    pub fn keeping_records(mut self, earlier: Option<&Verdict>) -> Self {
+        if self.records.is_none() {
+            self.records = earlier.and_then(|v| v.records.clone());
+        }
+        self
     }
 
     pub fn green(input: &Value, trace: Option<Value>) -> Self {
@@ -112,6 +155,46 @@ fn canonicalize(val: &Value) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-4840: a Pipeline proposes only on a green record check of the spec it proposes, and a
+    /// dry run after the test keeps what the test found.
+    #[test]
+    fn a_pipeline_needs_a_green_record_check_of_its_spec() {
+        let spec = serde_json::json!({ "class": "auto" });
+        let manifest = serde_json::json!({ "kind": "Pipeline", "metadata": { "name": "buses" }, "spec": spec });
+        let records = |ok: bool, spec: &Value| RecordsVerdict {
+            ok,
+            checked: 1,
+            rejected: usize::from(!ok),
+            spec_digest: digest_of(spec),
+            sample_digest: digest_of(&serde_json::json!([])),
+        };
+        let mut verdict = Verdict::green(&manifest, None);
+        assert_eq!(
+            records_refusal(&verdict, &manifest),
+            Some("records_unchecked")
+        );
+        verdict.records = Some(Box::new(records(false, &spec)));
+        assert_eq!(records_refusal(&verdict, &manifest), Some("records_failed"));
+        verdict.records = Some(Box::new(records(
+            true,
+            &serde_json::json!({ "class": "resident" }),
+        )));
+        assert_eq!(records_refusal(&verdict, &manifest), Some("records_stale"));
+        verdict.records = Some(Box::new(records(true, &spec)));
+        assert_eq!(records_refusal(&verdict, &manifest), None);
+
+        let dry_run = Verdict::green(&manifest, None).keeping_records(Some(&verdict));
+        assert_eq!(dry_run.records, verdict.records);
+        let other =
+            serde_json::json!({ "kind": "Endpoint", "metadata": { "name": "e" }, "spec": {} });
+        assert_eq!(records_refusal(&Verdict::green(&other, None), &other), None);
+        let deleted = serde_json::json!({ "kind": "Pipeline", "metadata": { "name": "buses" } });
+        assert_eq!(
+            records_refusal(&Verdict::green(&deleted, None), &deleted),
+            None
+        );
+    }
     use serde_json::json;
 
     #[test]

@@ -1346,7 +1346,8 @@
       "missingRow": "not in this endpoint (filter or policy)",
       "hiddenColumn": "hidden by the projection",
       "same": "This endpoint answers this page exactly as the space holds it.",
-      "spaceRefused": "You may read this endpoint but not the space behind it, so there is nothing to compare it with."
+      "spaceRefused": "You may read this endpoint but not the space behind it, so there is nothing to compare it with.",
+      "typeHelp": "Which type of record the table lists; pick another to see its rows, e.g. the air quality readings."
     },
     "projection": {
       "title": "Published attributes",
@@ -2347,11 +2348,19 @@
       },
       "validation": {
         "title": "Validation",
-        "hint": "Only records the space's model accepts are written; the rest go to the rejected list.",
+        "hint": "Only records the space's model, the target Endpoint and the lifetime accept are written; the rest go to the rejected list.",
         "waiting": "The verdicts follow once the mapping makes records.",
         "valid": "valid",
         "allValid": "{count, plural, one {# record is} other {All # records are}} valid against {model} {version}.",
-        "someRejected": "{count, plural, one {# record breaks} other {# records break}} {model} {version} and would not be written; {valid} valid."
+        "someRejected": "{count, plural, one {# record breaks} other {# records break}} {model} {version} and would not be written; {valid} valid.",
+        "source": {
+          "model": "Model",
+          "endpoint": "Endpoint",
+          "lifetime": "Lifetime"
+        },
+        "expiresLabel": "Expiry the record is written with",
+        "expiresEntity": "Entity expires {at}",
+        "expiresAttribute": "{name} expires {at}"
       },
       "target": {
         "title": "Target",
@@ -2986,7 +2995,16 @@
       "noCkan": "This group manages no catalogue.",
       "ckanInstance": "{project} / {name}",
       "ckanVia": "through the role {role}",
-      "appNotLoaded": "The app is still loading, or you may not read it."
+      "appNotLoaded": "The app is still loading, or you may not read it.",
+      "hint": {
+        "email": "The e-mail the person signs in with, e.g. jana.novak@example.org; known people are offered as you type.",
+        "where": "Where the role holds: the whole organization or one project, e.g. helsinki.",
+        "space": "Keep the whole project, or narrow the role to one context space, e.g. air-quality.",
+        "role": "What the members may do there, e.g. viewer reads, steward also proposes changes.",
+        "project": "The project the application belongs to, e.g. helsinki.",
+        "app": "The application whose role the group gets, e.g. air-quality-dashboard.",
+        "appRole": "One of the roles the application defines, e.g. reader."
+      }
     },
     "explorer": {
       "title": "See what someone can access",
@@ -4413,7 +4431,15 @@
     "kindStructured": "Structured value",
     "kindList": "List",
     "points": "points",
-    "openTarget": "Open"
+    "openTarget": "Open",
+    "hint": {
+      "filterText": "Choose a test, then type the words, e.g. contains Espoo.",
+      "filterNumber": "Choose a test, then type a number, e.g. greater than 40.",
+      "filterDate": "Choose a test, then pick a date, e.g. after 2026-10-01.",
+      "filterEnum": "Choose a test; with any of, pick one or more allowed values:",
+      "filterOther": "Choose a test, e.g. has a value, or empty.",
+      "editAsText": "Write the NGSI-LD query yourself, e.g. pm10>40;name~=\"Espoo\"."
+    }
   },
   "explore": {
     "title": "Explore data",
@@ -8164,7 +8190,8 @@
       "copy": "Copy the configuration"
     },
     "tools": "{count, plural, one {# tool} other {# tools}}",
-    "noTools": "The connector offers no tools to anonymous callers right now."
+    "noTools": "The connector offers no tools to anonymous callers right now.",
+    "lead": "Add this data to an AI assistant such as Claude or ChatGPT: copy the address into the client and ask it questions."
   },
   "kinds": {
     "AgentProfile": {

@@ -290,3 +290,52 @@ async fn a_connector_selects_only_projects_and_spaces_the_person_reads() {
         );
     }
 }
+
+/// T-4949, UI-98: a viewer of a project adds an Endpoint they read to their own connectors (the
+/// write is to their own preferences and reaches nothing they could not read already); the same
+/// organization Endpoint is refused to a person with no grant in its project.
+#[tokio::test]
+async fn a_viewer_adds_an_endpoint_they_read_and_a_stranger_cannot() {
+    let Some(url) = database_url() else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let state = state(&url).await;
+    let org = joinedcontext_portal::permissions::ORG_NAMESPACE;
+    let viewer = fresh("viewer");
+    state.mirror.upsert(common::envelope(
+        "Role",
+        "endpoint-viewers",
+        org,
+        json!({ "rules": [{ "kinds": ["Endpoint"], "verbs": ["read"] }] }),
+    ));
+    state.mirror.upsert(common::envelope(
+        "RoleBinding",
+        &format!("{viewer}-reads-mesto"),
+        org,
+        json!({ "subjects": [{ "user": format!("{viewer}@hel.fi") }], "role": "endpoint-viewers",
+                "scope": { "project": "mesto" } }),
+    ));
+    let added = common::send(
+        &state,
+        common::person(&viewer),
+        "PUT",
+        "/api/v1/preferences",
+        Some(connectors(&["inner1"])),
+    )
+    .await;
+    assert_eq!(added.status, StatusCode::OK, "{}", added.text);
+    assert!(added.text.contains("inner1"), "{}", added.text);
+
+    let stranger = fresh("stranger");
+    let refused = common::send(
+        &state,
+        common::person(&stranger),
+        "PUT",
+        "/api/v1/preferences",
+        Some(connectors(&["inner1"])),
+    )
+    .await;
+    assert_eq!(refused.status, StatusCode::BAD_REQUEST, "{}", refused.text);
+    assert!(refused.text.contains("inner1"), "{}", refused.text);
+}

@@ -506,6 +506,12 @@ describe("EntityGrid", () => {
       editAsText: "Upraviť ako text",
       filterRow: "Filtre",
       noFilter: "Všetky",
+      filterHintText: "Vyberte test a napíšte slová, napr. obsahuje Espoo.",
+      filterHintNumber: "Vyberte test a napíšte číslo, napr. väčšie ako 40.",
+      filterHintDate: "Vyberte test a zvoľte dátum, napr. po 2026-10-01.",
+      filterHintEnum: "Vyberte test; pri „ktorákoľvek z“ zvoľte jednu alebo viac povolených hodnôt:",
+      filterHintOther: "Vyberte test, napr. má hodnotu alebo prázdne.",
+      editAsTextHint: "Napíšte dopyt NGSI-LD sami, napr. pm10>40;name~=\"Espoo\".",
       sortPage: "Zoradiť túto stranu podľa",
       matching: "vyhovujúcich",
       columnMenu: "Možnosti stĺpca",
@@ -625,6 +631,17 @@ describe("EntityGrid", () => {
       render(<EntityGrid config={config} source={source} labels={{ noFilter: "Všetky" }} />);
       await waitFor(() => expect(screen.getByText("Kamppi")).toBeInTheDocument());
       expect((screen.getByLabelText("Filter: Bikes") as HTMLSelectElement).options[0].textContent).toBe("Všetky");
+    });
+
+    // T-4949, UI-16: each filter and the query switch say what to enter, with an example.
+    it("hints each filter by what its column holds, and the query switch", async () => {
+      const { source } = recordingSource(bikeEntities);
+      render(<EntityGrid config={config} source={source} />);
+      await waitFor(() => expect(screen.getByText("Kamppi")).toBeInTheDocument());
+      expect(screen.getByLabelText("Filter: Bikes")).toHaveAccessibleDescription(expect.stringContaining(DEFAULT_LABELS.filterHintNumber));
+      expect(screen.getByLabelText("Filter: Name")).toHaveAccessibleDescription(DEFAULT_LABELS.filterHintText);
+      expect(screen.getByLabelText(DEFAULT_LABELS.editAsText)).toHaveAccessibleDescription(DEFAULT_LABELS.editAsTextHint);
+      expect(screen.getByText(DEFAULT_LABELS.editAsTextHint)).toBeVisible();
     });
 
     it("asks nothing until the filter is complete, and starts again at the first page", async () => {

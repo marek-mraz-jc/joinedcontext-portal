@@ -560,7 +560,7 @@ impl DraftStore {
                     kind: kind.to_string(),
                     name: name.to_string(),
                 })?;
-                draft.verdict = Some(verdict);
+                draft.verdict = Some(verdict.keeping_records(draft.verdict.as_ref()));
                 draft.updated_at = Utc::now();
                 draft.clone()
             }
@@ -568,7 +568,13 @@ impl DraftStore {
                 let verdict_json =
                     serde_json::to_value(&verdict).map_err(|e| DraftError::Db(e.to_string()))?;
                 let row = sqlx::query(
-                    "UPDATE drafts SET verdict = $4, updated_at = now() \
+                    // A verdict without a record check keeps the one the draft held (T-4840),
+                    // as `Verdict::keeping_records` does in memory.
+                    "UPDATE drafts SET verdict = CASE \
+                       WHEN $4::jsonb ? 'records' OR verdict IS NULL OR NOT (verdict ? 'records') \
+                       THEN $4::jsonb \
+                       ELSE $4::jsonb || jsonb_build_object('records', verdict->'records') END, \
+                     updated_at = now() \
                      WHERE project = $1 AND kind = $2 AND name = $3 AND workspace = $5 \
                      RETURNING project, kind, name, workspace, manifest, verdict, touched_by, touched_kind, version, updated_at",
                 )

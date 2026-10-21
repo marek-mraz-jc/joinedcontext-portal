@@ -383,6 +383,31 @@ async fn a_check_is_recorded_for_whoever_may_propose_it_and_for_nobody_else() {
         ops::verdict_for_manifest(&state, PROJECT, &subject).await
     ));
 
+    // On a draft that exists, the developer's red check holds: a viewer's green one after it
+    // replaces nothing (T-4840).
+    ops::record_check(
+        &developer,
+        &state,
+        PROJECT,
+        &subject,
+        &Verdict::red(&subject, Vec::new(), None),
+    )
+    .await;
+    ops::record_check(
+        &viewer,
+        &state,
+        PROJECT,
+        &subject,
+        &Verdict::green(&subject, None),
+    )
+    .await;
+    let body = refusal_of(
+        ops::verdict_for_manifest(&state, PROJECT, &subject)
+            .await
+            .expect_err("a viewer's check replaced the developer's red one"),
+    );
+    assert_eq!(body["reason"], json!("verdict_failed"));
+
     // A manifest that names nothing records nothing, and nothing panics.
     for shapeless in [json!({}), json!({ "kind": "ContextSpace" }), Value::Null] {
         ops::record_check(

@@ -623,6 +623,8 @@ async fn every_role_meets_every_route_and_operation_exactly_as_the_table_says() 
             json!({ "manifest": manifest(family, "new-agent") }),
         )
         .await;
+        // A Pipeline's records are checked too (T-4840), as its workbench keeps them.
+        common::records_checked(&state, project, "new-agent").await;
         let propose = ops::find("jc_resource_propose").expect("registered");
         let answer = match ops::call(
             propose,
