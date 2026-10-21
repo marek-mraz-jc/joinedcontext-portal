@@ -58,6 +58,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "jsdom",
+    // Vitest forks one worker per core; five parallel full runs on the shared 16-core host drove load to 78
+    // (T-4979). Outside CI cap at 3, VITEST_MAX_WORKERS overrides; CI keeps vitest's default.
+    maxWorkers: Number(process.env.VITEST_MAX_WORKERS) || (process.env.CI ? undefined : 3),
     setupFiles: ["./tests/setup.ts"],
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx", "template/src/**/*.test.{ts,tsx}",
       "template-wasm/src/**/*.test.{ts,tsx}", "template/functions/**/*.test.ts", "samples/*/src/**/*.test.{ts,tsx}",
