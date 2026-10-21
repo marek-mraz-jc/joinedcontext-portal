@@ -61,6 +61,7 @@ const UploadCsv = lazy(() => import("./pages/spaces/UploadCsv").then((module) =>
 const AppPage = lazy(() => import("./pages/apps/AppPage").then((module) => ({ default: module.AppPage })));
 const AppOpenPage = lazy(() => import("./pages/apps/AppOpenPage").then((module) => ({ default: module.AppOpenPage })));
 const GroupPage = lazy(() => import("./pages/access/GroupPage").then((module) => ({ default: module.GroupPage })));
+const AgentPage = lazy(() => import("./pages/organization/Agents").then((module) => ({ default: module.AgentPage })));
 const PersonPage = lazy(() => import("./pages/organization/People").then((module) => ({ default: module.PersonPage })));
 const EndpointPage = lazy(() => import("./pages/endpoints/EndpointPage").then((module) => ({ default: module.EndpointPage })));
 const RegistrationPage = lazy(() => import("./routes/RegistrationPage").then((module) => ({ default: module.RegistrationPage })));
@@ -81,7 +82,6 @@ import { ORG_NAMESPACE } from "./api/manifest";
 import { isOrganizationTab, OrganizationPage } from "./pages/organization/OrganizationPage";
 import type { OrganizationTab } from "./pages/organization/OrganizationPage";
 import { AdminNav } from "./pages/organization/AdminNav";
-import { AgentPage } from "./pages/organization/Agents";
 import { isProjectSettingsTab } from "./pages/projectSettings/tabs";
 import type { ProjectSettingsTab } from "./pages/projectSettings/tabs";
 import type { AuthState } from "./auth/AuthProvider";
