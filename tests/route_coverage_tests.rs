@@ -70,6 +70,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/live-notify/{key}", "the gateway's delivery of the Portal's own live-update notifications: a broker calls it, nobody else (API/01 §32)"),
 ("GET", "/openapi.json", "the API document"),
 ("GET", "/organization/health", "the validation checks' published results, about the installation and not a project's data (OPS-53)"),
+("GET", "/organization/agents", "a summary for the Agents page, read from the manifests jc_resource_list already reaches and the caller's own run list; it writes nothing (T-4849, API/01 §48)"),
 ("GET", "/organization/brokers", "a summary for the Brokers page: each broker's health and the counts of the spaces jc_resource_get already reaches; it writes nothing (T-3990, API/01 §43)"),
 ("GET", "/projects/{project}/mqtt/allowance", "a sum for the MQTT page of the Organization and Project manifests and the MqttBrokers jc_resource_get already reaches; it writes nothing (T-4859, API/01 §47)"),
 ("GET", "/projects/{project}/mqttbrokers/{name}/measured", "what an MQTT broker measures, read from its own HTTP API for the brokers page; it writes nothing and an agent reads the broker with jc_resource_get (T-4043, API/01 §44)"),

@@ -95,7 +95,9 @@
     "HTTP endpoint",
     "1. Endpoint",
     "/min",
-    "MQTT"
+    "MQTT",
+    "Agent",
+    "MCP server"
   ],
   "cs": [
     "@context",
@@ -190,7 +192,9 @@
     "Čeština",
     "REST API (JSON)",
     "/min",
-    "MQTT"
+    "MQTT",
+    "Agent",
+    "MCP server"
   ],
   "de": [
     "@context",
