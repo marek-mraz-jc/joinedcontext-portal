@@ -247,7 +247,8 @@ async function keep(p: Page, name: string): Promise<void> {
 test.describe("an upload source (T-4869)", () => {
   test("says its state in words, names its file and page, and an answer cites the file", async ({ page: p }) => {
     await stubApi(p);
-    await p.route("**/api/v1/projects/helsinki/**", async (route) => {
+    // A RegExp, not a glob: the route gate reads a glob that opens with two stars and a slash as a comment end.
+    await p.route(/\/api\/v1\/projects\/helsinki\//, async (route) => {
       const url = new URL(route.request().url());
       const json = (body: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
       const base = "/api/v1/projects/helsinki/knowledge";
