@@ -45,7 +45,7 @@ const CSV = "name,totalSpotNumber,availableSpotNumber,lat,lon\nKamppi,500,120,60
 
 type Calls = { url: URL; body: unknown }[];
 
-function server(answers: { op?: () => Response; write?: () => Response } = {}): Calls {
+function server(answers: { op?: () => Response; write?: () => Response; catalogue?: () => Promise<Response> } = {}): Calls {
   const calls: Calls = [];
   vi.stubGlobal(
     "fetch",
@@ -55,7 +55,7 @@ function server(answers: { op?: () => Response; write?: () => Response } = {}): 
       calls.push({ url, body: typeof raw === "string" && raw ? JSON.parse(raw) : undefined });
       if (url.pathname.endsWith("/organizations")) return Response.json({ items: [{ kind: "Organization", metadata: { name: "hel" }, spec: { domain: "hel.fi" } }] });
       if (url.pathname.endsWith("/spaces")) return Response.json({ kind: "List", metadata: {}, items: [] });
-      if (url.pathname === "/api/v1/tools/sdm-catalog") return Response.json(CATALOGUE);
+      if (url.pathname === "/api/v1/tools/sdm-catalog") return answers.catalogue?.() ?? Response.json(CATALOGUE);
       if (url.pathname === "/api/v1/tools/import-sdm") return Response.json({ linkml: LINKML });
       if (url.pathname.endsWith("/ops/jc_space_complete")) {
         return answers.op?.() ?? Response.json({ space: "parking", found: [], drafts: [], proposeReady: true, lane: "yellow", change: null });
@@ -132,6 +132,24 @@ describe("Upload CSV", () => {
     expect(calls.some((c) => c.url.pathname === "/api/v1/tools/import-sdm")).toBe(false);
     const op = calls.find((c) => c.url.pathname.endsWith("/ops/jc_space_complete"))?.body as { files: unknown[] };
     expect(op.files).toHaveLength(1);
+  });
+
+  it("says it is reading the file while the catalogue answers, and names the draft a refusal blocks on (T-5109)", async () => {
+    let answer: (response: Response) => void = () => undefined;
+    const detail = "The Endpoint draft 'parking-all' has not passed its check; open it in Drafts, fix it, then propose again.";
+    server({
+      catalogue: () => new Promise<Response>((resolve) => (answer = resolve)),
+      op: () => Response.json({ error: "verdict_required", draft: { kind: "Endpoint", name: "parking-all" }, detail }, { status: 409 }),
+    });
+    const user = userEvent.setup();
+    page("parking");
+    await user.upload(screen.getByLabelText("Choose a CSV file"), new File([CSV], "garages.csv", { type: "text/csv" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Reading garages.csv");
+    answer(Response.json(CATALOGUE));
+    await screen.findByRole("radio", { name: /OffStreetParking/ });
+    expect(screen.queryByText(/Reading garages\.csv/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Propose the change" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(detail);
   });
 
   it("refuses an empty file before ranking anything", async () => {

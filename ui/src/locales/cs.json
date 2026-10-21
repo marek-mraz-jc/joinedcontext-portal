@@ -1137,6 +1137,7 @@
       "title": "Nahrát CSV",
       "lead": "Vyberte CSV do 50 MB. Porovná se s typy Smart Data Models; model, prostor, jeho Endpoint a vaše právo zapisovat řádky se navrhnou jako jedna změna a když je změna nasazená, řádky se zapíší přes bránu pod vaším jménem.",
       "choose": "Vybrat soubor CSV",
+      "reading": "Čtu {name} a porovnávám jeho sloupce s typy Smart Data Models…",
       "type": "Co řádky jsou",
       "noMatch": "Žádný typ Smart Data Models nepojmenovává dost těchto sloupců: soubor dostane vlastní model.",
       "match": "{name} ({score} % sloupců)",

@@ -1137,6 +1137,7 @@
       "title": "Upload a CSV",
       "lead": "Choose a CSV of up to 50 MB. It is matched against the Smart Data Models types, the model, the space, its Endpoint and your right to write the rows are proposed as one change, and once that change is live the rows are written through the gateway as you.",
       "choose": "Choose a CSV file",
+      "reading": "Reading {name} and matching its columns against the Smart Data Models types…",
       "type": "What the rows are",
       "noMatch": "No Smart Data Models type names enough of these columns: the file gets its own model.",
       "match": "{name} ({score} % of the columns)",

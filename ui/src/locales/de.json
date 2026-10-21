@@ -1137,6 +1137,7 @@
       "title": "CSV hochladen",
       "lead": "Wählen Sie eine CSV-Datei bis 50 MB. Sie wird mit den Smart-Data-Models-Typen abgeglichen; Modell, Space, sein Endpoint und Ihr Recht, die Zeilen zu schreiben, werden als eine Änderung vorgeschlagen, und sobald die Änderung live ist, werden die Zeilen in Ihrem Namen über das Gateway geschrieben.",
       "choose": "CSV-Datei wählen",
+      "reading": "{name} wird gelesen und seine Spalten mit den Smart-Data-Models-Typen abgeglichen…",
       "type": "Was die Zeilen sind",
       "noMatch": "Kein Smart-Data-Models-Typ benennt genug dieser Spalten: Die Datei bekommt ein eigenes Modell.",
       "match": "{name} ({score} % der Spalten)",
