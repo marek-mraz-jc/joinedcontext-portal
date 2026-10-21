@@ -16,7 +16,39 @@ import {
   tokensText,
   usdText,
 } from "./conversations";
-import type { ConversationFilter, Spread } from "./conversations";
+import type { ConversationFilter, Spread, UsageSummary as Usage } from "./conversations";
+
+const PHASES = ["route", "work", "answer"] as const;
+
+/** Whether a speed was measured: a figure of "–" over "median –, p90 –" says nothing (T-4994). */
+function measured(spread: Spread | undefined): boolean {
+  return spread?.p50 !== null && spread?.p50 !== undefined;
+}
+
+/** Whether any question of the range carries a price; without one, the cost figures are left out. */
+function priced(s: Usage): boolean {
+  return s.costUsd.total !== null && (s.costUsd.total > 0 || s.uncostedQuestions === 0);
+}
+
+/** Whether the provider reported any tokens for the range. */
+function counted(s: Usage): boolean {
+  return (s.tokens.in ?? 0) + (s.tokens.out ?? 0) > 0;
+}
+
+/** Whether the second row has a figure to show. */
+function timed(s: Usage): boolean {
+  return (
+    measured(s.firstTokenMs) || (s.answerCache?.hits ?? 0) > 0 || PHASES.some((phase) => measured(s.phases[phase]))
+  );
+}
+
+/** What the range lacks, said once above the figures instead of "unknown" in each of them. */
+function notRecorded(s: Usage): "both" | "cost" | "tokens" | null {
+  if (!priced(s) && !counted(s)) return "both";
+  if (!priced(s)) return "cost";
+  if (!counted(s)) return "tokens";
+  return null;
+}
 
 /** One figure of the summary: a label over its value, and a line under it. */
 function Figure({ label, value, note }: { label: string; value: string; note?: string }): JSX.Element {
@@ -109,32 +141,40 @@ export function UsageSummary({ project, filter }: { project: string; filter: Con
       {failed ? <Alert tone="danger">{failed}</Alert> : null}
       {usage.isError ? <Alert tone="danger">{reasonOf(usage.error, t("app.error.generic"))}</Alert> : null}
       {usage.isLoading ? <p role="status">{t("app.loading")}</p> : null}
-      {s ? (
+      {s && s.questions === 0 ? <p className="text-fg-muted">{t("conversations.usage.none")}</p> : null}
+      {s && s.questions > 0 ? (
         <>
+          {notRecorded(s) ? <p className="text-caption text-fg-muted">{t(`conversations.usage.notRecorded.${notRecorded(s)}`)}</p> : null}
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
             <Figure label={t("conversations.usage.questions")} value={String(s.questions)} />
-            <Figure
-              label={t("conversations.usage.cost")}
-              value={costText(s.costUsd.total, s.uncostedQuestions, unknown)}
-              note={
-                s.uncostedQuestions > 0
-                  ? t("conversations.usage.uncosted", { count: s.uncostedQuestions })
-                  : undefined
-              }
-            />
-            <Figure
-              label={t("conversations.usage.perQuestion")}
-              value={usdText(s.costUsd.mean)}
-              note={t("conversations.usage.costSpread", { p50: usdText(s.costUsd.p50), p90: usdText(s.costUsd.p90) })}
-            />
-            <Figure
-              label={t("conversations.usage.tokens")}
-              value={`${tokensText(s.tokens.in, locale)} / ${tokensText(s.tokens.out, locale)}`}
-              note={t("conversations.usage.cached", {
-                cached: tokensText(s.tokens.cached, locale),
-                share: shareText(s.tokens.cachedShare, locale),
-              })}
-            />
+            {priced(s) ? (
+              <Figure
+                label={t("conversations.usage.cost")}
+                value={costText(s.costUsd.total, s.uncostedQuestions, unknown)}
+                note={
+                  s.uncostedQuestions > 0
+                    ? t("conversations.usage.uncosted", { count: s.uncostedQuestions })
+                    : undefined
+                }
+              />
+            ) : null}
+            {priced(s) ? (
+              <Figure
+                label={t("conversations.usage.perQuestion")}
+                value={usdText(s.costUsd.mean)}
+                note={t("conversations.usage.costSpread", { p50: usdText(s.costUsd.p50), p90: usdText(s.costUsd.p90) })}
+              />
+            ) : null}
+            {counted(s) ? (
+              <Figure
+                label={t("conversations.usage.tokens")}
+                value={`${tokensText(s.tokens.in, locale)} / ${tokensText(s.tokens.out, locale)}`}
+                note={t("conversations.usage.cached", {
+                  cached: tokensText(s.tokens.cached, locale),
+                  share: shareText(s.tokens.cachedShare, locale),
+                })}
+              />
+            ) : null}
             <Figure label={t("conversations.usage.total")} value={msText(s.totalMs.p50)} note={spread(s.totalMs)} />
             <Figure
               label={t("conversations.usage.failures")}
@@ -145,24 +185,33 @@ export function UsageSummary({ project, filter }: { project: string; filter: Con
               })}
             />
           </dl>
-          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <Figure label={t("conversations.usage.firstToken")} value={msText(s.firstTokenMs.p50)} note={spread(s.firstTokenMs)} />
-            {s.answerCache ? (
-              <Figure
-                label={t("conversations.usage.answerCache")}
-                value={shareText(s.answerCache.hitShare, locale)}
-                note={t("conversations.usage.answerCacheNote", {
-                  hits: s.answerCache.hits,
-                  ms: msText(s.answerCache.savedMs),
-                  usd: usdText(s.answerCache.savedUsd),
-                })}
-              />
-            ) : null}
-            <Figure label={t("conversations.usage.phase.route")} value={msText(s.phases.route.p50)} note={spread(s.phases.route)} />
-            <Figure label={t("conversations.usage.phase.work")} value={msText(s.phases.work.p50)} note={spread(s.phases.work)} />
-            <Figure label={t("conversations.usage.phase.answer")} value={msText(s.phases.answer.p50)} note={spread(s.phases.answer)} />
-          </dl>
-          {s.costByStage.length > 0 ? (
+          {timed(s) ? (
+            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              {measured(s.firstTokenMs) ? (
+                <Figure label={t("conversations.usage.firstToken")} value={msText(s.firstTokenMs.p50)} note={spread(s.firstTokenMs)} />
+              ) : null}
+              {s.answerCache && s.answerCache.hits > 0 ? (
+                <Figure
+                  label={t("conversations.usage.answerCache")}
+                  value={shareText(s.answerCache.hitShare, locale)}
+                  note={t("conversations.usage.answerCacheNote", {
+                    hits: s.answerCache.hits,
+                    ms: msText(s.answerCache.savedMs),
+                    usd: usdText(s.answerCache.savedUsd),
+                  })}
+                />
+              ) : null}
+              {PHASES.filter((phase) => measured(s.phases[phase])).map((phase) => (
+                <Figure
+                  key={phase}
+                  label={t(`conversations.usage.phase.${phase}`)}
+                  value={msText(s.phases[phase].p50)}
+                  note={spread(s.phases[phase])}
+                />
+              ))}
+            </dl>
+          ) : null}
+          {priced(s) && s.costByStage.length > 0 ? (
             <div>
               <h3 className="text-caption font-semibold">{t("conversations.usage.byStage")}</h3>
               <ul className="flex flex-wrap gap-x-4 gap-y-1 text-caption">

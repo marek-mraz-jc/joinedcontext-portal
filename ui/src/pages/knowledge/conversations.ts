@@ -25,6 +25,8 @@ export interface ConversationRow {
   /** The first turn's time to its first token; null when none came. */
   firstTokenMs?: number | null;
   models?: string[];
+  /** What the newest failed turn told the visitor; null when every turn answered (T-4994). */
+  lastError?: string | null;
 }
 
 export interface ConversationStep {

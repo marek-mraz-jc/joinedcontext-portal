@@ -184,16 +184,24 @@ export async function trySearch(project: string, source: string, q: string): Pro
   return Array.isArray(hits) ? (hits as SearchHit[]) : [];
 }
 
-/** A source's languages, the largest share first: `sk 92 %, en 8 %`. */
-export function languagesText(languages: Record<string, number> | undefined, language: string): string {
+/** A source's languages, the largest share first: `sk 92 %`, `en 8 %`. */
+function languageShares(languages: Record<string, number> | undefined, language: string): string[] {
   const entries = Object.entries(languages ?? {}).filter(([, n]) => n > 0);
   const total = entries.reduce((sum, [, n]) => sum + n, 0);
-  if (total === 0) return "—";
+  if (total === 0) return [];
   const percent = new Intl.NumberFormat(language, { style: "percent", maximumFractionDigits: 0 });
   return entries
     .sort(([a, x], [b, y]) => y - x || a.localeCompare(b))
-    .map(([code, n]) => `${code} ${percent.format(n / total)}`)
-    .join(", ");
+    .map(([code, n]) => `${code} ${percent.format(n / total)}`);
+}
+
+/** The three largest languages and how many more there are, for a table cell (T-4994). */
+export function topLanguages(
+  languages: Record<string, number> | undefined,
+  language: string,
+): { top: string; more: number; all: string } {
+  const shares = languageShares(languages, language);
+  return { top: shares.slice(0, 3).join(", ") || "—", more: Math.max(0, shares.length - 3), all: shares.join(", ") };
 }
 
 export async function listDocuments(project: string, source: string): Promise<DocumentRow[]> {
