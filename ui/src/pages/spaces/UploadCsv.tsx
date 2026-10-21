@@ -18,7 +18,7 @@ import { usePermissions } from "../../api/permissions";
 import { Alert, Button, Card, Field, FilePicker, Input, PageHeader, RadioGroup } from "../../components/ui";
 import { CITY_SUBJECTS, SAMPLE_BYTES, modelsOf, rankModels, sampleOf, uploadInput } from "./csvUpload";
 import type { SdmMatch } from "./csvUpload";
-import { createInBatches, importSlotsOf, readTable, rejectedCsv, suggestMapping, toEntities } from "./importRows";
+import { createInBatches, importSlotsOf, readTable, rejectedCsv, suggestMapping, toEntities, unreadableText } from "./importRows";
 import type { Rejected, Table } from "./importRows";
 
 /** How many entities the preview shows as NGSI-LD before they are written. */
@@ -72,7 +72,7 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
       setRead({ table, name: file.name, sample, matches });
       setChoice(matches[0]?.model.id ?? "");
     } catch (error) {
-      setProblem(t("spaces.import.unreadable", { reason: reason(error) }));
+      setProblem(unreadableText(t, error));
     }
   };
 
