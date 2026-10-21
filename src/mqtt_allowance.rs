@@ -122,7 +122,7 @@ pub fn quota_rows(mirror: &Mirror, project: &str) -> (Vec<(&'static str, u32, u3
 /// Refuses a change of a Project's `spec.quotas.mqtt` by anybody but an org admin, since the
 /// allowance is the organization's to give whatever the caller's verbs on `Project` (PF-117),
 /// and a number outside the operator's bound (PF-97).
-pub fn check_project(
+fn check_project(
     state: &crate::state::AppState,
     identity: &crate::auth::session::Identity,
     project_name: &str,

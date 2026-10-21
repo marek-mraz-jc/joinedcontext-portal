@@ -81,7 +81,7 @@ fn words<T: Serialize>(items: &[T]) -> Vec<String> {
 }
 
 /// The allowance of `project` as the route answers it.
-pub fn allowance(mirror: &crate::store::Mirror, project: &str) -> Allowance {
+fn allowance(mirror: &crate::store::Mirror, project: &str) -> Allowance {
     let (allowance, origin) = crate::mqtt_allowance::effective(mirror, project);
     let brokers = crate::mqtt_allowance::brokers(mirror, project);
     let used = crate::mqtt_allowance::usage(&brokers, None);
