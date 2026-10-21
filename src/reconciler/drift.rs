@@ -165,7 +165,7 @@ impl Watch {
                 response.status()
             ));
         }
-        response.json().await.map_err(|e| e.to_string())
+        crate::capped::json(response, crate::capped::ANSWER_BYTES).await
     }
 
     /// The entities of `entity_type` in the space whose `q` holds, at most 1000 (API/01 §46,
@@ -224,7 +224,7 @@ impl Watch {
         if !response.status().is_success() {
             return Err(format!("the space answered {}", response.status()));
         }
-        response.json().await.map_err(|e| e.to_string())
+        crate::capped::json(response, crate::capped::ANSWER_BYTES).await
     }
 
     /// The entity the space holds under this id, or `None` when it holds none.
@@ -244,7 +244,9 @@ impl Watch {
         if !response.status().is_success() {
             return Err(format!("{space} answered {}", response.status()));
         }
-        response.json().await.map(Some).map_err(|e| e.to_string())
+        crate::capped::json(response, crate::capped::ANSWER_BYTES)
+            .await
+            .map(Some)
     }
 
     /// Writes the declared entity back into the space it belongs to (UI-26, revert).

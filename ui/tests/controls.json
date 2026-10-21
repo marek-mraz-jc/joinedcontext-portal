@@ -1600,7 +1600,8 @@
         "pipeline_flow_steps.test.tsx",
         "pipeline_kpi_preset.test.tsx",
         "pipeline_studio_debug.test.tsx",
-        "pipeline_studio_functions.test.ts"
+        "pipeline_studio_functions.test.ts",
+        "pipeline_workbench.test.tsx"
       ]
     },
     "src/pages/pipelines/PipelineTemplates.tsx": {
