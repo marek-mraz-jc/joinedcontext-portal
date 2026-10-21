@@ -2598,6 +2598,61 @@
       "rejectedUnavailable": "Die abgelehnten Datensätze konnten nicht gelesen werden.",
       "noRejected": "Das Modell hat keinen Datensatz dieser Pipeline abgelehnt.",
       "credentials": "Zugangsdaten"
+    },
+    "access": {
+      "section": "Zugriff auf andere Räume",
+      "lead": "Bitten Sie den Eigentümer eines anderen Raums um Lese- oder Schreibzugriff für diese Pipeline. Bis zur Genehmigung wird nichts gewährt.",
+      "none": "Diese Pipeline hat keinen Zugriff auf einen anderen Raum angefragt.",
+      "request": "Zugriff anfragen",
+      "project": "Besitzendes Projekt",
+      "projectHelp": "Das Projekt, dem der Raum gehört, wie seine Katalogseite es nennt.",
+      "endpoint": "Endpunkt",
+      "operationsLegend": "Was die Pipeline dort tut",
+      "operations": {
+        "read": "Lesen",
+        "write": "Schreiben"
+      },
+      "types": "Typen und Attribute",
+      "typesHelp": "Nennen Sie jeden Entitätstyp und jedes Attribut, das die Pipeline braucht, durch Kommas getrennt. Eine Anfrage fragt nie nach allen.",
+      "type": "Entitätstyp",
+      "attrs": "Attribute",
+      "addType": "Typ hinzufügen",
+      "removeType": "Entfernen",
+      "removeTypeOf": "Typ {n} entfernen",
+      "tooManyTypes": "Eine Anfrage nennt höchstens 20 Typen.",
+      "untilLabel": "Enddatum",
+      "untilHelp": "Der Zugriff endet am Ende dieses Tages. Leer bedeutet ohne Ende.",
+      "reason": "Warum die Pipeline ihn braucht",
+      "send": "Anfrage senden",
+      "cancel": "Abbrechen",
+      "sent": "Anfrage gesendet. Die Eigentümer des Raums entscheiden; ihr Stand erscheint hier.",
+      "missing": {
+        "endpoint": "Nennen Sie das besitzende Projekt und den Endpunkt.",
+        "types": "Nennen Sie mindestens einen Typ, jeden mit seinen Attributen.",
+        "reason": "Schreiben Sie, warum die Pipeline ihn braucht."
+      },
+      "state": {
+        "pending": "Wartet auf den Eigentümer",
+        "approved": "Genehmigt",
+        "declined": "Abgelehnt",
+        "revoked": "Entzogen",
+        "ended": "Beendet"
+      },
+      "until": "Bis {date}",
+      "noEnd": "Kein Enddatum",
+      "decided": "{who}: {reason}",
+      "inbox": "Pipelines, die Zugriff anfragen",
+      "inboxLead": "Pipelines anderer Räume und Projekte, die diesen Raum lesen oder beschreiben wollen. Eine Genehmigung schlägt den Zugriff als Änderung dieses Projekts vor.",
+      "inboxEmpty": "Keine Pipeline hat Zugriff auf diesen Raum angefragt.",
+      "on": "auf {endpoint}, angefragt von {who}",
+      "decisionReason": "Begründung für den Anfragenden",
+      "approve": "Genehmigen",
+      "approveOf": "Zugriff für {account} genehmigen",
+      "decline": "Ablehnen",
+      "declineOf": "Zugriff für {account} ablehnen",
+      "revoke": "Entziehen",
+      "revokeOf": "Zugriff von {account} entziehen",
+      "reasonFirst": "Schreiben Sie zuerst die Begründung."
     }
   },
   "dashboards": {

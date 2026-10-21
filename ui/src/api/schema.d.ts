@@ -1043,6 +1043,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/access-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Access Requests Into A Project
+         * @description The requests into the spaces of this project the caller owns, incoming (PL-91).
+         */
+        get: operations["list_incoming"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/access-requests/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve An Access Request
+         * @description Proposes the grant as a Change of this project, authored by the caller: the Endpoint admitting the pipeline's project and one Policy for its account (PL-91). The requester may not approve their own request.
+         */
+        post: operations["approve_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/access-requests/{id}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decline An Access Request
+         * @description Declines a pending request with a reason the requester reads (PL-91). Nothing is proposed.
+         */
+        post: operations["decline_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/access-requests/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke An Approved Access Request
+         * @description Proposes the grant's Policy ended now, and the Endpoint without the pipeline's project when nothing else names it (PL-93).
+         */
+        post: operations["revoke_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/access/explore": {
         parameters: {
             query?: never;
@@ -2643,6 +2723,30 @@ export interface paths {
          * @description Tests candidate pipeline mapping and validation on runner without writing.
          */
         post: operations["test_pipeline"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/pipelines/{name}/access-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List A Pipeline's Access Requests
+         * @description The pipeline's requests and their state, outgoing (PL-90): names and the grant asked for, never the space's data.
+         */
+        get: operations["list_outgoing"];
+        put?: never;
+        /**
+         * Request Access For A Pipeline
+         * @description Asks an owner of another space's Endpoint for the pipeline's read or write there (PL-90). Grants nothing until an owner approves it.
+         */
+        post: operations["file_request"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4910,6 +5014,10 @@ export interface components {
             /** Format: int64 */
             version: number;
         };
+        /** @description Why an owner declines or revokes. */
+        Decision: {
+            reason: string;
+        };
         /** @description What `scripts/publish-health.py` writes for one check. */
         Digest: {
             /** Format: date-time */
@@ -5064,6 +5172,11 @@ export interface components {
          * @enum {string}
          */
         EndpointAccess: "read" | "readWrite";
+        /** @description The Endpoint a request names. */
+        EndpointName: {
+            name: string;
+            project: string;
+        };
         /** @description What a public Endpoint's page shows under "Standards". */
         EndpointStandards: {
             /** @description The type of the entity the examples were built from; absent when none was read. */
@@ -5586,6 +5699,15 @@ export interface components {
             scope: string;
             target: string;
         };
+        /** @description The body a requester sends. */
+        NewRequest: {
+            endpoint: components["schemas"]["EndpointName"];
+            operations: components["schemas"]["Operations"];
+            reason: string;
+            types: components["schemas"]["TypeGrant"][];
+            /** @description The grant's end, RFC 3339; none is no end. */
+            until?: string | null;
+        };
         /** @description One object in the graph. */
         Node: {
             /** @description `ok`, `degraded` or `unknown` (UI-27). */
@@ -5746,6 +5868,11 @@ export interface components {
             outputSchema: Record<string, never>;
             title: string;
         };
+        /**
+         * @description What the pipeline asks to do through the Endpoint.
+         * @enum {string}
+         */
+        Operations: "read" | "write";
         OrganizationLimits: {
             entries: components["schemas"]["LimitEntry"][];
             projects: components["schemas"]["ProjectQuota"][];
@@ -6980,6 +7107,11 @@ export interface components {
             id: number;
             type: string;
             urn: string;
+        };
+        /** @description One entity type and the attributes asked for on it, each written out. */
+        TypeGrant: {
+            attrs: string[];
+            type: string;
         };
         /** @description What one run found of one entity type. */
         TypeQuality: {
@@ -9873,6 +10005,239 @@ export interface operations {
             };
             /** @description No git forge configured */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_incoming: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The owning project */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The requests, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description No such project */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No database */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    approve_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The owning project */
+                project: string;
+                /** @description The request */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Change that grants it */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Change"];
+                };
+            };
+            /** @description Not an owner of the space, or the requester themself */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such request */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Already decided, or the endpoint is gone */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    decline_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The owning project */
+                project: string;
+                /** @description The request */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "reason": "The KPI project ended"
+                 *     }
+                 */
+                "application/json": components["schemas"]["Decision"];
+            };
+        };
+        responses: {
+            /** @description The request, declined */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description No reason */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an owner of the space */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such request */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Already decided */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    revoke_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The owning project */
+                project: string;
+                /** @description The request */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "reason": "The KPI project ended"
+                 *     }
+                 */
+                "application/json": components["schemas"]["Decision"];
+            };
+        };
+        responses: {
+            /** @description The Change that revokes it */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Change"];
+                };
+            };
+            /** @description No reason */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an owner of the space */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such request */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not approved */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -15783,6 +16148,143 @@ export interface operations {
                 };
             };
             /** @description No pipeline runner is configured, or it did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_outgoing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The pipeline's project */
+                project: string;
+                /** @description The pipeline */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The requests, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description No such pipeline */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No database */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    file_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The pipeline's project */
+                project: string;
+                /** @description The pipeline */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "endpoint": {
+                 *         "name": "air-quality",
+                 *         "project": "helsinki"
+                 *       },
+                 *       "operations": "read",
+                 *       "reason": "Daily air-quality KPI for the city board",
+                 *       "types": [
+                 *         {
+                 *           "attrs": [
+                 *             "pm10",
+                 *             "no2"
+                 *           ],
+                 *           "type": "AirQualityObserved"
+                 *         }
+                 *       ],
+                 *       "until": "2027-01-01T00:00:00Z"
+                 *     }
+                 */
+                "application/json": components["schemas"]["NewRequest"];
+            };
+        };
+        responses: {
+            /** @description The request, pending */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description The request names too much, too little or a bad name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not propose this pipeline */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such pipeline or endpoint */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Already granted, already asked, or the deployment's streams share one account */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No database */
             503: {
                 headers: {
                     [name: string]: unknown;

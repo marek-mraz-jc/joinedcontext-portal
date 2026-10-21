@@ -1496,6 +1496,15 @@
         "people_page.test.tsx"
       ]
     },
+    "src/pages/pipelines/AccessRequests.tsx": {
+      "controls": {
+        "Button": 8,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "access_requests.test.tsx"
+      ]
+    },
     "src/pages/pipelines/DebugPanel.tsx": {
       "controls": {
         "Button": 2

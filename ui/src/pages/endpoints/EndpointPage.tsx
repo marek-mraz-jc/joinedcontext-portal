@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Playground } from "./Playground";
 import { ShareFlow } from "./ShareFlow";
+import { AccessRequestInbox } from "../pipelines/AccessRequests";
 import { EndpointDocs } from "./EndpointDocs";
 import { ConnectAssistant } from "../../components/endpoints/ConnectAssistant";
 import { QueryCard } from "../../components/endpoints/QueryCard";
@@ -558,6 +559,13 @@ export function EndpointPage({
           policies={asManifests(policies.data?.items ?? [])}
         />
       </Section>
+
+      {/* Pipelines of other spaces asking for this one, for its owners (PL-91, T-4863). */}
+      <PermissionGuard project={project} kind="ContextSpace" verb="approve">
+        <Section title={t("pipelines.access.inbox")} lead={t("pipelines.access.inboxLead")}>
+          <AccessRequestInbox project={project} space={space ?? ""} />
+        </Section>
+      </PermissionGuard>
 
       <Section title={t("endpoints.page.traffic")}>
         <Facts>
