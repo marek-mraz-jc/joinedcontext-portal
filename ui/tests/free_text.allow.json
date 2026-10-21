@@ -300,6 +300,10 @@
       "class": "FREE",
       "reason": "the address of an outside NGSI-LD Endpoint"
     },
+    "src/pages/spaces/SpacePersonalData.tsx :: Person's identifier": {
+      "class": "FREE",
+      "reason": "a data subject's value as the space stores it (DM-124); the Portal lists no persons, so no picker may offer them, and the server checks the owner's right and the value (erasure::subject_refusal)"
+    },
     "src/pages/spaces/UploadCsv.tsx :: Type name": {
       "class": "FREE",
       "reason": "the name of a new type the upload creates; an existing type is the picker above it"
