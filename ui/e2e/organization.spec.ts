@@ -120,8 +120,9 @@ for (const width of [1440, 400]) {
     for (const role of await page.getByLabel("Role", { exact: true }).all()) {
       await expect(role).toHaveAccessibleDescription(/e\.g\. /);
     }
-    // The flow still works: a member typed and added is one proposal.
+    // The flow still works: a member picked by a full e-mail and added is one proposal (T-4947).
     await email.fill("petra@hel.fi");
+    await page.getByRole("option", { name: "Use petra@hel.fi (not signed in yet)" }).click();
     await page.getByRole("button", { name: "Add member" }).click();
     await expect.poll(() => writes.length).toBe(1);
     const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
