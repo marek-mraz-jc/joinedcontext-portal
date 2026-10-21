@@ -540,7 +540,10 @@ async fn a_streaming_source_is_listened_to_and_each_message_is_one_record() {
     assert!(
         mqtt["client_id"]
             .as_str()
-            .is_some_and(|id| id.contains("workbench_sample")),
+            .is_some_and(|id| id.starts_with("jc-listen-workbench_sample_")
+                && harness["output"]["http_client"]["url"]
+                    .as_str()
+                    .is_some_and(|url| id.contains(url.rsplit('/').next().unwrap_or("?")))),
         "{mqtt}"
     );
     // The credential is the runner's own variable, never a value and never a secretRef name.

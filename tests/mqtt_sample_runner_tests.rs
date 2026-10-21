@@ -103,6 +103,15 @@ async fn create(client: &reqwest::Client, runner: &str, name: &str, config: &Val
     );
 }
 
+async fn remove(client: &reqwest::Client, runner: &str, names: impl Iterator<Item = &String>) {
+    for name in names {
+        let _ = client
+            .delete(format!("{runner}/streams/{name}"))
+            .send()
+            .await;
+    }
+}
+
 /// Listens to `topic` of the broker at `url` as a saved source would for five seconds, while
 /// `publish` (Bloblang mappings, one message each) is published there; the envelopes posted.
 async fn listen(
@@ -123,9 +132,13 @@ async fn listen(
     }
     let source: DataSourceSpec =
         serde_json::from_value(json!({ "type": "mqtt", "mqtt": mqtt })).expect("a source");
+    // The client id carries the project and the capture path's last segment, the Portal's test id;
+    // this mock's path is one for all, so the project keeps the reads of tests running at once
+    // apart: a broker drops one of two sessions that share an id, with the messages it was sent.
+    let project = unique("project");
     let mut config = joinedcontext_portal::api::datasource_test::stream_sample(
         "hsl-hfp",
-        "helsinki",
+        &project,
         &source,
         &capture_url,
     )
@@ -134,11 +147,33 @@ async fn listen(
     let listener = unique("listen");
     create(&client, &env.runner, &listener, &config).await;
     // Subscribed before anything is published: a clean session gets no message sent before it.
-    tokio::time::sleep(Duration::from_millis(1500)).await;
+    // Where one is expected, a probe is published until it arrives; a busy runner took over 1.5 s.
     let mut publishers = Vec::new();
+    if login.is_none() && !publish.is_empty() {
+        let ready = Instant::now() + Duration::from_secs(20);
+        while seen.lock().expect("envelopes").is_empty() && Instant::now() < ready {
+            let name = unique("probe");
+            let probe = json!({
+                "input": { "generate": { "count": 1, "interval": "", "mapping": "root = \"probe\"" } },
+                "output": { "mqtt": { "urls": [url], "topic": topic, "client_id": name, "qos": 1 } },
+            });
+            create(&client, &env.runner, &name, &probe).await;
+            publishers.push(name);
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+        let subscribed = !seen.lock().expect("envelopes").is_empty();
+        if !subscribed {
+            remove(&client, &env.runner, publishers.iter().chain([&listener])).await;
+            panic!("the sample stream never subscribed");
+        }
+        seen.lock().expect("envelopes").clear();
+    } else {
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+    }
     for mapping in publish {
         let name = unique("publish");
-        let mut output = json!({ "urls": [url], "topic": topic, "client_id": name });
+        let mut output = json!({ "urls": [url], "topic": topic, "client_id": name, "qos": 1 });
+        // QoS 1: a stream that ends after its one message still waits for the broker's ack.
         if login.is_some() {
             // The publisher logs in properly; only the listening source's login is wrong.
             output["user"] = json!("jc-sample");
@@ -151,16 +186,22 @@ async fn listen(
         create(&client, &env.runner, &name, &publisher).await;
         publishers.push(name);
     }
-    let deadline = Instant::now() + Duration::from_secs(5);
-    while Instant::now() < deadline && seen.lock().expect("envelopes").len() < publish.len() {
+    // Nothing published: the Portal's five seconds. Something published: until it all arrived,
+    // within a bound that a runner busy creating streams stays inside.
+    let wait = if publish.is_empty() || login.is_some() {
+        5
+    } else {
+        20
+    };
+    let deadline = Instant::now() + Duration::from_secs(wait);
+    while Instant::now() < deadline
+        && (publish.is_empty()
+            || login.is_some()
+            || seen.lock().expect("envelopes").len() < publish.len())
+    {
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
-    for name in publishers.iter().chain([&listener]) {
-        let _ = client
-            .delete(format!("{}/streams/{name}", env.runner))
-            .send()
-            .await;
-    }
+    remove(&client, &env.runner, publishers.iter().chain([&listener])).await;
     let seen = seen.lock().expect("envelopes").clone();
     seen
 }

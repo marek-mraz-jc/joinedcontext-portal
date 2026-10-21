@@ -49,8 +49,9 @@ pub(crate) fn connection_test(
     reading(name, project, "connection-test", source, capture, envelope)
 }
 
-/// The client name of a workbench sample's read: a Pipeline name is DNS-1123, so no live
-/// pipeline of the source shares the MQTT client id the read connects with.
+/// The client name of a workbench sample's read, before the test's own id: a Pipeline name is
+/// DNS-1123, so no live pipeline of the source shares the MQTT client id the read connects with,
+/// and the id keeps two reads apart, since a broker drops one of two sessions of one client id.
 const SAMPLE_READER: &str = "workbench_sample";
 
 /// The runner configuration that reads a streaming `source` for the workbench's sample step
@@ -75,7 +76,9 @@ pub fn stream_sample(
         max = RECORD_BYTES,
         fetch = FETCH_FAILED
     );
-    reading(name, project, SAMPLE_READER, source, capture, envelope)
+    let run = capture.rsplit('/').next().unwrap_or_default();
+    let reader = format!("{SAMPLE_READER}_{run}");
+    reading(name, project, &reader, source, capture, envelope)
 }
 
 /// `source`'s input read beside the live pipelines as `reader`, each record posted to `capture`
