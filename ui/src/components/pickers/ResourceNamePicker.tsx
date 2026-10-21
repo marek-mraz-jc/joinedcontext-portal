@@ -29,6 +29,8 @@ export interface ResourceNamePickerProps {
   /** What a surrounding `Field` hands its control: its hint and error ids. */
   "aria-describedby"?: string;
   placeholder?: string;
+  /** What an empty list says: where the missing thing is made. */
+  empty?: string;
 }
 
 /**
@@ -49,6 +51,7 @@ export function ResourceNamePicker({
   describedBy,
   placeholder,
   "aria-describedby": fieldDescribedBy,
+  empty,
 }: ResourceNamePickerProps): JSX.Element {
   const { t, i18n } = useTranslation();
   const lists = from === "projects" ? [] : Array.isArray(from) ? from : [from];
@@ -111,7 +114,7 @@ export function ResourceNamePicker({
       placeholder={placeholder}
       loading={loading}
       failed={failure ? { reason: reasonOf(failure.error), retry: () => void failure.refetch() } : undefined}
-      empty={t("form.noResults")}
+      empty={empty ?? t("form.noResults")}
       onChange={(values) => {
         onChange(values[0] ?? "");
       }}

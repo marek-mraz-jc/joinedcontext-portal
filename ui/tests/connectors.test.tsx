@@ -63,7 +63,7 @@ describe("connector helpers", () => {
   it("round-trips a connector through the form, dropping empty fields", () => {
     const connector: Connector = { name: "air", select: { projects: ["mesto", "kraj"], themes: ["ENVI"], endpoints: ["air1"] } };
     expect(fromForm(toForm(connector))).toEqual(connector);
-    expect(fromForm({ ...toForm(), name: " x ", themes: "envi, envi" })).toEqual({ name: "x", select: { themes: ["ENVI"] } });
+    expect(fromForm({ ...toForm(), name: " x ", themes: ["ENVI"] })).toEqual({ name: "x", select: { themes: ["ENVI"] } });
     expect(connectorUrl("dev.example", "air")).toBe("https://api.dev.example/api/mcp/me/air");
   });
 });
@@ -71,6 +71,8 @@ describe("connector helpers", () => {
 interface Stub {
   stored?: Record<string, unknown>;
   refuse?: string;
+  /** The connector field the refusal names (`errors`). */
+  refuseField?: string;
 }
 
 function renderAt(path: string, stub: Stub = {}, page?: JSX.Element) {
@@ -90,12 +92,17 @@ function renderAt(path: string, stub: Stub = {}, page?: JSX.Element) {
         if (request.method === "PUT") {
           const body = (await request.json()) as Record<string, unknown>;
           writes.push(body);
-          if (stub.refuse) return json({ title: "Bad Request", status: 400, detail: stub.refuse }, 400);
+          if (stub.refuse) {
+            return json({ title: "Bad Request", status: 400, detail: stub.refuse, ...(stub.refuseField ? { errors: [stub.refuseField] } : {}) }, 400);
+          }
           stored = body;
         }
         return json(stored);
       }
-      if (url.pathname === "/api/v1/projects") return json(list([{ name: "mesto" }]));
+      if (url.pathname === "/api/v1/projects") return json(list([{ name: "mesto" }, { name: "kraj" }]));
+      if (url.pathname === "/api/v1/projects/mesto/contextspaces") {
+        return json(list([{ apiVersion: "joinedcontext.com/v1alpha1", kind: "ContextSpace", metadata: { name: "ovzdusie", namespace: "mesto", title: { en: "Air" } }, spec: {} }]));
+      }
       if (url.pathname === "/api/v1/projects/mesto/endpoints") return json(list([endpoint("mesto", "air", "air1", "public"), endpoint("mesto", "bins", "bins1", "organization", "waste")]));
       if (url.pathname === "/api/v1/projects/mesto/endpoints/air") return json(endpoint("mesto", "air", "air1", "public"));
       if (url.pathname === "/api/v1/projects/org/mcpservers") {
@@ -144,7 +151,9 @@ describe("the connectors page (T-4531)", () => {
     await userEvent.click((await screen.findAllByRole("button", { name: "New connector" }))[0]);
     const dialog = await screen.findByRole("dialog", { name: "New connector" });
     await userEvent.type(within(dialog).getByLabelText(/^Name/), "waste");
-    await userEvent.type(within(dialog).getByLabelText(/^Projects/), "mesto");
+    // Projects are picked from the list the server gives this person, not typed (T-4948).
+    await userEvent.type(within(dialog).getByLabelText(/^Projects/), "mes");
+    await userEvent.click(await screen.findByRole("option", { name: /mesto/ }));
     await userEvent.click(within(dialog).getByRole("checkbox", { name: "Whole organization" }));
     await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -160,6 +169,39 @@ describe("the connectors page (T-4531)", () => {
     await userEvent.type(within(dialog).getByLabelText(/^Name/), "x");
     await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(await within(dialog).findByText("endpoint 'inner1' is not one you may read")).toBeInTheDocument();
+  });
+
+  it("offers only the projects and spaces the server lists, narrows spaces to the picked projects, and saves the picks (T-4948)", async () => {
+    const { writes } = renderAt("/connectors", { stored: {} });
+    await userEvent.click((await screen.findAllByRole("button", { name: "New connector" }))[0]);
+    const dialog = await screen.findByRole("dialog", { name: "New connector" });
+    await userEvent.type(within(dialog).getByLabelText(/^Name/), "air");
+    await userEvent.click(within(dialog).getByLabelText(/^Projects/));
+    expect(await screen.findAllByRole("option")).toHaveLength(2);
+    expect(screen.getByRole("option", { name: /kraj/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("option", { name: /mesto/ }));
+    await userEvent.click(within(dialog).getByLabelText(/^Context spaces/));
+    await userEvent.click(await screen.findByRole("option", { name: /Air/ }));
+    await userEvent.type(within(dialog).getByLabelText(/^Themes/), "transp");
+    await userEvent.click(await screen.findByRole("option", { name: /Transport/ }));
+    await userEvent.type(within(dialog).getByLabelText(/^Domains/), "zzz");
+    expect(await screen.findByText("Nothing matches what you typed.")).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(writes).toEqual([{ connectors: [{ name: "air", select: { projects: ["mesto"], spaces: ["mesto/ovzdusie"], themes: ["TRAN"] } }] }]);
+  });
+
+  it("shows the server's refusal of a picked value beside the field it names (T-4948)", async () => {
+    renderAt("/connectors", { refuse: "projects 'kraj' is not one you may read", refuseField: "projects" });
+    await userEvent.click((await screen.findAllByRole("button", { name: "New connector" }))[0]);
+    const dialog = await screen.findByRole("dialog", { name: "New connector" });
+    await userEvent.type(within(dialog).getByLabelText(/^Name/), "x");
+    await userEvent.click(within(dialog).getByLabelText(/^Projects/));
+    await userEvent.click(await screen.findByRole("option", { name: /kraj/ }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    const field = within(dialog).getByLabelText(/^Projects/);
+    await waitFor(() => expect(field).toHaveAccessibleDescription(/projects 'kraj' is not one you may read/));
+    expect(within(dialog).getAllByText(/projects 'kraj' is not one you may read/)).toHaveLength(1);
   });
 
   it("checks the name before anything is saved", async () => {

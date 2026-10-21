@@ -204,6 +204,93 @@ async fn an_endpoint_the_person_cannot_read_is_not_starred() {
     assert_eq!(mine.text, "{}", "nothing refused was kept");
 }
 
+/// Binds `{who}@hel.fi` to reading spaces in `project` (and so the project itself).
+fn bind_space_reader(state: &AppState, who: &str, project: &str) {
+    let org = joinedcontext_portal::permissions::ORG_NAMESPACE;
+    state.mirror.upsert(common::envelope(
+        "Role",
+        "space-readers",
+        org,
+        json!({ "rules": [{ "kinds": ["ContextSpace"], "verbs": ["read"] }] }),
+    ));
+    state.mirror.upsert(common::envelope(
+        "RoleBinding",
+        &format!("{who}-spaces-in-{project}"),
+        org,
+        json!({ "subjects": [{ "user": format!("{who}@hel.fi") }], "role": "space-readers",
+                "scope": { "project": project } }),
+    ));
+}
+
+/// A connector's projects and spaces are picked from what the person reads, and the server checks
+/// each one again on save (T-4948): a project or space they cannot read, of another organization's
+/// or one that does not exist, is refused by the same answer, naming the field.
+#[tokio::test]
+async fn a_connector_selects_only_projects_and_spaces_the_person_reads() {
+    let Some(url) = database_url() else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let state = state(&url).await;
+    let a = fresh("a");
+    for (project, space) in [("mesto", "air"), ("mesto", "noise"), ("kraj", "roads")] {
+        state
+            .mirror
+            .upsert(common::envelope("ContextSpace", space, project, json!({})));
+    }
+    bind_space_reader(&state, &a, "mesto");
+    // `kraj` is readable through an App grant alone: its spaces are not.
+    common::bind(&state.mirror, &a, "kraj");
+    let put = |select: Value| {
+        let state = state.clone();
+        let a = a.clone();
+        async move {
+            common::send(
+                &state,
+                common::person(&a),
+                "PUT",
+                "/api/v1/preferences",
+                Some(json!({ "connectors": [{ "name": "pick", "select": select }] })),
+            )
+            .await
+        }
+    };
+
+    let saved = put(json!({ "projects": ["mesto", "kraj"], "spaces": ["mesto/air"] })).await;
+    assert_eq!(saved.status, StatusCode::OK, "{}", saved.text);
+
+    for (field, value) in [
+        ("projects", "elsewhere"),
+        ("projects", "nosuch"),
+        ("spaces", "kraj/roads"),
+        ("spaces", "elsewhere/air"),
+        ("spaces", "mesto/nosuch"),
+    ] {
+        state.mirror.upsert(common::envelope(
+            "ContextSpace",
+            "air",
+            "elsewhere",
+            json!({}),
+        ));
+        let refused = put(json!({ field: [value] })).await;
+        assert_eq!(
+            refused.status,
+            StatusCode::BAD_REQUEST,
+            "{value}: {}",
+            refused.text
+        );
+        let body: Value = serde_json::from_str(&refused.text).unwrap_or(Value::Null);
+        assert_eq!(body["errors"], json!([field]), "{value}: {}", refused.text);
+        assert!(
+            body["detail"]
+                .as_str()
+                .is_some_and(|d| d.ends_with(&format!("'{value}' is not one you may read"))),
+            "{value}: unknown and unreadable read alike: {}",
+            refused.text
+        );
+    }
+}
+
 /// T-4949, UI-98: a viewer of a project adds an Endpoint they read to their own connectors (the
 /// write is to their own preferences and reaches nothing they could not read already); the same
 /// organization Endpoint is refused to a person with no grant in its project.
