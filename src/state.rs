@@ -87,6 +87,8 @@ pub struct AppState {
     pub feedback: Arc<crate::feedback::FeedbackStore>,
     /// The alerts people chose, their incidents and notices (API/01 §37, T-3261).
     pub alerts: Arc<crate::alerts::AlertStore>,
+    /// The health log of every project's resources (T-5067).
+    pub health_log: Arc<crate::health_log::HealthStore>,
     /// The live updates of open data views (API/01 §32, T-3105).
     pub live: Arc<crate::live::LiveHub>,
     /// The runner readings behind each pipeline's stats, kept 15 minutes (PL-68).
@@ -209,6 +211,7 @@ impl AppState {
             comments: Arc::new(crate::entity_comments::CommentStore::new(None)),
             feedback: Arc::new(crate::feedback::FeedbackStore::new(None)),
             alerts: Arc::new(crate::alerts::AlertStore::new(None)),
+            health_log: Arc::new(crate::health_log::HealthStore::new(None)),
             live: Arc::new(crate::live::LiveHub::new(&public_base, None)),
             pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),
             source_ledger: Arc::new(crate::pipeline_source_deletes::Ledger::new(None)),
@@ -284,6 +287,7 @@ impl AppState {
         self.comments = Arc::new(crate::entity_comments::CommentStore::new(Some(db.clone())));
         self.feedback = Arc::new(crate::feedback::FeedbackStore::new(Some(db.clone())));
         self.alerts = Arc::new(crate::alerts::AlertStore::new(Some(db.clone())));
+        self.health_log = Arc::new(crate::health_log::HealthStore::new(Some(db.clone())));
         self.db = Some(db);
         self
     }
@@ -380,7 +384,18 @@ impl AppState {
                         Arc::clone(&state.alerts),
                     )
                     .with_source_holds(Arc::clone(&state.source_ledger))
-                    .with_run_health(Arc::clone(&state.pipeline_log)),
+                    .with_run_health(Arc::clone(&state.pipeline_log))
+                    .with_health_log(
+                        Arc::clone(&state.health_log),
+                        Arc::new(crate::health_probe::Probes::new(
+                            state
+                                .config
+                                .gateway_url
+                                .as_deref()
+                                .and_then(|g| url::Url::parse(g).ok()),
+                            Some(Arc::clone(&state.space_usage)),
+                        )),
+                    ),
                 ));
             syncer = state.wire_cluster_writers(syncer);
             syncer = state.wire_database_steps(syncer);
@@ -944,6 +959,7 @@ impl AppState {
         self.comments = Arc::new(crate::entity_comments::CommentStore::new(db.clone()));
         self.feedback = Arc::new(crate::feedback::FeedbackStore::new(db.clone()));
         self.alerts = Arc::new(crate::alerts::AlertStore::new(db.clone()));
+        self.health_log = Arc::new(crate::health_log::HealthStore::new(db.clone()));
         self.quality = Arc::new(crate::quality::Store::new(db.clone()));
     }
 

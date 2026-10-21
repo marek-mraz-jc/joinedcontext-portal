@@ -123,6 +123,7 @@ async function walkShell(page: Page, who: "steward" | "viewer", lang: Lang): Pro
 
   await state(page, { ...base, route: `${P}/inbox`, state: "page" }, () => open(page, `${P}/inbox`, lang));
   await state(page, { ...base, route: `${P}/activity`, state: "page" }, () => open(page, `${P}/activity`, lang));
+  await state(page, { ...base, route: `/projects/${PROJECT}/health`, state: "page" }, () => open(page, `/projects/${PROJECT}/health`, lang));
 
   // Opening the list marks it read in this browser's storage only; nothing reaches the Portal.
   await state(page, { ...base, route: `${P}/home`, state: "whats-new" }, async () => {

@@ -32,6 +32,7 @@ const PAGES = [
   "/login",
   "/connect/bbsk/otvorene-data",
   `/projects/${PROJECT}/activity`,
+  `/projects/${PROJECT}/health`,
   `/projects/${PROJECT}/approvals`,
   `/projects/${PROJECT}/approvals/chg-1a2b3c4d`,
   "/endpoints",

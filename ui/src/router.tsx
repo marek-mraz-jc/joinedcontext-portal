@@ -26,6 +26,7 @@ const InboxPage = lazy(() => import("./pages/inbox/InboxPage").then((module) => 
 import { FormRouteHost } from "./components/forms/FormRoute";
 import type { FormTarget } from "./components/forms/FormRoute";
 import { ActivityPage } from "./routes/ActivityPage";
+import { HealthPage } from "./pages/health/HealthLog";
 const ApprovalsPage = lazy(() => import("./routes/ApprovalsPage").then((module) => ({ default: module.ApprovalsPage })));
 const ApprovalDetailPage = lazy(() => import("./routes/ApprovalDetailPage").then((module) => ({ default: module.ApprovalDetailPage })));
 const ModelsPage = lazy(() => import("./pages/models/ModelsPage").then((module) => ({ default: module.ModelsPage })));
@@ -483,6 +484,20 @@ const activityRoute = createRoute({
     return (
       <Shell project={project}>
         <ActivityPage project={project} />
+      </Shell>
+    );
+  },
+});
+
+/** The project's health log: every check of its resources, errors first (T-5067). */
+const healthRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/health",
+  component: function HealthRoute() {
+    const { project } = healthRoute.useParams();
+    return (
+      <Shell project={project}>
+        <HealthPage project={project} />
       </Shell>
     );
   },
@@ -1283,6 +1298,7 @@ export const routeTree = rootRoute.addChildren([
     indexRoute,
     homeRoute,
     activityRoute,
+    healthRoute,
     approvalsRoute,
     approvalDetailRoute,
     playgroundRoute,

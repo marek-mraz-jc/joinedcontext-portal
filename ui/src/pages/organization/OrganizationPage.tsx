@@ -43,6 +43,7 @@ import { OrganizationSetup, SetupReminder } from "./OrganizationSetup";
 import { People } from "./People";
 import { KindList } from "../../routes/ResourceListPage";
 import { ValidationHealth } from "./ValidationHealth";
+import { HealthLog } from "../health/HealthLog";
 import { Brokers } from "./Brokers";
 import { McpServersPage } from "../mcp/McpServersPage";
 import { ORGANIZATION_GROUPS } from "./AdminNav";
@@ -346,7 +347,16 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
         {tab === "projects" ? <OrganizationProjects anchor={anchor} /> : null}
         {tab === "applications" ? <OrganizationApplications /> : null}
         {tab === "setup" ? <OrganizationSetup anchor={anchor} /> : null}
-        {tab === "health" ? <ValidationHealth /> : null}
+        {tab === "health" ? (
+          <>
+            <ValidationHealth />
+            <section aria-labelledby="health-projects" className="flex flex-col gap-4">
+              <h2 id="health-projects" className="text-title font-semibold text-fg">{t("health.adminTitle")}</h2>
+              <p className="text-body text-fg-muted">{t("health.adminLead")}</p>
+              <HealthLog />
+            </section>
+          </>
+        ) : null}
         {tab === "brokers" ? <Brokers /> : null}
         {tab === "endpoints" ? <AllEndpointsPage /> : null}
         {tab === "mcp-servers" ? <McpServersPage project={ORG_NAMESPACE} embedded /> : null}

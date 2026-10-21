@@ -43,6 +43,7 @@ pub mod feedback;
 pub mod flow_map;
 pub mod forms;
 pub mod health;
+pub mod health_checks;
 pub mod import;
 pub mod import_git;
 pub mod internal;
@@ -145,6 +146,7 @@ pub fn router() -> Router<AppState> {
         .merge(live::router())
         .merge(sync_sources::router())
         .merge(validation::router())
+        .merge(health_checks::router())
         .merge(visualization_templates::router())
         .merge(organization_limits::router())
         .merge(brokers::router())
