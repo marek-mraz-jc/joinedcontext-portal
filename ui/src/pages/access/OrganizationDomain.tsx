@@ -13,7 +13,7 @@ type Verification = components["schemas"]["DomainVerification"];
 const TONE: Record<Verification["state"], BadgeTone> = {
   pending: "warning",
   verified: "success",
-  failed: "danger",
+  failed: "warning",
 };
 
 function useOrganizations() {
@@ -111,11 +111,23 @@ export function OrganizationDomain(): JSX.Element | null {
                     : t("access.domain.checked", { when: when(verification.checkedAt) })}
                 </p>
               ) : null}
-              {verification?.state === "failed" && verification.reason ? (
-                <Alert tone="danger">{verification.reason}</Alert>
-              ) : null}
+              {/* Not verified is a step left to do, not an error (T-4990): the steps, the record
+                  and, after a failed check, what the check found. */}
               {verification && verification.state !== "verified" ? (
-                <RecordToPublish record={verification.record} />
+                <Alert tone="warning" title={t("access.domain.steps.title")}>
+                  <ol className="list-decimal space-y-2 pl-5">
+                    <li>
+                      <RecordToPublish record={verification.record} />
+                    </li>
+                    <li>{t("access.domain.steps.wait")}</li>
+                    <li>{t("access.domain.steps.check")}</li>
+                  </ol>
+                  {verification.state === "failed" && verification.reason ? (
+                    <p className="mt-2 text-caption text-fg-muted">
+                      {t("access.domain.steps.lastCheck", { reason: verification.reason })}
+                    </p>
+                  ) : null}
+                </Alert>
               ) : null}
             </div>
           );

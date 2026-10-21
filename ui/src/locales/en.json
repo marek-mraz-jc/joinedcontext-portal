@@ -3184,7 +3184,8 @@
       "grantIn": "{role} in {where}",
       "grantOrg": "{role} in the whole organization",
       "emptyHint": "A service account is how a program outside the Portal reads or writes this project: a script, a pipeline elsewhere, another platform. Each signs in with its own Keycloak client and holds only the role you give it.",
-      "emptyOrganization": "The organization has no service account of its own. A project's service accounts are on that project's settings and in Agents."
+      "emptyOrganization": "The organization has no service account of its own. A project's service accounts are on that project's settings and in Agents.",
+      "emptyHintOrganization": "A service account of the organization is how a program outside the Portal reads or writes across its projects: a script, a pipeline elsewhere, another platform. Each signs in with its own Keycloak client and holds only the role you give it."
     },
     "matrix": {
       "title": "Data access",
@@ -3267,7 +3268,13 @@
       "checked": "Last checked {when}.",
       "publish": "Publish this TXT record in the domain's DNS:",
       "copy": "Copy the record",
-      "copied": "Record copied"
+      "copied": "Record copied",
+      "steps": {
+        "title": "Verify the domain in three steps",
+        "wait": "Wait until the record is visible in DNS; that usually takes a few minutes, at most a day.",
+        "check": "The Portal checks the record again on its next sync and marks the domain verified.",
+        "lastCheck": "Last check: {reason}"
+      }
     },
     "groupPage": {
       "lead": "Who is in this group, and what the group may do.",
@@ -3423,6 +3430,33 @@
         "starts": "{grant} starts {when}",
         "noGrant": "No grant names it"
       }
+    },
+    "words": {
+      "verb": {
+        "read": "Read",
+        "propose": "Propose",
+        "approve": "Approve",
+        "delete": "Delete",
+        "create": "Create",
+        "update": "Change",
+        "disable": "Switch off"
+      },
+      "area": {
+        "read": "Read entities",
+        "history": "Read history",
+        "subscribe": "Manage subscriptions",
+        "create": "Create entities",
+        "change": "Change entities",
+        "delete": "Delete entities",
+        "registrations": "Manage registrations",
+        "federate": "Federate"
+      },
+      "kinds": "{count, plural, one {# kind} other {# kinds}}",
+      "everyKind": "every kind",
+      "noKind": "no kind yet",
+      "nothing": "Nothing granted yet",
+      "endpointRole": "Every caller of endpoint {endpoint}",
+      "endpointTier": "App role {tier} on endpoint {endpoint}"
     }
   },
   "flows": {
@@ -5547,7 +5581,14 @@
     "table": {
       "name": "Name"
     },
-    "testRun": "Test run"
+    "testRun": "Test run",
+    "group": {
+      "all": "Show all {count} runs",
+      "latestOnly": "Show only the latest run"
+    },
+    "timing": {
+      "both": "First frame and version"
+    }
   },
   "activity": {
     "title": "Activity",
@@ -8092,7 +8133,8 @@
       "typeFirst": "Type a question first.",
       "none": "Nothing in this source answers “{q}”.",
       "hits": "Hits for “{q}”"
-    }
+    },
+    "languagesMore": "+{count} more"
   },
   "mcp": {
     "title": "MCP servers",
@@ -9154,7 +9196,13 @@
       "byStage": "Cost by step",
       "calls": "{count} calls",
       "days": "By day (UTC)",
-      "day": "{questions} questions, {cost}, median {p50}, timeouts {timeouts}, errors {errors}"
+      "day": "{questions} questions, {cost}, median {p50}, timeouts {timeouts}, errors {errors}",
+      "none": "No questions in this range. Widen the dates or clear a filter.",
+      "notRecorded": {
+        "both": "Cost and tokens not recorded: the model provider reported neither for these questions.",
+        "cost": "Cost not recorded: the model provider sent no price for these questions.",
+        "tokens": "Tokens not recorded: the model provider reported no token counts for these questions."
+      }
     }
   },
   "retentionGuide": {

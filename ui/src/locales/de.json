@@ -3184,7 +3184,8 @@
       "grantIn": "{role} in {where}",
       "grantOrg": "{role} in der ganzen Organisation",
       "emptyHint": "Ein Dienstkonto ist der Weg, auf dem ein Programm außerhalb des Portals dieses Projekt liest oder schreibt: ein Skript, eine Pipeline anderswo, eine andere Plattform. Jedes meldet sich mit einem eigenen Keycloak-Client an und hat nur die Rolle, die Sie ihm geben.",
-      "emptyOrganization": "Die Organisation hat kein eigenes Dienstkonto. Die Dienstkonten eines Projekts stehen in seinen Einstellungen und unter Agenten."
+      "emptyOrganization": "Die Organisation hat kein eigenes Dienstkonto. Die Dienstkonten eines Projekts stehen in seinen Einstellungen und unter Agenten.",
+      "emptyHintOrganization": "Ein Dienstkonto der Organisation ist der Weg, auf dem ein Programm außerhalb des Portals über ihre Projekte hinweg liest oder schreibt: ein Skript, eine Pipeline anderswo, eine andere Plattform. Jedes meldet sich mit einem eigenen Keycloak-Client an und hat nur die Rolle, die Sie ihm geben."
     },
     "matrix": {
       "title": "Datenzugriff",
@@ -3267,7 +3268,13 @@
       "checked": "Zuletzt geprüft {when}.",
       "publish": "Veröffentlichen Sie diesen TXT-Eintrag im DNS der Domain:",
       "copy": "Eintrag kopieren",
-      "copied": "Eintrag kopiert"
+      "copied": "Eintrag kopiert",
+      "steps": {
+        "title": "Die Domain in drei Schritten verifizieren",
+        "wait": "Warten Sie, bis der Eintrag im DNS sichtbar ist; das dauert meist wenige Minuten, höchstens einen Tag.",
+        "check": "Das Portal prüft den Eintrag bei der nächsten Synchronisation erneut und markiert die Domain als verifiziert.",
+        "lastCheck": "Letzte Prüfung: {reason}"
+      }
     },
     "groupPage": {
       "lead": "Wer in dieser Gruppe ist und was die Gruppe darf.",
@@ -3423,6 +3430,33 @@
         "starts": "{grant} beginnt {when}",
         "noGrant": "Keine Berechtigung nennt es"
       }
+    },
+    "words": {
+      "verb": {
+        "read": "Lesen",
+        "propose": "Vorschlagen",
+        "approve": "Genehmigen",
+        "delete": "Löschen",
+        "create": "Anlegen",
+        "update": "Ändern",
+        "disable": "Abschalten"
+      },
+      "area": {
+        "read": "Entitäten lesen",
+        "history": "Verlauf lesen",
+        "subscribe": "Abonnements verwalten",
+        "create": "Entitäten anlegen",
+        "change": "Entitäten ändern",
+        "delete": "Entitäten löschen",
+        "registrations": "Registrierungen verwalten",
+        "federate": "Föderieren"
+      },
+      "kinds": "{count, plural, one {# Art} other {# Arten}}",
+      "everyKind": "jede Art",
+      "noKind": "noch keine Art",
+      "nothing": "Noch nichts gewährt",
+      "endpointRole": "Jeder Aufrufer des Endpoints {endpoint}",
+      "endpointTier": "App-Rolle {tier} auf dem Endpoint {endpoint}"
     }
   },
   "flows": {
@@ -5547,7 +5581,14 @@
     "table": {
       "name": "Name"
     },
-    "testRun": "Testlauf"
+    "testRun": "Testlauf",
+    "group": {
+      "all": "Alle {count} Läufe zeigen",
+      "latestOnly": "Nur den neuesten Lauf zeigen"
+    },
+    "timing": {
+      "both": "Erstes Bild und erste Version"
+    }
   },
   "activity": {
     "title": "Aktivität",
@@ -8092,7 +8133,8 @@
       "typeFirst": "Zuerst eine Frage eingeben.",
       "none": "Nichts in dieser Quelle beantwortet „{q}“.",
       "hits": "Treffer für „{q}“"
-    }
+    },
+    "languagesMore": "+{count} weitere"
   },
   "mcp": {
     "title": "MCP-Server",
@@ -9154,7 +9196,13 @@
       "byStage": "Kosten nach Schritt",
       "calls": "{count} Aufrufe",
       "days": "Nach Tagen (UTC)",
-      "day": "{questions} Fragen, {cost}, Median {p50}, Zeitlimits {timeouts}, Fehler {errors}"
+      "day": "{questions} Fragen, {cost}, Median {p50}, Zeitlimits {timeouts}, Fehler {errors}",
+      "none": "Keine Fragen in diesem Zeitraum. Erweitern Sie die Daten oder entfernen Sie einen Filter.",
+      "notRecorded": {
+        "both": "Kosten und Tokens nicht erfasst: Der Modellanbieter hat für diese Fragen keine gemeldet.",
+        "cost": "Kosten nicht erfasst: Der Modellanbieter hat für diese Fragen keinen Preis gesendet.",
+        "tokens": "Tokens nicht erfasst: Der Modellanbieter hat für diese Fragen keine Tokenzahlen gemeldet."
+      }
     }
   },
   "retentionGuide": {

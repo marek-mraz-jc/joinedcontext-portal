@@ -277,6 +277,30 @@ describe("Assistant page", () => {
     expect(screen.queryByRole("button", { name: /Show \d+ more/ })).toBeNull();
   });
 
+  // T-4994: forty rebuilds of one dashboard read as one row with a count, its timing on one line.
+  it("groups one App's runs under its newest with a count and opens the rest on request", async () => {
+    const builds = [0, 1, 2].map((index) => ({
+      ...WORK_RUN,
+      id: `build-${index}`,
+      status: "stopped",
+      firstFrameMs: 38800 + index,
+      firstVersionMs: index === 0 ? 44000 : 38800 + index,
+      createdAt: `2026-09-14T1${3 - index}:00:00Z`,
+    }));
+    renderAssistantPage([...builds, CONV_RUN]);
+    const table = await screen.findByRole("table");
+    await within(table).findByText("City bikes app");
+    expect(within(table).getAllByRole("row")).toHaveLength(3);
+    expect(within(table).getByText("First frame 38.8 s · First version 44.0 s")).toBeInTheDocument();
+    const all = within(table).getByRole("button", { name: i18n.t("assistantPage.group.all", { count: 3 }) });
+    expect(all).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(all);
+    expect(within(table).getAllByRole("row")).toHaveLength(5);
+    expect(within(table).getAllByText(`${i18n.t("assistantPage.timing.both")} 38.8 s`)).toHaveLength(2);
+    await userEvent.click(within(table).getByRole("button", { name: i18n.t("assistantPage.group.latestOnly") }));
+    expect(within(table).getAllByRole("row")).toHaveLength(3);
+  });
+
   // T-2816, AG-93: the live journeys' runs crowded the history; they wait behind a tick.
   it("leaves the journeys' test runs out until Show test runs is ticked, and marks them", async () => {
     const journey = { ...CONV_RUN, id: "journey-run", prompt: "Create a SyncSource called t1523", origin: "journey" };

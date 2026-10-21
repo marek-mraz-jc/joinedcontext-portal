@@ -140,9 +140,10 @@ describe("effective permissions", () => {
     renderMatrix();
 
     const air = await rowOf("AirQualityObserved");
-    expect(within(air).getByText("retrieveEntity")).toBeInTheDocument();
-    expect(within(air).getByText("queryEntity")).toBeInTheDocument();
-    expect(within(air).getByText("updateAttrs")).toBeInTheDocument();
+    expect(within(air).getByText(en.access.words.area.read)).toBeInTheDocument();
+    expect(within(air).getByText(en.access.words.area.change)).toBeInTheDocument();
+    expect(within(air).getByText("(retrieveEntity, queryEntity)")).toBeInTheDocument();
+    expect(within(air).getByText("(updateAttrs)")).toBeInTheDocument();
     expect(within(air).getByText("pm10")).toBeInTheDocument();
     expect(within(air).getByText(/georel=within/)).toBeInTheDocument();
     expect(within(air).getByText(/timerel=after/)).toBeInTheDocument();

@@ -3184,7 +3184,8 @@
       "grantIn": "{role} v {where}",
       "grantOrg": "{role} v celej organizácii",
       "emptyHint": "Servisný účet je spôsob, ako program mimo Portálu číta alebo zapisuje tento projekt: skript, pipeline inde, iná platforma. Každý sa prihlasuje vlastným klientom v Keycloaku a má len rolu, ktorú mu dáte.",
-      "emptyOrganization": "Organizácia nemá vlastný servisný účet. Servisné účty projektu sú v nastaveniach projektu a v sekcii Agenti."
+      "emptyOrganization": "Organizácia nemá vlastný servisný účet. Servisné účty projektu sú v nastaveniach projektu a v sekcii Agenti.",
+      "emptyHintOrganization": "Servisný účet organizácie je spôsob, akým program mimo Portálu číta alebo zapisuje naprieč jej projektmi: skript, pipeline inde, iná platforma. Každý sa prihlasuje vlastným klientom Keycloak a má len rolu, ktorú mu dáte."
     },
     "matrix": {
       "title": "Prístup k údajom",
@@ -3267,7 +3268,13 @@
       "checked": "Naposledy skontrolované {when}.",
       "publish": "Zverejnite tento záznam TXT v DNS domény:",
       "copy": "Kopírovať záznam",
-      "copied": "Záznam skopírovaný"
+      "copied": "Záznam skopírovaný",
+      "steps": {
+        "title": "Overte doménu v troch krokoch",
+        "wait": "Počkajte, kým je záznam viditeľný v DNS; zvyčajne to trvá pár minút, najviac deň.",
+        "check": "Portál záznam znova skontroluje pri ďalšej synchronizácii a doménu označí ako overenú.",
+        "lastCheck": "Posledná kontrola: {reason}"
+      }
     },
     "groupPage": {
       "lead": "Kto je v tejto skupine a čo skupina smie.",
@@ -3423,6 +3430,33 @@
         "starts": "{grant} začína {when}",
         "noGrant": "Žiadne oprávnenie to neuvádza"
       }
+    },
+    "words": {
+      "verb": {
+        "read": "Čítať",
+        "propose": "Navrhovať",
+        "approve": "Schvaľovať",
+        "delete": "Mazať",
+        "create": "Vytvárať",
+        "update": "Meniť",
+        "disable": "Vypínať"
+      },
+      "area": {
+        "read": "Čítať entity",
+        "history": "Čítať históriu",
+        "subscribe": "Spravovať odbery",
+        "create": "Vytvárať entity",
+        "change": "Meniť entity",
+        "delete": "Mazať entity",
+        "registrations": "Spravovať registrácie",
+        "federate": "Federovať"
+      },
+      "kinds": "{count, plural, one {# druh} few {# druhy} other {# druhov}}",
+      "everyKind": "každý druh",
+      "noKind": "zatiaľ žiadny druh",
+      "nothing": "Zatiaľ nič nepovolené",
+      "endpointRole": "Každý volajúci endpointu {endpoint}",
+      "endpointTier": "Rola aplikácie {tier} na endpointe {endpoint}"
     }
   },
   "flows": {
@@ -5547,7 +5581,14 @@
     "table": {
       "name": "Názov"
     },
-    "testRun": "Testovací beh"
+    "testRun": "Testovací beh",
+    "group": {
+      "all": "Zobraziť všetky behy ({count})",
+      "latestOnly": "Zobraziť len posledný beh"
+    },
+    "timing": {
+      "both": "Prvý snímok a verzia"
+    }
   },
   "activity": {
     "title": "Aktivita",
@@ -8092,7 +8133,8 @@
       "typeFirst": "Najprv napíšte otázku.",
       "none": "Na „{q}“ v tomto zdroji nič neodpovedá.",
       "hits": "Výsledky pre „{q}“"
-    }
+    },
+    "languagesMore": "+{count} ďalšie"
   },
   "mcp": {
     "title": "MCP servery",
@@ -9154,7 +9196,13 @@
       "byStage": "Cena podľa krokov",
       "calls": "{count} volaní",
       "days": "Po dňoch (UTC)",
-      "day": "{questions} otázok, {cost}, medián {p50}, limity {timeouts}, chyby {errors}"
+      "day": "{questions} otázok, {cost}, medián {p50}, limity {timeouts}, chyby {errors}",
+      "none": "V tomto období nie sú žiadne otázky. Rozšírte dátumy alebo zrušte filter.",
+      "notRecorded": {
+        "both": "Cena a tokeny neboli zaznamenané: poskytovateľ modelu ich pri týchto otázkach neuviedol.",
+        "cost": "Cena nebola zaznamenaná: poskytovateľ modelu pri týchto otázkach neposlal cenu.",
+        "tokens": "Tokeny neboli zaznamenané: poskytovateľ modelu pri týchto otázkach neuviedol počty tokenov."
+      }
     }
   },
   "retentionGuide": {
