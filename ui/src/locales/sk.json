@@ -5473,7 +5473,8 @@
         "throughput": "Priepustnosť pipeline",
         "error": "Chyba pipeline",
         "restarted": "Pipeline reštartovaná",
-        "run": "Spustený beh pipeline"
+        "run": "Spustený beh pipeline",
+        "source-delete": "Zmazané, lebo ich zdroj vypustil"
       },
       "endpoint": {
         "traffic": "Prevádzka endpointu"

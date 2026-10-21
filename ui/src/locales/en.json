@@ -5473,7 +5473,8 @@
         "throughput": "Pipeline throughput",
         "error": "Pipeline error",
         "restarted": "Pipeline restarted",
-        "run": "Pipeline run started"
+        "run": "Pipeline run started",
+        "source-delete": "Deleted because the source dropped them"
       },
       "endpoint": {
         "traffic": "Endpoint traffic"
