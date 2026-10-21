@@ -203,6 +203,10 @@ RUN for name in sharing-private sharing-project sharing-organization sharing-rol
 
 FROM rust:1.97-slim-trixie@sha256:8e8cf8f7fd54a2d23d5a743b3a03f56e26b6c774276c33fa0595111704ebb15c AS build
 WORKDIR /src
+# tikv-jemalloc-sys (locked through context-gateway, T-4782) runs `make` in its build script,
+# and the slim image has none (T-4987).
+RUN apt-get update && apt-get install -y --no-install-recommends make && \
+    rm -rf /var/lib/apt/lists/*
 COPY Cargo.toml Cargo.lock build.rs ./
 COPY src ./src
 # The repository is a cargo workspace whose members are the reference apps (AP-34). Cargo
