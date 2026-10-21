@@ -108,6 +108,7 @@ import {
 } from "../../components/ui";
 import { ConfirmDialog, Input, RadioGroup } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
+import { SourceRemovalsPanel } from "../pipelines/PipelineSourceReport";
 import { useUrlParam, useUrlUrn } from "../../navigation/urlState";
 
 const SAMPLE_LIMIT = 3;
@@ -804,6 +805,7 @@ function SpaceData({
           )}
         </>
       ) : null}
+      {probe.isSuccess && !copy ? <SourceRemovalsPanel project={project} space={space} /> : null}
       {probe.isSuccess && !copy ? (
         <TrashPanel
           project={project}

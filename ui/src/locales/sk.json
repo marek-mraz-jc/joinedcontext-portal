@@ -2964,6 +2964,44 @@
         "reads": "Číta priestor {other} cez endpoint {endpoint} ({operation})",
         "writes": "Zapisuje do priestoru {other} cez endpoint {endpoint} ({operation})"
       }
+    },
+    "source": {
+      "section": "Zdroj a priestor",
+      "lead": "Dokazuje, že priestor drží to, čo zdroj uvádza: posledné úplné načítanie zdroja vedľa entít, ktoré táto pipeline drží v priestore, čo zo zdroja zmizlo, čo neprišlo a čo pipeline zmazala a prečo.",
+      "notSnapshot": "Táto pipeline ponecháva entity, ktoré zdroj vypustí",
+      "notSnapshotHint": "Nič sa neporovnáva ani nemaže. Ak má sledovať odstránenia, navrhnite pipeline s Mazaním podľa zdroja „snapshot“, napríklad vynechania 2 a najviac 10 %.",
+      "unavailable": "Prehľad zdroja sa nepodarilo načítať. Obnovte stránku; ak to pretrváva, databáza Portálu nebeží.",
+      "atSource": "V zdroji",
+      "atSourceHint": "Záznamy, ktoré načítal beh {run}: zapísané aj odmietnuté.",
+      "noCompleteRun": "Zdroj ešte žiadny beh nenačítal úplne.",
+      "inSpace": "V priestore",
+      "inSpaceHint": "Entity, ktoré táto pipeline zapísala do {space} a nezmazala.",
+      "orphans": "Siroty",
+      "orphansHint": "V priestore, v zdroji už nie sú. Zmažú sa, keď ich {misses} úplné behy za sebou nenájdu.",
+      "missing": "Chýbajúce",
+      "missingHint": "V zdroji, nie v priestore: dátový model ich v poslednom úplnom behu odmietol.",
+      "lastComplete": "Posledný úplný beh: {run},",
+      "idsHidden": "Túto pipeline môžete čítať, priestor {space} nie, preto vidíte počty bez identifikátorov entít.",
+      "held": "Beh {run} nič nezmazal",
+      "holdReason": {
+        "share-exceeded": "Zmazal by {would} z {ledger} entít, viac než pipeline dovoľuje. Skontrolujte zdroj a potom ich zmažte alebo ponechajte.",
+        "empty": "Nenačítal žiadny záznam, preto nič nezmazal. Ďalší úplný beh to zruší.",
+        "incomplete": "Nenačítal zdroj úplne, preto nič nezmazal. Ďalší úplný beh to zruší."
+      },
+      "keep": "Ponechať",
+      "more": "a ďalších {count}; všetky identifikátory sú v CSV.",
+      "removed": "Zmazané, lebo ich zdroj vypustil",
+      "noneRemoved": "Zatiaľ nič nezmazané. Entita odíde, keď ju {misses} úplné behy za sebou neuvedú.",
+      "entity": "Entita",
+      "when": "Zmazaná",
+      "why": "Dôvod",
+      "removedAtSource": "Odstránená v zdroji (pipeline {pipeline}, beh {run})",
+      "export": "Exportovať CSV",
+      "release": "Aj tak zmazať {count}",
+      "orphanList": "Identifikátory sirôt ({count})",
+      "missingList": "Identifikátory chýbajúce v priestore ({count})",
+      "spaceRemovals": "Odstránené v zdroji ({count})",
+      "spaceRemovalsLead": "Entity, ktoré pipeline zmazali, lebo ich zdroj už neuvádzal. Vrátia sa, až keď sa objavia v zdroji."
     }
   },
   "dashboards": {
@@ -5522,7 +5560,7 @@
         "error": "Chyba pipeline",
         "restarted": "Pipeline reštartovaná",
         "run": "Spustený beh pipeline",
-        "source-delete": "Rozhodnutie o mazaní podľa zdroja"
+        "source-delete": "Zmazané, lebo ich zdroj vypustil"
       },
       "endpoint": {
         "traffic": "Prevádzka endpointu"

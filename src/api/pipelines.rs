@@ -1130,7 +1130,7 @@ fn ledger_unavailable(error: sqlx::Error) -> ApiError {
     get,
     path = "/api/v1/projects/{project}/pipelines/{name}/source-deletes",
     summary = "Preview Source Deletes",
-    description = "The dry run of a snapshot pipeline (PL-97): how many entities its source ledger holds, the ids one more complete run without them deletes, the ids due now, and the held run if one is held. Nothing is deleted.",
+    description = "The source-vs-space report and dry run of a snapshot pipeline (PL-97, T-4892): how many entities its source ledger holds, the last complete run and how many records it read, the orphans (in the space, gone at the source), the records missing from the space (read but refused), the entities it deleted with the reason, the ids one more complete run without them deletes, the ids due now, and the held run if one is held. Ids only; nothing is deleted.",
     tag = "pipelines",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -1151,14 +1151,51 @@ pub async fn get_source_deletes(
 ) -> Result<Json<crate::pipeline_source_deletes::Overview>, ApiError> {
     let pipeline = readable_pipeline(&state, &user, &project, &name)?;
     let rule = snapshot_of(&pipeline)?;
-    let (rows, hold) = state
+    let report =
+        crate::pipeline_source_deletes::report(&state, &project, &name, &pipeline.spec, &rule)
+            .await
+            .map_err(ledger_unavailable)?;
+    // Ids of a space the caller may not read stay in it; the counts are the pipeline's own.
+    let space = report.space.as_deref().unwrap_or_default();
+    let identity = &user.0.identity;
+    let readable = crate::api::data_views::readable_space(&state, identity, &project, space);
+    Ok(Json(if readable.is_ok() {
+        report
+    } else {
+        report.without_ids()
+    }))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/spaces/{space}/source-removals",
+    summary = "List Removals At The Source",
+    description = "The newest entities snapshot pipelines deleted from this space because their source no longer listed them (T-4892, PL-100): per id the pipeline, the run that decided it, when the gateway confirmed the delete and the reason the tombstone carries. Ids only, at most 200.",
+    tag = "pipelines",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("space" = String, Path, description = "Context space name"),
+    ),
+    responses(
+        (status = 200, description = "The removals, newest first", body = Vec<crate::pipeline_source_deletes::Removal>),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 404, description = "Space not found", body = ProblemDetails),
+        (status = 503, description = "The ledger could not be read", body = ProblemDetails)
+    )
+)]
+pub async fn get_source_removals(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, space)): Path<(String, String)>,
+) -> Result<Json<Vec<crate::pipeline_source_deletes::Removal>>, ApiError> {
+    crate::api::data_views::readable_space(&state, &user.0.identity, &project, &space)?;
+    let of = crate::pipeline_source_deletes::RemovalsOf::Space(&space);
+    state
         .source_ledger
-        .book(&project, &name)
+        .removals(&project, of, 200)
         .await
-        .map_err(ledger_unavailable)?;
-    Ok(Json(crate::pipeline_source_deletes::overview(
-        &rows, hold, &rule,
-    )))
+        .map(Json)
+        .map_err(ledger_unavailable)
 }
 
 /// A person's answer to a held run (PL-97).
@@ -1311,6 +1348,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/projects/{project}/pipelines/{name}/source-deletes",
             get(get_source_deletes).post(post_source_deletes),
+        )
+        .route(
+            "/projects/{project}/spaces/{space}/source-removals",
+            get(get_source_removals),
         )
         .route(
             "/projects/{project}/pipelines/{name}/rejected/retry",

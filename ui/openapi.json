@@ -13105,7 +13105,7 @@
           "pipelines"
         ],
         "summary": "Preview Source Deletes",
-        "description": "The dry run of a snapshot pipeline (PL-97): how many entities its source ledger holds, the ids one more complete run without them deletes, the ids due now, and the held run if one is held. Nothing is deleted.",
+        "description": "The source-vs-space report and dry run of a snapshot pipeline (PL-97, T-4892): how many entities its source ledger holds, the last complete run and how many records it read, the orphans (in the space, gone at the source), the records missing from the space (read but refused), the entities it deleted with the reason, the ids one more complete run without them deletes, the ids due now, and the held run if one is held. Ids only; nothing is deleted.",
         "operationId": "get_source_deletes",
         "parameters": [
           {
@@ -14909,6 +14909,81 @@
           },
           "503": {
             "description": "No broker, or the broker did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/spaces/{space}/source-removals": {
+      "get": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "List Removals At The Source",
+        "description": "The newest entities snapshot pipelines deleted from this space because their source no longer listed them (T-4892, PL-100): per id the pipeline, the run that decided it, when the gateway confirmed the delete and the reason the tombstone carries. Ids only, at most 200.",
+        "operationId": "get_source_removals",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The removals, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PipelineSourceRemoval"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Space not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The ledger could not be read",
             "content": {
               "application/json": {
                 "schema": {
@@ -25269,6 +25344,30 @@
           }
         }
       },
+      "PipelineSourceCompleteRun": {
+        "type": "object",
+        "description": "The last run that read the source completely.",
+        "required": [
+          "run",
+          "at",
+          "read"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "description": "When the run was judged, RFC 3339."
+          },
+          "read": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The records the run read: written and refused.",
+            "minimum": 0
+          },
+          "run": {
+            "type": "string"
+          }
+        }
+      },
       "PipelineSourceDecided": {
         "type": "object",
         "description": "What a decision did.",
@@ -25305,7 +25404,13 @@
           "maxShare",
           "ledger",
           "next",
-          "due"
+          "due",
+          "orphans",
+          "orphanIds",
+          "missing",
+          "missingIds",
+          "removed",
+          "idsHidden"
         ],
         "properties": {
           "due": {
@@ -25325,6 +25430,21 @@
               }
             ]
           },
+          "idsHidden": {
+            "type": "boolean",
+            "description": "The caller may read the pipeline but not its space: the counts stay, every id is left out."
+          },
+          "lastComplete": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PipelineSourceCompleteRun",
+                "description": "The last run that read the source completely: the source side of the report (T-4892)."
+              }
+            ]
+          },
           "ledger": {
             "type": "integer",
             "description": "The ids in the ledger.",
@@ -25340,12 +25460,48 @@
             "format": "int32",
             "minimum": 0
           },
+          "missing": {
+            "type": "integer",
+            "description": "At the source, not in the space: records the last complete run read and the model refused.",
+            "minimum": 0
+          },
+          "missingIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "next": {
             "type": "array",
             "items": {
               "type": "string"
             },
             "description": "The ids at their last miss: one more complete run without them deletes them."
+          },
+          "orphanIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "orphans": {
+            "type": "integer",
+            "description": "In the space, gone at the source: ids at least one complete run in a row did not read.",
+            "minimum": 0
+          },
+          "removed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineSourceRemoval"
+            },
+            "description": "The newest entities the pipeline deleted because its source dropped them."
+          },
+          "space": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The space the pipeline writes into."
           }
         }
       },
@@ -25374,6 +25530,36 @@
             "type": "integer",
             "description": "The ids the run would have deleted.",
             "minimum": 0
+          }
+        }
+      },
+      "PipelineSourceRemoval": {
+        "type": "object",
+        "description": "One entity a snapshot pipeline deleted because its source no longer listed it (T-4892): the\ntombstone's \"removed at the source\" as the pipeline's panel and the space say it.",
+        "required": [
+          "id",
+          "pipeline",
+          "run",
+          "at",
+          "reason"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "description": "When the gateway confirmed the delete, RFC 3339."
+          },
+          "id": {
+            "type": "string"
+          },
+          "pipeline": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "description": "The `JC-Reason` the delete carried."
+          },
+          "run": {
+            "type": "string"
           }
         }
       },

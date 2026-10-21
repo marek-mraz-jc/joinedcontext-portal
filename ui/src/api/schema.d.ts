@@ -3006,7 +3006,7 @@ export interface paths {
         };
         /**
          * Preview Source Deletes
-         * @description The dry run of a snapshot pipeline (PL-97): how many entities its source ledger holds, the ids one more complete run without them deletes, the ids due now, and the held run if one is held. Nothing is deleted.
+         * @description The source-vs-space report and dry run of a snapshot pipeline (PL-97, T-4892): how many entities its source ledger holds, the last complete run and how many records it read, the orphans (in the space, gone at the source), the records missing from the space (read but refused), the entities it deleted with the reason, the ids one more complete run without them deletes, the ids due now, and the held run if one is held. Ids only; nothing is deleted.
          */
         get: operations["get_source_deletes"];
         put?: never;
@@ -3331,6 +3331,26 @@ export interface paths {
          * @description What a draft of the space's `spec.retention` would delete now, per class and kind (`entity`, `history`), counted by the broker without deleting anything and at most 100 000 each. For the space's owners, who alone save retention (DM-85).
          */
         post: operations["preview_retention"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/spaces/{space}/source-removals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Removals At The Source
+         * @description The newest entities snapshot pipelines deleted from this space because their source no longer listed them (T-4892, PL-100): per id the pipeline, the run that decided it, when the gateway confirmed the delete and the reason the tombstone carries. Ids only, at most 200.
+         */
+        get: operations["get_source_removals"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6468,6 +6488,17 @@ export interface components {
              */
             withheld: boolean;
         };
+        /** @description The last run that read the source completely. */
+        PipelineSourceCompleteRun: {
+            /** @description When the run was judged, RFC 3339. */
+            at: string;
+            /**
+             * Format: int64
+             * @description The records the run read: written and refused.
+             */
+            read: number;
+            run: string;
+        };
         /** @description What a decision did. */
         PipelineSourceDecided: {
             /** @description The ids handed to the runner to delete; 0 on keep. */
@@ -6486,14 +6517,27 @@ export interface components {
             /** @description The ids whose misses already reached the rule and wait for a delete or a release. */
             due: string[];
             hold?: null | components["schemas"]["PipelineSourceHold"];
+            /** @description The caller may read the pipeline but not its space: the counts stay, every id is left out. */
+            idsHidden: boolean;
+            lastComplete?: null | components["schemas"]["PipelineSourceCompleteRun"];
             /** @description The ids in the ledger. */
             ledger: number;
             /** Format: int32 */
             maxShare: number;
             /** Format: int32 */
             misses: number;
+            /** @description At the source, not in the space: records the last complete run read and the model refused. */
+            missing: number;
+            missingIds: string[];
             /** @description The ids at their last miss: one more complete run without them deletes them. */
             next: string[];
+            orphanIds: string[];
+            /** @description In the space, gone at the source: ids at least one complete run in a row did not read. */
+            orphans: number;
+            /** @description The newest entities the pipeline deleted because its source dropped them. */
+            removed: components["schemas"]["PipelineSourceRemoval"][];
+            /** @description The space the pipeline writes into. */
+            space?: string | null;
         };
         /** @description A run that deleted nothing, as the pipeline's page and its alert say it. */
         PipelineSourceHold: {
@@ -6503,6 +6547,19 @@ export interface components {
             run: string;
             /** @description The ids the run would have deleted. */
             would: number;
+        };
+        /**
+         * @description One entity a snapshot pipeline deleted because its source no longer listed it (T-4892): the
+         *     tombstone's "removed at the source" as the pipeline's panel and the space say it.
+         */
+        PipelineSourceRemoval: {
+            /** @description When the gateway confirmed the delete, RFC 3339. */
+            at: string;
+            id: string;
+            pipeline: string;
+            /** @description The `JC-Reason` the delete carried. */
+            reason: string;
+            run: string;
         };
         PipelineStats: {
             /**
@@ -18849,6 +18906,58 @@ export interface operations {
                 };
             };
             /** @description No broker, or the broker did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_source_removals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The removals, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PipelineSourceRemoval"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Space not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The ledger could not be read */
             503: {
                 headers: {
                     [name: string]: unknown;

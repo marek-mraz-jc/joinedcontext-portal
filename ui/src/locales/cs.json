@@ -2964,6 +2964,44 @@
         "reads": "Čte prostor {other} přes endpoint {endpoint} ({operation})",
         "writes": "Zapisuje do prostoru {other} přes endpoint {endpoint} ({operation})"
       }
+    },
+    "source": {
+      "section": "Zdroj a prostor",
+      "lead": "Dokazuje, že prostor drží to, co zdroj uvádí: poslední úplné načtení zdroje vedle entit, které tato pipeline drží v prostoru, co ze zdroje zmizelo, co nedorazilo a co pipeline smazala a proč.",
+      "notSnapshot": "Tato pipeline ponechává entity, které zdroj vypustí",
+      "notSnapshotHint": "Nic se neporovnává ani nemaže. Má-li sledovat odstranění, navrhněte pipeline s Mazáním podle zdroje „snapshot“, například vynechání 2 a nejvýše 10 %.",
+      "unavailable": "Přehled zdroje se nepodařilo načíst. Obnovte stránku; pokud to trvá, databáze Portálu neběží.",
+      "atSource": "Ve zdroji",
+      "atSourceHint": "Záznamy, které načetl běh {run}: zapsané i odmítnuté.",
+      "noCompleteRun": "Zdroj zatím žádný běh nenačetl úplně.",
+      "inSpace": "V prostoru",
+      "inSpaceHint": "Entity, které tato pipeline zapsala do {space} a nesmazala.",
+      "orphans": "Sirotci",
+      "orphansHint": "V prostoru, ve zdroji už nejsou. Smažou se, když je {misses} úplné běhy za sebou nenajdou.",
+      "missing": "Chybějící",
+      "missingHint": "Ve zdroji, ne v prostoru: datový model je v posledním úplném běhu odmítl.",
+      "lastComplete": "Poslední úplný běh: {run},",
+      "idsHidden": "Tuto pipeline můžete číst, prostor {space} ne, proto vidíte počty bez identifikátorů entit.",
+      "held": "Běh {run} nic nesmazal",
+      "holdReason": {
+        "share-exceeded": "Smazal by {would} z {ledger} entit, víc než pipeline dovoluje. Zkontrolujte zdroj a pak je smažte nebo ponechte.",
+        "empty": "Nenačetl žádný záznam, proto nic nesmazal. Další úplný běh to zruší.",
+        "incomplete": "Nenačetl zdroj úplně, proto nic nesmazal. Další úplný běh to zruší."
+      },
+      "keep": "Ponechat",
+      "more": "a dalších {count}; všechny identifikátory jsou v CSV.",
+      "removed": "Smazané, protože je zdroj vypustil",
+      "noneRemoved": "Zatím nic nesmazáno. Entita odejde, když ji {misses} úplné běhy za sebou neuvedou.",
+      "entity": "Entita",
+      "when": "Smazána",
+      "why": "Důvod",
+      "removedAtSource": "Odstraněna ve zdroji (pipeline {pipeline}, běh {run})",
+      "export": "Exportovat CSV",
+      "release": "Přesto smazat {count}",
+      "orphanList": "Identifikátory sirotků ({count})",
+      "missingList": "Identifikátory chybějící v prostoru ({count})",
+      "spaceRemovals": "Odstraněné ve zdroji ({count})",
+      "spaceRemovalsLead": "Entity, které pipeline smazaly, protože je zdroj už neuváděl. Vrátí se, až se objeví ve zdroji."
     }
   },
   "dashboards": {
@@ -5522,7 +5560,7 @@
         "error": "Chyba pipeline",
         "restarted": "Pipeline restartována",
         "run": "Spuštěn běh pipeline",
-        "source-delete": "Rozhodnutí o mazání podle zdroje"
+        "source-delete": "Smazané, protože je zdroj vypustil"
       },
       "endpoint": {
         "traffic": "Provoz endpointu"

@@ -1619,6 +1619,14 @@
         "pipeline_runs.test.tsx"
       ]
     },
+    "src/pages/pipelines/PipelineSourceReport.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "pipeline_source_report.test.tsx"
+      ]
+    },
     "src/pages/pipelines/PipelineStudio.tsx": {
       "controls": {
         "Button": 6,

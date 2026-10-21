@@ -2964,6 +2964,44 @@
         "reads": "Liest Bereich {other} über Endpunkt {endpoint} ({operation})",
         "writes": "Schreibt in Bereich {other} über Endpunkt {endpoint} ({operation})"
       }
+    },
+    "source": {
+      "section": "Quelle und Raum",
+      "lead": "Belegt, dass der Raum enthält, was die Quelle listet: das letzte vollständige Lesen der Quelle neben den Entitäten, die diese Pipeline im Raum hält, was an der Quelle verschwand, was nie ankam und was die Pipeline löschte und warum.",
+      "notSnapshot": "Diese Pipeline behält Entitäten, die ihre Quelle entfernt",
+      "notSnapshotHint": "Nichts wird verglichen oder gelöscht. Um Entfernungen zu folgen, schlagen Sie die Pipeline mit Löschen nach Quelle „snapshot“ vor, zum Beispiel Fehlläufe 2 und höchstens 10 %.",
+      "unavailable": "Der Quellbericht konnte nicht gelesen werden. Laden Sie die Seite neu; bleibt es so, ist die Datenbank des Portals nicht erreichbar.",
+      "atSource": "An der Quelle",
+      "atSourceHint": "Datensätze, die Lauf {run} las: geschrieben und abgelehnt.",
+      "noCompleteRun": "Noch kein Lauf hat die Quelle vollständig gelesen.",
+      "inSpace": "Im Raum",
+      "inSpaceHint": "Entitäten, die diese Pipeline in {space} schrieb und nicht löschte.",
+      "orphans": "Verwaiste",
+      "orphansHint": "Im Raum, an der Quelle nicht mehr. Gelöscht, wenn {misses} vollständige Läufe in Folge sie nicht finden.",
+      "missing": "Fehlend",
+      "missingHint": "An der Quelle, nicht im Raum: das Datenmodell lehnte sie im letzten vollständigen Lauf ab.",
+      "lastComplete": "Letzter vollständiger Lauf: {run},",
+      "idsHidden": "Sie dürfen diese Pipeline lesen, den Raum {space} nicht, daher sehen Sie die Zahlen ohne Entitäts-IDs.",
+      "held": "Lauf {run} hat nichts gelöscht",
+      "holdReason": {
+        "share-exceeded": "Er würde {would} von {ledger} Entitäten löschen, mehr als die Pipeline erlaubt. Prüfen Sie die Quelle, dann löschen oder behalten Sie sie.",
+        "empty": "Er las keinen Datensatz, daher wurde nichts gelöscht. Der nächste vollständige Lauf hebt das auf.",
+        "incomplete": "Er las die Quelle nicht vollständig, daher wurde nichts gelöscht. Der nächste vollständige Lauf hebt das auf."
+      },
+      "keep": "Behalten",
+      "more": "und {count} weitere; der CSV-Export enthält alle IDs.",
+      "removed": "Gelöscht, weil die Quelle sie entfernte",
+      "noneRemoved": "Noch nichts gelöscht. Eine Entität geht, wenn {misses} vollständige Läufe in Folge sie nicht mehr listen.",
+      "entity": "Entität",
+      "when": "Gelöscht",
+      "why": "Grund",
+      "removedAtSource": "An der Quelle entfernt (Pipeline {pipeline}, Lauf {run})",
+      "export": "CSV exportieren",
+      "release": "{count} trotzdem löschen",
+      "orphanList": "IDs der Verwaisten ({count})",
+      "missingList": "Im Raum fehlende IDs ({count})",
+      "spaceRemovals": "An der Quelle entfernt ({count})",
+      "spaceRemovalsLead": "Entitäten, die Pipelines löschten, weil ihre Quelle sie nicht mehr listete. Sie kehren zurück, wenn die Quelle sie wieder listet."
     }
   },
   "dashboards": {
@@ -5522,7 +5560,7 @@
         "error": "Pipeline-Fehler",
         "restarted": "Pipeline neu gestartet",
         "run": "Pipeline-Lauf gestartet",
-        "source-delete": "Entscheidung über Quell-Löschungen"
+        "source-delete": "Gelöscht, weil die Quelle sie entfernte"
       },
       "endpoint": {
         "traffic": "Endpunkt-Verkehr"
