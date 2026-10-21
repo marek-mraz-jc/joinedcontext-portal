@@ -1576,6 +1576,9 @@
       "policyReads": "reads only",
       "groupMembers": "Covers {count} operations",
       "operationSingle": "one operation",
+      "operationsSingle": "{count} single operations",
+      "policiesAll": "Show all {count} policies",
+      "policiesFewer": "Show fewer policies",
       "policyEmpty": "This policy names no operation, so it grants nothing.",
       "group": {
         "retrieveOps": "Read one entity and query entities.",

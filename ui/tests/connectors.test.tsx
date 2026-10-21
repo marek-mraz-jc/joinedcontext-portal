@@ -47,7 +47,14 @@ describe("connector helpers", () => {
       { name: "b", select: { endpoints: ["air1"] } },
     ];
     expect(toggledStar(two, "bins1")[0]).toEqual({ name: "a", select: { projects: ["mesto"], endpoints: ["bins1"] } });
-    expect(toggledStar(two, "air1")[1].select?.endpoints).toEqual([]);
+    expect(toggledStar(two, "air1")).toEqual([two[0]]);
+  });
+
+  it("drops a connector when its last Endpoint is unstarred, so it never widens to all it may read (T-5015)", () => {
+    expect(toggledStar([{ name: "favourites", select: { endpoints: ["air1"] } }], "air1")).toEqual([]);
+    const scoped: Connector[] = [{ name: "mesto", select: { projects: ["mesto"], endpoints: ["air1", "bins1"] } }];
+    expect(toggledStar(scoped, "air1")).toEqual([{ name: "mesto", select: { projects: ["mesto"], endpoints: ["bins1"] } }]);
+    expect(toggledStar(toggledStar(scoped, "air1"), "bins1")).toEqual([]);
   });
 
   it("refuses a bad name, a taken name, a bad space and too many values before the server is asked", () => {
@@ -230,7 +237,7 @@ describe("the connectors page (T-4531)", () => {
     await screen.findByRole("button", { name: "Add to my connectors" });
     expect(writes).toEqual([
       { theme: "dark", connectors: [{ name: "favourites", select: { endpoints: ["air1"] } }] },
-      { theme: "dark", connectors: [{ name: "favourites", select: { endpoints: [] } }] },
+      { theme: "dark", connectors: [] },
     ]);
   });
 

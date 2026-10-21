@@ -1533,6 +1533,7 @@ function PolicyGrants({
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
+  const [showAll, setShowAll] = useState(false);
 
   if (pending) {
     return (
@@ -1556,84 +1557,110 @@ function PolicyGrants({
     return <p className="text-body text-fg-muted">{t("endpoints.page.noPolicy")}</p>;
   }
 
+  // A space with dozens of policies made this list 9,500 px tall (T-5015): the first few show,
+  // the rest one press away.
+  const shown = showAll ? binding.policies : binding.policies.slice(0, POLICY_FOLD);
   return (
-    <ul className="flex flex-col gap-3">
-      {binding.policies.map((policy) => {
-        const spec = policy.spec as {
-          assignee?: { kind?: string; id?: string };
-          operations?: string[];
-          effect?: string;
-        };
-        const operations = spec.operations ?? [];
-        const writes = grantWrites(operations);
-        return (
-          <li key={policy.metadata.name} className="rounded-md border border-border p-3">
-            <div className="flex flex-wrap items-baseline gap-2">
-              <Link
-                to="/projects/$project/$plural"
-                params={{ project, plural: "policies" }}
-                className="focus-ring rounded-sm font-medium text-fg hover:underline"
-              >
-                {localized(policy.metadata.title, locale, policy.metadata.name)}
-              </Link>
-              <Badge tone={writes ? "warning" : "success"}>
-                {t(writes ? "endpoints.page.policyWrites" : "endpoints.page.policyReads")}
-              </Badge>
-              {spec.assignee?.id ? (
-                <span className="text-caption text-fg-muted">
-                  {t("endpoints.page.policyAssignee")}:{" "}
-                  <span className="font-mono">
-                    {spec.assignee.kind ? `${spec.assignee.kind}:` : ""}
-                    {spec.assignee.id}
+    <div className="flex flex-col gap-3">
+      <ul className="flex flex-col gap-3">
+        {shown.map((policy) => {
+          const spec = policy.spec as {
+            assignee?: { kind?: string; id?: string };
+            operations?: string[];
+            effect?: string;
+          };
+          const operations = spec.operations ?? [];
+          const writes = grantWrites(operations);
+          return (
+            <li key={policy.metadata.name} className="rounded-md border border-border p-3">
+              <div className="flex flex-wrap items-baseline gap-2">
+                <Link
+                  to="/projects/$project/$plural"
+                  params={{ project, plural: "policies" }}
+                  className="focus-ring rounded-sm font-medium text-fg hover:underline"
+                >
+                  {localized(policy.metadata.title, locale, policy.metadata.name)}
+                </Link>
+                <Badge tone={writes ? "warning" : "success"}>
+                  {t(writes ? "endpoints.page.policyWrites" : "endpoints.page.policyReads")}
+                </Badge>
+                {spec.assignee?.id ? (
+                  <span className="text-caption text-fg-muted">
+                    {t("endpoints.page.policyAssignee")}:{" "}
+                    <span className="font-mono">
+                      {spec.assignee.kind ? `${spec.assignee.kind}:` : ""}
+                      {spec.assignee.id}
+                    </span>
                   </span>
-                </span>
-              ) : null}
-            </div>
-            {operations.length === 0 ? (
-              <p className="mt-2 text-caption text-fg-muted">{t("endpoints.page.policyEmpty")}</p>
-            ) : (
-              <dl className="mt-2 flex flex-col gap-2">
-                {operations.map((name) => (
-                  <Grant key={name} name={name} />
-                ))}
-              </dl>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+                ) : null}
+              </div>
+              {operations.length === 0 ? (
+                <p className="mt-2 text-caption text-fg-muted">{t("endpoints.page.policyEmpty")}</p>
+              ) : (
+                <dl className="mt-2 flex flex-col gap-2">
+                  {operations.filter((name) => groupOf(name)).map((name) => (
+                    <Grant key={name} name={name} />
+                  ))}
+                  <SingleOperations names={operations.filter((name) => !groupOf(name))} />
+                </dl>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {binding.policies.length > POLICY_FOLD ? (
+        <Button type="button" variant="secondary" size="sm" className="w-fit" aria-expanded={showAll} onClick={() => setShowAll(!showAll)}>
+          {showAll ? t("endpoints.page.policiesFewer") : t("endpoints.page.policiesAll", { count: binding.policies.length })}
+        </Button>
+      ) : null}
+    </div>
   );
 }
 
-/** One line of a policy's `operations`: a group with its members, or a single operation. */
-function Grant({ name }: { name: string }): JSX.Element {
+/** How many policies "Who may call it" shows before "Show all" (T-5015). */
+const POLICY_FOLD = 5;
+
+/** A policy's single operations as one wrapping row of chips; one line each made a long grant a page tall (T-5015). */
+function SingleOperations({ names }: { names: string[] }): JSX.Element | null {
+  const { t } = useTranslation();
+  if (names.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-0.5">
+      <dt className="flex flex-wrap items-center gap-1">
+        {names.map((name) => (
+          <Badge key={name} mono tone="info">
+            {name}
+          </Badge>
+        ))}
+      </dt>
+      <dd className="text-caption text-fg-muted">
+        {/* A single operation is its own chip; naming it again beside it said it twice (T-2751). */}
+        {names.length === 1 ? t("endpoints.page.operationSingle") : t("endpoints.page.operationsSingle", { count: names.length })}
+      </dd>
+    </div>
+  );
+}
+
+/** One operation group of a policy's `operations`, with its members. */
+function Grant({ name }: { name: string }): JSX.Element | null {
   const { t } = useTranslation();
   const group = groupOf(name);
+  if (!group) return null;
   return (
     <div className="flex flex-col gap-0.5">
       <dt className="flex flex-wrap items-center gap-2">
-        <Badge mono tone={group?.writes ? "warning" : "info"}>
+        <Badge mono tone={group.writes ? "warning" : "info"}>
           {name}
         </Badge>
-        {group ? (
-          <span className="text-caption text-fg-muted">
-            {t("endpoints.page.groupMembers", { count: group.operations.length })}
-          </span>
-        ) : null}
+        <span className="text-caption text-fg-muted">
+          {t("endpoints.page.groupMembers", { count: group.operations.length })}
+        </span>
       </dt>
       <dd className="text-caption text-fg-muted">
-        {group ? (
-          <>
-            {t(`endpoints.page.group.${group.name}`)}{" "}
-            {/* The members in full: a group is exactly this list, and a reader who has to trust
-                the name without it cannot tell a narrow grant from a wide one (GW34). */}
-            <span className="font-mono text-fg">{group.operations.join(", ")}</span>
-          </>
-        ) : (
-          // A single operation is its own chip above; naming it again beside it said it twice
-          // (T-2751).
-          t("endpoints.page.operationSingle")
-        )}
+        {t(`endpoints.page.group.${group.name}`)}{" "}
+        {/* The members in full: a group is exactly this list, and a reader who has to trust
+            the name without it cannot tell a narrow grant from a wide one (GW34). */}
+        <span className="font-mono text-fg">{group.operations.join(", ")}</span>
       </dd>
     </div>
   );

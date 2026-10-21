@@ -1576,6 +1576,9 @@
       "policyReads": "iba číta",
       "groupMembers": "Pokrýva {count} operácií",
       "operationSingle": "jedna operácia",
+      "operationsSingle": "{count} samostatných operácií",
+      "policiesAll": "Zobraziť všetkých {count} politík",
+      "policiesFewer": "Zobraziť menej politík",
       "policyEmpty": "Táto politika nepomenúva žiadnu operáciu, takže neudeľuje nič.",
       "group": {
         "retrieveOps": "Prečítať jednu entitu a dopytovať sa na entity.",

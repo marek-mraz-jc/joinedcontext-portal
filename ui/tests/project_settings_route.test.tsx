@@ -64,6 +64,11 @@ describe("the addresses of Project settings (T-2606)", () => {
     expect(window.location.search).toBe("?grant=jana-kovacova-steward-helsinki");
   });
 
+  it("opens a bare /projects/{project} on the project's home (T-5015)", async () => {
+    renderAt("/projects/helsinki");
+    await waitFor(() => expect(window.location.pathname).toBe("/projects/helsinki/home"));
+  });
+
   it("opens /projects/{project}/settings on General", async () => {
     renderAt("/projects/helsinki/settings");
     await waitFor(() => expect(window.location.pathname).toBe("/projects/helsinki/settings/general"));
