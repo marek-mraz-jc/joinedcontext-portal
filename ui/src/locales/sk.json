@@ -5544,7 +5544,14 @@
     "table": {
       "name": "Názov"
     },
-    "testRun": "Testovací beh"
+    "testRun": "Testovací beh",
+    "group": {
+      "all": "Zobraziť všetky behy ({count})",
+      "latestOnly": "Zobraziť len posledný beh"
+    },
+    "timing": {
+      "both": "Prvý snímok a verzia"
+    }
   },
   "activity": {
     "title": "Aktivita",
@@ -8089,7 +8096,8 @@
       "typeFirst": "Najprv napíšte otázku.",
       "none": "Na „{q}“ v tomto zdroji nič neodpovedá.",
       "hits": "Výsledky pre „{q}“"
-    }
+    },
+    "languagesMore": "+{count} ďalšie"
   },
   "mcp": {
     "title": "MCP servery",
@@ -9151,7 +9159,13 @@
       "byStage": "Cena podľa krokov",
       "calls": "{count} volaní",
       "days": "Po dňoch (UTC)",
-      "day": "{questions} otázok, {cost}, medián {p50}, limity {timeouts}, chyby {errors}"
+      "day": "{questions} otázok, {cost}, medián {p50}, limity {timeouts}, chyby {errors}",
+      "none": "V tomto období nie sú žiadne otázky. Rozšírte dátumy alebo zrušte filter.",
+      "notRecorded": {
+        "both": "Cena a tokeny neboli zaznamenané: poskytovateľ modelu ich pri týchto otázkach neuviedol.",
+        "cost": "Cena nebola zaznamenaná: poskytovateľ modelu pri týchto otázkach neposlal cenu.",
+        "tokens": "Tokeny neboli zaznamenané: poskytovateľ modelu pri týchto otázkach neuviedol počty tokenov."
+      }
     }
   },
   "retentionGuide": {

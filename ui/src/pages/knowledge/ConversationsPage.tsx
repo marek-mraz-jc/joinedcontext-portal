@@ -213,6 +213,9 @@ export function ConversationsPage({
                 <TableCell>
                   {row.timeouts > 0 ? <Badge tone="warning">{t("conversations.status.timeout")}</Badge> : null}
                   {row.errors > 0 ? <Badge tone="danger">{t("conversations.status.erred")}</Badge> : null}
+                  {row.lastError ? (
+                    <span className="block max-w-56 text-caption text-fg-muted [overflow-wrap:anywhere]">{visible(row.lastError)}</span>
+                  ) : null}
                   {row.thumbsDown > 0 ? <Badge tone="danger">{t("conversations.feedback.down")}</Badge> : null}
                   {row.thumbsUp > 0 ? <Badge tone="success">{t("conversations.feedback.up")}</Badge> : null}
                 </TableCell>
