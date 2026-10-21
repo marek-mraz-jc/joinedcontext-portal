@@ -153,6 +153,8 @@ Use it for full-snapshot sources: a vehicle list, a register of stations, a cata
 
 Leave it off for incremental and event feeds: sensor readings, change streams, a feed that only sends what changed. There a quiet entity has nothing new to say, and expiry would delete it. That is why expiry is off unless you switch it on.
 
+When the source gives each item an end time, give the pipeline a **Lifetime** instead (section 8); [Retention & Expiry](./14-retention-and-expiry.md#3-which-one-do-i-pick) compares the ways data is removed. A pipeline cannot carry both expiry and a whole-entity lifetime for the same type.
+
 ### Switch On Expiry
 
 #### By hand
@@ -162,9 +164,30 @@ Leave it off for incremental and event feeds: sensor readings, change streams, a
 3. Click **Propose change**. The Portal refuses the proposal while another pipeline writes into the same space, and while no Policy grants the pipeline's account `deleteBatch` on those types; the message names the Policy to extend.
 4. An approver confirms it in Approvals. The pipeline page and the list then say "Entities not updated for 14 days are removed", and the deletions appear in the activity trail under the pipeline's account.
 
+## 8. Ending Entities and Fields With a Lifetime
+
+A lifetime gives what the pipeline writes an end time, and the broker removes it when that time passes. Unlike expiry it needs no delete permission and no second sweep: the end time travels with each write.
+
+### Set a Lifetime
+
+#### By hand
+
+1. On `/projects/helsinki/pipelines`, open the pipeline and click **Edit pipeline**.
+2. Open the **Lifetime** step. Choose one of the four:
+   - **Whole entity expires**, **From a field**: pick the **Field** that holds the time, for a bus `observedAt`, and the margin in **Plus**, for a bus `5` `minutes`. For an alert pick `validTo` and set **At most after the write** to `30 days`, so a wrong year does not keep it for decades.
+   - **Whole entity expires**, **After each write**: the entity is removed the given time after the pipeline last wrote it.
+   - **Whole entity expires**, **On a fixed date**: every entity of the pipeline ends at one date and time, for an event that closes on a known day.
+   - **Only some fields expire**: pick the fields, for a bus `location`, and how long each stays, for example `5` `minutes` **After each write**. The entity stays; only those fields are removed.
+3. Click **Check**. Each sample record is checked against the space's data model, what the target endpoint lets the pipeline write, and the lifetime it gets; a problem names the record, the field and the rule.
+4. When the check is green, click **Propose change**. The Portal refuses a proposal whose check is missing or older than the draft, a fixed date that has passed, and a mapping that sets `expiresAt` for the same entity or field.
+5. An approver merges the proposal in Approvals. The editor reads the lifetime back from the manifest, even after you edit the mapping by hand.
+
+The four choices and when each fits are in [Retention & Expiry](./14-retention-and-expiry.md#4-the-lifetime-step-of-the-pipeline-editor).
+
 ## Related
 
 - [Organizations, Projects & Context Spaces](./02-organizations-projects-spaces.md): managing target spaces.
 - [Data Modeling](./03-data-models.md): authoring schemas for pipeline validation.
 - [Endpoints & Sharing](./05-endpoints-and-sharing.md): publishing ingested context data.
 - [Users, Roles & Approvals](./07-users-roles-approvals.md): reviewing pipeline change proposals.
+- [Retention & Expiry](./14-retention-and-expiry.md): the lifetime recipes for buses, alerts, events and single fields, and when to pick expiry instead.
