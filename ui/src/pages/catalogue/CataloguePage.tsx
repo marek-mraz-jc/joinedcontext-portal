@@ -11,6 +11,7 @@ import {
   Button,
   Card,
   Checkbox,
+  Dialog,
   EmptyState,
   Icon,
   Input,
@@ -181,29 +182,61 @@ function Results({
   refreshing: boolean;
 }): JSX.Element {
   const { t } = useTranslation();
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const pages = Math.max(1, Math.ceil(answer.total / answer.pageSize));
+  const chosen = FACETS.reduce((sum, facet) => sum + (search[facet]?.length ?? 0), 0);
+  const groups = FACETS.map((facet) => (
+    <FacetGroup
+      key={facet}
+      facet={facet}
+      values={answer.facets[facet]}
+      selected={search[facet] ?? []}
+      onToggle={(value) => onSearch(toggled(search, facet, value))}
+    />
+  ));
   return (
-    <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-      <aside aria-label={t("catalogue.facets.label")} className="flex w-full flex-col gap-4 lg:w-72 lg:shrink-0">
-        {FACETS.map((facet) => (
-          <FacetGroup
-            key={facet}
-            facet={facet}
-            values={answer.facets[facet]}
-            selected={search[facet] ?? []}
-            onToggle={(value) => onSearch(toggled(search, facet, value))}
-          />
-        ))}
+    <div className="flex flex-col gap-6 md:flex-row md:items-start">
+      {/* Under 768 px the facets wait behind a button, so the first dataset is on the first screen (T-4995). */}
+      <aside
+        aria-label={t("catalogue.facets.label")}
+        className="hidden flex-col gap-4 md:flex md:w-60 md:shrink-0 lg:w-72"
+      >
+        {groups}
       </aside>
+      <Dialog
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        title={t("catalogue.facets.label")}
+        description={t("catalogue.facets.hint")}
+        closeLabel={t("catalogue.facets.close")}
+        footer={
+          <Button variant="primary" onClick={() => setFiltersOpen(false)}>
+            {t("catalogue.facets.show", { count: answer.total })}
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-4">{groups}</div>
+      </Dialog>
       <section aria-label={t("catalogue.results.label")} aria-busy={refreshing} className="flex min-w-0 flex-1 flex-col gap-4">
         {answer.unavailable.length > 0 ? (
           <Alert tone="warning">
             {t("catalogue.unavailable", { catalogues: answer.unavailable.join(", ") })}
           </Alert>
         ) : null}
-        <p role="status" className="text-body text-fg-muted">
-          {t("catalogue.results.count", { count: answer.total })}
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p role="status" className="text-body text-fg-muted">
+            {t("catalogue.results.count", { count: answer.total })}
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="md:hidden"
+            aria-haspopup="dialog"
+            onClick={() => setFiltersOpen(true)}
+          >
+            {t("catalogue.facets.open", { count: chosen })}
+          </Button>
+        </div>
         {answer.datasets.length === 0 ? (
           <EmptyState
             icon="ckan"
@@ -310,10 +343,25 @@ function FacetGroup({
   );
 }
 
+/** The formats a person picks a dataset by, first: a file, a map, the API, an assistant (T-4995). */
+const PREFERRED_FORMATS = ["CSV", "OGCFEAT", "NGSI-LD", "MCP"];
+const KEY_FORMATS_SHOWN = 4;
+
+/** The card's few formats: the preferred ones it has, then the others in the catalogue's order. */
+export function keyFormats(formats: string[]): string[] {
+  const rank = (format: string) => {
+    const at = PREFERRED_FORMATS.indexOf(format);
+    return at === -1 ? PREFERRED_FORMATS.length : at;
+  };
+  return [...formats].sort((a, b) => rank(a) - rank(b)).slice(0, KEY_FORMATS_SHOWN);
+}
+
 function DatasetCard({ dataset }: { dataset: CatalogueDataset }): JSX.Element {
   const { t, i18n } = useTranslation();
   const themeLabel = useThemeLabel();
   const modified = dataset.modified ? new Date(dataset.modified) : null;
+  const shown = keyFormats(dataset.formats);
+  const hidden = dataset.formats.filter((format) => !shown.includes(format));
   return (
     <Card className="flex flex-col gap-2">
       <h2 className="font-heading text-title font-semibold">
@@ -346,11 +394,20 @@ function DatasetCard({ dataset }: { dataset: CatalogueDataset }): JSX.Element {
               <Badge tone="info">{themeLabel(theme)}</Badge>
             </li>
           ))}
-          {dataset.formats.map((format) => (
+          {shown.map((format) => (
             <li key={`format-${format}`}>
               <Badge mono>{format}</Badge>
             </li>
           ))}
+          {hidden.length > 0 ? (
+            <li>
+              {/* The rest a hover away; the dataset's own page lists every one. */}
+              <Badge title={hidden.join(", ")}>
+                {t("catalogue.dataset.moreFormats", { count: hidden.length })}
+                <span className="sr-only">: {hidden.join(", ")}</span>
+              </Badge>
+            </li>
+          ) : null}
         </ul>
       ) : null}
     </Card>
