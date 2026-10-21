@@ -1346,7 +1346,8 @@
       "missingRow": "není v tomto endpointu (filtr nebo politika)",
       "hiddenColumn": "skryto projekcí",
       "same": "Tento endpoint odpovídá tuto stranu přesně tak, jak ji prostor drží.",
-      "spaceRefused": "Tento endpoint číst smíte, prostor za ním ne, takže není s čím porovnávat."
+      "spaceRefused": "Tento endpoint číst smíte, prostor za ním ne, takže není s čím porovnávat.",
+      "typeHelp": "Který typ záznamů tabulka zobrazuje; vyberte jiný a uvidíte jeho řádky, např. měření kvality ovzduší."
     },
     "projection": {
       "title": "Zveřejněné atributy",
@@ -2986,7 +2987,16 @@
       "noCkan": "Tato skupina nespravuje žádný katalog.",
       "ckanInstance": "{project} / {name}",
       "ckanVia": "přes roli {role}",
-      "appNotLoaded": "Aplikace se ještě načítá nebo ji nemůžete číst."
+      "appNotLoaded": "Aplikace se ještě načítá nebo ji nemůžete číst.",
+      "hint": {
+        "email": "E-mail, kterým se osoba přihlašuje, např. jana.novak@example.org; známé osoby se nabídnou při psaní.",
+        "where": "Kde role platí: celá organizace nebo jeden projekt, např. helsinki.",
+        "space": "Ponechte celý projekt nebo zužte roli na jeden kontextový prostor, např. air-quality.",
+        "role": "Co mohou členové dělat, např. viewer čte, steward také navrhuje změny.",
+        "project": "Projekt, do kterého aplikace patří, např. helsinki.",
+        "app": "Aplikace, jejíž roli skupina dostane, např. air-quality-dashboard.",
+        "appRole": "Jedna z rolí, které aplikace definuje, např. reader."
+      }
     },
     "explorer": {
       "title": "Podívejte se, k čemu má kdo přístup",
@@ -4411,7 +4421,15 @@
     "kindStructured": "Strukturovaná hodnota",
     "kindList": "Seznam",
     "points": "bodů",
-    "openTarget": "Otevřít"
+    "openTarget": "Otevřít",
+    "hint": {
+      "filterText": "Vyberte test a napište slova, např. obsahuje Espoo.",
+      "filterNumber": "Vyberte test a napište číslo, např. větší než 40.",
+      "filterDate": "Vyberte test a zvolte datum, např. po 2026-10-01.",
+      "filterEnum": "Vyberte test; u „kterákoli z“ zvolte jednu nebo více povolených hodnot:",
+      "filterOther": "Vyberte test, např. má hodnotu nebo prázdné.",
+      "editAsText": "Napište dotaz NGSI-LD sami, např. pm10>40;name~=\"Espoo\"."
+    }
   },
   "explore": {
     "title": "Procházet data",
@@ -8158,7 +8176,8 @@
       "copy": "Kopírovat konfiguraci"
     },
     "tools": "{count, plural, one {# nástroj} few {# nástroje} other {# nástrojů}}",
-    "noTools": "Konektor teď nenabízí anonymním volajícím žádné nástroje."
+    "noTools": "Konektor teď nenabízí anonymním volajícím žádné nástroje.",
+    "lead": "Přidejte tato data do AI asistenta, například Claude nebo ChatGPT: zkopírujte adresu do klienta a ptejte se."
   },
   "kinds": {
     "AgentProfile": {

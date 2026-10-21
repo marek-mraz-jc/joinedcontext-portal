@@ -125,7 +125,7 @@ export function ConnectPage({ project, name }: { project: string; name: string }
   if (answer === null) {
     return (
       <section className="mx-auto max-w-3xl space-y-6 px-4 py-6">
-        <PageHeader title={t("connect.title")} />
+        <PageHeader title={t("connect.title")} description={t("connect.lead")} />
         <PageLoading label={t("connect.loading")} />
       </section>
     );
@@ -139,7 +139,7 @@ export function ConnectPage({ project, name }: { project: string; name: string }
           : t("connect.failed");
     return (
       <section className="mx-auto max-w-3xl space-y-6 px-4 py-6">
-        <PageHeader title={t("connect.title")} />
+        <PageHeader title={t("connect.title")} description={t("connect.lead")} />
         <Alert tone={answer.state === "missing" ? "info" : "warning"} actions={answer.state === "missing" ? undefined : retry}>
           {message}
         </Alert>

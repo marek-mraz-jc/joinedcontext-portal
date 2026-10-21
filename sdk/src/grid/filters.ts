@@ -207,6 +207,8 @@ export interface FilterColumn {
   kind: FilterKind;
   /** The permissible values of an `enum` column. */
   options?: EnumOption[];
+  /** The unit symbol of a number column's values, for its hint. */
+  unit?: string;
 }
 
 /**
