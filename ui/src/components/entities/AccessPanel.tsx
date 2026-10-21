@@ -108,6 +108,13 @@ export function mayDelete(doc: GrantDocument | undefined, type: string): boolean
   return (doc?.permissions ?? []).some(names) && !(doc?.prohibitions ?? []).some(names);
 }
 
+/** Whether a grant lets its caller create entities of `type` (T-5064), read like `mayDelete`. */
+export function mayCreate(doc: GrantDocument | undefined, type: string): boolean {
+  const names = (entry: GrantEntry) =>
+    (entry.resource?.type === undefined || covers(entry, type)) && (entry.actions ?? []).includes("createEntity");
+  return (doc?.permissions ?? []).some(names) && !(doc?.prohibitions ?? []).some(names);
+}
+
 export function editableAttributes(
   doc: GrantDocument | undefined,
   type: string | undefined,

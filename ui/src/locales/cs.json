@@ -785,6 +785,7 @@
       "moveReason": "Proč přesouváte (nepovinné)",
       "boardReadOnly": "Tuto tabuli můžete číst. Žádný z vašich Endpointů vám nedovolí měnit {attr}, proto karty zůstávají na místě.",
       "nothingThisSpan": "V tomto období nic není. Přejděte na jiné nebo vyberte jiné pole s datem.",
+      "goNearest": "Přejít na {date}",
       "noDateTimeline": "Časová osa potřebuje pole s datem (jako startDate a endDate); tento typ žádné nemá.",
       "timelineDrag": "Tažením pruhu do strany posunete obě data o celé dny, nebo otevřete řádek a vyberte nový začátek.",
       "moveStart": "Nový {start} ({end} se posune o stejný počet dní)",
@@ -952,6 +953,7 @@
       "fix": "Před odesláním je třeba opravit odpovědi: {count}.",
       "refused": "Nevytvořeno: {reason}",
       "created": "Vytvořeno {id}.",
+      "refusedHint": "Požádejte vlastníka projektu o politiku, která vám dovolí vytvářet {type} v tomto prostoru.",
       "noFields": "Model typu {type} nemá pole, na které by se formulář mohl ptát.",
       "problem": {
         "required": "Odpovězte, tato otázka je povinná.",

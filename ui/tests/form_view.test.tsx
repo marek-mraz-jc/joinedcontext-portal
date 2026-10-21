@@ -80,6 +80,23 @@ describe("the form view", () => {
     expect(await screen.findByText(new RegExp(String(id)))).toBeInTheDocument();
   });
 
+  // T-5064: the space surface refused dev's steward every create its Endpoints grant; a row is
+  // created through the Endpoint whose grant names createEntity, under that Endpoint's Policy.
+  it("creates through the Endpoint the page names, not the space surface", async () => {
+    const posted: string[] = [];
+    renderPage(<FormView space="parking" endpoint="slug-1" type="ParkingSpot" slots={SLOTS} enums={ENUMS} search={new URLSearchParams()} />, {
+      path: "/projects/city/spaces/parking",
+      answer: async (url, request) => {
+        if (request.method !== "POST") return undefined;
+        posted.push(url.pathname);
+        return new Response(null, { status: 201 });
+      },
+    });
+    await userEvent.type(await screen.findByRole("textbox", { name: /^name/ }), "Hlavná");
+    await userEvent.click(screen.getByRole("button", { name: en.spaces.form.submit }));
+    await waitFor(() => expect(posted).toEqual(["/api/endpoint/slug-1/ngsi-ld/v1/entities"]));
+  });
+
   it("says what is wrong before sending, and the gateway's refusal after", async () => {
     let posts = 0;
     renderPage(<FormView space="parking" type="ParkingSpot" slots={SLOTS} enums={ENUMS} search={new URLSearchParams()} />, {
@@ -100,7 +117,10 @@ describe("the form view", () => {
     await userEvent.type(screen.getByRole("textbox", { name: /^name/ }), "Hlavná");
     await userEvent.clear(screen.getByRole("textbox", { name: /capacity/ }));
     await userEvent.click(screen.getByRole("button", { name: en.spaces.form.submit }));
-    expect(await screen.findByText(/the policy does not grant createEntity/)).toBeInTheDocument();
+    // The refusal says what to do next (T-5064): who can grant the create.
+    expect(
+      await screen.findByText(/the policy does not grant createEntity\. Ask a project owner for a Policy that lets you create ParkingSpot in this space\./),
+    ).toBeInTheDocument();
     expect(posts).toBe(1);
   });
 });

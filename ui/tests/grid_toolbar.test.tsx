@@ -15,7 +15,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { conditionCount, EMPTY_GROUP, FilterPanel, readGroup } from "../src/components/entities/FilterPanel";
 import { FooterAggregate, percent, ToolbarPopover } from "../src/components/entities/GridToolbar";
-import { mayDelete } from "../src/components/entities/AccessPanel";
+import { mayCreate, mayDelete } from "../src/components/entities/AccessPanel";
 import type { Aggregation } from "../src/components/entities/GridToolbar";
 import { viewerWriteFindings } from "./pageChecks";
 
@@ -198,5 +198,16 @@ describe("mayDelete", () => {
     expect(mayDelete({ permissions: [{ ...grant, actions: ["queryEntity", "updateAttrs"] }] }, "Event")).toBe(false);
     expect(mayDelete({ permissions: [grant], prohibitions: [{ resource: { type: "*" }, actions: ["deleteEntity"] }] }, "Event")).toBe(false);
     expect(mayDelete(undefined, "Event")).toBe(false);
+  });
+});
+
+describe("mayCreate (T-5064)", () => {
+  it("names the Endpoint for a new row only where a grant names createEntity and no prohibition does", () => {
+    const grant = { resource: { type: "Alert" }, actions: ["createEntity", "updateAttrs"] };
+    expect(mayCreate({ permissions: [grant] }, "Alert")).toBe(true);
+    expect(mayCreate({ permissions: [grant] }, "Event")).toBe(false);
+    expect(mayCreate({ permissions: [{ ...grant, actions: ["queryEntity", "updateAttrs"] }] }, "Alert")).toBe(false);
+    expect(mayCreate({ permissions: [grant], prohibitions: [{ resource: { type: "*" }, actions: ["createEntity"] }] }, "Alert")).toBe(false);
+    expect(mayCreate(undefined, "Alert")).toBe(false);
   });
 });

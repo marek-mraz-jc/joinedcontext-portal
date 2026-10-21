@@ -785,6 +785,7 @@
       "moveReason": "Warum Sie verschieben (optional)",
       "boardReadOnly": "Sie können diese Tafel lesen. Keiner Ihrer Endpoints erlaubt Ihnen, {attr} zu ändern, daher bleiben die Karten, wo sie sind.",
       "nothingThisSpan": "In diesem Zeitraum liegt nichts. Wechseln Sie den Zeitraum oder wählen Sie ein anderes Datumsfeld.",
+      "goNearest": "Zum {date} springen",
       "noDateTimeline": "Eine Zeitachse braucht ein Datumsfeld (wie startDate und endDate); dieser Typ hat keines.",
       "timelineDrag": "Ziehen Sie einen Balken seitwärts, um beide Daten um ganze Tage zu verschieben, oder öffnen Sie eine Zeile und wählen Sie den neuen Beginn.",
       "moveStart": "Neues {start} ({end} verschiebt sich um dieselben Tage)",
@@ -952,6 +953,7 @@
       "fix": "Vor dem Senden müssen Antworten korrigiert werden: {count}.",
       "refused": "Nicht angelegt: {reason}",
       "created": "Angelegt: {id}.",
+      "refusedHint": "Bitten Sie eine Projektverantwortliche Person um eine Policy, mit der Sie {type} in diesem Bereich anlegen dürfen.",
       "noFields": "Das Modell von {type} hat kein Feld, das ein Formular abfragen kann.",
       "problem": {
         "required": "Beantworten Sie diese Frage: Sie ist erforderlich.",

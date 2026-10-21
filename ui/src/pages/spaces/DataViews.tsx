@@ -295,7 +295,9 @@ export function GalleryView({
                   {chosenFields.map((attr) => (
                     <div key={attr} className="contents">
                       <dt className="text-fg-muted">{attr}</dt>
-                      <dd className="text-fg [overflow-wrap:anywhere]">{cellText(row.cells[attr]) || "—"}</dd>
+                      <dd className="line-clamp-3 text-fg [overflow-wrap:anywhere]" title={cellText(row.cells[attr]) || undefined}>
+                        {cellText(row.cells[attr]) || "—"}
+                      </dd>
                     </div>
                   ))}
                 </dl>
@@ -322,6 +324,43 @@ export function writes(source: EntitySource | undefined, editable: readonly stri
 export interface EnumChoice {
   value: string;
   title?: string;
+}
+
+/** The most distinct values an attribute may hold and still make board columns of what the rows hold. */
+export const OBSERVED_CHOICES = 12;
+
+/**
+ * Board columns from the rows themselves: each text Property whose rows hold 2 to
+ * OBSERVED_CHOICES distinct short values (no dates), each on two rows or more on average, the
+ * values in name order.
+ */
+export function observedChoices(rows: RichRow[]): Record<string, EnumChoice[]> {
+  const found: Record<string, EnumChoice[]> = {};
+  for (const attr of attributesOf(rows)) {
+    const values = new Set<string>();
+    let filled = 0;
+    let fits = true;
+    for (const row of rows) {
+      const cell = row.cells[attr];
+      if (cell === undefined) continue;
+      const value = Array.isArray(cell) ? undefined : cell.kind === "property" ? cell.value : undefined;
+      if (typeof value !== "string" || value.length > 40 || ISO_DATE.test(value)) {
+        fits = false;
+        break;
+      }
+      if (value.trim()) {
+        values.add(value.trim());
+        filled += 1;
+      }
+      if (values.size > OBSERVED_CHOICES) {
+        fits = false;
+        break;
+      }
+    }
+    // A column holds several rows: a name or an id, distinct on almost every row, makes no board.
+    if (fits && values.size >= 2 && values.size * 2 <= filled) found[attr] = [...values].sort().map((value) => ({ value }));
+  }
+  return found;
 }
 
 /**
@@ -490,7 +529,10 @@ export function KanbanView({
   onDelete?: (row: RichRow) => Promise<void>;
 }): JSX.Element {
   const { t } = useTranslation();
-  const attrs = Object.keys(enums).sort();
+  // The model's enum slots first; then any text attribute whose rows hold a few distinct values,
+  // so a register without enums in its model (eventStatus) still makes a board (T-5064).
+  const choices = useMemo(() => ({ ...observedChoices(rows), ...enums }), [rows, enums]);
+  const attrs = [...Object.keys(enums).sort(), ...Object.keys(choices).filter((name) => !(name in enums)).sort()];
   const [chosen, setChosen] = useState("");
   const attr = attrs.includes(chosen) ? chosen : (attrs[0] ?? "");
   const [open, setOpen] = useState<RichRow | null>(null);
@@ -506,7 +548,7 @@ export function KanbanView({
   if (attrs.length === 0) {
     return <p className="text-body text-fg-muted">{t("spaces.views.noEnum")}</p>;
   }
-  const values = enums[attr];
+  const values = choices[attr];
   const movable = writes(source, editable, attr);
   const moved = Object.fromEntries(rows.map((row) => [row.id, moves.valueOf(row) ?? ""]));
   const columns = columnsOf(rows, attr, values, moved);
@@ -649,6 +691,19 @@ export function rescheduled(row: RichRow, key: string, day: string): Record<stri
     return { [key]: { type: "Property", value: { "@type": typed["@type"], "@value": moved(typed["@value"]) } } };
   }
   return undefined;
+}
+
+/** The day of `days` nearest to `at` (the earlier one on a tie), or nothing when no row has a day. */
+export function nearestDay(days: readonly (string | undefined)[], at: string): string | undefined {
+  const from = Date.parse(`${at}T00:00:00Z`);
+  let best: string | undefined;
+  for (const day of days) {
+    if (day === undefined) continue;
+    const distance = Math.abs(Date.parse(`${day}T00:00:00Z`) - from);
+    const bestDistance = best === undefined ? Infinity : Math.abs(Date.parse(`${best}T00:00:00Z`) - from);
+    if (distance < bestDistance || (distance === bestDistance && best !== undefined && day < best)) best = day;
+  }
+  return best;
 }
 
 /**
@@ -801,9 +856,7 @@ export function CalendarView({
         </Alert>
       ) : null}
       <Truncated count={rows.length} />
-      {span !== "day" && shownDays === 0 ? (
-        <p className="text-caption text-fg-muted sm:hidden">{t("spaces.views.nothingThisSpan")}</p>
-      ) : null}
+      {shownDays === 0 ? <EmptySpan nearest={nearestDay(rows.map(moves.valueOf), at)} onGo={setAt} /> : null}
       <ol
         className={
           span === "day"
@@ -882,6 +935,28 @@ export function CalendarView({
 }
 
 /** `day` (`YYYY-MM-DD`) moved by `by` whole days. */
+/**
+ * An empty month, week or day says so at every width and offers the nearest day that holds a row
+ * (T-5064): a register's events often started long before today, and an empty grid alone read as
+ * "the calendar shows nothing".
+ */
+function EmptySpan({ nearest, onGo }: { nearest: string | undefined; onGo: (day: string) => void }): JSX.Element {
+  const { t, i18n } = useTranslation();
+  const date = nearest
+    ? new Intl.DateTimeFormat(i18n.language, { dateStyle: "long", timeZone: "UTC" }).format(new Date(`${nearest}T00:00:00Z`))
+    : "";
+  return (
+    <div className="flex flex-wrap items-center gap-2" role="status">
+      <p className="text-caption text-fg-muted">{t("spaces.views.nothingThisSpan")}</p>
+      {nearest ? (
+        <Button size="sm" variant="secondary" onClick={() => onGo(nearest)}>
+          {t("spaces.views.goNearest", { date })}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 export function addDays(day: string, by: number): string {
   return new Date(Date.parse(`${day}T00:00:00Z`) + by * 86_400_000).toISOString().slice(0, 10);
 }

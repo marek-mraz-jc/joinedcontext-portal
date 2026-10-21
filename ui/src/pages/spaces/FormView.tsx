@@ -155,9 +155,16 @@ export function FormFields({
 /** What one submission did. */
 type Sent = { status: "idle" } | { status: "sending" } | { status: "created"; id: string } | { status: "refused"; reason: string };
 
-function reasonOf(status: number, body: unknown): string {
-  const problem = (body ?? {}) as { detail?: unknown; title?: unknown };
-  return String(problem.detail ?? problem.title ?? `HTTP ${status}`);
+/**
+ * The refusal in the gateway's words, with what to do next (T-5064): its `hint` when it gives one,
+ * else for a 403 who can grant the write; a bare "no policy grants this operation" left the
+ * person at a dead end.
+ */
+function reasonOf(status: number, body: unknown, refusedHint: string): string {
+  const problem = (body ?? {}) as { detail?: unknown; title?: unknown; hint?: unknown };
+  const reason = String(problem.detail ?? problem.title ?? `HTTP ${status}`);
+  const hint = typeof problem.hint === "string" && problem.hint.trim() ? problem.hint.trim() : status === 403 ? refusedHint : "";
+  return hint ? `${reason}. ${hint}` : reason;
 }
 
 /**
@@ -214,7 +221,7 @@ function EntityFormBody({
         setTried(false);
         reset();
       } else {
-        setSent({ status: "refused", reason: reasonOf(answer.status, answer.body) });
+        setSent({ status: "refused", reason: reasonOf(answer.status, answer.body, t("spaces.form.refusedHint", { type })) });
       }
     } catch (error) {
       setSent({ status: "refused", reason: error instanceof Error ? error.message : String(error) });
@@ -261,9 +268,15 @@ export function FormView({
   settings,
   search = new URLSearchParams(window.location.search),
   onCreated,
+  endpoint,
 }: {
   space: string;
   type: string;
+  /**
+   * The slug of the space's Endpoint whose grant creates `type` for this person (T-5064): the
+   * row is created through it and its Policy, as the grid's edits are. None: the space surface.
+   */
+  endpoint?: string;
   slots: LinkmlSlot[];
   enums: Record<string, FieldOption[]>;
   settings?: FormSettings;
@@ -289,7 +302,8 @@ export function FormView({
       initial={initial}
       locale={i18n.language}
       send={async (entity) => {
-        const answer = await originTransport()({ method: "POST", path: `/cs/${encodeURIComponent(space)}/ngsi-ld/v1/entities`, body: entity });
+        const base = endpoint ? `/api/endpoint/${encodeURIComponent(endpoint)}` : `/cs/${encodeURIComponent(space)}`;
+        const answer = await originTransport()({ method: "POST", path: `${base}/ngsi-ld/v1/entities`, body: entity });
         if (answer.status >= 200 && answer.status < 300) onCreated?.();
         return answer;
       }}

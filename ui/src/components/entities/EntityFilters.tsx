@@ -27,6 +27,11 @@ export interface EntityFiltersProps {
    * type: leave it out.
    */
   readable?: string[];
+  /**
+   * The page picks the type and reads every attribute itself (a space's board, calendar, T-5064):
+   * only the filter rows and `q`, so no type, scope or attribute control sits there doing nothing.
+   */
+  onlyQuery?: boolean;
 }
 
 /**
@@ -62,6 +67,7 @@ function Filters({
   denied = {},
   readable,
   loading = false,
+  onlyQuery = false,
 }: EntityFiltersProps & { loading?: boolean }): JSX.Element {
   const { t } = useTranslation();
   const q = value.q ?? "";
@@ -92,6 +98,7 @@ function Filters({
 
   return (
     <div className="flex flex-col gap-3" data-testid={`${id}-filters`}>
+      {onlyQuery ? null : (
       <div className="grid gap-3 sm:grid-cols-2">
         <Field
           id={`${id}-type`}
@@ -127,6 +134,7 @@ function Filters({
           />
         </Field>
       </div>
+      )}
 
       {value.type ? (
         <fieldset className="flex flex-col gap-2">
@@ -206,7 +214,7 @@ function Filters({
         </fieldset>
       ) : null}
 
-      {value.type && slots.length > 0 ? (
+      {value.type && slots.length > 0 && !onlyQuery ? (
         <fieldset className="flex flex-wrap gap-2">
           <legend className="mb-1 text-caption text-fg-muted">{t("entities.attrs")}</legend>
           {/* The shared `Checkbox`, not a hand-written label around a bare input: a refused
