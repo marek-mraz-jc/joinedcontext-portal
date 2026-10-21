@@ -15,7 +15,8 @@ import { useTranslation } from "react-i18next";
 import { cellText } from "@joinedcontext/sdk";
 import type { RichRow } from "@joinedcontext/sdk";
 import { askAbout } from "../../assistant/state";
-import { Button, Field, Input, Select, Textarea } from "../../components/ui";
+import { AttributePicker } from "../../components/pickers/AttributePicker";
+import { Button, Field, Select, Textarea } from "../../components/ui";
 
 /** The most rows one request covers: what one `write_entities` preview may change (AG-78). */
 export const AI_ROWS = 50;
@@ -60,11 +61,13 @@ export function aiFieldRequest(
 }
 
 export function AiFieldPanel({
+  project,
   space,
   type,
   endpoints,
   rows,
 }: {
+  project: string;
   space: string;
   type: string;
   /** The names of the space's Endpoints, the first the one the request names. */
@@ -100,7 +103,18 @@ export function AiFieldPanel({
             help={t("spaces.ai.attributeHint")}
             errors={attribute === "" || attributeOk ? undefined : [t("spaces.ai.attributeHint")]}
           >
-            <Input id="ai-attribute" value={attribute} onChange={(event) => setAttribute(event.target.value)} />
+            {/* A Property the type's model declares: the write lands only where the model and Policy allow. */}
+            <AttributePicker
+              id="ai-attribute"
+              label={t("spaces.ai.attribute")}
+              labelled
+              project={project}
+              space={space}
+              type={type}
+              kind="Property"
+              value={attribute ? [attribute] : []}
+              onChange={(names) => setAttribute(names[0] ?? "")}
+            />
           </Field>
           {endpoints.length > 1 ? (
             <Field id="ai-endpoint" label={t("spaces.ai.endpoint")}>

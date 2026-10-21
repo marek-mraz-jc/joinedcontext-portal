@@ -6,6 +6,7 @@ import { localized } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import type { ErrorSchema } from "@rjsf/utils";
 import { SchemaForm } from "../../components/forms/SchemaForm";
+import { AttributePicker } from "../../components/pickers/AttributePicker";
 import { TypePicker } from "../../components/pickers/TypePicker";
 import { Button, Field, Input, Select, Tabs, tabPanelProps, Textarea } from "../../components/ui";
 import processorCatalogue from "../../schemas/bento-processors.json";
@@ -1823,8 +1824,6 @@ function EndpointQuery({
     onChange(next);
   };
   const attrs = Array.isArray(query.attrs) ? (query.attrs as string[]) : [];
-  // The text is the author's while typing; the query keeps the names it splits into.
-  const [attrsText, setAttrsText] = useState(attrs.join(", "));
   return (
     <div className="grid gap-2 sm:grid-cols-2" data-testid="flow-source-query">
       <Field id="flow-source-type" label={t("pipelines.field.queryType")} required>
@@ -1839,19 +1838,16 @@ function EndpointQuery({
         />
       </Field>
       <Field id="flow-source-attrs" label={t("pipelines.field.attrs")} help={t("pipelines.flow.attrsHint")}>
-        <Input
+        <AttributePicker
           id="flow-source-attrs"
-          value={attrsText}
-          onChange={(event) => {
-            setAttrsText(event.target.value);
-            set(
-              "attrs",
-              event.target.value
-                .split(",")
-                .map((name) => name.trim())
-                .filter(Boolean),
-            );
-          }}
+          label={t("pipelines.field.attrs")}
+          labelled
+          multiple
+          project={project}
+          space={space}
+          type={typeof query.type === "string" && query.type ? query.type : undefined}
+          value={attrs}
+          onChange={(names) => set("attrs", names)}
         />
       </Field>
       <Field id="flow-source-q" label={t("pipelines.field.q")} help={t("pipelines.studio.qHint")}>

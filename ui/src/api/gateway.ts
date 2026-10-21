@@ -57,3 +57,42 @@ export async function searchEntities(params: {
     })
     .filter((entity) => entity.id !== "");
 }
+
+/** One entity type of a space as its broker lists it, with the attribute names its entities carry. */
+export interface SpaceType {
+  type: string;
+  attributes: string[];
+}
+
+/**
+ * The entity types of a space the caller may read (NGSI-LD `/types?details=true`, CIM 009
+ * 5.7.6): the gateway answers through the caller's Policy, so a type they may not read is not
+ * listed. For a space whose data model declares no type, this is where the choices come from.
+ */
+export async function listSpaceTypes(space: string, signal?: AbortSignal): Promise<SpaceType[]> {
+  const response = await fetch(`/cs/${encodeURIComponent(space)}/ngsi-ld/v1/types?details=true`, {
+    method: "GET",
+    credentials: "same-origin",
+    headers: { Accept: "application/ld+json" },
+    signal,
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => undefined);
+    await unwrap({ error, response });
+  }
+  const data: unknown = await response.json();
+  const items: unknown[] = Array.isArray(data)
+    ? data
+    : Array.isArray((data as { typeList?: unknown } | null)?.typeList)
+      ? ((data as { typeList: unknown[] }).typeList)
+      : [];
+  return items
+    .map((item): SpaceType | undefined => {
+      if (typeof item === "string") return { type: item, attributes: [] };
+      const entry = item as { typeName?: unknown; attributeNames?: unknown } | null;
+      if (typeof entry?.typeName !== "string") return undefined;
+      const names = Array.isArray(entry.attributeNames) ? entry.attributeNames.filter((n): n is string => typeof n === "string") : [];
+      return { type: entry.typeName, attributes: names };
+    })
+    .filter((entry): entry is SpaceType => entry !== undefined && entry.type !== "");
+}

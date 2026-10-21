@@ -6,8 +6,11 @@
 import { useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { refName } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
-import { Button, Field, Input, Select } from "../../components/ui";
+import { AttributePicker } from "../../components/pickers/AttributePicker";
+import { TypePicker } from "../../components/pickers/TypePicker";
+import { Button, Field, Select } from "../../components/ui";
 import type { PipelineForm } from "./PipelineEditor";
 import { RECIPES, fromRecipe, problemOf } from "./recipes";
 import type { Recipe, RecipeProblem } from "./recipes";
@@ -34,6 +37,8 @@ export function RecipeGallery({ project, orgDomain, dataSources, endpoints, targ
   const [problem, setProblem] = useState<RecipeProblem | null>(null);
   const errors = (field: RecipeProblem) => (problem === field ? [t(`pipelines.recipe.problem.${field}`)] : undefined);
   const sources = picked?.source === "endpoint" ? endpoints : dataSources;
+  // The KPI reads an Endpoint: its space's model lists the types and their numbers.
+  const sourceSpace = refName(endpoints.find((one) => one.metadata.name === source)?.spec.contextSpaceRef) || undefined;
 
   const use = () => {
     if (!picked) return;
@@ -79,7 +84,15 @@ export function RecipeGallery({ project, orgDomain, dataSources, endpoints, targ
             errors={errors("source")}
             required
           >
-            <Select id="recipe-source" value={source} onChange={(event) => setSource(event.target.value)}>
+            <Select
+              id="recipe-source"
+              value={source}
+              onChange={(event) => {
+                setSource(event.target.value);
+                setType("");
+                setAttribute("");
+              }}
+            >
               <option value="">{t("pipelines.recipe.choose")}</option>
               {sources.map((one) => (
                 <option key={one.metadata.name} value={one.metadata.name}>
@@ -90,8 +103,25 @@ export function RecipeGallery({ project, orgDomain, dataSources, endpoints, targ
           </Field>
           {picked.id === "kpi" ? (
             <>
-              <Field id="recipe-type" label={t("pipelines.recipe.kpi.type")} errors={errors("type")} required>
-                <Input id="recipe-type" value={type} onChange={(event) => setType(event.target.value)} />
+              <Field
+                id="recipe-type"
+                label={t("pipelines.recipe.kpi.type")}
+                help={t("pipelines.recipe.kpi.typeHelp")}
+                errors={errors("type")}
+                required
+              >
+                <TypePicker
+                  id="recipe-type"
+                  label={t("pipelines.recipe.kpi.type")}
+                  labelled
+                  project={project}
+                  space={sourceSpace}
+                  value={type ? [type] : []}
+                  onChange={(types) => {
+                    setType(types[0] ?? "");
+                    setAttribute("");
+                  }}
+                />
               </Field>
               <Field
                 id="recipe-attribute"
@@ -100,7 +130,18 @@ export function RecipeGallery({ project, orgDomain, dataSources, endpoints, targ
                 errors={errors("attribute")}
                 required
               >
-                <Input id="recipe-attribute" value={attribute} onChange={(event) => setAttribute(event.target.value)} />
+                <AttributePicker
+                  id="recipe-attribute"
+                  label={t("pipelines.recipe.kpi.attribute")}
+                  labelled
+                  project={project}
+                  space={sourceSpace}
+                  type={type || undefined}
+                  kind="Property"
+                  numeric
+                  value={attribute ? [attribute] : []}
+                  onChange={(names) => setAttribute(names[0] ?? "")}
+                />
               </Field>
             </>
           ) : (
