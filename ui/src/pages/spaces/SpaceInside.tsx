@@ -4,8 +4,8 @@ import { clsx } from "clsx";
 import type { JSX, ReactNode } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
-import { attributesOf, endpointSource, matchesQ, originTransport, parseGridConfig, sourceFor, targetName } from "@joinedcontext/sdk";
-import type { GridState, RichRow } from "@joinedcontext/sdk";
+import { andQ, attributesOf, cellText, endpointSource, matchesQ, originTransport, parseGridConfig, queryFromGroup, searchQuery, sourceFor, targetName } from "@joinedcontext/sdk";
+import type { FilterColumn, FilterGroup, GridState, RichRow } from "@joinedcontext/sdk";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
@@ -27,7 +27,7 @@ import {
 import { useBranding } from "../../branding";
 import { SharedWithBadge } from "../../components/endpoints/sharing";
 import { useIdentity } from "../../auth/AuthProvider";
-import { accessQuery, deniedAttributes, editableAttributes } from "../../components/entities/AccessPanel";
+import { accessQuery, deniedAttributes, editableAttributes, mayDelete } from "../../components/entities/AccessPanel";
 import type { GrantDocument } from "../../components/entities/AccessPanel";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { EntityFilters } from "../../components/entities/EntityFilters";
@@ -39,6 +39,9 @@ import { columnLabel, displayOrder } from "../../components/entities/displayOrde
 import { readLayout, writeLayout } from "../../components/entities/viewLayout";
 import { dataViewsKey, listViews } from "../../api/dataViews";
 import { GroupCounts, groupTerm, ViewOptions } from "../../components/entities/ViewOptions";
+import { conditionCount, EMPTY_GROUP, FilterPanel, readGroup } from "../../components/entities/FilterPanel";
+import { AGGREGATIONS, FooterAggregate, ROW_SIZES, ToolbarPopover } from "../../components/entities/GridToolbar";
+import type { Aggregation, RowSize } from "../../components/entities/GridToolbar";
 import type { ViewExtras } from "../../components/entities/ViewOptions";
 import type { DataView as SavedView, ViewConfig } from "../../api/dataViews";
 import { ChangeNotice } from "../../components/ChangeNotice";
@@ -77,6 +80,7 @@ import { AiFieldPanel } from "./AiField";
 import { SpaceChecks } from "./SpaceChecks";
 import { SpaceQuality } from "./SpaceQuality";
 import { SpaceRetention } from "./SpaceRetention";
+import { SpaceTemporalAudit } from "./SpaceTemporalAudit";
 import { rulesOf } from "./retention";
 import type { RetentionRule } from "./retention";
 import {
@@ -99,6 +103,7 @@ import {
   tabPanelProps,
   Term,
 } from "../../components/ui";
+import { ConfirmDialog, Input, RadioGroup } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { useUrlParam, useUrlUrn } from "../../navigation/urlState";
 
@@ -397,8 +402,26 @@ function SpaceData({
   const [seen, setSeen] = useState<string[]>([]);
   // A form view's fields, conditions and prefill (T-3103, API/01 §30): its `settings`.
   const [formSettings, setFormSettings] = useState<FormSettings>({});
+  // The grid's toolbar (T-4883): the filter panel's conditions, the search, the row size and each
+  // column's footer, all but the search kept in the view's settings.
+  const [filters, setFilters] = useState<FilterGroup>(EMPTY_GROUP);
+  const [filterColumns, setFilterColumns] = useState<FilterColumn[]>([]);
+  const [searchText, setSearchText] = useState("");
+  const [search, setSearch] = useState("");
+  const [rowSize, setRowSize] = useState<RowSize>("small");
+  const [aggregations, setAggregations] = useState<Record<string, Aggregation>>({});
+  const [selectedRows, setSelectedRows] = useState<string[]>([]);
+  const [loadedRows, setLoadedRows] = useState<RichRow[]>([]);
   const applyView = useCallback((next: SavedView | null, forType: string = type) => {
     setSaved(next);
+    const settings = (next?.kind === "grid" ? next.config.settings : undefined) as Record<string, unknown> | undefined;
+    const tree = readGroup(settings?.filters);
+    setFilters(tree ?? EMPTY_GROUP);
+    setRowSize((ROW_SIZES as readonly unknown[]).includes(settings?.rowSize) ? (settings?.rowSize as RowSize) : "small");
+    setAggregations(readAggregations(settings?.aggregations));
+    setSearchText("");
+    setSearch("");
+    setSelectedRows([]);
     // A saved view opens as the kind it was saved as, with its filter for the views beside the grid.
     if (next && (DATA_VIEWS as readonly string[]).includes(next.kind)) setView(next.kind as DataView);
     setQ(next?.config.q ?? undefined);
@@ -416,7 +439,8 @@ function SpaceData({
     setGroup(null);
     const first = next?.config.sort?.[0];
     setGridView({
-      filterText: next?.config.q ?? null,
+      // A view saved with the filter panel holds its conditions; its `q` is their translation.
+      filterText: tree ? null : (next?.config.q ?? null),
       sort: first ? { attr: first.attr, dir: first.desc ? "desc" : "asc" } : null,
     });
   }, [setView, project, space, type]);
@@ -427,18 +451,36 @@ function SpaceData({
         : { filterText: next.filterText, sort: next.sort },
     );
   }, []);
+  useEffect(() => {
+    const wait = setTimeout(() => setSearch(searchText), 400);
+    return () => clearTimeout(wait);
+  }, [searchText]);
+  const panelQ = useMemo(() => queryFromGroup(filterColumns, filters), [filterColumns, filters]);
+  // The search asks the type's text fields at the endpoint, at most eight of them per query.
+  const searchQ = useMemo(
+    () => searchQuery(search, filterColumns.filter((c) => c.kind === "text" && c.attr && !c.meta).slice(0, 8).map((c) => c.attr!)),
+    [search, filterColumns],
+  );
+  const onFilterColumns = useCallback(
+    (next: FilterColumn[]) => setFilterColumns((before) => (JSON.stringify(before) === JSON.stringify(next) ? before : next)),
+    [],
+  );
   const current = useMemo<ViewConfig>(
     () => ({
       ...(saved?.config ?? {}),
       ...extras,
-      q: view === "grid" ? asked.q : q,
+      q: view === "grid" ? andQ(asked.q, panelQ) : q,
       sort: gridView.sort ? [{ attr: gridView.sort.attr, desc: gridView.sort.dir === "desc" }] : [],
       ...(view === "form" ? { settings: formSettings as Record<string, never> } : {}),
+      ...(view === "grid"
+        ? { settings: { filters, rowSize, aggregations } as unknown as Record<string, never> }
+        : {}),
     }),
-    [saved, extras, view, asked.q, q, gridView.sort, formSettings],
+    [saved, extras, view, asked.q, panelQ, q, gridView.sort, formSettings, filters, rowSize, aggregations],
   );
   // The attributes a view can hide: the model's slots of the type and whatever the rows carry.
   const onRows = useCallback((rows: RichRow[]) => {
+    setLoadedRows(rows);
     setSeen((before) => {
       const next = [...new Set([...before, ...attributesOf(rows)])];
       return next.length === before.length ? before : next;
@@ -466,10 +508,11 @@ function SpaceData({
     },
     [extras.colour, t],
   );
-  const groupQuery = useMemo(
-    () => (extras.group && group !== null ? { q: groupTerm(extras.group, group) } : undefined),
-    [extras.group, group],
-  );
+  // What the grid asks beyond its own query: the panel, the search and the chosen group (T-4883).
+  const gridQuery = useMemo(() => {
+    const asked = andQ(panelQ, searchQ, extras.group && group !== null ? groupTerm(extras.group, group) : undefined);
+    return asked ? { q: asked } : undefined;
+  }, [panelQ, searchQ, extras.group, group]);
   const source = useMemo(
     () => sourceFor({ kind: "space", space }, originTransport(), i18n.language),
     [space, i18n.language],
@@ -562,6 +605,42 @@ function SpaceData({
     );
   }, [space, type, columns, writer]);
 
+  // The toolbar's actions, in its row for the other views and under "More" for the grid (T-4883).
+  const addField =
+    model && modelSource !== undefined && ownClass ? (
+      <PermissionGuard project={project} kind="DataModel" verb="propose">
+        <Button className="w-fit" onClick={() => setAdding(true)}>
+          {t("spaces.fields.add")}
+        </Button>
+      </PermissionGuard>
+    ) : null;
+  const addRow =
+    view === "grid" && typeSlots.length > 0 ? (
+      // The same right as Import beside it; the space's Policy decides the write itself.
+      <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+        <Button size="sm" onClick={() => setCreating(true)}>{t("spaces.inside.addRow")}</Button>
+      </PermissionGuard>
+    ) : null;
+  const importButton =
+    importSlots.length > 0 ? (
+      // The same right as the upload link: the space has no grant document of its own (T-4263).
+      <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+        <Button variant="secondary" onClick={() => setImporting(true)}>
+          {t("spaces.import.open")}
+        </Button>
+      </PermissionGuard>
+    ) : null;
+  const alertsButton = (
+    <Button variant="ghost" onClick={() => setAlertingType(true)}>
+      {t("alerts.forType", { type: typeTitle })}
+    </Button>
+  );
+  const filterTitle = (column: FilterColumn) => {
+    const title = columnLabel(typeSlots.find((slot) => slot.name === column.attr), column.attr ?? column.key, i18n.language);
+    return column.meta ? `${title} · ${t(`entityGrid.${column.meta}`)}` : title;
+  };
+  const rowNumberLabels = { selectRow: t("spaces.toolbar.selectRow"), selectAll: t("spaces.toolbar.selectAll") };
+
   if (types.length === 0) {
     return (
       <div className="flex flex-col gap-2">
@@ -596,11 +675,6 @@ function SpaceData({
       <div className="flex min-w-0 flex-col gap-3">
       {model && modelSource !== undefined && ownClass ? (
         <div className="flex flex-col gap-2">
-          <PermissionGuard project={project} kind="DataModel" verb="propose">
-            <Button className="w-fit" onClick={() => setAdding(true)}>
-              {t("spaces.fields.add")}
-            </Button>
-          </PermissionGuard>
           <AddFieldDialog
             project={project}
             modelName={model.metadata.name}
@@ -653,13 +727,7 @@ function SpaceData({
         />
       ) : null}
       {probe.isSuccess && view !== "api" ? (
-        <div className="flex flex-wrap items-end gap-3">
-          {view === "grid" && typeSlots.length > 0 ? (
-            // The same right as Import beside it; the space's Policy decides the write itself.
-            <PermissionGuard project={project} kind="ContextSpace" verb="propose">
-              <Button onClick={() => setCreating(true)}>{t("spaces.inside.addRow")}</Button>
-            </PermissionGuard>
-          ) : null}
+        <>
           <Dialog
             open={creating}
             onOpenChange={setCreating}
@@ -677,17 +745,6 @@ function SpaceData({
               onCreated={() => setImported((n) => n + 1)}
             />
           </Dialog>
-          {importSlots.length > 0 ? (
-            // The same right as the upload link above: the space has no grant document of its own (T-4263).
-            <PermissionGuard project={project} kind="ContextSpace" verb="propose">
-              <Button variant="secondary" onClick={() => setImporting(true)}>
-                {t("spaces.import.open")}
-              </Button>
-            </PermissionGuard>
-          ) : null}
-          <Button variant="ghost" onClick={() => setAlertingType(true)}>
-            {t("alerts.forType", { type: typeTitle })}
-          </Button>
           {alertingType ? (
             <AlertDialog
               project={project}
@@ -697,12 +754,6 @@ function SpaceData({
               onClose={() => setAlertingType(false)}
             />
           ) : null}
-          <ExportLinks
-            endpoints={endpoints}
-            type={type}
-            q={view === "grid" ? undefined : q}
-            attrs={slots.map((slot) => slot.name)}
-          />
           <ImportRowsDialog
             open={importing}
             onOpenChange={setImporting}
@@ -715,7 +766,20 @@ function SpaceData({
               void queryClient.invalidateQueries({ queryKey: ["space-view-rows", space] });
             }}
           />
-        </div>
+          {view === "grid" ? null : (
+            <div className="flex flex-wrap items-end gap-3">
+              {addField}
+              {importButton}
+              {alertsButton}
+          <ExportLinks
+            endpoints={endpoints}
+            type={type}
+            q={q}
+            attrs={slots.map((slot) => slot.name)}
+          />
+            </div>
+          )}
+        </>
       ) : null}
       {probe.isSuccess ? (
         <TrashPanel
@@ -734,7 +798,7 @@ function SpaceData({
           }}
         />
       ) : null}
-      {probe.isSuccess && config && view !== "api" ? (
+      {probe.isSuccess && config && view !== "api" && view !== "grid" ? (
         <ViewBar
           project={project}
           space={space}
@@ -743,11 +807,82 @@ function SpaceData({
           selected={saved}
           onSelect={applyView}
           current={current}
-          unsaved={view === "grid" && asked.idPattern ? t("spaces.saved.idNotKept") : undefined}
         />
       ) : null}
       {probe.isSuccess && config && view === "grid" ? (
-        <ViewOptions attributes={attributes} enums={enums} value={extras} onChange={setExtras} />
+        <div className="flex flex-wrap items-center gap-1 border-b border-border pb-2" data-testid="grid-toolbar">
+          <span className="mr-2 max-w-48 truncate text-body font-semibold" title={saved?.title}>
+            {saved?.title ?? t("spaces.inside.allRows")}
+          </span>
+          <ToolbarPopover label={t("spaces.toolbar.filter")} count={conditionCount(filters)} wide>
+            <FilterPanel columns={filterColumns} titleOf={filterTitle} value={filters} onChange={setFilters} />
+          </ToolbarPopover>
+          <ToolbarPopover label={t("spaces.toolbar.hide")} count={extras.hidden?.length}>
+            <ViewOptions part="fields" attributes={attributes} enums={enums} value={extras} onChange={setExtras} />
+          </ToolbarPopover>
+          <ToolbarPopover label={t("spaces.toolbar.group")} count={extras.group ? 1 : 0}>
+            <ViewOptions part="group" attributes={attributes} enums={enums} value={extras} onChange={setExtras} />
+          </ToolbarPopover>
+          <ToolbarPopover label={t("spaces.toolbar.colour")} count={extras.colour?.length} wide>
+            <ViewOptions part="colours" attributes={attributes} enums={enums} value={extras} onChange={setExtras} />
+          </ToolbarPopover>
+          <ToolbarPopover label={t("spaces.toolbar.rowSize")}>
+            <RadioGroup
+              name="grid-row-size"
+              legend={t("spaces.toolbar.rowSize")}
+              value={rowSize}
+              options={ROW_SIZES.map((size) => ({ value: size, label: t(`spaces.toolbar.rowSizes.${size}`) }))}
+              onChange={setRowSize}
+            />
+          </ToolbarPopover>
+          <Input
+            type="search"
+            aria-label={t("spaces.toolbar.search")}
+            placeholder={t("spaces.toolbar.searchPlaceholder")}
+            className="h-8 w-full sm:w-48"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+          />
+          <div className="ml-auto flex items-center gap-1">
+            {addRow}
+            <ToolbarPopover label={t("spaces.toolbar.more")} wide end>
+              <div className="flex flex-col gap-3">
+                <ViewBar
+                  project={project}
+                  space={space}
+                  type={type}
+                  kind={view}
+                  selected={saved}
+                  onSelect={applyView}
+                  current={current}
+                  unsaved={asked.idPattern ? t("spaces.saved.idNotKept") : undefined}
+                />
+                <div className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
+                  {addField}
+                  {importButton}
+                  {alertsButton}
+                  <ExportLinks endpoints={endpoints} type={type} q={andQ(asked.q, gridQuery?.q)} attrs={slots.map((slot) => slot.name)} />
+                </div>
+              </div>
+            </ToolbarPopover>
+          </div>
+        </div>
+      ) : null}
+      {probe.isSuccess && config && view === "grid" && selectedRows.length > 0 ? (
+        <BulkBar
+          project={project}
+          space={space}
+          source={source}
+          count={selectedRows.length}
+          rows={loadedRows.filter((row) => selectedRows.includes(row.id))}
+          canDelete={grants.some((doc) => mayDelete(doc, type))}
+          onClear={() => setSelectedRows([])}
+          onDeleted={(kept) => {
+            // The refused rows stay checked, so the bar keeps naming them and they can be tried again.
+            setSelectedRows(kept);
+            setImported((n) => n + 1);
+          }}
+        />
       ) : null}
       {probe.isSuccess && config && view === "grid" && extras.group && enums[extras.group] ? (
         <GroupCounts
@@ -755,7 +890,7 @@ function SpaceData({
           type={type}
           attr={extras.group}
           options={enums[extras.group]}
-          q={asked.q}
+          q={andQ(asked.q, panelQ, searchQ)}
           chosen={group}
           onChoose={setGroup}
         />
@@ -833,12 +968,125 @@ function SpaceData({
           onLayout={onLayout}
           onOpenRelationship={openTarget}
           rowTone={rowTone}
-          query={groupQuery}
+          query={gridQuery}
+          filterRow={false}
+          onFilterColumns={onFilterColumns}
+          rowNumbers={rowNumberLabels}
+          selected={selectedRows}
+          onSelectedChange={setSelectedRows}
+          rowSize={rowSize}
+          footer={(column) =>
+            column.attr && !column.meta ? (
+              <FooterAggregate
+                source={source}
+                type={type}
+                attr={column.attr}
+                label={column.label}
+                q={andQ(asked.q, gridQuery?.q)}
+                value={aggregations[column.attr] ?? "none"}
+                onChange={(next) => setAggregations((before) => ({ ...before, [column.attr!]: next }))}
+              />
+            ) : null
+          }
           empty={<p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>}
         />
         </div>
       ) : null}
       </div>
+    </div>
+  );
+}
+
+/** The footer's aggregations a saved view holds, only the ones the toolbar knows. */
+function readAggregations(raw: unknown): Record<string, Aggregation> {
+  if (typeof raw !== "object" || raw === null) return {};
+  return Object.fromEntries(
+    Object.entries(raw).filter((entry): entry is [string, Aggregation] => (AGGREGATIONS as readonly unknown[]).includes(entry[1])),
+  );
+}
+
+/**
+ * What a person does with the rows they checked (T-4883): delete them, each a write through the
+ * space surface with their session, so the Policy decides every one; each deleted row keeps the
+ * person's copy in the trash first (T-3107). A refused row stays, named with the reason.
+ */
+function BulkBar({
+  project,
+  space,
+  source,
+  count,
+  rows,
+  canDelete,
+  onClear,
+  onDeleted,
+}: {
+  project: string;
+  space: string;
+  source: ReturnType<typeof sourceFor>;
+  /** How many rows are checked; `rows` holds those of them the grid has loaded. */
+  count: number;
+  rows: RichRow[];
+  canDelete: boolean;
+  onClear: () => void;
+  onDeleted: (kept: string[]) => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [refused, setRefused] = useState<{ name: string; reason: string }[]>([]);
+  const remove = async () => {
+    setRunning(true);
+    const failed: { id: string; name: string; reason: string }[] = [];
+    for (const row of rows) {
+      try {
+        await deleteRow(project, space, source, row);
+      } catch (error) {
+        failed.push({ id: row.id, name: cellText(row.cells.name) || row.id, reason: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    setRunning(false);
+    setConfirming(false);
+    setRefused(failed);
+    await queryClient.invalidateQueries({ queryKey: trashKey(project, space) });
+    if (failed.length < rows.length) onDeleted(failed.map((each) => each.id));
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-md bg-primary-soft px-3 py-2" role="region" aria-label={t("spaces.toolbar.selection")}>
+        <span className="text-body font-medium">{t("spaces.toolbar.selected", { n: count })}</span>
+        <Button
+          size="sm"
+          variant="danger"
+          disabled={!canDelete || rows.length === 0}
+          disabledReason={t("spaces.toolbar.deleteNotGranted")}
+          onClick={() => setConfirming(true)}
+        >
+          {t("spaces.toolbar.deleteSelected")}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onClear}>
+          {t("spaces.toolbar.clearSelection")}
+        </Button>
+      </div>
+      {refused.length > 0 ? (
+        <Alert tone="danger" title={t("spaces.toolbar.deleteRefused", { n: refused.length })}>
+          <ul className="list-disc pl-5">
+            {refused.map((each) => (
+              <li key={each.name}>{`${each.name}: ${each.reason}`}</li>
+            ))}
+          </ul>
+        </Alert>
+      ) : null}
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={t("spaces.toolbar.deleteTitle", { n: rows.length })}
+        description={t("spaces.toolbar.deleteBody")}
+        confirmLabel={t("spaces.toolbar.deleteSelected")}
+        tone="danger"
+        pending={running}
+        onConfirm={() => void remove()}
+      />
     </div>
   );
 }
@@ -1393,6 +1641,11 @@ export function SpaceInside({ project, name }: { project: string; name: string }
       {tab === "retention" ? (
         <div {...tabPanelProps("space-inside", tab)}>
           <SpaceRetention project={project} space={name} manifest={manifest} types={types} />
+          <div className="mt-6">
+            <Section title={t("spaces.temporal.title")}>
+              <SpaceTemporalAudit project={project} space={name} />
+            </Section>
+          </div>
         </div>
       ) : null}
 

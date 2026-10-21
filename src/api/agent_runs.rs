@@ -1845,15 +1845,15 @@ pub(crate) async fn invoke_function(
     if run_endpoints.len() > 1 {
         config["endpoints"] = crate::agents::endpoints::config(&run_endpoints, &run.data_needs);
     }
-    invoke(
-        state,
-        built.functions,
-        format!("{}{entry}", transpile::APP),
-        request,
-        config,
-        caller,
-    )
-    .await
+    // The published route's entry, so a preview answers a refused data call as that route does.
+    let mut modules = built.functions;
+    let module = format!("{}{entry}", transpile::APP);
+    let wrapper = format!("{}entry.js", transpile::APP);
+    modules.insert(
+        wrapper.clone(),
+        crate::apps::functions::entry(&module, "default"),
+    );
+    invoke(state, modules, wrapper, request, config, caller).await
 }
 
 /// The document `jc-functions` runs: the files, the entry, the request, the SDK's configuration
