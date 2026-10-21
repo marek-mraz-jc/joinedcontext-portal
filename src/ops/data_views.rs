@@ -18,7 +18,10 @@ use utoipa::ToSchema;
 
 use crate::ops::drafts::{chrono_to_odt, odt_to_chrono};
 
-pub const KINDS: [&str; 6] = ["grid", "gallery", "kanban", "calendar", "timeline", "form"];
+/// The view kinds; `map` places the rows by a GeoProperty (T-4884).
+pub const KINDS: [&str; 7] = [
+    "grid", "gallery", "kanban", "calendar", "timeline", "map", "form",
+];
 pub const MODES: [&str; 3] = ["personal", "collaborative", "locked"];
 /// The colour tokens a rule may name: the Portal's tones, never a raw colour.
 pub const COLOURS: [&str; 5] = ["neutral", "info", "success", "warning", "danger"];
@@ -688,6 +691,9 @@ mod tests {
         };
         assert!(bad(json!({ "type": "1Station" })).contains("entity type"));
         assert!(bad(json!({ "kind": "pivot" })).contains("kind 'pivot'"));
+        let mut map = view();
+        map.kind = "map".into();
+        assert_eq!(map.validate(), Ok(()));
         assert!(bad(json!({ "mode": "public" })).contains("mode 'public'"));
         assert!(bad(json!({ "title": "   " })).contains("title"));
         assert!(bad(json!({ "title": "x".repeat(MAX_TITLE + 1) })).contains("title"));
