@@ -123,6 +123,8 @@ pub struct StreamDeployer {
     replace_timeout: Duration,
     /// The pipelines that do not wait for pushes, each loaded only for its run (PL-78).
     queue: Mutex<RunQueue>,
+    /// Where each ended run is told, for the snapshot pipelines' source deletes (T-4891).
+    run_ends: Option<tokio::sync::mpsc::UnboundedSender<crate::pipeline_source_deletes::RunEnd>>,
 }
 
 /// How often the run queue looks at the runner.
@@ -213,7 +215,17 @@ impl StreamDeployer {
             pipeline_identity: false,
             replace_timeout: REPLACE_TIMEOUT,
             queue: Mutex::new(RunQueue::new(1, 1)),
+            run_ends: None,
         }
+    }
+
+    /// Tells `ends` of every run the queue saw end (T-4891).
+    pub fn with_run_ends(
+        mut self,
+        ends: tokio::sync::mpsc::UnboundedSender<crate::pipeline_source_deletes::RunEnd>,
+    ) -> Self {
+        self.run_ends = Some(ends);
+        self
     }
 
     /// Runs at most `batch` batch-lane and `short` short-lane pipelines at once (PL-78).
@@ -1289,6 +1301,17 @@ impl Runner for StreamDeployer {
             },
             // A runner that does not answer keeps the run until its timeout.
             _ => RunState::Running,
+        }
+    }
+
+    async fn ended(&self, key: &run_queue::Key, run: &str, finished: bool) {
+        if let Some(ends) = &self.run_ends {
+            let _ = ends.send(crate::pipeline_source_deletes::RunEnd {
+                project: key.0.clone(),
+                pipeline: key.1.clone(),
+                run: run.to_owned(),
+                finished,
+            });
         }
     }
 

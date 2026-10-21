@@ -132,6 +132,9 @@ routes:
   - route: POST /internal/pipelines/{project}/{name}/rejected
     rule: "workload:pipeline-runner"
     expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: POST /internal/pipelines/{project}/{name}/source-deletes
+    rule: "workload:pipeline-runner"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
   - route: GET /internal/agent-runs/{id}/inbox
     rule: "workload:agent-proxy"
     expect: [401, 401, 401, 401, 401, 401, 401, 401]
@@ -820,6 +823,14 @@ routes:
     rule: "project-verb:propose:Pipeline"
     expect: [403, 403, allow, allow, 403, allow, 404, 403]
     body: {"ids": []}
+  - route: GET /projects/{project}/pipelines/{name}/source-deletes
+    rule: "project-verb:read:Pipeline"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/pipelines/{name}/source-deletes
+    rule: "project-verb:approve:Pipeline"
+    expect: [403, 403, allow, allow, allow, allow, 404, 403]
+    body: {"decision": "keep"}
+    note: "409 after the check: the fixture's pipeline has no snapshot rule; pipeline_source_deletes_tests holds the rule with one"
   - route: GET /projects/{project}/pipelines/{name}/runs
     rule: "project-verb:read:Pipeline"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
