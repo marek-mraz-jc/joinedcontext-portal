@@ -5222,7 +5222,18 @@
       },
       "assistant": {
         "transcript": "Čítanie uložených konverzácií"
-      }
+      },
+      "knowledge": {
+        "file": {
+          "uploaded": "Súbor pridaný do zdroja znalostí",
+          "removed": "Súbor odstránený zo zdroja znalostí"
+        },
+        "answers": {
+          "forgotten": "Uložené odpovede zabudnuté"
+        }
+      },
+      "access-request": "Žiadosť o prístup",
+      "personal-data": "Žiadosť o osobné údaje"
     },
     "sources": {
       "reconciler": "Konfigurácia",
