@@ -14,8 +14,8 @@ import { RecordLink } from "../../components/RecordLink";
 import { TypePicker } from "../../components/pickers/TypePicker";
 import { Alert, Badge, Button, Field, Input, Select } from "../../components/ui";
 import { ExpiryChoice } from "./ExpiryChoice";
-import type { Expiry } from "./ExpiryChoice";
-import { autoMatch, generate, idFieldOf, preview, problemsOf, readBack } from "./outputMapper";
+import type { Expiry, Lifetime, LifetimeMode } from "./ExpiryChoice";
+import { autoMatch, generate, idFieldOf, migrated, preview, problemsOf, readBack } from "./outputMapper";
 import type { Attribute, MapperProblem, MapperState, Source } from "./outputMapper";
 
 export interface OutputMapperProps {
@@ -28,10 +28,31 @@ export interface OutputMapperProps {
   /** The compute step as it stands. */
   bloblang: string;
   onBloblang: (bloblang: string) => void;
-  /** The pipeline's stale-entity sweep (PL-64), offered beside the step's own `expiresAt`. */
+  /** The pipeline's stale-entity sweep (PL-64), offered beside the entities' own `expiresAt`. */
   expiry?: Expiry;
-  /** Sets the sweep and, when it changes too, the step: one change, so neither overwrites the other. */
-  onExpiry?: (expiry: Expiry | undefined, bloblang?: string) => void;
+  /** The pipeline's `spec.lifetime` (PL-80): the entity's end of the type mapped here is edited. */
+  lifetime?: Lifetime[];
+  /**
+   * Sets the sweep, the lifetime and, when it changes too, the step: one change, so none
+   * overwrites another. Absent, the mapper offers no end time at all, since nothing would keep it.
+   */
+  onEnds?: (ends: Ends) => void;
+}
+
+/** What `onEnds` sets together (T-4839). */
+export interface Ends {
+  expiry: Expiry | undefined;
+  lifetime: Lifetime[] | undefined;
+  bloblang?: string;
+}
+
+/** `lifetime` with the entity end of `type` set, or removed when `entity` is undefined. */
+export function withEntityEnd(lifetime: Lifetime[] | undefined, type: string, entity: LifetimeMode | undefined): Lifetime[] | undefined {
+  const others = (lifetime ?? []).filter((entry) => entry.type !== type);
+  const own = (lifetime ?? []).find((entry) => entry.type === type);
+  const rest = own?.attributes?.length ? { type, attributes: own.attributes } : undefined;
+  const next = entity ? [...others, { ...(rest ?? { type }), entity }] : rest ? [...others, rest] : others;
+  return next.length > 0 ? next : undefined;
 }
 
 type Choice = "" | "expression" | "value" | "point" | `field:${string}`;
@@ -55,7 +76,7 @@ async function attributesOf(project: string, space: string, type: string): Promi
   throw new ApiError(response.status, typeof detail === "string" ? detail : response.statusText);
 }
 
-export function OutputMapper({ project, space, orgDomain, records, bloblang, onBloblang, expiry, onExpiry }: OutputMapperProps): JSX.Element {
+export function OutputMapper({ project, space, orgDomain, records, bloblang, onBloblang, expiry, lifetime, onEnds }: OutputMapperProps): JSX.Element {
   const { t } = useTranslation();
   const fields = useMemo(() => [...new Set(records.flatMap((record) => Object.keys(record)))], [records]);
   // The type the step writes: from its own map once the attributes are known, else the one picked.
@@ -82,7 +103,27 @@ export function OutputMapper({ project, space, orgDomain, records, bloblang, onB
   const write = (next: MapperState) => onBloblang(generate(next, attributes, space));
   const current: MapperState | undefined =
     state ?? (picked && typed.data && !handWritten ? { type: picked, idField: idFieldOf(fields), attributes: autoMatch(attributes, fields) } : undefined);
-  const problems = current ? problemsOf(current, attributes, records) : [];
+  // The type's own entry of `spec.lifetime`; one the choice below cannot show (a fixed date, a
+  // cap, chosen attributes) stays as the manifest holds it.
+  const own = current ? lifetime?.find((entry) => entry.type === current.type) : undefined;
+  const entityEnd = own?.entity;
+  const inManifest = Boolean(own?.attributes?.length || entityEnd?.at || entityEnd?.notAfter);
+  const problems = current ? problemsOf(current, attributes, records, entityEnd) : [];
+  // A T-4822 step wrote its own `expiresAt`: it moves into `spec.lifetime` once, on open, and is
+  // saved with the next proposal; a record field no date-time attribute holds waits for a choice.
+  // A manifest that already holds an entry for the type keeps it, and the step's lines go.
+  const legacy = state?.expires;
+  const moved = legacy && state ? migrated(legacy, state, attributes) : undefined;
+  const movedTo = state?.expires && onEnds ? (own ? lifetime : moved ? withEntityEnd(lifetime, state.type, moved) : undefined) : undefined;
+  // Which type's step was moved, kept past the move (the step no longer says so) until the person
+  // changes the end themselves; set while rendering, the way React keeps what an earlier render saw.
+  const [movedType, setMovedType] = useState<string | undefined>(undefined);
+  if (movedTo && state && movedType !== state.type) setMovedType(state.type);
+  const notice = legacy && !movedTo && onEnds ? "migrateField" : movedType !== undefined && movedType === current?.type ? "migrated" : undefined;
+  useEffect(() => {
+    if (!state?.expires || !onEnds || !movedTo) return;
+    onEnds({ expiry, lifetime: movedTo, bloblang: generate({ ...state, expires: undefined }, attributes, space) });
+  }, [state, movedTo, onEnds, expiry, attributes, space]);
 
   // A type picked for an empty step, or for one this mapper wrote for another type, writes the
   // step at once with the fields matched by name. A step written by hand is never replaced here.
@@ -306,22 +347,35 @@ export function OutputMapper({ project, space, orgDomain, records, bloblang, onB
             })}
           </ul>
 
-          <ExpiryChoice
-            project={project}
-            space={space}
-            type={current.type}
-            fields={fields}
-            expires={current.expires}
-            expiry={expiry}
-            problem={expiresProblem ? say(expiresProblem, "expiresAt") : undefined}
-            onExpires={(expires) => write({ ...current, expires })}
-            onMode={(expires, next) => {
-              const step = generate({ ...current, expires }, attributes, space);
-              if (onExpiry) onExpiry(next, step);
-              else onBloblang(step);
-            }}
-            onExpiry={onExpiry ? (next) => onExpiry(next) : undefined}
-          />
+          {notice ? (
+            <Alert role="status" tone={notice === "migrated" ? "info" : "warning"}>
+              {t(`pipelines.mapper.expiry.${notice}`, { field: legacy?.field ?? "" })}
+            </Alert>
+          ) : null}
+          {onEnds && inManifest ? (
+            <p className="text-caption text-fg-muted" data-testid="mapper-expiry">
+              {t("pipelines.mapper.expiry.inManifest", { type: current.type })}
+            </p>
+          ) : onEnds ? (
+            <ExpiryChoice
+              project={project}
+              space={space}
+              type={current.type}
+              slots={attributes.filter((a) => a.format === "date-time" && current.attributes[a.name]).map((a) => a.name)}
+              lifetime={entityEnd ?? (legacy ? (moved ?? {}) : undefined)}
+              expiry={expiry}
+              problem={expiresProblem ? say(expiresProblem, "expiresAt") : undefined}
+              onLifetime={(next) => {
+                setMovedType(undefined);
+                onEnds({ expiry, lifetime: withEntityEnd(lifetime, current.type, next), bloblang: generate({ ...current, expires: undefined }, attributes, space) });
+              }}
+              onMode={(next, sweep) => {
+                setMovedType(undefined);
+                onEnds({ expiry: sweep, lifetime: withEntityEnd(lifetime, current.type, next), bloblang: generate({ ...current, expires: undefined }, attributes, space) });
+              }}
+              onExpiry={(next) => onEnds({ expiry: next, lifetime })}
+            />
+          ) : null}
 
           <p className="text-caption text-fg-muted">
             {t("pipelines.mapper.missingAttribute")}{" "}
@@ -343,7 +397,7 @@ export function OutputMapper({ project, space, orgDomain, records, bloblang, onB
                 data-testid="mapper-preview"
                 className="focus-ring max-h-72 overflow-auto rounded border border-border bg-surface-subtle p-2 font-mono text-caption whitespace-pre-wrap break-words"
               >
-                {JSON.stringify(preview(current, attributes, records, space, orgDomain), null, 2)}
+                {JSON.stringify(preview(current, attributes, records, space, orgDomain, undefined, entityEnd), null, 2)}
               </pre>
             )}
           </section>

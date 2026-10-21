@@ -21,6 +21,7 @@ import {
   serviceAccountUiSchema,
 } from "../../schemas/kinds";
 import { Button, Card, EmptyState, Icon, Skeleton } from "../../components/ui";
+import { OPERATION_PRESETS } from "../../components/forms/widgets/accessPresets";
 import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
 
 interface Credential {
@@ -165,7 +166,13 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
     name: "",
     purpose: "",
     owner: { user: identity?.email ?? identity?.username ?? "" },
-    roles: [{ role: "", scope: { level: "project", name: project } }],
+    roles: [
+      {
+        role: "",
+        scope: { level: "project", name: project },
+        operations: [...OPERATION_PRESETS.reader],
+      },
+    ],
     credentials: [{ kind: "oauth-client", name: "" }],
   });
   const [form, setForm] = useState<ServiceAccountForm | undefined>(undefined);

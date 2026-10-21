@@ -1339,6 +1339,7 @@ pub fn render_stream(
         (None, None) => {}
     }
 
+    processors.extend(lifetime_step(pipeline)?);
     processors.extend(batching());
     processors.extend(writes(
         project,
@@ -1367,6 +1368,16 @@ pub fn render_stream(
 
 /// The label of a pipeline's compute step, the studio's `compute` node (PL-66).
 pub const COMPUTE_LABEL: &str = "compute";
+
+/// The label of the step `spec.lifetime` compiles to (PL-82).
+pub const LIFETIME_LABEL: &str = "lifetime";
+
+/// `spec.lifetime` as its one Bento step (PL-82, T-4839): after the author's steps and routes,
+/// before the batching, so the validation stage at the split checks the `expiresAt` it wrote.
+fn lifetime_step(pipeline: &PipelineSpec) -> Result<Option<Value>, RenderError> {
+    let step = jcctl::lifetime::step(pipeline).map_err(|e| RenderError::Custom(e.to_string()))?;
+    Ok(step.map(|text| labelled(serde_json::json!({ "mapping": text }), LIFETIME_LABEL)))
+}
 
 /// One Bento component with a `label`, so its counters are attributable (PL-24, T-1125).
 ///
@@ -1637,6 +1648,7 @@ pub fn render_endpoint_stream(
         COMPUTE_LABEL,
     ));
 
+    processors.extend(lifetime_step(pipeline)?);
     processors.extend(batching());
     processors.extend(writes(
         project,
@@ -2023,6 +2035,7 @@ pub fn render_merged(
         processors.extend(routing);
         Some(cases)
     };
+    processors.extend(lifetime_step(pipeline)?);
     processors.extend(batching());
     match routed {
         None => processors.extend(lane_writes),
@@ -5419,5 +5432,190 @@ output:
             ),
             other => panic!("expected the missing output named, got {other:?}"),
         }
+    }
+
+    /// The four shapes of `spec.lifetime` (PL-80) on one Bus pipeline, by golden file name.
+    fn lifetimes() -> [(&'static str, Value); 4] {
+        [
+            (
+                "entity-from",
+                serde_json::json!([{ "type": "Bus", "entity": { "from": "observedAt", "plus": "PT10M" } }]),
+            ),
+            (
+                "entity-rolling",
+                serde_json::json!([{ "type": "Bus", "entity": { "rolling": "PT10M" } }]),
+            ),
+            (
+                "entity-at",
+                serde_json::json!([{ "type": "Bus", "entity": { "at": "2030-01-01T00:00:00Z" } }]),
+            ),
+            (
+                "attributes",
+                serde_json::json!([{ "type": "Bus", "attributes": [{ "names": ["position", "speed"], "rolling": "PT5M" }] }]),
+            ),
+        ]
+    }
+
+    fn with_lifetime(spec: &PipelineSpec, lifetime: &Value) -> PipelineSpec {
+        let mut value = serde_json::to_value(spec).expect("serializes");
+        value["lifetime"] = lifetime.clone();
+        serde_json::from_value(value).expect("a PipelineSpec with a lifetime")
+    }
+
+    /// The processor labels of a stream's pipeline, in order.
+    fn processor_labels(stream: &Value) -> Vec<String> {
+        stream["pipeline"]["processors"]
+            .as_array()
+            .expect("processors")
+            .iter()
+            .map(|p| p["label"].as_str().unwrap_or_default().to_owned())
+            .collect()
+    }
+
+    /// Where the lifetime step sits: right after the step before it, before the batching's
+    /// first mapping; `None` when the stream has none.
+    fn lifetime_at(stream: &Value) -> Option<usize> {
+        stream["pipeline"]["processors"]
+            .as_array()
+            .expect("processors")
+            .iter()
+            .position(|p| p["label"] == LIFETIME_LABEL)
+    }
+
+    #[test]
+    fn each_lifetime_mode_renders_its_golden_stream() {
+        let ds = helsinki_datasource_spec();
+        for (mode, lifetime) in lifetimes() {
+            let spec = with_lifetime(&helsinki_pipeline_spec(), &lifetime);
+            let stream = render_stream(
+                &spec,
+                "buses",
+                "helsinki",
+                &ds,
+                "hsl-citybikes-free",
+                "busslug",
+                None,
+            )
+            .expect("renders");
+            let yaml = serde_norway::to_string(&stream).expect("yaml");
+            let golden = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join(format!("tests/fixtures/lifetime/{mode}.yaml"));
+            if std::env::var_os("JC_UPDATE_GOLDEN").is_some() {
+                std::fs::create_dir_all(golden.parent().expect("dir")).expect("dir");
+                std::fs::write(&golden, &yaml).expect("golden written");
+            }
+            let expected = std::fs::read_to_string(&golden).unwrap_or_else(|_| {
+                panic!("{} missing: run with JC_UPDATE_GOLDEN=1", golden.display())
+            });
+            assert_eq!(
+                yaml, expected,
+                "{mode}: the rendered stream moved from its golden file"
+            );
+            // The generated step itself, right after the author's compute step.
+            let labels = processor_labels(&stream);
+            let at = lifetime_at(&stream).expect("a lifetime step");
+            assert_eq!(labels[at - 1], COMPUTE_LABEL, "{mode}: {labels:?}");
+            assert_eq!(
+                stream["pipeline"]["processors"][at]["mapping"].as_str(),
+                jcctl::lifetime::step(&spec).expect("compiles").as_deref(),
+            );
+        }
+    }
+
+    #[test]
+    fn no_lifetime_renders_no_step_and_the_same_bytes_as_before() {
+        let ds = helsinki_datasource_spec();
+        let plain = helsinki_pipeline_spec();
+        let stream = render_stream(
+            &plain,
+            "buses",
+            "helsinki",
+            &ds,
+            "hsl-citybikes-free",
+            "busslug",
+            None,
+        )
+        .expect("renders");
+        assert_eq!(lifetime_at(&stream), None);
+        let empty = with_lifetime(&plain, &serde_json::json!([]));
+        let again = render_stream(
+            &empty,
+            "buses",
+            "helsinki",
+            &ds,
+            "hsl-citybikes-free",
+            "busslug",
+            None,
+        )
+        .expect("renders");
+        assert_eq!(stream, again);
+    }
+
+    #[test]
+    fn the_validation_stage_checks_what_the_lifetime_step_wrote() {
+        let ds = helsinki_datasource_spec();
+        let spec = with_lifetime(&helsinki_pipeline_spec(), &lifetimes()[1].1);
+        let mut stream = render_stream(
+            &spec,
+            "buses",
+            "helsinki",
+            &ds,
+            "hsl-citybikes-free",
+            "busslug",
+            None,
+        )
+        .expect("renders");
+        let schema = crate::pipeline_validation::ModelSchema::compile(
+            "transport",
+            "1.0.0",
+            &serde_json::json!({}),
+            &["Bus".to_owned()],
+            false,
+        );
+        assert!(crate::pipeline_validation::insert_stage(
+            &mut stream,
+            &schema,
+            "http://portal/rejected"
+        ));
+        let labels = processor_labels(&stream);
+        let lifetime = lifetime_at(&stream).expect("a lifetime step");
+        let stage = labels
+            .iter()
+            .position(|l| l == "validation")
+            .expect("the stage");
+        assert!(lifetime < stage, "{labels:?}");
+    }
+
+    #[test]
+    fn an_endpoint_and_a_routed_multi_space_stream_run_the_lifetime_after_every_author_step() {
+        let lifetime = &lifetimes()[0].1;
+        let spec = with_lifetime(
+            &endpoint_pipeline_spec(Some("Bus"), vec![], None, None),
+            lifetime,
+        );
+        let stream = render_endpoint_stream(&spec, "helsinki", "helsinki/kpi", "src", true, "dst")
+            .expect("renders");
+        let processors = stream["pipeline"]["processors"]
+            .as_array()
+            .expect("processors");
+        let at = lifetime_at(&stream).expect("a lifetime step");
+        assert_eq!(processors[at - 1]["label"], COMPUTE_LABEL);
+        assert_eq!(processors[at + 1], batching()[0]);
+
+        // Routes write four Endpoints in three spaces: the step follows the route steps, so a
+        // record a route rewrote still gets its end, and precedes every route's writes.
+        let routed = with_lifetime(&routed(), lifetime);
+        let stream = render_routed(&routed);
+        let labels = processor_labels(&stream);
+        let at = lifetime_at(&stream).expect("a lifetime step");
+        let steps = labels
+            .iter()
+            .position(|l| l == "route_steps")
+            .expect("route steps");
+        let writes = labels
+            .iter()
+            .position(|l| l == ROUTES_LABEL)
+            .expect("the routed writes");
+        assert!(steps < at && at < writes, "{labels:?}");
     }
 }

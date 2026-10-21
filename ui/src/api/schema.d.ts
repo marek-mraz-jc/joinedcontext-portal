@@ -2994,7 +2994,7 @@ export interface paths {
         };
         /**
          * Watch A Type Of A Space
-         * @description Server-sent `changed` events naming the entities and attributes of one type that changed, never their values (API/01 §32). The view reads the rows again with the caller's session.
+         * @description Server-sent `changed` events saying that entities of one type changed, with no entity id, attribute name or value (API/01 §32, T-4876). The view reads the rows again with the caller's session, which the gateway narrows to the caller's grants.
          */
         get: operations["watch"];
         put?: never;
@@ -3123,6 +3123,26 @@ export interface paths {
          * @description Every Entity of the space naming the data subject in its class's `dataSubjectRef` slot, current state and stored history, answered to the caller's session alone (DM-124). The subject is in the body, never the URL. For the space's owners; audited with the reason.
          */
         post: operations["export_subject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/spaces/{space}/temporal-audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit How Pipelines Create History
+         * @description For every pipeline the caller may read that writes the space: each entity type and attribute its mapping writes, the record mode the space's retention gives it (DM-108), where its observedAt comes from (mapped, constant, or stamped on receipt, DM-107), its unitCode and datasetId, the type's history and the pipeline's lifetime, and a verdict: ok, loses-history, unbounded-growth, duplicates-rows or stamped-on-receive (T-4844). Names only, never a value of the data.
+         */
+        get: operations["temporal_audit"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5659,6 +5679,11 @@ export interface components {
                 [key: string]: string;
             }) | null;
         };
+        /**
+         * @description Where a row's `observedAt` comes from.
+         * @enum {string}
+         */
+        ObservedAtSource: "mapped" | "constant" | "received";
         /** @description One page of the application as the frame rendered it. */
         ObservedPage: {
             /**
@@ -6873,6 +6898,40 @@ export interface components {
             /** @description The project's templates, newest first. */
             items: components["schemas"]["PipelineTemplate"][];
         };
+        /** @description The audit of one space. */
+        TemporalAudit: {
+            /** @description One row per pipeline, entity type and attribute, by pipeline, type and attribute. */
+            rows: components["schemas"]["TemporalAuditRow"][];
+            /** @description The pipelines whose `bento.yaml` the forge did not answer: their rows may be missing. */
+            unread: string[];
+            /** @description The rows of each verdict. */
+            verdicts: {
+                [key: string]: number;
+            };
+        };
+        /** @description One row of the audit (T-4844). Names and sources only: no value of the data. */
+        TemporalAuditRow: {
+            attribute: string;
+            /** @description The literal `datasetId`s, or `mapped` for one the record decides. */
+            datasetId: string[];
+            entityType: string;
+            /** @description How long the type's rows are kept: the rule's, the space's `*` rule's, or the platform's. */
+            history: string;
+            /** @description What ends the entities: the pipeline's `lifetime` and `expiry`, or an `expiresAt` it maps. */
+            lifetime: string[];
+            observedAt: components["schemas"]["ObservedAtSource"][];
+            pipeline: string;
+            /** @description `every`, `onChange`, or `none` under `history: off` (DM-108). */
+            record: string;
+            /** @description The codes the mapping writes, or the model's unit as `model <code>` when it writes none. */
+            unitCode: string[];
+            verdict: components["schemas"]["TemporalVerdict"];
+        };
+        /**
+         * @description What the rows of one attribute come to.
+         * @enum {string}
+         */
+        TemporalVerdict: "ok" | "loses-history" | "unbounded-growth" | "duplicates-rows" | "stamped-on-receive";
         /** @description A broker's digest of one tenant (Antares ADR-0030). */
         TenantDigest: {
             /** Format: int64 */
@@ -17496,6 +17555,52 @@ export interface operations {
             };
             /** @description The space or the key is not available */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    temporal_audit: {
+        parameters: {
+            query?: {
+                /** @description Only this pipeline. */
+                pipeline?: string | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rows and the count of each verdict */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemporalAudit"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read, or no such pipeline the caller may read */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

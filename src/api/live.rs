@@ -43,7 +43,7 @@ fn type_name(name: &str) -> bool {
     get,
     path = "/api/v1/projects/{project}/spaces/{space}/live",
     summary = "Watch A Type Of A Space",
-    description = "Server-sent `changed` events naming the entities and attributes of one type that changed, never their values (API/01 §32). The view reads the rows again with the caller's session.",
+    description = "Server-sent `changed` events saying that entities of one type changed, with no entity id, attribute name or value (API/01 §32, T-4876). The view reads the rows again with the caller's session, which the gateway narrows to the caller's grants.",
     tag = "spaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -69,7 +69,7 @@ pub async fn watch(
             "type must be an NGSI-LD type name".into(),
         ));
     }
-    let receiver = state.live.watch(&space, &query.entity_type);
+    let receiver = state.live.watch(&project, &space, &query.entity_type);
     // A window that fell behind misses changes rather than the stream: its next event reads again.
     let stream = BroadcastStream::new(receiver).filter_map(|item| {
         let changed = item.ok()?;
@@ -108,10 +108,10 @@ pub async fn notify(
     if body.len() > MAX_NOTIFICATION {
         return StatusCode::PAYLOAD_TOO_LARGE;
     }
-    let Ok(value) = serde_json::from_slice::<serde_json::Value>(&body) else {
+    if serde_json::from_slice::<serde::de::IgnoredAny>(&body).is_err() {
         return StatusCode::BAD_REQUEST;
-    };
-    if state.live.deliver(&key, &value) {
+    }
+    if state.live.deliver(&key) {
         StatusCode::NO_CONTENT
     } else {
         StatusCode::NOT_FOUND

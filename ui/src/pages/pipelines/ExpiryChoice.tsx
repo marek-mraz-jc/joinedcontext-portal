@@ -1,8 +1,9 @@
 /**
- * "When do entities go away?" in the output mapper (T-4822, PL-64, PL-65, TS 104 175 4.22): never,
- * at a time the source gives (the step writes each entity's `expiresAt`), or once the source
- * stops sending one for a while (the pipeline's `spec.expiry` sweep). One choice, so a person
- * never writes Bloblang for the bus recipe and never sets both by accident.
+ * "When do entities go away?" in the output mapper (T-4822, T-4839, PL-64, PL-80, TS 104 175
+ * 4.22): never, at a time the entity holds or the write time plus a while (the pipeline's
+ * `spec.lifetime`, which the runner applies after the mapping), or once the source stops sending
+ * one for a while (the pipeline's `spec.expiry` sweep). One choice, so a person never writes
+ * Bloblang for the bus recipe and never sets both by accident.
  */
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
@@ -11,7 +12,6 @@ import { RetentionGuide } from "../../components/RetentionGuide";
 import { Field, Input, RadioGroup, Select } from "../../components/ui";
 import { fromIso, toIso, UNITS } from "../spaces/retention";
 import type { Unit } from "../spaces/retention";
-import type { Expires } from "./outputMapper";
 
 /** The pipeline's stale-entity sweep as the manifest holds it (PL-64). */
 export interface Expiry {
@@ -19,17 +19,39 @@ export interface Expiry {
   types?: string[];
 }
 
+/** One end time as `spec.lifetime` holds it (PL-80): `from` a slot plus a while, `rolling`, or `at`. */
+export interface LifetimeMode {
+  from?: string;
+  plus?: string;
+  notAfter?: string;
+  rolling?: string;
+  at?: string;
+}
+
+/** One entry of `spec.lifetime` (PL-80): the type, the whole entity's end, chosen attributes' ends. */
+export interface Lifetime {
+  type: string;
+  entity?: LifetimeMode;
+  attributes?: (LifetimeMode & { names: string[] })[];
+}
+
 export type ExpiryMode = "never" | "source" | "stale";
 
-/** The mode a step and a manifest are in: an own `expiresAt` first, then the sweep. */
-export function modeOf(expires: Expires | undefined, expiry: Expiry | undefined): ExpiryMode {
-  if (expires) return "source";
+/** The mode an entity lifetime and a manifest are in: an own `expiresAt` first, then the sweep. */
+export function modeOf(lifetime: LifetimeMode | undefined, expiry: Expiry | undefined): ExpiryMode {
+  if (lifetime) return "source";
   return expiry?.after || expiry?.types?.length ? "stale" : "never";
 }
 
-/** The field a time most likely comes from: `observedAt`, then a name with time or date in it. */
+/** The slot a time most likely comes from: `observedAt`, then a name with time or date in it. */
 export function timeFieldOf(fields: string[]): string | undefined {
   return fields.find((field) => field === "observedAt") ?? fields.find((field) => /time|date|observed|timestamp/i.test(field));
+}
+
+/** The entity lifetime counted from `from` (a slot), or from the write time when it is empty. */
+export function withFrom(lifetime: LifetimeMode | undefined, from: string | undefined): LifetimeMode {
+  const span = lifetime?.plus ?? lifetime?.rolling ?? "PT10M";
+  return from ? { from, plus: span } : { rolling: span };
 }
 
 /** `after` of the sweep as amount and unit; the manifest writes whole hours or days (PL-64). */
@@ -42,28 +64,36 @@ export interface ExpiryChoiceProps {
   project: string;
   space: string;
   type: string;
-  fields: string[];
-  expires: Expires | undefined;
+  /** The type's date-time attributes the step maps, the times an end can count from. */
+  slots: string[];
+  /** The entity's end in `spec.lifetime` for this type. */
+  lifetime: LifetimeMode | undefined;
   expiry: Expiry | undefined;
   /** A problem with the time field the sample shows, in words. */
   problem?: string;
-  /** Changes the mode: the step's `expiresAt` and the manifest's sweep together, never one alone. */
-  onMode: (expires: Expires | undefined, expiry: Expiry | undefined) => void;
-  onExpires: (expires: Expires) => void;
+  /** Changes the mode: the lifetime and the manifest's sweep together, never one alone. */
+  onMode: (lifetime: LifetimeMode | undefined, expiry: Expiry | undefined) => void;
+  onLifetime: (lifetime: LifetimeMode) => void;
   /** Absent where the form holds no `spec.expiry`: the sweep is then not offered. */
   onExpiry?: (expiry: Expiry) => void;
 }
 
-export function ExpiryChoice({ project, space, type, fields, expires, expiry, problem, onMode, onExpires, onExpiry }: ExpiryChoiceProps): JSX.Element {
+export function ExpiryChoice({ project, space, type, slots, lifetime, expiry, problem, onMode, onLifetime, onExpiry }: ExpiryChoiceProps): JSX.Element {
   const { t } = useTranslation();
-  const mode = modeOf(expires, expiry);
-  const plus = expires?.plus === undefined ? undefined : fromIso(expires.plus);
+  const mode = modeOf(lifetime, expiry);
+  const rolling = lifetime !== undefined && lifetime.from === undefined;
+  const span = lifetime?.from !== undefined ? lifetime.plus : lifetime?.rolling;
+  const plus = span === undefined ? undefined : fromIso(span);
   const after = afterOf(expiry?.after);
-  const setPlus = (amount: string, unit: Unit) =>
-    onExpires({ ...expires, plus: amount === "" || amount === "0" ? undefined : (toIso({ amount: Number(amount), unit }) ?? expires?.plus) });
+  // A `rolling` end needs a while of its own (PT1M at least): a zero keeps the one it has.
+  const setPlus = (amount: string, unit: Unit) => {
+    const iso = amount === "" || amount === "0" ? undefined : (toIso({ amount: Number(amount), unit }) ?? span);
+    if (rolling) onLifetime({ rolling: iso ?? lifetime?.rolling ?? "PT10M" });
+    else onLifetime({ ...lifetime, plus: iso });
+  };
   const choose = (next: ExpiryMode) => {
     if (next === "never") onMode(undefined, undefined);
-    if (next === "source") onMode({ field: timeFieldOf(fields), plus: "PT10M" }, undefined);
+    if (next === "source") onMode(withFrom(undefined, timeFieldOf(slots)), undefined);
     if (next === "stale") onMode(undefined, { after: "14d", types: [type] });
   };
   const options = [
@@ -83,14 +113,19 @@ export function ExpiryChoice({ project, space, type, fields, expires, expiry, pr
 
       {mode === "source" ? (
         <div className="flex flex-wrap items-end gap-3">
-          <Field id="mapper-expiry-field" label={t("pipelines.mapper.expiry.from")} errors={problem ? [problem] : undefined}>
+          <Field
+            id="mapper-expiry-field"
+            label={t("pipelines.mapper.expiry.from")}
+            description={slots.length === 0 ? t("pipelines.mapper.expiry.noTimeSlot", { type }) : undefined}
+            errors={problem ? [problem] : undefined}
+          >
             <Select
               id="mapper-expiry-field"
-              value={expires?.field ?? ""}
-              onChange={(event) => onExpires({ ...expires, field: event.target.value || undefined })}
+              value={lifetime?.from ?? ""}
+              onChange={(event) => onLifetime(withFrom(lifetime, event.target.value || undefined))}
             >
               <option value="">{t("pipelines.mapper.expiry.written")}</option>
-              {[...new Set([...fields, ...(expires?.field ? [expires.field] : [])])].map((field) => (
+              {[...new Set([...slots, ...(lifetime?.from ? [lifetime.from] : [])])].map((field) => (
                 <option key={field} value={field}>
                   {field}
                 </option>
@@ -102,22 +137,25 @@ export function ExpiryChoice({ project, space, type, fields, expires, expiry, pr
               <Input
                 id="mapper-expiry-plus"
                 type="number"
-                min={0}
+                min={rolling ? 1 : 0}
                 className="w-20"
                 value={plus === undefined ? "0" : String(plus.amount)}
                 onChange={(event) => setPlus(event.target.value, plus?.unit ?? "minutes")}
               />
-              <Select
-                aria-label={t("pipelines.mapper.expiry.plusUnit")}
-                value={plus?.unit ?? "minutes"}
-                onChange={(event) => setPlus(String(plus?.amount ?? 1), event.target.value as Unit)}
-              >
-                {UNITS.map((unit) => (
-                  <option key={unit} value={unit}>
-                    {t(`spaces.retention.unit.${unit}`)}
-                  </option>
-                ))}
-              </Select>
+              {/* The unit keeps its words whole beside the amount, at any width. */}
+              <span className="min-w-32 shrink-0">
+                <Select
+                  aria-label={t("pipelines.mapper.expiry.plusUnit")}
+                  value={plus?.unit ?? "minutes"}
+                  onChange={(event) => setPlus(String(plus?.amount ?? 1), event.target.value as Unit)}
+                >
+                  {UNITS.map((unit) => (
+                    <option key={unit} value={unit}>
+                      {t(`spaces.retention.unit.${unit}`)}
+                    </option>
+                  ))}
+                </Select>
+              </span>
             </span>
           </Field>
         </div>
