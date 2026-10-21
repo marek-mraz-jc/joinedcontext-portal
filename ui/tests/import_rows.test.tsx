@@ -26,6 +26,8 @@ import {
   rejectedCsv,
   suggestMapping,
   toEntities,
+  unreadableText,
+  FileTooLarge,
 } from "../src/pages/spaces/importRows";
 import type { ImportSlot, Send } from "../src/pages/spaces/importRows";
 import type { Manifest } from "../src/api/manifest";
@@ -154,6 +156,16 @@ describe("reading a file", () => {
     const table = await parseXlsx(zip({ "xl/worksheets/sheet1.xml": await deflated(sheet) }, { "xl/worksheets/sheet1.xml": sheet.length }));
     expect(table.rows).toEqual([{ name: "Töölö" }]);
     await expect(parseXlsx(new TextEncoder().encode("not a zip"))).rejects.toThrow("not a ZIP");
+  });
+
+  it("refuses a file over the limit by its size, before a byte is read", async () => {
+    const big = new File(["x"], "big.csv");
+    Object.defineProperty(big, "size", { value: 53_000_000 });
+    const error = await readTable(big).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(FileTooLarge);
+    expect(unreadableText(i18n.getFixedT("en"), error)).toBe(
+      "The file is 50.5 MB; an import reads at most 50 MB. Split it into smaller files, or remove the columns you do not need, and import each part.",
+    );
   });
 
   it("refuses a file of another kind by name", async () => {
@@ -306,6 +318,17 @@ describe("creating through the gateway", () => {
     expect(answer.rejected.slice(1).map((r) => r.reason)).toEqual(["you may not createEntity here", "you may not createEntity here"]);
   });
 
+  it("stops at the first batch the person may not write and names the refusal (T-4867)", async () => {
+    const send = vi.fn<Send>(async () => ({ status: 403, body: { detail: "no policy grants this operation" } }));
+    const progress: number[] = [];
+    const answer = await createInBatches(send, "helsinki", entities, (sent) => progress.push(sent));
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(answer.created).toBe(0);
+    expect(answer.denied).toBe("no policy grants this operation");
+    expect(answer.rejected).toHaveLength(BATCH + 2);
+    expect(progress).toEqual([BATCH + 2]);
+  });
+
   it("refuses the batch when the request itself fails", async () => {
     const send = vi.fn<Send>(async () => {
       throw new Error("offline");
@@ -341,6 +364,62 @@ describe("export", () => {
       </I18nextProvider>,
     );
     expect(screen.getByText(/No Endpoint of this space serves CSV/)).toBeInTheDocument();
+  });
+});
+
+/** helsinki.linkml.yaml's shape: classes specialise ngsi-ld-core's Entity and list no geometry of their own. */
+const CORE_MODEL = `id: https://hel.fi/models/helsinki
+name: helsinki
+imports:
+  - linkml:types
+  - ngsi-ld-core
+classes:
+  Place:
+    is_a: Entity
+    slots: [name, address]
+    slot_usage:
+      address: { required: true }
+  PointOfInterest:
+    is_a: Place
+    slots: [serviceCategory, address]
+slots:
+  name: { range: string }
+  address: { range: string }
+  serviceCategory: { range: string, required: true }
+`;
+
+describe("slots a class inherits (T-4867)", () => {
+  it("gives a class its is_a parents' slots and the NGSI-LD location of the core Entity", () => {
+    const slots = importSlotsOf(CORE_MODEL, "PointOfInterest");
+    expect(slots.map((slot) => slot.name)).toEqual(["name", "address", "serviceCategory", "location"]);
+    // The child's own listing wins the slot both name: `address` is optional on PointOfInterest.
+    expect(slots.find((slot) => slot.name === "address")?.required).toBe(false);
+    expect(slots.find((slot) => slot.name === "location")).toEqual({ name: "location", kind: "GeoProperty", required: false });
+  });
+
+  it("adds no location to a class that does not reach the core Entity", () => {
+    expect(importSlotsOf(CORE_MODEL.replace("is_a: Entity", ""), "PointOfInterest").map((slot) => slot.name)).not.toContain("location");
+    expect(SLOTS.filter((slot) => slot.name === "location")).toHaveLength(1);
+  });
+
+  it("reports a refused value once, not again as a missing required field", () => {
+    const slots = importSlotsOf(CORE_MODEL.replace("serviceCategory: { range: string, required: true }", "serviceCategory: { range: Category, required: true }\nenums:\n  Category:\n    permissible_values:\n      library: {}"), "PointOfInterest");
+    const table = parseCsv("name,serviceCategory\nOodi,swimming hall\n");
+    const { rejected } = toEntities(table, suggestMapping(table.columns, slots), slots, { type: "PointOfInterest", orgDomain: "hel.fi", space: "helsinki" }, () => "x");
+    expect(rejected[0].reason).toMatch(/is not one of library/);
+    expect(rejected[0].reason).not.toMatch(/is required/);
+  });
+
+  it("imports a GeoJSON point into the inherited location", () => {
+    const slots = importSlotsOf(CORE_MODEL, "PointOfInterest");
+    const table = parseJson(
+      '{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"name":"Oodi","serviceCategory":"library"},"geometry":{"type":"Point","coordinates":[24.938,60.174]}}]}',
+    );
+    const mapping = suggestMapping(table.columns, slots);
+    expect(mapping.location).toBe("location");
+    const { entities, rejected } = toEntities(table, mapping, slots, { type: "PointOfInterest", orgDomain: "hel.fi", space: "helsinki" }, () => "oodi");
+    expect(rejected).toEqual([]);
+    expect(entities[0].entity.location).toEqual({ type: "GeoProperty", value: { type: "Point", coordinates: [24.938, 60.174] } });
   });
 });
 
@@ -406,6 +485,37 @@ describe("the import dialog", () => {
     await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
     const [created] = send.mock.calls[0][0].body as Record<string, unknown>[];
     expect(created.expiresAt).toBe("2999-01-01T00:00:00.000Z");
+  });
+
+  it("says in one sentence that nothing was written when the space refuses the person (T-4867)", async () => {
+    await i18n.changeLanguage("en");
+    const user = userEvent.setup();
+    const send = vi.fn<Send>(async () => ({ status: 403, body: { detail: "no policy grants this operation" } }));
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ImportRowsDialog open onOpenChange={() => {}} target={TARGET} slots={SLOTS} send={send} onImported={() => {}} />
+      </I18nextProvider>,
+    );
+    await user.upload(screen.getByLabelText("Choose a file"), new File(["Title\nKamppi\nKallio\n"], "stations.csv"));
+    await user.click(await screen.findByRole("button", { name: "Create 2 rows" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Nothing was written: the space helsinki does not let your role create BikeHireDockingStation entities (no policy grants this operation). Ask a project owner",
+    );
+    expect(screen.queryByRole("list", { name: "Rows that will not be created" })).not.toBeInTheDocument();
+  });
+
+  it("names the file's size and the limit when it is too large (T-4867)", async () => {
+    await i18n.changeLanguage("en");
+    const user = userEvent.setup();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ImportRowsDialog open onOpenChange={() => {}} target={TARGET} slots={SLOTS} send={vi.fn<Send>()} onImported={() => {}} />
+      </I18nextProvider>,
+    );
+    const big = new File(["x"], "big.csv");
+    Object.defineProperty(big, "size", { value: 61 * 1024 * 1024 });
+    await user.upload(screen.getByLabelText("Choose a file"), big);
+    expect(await screen.findByText(/The file is 61\.0 MB; an import reads at most 50 MB\./)).toBeInTheDocument();
   });
 
   it("shows how the file was read and previews its first rows (T-3248)", async () => {

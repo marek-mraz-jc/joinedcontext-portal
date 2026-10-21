@@ -209,6 +209,12 @@ async function stubApi(page: Page, options: { write?: boolean } = {}): Promise<S
   return { writes, reads };
 }
 
+/** Opens a column's menu and its Details, where History and the metadata columns are (T-4827). */
+async function openColumnDetails(page: Page, column: string): Promise<void> {
+  await page.getByRole("button", { name: `Column options: ${column}` }).click();
+  await page.getByRole("dialog", { name: `Column options: ${column}` }).getByText("Details").click();
+}
+
 /**
  * The control `label` names, reached with the Tab key alone: a person who never touches a pointer
  * has to arrive at the cell they are correcting (UI-67). The accessible name is read from the
@@ -274,7 +280,8 @@ test.describe("the entity grid", () => {
       .toBeGreaterThan(0);
 
     // When the value was observed is metadata of the same column, switched on from its menu.
-    await page.getByLabel("Show metadata for availableBikeNumber").click();
+    // The attribute's metadata sits under Details in the column's own menu (T-4827).
+    await openColumnDetails(page, "availableBikeNumber");
     await page.getByRole("checkbox", { name: "Observed" }).check();
     await expect(
       page.getByRole("columnheader", { name: "availableBikeNumber · Observed" }),
@@ -343,7 +350,8 @@ test.describe("the entity grid", () => {
     await page.goto(`${EXPLORE}?endpoint=helsinki-bikes&type=${TYPE}&lang=en`);
     await expect(page.getByRole("button", { name: EMPTY_DOCK })).toBeVisible();
 
-    await page.getByLabel("Show metadata for availableBikeNumber").click();
+    // The attribute's metadata sits under Details in the column's own menu (T-4827).
+    await openColumnDetails(page, "availableBikeNumber");
     await page.getByRole("button", { name: "History" }).click();
 
     const history = page.getByRole("dialog").or(page.getByRole("region", { name: "History" }));
@@ -416,7 +424,7 @@ for (const width of [1440, 400]) {
       const { writes } = await stubApi(page, { write: true });
       await stubSpace(page);
       await page.goto(SPACE_PAGE);
-      const cell = page.getByLabel("Edit availableBikeNumber").first();
+      const cell = page.getByLabel("Edit Available bike number").first();
       await expect(cell).toHaveValue("0");
 
       // Click the cell, type over it, Enter keeps the value and goes one row down.
@@ -451,7 +459,7 @@ for (const width of [1440, 400]) {
       await stubApi(page, { write: true });
       await stubSpace(page, FULL_DOCK);
       await page.goto(SPACE_PAGE);
-      const cell = page.getByLabel("Edit availableBikeNumber").nth(1);
+      const cell = page.getByLabel("Edit Available bike number").nth(1);
       await expect(cell).toHaveValue("7");
       await cell.fill("6");
       await page.getByRole("button", { name: "Review the changes" }).click();
@@ -468,7 +476,7 @@ for (const width of [1440, 400]) {
       await page.goto(SPACE_PAGE);
       await expect(page.getByRole("grid")).toBeVisible();
       await expect(page.getByRole("button", { name: "Open: Rautatientori" }).first()).toBeVisible();
-      await expect(page.getByLabel("Edit availableBikeNumber")).toHaveCount(0);
+      await expect(page.getByLabel("Edit Available bike number")).toHaveCount(0);
       await page.screenshot({ path: `${SHOTS}/t4826-viewer-${width}.png` });
       expect(writes).toEqual([]);
     });

@@ -840,6 +840,11 @@
 }
 
 .jc-grid-col-menu {
+  /* Placed by ColumnMenu under its header cell: the grid's overflow would clip it (T-4924). */
+  position: fixed;
+  right: auto;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
   min-width: 13rem;
   text-align: left;
   font-weight: normal;
