@@ -18,6 +18,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
+use futures_util::StreamExt as _;
 use jc_core::kinds::{Verb, PERSON};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -38,6 +39,9 @@ const LOCALES: [&str; 4] = ["en", "sk", "cs", "de"];
 const DEFAULT_PAGE: u32 = 50;
 const MAX_PAGE: u32 = 100;
 const MAX_NAME: usize = 255;
+/// Session lookups a page of people sends the realm at once: Keycloak serves every admin call from
+/// a database pool of 7 (T-4933), and a page of 50 sent together refused the home page (T-5000).
+const LAST_SEEN_AT_ONCE: usize = 4;
 
 /// A person as the Portal shows one (API/01 §24).
 #[derive(Debug, Serialize, ToSchema)]
@@ -516,6 +520,17 @@ async fn target<'a>(
     Ok((admin, user))
 }
 
+/// Each person's last access, in the order of `users`, at most `LAST_SEEN_AT_ONCE` lookups in
+/// flight; a lookup the realm refuses reads as never seen.
+async fn last_seen_of(admin: &Admin<'_>, users: &[KcUser]) -> Vec<Option<i64>> {
+    let lookups: Vec<_> = users.iter().map(|user| admin.last_seen(&user.id)).collect();
+    futures_util::stream::iter(lookups)
+        .buffered(LAST_SEEN_AT_ONCE)
+        .map(|seen| seen.unwrap_or(None))
+        .collect()
+        .await
+}
+
 #[utoipa::path(
     get,
     path = "/api/v1/organization/people",
@@ -570,15 +585,10 @@ pub async fn list_people(
     let mut users = admin.list(search, first, max + 1).await?;
     let next = (users.len() > max as usize).then(|| first + max);
     users.truncate(max as usize);
-    let seen =
-        futures_util::future::join_all(users.iter().map(|user| admin.last_seen(&user.id))).await;
+    let seen = last_seen_of(&admin, &users).await;
     let mut items = Vec::with_capacity(users.len());
     for (user, seen) in users.iter().zip(seen) {
-        items.push(person(
-            user,
-            seen.unwrap_or(None),
-            pending(&state, &user.id).await,
-        ));
+        items.push(person(user, seen, pending(&state, &user.id).await));
     }
     with_invitations(&state, &mut items).await;
     Ok(Json(PersonPage { items, next }))

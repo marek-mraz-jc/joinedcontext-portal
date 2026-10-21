@@ -27,7 +27,7 @@ import {
 } from "../../components/ui";
 import type { BadgeTone } from "../../components/ui";
 import { putDraft } from "../../api/drafts";
-import { duplicateDeployment, knowledgeKeys, languagesText, listSources, listUsage, recrawl, timeText } from "./knowledge";
+import { duplicateDeployment, knowledgeKeys, listSources, topLanguages, listUsage, recrawl, timeText } from "./knowledge";
 import type { KnowledgeSourceRow } from "./knowledge";
 import { AssistantChat, EmbedSnippet } from "./AssistantChat";
 import { sum } from "./IndexStatus";
@@ -64,6 +64,7 @@ export function standing(row: KnowledgeSourceRow): { key: string; tone: BadgeTon
  */
 export function KnowledgePage({ project }: { project: string }): JSX.Element {
   const { t, i18n } = useTranslation();
+  const number = new Intl.NumberFormat(i18n.language);
   const queryClient = useQueryClient();
   const { can } = usePermissions(project);
   const [queued, setQueued] = useState<string | null>(null);
@@ -213,18 +214,24 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
                     ) : null}
                   </TableCell>
                   <TableCell secondary>{timeText(row.lastCrawl, i18n.language)}</TableCell>
-                  <TableCell align="right" secondary>
+                  <TableCell align="right" secondary className="whitespace-nowrap tabular-nums">
                     {row.state === "crawled"
-                      ? t("knowledge.ofTotal", { part: row.pagesIncluded ?? 0, total: row.pages ?? 0 })
+                      ? t("knowledge.ofTotal", { part: number.format(row.pagesIncluded ?? 0), total: number.format(row.pages ?? 0) })
                       : "—"}
                   </TableCell>
-                  <TableCell align="right" secondary>{row.state === "crawled" ? (row.documents ?? 0) : "—"}</TableCell>
-                  <TableCell align="right" secondary>
-                    {row.state === "crawled"
-                      ? t("knowledge.embeddedOf", { embedded: row.embedded ?? 0, total: row.passages ?? 0 })
-                      : "—"}
+                  <TableCell align="right" secondary className="whitespace-nowrap tabular-nums">
+                    {row.state === "crawled" ? number.format(row.documents ?? 0) : "—"}
                   </TableCell>
-                  <TableCell secondary>{row.state === "crawled" ? languagesText(row.languages, i18n.language) : "—"}</TableCell>
+                  <TableCell align="right" secondary className="whitespace-nowrap tabular-nums">
+                    {row.state !== "crawled"
+                      ? "—"
+                      : (row.embedded ?? 0) === (row.passages ?? 0)
+                        ? number.format(row.passages ?? 0)
+                        : t("knowledge.embeddedOf", { embedded: number.format(row.embedded ?? 0), total: number.format(row.passages ?? 0) })}
+                  </TableCell>
+                  <TableCell secondary>
+                    {row.state === "crawled" ? <Languages languages={row.languages} /> : "—"}
+                  </TableCell>
                   <TableCell align="right">
                     {row.type === "upload" ? null : (
                     <PermissionGuard project={project} kind="KnowledgeSource" verb="propose">
@@ -273,6 +280,21 @@ interface DeploymentItem {
  * what it spent over the last 30 days (T-3057). Each is created and edited as a manifest on its
  * list, like every other kind.
  */
+/** The three largest languages; the full list on hover and for a screen reader (T-4994). */
+function Languages({ languages }: { languages: Record<string, number> | undefined }): JSX.Element {
+  const { t, i18n } = useTranslation();
+  const { top, more, all } = topLanguages(languages, i18n.language);
+  if (more === 0) return <>{top}</>;
+  return (
+    <span title={all}>
+      <span aria-hidden>
+        {top} <span className="whitespace-nowrap text-fg-muted">{t("knowledge.languagesMore", { count: more })}</span>
+      </span>
+      <span className="sr-only">{all}</span>
+    </span>
+  );
+}
+
 function Assistants({ project }: { project: string }): JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();

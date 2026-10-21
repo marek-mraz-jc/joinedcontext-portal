@@ -99,7 +99,9 @@
     "Agent",
     "MCP server",
     "OGC Features",
-    "OData"
+    "OData",
+    "WebSocket",
+    "iCal"
   ],
   "cs": [
     "@context",
@@ -198,7 +200,9 @@
     "Agent",
     "MCP server",
     "OGC Features",
-    "OData"
+    "OData",
+    "WebSocket",
+    "iCal"
   ],
   "de": [
     "@context",
@@ -332,6 +336,8 @@
     "MQTT",
     "Tokens",
     "OGC Features",
-    "OData"
+    "OData",
+    "WebSocket",
+    "iCal"
   ]
 }

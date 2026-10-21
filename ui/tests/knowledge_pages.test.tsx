@@ -12,7 +12,7 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
-import { bytesText, dataChart, embedSnippet, readEvents, timeText } from "../src/pages/knowledge/knowledge";
+import { bytesText, dataChart, embedSnippet, readEvents, timeText, topLanguages } from "../src/pages/knowledge/knowledge";
 import { reasonOf } from "../src/pages/knowledge/KnowledgePage";
 import { InclusionBadge } from "../src/pages/knowledge/SourcePage";
 import { UploadedFiles } from "../src/pages/knowledge/UploadedFiles";
@@ -398,6 +398,17 @@ describe("finding pages and trying the search (UI-99, T-4659)", () => {
     renderAt("/projects/banskabystrica/knowledge");
     const table = await screen.findByRole("table", { name: "Knowledge sources" });
     expect(within(table).getByText("sk 90%, en 10%")).toBeInTheDocument();
+  });
+
+  it("keeps a long language list to the three largest with the rest counted (T-4994)", () => {
+    const many = { fi: 420, en: 310, sv: 250, uk: 4, ru: 3, so: 2, ar: 1 };
+    expect(topLanguages(many, "en")).toEqual({
+      top: "fi 42%, en 31%, sv 25%",
+      more: 4,
+      all: "fi 42%, en 31%, sv 25%, uk 0%, ru 0%, so 0%, ar 0%",
+    });
+    expect(topLanguages({ sk: 1 }, "en")).toEqual({ top: "sk 100%", more: 0, all: "sk 100%" });
+    expect(topLanguages({}, "en").top).toBe("—");
   });
 
   it("finds pages of the whole source by title from two letters on, flat and titled", async () => {

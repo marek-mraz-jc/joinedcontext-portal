@@ -3,6 +3,7 @@
  * in which space, narrowed by which filters, and from when until when. Built from the form's own
  * values, so the sentence and the YAML beside it always describe the same grant.
  */
+import { granteeName } from "../../components/AccessWords";
 import { groupOf } from "../../components/endpoints/operationGroups";
 import type { PolicyForm } from "../../routes/PoliciesPage";
 
@@ -27,7 +28,11 @@ function day(value: string | undefined, language: string): string | undefined {
 
 export function policySentence(policy: Partial<PolicyForm>, t: T, language: string): string {
   const assignee = policy.assignee ?? { kind: "role", id: "" };
-  const who = assignee.id
+  const named = granteeName(assignee.kind, assignee.id, t);
+  // An endpoint's role reads by its endpoint, not as "the role endpoint:helsinki/app-…" (T-4990).
+  const who = named !== assignee.id
+    ? named
+    : assignee.id
     ? t(`policies.sentence.who.${assignee.kind}`, { id: assignee.id, defaultValue: `${assignee.kind} ${assignee.id}` })
     : t("policies.sentence.nobody");
   const operations = (policy.operations ?? []).map((name) => operationWords(name, t));

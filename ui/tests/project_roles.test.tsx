@@ -138,7 +138,7 @@ describe("the roles of a project on the Access page", () => {
 
     const own = (await screen.findByText("air-analyst")).closest("tr") as HTMLElement;
     expect(within(own).getByText("Project banskabystrica")).toBeTruthy();
-    expect(within(own).getByText(/propose on DataSource/)).toBeTruthy();
+    expect(own.textContent).toMatch(/Propose: data sources/);
     expect(screen.queryByText("org-admin")).toBeNull();
   });
 
