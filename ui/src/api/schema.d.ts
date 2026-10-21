@@ -616,6 +616,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Agents
+         * @description Every agent identity of the organization and its projects the caller may read: assistant deployments, agent profiles, MCP servers, service accounts and runs not yet ended (API/01 §48, AG-126).
+         */
+        get: operations["list_agents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organization/brokers": {
         parameters: {
             query?: never;
@@ -3747,6 +3767,41 @@ export interface components {
         AgentAccessList: {
             items: components["schemas"]["ProfileAccess"][];
         };
+        /**
+         * @description Whose rights an agent uses (AG-94, AG-115).
+         * @enum {string}
+         */
+        AgentActsAs: "self" | "caller";
+        /** @description One agent identity (API/01 §48). */
+        AgentItem: {
+            actsAs: components["schemas"]["AgentActsAs"];
+            endpoints: string[];
+            /** @description `AssistantDeployment`, `AgentProfile`, `McpServer`, `ServiceAccount` or `AgentRun`. */
+            kind: string;
+            lastActivity?: string | null;
+            name: string;
+            owner: components["schemas"]["AgentOwner"];
+            /** @description The agent profile a run executes, for `AgentRun` only. */
+            profile?: string | null;
+            /** @description The namespace: a project, or `org` for the organization's own manifests. */
+            project: string;
+            /** @description The run's id, for `AgentRun` only. */
+            runId?: string | null;
+            spaces: string[];
+            spend: components["schemas"]["AgentSpend"];
+            state: components["schemas"]["AgentState"];
+            title?: string | null;
+        };
+        /** @description Who answers for an agent. */
+        AgentOwner: {
+            name: string;
+            /** @description `person` or `project`. */
+            type: string;
+        };
+        /** @description Every agent the caller may read. */
+        AgentRegistry: {
+            items: components["schemas"]["AgentItem"][];
+        };
         AgentRun: {
             allowsWrite: boolean;
             appClass: string;
@@ -3830,6 +3885,20 @@ export interface components {
          * @enum {string}
          */
         AgentRunStatus: "queued" | "starting" | "interviewing" | "building" | "testing" | "previewing" | "awaiting_approval" | "published" | "failed" | "cancelled" | "expired";
+        /** @description Tokens spent against a cap. */
+        AgentSpend: {
+            /** Format: int64 */
+            cap?: number | null;
+            /** @description `day` or `run`. */
+            per?: string | null;
+            /** Format: int64 */
+            used?: number | null;
+        };
+        /**
+         * @description Whether an agent answers now.
+         * @enum {string}
+         */
+        AgentState: "active" | "paused" | "running" | "waiting";
         /** @enum {string} */
         AlertDelivery: "portal" | "digest";
         /** @enum {string} */
@@ -8360,6 +8429,53 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_agents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The agents */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentRegistry"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller reads no agent kind anywhere */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The run store did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
             };
         };
     };

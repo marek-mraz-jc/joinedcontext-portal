@@ -92,7 +92,9 @@
     "REST API (JSON)",
     "HTTP endpoint",
     "1. Endpoint",
-    "/min"
+    "/min",
+    "Agent",
+    "MCP server"
   ],
   "cs": [
     "@context",
@@ -184,7 +186,9 @@
     "{seconds} s",
     "Čeština",
     "REST API (JSON)",
-    "/min"
+    "/min",
+    "Agent",
+    "MCP server"
   ],
   "de": [
     "@context",

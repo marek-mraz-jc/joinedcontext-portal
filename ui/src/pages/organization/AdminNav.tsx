@@ -11,7 +11,7 @@ import { Icon } from "../../components/ui";
  * organization's own settings. Every section has its own address, `/organization/{tab}`.
  */
 export const ORGANIZATION_GROUPS = [
-  { id: "access", tabs: ["people", "members", "roles", "groups", "service-accounts"] },
+  { id: "access", tabs: ["people", "members", "roles", "groups", "service-accounts", "agents"] },
   {
     id: "projects",
     tabs: ["projects", "applications", "endpoints", "mcp-servers", "models", "blueprints", "agentprofiles"],
