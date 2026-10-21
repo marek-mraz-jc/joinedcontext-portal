@@ -354,6 +354,21 @@ pub struct FileWrite<'a> {
     pub author: Author<'a>,
 }
 
+/// The text a write commits at `path`: a YAML file in the one manifest layout `jcctl fmt`
+/// writes (T-5052), so a Portal change and a hand edit look the same in git; any other file as
+/// given. YAML the formatter refuses is committed as given: the layout never blocks a write.
+/// A caller that skips a write when the branch already holds its text compares with this.
+pub fn committed_text<'a>(path: &str, content: &'a str) -> std::borrow::Cow<'a, str> {
+    let yaml = path.ends_with(".yaml") || path.ends_with(".yml");
+    match yaml
+        .then(|| jc_core::yaml_fmt::format(content).ok())
+        .flatten()
+    {
+        Some(text) => std::borrow::Cow::Owned(text),
+        None => std::borrow::Cow::Borrowed(content),
+    }
+}
+
 /// File deletion specification.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileDelete<'a> {
@@ -1889,7 +1904,7 @@ impl GiteaClient {
     /// `PUT /contents/{path}` — creates or replaces a file with human commit attribution.
     pub async fn put_file(&self, req: &FileWrite<'_>) -> Result<String, GitError> {
         let url = self.repo_url(&format!("contents/{}", self.write_path(req.path)?))?;
-        let encoded = STANDARD.encode(req.content.as_bytes());
+        let encoded = STANDARD.encode(committed_text(req.path, req.content).as_bytes());
         let payload = PutFilePayload {
             content: encoded,
             message: req.message,
@@ -1929,7 +1944,7 @@ impl GiteaClient {
             files.push(ChangeFileDto {
                 operation: "upload",
                 path: self.write_path(path)?,
-                content: Some(STANDARD.encode(content.as_bytes())),
+                content: Some(STANDARD.encode(committed_text(path, content).as_bytes())),
                 sha: None,
             });
         }
@@ -1959,7 +1974,7 @@ impl GiteaClient {
             files.push(ChangeFileDto {
                 operation: "update",
                 path: self.write_path(path)?,
-                content: Some(STANDARD.encode(content.as_bytes())),
+                content: Some(STANDARD.encode(committed_text(path, content).as_bytes())),
                 sha: Some(sha.clone()),
             });
         }
@@ -2313,6 +2328,28 @@ impl GiteaClient {
         let res = self.send(self.http.post(url).json(&payload)).await?;
         Self::check_status(res).await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod committed_text_tests {
+    use super::committed_text;
+
+    #[test]
+    fn yaml_is_committed_in_the_manifest_layout_and_other_files_as_given() {
+        let messy =
+            "kind: Policy\napiVersion: joinedcontext.com/v1alpha1\nspec:\n  actions:\n  - read\n";
+        let tidy =
+            "apiVersion: joinedcontext.com/v1alpha1\nkind: Policy\nspec:\n  actions: [read]\n";
+        assert_eq!(committed_text("projects/p/policies/a.yaml", messy), tidy);
+        assert_eq!(committed_text("projects/p/policies/a.yml", messy), tidy);
+        assert_eq!(committed_text("projects/p/README.md", messy), messy);
+    }
+
+    #[test]
+    fn yaml_the_formatter_refuses_is_committed_as_given() {
+        let anchored = "a: &x 1\nb: *x\n";
+        assert_eq!(committed_text("a.yaml", anchored), anchored);
     }
 }
 
