@@ -927,3 +927,134 @@ button.jc-cell-chip:hover {
   background: var(--jc-color-surface, #fff);
   color: inherit;
 }
+
+/* The row number, its checkbox and the expand button (T-4883): frozen at the left edge, and the
+   pinned name column frozen beside it, so both stay while the other columns scroll. */
+.jc-grid {
+  --jc-grid-rownum-width: 5.5rem;
+}
+
+.jc-grid .jc-grid-rownum {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  width: var(--jc-grid-rownum-width);
+  min-width: var(--jc-grid-rownum-width);
+  max-width: var(--jc-grid-rownum-width);
+  background: var(--jc-color-surface, #ffffff);
+  white-space: nowrap;
+  color: var(--jc-color-muted, #666);
+  font-variant-numeric: tabular-nums;
+}
+
+.jc-grid thead .jc-grid-rownum,
+.jc-grid tfoot .jc-grid-rownum {
+  z-index: 4;
+  background: var(--jc-color-card, #f5f5f5);
+}
+
+.jc-grid[data-row-numbers] :is(td, th).jc-grid-pinned {
+  left: var(--jc-grid-rownum-width);
+  box-shadow: 1px 0 0 var(--jc-color-line, #e0e0e0);
+}
+
+.jc-grid-rownum-n {
+  display: inline-block;
+  min-width: 2ch;
+  text-align: end;
+  margin-inline-end: 0.375rem;
+}
+
+.jc-grid-rownum input {
+  vertical-align: middle;
+}
+
+.jc-grid-expand {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 4px;
+  color: var(--jc-color-accent, #0066cc);
+  opacity: 0;
+}
+
+.jc-grid tr:hover .jc-grid-expand,
+.jc-grid-expand:focus-visible {
+  opacity: 1;
+}
+
+.jc-grid tr[aria-selected="true"] td {
+  background: color-mix(in srgb, var(--jc-color-accent, #0066cc) 8%, var(--jc-color-surface, #ffffff));
+}
+
+/* Row size (T-4883): a small row is one line, the name cut with an ellipsis and whole in its
+   tooltip and its detail; medium and large rows show two or four lines of it. */
+.jc-grid[data-row-size] td .jc-grid-open {
+  display: block;
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.jc-grid[data-row-size="medium"] td .jc-grid-open,
+.jc-grid[data-row-size="large"] td .jc-grid-open {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.jc-grid[data-row-size="medium"] td .jc-grid-open {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.jc-grid[data-row-size="large"] td .jc-grid-open {
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+}
+
+.jc-grid[data-row-size="medium"] td {
+  height: 3.5rem;
+}
+
+.jc-grid[data-row-size="large"] td {
+  height: 6rem;
+  vertical-align: top;
+}
+
+.jc-grid-tfoot td {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: var(--jc-color-card, #f5f5f5);
+  border-top: 2px solid var(--jc-color-line, #e0e0e0);
+  font-size: 0.85em;
+}
+
+.jc-grid-tfoot td.jc-grid-pinned {
+  z-index: 3;
+}
+
+@media (width <= 640px) {
+  /* A phone has no hover: the row's name opens it, so the expand button gives its room back. */
+  .jc-grid {
+    --jc-grid-rownum-width: 2.75rem;
+  }
+
+  .jc-grid-expand,
+  .jc-grid-rownum-n {
+    display: none;
+  }
+
+  .jc-grid[data-row-size] td.jc-grid-pinned {
+    min-width: min(40vw, 10rem);
+  }
+}
+
+/* A row colour also marks the row's left edge, as Baserow does; the swatch in the first cell names it. */
+.jc-grid-tr[class*="jc-grid-tr--"] td.jc-grid-rownum {
+  box-shadow: inset 4px 0 0 var(--jc-tone, transparent);
+}

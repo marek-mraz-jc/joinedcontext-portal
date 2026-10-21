@@ -658,6 +658,22 @@ describe("the space's own data", () => {
     expect(fetchMock.mock.calls.some((call) => urlOf(call[0]).pathname.includes("/temporal/"))).toBe(false);
   });
 
+  it("offers no entity write inside a copy, whose rows are the live space, and points at Try it (T-4868)", async () => {
+    window.history.pushState({}, "", "/projects/banskabystrica/spaces/ovzdusie?workspace=air-v2");
+    const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200 }, {
+      source: "name: bb-air-quality\nclasses:\n  AirQualityObserved:\n    attributes:\n      no2: { range: float }\n",
+    });
+    const note = (await screen.findByText(en.spaces.inside.copyLive)).closest("[role=status]") as HTMLElement;
+    expect(within(note).getByRole("link", { name: en.workspaces.bar.tryIt })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/^\/projects\/banskabystrica\/workspaces\/air-v2\/try-it(\?|$)/),
+    );
+    expect(await screen.findByRole("button", { name: en.spaces.inside.addRow })).toHaveAttribute("aria-disabled", "true");
+    expect(await screen.findByText("12 µg/m³")).toBeInTheDocument();
+    const writes = fetchMock.mock.calls.filter((call) => (call[1] as RequestInit | undefined)?.method && (call[1] as RequestInit).method !== "GET");
+    expect(writes.filter((call) => urlOf(call[0]).pathname.includes("/ngsi-ld/"))).toHaveLength(0);
+  });
+
   it("offers no field to add while the model's source does not declare the type", async () => {
     renderInside({ status: 200, count: 1 });
 
@@ -838,9 +854,12 @@ describe("the space's own data", () => {
     renderInside({ status: 200, count: 1 }, { status: 200, rows }, { source });
 
     const station = await screen.findByRole("columnheader", { name: /Station/ });
-    // First in the grid's own header row, where the URN used to lead.
+    // First in the grid's own header row, where the URN used to lead; only the row-number column
+    // with its select-all checkbox comes before it (T-4883).
     const row = station.closest("tr") as HTMLTableRowElement;
-    expect(within(row).getAllByRole("columnheader")[0]).toBe(station);
+    const headers = within(row).getAllByRole("columnheader");
+    expect(within(headers[0]!).getByRole("checkbox", { name: "Select all loaded rows" })).toBeInTheDocument();
+    expect(headers[1]).toBe(station);
     expect(within(row).getByRole("columnheader", { name: /Particles PM10/ })).toBeInTheDocument();
     expect(within(row).queryByRole("columnheader", { name: /^(pm10|ID)$/ })).toBeNull();
     const open = screen.getByRole("button", { name: `${en.entityGrid.openRow}: Námestie SNP` });

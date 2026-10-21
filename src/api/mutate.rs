@@ -1467,6 +1467,12 @@ async fn check_content(
         )?;
     }
 
+    // 4b-mqtt. A broker inside what the project's MQTT allowance leaves, and a project's own
+    //       allowance written only by an org admin (PF-117, PF-118, ADR-N-048 §2.9).
+    if operation != Operation::Delete {
+        crate::mqtt_allowance::check_manifest(state, identity, project, envelope)?;
+    }
+
     // 4b-contact. A catalogue record publishes its contact point to everyone, so a person's own
     //       address is refused at every door (EP-80, T-2789).
     if operation != Operation::Delete {
@@ -2300,13 +2306,10 @@ pub async fn create(
 ) -> Result<Response, ApiError> {
     let is_dry = dry_run::is_dry_run(&dry_run_q)?;
     let mut body_val = parse_body_to_value(&headers, &body)?;
-    if let Some(draft) = take_draft(&mut body_val) {
-        if dry_run_q.workspace.is_some() {
-            return Err(ApiError::BadRequest(
-                "a draft is proposed on its own; send the manifest to write it into a workspace"
-                    .into(),
-            ));
-        }
+    // Inside a copy the draft a form names is the copy's own, and the manifest beside it is what
+    // the copy takes: written to its branch like any manifest, never a Change of its own (T-4868).
+    let draft = take_draft(&mut body_val);
+    if let (Some(draft), None) = (draft, dry_run_q.workspace.as_ref()) {
         return propose_draft(
             user, front, &state, &project, &plural, is_dry, draft, body_val,
         )
@@ -2373,13 +2376,10 @@ pub async fn replace(
 ) -> Result<Response, ApiError> {
     let is_dry = dry_run::is_dry_run(&dry_run_q)?;
     let mut body_val = parse_body_to_value(&headers, &body)?;
-    if let Some(draft) = take_draft(&mut body_val) {
-        if dry_run_q.workspace.is_some() {
-            return Err(ApiError::BadRequest(
-                "a draft is proposed on its own; send the manifest to write it into a workspace"
-                    .into(),
-            ));
-        }
+    // Inside a copy the draft a form names is the copy's own, and the manifest beside it is what
+    // the copy takes: written to its branch like any manifest, never a Change of its own (T-4868).
+    let draft = take_draft(&mut body_val);
+    if let (Some(draft), None) = (draft, dry_run_q.workspace.as_ref()) {
         return propose_draft(
             user, front, &state, &project, &plural, is_dry, draft, body_val,
         )

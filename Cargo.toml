@@ -70,16 +70,16 @@ path = "src/main.rs"
 # there (T-3167); the three crates share one reference, so cargo pulls one copy.
 # `version` is the crate's own version at that tag (the tag counts differently); without it
 # cargo-deny reads the requirement as `*` and the supply-chain check goes red (T-0287).
-jc-core = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "8f28b802023ce726e4248571038f28ebff68cd94", version = "0.1.0" }
+jc-core = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "512e118ac3b4cbdd5a644694487561cebe1e2ee9", version = "0.1.0" }
 # Blueprint expansion (CC-25) and the loader the reconciler validates a repository with
 # (T-0191), from the same engine the CLI runs, so both sides agree on what a manifest is. Same
 # tag as jc-core on purpose: cargo keys a git source by its reference, so two tags of one
 # repository would pull two copies of `jc-core` and its types would stop matching.
-jcctl = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "8f28b802023ce726e4248571038f28ebff68cd94", version = "0.1.0", default-features = false, features = ["utoipa"] }
+jcctl = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "512e118ac3b4cbdd5a644694487561cebe1e2ee9", version = "0.1.0", default-features = false, features = ["utoipa"] }
 # The gateway's own write decision (evaluator, write guard), which the record check of a pipeline's
 # sample runs before a proposal (T-4840), and the app-variant matrix asserts (T-2705). Same rev as
 # jc-core.
-context-gateway = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "8f28b802023ce726e4248571038f28ebff68cd94", version = "0.1.0" }
+context-gateway = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "512e118ac3b4cbdd5a644694487561cebe1e2ee9", version = "0.1.0" }
 # The operations check an input against the schema they publish (T-1659); already in the tree.
 jsonschema = { version = "0.54", default-features = false }
 # Only to render jc-core's schemas into the OpenAPI document; the Portal's own types use utoipa.
