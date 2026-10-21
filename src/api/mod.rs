@@ -45,6 +45,7 @@ pub mod internal;
 pub mod knowledge;
 pub mod knowledge_usage;
 pub mod live;
+pub mod mqtt_allowance;
 pub mod mqtt_measured;
 pub mod mutate;
 pub mod ops;
@@ -142,6 +143,7 @@ pub fn router() -> Router<AppState> {
         .merge(agent_activity::router())
         .merge(space_move::router())
         .merge(mqtt_measured::router())
+        .merge(mqtt_allowance::router())
         .merge(workspaces::router())
         .merge(crate::tools::model_tools::router())
         .layer(axum::middleware::from_fn(auth::csrf::require_csrf));
