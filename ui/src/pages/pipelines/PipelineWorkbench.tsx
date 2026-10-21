@@ -1037,7 +1037,7 @@ export function PipelineWorkbench({
                 : t("pipelines.workbench.mapping.slots")}
             </FormHeading>
             {classNames.length > 1 ? (
-              <Field id="workbench-slots-type" label={t("pipelines.workbench.mapping.type")}>
+              <Field id="workbench-slots-type" label={t("pipelines.workbench.mapping.type")} description={t("pipelines.workbench.mapping.typeHint")}>
                 <Select id="workbench-slots-type" value={writtenClass ?? ""} onChange={(event) => setPickedClass(event.target.value)}>
                   {classNames.map((name) => (
                     <option key={name} value={name}>

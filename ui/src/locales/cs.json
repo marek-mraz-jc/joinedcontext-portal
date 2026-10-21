@@ -2335,7 +2335,8 @@
         "fileHint": "Procesory, které tato pipeline spouští, tak jak je repozitář drží vedle jejího manifestu. Přihlašovací údaje jsou odkazy, které doplní runner, nikdy ne hodnoty.",
         "fileEdit": "Upravit soubor mapování; Navrhnout jej pošle s manifestem",
         "fileEditDisabled": "Soubor mapování můžete upravit, až se načte.",
-        "type": "Typ, který mapování zapisuje"
+        "type": "Typ, který mapování zapisuje",
+        "typeHint": "Model má několik tříd: vyberte tu, kterou se stane každý záznam, například měření kvality ovzduší. Seznam níže ukazuje, co přijímá."
       },
       "output": {
         "title": "Namapovaný výstup",

@@ -71,6 +71,8 @@ interface Answers {
   sample?: Response | unknown;
   mapping?: unknown;
   validate?: unknown;
+  /** The target model, when a test needs another than LINKML. */
+  linkml?: string;
 }
 
 interface Seen {
@@ -102,7 +104,7 @@ function stub(answers: Answers, seen: Seen) {
         });
       }
       if (path.endsWith("/datamodels")) {
-        return jsonResponse({ items: [manifest("DataModel", "air", { linkml: LINKML, classes: ["AirQualityObserved"] })] });
+        return jsonResponse({ items: [manifest("DataModel", "air", { linkml: answers.linkml ?? LINKML, classes: ["AirQualityObserved"] })] });
       }
       return jsonResponse({ items: [] });
     }),
@@ -448,6 +450,18 @@ describe("the pipeline workbench", () => {
         "The records land in the space ovzdusie, checked against the model air.",
       ),
     ).toBeInTheDocument();
+  });
+
+  // T-4971: a model of several classes asks which one the mapping writes; that picker carries its
+  // one-line hint like every other field (UI-16, the walker's field-hint check).
+  it("the_class_picker_of_a_model_with_several_classes_carries_its_hint", async () => {
+    const twoClasses = LINKML.replace("classes:\n", "classes:\n  WeatherObserved:\n    slots: [pm10]\n");
+    stub({ linkml: twoClasses }, { ops: [] });
+    show({ targetEndpoint: URN, compute: { kind: "bloblang", bloblang: MAPPING } });
+    const mapping = step(en.pipelines.workbench.mapping.title);
+    const picker = await within(mapping).findByRole("combobox", { name: en.pipelines.workbench.mapping.type });
+    expect(picker).toHaveAccessibleDescription(en.pipelines.workbench.mapping.typeHint);
+    expect(en.pipelines.workbench.mapping.typeHint).toMatch(/for example/);
   });
 
   // T-3296: the target is step 3, so a newcomer picks it before writing the mapping, and the
