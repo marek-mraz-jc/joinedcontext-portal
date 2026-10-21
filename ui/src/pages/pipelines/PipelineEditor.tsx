@@ -66,7 +66,7 @@ export interface PipelineForm {
   expiry?: { after?: string; types?: string[] };
   /** When entities and attributes end by themselves, the runner's step after the mapping (PL-80). */
   lifetime?: Lifetime[];
-  /** Which history rows the broker keeps of each written attribute, and the time of a row (PL-102). */
+  /** Which history rows the broker keeps of each written attribute, and the time of a row (PL-106). */
   history?: History[];
   secretRefs?: { name?: string; key?: string; envVar?: string }[];
   quotas?: { maxMemoryMb?: number; cpuMillicores?: number };

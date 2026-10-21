@@ -1,6 +1,6 @@
 /**
  * T-4845: per attribute a plain history choice in the workbench's Target card, saved as
- * `spec.history` (PL-102). Each choice goes form -> manifest -> form unchanged, the server's
+ * `spec.history` (PL-106). Each choice goes form -> manifest -> form unchanged, the server's
  * history findings show beside the attribute they name, and the column never shows a value.
  */
 import { fireEvent, render, screen, within } from "@testing-library/react";

@@ -1,5 +1,5 @@
 /**
- * `spec.history` of a Pipeline (PL-102…PL-106, T-4845): per written attribute which history rows
+ * `spec.history` of a Pipeline (PL-106…PL-110, T-4845): per written attribute which history rows
  * the broker keeps and where the time of a row comes from. The form edits one attribute at a
  * time; the manifest keeps one entry per attribute name, so a person's choice reads back as made.
  * Whether the space and the broker can keep a plan is the server's record check (source

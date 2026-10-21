@@ -1393,7 +1393,7 @@ pub fn render_stream(
 /// The label of a pipeline's compute step, the studio's `compute` node (PL-66).
 pub const COMPUTE_LABEL: &str = "compute";
 
-/// The label of the step `spec.history` compiles to (PL-103).
+/// The label of the step `spec.history` compiles to (PL-107).
 pub const HISTORY_LABEL: &str = "history";
 
 /// The label of the step `spec.lifetime` compiles to (PL-82).
@@ -1406,7 +1406,7 @@ pub(crate) fn lifetime_step(pipeline: &PipelineSpec) -> Result<Option<Value>, Re
     Ok(step.map(|text| labelled(serde_json::json!({ "mapping": text }), LIFETIME_LABEL)))
 }
 
-/// `spec.history` as its one Bento step (PL-103, T-4845): the planned `observedAt` of each
+/// `spec.history` as its one Bento step (PL-107, T-4845): the planned `observedAt` of each
 /// attribute, after the author's steps and before the lifetime step, whose `from: observedAt`
 /// then reads the same time.
 pub(crate) fn history_step(pipeline: &PipelineSpec) -> Result<Option<Value>, RenderError> {

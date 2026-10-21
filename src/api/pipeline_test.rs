@@ -342,7 +342,7 @@ pub(crate) async fn run_harness(
 }
 
 /// The harness with the pipeline's history and lifetime steps after its own steps, where a live
-/// stream runs them (PL-82, PL-103, T-4840, T-4845), so the trace's records carry the `observedAt`
+/// stream runs them (PL-82, PL-107, T-4840, T-4845), so the trace's records carry the `observedAt`
 /// and `expiresAt` they would be written with. A message that already failed skips them: its
 /// envelope keeps the error it failed with.
 fn with_lifetime(config: &mut Value, spec: &PipelineSpec) -> Result<(), ApiError> {

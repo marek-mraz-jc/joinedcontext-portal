@@ -255,7 +255,7 @@ impl ModelSource {
 
 impl Sources {
     /// Each Pipeline's `spec.history` written into the retention rules of the spaces its outputs
-    /// write (PL-104), once every space and Endpoint is read.
+    /// write (PL-108), once every space and Endpoint is read.
     fn fold_history(&mut self, repo: &Repository) {
         let mut plans: BTreeMap<(String, String), Vec<crate::pipeline_history::Plan>> =
             BTreeMap::new();

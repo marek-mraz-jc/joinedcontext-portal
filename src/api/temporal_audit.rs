@@ -149,7 +149,7 @@ async fn audit(
         .and_then(|s| s.spec.get("retention").cloned())
         .and_then(|r| serde_json::from_value(r).ok())
         .unwrap_or_default();
-    // The rules the broker reads: the space's with every pipeline's history plan folded in (PL-104).
+    // The rules the broker reads: the space's with every pipeline's history plan folded in (PL-108).
     let planned = crate::pipeline_history::other_plans(&state.mirror, project, space, "");
     let retention = crate::pipeline_history::fold(&retention, &planned);
     let model = state.model_schemas.get(project, space);

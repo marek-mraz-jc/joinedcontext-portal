@@ -102,7 +102,7 @@ export interface TargetCardProps {
   onHistory?: (history: History[] | undefined) => void;
   /** The date-time slots a row's time may come from, picked from the sample. */
   timeSlots?: string[];
-  /** The record check's history findings of the draft (PL-105); absent until it ran. */
+  /** The record check's history findings of the draft (PL-109); absent until it ran. */
   historyFindings?: CheckFinding[];
 }
 

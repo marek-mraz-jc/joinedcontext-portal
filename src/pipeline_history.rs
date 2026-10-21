@@ -1,6 +1,6 @@
-//! `spec.history` of a Pipeline on the Portal's side (PL-102…PL-106): the model check at
-//! admission, the fold of each plan into its space's retention document (PL-104), and the rules
-//! the record check refuses a plan by when the space or the broker cannot keep it (PL-105).
+//! `spec.history` of a Pipeline on the Portal's side (PL-106…PL-110): the model check at
+//! admission, the fold of each plan into its space's retention document (PL-108), and the rules
+//! the record check refuses a plan by when the space or the broker cannot keep it (PL-109).
 //! The kind and the rendered `observedAt` step are `jc_core::kinds::pipeline_history` and
 //! `jcctl::history`.
 
@@ -30,7 +30,7 @@ pub struct Plan {
 }
 
 impl Plan {
-    /// The recording this plan folds into, `None` for `latest` (PL-104).
+    /// The recording this plan folds into, `None` for `latest` (PL-108).
     fn recording(&self) -> Option<AttributeRecording> {
         Some(AttributeRecording {
             record: Some(self.keep.record()?.to_owned()),
@@ -81,7 +81,7 @@ fn space_recording<'a>(
         .get(attribute)
 }
 
-/// The space's rules with every plan the broker can keep written in (PL-104): `every` and
+/// The space's rules with every plan the broker can keep written in (PL-108): `every` and
 /// `changes` become the attribute's `record` where the space names no recording of it, the type
 /// keeps history, and every pipeline that plans the attribute plans the same.
 pub fn fold(rules: &[RetentionRule], plans: &[Plan]) -> Vec<RetentionRule> {
@@ -130,7 +130,7 @@ fn said(keep: Keep) -> &'static str {
     }
 }
 
-/// Why the space or the broker cannot keep `plan` (PL-105), as `(rule, reason)`; `others` are the
+/// Why the space or the broker cannot keep `plan` (PL-109), as `(rule, reason)`; `others` are the
 /// plans of the space's other pipelines.
 pub fn refusal(
     rules: &[RetentionRule],
@@ -174,7 +174,7 @@ pub fn refusal(
                 "spaceRule",
                 format!(
                     "space {space} records {a} of {t} as {}{} in its own rule, which wins \
-                     (PL-104): choose that, or ask a steward to change the space's Retention tab",
+                     (PL-108): choose that, or ask a steward to change the space's Retention tab",
                     own.record.as_deref().unwrap_or("every"),
                     own.heartbeat
                         .as_deref()
@@ -194,14 +194,14 @@ pub fn refusal(
         "otherPipeline",
         format!(
             "pipeline {} plans {a} of {t} as {}; two plans for one attribute leave it to the \
-             space's rule (PL-104): choose the same",
+             space's rule (PL-108): choose the same",
             other.pipeline,
             said(other.keep)
         ),
     ))
 }
 
-/// What a record breaks of its own plans (PL-105): `every` with no `observedAt` on the attribute
+/// What a record breaks of its own plans (PL-109): `every` with no `observedAt` on the attribute
 /// once the step ran, and an `observedAt` slot that gives no date-time.
 pub fn record_refusal(plan: &Plan, record: &Value) -> Option<(&'static str, String)> {
     let attribute = record.get(&plan.attribute)?;
@@ -289,7 +289,7 @@ pub fn other_plans(mirror: &Mirror, project: &str, space: &str, except: &str) ->
         .collect()
 }
 
-/// The model check of PL-102 at admission: each type a class of every space it is written to,
+/// The model check of PL-106 at admission: each type a class of every space it is written to,
 /// each name a slot, each `observedAt` a date-time slot or `received`.
 pub fn check(state: &AppState, project: &str, kind: &str, spec: &Value) -> Result<(), ApiError> {
     if kind != "Pipeline" {
@@ -320,7 +320,7 @@ pub fn check(state: &AppState, project: &str, kind: &str, spec: &Value) -> Resul
         return Ok(());
     }
     Err(ApiError::Invalid {
-        detail: "the pipeline's history plan does not fit the spaces it writes (PL-102)".to_owned(),
+        detail: "the pipeline's history plan does not fit the spaces it writes (PL-106)".to_owned(),
         errors,
     })
 }

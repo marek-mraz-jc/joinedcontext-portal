@@ -68,7 +68,7 @@ pub struct Finding {
     pub source: Source,
     /// The rule: a SHACL component for the model, `policy`, `grant`, `view` or `NOT_WRITABLE`
     /// for the Endpoint, `from` or `expiresAt` for the lifetime, and for the history plan
-    /// `latest`, `historyOff`, `received`, `spaceRule`, `otherPipeline` or `observedAt` (PL-105).
+    /// `latest`, `historyOff`, `received`, `spaceRule`, `otherPipeline` or `observedAt` (PL-109).
     pub rule: String,
     /// The member at fault, empty for the record itself.
     pub field: String,
@@ -245,7 +245,7 @@ pub fn check_records(
 }
 
 /// The history plans of the pipeline with what each target space holds to judge them by
-/// (PL-105): its retention rules and the other pipelines' plans, read once per check.
+/// (PL-109): its retention rules and the other pipelines' plans, read once per check.
 struct SpaceHistory {
     plans: Vec<crate::pipeline_history::Plan>,
     spaces: BTreeMap<
