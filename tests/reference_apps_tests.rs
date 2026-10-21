@@ -338,6 +338,31 @@ fn the_shipped_mark_is_on_exactly_the_bundles_the_image_builds() {
     }
 }
 
+/// T-4987. `tikv-jemalloc-sys` (locked through `context-gateway` since T-4782) builds jemalloc
+/// with `make` in its build script, and the slim Rust image has no `make`: the image build died
+/// on "failed to execute command: No such file or directory" while every cargo lane stayed
+/// green. The build stage installs it whenever the lock carries that crate.
+#[test]
+fn the_image_build_stage_has_make_when_the_lock_builds_jemalloc() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let lock = std::fs::read_to_string(root.join("Cargo.lock")).expect("the Cargo.lock");
+    if !lock.contains("name = \"tikv-jemalloc-sys\"") {
+        return;
+    }
+    let dockerfile = std::fs::read_to_string(root.join("Dockerfile")).expect("the Dockerfile");
+    let build = dockerfile
+        .split("\nFROM ")
+        .find(|stage| stage.contains(" AS build\n"))
+        .expect("the Dockerfile's build stage");
+    let installs_make = build.lines().any(|line| {
+        line.contains("apt-get install") && line.split_whitespace().any(|word| word == "make")
+    });
+    assert!(
+        installs_make,
+        "the build stage must apt-get install make: tikv-jemalloc-sys runs it to build jemalloc"
+    );
+}
+
 /// AP-83, AP-01, AP-75. The SDK's plain-HTML example (a published App is React since AP-138,
 /// T-2923): a static App with no build step, whose folder is the bundle (`index.html` at its
 /// root, no toolchain file), and whose manifest passes the validation `jcctl validate` runs.
