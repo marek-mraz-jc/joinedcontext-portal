@@ -9421,5 +9421,44 @@
       "surfaceMissing": "The gateway does not serve this surface: check spec.enabledRepresentations and that the Endpoint is applied.",
       "slowSurface": "The surface answers slowly: check the broker's load and the Endpoint's filter."
     }
+  },
+  "accessibility": {
+    "title": "Accessibility statement",
+    "link": "Accessibility",
+    "lead": "{organisation} wants everyone to be able to use this Portal and its open-data catalogue, including people who work only with a keyboard, a screen reader or magnification.",
+    "law": {
+      "heading": "Legal basis",
+      "body": "This statement covers {host}. Accessibility is governed by Act No. 95/2019 Coll. on information technologies in public administration and Decree No. 78/2020 Coll. on standards for public administration information technologies, which take WCAG 2.1 level AA as the standard."
+    },
+    "status": {
+      "heading": "Compliance status",
+      "body": "This website is partially compliant with WCAG 2.1 level AA. The content listed below is not yet fully accessible."
+    },
+    "gaps": {
+      "heading": "Content that is not accessible",
+      "maps": "Maps show places only as a picture. The same places, with their addresses and coordinates, are in the dataset's table and in its download.",
+      "charts": "Charts show numbers only as a picture. The same numbers are in the dataset's table and in its download.",
+      "screenReader": "The test with the NVDA and VoiceOver screen readers has not been done yet; a screen reader may read some controls unclearly.",
+      "thirdParty": "Other parties make the AI assistant window and the documents publishers upload (PDF, spreadsheets); we cannot vouch for their accessibility."
+    },
+    "method": {
+      "heading": "How we checked",
+      "body": "By self-assessment. The axe-core tool checks every page the Portal's automatic walk visits, in English and Slovak, at desktop and phone width, and the check fails on any serious or critical finding. We went through the five main journeys with a keyboard only."
+    },
+    "dates": {
+      "heading": "Date",
+      "body": "This statement was prepared on {prepared} and last reviewed on {reviewed}."
+    },
+    "contact": {
+      "heading": "Feedback and contact",
+      "body": "Did you meet a barrier? Tell us the page's address and what you tried to do.",
+      "write": "Write to",
+      "noEmail": "This installation has not published a contact address yet; ask its operator, {organisation}."
+    },
+    "enforcement": {
+      "heading": "Enforcement",
+      "body": "If our answer does not satisfy you, turn to the Ministry of Investments, Regional Development and Informatization of the Slovak Republic, which oversees the accessibility of public administration websites."
+    },
+    "footer": "About this site"
   }
 }

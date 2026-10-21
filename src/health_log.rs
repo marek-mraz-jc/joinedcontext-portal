@@ -238,10 +238,6 @@ impl Text {
         }
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.text.is_empty()
-    }
-
     /// The text as its two columns hold it: the English, and `{"code", "args"}` as JSON.
     fn from_columns(text: String, say: &str) -> Self {
         #[derive(Deserialize, Default)]
