@@ -373,6 +373,8 @@
   position: fixed;
   inset-block: 0;
   inset-inline-end: 0;
+  /* The padding inside the width: on a phone the panel is the viewport, not 2rem past its edge. */
+  box-sizing: border-box;
   width: min(26rem, 100vw);
   overflow-y: auto;
   padding: var(--jc-space-4, 1rem);

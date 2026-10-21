@@ -1217,3 +1217,134 @@ async fn the_steward_of_one_space_finds_nothing_in_another_project() {
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
 }
+
+/// T-4839: a Pipeline that carries a `spec.lifetime`, for the door's two refusals below.
+fn pipeline_with_lifetime(lifetime: Value) -> Value {
+    let mut body = pipeline("aq");
+    body["spec"]["lifetime"] = lifetime;
+    body
+}
+
+#[tokio::test]
+async fn a_steward_without_the_pipeline_grant_cannot_set_a_lifetime() {
+    let config = Config::for_tests();
+    let steward = org(
+        "Role",
+        "space-steward",
+        json!({ "rules": [{ "kinds": ["Endpoint", "Policy", "ContextSpace"], "verbs": ["propose"] }] }),
+    );
+    let app = app_with(
+        &config,
+        vec![
+            steward,
+            binding(
+                "ovzdusie-stewards",
+                "space-steward",
+                json!([{ "user": "steward@hel.fi" }]),
+                json!({ "project": "ovzdusie" }),
+                None,
+            ),
+            in_project("ContextSpace", "ovzdusie"),
+            in_project("DataSource", "mqtt-mesto"),
+        ],
+    );
+    let (status, body) = post(
+        app,
+        &config,
+        identity("steward@hel.fi", &[]),
+        "/api/v1/projects/ovzdusie/pipelines?dryRun=All",
+        &pipeline_with_lifetime(
+            json!([{ "type": "AirQualityObserved", "entity": { "rolling": "PT1H" } }]),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert!(
+        body.contains("propose") && body.contains("Pipeline"),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn a_lifetime_naming_no_slot_of_the_spaces_model_is_refused_before_a_change_exists() {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+    let config = Config::for_tests();
+    let state = AppState::new(config.clone(), None);
+    for env in [
+        developer_role(),
+        binding(
+            "ovzdusie-developers",
+            "pipeline-developer",
+            json!([{ "group": "air-quality-team" }]),
+            json!({ "project": "ovzdusie" }),
+            None,
+        ),
+        in_project("ContextSpace", "ovzdusie"),
+        in_project("DataSource", "mqtt-mesto"),
+        ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: "Endpoint".to_owned(),
+            metadata: ObjectMeta::new("public-air", "ovzdusie"),
+            spec: json!({ "contextSpaceRef": "ovzdusie", "slug": "public-air" }),
+            status: None,
+        },
+    ] {
+        state.mirror.upsert(env);
+    }
+    let schema = json!({ "definitions": { "AirQualityObserved": { "type": "object", "properties": {
+        "dateObserved": { "type": "string", "format": "date-time", "x-ngsi-ld-kind": "Property" },
+        "pm10": { "type": "number", "x-ngsi-ld-kind": "Property" }
+    }}}});
+    let model = joinedcontext_portal::pipeline_validation::ModelSchema::compile(
+        "bb-air-quality",
+        "1.0.0",
+        &schema,
+        &["AirQualityObserved".to_owned()],
+        false,
+    );
+    state.model_schemas.replace(HashMap::from([(
+        ("ovzdusie".to_owned(), "ovzdusie".to_owned()),
+        Arc::new(model),
+    )]));
+    let dev = identity("jana@hel.fi", &["air-quality-team"]);
+    let lifetime = json!([{ "type": "AirQualityObserved", "attributes": [{ "names": ["pm25"], "rolling": "PT1H" }] }]);
+    let (status, body) = post(
+        server::app(state.clone()),
+        &config,
+        dev.clone(),
+        "/api/v1/projects/ovzdusie/pipelines?dryRun=All",
+        &pipeline_with_lifetime(lifetime),
+    )
+    .await;
+    // The dry run answers the door's refusal as a red verdict, the finding naming the slots.
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let verdict: Value = serde_json::from_str(&body).expect("json");
+    assert_eq!(verdict["verdict"]["ok"], json!(false), "{body}");
+    let finding = verdict["verdict"]["findings"][0]["message"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        finding.starts_with(
+            "spec.lifetime[0].attributes[0].names: `pm25` is not a slot of `AirQualityObserved`"
+        ),
+        "{body}"
+    );
+    assert!(
+        finding.ends_with("the slots of `AirQualityObserved` are dateObserved, pm10"),
+        "{body}"
+    );
+
+    let fits = json!([{ "type": "AirQualityObserved", "entity": { "from": "dateObserved", "plus": "P1D" } }]);
+    let (status, body) = post(
+        server::app(state),
+        &config,
+        dev,
+        "/api/v1/projects/ovzdusie/pipelines?dryRun=All",
+        &pipeline_with_lifetime(fits),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let verdict: Value = serde_json::from_str(&body).expect("json");
+    assert_eq!(verdict["valid"], json!(true), "{body}");
+}
