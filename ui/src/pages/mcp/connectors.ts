@@ -124,13 +124,19 @@ export function reach(connector: Connector, readable: Readable[]): Readable[] {
   );
 }
 
-/** Adds the Endpoint to the first connector, or to a new `favourites`; takes it out of every one when it is in one. */
+/**
+ * Adds the Endpoint to the first connector, or to a new `favourites`; takes it out of every one
+ * when it is in one. A connector whose last Endpoint goes is dropped: an empty `endpoints` list
+ * narrows nothing, so keeping it would widen the connector to everything else it selects (T-5015).
+ */
 export function toggledStar(connectors: Connector[], slug: string): Connector[] {
   const holds = (connector: Connector) => connector.select?.endpoints?.includes(slug) ?? false;
   if (connectors.some(holds)) {
-    return connectors.map((connector) =>
-      holds(connector) ? { ...connector, select: { ...connector.select, endpoints: connector.select?.endpoints?.filter((one) => one !== slug) } } : connector,
-    );
+    return connectors.flatMap((connector) => {
+      if (!holds(connector)) return [connector];
+      const endpoints = connector.select?.endpoints?.filter((one) => one !== slug) ?? [];
+      return endpoints.length === 0 ? [] : [{ ...connector, select: { ...connector.select, endpoints } }];
+    });
   }
   const [first, ...rest] = connectors;
   if (!first) return [{ name: "favourites", select: { endpoints: [slug] } }];

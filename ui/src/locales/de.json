@@ -1582,6 +1582,9 @@
       "policyReads": "liest nur",
       "groupMembers": "Deckt {count} Operationen ab",
       "operationSingle": "eine Operation",
+      "operationsSingle": "{count} einzelne Operationen",
+      "policiesAll": "Alle {count} Richtlinien zeigen",
+      "policiesFewer": "Weniger Richtlinien zeigen",
       "policyEmpty": "Diese Richtlinie benennt keine Operation und gewährt damit nichts.",
       "group": {
         "retrieveOps": "Eine Entität lesen und Entitäten abfragen.",

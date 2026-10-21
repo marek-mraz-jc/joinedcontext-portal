@@ -552,6 +552,15 @@ const accessRedirectRoute = createRoute({
   },
 });
 
+/** A bare project address opens the project's home (T-5015); protectedRoute keeps the sign-in check. */
+const projectIndexRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project",
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: "/projects/$project/home", params: { project: params.project }, replace: true });
+  },
+});
+
 /** Project settings opens on General. */
 const projectSettingsRoute = createRoute({
   getParentRoute: () => protectedRoute,
@@ -1282,6 +1291,7 @@ export const routeTree = rootRoute.addChildren([
     organizationTabRoute,
     organizationFormRoute,
     accessRedirectRoute,
+    projectIndexRoute,
     projectSettingsRoute,
     projectSettingsTabRoute,
     projectSettingsFormRoute,

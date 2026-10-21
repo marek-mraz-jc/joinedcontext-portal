@@ -95,6 +95,7 @@ const PAGES = [
   `/projects/${PROJECT}/apps`,
   `/projects/${PROJECT}/syncsources`,
   `/projects/${PROJECT}/access`,
+  `/projects/${PROJECT}`,
   // A kind's create and edit forms are pages at addresses of their own (T-2474).
   `/projects/${PROJECT}/policies/new`,
   `/projects/${PROJECT}/policies/verejne-citanie/edit`,

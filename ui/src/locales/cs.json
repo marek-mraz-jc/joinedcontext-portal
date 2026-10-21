@@ -1582,6 +1582,9 @@
       "policyReads": "pouze čte",
       "groupMembers": "Pokrývá {count} operací",
       "operationSingle": "jedna operace",
+      "operationsSingle": "{count} samostatných operací",
+      "policiesAll": "Zobrazit všech {count} politik",
+      "policiesFewer": "Zobrazit méně politik",
       "policyEmpty": "Tato politika nepojmenovává žádnou operaci, takže neuděluje nic.",
       "group": {
         "retrieveOps": "Přečíst jednu entitu a dotazovat se na entity.",
