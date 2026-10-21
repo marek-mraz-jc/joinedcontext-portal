@@ -1719,6 +1719,14 @@ async fn approve_every_file(
         if access {
             crate::permissions::within_own_rights(state, identity, &manifest, "approver")?;
         }
+        // The approver reads every source and may write every target too (PL-94).
+        crate::pipeline_rights::check(
+            state,
+            identity,
+            &home,
+            &manifest,
+            jc_core::kinds::Verb::Approve,
+        )?;
         // The bounds are the operator's and may have tightened since the proposal (PF-97).
         crate::api::mutate::organization_within_bounds(
             state,

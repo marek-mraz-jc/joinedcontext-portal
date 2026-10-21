@@ -117,7 +117,7 @@ export interface ArrangeOptions {
   advanced?: boolean;
   /** Widget names the Portal has registered beyond RJSF's own. */
   widgets?: string[];
-  /** The fields the schema requires: one of them in a group keeps that group unfolded (T-1607). */
+  /** The fields the person has to fill: one of them in a group keeps that group unfolded (T-1607). */
   required?: string[];
   /**
    * What `{project}` and `{orgDomain}` in an example stand for: the project the form writes into
@@ -187,6 +187,23 @@ function guidePath(value: string | undefined, problems: string[]): string | unde
 }
 
 /** A plain string as written; a legacy map in the caller's locale, then Slovak, then anything. */
+/**
+ * Whether the form fills a field by itself: it has a default, or every field it requires has
+ * one. Such a required field may sit behind a fold, since the person need not type it (T-4824).
+ */
+export function prefilled(schema: unknown): boolean {
+  const definition = schema as
+    | { default?: unknown; required?: string[]; properties?: Record<string, unknown> }
+    | undefined;
+  if (definition?.default !== undefined) return true;
+  const required = definition?.required ?? [];
+  return (
+    definition?.properties !== undefined &&
+    required.length > 0 &&
+    required.every((field) => prefilled(definition.properties?.[field]))
+  );
+}
+
 export function localized(map: LanguageMap | undefined, locale?: string): string | undefined {
   if (!map) {
     return undefined;

@@ -100,6 +100,12 @@
     "home": "Home",
     "inbox": "Inbox",
     "mqttbrokers": "MQTT brokers",
+    "knowledgesources": "Knowledge sources",
+    "assistantdeployments": "Assistant deployments",
+    "datamodels": "Data models",
+    "serviceaccounts": "Service accounts",
+    "mappings": "Mappings",
+    "layers": "Map layers",
     "csrs": "Context sources"
   },
   "auth": {
@@ -3858,6 +3864,10 @@
     "factorFor": "Conversion factor for {slot}",
     "golden": "Golden test",
     "input": "Input example (JSON)",
+    "inputHelp": "A source record as JSON, such as one entity the source sends; the output beside it shows what the mapping makes of it.",
+    "sourceHelp": "The model the records arrive in.",
+    "targetHelp": "The model the records are turned into.",
+    "nameHelp": "The mapping's name in the project: lower-case letters, digits and hyphens; the golden test files are named after it.",
     "output": "Transformed output",
     "unchecked": "Not evaluated here, they come from native bloblang: {slots}. CI runs them through Bento.",
     "missing": "The input example carries no value for: {slots}.",
@@ -3989,7 +3999,9 @@
     "nameInvalid": "Lowercase letters, digits and hyphens, starting and ending with a letter or a digit.",
     "nameReserved": "'org' is the organization's own namespace, never a project.",
     "displayNameLabel": "Display name",
+    "displayNameHint": "The name people read in the project menu and on the catalogue; leave it empty to show the name above.",
     "descriptionLabel": "Description",
+    "descriptionHint": "One sentence on what the project is for, shown under its name in the project list.",
     "notAllowed": "This organization does not let you open a project.",
     "nameNeeded": "A usable name is needed to open a project.",
     "planLocked": "Close the dialog and start again to change this; the plan was made for it."
@@ -4054,6 +4066,7 @@
     "filterRow": "Filters",
     "sortPage": "Sort this page by",
     "matching": "matching",
+    "noTotal": "the endpoint gives no total for this answer",
     "history": "History",
     "historyWindow": {
       "hour": "Last hour",
@@ -4793,7 +4806,8 @@
       "green": "Checked {age}",
       "red": "Check failed {age}",
       "stale": "Changed since the check",
-      "waiting": "Passes once {changes} is approved · checked {age}"
+      "waiting": "Passes once {changes} is approved · checked {age}",
+      "refused": "Check failed: see the reason below"
     },
     "proposeReason": {
       "none": "Run the check first: nothing is proposed without a fresh green verdict.",

@@ -8,6 +8,8 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests, knownSecretNames, overlay, plainTitle, prune, refName } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
+import { allowsIn, usePermissions } from "../../api/permissions";
+import type { Effective } from "../../api/permissions";
 import { useBranding } from "../../branding";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
 import type { ManifestSource } from "../../components/ResourceFormDialog";
@@ -138,6 +140,19 @@ export function endpointUrn(orgDomain: string, endpoint: Manifest): string | und
     return undefined;
   }
   return `urn:ngsi-ld:Endpoint:${orgDomain}:${space}:${endpoint.metadata.name}`;
+}
+
+/**
+ * The Endpoints a person may name in a pipeline (PL-94): a public one, or one into a space where
+ * they read `Entity`. The server refuses the rest at every door with "No access to …"; a target
+ * also needs `propose` on Pipeline there, which the API judges.
+ */
+export function reachableEndpoints(effective: Effective | undefined, endpoints: Manifest[]): Manifest[] {
+  return endpoints.filter((endpoint) => {
+    const spec = endpoint.spec as { audience?: unknown; contextSpaceRef?: unknown };
+    const space = refName(spec.contextSpaceRef);
+    return (spec.audience ?? "public") === "public" || (space !== "" && allowsIn(effective, "Entity", "read", space));
+  });
 }
 
 /** The spec keys the form writes; the rest of an edited manifest travels as it is (T-0885). */
@@ -560,7 +575,11 @@ export function PipelineEditorDialog({
     () => asManifests(dataSources.data?.items ?? []),
     [dataSources.data],
   );
-  const endpointList = useMemo(() => asManifests(endpoints.data?.items ?? []), [endpoints.data]);
+  const permissions = usePermissions(project);
+  const endpointList = useMemo(
+    () => reachableEndpoints(permissions.data, asManifests(endpoints.data?.items ?? [])),
+    [endpoints.data, permissions.data],
+  );
   const dataSourceNames = useMemo(
     () =>
       withCurrent(
