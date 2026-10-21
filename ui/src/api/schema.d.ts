@@ -2998,7 +2998,7 @@ export interface paths {
         };
         /**
          * Watch A Type Of A Space
-         * @description Server-sent `changed` events naming the entities and attributes of one type that changed, never their values (API/01 §32). The view reads the rows again with the caller's session.
+         * @description Server-sent `changed` events saying that entities of one type changed, with no entity id, attribute name or value (API/01 §32, T-4876). The view reads the rows again with the caller's session, which the gateway narrows to the caller's grants.
          */
         get: operations["watch"];
         put?: never;
