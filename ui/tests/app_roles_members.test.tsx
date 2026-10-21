@@ -10,8 +10,9 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
-import { asUser, othersOf, RolesAndMembers, withMember, withoutMember } from "../src/pages/apps/RolesAndMembers";
-import type { RolesSpec } from "../src/pages/apps/RolesAndMembers";
+import { asUser, othersOf, withMember, withoutMember } from "../src/pages/apps/members";
+import type { RolesSpec } from "../src/pages/apps/members";
+import { RolesAndMembers } from "../src/pages/apps/RolesAndMembers";
 import { expectNoViolations } from "./checks";
 import { list, renderPage } from "./page_contract";
 
