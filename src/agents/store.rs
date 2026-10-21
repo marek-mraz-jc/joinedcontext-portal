@@ -340,6 +340,36 @@ impl AgentStore {
             .unwrap_or_default())
     }
 
+    /// The events of several runs of the given kinds, by run id, each run's oldest first (T-4851).
+    pub async fn events_of(
+        &self,
+        run_ids: &[String],
+        kinds: &[&str],
+    ) -> Result<HashMap<String, Vec<AgentRunEvent>>, StoreError> {
+        let mut by_run: HashMap<String, Vec<AgentRunEvent>> = HashMap::new();
+        if run_ids.is_empty() {
+            return Ok(by_run);
+        }
+        if let Some(pool) = &self.db {
+            for event in db::load_agent_run_events_of(pool, run_ids, kinds).await? {
+                by_run.entry(event.run_id.clone()).or_default().push(event);
+            }
+            return Ok(by_run);
+        }
+        let memory = self.memory.read().await;
+        for id in run_ids {
+            let wanted = memory
+                .events
+                .get(id)
+                .into_iter()
+                .flatten()
+                .filter(|event| kinds.contains(&event.kind.as_str()))
+                .cloned();
+            by_run.entry(id.clone()).or_default().extend(wanted);
+        }
+        Ok(by_run)
+    }
+
     /// Adds one step's token use to the run's counters (AG-44).
     pub async fn record_usage(
         &self,

@@ -1688,6 +1688,151 @@
         }
       }
     },
+    "/api/v1/organization/agents/activity": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Agent Activity",
+        "description": "The agent runs the caller may see (their own, every person's for an approver of the project), newest first, each with its tool calls, writes, refusals, tokens and cost, and the alerts over them. Step arguments and outputs are never included.",
+        "operationId": "list_agent_activity",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "query",
+            "description": "Only this project's runs.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "description": "Only the runs of this agent profile.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "run",
+            "in": "query",
+            "description": "Only this run.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "person",
+            "in": "query",
+            "description": "Only the runs this person started.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "query",
+            "description": "Only the runs that read an Endpoint of this Context Space.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "verdict",
+            "in": "query",
+            "description": "`refused`: runs with a refused step; `ok`: runs without one.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "RFC 3339; runs started at or after.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "description": "RFC 3339; runs started before.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1–50, default 20.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "`nextCursor` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of runs and the alerts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentActivity"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A filter or the cursor is malformed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller reads no project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organization/brokers": {
       "get": {
         "tags": [
@@ -17300,6 +17445,142 @@
           }
         }
       },
+      "ActivityRun": {
+        "type": "object",
+        "required": [
+          "id",
+          "project",
+          "profile",
+          "title",
+          "startedBy",
+          "status",
+          "createdAt",
+          "spaces",
+          "tokens",
+          "refusals",
+          "writes",
+          "steps",
+          "mayStop"
+        ],
+        "properties": {
+          "costUsd": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "The sum of the costs the provider reported, in USD; none when no call reported one."
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "mayStop": {
+            "type": "boolean",
+            "description": "Whether this caller may stop it now (`POST …/agent-runs/{id}/cancel`)."
+          },
+          "profile": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "refusals": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "spaces": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "startedBy": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActivityStep"
+            }
+          },
+          "title": {
+            "type": "string"
+          },
+          "tokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "writes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "ActivityStep": {
+        "type": "object",
+        "required": [
+          "at",
+          "tool",
+          "verdict",
+          "write"
+        ],
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The refusal's problem text, or the reason a write gave; masked."
+          },
+          "target": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the call named: an Endpoint, a resource, a page; never its arguments."
+          },
+          "tool": {
+            "type": "string"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/StepVerdict"
+          },
+          "write": {
+            "type": "boolean",
+            "description": "The call changes something (its operation is not read-only)."
+          }
+        }
+      },
       "Affordance": {
         "type": "object",
         "description": "Something the caller may or may not do that no rule expresses as a kind and a verb, with the\nAPI's own words for the refusal: the control is rendered disabled with the reason, never\nhidden (UI-44).",
@@ -17333,6 +17614,34 @@
           }
         }
       },
+      "AgentActivity": {
+        "type": "object",
+        "required": [
+          "runs",
+          "alerts"
+        ],
+        "properties": {
+          "alerts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentAlert"
+            },
+            "description": "The signals over the runs the filters select, newest first; one per agent or run."
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActivityRun"
+            }
+          }
+        }
+      },
       "AgentActsAs": {
         "type": "string",
         "description": "Whose rights an agent uses (AG-94, AG-115).",
@@ -17340,6 +17649,42 @@
           "self",
           "caller"
         ]
+      },
+      "AgentAlert": {
+        "type": "object",
+        "required": [
+          "kind",
+          "project",
+          "profile",
+          "count",
+          "at"
+        ],
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Refusals in the hour, percent of the cap, or writes outside office hours.",
+            "minimum": 0
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AlertKind"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "runId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
       },
       "AgentItem": {
         "type": "object",
@@ -17734,6 +18079,14 @@
           "failure",
           "stale",
           "zero"
+        ]
+      },
+      "AlertKind": {
+        "type": "string",
+        "enum": [
+          "refusalSpike",
+          "spendShare",
+          "offHoursWrite"
         ]
       },
       "AlertMute": {
@@ -25741,6 +26094,13 @@
           }
         },
         "additionalProperties": false
+      },
+      "StepVerdict": {
+        "type": "string",
+        "enum": [
+          "ok",
+          "refused"
+        ]
       },
       "SubjectRequest": {
         "type": "object",

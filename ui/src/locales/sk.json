@@ -6271,6 +6271,53 @@
           "concurrentRunsPerOrganization": "Súbežné behy",
           "requestsPerMinute": "Požiadavky za minútu"
         }
+      },
+      "activity": {
+        "title": "Čo robil",
+        "filters": "Filtrovať behy",
+        "person": "Spustil",
+        "space": "Kontextový priestor",
+        "verdict": "Výsledok",
+        "verdictAny": "Akýkoľvek",
+        "verdictRefused": "S odmietnutím",
+        "verdictOk": "Bez odmietnutia",
+        "since": "Spustené od",
+        "apply": "Použiť",
+        "clear": "Zrušiť filtre",
+        "alerts": "Upozornenia",
+        "runs": "Behy",
+        "none": "Žiadny beh tohto agenta, ktorý môžete vidieť",
+        "noneFiltered": "Filtrom nezodpovedá žiadny beh",
+        "noneHint": "Vidíte svoje behy a behy všetkých ľudí v projekte, kde schvaľujete zmeny.",
+        "more": "Zobraziť staršie behy",
+        "startedBy": "Spustil",
+        "started": "Spustený",
+        "duration": "Trvanie",
+        "tokens": "Tokeny",
+        "cost": "Cena",
+        "costUnreported": "Poskytovateľ ju neuviedol",
+        "spaces": "Čítané priestory",
+        "refusals": "Odmietnuté: {count}",
+        "writes": "Zápisy: {count}",
+        "steps": "Volania nástrojov ({count})",
+        "noSteps": "Tento beh nevolal žiadny nástroj.",
+        "write": "Zápis",
+        "refusedBecause": "Prečo bolo odmietnuté: {text}",
+        "reason": "Dôvod: {text}",
+        "verdictOf": {
+          "ok": "Povolené",
+          "refused": "Odmietnuté"
+        },
+        "stop": "Zastaviť",
+        "stopTitle": "Zastaviť beh {title}?",
+        "stopHint": "Beh sa hneď skončí a čo nedokončil, sa nezverejní. V jeho zázname bude, že ste ho zastavili vy.",
+        "stopConfirm": "Zastaviť beh",
+        "stopFailed": "Beh sa nezastavil. Skúste to znova.",
+        "alert": {
+          "refusalSpike": "{profile} v {project}: {count} odmietnutých volaní nástrojov za poslednú hodinu, posledné {when}.",
+          "spendShare": "Beh {run} profilu {profile} minul {count} % svojho limitu tokenov.",
+          "offHoursWrite": "Zápisy mimo pracovného času (pondelok až piatok 06:00–18:00 UTC) behu {run} profilu {profile}: {count}, prvý {when}."
+        }
       }
     }
   },

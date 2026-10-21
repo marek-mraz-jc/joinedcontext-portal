@@ -1290,6 +1290,20 @@
       "date": "2026-10-20",
       "screenshots": []
     },
+    "src/pages/organization/AgentActivity.tsx": {
+      "walkedBy": "worker-t4851",
+      "date": "2026-10-21",
+      "screenshots": [
+        "evidence/worker-t4851/T-4851/activity-empty-1440.png",
+        "evidence/worker-t4851/T-4851/activity-empty-400.png",
+        "evidence/worker-t4851/T-4851/activity-filled-1440.png",
+        "evidence/worker-t4851/T-4851/activity-filled-400.png",
+        "evidence/worker-t4851/T-4851/activity-refused-1440.png",
+        "evidence/worker-t4851/T-4851/activity-refused-400.png",
+        "evidence/worker-t4851/T-4851/activity-stop-1440.png",
+        "evidence/worker-t4851/T-4851/activity-stop-400.png"
+      ]
+    },
     "src/pages/organization/Agents.tsx": {
       "walkedBy": "worker-t4849",
       "date": "2026-10-21",

@@ -1457,6 +1457,14 @@
         "sdm_import.test.tsx"
       ]
     },
+    "src/pages/organization/AgentActivity.tsx": {
+      "controls": {
+        "Button": 4
+      },
+      "tests": [
+        "organization_agent_activity.test.tsx"
+      ]
+    },
     "src/pages/organization/Agents.tsx": {
       "controls": {
         "Button": 1
