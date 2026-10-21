@@ -96,9 +96,10 @@ cp "$dir/summary.json" "$evidence/last-summary.json"
 if ! jq -e '[.results[] | select(.verdict != "pass")] | length > 0' "$dir/summary.json" >/dev/null; then
   echo "$sha" >"$evidence/last-clean"
 fi
+# --commit: a finding whose finished task merged after $sha waits for the deploy instead of a duplicate (T-5008).
 if [ -n "${TASKS_DIR:-}" ]; then
-  "$TASKS_DIR/file-failures" "$dir/summary.json" | tee "$dir/filed.log"
-  [ -s "$dir/sweep/summary.json" ] && "$TASKS_DIR/file-failures" "$dir/sweep/summary.json" | tee -a "$dir/filed.log"
+  "$TASKS_DIR/file-failures" "$dir/summary.json" --commit="$sha" --git="$repo" | tee "$dir/filed.log"
+  [ -s "$dir/sweep/summary.json" ] && "$TASKS_DIR/file-failures" "$dir/sweep/summary.json" --commit="$sha" --git="$repo" | tee -a "$dir/filed.log"
 fi
 
 # Keep the newest walks only; each holds a few hundred screenshots.
