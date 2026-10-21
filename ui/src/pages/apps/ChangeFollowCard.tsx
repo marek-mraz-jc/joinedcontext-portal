@@ -5,7 +5,7 @@ import { api, ApiError, forPeople, queryKeys, unwrap } from "../../api/client";
 import { approvalStanding, changedKind } from "../../api/approval";
 import { usePermissions } from "../../api/permissions";
 import { useIdentity } from "../../auth/AuthProvider";
-import { Button, InlineError } from "../../components/ui";
+import { Button, Card, InlineError } from "../../components/ui";
 import { Icon } from "../../components/ui/icons";
 import { PortalLink } from "./Prose";
 import type { OpenLink } from "./Prose";
@@ -237,10 +237,7 @@ export function ChangeFollowCard({
   const page = pageOf(project, kind);
 
   return (
-    <section
-      aria-label={t("agentRun.follow.title", { name: followed.name || changeId })}
-      className="rounded-lg border border-border bg-surface p-3 text-sm"
-    >
+    <Card as="section" padding="sm" aria-label={t("agentRun.follow.title", { name: followed.name || changeId })} className="text-sm">
       <ol className="space-y-2" aria-live="polite">
         <Step stage="done" title={t("agentRun.follow.proposed", { kind: kind || t("agentRun.follow.aChange"), name: followed.name })}>
           <PortalLink href={review} onOpenLink={onOpenLink}>
@@ -299,6 +296,6 @@ export function ChangeFollowCard({
           <Step stage="later" title={t("agentRun.follow.test.later")} />
         )}
       </ol>
-    </section>
+    </Card>
   );
 }

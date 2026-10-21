@@ -1,3 +1,4 @@
+import { Card } from "../../components/ui";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { forPeople } from "../../api/client";
@@ -75,10 +76,7 @@ export function ChangeTestCard({ test }: { test: ChangeTest }): JSX.Element {
           : null;
   const tone = test.outcome === "passed" ? "success" : test.outcome === "failed" ? "danger" : "neutral";
   return (
-    <section
-      aria-label={t("agentRun.changeTest.title")}
-      className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 text-sm"
-    >
+    <Card as="section" padding="sm" aria-label={t("agentRun.changeTest.title")} className="flex flex-col gap-2 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={tone}>{t(`agentRun.changeTest.${test.outcome}`)}</Badge>
         {ranOn !== null ? <span className="min-w-0 break-words">{ranOn}</span> : null}
@@ -96,6 +94,6 @@ export function ChangeTestCard({ test }: { test: ChangeTest }): JSX.Element {
         </ul>
       ) : null}
       {test.sample !== undefined ? <QueryAnswer view={viewOf(test.sample, i18n.resolvedLanguage ?? i18n.language)} /> : null}
-    </section>
+    </Card>
   );
 }

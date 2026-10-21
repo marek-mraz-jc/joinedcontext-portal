@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../../api/client";
 import { startJob } from "../../jobs";
 import type { components } from "../../api/schema";
-import { Alert, Badge, Button, ExternalLink } from "../../components/ui";
+import { Alert, Badge, Button, Card, ExternalLink } from "../../components/ui";
 
 type AppBuild = components["schemas"]["AppBuild"];
 type WorkflowRun = components["schemas"]["WorkflowRun"];
@@ -126,7 +126,7 @@ export function AppBuildPanel({ project, name }: { project: string; name: string
     : null;
 
   return (
-    <section aria-labelledby="app-build-heading" className="space-y-2 rounded-xl border border-border bg-surface p-4">
+    <Card as="section" padding="md" aria-labelledby="app-build-heading" className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id="app-build-heading" className="text-sm font-semibold">
           {t("apps.build.title")}
@@ -175,7 +175,7 @@ export function AppBuildPanel({ project, name }: { project: string; name: string
       </div>
       {rebuildError ? <Alert tone="danger">{rebuildError}</Alert> : null}
       <AppBuildHistory project={project} name={name} />
-    </section>
+    </Card>
   );
 }
 
