@@ -835,6 +835,16 @@
           "POST /api/v1/projects/{project}/access/explore",
           "POST /api/v1/projects/{project}/endpoints/{name}/access/simulate"
         ]
+      },
+      "agent-access": {
+        "live": {
+          "spec": "agent-access.spec.ts",
+          "test": "an agent account's token is refused an approval and a revoke, and the steward reads its access"
+        },
+        "personOnly": "revoking an agent's grant is a person's decision in the Portal; an agent never changes access (PF-58, AG-132)",
+        "routes": [
+          "POST /api/v1/projects/{project}/serviceaccounts/{name}/revoke"
+        ]
       }
     },
     "subscription": {

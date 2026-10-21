@@ -2866,7 +2866,8 @@
         "workload": "Cluster workload",
         "kubernetes": "Kubernetes",
         "k8sNamespace": "Namespace",
-        "k8sServiceAccount": "Kubernetes service account"
+        "k8sServiceAccount": "Kubernetes service account",
+        "notAfter": "Access ends"
       },
       "grantIn": "{role} in {where}",
       "grantOrg": "{role} in the whole organization",
@@ -3072,6 +3073,42 @@
       "custom": {
         "label": "Custom",
         "description": "Pick each permission yourself."
+      }
+    },
+    "agent": {
+      "open": "What this account may do",
+      "title": "Access",
+      "grants": "Grants",
+      "delegates": "Its client may also act for the person who started it; then that person's own rights decide, on top of none of these.",
+      "state": {
+        "active": "Active",
+        "pending": "Not yet",
+        "expired": "Expired"
+      },
+      "ends": "ends {when}",
+      "ended": "ended {when}",
+      "revoke": "Revoke now",
+      "revokeNamed": "Revoke {role} in {scope} now",
+      "revokeTitle": "Revoke {role} from {account} now?",
+      "revokeHelp": "The grant is removed at once and recorded. The account's next token is decided without it. Giving it back is a new change that a second person approves.",
+      "revokeFailed": "The grant was not revoked. Reload the account's access and try again.",
+      "gatewayOnly": "Its roles name no Portal role: it acts only on data, through the Policies of the Endpoints it reaches.",
+      "matrix": "What {account} may do, by kind",
+      "kind": "Kind",
+      "everyKind": "Every kind",
+      "verb": {
+        "read": "Read",
+        "propose": "Propose",
+        "delete": "Delete",
+        "approve": "Approve"
+      },
+      "allowed": "Allowed",
+      "refused": "Refused",
+      "reason": {
+        "neverApproves": "An account never approves; a person does",
+        "ended": "{grant} ended {when}",
+        "starts": "{grant} starts {when}",
+        "noGrant": "No grant names it"
       }
     }
   },
