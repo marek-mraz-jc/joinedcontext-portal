@@ -32,6 +32,7 @@ import {
   endpointUrl,
   representationUrl,
   servedRepresentations,
+  webcalUrl,
   useCatalogueLinks,
 } from "../../components/endpoints/links";
 import { useBranding } from "../../branding";
@@ -392,6 +393,22 @@ export function EndpointPage({
               ))}
             </ul>
           </Fact>
+          {slug && servedRepresentations(spec).includes("ical") ? (
+            // The feed a calendar client subscribes to (EP-125): the https address, and the same
+            // address as webcal://, which a phone's calendar opens as a subscription.
+            <Fact label={t("endpoints.ical.subscribe")}>
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <EndpointLink href={representationUrl(slug, "ical", domain)}>{t("endpoints.ical.preview")}</EndpointLink>
+                  <CopyUrlButton url={representationUrl(slug, "ical", domain)} />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="break-all font-mono text-caption">{webcalUrl(representationUrl(slug, "ical", domain))}</code>
+                  <CopyUrlButton url={webcalUrl(representationUrl(slug, "ical", domain))} />
+                </div>
+              </div>
+            </Fact>
+          ) : null}
           {slug ? (
             <Fact label={t("endpoints.page.alwaysThere")}>
               <ul className="flex flex-wrap gap-1">

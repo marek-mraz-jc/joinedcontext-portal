@@ -72,6 +72,10 @@ for (const width of [375, 1440]) {
     await expect(picker.getByRole("checkbox", { name: /Region intranet/ })).toBeDisabled();
     await picker.getByRole("checkbox", { name: /Region pages/ }).check();
     await picker.getByRole("checkbox", { name: /City pages/ }).check();
+    // The widget, its languages and its sites are filled by default, so their groups fold (T-4824).
+    for (const fold of ["Widget", "Language", "Where it may appear"]) {
+      await page.getByRole("group", { name: fold, exact: true }).locator("summary").click();
+    }
     await page.getByLabel(/^Answers from/).selectOption({ label: "Knowledge only" });
     // A suggested question per language, as a steward writes the chips.
     const chips = page.getByRole("group", { name: /^Suggested questions/ });

@@ -400,12 +400,7 @@ async fn organization_rig(test: &str, runtime: MockServer) -> Rig {
     .expect("discovery");
     let mirror = Mirror::new();
     mirror.upsert(app("bbsk-events", "organization"));
-    mirror.upsert(common::envelope(
-        "RoleBinding",
-        "eva-parks",
-        "parks",
-        json!({ "subjects": [{ "user": "eva@hel.fi" }], "role": "viewer" }),
-    ));
+    common::bind(&mirror, "eva", "parks");
     let state = AppState::new(config, Some(oidc)).with_mirror(std::sync::Arc::new(mirror));
     Rig {
         app: server::app(state),

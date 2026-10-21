@@ -99,6 +99,8 @@ interface EndpointForm {
   };
   /** The catalogue description, one string per text in the author's language (EP-78, UI-50). */
   catalog?: CatalogForm;
+  /** The iCalendar mapping (EP-125), kept as written: the form edits plain attribute names. */
+  representations?: { ical?: Record<string, unknown> };
 }
 
 /** The `publish` block of the manifest, or nothing when no catalogue is named (EP-62). */
@@ -185,13 +187,14 @@ export function representationSpec(
   const listed = Array.isArray(stored.enabledRepresentations)
     ? stored.enabledRepresentations.filter((rep): rep is string => typeof rep === "string")
     : undefined;
-  if (listed || chosen.includes("sta")) {
+  // SensorThings and iCalendar are served only where a list names them (EP-104, EP-125).
+  if (listed || chosen.includes("sta") || chosen.includes("ical")) {
     const kept = (listed ?? []).filter((rep) => always.includes(rep) || chosen.includes(rep));
     const list = [...kept, ...chosen.filter((rep) => !kept.includes(rep))];
     return { enabledRepresentations: list.length > 0 ? list : ["ngsi-ld"] };
   }
   const disabled = REPRESENTATIONS.filter(
-    (rep) => rep !== "sta" && rep !== "mcp" && !always.includes(rep) && !chosen.includes(rep),
+    (rep) => rep !== "sta" && rep !== "ical" && rep !== "mcp" && !always.includes(rep) && !chosen.includes(rep),
   );
   return disabled.length > 0 ? { disabledRepresentations: disabled } : {};
 }
@@ -212,6 +215,7 @@ function toSpec(
     publish,
     catalog: catalogValues,
     enabledRepresentations: checked,
+    representations,
     ...rest
   } = form;
   void publish;
@@ -221,6 +225,8 @@ function toSpec(
   return {
     ...rest,
     ...representationSpec(checked ?? [], stored),
+    // A mapping for a feed the Endpoint does not serve is refused by jc-core: it goes with the box.
+    ...(representations?.ical && (checked ?? []).includes("ical") ? { representations } : {}),
     slug,
     ...publishOf(form),
     ...(catalog ? { catalog } : {}),
@@ -319,6 +325,7 @@ export function toForm(endpoint: Manifest): EndpointForm {
       };
     };
     catalog?: CatalogManifest;
+    representations?: { ical?: Record<string, unknown> };
   };
   const catalog = catalogForm(spec.catalog);
   return {
@@ -333,6 +340,7 @@ export function toForm(endpoint: Manifest): EndpointForm {
     caching: spec.caching,
     publish: publishForm(spec),
     ...(catalog ? { catalog } : {}),
+    ...(spec.representations?.ical ? { representations: { ical: spec.representations.ical } } : {}),
   };
 }
 

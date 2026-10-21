@@ -1275,6 +1275,7 @@
       "slug": "Slug",
       "audience": "Publikum",
       "representations": "Reprezentace",
+      "representationMappings": "Mapování kalendáře",
       "more": "+{count} dalších",
       "noRepresentations": "žádné reprezentace",
       "phase": "Stav",
@@ -1421,7 +1422,31 @@
       "odata": "OData v4",
       "websocket": "Oznámení přes WebSocket",
       "sta": "SensorThings API",
+      "ical": "Kalendář iCalendar",
       "mcp": "MCP pro AI asistenty"
+    },
+    "ical": {
+      "subscribe": "Odběr kalendáře",
+      "preview": "Otevřít kalendář (.ics)",
+      "off": "Zapněte kalendář iCalendar v části Reprezentace, abyste mohli mapovat jeho pole.",
+      "help": "Ze kterého atributu modelu prostoru pochází každé pole kalendáře. Prázdný řádek použije atribut předvolby, zobrazený šedě. Zkontrolujte formulář a uvidíte verdikt serveru vůči datovému modelu.",
+      "start": "Začít od",
+      "presetDefault": "Výchozí (Smart Data Models Event)",
+      "preset": {
+        "sdm-event": "Smart Data Models Event",
+        "schema-org": "schema.org Event"
+      },
+      "presetOwn": "Jen pole níže",
+      "type": "Mapovaný typ",
+      "noModel": "Prostor {space} zatím nemá v tomto projektu datový model, proto nelze nabídnout atributy; kontrola mapování odmítne, dokud ho mít nebude.",
+      "missing": "Namapujte tato povinná pole: {fields}",
+      "caption": "Pole kalendáře a atributy, ze kterých pocházejí",
+      "field": "Pole kalendáře",
+      "attribute": "Atribut",
+      "fixed": "Nastavuje platforma: {attribute}",
+      "remap": "Zapsáno v YAML s úpravami; upravte jej v manifestu",
+      "unmapped": "Nemapováno",
+      "requiredBadge": "Povinné"
     },
     "section": {
       "projection": "Které třídy a atributy zobrazuje",

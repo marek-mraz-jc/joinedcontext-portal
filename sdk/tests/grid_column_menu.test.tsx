@@ -147,6 +147,32 @@ describe("the column header menu (T-4827)", () => {
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Column options: Count" }));
   });
 
+  // The grid clips what overflows it: the menu is placed in the window, below its header cell
+  // or above it when it does not fit below (T-4924).
+  it("places the menu inside the window, above the header when the room below is too short", async () => {
+    render(<EntityGrid config={config} source={fixtureSource(entities)} />);
+    await screen.findByText("Alpha");
+    const height = vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(400);
+    const rect = (top: number) => ({ top, bottom: top + 30, left: 0, right: 300, width: 300, height: 30, x: 0, y: top, toJSON: () => ({}) });
+    const cell = vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue(rect(70) as DOMRect);
+    try {
+      openMenu("Count");
+      const below = screen.getByRole("dialog", { name: "Column options: Count" });
+      expect(below.style.top).toBe("100px");
+      expect(below.style.maxHeight).toBe(`${window.innerHeight - 100}px`);
+      fireEvent.keyDown(below, { key: "Escape" });
+
+      cell.mockReturnValue(rect(window.innerHeight - 100) as DOMRect);
+      openMenu("Count");
+      const above = screen.getByRole("dialog", { name: "Column options: Count" });
+      expect(above.style.top).toBe(`${window.innerHeight - 100 - 400}px`);
+      expect(above.style.maxHeight).toBe(`${window.innerHeight - 100}px`);
+    } finally {
+      height.mockRestore();
+      cell.mockRestore();
+    }
+  });
+
   it("a layout the host kept comes back applied after a remount", async () => {
     const { unmount } = render(<Kept initial={{ order: ["name", "ngsi-ld:status"], labels: { count: "Riders" }, width: { count: 120 } }} />);
     await screen.findByText("Alpha");
