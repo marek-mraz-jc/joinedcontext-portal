@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-// An agent account's Access view (T-4850, API/01 §50, AG-130…AG-132): its grants with their state,
+// An agent account's Access view (T-4850, API/01 §51, AG-130…AG-132): its grants with their state,
 // the kind × verb matrix with the grant behind each cell, and Revoke now behind a confirmation.
 // `vite preview` has no Portal API behind it, so the API is answered in the browser.
 // JC_SHOTS=<dir> saves a desktop 1440 and a phone 400 shot of each state.

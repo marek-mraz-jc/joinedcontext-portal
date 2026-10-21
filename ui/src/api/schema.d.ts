@@ -3078,7 +3078,7 @@ export interface paths {
         };
         /**
          * Read An Agent Account's Access
-         * @description Every grant of one ServiceAccount: role, scope, validity window and its state now (active, pending, expired), with the Portal rules its Role carries, never `approve` (API/01 §50, AG-130, AG-131). Needs `read` on ServiceAccount.
+         * @description Every grant of one ServiceAccount: role, scope, validity window and its state now (active, pending, expired), with the Portal rules its Role carries, never `approve` (API/01 §51, AG-130, AG-131). Needs `read` on ServiceAccount.
          */
         get: operations["account_access"];
         put?: never;
@@ -3100,7 +3100,7 @@ export interface paths {
         put?: never;
         /**
          * Revoke An Agent Account's Grant Now
-         * @description Removes one grant of a ServiceAccount at once (API/01 §50, AG-132): a person who may propose and approve ServiceAccounts sends it from their Portal session, the Portal writes the Change and merges it because it only removes access, checked against the manifest on the main branch; recorded as an `access.revoked` activity event. A token of a service account or an agent is refused. The account's next token is decided without the grant once the Portal has synced.
+         * @description Removes one grant of a ServiceAccount at once (API/01 §51, AG-132): a person who may propose and approve ServiceAccounts sends it from their Portal session, the Portal writes the Change and merges it because it only removes access, checked against the manifest on the main branch; recorded as an `access.revoked` activity event. A token of a service account or an agent is refused. The account's next token is decided without the grant once the Portal has synced.
          */
         post: operations["revoke_grant"];
         delete?: never;
