@@ -87,6 +87,9 @@ const PIPELINE_ORPHANS: &str = "jc_pipeline_orphans";
 /// Records the last complete run read that the model refused, by project and pipeline (T-4892):
 /// at the source, not in the space.
 const PIPELINE_MISSING: &str = "jc_pipeline_missing";
+/// 1 when the daily quality run found a running pipeline's newest entity older than its freshness
+/// target, by project and pipeline (T-5020, DM-74).
+const PIPELINE_STALE: &str = "jc_pipeline_stale";
 /// Seconds one queued pipeline run held the runner, by outcome (PL-78).
 const PIPELINE_RUN_SECONDS: &str = "jc_pipeline_run_seconds";
 /// Up to the 15 min a run may take.
@@ -151,6 +154,10 @@ fn handle() -> &'static PrometheusHandle {
         metrics::describe_counter!(RUNS_FINISHED, "agent runs ended, by kind and status");
         metrics::describe_counter!(TOOL_STEPS, "assistant tool steps, by tool and outcome");
         metrics::describe_gauge!(PIPELINE_QUEUE_DEPTH, "pipeline runs waiting, by lane");
+        metrics::describe_gauge!(
+            PIPELINE_STALE,
+            "1 when a running pipeline's newest entity is older than its freshness target"
+        );
         metrics::describe_histogram!(
             PIPELINE_RUN_SECONDS,
             "seconds one pipeline run held the runner"
@@ -266,6 +273,16 @@ pub fn pipeline_missing(project: &str, pipeline: &str, missing: usize) {
         ("pipeline", pipeline.to_owned()),
     ];
     metrics::gauge!(PIPELINE_MISSING, &labels).set(missing as f64);
+}
+
+/// A pipeline's freshness as the last quality run judged it (T-5020). ponytail: set once a day
+/// with the run; a pipeline deleted while stale keeps its 1 until the Portal restarts.
+pub fn pipeline_stale(project: &str, pipeline: &str, stale: bool) {
+    let labels = [
+        ("project", project.to_owned()),
+        ("pipeline", pipeline.to_owned()),
+    ];
+    metrics::gauge!(PIPELINE_STALE, &labels).set(if stale { 1.0 } else { 0.0 });
 }
 
 /// One queued pipeline run ended: `finished`, `failed` or `timeout` (PL-78).
@@ -436,7 +453,12 @@ mod agent_series_tests {
         super::pipeline_orphans("helsinki", "registry", 3);
         super::pipeline_missing("helsinki", "registry", 1);
         super::pipeline_orphans("helsinki", "registry", 0);
+        super::pipeline_stale("helsinki", "road-weather", true);
         let text = super::handle().render();
+        assert!(
+            text.contains("jc_pipeline_stale{project=\"helsinki\",pipeline=\"road-weather\"} 1"),
+            "{text}"
+        );
         assert!(
             text.contains("jc_pipeline_orphans{project=\"helsinki\",pipeline=\"registry\"} 0"),
             "{text}"
