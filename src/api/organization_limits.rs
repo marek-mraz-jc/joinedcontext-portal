@@ -222,10 +222,16 @@ pub async fn get_limits(
             let own = state
                 .mirror
                 .get(ORG_NAMESPACE, "Project", &project)
-                .is_some_and(|envelope| envelope.spec.get("quotas").is_some());
+                .and_then(|envelope| {
+                    serde_json::from_value::<jc_core::kinds::Quotas>(
+                        envelope.spec.get("quotas")?.clone(),
+                    )
+                    .ok()
+                })
+                .is_some_and(|quotas| quotas.sets_dimensions());
             let quotas = crate::quotas::effective(&state.mirror, &project);
             let used = crate::quotas::usage(&state.mirror, &project);
-            let quota = quotas
+            let mut quota: BTreeMap<String, QuotaUse> = quotas
                 .dimensions()
                 .into_iter()
                 .map(|(dimension, limit)| {
@@ -233,8 +239,14 @@ pub async fn get_limits(
                     (dimension.to_owned(), QuotaUse { limit, used })
                 })
                 .collect();
+            // The MQTT allowance (PF-117, API/01 §47): its own origin counts as the project's.
+            let (mqtt, mqtt_own) = crate::mqtt_allowance::quota_rows(&state.mirror, &project);
+            for (dimension, limit, used) in mqtt {
+                let (limit, used) = (Some(limit), Some(used));
+                quota.insert(dimension.to_owned(), QuotaUse { limit, used });
+            }
             ProjectQuota {
-                origin: if own {
+                origin: if own || mqtt_own {
                     LimitOrigin::Project
                 } else if organization_set {
                     LimitOrigin::Organization
