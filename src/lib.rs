@@ -42,6 +42,7 @@ pub mod permissions;
 pub mod pipeline_expiry;
 pub mod pipeline_log;
 pub mod pipeline_outcomes;
+pub mod pipeline_rights;
 pub mod pipeline_samples;
 pub mod pipeline_secrets;
 pub mod pipeline_stats;
