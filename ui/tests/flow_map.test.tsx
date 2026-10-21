@@ -8,7 +8,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import en from "../src/locales/en.json";
-import { FlowMapView } from "../src/pages/pipelines/FlowMapView";
+import { FlowMapView, PipelineActions, SendToSpace } from "../src/pages/pipelines/FlowMapView";
 import { columns, groups, layout, missingGrants, targets, targetUrn } from "../src/pages/pipelines/flowMap";
 import type { FlowMap, FlowNode } from "../src/pages/pipelines/flowMap";
 import { findFormPage } from "./formPage";
@@ -158,6 +158,59 @@ describe("the flow map page", () => {
     // The source the map was on is the editor's source already.
     expect(await within(page).findByDisplayValue("hfp")).toBeInTheDocument();
     expect(window.location.pathname).toBe("/projects/helsinki/pipelines/new");
+  });
+
+  it("pauses_a_running_pipeline_as_a_change_checked_first", async () => {
+    const sent: { dryRun: boolean; enabled: unknown }[] = [];
+    const manifest = {
+      apiVersion: "joinedcontext.com/v1alpha1",
+      kind: "Pipeline",
+      metadata: { name: "hfp-ingest", namespace: "helsinki" },
+      spec: { enabled: true, source: { dataSourceRef: "hfp" } },
+    };
+    await renderRoute({
+      path: PATH,
+      answer: async (path, request) => {
+        if (path.endsWith("/flow-map")) return jsonResponse(MAP);
+        if (path.endsWith("/pipelines/hfp-ingest") && request.method === "GET") return jsonResponse(manifest);
+        if (path.endsWith("/pipelines/hfp-ingest") && request.method === "PUT") {
+          const dryRun = new URL(request.url).searchParams.get("dryRun") === "All";
+          const body = (await request.json()) as { spec: { enabled?: unknown } };
+          sent.push({ dryRun, enabled: body.spec.enabled });
+          return dryRun
+            ? jsonResponse({ valid: true, verdict: { ok: true, findings: [] } })
+            : jsonResponse({
+                apiVersion: "joinedcontext.com/v1alpha1",
+                kind: "Change",
+                metadata: { name: "chg-00000042", namespace: "helsinki" },
+                status: { lane: "green", phase: "Applied" },
+              });
+        }
+        return undefined;
+      },
+    });
+    // The pipeline's buttons are this component's.
+    expect(PipelineActions).toBeTypeOf("function");
+    const cards = await screen.findAllByRole("button", { name: /^Pipeline: hfp-ingest\./ });
+    await userEvent.click(cards[0]);
+    await userEvent.click(await screen.findByRole("button", { name: en.pipelines.pause }));
+    expect(await screen.findByText(/chg-00000042/)).toBeInTheDocument();
+    expect(sent).toEqual([
+      { dryRun: true, enabled: false },
+      { dryRun: false, enabled: false },
+    ]);
+  });
+
+  it("asks_for_a_data_source_first_on_a_broker_that_has_none", async () => {
+    const lone: FlowMap = { project: "helsinki", nodes: [node("MqttBroker", "hsl")], edges: [] };
+    await renderRoute({ path: PATH, answer: answering(lone) });
+    // A broker's "send to a space" is this component's.
+    expect(SendToSpace).toBeTypeOf("function");
+    const cards = await screen.findAllByRole("button", { name: /^MQTT broker: hsl/ });
+    await userEvent.click(cards[0]);
+    expect(await screen.findByText(en.pipelines.map.brokerFirst)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: en.pipelines.map.newDataSource }));
+    await waitFor(() => expect(window.location.pathname).toBe("/projects/helsinki/datasources"));
   });
 
   it("says_what_to_do_when_nothing_flows_yet", async () => {

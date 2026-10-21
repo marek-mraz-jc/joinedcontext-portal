@@ -767,4 +767,39 @@ mod tests {
         assert_eq!(alice_runs.len(), 1);
         assert_eq!(alice_runs[0].id, "run-1");
     }
+
+    #[tokio::test]
+    async fn events_of_keeps_the_asked_kinds_of_each_run_oldest_first() {
+        let store = AgentStore::new(None);
+        for (run, kind) in [
+            ("run-1", "status"),
+            ("run-1", "thought"),
+            ("run-2", "status"),
+            ("run-1", "status"),
+            ("run-3", "status"),
+        ] {
+            store
+                .append_event(run, kind, serde_json::json!({}))
+                .await
+                .expect("append");
+        }
+        let asked = ["run-1".to_owned(), "run-2".to_owned(), "run-9".to_owned()];
+        let by_run = store.events_of(&asked, &["status"]).await.expect("events");
+        let seqs = |run: &str| by_run[run].iter().map(|e| e.seq).collect::<Vec<_>>();
+        assert_eq!(seqs("run-1"), [1, 3], "the thought is left out");
+        assert_eq!(seqs("run-2"), [1]);
+        assert!(
+            by_run["run-9"].is_empty(),
+            "a run with no events is an empty list"
+        );
+        assert!(
+            !by_run.contains_key("run-3"),
+            "a run not asked for is not read"
+        );
+        assert!(store
+            .events_of(&[], &["status"])
+            .await
+            .expect("events")
+            .is_empty());
+    }
 }

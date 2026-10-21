@@ -489,7 +489,7 @@ function OpenLink({ href, labelKey }: { href: string; labelKey: string }): JSX.E
   );
 }
 
-function PipelineActions({ project, node }: { project: string; node: FlowNode }): JSX.Element {
+export function PipelineActions({ project, node }: { project: string; node: FlowNode }): JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -551,7 +551,7 @@ function PipelineActions({ project, node }: { project: string; node: FlowNode })
  * chosen Endpoint as the target; a broker with no DataSource yet opens the DataSource form on it
  * first (PL-76), since a pipeline reads a broker through one.
  */
-function SendToSpace({
+export function SendToSpace({
   project,
   map,
   node,
