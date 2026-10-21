@@ -27,13 +27,14 @@ describe("the walker summary (T-4950)", () => {
   it("takes data out of a label", () => {
     expect(ruleAndLabel('raw-json: {"type":"Point"}')).toEqual(["raw-json", ""]);
     expect(ruleAndLabel("http: 500 GET /api/v1/projects/helsinki/spaces/urn:ngsi-ld:A:1")).toEqual(["http", "500 GET /api/v1/projects/helsinki/spaces/*"]);
-    expect(ruleAndLabel("field-hint: Entity type")).toEqual(["field-hint", "Entity type"]);
+    expect(ruleAndLabel("field-hint: Entity type")).toEqual(["field-hint", ""]);
+    expect(ruleAndLabel("axe: scrollable-region-focusable (serious): Scrollable region — pre")).toEqual(["axe", "scrollable-region-focusable"]);
   });
 
-  it("files a repeated finding once, across widths, people and items", () => {
+  it("files a repeated finding once, across widths, people, items and the fields of one form", () => {
     const route = "/projects/$project/$plural/$name/edit";
     const steward = [
-      page(`${P}/spaces/air/edit`, route, 1440, ["field-hint: Entity type"]),
+      page(`${P}/spaces/air/edit`, route, 1440, ["field-hint: Entity type", "field-hint: Where"]),
       page(`${P}/spaces/air/edit`, route, 400, ["field-hint: Entity type"]),
       page(`${P}/endpoints/air/edit`, route, 1440, ["field-hint: Entity type"]),
     ];
@@ -41,9 +42,10 @@ describe("the walker summary (T-4950)", () => {
     const summary = summarise({ steward, viewer }, "run-1", { merged: ["T-4949", "T-4945"] });
     const failing = summary.results.filter((result) => result.verdict === "fail");
     expect(failing.map((result) => result.key)).toEqual([
-      "field-hint /projects/$project/spaces/$name/edit Entity type",
-      "field-hint /projects/$project/endpoints/$name/edit Entity type",
+      "field-hint /projects/$project/spaces/$name/edit",
+      "field-hint /projects/$project/endpoints/$name/edit",
     ]);
+    expect(failing[0].detail).toContain("Found as: field-hint: Entity type | field-hint: Where");
     expect(failing[0].detail).toContain("steward 1440px en /projects/helsinki/spaces/air/edit");
     expect(failing[0].detail).toContain("viewer 400px en /projects/helsinki/spaces/water/edit");
     expect(failing[0].detail).toContain("Merged since the last clean walk: T-4949, T-4945.");
@@ -55,7 +57,7 @@ describe("the walker summary (T-4950)", () => {
     const before = summarise({ steward: [page(`${P}/spaces/new`, route, 1440, ["field-hint: Name"])], viewer: [page("/", "/", 1440, [])] }, "run-1");
     const after = summarise({ steward: [page(`${P}/spaces/new`, route, 1440, [])], viewer: [page("/", "/", 1440, [])] }, "run-2", { previous: before });
     expect(after.results.filter((result) => result.key.startsWith("field-hint"))).toEqual([
-      expect.objectContaining({ key: "field-hint /projects/$project/spaces/new Name", verdict: "pass" }),
+      expect.objectContaining({ key: "field-hint /projects/$project/spaces/new", verdict: "pass" }),
     ]);
     // A route this run did not reach keeps its task open.
     const partial = summarise({ steward: [page("/", "/", 1440, [])], viewer: [page("/", "/", 1440, [])] }, "run-3", { previous: before });

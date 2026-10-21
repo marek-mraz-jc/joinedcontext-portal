@@ -4,11 +4,10 @@
  *
  *     node scripts/walker-summary.ts <walk dir> <run> [--previous <summary.json>] [--merged T-1,T-2]
  *
- * One result per finding: its key is `<rule> <route> <label>`, which the board deduplicates on.
+ * One result per finding: its key is `<rule> <route> [<label>]`, which the board deduplicates on.
  * The same field without a hint at 1440 and 400 px, for the steward and the viewer, is one key and
- * so one task. The route keeps the section and tab a page belongs to and drops the item a walk
- * happened to open, so a finding keeps its task when the first item of a list changes; a label
- * made of data (raw JSON, a URN) counts once per route. A key that failed in the previous run, on a
+ * so one task, and so is every unhinted field of one form (`ruleAndLabel`). The route keeps the section and tab a page belongs to and drops the item a walk
+ * happened to open, so a finding keeps its task when the first item of a list changes. A key that failed in the previous run, on a
  * route this run walked, and is gone now is reported as a pass, which closes its task. The tasks
  * merged since the last clean walk are named in each detail: one of them most likely brought it.
  */
@@ -62,16 +61,22 @@ export function routeKey(route: string, address: string): string {
     .join("/");
 }
 
-/** The finding's rule and the label that tells it apart on its route, with data taken out. */
+/**
+ * The finding's rule and the label that tells it apart on its route. A page-wording rule counts once
+ * per route (five fields without a hint on one form are one fix, one task); a request, a console
+ * error, an axe rule and a viewer's write control are told apart by what they name, with data
+ * taken out.
+ */
 export function ruleAndLabel(finding: string): [string, string] {
   const at = finding.indexOf(":");
   const rule = at < 0 ? finding : finding.slice(0, at);
   const detail = at < 0 ? "" : finding.slice(at + 1).trim();
-  if (rule === "raw-json" || rule === "bare-urn" || rule === "overflow") return [rule, ""];
   // A path segment with a digit or a colon (but the API version) is an item, not the place: `403 GET /api/v1/…/*`.
   if (rule === "http") return [rule, detail.replace(/\/[^/\s]*[0-9:][^/\s]*/g, (segment) => (/^\/v\d+$/.test(segment) ? segment : "/*"))];
   if (rule === "console") return [rule, detail.replace(/\d+/g, "#").slice(0, 80)];
-  return [rule, detail.slice(0, 120)];
+  if (rule === "axe") return [rule, detail.split(/\s/)[0]];
+  if (rule === "viewer-write") return [rule, detail.slice(0, 120)];
+  return [rule, ""];
 }
 
 /** A finding's key and title, as the board deduplicates on them. */
