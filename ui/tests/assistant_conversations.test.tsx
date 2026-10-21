@@ -42,7 +42,7 @@ const LIST = {
     id: "33333333-3333-4333-8333-333333333333", deployment: "obcan", origin: null, startedAt: "2026-10-18T09:00:00Z",
     lastAt: "2026-10-18T09:00:30Z", firstQuestion: "Kto je starosta?", turns: 1, routes: ["rag"], totalMs: 45000, errors: 0,
     timeouts: 1, costUsd: 0, uncosted: 1, thumbsUp: 0, thumbsDown: 0, tokensIn: 5560, tokensOut: 185, cachedTokens: null,
-    firstTokenMs: null, models: [],
+    firstTokenMs: null, models: [], lastError: "The assistant took too long.",
   }],
   nextCursor: null,
 };
@@ -337,6 +337,8 @@ describe("Asistent → Konverzácie", () => {
     const unpriced = within(table).getByText("Kto je starosta?").closest("tr");
     expect(unpriced?.textContent).toContain(i18n.t("conversations.unknownPrice"));
     expect(unpriced?.textContent).not.toContain("$0.0000");
+    // T-4994: a conversation that ended badly says what failed in its row.
+    expect(within(unpriced as HTMLElement).getByText("The assistant took too long.")).toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText(i18n.t("conversations.filter.sort")), "tokens");
     await waitFor(() => {
@@ -501,11 +503,63 @@ describe("UsageSummary (T-4728)", () => {
       </QueryClientProvider>,
     );
     const summary = await screen.findByLabelText(i18n.t("conversations.usage.title"));
-    expect(await within(summary).findByText(i18n.t("conversations.unknownPrice"))).toBeInTheDocument();
-    expect(within(summary).getByText(i18n.t("conversations.usage.uncosted", { count: 3 }))).toBeInTheDocument();
+    // T-4994: one line says the price is missing; no cost tile repeats "unknown".
+    expect(await within(summary).findByText(i18n.t("conversations.usage.notRecorded.cost"))).toBeInTheDocument();
+    expect(within(summary).queryByText(i18n.t("conversations.unknownPrice"))).toBeNull();
+    expect(within(summary).queryByText(i18n.t("conversations.usage.cost"))).toBeNull();
     expect(summary.textContent).not.toContain("$0.00");
     await user.click(within(summary).getByRole("button", { name: i18n.t("conversations.usage.export") }));
     expect(await within(summary).findByText(/narrow the range/)).toBeInTheDocument();
+  });
+
+  function summaryOf(body: unknown) {
+    vi.stubGlobal("fetch", () =>
+      Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } })),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <I18nextProvider i18n={i18n}>
+          <UsageSummary project={PROJECT} filter={{}} />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    return screen.findByLabelText(i18n.t("conversations.usage.title"));
+  }
+
+  it("says an empty range has no questions instead of a wall of dashes (T-4994)", async () => {
+    const none = spreadOf(null, null, null);
+    const summary = await summaryOf({
+      ...USAGE, questions: 0, timeouts: 0, errors: 0, uncostedQuestions: 0,
+      costUsd: { total: null, mean: null, p50: null, p90: null },
+      tokens: { in: null, out: null, cached: null, cachedShare: null },
+      answerCache: { hits: 0, hitShare: null, savedMs: null, savedUsd: null },
+      firstTokenMs: none, totalMs: none, phases: { route: none, work: none, answer: none }, costByStage: [], days: [],
+    });
+    expect(await within(summary).findByText(i18n.t("conversations.usage.none"))).toBeInTheDocument();
+    expect(within(summary).queryByText(i18n.t("conversations.usage.questions"))).toBeNull();
+    expect(summary.textContent).not.toContain("–");
+  });
+
+  it("says once that cost and tokens were not recorded and leaves out the speeds nobody measured (T-4994)", async () => {
+    const none = spreadOf(null, null, null);
+    const summary = await summaryOf({
+      ...USAGE, questions: 3, timeouts: 0, errors: 3, uncostedQuestions: 3,
+      costUsd: { total: null, mean: null, p50: null, p90: null },
+      tokens: { in: 0, out: 0, cached: null, cachedShare: null },
+      answerCache: { hits: 0, hitShare: 0, savedMs: null, savedUsd: null },
+      firstTokenMs: none, totalMs: spreadOf(3000, 3000, 3000),
+      phases: { route: none, work: spreadOf(3000, 3000, 3000), answer: none },
+      costByStage: [{ stage: "agent", calls: 3, costUsd: null, uncostedCalls: 3 }],
+      days: [],
+    });
+    expect(await within(summary).findByText(i18n.t("conversations.usage.notRecorded.both"))).toBeInTheDocument();
+    for (const gone of ["cost", "perQuestion", "tokens", "firstToken", "answerCache", "phase.route", "phase.answer", "byStage"]) {
+      expect(within(summary).queryByText(i18n.t(`conversations.usage.${gone}`))).toBeNull();
+    }
+    expect(within(summary).getByText(i18n.t("conversations.usage.phase.work"))).toBeInTheDocument();
+    expect(within(summary).queryByText(i18n.t("conversations.unknownPrice"))).toBeNull();
+    expect(summary.textContent).not.toContain("–");
   });
 
   it("says a body of another shape failed instead of breaking the page", async () => {
