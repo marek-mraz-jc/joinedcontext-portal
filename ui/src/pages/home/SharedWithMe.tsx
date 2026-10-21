@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { api, unwrap } from "../../api/client";
 import { localized } from "../../api/manifest";
 import { useBranding } from "../../branding";
-import { PageFailed, safeHref } from "../../components/ui";
+import { Card, PageFailed, safeHref } from "../../components/ui";
 import { appAddress, inLanguage } from "../apps/AppOpenPage";
 
 /**
@@ -45,13 +45,8 @@ export function SharedWithMe(): JSX.Element {
             const description = localized(app.description as Record<string, string> | string | null | undefined, i18n.language, "");
             const address = inLanguage(new URL(appAddress(app.name, appsOrigin), window.location.origin).toString(), i18n.language);
             return (
-              <li key={`${app.project}/${app.name}`}>
-                <a
-                  href={safeHref(address)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="focus-ring block h-full rounded-lg border border-border bg-surface p-4 hover:bg-surface-subtle"
-                >
+              <Card as="li" padding="md" key={`${app.project}/${app.name}`} className="hover:bg-surface-subtle">
+                <a href={safeHref(address)} target="_blank" rel="noopener noreferrer" className="focus-ring block h-full rounded">
                   <span className="block text-body font-semibold text-fg">{title}</span>
                   {description ? <span className="block text-caption text-fg-muted line-clamp-2">{description}</span> : null}
                   <span className="mt-1 block text-caption text-fg-muted">
@@ -59,7 +54,7 @@ export function SharedWithMe(): JSX.Element {
                   </span>
                   <span className="sr-only">{t("home.shared.newTab")}</span>
                 </a>
-              </li>
+              </Card>
             );
           })}
         </ul>

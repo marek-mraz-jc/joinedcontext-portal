@@ -5,6 +5,7 @@
  */
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { Suspense, lazy } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
@@ -15,7 +16,8 @@ import { Alert, Badge, Button, Card, PageFailed, PageHeader } from "../../compon
 import { cardsFor, draftPage, firstRunSteps, roleOf, sampleToTry, welcomeStep } from "./home";
 import type { Facts } from "./home";
 import { useFirstRun } from "./firstRun";
-import { SharedWithMe } from "./SharedWithMe";
+// Its own chunk: the home page draws first and the list follows (bundle budget, T-4913).
+const SharedWithMe = lazy(() => import("./SharedWithMe").then((module) => ({ default: module.SharedWithMe })));
 
 interface Listed {
   items?: { metadata?: { name?: string }; kind?: string; name?: string; status?: { phase?: string }; requiredActions?: unknown[] }[];
@@ -226,7 +228,9 @@ export function HomePage({
         </section>
       ) : null}
 
-      <SharedWithMe />
+      <Suspense fallback={null}>
+        <SharedWithMe />
+      </Suspense>
     </section>
   );
 }
