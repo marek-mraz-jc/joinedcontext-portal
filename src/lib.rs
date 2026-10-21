@@ -36,6 +36,7 @@ pub mod openapi;
 pub mod ops;
 pub use ops::drafts;
 pub use ops::verdict;
+pub mod mqtt_allowance;
 pub mod people;
 pub mod permissions;
 pub mod pipeline_expiry;
@@ -65,6 +66,7 @@ pub mod state;
 pub mod store;
 pub mod sync;
 pub mod telemetry;
+pub mod temporal_audit;
 pub mod tools;
 
 /// Name reported by `/api/v1/health` and the process banner.
