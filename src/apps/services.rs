@@ -41,7 +41,7 @@ pub async fn gate(
     let (project, spec, _) =
         super::static_host::published_app(state, name).ok_or_else(not_found)?;
     let person = super::roles::person(state, headers, &spec, name).await;
-    if !super::roles::may_open(&spec, person.as_ref()) {
+    if !super::roles::may_open(state, &project, name, &spec, person.as_ref()) {
         return Err(not_found());
     }
     let person = person.ok_or_else(|| Box::new(ApiError::Unauthorized.into_response()))?;

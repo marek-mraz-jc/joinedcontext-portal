@@ -51,7 +51,7 @@ pub(super) async fn call(
         return not_found();
     };
     let person = super::roles::person(&state, &headers, &spec, &name).await;
-    if !super::roles::may_open(&spec, person.as_ref()) {
+    if !super::roles::may_open(&state, &project, &name, &spec, person.as_ref()) {
         return not_found();
     }
     let token = edge_token(&state, &headers);
