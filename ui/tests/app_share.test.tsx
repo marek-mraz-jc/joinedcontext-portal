@@ -183,7 +183,7 @@ describe("the Share dialog on its own", () => {
   it("Cancel closes it without a write, and a failed count still lets the person choose", async () => {
     await i18n.changeLanguage("en");
     const user = userEvent.setup();
-    const fetchMock = vi.fn(() =>
+    const fetchMock = vi.fn((_input: RequestInfo | URL) =>
       Promise.resolve(new Response(JSON.stringify({ title: "Unavailable", status: 503 }), { status: 503, headers: { "Content-Type": "application/problem+json" } })),
     );
     vi.stubGlobal("fetch", fetchMock);
