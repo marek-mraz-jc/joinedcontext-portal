@@ -13,8 +13,7 @@ import type { components } from "../../api/schema";
 import { RecordLink } from "../../components/RecordLink";
 import { TypePicker } from "../../components/pickers/TypePicker";
 import { Alert, Badge, Button, Field, Input, Select } from "../../components/ui";
-import { ExpiryChoice } from "./ExpiryChoice";
-import type { Expiry, Lifetime, LifetimeMode } from "./ExpiryChoice";
+import type { Expiry, Lifetime, LifetimeMode } from "./lifetime";
 import { autoMatch, generate, idFieldOf, migrated, preview, problemsOf, readBack } from "./outputMapper";
 import type { Attribute, MapperProblem, MapperState, Source } from "./outputMapper";
 
@@ -67,7 +66,7 @@ const choiceOf = (source: Source | undefined): Choice => {
 
 type ClassAttributes = components["schemas"]["ClassAttributes"];
 
-async function attributesOf(project: string, space: string, type: string): Promise<ClassAttributes> {
+export async function attributesOf(project: string, space: string, type: string): Promise<ClassAttributes> {
   const { data, error, response } = await api.GET("/api/v1/projects/{project}/spaces/{space}/types/{type}/attributes", {
     params: { path: { project, space, type } },
   });
@@ -107,7 +106,6 @@ export function OutputMapper({ project, space, orgDomain, records, bloblang, onB
   // cap, chosen attributes) stays as the manifest holds it.
   const own = current ? lifetime?.find((entry) => entry.type === current.type) : undefined;
   const entityEnd = own?.entity;
-  const inManifest = Boolean(own?.attributes?.length || entityEnd?.at || entityEnd?.notAfter);
   const problems = current ? problemsOf(current, attributes, records, entityEnd) : [];
   // A T-4822 step wrote its own `expiresAt`: it moves into `spec.lifetime` once, on open, and is
   // saved with the next proposal; a record field no date-time attribute holds waits for a choice.
@@ -350,31 +348,20 @@ export function OutputMapper({ project, space, orgDomain, records, bloblang, onB
           {notice ? (
             <Alert role="status" tone={notice === "migrated" ? "info" : "warning"}>
               {t(`pipelines.mapper.expiry.${notice}`, { field: legacy?.field ?? "" })}
+              {notice === "migrateField" && onEnds ? (
+                <>
+                  {" "}
+                  <Button size="sm" variant="secondary" onClick={() => onEnds({ expiry, lifetime, bloblang: generate({ ...current, expires: undefined }, attributes, space) })}>
+                    {t("pipelines.mapper.expiry.drop")}
+                  </Button>
+                </>
+              ) : null}
             </Alert>
           ) : null}
-          {onEnds && inManifest ? (
-            <p className="text-caption text-fg-muted" data-testid="mapper-expiry">
-              {t("pipelines.mapper.expiry.inManifest", { type: current.type })}
-            </p>
-          ) : onEnds ? (
-            <ExpiryChoice
-              project={project}
-              space={space}
-              type={current.type}
-              slots={attributes.filter((a) => a.format === "date-time" && current.attributes[a.name]).map((a) => a.name)}
-              lifetime={entityEnd ?? (legacy ? (moved ?? {}) : undefined)}
-              expiry={expiry}
-              problem={expiresProblem ? say(expiresProblem, "expiresAt") : undefined}
-              onLifetime={(next) => {
-                setMovedType(undefined);
-                onEnds({ expiry, lifetime: withEntityEnd(lifetime, current.type, next), bloblang: generate({ ...current, expires: undefined }, attributes, space) });
-              }}
-              onMode={(next, sweep) => {
-                setMovedType(undefined);
-                onEnds({ expiry: sweep, lifetime: withEntityEnd(lifetime, current.type, next), bloblang: generate({ ...current, expires: undefined }, attributes, space) });
-              }}
-              onExpiry={(next) => onEnds({ expiry: next, lifetime })}
-            />
+          {onEnds && expiresProblem ? (
+            <Alert role="status" tone="warning">
+              {say(expiresProblem, "expiresAt")}
+            </Alert>
           ) : null}
 
           <p className="text-caption text-fg-muted">
