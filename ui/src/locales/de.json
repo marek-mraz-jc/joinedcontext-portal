@@ -8404,26 +8404,29 @@
     },
     "next": "Als Nächstes für Sie",
     "firstRun": {
-      "title": "Erste Schritte",
+      "title": "Ihr erster Datensatz",
+      "lead": "Veröffentlichen Sie Ihren ersten Datensatz in etwa 10 Minuten: Datei hochladen, prüfen, wer sie liest, und sie bei Bedarf öffentlich machen.",
       "progress": "{done} von {total} erledigt",
       "done": "Erledigt",
       "todo": "Noch offen",
       "dismiss": "Checkliste ausblenden",
       "restore": "Checkliste für den Einstieg zeigen",
       "step": {
-        "space": "Einen Kontextbereich anlegen",
-        "source": "Eine Datenquelle verbinden",
-        "pipeline": "Eine Pipeline ausführen",
-        "data": "Die Daten ansehen",
-        "share": "Über einen Endpoint teilen"
+        "upload": "CSV hochladen und das vorgeschlagene Modell prüfen",
+        "share": "Prüfen, wer sie liest: nur Ihre Organisation",
+        "publish": "Als öffentlichen Datensatz veröffentlichen"
       },
       "go": {
-        "space": "Bereich anlegen",
-        "source": "Quelle verbinden",
-        "pipeline": "Pipelines öffnen",
-        "data": "Bereich öffnen",
-        "share": "Endpoint anlegen"
-      }
+        "upload": "CSV hochladen",
+        "share": "Endpoint anlegen",
+        "publish": "Endpoint öffnen"
+      },
+      "hint": {
+        "upload": "Eine Datei bis 50 MB und 10.000 Zeilen, z. B. parken.csv mit den Spalten name, lat, lon. Das Portal schlägt aus den Spalten ein Datenmodell vor und schlägt den Bereich und seinen Endpoint vor.",
+        "share": "Der Upload schlägt einen Endpoint vor, den nur Ihre Organisation liest. Nichts ist öffentlich, bevor Sie es wählen.",
+        "publish": "Nutzen Sie „Datensatz veröffentlichen“ auf der Endpoint-Seite. Den öffentlichen Zugriff bestätigen Sie mit dem Namen des Endpoints, eine genehmigende Person nimmt ihn an, dann folgen der Katalogeintrag und seine Karte."
+      },
+      "liveSource": "Oder eine Live-Quelle per URL oder API anbinden"
     },
     "card": {
       "approvals": {

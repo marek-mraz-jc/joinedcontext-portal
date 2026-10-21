@@ -19,6 +19,8 @@ interface World {
   entities?: number;
   pipelines?: string[];
   dismissed?: boolean;
+  /** The project's Endpoints; `true` carries a catalogue publication. */
+  endpoints?: [string, boolean][];
   /** Arrived through an invitation's link (PF-108). */
   welcome?: boolean;
   onWelcomeClosed?: () => void;
@@ -47,6 +49,8 @@ function show(world: World) {
       if (path === "/api/v1/projects") return json({ apiVersion: "v1", kind: "List", items: world.projects ?? [{ name: "helsinki", sample: false }] });
       if (path === "/api/v1/projects/helsinki/spaces") return json(list((world.spaces ?? []).map((s) => named(s))));
       if (path.match(/\/spaces\/[^/]+\/usage$/)) return json({ entities: world.entities ?? 0, observedAt: "2026-10-07T20:00:00Z" });
+      if (path === "/api/v1/projects/helsinki/endpoints")
+        return json(list((world.endpoints ?? []).map(([name, published]) => ({ ...named(name), spec: published ? { publish: { ckan: { instanceRef: { name: "ckan" } } } } : {} }))));
       if (path === "/api/v1/projects/helsinki/pipelines") return json(list((world.pipelines ?? []).map((phase, at) => named(`p${at}`, phase))));
       if (path === "/api/v1/projects/helsinki/changes") return json(list([{ metadata: { name: "chg-1" }, status: { phase: "PendingApproval" } }]));
       if (path === "/api/v1/organization/people") return json({ title: "Forbidden", status: 403 }, 403);
@@ -66,20 +70,34 @@ afterEach(() => {
 });
 
 describe("the project home (T-3233, T-3235)", () => {
-  it("shows a new project's checklist with every step still to do, each linking to its form", async () => {
+  it("shows a new project's first-dataset path: upload, private endpoint, public on choice, each with its hint and link (T-5109)", async () => {
     const { container } = show({ verbs: ["read", "propose"] });
     const checklist = await screen.findByRole("region", { name: en.home.firstRun.title });
-    expect(within(checklist).getByRole("status")).toHaveTextContent("0 of 5 done");
-    expect(within(checklist).getByRole("link", { name: en.home.firstRun.go.space })).toHaveAttribute("href", "/projects/helsinki/spaces/new");
+    expect(within(checklist).getByRole("status")).toHaveTextContent("0 of 3 done");
+    expect(checklist).toHaveTextContent(en.home.firstRun.lead);
+    expect(within(checklist).getByRole("link", { name: en.home.firstRun.go.upload })).toHaveAttribute("href", "/projects/helsinki/spaces/upload");
+    expect(within(checklist).getByRole("link", { name: en.home.firstRun.liveSource })).toHaveAttribute("href", "/projects/helsinki/datasources/new");
     expect(within(checklist).getByRole("link", { name: en.home.firstRun.go.share })).toHaveAttribute("href", "/projects/helsinki/endpoints/new");
+    expect(within(checklist).getByRole("link", { name: en.home.firstRun.go.publish })).toHaveAttribute("href", "/projects/helsinki/endpoints");
+    for (const hint of Object.values(en.home.firstRun.hint)) expect(checklist).toHaveTextContent(hint);
     await expectNoViolations(container);
   });
 
-  it("ticks the steps the project has taken, from its own state", async () => {
-    show({ verbs: ["read", "propose"], spaces: ["air"], entities: 12, pipelines: ["Live"] });
+  it("ticks the steps the project has taken, from its own state, and sends the publish step to the endpoint", async () => {
+    show({ verbs: ["read", "propose"], spaces: ["parking"], entities: 12, endpoints: [["parking", false]] });
     const checklist = await screen.findByRole("region", { name: en.home.firstRun.title });
-    await waitFor(() => expect(within(checklist).getByRole("status")).toHaveTextContent("3 of 5 done"));
-    expect(within(checklist).queryByRole("link", { name: en.home.firstRun.go.data })).toBeNull();
+    await waitFor(() => expect(within(checklist).getByRole("status")).toHaveTextContent("2 of 3 done"));
+    expect(within(checklist).queryByRole("link", { name: en.home.firstRun.go.upload })).toBeNull();
+    expect(within(checklist).queryByRole("link", { name: en.home.firstRun.liveSource })).toBeNull();
+    expect(within(checklist).getByRole("link", { name: en.home.firstRun.go.publish })).toHaveAttribute("href", "/projects/helsinki/endpoints/parking");
+  });
+
+  it("closes the checklist once the dataset is published", async () => {
+    show({ verbs: ["read", "propose"], spaces: ["parking"], entities: 12, endpoints: [["parking", true]] });
+    await screen.findByText(en.home.lead.editor);
+    await waitFor(() => expect(screen.queryByRole("region", { name: en.home.firstRun.title })).toBeNull());
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(screen.queryByRole("region", { name: en.home.firstRun.title })).toBeNull();
   });
 
   it("puts the checklist away for the person, in their preferences", async () => {
