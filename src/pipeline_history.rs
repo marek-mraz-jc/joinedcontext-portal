@@ -533,4 +533,62 @@ mod tests {
             "an absent attribute is not judged"
         );
     }
+
+    #[test]
+    fn admission_names_each_history_entry_that_does_not_fit_a_space_it_writes() {
+        use crate::config::Config;
+        use crate::pipeline_validation::ModelSchema;
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        use std::collections::HashMap;
+        use std::sync::Arc;
+
+        let state = AppState::new(Config::for_tests(), None);
+        state.mirror.upsert(ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: "Endpoint".to_owned(),
+            metadata: ObjectMeta::new("ep-vehicles", "helsinki"),
+            spec: json!({ "contextSpaceRef": { "kind": "ContextSpace", "name": "vehicles" } }),
+            status: None,
+        });
+        let model = ModelSchema::compile(
+            "transport",
+            "1.0.0",
+            &json!({ "definitions": { "Vehicle": { "properties": {
+                "id": { "type": "string" },
+                "speed": { "type": ["number", "null"], "x-ngsi-ld-kind": "Property" }
+            } } } }),
+            &["Vehicle".to_owned()],
+            false,
+        );
+        state.model_schemas.replace(HashMap::from([(
+            ("helsinki".to_owned(), "vehicles".to_owned()),
+            Arc::new(model),
+        )]));
+        let spec = |history: Value| {
+            json!({
+                "class": "resident",
+                "sources": [{ "dataSourceRef": { "kind": "DataSource", "name": "feed" } }],
+                "outputs": [{ "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:helsinki:ep-vehicles" }],
+                "history": history,
+            })
+        };
+        let fits =
+            json!([{ "type": "Vehicle", "attributes": [{ "names": ["speed"], "keep": "every" }] }]);
+        assert!(check(&state, "helsinki", "Pipeline", &spec(fits.clone())).is_ok());
+        let misfit = json!([
+            fits[0].clone(),
+            { "type": "Vehicle", "attributes": [{ "names": ["colour"], "keep": "every" }] }
+        ]);
+        match check(&state, "helsinki", "Pipeline", &spec(misfit.clone())) {
+            Err(ApiError::Invalid { errors, .. }) => {
+                assert_eq!(errors.len(), 1, "{errors:?}");
+                assert!(errors[0].starts_with("spec.history[1]"), "{errors:?}");
+                assert!(errors[0].ends_with("in space vehicles"), "{errors:?}");
+            }
+            other => panic!("not refused by entry: {other:?}"),
+        }
+        // Another kind, or a pipeline that writes no modelled space, is not judged here.
+        assert!(check(&state, "helsinki", "DataSource", &spec(misfit.clone())).is_ok());
+        assert!(check(&state, "oulu", "Pipeline", &spec(misfit)).is_ok());
+    }
 }

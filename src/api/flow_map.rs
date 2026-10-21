@@ -147,4 +147,93 @@ mod tests {
         assert_eq!(runs.keys().collect::<Vec<_>>(), vec!["fine"]);
         assert_eq!(runs["fine"].sent, 7);
     }
+
+    /// Project helsinki, where `reader` may read `kinds`, holding `extra` too.
+    fn reader_world(
+        reader: &str,
+        kinds: serde_json::Value,
+        extra: Vec<crate::resource::ResourceEnvelope>,
+    ) -> AppState {
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        let envelope =
+            |kind: &str, name: &str, namespace: &str, spec: serde_json::Value| ResourceEnvelope {
+                api_version: API_VERSION.to_owned(),
+                kind: kind.to_owned(),
+                metadata: ObjectMeta::new(name, namespace),
+                spec,
+                status: None,
+            };
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let org = crate::permissions::ORG_NAMESPACE;
+        state.mirror.upsert(envelope(
+            "Role",
+            "reader",
+            org,
+            serde_json::json!({ "rules": [{ "kinds": kinds, "verbs": ["read"] }] }),
+        ));
+        state.mirror.upsert(envelope(
+            "RoleBinding",
+            "reader",
+            org,
+            serde_json::json!({ "subjects": [{ "user": reader }], "role": "reader", "scope": { "project": "helsinki" } }),
+        ));
+        for env in extra {
+            state.mirror.upsert(env);
+        }
+        state
+    }
+
+    fn signed_in(email: &str) -> CurrentUser {
+        CurrentUser(crate::auth::session::Session {
+            identity: crate::auth::session::Identity {
+                client: None,
+                subject: format!("f:1:{email}"),
+                username: email.to_owned(),
+                email: Some(email.to_owned()),
+                name: None,
+                roles: Vec::new(),
+                groups: Vec::new(),
+            },
+            expires_at: 0,
+            issued_at: 0,
+            id_token: String::new(),
+            access_expires_at: 0,
+            refresh_token: None,
+        })
+    }
+
+    #[tokio::test]
+    async fn the_map_is_for_a_reader_of_the_project_and_a_space_name_only() {
+        let state = reader_world("reader@hel.fi", serde_json::json!(["Pipeline"]), Vec::new());
+        let ask = |who: &str, project: &str, space: Option<&str>| {
+            get_flow_map(
+                signed_in(who),
+                State(state.clone()),
+                Path(project.to_owned()),
+                Query(FlowMapQuery {
+                    space: space.map(str::to_owned),
+                }),
+            )
+        };
+        let map = ask("reader@hel.fi", "helsinki", None)
+            .await
+            .expect("the map");
+        assert!(map.0.nodes.is_empty(), "nothing flows in an empty project");
+        assert!(ask("reader@hel.fi", "helsinki", Some("vehicles"))
+            .await
+            .is_ok());
+        assert!(matches!(
+            ask("reader@hel.fi", "helsinki", Some("Not a space!")).await,
+            Err(ApiError::BadRequest(_))
+        ));
+        // A stranger, or a name that is no project, learns nothing about it.
+        assert!(matches!(
+            ask("stranger@hel.fi", "helsinki", None).await,
+            Err(ApiError::NotFound(_))
+        ));
+        assert!(matches!(
+            ask("reader@hel.fi", "Helsinki!", None).await,
+            Err(ApiError::NotFound(_))
+        ));
+    }
 }

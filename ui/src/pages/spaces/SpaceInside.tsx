@@ -106,7 +106,7 @@ import {
   tabPanelProps,
   Term,
 } from "../../components/ui";
-import { ConfirmDialog, Input, RadioGroup } from "../../components/ui";
+import { ConfirmDialog, Field, Input, RadioGroup, Select } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { SourceRemovalsPanel } from "../pipelines/PipelineSourceReport";
 import { useUrlParam, useUrlUrn } from "../../navigation/urlState";
@@ -1157,7 +1157,20 @@ function TypeList({
   const item = (current: boolean) =>
     clsx("w-full justify-start truncate text-left text-body", current && "bg-primary-soft font-medium text-primary-soft-fg");
   return (
-    <nav aria-label={t("spaces.inside.types")} className="lg:border-r lg:border-border lg:pr-3">
+    <>
+    {/* Below lg the list of types is a picker above the grid (T-4992): twenty types listed one
+        under the other put the first row two screens down on a phone. The saved views have
+        their own picker beside the grid. */}
+    <Field id="space-type-picker" label={t("spaces.inside.type")} description={t("spaces.inside.typeHint")} className="lg:hidden">
+      <Select id="space-type-picker" value={type} onChange={(event) => onType(event.target.value)}>
+        {types.map((each) => (
+          <option key={each} value={each}>
+            {titleOf(each)}
+          </option>
+        ))}
+      </Select>
+    </Field>
+    <nav aria-label={t("spaces.inside.types")} className="max-lg:hidden lg:border-r lg:border-border lg:pr-3">
       <ul className="flex flex-col gap-0.5">
         {types.map((each) => (
           <li key={each}>
@@ -1203,6 +1216,7 @@ function TypeList({
         ))}
       </ul>
     </nav>
+    </>
   );
 }
 
