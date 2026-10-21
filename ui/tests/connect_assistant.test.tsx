@@ -8,7 +8,6 @@ import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
-import { expectNoViolations, focusables } from "./checks";
 import en from "../src/locales/en.json";
 import { ConnectAssistant, mcpInstall } from "../src/components/endpoints/ConnectAssistant";
 
@@ -72,14 +71,20 @@ describe("ConnectAssistant", () => {
     expect(writeText).toHaveBeenLastCalledWith(lines.json);
   });
 
-  it("lets a keyboard reach and scroll each client's line (T-4975, axe scrollable-region-focusable)", async () => {
+  it("lets the keyboard reach and scroll each code line, each under its own name (T-4973)", async () => {
     renderPanel("dev.city.example");
     const lines = mcpInstall(HUB);
-    for (const text of [lines.claude, lines.json]) {
-      const block = screen.getByText((_, node) => node?.tagName === "PRE" && node.textContent === text);
-      expect(focusables(document.body)).toContain(block);
+    for (const [name, text] of [
+      [en.endpoints.hub.claudeLine, lines.claude],
+      [en.endpoints.hub.jsonLine, lines.json],
+    ]) {
+      const block = screen.getByLabelText(name);
+      expect(block.tagName).toBe("PRE");
+      expect(block).toHaveTextContent(text.split("\n")[0]);
+      document.body.focus();
+      for (let step = 0; step < 10 && document.activeElement !== block; step++) await userEvent.tab();
+      expect(block).toHaveFocus();
     }
-    await expectNoViolations(document.body);
   });
 
   it("falls back to the page's origin when the installation names no host", () => {

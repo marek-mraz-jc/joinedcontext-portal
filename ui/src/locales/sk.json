@@ -1680,6 +1680,8 @@
       "lead": "Jedna MCP adresa pre všetky endpointy. Pridajte ju raz do AI asistenta: otvorené endpointy odpovedajú bez prihlásenia a po prihlásení pribudnú tie, ktoré smiete čítať. Asistent si endpoint vyberie, prečíta jeho atribúty, model a prístup a každé volanie prebehne pod politikou daného endpointu.",
       "claude": "Kopírovať pre Claude Code",
       "json": "Kopírovať pre iného MCP klienta",
+      "claudeLine": "Príkaz pre Claude Code",
+      "jsonLine": "Konfigurácia pre iného klienta MCP",
       "vscode": "Pridať do VS Code",
       "cursor": "Pridať do Cursor"
     },

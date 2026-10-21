@@ -1680,6 +1680,8 @@
       "lead": "Jedna MCP adresa pro všechna rozhraní. Přidejte ji jednou do AI asistenta: otevřená rozhraní odpovídají bez přihlášení a po přihlášení přibudou ta, která smíte číst. Asistent si rozhraní vybere, přečte jeho atributy, model a přístup a každé volání proběhne pod politikou daného rozhraní.",
       "claude": "Kopírovat pro Claude Code",
       "json": "Kopírovat pro jiného MCP klienta",
+      "claudeLine": "Příkaz pro Claude Code",
+      "jsonLine": "Konfigurace pro jiného klienta MCP",
       "vscode": "Přidat do VS Code",
       "cursor": "Přidat do Cursor"
     },
