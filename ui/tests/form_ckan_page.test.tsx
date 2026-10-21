@@ -27,7 +27,7 @@ vi.mock("../src/components/ChangeNotice", () => ({
 
 let mayPropose = true;
 vi.mock("../src/api/permissions", () => ({
-  usePermissions: () => ({ can: () => mayPropose }),
+  usePermissions: () => ({ data: { grants: [] }, can: () => mayPropose }),
 }));
 
 const { CkanPage } = await import("../src/pages/ckan/CkanPage");
@@ -327,10 +327,20 @@ describe("the catalogue form (T-1765)", () => {
     expect(screen.getByText(i18n.t("ckan.publications.emptyHint"))).toBeInTheDocument();
   });
 
-  it("refuses_the_proposal_with_its_reason_to_a_person_who_may_not_propose", async () => {
+  it("shows_a_viewer_the_refusal_sentence_and_the_catalogues_but_no_form (T-4997)", async () => {
     mayPropose = false;
     renderPage(page(), { path: `/projects/${PROJECT}`, answer: reads() });
-    expectDenied(await screen.findByRole("button", { name: /Propose catalogue/ }), /propose/);
+    expect(await screen.findByText(i18n.t("form.mayNotCreate"))).toBeInTheDocument();
+    // The read parts stay: the catalogue table and who manages it.
+    expect(await screen.findByRole("table", { name: i18n.t("ckan.instances.title") })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Propose catalogue/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/API token secret/)).not.toBeInTheDocument();
+  });
+
+  it("shows_a_steward_the_form (T-4997)", async () => {
+    renderPage(page(), { path: `/projects/${PROJECT}`, answer: reads() });
+    expect(await screen.findByRole("button", { name: /Propose catalogue/ })).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("form.mayNotCreate"))).not.toBeInTheDocument();
   });
 
   it.each(LOCALES)("says_everything_in_%s_with_no_raw_key", async (locale) => {
