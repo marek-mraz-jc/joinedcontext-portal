@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../../api/client";
 import i18n from "../../i18n";
 import { isChange, ORG_NAMESPACE } from "../../api/manifest";
+import { AccountAccess } from "../access/AccountAccess";
 import type { Manifest, ResourceProposal } from "../../api/manifest";
 import { allows, usePermissions } from "../../api/permissions";
 import { proposeChecked } from "../../api/proposal";
@@ -545,7 +546,7 @@ function Access({ item }: { item: AgentItem }): JSX.Element {
         ))}
       </ul>
     );
-  return (
+  const facts = (
     <Facts
       rows={[
         [
@@ -556,6 +557,15 @@ function Access({ item }: { item: AgentItem }): JSX.Element {
         [t("organization.agents.endpoints"), list(item.endpoints)],
       ]}
     />
+  );
+  // A ServiceAccount's own grants: the kind × verb matrix with each right's source, Revoke now (AG-130..AG-133).
+  return item.kind === "ServiceAccount" ? (
+    <div className="space-y-4">
+      {facts}
+      <AccountAccess project={item.project} account={item.name} level={2} />
+    </div>
+  ) : (
+    facts
   );
 }
 

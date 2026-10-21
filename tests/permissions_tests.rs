@@ -1362,6 +1362,58 @@ async fn a_lifetime_naming_no_slot_of_the_spaces_model_is_refused_before_a_chang
     assert_eq!(verdict["valid"], json!(true), "{body}");
 }
 
+/// A ServiceAccount grant carries a window (AG-131): before `notBefore` and after `notAfter` it
+/// grants nothing, at that second and before any reaper removed it, and the Access tab reads its
+/// state beside the rules it would carry, `approve` never among them (PF-58).
+#[test]
+fn an_account_grant_outside_its_window_grants_nothing() {
+    use joinedcontext_portal::permissions::{account_access, GrantState};
+    let until = Utc.with_ymd_and_hms(2026, 10, 21, 12, 0, 0).unwrap();
+    let roles = json!([
+        { "role": "pipeline-admin", "scope": { "project": "ovzdusie" },
+          "validity": { "notAfter": "2026-10-21T12:00:00Z" } },
+        { "role": "pipeline-admin", "scope": { "project": "doprava" },
+          "validity": { "notBefore": "2026-10-22T00:00:00Z" } }
+    ]);
+    let mirror = mirror_with(vec![
+        pipeline_admin_role(),
+        account("ovzdusie", "vendor-ci", roles),
+    ]);
+    let target = pipeline("aq");
+    let token = token_of("ovzdusie-vendor-ci", "service-account-ovzdusie-vendor-ci");
+    let at = |now| effective(&mirror, "platform-admins", &token, "ovzdusie", now);
+    assert!(at(until)
+        .check("Pipeline", Verb::Propose, Some(&target))
+        .is_ok());
+    let after = until + chrono::Duration::seconds(1);
+    assert!(at(after)
+        .check("Pipeline", Verb::Propose, Some(&target))
+        .is_err());
+    assert!(
+        effective(&mirror, "platform-admins", &token, "doprava", after)
+            .grants
+            .is_empty(),
+        "a grant whose window has not opened grants nothing yet"
+    );
+
+    let spec: jc_core::kinds::ServiceAccountSpec = serde_json::from_value(
+        mirror
+            .get("ovzdusie", "ServiceAccount", "vendor-ci")
+            .unwrap()
+            .spec,
+    )
+    .unwrap();
+    let access = account_access(&mirror, &spec, after);
+    assert_eq!(access[0].state, GrantState::Expired);
+    assert_eq!(access[1].state, GrantState::Pending);
+    assert_eq!(access[0].scope, "project:ovzdusie");
+    assert!(access[0]
+        .rules
+        .iter()
+        .all(|rule| !rule.verbs.contains(&Verb::Approve)));
+    assert!(access[0].rules[0].verbs.contains(&Verb::Delete));
+}
+
 /// T-4845: a Pipeline that carries a `spec.history`, for the door's refusals below.
 fn pipeline_with_history(history: Value) -> Value {
     let mut body = pipeline("aq");

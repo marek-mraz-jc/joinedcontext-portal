@@ -1962,6 +1962,7 @@
       "screenshots": [
         "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-workspaces-dialog-work-on-a-copy-steward-en-1440.png"
       ]
-    }
+    },
+    "src/pages/access/AccountAccess.tsx": null
   }
 }
