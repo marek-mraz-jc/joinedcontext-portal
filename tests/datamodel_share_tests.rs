@@ -13,6 +13,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 use common::{encode, envelope, person, send, REPO};
 use joinedcontext_portal::api::changes::{approve_change_for, ApprovedBy};
 use joinedcontext_portal::config::Config;
+use joinedcontext_portal::git::gitea::committed_text;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
 use joinedcontext_portal::resource::API_VERSION;
 use joinedcontext_portal::state::AppState;
@@ -202,7 +203,7 @@ fn opened_a_change(requests: &[wiremock::Request]) -> bool {
 }
 
 #[tokio::test]
-async fn a_project_member_proposes_a_red_change_that_copies_the_source_byte_for_byte() {
+async fn a_project_member_proposes_a_red_change_that_copies_the_source_in_the_committed_layout() {
     let (gitea, _tools, state) = world().await;
 
     let answer = send(&state, person("steward"), "POST", SHARE, None).await;
@@ -214,7 +215,7 @@ async fn a_project_member_proposes_a_red_change_that_copies_the_source_byte_for_
     let files = written(&gitea).await;
     assert_eq!(
         file(&files, ORG_SOURCE_PATH),
-        SOURCE,
+        committed_text(ORG_SOURCE_PATH, SOURCE),
         "the source changed on its way"
     );
     let manifest: Value =
@@ -342,7 +343,10 @@ async fn a_second_share_from_the_same_origin_proposes_the_next_version() {
         serde_norway::from_str(file(&files, "datamodels/air/air.yaml")).expect("yaml");
     assert_eq!(manifest["spec"]["version"], "1.1.0", "{manifest}");
     assert_eq!(manifest["spec"]["origin"]["version"], "1.2.0");
-    assert_eq!(file(&files, ORG_SOURCE_PATH), SOURCE);
+    assert_eq!(
+        file(&files, ORG_SOURCE_PATH),
+        committed_text(ORG_SOURCE_PATH, SOURCE)
+    );
 
     // Removing a slot the organization's copy has breaks it: a new major (DM-22).
     let (gitea, _tools, state) = world().await;

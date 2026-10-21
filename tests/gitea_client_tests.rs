@@ -1,5 +1,7 @@
 //! T-0190: Gitea REST API client integration tests with wiremock.
 
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine as _;
 use joinedcontext_portal::error::ApiError;
 use joinedcontext_portal::git::{
     Author, FileDelete, FileWrite, GitError, GiteaClient, MergeStyle, RepoFile, ReviewEvent,
@@ -153,7 +155,7 @@ async fn put_file_creates_and_replaces() {
         ))
         .and(header("authorization", "token secret-token"))
         .and(body_json(json!({
-            "content": "aGVsbG8gd29ybGQ=",
+            "content": "dGl0bGU6IGhlbGxvIHdvcmxkCg==",
             "message": "create dashboard",
             "branch": "feature-1",
             "author": { "name": "Alice Developer", "email": "alice@example.com" },
@@ -169,7 +171,7 @@ async fn put_file_creates_and_replaces() {
         path: "dashboards/dash.yaml",
         branch: "feature-1",
         message: "create dashboard",
-        content: "hello world",
+        content: "title: hello world\n",
         sha: None,
         author: Author {
             name: "Alice Developer",
@@ -186,7 +188,7 @@ async fn put_file_creates_and_replaces() {
         ))
         .and(header("authorization", "token secret-token"))
         .and(body_json(json!({
-            "content": "aGVsbG8gd29ybGQgdjI=",
+            "content": "dGl0bGU6IGhlbGxvIHdvcmxkIHYyCg==",
             "message": "update dashboard",
             "branch": "feature-1",
             "sha": "old-sha-111",
@@ -203,7 +205,7 @@ async fn put_file_creates_and_replaces() {
         path: "dashboards/dash.yaml",
         branch: "feature-1",
         message: "update dashboard",
-        content: "hello world v2",
+        content: "title: hello world v2\n",
         sha: Some("old-sha-111"),
         author: Author {
             name: "Alice Developer",
@@ -900,4 +902,46 @@ async fn a_forge_error_keeps_only_its_message() {
     );
     let err = client.create_branch("taken", "main").await.unwrap_err();
     assert_eq!(err, GitError::Conflict("The branch already exists.".into()));
+}
+
+/// T-5052/T-5151: a YAML file reaches the forge in the jcctl fmt layout, whatever layout the
+/// caller handed in.
+#[tokio::test]
+async fn put_file_commits_yaml_in_the_canonical_layout() {
+    let server = MockServer::start().await;
+    let base_url = server.uri().parse().unwrap();
+    let client = GiteaClient::new(base_url, "test-owner", "test-repo", "secret-token").unwrap();
+    let messy = "kind: Policy\napiVersion: joinedcontext.com/v1alpha1\nmetadata:\n    name: a\n";
+    let tidy = jc_core::yaml_fmt::format(messy).expect("formats");
+    assert_ne!(tidy, messy);
+
+    Mock::given(method("PUT"))
+        .and(path(
+            "/api/v1/repos/test-owner/test-repo/contents/policies/a.yaml",
+        ))
+        .and(body_json(json!({
+            "content": STANDARD.encode(&tidy),
+            "message": "create policy",
+            "branch": "main",
+            "author": { "name": "Alice Developer", "email": "alice@example.com" },
+            "committer": { "name": "Alice Developer", "email": "alice@example.com" }
+        })))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+            "commit": { "sha": "commit-sha-tidy" }
+        })))
+        .mount(&server)
+        .await;
+
+    let write = FileWrite {
+        path: "policies/a.yaml",
+        branch: "main",
+        message: "create policy",
+        content: messy,
+        sha: None,
+        author: Author {
+            name: "Alice Developer",
+            email: "alice@example.com",
+        },
+    };
+    assert_eq!(client.put_file(&write).await.unwrap(), "commit-sha-tidy");
 }

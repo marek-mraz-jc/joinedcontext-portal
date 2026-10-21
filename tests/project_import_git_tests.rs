@@ -14,6 +14,7 @@ use base64::Engine;
 use common::{envelope, forge, person, state_on, REPO};
 use joinedcontext_portal::auth::session::Identity;
 use joinedcontext_portal::config::Config;
+use joinedcontext_portal::git::gitea::committed_text;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
 use joinedcontext_portal::state::AppState;
 use serde_json::{json, Value};
@@ -788,7 +789,10 @@ async fn a_carried_model_that_differs_lands_in_the_project() {
     );
     assert_eq!(
         written["spaces/ovzdusie/datamodels/parking.linkml.yaml"],
-        PARKING_SOURCE.replace("org.stations.v1", "project.stations.v1")
+        committed_text(
+            "parking.linkml.yaml",
+            &PARKING_SOURCE.replace("org.stations.v1", "project.stations.v1")
+        )
     );
     organization_untouched(&server).await;
 }

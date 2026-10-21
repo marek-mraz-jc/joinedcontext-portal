@@ -9,6 +9,7 @@ use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use common::{encode, envelope, forge, person, send, state_on, REPO};
+use joinedcontext_portal::git::gitea::committed_text;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
 use joinedcontext_portal::state::AppState;
 
@@ -393,7 +394,7 @@ async fn a_merged_update_is_undone_by_a_change_that_puts_the_file_back() {
     assert_eq!(files["files"][0]["path"], json!(MANIFEST));
     assert_eq!(
         files["files"][0]["content"],
-        json!(encode(YAML)),
+        json!(encode(&committed_text(MANIFEST, YAML))),
         "the file as it was before"
     );
     assert!(sent.iter().any(
