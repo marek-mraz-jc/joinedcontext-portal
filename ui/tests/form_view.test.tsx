@@ -379,7 +379,7 @@ describe("a public form", () => {
     const send = screen.getByRole("button", { name: en.spaces.form.testSubmit });
     // The schema's required field is checked before anything is asked.
     await userEvent.click(send);
-    expect(await screen.findByText(en.spaces.form.fix.replace("{count}", "1"))).toBeInTheDocument();
+    expect(await screen.findByText("1 answer needs fixing before the form can be sent.")).toBeInTheDocument();
     expect(requests.filter((r) => r.method === "POST")).toHaveLength(0);
     await userEvent.type(screen.getByRole("textbox", { name: /^name/ }), "Hlavná");
     await userEvent.click(send);

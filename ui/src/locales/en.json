@@ -724,7 +724,8 @@
         "calendar": "Calendar",
         "timeline": "Timeline",
         "form": "Form",
-        "api": "API"
+        "api": "API",
+        "map": "Map"
       },
       "truncated": "The first {count} entities are shown; narrow the filter to see others.",
       "image": "Image",
@@ -777,7 +778,18 @@
       "restore": "Put back",
       "restoreOne": "Put back {name}",
       "restoreRefused": "{name} was not put back: {reason}",
-      "liveChanged": "Entities of this type changed at {time}; shown as they are now."
+      "liveChanged": "Entities of this type changed at {time}; shown as they are now.",
+      "moveReason": "Why you move (optional)",
+      "boardReadOnly": "You can read this board. None of your Endpoints lets you change {attr}, so the cards stay where they are.",
+      "nothingThisSpan": "Nothing falls in this span. Step to another one or choose another date field.",
+      "noDateTimeline": "A timeline needs a date field (a Property holding a date, such as startDate and endDate); this type has none.",
+      "timelineDrag": "Drag a bar sideways to move both dates by whole days, or open a row to choose its new start.",
+      "moveStart": "New {start} ({end} moves by the same days)",
+      "noGeo": "A map needs a place field (a geo property such as location); none of the rows shown has one.",
+      "placeBy": "Place by",
+      "placed": "{count, plural, one {# row} other {# rows}} of {total} on the map; rows without a place are not drawn.",
+      "mapLabel": "Map of the rows by {attr}",
+      "openRow": "Open the row"
     },
     "api": {
       "lead": "How a program reads {type}: through an Endpoint of this space, with its own token, and the webhooks that tell it when something changes.",
@@ -806,7 +818,16 @@
       "webhooks": "Webhooks",
       "webhooksLead": "An NGSI-LD subscription on {type} that calls a URL when an entity changes, proposed as a Change.",
       "noWebhook": "No webhook watches this type yet.",
-      "newWebhook": "New webhook for this type"
+      "newWebhook": "New webhook for this type",
+      "viewQuery": "This view's query",
+      "viewQueryLead": "The rows of this view, filtered by {q}: each URL below answers the same rows.",
+      "viewQueryAll": "No filter is set: each URL answers every {type} you may read.",
+      "surface": {
+        "ngsi-ld": "NGSI-LD",
+        "ogc-features": "OGC Features",
+        "odata": "OData"
+      },
+      "copySurface": "Copy the {surface} URL"
     },
     "share": {
       "title": "Publish this type as a public link",
@@ -920,7 +941,7 @@
       "lat": "Latitude",
       "lon": "Longitude",
       "submit": "Create",
-      "fix": "{count} answers need fixing before the form can be sent.",
+      "fix": "{count, plural, one {# answer needs} other {# answers need}} fixing before the form can be sent.",
       "refused": "Not created: {reason}",
       "created": "Created {id}.",
       "noFields": "The model of {type} has no field a form can ask for.",
@@ -1229,6 +1250,11 @@
       "timeOf": "Time: {source}",
       "unitOf": "Unit: {unit}",
       "noMatchHint": "Choose All pipelines and All verdicts to see every row."
+    },
+    "viewHints": {
+      "moveReason": "Kept with each move in the change history, e.g. \"Moved after the venue cancelled\".",
+      "moveStart": "Pick a day, e.g. 2026-11-03.",
+      "placeBy": "The place field that puts each row on the map, e.g. location."
     }
   },
   "endpoints": {

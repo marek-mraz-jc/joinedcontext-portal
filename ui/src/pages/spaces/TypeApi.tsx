@@ -15,6 +15,7 @@ import { asManifests } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { useBranding } from "../../branding";
 import {
+  CopyUrlButton,
   endpointUrl,
   REPRESENTATION_PATHS,
   representationUrl,
@@ -43,6 +44,35 @@ export function callsOf(
   return calls;
 }
 
+/**
+ * The query of the view on screen as each representation of one Endpoint takes it (T-4884): the
+ * NGSI-LD query itself, and OGC API Features and OData with the same `q` as their `ngsild.q`
+ * option (ADR-0028 rule 6), so all three answer the same rows. Only the representations the
+ * Endpoint serves.
+ */
+export function viewQueryUrls(
+  slug: string,
+  type: string,
+  q: string | undefined,
+  served: string[],
+): { key: "ngsi-ld" | "ogc-features" | "odata"; url: string }[] {
+  const name = encodeURIComponent(type);
+  const asked = q?.trim() ? encodeURIComponent(q.trim()) : "";
+  const urls: { key: "ngsi-ld" | "ogc-features" | "odata"; url: string }[] = [
+    { key: "ngsi-ld", url: endpointUrl(slug, `/ngsi-ld/v1/entities?type=${name}${asked ? `&q=${asked}` : ""}`) },
+  ];
+  if (served.includes("ogc-features")) {
+    urls.push({
+      key: "ogc-features",
+      url: endpointUrl(slug, `/ogc/features/collections/${name}/items${asked ? `?ngsild.q=${asked}` : ""}`),
+    });
+  }
+  if (served.includes("odata")) {
+    urls.push({ key: "odata", url: endpointUrl(slug, `/odata/v4/${name}${asked ? `?ngsild.q=${asked}` : ""}`) });
+  }
+  return urls;
+}
+
 /** The subscriptions of the space that watch the type: by its label and an entity selector. */
 export function webhooksOf(subscriptions: Manifest[], space: string, type: string): Manifest[] {
   return subscriptions.filter((subscription) => {
@@ -64,12 +94,15 @@ export function TypeApi({
   space,
   type,
   endpoints,
+  q,
 }: {
   project: string;
   space: string;
   type: string;
   /** The space's Endpoints. */
   endpoints: Manifest[];
+  /** The NGSI-LD query of the view the person set up, none for the whole type. */
+  q?: string;
 }): JSX.Element {
   const { t } = useTranslation();
   const { domain } = useBranding();
@@ -139,9 +172,24 @@ export function TypeApi({
         const slug = (endpoint.spec as { slug: string }).slug;
         return (
           <Card key={endpoint.metadata.name} className="flex flex-col gap-2 p-3">
-            <h3 className="text-body font-semibold text-fg">
+            <h2 className="text-body font-semibold text-fg">
               {t("spaces.api.endpoint", { name: endpoint.metadata.name })}
-            </h3>
+            </h2>
+            <section aria-label={t("spaces.api.viewQuery")} className="flex flex-col gap-1" data-testid="api-view-query">
+              <h3 className="text-caption font-semibold text-fg">{t("spaces.api.viewQuery")}</h3>
+              <p className="text-caption text-fg-muted">
+                {q?.trim() ? t("spaces.api.viewQueryLead", { q: q.trim() }) : t("spaces.api.viewQueryAll", { type })}
+              </p>
+              <ul className="flex flex-col gap-1">
+                {viewQueryUrls(slug, type, q, servedRepresentations(endpoint.spec as Record<string, unknown>)).map((each) => (
+                  <li key={each.key} className="flex flex-wrap items-center gap-2">
+                    <span className="w-28 shrink-0 text-caption font-semibold text-fg-muted">{t(`spaces.api.surface.${each.key}`)}</span>
+                    <code className="min-w-0 flex-1 font-mono text-caption text-fg [overflow-wrap:anywhere]">{each.url}</code>
+                    <CopyUrlButton url={each.url} label={t("spaces.api.copySurface", { surface: t(`spaces.api.surface.${each.key}`) })} />
+                  </li>
+                ))}
+              </ul>
+            </section>
             <dl className="grid gap-x-3 gap-y-1 sm:grid-cols-[auto_1fr]">
               {callsOf(slug, type, servedRepresentations(endpoint.spec as Record<string, unknown>), domain).map((call) => (
                 <div key={call.key} className="contents">
@@ -150,7 +198,7 @@ export function TypeApi({
                 </div>
               ))}
             </dl>
-            <pre className="overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">
+            <pre tabIndex={0} className="focus-ring overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">
               {`curl -H "Authorization: Bearer $TOKEN" \\\n  "${endpointUrl(slug, `/ngsi-ld/v1/entities?type=${encodeURIComponent(type)}&limit=10`)}"`}
             </pre>
             <div className="flex flex-wrap items-center gap-2">
@@ -166,7 +214,7 @@ export function TypeApi({
                 <p className="text-caption text-fg-muted" role="status">
                   {t("spaces.api.answered", { status: tried.status })}
                 </p>
-                <pre className="max-h-64 overflow-auto rounded-md bg-surface-subtle p-2 font-mono text-caption" data-testid="api-tried">
+                <pre tabIndex={0} className="focus-ring max-h-64 overflow-auto rounded-md bg-surface-subtle p-2 font-mono text-caption" data-testid="api-tried">
                   {tried.text}
                 </pre>
               </div>
@@ -176,9 +224,9 @@ export function TypeApi({
       })}
 
       <section aria-labelledby="api-tokens" className="flex flex-col gap-1">
-        <h3 id="api-tokens" className="text-body font-semibold text-fg">
+        <h2 id="api-tokens" className="text-body font-semibold text-fg">
           {t("spaces.api.tokens")}
-        </h3>
+        </h2>
         <p className="text-body text-fg-muted">{t("spaces.api.tokensLead")}</p>
         <Link
           to="/projects/$project/settings/$tab"
@@ -190,9 +238,9 @@ export function TypeApi({
       </section>
 
       <section aria-labelledby="api-webhooks" className="flex flex-col gap-2">
-        <h3 id="api-webhooks" className="text-body font-semibold text-fg">
+        <h2 id="api-webhooks" className="text-body font-semibold text-fg">
           {t("spaces.api.webhooks")}
-        </h3>
+        </h2>
         <p className="text-body text-fg-muted">{t("spaces.api.webhooksLead", { type })}</p>
         {hooks.length === 0 ? (
           <p className="text-caption text-fg-muted">{t("spaces.api.noWebhook")}</p>

@@ -95,7 +95,9 @@
     "HTTP endpoint",
     "1. Endpoint",
     "/min",
-    "MQTT"
+    "MQTT",
+    "OGC Features",
+    "OData"
   ],
   "cs": [
     "@context",
@@ -190,7 +192,9 @@
     "Čeština",
     "REST API (JSON)",
     "/min",
-    "MQTT"
+    "MQTT",
+    "OGC Features",
+    "OData"
   ],
   "de": [
     "@context",
@@ -321,6 +325,8 @@
     "Debug",
     "+ Debug",
     "debug",
-    "MQTT"
+    "MQTT",
+    "OGC Features",
+    "OData"
   ]
 }

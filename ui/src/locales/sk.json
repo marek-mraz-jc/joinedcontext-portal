@@ -724,7 +724,8 @@
         "calendar": "Kalendár",
         "timeline": "Časová os",
         "form": "Formulár",
-        "api": "API"
+        "api": "API",
+        "map": "Mapa"
       },
       "truncated": "Zobrazuje sa prvých {count} entít; zúžte filter, aby ste videli ďalšie.",
       "image": "Obrázok",
@@ -777,7 +778,18 @@
       "restore": "Vrátiť",
       "restoreOne": "Vrátiť {name}",
       "restoreRefused": "{name} sa nevrátil: {reason}",
-      "liveChanged": "Entity tohto typu sa zmenili o {time}; zobrazené tak, ako sú teraz."
+      "liveChanged": "Entity tohto typu sa zmenili o {time}; zobrazené tak, ako sú teraz.",
+      "moveReason": "Prečo presúvate (nepovinné)",
+      "boardReadOnly": "Túto tabuľu môžete čítať. Žiadny z vašich Endpointov vám nedovolí meniť {attr}, preto karty zostávajú na mieste.",
+      "nothingThisSpan": "V tomto období nič nie je. Prejdite na iné alebo vyberte iné pole s dátumom.",
+      "noDateTimeline": "Časová os potrebuje pole s dátumom (ako startDate a endDate); tento typ žiadne nemá.",
+      "timelineDrag": "Potiahnutím pruhu do strany posuniete oba dátumy o celé dni, alebo otvorte riadok a vyberte nový začiatok.",
+      "moveStart": "Nový {start} ({end} sa posunie o rovnaký počet dní)",
+      "noGeo": "Mapa potrebuje pole s miestom (ako location); žiadny zo zobrazených riadkov ho nemá.",
+      "placeBy": "Umiestniť podľa",
+      "placed": "{count, plural, one {# riadok} few {# riadky} other {# riadkov}} z {total} na mape; riadky bez miesta sa nekreslia.",
+      "mapLabel": "Mapa riadkov podľa {attr}",
+      "openRow": "Otvoriť riadok"
     },
     "api": {
       "lead": "Ako program číta {type}: cez endpoint tohto priestoru, s vlastným tokenom, a webhooky, ktoré mu povedia, keď sa niečo zmení.",
@@ -806,7 +818,16 @@
       "webhooks": "Webhooky",
       "webhooksLead": "NGSI-LD subscription na {type}, ktorá zavolá URL, keď sa entita zmení, navrhnutá ako zmena.",
       "noWebhook": "Tento typ zatiaľ nesleduje žiadny webhook.",
-      "newWebhook": "Nový webhook pre tento typ"
+      "newWebhook": "Nový webhook pre tento typ",
+      "viewQuery": "Dopyt tohto pohľadu",
+      "viewQueryLead": "Riadky tohto pohľadu, filtrované podľa {q}: každá URL nižšie vráti tie isté riadky.",
+      "viewQueryAll": "Nie je nastavený filter: každá URL vráti všetky {type}, ktoré smiete čítať.",
+      "surface": {
+        "ngsi-ld": "NGSI-LD",
+        "ogc-features": "OGC Features",
+        "odata": "OData"
+      },
+      "copySurface": "Kopírovať URL {surface}"
     },
     "share": {
       "title": "Zverejniť tento typ ako verejný odkaz",
@@ -1229,6 +1250,11 @@
       "timeOf": "Čas: {source}",
       "unitOf": "Jednotka: {unit}",
       "noMatchHint": "Vyberte Všetky pipeline a Všetky verdikty, aby ste videli každý riadok."
+    },
+    "viewHints": {
+      "moveReason": "Uloží sa pri každom presune do histórie zmien, napr. „Presunuté, lebo miesto zrušili“.",
+      "moveStart": "Vyberte deň, napr. 2026-11-03.",
+      "placeBy": "Pole s miestom, ktoré dá každý riadok na mapu, napr. location."
     }
   },
   "endpoints": {

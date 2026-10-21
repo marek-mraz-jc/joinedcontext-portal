@@ -3,7 +3,7 @@
  * source, drawn as cards (T-3100); a click opens the row whole.
  */
 // covers (T-2137, the module gate in gate_modules.test.ts): src/pages/spaces/DataViews.tsx.
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -14,8 +14,15 @@ import type { EntitySource } from "@joinedcontext/sdk";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import {
+  addDays,
   CARD_FIELDS,
   CalendarView,
+  geoAttributes,
+  MapOfRows,
+  rowFeatures,
+  shifted,
+  startKeyOf,
+  writes,
   deleteRow,
   GalleryView,
   KanbanView,
@@ -33,6 +40,18 @@ import {
   writable,
 } from "../src/pages/spaces/DataViews";
 import { expectNoViolations } from "./checks";
+import type { MapLayer } from "../src/components/dashboards/MapLibreView";
+import type { ReactNode } from "react";
+
+// MapLibre draws on a canvas jsdom does not have: the view is judged by the layer it hands over.
+const drawn: { layers: MapLayer[] } = { layers: [] };
+vi.mock("../src/components/dashboards/MapLibreView", async (original) => ({
+  ...(await original<typeof import("../src/components/dashboards/MapLibreView")>()),
+  MapLibreView: ({ layers, label }: { layers: MapLayer[]; label: string }) => {
+    drawn.layers = layers;
+    return <div role="application" aria-label={label} />;
+  },
+}));
 
 const ORIGIN = window.location.origin;
 
@@ -167,7 +186,7 @@ describe("the board (T-3101)", () => {
     await expectNoViolations(screen.getByTestId("view-kanban"));
 
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Move Station 1 to" }), "outOfService");
-    expect(patch).toHaveBeenCalledWith(rows[0].id, { status: { type: "Property", value: "outOfService" } });
+    expect(patch).toHaveBeenCalledWith(rows[0].id, { status: { type: "Property", value: "outOfService" } }, undefined);
     expect(within(screen.getByTestId("kanban-column-outOfService")).getAllByRole("listitem")).toHaveLength(2);
     expect(screen.queryByTestId("kanban-column-working")).toBeInTheDocument();
   });
@@ -272,7 +291,7 @@ describe("the calendar and the timeline (T-3102)", () => {
     fireEvent.dragStart(chip, { dataTransfer: { setData: () => undefined } });
     fireEvent.dragOver(screen.getByTestId("calendar-day-2026-10-09"));
     fireEvent.drop(screen.getByTestId("calendar-day-2026-10-09"));
-    expect(patch).toHaveBeenCalledWith(rows[0].id, { startDate: { type: "Property", value: "2026-10-09T18:00:00Z" } });
+    expect(patch).toHaveBeenCalledWith(rows[0].id, { startDate: { type: "Property", value: "2026-10-09T18:00:00Z" } }, undefined);
     expect(within(screen.getByTestId("calendar-day-2026-10-09")).getByRole("button", { name: "Event 1" })).toBeInTheDocument();
   });
 
@@ -287,7 +306,7 @@ describe("the calendar and the timeline (T-3102)", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: en.spaces.views.rescheduleSave }));
     expect(patch).toHaveBeenCalledWith(rows[1].id, {
       startDate: { type: "Property", value: { "@type": "DateTime", "@value": "2026-10-23T09:30:00Z" } },
-    });
+    }, undefined);
     expect(await screen.findByRole("alert")).toHaveTextContent("Event 2 was not moved: the policy grants no update of startDate");
     expect(within(screen.getByTestId("calendar-day-2026-10-20")).getByRole("button", { name: "Event 2" })).toBeInTheDocument();
   });
@@ -320,7 +339,7 @@ describe("the calendar and the timeline (T-3102)", () => {
         <TimelineView rows={[station(1)]} />
       </I18nextProvider>,
     );
-    expect(screen.getByText(en.spaces.views.noDate)).toBeInTheDocument();
+    expect(screen.getByText(en.spaces.views.noDateTimeline)).toBeInTheDocument();
   });
 });
 
@@ -346,16 +365,16 @@ describe("history and undo (T-3107)", () => {
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Move Station 1 to" }), "outOfService");
     const undo = screen.getByRole("button", { name: "Undo: Station 1 back to working" });
     await userEvent.click(undo);
-    expect(patch).toHaveBeenLastCalledWith(station(1).id, { status: { type: "Property", value: "working" } });
+    expect(patch).toHaveBeenLastCalledWith(station(1).id, { status: { type: "Property", value: "working" } }, undefined);
     expect(within(screen.getByTestId("kanban-column-working")).getAllByRole("listitem")).toHaveLength(1);
 
     await userEvent.click(screen.getByRole("button", { name: "Redo: Station 1 to outOfService" }));
-    expect(patch).toHaveBeenLastCalledWith(station(1).id, { status: { type: "Property", value: "outOfService" } });
+    expect(patch).toHaveBeenLastCalledWith(station(1).id, { status: { type: "Property", value: "outOfService" } }, undefined);
 
     screen.getByTestId("view-kanban").focus();
     fireEvent.keyDown(screen.getByTestId("view-kanban"), { key: "z", ctrlKey: true });
     await waitFor(() =>
-      expect(patch).toHaveBeenLastCalledWith(station(1).id, { status: { type: "Property", value: "working" } }),
+      expect(patch).toHaveBeenLastCalledWith(station(1).id, { status: { type: "Property", value: "working" } }, undefined),
     );
     expect(patch).toHaveBeenCalledTimes(4);
   });
@@ -490,5 +509,161 @@ describe("delete and the trash (T-3107)", () => {
     await waitFor(() => expect(screen.queryByTestId("view-trash")).toBeNull());
     expect(sentTo(fetchMock, "/spaces/bikes/trash/4").map((call) => call.method)).toEqual(["DELETE"]);
     vi.unstubAllGlobals();
+  });
+});
+
+describe("writes, reasons and phones (T-4884)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  const STATUS = [
+    { value: "working", title: "Working" },
+    { value: "outOfService", title: "Out of service" },
+  ];
+  const event = (n: number, start: string, end?: string) =>
+    toRichRow(
+      {
+        id: `urn:ngsi-ld:Event:hel.fi:events:${n}`,
+        type: "Event",
+        name: { type: "Property", value: `Event ${n}` },
+        startDate: { type: "Property", value: start },
+        ...(end ? { endDate: { type: "Property", value: end } } : {}),
+      },
+      "en",
+    );
+  const wrap = (node: ReactNode) => render(<I18nextProvider i18n={i18n}>{node}</I18nextProvider>);
+
+  it("lets a view write an attribute only through a source that writes and a grant naming it", () => {
+    const patch = vi.fn();
+    const source: EntitySource = { query: vi.fn(), get: vi.fn(), patch };
+    expect(writes(source, undefined, "status")).toBe(true);
+    expect(writes(source, ["status"], "status")).toBe(true);
+    expect(writes(source, ["name"], "status")).toBe(false);
+    expect(writes(source, [], "status")).toBe(false);
+    expect(writes({ query: vi.fn(), get: vi.fn() }, ["status"], "status")).toBe(false);
+    expect(writes(source, ["status"], "")).toBe(false);
+  });
+
+  it("shows a viewer the board without a drag or a move, and says why", () => {
+    const patch = vi.fn();
+    wrap(<KanbanView rows={[station(1)]} source={{ query: vi.fn(), get: vi.fn(), patch }} enums={{ status: STATUS }} editable={[]} />);
+    expect(screen.getByText(en.spaces.views.boardReadOnly.replace("{attr}", "status"))).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /Move Station 1/ })).toBeNull();
+    expect(screen.queryByLabelText(en.spaces.views.moveReason)).toBeNull();
+    expect(screen.getByTestId("kanban-column-working").querySelector("li")?.getAttribute("draggable")).toBe("false");
+  });
+
+  it("sends the reason the person typed with a board move", async () => {
+    const patch = vi.fn().mockResolvedValue(undefined);
+    wrap(<KanbanView rows={[station(1)]} source={{ query: vi.fn(), get: vi.fn(), patch }} enums={{ status: STATUS }} editable={["status"]} />);
+    await userEvent.type(screen.getByLabelText(en.spaces.views.moveReason), "Broken lock");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: /Station 1/ }), "outOfService");
+    expect(patch).toHaveBeenCalledWith(station(1).id, { status: { type: "Property", value: "outOfService" } }, "Broken lock");
+  });
+
+  it("keeps the calendar read-only for a date the person's grants do not name", () => {
+    wrap(<CalendarView rows={[event(1, "2026-10-06")]} source={{ query: vi.fn(), get: vi.fn(), patch: vi.fn() }} editable={["name"]} today="2026-10-06" />);
+    expect(screen.queryByLabelText(en.spaces.views.moveReason)).toBeNull();
+    expect(within(screen.getByTestId("calendar-day-2026-10-06")).getByRole("button", { name: "Event 1" }).getAttribute("draggable")).toBe("false");
+  });
+
+  it("says on a phone when nothing falls in the month shown, and hides the empty days", () => {
+    wrap(<CalendarView rows={[event(1, "2026-12-06")]} source={{ query: vi.fn(), get: vi.fn() }} today="2026-10-06" />);
+    expect(screen.getByText(en.spaces.views.nothingThisSpan)).toHaveClass("sm:hidden");
+    expect(screen.getByTestId("calendar-day-2026-10-06")).toHaveClass("hidden");
+  });
+
+  it("starts a calendar and a timeline from the key named as a start, not the first in name order", () => {
+    expect(startKeyOf(["endDate", "startDate"])).toBe("startDate");
+    expect(startKeyOf(["validFrom", "validTo"])).toBe("validFrom");
+    expect(startKeyOf(["dateIssued", "dateModified"])).toBe("dateIssued");
+    expect(startKeyOf([])).toBe("");
+  });
+
+  it("moves a timeline row's start and end by the same days, each in its own shape", () => {
+    const row = event(1, "2026-10-06T18:00:00Z", "2026-10-08");
+    expect(addDays("2026-10-30", 3)).toBe("2026-11-02");
+    expect(shifted(row, "startDate", "endDate", "2026-10-10")).toEqual({
+      startDate: { type: "Property", value: "2026-10-10T18:00:00Z" },
+      endDate: { type: "Property", value: "2026-10-12" },
+    });
+    expect(shifted(row, "startDate", "startDate", "2026-10-10")).toEqual({
+      startDate: { type: "Property", value: "2026-10-10T18:00:00Z" },
+    });
+    expect(shifted(event(2, "2026-10-06"), "startDate", "endDate", "2026-10-10")).toBeUndefined();
+    expect(shifted(row, "startDate", "endDate", "soon")).toBeUndefined();
+  });
+
+  it("moves a timeline row from its dialog with the reason, and shows it where it went", async () => {
+    const patch = vi.fn().mockResolvedValue(undefined);
+    const row = event(1, "2026-10-06", "2026-10-08");
+    wrap(<TimelineView rows={[row]} source={{ query: vi.fn(), get: vi.fn(), patch }} editable={["startDate", "endDate"]} />);
+    expect(screen.getByText(en.spaces.views.timelineDrag)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(en.spaces.views.moveReason), "Venue moved");
+    await userEvent.click(screen.getByRole("button", { name: "Event 1" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText(/New startDate/), { target: { value: "2026-10-16" } });
+    await userEvent.click(within(dialog).getByRole("button", { name: en.spaces.views.rescheduleSave }));
+    expect(patch).toHaveBeenCalledWith(
+      row.id,
+      { startDate: { type: "Property", value: "2026-10-16" }, endDate: { type: "Property", value: "2026-10-18" } },
+      "Venue moved",
+    );
+    expect(await screen.findByText(/Oct 16, 2026 – Oct 18, 2026/)).toBeInTheDocument();
+  });
+
+  it("offers a viewer no move on the timeline", async () => {
+    wrap(<TimelineView rows={[event(1, "2026-10-06", "2026-10-08")]} source={{ query: vi.fn(), get: vi.fn(), patch: vi.fn() }} editable={[]} />);
+    expect(screen.queryByText(en.spaces.views.timelineDrag)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Event 1" }));
+    expect(within(await screen.findByRole("dialog")).queryByLabelText(/New startDate/)).toBeNull();
+  });
+});
+
+describe("the map (T-4884)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+    drawn.layers = [];
+  });
+  const placed = (n: number, location?: unknown) =>
+    toRichRow(
+      {
+        id: `urn:ngsi-ld:Event:hel.fi:events:${n}`,
+        type: "Event",
+        name: { type: "Property", value: `Event ${n}` },
+        ...(location ? { location: { type: "GeoProperty", value: location } } : {}),
+      },
+      "en",
+    );
+  const rows = [placed(1, { type: "Point", coordinates: [24.94, 60.17] }), placed(2)];
+
+  it("offers the GeoProperties of the page, location first, and draws the rows that have one", () => {
+    expect(geoAttributes(rows)).toEqual(["location"]);
+    expect(geoAttributes([station(1)])).toEqual([]);
+    const features = rowFeatures(rows, "location").features as { properties: { id: string; name: string } }[];
+    expect(features.map((feature) => feature.properties)).toEqual([{ id: rows[0].id, name: "Event 1" }]);
+  });
+
+  it("places the rows, counts the unplaced, and opens a row from its point", async () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MapOfRows project="helsinki" rows={rows} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText(/1 row of 2 on the map/)).toBeInTheDocument();
+    expect(await screen.findByRole("application", { name: "Map of the rows by location" })).toBeInTheDocument();
+    expect(drawn.layers[0].cluster).toBe(true);
+    act(() => drawn.layers[0].open?.onOpen(rows[0].id));
+    expect(await screen.findByRole("dialog", { name: "Event 1" })).toBeInTheDocument();
+  });
+
+  it("names the field type a map needs when the rows have no place", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MapOfRows rows={[station(1)]} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText(en.spaces.views.noGeo)).toBeInTheDocument();
   });
 });

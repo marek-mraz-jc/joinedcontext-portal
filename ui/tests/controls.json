@@ -1691,7 +1691,7 @@
     },
     "src/pages/spaces/DataViews.tsx": {
       "controls": {
-        "Button": 13,
+        "Button": 14,
         "Checkbox": 1
       },
       "tests": [
