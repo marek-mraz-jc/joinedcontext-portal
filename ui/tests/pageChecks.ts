@@ -38,6 +38,16 @@ export type PageCheck =
   | "http"
   | "viewer-write";
 
+/**
+ * How long the walker waits before it loads a page the edge refused with 429 again: the seconds the
+ * refusal's `Retry-After` names plus one, kept between 2 and 61 s; no or a garbled header waits 20 s,
+ * a third of the edge's minute window (T-5078).
+ */
+export function edgeRetryMs(retryAfter: string | undefined): number {
+  const seconds = (retryAfter ?? "").trim();
+  return /^\d+$/.test(seconds) ? (Math.min(Number(seconds), 60) + 1) * 1000 : 20_000;
+}
+
 export function pageFindings(options: PageCheckOptions): string[] {
   // The app never replaced index.html's fallback (its script or a chunk did not load, as when the
   // edge answers 429): the rules below would judge the fallback, so the walk says that instead (T-5069).
