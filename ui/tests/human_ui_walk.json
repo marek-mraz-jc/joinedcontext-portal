@@ -1128,13 +1128,75 @@
         "evidence/deployer/T-3986/new-pages-1320/portal-projects-helsinki-inbox-open-viewer-en-2560.png"
       ]
     },
-    "src/pages/knowledge/AssistantChat.tsx": null,
-    "src/pages/knowledge/ConversationsPage.tsx": null,
-    "src/pages/knowledge/IndexStatus.tsx": null,
-    "src/pages/knowledge/KnowledgePage.tsx": null,
-    "src/pages/knowledge/SourcePage.tsx": null,
-    "src/pages/knowledge/UploadedFiles.tsx": null,
-    "src/pages/knowledge/UsageSummary.tsx": null,
+    "src/pages/knowledge/AssistantChat.tsx": {
+      "walkedBy": "worker-t4869",
+      "date": "2026-10-21",
+      "screenshots": [
+        "evidence/worker-t4869/T-4869/ask-grounded-1440.png",
+        "evidence/worker-t4869/T-4869/ask-grounded-400.png",
+        "evidence/worker-t4869/T-4869/after/after-answer-1440.png",
+        "evidence/worker-t4869/T-4869/after/after-answer-400.png"
+      ]
+    },
+    "src/pages/knowledge/ConversationsPage.tsx": {
+      "walkedBy": "worker-t4869",
+      "date": "2026-10-21",
+      "screenshots": [
+        "evidence/worker-t4869/T-4869/conversations-1440.png",
+        "evidence/worker-t4869/T-4869/conversations-400.png"
+      ]
+    },
+    "src/pages/knowledge/IndexStatus.tsx": {
+      "walkedBy": "worker-t4869",
+      "date": "2026-10-21",
+      "screenshots": [
+        "evidence/worker-t4869/T-4869/files-indexed-1440.png",
+        "evidence/worker-t4869/T-4869/files-indexed-400.png",
+        "evidence/worker-t4869/T-4869/after/after-source-400.png"
+      ]
+    },
+    "src/pages/knowledge/KnowledgePage.tsx": {
+      "walkedBy": "worker-t4869",
+      "date": "2026-10-21",
+      "screenshots": [
+        "evidence/worker-t4869/T-4869/list-before-1440.png",
+        "evidence/worker-t4869/T-4869/files-listed-1440.png",
+        "evidence/worker-t4869/T-4869/files-listed-400.png",
+        "evidence/worker-t4869/T-4869/viewer-list-1440.png",
+        "evidence/worker-t4869/T-4869/after/after-list-1440.png",
+        "evidence/worker-t4869/T-4869/after/after-list-400.png"
+      ]
+    },
+    "src/pages/knowledge/SourcePage.tsx": {
+      "walkedBy": "worker-t4869",
+      "date": "2026-10-21",
+      "screenshots": [
+        "evidence/worker-t4869/T-4869/files-search-1440.png",
+        "evidence/worker-t4869/T-4869/files-search-400.png",
+        "evidence/worker-t4869/T-4869/viewer-source-1440.png",
+        "evidence/worker-t4869/T-4869/after/after-source-1440.png",
+        "evidence/worker-t4869/T-4869/after/after-source-400.png"
+      ]
+    },
+    "src/pages/knowledge/UploadedFiles.tsx": {
+      "walkedBy": "worker-t4869",
+      "date": "2026-10-21",
+      "screenshots": [
+        "evidence/worker-t4869/T-4869/files-source-empty-1440.png",
+        "evidence/worker-t4869/T-4869/files-indexed-1440.png",
+        "evidence/worker-t4869/T-4869/viewer-source-400.png",
+        "evidence/worker-t4869/T-4869/after/after-source-1440.png",
+        "evidence/worker-t4869/T-4869/after/after-source-400.png"
+      ]
+    },
+    "src/pages/knowledge/UsageSummary.tsx": {
+      "walkedBy": "worker-t4869",
+      "date": "2026-10-21",
+      "screenshots": [
+        "evidence/worker-t4869/T-4869/conversations-1440.png",
+        "evidence/worker-t4869/T-4869/conversations-400.png"
+      ]
+    },
     "src/pages/mcp/ConnectorStar.tsx": null,
     "src/pages/mcp/ConnectorsPage.tsx": {
       "walkedBy": "deployer",
@@ -1329,6 +1391,14 @@
         "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
         "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
         "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/pages/organization/ProjectMqtt.tsx": {
+      "walkedBy": "worker-t4860",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/worker-t4860/T-4860/mqtt-admin-enable-1440.png",
+        "evidence/worker-t4860/T-4860/mqtt-admin-enable-400.png"
       ]
     },
     "src/pages/pipelines/AccessRequests.tsx": {

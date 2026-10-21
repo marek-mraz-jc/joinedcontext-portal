@@ -76,7 +76,9 @@ describe("locale style", () => {
   };
   // Not forms: the model editor's first-steps tips each show their own step, and the assistant's
   // empty search answers suggest what to type instead.
-  const NOT_A_FORM = new Set(["models.hints", "agentRun.catalog"]);
+  // The field hints of the owner's UI order of 2026-10-21 (T-4949: "every field has a hint line with
+  // an example") sit in their own `hint` group, one per field, so the rule above reads them as such.
+  const NOT_A_FORM = new Set(["models.hints", "agentRun.catalog", "access.groupPage.hint", "entityGrid.hint"]);
 
   function examplesPerGroup(bundle: Record<string, unknown>, marker: RegExp): Record<string, string[]> {
     const groups: Record<string, string[]> = {};

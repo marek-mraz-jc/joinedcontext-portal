@@ -71,6 +71,12 @@ export function gridLabels(t: (key: string) => string): GridLabels {
     error: t("entityGrid.error"),
     filter: t("entityGrid.filter"),
     noFilter: t("entityGrid.noFilter"),
+    filterHintText: t("entityGrid.hint.filterText"),
+    filterHintNumber: t("entityGrid.hint.filterNumber"),
+    filterHintDate: t("entityGrid.hint.filterDate"),
+    filterHintEnum: t("entityGrid.hint.filterEnum"),
+    filterHintOther: t("entityGrid.hint.filterOther"),
+    editAsTextHint: t("entityGrid.hint.editAsText"),
     ops: {
       contains: t("entityGrid.ops.contains"),
       equals: t("entityGrid.ops.equals"),

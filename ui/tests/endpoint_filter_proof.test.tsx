@@ -244,6 +244,17 @@ describe("the rows of the proof", () => {
     expect(shownValue({ type: "Property", value: "x".repeat(200) })).toHaveLength(80);
     expect(shownValue(undefined)).toBe("");
   });
+
+  it("shows a structured value in words, never as JSON (T-4949)", () => {
+    const address = { addressCountry: "FI", addressLocality: "Espoo", postalCode: "02100", streetAddress: "Tapiontori 3" };
+    expect(shownValue({ type: "Property", value: address })).toBe("Tapiontori 3, 02100 Espoo");
+    expect(shownValue({ type: "GeoProperty", value: { type: "Point", coordinates: [24.657864, 60.203636] } })).toBe("60.20364, 24.65786");
+    expect(shownValue({ type: "GeoProperty", value: { type: "Polygon", coordinates: [[[0, 0], [1, 0], [0, 1], [0, 0]]] } })).toBe("Polygon");
+    expect(shownValue({ type: "Property", value: { start: "08:00", end: null, days: ["Mo", "Tu"] } })).toBe("start: 08:00 · days: Mo, Tu");
+    for (const value of [address, { type: "Point", coordinates: [1, 2] }, { a: { b: 1 } }]) {
+      expect(shownValue({ type: "Property", value })).not.toMatch(/[{"]/);
+    }
+  });
 });
 
 describe("the endpoint's filter editor and its proof", () => {

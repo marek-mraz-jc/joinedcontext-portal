@@ -1496,6 +1496,14 @@
         "people_page.test.tsx"
       ]
     },
+    "src/pages/organization/ProjectMqtt.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "mqtt_allowance_ui.test.tsx"
+      ]
+    },
     "src/pages/pipelines/AccessRequests.tsx": {
       "controls": {
         "Button": 8,

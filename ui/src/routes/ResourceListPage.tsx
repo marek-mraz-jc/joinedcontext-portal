@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
+import i18n from "../i18n";
 import { NotFoundState } from "../components/NotFoundState";
 import { asManifests, isChange, localized, ORG_NAMESPACE } from "../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../api/manifest";
@@ -114,7 +115,7 @@ const VIEWS: Record<string, ComponentType<{ project: string; edit?: string }>> =
  */
 const EDIT_FORMS: Record<string, (t: (key: string) => string, project: string) => EditableForm> = {
   mqttbrokers: (t, project) => ({
-    schema: mqttBrokerSchema(t),
+    schema: mqttBrokerSchema(t, i18n.resolvedLanguage ?? i18n.language),
     fromManifest: (manifest) => fromMqttBrokerManifest(manifest) as Record<string, unknown>,
     toManifest: (form, stored) => toMqttBrokerManifest(project, form as MqttBrokerForm, stored),
   }),
