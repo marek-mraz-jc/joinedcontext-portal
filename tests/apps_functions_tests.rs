@@ -100,7 +100,8 @@ fn app(name: &str, visibility: &str) -> joinedcontext_portal::resource::Resource
 struct Rig {
     app: axum::Router,
     runtime: MockServer,
-    _realm: MockServer,
+    /// The suite's own realm; `None` where the process's signing realm stands in.
+    _realm: Option<MockServer>,
     _root: Scratch,
 }
 
@@ -145,7 +146,7 @@ async fn rig(test: &str) -> Rig {
     Rig {
         app: server::app(state),
         runtime,
-        _realm: realm,
+        _realm: Some(realm),
         _root: root,
     }
 }
@@ -362,4 +363,108 @@ impl Drop for Scratch {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.0);
     }
+}
+
+/// A Portal over the process's signing realm, so a person's token of App `app-{name}` verifies,
+/// with `runtime` as jc-functions and App `bbsk-events` shared with the organization. Eva holds a
+/// binding in project `parks` only: an organization member with no grant on the App's space.
+async fn organization_rig(test: &str, runtime: MockServer) -> Rig {
+    Mock::given(method("POST"))
+        .and(path("/realms/banskabystrica/protocol/openid-connect/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "access_token": "the-portals-own-token", "token_type": "Bearer", "expires_in": 300
+        })))
+        .mount(common::REALM.server)
+        .await;
+    let root = Scratch::new(test);
+    bundle_dir(root.path(), "bbsk-events", BUNDLE);
+    let runtime_uri = runtime.uri();
+    let mut config = Config::from_vars(|key| {
+        match key {
+            "JC_OIDC_ISSUER" => Some(common::REALM.issuer.as_str()),
+            "JC_OIDC_CLIENT_ID" => Some("joinedcontext-portal"),
+            "JC_OIDC_CLIENT_SECRET" => Some("test-secret"),
+            "JC_FUNCTIONS_URL" => Some(runtime_uri.as_str()),
+            "JC_TRUST_EDGE_TOKEN" => Some("true"),
+            _ => None,
+        }
+        .map(str::to_owned)
+    })
+    .expect("config");
+    config.apps_dir = Some(root.path().to_string_lossy().into_owned());
+    let oidc = OidcClient::discover(
+        config.oidc.as_ref().expect("a realm"),
+        "https://portal.test/api/v1/auth/callback",
+    )
+    .await
+    .expect("discovery");
+    let mirror = Mirror::new();
+    mirror.upsert(app("bbsk-events", "organization"));
+    mirror.upsert(common::envelope(
+        "RoleBinding",
+        "eva-parks",
+        "parks",
+        json!({ "subjects": [{ "user": "eva@hel.fi" }], "role": "viewer" }),
+    ));
+    let state = AppState::new(config, Some(oidc)).with_mirror(std::sync::Arc::new(mirror));
+    Rig {
+        app: server::app(state),
+        runtime,
+        _realm: None,
+        _root: root,
+    }
+}
+
+/// T-4912 exploit: an organization member without rights on the App's space calls its function.
+/// The runtime gets Eva's own token and never the Portal's or an App account's, so the Endpoint
+/// refuses her data call; that refusal comes back as her 403, which the page shows as no access.
+#[tokio::test]
+async fn an_organization_apps_function_acts_as_the_viewer_and_answers_her_refusal() {
+    if !runs_functions() {
+        return;
+    }
+    let runtime = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/invoke"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "status": 403,
+            "body": { "type": "https://joinedcontext.com/errors/forbidden", "title": "Access Denied by Policy", "status": 403 },
+            "logs": []
+        })))
+        .mount(&runtime)
+        .await;
+    let rig = organization_rig("fn-organization", runtime).await;
+    let eva = common::REALM.person_token("bbsk-events", "eva", &[]);
+    let cookie = format!("__Host-jc_csrf={CSRF}");
+    let (status, body) = post(
+        &rig,
+        "/apps/bbsk-events/api/functions/near-me",
+        &[
+            ("x-access-token", &eva),
+            ("cookie", &cookie),
+            ("x-csrf-token", CSRF),
+        ],
+        Vec::new(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert_eq!(body["title"], "Access Denied by Policy");
+
+    let [call] = invocations(&rig.runtime)
+        .await
+        .try_into()
+        .expect("one invocation");
+    assert_eq!(
+        call["token"], eva,
+        "the viewer's own token, as the edge set it"
+    );
+    assert_eq!(call["request"]["user"]["id"], "sub-eva");
+    assert!(call["files"]["@app/entry.js"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("answeringRefusals(found)"));
+    assert!(
+        !call.to_string().contains("the-portals-own-token"),
+        "the Portal's token is the runtime's credential alone"
+    );
 }
