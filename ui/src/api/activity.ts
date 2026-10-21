@@ -19,6 +19,7 @@ export const ACTIVITY_KINDS = [
   "access.denied",
   "access.simulated",
   "access.explored",
+  "access.revoked",
   "mcp.tool",
   "agent.answer",
   "federation.forward",

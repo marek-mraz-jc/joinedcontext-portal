@@ -501,7 +501,7 @@ fn in_force(mirror: &Mirror, identity: &Identity, now: DateTime<Utc>) -> Vec<(Re
             ));
         }
     }
-    grants.extend(account_grants(mirror, &organization, identity));
+    grants.extend(account_grants(mirror, &organization, identity, now));
     grants
 }
 
@@ -559,12 +559,14 @@ fn account_grants(
     mirror: &Mirror,
     organization: &[(String, RoleSpec)],
     identity: &Identity,
+    now: DateTime<Utc>,
 ) -> Vec<(Reach, Grant)> {
     let Some((account, spec)) = account_of(mirror, identity) else {
         return Vec::new();
     };
     let mut grants = Vec::new();
-    for granted in &spec.roles {
+    // A grant outside its window grants nothing, before the Portal removes it (AG-131).
+    for granted in spec.roles.iter().filter(|granted| granted.in_force(now)) {
         let Some(reach) = Reach::of(&granted.scope) else {
             continue;
         };
@@ -1148,6 +1150,109 @@ fn describe(constraint: &Constraint) -> String {
 
 pub fn verb_name(verb: Verb) -> &'static str {
     verb.as_str()
+}
+
+/// Where one grant of a ServiceAccount stands at `now` (AG-131).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum GrantState {
+    /// In force: no window, or `now` inside it.
+    Active,
+    /// Its `notBefore` is still ahead.
+    Pending,
+    /// Its `notAfter` has passed: it grants nothing and the Portal removes it.
+    Expired,
+}
+
+/// One entry of a ServiceAccount's `spec.roles` as its Access tab reads it (AG-130): the role and
+/// scope, the window and where it stands, and the Portal rules its `Role` carries, without
+/// `approve`, which no account holds (PF-58). A role that names no `Role` (a gateway template,
+/// CC-60) carries no Portal rule and acts at the gateway alone.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountGrant {
+    /// The position in `spec.roles`, which a revoke names with the role (AG-132).
+    pub index: usize,
+    pub role: String,
+    /// `organization`, `project:{name}` or `contextSpace:{name}`.
+    pub scope: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<String>, format = DateTime)]
+    pub not_before: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<String>, format = DateTime)]
+    pub not_after: Option<DateTime<Utc>>,
+    pub state: GrantState,
+    pub rules: Vec<AccountRule>,
+}
+
+/// One rule of the `Role` behind an [`AccountGrant`]: the jc-core [`Rule`] with `approve` taken
+/// out, typed for the OpenAPI document so the Access tab reads `kinds` and `verbs` (AG-130).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountRule {
+    /// Manifest kinds the rule covers, e.g. `Pipeline`.
+    pub kinds: Vec<String>,
+    /// Verbs granted on those kinds, e.g. `propose`; never `approve`.
+    #[schema(value_type = Vec<String>)]
+    pub verbs: Vec<Verb>,
+    /// Constraints every covered manifest must satisfy, as the Role writes them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[schema(value_type = Vec<Object>)]
+    pub constraints: Vec<Constraint>,
+}
+
+/// Every grant of `spec` at `now`, in manifest order (AG-130).
+pub fn account_access(
+    mirror: &Mirror,
+    spec: &ServiceAccountSpec,
+    now: DateTime<Utc>,
+) -> Vec<AccountGrant> {
+    let organization = roles(mirror, ORG_NAMESPACE);
+    spec.roles
+        .iter()
+        .enumerate()
+        .map(|(index, granted)| {
+            let window = granted.validity.clone().unwrap_or_default();
+            let state = match (window.not_before, window.not_after) {
+                (Some(from), _) if now < from => GrantState::Pending,
+                (_, Some(to)) if to < now => GrantState::Expired,
+                _ => GrantState::Active,
+            };
+            let reach = Reach::of(&granted.scope);
+            let rules = reach
+                .as_ref()
+                .and_then(|reach| role_of(mirror, &organization, reach, &granted.role))
+                .map(|(_, role)| {
+                    role.rules
+                        .into_iter()
+                        .filter_map(|rule| {
+                            let verbs: Vec<Verb> = rule
+                                .verbs
+                                .iter()
+                                .copied()
+                                .filter(|v| *v != Verb::Approve)
+                                .collect();
+                            (!verbs.is_empty()).then_some(AccountRule {
+                                kinds: rule.kinds,
+                                verbs,
+                                constraints: rule.constraints,
+                            })
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            AccountGrant {
+                index,
+                role: granted.role.clone(),
+                scope: reach.map(|reach| reach.name()).unwrap_or_default(),
+                not_before: window.not_before,
+                not_after: window.not_after,
+                state,
+                rules,
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]

@@ -3174,7 +3174,8 @@
         "workload": "Úloha v klastri",
         "kubernetes": "Kubernetes",
         "k8sNamespace": "Menný priestor",
-        "k8sServiceAccount": "Servisný účet Kubernetes"
+        "k8sServiceAccount": "Servisný účet Kubernetes",
+        "notAfter": "Prístup končí"
       },
       "grantIn": "{role} v {where}",
       "grantOrg": "{role} v celej organizácii",
@@ -3381,6 +3382,42 @@
       "custom": {
         "label": "Vlastné",
         "description": "Každé oprávnenie vyberiete sami."
+      }
+    },
+    "agent": {
+      "open": "Čo môže tento účet robiť",
+      "title": "Prístup",
+      "grants": "Oprávnenia",
+      "delegates": "Jeho klient môže konať aj za osobu, ktorá ho spustila; vtedy rozhodujú práva tej osoby, nie tieto.",
+      "state": {
+        "active": "Platné",
+        "pending": "Ešte nie",
+        "expired": "Skončené"
+      },
+      "ends": "končí {when}",
+      "ended": "skončilo {when}",
+      "revoke": "Odobrať hneď",
+      "revokeNamed": "Odobrať {role} v {scope} hneď",
+      "revokeTitle": "Odobrať {role} účtu {account} hneď?",
+      "revokeHelp": "Oprávnenie sa odstráni okamžite a zaznamená sa. Ďalší token účtu sa posúdi už bez neho. Vrátiť ho je nová zmena, ktorú schváli druhá osoba.",
+      "revokeFailed": "Oprávnenie sa neodobralo. Načítajte prístup účtu znova a skúste to ešte raz.",
+      "gatewayOnly": "Jeho roly nemenujú žiadnu rolu Portálu: pracuje len s dátami, cez politiky endpointov, ku ktorým má prístup.",
+      "matrix": "Čo môže {account} robiť, podľa druhu",
+      "kind": "Druh",
+      "everyKind": "Každý druh",
+      "verb": {
+        "read": "Čítať",
+        "propose": "Navrhnúť",
+        "delete": "Zmazať",
+        "approve": "Schváliť"
+      },
+      "allowed": "Povolené",
+      "refused": "Zamietnuté",
+      "reason": {
+        "neverApproves": "Účet nikdy neschvaľuje; schvaľuje osoba",
+        "ended": "{grant} skončilo {when}",
+        "starts": "{grant} začína {when}",
+        "noGrant": "Žiadne oprávnenie to neuvádza"
       }
     }
   },
@@ -5568,7 +5605,8 @@
       "access": {
         "denied": "Prístup odmietnutý",
         "simulated": "Pravidlo vyskúšané na osobe",
-        "explored": "Prístup zobrazený"
+        "explored": "Prístup zobrazený",
+        "revoked": "Prístup odobratý"
       },
       "mcp": {
         "tool": "Volanie nástroja asistenta"
