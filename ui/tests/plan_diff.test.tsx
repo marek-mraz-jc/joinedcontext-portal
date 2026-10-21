@@ -23,7 +23,7 @@ function renderDiff(fields?: FieldChange[] | null) {
 }
 
 function rowFor(path: string): HTMLElement {
-  return screen.getByText(path).closest("tr") as HTMLElement;
+  return screen.getByTitle(path).closest("tr") as HTMLElement;
 }
 
 describe("plan diff viewer", () => {
@@ -65,7 +65,7 @@ describe("plan diff viewer", () => {
     expect(row.textContent).not.toContain("[REDACTED]");
   });
 
-  it("names each field in words, with its path underneath (T-1385)", () => {
+  it("names each field in words, with its path on hover only (T-1385, T-4991)", () => {
     renderDiff([
       { path: "metadata.name", from: "old-name", to: "new-name" },
       { path: "spec.enabledRepresentations", from: ["ngsi-ld"], to: ["ngsi-ld", "geojson"] },
@@ -79,6 +79,29 @@ describe("plan diff viewer", () => {
     expect(within(list).getByText("Enabled representations")).toBeInTheDocument();
     expect(within(list).getByText("ngsi-ld, geojson")).toBeInTheDocument();
     expect(within(rowFor("spec.representations[1]")).getByText("Representations")).toBeInTheDocument();
+    // The path is the hover title, never a second line of text a reader has to skip.
+    expect(screen.queryByText("metadata.name")).not.toBeInTheDocument();
+  });
+
+  it("tells two fields of the same name apart by their block (T-4991)", () => {
+    renderDiff([
+      { path: "spec.maxPages", to: 1000 },
+      { path: "spec.pdf.maxPages", to: 500 },
+      { path: "spec.upload.maxBytes", to: 20 },
+    ] as unknown as FieldChange[]);
+    expect(within(rowFor("spec.maxPages")).getByText("Max pages")).toBeInTheDocument();
+    expect(within(rowFor("spec.pdf.maxPages")).getByText("Pdf › Max pages")).toBeInTheDocument();
+    expect(within(rowFor("spec.upload.maxBytes")).getByText("Upload › Max bytes")).toBeInTheDocument();
+  });
+
+  it("leaves out the before column of a create and the after column of a delete (T-4991)", () => {
+    const { unmount } = renderDiff([{ path: "metadata.name", to: "t4869-files" }] as unknown as FieldChange[]);
+    expect(screen.queryByRole("columnheader", { name: en.approvals.before })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: en.approvals.after })).toBeInTheDocument();
+    unmount();
+    renderDiff([{ path: "metadata.name", from: "t4869-files" }] as unknown as FieldChange[]);
+    expect(screen.getByRole("columnheader", { name: en.approvals.before })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: en.approvals.after })).not.toBeInTheDocument();
   });
 
   it("folds a nested value away as its JSON, and shows an empty or null one as a dash", () => {

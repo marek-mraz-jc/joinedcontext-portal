@@ -18,6 +18,16 @@ export function humanize(path: string): string {
 }
 
 /**
+ * `spec.pdf.maxBytes` → "Pdf › Max bytes": the field in words, with its parent block when it has
+ * one, so `spec.maxPages` and `spec.pdf.maxPages` do not both read "Max pages" (T-4991).
+ */
+export function fieldLabel(path: string): string {
+  const parts = path.replace(/\[\d+\]/g, "").split(".").filter((part) => part && !/^\d+$/.test(part));
+  const inside = ["spec", "metadata", "status"].includes(parts[0] ?? "") ? parts.slice(1) : parts;
+  return inside.length > 1 ? `${humanize(inside.at(-2) as string)} › ${humanize(path)}` : humanize(path);
+}
+
+/**
  * A value as a person reads it (T-1385, UI-24): text as text, a list of plain values joined,
  * and anything nested as its JSON folded away, for whoever wants the detail.
  */
@@ -38,10 +48,10 @@ function DiffValue({ value }: { value: unknown }): JSX.Element {
 
   const plain = (item: unknown) => ["string", "number", "boolean"].includes(typeof item);
   if (plain(value)) {
-    return <span className="text-sm break-words text-surface-fg">{String(value)}</span>;
+    return <span className="text-sm [overflow-wrap:anywhere] text-surface-fg">{String(value)}</span>;
   }
   if (Array.isArray(value) && value.every(plain)) {
-    return <span className="text-sm break-words text-surface-fg">{value.map(String).join(", ")}</span>;
+    return <span className="text-sm [overflow-wrap:anywhere] text-surface-fg">{value.map(String).join(", ")}</span>;
   }
 
   const count = Array.isArray(value) ? value.length : Object.keys(value as object).length;
@@ -50,7 +60,7 @@ function DiffValue({ value }: { value: unknown }): JSX.Element {
       <summary className="cursor-pointer">
         {t(Array.isArray(value) ? "diff.items" : "diff.fields", { count })}
       </summary>
-      <pre className="mt-1 font-mono text-xs whitespace-pre">{JSON.stringify(value, null, 2)}</pre>
+      <pre className="mt-1 max-w-xs overflow-x-auto font-mono text-xs whitespace-pre md:max-w-sm lg:max-w-md">{JSON.stringify(value, null, 2)}</pre>
     </details>
   );
 }
@@ -62,6 +72,11 @@ export function PlanDiffViewer({ fields, className }: PlanDiffViewerProps): JSX.
     return <p className="text-sm text-surface-fg/70">{t("approvals.noChanges")}</p>;
   }
 
+  // A create has nothing before and a delete nothing after: a column of dashes only pushed the
+  // values off a phone's screen (T-4991).
+  const showBefore = fields.some((field) => field.from !== undefined);
+  const showAfter = fields.some((field) => field.to !== undefined);
+
   return (
     <Table caption={t("approvals.diffType")} zebra={false} className={className}>
       <TableHead>
@@ -69,8 +84,8 @@ export function PlanDiffViewer({ fields, className }: PlanDiffViewerProps): JSX.
           <span className="sr-only">{t("approvals.diffType")}</span>
         </TableHeaderCell>
         <TableHeaderCell className="px-3 py-2">{t("approvals.field")}</TableHeaderCell>
-        <TableHeaderCell className="px-3 py-2">{t("approvals.before")}</TableHeaderCell>
-        <TableHeaderCell className="px-3 py-2">{t("approvals.after")}</TableHeaderCell>
+        {showBefore ? <TableHeaderCell className="px-3 py-2">{t("approvals.before")}</TableHeaderCell> : null}
+        {showAfter ? <TableHeaderCell className="px-3 py-2">{t("approvals.after")}</TableHeaderCell> : null}
       </TableHead>
       <TableBody>
         {fields.map((field, idx) => {
@@ -105,31 +120,22 @@ export function PlanDiffViewer({ fields, className }: PlanDiffViewerProps): JSX.
                 <span aria-hidden="true">{marker}</span>
                 <span className="sr-only">{diffLabel}</span>
               </TableCell>
-              <TableCell className="px-3 py-2 font-mono text-xs font-medium text-surface-fg align-top">
-                {/* A name a person reads, and the path underneath for whoever edits the YAML. */}
-                <span className="block font-sans text-sm">
-                  {t(`diff.path.${field.path}`, { defaultValue: humanize(field.path) })}
+              <TableCell className="px-3 py-2 text-sm font-medium text-surface-fg">
+                {/* The field in words; its YAML path on hover, for whoever edits the file. */}
+                <span title={field.path}>
+                  {t(`diff.path.${field.path}`, { defaultValue: fieldLabel(field.path) })}
                 </span>
-                <span className="block text-caption text-fg-subtle">{field.path}</span>
               </TableCell>
-              <TableCell className="px-3 py-2 align-top">
-                <div className="max-w-xs overflow-x-auto md:max-w-sm lg:max-w-md">
-                  {diffType === "added" ? (
-                    <span className="text-surface-fg/40">—</span>
-                  ) : (
-                    <DiffValue value={field.from} />
-                  )}
-                </div>
-              </TableCell>
-              <TableCell className="px-3 py-2 align-top">
-                <div className="max-w-xs overflow-x-auto md:max-w-sm lg:max-w-md">
-                  {diffType === "removed" ? (
-                    <span className="text-surface-fg/40">—</span>
-                  ) : (
-                    <DiffValue value={field.to} />
-                  )}
-                </div>
-              </TableCell>
+              {showBefore ? (
+                <TableCell className="px-3 py-2">
+                  {diffType === "added" ? <span className="text-surface-fg/40">—</span> : <DiffValue value={field.from} />}
+                </TableCell>
+              ) : null}
+              {showAfter ? (
+                <TableCell className="px-3 py-2">
+                  {diffType === "removed" ? <span className="text-surface-fg/40">—</span> : <DiffValue value={field.to} />}
+                </TableCell>
+              ) : null}
             </tr>
           );
         })}

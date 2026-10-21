@@ -132,14 +132,15 @@ export function layoutEdge(edge: GraphEdge): LayoutEdge {
 /**
  * Where each box sits (T-3589): laid out by its lines, not in a grid. Each connected group of
  * classes is a layered drawing of its own, a class one layer from what it is joined to, and the
- * groups stand side by side. `bends` holds, per edge, where its line turns as it passes a layer.
+ * groups stand side by side, wrapped at three boxes so the drawing fits a laptop card at a
+ * readable size (T-4991). `bends` holds, per edge, where its line turns as it passes a layer.
  */
 export function place(nodes: GraphNode[], edges: GraphEdge[]): { placed: Placed[]; bends: Point[][] } {
   const height = (node: GraphNode) => BOX.header + lines(node) * BOX.row + BOX.padding;
   const layout = layered(
     nodes.map((node) => ({ id: node.name, width: BOX.width, height: height(node) })),
     edges.map(layoutEdge),
-    { gapX: BOX.gapX, gapY: BOX.gapY, groupGap: BOX.gapX * 2, maxWidth: 6 * (BOX.width + BOX.gapX) },
+    { gapX: BOX.gapX, gapY: BOX.gapY, groupGap: BOX.gapX * 2, maxWidth: 3 * (BOX.width + BOX.gapX) },
   );
   // In reading order, top to bottom and left to right: the order Tab walks the boxes in.
   const placed = nodes
@@ -276,6 +277,16 @@ export function LinkmlGraphView({
     if (frameAt) setView({ left: frameAt.scrollLeft, top: frameAt.scrollTop, width: frameAt.clientWidth, height: frameAt.clientHeight });
   };
   useEffect(measure, [zoom, placed]);
+  // On load the drawing fits its card's width, never enlarged: a big model ran off the card's
+  // right edge at its natural size (T-4991). The Fit button may still enlarge a small one.
+  const fitted = useRef(false);
+  useEffect(() => {
+    const available = (frame.current?.clientWidth ?? 0) - 16;
+    if (fitted.current || available <= 0 || placed.length === 0) return;
+    fitted.current = true;
+    const wide = Math.max(...placed.map((node) => node.x + BOX.width)) + BOX.loop + 8;
+    setZoom(Math.max(ZOOM.min, Math.min(ZOOM.natural, available / wide)));
+  }, [placed]);
 
   if (!placed.some((node) => node.kind === "class")) {
     return (
@@ -500,7 +511,7 @@ export function LinkmlGraphView({
       <div className="grid gap-3 2xl:grid-cols-[minmax(0,1fr)_28rem]">
         <div
           ref={frame}
-          className="cursor-grab overflow-auto rounded border border-border bg-surface p-2 active:cursor-grabbing"
+          className="max-h-180 cursor-grab overflow-auto rounded border border-border bg-surface p-2 active:cursor-grabbing"
           onPointerDown={grab}
           onPointerMove={pan}
           onPointerUp={() => (drag.current = null)}
@@ -1040,12 +1051,13 @@ function Minimap({
   faded: (name: string) => boolean;
   onJump: (point: Point) => void;
 }): JSX.Element {
-  const scale = MINIMAP / width;
+  // At most MINIMAP square: a tall drawing would otherwise draw a tall map over the toolbar.
+  const scale = Math.min(MINIMAP / width, MINIMAP / height);
   return (
     <svg
       aria-hidden="true"
       data-testid="diagram-minimap"
-      width={MINIMAP}
+      width={width * scale}
       height={Math.max(24, height * scale)}
       viewBox={`-4 -4 ${width} ${height}`}
       className="ml-auto cursor-pointer rounded border border-border bg-surface text-fg-subtle"
