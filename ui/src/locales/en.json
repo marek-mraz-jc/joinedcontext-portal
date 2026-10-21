@@ -2846,6 +2846,87 @@
       "revoke": "Revoke",
       "revokeOf": "Revoke access of {account}",
       "reasonFirst": "Write the reason first."
+    },
+    "map": {
+      "views": "Pipeline views",
+      "view": {
+        "list": "List",
+        "map": "Data flow map"
+      },
+      "title": "Data flow map",
+      "space": "Space",
+      "allSpaces": "All spaces",
+      "legend": "Line colours",
+      "empty": "Nothing flows in this project yet.",
+      "emptySpace": "No pipeline reads or writes this space yet.",
+      "emptyHint": "Add a data source or an MQTT broker, then send it to a space: the map draws each path from there.",
+      "missingTitle": "{count, plural, one {# path lacks the grant it needs} other {# paths lack the grant they need}}",
+      "paused": "Paused",
+      "noPhase": "Not applied yet",
+      "sent": "{count, plural, one {# record in the last run} other {# records in the last run}}",
+      "opaque": "Another project's endpoint",
+      "opaqueOwner": "Project {project}; you cannot read its details",
+      "from": "From {name}",
+      "to": "To {name}",
+      "close": "Close",
+      "grants": "Grants",
+      "byPolicy": "Granted by Policy {policy}",
+      "fix": "Fix: {fix}",
+      "counts": "{sent} sent, {rejected} rejected, {failed} failed",
+      "perMinute": "{rate} records a minute",
+      "openPipeline": "Open pipeline",
+      "openRuns": "Runs",
+      "openRejected": "Rejected records",
+      "edit": "Edit",
+      "openEndpoint": "Open endpoint",
+      "openSpace": "Open space",
+      "brokerFirst": "A pipeline reads a broker through a data source. Create one for this broker, then send it to a space.",
+      "newDataSource": "Create a data source for this broker",
+      "sendTarget": "Write into",
+      "sendTargetLater": "Choose in the editor",
+      "sendTargetOption": "{endpoint} (space {space})",
+      "send": "Send to a space",
+      "kind": {
+        "MqttBroker": "MQTT broker",
+        "DataSource": "Data source",
+        "Pipeline": "Pipeline",
+        "Endpoint": "Endpoint",
+        "ContextSpace": "Space"
+      },
+      "role": {
+        "ingest": "ingest",
+        "derived": "derived",
+        "kpi": "KPI"
+      },
+      "grant": {
+        "granted": "granted",
+        "missing": "missing grant",
+        "external": "granted by the owner"
+      },
+      "group": {
+        "sources": "Sources",
+        "pipelines": "Pipelines",
+        "endpoints": "Endpoints",
+        "spaces": "Spaces"
+      },
+      "fact": {
+        "name": "Name",
+        "owner": "Owner",
+        "sourceType": "Connection",
+        "hosts": "Hosts",
+        "topics": "Topics",
+        "space": "Space",
+        "slug": "Address",
+        "audience": "Audience",
+        "state": "State",
+        "lastRun": "Last run",
+        "counts": "Records",
+        "rate": "Rate"
+      },
+      "edge": {
+        "reads": "Reads space {other} through endpoint {endpoint} ({operation})",
+        "writes": "Writes space {other} through endpoint {endpoint} ({operation})"
+      }
     }
   },
   "dashboards": {

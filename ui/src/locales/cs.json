@@ -2846,6 +2846,87 @@
       "revoke": "Odebrat přístup",
       "revokeOf": "Odebrat přístup {account}",
       "reasonFirst": "Nejprve napište důvod."
+    },
+    "map": {
+      "views": "Zobrazení pipeline",
+      "view": {
+        "list": "Seznam",
+        "map": "Mapa toků dat"
+      },
+      "title": "Mapa toků dat",
+      "space": "Prostor",
+      "allSpaces": "Všechny prostory",
+      "legend": "Barvy čar",
+      "empty": "V tomto projektu zatím netečou žádná data.",
+      "emptySpace": "Tento prostor zatím nečte ani nezapisuje žádná pipeline.",
+      "emptyHint": "Přidejte zdroj dat nebo MQTT broker a pošlete ho do prostoru: mapa odtud nakreslí každou cestu.",
+      "missingTitle": "{count, plural, one {# cestě chybí potřebné oprávnění} few {# cestám chybí potřebné oprávnění} other {# cestám chybí potřebné oprávnění}}",
+      "paused": "Pozastavená",
+      "noPhase": "Ještě nenasazená",
+      "sent": "{count, plural, one {# záznam v posledním běhu} few {# záznamy v posledním běhu} other {# záznamů v posledním běhu}}",
+      "opaque": "Endpoint jiného projektu",
+      "opaqueOwner": "Projekt {project}; jeho podrobnosti nemůžete číst",
+      "from": "Z {name}",
+      "to": "Do {name}",
+      "close": "Zavřít",
+      "grants": "Oprávnění",
+      "byPolicy": "Povoleno politikou {policy}",
+      "fix": "Oprava: {fix}",
+      "counts": "odesláno {sent}, odmítnuto {rejected}, selhalo {failed}",
+      "perMinute": "{rate} záznamů za minutu",
+      "openPipeline": "Otevřít pipeline",
+      "openRuns": "Běhy",
+      "openRejected": "Odmítnuté záznamy",
+      "edit": "Upravit",
+      "openEndpoint": "Otevřít endpoint",
+      "openSpace": "Otevřít prostor",
+      "brokerFirst": "Pipeline čte broker přes zdroj dat. Vytvořte ho pro tento broker a pak ho pošlete do prostoru.",
+      "newDataSource": "Vytvořit zdroj dat pro tento broker",
+      "sendTarget": "Zapisovat do",
+      "sendTargetLater": "Vybrat v editoru",
+      "sendTargetOption": "{endpoint} (prostor {space})",
+      "send": "Poslat do prostoru",
+      "kind": {
+        "MqttBroker": "MQTT broker",
+        "DataSource": "Zdroj dat",
+        "Pipeline": "Pipeline",
+        "Endpoint": "Endpoint",
+        "ContextSpace": "Prostor"
+      },
+      "role": {
+        "ingest": "příjem",
+        "derived": "odvozená",
+        "kpi": "KPI"
+      },
+      "grant": {
+        "granted": "povoleno",
+        "missing": "chybí oprávnění",
+        "external": "povoluje vlastník"
+      },
+      "group": {
+        "sources": "Zdroje",
+        "pipelines": "Pipeliny",
+        "endpoints": "Endpointy",
+        "spaces": "Prostory"
+      },
+      "fact": {
+        "name": "Název",
+        "owner": "Vlastník",
+        "sourceType": "Připojení",
+        "hosts": "Servery",
+        "topics": "Témata",
+        "space": "Prostor",
+        "slug": "Adresa",
+        "audience": "Publikum",
+        "state": "Stav",
+        "lastRun": "Poslední běh",
+        "counts": "Záznamy",
+        "rate": "Rychlost"
+      },
+      "edge": {
+        "reads": "Čte prostor {other} přes endpoint {endpoint} ({operation})",
+        "writes": "Zapisuje do prostoru {other} přes endpoint {endpoint} ({operation})"
+      }
     }
   },
   "dashboards": {
