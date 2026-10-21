@@ -54,6 +54,10 @@ struct ValidateInput {
     draft: Option<DraftRef>,
     #[serde(default)]
     space: Option<String>,
+    /// A type of the space's model: the answer lists which of its attributes the pipeline may
+    /// write through its Endpoint (T-4842).
+    #[serde(default, rename = "type")]
+    entity_type: Option<String>,
     records: Vec<Value>,
 }
 
@@ -149,6 +153,7 @@ fn validate_input_schema() -> Value {
             "pipeline": manifest("The Pipeline whose target space's model checks the records; give this, draft or space"),
             "draft": draft_ref(),
             "space": text("The ContextSpace whose model checks the records, instead of a pipeline's", NAME),
+            "type": text("With a pipeline or draft: an entity type of the space's model; the answer's writable lists each of its attributes and whether the pipeline may write it through its Endpoint", NAME),
             "records": {
                 "type": "array",
                 "description": "The records as the pipeline would write them (the records of jc_pipeline_try_mapping)",
@@ -170,6 +175,18 @@ fn validate_output_schema() -> Value {
             "version": { "type": "string" },
             "valid": { "type": "integer" },
             "rejected": { "type": "integer" },
+            "writable": {
+                "type": "array",
+                "description": "With type: each attribute of the type, whether the pipeline may write it through its Endpoint and, when not, why (T-4842)",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string" },
+                        "writable": { "type": "boolean" },
+                        "reason": { "type": "string" }
+                    }
+                }
+            },
             "verdicts": {
                 "type": "array",
                 "items": {
@@ -471,18 +488,50 @@ pub fn operations() -> Vec<Operation> {
                         })
                         .collect();
                     let valid = verdicts.iter().filter(|v| v.ok).count();
-                    Ok(json!({
+                    let mut answer = json!({
                         "space": space,
                         "model": schema.model,
                         "version": schema.version,
                         "valid": valid,
                         "rejected": verdicts.len() - valid,
                         "verdicts": verdicts,
-                    }))
+                    });
+                    if let (Some(entity_type), Some((manifest, _))) = (&input.entity_type, &pipeline) {
+                        answer["writable"] = json!(writable_of(state, project, manifest, &schema, entity_type)?);
+                    }
+                    Ok(answer)
                 })
             },
         },
     ]
+}
+
+/// Each attribute of `entity_type` in the space's model, as the pipeline may write it (T-4842).
+fn writable_of(
+    state: &AppState,
+    project: &str,
+    pipeline: &Value,
+    schema: &crate::pipeline_validation::ModelSchema,
+    entity_type: &str,
+) -> Result<Vec<crate::record_check::Writable>, OpError> {
+    let class = schema
+        .attributes(entity_type)
+        .ok_or_else(|| OpError::InvalidInput {
+            path: "/type".into(),
+            message: format!(
+                "{entity_type} is not a class of the space's data model {}",
+                schema.model
+            ),
+        })?;
+    let names: Vec<String> = class.attributes.into_iter().map(|a| a.name).collect();
+    Ok(crate::record_check::writable(
+        state,
+        project,
+        pipeline,
+        entity_type,
+        &names,
+        chrono::Utc::now(),
+    )?)
 }
 
 #[cfg(test)]

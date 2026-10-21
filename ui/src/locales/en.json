@@ -2256,7 +2256,16 @@
         "caption": "Mapped records",
         "record": "Record",
         "written": "As written",
-        "problems": "Problems"
+        "problems": "Problems",
+        "recordN": "Record {n}",
+        "problemCount": "{count, plural, one {# problem} other {# problems}}",
+        "recordCaption": "Attributes of {id} as written",
+        "value": "Value",
+        "check": "Check",
+        "expires": "Expires",
+        "ok": "ok",
+        "observedAt": "observed {at}",
+        "entityLifetime": "entity lifetime"
       },
       "validation": {
         "title": "Validation",
@@ -2279,7 +2288,26 @@
         "hint": "Name the endpoint the records are written through; saving proposes a change.",
         "lands": "The records land in the space {space}, checked against the model {model}.",
         "landsUnmodelled": "The records land in the space {space}, which names no data model yet.",
-        "save": "Name the pipeline below and propose it: nothing is written until the change is approved."
+        "save": "Name the pipeline below and propose it: nothing is written until the change is approved.",
+        "card": "What the pipeline writes",
+        "space": "Space",
+        "model": "Model",
+        "type": "Writes type",
+        "noType": "Pick the type in step 4",
+        "explain": "What the space's model accepts for a {type}, and what this endpoint lets the pipeline write. A field the endpoint does not grant is refused before you propose, not at runtime.",
+        "caption": "Attributes of {type}",
+        "field": "Field",
+        "kind": "Kind",
+        "value": "Value",
+        "required": "Required",
+        "writable": "Writable here",
+        "yes": "yes",
+        "no": "no",
+        "locked": "not writable",
+        "judging": "checking…",
+        "lifetimeKind": "entity lifetime",
+        "instant": "instant",
+        "inLifetime": "set in Lifetime"
       },
       "changes": {
         "title": "What would change in {space}",
@@ -2297,6 +2325,11 @@
           "update": "Updated",
           "unchanged": "No change"
         }
+      },
+      "lifetime": {
+        "title": "Lifetime",
+        "hint": "When the entities, or some of their fields, leave the space. Saved as the pipeline's lifetime, never as mapping code.",
+        "pickType": "Pick the target and the type the mapping writes first: the lifetime is set per type."
       }
     },
     "mapper": {
@@ -2344,28 +2377,9 @@
         "notTime": "{field} holds {value}, which is no time: use RFC 3339 text such as 2026-10-20T14:30:00Z or Unix seconds."
       },
       "expiry": {
-        "title": "When do entities go away?",
-        "legend": "Entities of this type are removed",
-        "never": "Never",
-        "neverHint": "They stay until someone deletes them or a space rule removes them.",
-        "source": "At a time the source gives",
-        "sourceHint": "Each entity gets its own expiresAt: a time attribute plus a while, for example observedOn plus 10 minutes, or the time the record is written plus a while. The pipeline writes it after your mapping.",
-        "stale": "When the source stops sending them",
-        "staleHint": "Once an hour the pipeline deletes entities of this type it has not updated for the window.",
-        "from": "Time from",
-        "written": "The time the record is written",
-        "plus": "Plus",
-        "plusUnit": "Unit of the added time",
-        "after": "Not updated for",
-        "afterUnit": "Unit of the window",
-        "afterHint": "Entities of {type} not updated for this long are deleted, once an hour.",
-        "refusals": "The proposal is refused when the pipeline has more than one output, when another pipeline writes into the same space, or when no Policy grants this pipeline deleteBatch and queryBatch on the type; the refusal names the Policy to extend.",
-        "history": "History of {type} follows the space's rules.",
-        "spaceRules": "Retention of {space}",
-        "noTimeSlot": "No date-time attribute of {type} is mapped yet, so the end counts from the time the record is written.",
-        "inManifest": "The lifetime of {type} is set in the pipeline's manifest (a fixed date, a cap or chosen attributes). Change it in the YAML view; this editor keeps it as it is.",
-        "migrated": "The end time this step used to write is now the pipeline's lifetime setting below. It is saved with your next proposal.",
-        "migrateField": "This step writes expiresAt from the record field {field}, and no date-time attribute is mapped from that field. Map it to a date-time attribute or pick another time below; until then the step keeps its own expiresAt lines."
+        "migrated": "The end time this step used to write is now the pipeline's lifetime, in the Lifetime step. It is saved with your next proposal.",
+        "migrateField": "This step writes expiresAt from the record field {field}, and no date-time attribute is mapped from that field. Map it to a date-time attribute, pick an end in the Lifetime step, or drop the step's own lines.",
+        "drop": "Drop the step's own expiresAt"
       }
     },
     "debug": {
@@ -2544,6 +2558,68 @@
       "rejectedUnavailable": "The rejected records could not be read.",
       "noRejected": "The model has refused no record of this pipeline.",
       "credentials": "Credentials"
+    },
+    "lifetime": {
+      "legend": "What happens to each {type}",
+      "keep": "Keep entities",
+      "keepHint": "They stay until someone deletes them or the space rule removes stale ones.",
+      "entity": "Whole entity expires",
+      "entityHint": "The {type} disappears at a time you set.",
+      "attributes": "Only some fields expire",
+      "attributesHint": "The {type} stays; chosen fields vanish when they get old.",
+      "stale": "Delete when the source stops sending them",
+      "staleHint": "Once an hour the pipeline deletes entities of this type it has not updated for a while. Refused when the pipeline has more than one output or no Policy grants it deleteBatch on the type.",
+      "kind": {
+        "legend": "Ends",
+        "from": "From a field",
+        "fromHint": "A time the record carries, plus a while.",
+        "rolling": "After each write",
+        "rollingHint": "Every write starts the time again.",
+        "at": "On a fixed date",
+        "atHint": "One date and time for all of them."
+      },
+      "from": "Time from",
+      "observedAt": "observedAt (newest of its fields)",
+      "noTimeSlot": "The type has no date-time attribute: the end counts from the newest observedAt of its fields.",
+      "plus": "Plus",
+      "keepFor": "Keep for",
+      "unitOf": "Unit of {what}",
+      "cap": "At most after the write",
+      "noCap": "no limit",
+      "capOf": "{span}",
+      "at": "Date and time",
+      "atHint": "In your time zone; saved in UTC.",
+      "attribute": "Field",
+      "remove": "Remove",
+      "removeOf": "Remove the end of {name}",
+      "add": "Add a field",
+      "noAttributes": "This endpoint lets the pipeline write no field of {type}, so no field can expire.",
+      "after": "Not updated for",
+      "afterUnit": "Unit of the window",
+      "afterHint": "Entities of {type} not updated for this long are deleted, once an hour.",
+      "history": "History of {type} follows the space's rules whatever you pick here.",
+      "spaceRules": "Retention of {space}",
+      "span": "{count} {unit}",
+      "noSpan": "no time",
+      "problem": {
+        "date": "Give a date and a time.",
+        "past": "The date is in the past: every entity would be removed at once. Pick a later one.",
+        "span": "Give how long to keep them: at least a minute."
+      },
+      "says": {
+        "keep": "Each {type} stays until someone deletes it or the space rule removes it.",
+        "entity": "Each {type} is removed {end}.",
+        "renewed": "A newer write moves the end on.",
+        "attribute": "The {name} of each {type} vanishes {end}.",
+        "from": "{span} after its {from}",
+        "fromExact": "at its {from}",
+        "observedAt": "last observedAt",
+        "cap": "and at most {span} after the write",
+        "rolling": "{span} after its last write",
+        "at": "on {date}",
+        "stale": "Once an hour, the pipeline deletes each {type} it has not updated for {span}."
+      },
+      "allAdded": "Every field the endpoint grants has an end already."
     }
   },
   "dashboards": {

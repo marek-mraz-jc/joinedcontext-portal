@@ -16,7 +16,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
-use context_gateway::pdp::evaluator::{evaluate, Request, Subject, Verdict as Decision};
+use context_gateway::pdp::evaluator::{
+    evaluate, Constraints, Request, Subject, Verdict as Decision,
+};
 use context_gateway::pdp::write_guard::{self, Refusal};
 use jc_core::kinds::pipeline_identity;
 use jc_core::kinds::{Operation, PipelineSpec, PolicySpec};
@@ -177,43 +179,19 @@ pub fn check_records(
             records.len()
         )));
     }
-    let spec: PipelineSpec = serde_json::from_value(pipeline["spec"].clone())
-        .map_err(|e| ApiError::BadRequest(format!("pipeline.spec: {e}")))?;
-    let name = pipeline
-        .pointer("/metadata/name")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    let (account, derived) = identity(state, project, name, &spec);
-    let outputs = spec.outputs();
-    let targets: Vec<Target> = outputs
-        .iter()
-        .map(|output| {
-            let endpoint = output.target_endpoint.local_id().to_owned();
-            Target {
-                space: crate::pipeline_expiry::space_of_endpoint(&state.mirror, project, &endpoint),
-                write: state.views.as_ref().map(|views| {
-                    views.write_view(project, &endpoint, &account, derived.as_deref())
-                }),
-                endpoint,
-            }
-        })
-        .collect();
-    let subject = Subject {
-        service_account: Some(account),
-        ..Subject::default()
-    };
+    let Writer {
+        spec,
+        subject,
+        types,
+        targets,
+    } = writer(state, project, pipeline)?;
 
     let checks: Vec<RecordCheck> = records
         .iter()
         .enumerate()
         .map(|(index, record)| {
             let entity_type = record.get("type").and_then(Value::as_str).unwrap_or_default();
-            let at = outputs
-                .iter()
-                .position(|o| o.entity_type.as_deref() == Some(entity_type))
-                .or_else(|| outputs.iter().position(|o| o.entity_type.is_none()))
-                .or((!outputs.is_empty()).then_some(0));
-            let target = at.map(|at| &targets[at]);
+            let target = target_of(&types, &targets, entity_type);
             let mut findings = Vec::new();
             let size = serde_json::to_vec(record).map_or(usize::MAX, |bytes| bytes.len());
             if !record.is_object() {
@@ -254,6 +232,126 @@ pub fn check_records(
         rejected,
         records: checks,
     })
+}
+
+/// The pipeline as the writer its records are judged as: its spec, its account, and per output
+/// the type it writes and the Endpoint it writes through.
+struct Writer {
+    spec: PipelineSpec,
+    subject: Subject,
+    types: Vec<Option<String>>,
+    targets: Vec<Target>,
+}
+
+fn writer(state: &AppState, project: &str, pipeline: &Value) -> Result<Writer, ApiError> {
+    let spec: PipelineSpec = serde_json::from_value(pipeline["spec"].clone())
+        .map_err(|e| ApiError::BadRequest(format!("pipeline.spec: {e}")))?;
+    let name = pipeline
+        .pointer("/metadata/name")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let (account, derived) = identity(state, project, name, &spec);
+    let outputs = spec.outputs();
+    let types = outputs.iter().map(|o| o.entity_type.clone()).collect();
+    let targets: Vec<Target> = outputs
+        .iter()
+        .map(|output| {
+            let endpoint = output.target_endpoint.local_id().to_owned();
+            Target {
+                space: crate::pipeline_expiry::space_of_endpoint(&state.mirror, project, &endpoint),
+                write: state.views.as_ref().map(|views| {
+                    views.write_view(project, &endpoint, &account, derived.as_deref())
+                }),
+                endpoint,
+            }
+        })
+        .collect();
+    let subject = Subject {
+        service_account: Some(account),
+        ..Subject::default()
+    };
+    Ok(Writer {
+        spec,
+        subject,
+        types,
+        targets,
+    })
+}
+
+/// The output a record of `entity_type` leaves by: the one of its type, else one of every type,
+/// else the first.
+fn target_of<'a>(
+    types: &[Option<String>],
+    targets: &'a [Target],
+    entity_type: &str,
+) -> Option<&'a Target> {
+    types
+        .iter()
+        .position(|t| t.as_deref() == Some(entity_type))
+        .or_else(|| types.iter().position(Option::is_none))
+        .or((!types.is_empty()).then_some(0))
+        .map(|at| &targets[at])
+}
+
+/// Whether the pipeline may write an attribute of a type through its Endpoint (T-4842).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub struct Writable {
+    pub name: String,
+    pub writable: bool,
+    /// Why not, or the limit it is written under.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+/// Each of `names` of `entity_type` judged alone, as [`check_records`] judges a record carrying
+/// it: the gateway's grant of the attribute, then the broker's view. A grant limited to an area
+/// admits the location only inside it, which a name alone cannot show: writable, with that limit.
+pub fn writable(
+    state: &AppState,
+    project: &str,
+    pipeline: &Value,
+    entity_type: &str,
+    names: &[String],
+    now: DateTime<Utc>,
+) -> Result<Vec<Writable>, ApiError> {
+    let writer = writer(state, project, pipeline)?;
+    let target = target_of(&writer.types, &writer.targets, entity_type);
+    Ok(names
+        .iter()
+        .map(|name| {
+            let probe = serde_json::json!({ "type": entity_type, name: { "type": "Property", "value": 0 } });
+            let mut findings = Vec::new();
+            match target {
+                None => findings.push(endpoint_finding(
+                    "targetEndpoint",
+                    "",
+                    "the pipeline names no Endpoint to write through".into(),
+                )),
+                Some(target) => judge_write(
+                    &writer.subject,
+                    target,
+                    entity_type,
+                    &probe,
+                    now,
+                    write_guard::check_fragment,
+                    &mut findings,
+                ),
+            }
+            let area = findings.iter().position(|f| f.field == "location" && f.rule == "grant");
+            let reason = match area {
+                Some(at) if findings.len() == 1 => {
+                    findings.remove(at);
+                    Some("only inside the area its grant names".to_owned())
+                }
+                _ => findings.first().map(|f| f.reason.clone()),
+            };
+            Writable {
+                name: name.clone(),
+                writable: findings.is_empty(),
+                reason,
+            }
+        })
+        .collect())
 }
 
 /// [`check_records`] over what a test's mapping made: its first [`MAX_RECORDS`] records.
@@ -354,6 +452,27 @@ fn judge_endpoint(
     now: DateTime<Utc>,
     findings: &mut Vec<Finding>,
 ) {
+    judge_write(
+        subject,
+        target,
+        entity_type,
+        record,
+        now,
+        write_guard::check,
+        findings,
+    );
+}
+
+/// [`judge_endpoint`] with the gateway's guard for a whole entity or for an attribute fragment.
+fn judge_write(
+    subject: &Subject,
+    target: &Target,
+    entity_type: &str,
+    record: &Value,
+    now: DateTime<Utc>,
+    guard: fn(&Value, &Constraints) -> Result<(), Refusal>,
+    findings: &mut Vec<Finding>,
+) {
     let endpoint = &target.endpoint;
     let write = match &target.write {
         None => return,
@@ -391,7 +510,7 @@ fn judge_endpoint(
             ),
         )),
         Decision::Rewrite(constraints) => {
-            if let Err(refusal) = write_guard::check(record, &constraints) {
+            if let Err(refusal) = guard(record, &constraints) {
                 findings.push(endpoint_finding(
                     "grant",
                     refused_field(&refusal),
@@ -800,6 +919,81 @@ mod tests {
         assert!(
             endpoint_findings(&target(json!([grant(json!({}))]), Ok(view())), &record).is_empty()
         );
+    }
+
+    /// The Target step's lock column (T-4842): an attribute alone, judged by the grant and the
+    /// view the record check uses; a grant limited to an area keeps the location writable there.
+    #[test]
+    fn each_attribute_is_writable_or_named_with_why_not() {
+        let subject = Subject {
+            service_account: Some("pl-hsl-hfp-vehicles".into()),
+            ..Subject::default()
+        };
+        let named = grant(json!({ "information": [{ "entities": [{ "type": "Bus" }],
+            "propertyNames": ["speed", "location"] }] }));
+        let judged = |target: &Target, name: &str| {
+            let probe = json!({ "type": "Bus", name: { "type": "Property", "value": 0 } });
+            let mut findings = Vec::new();
+            judge_write(
+                &subject,
+                target,
+                "Bus",
+                &probe,
+                now(),
+                write_guard::check_fragment,
+                &mut findings,
+            );
+            findings
+        };
+        let granted = target(json!([named]), Ok(view()));
+        assert!(judged(&granted, "speed").is_empty());
+        let refused = judged(&granted, "observedOn");
+        assert_eq!(
+            (refused[0].rule.as_str(), refused[0].field.as_str()),
+            ("grant", "observedOn")
+        );
+        let unviewed = judged(&target(json!([grant(json!({}))]), Ok(view())), "pm25");
+        assert_eq!(unviewed[0].rule, "NOT_WRITABLE");
+        assert_eq!(
+            judged(&target(json!([]), Ok(view())), "speed")[0].rule,
+            "policy"
+        );
+
+        // Through the whole path: no broker here, so the grant alone is unknown and all pass;
+        // a pipeline without an Endpoint says so for every attribute.
+        let all = writable(
+            &world(),
+            "helsinki",
+            &pipeline(json!([])),
+            "Bus",
+            &["speed".into()],
+            now(),
+        )
+        .expect("judged");
+        assert_eq!(
+            all,
+            [Writable {
+                name: "speed".into(),
+                writable: true,
+                reason: None
+            }]
+        );
+        let mut orphan = pipeline(json!([]));
+        orphan["spec"]["outputs"] = json!([]);
+        if let Ok(none) = writable(
+            &world(),
+            "helsinki",
+            &orphan,
+            "Bus",
+            &["speed".into()],
+            now(),
+        ) {
+            assert!(!none[0].writable);
+            assert!(none[0]
+                .reason
+                .as_deref()
+                .is_some_and(|r| r.contains("no Endpoint")));
+        }
     }
 
     #[test]
