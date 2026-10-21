@@ -1393,6 +1393,14 @@
         "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
       ]
     },
+    "src/pages/organization/ProjectMqtt.tsx": {
+      "walkedBy": "worker-t4860",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/worker-t4860/T-4860/mqtt-admin-enable-1440.png",
+        "evidence/worker-t4860/T-4860/mqtt-admin-enable-400.png"
+      ]
+    },
     "src/pages/pipelines/AccessRequests.tsx": {
       "walkedBy": "worker-t4863",
       "date": "2026-10-21",

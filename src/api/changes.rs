@@ -1702,17 +1702,11 @@ async fn approve_every_file(
             envelope.kind.as_str(),
             "Role" | "RoleBinding" | "ServiceAccount"
         );
-        // Making data public in the catalogue is a person's decision, taken by a second person:
-        // never its proposer, a service account, the assistant or MCP (EP-142).
-        let public = !file.deleted && publishes_publicly(&envelope);
-        if public && identity.client.is_some() {
-            return Err(ApiError::Denied(format!(
-                "'{}' publishes an Endpoint in the public catalogue, which a person approves in the Portal, never a service account (EP-142)",
-                file.path
-            )));
-        }
+        let public = public_publication(identity, &file, &envelope)?;
         publishes |= public;
-        changes_access |= needs_second_person(&envelope.kind) || public;
+        // A public publication is held for a second person like an access change (EP-142).
+        changes_access |= public;
+        changes_access |= needs_second_person(&envelope.kind);
         if file.deleted {
             // `delete` is its own verb on every kind, not only the access ones: a cascade that
             // removes a whole project is held to `approve` and `delete` on each kind it takes
@@ -1758,6 +1752,24 @@ async fn approve_every_file(
         );
     }
     Ok((lane, deletes_every_kind, changes_access, publishes))
+}
+
+/// Whether this file of a change publishes in the public catalogue (EP-142). Making data public
+/// is a person's decision, taken by a second person: never its proposer, a service account, the
+/// assistant or MCP, so a service account approving such a file is refused here.
+fn public_publication(
+    identity: &crate::auth::session::Identity,
+    file: &crate::git::gitea::ChangedFile,
+    envelope: &ResourceEnvelope,
+) -> Result<bool, ApiError> {
+    let public = !file.deleted && publishes_publicly(envelope);
+    if public && identity.client.is_some() {
+        return Err(ApiError::Denied(format!(
+            "'{}' publishes an Endpoint in the public catalogue, which a person approves in the Portal, never a service account (EP-142)",
+            file.path
+        )));
+    }
+    Ok(public)
 }
 
 /// A public publication (EP-142): an Endpoint whose audience is `public` and that declares
@@ -2383,6 +2395,29 @@ mod tests {
             access_expires_at: 9_999_999_999,
             refresh_token: None,
         })
+    }
+
+    #[test]
+    fn public_publication_refuses_a_service_account_and_skips_a_deletion() {
+        let endpoint: ResourceEnvelope = serde_json::from_value(json!({
+            "apiVersion": crate::resource::API_VERSION, "kind": "Endpoint", "metadata": {"name": "air"},
+            "spec": {"audience": "public", "publish": {"ckan": {}}}
+        }))
+        .unwrap();
+        let file = |deleted| crate::git::gitea::ChangedFile {
+            path: "projects/p/endpoints/air.yaml".into(),
+            deleted,
+            added: false,
+        };
+        let person = test_user("jana@example.org", vec![]).0.identity;
+        let robot = Identity {
+            client: Some("svc-ingest".into()),
+            ..person.clone()
+        };
+        assert!(public_publication(&person, &file(false), &endpoint).unwrap());
+        assert!(!public_publication(&robot, &file(true), &endpoint).unwrap());
+        let refused = public_publication(&robot, &file(false), &endpoint).unwrap_err();
+        assert!(matches!(refused, ApiError::Denied(m) if m.contains("EP-142")));
     }
 
     #[test]
