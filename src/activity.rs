@@ -136,12 +136,20 @@ pub struct ActivityFilter {
     pub object: Option<String>,
     pub limit: i64,
     pub cursor: Option<Cursor>,
+    /// The spaces the reader's bindings reach; `None` for every space. An event of no space is a
+    /// project's own and reaches every reader (T-4876). Set by the route, never by a parameter.
+    pub reach: Option<Vec<String>>,
 }
 
 impl ActivityFilter {
     /// Whether one event belongs in this answer. The store's SQL says the same thing; the live
     /// tail runs it over the events as they arrive.
     pub fn matches(&self, event: &ActivityEvent) -> bool {
+        if let (Some(reach), Some(space)) = (&self.reach, &event.space) {
+            if !reach.contains(space) {
+                return false;
+            }
+        }
         if let Some(space) = &self.space {
             if event.space.as_deref() != Some(space.as_str()) {
                 return false;
@@ -375,6 +383,10 @@ impl ActivityStore {
                     n += 1;
                     sql.push_str(&format!(" AND space = ${n}"));
                 }
+                if filter.reach.is_some() {
+                    n += 1;
+                    sql.push_str(&format!(" AND (space IS NULL OR space = ANY(${n}))"));
+                }
                 if !filter.kinds.is_empty() {
                     n += 1;
                     sql.push_str(&format!(" AND kind = ANY(${n})"));
@@ -409,6 +421,9 @@ impl ActivityStore {
                 let mut query = sqlx::query(sqlx::AssertSqlSafe(sql)).bind(project);
                 if let Some(space) = &filter.space {
                     query = query.bind(space);
+                }
+                if let Some(reach) = &filter.reach {
+                    query = query.bind(reach.clone());
                 }
                 if !filter.kinds.is_empty() {
                     query = query.bind(filter.kinds.clone());
