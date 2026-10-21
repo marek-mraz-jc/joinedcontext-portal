@@ -83,6 +83,8 @@ const PIPELINE = {
 
 interface Stub {
   validate: unknown;
+  /** The source's records, when not SAMPLE. */
+  sample?: Record<string, unknown>[];
   status?: number;
   seen: Record<string, unknown>[];
 }
@@ -100,7 +102,8 @@ async function stubApi(page: Page, stub: Stub): Promise<void> {
     }
     if (isCheck(request.method(), request.url())) return json(greenVerdict(request.postData()));
     if (/\/ops\/jc_pipeline_sample_source$/.test(path)) {
-      return json({ records: SAMPLE, fields: Object.keys(SAMPLE[0]), count: SAMPLE.length, truncated: false, errors: [] });
+      const records = stub.sample ?? SAMPLE;
+      return json({ records, fields: Object.keys(records[0]), count: records.length, truncated: false, errors: [] });
     }
     if (/\/ops\/jc_pipeline_try_mapping$/.test(path)) return json({ input: {}, records: RECORDS, errors: [] });
     if (/\/ops\/jc_pipeline_validate$/.test(path)) {
@@ -122,7 +125,7 @@ async function stubApi(page: Page, stub: Stub): Promise<void> {
   });
 }
 
-async function shot(page: Page, name: string): Promise<void> {
+async function shot(page: Page, name: string, steps = ["workbench-output", "workbench-validation"]): Promise<void> {
   const dir = process.env.JC_SHOTS;
   if (!dir) return;
   for (const [width, label] of [
@@ -130,7 +133,7 @@ async function shot(page: Page, name: string): Promise<void> {
     [400, "phone"],
   ] as const) {
     await page.setViewportSize({ width, height: 900 });
-    for (const step of ["workbench-output", "workbench-validation"]) {
+    for (const step of steps) {
       const section = page.locator(`section[aria-labelledby="${step}-title"]`);
       await section.scrollIntoViewIfNeeded();
       await section.screenshot({ path: `${dir}/record-check-${name}-${step.replace("workbench-", "")}-${label}.png` });
@@ -186,5 +189,16 @@ test.describe("the record check in the pipeline workbench", () => {
     await openEditor(page);
     await expect(validation(page).getByRole("alert")).toBeVisible();
     await shot(page, "error");
+  });
+
+  test("an XML source's nested values read as words in the sample, never as JSON (T-4972)", async ({ page }) => {
+    // Bento reads an XML root's namespace declarations as `-prefix` members of one object.
+    const xml = [{ FeatureCollection: { "-BsWfs": "http://xml.fmi.fi/schema/wfs/2.0", "-gml": "http://www.opengis.net/gml/3.2" }, numberMatched: "24" }];
+    await stubApi(page, { validate: GREEN, sample: xml, seen: [] });
+    await openEditor(page);
+    const sample = page.locator('section[aria-labelledby="workbench-sample-title"]').getByRole("table", { name: "Sample records" });
+    await expect(sample.getByRole("cell").first()).toHaveText("-BsWfs: http://xml.fmi.fi/schema/wfs/2.0; -gml: http://www.…");
+    await expect(sample).not.toContainText('{"');
+    await shot(page, "xml", ["workbench-sample"]);
   });
 });

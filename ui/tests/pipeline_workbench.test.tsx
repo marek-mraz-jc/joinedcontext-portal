@@ -20,6 +20,8 @@ import type { PipelineForm } from "../src/pages/pipelines/PipelineEditor";
 import type { ReactNode } from "react";
 import { PipelineWorkbench, answeredHtml, classOfMapping, exampleOf, flatten, mapperType, readSample, readValidation } from "../src/pages/pipelines/PipelineWorkbench";
 import { expectAxeClean, jsonResponse, problem } from "./pageHarness";
+import { pageFindings } from "./pageChecks";
+import { plainValue } from "../src/pages/pipelines/PipelineStudio";
 
 // The Lifetime step links the space's retention rules; this harness renders the steps without a
 // router, so the link is a plain anchor here (T-4842).
@@ -384,6 +386,33 @@ describe("the pipeline workbench", () => {
     expect(ops[1].body.sample).toEqual({ url: "https://feeds.example/air.csv", format: "csv" });
     expect((ops[2].body.records as unknown[]).length).toBe(2);
     await expectAxeClean(container);
+  });
+
+  it("shows a nested sample value in words, never as JSON (T-4972)", async () => {
+    // An XML source's root element holds its namespaces: Bento reads `xmlns:gml` as `-gml`.
+    const XML = {
+      records: [{ FeatureCollection: { "-BsWfs": "http://xml.fmi.fi/schema/wfs/2.0", "-gml": "http://www.opengis.net/gml/3.2" }, members: [1, 2] }],
+      fields: ["FeatureCollection", "members"],
+      count: 1,
+      truncated: false,
+      errors: [],
+    };
+    stub({ sample: XML, mapping: MAPPED, validate: ONE_BAD }, { ops: [] });
+    show({ targetEndpoint: URN, compute: { kind: "bloblang", bloblang: MAPPING } });
+
+    await userEvent.selectOptions(screen.getByLabelText(en.pipelines.workbench.source.pick), "datasource:shmu-csv");
+    const sample = await within(step(en.pipelines.workbench.sample.title)).findByRole("table", {
+      name: en.pipelines.workbench.sample.caption,
+    });
+    expect(within(sample).getByRole("cell", { name: "-BsWfs: http://xml.fmi.fi/schema/wfs/2.0; -gml: http://www.…" })).toBeInTheDocument();
+    expect(within(sample).getByRole("cell", { name: "1, 2" })).toBeInTheDocument();
+    expect(pageFindings({ namespaces: [], layout: false }).filter((finding) => finding.startsWith("raw-json"))).toEqual([]);
+  });
+
+  it("reads a nested value as key and value pairs, a list as its items", () => {
+    expect(plainValue({ a: 1, b: { c: [true, null], d: "x" } })).toBe("a: 1; b: (c: true, null; d: x)");
+    expect(plainValue(undefined)).toBe("");
+    expect(plainValue([[[[1]]]])).toBe("…");
   });
 
   it("gives_a_green_verdict_only_for_the_mapping_that_ran_and_only_when_every_record_is_valid", async () => {

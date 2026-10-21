@@ -7,7 +7,8 @@ use std::time::{Duration, Instant};
 use axum::extract::{Path, Query, State};
 use axum::http::header;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
+use axum::routing::get;
+use axum::{Json, Router};
 use jc_core::kinds::Verb;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -17,6 +18,20 @@ use super::knowledge::{administers, admitted, ask_text, ask_with, audited, LIST_
 use crate::auth::CurrentUser;
 use crate::error::ApiError;
 use crate::state::AppState;
+
+/// The summary and the export of the stored turns, beside [`super::knowledge::router`]: this
+/// file calls into that one, so it mounts its own routes (no module cycle, T-4965).
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/projects/{project}/knowledge/conversations/usage",
+            get(conversation_usage),
+        )
+        .route(
+            "/projects/{project}/knowledge/conversations/export",
+            get(export_conversations),
+        )
+}
 
 /// The longest an export may take: up to 20,000 turns.
 const EXPORT_TIME: Duration = Duration::from_secs(60);

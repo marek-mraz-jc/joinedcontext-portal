@@ -55,7 +55,9 @@ impl Driver {
             tracing::info!(run = %self.run_id, endpoint = %endpoint.name, status = %response.status(), "an endpoint served no query card");
             return None;
         }
-        let body = response.json::<Value>().await.ok()?;
+        let body: Value = crate::capped::json(response, crate::capped::ANSWER_BYTES)
+            .await
+            .ok()?;
         body["result"]["contents"][0]["text"]
             .as_str()
             .map(str::to_owned)
@@ -345,7 +347,9 @@ impl Driver {
         {
             Ok(response) => {
                 let status = response.status();
-                let body = response.text().await.unwrap_or_default();
+                let body = crate::capped::text(response, crate::capped::ANSWER_BYTES)
+                    .await
+                    .unwrap_or_default();
                 if status.is_success() {
                     serde_json::from_str::<Value>(&body).unwrap_or_else(
                         |err| json!({ "error": format!("the endpoint's answer is not JSON: {err}") }),

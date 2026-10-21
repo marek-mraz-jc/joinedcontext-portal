@@ -2235,6 +2235,22 @@ pub fn is_stream_pipeline(spec: &PipelineSpec) -> bool {
     })
 }
 
+/// Whether the runner keeps `spec` loaded between runs (PL-78): a DataSource that waits for
+/// pushes, or an Endpoint read with a change trigger. A scheduled poll is created for its run and
+/// deleted after it, so it holds no resident slot (PF-73, T-4952). A DataSource not in the mirror
+/// counts nothing here: its pipeline is not rendered until it is, and is counted then.
+pub fn stays_resident(mirror: &Mirror, ns: &str, spec: &PipelineSpec) -> bool {
+    spec.sources().into_iter().any(|source| {
+        if source.data_source_ref.is_none() {
+            return source.endpoint_ref.is_some() && source.trigger.is_some();
+        }
+        matches!(
+            resolve_source(mirror, ns, source),
+            Ok(ResolvedSource::Data { spec, .. }) if run_queue::is_resident(&spec.source_type)
+        )
+    })
+}
+
 /// One `StreamDeployed` condition with the runner's word on why.
 pub fn make_condition(
     condition_type: &str,

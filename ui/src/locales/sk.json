@@ -8126,6 +8126,7 @@
     "decisions": "Čaká na vaše rozhodnutie",
     "decisionsHint": "Schválenie zmeny v červenom pruhu si pýta jej názov, ako na jej vlastnej stránke.",
     "noDecisions": "Nič nečaká na vaše rozhodnutie.",
+    "listFailed": "Zmeny projektu {project} sa nenačítali, zoznam preto nemusí byť úplný: {reason} Schránka to skúsi znova o 30 sekúnd.",
     "by": "navrhol {author} v {project}",
     "openChange": "Otvoriť zmenu",
     "showDiff": "Ukázať, čo mení",

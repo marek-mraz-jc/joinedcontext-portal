@@ -65,14 +65,29 @@ export function useDecision(project: string, id: string) {
 }
 
 /** The changes of `project` waiting for this person's decision: pending and approvable by them. */
-export function useDecisions(project: string): ChangeProposal[] {
-  const { identity } = useAuth();
-  const permissions = usePermissions(project);
-  const list = useQuery({
+/** The project's change list, read once for every hook below (one query key). */
+function useChangeList(project: string) {
+  return useQuery({
     queryKey: queryKeys.changes(project),
     queryFn: async () => unwrap(await api.GET("/api/v1/projects/{project}/changes", { params: { path: { project } } })),
     refetchInterval: 30_000,
   });
+}
+
+/**
+ * Why the project's changes did not load, or null: an inbox that read a failed list as empty
+ * said "Nothing waits for your decision" while changes waited (T-4966).
+ */
+export function useDecisionsError(project: string): string | null {
+  const list = useChangeList(project);
+  if (!list.isError || list.data) return null;
+  return list.error instanceof ApiError ? (list.error.problem?.detail ?? list.error.message) : list.error.message;
+}
+
+export function useDecisions(project: string): ChangeProposal[] {
+  const { identity } = useAuth();
+  const permissions = usePermissions(project);
+  const list = useChangeList(project);
   return (list.data?.items ?? []).filter(
     (change) =>
       change.status.phase === "PendingApproval" &&
