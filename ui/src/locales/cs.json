@@ -472,6 +472,7 @@
     "lead": "Úprava se navrhne jako změna; schvalovatel ji posoudí dřív, než se cokoli změní.",
     "propose": "Navrhnout změnu",
     "renamed": "Ponechte název {name}; jiný název by byl nový zdroj.",
+    "parseError": "Řádek {line}: {reason}. Opravte YAML, abyste mohli navrhnout změnu.",
     "button": "Upravit",
     "action": "Upravit {name}",
     "loading": "Načítá se {name}…",
@@ -3891,6 +3892,7 @@
       "views": "Pohledy na model",
       "view": {
         "overview": "Přehled",
+        "fields": "Pole",
         "diagram": "Diagram",
         "form": "Formulář",
         "yaml": "YAML",
@@ -4011,6 +4013,26 @@
       "any": "Libovolná hodnota",
       "object": "Obsahuje {fields}",
       "linkTo": "Odkaz na {target}"
+    },
+    "fields": {
+      "title": "Pole a co prostor obsahuje",
+      "noSpace": "Tento model nejmenuje žádný kontextový prostor, proto u jeho polí nejsou žádná data. Prostor zadejte v nastavení modelu, například ilma.",
+      "notYet": "Denní kontrola kvality ještě nečetla prostor {space}; údaje se zde zobrazí po jejím prvním běhu.",
+      "observed": "Údaje z prostoru {space}, přečtené denní kontrolou kvality {at}.",
+      "factsFailed": "Údaje prostoru se nepodařilo přečíst: {reason}. Znovu načtěte stránku, nebo požádejte správce prostoru o přístup ke čtení.",
+      "noTypes": "Tento model zatím nedeklaruje žádný typ. Přidejte jej přes Upravit.",
+      "count": "{count} v prostoru",
+      "caption": "Pole typu {type}, co každé povoluje a co prostor obsahuje",
+      "allowed": "Povolené hodnoty",
+      "description": "Popis",
+      "inSpace": "V prostoru",
+      "query": "Dotaz",
+      "anyValue": "Jakákoli hodnota typu",
+      "noEntities": "Zatím žádná entita tohoto typu",
+      "seenRange": "viděno {min} – {max}",
+      "broken": "{count, plural, one {# entita porušuje} few {# entity porušují} other {# entit porušuje}} {rules}",
+      "queryAction": "Dotazovat",
+      "queryLabel": "Otevřít Průzkum na entitách {type}, které mají {field}"
     }
   },
   "apps": {
@@ -8473,7 +8495,8 @@
     "event": {
       "failure": "selže",
       "stale": "její data zastarají",
-      "zero": "nic nezapíše"
+      "zero": "nic nezapíše",
+      "invalid": "jeho data poruší pravidlo modelu, které den předtím neporušila"
     },
     "delivery": "Jak",
     "portal": "V Portálu, hned",

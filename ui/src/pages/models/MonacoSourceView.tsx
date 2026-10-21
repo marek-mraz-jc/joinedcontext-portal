@@ -6,17 +6,31 @@
  * imported lazily, and everything that can be decided without an editor lives in
  * `LinkmlSourceEditor` instead.
  */
-import { useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import type { JSX } from "react";
 import Editor from "@monaco-editor/react";
 import type { OnMount } from "@monaco-editor/react";
+import type { Position, editor as MonacoEditor } from "monaco-editor";
 import "./monaco-setup";
+import { pathAt } from "../../components/yamlManifest";
+import type { LineMark } from "../../components/yamlManifest";
+
+type Monaco = Parameters<OnMount>[1];
+type CodeEditor = Parameters<OnMount>[0];
 
 export interface MonacoSourceViewProps {
   value: string;
   onChange: (value: string) => void;
   onMount: OnMount;
   height: string;
+  /** A viewer reads the text and cannot change it (T-5052). */
+  readOnly?: boolean;
+  /** The lines a parse error or a refusal points at, marked in the text (T-5052). */
+  marks?: readonly LineMark[];
+  /** What the field at a path is for, shown when the pointer rests on it (T-5052). */
+  describeField?: (path: (string | number)[]) => string | null;
+  /** The editor's name for a screen reader. */
+  ariaLabel?: string;
 }
 
 const DARK = "(prefers-color-scheme: dark)";
@@ -56,8 +70,24 @@ export default function MonacoSourceView({
   onChange,
   onMount,
   height,
+  readOnly = false,
+  marks = [],
+  describeField,
+  ariaLabel,
 }: MonacoSourceViewProps): JSX.Element {
   const dark = useDarkTheme();
+  const editorRef = useRef<CodeEditor | null>(null);
+  const monacoRef = useRef<Monaco | null>(null);
+  const describeRef = useRef(describeField);
+
+  useEffect(() => {
+    describeRef.current = describeField;
+    const model = editorRef.current?.getModel();
+    if (model && monacoRef.current) {
+      monacoRef.current.editor.setModelMarkers(model, "manifest", marksToMarkers(monacoRef.current, marks));
+    }
+  });
+
   return (
     <Editor
       height={height}
@@ -65,14 +95,48 @@ export default function MonacoSourceView({
       theme={dark ? "vs-dark" : "vs"}
       value={value}
       onChange={(next) => onChange(next ?? "")}
-      onMount={onMount}
+      onMount={(mounted, monaco) => {
+        editorRef.current = mounted;
+        monacoRef.current = monaco;
+        const hover = monaco.languages.registerHoverProvider("yaml", {
+          provideHover: (model: MonacoEditor.ITextModel, position: Position) => {
+            if (model !== mounted.getModel()) {
+              return null;
+            }
+            const path = pathAt(model.getValue(), model.getOffsetAt(position));
+            const text = path ? describeRef.current?.(path) : null;
+            return text ? { contents: [{ value: `**${path?.join(".")}**` }, { value: text }] } : null;
+          },
+        });
+        mounted.onDidDispose(() => hover.dispose());
+        const model = mounted.getModel();
+        if (model) {
+          monaco.editor.setModelMarkers(model, "manifest", marksToMarkers(monaco, marks));
+        }
+        onMount(mounted, monaco);
+      }}
       options={{
         minimap: { enabled: false },
         fontSize: 13,
         tabSize: 2,
         scrollBeyondLastLine: false,
         renderWhitespace: "boundary",
+        readOnly,
+        folding: true,
+        foldingStrategy: "indentation",
+        ariaLabel,
       }}
     />
   );
+}
+
+function marksToMarkers(monaco: Monaco, marks: readonly LineMark[]) {
+  return marks.map((mark) => ({
+    severity: monaco.MarkerSeverity.Error,
+    message: mark.message,
+    startLineNumber: mark.line,
+    endLineNumber: mark.line,
+    startColumn: 1,
+    endColumn: 1000,
+  }));
 }

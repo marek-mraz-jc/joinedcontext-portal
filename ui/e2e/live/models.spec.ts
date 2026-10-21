@@ -69,12 +69,16 @@ test("a steward builds a model with classes, an enum and a has-many relation, ed
     await page.getByRole("button", { name: "Station", exact: true }).click();
     await page.getByLabel("New field").fill("band");
     await page.getByRole("button", { name: "Add field" }).click();
-    await page.getByLabel("Range", { exact: true }).selectOption("QualityBand");
+    // T-4829 lists the fields as rows: the new one opens to its details, where "Type of value" is.
+    await page.getByRole("button", { name: "band", exact: true }).click();
+    await page.getByLabel("Type of value", { exact: true }).selectOption("QualityBand");
 
     // One Station has many Sensors: the relationship form writes both ends (multivalued on the owner).
-    await page.getByRole("radio", { name: "One to many" }).check();
-    await page.getByLabel("Target class").selectOption("Sensor");
-    await page.getByRole("button", { name: "Add relationship" }).click();
+    // The editor shows a relationship form per type; this is Station's.
+    const relate = page.locator("form").filter({ has: page.getByRole("heading", { name: "Add a relationship from Station" }) });
+    await relate.getByRole("radio", { name: "One to many" }).check();
+    await relate.getByLabel("Target class", { exact: true }).selectOption("Sensor");
+    await relate.getByRole("button", { name: "Add relationship" }).click();
     await expect(page.getByRole("table", { name: "Relationships" })).toContainText(/has many/);
     await clip.end();
     await guideShot(page, "model-1-classes-and-relationship");

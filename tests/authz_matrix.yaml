@@ -109,6 +109,9 @@ routes:
   - route: GET /forms
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /kinds/{kind}/schema
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
   - route: GET /health
     rule: "public"
     expect: [allow, allow, allow, allow, allow, allow, allow, allow]

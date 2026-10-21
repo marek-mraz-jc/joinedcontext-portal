@@ -117,7 +117,8 @@
         "Button": 4
       },
       "tests": [
-        "form_edit_resource_dialog.test.tsx"
+        "form_edit_resource_dialog.test.tsx",
+        "yaml_manifest_view.test.tsx"
       ]
     },
     "src/components/ErrorBoundary.tsx": {
