@@ -24,7 +24,7 @@ use jcctl::loader::RawManifest;
 use joinedcontext_portal::apps::reconciler::{
     generate_slug, grants, render, RenderError, Settings,
 };
-use joinedcontext_portal::apps::roles::{may_open, refusal, AppPerson};
+use joinedcontext_portal::apps::roles::{admits, refusal, AppPerson, Standing};
 use joinedcontext_portal::auth::Identity;
 use joinedcontext_portal::reconciler::app_clients::ClientSecret;
 use joinedcontext_portal::reconciler::edge_file::edge_apps;
@@ -460,14 +460,21 @@ fn who_opens_each_visibility_and_the_page_a_roles_app_refuses_with() {
         };
         let spec: AppSpec =
             serde_json::from_value(manifest(&variant).spec).expect("the App parses");
+        // Every persona is a member of the App's project; none is its owner (T-4910).
+        let member = Standing {
+            project_member: true,
+            organization_member: true,
+            ..Standing::default()
+        };
         for persona in Persona::ALL {
             let opens = match visibility {
                 "public" => true,
                 "roles" => matches!(persona, Persona::Viewer | Persona::Editor),
+                "private" => false,
                 _ => !matches!(persona, Persona::Anonymous),
             };
             assert_eq!(
-                may_open(&spec, persona.person().as_ref()),
+                admits(spec.visibility, persona.person().as_ref(), member),
                 opens,
                 "{visibility}: {persona:?} opens"
             );

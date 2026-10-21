@@ -94,7 +94,7 @@ async fn serve(
     };
     // The person as this App's own client knows them (ADR-N-030, AP-92).
     let person = super::roles::person(&state, &headers, &spec, &name).await;
-    if !super::roles::may_open(&spec, person.as_ref()) {
+    if !super::roles::may_open(&state, &project, &name, &spec, person.as_ref()) {
         if spec.visibility != AppVisibility::Roles {
             return not_found();
         }
