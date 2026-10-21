@@ -1161,6 +1161,7 @@
       "publicUrl": "Public address",
       "audience": "Audience",
       "representations": "Representations",
+      "representationMappings": "Calendar mapping",
       "more": "+{count} more",
       "noRepresentations": "no representations",
       "phase": "State",
@@ -1306,7 +1307,31 @@
       "odata": "OData v4",
       "websocket": "WebSocket notifications",
       "sta": "SensorThings API",
+      "ical": "iCalendar feed",
       "mcp": "MCP for AI assistants"
+    },
+    "ical": {
+      "subscribe": "Calendar subscription",
+      "preview": "Open the feed (.ics)",
+      "off": "Turn on the iCalendar feed under Representations to map its fields.",
+      "help": "Which attribute of the space's model each calendar field comes from. An empty row uses the preset's attribute, shown greyed. Check the form to see the server's verdict against the data model.",
+      "start": "Start from",
+      "presetDefault": "The default (Smart Data Models Event)",
+      "preset": {
+        "sdm-event": "Smart Data Models Event",
+        "schema-org": "schema.org Event"
+      },
+      "presetOwn": "Only the fields below",
+      "type": "Type it maps",
+      "noModel": "Space {space} has no data model in this project yet, so no attributes can be offered; the check refuses the mapping until it has one.",
+      "missing": "Map these required fields: {fields}",
+      "caption": "Calendar fields and the attributes they come from",
+      "field": "Calendar field",
+      "attribute": "Attribute",
+      "fixed": "Set by the platform: {attribute}",
+      "remap": "Written in YAML with remaps; edit it in the manifest",
+      "unmapped": "Not mapped",
+      "requiredBadge": "Required"
     },
     "section": {
       "projection": "Which classes and attributes it shows",

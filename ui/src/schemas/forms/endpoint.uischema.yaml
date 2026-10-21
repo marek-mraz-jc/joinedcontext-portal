@@ -35,6 +35,7 @@ spec:
       audience,
       allowedProjects,
       enabledRepresentations,
+      representations,
       rateLimits,
       caching,
       publish,
@@ -62,7 +63,7 @@ spec:
         sk: Viditeľnosť, povolené projekty a zapnuté reprezentácie.
         cs: Viditelnost, povolené projekty a zapnuté reprezentace.
         de: Sichtbarkeit, zugelassene Projekte und aktivierte Repräsentationen.
-      fields: [audience, allowedProjects, enabledRepresentations]
+      fields: [audience, allowedProjects, enabledRepresentations, representations]
     - title:
         en: Traffic and caching
         sk: Prevádzka a vyrovnávacia pamäť
@@ -140,6 +141,12 @@ spec:
         de: >-
           Die Standards, über die Aufrufer lesen können. Alle außer SensorThings sind an, bis Sie
           sie abwählen; NGSI-LD, GeoJSON und MCP sind immer an.
+    representations:
+      help:
+        en: Which attribute of the space's model each field of the iCalendar feed comes from; the default reads a Smart Data Models Event.
+        sk: Z ktorého atribútu modelu priestoru pochádza každé pole kalendára iCalendar; predvolené číta Smart Data Models Event.
+        cs: Ze kterého atributu modelu prostoru pochází každé pole kalendáře iCalendar; výchozí čte Smart Data Models Event.
+        de: Aus welchem Attribut des Raummodells jedes Feld des iCalendar-Feeds stammt; der Standard liest ein Smart Data Models Event.
     allowedProjects:
       help:
         en: Other projects in the organization permitted to read this endpoint when audience is restricted.

@@ -1906,8 +1906,8 @@ fn check_replace(
     }
 }
 
-/// Refuses an Endpoint that lists a representation its space's model cannot serve (EP-125), with
-/// `jcctl validate`'s sentence. A spec that does not parse is judged by the kind's own check.
+/// Refuses an Endpoint whose representation mapping does not fit its space's model (EP-125), with
+/// `jcctl validate`'s sentences, one line per gap. A spec that does not parse is judged by the kind's own check.
 async fn check_surfaces(
     state: &AppState,
     project: &str,
@@ -1918,12 +1918,11 @@ async fn check_surfaces(
     let Ok(endpoint) = serde_json::from_value::<EndpointSpec>(spec.clone()) else {
         return Ok(());
     };
-    let wanted: Vec<_> = endpoint
+    if !endpoint
         .served_representations()
-        .into_iter()
-        .filter(|r| r.requirement().is_some())
-        .collect();
-    if wanted.is_empty() {
+        .iter()
+        .any(|r| r.needs_model())
+    {
         return Ok(());
     }
     let space = endpoint.context_space_ref.name();
@@ -1945,26 +1944,19 @@ async fn check_surfaces(
         }
         None => None,
     };
-    for representation in wanted {
-        let gap = match &linkml {
-            // A space without a model has no type at all.
-            None => Ok(representation
-                .requirement()
-                .map(|need| format!("the type {}", need.entity_type))),
-            Some(text) => representation.model_gap(text),
-        };
-        let detail = match gap {
-            Ok(None) => continue,
-            Ok(Some(gap)) => format!(
-                "Endpoint {project}/{name}: `{representation}` needs {gap} in the data model of space {space} (EP-125)"
-            ),
-            Err(err) => format!(
-                "Endpoint {project}/{name}: `{representation}` cannot be checked against the data model of space {space}: {err} (EP-125)"
-            ),
-        };
-        return Err(ApiError::BadRequest(detail));
+    let at = format!("Endpoint {project}/{name}, space {space}");
+    match endpoint.representation_gaps(linkml.as_deref()) {
+        Ok(gaps) if gaps.is_empty() => Ok(()),
+        Ok(gaps) => Err(ApiError::BadRequest(
+            gaps.iter()
+                .map(|gap| format!("{at}: {gap} (EP-125)"))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )),
+        Err(err) => Err(ApiError::BadRequest(format!(
+            "{at}: the representations cannot be checked against the data model: {err} (EP-125)"
+        ))),
     }
-    Ok(())
 }
 
 async fn check_projection(state: &AppState, project: &str, spec: &Value) -> Result<(), ApiError> {

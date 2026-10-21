@@ -1160,6 +1160,7 @@
       "slug": "Slug",
       "audience": "Publikum",
       "representations": "Reprezentácie",
+      "representationMappings": "Mapovanie kalendára",
       "more": "+{count} ďalších",
       "noRepresentations": "žiadne reprezentácie",
       "phase": "Stav",
@@ -1306,7 +1307,31 @@
       "odata": "OData v4",
       "websocket": "Notifikácie cez WebSocket",
       "sta": "SensorThings API",
+      "ical": "Kalendár iCalendar",
       "mcp": "MCP pre AI asistentov"
+    },
+    "ical": {
+      "subscribe": "Odber kalendára",
+      "preview": "Otvoriť kalendár (.ics)",
+      "off": "Zapnite kalendár iCalendar v časti Reprezentácie, aby ste mohli mapovať jeho polia.",
+      "help": "Z ktorého atribútu modelu priestoru pochádza každé pole kalendára. Prázdny riadok použije atribút predvoľby, zobrazený sivo. Skontrolujte formulár a uvidíte verdikt servera voči dátovému modelu.",
+      "start": "Začať od",
+      "presetDefault": "Predvolené (Smart Data Models Event)",
+      "preset": {
+        "sdm-event": "Smart Data Models Event",
+        "schema-org": "schema.org Event"
+      },
+      "presetOwn": "Len polia nižšie",
+      "type": "Mapovaný typ",
+      "noModel": "Priestor {space} zatiaľ nemá v tomto projekte dátový model, preto nemožno ponúknuť atribúty; kontrola mapovanie odmietne, kým ho nebude mať.",
+      "missing": "Namapujte tieto povinné polia: {fields}",
+      "caption": "Polia kalendára a atribúty, z ktorých pochádzajú",
+      "field": "Pole kalendára",
+      "attribute": "Atribút",
+      "fixed": "Nastavuje platforma: {attribute}",
+      "remap": "Zapísané v YAML s úpravami; upravte ho v manifeste",
+      "unmapped": "Nemapované",
+      "requiredBadge": "Povinné"
     },
     "section": {
       "projection": "Ktoré triedy a atribúty zobrazuje",

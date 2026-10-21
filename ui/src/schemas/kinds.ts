@@ -88,7 +88,7 @@ export function contextSpaceSchema(t: (key: string) => string): JsonSchema {
  * The standards the Endpoint form offers, in the order it shows them (EP-05, EP-104). CSV is the
  * one file an Endpoint serves (T-4600): `xlsx`, `parquet`, `json`, `zip` and `geojson` are gone.
  */
-export const REPRESENTATIONS = ["ngsi-ld", "csv", "ogc-features", "odata", "websocket", "sta", "mcp"] as const;
+export const REPRESENTATIONS = ["ngsi-ld", "csv", "ogc-features", "odata", "websocket", "sta", "ical", "mcp"] as const;
 
 export const AUDIENCES = ["project-list", "organization", "public"] as const;
 
@@ -173,6 +173,12 @@ export function endpointSchema(
           })),
         },
         uniqueItems: true,
+      },
+      // How the iCalendar feed maps its fields from the model's attributes (EP-125, T-4900):
+      // drawn by the `icalMapping` field, written only when it differs from the default preset.
+      representations: {
+        type: "object",
+        title: t("endpoints.field.representationMappings"),
       },
       // Required by the manifest when the audience is `project-list` and refused for the
       // other two (EP-14, EP-15). The page drops the property for the other two audiences and
@@ -392,6 +398,7 @@ export const endpointUiSchema: UiSchema = {
     "ui:widget": "checkboxes",
     "ui:enumDisabled": ["ngsi-ld", "mcp"],
   },
+  representations: { "ui:field": "icalMapping" },
   caching: { maxAgeSeconds: { "ui:widget": "range" } },
 };
 
