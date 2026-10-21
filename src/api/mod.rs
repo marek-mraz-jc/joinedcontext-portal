@@ -62,6 +62,7 @@ pub mod space_move;
 pub mod space_retention;
 pub mod space_usage;
 pub mod sync_sources;
+pub mod temporal_audit;
 pub mod type_attributes;
 pub mod validation;
 pub mod visualization_templates;
@@ -123,6 +124,7 @@ pub fn router() -> Router<AppState> {
         .merge(erasures::router())
         .merge(data_views::router())
         .merge(pipeline_templates::router())
+        .merge(temporal_audit::router())
         .merge(type_attributes::router())
         .merge(entity_trash::router())
         .merge(entity_comments::router())

@@ -58,6 +58,25 @@ pub fn envelope(kind: &str, name: &str, namespace: &str, spec: Value) -> Resourc
     }
 }
 
+/// Binds `{who}@hel.fi` to reading Apps in `project`: what makes a person a member of the project,
+/// and so of the organization, for an App's visibility (T-4910).
+pub fn bind(mirror: &Mirror, who: &str, project: &str) {
+    let org = joinedcontext_portal::permissions::ORG_NAMESPACE;
+    mirror.upsert(envelope(
+        "Role",
+        "app-readers",
+        org,
+        json!({ "rules": [{ "kinds": ["App"], "verbs": ["read"] }] }),
+    ));
+    mirror.upsert(envelope(
+        "RoleBinding",
+        &format!("{who}-in-{project}"),
+        org,
+        json!({ "subjects": [{ "user": format!("{who}@hel.fi") }], "role": "app-readers",
+                "scope": { "project": project } }),
+    ));
+}
+
 /// A forge file's content as Gitea returns it.
 pub fn encode(text: &str) -> String {
     use base64::Engine;

@@ -1169,6 +1169,59 @@
       "deleteRefused": "{n} rows were not deleted",
       "deleteTitle": "Delete {n} rows?",
       "deleteBody": "Each row is deleted through the space's Policy, which can refuse it. A copy of every deleted row stays in your trash for 30 days."
+    },
+    "temporal": {
+      "title": "How history rows are created",
+      "lead": "Each attribute a pipeline writes into this space, how the space records it and where the time of each row comes from. A verdict other than OK names what to change.",
+      "summary": "Rows per verdict",
+      "count": "{verdict}: {n}",
+      "failed": "The audit could not be read: {detail}. Reload the page to try again.",
+      "empty": "No pipeline you can read writes this space",
+      "emptyHint": "A pipeline whose target Endpoint belongs to this space appears here with each attribute it maps.",
+      "unread": "The mapping of {pipelines} could not be read from the repository, so its rows are missing. Reload the page to try again.",
+      "pipelineFilter": "Pipeline",
+      "allPipelines": "All pipelines",
+      "verdictFilter": "Verdict",
+      "allVerdicts": "All verdicts",
+      "noMatch": "No row matches these filters",
+      "caption": "How each pipeline's writes become history rows",
+      "attribute": "Attribute",
+      "kept": "Kept",
+      "verdictColumn": "Verdict",
+      "of": "{type}, pipeline {pipeline}",
+      "none": "none",
+      "datasets": "{n} dataset ids",
+      "history": "History {history}",
+      "lifetime": "Entity ends: {lifetime}",
+      "recordMode": {
+        "every": "Keep every reading",
+        "onChange": "Keep only changes",
+        "none": "Keep the latest value only"
+      },
+      "source": {
+        "mapped": "From the record",
+        "constant": "A fixed time",
+        "received": "Time received"
+      },
+      "verdict": {
+        "ok": "Rows match readings",
+        "loses-history": "Loses history",
+        "unbounded-growth": "Grows without bound",
+        "duplicates-rows": "Duplicates rows",
+        "stamped-on-receive": "Stamped on receipt"
+      },
+      "fix": {
+        "loses-history": "Every write has the same time, so each replaces the last: map observedAt from the record.",
+        "unbounded-growth": "History is kept forever: set a duration on the Retention tab.",
+        "duplicates-rows": "An unchanged value is a new row on every write: map observedAt from the record, or keep only changes.",
+        "stamped-on-receive": "A measurement without its own time: map observedAt from the record."
+      },
+      "expiresMapped": "its expiresAt, set by the mapping",
+      "expiry": "stale after {after}",
+      "rows": "Rows",
+      "timeOf": "Time: {source}",
+      "unitOf": "Unit: {unit}",
+      "noMatchHint": "Choose All pipelines and All verdicts to see every row."
     }
   },
   "endpoints": {
@@ -2880,6 +2933,31 @@
       "personHelp": "The people of the organization, by email; the search above narrows the list.",
       "accountHelp": "The project's service accounts, the workloads that call endpoints.",
       "nameHelp": "The name exactly as it is written in Keycloak."
+    },
+    "presets": {
+      "legend": "Access",
+      "advanced": "Advanced",
+      "unavailable": "You do not hold all of this yourself, so you cannot give it.",
+      "reader": {
+        "label": "Reader",
+        "description": "Reads data and settings; changes nothing."
+      },
+      "writer": {
+        "label": "Writer",
+        "description": "Reads, and proposes or makes changes to data values."
+      },
+      "steward": {
+        "label": "Steward",
+        "description": "Reads, proposes and approves changes to data and its settings; not to who has access."
+      },
+      "pipelineWriter": {
+        "label": "Pipeline writer",
+        "description": "Brings data in: creates and updates entities, proposes pipelines and their sources."
+      },
+      "custom": {
+        "label": "Custom",
+        "description": "Pick each permission yourself."
+      }
     }
   },
   "flows": {

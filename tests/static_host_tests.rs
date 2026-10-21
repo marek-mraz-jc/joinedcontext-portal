@@ -1417,3 +1417,65 @@ async fn a_second_run_keeps_the_time_the_app_first_had_no_build() {
     assert_eq!(again.phase, joinedcontext_portal::resource::Phase::Pending);
     assert_eq!(again.conditions[0].last_transition_time, first);
 }
+
+/// T-4910: who opens an App of each visibility. Olga created it and holds a binding in another
+/// project, Marek is a member of its project, Eva of another project of the organization, Jana holds
+/// its viewer role and no binding, Pavol is a realm user nobody bound. A refusal is the `404` of a
+/// draft, byte for byte, except the `403` page of a `roles` App (AP-18, AP-93).
+#[tokio::test]
+async fn each_visibility_opens_for_its_own_callers_alone() {
+    let dir = app_root(
+        "visibility-matrix",
+        &[("index.html", INDEX), ("app.js", BUNDLE_JS)],
+    );
+    let token =
+        |who: &str, roles: &[&str]| Some(common::REALM.person_token("air-quality", who, roles));
+    let callers = [
+        ("anonymous", None),
+        ("pavol", token("pavol", &[])),
+        ("eva", token("eva", &[])),
+        ("marek", token("marek", &[])),
+        ("olga", token("olga", &[])),
+        ("jana", token("jana", &["viewer"])),
+    ];
+    // In the order of `callers`; 403 is the roles page.
+    let table = [
+        ("public", [200, 200, 200, 200, 200, 200]),
+        ("organization", [404, 404, 200, 200, 200, 404]),
+        ("project", [404, 404, 404, 200, 404, 404]),
+        ("private", [404, 404, 404, 404, 200, 404]),
+        ("roles", [403, 403, 403, 403, 403, 200]),
+    ];
+    for (visibility, expected) in table {
+        let mirror = roles_app();
+        let mut app = mirror
+            .get("ovzdusie", "App", "air-quality")
+            .expect("the app");
+        app.spec["visibility"] = serde_json::json!(visibility);
+        app.metadata
+            .annotations
+            .insert("joinedcontext.com/owner".into(), "sub-olga".into());
+        mirror.upsert(app);
+        common::bind(&mirror, "marek", "ovzdusie");
+        common::bind(&mirror, "eva", "doprava");
+        common::bind(&mirror, "olga", "doprava");
+        for ((caller, token), expected) in callers.iter().zip(expected) {
+            for uri in ["/apps/air-quality/", "/apps/air-quality/app.js"] {
+                let (status, _, body) =
+                    get_as(dir.path(), mirror.clone(), token.clone(), uri).await;
+                assert_eq!(status.as_u16(), expected, "{caller} on {visibility} {uri}");
+                if expected == 404 {
+                    // The answer for a draft of the same name: nothing tells the two apart.
+                    let draft = roles_app();
+                    let mut app = draft
+                        .get("ovzdusie", "App", "air-quality")
+                        .expect("the app");
+                    app.spec["lifecycle"] = serde_json::json!("draft");
+                    draft.upsert(app);
+                    let (_, _, missing) = get_as(dir.path(), draft, token.clone(), uri).await;
+                    assert_eq!(body, missing, "{caller} on {visibility} {uri}");
+                }
+            }
+        }
+    }
+}
