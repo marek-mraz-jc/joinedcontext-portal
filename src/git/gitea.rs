@@ -81,6 +81,25 @@ impl From<GitError> for ApiError {
     }
 }
 
+/// The sentence of a forge error answer: Gitea answers `{"message": …, "url": <its swagger
+/// page>}`, and only the message reaches a person, never the raw body (T-4967). Any other body
+/// keeps its first line, capped, since a proxy in front of the forge may answer a whole page.
+async fn forge_message(res: reqwest::Response) -> String {
+    let body = res.text().await.unwrap_or_default();
+    if let Ok(serde_json::Value::Object(map)) = serde_json::from_str(&body) {
+        if let Some(serde_json::Value::String(message)) = map.get("message") {
+            return message.trim().to_string();
+        }
+    }
+    body.lines()
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .chars()
+        .take(200)
+        .collect()
+}
+
 /// A team of the forge organization (PF-87).
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct Team {
@@ -859,11 +878,10 @@ impl GiteaClient {
         } else if status == reqwest::StatusCode::NOT_FOUND {
             Err(GitError::NotFound)
         } else if status == reqwest::StatusCode::CONFLICT {
-            let message = res.text().await.unwrap_or_default();
-            Err(GitError::Conflict(message))
+            Err(GitError::Conflict(forge_message(res).await))
         } else {
             let status_code = status.as_u16();
-            let message = res.text().await.unwrap_or_default();
+            let message = forge_message(res).await;
             Err(GitError::Api {
                 status: status_code,
                 message,

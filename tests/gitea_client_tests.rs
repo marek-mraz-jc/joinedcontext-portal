@@ -854,3 +854,40 @@ fn the_clone_address_is_the_public_forge() {
         "the configuration client is unchanged"
     );
 }
+
+/// T-4967: the forge answers errors as `{"message": …, "url": <its swagger page>}`; the error
+/// carries the message alone, so the activity feed and a 409 answer never show the raw body.
+#[tokio::test]
+async fn a_forge_error_keeps_only_its_message() {
+    let server = MockServer::start().await;
+    let base_url = server.uri().parse().unwrap();
+    let client = GiteaClient::new(base_url, "test-owner", "test-repo", "secret-token").unwrap();
+    let body = json!({
+        "message": "invalid username, password or token",
+        "url": "https://forge.example/api/swagger"
+    });
+    Mock::given(method("DELETE"))
+        .and(path("/api/v1/repos/test-owner/test-repo/branches/refused"))
+        .respond_with(ResponseTemplate::new(401).set_body_json(body.clone()))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/repos/test-owner/test-repo/branches"))
+        .respond_with(ResponseTemplate::new(409).set_body_json(json!({
+            "message": "The branch already exists.",
+            "url": "https://forge.example/api/swagger"
+        })))
+        .mount(&server)
+        .await;
+
+    let err = client.delete_branch("refused").await.unwrap_err();
+    assert_eq!(
+        err,
+        GitError::Api {
+            status: 401,
+            message: "invalid username, password or token".into()
+        }
+    );
+    let err = client.create_branch("taken", "main").await.unwrap_err();
+    assert_eq!(err, GitError::Conflict("The branch already exists.".into()));
+}
