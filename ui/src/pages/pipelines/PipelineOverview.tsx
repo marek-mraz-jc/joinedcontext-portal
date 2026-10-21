@@ -20,6 +20,7 @@ import { ago } from "../apps/CatalogCards";
 import { nextRuns, parseCron } from "./cron";
 import { endpointUrn } from "./PipelineEditor";
 import { PipelineRejectedDialog } from "./PipelineRejected";
+import { PipelineAccessRequests } from "./AccessRequests";
 import { PipelineRunsView } from "./PipelineRuns";
 
 type Run = components["schemas"]["PipelineRun"];
@@ -503,6 +504,14 @@ export function PipelineOverview({ project, name }: { project: string; name: str
           initialRun={openRun}
           runsFromQueue={runsFromQueue}
         />
+      </section>
+
+      <section id="access" aria-labelledby="pipeline-access" className="flex scroll-mt-4 flex-col gap-3">
+        <h2 id="pipeline-access" className="text-title text-fg">
+          {t("pipelines.access.section")}
+        </h2>
+        <p className="text-sm text-fg-muted">{t("pipelines.access.lead")}</p>
+        <PipelineAccessRequests project={project} name={name} />
       </section>
 
       <section id="rejected" aria-labelledby="pipeline-rejected" className="flex scroll-mt-4 flex-col gap-3">

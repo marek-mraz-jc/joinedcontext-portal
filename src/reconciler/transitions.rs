@@ -116,6 +116,7 @@ mod tests {
                 shard: None,
                 domain_verification: None,
                 jobs: Vec::new(),
+                notifications: None,
             }),
         }
     }

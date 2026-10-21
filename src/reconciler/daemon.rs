@@ -1196,6 +1196,7 @@ impl Syncer {
                 shard,
                 domain_verification: None,
                 jobs: Vec::new(),
+                notifications: None,
             });
 
             fresh_mirror.upsert(envelope);
@@ -3074,9 +3075,10 @@ fn record_subscriptions(
         };
         if let Some(status) = envelope.status.as_mut() {
             match &outcome {
-                SubscriptionOutcome::Written => {
+                SubscriptionOutcome::Written(notifications) => {
                     status.phase = crate::resource::Phase::Live;
                     status.conditions = Vec::new();
+                    status.notifications = notifications.clone();
                 }
                 SubscriptionOutcome::Error(reason) => {
                     status.phase = crate::resource::Phase::Error;
@@ -4221,6 +4223,7 @@ output_error{stream="kpi"} 6
                 shard: None,
                 domain_verification: None,
                 jobs: Vec::new(),
+                notifications: None,
             }),
         };
         let mirror = Mirror::new();
@@ -4404,6 +4407,7 @@ output_error{stream="kpi"} 6
                 shard: None,
                 domain_verification: None,
                 jobs: Vec::new(),
+                notifications: None,
             }),
         }
     }
@@ -4575,18 +4579,35 @@ output_error{stream="kpi"} 6
         record_subscriptions(
             &mirror,
             vec![
-                ("p".into(), "ok".into(), SubscriptionOutcome::Written),
+                (
+                    "p".into(),
+                    "ok".into(),
+                    SubscriptionOutcome::Written(Some(super::super::subscriptions::Deliveries {
+                        status: Some("ok".into()),
+                        times_sent: Some(2),
+                        ..Default::default()
+                    })),
+                ),
                 (
                     "p".into(),
                     "no".into(),
                     SubscriptionOutcome::Error("403".into()),
                 ),
-                ("p".into(), "gone".into(), SubscriptionOutcome::Written),
+                (
+                    "p".into(),
+                    "gone".into(),
+                    SubscriptionOutcome::Written(None),
+                ),
             ],
         );
         let ok = status_of(&mirror, "Subscription", "ok");
         assert_eq!(ok.phase, crate::resource::Phase::Live);
         assert!(ok.conditions.is_empty());
+        let shown = ok.notifications.unwrap_or_default();
+        assert_eq!(
+            (shown.status.as_deref(), shown.times_sent),
+            (Some("ok"), Some(2))
+        );
         let no = status_of(&mirror, "Subscription", "no");
         assert_eq!(no.phase, crate::resource::Phase::Error);
         assert_eq!(no.conditions[0].reason.as_deref(), Some("SpaceRefused"));

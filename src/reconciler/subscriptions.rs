@@ -31,11 +31,64 @@ const TIMEOUT: Duration = Duration::from_secs(15);
 /// The header a resolved `secretRef` becomes on the notification hop.
 const CREDENTIAL_HEADER: &str = "Authorization";
 
+/// What the space says of one subscription's deliveries (TS 104 175 §5.2.14, the
+/// NotificationParams members the broker maintains), kept in `status.notifications` so a person
+/// sees whether the receiver gets what it watches (T-4866). Never the endpoint, a header or a
+/// payload: only an outcome, two counts and three instants.
+#[derive(
+    Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, utoipa::ToSchema,
+)]
+#[schema(as = SubscriptionDeliveries)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Deliveries {
+    /// `ok` when the last notification was delivered, `failed` when it was not.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub times_sent: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub times_failed: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_notification: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_success: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_failure: Option<String>,
+}
+
+impl Deliveries {
+    /// The members of a broker's `notification` object this status carries, each checked: an
+    /// outcome other than `ok`/`failed`, a count that is no whole number or an instant that is
+    /// no RFC 3339 time is left out rather than shown.
+    pub fn from_notification(notification: &Value) -> Self {
+        let instant = |key: &str| {
+            notification
+                .get(key)
+                .and_then(Value::as_str)
+                .filter(|at| chrono::DateTime::parse_from_rfc3339(at).is_ok())
+                .map(str::to_owned)
+        };
+        Self {
+            status: notification
+                .get("status")
+                .and_then(Value::as_str)
+                .filter(|status| matches!(*status, "ok" | "failed"))
+                .map(str::to_owned),
+            times_sent: notification.get("timesSent").and_then(Value::as_u64),
+            times_failed: notification.get("timesFailed").and_then(Value::as_u64),
+            last_notification: instant("lastNotification"),
+            last_success: instant("lastSuccess"),
+            last_failure: instant("lastFailure"),
+        }
+    }
+}
+
 /// What happened to one `Subscription` in a run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SubscriptionOutcome {
-    /// The space holds what the manifest declares.
-    Written,
+    /// The space holds what the manifest declares, with what it said of the deliveries when it
+    /// answered the read after the write.
+    Written(Option<Deliveries>),
     /// Nothing was written and why: a reference that does not resolve, a refusal from the
     /// space, or a gateway that did not answer.
     Error(String),
@@ -130,7 +183,7 @@ impl SubscriptionSync {
                 }
             };
             let outcome = match self.write(&token, &space, &id, &body).await {
-                Ok(()) => SubscriptionOutcome::Written,
+                Ok(()) => SubscriptionOutcome::Written(self.deliveries(&token, &space, &id).await),
                 Err(reason) => SubscriptionOutcome::Error(reason),
             };
             outcomes.push((namespace, name, outcome));
@@ -293,6 +346,29 @@ impl SubscriptionSync {
         }
     }
 
+    /// The deliveries the space reports for `id`, or `None` when it does not answer the read:
+    /// the write stood, so a refused read is no error, only nothing to show.
+    async fn deliveries(&self, token: &str, space: &str, id: &str) -> Option<Deliveries> {
+        let response = self
+            .http
+            .get(format!(
+                "{}/cs/{space}/ngsi-ld/v1/subscriptions/{id}",
+                self.base
+            ))
+            .bearer_auth(token)
+            .send()
+            .await
+            .ok()?;
+        if !response.status().is_success() {
+            tracing::debug!(%space, %id, status = %response.status(), "deliveries not read");
+            return None;
+        }
+        let stored: Value = response.json().await.ok()?;
+        stored
+            .get("notification")
+            .map(Deliveries::from_notification)
+    }
+
     async fn delete(&self, token: &str, space: &str, id: &str) -> Result<(), String> {
         let response = self
             .http
@@ -317,7 +393,15 @@ impl SubscriptionSync {
 async fn refusal(what: &str, response: reqwest::Response) -> String {
     let status = response.status();
     let body = response.text().await.unwrap_or_default();
-    let mut said = body.trim().replace('\n', " ");
+    // A problem document says it in `detail` (or `title`): that sentence, not its JSON (T-4866).
+    let sentence = serde_json::from_str::<Value>(&body)
+        .ok()
+        .and_then(|problem| {
+            ["detail", "title"]
+                .iter()
+                .find_map(|key| problem.get(*key).and_then(Value::as_str).map(str::to_owned))
+        });
+    let mut said = sentence.unwrap_or(body).trim().replace('\n', " ");
     if said.len() > 300 {
         let mut end = 300;
         while !said.is_char_boundary(end) {
@@ -402,6 +486,35 @@ mod tests {
     fn half_a_geo_query_is_refused_rather_than_sent() {
         let reason = geo_query("georel=near&geometry=Point").expect_err("no coordinates");
         assert!(reason.contains("coordinates"), "{reason}");
+    }
+
+    #[test]
+    fn the_deliveries_keep_only_well_formed_members() {
+        let read = Deliveries::from_notification(&json!({
+            "endpoint": { "uri": "https://hooks.example/x", "receiverInfo": [{ "key": "Authorization", "value": "Bearer s" }] },
+            "status": "failed",
+            "timesSent": 4,
+            "timesFailed": 1,
+            "lastNotification": "2026-10-21T03:20:11.120Z",
+            "lastSuccess": "2026-10-21T03:19:40Z",
+            "lastFailure": "yesterday",
+        }));
+        assert_eq!(
+            read,
+            Deliveries {
+                status: Some("failed".into()),
+                times_sent: Some(4),
+                times_failed: Some(1),
+                last_notification: Some("2026-10-21T03:20:11.120Z".into()),
+                last_success: Some("2026-10-21T03:19:40Z".into()),
+                last_failure: None,
+            }
+        );
+        let odd = Deliveries::from_notification(&json!({ "status": "<b>ok</b>", "timesSent": -1 }));
+        assert_eq!(odd, Deliveries::default());
+        // Nothing of the endpoint or its headers reaches the status.
+        let shown = serde_json::to_string(&read).unwrap_or_default();
+        assert!(!shown.contains("hooks.example") && !shown.contains("Bearer"));
     }
 
     #[test]
