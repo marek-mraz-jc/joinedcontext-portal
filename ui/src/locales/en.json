@@ -3891,6 +3891,7 @@
       "views": "Views of the model",
       "view": {
         "overview": "Overview",
+        "fields": "Fields",
         "diagram": "Diagram",
         "form": "Form",
         "yaml": "YAML",
@@ -4011,6 +4012,25 @@
       "any": "Any value",
       "object": "Holds {fields}",
       "linkTo": "Link to {target}"
+    },
+    "fields": {
+      "title": "Fields and what the space holds",
+      "noSpace": "This model names no Context Space, so there is no data to show beside its fields. Name the space in the model's settings, for example ilma.",
+      "notYet": "The daily quality run has not read the space {space} yet; the facts appear here after its first run.",
+      "observed": "Facts from the space {space}, read by the daily quality run on {at}.",
+      "factsFailed": "The facts of the space could not be read: {reason}. Reload the page to try again, or ask the space's steward for read access.",
+      "noTypes": "This model declares no type yet. Add one with Edit.",
+      "count": "{count} in the space",
+      "caption": "Fields of {type}, what each allows and what the space holds",
+      "allowed": "Allowed values",
+      "description": "Description",
+      "inSpace": "In the space",
+      "query": "Query",
+      "anyValue": "Any value of the type",
+      "noEntities": "No entity of this type yet",
+      "seenRange": "seen {min} – {max}",
+      "queryAction": "Query",
+      "queryLabel": "Open Explore on the {type} entities that have {field}"
     }
   },
   "apps": {
