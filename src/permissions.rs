@@ -648,17 +648,7 @@ pub struct ProjectMembers {
 
 pub fn project_members(mirror: &Mirror, project: &str, now: DateTime<Utc>) -> ProjectMembers {
     let organization = roles(mirror, ORG_NAMESPACE);
-    let groups: BTreeMap<String, Vec<String>> = mirror
-        .list(ORG_NAMESPACE, "Group", &ListOptions::default())
-        .items
-        .into_iter()
-        .map(|env| {
-            let members = serde_json::from_value::<jc_core::kinds::GroupSpec>(env.spec)
-                .map(|spec| spec.members.into_iter().map(|m| m.user).collect())
-                .unwrap_or_default();
-            (env.metadata.name, members)
-        })
-        .collect();
+    let groups = group_members(mirror);
     let mut members = ProjectMembers::default();
     for env in mirror
         .list(ORG_NAMESPACE, "RoleBinding", &ListOptions::default())
@@ -690,22 +680,7 @@ pub fn project_members(mirror: &Mirror, project: &str, now: DateTime<Utc>) -> Pr
         if !reads && !writes {
             continue;
         }
-        let people = binding.subjects.iter().flat_map(|subject| {
-            let direct = subject.user.iter().cloned();
-            let through = subject
-                .group
-                .as_ref()
-                .and_then(|group| groups.get(group))
-                .into_iter()
-                .flatten()
-                .cloned();
-            direct.chain(through)
-        });
-        for person in people {
-            let person = person.trim().to_ascii_lowercase();
-            if person.is_empty() {
-                continue;
-            }
+        for person in people_of(&groups, &binding.subjects) {
             if reads {
                 members.readers.insert(person.clone());
             }
@@ -715,6 +690,57 @@ pub fn project_members(mirror: &Mirror, project: &str, now: DateTime<Utc>) -> Pr
         }
     }
     members
+}
+
+/// The members of each `Group` manifest of the organization, by its name (PF-62).
+pub fn group_members(mirror: &Mirror) -> BTreeMap<String, Vec<String>> {
+    mirror
+        .list(ORG_NAMESPACE, "Group", &ListOptions::default())
+        .items
+        .into_iter()
+        .map(|env| {
+            let members = serde_json::from_value::<jc_core::kinds::GroupSpec>(env.spec)
+                .map(|spec| spec.members.into_iter().map(|m| m.user).collect())
+                .unwrap_or_default();
+            (env.metadata.name, members)
+        })
+        .collect()
+}
+
+/// The people `subjects` name, by lower-case identifier: each `user`, and each member of a
+/// `group` subject's `Group` manifest.
+pub fn people_of(
+    groups: &BTreeMap<String, Vec<String>>,
+    subjects: &[jc_core::kinds::Subject],
+) -> BTreeSet<String> {
+    subjects
+        .iter()
+        .flat_map(|subject| {
+            let through = subject
+                .group
+                .as_ref()
+                .and_then(|group| groups.get(group))
+                .into_iter()
+                .flatten();
+            subject.user.iter().chain(through)
+        })
+        .map(|person| person.trim().to_ascii_lowercase())
+        .filter(|person| !person.is_empty())
+        .collect()
+}
+
+/// Everyone a binding in force at `now` names, at any scope: who [`is_organization_member`]
+/// admits, besides the bootstrap group, which no manifest lists (DM-75, AP-173).
+pub fn organization_people(mirror: &Mirror, now: DateTime<Utc>) -> BTreeSet<String> {
+    let groups = group_members(mirror);
+    mirror
+        .list(ORG_NAMESPACE, "RoleBinding", &ListOptions::default())
+        .items
+        .into_iter()
+        .filter_map(|env| serde_json::from_value::<RoleBindingSpec>(env.spec).ok())
+        .filter(|binding| binding.validity.as_ref().is_none_or(|v| v.contains(now)))
+        .flat_map(|binding| people_of(&groups, &binding.subjects))
+        .collect()
 }
 
 /// Every `group` subject of a `RoleBinding` or `ServiceAccount` names a `Group` manifest of the
@@ -1122,4 +1148,54 @@ fn describe(constraint: &Constraint) -> String {
 
 pub fn verb_name(verb: Verb) -> &'static str {
     verb.as_str()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+
+    fn org(kind: &str, name: &str, spec: Value) -> ResourceEnvelope {
+        ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: kind.to_owned(),
+            metadata: ObjectMeta::new(name, ORG_NAMESPACE),
+            spec,
+            status: None,
+        }
+    }
+
+    #[test]
+    fn the_organization_is_everyone_a_binding_in_force_names_each_once() {
+        let mirror = Mirror::new();
+        mirror.upsert(org(
+            "Group",
+            "inspectors",
+            serde_json::json!({ "members": [{ "user": "Jana@hel.fi" }, { "user": "vera@hel.fi" }] }),
+        ));
+        mirror.upsert(org(
+            "RoleBinding",
+            "inspectors-here",
+            serde_json::json!({ "subjects": [{ "group": "inspectors" }, { "user": "jana@hel.fi" }],
+                                "role": "viewer", "scope": { "project": "espoo" } }),
+        ));
+        mirror.upsert(org(
+            "RoleBinding",
+            "lapsed",
+            serde_json::json!({ "subjects": [{ "user": "otto@hel.fi" }], "role": "viewer",
+                                "scope": { "organization": "hel" },
+                                "validity": { "notAfter": "2020-01-01T00:00:00Z" } }),
+        ));
+        let people = organization_people(&mirror, Utc::now());
+        assert_eq!(
+            people.into_iter().collect::<Vec<_>>(),
+            ["jana@hel.fi", "vera@hel.fi"],
+            "a group's members count through it, a lapsed binding counts for nobody"
+        );
+        let groups = group_members(&mirror);
+        let subjects: Vec<jc_core::kinds::Subject> =
+            serde_json::from_value(serde_json::json!([{ "group": "nobody" }, { "user": "  " }]))
+                .expect("subjects");
+        assert!(people_of(&groups, &subjects).is_empty());
+    }
 }

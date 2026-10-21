@@ -5512,6 +5512,68 @@
         }
       }
     },
+    "/api/v1/projects/{project}/apps/{name}/audience": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Who Each Visibility Of An App Reaches",
+        "description": "How many people the project, the organization and each role of the App reach, for the Share dialog (AP-173).",
+        "operationId": "app_audience",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "App name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The count per visibility",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppAudience"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No App of this name the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/apps/{name}/build": {
       "get": {
         "tags": [
@@ -17703,6 +17765,41 @@
         }
       }
     },
+    "/api/v1/shared-apps": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Apps Shared With Me",
+        "description": "The published Apps of other projects visible to the organization that the caller may open (AP-174).",
+        "operationId": "apps_shared_with_me",
+        "responses": {
+          "200": {
+            "description": "The Apps shared with the caller, by project and name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SharedApp"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/tools/generate": {
       "post": {
         "tags": [
@@ -19299,6 +19396,39 @@
           }
         },
         "additionalProperties": false
+      },
+      "AppAudience": {
+        "type": "object",
+        "description": "How many people each visibility of one App reaches (AP-173). Counted from the bindings in\nforce and the members of the `Group` manifests they name; a group the identity provider owns\nlists no members here, so a count is at least that many people.",
+        "required": [
+          "project",
+          "organization",
+          "roles",
+          "publicAllowed"
+        ],
+        "properties": {
+          "organization": {
+            "type": "integer",
+            "description": "Everyone in the organization.",
+            "minimum": 0
+          },
+          "project": {
+            "type": "integer",
+            "description": "Members of the App's project.",
+            "minimum": 0
+          },
+          "publicAllowed": {
+            "type": "boolean",
+            "description": "Whether the organization allows public Apps (PF-103)."
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoleAudience"
+            },
+            "description": "Holders of each role the App declares, in the order `spec.roles` lists them."
+          }
+        }
       },
       "AppBuild": {
         "type": "object",
@@ -27077,6 +27207,23 @@
           }
         }
       },
+      "RoleAudience": {
+        "type": "object",
+        "required": [
+          "name",
+          "people"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "people": {
+            "type": "integer",
+            "description": "Holders by lower-case identifier, counted once each.",
+            "minimum": 0
+          }
+        }
+      },
       "RuleChecks": {
         "type": "object",
         "description": "One rule of one type.",
@@ -27422,6 +27569,31 @@
           }
         },
         "additionalProperties": false
+      },
+      "SharedApp": {
+        "type": "object",
+        "description": "One App another project shared with the caller's organization (AP-174).",
+        "required": [
+          "project",
+          "name",
+          "title",
+          "description"
+        ],
+        "properties": {
+          "description": {
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "title": {
+            "type": "object",
+            "description": "One string, or a map per locale (UI-50)."
+          }
+        }
       },
       "SharedFrom": {
         "type": "object",

@@ -1,3 +1,4 @@
+import { Suspense, lazy, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -17,7 +18,11 @@ import { localized } from "../../api/manifest";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import { appDisplayName } from "./appTitle";
 import { RolesAndMembers } from "./RolesAndMembers";
+import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import type { AgentRun } from "./useAgentRun";
+
+// Loaded on first open: the dialog is not needed to draw the page (bundle cap).
+const ShareDialog = lazy(() => import("./ShareDialog").then((module) => ({ default: module.ShareDialog })));
 
 /**
  * An application and its runs (AP-68, AP-69, T-0559).
@@ -132,6 +137,7 @@ export function AppPage({ project, name }: { project: string; name: string }): J
 function AppHeading({ project, name }: { project: string; name: string }): JSX.Element | null {
   const { t, i18n } = useTranslation();
   const app = useApp(project, name);
+  const [sharing, setSharing] = useState(false);
   if (app.data?.kind !== "App") return null;
   const spec = appSpec(app.data);
   return (
@@ -143,7 +149,19 @@ function AppHeading({ project, name }: { project: string; name: string }): JSX.E
       <p className="flex flex-wrap items-center gap-2 text-caption text-fg-muted">
         <LifecycleBadge kind="appLifecycle" value={spec.lifecycle ?? "draft"} />
         {spec.visibility ? t("apps.visibility", { visibility: visibilityLabel(spec.visibility, t) }) : null}
+        {spec.lifecycle === "retired" ? null : (
+          <PermissionGuard project={project} kind="App" verb="propose">
+            <Button size="sm" onClick={() => setSharing(true)}>
+              {t("apps.share.action")}
+            </Button>
+          </PermissionGuard>
+        )}
       </p>
+      {sharing ? (
+        <Suspense fallback={null}>
+          <ShareDialog project={project} app={app.data} onClose={() => setSharing(false)} />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

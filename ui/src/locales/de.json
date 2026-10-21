@@ -4306,7 +4306,54 @@
       "ms": "{count} ms",
       "note": "Eine Aufgabe läuft mit der eigenen Identität der App und schreibt nur über deren Endpoint. Die Liste zeigt Läufe seit dem letzten Start des Hosts."
     },
-    "editWithAssistant": "Mit dem Assistenten bearbeiten"
+    "editWithAssistant": "Mit dem Assistenten bearbeiten",
+    "share": {
+      "action": "Teilen",
+      "title": "{name} teilen",
+      "description": "Wählen Sie, wer die App öffnet. Ihre Wahl geht als Änderung an eine prüfende Person; bis zur Freigabe ändert sich nichts.",
+      "now": "Wer sie jetzt öffnet: {audience}",
+      "legend": "Wer die App öffnet",
+      "hint": "Beispiel: Wählen Sie Alle in der Organisation, damit Kolleginnen und Kollegen anderer Projekte sie unter Mit mir geteilt finden.",
+      "choice": {
+        "private": {
+          "label": "Nur Sie",
+          "reach": "Niemand sonst öffnet sie, auch nicht die Mitglieder des Projekts."
+        },
+        "project": {
+          "label": "Alle im Projekt",
+          "reach": "Mitglieder von {project}: {people}"
+        },
+        "organization": {
+          "label": "Alle in der Organisation",
+          "reach": "Alle in {organization}: {people}"
+        },
+        "roles": {
+          "label": "Personen mit einer Rolle",
+          "reach": "Inhaber von {roles}: {people}"
+        },
+        "public": {
+          "label": "Alle im Internet",
+          "reach": "Alle mit der Adresse, ohne Anmeldung. Eine veröffentlichende Person oder ein Organisations-Admin außer Ihnen gibt es frei."
+        }
+      },
+      "people": "{count, plural, one {# Person} other {# Personen}}",
+      "counting": "Personen werden gezählt…",
+      "theOrganization": "der Organisation",
+      "rolesNone": "Die App hat noch keine Rollen. Fügen Sie sie zuerst unter Rollen und Mitglieder auf der Seite der App hinzu.",
+      "publicRefused": "Die Organisation erlaubt keine öffentlichen Apps. Ein Organisations-Admin kann sie in den Organisationseinstellungen erlauben.",
+      "privatePublished": "Eine veröffentlichte App ist nie privat: Wählen Sie, wer sie noch öffnet, oder nehmen Sie sie außer Betrieb.",
+      "countFailed": "Die Zahl der Personen wurde nicht geladen. Sie können trotzdem wählen und vorschlagen.",
+      "address": "Adresse",
+      "addressHint": "Senden Sie diese Adresse an die Personen, mit denen Sie die App teilen. Beispiel: in eine E-Mail einfügen.",
+      "copy": "Link kopieren",
+      "copied": "Link kopiert.",
+      "copyFailed": "Der Browser hat das Kopieren nicht erlaubt. Markieren Sie die Adresse und kopieren Sie sie von Hand.",
+      "propose": "Änderung vorschlagen",
+      "cancel": "Abbrechen",
+      "same": "So wird sie jetzt geöffnet. Wählen Sie etwas anderes, um eine Änderung vorzuschlagen.",
+      "proposed": "Die Änderung wartet auf Freigabe. Die App behält ihr Publikum, bis eine prüfende Person freigibt.",
+      "retired": "Eine außer Betrieb genommene App erreicht niemanden; veröffentlichen Sie sie zuerst wieder."
+    }
   },
   "appLifecycle": {
     "draft": "Entwurf",
@@ -8281,6 +8328,14 @@
       "body": "Schauen Sie sich um: Jede Seite zeigt, was das Projekt wirklich enthält. Ändern können Sie nur, was Ihre Rolle erlaubt, und nichts hier berührt Ihre eigenen Projekte.",
       "lead": "Möchten Sie zuerst alle Funktionen mit Daten gefüllt sehen?",
       "try": "Mit Beispieldaten ausprobieren"
+    },
+    "shared": {
+      "title": "Mit mir geteilt",
+      "lead": "Apps, die andere Projekte mit der ganzen Organisation geteilt haben und die Sie öffnen dürfen.",
+      "loading": "Mit Ihnen geteilte Apps werden gesucht…",
+      "empty": "Noch ist nichts mit Ihnen geteilt. Wenn ein anderes Projekt eine App mit der ganzen Organisation teilt, erscheint sie hier.",
+      "from": "Aus dem Projekt {project}",
+      "newTab": "(öffnet in einem neuen Tab)"
     }
   },
   "alerts": {
