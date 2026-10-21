@@ -280,6 +280,8 @@ pub(crate) trait Runner {
     async fn state(&self, key: &Key) -> RunState;
     /// Removes the stream; a stream that is not there is fine.
     async fn delete(&self, key: &Key);
+    /// Hears that the run `run` of `key` ended, `finished` or not (T-4891).
+    async fn ended(&self, _key: &Key, _run: &str, _finished: bool) {}
 }
 
 /// The queue and its two lanes' concurrency.
@@ -291,6 +293,9 @@ pub struct RunQueue {
     entries: BTreeMap<Key, Entry>,
     /// Runs whose pipeline went away while they ran: deleted on the next tick.
     gone: Vec<Key>,
+    /// The runs that ended since the last tick, by run id, and whether the runner finished them
+    /// (T-4891): a snapshot pipeline judges its deletes on them.
+    ends: Vec<(Key, String, bool)>,
     planned_at: Option<DateTime<Utc>>,
     /// The pipelines with a run in the durable log (T-4421): a scheduled one new to this queue
     /// and not among them never ran, so it runs at once instead of waiting a day for its clock.
@@ -310,6 +315,7 @@ impl RunQueue {
             timeout: RUN_TIMEOUT,
             entries: BTreeMap::new(),
             gone: Vec::new(),
+            ends: Vec::new(),
             planned_at: None,
             ran: None,
             unbound: HashSet::new(),
@@ -454,6 +460,9 @@ impl RunQueue {
                 continue;
             };
             crate::telemetry::pipeline_run(label, seconds as f64);
+            let finished = failure.is_none();
+            self.ends
+                .extend(entry.run.clone().map(|run| (key.clone(), run, finished)));
             entry.running = None;
             entry.last = Some(match failure {
                 None => Last::Finished { at: now, seconds },
@@ -635,6 +644,10 @@ pub(crate) async fn tick<R: Runner>(queue: &Mutex<RunQueue>, runner: &R, now: Da
     for key in &ended {
         runner.delete(key).await;
     }
+    let ends = std::mem::take(&mut lock().ends);
+    for (key, run, finished) in ends {
+        runner.ended(&key, &run, finished).await;
+    }
     for (key, stream) in starts {
         if let Err(reason) = runner.start(&key, &stream).await {
             lock().failed_to_start(&key, reason, now);
@@ -769,6 +782,7 @@ mod tests {
         log: Mutex<Vec<String>>,
         refuse: Mutex<BTreeSet<String>>,
         sent: Mutex<HashMap<String, Value>>,
+        ends: Mutex<Vec<(String, String, bool)>>,
     }
 
     impl Fake {
@@ -819,6 +833,36 @@ mod tests {
             self.log.lock().unwrap().push(format!("delete {}", key.1));
             self.held.lock().unwrap().remove(key);
         }
+        async fn ended(&self, key: &Key, run: &str, finished: bool) {
+            let end = (key.1.clone(), run.to_owned(), finished);
+            self.ends.lock().unwrap().push(end);
+        }
+    }
+
+    /// A snapshot pipeline judges its deletes on the run that ended, by the id its log names it
+    /// under, and only a run the runner finished counts as complete (T-4891).
+    #[tokio::test]
+    async fn each_ended_run_is_told_by_its_id_and_whether_it_finished() {
+        let queue = Mutex::new(RunQueue::new(2, 1));
+        let fake = Fake::default();
+        let now = at("2026-10-17T05:00:00Z");
+        let wanted = ["a", "b"]
+            .map(|n| (key(n), planned(Clock::Once)))
+            .into_iter()
+            .collect();
+        queue.lock().unwrap().plan(wanted, now);
+        step(&queue, &fake, now).await;
+        assert!(fake.ends.lock().unwrap().is_empty(), "nothing ended yet");
+        fake.end("a", RunState::Finished);
+        step(&queue, &fake, now + Span::minutes(1)).await;
+        step(&queue, &fake, now + Span::minutes(15)).await;
+        assert_eq!(
+            *fake.ends.lock().unwrap(),
+            [
+                ("a".to_owned(), "2026-10-17T05:00:00Z".to_owned(), true),
+                ("b".to_owned(), "2026-10-17T05:00:00Z".to_owned(), false),
+            ]
+        );
     }
 
     /// One tick, the reconciler having planned just before it as it does on every pass.
