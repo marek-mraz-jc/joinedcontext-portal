@@ -246,6 +246,7 @@ export function LayerEditor({
         <EntityFilters
           id="layer"
           types={types}
+          space={space?.metadata.name}
           slots={slots}
           value={{
             type: editing.entityType || undefined,

@@ -825,7 +825,7 @@
       "title": "Ein Attribut mit KI füllen",
       "lead": "Ein Prompt, für jede Entität auf dem Bildschirm aus ihren eigenen Attributen beantwortet. Der Assistent bereitet die Werte vor; Sie prüfen sie und übernehmen sie mit Ihren Rechten, und die Modellaufrufe zählen gegen Ihr Tagesbudget.",
       "attribute": "Zu füllendes Attribut",
-      "attributeHint": "Ein Attributname: ein Buchstabe, dann Buchstaben, Ziffern oder _, höchstens 64.",
+      "attributeHint": "Eine Eigenschaft aus dem Modell des Typs, in die die Antworten geschrieben werden.",
       "endpoint": "Über Endpoint",
       "prompt": "Anweisung",
       "promptHint": "Was für jede Entität zu antworten ist, höchstens {count} Zeichen, z. B. Fasse die Beschreibung in einem Satz zusammen.",
@@ -2105,7 +2105,6 @@
         "endpointHint": "Der Endpoint, aus dem der Indikator berechnet wird, gelesen unter seiner Policy.",
         "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche; benennt den Indikator und seine Pipeline.",
         "typeHint": "Der Entitätstyp, dessen Werte aggregiert werden; der Space des Endpoints modelliert ihn.",
-        "attributeHint": "Das numerische Attribut dieses Typs, das die Aggregation liest.",
         "attributePick": "Die numerischen Attribute, die das Modell dieses Typs nennt; wählen Sie das, das die Aggregation liest.",
         "aggregateHint": "Wie die Werte eines Zeitraums zu einer Zahl werden.",
         "periodHint": "Wie oft der Indikator berechnet wird, als Dauer wie 15m oder 1h.",
@@ -2116,7 +2115,8 @@
       "spaceHint": "Der Space, den die Pipeline liest, über einen seiner Endpoints und dessen Policy.",
       "attributeHint": "Das Attribut, mit dem das Snippet unten arbeitet.",
       "pickSpaceFirst": "Wählen Sie zuerst einen Raum.",
-      "pickTypeFirst": "Wählen Sie zuerst einen Endpoint und einen Typ."
+      "pickTypeFirst": "Wählen Sie zuerst einen Endpoint und einen Typ.",
+      "noAttributes": "Noch nichts zu aggregieren: Laden Sie eine Probe oder fügen Sie dem Modell des Typs Attribute hinzu."
     },
     "test": {
       "title": "An einer Probe ausprobieren",
@@ -2189,7 +2189,7 @@
       "outputWritesHint": "Der Endpoint, über den diese Ausgabe jede Nachricht schreibt, wie die erste Ausgabe.",
       "sourceReads": "Diese Quelle liest",
       "sourceReadsHint": "Der Runner führt alle Quellen der Strecke vor dem ersten Schritt zu einem Strom zusammen.",
-      "attrsHint": "Durch Kommas getrennt; leer liest alle Attribute.",
+      "attrsHint": "Wählen Sie die zu lesenden Attribute; ohne Auswahl werden alle gelesen.",
       "mappingRefHint": "Ein Mapping dieses Projekts; der Schritt wendet es auf jeden Datensatz an.",
       "moduleHint": "Pfad oder Paket des Moduls, das der Schritt ausführt.",
       "functionHint": "Der Einstiegspunkt des Moduls, den der Schritt für jeden Datensatz aufruft.",
@@ -2624,7 +2624,8 @@
         "source": "Der zu lesende Endpoint",
         "type": "Entitätstyp",
         "attribute": "Zu mittelndes Attribut",
-        "attributeHelp": "Ein numerisches Attribut des Typs, mit seinem Namen im Modell."
+        "attributeHelp": "Ein numerisches Attribut des Typs, z. B. pm10.",
+        "typeHelp": "Ein Typ, den der Raum des gewählten Endpunkts modelliert; seine Zahlen werden unten angeboten."
       },
       "problem": {
         "source": "Wählen Sie die Quelle.",
@@ -2771,8 +2772,6 @@
       "lead": "Bitten Sie den Eigentümer eines anderen Raums um Lese- oder Schreibzugriff für diese Pipeline. Bis zur Genehmigung wird nichts gewährt.",
       "none": "Diese Pipeline hat keinen Zugriff auf einen anderen Raum angefragt.",
       "request": "Zugriff anfragen",
-      "project": "Besitzendes Projekt",
-      "projectHelp": "Das Projekt, dem der Raum gehört, wie seine Katalogseite es nennt.",
       "endpoint": "Endpunkt",
       "operationsLegend": "Was die Pipeline dort tut",
       "operations": {
@@ -2780,7 +2779,7 @@
         "write": "Schreiben"
       },
       "types": "Typen und Attribute",
-      "typesHelp": "Nennen Sie jeden Entitätstyp und jedes Attribut, das die Pipeline braucht, durch Kommas getrennt. Eine Anfrage fragt nie nach allen.",
+      "typesHelp": "Nennen Sie jeden Entitätstyp und jedes Attribut, das die Pipeline braucht. Eine Anfrage fragt nie nach allen.",
       "type": "Entitätstyp",
       "attrs": "Attribute",
       "addType": "Typ hinzufügen",
@@ -2819,7 +2818,20 @@
       "declineOf": "Zugriff für {account} ablehnen",
       "revoke": "Entziehen",
       "revokeOf": "Zugriff von {account} entziehen",
-      "reasonFirst": "Schreiben Sie zuerst die Begründung."
+      "reasonFirst": "Schreiben Sie zuerst die Begründung.",
+      "endpointHelp": "Ein Endpunkt eines anderen Raums, den Sie lesen dürfen, z. B. air-quality des Projekts helsinki. Für einen, den Sie nicht sehen, tippen Sie Projekt/Endpunkt, z. B. helsinki/air-quality; seine Besitzer genehmigen die Anfrage.",
+      "endpointTyped": "{name} anfragen",
+      "endpointTypedBad": "\"{name}\" ist kein Name der Form Projekt/Endpunkt; tippen Sie ihn als helsinki/air-quality.",
+      "typedTypeHelp": "Die Besitzer eines getippten Endpunkts prüfen diesen Namen gegen ihr Datenmodell; tippen Sie ihn so, wie ihr Modell ihn schreibt.",
+      "endpointSpace": "Raum {space}",
+      "endpointProject": "Projekt {project}",
+      "noEndpoints": "Keinen Endpunkt eines anderen Raums dürfen Sie lesen. Für einen, den Sie nicht sehen, tippen Sie Projekt und Namen, getrennt durch einen Schrägstrich.",
+      "typeHelp": "Ein Typ, den das Modell des Endpunkts liefert.",
+      "attrsHelp": "Jedes Attribut, das die Pipeline braucht; eine Anfrage fragt nie nach allen.",
+      "noTypes": "Der Raum des Endpunkts hat kein kompiliertes Datenmodell, daher kann noch kein Typ angefragt werden. Bitten Sie seine Besitzer, eines hinzuzufügen.",
+      "endpointFirst": "Wählen Sie zuerst den Endpunkt.",
+      "noAttrs": "Das Modell deklariert kein Attribut von {type}.",
+      "typeFirst": "Wählen Sie zuerst den Entitätstyp."
     }
   },
   "dashboards": {
@@ -4382,7 +4394,6 @@
   },
   "entities": {
     "type": "Entitätstyp",
-    "typePlaceholder": "Entitätstyp",
     "scopeQ": "Bereich (scope)",
     "scopeQHint": "NGSI-LD scopeQ, z. B. /district/1",
     "filters": "Filter",
@@ -4399,7 +4410,10 @@
     "qProblem": {
       "shape": "Schreiben Sie jede Bedingung als Attribut, Vergleich und Wert ohne Leerzeichen, z. B. name==\"Klinikum\"; verbinden Sie Bedingungen mit ; (und) oder | (oder).",
       "unquoted": "Text steht in Anführungszeichen: {fix}"
-    }
+    },
+    "typeHint": "Der Typ der aufzulistenden Entitäten; die Filter unten folgen seinem Modell.",
+    "noTypes": "Nichts zu wählen: Das Datenmodell des Raums deklariert keinen Typ und der Raum hält keine Entität, die Sie lesen dürfen.",
+    "noAttributes": "Das Modell des Typs nennt kein Attribut: Schreiben Sie den Filter unten als Abfrage (q)."
   },
   "entityGrid": {
     "id": "ID",
@@ -5397,7 +5411,7 @@
     "namespace": "Projekt, in das importiert wird",
     "namespaceHelp": "Jedes importierte Manifest wird darauf umgeschrieben.",
     "orgDomain": "Domäne der Organisation",
-    "orgDomainHelp": "Jede importierte id wird darauf umgeschrieben.",
+    "orgDomainHelp": "Jede importierte ID wird darauf umgeschrieben, z. B. hel.fi; leer behält die eigene Domain der Organisation.",
     "orgDomainOwn": "die eigene dieser Instanz",
     "policy": "Eine Ressource, die dieses Projekt schon hat",
     "policyOption": {
@@ -5436,7 +5450,10 @@
         "credential": "Zugangsdaten"
       }
     },
-    "clearPasted": "Entfernen Sie den Zugangswert aus dem Bündel und wählen Sie die Datei erneut."
+    "clearPasted": "Entfernen Sie den Zugangswert aus dem Bündel und wählen Sie die Datei erneut.",
+    "orgDomainThis": "Diese Organisation",
+    "orgDomainNone": "Für diese Organisation ist keine Domain gesetzt: Geben Sie die ein, unter der die IDs gebildet werden.",
+    "orgDomainOther": "Die Domain „{name}“ verwenden"
   },
   "drift": {
     "section": {
@@ -7039,6 +7056,18 @@
     },
     "createNamed": "Neu: „{name}“",
     "list": "Auswahl",
+    "attribute": {
+      "group": "{type} im Modell {model}",
+      "relationship": "Beziehung",
+      "noType": "Wählen Sie zuerst den Entitätstyp.",
+      "none": "Das Modell deklariert noch kein Attribut von {type}.",
+      "noneNumeric": "Das Modell deklariert noch kein numerisches Attribut von {type}.",
+      "addInModel": "Ein Attribut in den Datenmodellen hinzufügen"
+    },
+    "entity": {
+      "noMatch": "Kein {type} passt zu Ihrer Eingabe. Versuchen Sie einen anderen Teil seines Namens.",
+      "none": "In diesem Raum gibt es noch kein {type}, das Sie lesen dürfen."
+    },
     "person": {
       "group": "Personen der Organisation",
       "typed": "Eingegebene E-Mail",

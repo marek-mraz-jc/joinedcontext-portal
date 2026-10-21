@@ -7,8 +7,9 @@
  * saw a struck-through name with no way to find out why (T-0529, `PermissionGuard.tsx:16-19`).
  * `checkForm` is T-1730's and joins this file with it.
  */
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
@@ -107,16 +108,41 @@ describe("the filters the model generates (UI-33)", () => {
     expect(onChange).toHaveBeenCalledWith({ type: "Device", scopeQ: undefined });
   });
 
-  it("a_model_that_declares_no_type_offers_a_box_to_type_one_in", () => {
+  it("a_model_that_declares_no_type_and_no_space_says_so_instead_of_a_text_box", () => {
     render(
       <I18nextProvider i18n={i18n}>
         <EntityFilters id="q" types={[]} slots={[]} value={{}} onChange={() => {}} />
       </I18nextProvider>,
     );
-    expect(screen.getByLabelText(en.entities.type)).toHaveAttribute(
-      "placeholder",
-      en.entities.typePlaceholder,
+    expect(screen.getByLabelText(en.entities.type)).toBeDisabled();
+    expect(screen.getByLabelText(en.entities.type)).toHaveAccessibleDescription(en.entities.noTypes);
+  });
+
+  it("a_model_that_declares_no_type_offers_the_types_the_space_lets_this_person_read", async () => {
+    const fetched: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        fetched.push(String(input));
+        return new Response(JSON.stringify([{ id: "urn:x", type: "EntityType", typeName: "Device", attributeNames: ["battery"] }]), {
+          status: 200,
+          headers: { "Content-Type": "application/ld+json" },
+        });
+      }),
     );
+    const onChange = vi.fn();
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <I18nextProvider i18n={i18n}>
+          <EntityFilters id="q" types={[]} space="air" slots={[]} value={{ type: "Device", q: "battery==1" }} onChange={onChange} />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(screen.getByLabelText(en.entities.type)).toBeEnabled());
+    expect(within(screen.getByLabelText(en.entities.type)).getByRole("option", { name: "Device" })).toBeInTheDocument();
+    expect(within(screen.getByLabelText(en.entities.attribute)).getByRole("option", { name: "battery" })).toBeInTheDocument();
+    expect(fetched).toEqual(["/cs/air/ngsi-ld/v1/types?details=true"]);
+    vi.unstubAllGlobals();
   });
 
   it("a_row_composes_the_q_the_query_sends", async () => {

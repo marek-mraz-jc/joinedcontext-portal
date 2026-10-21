@@ -12061,6 +12061,68 @@
         }
       }
     },
+    "/api/v1/projects/{project}/pipelines/{name}/access-requests/endpoints": {
+      "get": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "List The Endpoints A Pipeline May Ask For",
+        "description": "The Endpoints of other Context Spaces the caller may read, or whose audience is the organization or the public, each with the types and attribute names of its space's model (PL-90): the request form's choices. Any other Endpoint is asked for by its typed name. Names only, never data.",
+        "operationId": "list_requestable",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "The pipeline's project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "The pipeline",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`{ items }` of the Endpoints, by project and name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not propose this pipeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such pipeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/pipelines/{name}/bento": {
       "get": {
         "tags": [
@@ -25690,6 +25752,52 @@
           }
         },
         "additionalProperties": false
+      },
+      "Requestable": {
+        "type": "object",
+        "description": "One Endpoint a pipeline may ask for, as the request form offers it (PL-90, T-4946): names\nand the model's types and attribute names, never the space's data.",
+        "required": [
+          "project",
+          "name",
+          "space",
+          "types"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "space": {
+            "type": "string"
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestableType"
+            },
+            "description": "The classes of the space's compiled model with their attribute names; empty when the\nspace has no compiled model, and then the request cannot name a type yet."
+          }
+        }
+      },
+      "RequestableType": {
+        "type": "object",
+        "required": [
+          "type",
+          "attrs"
+        ],
+        "properties": {
+          "attrs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "type": {
+            "type": "string"
+          }
+        }
       },
       "Resolution": {
         "type": "object",

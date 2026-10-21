@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { JSX } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { listSpaceTypes } from "../../api/gateway";
 import { clsx } from "clsx";
 import { Button, Checkbox, Field, Input, Select } from "../ui";
 import { filtersFromQ, opsFor, qFromFilters, qProblem } from "./filters";
@@ -9,8 +11,10 @@ import type { EntityQuery, Filter, FilterSlot } from "./filters";
 export interface EntityFiltersProps {
   /** The prefix of the control ids: `${id}-type`, `${id}-q`, `${id}-scopeQ`. */
   id: string;
-  /** The entity types the space's DataModel declares; a free text field when it declares none. */
+  /** The entity types the space's DataModel declares; none: the types the space's broker lists. */
   types: string[];
+  /** The context space read, so a space whose model declares no type still offers the types it holds. */
+  space?: string;
   /** The attributes of the chosen type, typed by the model (UI-33); may be empty. */
   slots: FilterSlot[];
   value: EntityQuery;
@@ -30,7 +34,35 @@ export interface EntityFiltersProps {
  * filter with the operators and input the slot's range allows, `scopeQ`, and the attributes to
  * read. Every row is a view of `value.q`; a `q` the rows cannot show stays a text field.
  */
-export function EntityFilters({ id, types, slots, value, onChange, denied = {}, readable }: EntityFiltersProps): JSX.Element {
+export function EntityFilters(props: EntityFiltersProps): JSX.Element {
+  return props.space && props.types.length === 0 ? <HeldTypeFilters {...props} space={props.space} /> : <Filters {...props} />;
+}
+
+/** No model types: the broker's own list, as the gateway lets this person read it (T-4946). */
+function HeldTypeFilters(props: EntityFiltersProps & { space: string }): JSX.Element {
+  const held = useQuery({
+    queryKey: ["spaceTypes", props.space],
+    queryFn: ({ signal }) => listSpaceTypes(props.space, signal),
+    staleTime: 60_000,
+  });
+  const types = (held.data ?? []).map((entry) => entry.type);
+  const slots: FilterSlot[] =
+    props.slots.length > 0
+      ? props.slots
+      : (held.data?.find((entry) => entry.type === props.value.type)?.attributes ?? []).map((name) => ({ name, kind: "Property" }));
+  return <Filters {...props} types={types} slots={slots} loading={held.isLoading} />;
+}
+
+function Filters({
+  id,
+  types,
+  slots,
+  value,
+  onChange,
+  denied = {},
+  readable,
+  loading = false,
+}: EntityFiltersProps & { loading?: boolean }): JSX.Element {
   const { t } = useTranslation();
   const q = value.q ?? "";
   // The rows are derived from `q`, but a row being typed (no value yet) is not in `q`, so they
@@ -61,34 +93,31 @@ export function EntityFilters({ id, types, slots, value, onChange, denied = {}, 
   return (
     <div className="flex flex-col gap-3" data-testid={`${id}-filters`}>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field id={`${id}-type`} label={t("entities.type")}>
-          {types.length > 0 ? (
-            <Select
-              id={`${id}-type`}
-              value={value.type ?? ""}
-              onChange={(event) =>
-                onChange({ type: event.target.value || undefined, scopeQ: value.scopeQ })
-              }
-            >
-              <option value="">—</option>
-              {/* One keyed list whatever the grant says, so an option a person picked survives the
-                  grant arriving: what the source lets them read comes first, the rest say so. */}
-              {[...types]
-                .sort((a, b) => Number(!(readable?.includes(a) ?? true)) - Number(!(readable?.includes(b) ?? true)))
-                .map((name) => (
-                  <option key={name} value={name}>
-                    {readable === undefined || readable.includes(name) ? name : t("entities.typeNotGranted", { name })}
-                  </option>
-                ))}
-            </Select>
-          ) : (
-            <Input
-              id={`${id}-type`}
-              value={value.type ?? ""}
-              placeholder={t("entities.typePlaceholder")}
-              onChange={(event) => onChange({ ...value, type: event.target.value || undefined })}
-            />
-          )}
+        <Field
+          id={`${id}-type`}
+          label={t("entities.type")}
+          description={types.length === 0 && !loading ? t("entities.noTypes") : t("entities.typeHint")}
+        >
+          <Select
+            id={`${id}-type`}
+            value={value.type ?? ""}
+            disabled={types.length === 0 && !value.type}
+            title={types.length === 0 && !value.type ? t("entities.noTypes") : undefined}
+            onChange={(event) => onChange({ type: event.target.value || undefined, scopeQ: value.scopeQ })}
+          >
+            <option value="">—</option>
+            {/* One keyed list whatever the grant says, so an option a person picked survives the
+                grant arriving: what the source lets them read comes first, the rest say so. */}
+            {/* A type the query already names stays visible even where no list holds it (a YAML edit, a
+                model still loading), so nothing a person chose is silently replaced. */}
+            {[...new Set([...(value.type && !types.includes(value.type) ? [value.type] : []), ...types])]
+              .sort((a, b) => Number(!(readable?.includes(a) ?? true)) - Number(!(readable?.includes(b) ?? true)))
+              .map((name) => (
+                <option key={name} value={name}>
+                  {readable === undefined || readable.includes(name) ? name : t("entities.typeNotGranted", { name })}
+                </option>
+              ))}
+          </Select>
         </Field>
         <Field id={`${id}-scopeQ`} label={t("entities.scopeQ")} description={t("entities.scopeQHint")}>
           <Input
@@ -107,27 +136,23 @@ export function EntityFilters({ id, types, slots, value, onChange, denied = {}, 
               const slot = slots.find((s) => s.name === row.attribute);
               return (
                 <div key={index} className="flex flex-wrap items-center gap-2">
-                  {slots.length > 0 ? (
-                    <Select
-                      aria-label={t("entities.attribute")}
-                      value={row.attribute}
-                      onChange={(event) => setRow(index, { attribute: event.target.value, op: "==", value: "" })}
-                    >
-                      <option value="">—</option>
-                      {slots.map((s) => (
-                        <option key={s.name} value={s.name}>
-                          {s.name}
+                  <Select
+                    aria-label={t("entities.attribute")}
+                    value={row.attribute}
+                    disabled={slots.length === 0}
+                    title={slots.length === 0 ? t("entities.noAttributes") : undefined}
+                    onChange={(event) => setRow(index, { attribute: event.target.value, op: "==", value: "" })}
+                  >
+                    <option value="">—</option>
+                    {/* A name `q` holds that the model does not list stays visible, never silently dropped. */}
+                    {[...new Set([...(row.attribute && !slots.some((s) => s.name === row.attribute) ? [row.attribute] : []), ...slots.map((s) => s.name)])].map(
+                      (name) => (
+                        <option key={name} value={name}>
+                          {name}
                         </option>
-                      ))}
-                    </Select>
-                  ) : (
-                    <Input
-                      aria-label={t("entities.attribute")}
-                      value={row.attribute}
-                      className="w-40"
-                      onChange={(event) => setRow(index, { attribute: event.target.value })}
-                    />
-                  )}
+                      ),
+                    )}
+                  </Select>
                   <Select
                     aria-label={t("entities.operator")}
                     value={row.op}

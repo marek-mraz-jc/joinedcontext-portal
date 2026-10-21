@@ -1254,7 +1254,7 @@ function OtherView({
       {view === "kanban" ? <KanbanView rows={shown} source={source} enums={enums} onDelete={onDelete} /> : null}
       {view === "calendar" ? <CalendarView rows={shown} source={source} onDelete={onDelete} /> : null}
       {view === "timeline" ? <TimelineView rows={shown} source={source} onDelete={onDelete} /> : null}
-      <AiFieldPanel space={space} type={type} endpoints={endpoints} rows={shown} />
+      <AiFieldPanel project={project} space={space} type={type} endpoints={endpoints} rows={shown} />
     </RowExtra.Provider>
   );
 }
