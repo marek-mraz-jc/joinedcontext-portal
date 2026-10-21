@@ -1,4 +1,6 @@
 import { AlertDialog } from "../components/AlertDialog";
+import { FlowMapView } from "../pages/pipelines/FlowMapView";
+import { Tabs, tabPanelProps } from "../components/ui/Tabs";
 import { useFormRoute, useOpenFromAddress } from "../components/forms/FormRoute";
 import { RecordLink } from "../components/RecordLink";
 import { useState } from "react";
@@ -119,6 +121,25 @@ export function pipelineMatches(
 const COLUMNS = 5;
 
 /** Ingestion pipelines of one project: what runs where, how it is doing, and its credentials. */
+type PipelineView = "list" | "map";
+
+function viewFromAddress(): PipelineView {
+  return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "map"
+    ? "map"
+    : "list";
+}
+
+function rememberView(view: PipelineView): void {
+  const url = new URL(window.location.href);
+  if (view === "map") {
+    url.searchParams.set("view", "map");
+  } else {
+    url.searchParams.delete("view");
+    url.searchParams.delete("space");
+  }
+  window.history.replaceState(window.history.state, "", url);
+}
+
 export function PipelinesPage({ project }: { project: string }): JSX.Element {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
@@ -137,9 +158,11 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
       : (new URLSearchParams(window.location.search).get("draft") ?? undefined),
   );
   const [editing, setEditing] = useState<Manifest | null>(() => (request?.manifest as Manifest | null) ?? null);
-  const [initial] = useState(() =>
+  const [initial, setInitial] = useState(() =>
     request ? undefined : ((takePrefill(window.location.pathname) as PipelineForm | null) ?? undefined),
   );
+  // The list or the data flow map (T-4862), kept in the address so a link opens the map.
+  const [view, setView] = useState<PipelineView>(viewFromAddress);
   const [dialogOpen, setDialogOpen] = useState(
     initial !== undefined || editing !== null || urlDraftName !== undefined,
   );
@@ -309,6 +332,36 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
         }
       />
 
+      <Tabs
+        id="pipeline-views"
+        label={t("pipelines.map.views")}
+        tabs={[
+          { value: "list", label: t("pipelines.map.view.list") },
+          { value: "map", label: t("pipelines.map.view.map") },
+        ]}
+        value={view}
+        onChange={(next) => {
+          setView(next);
+          rememberView(next);
+        }}
+      />
+
+      {view === "map" ? (
+        <div {...tabPanelProps("pipeline-views", "map")}>
+          <FlowMapView
+            project={project}
+            onNewPipeline={(form) => {
+              setInitial(form as PipelineForm);
+              if (formRoute) {
+                formRoute.openNew();
+              } else {
+                openEditor(null);
+              }
+            }}
+          />
+        </div>
+      ) : (
+      <div {...tabPanelProps("pipeline-views", "list")} className="flex flex-col gap-section">
       {residentFull ? (
         <Alert role="status" tone="warning">
           {t("quota.dimensionExceeded", {
@@ -546,6 +599,8 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
           );
         })}
       </ResourceList>
+      </div>
+      )}
 
       {rejectedOf !== null ? (
         <PipelineRejectedDialog
@@ -597,6 +652,8 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
             if (!open) {
               setDialogOpen(false);
               setEditing(null);
+              // A prefill opens the editor once; the next New starts empty.
+              setInitial(undefined);
             }
           }}
           editing={editing}

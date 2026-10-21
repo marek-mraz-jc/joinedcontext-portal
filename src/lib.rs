@@ -30,6 +30,7 @@ pub mod entity_trash;
 pub mod erasure;
 pub mod error;
 pub mod feedback;
+pub mod flow_map;
 pub mod git;
 pub mod groups;
 pub mod live;

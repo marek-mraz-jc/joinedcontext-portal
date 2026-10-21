@@ -8751,6 +8751,81 @@
         }
       }
     },
+    "/api/v1/projects/{project}/flow-map": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Read Data Flow Map",
+        "description": "Every MQTT broker, DataSource, Pipeline, Endpoint and Context Space of the project the caller may read, with the edges between them: which source feeds which pipeline, which Endpoint it reads and writes, the Policy that grants the pipelines account each read and write (named only to a caller who reads Policy in that space; or `missing` with the fix), each pipeline's phase and latest run. Another project's Endpoint a pipeline reads is named only, unless the caller reads that project.",
+        "operationId": "get_flow_map",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "query",
+            "description": "Only the paths that read or write this Context Space.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The map",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlowMap"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a space name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/flows": {
       "post": {
         "tags": [
@@ -21986,6 +22061,238 @@
         },
         "additionalProperties": false
       },
+      "FlowEdge": {
+        "type": "object",
+        "required": [
+          "from",
+          "to",
+          "relation"
+        ],
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "grant": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FlowGrant"
+              }
+            ]
+          },
+          "relation": {
+            "$ref": "#/components/schemas/FlowRelation"
+          },
+          "to": {
+            "type": "string"
+          }
+        }
+      },
+      "FlowGrant": {
+        "type": "object",
+        "description": "What permits a pipeline to read or write through an Endpoint.",
+        "required": [
+          "state",
+          "endpoint",
+          "operation"
+        ],
+        "properties": {
+          "endpoint": {
+            "type": "string"
+          },
+          "fix": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What to change when it is missing."
+          },
+          "operation": {
+            "type": "string",
+            "description": "The operation the edge needs, as a Policy names it."
+          },
+          "policy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Policy that grants it, named only to a caller who may read Policy in its space."
+          },
+          "state": {
+            "$ref": "#/components/schemas/FlowGrantState"
+          }
+        }
+      },
+      "FlowGrantState": {
+        "type": "string",
+        "enum": [
+          "granted",
+          "missing",
+          "external"
+        ]
+      },
+      "FlowKind": {
+        "type": "string",
+        "description": "What a node is on the map.",
+        "enum": [
+          "MqttBroker",
+          "DataSource",
+          "Pipeline",
+          "Endpoint",
+          "ContextSpace"
+        ]
+      },
+      "FlowMap": {
+        "type": "object",
+        "description": "The map of one project, or of the paths that touch one of its spaces.",
+        "required": [
+          "project",
+          "nodes",
+          "edges"
+        ],
+        "properties": {
+          "edges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FlowEdge"
+            }
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FlowNode"
+            }
+          },
+          "project": {
+            "type": "string"
+          }
+        }
+      },
+      "FlowNode": {
+        "type": "object",
+        "description": "One resource on the map. Only facts a reader of the manifest already sees: no secret, no\ncredential, no URL path or query (a token can ride in one), only a source's host.",
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "project",
+          "opaque"
+        ],
+        "properties": {
+          "audience": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "`false` for a paused pipeline."
+          },
+          "hosts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The hosts a DataSource connects to, without user, path or query."
+          },
+          "id": {
+            "type": "string",
+            "description": "`{project}/{kind}/{name}`, what the edges name."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/FlowKind"
+          },
+          "lastRun": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FlowRun"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "opaque": {
+            "type": "boolean",
+            "description": "Another project's resource the caller may not read: its name, nothing else."
+          },
+          "phase": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A pipeline's phase as the reconciler last set it."
+          },
+          "project": {
+            "type": "string"
+          },
+          "role": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FlowRole"
+              }
+            ]
+          },
+          "slug": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "An Endpoint's address segment and its audience."
+          },
+          "sourceType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A DataSource's connection type (`mqtt`, `http`, …)."
+          },
+          "space": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The space an Endpoint reads and writes."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "topics": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The topic filters an MQTT DataSource subscribes to."
+          }
+        }
+      },
+      "FlowRelation": {
+        "type": "string",
+        "description": "How data moves along an edge.",
+        "enum": [
+          "connects",
+          "feeds",
+          "exposes",
+          "reads",
+          "writes",
+          "stores"
+        ]
+      },
       "FlowRequest": {
         "type": "object",
         "description": "Running a blueprint: the parameters the form collected (API/01 §13).",
@@ -22008,6 +22315,54 @@
           }
         },
         "additionalProperties": false
+      },
+      "FlowRole": {
+        "type": "string",
+        "description": "What a pipeline does on the map: reads the outside world, computes from a space, or writes\nindicators (PL-45). A space ending in `-kpi` is an indicator space (PF-54).",
+        "enum": [
+          "ingest",
+          "derived",
+          "kpi"
+        ]
+      },
+      "FlowRun": {
+        "type": "object",
+        "description": "A pipeline's latest run, as the Portal logged it (PL-62).",
+        "required": [
+          "at",
+          "sent",
+          "rejected",
+          "failed"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "description": "The last line the Portal took for it, RFC 3339."
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "perMinute": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Records sent per minute over the run, when it lasted a minute or more."
+          },
+          "rejected": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "sent": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
       },
       "Fonts": {
         "type": "object",
