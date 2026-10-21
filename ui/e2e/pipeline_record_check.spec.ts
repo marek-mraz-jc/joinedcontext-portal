@@ -85,6 +85,8 @@ interface Stub {
   validate: unknown;
   status?: number;
   seen: Record<string, unknown>[];
+  /** The bodies the workbench sent to jc_pipeline_try_mapping. */
+  tried?: Record<string, unknown>[];
 }
 
 async function stubApi(page: Page, stub: Stub): Promise<void> {
@@ -102,7 +104,10 @@ async function stubApi(page: Page, stub: Stub): Promise<void> {
     if (/\/ops\/jc_pipeline_sample_source$/.test(path)) {
       return json({ records: SAMPLE, fields: Object.keys(SAMPLE[0]), count: SAMPLE.length, truncated: false, errors: [] });
     }
-    if (/\/ops\/jc_pipeline_try_mapping$/.test(path)) return json({ input: {}, records: RECORDS, errors: [] });
+    if (/\/ops\/jc_pipeline_try_mapping$/.test(path)) {
+      stub.tried?.push(JSON.parse(request.postData() ?? "{}") as Record<string, unknown>);
+      return json({ input: {}, records: RECORDS, errors: [] });
+    }
     if (/\/ops\/jc_pipeline_validate$/.test(path)) {
       stub.seen.push(JSON.parse(request.postData() ?? "{}") as Record<string, unknown>);
       return json(stub.validate, stub.status ?? 200);
@@ -152,7 +157,7 @@ const validation = (page: Page) => page.locator('section[aria-labelledby="workbe
 
 test.describe("the record check in the pipeline workbench", () => {
   test("a green check shows the expiry each record is written with", async ({ page }) => {
-    const stub: Stub = { validate: GREEN, seen: [] };
+    const stub: Stub = { validate: GREEN, seen: [], tried: [] };
     await stubApi(page, stub);
     await openEditor(page);
     await expect(validation(page).getByRole("status")).toContainText("All 2 records are valid against hsl-transit 1.0.0.");
@@ -160,8 +165,10 @@ test.describe("the record check in the pipeline workbench", () => {
     const first = output(page).getByTestId("workbench-record-0");
     await expect(first.getByRole("row").filter({ hasText: "expiresAt" })).toContainText("2026-10-20T20:08:00Z");
     await expect(first.getByRole("row").filter({ hasText: "speed" })).toContainText("2026-10-20T20:03:00Z");
-    // The verdict is kept on the draft the dialog edits, for the proposal (PF-57).
-    expect(stub.seen.at(-1)?.draft).toEqual({ kind: "Pipeline", name: "hsl-hfp-vehicles" });
+    // The run of the mapping keeps its record check on the draft the dialog edits, for the
+    // proposal (PF-57); the validation of the records shown back keeps nothing (T-4840).
+    expect(stub.tried?.at(-1)?.draft).toEqual({ kind: "Pipeline", name: "hsl-hfp-vehicles" });
+    expect(stub.seen.at(-1)?.draft).toBeUndefined();
     await shot(page, "green");
   });
 
