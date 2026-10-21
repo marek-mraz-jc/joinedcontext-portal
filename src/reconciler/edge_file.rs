@@ -357,6 +357,10 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
         .to_owned();
     let static_upstream = portal_route["upstream_id"].clone();
     let endpoint_upstream = endpoint_route["upstream_id"].clone();
+    let portal = static_upstream
+        .as_str()
+        .and_then(|id| by_id(&document, "upstreams", id).ok())
+        .and_then(first_node);
 
     let taken: Vec<String> = ["routes", "upstreams", "plugin_configs"]
         .iter()
@@ -409,6 +413,23 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
             ));
             continue;
         }
+
+        // A pod App's server and a wasm App's shard serve whoever passes the login, so the edge
+        // asks the Portal first whether the App's visibility admits the caller (T-4922).
+        let guarded = !app.public && (app.upstream != Upstream::Static || app.server.is_some());
+        let admit = match (&portal, guarded) {
+            (_, false) => None,
+            (Some(portal), true) => Some(admission(portal, name)),
+            (None, true) => {
+                skipped.push((
+                    name.to_owned(),
+                    format!(
+                        "the base's upstream {PORTAL_UI} names no node to ask who may open the App"
+                    ),
+                ));
+                continue;
+            }
+        };
 
         let upstream_id = match &app.upstream {
             Upstream::Pod { namespace, .. } => {
@@ -466,6 +487,8 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
                     format!("^/(?:apps/{name}/)?(.*)$"),
                     format!("/apps/{name}/$1"),
                 );
+            } else if let Some(admit) = &admit {
+                plugins["forward-auth"] = admit.clone();
             }
             push(
                 &mut document,
@@ -520,6 +543,9 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
                     format!("^(?:/apps/{name})?/api/(.*)$"),
                     format!("/apps/{name}/api/$1"),
                 );
+                if let Some(admit) = &admit {
+                    plugins["forward-auth"] = admit.clone();
+                }
                 push(
                     &mut document,
                     "plugin_configs",
@@ -652,6 +678,38 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
     Ok(Composed {
         file: format!("{body}{END_MARKER}\n"),
         skipped,
+    })
+}
+
+/// The first node of an upstream, `host:port`, in either form APISIX takes (a map or a list).
+fn first_node(upstream: &Value) -> Option<String> {
+    match &upstream["nodes"] {
+        Value::Object(nodes) => nodes.keys().next().cloned(),
+        Value::Array(nodes) => nodes.first().and_then(|node| {
+            Some(format!(
+                "{}:{}",
+                node["host"].as_str()?,
+                node["port"].as_u64()?
+            ))
+        }),
+        _ => None,
+    }
+}
+
+/// The `forward-auth` that asks the Portal at `portal` whether App `name` admits the caller: the
+/// login's token goes along, a refusal reaches the browser as the static host wrote it, and a
+/// Portal that does not answer refuses (T-4922).
+// ponytail: one Portal call per request of a non-public pod App; cache by token if it shows.
+fn admission(portal: &str, name: &str) -> Value {
+    json!({
+        "uri": format!("http://{portal}/edge/apps/{name}/admit"),
+        "request_method": "GET",
+        "request_headers": ["Authorization", "X-Access-Token", "Accept", "Accept-Language"],
+        "client_headers": ["Content-Type", "Cache-Control", "Content-Security-Policy"],
+        "timeout": 3000,
+        "keepalive": true,
+        "allow_degradation": false,
+        "status_on_error": 503,
     })
 }
 
@@ -1013,6 +1071,82 @@ routes:
     /// session's token as the bearer and the cookie kept at the edge; the endpoint and the
     /// services keep their own routes. Before, only the page route matched and the static host
     /// answered every server call 404.
+    /// T-4922: the pod and the wasm shard of a non-public App answer only after the Portal admits
+    /// the caller; the static host checks by itself, and a public App asks nobody.
+    #[test]
+    fn a_non_public_pod_or_wasm_server_asks_the_portal_who_may_open_it() {
+        let mut wasm = app("kpi-forecast", false, Upstream::Static);
+        wasm.server = Some("jc-wasm-host-0.jc-apps.svc.cluster.local:8080".into());
+        let mut open_wasm = app("news-topics", true, Upstream::Static);
+        open_wasm.server = Some("jc-wasm-host-1.jc-apps.svc.cluster.local:8080".into());
+        let apps = [
+            app("air-quality", false, pod("jc-helsinki-apps")),
+            app("hsl-transport", true, pod("jc-helsinki-apps")),
+            app("praha-mesto", false, Upstream::Static),
+            wasm,
+            open_wasm,
+        ];
+        let composed = compose(BASE, &apps, &EdgeLimits::default()).expect("composes");
+        assert!(composed.skipped.is_empty(), "{:?}", composed.skipped);
+        let file = parsed(&composed.file);
+        let guard = |id: &str| {
+            by_id(&file, "plugin_configs", id).expect("its plugins")["plugins"]["forward-auth"]
+                .clone()
+        };
+        for (id, name) in [
+            ("app-air-quality", "air-quality"),
+            ("app-kpi-forecast-server", "kpi-forecast"),
+        ] {
+            let auth = guard(id);
+            assert_eq!(
+                auth["uri"],
+                format!("http://portal.jc.svc.cluster.local:8080/edge/apps/{name}/admit"),
+                "{id}"
+            );
+            assert_eq!(auth["allow_degradation"], false, "{id}");
+            assert_eq!(
+                auth["request_headers"],
+                json!([
+                    "Authorization",
+                    "X-Access-Token",
+                    "Accept",
+                    "Accept-Language"
+                ]),
+                "{id}"
+            );
+        }
+        for id in [
+            "app-hsl-transport",
+            "app-praha-mesto",
+            "app-kpi-forecast",
+            "app-news-topics-server",
+            "app-air-quality-endpoint",
+        ] {
+            assert!(guard(id).is_null(), "{id} asks the Portal");
+        }
+    }
+
+    /// A base whose Portal upstream names no node leaves a guarded App without a route of its own,
+    /// so nothing serves it past the check (T-4922).
+    #[test]
+    fn a_guarded_app_gets_no_route_when_the_portal_has_no_node() {
+        let base = BASE.replace(
+            "    nodes:\n      \"portal.jc.svc.cluster.local:8080\": 1\n",
+            "    nodes: {}\n",
+        );
+        assert_ne!(base, BASE);
+        let apps = [
+            app("air-quality", false, pod("jc-helsinki-apps")),
+            app("hsl-transport", true, pod("jc-helsinki-apps")),
+        ];
+        let composed = compose(&base, &apps, &EdgeLimits::default()).expect("composes");
+        assert_eq!(composed.skipped.len(), 1, "{:?}", composed.skipped);
+        assert_eq!(composed.skipped[0].0, "air-quality");
+        let file = parsed(&composed.file);
+        assert!(by_id(&file, "routes", "app-air-quality").is_err());
+        assert!(by_id(&file, "routes", "app-hsl-transport").is_ok());
+    }
+
     #[test]
     fn a_wasm_apps_server_is_routed_to_its_shard_on_each_of_its_hosts() {
         let mut kpi = app("kpi-forecast", false, Upstream::Static);

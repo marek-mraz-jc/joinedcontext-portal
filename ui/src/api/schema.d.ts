@@ -776,6 +776,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/health-checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Organization Health Checks
+         * @description Every project's checks (T-5067), errors first. Only an administrator of the organization: approve and delete on RoleBinding at organization scope (PF-03).
+         */
+        get: operations["list_all"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organization/limits": {
         parameters: {
             query?: never;
@@ -2255,6 +2275,26 @@ export interface paths {
          * @description Expands one of the organisation's blueprints with the parameters given, as one change: a green flow merges at once, anything stricter waits for a person's approval.
          */
         post: operations["start_flow"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/health-checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Project Health Checks
+         * @description Every check of the project's pipelines, Context Spaces, Endpoints, models and data sources the caller may read (T-5067): its status, since when it holds, when it was last ok, what it found with credentials masked, a fix hint and the statuses of the last 7 days. A project the caller cannot read is 404.
+         */
+        get: operations["list_project"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5912,6 +5952,64 @@ export interface components {
          * @enum {string}
          */
         Health: "up" | "down" | "unknown";
+        /** @description One check of one resource as the Health page shows it. */
+        HealthCheck: {
+            /**
+             * @description `reconcile`, `runs`, `freshness`, `entities`, `storage`, `validation`, `reachable`, or a
+             *     surface an Endpoint serves (`ngsi-ld`, `odata`, `mcp`, ...).
+             */
+            check: string;
+            /** @description When the leader last judged it, RFC 3339. */
+            checkedAt: string;
+            /** @description What the check found, credentials masked. */
+            detail: components["schemas"]["HealthCheckText"];
+            /** @description The Portal page of the resource. */
+            evidenceUrl: string;
+            /** @description The manifest field or the page to change; empty when there is nothing to fix. */
+            fix: components["schemas"]["HealthCheckText"];
+            /** @description The statuses of the last 7 days, oldest first. */
+            history: components["schemas"]["HealthCheckPoint"][];
+            kind: components["schemas"]["HealthCheckKind"];
+            /** @description When the check was last ok, RFC 3339; absent when it never was. */
+            lastOk?: string | null;
+            name: string;
+            project: string;
+            /** @description Since when this status holds, RFC 3339. */
+            since: string;
+            status: components["schemas"]["HealthCheckStatus"];
+        };
+        /** @enum {string} */
+        HealthCheckKind: "pipeline" | "space" | "endpoint" | "model" | "datasource";
+        /** @description The checks, errors first, then warnings, then ok. */
+        HealthCheckList: {
+            items: components["schemas"]["HealthCheck"][];
+        };
+        /** @description One point of a check's history. */
+        HealthCheckPoint: {
+            /** @description RFC 3339. */
+            at: string;
+            status: components["schemas"]["HealthCheckStatus"];
+        };
+        /**
+         * @description Errors first, then warnings, then what is well.
+         * @enum {string}
+         */
+        HealthCheckStatus: "error" | "warn" | "ok";
+        /**
+         * @description A message of the health log: its key under `health.say` in the UI's locales with the values
+         *     it names, and its English text for the API and the logs. A text a component wrote (a broker's
+         *     error) has no key: it is shown as it came, credentials masked.
+         */
+        HealthCheckText: {
+            /** @description The values the message names, by placeholder. */
+            args: {
+                [key: string]: string;
+            };
+            /** @description The key under `health.say`; empty for a component's own words. */
+            code: string;
+            /** @description The message in English. */
+            text: string;
+        };
         /**
          * @description Why a run deleted nothing and alerts the pipeline's subscribers.
          * @enum {string}
@@ -9713,6 +9811,53 @@ export interface operations {
                 };
             };
             /** @description The results directory cannot be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_all: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every project's checks, errors first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthCheckList"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an administrator of the organization */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The health log could not be read */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -14990,6 +15135,56 @@ export interface operations {
                 };
             };
             /** @description The git forge is not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_project: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The project's checks, errors first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthCheckList"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Project not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The health log could not be read */
             503: {
                 headers: {
                     [name: string]: unknown;

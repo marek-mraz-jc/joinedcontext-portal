@@ -33,6 +33,8 @@ pub mod feedback;
 pub mod flow_map;
 pub mod git;
 pub mod groups;
+pub mod health_log;
+pub mod health_probe;
 pub mod live;
 pub mod mcp;
 pub mod openapi;
