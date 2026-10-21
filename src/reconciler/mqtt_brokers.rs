@@ -8,7 +8,7 @@
 //! of its own.
 //!
 //! A manifest the platform refuses (its kind's rules, a ServiceAccount its project does not
-//! declare, a dedicated port another broker holds) is not applied: the release it had keeps
+//! declare, a broker past the project's MQTT allowance, a dedicated port another broker holds) is not applied: the release it had keeps
 //! running, and the error goes into the broker's status. A broker whose manifest is gone loses its
 //! objects, and its client `mqtt-{project}-{name}`: bearer-only, no secret, the audience the
 //! gateway checks a device's token against. The ServiceAccounts a broker's roles name get that
@@ -17,7 +17,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use jc_core::kinds::mqtt_broker::release_name;
-use jc_core::kinds::MqttBrokerSpec;
+use jc_core::kinds::{MqttAllowance, MqttBrokerSpec, MqttUsage};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
@@ -95,6 +95,7 @@ pub fn declared(mirror: &Mirror) -> Vec<Broker> {
         })
         .collect();
     brokers.sort_by(|a, b| (&a.project, &a.name).cmp(&(&b.project, &b.name)));
+    judge_allowances(mirror, &mut brokers);
     let mut ports: BTreeMap<u16, String> = BTreeMap::new();
     for broker in &mut brokers {
         let Some(port) = broker.spec.as_ref().ok().and_then(|spec| spec.port) else {
@@ -113,6 +114,25 @@ pub fn declared(mirror: &Mirror) -> Vec<Broker> {
         }
     }
     brokers
+}
+
+/// The project's MQTT allowance, judged in name order like a quota: a broker past what is left
+/// is not rendered, and a release it already has keeps running (PF-100, PF-118).
+fn judge_allowances(mirror: &Mirror, brokers: &mut [Broker]) {
+    let mut allowances: BTreeMap<String, (MqttAllowance, MqttUsage)> = BTreeMap::new();
+    for broker in brokers {
+        let Ok(spec) = &broker.spec else {
+            continue;
+        };
+        let (allowance, used) = allowances.entry(broker.project.clone()).or_insert_with(|| {
+            let (allowance, _) = crate::mqtt_allowance::effective(mirror, &broker.project);
+            (allowance, MqttUsage::default())
+        });
+        match allowance.refusal(&broker.project, used, spec, None) {
+            Some(reason) => broker.spec = Err(reason),
+            None => used.add(spec),
+        }
+    }
 }
 
 fn known_accounts(spec: &MqttBrokerSpec, accounts: &BTreeSet<String>) -> Result<(), String> {
@@ -483,6 +503,15 @@ mod tests {
 
     fn mirror() -> Mirror {
         let mirror = Mirror::new();
+        mirror.upsert(envelope(
+            "Organization",
+            crate::permissions::ORG_NAMESPACE,
+            "hel",
+            json!({ "domain": "hel.fi", "limits": { "mqtt": {
+                "enabled": true, "brokers": 2, "connections": 20000, "messagesPerSecond": 100000,
+                "addresses": ["platform", "dedicatedPort"], "ports": [18830]
+            } } }),
+        ));
         for (project, account) in [
             ("helsinki", "cam-north"),
             ("helsinki", "cam-south"),
@@ -610,6 +639,41 @@ spec:
             refused.contains("18830 is already held by espoo/cameras"),
             "{refused}"
         );
+    }
+
+    #[test]
+    fn a_broker_past_the_projects_allowance_is_not_rendered_and_the_limit_named() {
+        let mirror = mirror();
+        mirror.upsert(envelope(
+            "Project",
+            crate::permissions::ORG_NAMESPACE,
+            "helsinki",
+            json!({ "organizationRef": { "name": "hel" }, "quotas": { "mqtt": {
+                "enabled": true, "brokers": 1,
+                "addresses": ["platform", "dedicatedPort"], "ports": [18830]
+            } } }),
+        ));
+        mirror.upsert(envelope(
+            "Project",
+            crate::permissions::ORG_NAMESPACE,
+            "espoo",
+            json!({ "organizationRef": { "name": "hel" }, "quotas": { "mqtt": { "enabled": false } } }),
+        ));
+        let by_label: BTreeMap<String, Result<MqttBrokerSpec, String>> = declared(&mirror)
+            .into_iter()
+            .map(|b| (b.label(), b.spec))
+            .collect();
+        assert!(
+            by_label["helsinki/cameras"].is_ok(),
+            "the first by name fits"
+        );
+        let past = by_label["helsinki/doors"].as_ref().expect_err("refused");
+        assert!(
+            past.contains("the project may run 1 MQTT brokers (1 in use)"),
+            "{past}"
+        );
+        let off = by_label["espoo/cameras"].as_ref().expect_err("refused");
+        assert!(off.contains("MQTT is off for project espoo"), "{off}");
     }
 
     #[test]

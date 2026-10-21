@@ -2529,6 +2529,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/mqtt/allowance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Project's MQTT Allowance
+         * @description What the project may run as MQTT edge brokers and what its committed brokers use of it (API/01 §47, PF-117, PF-118). Whoever may read the project. Written only as Organization spec.limits.mqtt or Project spec.quotas.mqtt, by an org admin.
+         */
+        get: operations["get_allowance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/mqttbrokers/{name}/measured": {
         parameters: {
             query?: never;
@@ -3899,6 +3919,24 @@ export interface components {
         AlertSubscriptions: {
             items: components["schemas"]["AlertSubscription"][];
         };
+        /** @description The project's MQTT allowance and its usage (API/01 §47). */
+        Allowance: {
+            /** @description `platform`, `dedicatedPort`. */
+            addresses: string[];
+            brokers: components["schemas"]["Meter"];
+            connections: components["schemas"]["Meter"];
+            enabled: boolean;
+            maxMessageBytes: components["schemas"]["Ceiling"];
+            messagesPerSecond: components["schemas"]["Meter"];
+            /** @description `ingest`, `capture`, `relay`. */
+            modes: string[];
+            /** @description `project` (its `spec.quotas.mqtt`), `organization` (`spec.limits.mqtt`) or `default`. */
+            origin: components["schemas"]["LimitOrigin"];
+            ports: number[];
+            portsInUse: components["schemas"]["PortInUse"][];
+            /** @description The sentence a refusal ends with: who can raise the allowance, and where (PF-101). */
+            raise: string;
+        };
         /** @description An answer to one question the agent asked (AG-45). */
         AnswerRequest: {
             answers: unknown;
@@ -4440,6 +4478,11 @@ export interface components {
         CatalogueTheme: {
             code: string;
             label: string;
+        };
+        /** @description A ceiling each broker is held to on its own. */
+        Ceiling: {
+            /** Format: int32 */
+            limit: number;
         };
         /** @description The `Change` resource describing a proposed configuration update. */
         Change: {
@@ -5471,6 +5514,18 @@ export interface components {
             scope?: string | null;
             text: string;
         };
+        /** @description One summed limit: what the allowance gives, what the brokers use, and what is left. */
+        Meter: {
+            /**
+             * Format: int64
+             * @description Never below `0`; a project over a lowered allowance shows `used` above `limit` (PF-100).
+             */
+            left: number;
+            /** Format: int64 */
+            limit: number;
+            /** Format: int64 */
+            used: number;
+        };
         /**
          * @description Which of the two proofs verified the domain.
          * @enum {string}
@@ -5983,6 +6038,12 @@ export interface components {
             pass: number;
             /** Format: int32 */
             skip: number;
+        };
+        /** @description A dedicated port of the project and the broker holding it. */
+        PortInUse: {
+            broker: string;
+            /** Format: int32 */
+            port: number;
         };
         Preferences: {
             /**
@@ -15342,6 +15403,47 @@ export interface operations {
             };
             /** @description The knowledge assistant is not reachable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_allowance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The allowance and its usage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Allowance"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project, or not readable by the caller */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

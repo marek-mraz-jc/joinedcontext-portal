@@ -70,16 +70,12 @@ path = "src/main.rs"
 # there (T-3167); the three crates share one reference, so cargo pulls one copy.
 # `version` is the crate's own version at that tag (the tag counts differently); without it
 # cargo-deny reads the requirement as `*` and the supply-chain check goes red (T-0287).
-jc-core = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "48f9c1e84cd6d7d5de16f7d53d29b62c59a59f17", version = "0.1.0" }
+jc-core = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "214a072ce5d22ca2aa6a274449817ffcd6ab3017", version = "0.1.0" }
 # Blueprint expansion (CC-25) and the loader the reconciler validates a repository with
 # (T-0191), from the same engine the CLI runs, so both sides agree on what a manifest is. Same
 # tag as jc-core on purpose: cargo keys a git source by its reference, so two tags of one
 # repository would pull two copies of `jc-core` and its types would stop matching.
-jcctl = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "48f9c1e84cd6d7d5de16f7d53d29b62c59a59f17", version = "0.1.0", default-features = false, features = ["utoipa"] }
-# The gateway's own write decision (evaluator, write guard), which the record check of a pipeline's
-# sample runs before a proposal (T-4840), and the app-variant matrix asserts (T-2705). Same rev as
-# jc-core.
-context-gateway = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "48f9c1e84cd6d7d5de16f7d53d29b62c59a59f17", version = "0.1.0" }
+jcctl = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "214a072ce5d22ca2aa6a274449817ffcd6ab3017", version = "0.1.0", default-features = false, features = ["utoipa"] }
 # The operations check an input against the schema they publish (T-1659); already in the tree.
 jsonschema = { version = "0.54", default-features = false }
 # Only to render jc-core's schemas into the OpenAPI document; the Portal's own types use utoipa.
@@ -158,6 +154,10 @@ tower = { version = "0.5", features = ["util"] }
 wiremock = "0.6"
 # A paused clock, so a timeout test proves the bound without waiting it out.
 tokio = { version = "1", features = ["test-util"] }
+# The gateway's own policy decision and endpoint roles, so the app-variant matrix asserts what the
+# gateway decides on the grants the Portal renders, not a copy of its rules (T-2705). Same tag as
+# jc-core, for the reason given above.
+context-gateway = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "214a072ce5d22ca2aa6a274449817ffcd6ab3017", version = "0.1.0" }
 
 # ponytail: line tables only, no full debuginfo — several agents compile on one machine
 [profile.dev]
