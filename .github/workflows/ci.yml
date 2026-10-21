@@ -6,10 +6,13 @@ on:
     # merges a low-risk reviewed branch (T-4675). Public repository: the minutes are free.
     branches: [main, "agent/**"]
 permissions: { contents: read }
-# On main a run is never cancelled: merges land minutes apart, and each one used to cancel the
-# run before it, so main went without a finished run. One run finishes, the newest push waits
-# behind it (GitHub keeps one pending run per group). Branches still cancel.
-concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: "${{ github.ref != 'refs/heads/main' }}" }
+# Main runs are keyed by commit (T-5022): GitHub keeps one pending run per concurrency group, so
+# with ci-<ref> each merge replaced the pending main run before it got a runner and main went
+# hours without a verdict. Every main commit now gets its own run, never cancelled. Branches
+# keep one group per ref and cancel the older run.
+concurrency:
+  group: "ci-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}"
+  cancel-in-progress: "${{ github.ref != 'refs/heads/main' }}"
 jobs:
   # Which jobs the change needs (T-4985): the paths changed since the branch left main (a pull
   # request: since its base), mapped by scripts/ci/changes.sh. 15 jobs on every push filled the
