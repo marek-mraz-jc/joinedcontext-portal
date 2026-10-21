@@ -62,6 +62,66 @@ async fn serve_index(
     response
 }
 
+/// The `404` of an App that is not there, as a page in the person's language for a browser
+/// (T-4200).
+fn missing(state: &AppState, headers: &HeaderMap, name: &str) -> Response {
+    let start = if state.config.apps_url.is_some() {
+        "/".to_owned()
+    } else {
+        format!("/apps/{name}/")
+    };
+    super::roles::missing_page(headers, &start, portal_origin(state).as_deref())
+        .unwrap_or_else(|| ApiError::NotFound(format!("app '{name}' not found")).into_response())
+}
+
+/// The answer for a caller the visibility of published App `name` keeps out, `None` for one it
+/// admits: the `404` of a name never created, or the `403` page of a `roles` App (T-4910).
+fn kept_out(
+    state: &AppState,
+    headers: &HeaderMap,
+    project: &str,
+    name: &str,
+    spec: &AppSpec,
+    person: Option<&super::roles::AppPerson>,
+) -> Option<Response> {
+    if super::roles::may_open(state, project, name, spec, person) {
+        return None;
+    }
+    if spec.visibility != AppVisibility::Roles {
+        return Some(missing(state, headers, name));
+    }
+    // A published app with roles says who grants them instead of pretending it is not there,
+    // and names none of its members (AP-93).
+    let title = state
+        .mirror
+        .get(project, "App", name)
+        .and_then(|env| env.metadata.title);
+    Some(super::roles::refusal(
+        spec,
+        name,
+        title.as_ref(),
+        project,
+        headers,
+        portal_origin(state).as_deref(),
+    ))
+}
+
+/// Serves `/edge/apps/{name}/admit`, the edge's `forward-auth` in front of a pod App's server and
+/// a wasm App's shard, which never run the visibility check themselves (T-4922): `204` for a
+/// caller the App admits, else the static host's own refusal, which the edge hands on.
+async fn admit(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+) -> Response {
+    let Some((project, spec, _)) = published_app(&state, &name) else {
+        return missing(&state, &headers, &name);
+    };
+    let person = super::roles::person(&state, &headers, &spec, &name).await;
+    kept_out(&state, &headers, &project, &name, &spec, person.as_ref())
+        .unwrap_or_else(|| StatusCode::NO_CONTENT.into_response())
+}
+
 /// Serves `/apps/{name}/{path}`.
 async fn serve(
     State(state): State<AppState>,
@@ -76,42 +136,15 @@ async fn serve(
     // Every refusal below is the same 404. A draft app, a retired app, a name that was never
     // created and a caller who may not see it are indistinguishable from outside, so the host
     // never discloses what is being worked on (AP-18).
-    // A person's browser gets the same refusal as a page in their language (T-4200).
-    let start = if state.config.apps_url.is_some() {
-        "/".to_owned()
-    } else {
-        format!("/apps/{name}/")
-    };
-    let not_found = || {
-        super::roles::missing_page(&headers, &start, portal_origin(&state).as_deref())
-            .unwrap_or_else(|| {
-                ApiError::NotFound(format!("app '{name}' not found")).into_response()
-            })
-    };
+    let not_found = || missing(&state, &headers, &name);
 
     let Some((project, spec, build)) = published_app(&state, &name) else {
         return not_found();
     };
     // The person as this App's own client knows them (ADR-N-030, AP-92).
     let person = super::roles::person(&state, &headers, &spec, &name).await;
-    if !super::roles::may_open(&state, &project, &name, &spec, person.as_ref()) {
-        if spec.visibility != AppVisibility::Roles {
-            return not_found();
-        }
-        // A published app with roles says who grants them instead of pretending it is not there,
-        // and names none of its members (AP-93).
-        let title = state
-            .mirror
-            .get(&project, "App", &name)
-            .and_then(|env| env.metadata.title);
-        return super::roles::refusal(
-            &spec,
-            &name,
-            title.as_ref(),
-            &project,
-            &headers,
-            portal_origin(&state).as_deref(),
-        );
+    if let Some(refused) = kept_out(&state, &headers, &project, &name, &spec, person.as_ref()) {
+        return refused;
     }
     let Some(app_root) = app_root(
         state.config.apps_dir.as_deref().map(FsPath::new),
@@ -842,6 +875,7 @@ pub fn router() -> Router<AppState> {
                 )),
         )
         .route("/apps/{name}/{*path}", get(serve))
+        .route("/edge/apps/{name}/admit", get(admit))
         // The signed link in every App message: on the Portal's host, outside `/api/v1`, since a
         // mail client's one-click carries no session and no CSRF token; the signature is the
         // credential (RFC 8058).
