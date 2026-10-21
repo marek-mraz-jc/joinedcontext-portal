@@ -5435,7 +5435,8 @@
         "throughput": "Pipeline-Durchsatz",
         "error": "Pipeline-Fehler",
         "restarted": "Pipeline neu gestartet",
-        "run": "Pipeline-Lauf gestartet"
+        "run": "Pipeline-Lauf gestartet",
+        "source-delete": "Entscheidung über Quell-Löschungen"
       },
       "endpoint": {
         "traffic": "Endpunkt-Verkehr"
