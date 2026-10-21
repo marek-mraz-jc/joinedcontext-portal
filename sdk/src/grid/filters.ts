@@ -144,6 +144,11 @@ export function quotePattern(raw: string): string {
   return raw.trim().replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
 }
 
+/** A pattern as a `q` string: metacharacters stand for themselves and a quote stays inside it. */
+function patternLiteral(raw: string, prefix = ""): string {
+  return `"${prefix}${quotePattern(raw).replace(/"/g, '\\"')}"`;
+}
+
 /**
  * The attribute a term names: the attribute itself, or one of its metadata members, which is the
  * same dotted path the NGSI-LD query language uses for an attribute's own properties
@@ -170,7 +175,7 @@ function termOf(
     case "present":
       return path;
     case "contains":
-      return `${path}~="${quotePattern(filter.value)}"`;
+      return `${path}~=${patternLiteral(filter.value)}`;
     case "equals":
       return `${path}==${literal(filter.value, kind)}`;
     case "notEquals":
@@ -241,4 +246,61 @@ export function queryFromFilters(
 export function andQ(...parts: (string | undefined)[]): string | undefined {
   const kept = parts.map((part) => part?.trim()).filter((part): part is string => Boolean(part));
   return kept.length > 0 ? kept.join(";") : undefined;
+}
+
+/** One condition of the filter panel: the column it asks about and what it asks. */
+export interface FilterCondition {
+  key: string;
+  filter: ColumnFilter;
+}
+
+/**
+ * The filter panel's conditions (T-4883): joined by AND (`;`) or OR (`|`), a group holding
+ * conditions and groups of its own. The panel nests one level, as Baserow does; the translation
+ * takes any depth.
+ */
+export interface FilterGroup {
+  join: "and" | "or";
+  conditions: (FilterCondition | FilterGroup)[];
+}
+
+function isGroup(item: FilterCondition | FilterGroup): item is FilterGroup {
+  return "conditions" in item;
+}
+
+/**
+ * The `q` of a filter group, `undefined` when nothing in it is ready. Every term that is itself
+ * composite (a `between`, a nested group) is put in parentheses before it is joined, so an OR
+ * never splits an AND it contains. The id column is left out: `idPattern` is one regular
+ * expression beside `q` and cannot take part in an OR.
+ */
+export function queryFromGroup(columns: FilterColumn[], group: FilterGroup): string | undefined {
+  const byKey = new Map(columns.map((column) => [column.key, column]));
+  const parts: string[] = [];
+  for (const item of group.conditions) {
+    let built: string | undefined;
+    if (isGroup(item)) {
+      built = queryFromGroup(columns, item);
+    } else {
+      const column = byKey.get(item.key);
+      if (column?.attr && column.kind !== "id") {
+        built = termOf(column.attr, column.meta, item.filter, column.kind);
+      }
+    }
+    if (built) parts.push(built);
+  }
+  if (parts.length <= 1) return parts[0];
+  return parts.map((part) => (/[;|]/.test(part) ? `(${part})` : part)).join(group.join === "or" ? "|" : ";");
+}
+
+/**
+ * The search box as a `q` (T-4883): any of the named text attributes holds the typed text,
+ * case-insensitively. The endpoint searches the whole type with the reader's grant, never the
+ * loaded page.
+ */
+export function searchQuery(text: string, attrs: readonly string[]): string | undefined {
+  if (text.trim() === "" || attrs.length === 0) return undefined;
+  const pattern = patternLiteral(text, "(?i)");
+  const terms = attrs.map((attr) => `${attr}~=${pattern}`);
+  return terms.length === 1 ? terms[0] : `(${terms.join("|")})`;
 }
