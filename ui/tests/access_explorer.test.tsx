@@ -13,6 +13,12 @@ import { App } from "../src/App";
 import { AccessExplorer } from "../src/pages/access/AccessExplorer";
 
 const LIST = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
+const ROLE = (name: string, namespace: string) => ({
+  apiVersion: "joinedcontext.com/v1alpha1",
+  kind: "Role",
+  metadata: { name, namespace },
+  spec: { rules: [] },
+});
 const ACCOUNT = {
   apiVersion: "joinedcontext.com/v1alpha1",
   kind: "ServiceAccount",
@@ -79,6 +85,8 @@ function stub(administrator: boolean, explored: unknown): Sent[] {
       }
       if (url.pathname === "/api/v1/projects/helsinki/serviceaccounts") return json(LIST([ACCOUNT]));
       if (url.pathname === "/api/v1/organization/people") return json({ items: [JANA], total: 1 });
+      if (url.pathname === "/api/v1/projects/helsinki/roles") return json(LIST([ROLE("reader", "helsinki")]));
+      if (url.pathname === "/api/v1/projects/org/roles") return json(LIST([ROLE("steward", "org")]));
       if (url.pathname.endsWith("/access/explore")) return json(explored);
       if (request.method === "DELETE" && url.pathname.includes("/consents/")) return new Response(null, { status: 204 });
       return json(LIST([]));
@@ -117,6 +125,23 @@ describe("Access explorer (T-3792)", () => {
     expect(screen.getAllByRole("listitem").filter((li) => li.querySelector("details"))).toHaveLength(5);
     expect(screen.getByText("city-air")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Connect all (copy hub URL)" })).toBeInTheDocument();
+  });
+
+  it("picks a role of the project or the organization, never a typed name (T-4947)", async () => {
+    const sent = stub(true, { subject: { groups: [], roles: ["reader"] }, endpoints: [], mcpServers: [], consents: [] });
+    renderAt("/projects/helsinki/settings/explorer?kind=role");
+    const user = userEvent.setup();
+    const show = await screen.findByRole("button", { name: "Show access" });
+    expect(show).toHaveAttribute("aria-disabled", "true");
+    await user.click(screen.getByRole("combobox", { name: /role/i }));
+    const offered = within(await screen.findByRole("listbox")).getAllByRole("option").map((o) => o.textContent ?? "");
+    expect(offered.some((text) => text.includes("reader"))).toBe(true);
+    expect(offered.some((text) => text.includes("steward"))).toBe(true);
+    await user.click(screen.getByRole("option", { name: /reader/ }));
+    await user.click(show);
+    await waitFor(() =>
+      expect(sent.find((s) => s.path.endsWith("/access/explore"))?.body).toEqual({ subject: { kind: "role", name: "reader" } }),
+    );
   });
 
   it("says a principal reaches nothing", async () => {

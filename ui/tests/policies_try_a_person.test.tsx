@@ -23,6 +23,21 @@ const ENDPOINT = {
   metadata: { name: "air", namespace: "helsinki" },
   spec: { slug: "air-quality" },
 };
+/** The project's model, the source of the types worth trying (T-4947). */
+const AIR_MODEL = {
+  name: "air-quality",
+  level: "project",
+  project: "helsinki",
+  version: "1.0.0",
+  lifecycle: "published",
+  classes: ["AirQualityObserved"],
+};
+const STEWARDS = {
+  apiVersion: "joinedcontext.com/v1alpha1",
+  kind: "Group",
+  metadata: { name: "stewards", namespace: "org" },
+  spec: { members: [] },
+};
 const JANA = {
   id: "jana-id",
   email: "jana@hel.fi",
@@ -78,6 +93,10 @@ function stub(
         return json(LIST([ENDPOINT]));
       if (url.pathname === "/api/v1/organization/people")
         return json({ items: [JANA], total: 1 });
+      if (url.pathname === "/api/v1/organization/datamodels")
+        return json({ items: [AIR_MODEL] });
+      if (url.pathname === "/api/v1/projects/org/groups")
+        return json(LIST([STEWARDS]));
       if (url.pathname.endsWith("/access/simulate"))
         return json(answer.body, answer.status);
       return json(LIST([]));
@@ -124,10 +143,9 @@ describe("Try a person (T-3311)", () => {
       await screen.findByRole("heading", { name: "Try a person" })
     ).closest("div.rounded-lg") as HTMLElement;
     await within(panel).findByRole("option", { name: "jana@hel.fi" });
-    await userEvent.type(
-      within(panel).getByLabelText("Entity type"),
-      "AirQualityObserved",
-    );
+    // The type is picked from the project's models, never typed (T-4947).
+    await userEvent.click(within(panel).getByRole("combobox", { name: "Entity type" }));
+    await userEvent.click(await screen.findByRole("option", { name: /AirQualityObserved/ }));
     await userEvent.click(
       within(panel).getByRole("button", { name: "Ask the gateway" }),
     );
@@ -170,10 +188,9 @@ describe("Try a person (T-3311)", () => {
     // Nothing to ask about until a group is named.
     expect(ask).toHaveAttribute("aria-disabled", "true");
     expect(ask).toHaveAccessibleDescription("Pick the Endpoint and who to try first.");
-    await userEvent.type(
-      within(panel).getByLabelText(/A member of a group/),
-      "stewards",
-    );
+    // A group the organization has, picked from its list (T-4947).
+    await userEvent.click(within(panel).getByRole("combobox", { name: /A member of a group/ }));
+    await userEvent.click(await screen.findByRole("option", { name: /stewards/ }));
     await userEvent.click(ask);
 
     const verdict = await screen.findByTestId("try-verdict");

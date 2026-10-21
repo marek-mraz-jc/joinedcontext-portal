@@ -11,7 +11,7 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
-import { allowedOperations, Playground, requestOf, snippetsOf } from "../src/pages/endpoints/Playground";
+import { allowedOperations, Playground, requestOf, snippetsOf, typeNames } from "../src/pages/endpoints/Playground";
 
 const SLUG = "k7m2qz4tv6xh3n5jb2ryd3wcfa";
 const empty = { type: "", q: "", limit: "", id: "" };
@@ -27,6 +27,11 @@ function show(grants: unknown, open = false, types = ["WeatherObserved", "Event"
         return grants === null
           ? new Response("{}", { status: 403 })
           : new Response(JSON.stringify(grants), { headers: { "Content-Type": "application/json" } });
+      }
+      if (url.pathname.endsWith("/ngsi-ld/v1/types")) {
+        return new Response(JSON.stringify({ id: "urn:ngsi-ld:EntityTypeList:1", type: "EntityTypeList", typeList: ["Event", "Road"] }), {
+          headers: { "Content-Type": "application/json" },
+        });
       }
       return new Response(JSON.stringify([{ id: "urn:ngsi-ld:WeatherObserved:1", type: "WeatherObserved" }]), {
         headers: { "Content-Type": "application/ld+json" },
@@ -120,6 +125,23 @@ describe("the playground on an endpoint's page (T-3264)", () => {
     const operation = await screen.findByLabelText(en.endpoints.playground.operation);
     expect(operation).toHaveValue("types");
     expect(screen.getByRole("button", { name: en.endpoints.playground.send })).not.toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("offers the types the endpoint answers when it names none, never a typed one (T-4947)", async () => {
+    const seen = show({ permissions: [{ actions: ["queryEntity"] }] }, true, []);
+    await userEvent.selectOptions(await screen.findByLabelText(en.endpoints.playground.operation), "list");
+    const type = screen.getByLabelText(en.endpoints.playground.type);
+    expect(type.tagName).toBe("SELECT");
+    await waitFor(() => expect([...type.querySelectorAll("option")].map((o) => o.textContent)).toEqual(["Event", "Road"]));
+    await userEvent.selectOptions(type, "Road");
+    await userEvent.click(screen.getByRole("button", { name: en.endpoints.playground.send }));
+    await waitFor(() => expect(seen.at(-1)).toBe(`/api/endpoint/${SLUG}/ngsi-ld/v1/entities?type=Road&limit=10`));
+  });
+
+  it("reads the type names of an NGSI-LD types answer, either shape", () => {
+    expect(typeNames({ typeList: [] })).toEqual([]);
+    expect(typeNames([{ typeName: "B" }, { typeName: "A" }, "A", 3])).toEqual(["A", "B"]);
+    expect(typeNames(null)).toEqual([]);
   });
 
   it("says so when the grants are refused", async () => {

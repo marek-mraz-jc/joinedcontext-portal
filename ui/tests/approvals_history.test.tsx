@@ -165,13 +165,18 @@ describe("the change history", () => {
 
   it("filters_on_submit_and_never_per_keystroke_and_clears_back", async () => {
     const { answer, asked } = historyOf({ "1": { items: [] } });
-    await renderRoute({ path: PATH, answer });
+    // The kinds offered are the ones the person holds a right on (T-4947).
+    await renderRoute({
+      path: PATH,
+      answer,
+      permissions: { project: "helsinki", bootstrap: false, grants: [{ rule: { kinds: ["Endpoint", "Pipeline"], verbs: ["read"] } }] },
+    });
     await openHistory();
     await screen.findByText(en.approvals.history.empty);
 
-    await userEvent.type(
+    await userEvent.selectOptions(
       screen.getByLabelText(en.approvals.history.kind),
-      " Endpoint ",
+      "Endpoint",
     );
     await userEvent.type(
       screen.getByLabelText(en.approvals.history.name),
