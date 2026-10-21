@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { expect } from "@playwright/test";
 import type { APIRequestContext, Browser, BrowserContext, Locator, Page } from "@playwright/test";
 import { clipRecording, recordingSince } from "./guide";
+import { answerOtp } from "./totp";
 
 /**
  * The project sections the installation hides (`hiddenSections` of `/api/v1/branding`, T-2874):
@@ -35,8 +36,10 @@ export async function journeyMarkerOnPortalOnly(context: BrowserContext, portalH
 }
 
 /** The two demo people of the Load journey: one proposes, the other approves (CC-34). */
-export const STEWARD = { user: "demo.steward@hel.fi", password: process.env.PORTAL_PASSWORD ?? "" };
-export const APPROVER = { user: "demo.approver@hel.fi", password: process.env.APPROVER_PASSWORD ?? "" };
+// The two approvers hold the realm role `mfa-required` (deployment T-5120): their sign-in asks for a
+// TOTP code, computed from the seed in PORTAL_TOTP / APPROVER_TOTP (e2e/live/totp.ts).
+export const STEWARD = { user: "demo.steward@hel.fi", password: process.env.PORTAL_PASSWORD ?? "", totp: process.env.PORTAL_TOTP ?? "" };
+export const APPROVER = { user: "demo.approver@hel.fi", password: process.env.APPROVER_PASSWORD ?? "", totp: process.env.APPROVER_TOTP ?? "" };
 /** A person who may read the projects and change nothing. */
 export const VIEWER = { user: "demo.viewer@hel.fi", password: process.env.VIEWER_PASSWORD ?? "" };
 /**
@@ -106,7 +109,7 @@ export const PROBE = { user: "demo.probe@hel.fi", password: process.env.PROBE_PA
  */
 export async function signIn(
   browser: Browser,
-  who: { user: string; password: string },
+  who: { user: string; password: string; totp?: string },
   path: string,
   ready: (page: Page) => Locator = portalReady,
 ): Promise<{ context: BrowserContext; page: Page }> {
@@ -163,7 +166,7 @@ export const portalReady = (page: Page): Locator => page.getByRole("navigation",
  */
 export async function goSignedIn(
   page: Page,
-  who: { user: string; password: string },
+  who: { user: string; password: string; totp?: string },
   url: string,
   ready: (page: Page) => Locator = portalReady,
 ): Promise<void> {
@@ -180,6 +183,7 @@ export async function goSignedIn(
       await Promise.all([page.waitForURL(() => true, { waitUntil: "load" }), page.click("#kc-login")]);
       continue;
     }
+    if (await answerOtp(page, who)) continue;
     const signInButton = page.getByRole("button", { name: "Sign in" });
     if (page.url().includes("/login") && (await signInButton.count())) {
       await Promise.all([

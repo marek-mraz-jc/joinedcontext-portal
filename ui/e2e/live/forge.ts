@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { expect } from "@playwright/test";
 import type { Browser, BrowserContext, Page } from "@playwright/test";
+import { answerOtp } from "./totp";
 
 const run = promisify(execFile);
 
@@ -50,7 +51,11 @@ export interface ForgePerson {
  * HTTPS with the person's own forge credential). The token never reaches a log: it is handed to
  * git through the environment, never on a command line or in a URL.
  */
-export async function forgeSignIn(browser: Browser, who: { user: string; password: string }, tokenName: string): Promise<ForgePerson> {
+export async function forgeSignIn(
+  browser: Browser,
+  who: { user: string; password: string; totp?: string },
+  tokenName: string,
+): Promise<ForgePerson> {
   if (!who.password) {
     throw new Error(`no password in the environment for ${who.user}`);
   }
@@ -60,7 +65,8 @@ export async function forgeSignIn(browser: Browser, who: { user: string; passwor
   if (await page.locator("#username").count()) {
     await page.fill("#username", who.user);
     await page.fill("#password", who.password);
-    await Promise.all([page.waitForURL(ON_FORGE, { waitUntil: "load" }), page.click("#kc-login")]);
+    await Promise.all([page.waitForURL(() => true, { waitUntil: "load" }), page.click("#kc-login")]);
+    await answerOtp(page, who);
   }
   await expect(page, `${who.user} is back in the forge after the Keycloak login`).toHaveURL(ON_FORGE, { timeout: 60_000 });
 
