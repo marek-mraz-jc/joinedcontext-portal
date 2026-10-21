@@ -322,7 +322,8 @@
         "create": "{author} navrhol vytvoriť {kind} {name}",
         "update": "{author} navrhol zmeniť {kind} {name}",
         "delete": "{author} navrhol odstrániť {kind} {name}"
-      }
+      },
+      "anyKind": "Akýkoľvek druh"
     },
     "reasonFirst": "Najprv napíšte, prečo zmenu zamietate."
   },
@@ -1700,7 +1701,8 @@
       "send": "Odoslať",
       "fill": "Najprv vyplňte polia, ktoré volanie potrebuje.",
       "answered": "Endpoint odpovedal {status}.",
-      "code": "To isté volanie ako kód"
+      "code": "To isté volanie ako kód",
+      "noType": "Zatiaľ žiadny typ entity: keď pipeline alebo osoba zapíše entity cez tento Endpoint, ich typy sa zobrazia tu."
     },
     "docs": {
       "title": "Dokumentácia API",
@@ -2781,7 +2783,7 @@
       "propose": "Navrhnúť pridelenie",
       "emptyHint": "Viazanie roly hovorí, kto smie v tomto projekte čo robiť. Kým žiadne nie je, môže tu niečo meniť len správca organizácie.",
       "subjectKindHelp": "Či rolu dostane jeden človek alebo skupina ľudí. Skupina sa udeľuje raz a členov si drží sama.",
-      "personHelp": "Používateľské meno alebo e-mail, ktorý o tomto človeku vedie poskytovateľ identity, presne ako sa prihlasuje.",
+      "personHelp": "Vyberte osobu z organizácie alebo zadajte celý e-mail niekoho, kto sa ešte neprihlásil, napr. jana.novak@example.org.",
       "groupHelp": "Názov skupiny vyhlásenej v časti Skupiny. Rolu drží každý, kým je jej členom.",
       "roleHelp": "Čo daný človek smie: každá rola je množina slovies nad množinou druhov, vypísaná v časti Roly.",
       "whereHelp": "Kam až rola siaha: tento projekt, celá organizácia, alebo jeden kontextový priestor projektu.",
@@ -2946,6 +2948,7 @@
       "deleteCascade": "Zmazaním skupiny ju tá istá zmena odstráni aj z {bindings} priradení rolí platformy a {apps} rolí aplikácií.",
       "members": "Členovia",
       "email": "E-mail osoby",
+      "emailHelp": "Vyberte osobu z organizácie alebo zadajte celý e-mail niekoho, kto sa ešte neprihlásil, napr. jana.novak@example.org.",
       "addMember": "Pridať člena",
       "removeMember": "Odobrať {member} zo skupiny",
       "remove": "Odobrať",
@@ -3022,7 +3025,7 @@
       "kindHelp": "Osoba, skupina, rola alebo servisný účet: čí prístup stránka vypíše.",
       "personHelp": "Ľudia organizácie podľa e-mailu; vyhľadávanie vyššie zúži zoznam.",
       "accountHelp": "Servisné účty projektu, teda programy, ktoré volajú endpointy.",
-      "nameHelp": "Názov presne tak, ako je napísaný v Keycloaku."
+      "nameHelp": "Vyberte skupinu organizácie alebo rolu tohto projektu či organizácie."
     },
     "presets": {
       "legend": "Prístup",
@@ -5575,7 +5578,7 @@
         "search": "Časť mena alebo e-mailovej adresy.",
         "person": "Osoba, za ktorú brána rozhoduje.",
         "account": "Jeden zo servisných účtov tohto projektu.",
-        "name": "Názov tak, ako ho píše realm.",
+        "name": "Vyberte skupinu organizácie alebo rolu tohto projektu či organizácie.",
         "action": "Operácia NGSI-LD, ktorú by volanie vykonalo."
       },
       "pickFirst": "Najprv vyberte Endpoint a koho chcete vyskúšať."
@@ -6754,7 +6757,15 @@
       "importedOrganization": "Importované z modelu organizácie {name}"
     },
     "createNamed": "Nové: „{name}“",
-    "list": "Možnosti"
+    "list": "Možnosti",
+    "person": {
+      "group": "Ľudia organizácie",
+      "typed": "Zadaný e-mail",
+      "none": "Nikto nezodpovedá. Zadajte celý e-mail osoby, ktorá sa ešte neprihlásila.",
+      "unlisted": "Ľudí organizácie nemôžete zobraziť. Zadajte celý e-mail osoby, napr. jana.novak@example.org.",
+      "invite": "Použiť {email} (ešte sa neprihlásil/a)",
+      "needEmail": "Zadajte celú e-mailovú adresu osoby."
+    }
   },
   "units": {
     "search": "Hľadať podľa kódu, značky, názvu alebo veličiny",

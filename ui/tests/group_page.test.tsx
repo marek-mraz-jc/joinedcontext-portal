@@ -217,21 +217,29 @@ describe("a group's page", () => {
   });
 
   it("offers the realm's people who are not members yet", async () => {
+    const user = userEvent.setup();
     renderGroup({ people: true });
     const members = await section(en.access.groupPage.members);
-    // With a list of choices the e-mail field is a combobox to a screen reader.
-    const field = await within(members).findByRole("combobox", { name: en.access.groupPage.email });
-    const offered = [...document.querySelectorAll(`#${CSS.escape(field.getAttribute("list") ?? "")} option`)].map(
-      (option) => (option as HTMLOptionElement).value,
-    );
+    // The member field is the shared people picker (T-4947): a combobox over a listbox.
+    await user.click(await within(members).findByRole("combobox", { name: en.access.groupPage.email }));
+    const offered = within(await screen.findByRole("listbox")).getAllByRole("option").map((option) => option.textContent ?? "");
     // jana is a member already; a disabled person is not offered.
-    expect(offered).toEqual(["petra@hel.fi"]);
+    expect(offered.some((text) => text.includes("petra@hel.fi"))).toBe(true);
+    expect(offered.some((text) => text.includes("jana@hel.fi"))).toBe(false);
   });
 
-  it("types a member in full when the caller may not list people", async () => {
+  it("names a member by a full e-mail when the caller may not list people, and nothing else", async () => {
+    const user = userEvent.setup();
     renderGroup();
     const members = await section(en.access.groupPage.members);
-    expect(within(members).getByRole("textbox", { name: en.access.groupPage.email })).not.toHaveAttribute("list");
+    const box = within(members).getByRole("combobox", { name: en.access.groupPage.email });
+    await user.click(box);
+    expect(await screen.findByText(en.picker.person.unlisted)).toBeInTheDocument();
+    await user.type(box, "petra");
+    // Text that is not an e-mail is never offered as a person.
+    expect(await screen.findByText(en.picker.person.needEmail)).toBeInTheDocument();
+    await user.type(box, "@hel.fi");
+    expect(await screen.findByText(i18n.t("picker.person.invite", { email: "petra@hel.fi" }))).toBeInTheDocument();
   });
 
   it("adds a member as the Group manifest with that one member more, metadata kept", async () => {
