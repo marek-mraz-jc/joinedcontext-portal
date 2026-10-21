@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { unitTitle } from "@joinedcontext/sdk";
-import { Button, Icon, InlineError, Skeleton } from "../ui";
+import { Button, Card, Icon, InlineError, Skeleton } from "../ui";
 import { readerTimeZone, unitCodeOf } from "./typeCharts";
 
 /** One reading: when it was observed, and what was read. */
@@ -104,7 +104,7 @@ export function TemporalChart({
   const unit = Array.isArray(instances) ? unitCodeOf(instances.map((instance) => ({ [property]: instance })), property) : undefined;
 
   return (
-    <figure className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
+    <Card as="figure" padding="sm" className="flex flex-col gap-2">
       <figcaption className="text-body font-medium">{title}</figcaption>
       {history.isPending ? (
         // The shape of the chart, so the card does not grow under the one beside it when the
@@ -169,6 +169,6 @@ export function TemporalChart({
           </p>
         </>
       ) : null}
-    </figure>
+    </Card>
   );
 }

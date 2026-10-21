@@ -2,14 +2,7 @@ import { Fragment } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { parse as parseYaml } from "yaml";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
-} from "../../components/ui";
+import { Card, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
 import { ModelLink, TypeLink } from "../models/ModelLinks";
 
 /**
@@ -322,10 +315,7 @@ export function queryResultOf(payload: Record<string, unknown>, language?: strin
 
 export function QueryResultCard({ result, project }: { result: QueryResult; project?: string }): JSX.Element {
   return (
-    <div
-      data-testid="query-result"
-      className="rounded-lg border border-border bg-surface p-2 text-xs"
-    >
+    <Card padding="xs" data-testid="query-result" className="text-xs">
       <p className="flex flex-wrap items-baseline gap-x-2 font-medium">
         <span>
           {result.endpoint} · {result.tool}
@@ -335,7 +325,7 @@ export function QueryResultCard({ result, project }: { result: QueryResult; proj
         ) : null}
       </p>
       <QueryAnswer view={result.view} project={project} />
-    </div>
+    </Card>
   );
 }
 

@@ -6,6 +6,7 @@
 // covers (T-2137, the module gate in gate_modules.test.ts): src/pages/spaces/AiField.tsx.
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toRichRow } from "@joinedcontext/sdk";
@@ -13,6 +14,44 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { AI_ROWS, AiFieldPanel, aiFieldRequest, estimateTokens } from "../src/pages/spaces/AiField";
 import { expectNoViolations } from "./checks";
+import { InRouter } from "./pageHarness";
+
+/** The project's events model: Event has a text `description`, a `summary` to fill and a relationship. */
+const MODEL = `id: https://example.org/events
+name: events
+classes:
+  Event:
+    slots: [description, summary, organizer]
+slots:
+  description:
+    range: string
+  summary:
+    range: string
+  organizer:
+    range: Organization
+    annotations:
+      ngsi_ld_kind: Relationship
+`;
+
+function serveModels() {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL((input as Request).url ?? String(input), "http://localhost");
+      if (url.pathname === "/api/v1/organization/datamodels") {
+        const items = [{ project: "city", name: "events", space: "events", classes: ["Event"], level: "project", lifecycle: "published", version: "1.0.0" }];
+        return new Response(JSON.stringify({ apiVersion: "v1", kind: "OrganizationModels", items, smartDataModels: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (url.pathname === "/api/v1/projects/city/datamodels/events/source") {
+        return new Response(MODEL, { status: 200, headers: { "Content-Type": "text/yaml" } });
+      }
+      return new Response("{}", { status: 404, headers: { "Content-Type": "application/json" } });
+    }),
+  );
+}
 
 const event = (n: number) =>
   toRichRow(
@@ -48,24 +87,32 @@ describe("the panel", () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
-  const show = (rows = [event(1), event(2)], endpoints = ["events-public"]) =>
-    render(
-      <I18nextProvider i18n={i18n}>
-        <AiFieldPanel space="events" type="Event" endpoints={endpoints} rows={rows} />
-      </I18nextProvider>,
+  const show = (rows = [event(1), event(2)], endpoints = ["events-public"]) => {
+    serveModels();
+    return render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <I18nextProvider i18n={i18n}>
+          <InRouter>
+            <AiFieldPanel project="city" space="events" type="Event" endpoints={endpoints} rows={rows} />
+          </InRouter>
+        </I18nextProvider>
+      </QueryClientProvider>,
     );
+  };
 
   it("says the cost before anything runs and hands the assistant the request to send", async () => {
     const asked: string[] = [];
     window.addEventListener("jc:assistant-ask", (e) => asked.push((e as CustomEvent<string>).detail));
     show();
-    const panel = screen.getByTestId("view-ai");
+    const panel = await screen.findByTestId("view-ai");
     await userEvent.click(within(panel).getByText(en.spaces.ai.title));
     const ask = within(panel).getByRole("button", { name: en.spaces.ai.ask });
     expect(ask).toHaveAttribute("aria-disabled", "true");
-    await userEvent.type(within(panel).getByLabelText(new RegExp(`^${en.spaces.ai.attribute}`)), "summary");
+    await userEvent.click(within(panel).getByRole("combobox", { name: en.spaces.ai.attribute }));
+    await userEvent.click(await within(panel).findByRole("option", { name: /summary/ }));
     await userEvent.type(within(panel).getByLabelText(new RegExp(`^${en.spaces.ai.prompt}`)), "Summarise it.");
     expect(within(panel).getByTestId("ai-budget")).toHaveTextContent(/^2 entities, about \d+ tokens\.$/);
     await expectNoViolations(panel);
@@ -74,18 +121,19 @@ describe("the panel", () => {
     expect(asked[0]).toContain('Fill the attribute "summary" of 2 Event entities');
   });
 
-  it("refuses an attribute that is no name and says how many rows one request covers", async () => {
+  it("offers the model's properties alone, never a relationship, and says how many rows one request covers", async () => {
     show(Array.from({ length: AI_ROWS + 5 }, (_, n) => event(n)));
-    const panel = screen.getByTestId("view-ai");
+    const panel = await screen.findByTestId("view-ai");
     await userEvent.click(within(panel).getByText(en.spaces.ai.title));
-    await userEvent.type(within(panel).getByLabelText(new RegExp(`^${en.spaces.ai.attribute}`)), "2 bad");
-    expect(within(panel).getByLabelText(new RegExp(`^${en.spaces.ai.attribute}`))).toHaveAttribute("aria-invalid", "true");
+    await userEvent.click(within(panel).getByRole("combobox", { name: en.spaces.ai.attribute }));
+    expect(await within(panel).findByRole("option", { name: /description/ })).toBeInTheDocument();
+    expect(within(panel).queryByRole("option", { name: /organizer/ })).not.toBeInTheDocument();
     expect(within(panel).getByTestId("ai-budget")).toHaveTextContent(`The first ${AI_ROWS} on screen`);
   });
 
   it("offers nothing to write through where no Endpoint serves the space", async () => {
     show([event(1)], []);
-    const panel = screen.getByTestId("view-ai");
+    const panel = await screen.findByTestId("view-ai");
     await userEvent.click(within(panel).getByText(en.spaces.ai.title));
     expect(within(panel).getByRole("button", { name: en.spaces.ai.ask })).toHaveAttribute("aria-disabled", "true");
   });

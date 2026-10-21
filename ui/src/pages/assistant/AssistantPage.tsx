@@ -151,7 +151,7 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
         description={t("assistantPage.lead")}
       />
 
-      <Card className="flex flex-wrap items-center justify-between gap-4 p-4">
+      <Card padding="md" className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <label htmlFor="filter-kind" className="text-caption font-medium text-fg-muted">

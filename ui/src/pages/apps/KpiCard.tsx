@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { readCsrfToken } from "../../api/client";
 import { Badge } from "../../components/ui/Badge";
 import { Button, buttonClass } from "../../components/ui/Button";
-import { Field, InlineError, Input, RadioGroup } from "../../components/ui";
+import { Card, Field, InlineError, Input, RadioGroup } from "../../components/ui";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 import { unitSymbol, unitTitle } from "../../units";
 
@@ -164,10 +164,7 @@ export function KpiCard({
   };
 
   return (
-    <section
-      aria-label={t("agentRun.kpi.title")}
-      className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 text-sm"
-    >
+    <Card as="section" padding="sm" aria-label={t("agentRun.kpi.title")} className="flex flex-col gap-2 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone="accent">{t("apps.kpi.badge")}</Badge>
         <span className="min-w-0 break-words font-medium">{kpi.title ?? kpi.name}</span>
@@ -307,6 +304,6 @@ export function KpiCard({
           </div>
         </form>
       ) : null}
-    </section>
+    </Card>
   );
 }

@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
+import en from "../src/locales/en.json";
 import type { Manifest } from "../src/api/manifest";
 import type { PipelineForm } from "../src/pages/pipelines/PipelineEditor";
 import { toEnvelope, toForm } from "../src/pages/pipelines/PipelineEditor";
@@ -616,6 +617,25 @@ describe("a pipeline that reads several sources", () => {
 
   it("asks an endpoint source what it reads and writes it into the source's query", async () => {
     // A second source on an endpoint had no type, attributes or filter: it read nothing (T-3088).
+    // The attributes are picked from the model of the endpoint's space (T-4946), never typed.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL((input as Request).url ?? String(input), "http://localhost");
+        const reply = (body: string, type = "application/json") => new Response(body, { status: 200, headers: { "Content-Type": type } });
+        if (url.pathname === "/api/v1/organization/datamodels") {
+          const items = [{ project: "helsinki", name: "bikes", space: "mobility", classes: ["BikeHireDockingStation"], level: "project", lifecycle: "published", version: "1.0.0" }];
+          return reply(JSON.stringify({ apiVersion: "v1", kind: "OrganizationModels", items, smartDataModels: [] }));
+        }
+        if (url.pathname === "/api/v1/projects/helsinki/datamodels/bikes/source") {
+          return reply(
+            "id: https://example.org/bikes\nname: bikes\nclasses:\n  BikeHireDockingStation:\n    slots: [availableBikeNumber, totalSlotNumber]\nslots:\n  availableBikeNumber:\n    range: integer\n  totalSlotNumber:\n    range: integer\n",
+            "text/yaml",
+          );
+        }
+        return reply(JSON.stringify({ items: [] }));
+      }),
+    );
     const seen = vi.fn();
     const endpoints: Manifest[] = [
       {
@@ -626,7 +646,10 @@ describe("a pipeline that reads several sources", () => {
       },
     ];
     function Host() {
-      const [draft, setDraft] = useState<PipelineForm>({ ...withCompute, moreSources: [{ endpointRef: "ep-docks" }] });
+      const [draft, setDraft] = useState<PipelineForm>({
+        ...withCompute,
+        moreSources: [{ endpointRef: "ep-docks", query: { type: "BikeHireDockingStation" } }],
+      });
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
       return (
         <QueryClientProvider client={client}>
@@ -649,22 +672,29 @@ describe("a pipeline that reads several sources", () => {
     render(<Host />);
     await userEvent.click(screen.getByTestId("flow-node-source-0"));
     const query = screen.getByTestId("flow-source-query");
-    await userEvent.type(within(query).getByLabelText(/^Attributes/), "availableBikeNumber, totalSlotNumber");
+    const attrs = within(query).getByRole("combobox", { name: en.pipelines.field.attrs });
+    await userEvent.click(attrs);
+    await userEvent.click(await screen.findByRole("option", { name: /availableBikeNumber/ }));
+    await userEvent.click(await screen.findByRole("option", { name: /totalSlotNumber/ }));
     await userEvent.type(within(query).getByLabelText(/^Attribute filter/), "availableBikeNumber>0");
+    const type = "BikeHireDockingStation";
     expect(seen).toHaveBeenLastCalledWith(
       expect.objectContaining({
         moreSources: [
           {
             endpointRef: "ep-docks",
-            query: { attrs: ["availableBikeNumber", "totalSlotNumber"], q: "availableBikeNumber>0" },
+            query: { type, attrs: ["availableBikeNumber", "totalSlotNumber"], q: "availableBikeNumber>0" },
           },
         ],
       }),
     );
-    await userEvent.clear(within(query).getByLabelText(/^Attributes/));
+    // Removing both picked names reads every attribute again.
+    await userEvent.click(within(query).getByRole("button", { name: /Remove availableBikeNumber/ }));
+    await userEvent.click(within(query).getByRole("button", { name: /Remove totalSlotNumber/ }));
     expect(seen).toHaveBeenLastCalledWith(
-      expect.objectContaining({ moreSources: [{ endpointRef: "ep-docks", query: { q: "availableBikeNumber>0" } }] }),
+      expect.objectContaining({ moreSources: [{ endpointRef: "ep-docks", query: { type, q: "availableBikeNumber>0" } }] }),
     );
+    vi.unstubAllGlobals();
   });
 
   it("removes a second source with Delete and never the first one", () => {

@@ -79,7 +79,7 @@ export function UsageSummary({ project, filter }: { project: string; filter: Con
 
   const s = usage.data;
   return (
-    <Card className="space-y-4 p-4" aria-label={t("conversations.usage.title")}>
+    <Card padding="md" className="space-y-4" aria-label={t("conversations.usage.title")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold">{t("conversations.usage.title")}</h2>
         <div className="flex flex-wrap gap-2">

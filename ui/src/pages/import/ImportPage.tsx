@@ -12,7 +12,6 @@ import {
   Checkbox,
   Field,
   FileDropZone,
-  Input,
   PageHeader,
   safeHref,
   Select,
@@ -20,6 +19,8 @@ import {
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import type { components } from "../../api/schema";
 import { pastedSecrets } from "../../api/pastedSecrets";
+import { useBranding } from "../../branding";
+import { Combobox } from "../../components/pickers/Combobox";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 
 type ImportReport = components["schemas"]["ImportReport"];
@@ -60,6 +61,7 @@ export function ImportPage({ project }: { project: string }): JSX.Element {
   const [file, setFile] = useState<File | null>(null);
   const [namespace, setNamespace] = useState(project);
   const [orgDomain, setOrgDomain] = useState("");
+  const branding = useBranding();
   const [policy, setPolicy] = useState<Policy>("fail");
   const [pasted, setPasted] = useState<string[]>([]);
   const [report, setReport] = useState<ImportReport | null>(null);
@@ -171,11 +173,22 @@ export function ImportPage({ project }: { project: string }): JSX.Element {
             />
           </Field>
           <Field id="import-domain" label={t("import.orgDomain")} help={t("import.orgDomainHelp")}>
-            <Input
+            {/* This organization's domain is offered; another one (a city's bundle replayed on a
+                staging instance) is typed, and the server checks it is a domain name (PF-10). */}
+            <Combobox
               id="import-domain"
-              value={orgDomain}
+              label={t("import.orgDomain")}
+              labelled
+              value={orgDomain ? [orgDomain] : []}
               placeholder={t("import.orgDomainOwn")}
-              onChange={(event) => setOrgDomain(event.target.value)}
+              options={
+                branding.orgDomain
+                  ? [{ value: branding.orgDomain, label: branding.orgDomain, group: t("import.orgDomainThis") }]
+                  : []
+              }
+              empty={t("import.orgDomainNone")}
+              onChange={(values) => setOrgDomain(values[0] ?? "")}
+              create={{ label: (name) => t("import.orgDomainOther", { name }), onCreate: setOrgDomain }}
             />
           </Field>
           <Field id="import-policy" label={t("import.policy")} help={t(`import.policyHelp.${policy}`)}>

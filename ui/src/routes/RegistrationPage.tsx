@@ -6,7 +6,7 @@ import { api, queryKeys, unwrap, whilePending } from "../api/client";
 import { localized } from "../api/manifest";
 import type { Manifest } from "../api/manifest";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
-import { InlineError, PageHeader, Term } from "../components/ui";
+import { Card, InlineError, PageHeader, Term } from "../components/ui";
 import { ResourcePageFailed } from "../components/ui/PageState";
 import { fromRegistrationEnvelope, targetOf } from "./RegistrationsPage";
 
@@ -112,7 +112,7 @@ export function RegistrationPage({ project, name }: { project: string; name: str
         </Link>
       </div>
 
-      <dl className="@container rounded-lg border border-border bg-surface px-4">
+      <Card as="dl" flush className="@container px-4">
         <Row label={t("registrations.page.state")}>
           <LifecycleBadge kind="phase" value={manifest.status?.phase} />
         </Row>
@@ -164,7 +164,7 @@ export function RegistrationPage({ project, name }: { project: string; name: str
         </Row>
         {shape.mode ? <Row label={t("registrations.page.mode")}>{shape.mode}</Row> : null}
         {shape.expiresAt ? <Row label={t("registrations.page.expires")}>{shape.expiresAt}</Row> : null}
-      </dl>
+      </Card>
     </div>
   );
 }

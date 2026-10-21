@@ -112,6 +112,20 @@ describe("what a page may not do by hand", () => {
     expect(breaches("hand_made_control", /<(?:button|input|select|textarea|table)\b/)).toEqual([]);
   });
 
+  it("a_panel_is_the_shared_card", () => {
+    expect(breaches("panel_is_a_card", RULE_OF.panel_is_a_card)).toEqual([]);
+  });
+
+  it("a_card_is_padded_by_its_prop", () => {
+    // The rule bites on the shape it names and lets a flush card or the prop through.
+    expect(RULE_OF.card_padding_is_a_prop.test('<Card className="flex p-3">')).toBe(true);
+    expect(RULE_OF.card_padding_is_a_prop.test('<Card flush className="px-3 p-8">')).toBe(false);
+    expect(RULE_OF.card_padding_is_a_prop.test('<Card padding="sm" className="gap-2">')).toBe(false);
+    expect(RULE_OF.panel_is_a_card.test('className="absolute z-50 rounded-lg border border-border bg-surface"')).toBe(false);
+    expect(RULE_OF.panel_is_a_card.test('className="rounded-lg border border-border bg-surface-subtle"')).toBe(false);
+    expect(breaches("card_padding_is_a_prop", RULE_OF.card_padding_is_a_prop)).toEqual([]);
+  });
+
   it("a_number_or_a_date_is_written_in_the_persons_language", () => {
     // `toLocaleString()` with no locale, or an `Intl` formatter with none, speaks the browser's
     // language: a Slovak page read 9/27/2026 and 1,234.5 (UI-15, T-3278). Every file, shared ones

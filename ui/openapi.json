@@ -1688,6 +1688,151 @@
         }
       }
     },
+    "/api/v1/organization/agents/activity": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Agent Activity",
+        "description": "The agent runs the caller may see (their own, every person's for an approver of the project), newest first, each with its tool calls, writes, refusals, tokens and cost, and the alerts over them. Step arguments and outputs are never included.",
+        "operationId": "list_agent_activity",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "query",
+            "description": "Only this project's runs.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "description": "Only the runs of this agent profile.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "run",
+            "in": "query",
+            "description": "Only this run.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "person",
+            "in": "query",
+            "description": "Only the runs this person started.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "query",
+            "description": "Only the runs that read an Endpoint of this Context Space.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "verdict",
+            "in": "query",
+            "description": "`refused`: runs with a refused step; `ok`: runs without one.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "RFC 3339; runs started at or after.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "description": "RFC 3339; runs started before.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1–50, default 20.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "`nextCursor` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of runs and the alerts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentActivity"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A filter or the cursor is malformed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller reads no project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organization/brokers": {
       "get": {
         "tags": [
@@ -12136,6 +12281,68 @@
         }
       }
     },
+    "/api/v1/projects/{project}/pipelines/{name}/access-requests/endpoints": {
+      "get": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "List The Endpoints A Pipeline May Ask For",
+        "description": "The Endpoints of other Context Spaces the caller may read, or whose audience is the organization or the public, each with the types and attribute names of its space's model (PL-90): the request form's choices. Any other Endpoint is asked for by its typed name. Names only, never data.",
+        "operationId": "list_requestable",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "The pipeline's project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "The pipeline",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`{ items }` of the Endpoints, by project and name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not propose this pipeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such pipeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/pipelines/{name}/bento": {
       "get": {
         "tags": [
@@ -18108,6 +18315,29 @@
           }
         }
       },
+      "ActivityChoices": {
+        "type": "object",
+        "required": [
+          "people",
+          "spaces"
+        ],
+        "properties": {
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The starters of the runs, sorted."
+          },
+          "spaces": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The Context Spaces the runs read, sorted."
+          }
+        }
+      },
       "ActivityEvent": {
         "type": "object",
         "required": [
@@ -18183,6 +18413,142 @@
           }
         }
       },
+      "ActivityRun": {
+        "type": "object",
+        "required": [
+          "id",
+          "project",
+          "profile",
+          "title",
+          "startedBy",
+          "status",
+          "createdAt",
+          "spaces",
+          "tokens",
+          "refusals",
+          "writes",
+          "steps",
+          "mayStop"
+        ],
+        "properties": {
+          "costUsd": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "The sum of the costs the provider reported, in USD; none when no call reported one."
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "mayStop": {
+            "type": "boolean",
+            "description": "Whether this caller may stop it now (`POST …/agent-runs/{id}/cancel`)."
+          },
+          "profile": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "refusals": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "spaces": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "startedBy": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActivityStep"
+            }
+          },
+          "title": {
+            "type": "string"
+          },
+          "tokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "writes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "ActivityStep": {
+        "type": "object",
+        "required": [
+          "at",
+          "tool",
+          "verdict",
+          "write"
+        ],
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The refusal's problem text, or the reason a write gave; masked."
+          },
+          "target": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the call named: an Endpoint, a resource, a page; never its arguments."
+          },
+          "tool": {
+            "type": "string"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/StepVerdict"
+          },
+          "write": {
+            "type": "boolean",
+            "description": "The call changes something (its operation is not read-only)."
+          }
+        }
+      },
       "Affordance": {
         "type": "object",
         "description": "Something the caller may or may not do that no rule expresses as a kind and a verb, with the\nAPI's own words for the refusal: the control is rendered disabled with the reason, never\nhidden (UI-44).",
@@ -18216,6 +18582,39 @@
           }
         }
       },
+      "AgentActivity": {
+        "type": "object",
+        "required": [
+          "runs",
+          "alerts",
+          "choices"
+        ],
+        "properties": {
+          "alerts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentAlert"
+            },
+            "description": "The signals over the runs the filters select, newest first; one per agent or run."
+          },
+          "choices": {
+            "$ref": "#/components/schemas/ActivityChoices",
+            "description": "The values the person and space filters offer: those of the runs this caller sees."
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActivityRun"
+            }
+          }
+        }
+      },
       "AgentActsAs": {
         "type": "string",
         "description": "Whose rights an agent uses (AG-94, AG-115).",
@@ -18223,6 +18622,49 @@
           "self",
           "caller"
         ]
+      },
+      "AgentAlert": {
+        "type": "object",
+        "required": [
+          "kind",
+          "project",
+          "profile",
+          "count",
+          "at"
+        ],
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Refusals in the hour, percent of the cap, or writes outside office hours.",
+            "minimum": 0
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AlertKind"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "runId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runTitle": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The run's title as its card shows it, so an alert names the run a person recognises."
+          }
+        }
       },
       "AgentItem": {
         "type": "object",
@@ -18617,6 +19059,14 @@
           "failure",
           "stale",
           "zero"
+        ]
+      },
+      "AlertKind": {
+        "type": "string",
+        "enum": [
+          "refusalSpike",
+          "spendShare",
+          "offHoursWrite"
         ]
       },
       "AlertMute": {
@@ -26232,6 +26682,52 @@
         },
         "additionalProperties": false
       },
+      "Requestable": {
+        "type": "object",
+        "description": "One Endpoint a pipeline may ask for, as the request form offers it (PL-90, T-4946): names\nand the model's types and attribute names, never the space's data.",
+        "required": [
+          "project",
+          "name",
+          "space",
+          "types"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "space": {
+            "type": "string"
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestableType"
+            },
+            "description": "The classes of the space's compiled model with their attribute names; empty when the\nspace has no compiled model, and then the request cannot name a type yet."
+          }
+        }
+      },
+      "RequestableType": {
+        "type": "object",
+        "required": [
+          "type",
+          "attrs"
+        ],
+        "properties": {
+          "attrs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
       "Resolution": {
         "type": "object",
         "description": "The side a person kept for one conflicting field of one file (CC-80).",
@@ -27434,6 +27930,13 @@
           }
         },
         "additionalProperties": false
+      },
+      "StepVerdict": {
+        "type": "string",
+        "enum": [
+          "ok",
+          "refused"
+        ]
       },
       "SubjectRequest": {
         "type": "object",

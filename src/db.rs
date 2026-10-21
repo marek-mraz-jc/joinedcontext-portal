@@ -505,6 +505,23 @@ pub async fn load_agent_run_events(
     .await
 }
 
+/// The events of several runs of the given kinds, by run and in order: what the agents' activity
+/// reads in one query (T-4851).
+pub async fn load_agent_run_events_of(
+    pool: &PgPool,
+    run_ids: &[String],
+    kinds: &[&str],
+) -> Result<Vec<AgentRunEvent>, sqlx::Error> {
+    sqlx::query_as::<_, AgentRunEvent>(AssertSqlSafe(format!(
+        "SELECT {AGENT_EVENT_COLUMNS} FROM agent_run_events WHERE run_id = ANY($1) \
+         AND kind = ANY($2) ORDER BY run_id, seq"
+    )))
+    .bind(run_ids)
+    .bind(kinds)
+    .fetch_all(pool)
+    .await
+}
+
 fn is_unique_violation(err: &sqlx::Error) -> bool {
     matches!(err, sqlx::Error::Database(db) if db.code().as_deref() == Some("23505"))
 }

@@ -1,3 +1,4 @@
+import { Card } from "../../components/ui";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -45,10 +46,7 @@ export function AgentAccess({ project }: { project: string }): JSX.Element {
   });
 
   return (
-    <section
-      aria-labelledby="agent-access-heading"
-      className="space-y-4 rounded-lg border border-border bg-surface p-5 shadow-1"
-    >
+    <Card as="section" aria-labelledby="agent-access-heading" className="space-y-4">
       <div className="space-y-1">
         <h2 id="agent-access-heading" className="text-lg font-semibold text-fg">
           {t("assistantPage.access.title")}
@@ -83,7 +81,7 @@ export function AgentAccess({ project }: { project: string }): JSX.Element {
           <ProfileCard key={profile.name} project={project} profile={profile} />
         ))
       )}
-    </section>
+    </Card>
   );
 }
 

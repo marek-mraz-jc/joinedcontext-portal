@@ -5,7 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { api, unwrap } from "../../api/client";
 import { PlanDiffViewer } from "../../components/diff/PlanDiffViewer";
 import type { FieldChange } from "../../components/diff/PlanDiffViewer";
-import { Alert, Badge, buttonClass, EmptyState, PageFailed, PageHeader, PageLoading } from "../../components/ui";
+import { Alert, Badge, buttonClass, Card, EmptyState, PageFailed, PageHeader, PageLoading } from "../../components/ui";
 import type { components } from "../../api/schema";
 
 type Comparison = components["schemas"]["Comparison"];
@@ -55,10 +55,7 @@ export function FileList({ files }: { files: ChangeFile[] }): React.JSX.Element 
             </h2>
             <ul className="space-y-3">
               {kindFiles.map((file) => (
-                <li
-                  key={file.path}
-                  className="rounded-lg border border-border bg-surface p-3"
-                >
+                <Card as="li" padding="sm" key={file.path}>
                   <div className="flex flex-wrap items-center gap-2 mb-2">
                     <span className="font-mono text-body font-medium text-fg">
                       {fileName(file.path)}
@@ -103,7 +100,7 @@ export function FileList({ files }: { files: ChangeFile[] }): React.JSX.Element 
                       </div>
                     </details>
                   ) : null}
-                </li>
+                </Card>
               ))}
             </ul>
           </section>

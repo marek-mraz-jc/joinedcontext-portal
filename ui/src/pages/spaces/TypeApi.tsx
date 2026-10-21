@@ -171,7 +171,7 @@ export function TypeApi({
       {served.map((endpoint) => {
         const slug = (endpoint.spec as { slug: string }).slug;
         return (
-          <Card key={endpoint.metadata.name} className="flex flex-col gap-2 p-3">
+          <Card padding="sm" key={endpoint.metadata.name} className="flex flex-col gap-2">
             <h2 className="text-body font-semibold text-fg">
               {t("spaces.api.endpoint", { name: endpoint.metadata.name })}
             </h2>
