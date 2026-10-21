@@ -663,6 +663,16 @@
           "POST /api/v1/projects/{project}/pipelines/{name}/runs"
         ]
       },
+      "source-deletes": {
+        "live": {
+          "spec": "pipeline-source-deletes.spec.ts",
+          "test": "an approver reads a snapshot pipeline's source deletes and keeps the entities"
+        },
+        "personOnly": "an approver decides whether entities a source stopped listing are deleted; the agent proposes the pipeline's sourceDeletes rule with `jc_pipeline_propose` and never releases a held delete (PL-97)",
+        "routes": [
+          "POST /api/v1/projects/{project}/pipelines/{name}/source-deletes"
+        ]
+      },
       "alerts": {
         "live": {
           "spec": "pipeline-alerts.spec.ts",
