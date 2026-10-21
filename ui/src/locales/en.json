@@ -7759,6 +7759,8 @@
     "client": "Sign-in client",
     "config": "Entry for the AI client's configuration",
     "signIn": "The AI client finds the sign-in from the address and signs the person in with the client {client} (no secret, PKCE). No token goes into the configuration.",
+    "connectPage": "Open the public connect page",
+    "connectPageHint": "It shows the tools anyone gets without signing in and a setup for Claude, ChatGPT and other clients; share its address, for example in the dataset description.",
     "copy": "Copy",
     "copied": "Copied",
     "copyOf": "Copy: {what}",

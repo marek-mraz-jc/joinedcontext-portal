@@ -7759,6 +7759,8 @@
     "client": "Přihlašovací klient",
     "config": "Záznam do konfigurace AI klienta",
     "signIn": "AI klient najde přihlášení podle adresy a přihlásí osobu klientem {client} (bez tajemství, PKCE). Do konfigurace nejde žádný token.",
+    "connectPage": "Otevřít veřejnou stránku připojení",
+    "connectPageHint": "Ukazuje nástroje, které dostane kdokoli bez přihlášení, a nastavení pro Claude, ChatGPT a další klienty; její adresu můžete sdílet i v popisu datové sady.",
     "copy": "Kopírovat",
     "copied": "Zkopírováno",
     "copyOf": "Kopírovat: {what}",
