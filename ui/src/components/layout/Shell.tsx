@@ -383,6 +383,8 @@ export function Shell({
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   // The sidebar is a drawer on a phone; a navigation closes it.
   const [navOpen, setNavOpen] = useState(false);
+  // Where the closed assistant's button goes on a phone; the dock renders after the header.
+  const [assistantSlot, setAssistantSlot] = useState<HTMLElement | null>(null);
   // The feedback dialog, opened by its header button or, on a phone, from the Help menu (T-3319).
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const closeNav = () => setNavOpen(false);
@@ -529,6 +531,8 @@ export function Shell({
           <BrandMark short />
         </Link>
         <div className="ml-auto flex shrink-0 items-center gap-1">
+          {/* The closed assistant's button on a phone (T-4992); empty from `sm` up. */}
+          <span ref={setAssistantSlot} className="contents" />
           {/* Administration is one entry, for organization administrators only, and its page
               holds every organization-wide power as tabs, the whole-project export and import
               included (UI-75, UI-87, owner 2026-09-25). */}
@@ -870,7 +874,7 @@ export function Shell({
         )}
         {/* The assistant is on the right of every page a run is remembered: a column beside
             the page, or a bubble at the bottom right when hidden (UI-45). */}
-        <AssistantDock project={project} />
+        <AssistantDock project={project} launcherSlot={assistantSlot} />
         <CommandPalette project={project} />
       </div>
 
