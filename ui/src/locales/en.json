@@ -1117,6 +1117,59 @@
       "write": "{count, plural, =0 {Nothing to write} one {Write # row} other {Write # rows}}",
       "done": "{written, plural, =0 {No row was written} one {# row written} other {# rows written}}, {refused, plural, =0 {none refused.} one {# refused.} other {# refused.}}",
       "preview": "Preview the first {count, plural, one {# entity} other {# entities}} as NGSI-LD"
+    },
+    "temporal": {
+      "title": "How history rows are created",
+      "lead": "Each attribute a pipeline writes into this space, how the space records it and where the time of each row comes from. A verdict other than OK names what to change.",
+      "summary": "Rows per verdict",
+      "count": "{verdict}: {n}",
+      "failed": "The audit could not be read: {detail}. Reload the page to try again.",
+      "empty": "No pipeline you can read writes this space",
+      "emptyHint": "A pipeline whose target Endpoint belongs to this space appears here with each attribute it maps.",
+      "unread": "The mapping of {pipelines} could not be read from the repository, so its rows are missing. Reload the page to try again.",
+      "pipelineFilter": "Pipeline",
+      "allPipelines": "All pipelines",
+      "verdictFilter": "Verdict",
+      "allVerdicts": "All verdicts",
+      "noMatch": "No row matches these filters",
+      "caption": "How each pipeline's writes become history rows",
+      "attribute": "Attribute",
+      "kept": "Kept",
+      "verdictColumn": "Verdict",
+      "of": "{type}, pipeline {pipeline}",
+      "none": "none",
+      "datasets": "{n} dataset ids",
+      "history": "History {history}",
+      "lifetime": "Entity ends: {lifetime}",
+      "recordMode": {
+        "every": "Keep every reading",
+        "onChange": "Keep only changes",
+        "none": "Keep the latest value only"
+      },
+      "source": {
+        "mapped": "From the record",
+        "constant": "A fixed time",
+        "received": "Time received"
+      },
+      "verdict": {
+        "ok": "Rows match readings",
+        "loses-history": "Loses history",
+        "unbounded-growth": "Grows without bound",
+        "duplicates-rows": "Duplicates rows",
+        "stamped-on-receive": "Stamped on receipt"
+      },
+      "fix": {
+        "loses-history": "Every write has the same time, so each replaces the last: map observedAt from the record.",
+        "unbounded-growth": "History is kept forever: set a duration on the Retention tab.",
+        "duplicates-rows": "An unchanged value is a new row on every write: map observedAt from the record, or keep only changes.",
+        "stamped-on-receive": "A measurement without its own time: map observedAt from the record."
+      },
+      "expiresMapped": "its expiresAt, set by the mapping",
+      "expiry": "stale after {after}",
+      "rows": "Rows",
+      "timeOf": "Time: {source}",
+      "unitOf": "Unit: {unit}",
+      "noMatchHint": "Choose All pipelines and All verdicts to see every row."
     }
   },
   "endpoints": {

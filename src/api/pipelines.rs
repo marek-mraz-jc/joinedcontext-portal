@@ -398,7 +398,7 @@ pub async fn get_bento(
 }
 
 /// The `bento.yaml` in the folder of the pipeline's manifest, on the default branch.
-async fn read_bento(
+pub(crate) async fn read_bento(
     state: &AppState,
     project: &str,
     pipeline: &crate::resource::ResourceEnvelope,
