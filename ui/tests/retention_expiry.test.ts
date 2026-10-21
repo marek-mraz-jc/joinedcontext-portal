@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { effectiveCurrent, effectiveHistory, PLATFORM_HISTORY, rulesOf } from "../src/pages/spaces/retention";
 import { generate, migrated, plusSeconds, preview, problemsOf, readBack, type Attribute, type MapperState } from "../src/pages/pipelines/outputMapper";
-import { modeOf, timeFieldOf } from "../src/pages/pipelines/ExpiryChoice";
+import { choiceOf } from "../src/pages/pipelines/lifetime";
 import { EXPIRES_AT, expiresOf, toEntities } from "../src/pages/spaces/importRows";
 
 describe("the effective retention of a type", () => {
@@ -111,14 +111,13 @@ describe("the expiry the output mapper writes", () => {
     expect(readBack(generate(mapped, timed, "transport"), timed, "transport")).toEqual(mapped);
   });
 
-  it("is one choice: an own expiresAt, the pipeline's sweep, or never", () => {
-    expect(modeOf({ from: "observedOn", plus: "PT10M" }, undefined)).toBe("source");
-    expect(modeOf(undefined, { after: "14d", types: ["Vehicle"] })).toBe("stale");
-    expect(modeOf(undefined, {})).toBe("never");
-    expect(modeOf(undefined, undefined)).toBe("never");
-    expect(timeFieldOf(["vehicle", "timestamp", "observedAt"])).toBe("observedAt");
-    expect(timeFieldOf(["vehicle", "validTo"])).toBeUndefined();
-    expect(timeFieldOf(["vehicle", "lastDate"])).toBe("lastDate");
+  it("is one choice: an own end, chosen attributes, the pipeline's sweep, or keep", () => {
+    expect(choiceOf({ type: "Vehicle", entity: { from: "observedOn", plus: "PT10M" } }, undefined, "Vehicle")).toBe("entity");
+    expect(choiceOf({ type: "Vehicle", attributes: [{ names: ["speed"], rolling: "PT5M" }] }, undefined, "Vehicle")).toBe("attributes");
+    expect(choiceOf(undefined, { after: "14d", types: ["Vehicle"] }, "Vehicle")).toBe("stale");
+    expect(choiceOf(undefined, { after: "14d", types: ["Stop"] }, "Vehicle")).toBe("keep");
+    expect(choiceOf(undefined, {}, "Vehicle")).toBe("keep");
+    expect(choiceOf(undefined, undefined, "Vehicle")).toBe("keep");
   });
 });
 
