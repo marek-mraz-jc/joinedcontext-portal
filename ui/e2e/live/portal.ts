@@ -190,7 +190,32 @@ export async function goSignedIn(
     }
     break;
   }
+  // The shell's own notice that its entry script never ran (index.html #boot-failed, opaque after
+  // 8 s): the edge answered a chunk 429 (300 requests a minute per address, about 60 chunks a
+  // first load, one egress address for the swarm and the walk's two people signing in together)
+  // or a rollout swapped the assets mid-load. A reload inside the same minute meets the same 429,
+  // so it waits the edge's window out first; the walk never reloaded and lost the viewer's whole
+  // walk (T-5068). Twice at most: a Portal that never boots still fails below.
+  for (let reload = 0; reload < 2 && (await bootFailed(page, ready)); reload += 1) {
+    await page.waitForTimeout(BOOT_RETRY.waitMs);
+    await page.reload({ waitUntil: "load" });
+  }
   await expect(ready(page)).toBeVisible({ timeout: 60_000 });
+}
+
+/** How long a sign-in waits before it reloads a Portal that did not boot: the edge's rate window. */
+export const BOOT_RETRY = { waitMs: 60_000 };
+
+/** Waits up to 60 s for `ready` or the shell's boot notice; true when the notice showed. */
+async function bootFailed(page: Page, ready: (page: Page) => Locator): Promise<boolean> {
+  const notice = page.locator("#boot-failed");
+  for (const deadline = Date.now() + 60_000; Date.now() < deadline; await page.waitForTimeout(500)) {
+    if (await ready(page).isVisible()) return false;
+    // Playwright counts opacity 0 as visible, so read the notice's own opacity.
+    const shown = await notice.evaluate((element) => getComputedStyle(element).opacity === "1").catch(() => false);
+    if (shown) return true;
+  }
+  return false;
 }
 
 /** Asks in the docked assistant: its first composer, or the conversation's once one is running. */
