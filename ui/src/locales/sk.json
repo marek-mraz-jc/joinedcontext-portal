@@ -5011,11 +5011,16 @@
     "map": {
       "tab": "Mapa",
       "loading": "Načítavam entity s polohou…",
-      "none": "Žiadna entita tohto pohľadu nemá polohu.",
+      "none": "Žiadna entita tohto pohľadu nemá polohu; všetky sú v záložke Entity.",
       "count": "{shown} z {total} na mape",
-      "truncated": "Iba prvých {max}: pre ostatné zúžte filter.",
+      "truncated": "V tomto výreze je viac ako {max}: priblížte mapu alebo zúžte filter, aby ste videli všetky.",
       "label": "Mapa typu {type}",
-      "open": "Otvoriť entitu"
+      "open": "Otvoriť entitu",
+      "paged": "Zhoduje sa viac ako {max}, preto mapa načítava výrez, ktorý práve vidíte, pri každom posune alebo priblížení.",
+      "inView": "{shown} v tomto výreze, spolu {total}",
+      "noneInView": "V zobrazenej časti mapy nie je žiadna entita tohto pohľadu.",
+      "reading": "Načítavam zobrazený výrez…",
+      "viewFailed": "Zobrazený výrez sa nepodarilo načítať ({reason}); posuňte mapu a skúste znova."
     },
     "chart": {
       "open": "Graf",

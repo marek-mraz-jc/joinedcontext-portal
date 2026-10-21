@@ -5011,11 +5011,16 @@
     "map": {
       "tab": "Karte",
       "loading": "Lese die Entitäten mit Ort…",
-      "none": "Keine Entität dieser Ansicht hat einen Ort.",
+      "none": "Keine Entität dieser Ansicht hat einen Ort; der Reiter Entitäten listet sie alle.",
       "count": "{shown} von {total} auf der Karte",
-      "truncated": "Nur die ersten {max}: grenzen Sie den Filter ein, um den Rest zu sehen.",
+      "truncated": "In diesem Ausschnitt liegen mehr als {max}: vergrößern Sie die Karte oder grenzen Sie den Filter ein, um alle zu sehen.",
       "label": "Karte von {type}",
-      "open": "Entität öffnen"
+      "open": "Entität öffnen",
+      "paged": "Mehr als {max} passen, daher liest die Karte bei jedem Verschieben oder Zoomen den sichtbaren Ausschnitt.",
+      "inView": "{shown} in diesem Ausschnitt, {total} insgesamt",
+      "noneInView": "Im gezeigten Kartenausschnitt liegt keine Entität dieser Ansicht.",
+      "reading": "Lese den sichtbaren Ausschnitt…",
+      "viewFailed": "Der sichtbare Ausschnitt konnte nicht gelesen werden ({reason}); verschieben Sie die Karte, um es erneut zu versuchen."
     },
     "chart": {
       "open": "Diagramm",
