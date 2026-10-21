@@ -187,6 +187,11 @@ pub fn desired(project: &str, app: &str, title: &str, host: &str, hostnames: &[S
             // The edge verifies RS256, as it does for the shared `edge` client (AP-27).
             "access.token.signed.response.alg": "RS256",
             "id.token.signed.response.alg": "RS256",
+            // A role taken away or a session ended reaches every door of the App within a
+            // minute: the edge renews the token on expiry, and Keycloak refuses a renewal of an
+            // ended session and issues the roles held now (T-4914). The realm's own lifespan is
+            // an hour on dev.
+            "access.token.lifespan": "60",
             MANAGED_BY: MANAGED_VALUE,
             APP_ATTRIBUTE: format!("{project}/{app}"),
         },
@@ -1244,6 +1249,7 @@ mod tests {
         assert_eq!(want["implicitFlowEnabled"], false);
         assert_eq!(want["publicClient"], false);
         assert_eq!(want["attributes"]["pkce.code.challenge.method"], "S256");
+        assert_eq!(want["attributes"]["access.token.lifespan"], "60");
         assert_eq!(want["attributes"][MANAGED_BY], MANAGED_VALUE);
         assert_eq!(want["attributes"][APP_ATTRIBUTE], "helsinki/bikes");
     }
