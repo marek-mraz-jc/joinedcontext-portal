@@ -57,7 +57,7 @@ const SAMPLE_READER: &str = "workbench_sample";
 /// The runner configuration that reads a streaming `source` for the workbench's sample step
 /// (T-4841): the source's input as a live pipeline reads it, beside the live pipelines, each
 /// message posted whole as the sample's record (JSON parsed, anything else as text), and a
-/// message past [`RECORD_BYTES`] posted as an error with its size instead of its bytes.
+/// message past `RECORD_BYTES` (64 KiB) posted as an error with its size instead of its bytes.
 pub fn stream_sample(
     name: &str,
     project: &str,
