@@ -272,8 +272,10 @@ export function assistantDeploymentSchema(
         type: "object",
         title: t("knowledge.field.rateLimit"),
         properties: {
-          requestsPerMinute: { type: "integer", title: t("knowledge.field.requestsPerMinute"), minimum: 1, maximum: 600 },
-          perClientPerMinute: { type: "integer", title: t("knowledge.field.perClientPerMinute"), minimum: 1, maximum: 120 },
+          // Like the budget's token limits: the form fills the object with its other defaults, and
+          // jc-core refuses a rate limit without these two (T-4869).
+          requestsPerMinute: { type: "integer", title: t("knowledge.field.requestsPerMinute"), minimum: 1, maximum: 600, default: 60 },
+          perClientPerMinute: { type: "integer", title: t("knowledge.field.perClientPerMinute"), minimum: 1, maximum: 120, default: 5 },
           perClientPerHour: { type: "integer", title: t("knowledge.field.perClientPerHour"), minimum: 1, maximum: 7_200, default: 60 },
           perClientPerDay: { type: "integer", title: t("knowledge.field.perClientPerDay"), minimum: 1, maximum: 100_000, default: 200 },
           perClientPerMonth: { type: "integer", title: t("knowledge.field.perClientPerMonth"), minimum: 1, maximum: 100_000, default: 300 },
