@@ -1,6 +1,6 @@
 import type { Manifest } from "../../api/manifest";
 import { ORG_NAMESPACE } from "../../api/manifest";
-import type { Subject } from "../apps/RolesAndMembers";
+import type { Subject } from "../apps/members";
 
 /**
  * Who may manage one CKAN instance, and the manifests that change it (PF-107, Architecture/12
