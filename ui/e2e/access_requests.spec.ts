@@ -63,7 +63,13 @@ const CONFLICT = {
   detail: "This pipeline already has an open request for Endpoint air-internal of project helsinki: wait for its owners to decide it.",
 };
 
-async function stubApi(page: Page, items: unknown[], refuseFile = false): Promise<void> {
+const OFFERED = [
+  { project: "helsinki", name: "air-internal", space: "air", types: [{ type: "AirQualityObserved", attrs: ["dateObserved", "no2", "pm10", "pm25"] }] },
+  { project: "helsinki", name: "noise", space: "noise", types: [{ type: "NoiseLevelObserved", attrs: ["LAeq", "LAmax"] }] },
+  { project: "vantaa", name: "traffic-counts", space: "roads", types: [] },
+];
+
+async function stubApi(page: Page, items: unknown[], refuseFile = false, offered: unknown[] = OFFERED): Promise<void> {
   await page.route("**/api/v1/**", async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
@@ -71,6 +77,7 @@ async function stubApi(page: Page, items: unknown[], refuseFile = false): Promis
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
     if (path.endsWith("/auth/me")) return json(IDENTITY);
     if (path.endsWith("/permissions/me")) return json(PERMISSIONS);
+    if (path.endsWith("/access-requests/endpoints")) return json({ items: offered });
     if (path.endsWith("/access-requests")) {
       if (req.method() === "POST") return refuseFile ? json(CONFLICT, 409) : json(items[0], 201);
       return json({ items });
@@ -79,6 +86,13 @@ async function stubApi(page: Page, items: unknown[], refuseFile = false): Promis
     if (path.endsWith("/endpoints/air-internal")) return json(ENDPOINT);
     return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] });
   });
+}
+
+/** Opens a picker, types part of a name and takes the option, as a person does. */
+async function pick(box: ReturnType<Page["getByRole"]>, name: string): Promise<void> {
+  await box.click();
+  await box.fill(name.slice(0, 4));
+  await box.page().getByRole("option", { name: new RegExp(name) }).first().click();
 }
 
 async function shot(page: Page, name: string, width: number): Promise<void> {
@@ -118,15 +132,52 @@ for (const [width, height] of [[1440, 900], [400, 860]] as const) {
       await expect(section.getByRole("alert")).toBeVisible();
       await section.getByRole("alert").scrollIntoViewIfNeeded();
       await shot(page, "missing", width);
-      await section.getByLabel(/^Owning project/).fill("helsinki");
-      await section.getByLabel(/^Endpoint/).fill("air-internal");
-      await section.getByLabel(/^Entity type/).fill("AirQualityObserved");
-      await section.getByLabel(/^Attributes/).fill("pm10, pm25");
+      await pick(section.getByRole("combobox", { name: "Endpoint" }), "air-internal");
+      await pick(section.getByRole("combobox", { name: "Entity type" }), "AirQualityObserved");
+      await pick(section.getByRole("combobox", { name: "Attributes" }), "pm10");
+      await pick(section.getByRole("combobox", { name: "Attributes" }), "pm25");
       await section.getByLabel(/^Why the pipeline needs it/).fill("Parking guidance warns drivers on days with poor air.");
       await section.getByRole("button", { name: "Send request" }).click();
       await expect(section.getByText(/already has an open request/)).toBeVisible();
       await section.getByText(/already has an open request/).scrollIntoViewIfNeeded();
       await shot(page, "refusal", width);
+    });
+
+    test("the form offers the Endpoints, then their types and attributes, never a box to type a name in", async ({ page }) => {
+      await stubApi(page, []);
+      await page.goto("/projects/espoo/pipelines/parking-sync?lang=en#access");
+      const section = page.getByTestId("pipeline-access");
+      await section.getByRole("button", { name: "Request access" }).click();
+      const endpoint = section.getByRole("combobox", { name: "Endpoint" });
+      await endpoint.scrollIntoViewIfNeeded();
+      await shot(page, "picker-closed", width);
+      await endpoint.click();
+      await expect(page.getByRole("option", { name: /traffic-counts/ })).toBeVisible();
+      await shot(page, "picker-open", width);
+      await endpoint.fill("noi");
+      await expect(page.getByRole("option", { name: /air-internal/ })).toHaveCount(0);
+      await shot(page, "picker-searching", width);
+      await page.getByRole("option", { name: /noise/ }).click();
+      await section.getByRole("combobox", { name: "Entity type" }).click();
+      await page.getByRole("option", { name: /NoiseLevelObserved/ }).click();
+      await section.getByRole("combobox", { name: "Attributes" }).click();
+      await expect(page.getByRole("option", { name: /LAeq/ })).toBeVisible();
+      await shot(page, "picker-attributes", width);
+      expect(await axeViolations(page)).toEqual([]);
+      // An Endpoint whose space has no compiled model says so instead of an empty list.
+      await pick(endpoint, "traffic-counts");
+      await expect(section.getByText(/has no compiled data model/).first()).toBeVisible();
+      await shot(page, "picker-no-types", width);
+    });
+
+    test("with no Endpoint to ask for, the form says how one comes to be", async ({ page }) => {
+      await stubApi(page, [], false, []);
+      await page.goto("/projects/espoo/pipelines/parking-sync?lang=en#access");
+      const section = page.getByTestId("pipeline-access");
+      await section.getByRole("button", { name: "Request access" }).click();
+      await section.getByRole("combobox", { name: "Endpoint" }).click();
+      await expect(page.getByText(/No Endpoint of another space exists yet/)).toBeVisible();
+      await shot(page, "picker-empty", width);
     });
 
     test("the space's owners see the requests on the Endpoint's page", async ({ page }) => {

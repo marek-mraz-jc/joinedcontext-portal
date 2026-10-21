@@ -2753,6 +2753,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/pipelines/{name}/access-requests/endpoints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List The Endpoints A Pipeline May Ask For
+         * @description The Endpoints of other Context Spaces a pipeline's access request may name, each with the types and attribute names of its space's model (PL-90): the request form's choices, and the same rule the request door applies. Names only, never data.
+         */
+        get: operations["list_requestable"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/pipelines/{name}/bento": {
         parameters: {
             query?: never;
@@ -6535,6 +6555,24 @@ export interface components {
             } | null;
             /** @description A tag, a branch or a commit of the project repository. */
             ref?: string | null;
+        };
+        /**
+         * @description One Endpoint a pipeline may ask for, as the request form offers it (PL-90, T-4946): names
+         *     and the model's types and attribute names, never the space's data.
+         */
+        Requestable: {
+            name: string;
+            project: string;
+            space: string;
+            /**
+             * @description The classes of the space's compiled model with their attribute names; empty when the
+             *     space has no compiled model, and then the request cannot name a type yet.
+             */
+            types: components["schemas"]["RequestableType"][];
+        };
+        RequestableType: {
+            attrs: string[];
+            type: string;
         };
         /** @description The side a person kept for one conflicting field of one file (CC-80). */
         Resolution: {
@@ -16286,6 +16324,49 @@ export interface operations {
             };
             /** @description No database */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_requestable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The pipeline's project */
+                project: string;
+                /** @description The pipeline */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description `{ items }` of the Endpoints, by project and name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description The caller may not propose this pipeline */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such pipeline */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

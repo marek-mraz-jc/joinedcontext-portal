@@ -43,6 +43,12 @@ fn role(state: &AppState, name: &str, user: &str, project: &str, kinds: &[&str],
 
 /// `jana` stewards the KPI pipeline; `olli` owns Helsinki's air space; `eve` reads Helsinki only.
 async fn state(pool: sqlx::PgPool, pipeline: &str, pipeline_identity: bool) -> AppState {
+    world(pipeline, pipeline_identity).await.with_db(pool)
+}
+
+/// The same world without a database: the request form's list and the request door's refusals
+/// answer before anything is stored.
+async fn world(pipeline: &str, pipeline_identity: bool) -> AppState {
     let gitea = common::forge().await;
     let client = GiteaClient::new(
         gitea.uri().parse().expect("mock url"),
@@ -54,9 +60,7 @@ async fn state(pool: sqlx::PgPool, pipeline: &str, pipeline_identity: bool) -> A
     std::mem::forget(gitea);
     let mut config = Config::for_tests();
     config.pipeline_identity = pipeline_identity;
-    let state = AppState::new(config, None)
-        .with_gitea(Arc::new(client))
-        .with_db(pool);
+    let state = AppState::new(config, None).with_gitea(Arc::new(client));
     for (project, space) in [(KPIS, "kpi"), (HELSINKI, "air")] {
         state.mirror.upsert(common::envelope(
             "Project",
@@ -410,4 +414,115 @@ async fn a_request_is_refused_before_it_is_stored() {
 
 async fn state_shared(pool: sqlx::PgPool, pipeline: &str) -> AppState {
     state(pool, pipeline, false).await
+}
+
+/// Helsinki's `air` space compiles a model whose AirQualityObserved has `pm10` and `pm25`, and
+/// the KPI project has an Endpoint on the pipeline's own space.
+fn modelled(state: &AppState) {
+    use joinedcontext_portal::pipeline_validation::ModelSchema;
+    state
+        .model_schemas
+        .replace(std::collections::HashMap::from([(
+            (HELSINKI.to_owned(), "air".to_owned()),
+            Arc::new(ModelSchema::compile(
+                "air",
+                "1.0.0",
+                &json!({ "definitions": { "AirQualityObserved": { "properties": {
+                    "pm10": { "type": "number", "x-ngsi-ld-kind": "Property" },
+                    "pm25": { "type": "number", "x-ngsi-ld-kind": "Property" }
+                }}}}),
+                &["AirQualityObserved".to_owned()],
+                false,
+            )),
+        )]));
+    state.mirror.upsert(common::envelope(
+        "Endpoint",
+        "kpi-out",
+        KPIS,
+        json!({ "contextSpaceRef": "kpi", "slug": "q8m2d7x4k9w3n6p5r1t0v2b7cz", "audience": "project-list" }),
+    ));
+}
+
+/// T-4946: the request form lists the Endpoints of other spaces with their model's types and
+/// attributes, never the pipeline's own space, and only to a person who may propose the pipeline.
+#[tokio::test]
+async fn the_form_lists_endpoints_of_other_spaces_with_their_types() {
+    let pipeline = unique("air");
+    let state = world(&pipeline, true).await;
+    modelled(&state);
+    let uri = format!("/api/v1/projects/{KPIS}/pipelines/{pipeline}/access-requests/endpoints");
+    let listed = send(&state, "jana", "GET", &uri, None).await;
+    assert_eq!(listed.status, StatusCode::OK, "{}", listed.text);
+    let body: Value = serde_json::from_str(&listed.text).expect("json");
+    let items = body["items"].as_array().expect("items");
+    assert_eq!(items.len(), 1, "{}", listed.text);
+    assert_eq!(items[0]["project"], HELSINKI);
+    assert_eq!(items[0]["name"], "air-quality");
+    assert_eq!(items[0]["types"][0]["type"], "AirQualityObserved");
+    assert_eq!(items[0]["types"][0]["attrs"], json!(["pm10", "pm25"]));
+    assert!(!listed.text.contains("kpi-out"), "{}", listed.text);
+
+    // Eve may not propose the pipeline: she learns nothing of it, nor of the Endpoints.
+    let refused = send(&state, "eve", "GET", &uri, None).await;
+    assert_eq!(refused.status, StatusCode::NOT_FOUND, "{}", refused.text);
+}
+
+/// T-4946: the request door applies the list's rule to every submitted value: a type or an
+/// attribute the Endpoint does not serve is refused naming the field, the pipeline's own space and
+/// an Endpoint of a project that does not exist answer the same not found, and an allowed request
+/// passes every check (here it reaches the missing store).
+#[tokio::test]
+async fn the_door_refuses_what_the_form_would_not_offer() {
+    let pipeline = unique("air");
+    let state = world(&pipeline, true).await;
+    modelled(&state);
+    let uri = format!("/api/v1/projects/{KPIS}/pipelines/{pipeline}/access-requests");
+    let with = |endpoint: Value, types: Value| {
+        let mut body = ask();
+        body["endpoint"] = endpoint;
+        body["types"] = types;
+        Some(body)
+    };
+    let air = json!({ "project": HELSINKI, "name": "air-quality" });
+
+    let allowed = send(&state, "jana", "POST", &uri, Some(ask())).await;
+    assert_eq!(
+        allowed.status,
+        StatusCode::SERVICE_UNAVAILABLE,
+        "{}",
+        allowed.text
+    );
+
+    let no_type = with(
+        air.clone(),
+        json!([{ "type": "WeatherObserved", "attrs": ["pm10"] }]),
+    );
+    let refused = send(&state, "jana", "POST", &uri, no_type).await;
+    assert_eq!(refused.status, StatusCode::BAD_REQUEST, "{}", refused.text);
+    assert!(refused.text.contains("types[0].type"), "{}", refused.text);
+
+    let no_attr = with(
+        air,
+        json!([{ "type": "AirQualityObserved", "attrs": ["pm10", "secret"] }]),
+    );
+    let refused = send(&state, "jana", "POST", &uri, no_attr).await;
+    assert_eq!(refused.status, StatusCode::BAD_REQUEST, "{}", refused.text);
+    assert!(
+        refused.text.contains("types[0].attrs: 'secret'"),
+        "{}",
+        refused.text
+    );
+
+    let types = json!([{ "type": "AirQualityObserved", "attrs": ["pm10"] }]);
+    let own = with(json!({ "project": KPIS, "name": "kpi-out" }), types.clone());
+    let own = send(&state, "jana", "POST", &uri, own).await;
+    let elsewhere = with(
+        json!({ "project": "other-org-city", "name": "air-quality" }),
+        types,
+    );
+    let elsewhere = send(&state, "jana", "POST", &uri, elsewhere).await;
+    for answer in [&own, &elsewhere] {
+        assert_eq!(answer.status, StatusCode::NOT_FOUND, "{}", answer.text);
+        assert!(answer.text.contains("endpoint.name"), "{}", answer.text);
+    }
 }

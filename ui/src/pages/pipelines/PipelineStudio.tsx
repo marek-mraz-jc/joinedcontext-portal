@@ -57,6 +57,8 @@ import { DebugSidebar, NodeDebug } from "./DebugPanel";
 import { LastSamples } from "./LastSamples";
 import type { DebugEntry } from "./DebugPanel";
 import { FormHeading } from "../../components/forms/FormRoute";
+import { AttributePicker } from "../../components/pickers/AttributePicker";
+import { Combobox } from "../../components/pickers/Combobox";
 import { TypePicker } from "../../components/pickers/TypePicker";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 
@@ -181,9 +183,6 @@ export function sourceKindOf(form: PipelineForm | undefined): SourceKind {
   }
   return "none";
 }
-
-/** The LinkML ranges an aggregate can add up. */
-const NUMERIC_RANGES = ["integer", "float", "double", "decimal"];
 
 /** The attributes of one class of an inline LinkML model, `[]` when the model is not inline. */
 export function attributesOf(model: Manifest | undefined, type: string | undefined): string[] {
@@ -583,17 +582,6 @@ export function PipelineStudio({
   const types = model ? entityTypesOf(model) : [];
   const type = draft?.source?.query?.type as string | undefined;
   const slots: FilterSlot[] = filterSlotsOf(useModelSource(project, model), type);
-  // The KPI reads a number of the type its endpoint's space models: offered by name, never typed
-  // when the model says which there are (T-3088).
-  const kpiSpaceManifest = (() => {
-    const ep = endpoints.find((e) => e.metadata.name === kpiEndpoint);
-    const name = ep ? spaceOf(ep) : undefined;
-    return spaceList.find((s) => s.metadata.name === name);
-  })();
-  const kpiModel = modelList.find((m) => m.metadata.name === refName(kpiSpaceManifest?.spec.dataModelRef));
-  const kpiNumbers = filterSlotsOf(useModelSource(project, kpiModel), kpiType)
-    .filter((slot) => NUMERIC_RANGES.includes(slot.range ?? ""))
-    .map((slot) => slot.name);
   if (slots.length === 0) {
     // No inline model: the sample's own keys are the attributes there are.
     for (const row of sample ?? []) {
@@ -827,51 +815,34 @@ export function PipelineStudio({
             <Field
               id="studio-kpi-attribute"
               label={t("pipelines.studio.kpi.attribute")}
-              description={t(kpiNumbers.length > 0 ? "pipelines.studio.kpi.attributePick" : "pipelines.studio.kpi.attributeHint")}
+              description={t("pipelines.studio.kpi.attributePick")}
             >
-              {kpiNumbers.length > 0 ? (
-                <Select
-                  id="studio-kpi-attribute"
-                  value={kpiAttribute}
-                  onChange={(event) => {
-                    const nextAttr = event.target.value;
-                    setKpiAttribute(nextAttr);
-                    emitKpi({
-                      endpointName: kpiEndpoint,
-                      type: kpiType,
-                      attribute: nextAttr,
-                      aggregate: kpiAggregate,
-                      period: kpiPeriod,
-                      name: kpiName,
-                    });
-                  }}
-                >
-                  <option value="">—</option>
-                  {/* A name the model no longer lists stays visible rather than silently replaced. */}
-                  {[...new Set([...(kpiAttribute && !kpiNumbers.includes(kpiAttribute) ? [kpiAttribute] : []), ...kpiNumbers])].map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </Select>
-              ) : (
-                <Input
-                  id="studio-kpi-attribute"
-                  value={kpiAttribute}
-                  onChange={(event) => {
-                    const nextAttr = event.target.value;
-                    setKpiAttribute(nextAttr);
-                    emitKpi({
-                      endpointName: kpiEndpoint,
-                      type: kpiType,
-                      attribute: nextAttr,
-                      aggregate: kpiAggregate,
-                      period: kpiPeriod,
-                      name: kpiName,
-                    });
-                  }}
-                />
-              )}
+              <AttributePicker
+                id="studio-kpi-attribute"
+                label={t("pipelines.studio.kpi.attribute")}
+                labelled
+                project={project}
+                space={(() => {
+                  const ep = endpoints.find((e) => e.metadata.name === kpiEndpoint);
+                  return ep ? spaceOf(ep) : undefined;
+                })()}
+                type={kpiType || undefined}
+                kind="Property"
+                numeric
+                value={kpiAttribute ? [kpiAttribute] : []}
+                onChange={(names) => {
+                  const nextAttr = names[0] ?? "";
+                  setKpiAttribute(nextAttr);
+                  emitKpi({
+                    endpointName: kpiEndpoint,
+                    type: kpiType,
+                    attribute: nextAttr,
+                    aggregate: kpiAggregate,
+                    period: kpiPeriod,
+                    name: kpiName,
+                  });
+                }}
+              />
             </Field>
             <Field id="studio-kpi-agg" label={t("pipelines.studio.kpi.aggregate")} description={t("pipelines.studio.kpi.aggregateHint")}>
               <Select
@@ -1401,6 +1372,7 @@ export function PipelineStudio({
               <EntityFilters
                 id="studio"
                 types={types}
+                space={space}
                 slots={slots}
                 value={query}
                 onChange={changeQuery}
@@ -1492,25 +1464,16 @@ export function PipelineStudio({
               <p className="text-caption text-fg-muted">{t("pipelines.studio.processHint")}</p>
               <div className="flex flex-wrap items-end gap-2">
                 <Field id="studio-aggregate-attribute" label={t("pipelines.studio.attribute")} description={t("pipelines.studio.attributeHint")}>
-                  {attributes.length > 0 ? (
-                    <Select
-                      id="studio-aggregate-attribute"
-                      value={aggregateAttribute || attributes[0]}
-                      onChange={(event) => setAggregateAttribute(event.target.value)}
-                    >
-                      {attributes.map((attribute) => (
-                        <option key={attribute} value={attribute}>
-                          {attribute}
-                        </option>
-                      ))}
-                    </Select>
-                  ) : (
-                    <Input
-                      id="studio-aggregate-attribute"
-                      value={aggregateAttribute}
-                      onChange={(event) => setAggregateAttribute(event.target.value)}
-                    />
-                  )}
+                  {/* The model's attributes of the type, else the sample's own keys: never typed. */}
+                  <Combobox
+                    id="studio-aggregate-attribute"
+                    label={t("pipelines.studio.attribute")}
+                    labelled
+                    options={attributes.map((name) => ({ value: name, label: name, group: type ?? "" }))}
+                    empty={t("pipelines.studio.noAttributes")}
+                    value={aggregateAttribute || attributes[0] ? [aggregateAttribute || attributes[0]] : []}
+                    onChange={(names) => setAggregateAttribute(names[0] ?? "")}
+                  />
                 </Field>
                 {AGGREGATES.map((aggregate) => (
                   <Button key={aggregate} size="sm" onClick={() => applyAggregate(aggregate)}>

@@ -27,6 +27,8 @@ export interface TypePickerProps {
   required?: boolean;
   invalid?: boolean;
   describedBy?: string;
+  /** Stamped by a wrapping `Field` (see `Combobox`). */
+  "aria-describedby"?: string;
 }
 
 /** A platform-model import (DM-76): `org.{name}.v{major}` or `project.{name}.v{major}`. */
@@ -85,6 +87,7 @@ export function TypePicker({
   required,
   invalid,
   describedBy,
+  "aria-describedby": fieldDescribedBy,
 }: TypePickerProps): JSX.Element {
   const { t } = useTranslation();
   const query = useOrganizationModels();
@@ -164,6 +167,7 @@ export function TypePicker({
       required={required}
       invalid={invalid}
       describedBy={describedBy}
+      aria-describedby={fieldDescribedBy}
       loading={query.isLoading || sources.some((s) => s.isLoading)}
       failed={failed}
       empty={space === undefined ? t("picker.type.noneInProject") : t("picker.type.none", { space })}

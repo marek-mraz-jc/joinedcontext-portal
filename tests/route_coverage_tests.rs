@@ -180,6 +180,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/projects/{project}/pipelines/{name}/runs", "a steward starts one run outside the schedule from the pipeline page's runs (T-4349), so a new dataset fills without its night; an agent proposes the pipeline and its first run comes from the queue"),
 ("GET", "/projects/{project}/pipelines/{name}/runs/{run}/log", "the pipeline page's log of one run (PL-62); an agent reads why one record fails with jc_pipeline_validate on the record itself"),
 ("POST", "/projects/{project}/pipelines/{name}/access-requests", "a steward asks another space's owner for read access from the pipeline page (PL-90); a grant across spaces is a person's decision, so no agent files one"),
+("GET", "/projects/{project}/pipelines/{name}/access-requests/endpoints", "the request form's Endpoint, type and attribute choices (PL-90, T-4946); a grant across spaces is a person's decision, so no agent files one"),
 ("GET", "/projects/{project}/pipelines/{name}/access-requests", "the pipeline page lists what it asked for and each answer (PL-90); an agent has no request of its own to follow"),
 ("GET", "/projects/{project}/access-requests", "the owner's queue of requests other spaces filed against its Endpoints (PL-91); deciding them is a person's call"),
 ("POST", "/projects/{project}/access-requests/{id}/approve", "an owner turns a request into a proposed Change in the Portal (PL-91); widening access across spaces stays with a person, never an agent"),
