@@ -7,6 +7,7 @@
  * is the author's and the mapper leaves it alone.
  */
 import type { components } from "../../api/schema";
+import type { LifetimeMode } from "./ExpiryChoice";
 
 export type Attribute = components["schemas"]["Attribute"];
 
@@ -22,14 +23,16 @@ export interface MapperState {
   /** The field the entity's local id comes from. */
   idField?: string;
   attributes: Record<string, Source>;
-  /** When each entity goes away by itself: the `expiresAt` the step writes (TS 104 175 4.22). */
+  /**
+   * The `expiresAt` a T-4822 step wrote itself. Read back only to move it into the pipeline's
+   * `spec.lifetime` (T-4839, PL-80); the mapper never writes it again.
+   */
   expires?: Expires;
 }
 
 /**
- * An entity's `expiresAt` as a time the source gives plus a while (T-4822): `field` holds a
- * time (RFC 3339 or Unix seconds), absent for the time the record is written; `plus` is an
- * ISO 8601 duration in whole minutes, hours or days. The bus recipe: `observedAt` plus `PT10M`.
+ * An entity's `expiresAt` as the T-4822 header held it: `field` a record field holding a time,
+ * absent for the time the record is written; `plus` an ISO 8601 duration.
  */
 export interface Expires {
   field?: string;
@@ -47,6 +50,28 @@ export function plusSeconds(plus: string | undefined): number | undefined {
   const [, d, h, m] = match.map((part) => Number(part ?? 0));
   const total = d * 86_400 + h * 3600 + m * 60;
   return total <= LONGEST_PLUS ? total : undefined;
+}
+
+/**
+ * The T-4822 header's `expires` as the entity lifetime it means (T-4839): the write time plus a
+ * while is `rolling`; a record field is `from` the date-time attribute the map fills from it.
+ * `undefined` when no date-time attribute holds that field: the person then picks one.
+ */
+export function migrated(expires: Expires, state: MapperState, attributes: Attribute[]): LifetimeMode | undefined {
+  const plus = plusSeconds(expires.plus) ? expires.plus : undefined;
+  if (expires.field === undefined) return { rolling: plus ?? "PT1M" };
+  const slot = attributes.find((attribute) => {
+    const source = state.attributes[attribute.name];
+    return attribute.format === "date-time" && source !== undefined && "field" in source && source.field === expires.field;
+  });
+  if (!slot) return undefined;
+  return plus ? { from: slot.name, plus } : { from: slot.name };
+}
+
+/** The record field a lifetime's `from` attribute is filled from, when the map fills it so. */
+export function fromField(lifetime: LifetimeMode | undefined, state: MapperState): string | undefined {
+  const source = lifetime?.from ? state.attributes[lifetime.from] : undefined;
+  return source && "field" in source ? source.field : undefined;
 }
 
 /**
@@ -208,11 +233,16 @@ function expiresProblems(timed: string | undefined, records: Record<string, unkn
  * attribute mapped to nothing, a field the sample does not have, a value the slot's type cannot
  * read. Each names its attribute, so the form shows it there before anything is saved.
  */
-export function problemsOf(state: MapperState, attributes: Attribute[], records: Record<string, unknown>[]): MapperProblem[] {
+export function problemsOf(
+  state: MapperState,
+  attributes: Attribute[],
+  records: Record<string, unknown>[],
+  lifetime?: LifetimeMode,
+): MapperProblem[] {
   const problems: MapperProblem[] = [];
   if (!state.idField) problems.push({ attribute: "", kind: "noId" });
   const fields = new Set(records.flatMap((record) => Object.keys(record)));
-  problems.push(...expiresProblems(state.expires?.field, records, fields));
+  problems.push(...expiresProblems(fromField(lifetime, state) ?? state.expires?.field, records, fields));
   for (const attribute of attributes) {
     const source = state.attributes[attribute.name];
     if (!source) {
@@ -238,11 +268,22 @@ export function problemsOf(state: MapperState, attributes: Attribute[], records:
   return problems;
 }
 
-/** The `expiresAt` the step writes for `record`, as the runner formats it; none without a time. */
-function expiresAtOf(expires: Expires, record: Record<string, unknown>, now: number): string | undefined {
-  const base = expires.field === undefined ? Math.floor(now / 1000) : timeOf(record[expires.field]);
+/** The `expiresAt` the lifetime step writes for `record`, as the runner formats it; none without a time. */
+function expiresAtOf(lifetime: LifetimeMode, state: MapperState, record: Record<string, unknown>, now: number): string | undefined {
+  let base: number | undefined;
+  let span: string | undefined;
+  if (lifetime.at !== undefined) {
+    base = timeOf(lifetime.at);
+  } else if (lifetime.from === undefined) {
+    base = Math.floor(now / 1000);
+    span = lifetime.rolling;
+  } else {
+    const field = fromField(lifetime, state);
+    base = field === undefined ? undefined : timeOf(record[field]);
+    span = lifetime.plus;
+  }
   if (base === undefined) return undefined;
-  return new Date((base + (plusSeconds(expires.plus) ?? 0)) * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+  return new Date((base + (plusSeconds(span) ?? 0)) * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
 /**
@@ -257,6 +298,7 @@ export function preview(
   space: string,
   orgDomain: string,
   now: number = Date.now(),
+  lifetime?: LifetimeMode,
 ): Record<string, unknown>[] {
   return records.slice(0, 3).map((record) => {
     const entity: Record<string, unknown> = {};
@@ -292,7 +334,8 @@ export function preview(
         ...(attribute.kind === "Property" && attribute.unit?.code && typeof value === "number" ? { unitCode: attribute.unit.code } : {}),
       };
     }
-    const expiresAt = state.expires ? expiresAtOf(state.expires, record, now) : undefined;
+    const ends = lifetime ?? (state.expires ? migrated(state.expires, state, attributes) : undefined);
+    const expiresAt = ends ? expiresAtOf(ends, state, record, now) : undefined;
     if (expiresAt !== undefined) entity.expiresAt = expiresAt;
     return entity;
   });

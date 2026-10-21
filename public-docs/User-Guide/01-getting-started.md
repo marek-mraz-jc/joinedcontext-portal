@@ -106,5 +106,6 @@ Three habits that save an afternoon.
 - [02-organizations-projects-spaces](./02-organizations-projects-spaces.md) — what a project and a context space are, before you make one.
 - [04-pipelines](./04-pipelines.md) — the pipeline studio in full, including the test run.
 - [05-endpoints-and-sharing](./05-endpoints-and-sharing.md) — audiences, representations and sharing in detail.
+- [15-build-your-data](./15-build-your-data.md) — one feed built kind by kind on dev, with the defaults each step fills in.
 - [07-users-roles-approvals](./07-users-roles-approvals.md) — who may propose, who may approve, and why they are never the same person.
 - [08-working-with-ai-agents](./08-working-with-ai-agents.md) — what the assistant may do on your behalf.

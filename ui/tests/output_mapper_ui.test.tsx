@@ -15,8 +15,9 @@ import axe from "axe-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { OutputMapper } from "../src/pages/pipelines/OutputMapper";
-import { HEADER } from "../src/pages/pipelines/outputMapper";
-import type { Expiry } from "../src/pages/pipelines/ExpiryChoice";
+import { generate, HEADER } from "../src/pages/pipelines/outputMapper";
+import type { Attribute } from "../src/pages/pipelines/outputMapper";
+import type { Expiry, Lifetime } from "../src/pages/pipelines/ExpiryChoice";
 
 const ATTRIBUTES = {
   model: "bb-air-quality",
@@ -63,10 +64,12 @@ afterEach(() => vi.unstubAllGlobals());
 
 let written: string[] = [];
 let swept: (Expiry | undefined)[] = [];
+let lifetimes: (Lifetime[] | undefined)[] = [];
 
 function Host({ initial }: { initial: string }) {
   const [bloblang, setBloblang] = useState(initial);
   const [expiry, setExpiry] = useState<Expiry | undefined>(undefined);
+  const [lifetime, setLifetime] = useState<Lifetime[] | undefined>(undefined);
   return (
     <OutputMapper
       project="bb"
@@ -79,9 +82,12 @@ function Host({ initial }: { initial: string }) {
         setBloblang(next);
       }}
       expiry={expiry}
-      onExpiry={(next, step) => {
+      lifetime={lifetime}
+      onEnds={({ expiry: next, lifetime: ends, bloblang: step }) => {
         swept.push(next);
         setExpiry(next);
+        lifetimes.push(ends);
+        setLifetime(ends);
         if (step !== undefined) {
           written.push(step);
           setBloblang(step);
@@ -95,6 +101,7 @@ function Host({ initial }: { initial: string }) {
 function show(initial = "") {
   written = [];
   swept = [];
+  lifetimes = [];
   const root = createRootRoute({ component: Outlet });
   const page = createRoute({ getParentRoute: () => root, path: "/", component: () => <Host initial={initial} /> });
   const elsewhere = createRoute({ getParentRoute: () => root, path: "$", component: () => <p>another page</p> });
@@ -159,7 +166,7 @@ describe("the output mapper in the workbench", () => {
     expect(written.at(-1)).toBe("root = this\n");
   });
 
-  it("offers one expiry choice: an own expiresAt from a time field, the pipeline's sweep, or never (T-4822)", async () => {
+  it("offers one expiry choice: the pipeline's lifetime from a time attribute or the write time, the sweep, or never (T-4822, T-4839)", async () => {
     await i18n.changeLanguage("en");
     const user = userEvent.setup();
     show();
@@ -168,25 +175,68 @@ describe("the output mapper in the workbench", () => {
     expect(within(expiry).getByRole("radio", { name: /Never/ })).toBeChecked();
     expect(written.at(-1)).not.toContain("expiresAt");
 
+    // No date-time attribute is mapped yet: the end counts from the write time.
     await user.click(within(expiry).getByRole("radio", { name: /At a time the source gives/ }));
-    await waitFor(() => expect(written.at(-1)).toContain("root.expiresAt"));
-    // The field that reads as a time, plus the 10 minutes the bus recipe starts with.
-    expect(written.at(-1)).toContain("this.observed.ts_unix()");
-    expect(written.at(-1)).toContain("($expires + 600)");
+    await waitFor(() => expect(lifetimes.at(-1)).toEqual([{ type: "AirQualityObserved", entity: { rolling: "PT10M" } }]));
+    expect(within(expiry).getByText(/No date-time attribute of AirQualityObserved is mapped yet/)).toBeInTheDocument();
+    // The step never writes expiresAt itself: the runner's lifetime step does, after it.
+    expect(written.at(-1)).not.toContain("expiresAt");
+
+    const date = screen.getByTestId("mapper-attribute-dateObserved");
+    await user.selectOptions(within(date).getByRole("combobox", { name: /Source of dateObserved/ }), "field:observed");
+    await user.selectOptions(within(expiry).getByRole("combobox", { name: "Time from" }), "dateObserved");
+    await waitFor(() => expect(lifetimes.at(-1)).toEqual([{ type: "AirQualityObserved", entity: { from: "dateObserved", plus: "PT10M" } }]));
     expect(screen.getByTestId("mapper-preview").textContent).toContain('"expiresAt": "2026-10-07T08:10:00Z"');
-    await user.selectOptions(within(expiry).getByRole("combobox", { name: "Time from" }), "");
-    await waitFor(() => expect(written.at(-1)).toContain("now().ts_unix()"));
-    await user.selectOptions(within(expiry).getByRole("combobox", { name: "Time from" }), "status");
+    await user.selectOptions(within(date).getByRole("combobox", { name: /Source of dateObserved/ }), "field:status");
     expect(await within(expiry).findByText(/status holds working, which is no time/)).toBeInTheDocument();
 
     await user.click(within(expiry).getByRole("radio", { name: /When the source stops sending them/ }));
     await waitFor(() => expect(swept.at(-1)).toEqual({ after: "14d", types: ["AirQualityObserved"] }));
-    expect(written.at(-1)).not.toContain("expiresAt");
+    expect(lifetimes.at(-1)).toBeUndefined();
     expect(within(expiry).getByText(/more than one output/)).toBeInTheDocument();
 
     await user.click(within(expiry).getByRole("radio", { name: /Never/ }));
     await waitFor(() => expect(swept.at(-1)).toBeUndefined());
+    expect(lifetimes.at(-1)).toBeUndefined();
+  });
+
+  /** A step as T-4822 wrote it: the map and its own `expiresAt` lines, in the header. */
+  const legacy = (expires: { field?: string; plus?: string }, attributes: Record<string, { field: string }>) =>
+    generate(
+      { type: "AirQualityObserved", idField: "id", attributes, expires },
+      ATTRIBUTES.attributes as Attribute[],
+      "ovzdusie",
+    );
+
+  it("moves a T-4822 header expiry into spec.lifetime on open and says it is saved with the next proposal", async () => {
+    await i18n.changeLanguage("en");
+    const step = legacy({ field: "observed", plus: "PT10M" }, { dateObserved: { field: "observed" } });
+    expect(step).toContain("root.expiresAt");
+    show(step);
+    expect(await screen.findByText(/now the pipeline's lifetime setting below/)).toBeInTheDocument();
+    await waitFor(() => expect(lifetimes.at(-1)).toEqual([{ type: "AirQualityObserved", entity: { from: "dateObserved", plus: "PT10M" } }]));
     expect(written.at(-1)).not.toContain("expiresAt");
+    expect(written.at(-1)?.startsWith(HEADER)).toBe(true);
+    expect(within(screen.getByTestId("mapper-expiry")).getByRole("radio", { name: /At a time the source gives/ })).toBeChecked();
+  });
+
+  it("moves a header expiry from the write time to a rolling lifetime", async () => {
+    await i18n.changeLanguage("en");
+    show(legacy({ plus: "PT1H" }, { dateObserved: { field: "observed" } }));
+    await waitFor(() => expect(lifetimes.at(-1)).toEqual([{ type: "AirQualityObserved", entity: { rolling: "PT1H" } }]));
+    expect(written.at(-1)).not.toContain("expiresAt");
+  });
+
+  it("keeps a header expiry whose field no date-time attribute holds until the person chooses", async () => {
+    await i18n.changeLanguage("en");
+    const user = userEvent.setup();
+    show(legacy({ field: "observed", plus: "PT10M" }, { status: { field: "status" } }));
+    expect(await screen.findByText(/from the record field observed, and no date-time attribute is mapped/)).toBeInTheDocument();
+    expect(lifetimes).toEqual([]);
+    expect(written.every((step) => step.includes("root.expiresAt"))).toBe(true);
+    await user.click(within(screen.getByTestId("mapper-expiry")).getByRole("radio", { name: /^Never/ }));
+    await waitFor(() => expect(written.at(-1)).not.toContain("expiresAt"));
+    expect(lifetimes.at(-1)).toBeUndefined();
   });
 
   it("has nothing axe finds", async () => {
