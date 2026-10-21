@@ -17,6 +17,8 @@ import type { OrganizationLimits } from "./limits";
 const COUNTED = ["contextSpaces", "residentPipelines", "publicEndpoints", "apps"] as const;
 /** The ones enforced at run time: only their limit is known here. */
 const RUNTIME = ["ingestEventsPerSecond", "agentRunsPerDay", "entitiesPerSpace", "requestsPerMinute"] as const;
+/** The MQTT allowance against what the project's brokers declare (T-4859, T-4860). */
+const MQTT = ["mqttBrokers", "mqttConnections", "mqttMessagesPerSecond"] as const;
 
 /**
  * Every policy and limit of the organization, one section per catalog section, each entry with
@@ -122,7 +124,7 @@ export function OrganizationLimitsView({
           <TableHead>
             <TableHeaderCell scope="col">{t("organization.limits.project")}</TableHeaderCell>
             <TableHeaderCell scope="col">{t("organization.limits.whose")}</TableHeaderCell>
-            {[...COUNTED, ...RUNTIME].map((dimension) => (
+            {[...COUNTED, ...RUNTIME, ...MQTT].map((dimension) => (
               <TableHeaderCell key={dimension} scope="col">
                 {t(`organization.limit.projects.quota.${dimension}.label`)}
               </TableHeaderCell>
@@ -130,13 +132,13 @@ export function OrganizationLimitsView({
           </TableHead>
           <TableBody>
             {(limits.projects ?? []).length === 0 ? (
-              <TableEmpty columns={2 + COUNTED.length + RUNTIME.length}>{t("organization.limits.noProjects")}</TableEmpty>
+              <TableEmpty columns={2 + COUNTED.length + RUNTIME.length + MQTT.length}>{t("organization.limits.noProjects")}</TableEmpty>
             ) : (
               (limits.projects ?? []).map((row) => (
                 <TableRow key={row.project}>
                   <TableCell className="font-mono">{row.project}</TableCell>
                   <TableCell>{t(`organization.limits.origin.${row.origin}`)}</TableCell>
-                  {[...COUNTED, ...RUNTIME].map((dimension) => (
+                  {[...COUNTED, ...RUNTIME, ...MQTT].map((dimension) => (
                     <TableCell key={dimension}>
                       {quotaCell(row.quota[dimension]?.used, row.quota[dimension]?.limit)}
                     </TableCell>

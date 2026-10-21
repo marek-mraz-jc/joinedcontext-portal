@@ -10,6 +10,7 @@ import { EmptyState, Skeleton } from "../../components/ui";
 import { APP_SERVICES_UI, organizationSchema } from "../../schemas/kinds";
 import { OrganizationDomain } from "../access/OrganizationDomain";
 import { OrganizationLimitsView } from "./OrganizationLimitsView";
+import { ALLOWANCE_UI, withMqttDefault } from "../mqttbrokers/allowance";
 
 interface Contact {
   role?: string;
@@ -97,8 +98,8 @@ export function OrganizationSettings(): JSX.Element {
   const spec = (organization?.spec ?? {}) as OrganizationSpec;
   const policy = spec.projects ?? {};
   const form: EditableForm = {
-    schema: organizationSchema(t, limits.data?.entries ?? []),
-    uiSchema: { policies: { apps: { services: APP_SERVICES_UI } } },
+    schema: withMqttDefault(organizationSchema(t, limits.data?.entries ?? []), t),
+    uiSchema: { policies: { apps: { services: APP_SERVICES_UI } }, limits: { mqtt: ALLOWANCE_UI } },
     fromManifest: fromOrganization,
     toManifest: toOrganization,
   };

@@ -6094,6 +6094,15 @@
           "requestsPerMinute": {
             "label": "Požiadavky za minútu na projekt",
             "hint": "Najviac požiadaviek za minútu, ktoré obslúžia endpointy jedného projektu."
+          },
+          "mqttBrokers": {
+            "label": "MQTT brokery"
+          },
+          "mqttConnections": {
+            "label": "MQTT pripojenia"
+          },
+          "mqttMessagesPerSecond": {
+            "label": "MQTT správy za sekundu"
           }
         },
         "nameCooldownDays": {
@@ -6191,6 +6200,24 @@
             "label": "Úložisko súborov aplikácie (MiB)",
             "hint": "Koľko môže jedna aplikácia uložiť do svojich súborov; projekt alebo aplikácia môže nastaviť menej."
           }
+        },
+        "mqtt": {
+          "brokers": {
+            "label": "MQTT brokerov na projekt",
+            "hint": "Koľko brokerov smie projekt deklarovať."
+          },
+          "connections": {
+            "label": "MQTT pripojení na projekt",
+            "hint": "Súčet limitov pripojení brokerov projektu."
+          },
+          "messagesPerSecond": {
+            "label": "MQTT správ za sekundu na projekt",
+            "hint": "Pripojenia × správy za sekundu na zariadenie, za brokery projektu."
+          },
+          "maxMessageBytes": {
+            "label": "Najväčšia MQTT správa (bajty)",
+            "hint": "Strop veľkosti správy každého brokera."
+          }
         }
       },
       "policies": {
@@ -6232,7 +6259,9 @@
       "pipelines": "Pipeliny",
       "pipelinesHint": "Čo pipeliny uchovávajú a čítajú.",
       "data": "Dáta",
-      "dataHint": "Čo môže človek nahrať."
+      "dataHint": "Čo môže človek nahrať.",
+      "mqtt": "Predvolené MQTT",
+      "mqttHint": "Čo smie spustiť projekt bez vlastného MQTT povolenia."
     },
     "limits": {
       "title": "Pravidlá a limity",
@@ -6260,7 +6289,8 @@
         "signIn": "Prihlásenie",
         "people": "Ľudia",
         "agents": "Asistent",
-        "pipelinesAndData": "Pipeliny a dáta"
+        "pipelinesAndData": "Pipeliny a dáta",
+        "mqtt": "MQTT"
       },
       "origin": {
         "project": "projekt",
@@ -8024,7 +8054,11 @@
       "maxMessageBytes": "Najväčšia správa (bajty)",
       "messagesPerSecond": "Správ za sekundu na zariadenie",
       "maxConnections": "Najviac spojení",
-      "port": "Vlastný port"
+      "port": "Vlastný port",
+      "mode": "Čo broker robí",
+      "capture": "Uchované správy",
+      "messagesPerTopic": "Uchovaných správ na tému",
+      "window": "Uchované počas"
     },
     "acl": {
       "caption": "Prístup k témam brokera {broker} podľa roly",
@@ -8041,7 +8075,12 @@
       "password": "Heslo",
       "token": "Prístupový token vlastného klienta zariadenia, získaný jeho kľúčom; nikdy uložené heslo.",
       "pipeline": "Pipeline",
-      "brokerRef": "Vyberte {broker} ako broker platformy MQTT zdroja údajov."
+      "brokerRef": "Vyberte {broker} ako broker platformy MQTT zdroja údajov.",
+      "certificate": "Certifikát",
+      "certificateIssued": "Vydáva ho platforma pre {host} od verejnej certifikačnej autority; zariadenia ho overia systémovými CA.",
+      "example": "Vyskúšajte",
+      "copyExample": "Kopírovať príkaz",
+      "exampleHint": "Najprv nastavte TOKEN na prístupový token klienta zariadenia; Portál ho nikdy nezobrazí."
     },
     "measured": {
       "title": "Namerané",
@@ -8080,6 +8119,9 @@
       "unread": "Žiadna pipeline ho nečíta",
       "noEndpoint": "V projekte nie je Endpoint {endpoint}",
       "noPolicy": "V projekte nie je Policy {policy}"
+    },
+    "capture": {
+      "kept": "Uchováva posledných {count} správ na tému počas {window} na zostavenie mapovania."
     }
   },
   "connect": {
@@ -8428,5 +8470,58 @@
     "which-one-wins": "Ktoré pravidlo platí (Používateľská príručka)",
     "4-recipe-buses-and-live-vehicles": "Recept: autobusy a vozidlá naživo (Používateľská príručka)",
     "8-recipe-data-imported-from-a-file": "Recept: dáta importované zo súboru (Používateľská príručka)"
+  },
+  "mqttAllowance": {
+    "field": {
+      "enabled": "MQTT brokery povolené",
+      "enabledHint": "Vypnuté: projekt nemôže pridať broker.",
+      "brokers": "Najviac brokerov",
+      "brokersHint": "Prázdne: predvolená hodnota organizácie.",
+      "connections": "Pripojení zariadení spolu",
+      "connectionsHint": "Súčet limitov pripojení všetkých brokerov.",
+      "messagesPerSecond": "Správ za sekundu spolu",
+      "messagesPerSecondHint": "Pripojenia × správy za sekundu na zariadenie, súčet za brokery.",
+      "maxMessageBytes": "Najväčšia správa (bajty)",
+      "maxMessageBytesHint": "Žiadny broker projektu nesmie prijať väčšiu správu.",
+      "modes": "Čo môžu brokery robiť",
+      "modesHint": "Nič nezaškrtnuté: zariadenia len posielajú dáta.",
+      "addresses": "Adresy pre zariadenia",
+      "addressesHint": "Nič nezaškrtnuté: adresa platformy s jej certifikátom.",
+      "ports": "Vyhradené porty projektu",
+      "portsHint": "Od 18830 do 18849, každý port len pre jeden projekt."
+    },
+    "mode": {
+      "ingest": "Príjem",
+      "capture": "Príjem a uchovanie",
+      "relay": "Obojsmerný"
+    },
+    "modeLong": {
+      "ingest": "Zariadenia posielajú dáta",
+      "capture": "…a uchová posledné správy, aby ste mohli zostaviť mapovanie",
+      "relay": "…a zariadenia môžu aj prijímať"
+    },
+    "address": {
+      "platform": "Adresa platformy (port 8883, certifikát od platformy)",
+      "dedicatedPort": "Vyhradený port"
+    },
+    "admin": {
+      "button": "MQTT",
+      "action": "MQTT povolenie projektu {project}",
+      "column": "MQTT",
+      "on": "Zapnuté · {used} z {limit} brokerov",
+      "off": "Vypnuté"
+    },
+    "project": {
+      "errorTitle": "MQTT povolenie sa nenačítalo",
+      "error": "Portál nevedel prečítať, čo smie tento projekt pridať. Načítajte stránku znova; ak to pretrvá, obráťte sa na správcu organizácie.",
+      "offTitle": "MQTT je pre tento projekt vypnuté",
+      "off": "Zapnúť ho môže administrátor organizácie v Administrácia › Projekty › {project} › MQTT.",
+      "title": "Čo môže projekt pridať",
+      "left": "Použité {used} z {limit} brokerov, zostáva {connections} z {connectionsLimit} pripojení a {rate} správ za sekundu.",
+      "modes": "Režimy, ktoré projekt môže použiť",
+      "addresses": "Adresy: {addresses}.",
+      "ports": "Porty: {ports}.",
+      "full": "Všetkých {limit} brokerov je použitých: nový bude odmietnutý. Limit môže zvýšiť administrátor organizácie v Administrácia › Projekty."
+    }
   }
 }

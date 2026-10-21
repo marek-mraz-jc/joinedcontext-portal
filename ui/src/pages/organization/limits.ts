@@ -12,7 +12,7 @@ export type LimitEntry = components["schemas"]["LimitEntry"];
 export type OrganizationLimits = components["schemas"]["OrganizationLimits"];
 
 /** The settings page's sections, in the catalog's order (PF-102). */
-export const SECTIONS = ["projects", "applications", "edge", "signIn", "people", "agents", "pipelinesAndData"] as const;
+export const SECTIONS = ["projects", "applications", "edge", "signIn", "people", "agents", "pipelinesAndData", "mqtt"] as const;
 
 type T = (key: string, options?: Record<string, unknown>) => string;
 
