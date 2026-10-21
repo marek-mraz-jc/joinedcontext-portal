@@ -8,7 +8,9 @@
 use joinedcontext_portal::config::ClientAuth;
 use std::sync::Arc;
 
-use joinedcontext_portal::reconciler::subscriptions::{SubscriptionOutcome, SubscriptionSync};
+use joinedcontext_portal::reconciler::subscriptions::{
+    Deliveries, SubscriptionOutcome, SubscriptionSync,
+};
 use joinedcontext_portal::store::Mirror;
 use serde_json::{json, Value};
 use wiremock::matchers::{method, path, path_regex};
@@ -142,7 +144,7 @@ async fn a_declared_subscription_is_created_in_the_space_it_names() {
         vec![(
             PROJECT.to_owned(),
             "alerts".to_owned(),
-            SubscriptionOutcome::Written
+            SubscriptionOutcome::Written(None)
         )]
     );
     let posted = seen(&server)
@@ -184,6 +186,24 @@ async fn a_subscription_the_space_already_holds_is_updated_not_duplicated() {
         .respond_with(ResponseTemplate::new(204))
         .mount(&server)
         .await;
+    // T-4866: what the space says of the deliveries is read back after the write.
+    Mock::given(method("GET"))
+        .and(path(format!("/cs/{SEGMENT}/ngsi-ld/v1/subscriptions/{ID}")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id": ID,
+            "type": "Subscription",
+            "notification": {
+                "endpoint": { "uri": "https://alerts.example.fi/hooks/air-quality" },
+                "status": "failed",
+                "timesSent": 5,
+                "timesFailed": 2,
+                "lastNotification": "2026-10-21T03:20:11Z",
+                "lastFailure": "2026-10-21T03:20:11Z",
+                "lastSuccess": "2026-10-21T03:10:00Z"
+            }
+        })))
+        .mount(&server)
+        .await;
 
     let mirror = mirror_with(&[("alerts", declared())]);
     let previous = mirror_with(&[]);
@@ -196,7 +216,17 @@ async fn a_subscription_the_space_already_holds_is_updated_not_duplicated() {
         )
         .await;
 
-    assert_eq!(outcomes[0].2, SubscriptionOutcome::Written);
+    assert_eq!(
+        outcomes[0].2,
+        SubscriptionOutcome::Written(Some(Deliveries {
+            status: Some("failed".into()),
+            times_sent: Some(5),
+            times_failed: Some(2),
+            last_notification: Some("2026-10-21T03:20:11Z".into()),
+            last_success: Some("2026-10-21T03:10:00Z".into()),
+            last_failure: Some("2026-10-21T03:20:11Z".into()),
+        }))
+    );
     let patched = seen(&server)
         .await
         .into_iter()
@@ -372,6 +402,10 @@ async fn a_space_that_refuses_the_write_leaves_the_reason_on_the_manifest() {
         reason.contains("may not write this space"),
         "the space's own words are what the author needs: {reason}"
     );
+    assert!(
+        !reason.contains('{') && !reason.contains("uri.etsi.org"),
+        "the sentence, not the problem document's JSON (T-4866): {reason}"
+    );
 }
 
 #[tokio::test]
@@ -406,7 +440,7 @@ async fn each_subscription_is_written_to_the_space_its_manifest_names() {
     assert!(
         outcomes
             .iter()
-            .all(|(_, _, outcome)| outcome == &SubscriptionOutcome::Written),
+            .all(|(_, _, outcome)| matches!(outcome, SubscriptionOutcome::Written(_))),
         "{outcomes:?}"
     );
     let posted = seen(&server).await;

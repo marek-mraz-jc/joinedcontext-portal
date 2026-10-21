@@ -18,7 +18,7 @@ import en from "../src/locales/en.json";
 import type { Manifest } from "../src/api/manifest";
 import type { PipelineForm } from "../src/pages/pipelines/PipelineEditor";
 import type { ReactNode } from "react";
-import { PipelineWorkbench, answeredHtml, classOfMapping, exampleOf, mapperType, readSample, readValidation } from "../src/pages/pipelines/PipelineWorkbench";
+import { PipelineWorkbench, answeredHtml, classOfMapping, exampleOf, flatten, mapperType, readSample, readValidation } from "../src/pages/pipelines/PipelineWorkbench";
 import { expectAxeClean, jsonResponse, problem } from "./pageHarness";
 
 // The Lifetime step links the space's retention rules; this harness renders the steps without a
@@ -59,6 +59,7 @@ const LINKML = [
 
 const DATASOURCES = [
   manifest("DataSource", "shmu-csv", { type: "http", http: { url: "https://feeds.example/air.csv" } }),
+  manifest("DataSource", "hsl-hfp", { type: "mqtt", mqtt: { urls: ["tcp://mqtt.hsl.fi:1883"], topics: ["/hfp/v2/journey/ongoing/vp/#"] } }),
 ];
 const ENDPOINTS = [manifest("Endpoint", "air-write", { contextSpaceRef: "ovzdusie", slug: "ep-air" })];
 /** A page of the endpoint, as the gateway answers the person's session. */
@@ -186,6 +187,16 @@ const ONE_BAD = {
   ],
 };
 
+const STREAMED = {
+  streamed: true,
+  seconds: 5,
+  records: [{ VP: { veh: 1, lat: 60.17 } }, { VP: { veh: 2, lat: 60.18 } }],
+  fields: ["VP"],
+  count: 2,
+  truncated: false,
+  errors: [],
+};
+
 describe("the pipeline workbench", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
@@ -194,6 +205,48 @@ describe("the pipeline workbench", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  // T-4841: an MQTT source has no request to answer; the workbench listens to it for a few seconds,
+  // says so while it waits, and tries the mapping on the messages one each.
+  it("listens to a streaming source, says it is waiting, then tries the mapping on its messages", async () => {
+    const seen: Seen = { ops: [] };
+    let release = () => undefined as void;
+    stub({ sample: STREAMED, mapping: MAPPED, validate: ONE_BAD, sampleGate: new Promise<void>((done) => (release = done)) }, seen);
+    show({ name: "hfp", source: { dataSourceRef: "hsl-hfp" }, compute: { kind: "bloblang", bloblang: MAPPING }, targetEndpoint: URN } as PipelineForm);
+
+    const sample = step(en.pipelines.workbench.sample.title);
+    expect(await within(sample).findByRole("status")).toHaveTextContent(
+      "Listening to hsl-hfp for messages: 0 of 5 s, up to 20 messages",
+    );
+    expect(seen.ops.find((op) => op.name === "jc_pipeline_sample_source")?.body).toEqual({ dataSource: "hsl-hfp" });
+    release();
+    await within(sample).findByRole("table", { name: en.pipelines.workbench.sample.caption });
+    expect(within(sample).getByText("2 of 20 messages arrived within 5 s, with 2 fields")).toBeInTheDocument();
+    // The message's members are the columns, by path: values, not the message's JSON.
+    expect(within(sample).getByRole("columnheader", { name: "VP.veh" })).toBeInTheDocument();
+    expect(within(sample).getByRole("cell", { name: "60.18" })).toBeInTheDocument();
+    await waitFor(() => expect(seen.ops.map((op) => op.name)).toContain("jc_pipeline_try_mapping"));
+    const tried = seen.ops.find((op) => op.name === "jc_pipeline_try_mapping")?.body;
+    expect(tried?.messages).toEqual(STREAMED.records);
+    expect(tried).not.toHaveProperty("sample");
+
+    await userEvent.click(within(sample).getByRole("button", { name: en.pipelines.workbench.sample.listenAgain }));
+    await waitFor(() => expect(seen.ops.filter((op) => op.name === "jc_pipeline_sample_source")).toHaveLength(2));
+    await expectAxeClean(sample);
+  });
+
+  it("says a quiet topic sent nothing, and why that may be, with a way to listen again", async () => {
+    const seen: Seen = { ops: [] };
+    stub({ sample: { ...STREAMED, records: [], fields: [], count: 0 } }, seen);
+    show({ name: "hfp", source: { dataSourceRef: "hsl-hfp" }, targetEndpoint: URN } as PipelineForm);
+
+    const sample = step(en.pipelines.workbench.sample.title);
+    expect(await within(sample).findByText("No message arrived within 5 s")).toBeInTheDocument();
+    expect(within(sample).getByText(en.pipelines.workbench.sample.streamEmpty)).toBeInTheDocument();
+    await userEvent.click(within(sample).getByRole("button", { name: en.pipelines.workbench.sample.listenAgain }));
+    await waitFor(() => expect(seen.ops.filter((op) => op.name === "jc_pipeline_sample_source")).toHaveLength(2));
+    expect(seen.ops.map((op) => op.name)).not.toContain("jc_pipeline_try_mapping");
   });
 
   it("reads an endpoint source's page with the session and tries the mapping only once the sample is in", async () => {
@@ -492,8 +545,17 @@ describe("the pipeline workbench", () => {
 });
 
 describe("what the workbench reads from an answer", () => {
+  it("opens a message's objects into columns by path, two levels deep, lists whole", () => {
+    expect(flatten({ VP: { veh: 1, pos: { lat: 60.1, deep: { x: 1 } } }, tags: [1, 2] })).toEqual({
+      "VP.veh": 1,
+      "VP.pos.lat": 60.1,
+      "VP.pos.deep": { x: 1 },
+      tags: [1, 2],
+    });
+  });
+
   it("reads_an_answer_of_another_shape_as_nothing_rather_than_breaking", () => {
-    expect(readSample({ kind: "Change" })).toEqual({ records: [], fields: [], count: 0, truncated: false, errors: [] });
+    expect(readSample({ kind: "Change" })).toEqual({ records: [], fields: [], count: 0, truncated: false, errors: [], streamed: false, seconds: 0, messages: [] });
     expect(readSample(null).records).toEqual([]);
     expect(readValidation({ verdicts: [{ index: "x", ok: "yes", problems: [null] }] }).verdicts).toEqual([
       { index: 0, ok: false, problems: [] },

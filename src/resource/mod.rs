@@ -116,6 +116,10 @@ pub struct Status {
     /// computed by the reconciler, never read from Git.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub jobs: Vec<JobRun>,
+    /// What a `Subscription`'s space reports of its deliveries (T-4866): computed by the
+    /// reconciler after each write, never read from Git, and only ever on a Subscription.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notifications: Option<crate::reconciler::subscriptions::Deliveries>,
 }
 
 /// One job's last run, in `status.jobs[]` (AP-154, AP-155): never a body or a credential.

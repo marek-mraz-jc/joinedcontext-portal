@@ -1617,7 +1617,7 @@ async fn approve_every_file(
     project: &str,
     gitea: &GiteaClient,
     pr: &PullRequest,
-) -> Result<(Lane, bool, bool), ApiError> {
+) -> Result<(Lane, bool, bool, bool), ApiError> {
     // The caller's grants, per project, computed where each file actually lives (PF-50, T-1682).
     // Asking the project in the *path* once would check a file under `projects/other/` against a
     // binding that never reached it: an organization-scoped grant covers every project and is
@@ -1628,6 +1628,7 @@ async fn approve_every_file(
     let mut lane = Lane::Green;
     let mut deletes_every_kind = true;
     let mut changes_access = false;
+    let mut publishes = false;
     for file in gitea.pull_request_files(pr.number).await? {
         // A file outside `projects/` belongs to the organization — `users/`, `environments/`,
         // `blueprints/`, `org.yaml` — and is decided where the approval is made, as before.
@@ -1701,7 +1702,17 @@ async fn approve_every_file(
             envelope.kind.as_str(),
             "Role" | "RoleBinding" | "ServiceAccount"
         );
-        changes_access |= needs_second_person(&envelope.kind);
+        // Making data public in the catalogue is a person's decision, taken by a second person:
+        // never its proposer, a service account, the assistant or MCP (EP-142).
+        let public = !file.deleted && publishes_publicly(&envelope);
+        if public && identity.client.is_some() {
+            return Err(ApiError::Denied(format!(
+                "'{}' publishes an Endpoint in the public catalogue, which a person approves in the Portal, never a service account (EP-142)",
+                file.path
+            )));
+        }
+        publishes |= public;
+        changes_access |= needs_second_person(&envelope.kind) || public;
         if file.deleted {
             // `delete` is its own verb on every kind, not only the access ones: a cascade that
             // removes a whole project is held to `approve` and `delete` on each kind it takes
@@ -1746,7 +1757,18 @@ async fn approve_every_file(
             change::classify_manifest(&envelope, Operation::Create),
         );
     }
-    Ok((lane, deletes_every_kind, changes_access))
+    Ok((lane, deletes_every_kind, changes_access, publishes))
+}
+
+/// A public publication (EP-142): an Endpoint whose audience is `public` and that declares
+/// `spec.publish.ckan`, so the reconciler puts it in the open-data catalogue.
+pub(crate) fn publishes_publicly(envelope: &ResourceEnvelope) -> bool {
+    envelope.kind == "Endpoint"
+        && envelope.spec.get("audience").and_then(|v| v.as_str()) == Some("public")
+        && envelope
+            .spec
+            .pointer("/publish/ckan")
+            .is_some_and(|ckan| !ckan.is_null())
 }
 
 /// Who may do what: a change to one of these kinds is approved by a second person, never by
@@ -1826,8 +1848,14 @@ pub async fn approve_change_for(
     // Every file of the merge request, not only the headline (T-0832, MF-21, CC-63): each
     // manifest needs approve on its kind, the PF-52 hold when it grants access, and its own
     // lane; a native file approves under the kind its directory names.
-    let (bundle_lane, deletes_every_kind, changes_access) =
+    let (bundle_lane, deletes_every_kind, changes_access, publishes) =
         approve_every_file(state, identity, project, gitea, &pr).await?;
+    if publishes && by == ApprovedBy::Operation {
+        tracing::warn!(change = %id, approver = %identity.username, "refused: an operation may not approve a public publication");
+        return Err(ApiError::Denied(
+            "a public publication is approved by a person in the Portal, never by the assistant, an agent or MCP (EP-142)".to_string(),
+        ));
+    }
     merges_after(id, &awaited_changes(state, gitea, &pr, project).await?)?;
 
     let author = human_author(gitea, &pr).await;

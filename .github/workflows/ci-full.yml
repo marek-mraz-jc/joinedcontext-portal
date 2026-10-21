@@ -47,11 +47,30 @@ jobs:
       # three variables are placeholders the outcome sink names; nothing answers at that URL.
       # On the host network, not a published port: the paging tests' gateway is a mock on the
       # runner's 127.0.0.1, which a bridged container cannot reach (T-3132, T-3170).
+      # JC_MQTT_NAMESPACE fills the client id an MQTT source renders; mqtt-sample.test is the name
+      # the MQTT sample tests give the brokers below, since a saved source never names 127.0.0.1.
       - run: >-
           docker run -d --name pipeline-runner --network host
+          --add-host mqtt-sample.test:127.0.0.1
           -e JC_CLIENT_ID=ci -e JC_CLIENT_SECRET=ci -e JC_TOKEN_URL=http://127.0.0.1:9/token
+          -e JC_MQTT_NAMESPACE=ci
           ghcr.io/warpstreamlabs/bento@sha256:656c55de3f8deddd4ee743f3c76f3b497e67324e940f2bc1769693cd8b906364
           streams
+      # Two MQTT brokers for the workbench's MQTT sample (T-4841, tests/mqtt_sample_runner_tests.rs):
+      # an anonymous one on 18830 and one that takes jc-sample / sample-pass alone on 18831.
+      - name: the MQTT brokers
+        run: |
+          set -eu
+          dir="${{ runner.temp }}/mqtt"
+          mkdir -p "$dir"
+          printf 'listeners.tcp {\n  bind = "0.0.0.0:18831"\n}\nauth {\n  allow_anonymous = false\n  no_match = deny\n  deny_action = disconnect\n  password = {include "/etc/nanomq_pwd.conf"}\n}\n' > "$dir/nanomq.conf"
+          printf 'jc-sample:sample-pass\n' > "$dir/pwd.conf"
+          docker run -d --name mqtt-anonymous --network host \
+            eclipse-mosquitto@sha256:94f5a3d7deafa59fa3440d227ddad558f59d293c612138de841eec61bfa4d353 \
+            mosquitto -p 18830
+          docker run -d --name mqtt-login --network host \
+            -v "$dir/nanomq.conf:/etc/nanomq.conf:ro" -v "$dir/pwd.conf:/etc/nanomq_pwd.conf:ro" \
+            emqx/nanomq@sha256:ca2d97a32b731642225e96c8e5ed7492e996697a54516ee6766192aae950df93
       # The Antares broker as the platform runs it, the `-jc` image at the digest T-3636 published
       # (views, linkml, the joinedcontext engine), for the view writer's test against a real
       # broker (T-3703). The admin token is made here and never leaves the runner; the schema
@@ -82,6 +101,8 @@ jobs:
           # The apps database's tests make a CREATEROLE login and a database each (AP-149).
           JC_APPS_DB_TEST_URL: postgres://jc:jc@127.0.0.1:5432/jc_portal_test
           JC_PORTAL_TEST_BENTO_URL: http://127.0.0.1:4195
+          JC_PORTAL_TEST_MQTT_URL: tcp://mqtt-sample.test:18830
+          JC_PORTAL_TEST_MQTT_AUTH_URL: tcp://mqtt-sample.test:18831
           JC_PORTAL_TEST_BROKER_URL: http://127.0.0.1:9090
           JC_PORTAL_TEST_BROKER_TOKEN_FILE: "${{ runner.temp }}/broker/token"
       # The template's preview document, as the test above wrote it, rendered in a sandboxed

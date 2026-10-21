@@ -60,6 +60,7 @@ fn mirror_naming(digest: &str) -> Mirror {
         shard: None,
         domain_verification: None,
         jobs: Vec::new(),
+        notifications: None,
     });
     mirror.upsert(app);
     mirror

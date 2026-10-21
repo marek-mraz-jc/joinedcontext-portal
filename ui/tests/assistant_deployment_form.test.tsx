@@ -111,6 +111,8 @@ describe("the deployment form's sources (T-4282)", () => {
       const folded = foldedGroup(group);
       expect(folded, group).toBeDefined();
       expect((folded as HTMLDetailsElement).open, group).toBe(false);
+      // Named by its title, as an open set is by its legend (T-4924).
+      expect(screen.getByRole("group", { name: group }), group).toBe(folded);
     }
     expect(screen.getByLabelText(/^Answers from/)).toHaveDisplayValue("Knowledge and live data");
   });

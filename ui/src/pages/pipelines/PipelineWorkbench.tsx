@@ -56,7 +56,16 @@ interface SampleAnswer {
   count: number;
   truncated: boolean;
   errors: TraceError[];
+  /** A streaming source's sample: the messages that arrived while it was listened to (T-4841). */
+  streamed: boolean;
+  /** How long a streaming source was listened to, at most. */
+  seconds: number;
+  /** Every message of a streamed sample as it arrived, the mapping's input one message each. */
+  messages: unknown[];
 }
+
+/** The most messages a streamed sample holds (jcctl's MAX_MESSAGES). */
+export const STREAM_MESSAGES = 20;
 
 interface TraceError {
   stage: string;
@@ -226,13 +235,38 @@ function traceErrors(value: unknown): TraceError[] {
 export function readSample(output: unknown): SampleAnswer {
   const answer = isObject(output) ? output : {};
   const records = listOf(answer.records).filter(isObject);
+  const streamed = answer.streamed === true;
   return {
     records,
     fields: listOf(answer.fields).filter((field): field is string => typeof field === "string"),
     count: numberOf(answer.count) || records.length,
     truncated: answer.truncated === true,
     errors: traceErrors(answer.errors),
+    streamed,
+    seconds: numberOf(answer.seconds),
+    messages: streamed ? listOf(answer.records) : [],
   };
+}
+
+/** Whether the DataSource named streams (an MQTT topic, a queue) rather than answers a request. */
+export function streamsSource(dataSources: Manifest[], name: string | undefined): boolean {
+  const spec = dataSources.find((source) => source.metadata.name === name)?.spec as Record<string, unknown> | undefined;
+  return typeof spec?.type === "string" && spec.type !== "http";
+}
+
+/** Whole seconds since `active` turned true, ticking while it stays so; 0 while it is false. */
+function useElapsed(active: boolean): number {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const started = Date.now();
+    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => {
+      clearInterval(timer);
+      setElapsed(0);
+    };
+  }, [active]);
+  return active ? elapsed : 0;
 }
 
 /** The mapping step's answer, read member by member. */
@@ -324,6 +358,84 @@ export function answeredHtml(message: string): boolean {
 function cell(value: unknown): string {
   const text = typeof value === "string" ? value : JSON.stringify(value);
   return text === undefined ? "" : text.length > 60 ? `${text.slice(0, 59)}…` : text;
+}
+
+/** `record`'s members by dotted path, objects opened two levels deep; lists stay whole. */
+export function flatten(record: Record<string, unknown>, prefix = "", depth = 0): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(record).flatMap(([key, value]) =>
+      isObject(value) && depth < 2 ? Object.entries(flatten(value, `${prefix}${key}.`, depth + 1)) : [[`${prefix}${key}`, value]],
+    ),
+  );
+}
+
+/**
+ * A streaming source's sample (T-4841): the messages that arrived while it was listened to, how
+ * many of the most it takes, the ones it could not keep, and a way to listen again.
+ */
+function StreamedSample({ answer, onAgain }: { answer: SampleAnswer; onAgain: () => void }): JSX.Element {
+  const { t } = useTranslation();
+  const again = (
+    <Button size="sm" variant="secondary" onClick={onAgain}>
+      {t("pipelines.workbench.sample.listenAgain")}
+    </Button>
+  );
+  // An MQTT message is often one object under one key (HSL's `{"VP": {…}}`): its members are the
+  // columns, by path, so the table shows values rather than the message's JSON.
+  const rows = answer.messages.map((message) => (isObject(message) ? flatten(message) : { message }));
+  const fields = [...new Set(rows.flatMap((row) => Object.keys(row)))].sort();
+  return (
+    <>
+      {answer.errors.length > 0 ? (
+        <Alert tone="warning" title={t("pipelines.workbench.sample.streamSkipped", { count: answer.errors.length })}>
+          <ul className="list-disc pl-4">
+            {answer.errors.slice(0, 3).map((error, index) => (
+              <li key={index}>{error.message}</li>
+            ))}
+          </ul>
+        </Alert>
+      ) : null}
+      {rows.length === 0 ? (
+        <Alert tone="info" title={t("pipelines.workbench.sample.streamEmptyTitle", { seconds: answer.seconds })} actions={again}>
+          {t("pipelines.workbench.sample.streamEmpty")}
+        </Alert>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p role="status" className="text-caption text-fg-subtle">
+              {t("pipelines.workbench.sample.streamCount", {
+                count: rows.length,
+                max: STREAM_MESSAGES,
+                seconds: answer.seconds,
+                fields: fields.length,
+              })}
+            </p>
+            {again}
+          </div>
+          <Table caption={t("pipelines.workbench.sample.caption")} maxHeight="max-h-64">
+            <TableHead>
+              {fields.map((field) => (
+                <TableHeaderCell key={field}>
+                  <span className="font-mono">{field}</span>
+                </TableHeaderCell>
+              ))}
+            </TableHead>
+            <TableBody>
+              {rows.map((record, index) => (
+                <TableRow key={index}>
+                  {fields.map((field) => (
+                    <TableCell key={field}>
+                      <span className="font-mono text-caption">{cell(record[field])}</span>
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </>
+      )}
+    </>
+  );
 }
 
 function Step({
@@ -525,6 +637,12 @@ export function PipelineWorkbench({
       ),
   });
 
+  const listening = streamsSource(dataSources, draft?.source?.dataSourceRef) && !file;
+  const elapsed = useElapsed(listening && sampled.isFetching);
+  // A streamed sample is tried as its messages, one each, as the live input hands them over.
+  const messages = sampled.data?.streamed && !file ? sampled.data.messages : undefined;
+  const tryInput = messages && messages.length > 0 ? { messages } : sentSample !== undefined ? { sample: sentSample } : undefined;
+
   // Steps 4 and 5: the mapping, tried once typing rests.
   const bloblang = draft?.compute?.kind === "bloblang" || draft?.compute?.kind === undefined ? (draft?.compute?.bloblang ?? "") : "";
   const quiet = useQuiet(bloblang, QUIET_MS);
@@ -540,14 +658,14 @@ export function PipelineWorkbench({
     [draft, quiet, toManifest],
   );
   const tried = useQuery({
-    queryKey: ["pipeline-workbench", project, "mapping", manifest, sentSample],
+    queryKey: ["pipeline-workbench", project, "mapping", manifest, tryInput],
     // After the sample step, never beside it: a project runs one test at a time, and the two
     // started together answered "a pipeline test is already running" on every page load.
-    enabled: quiet.trim() !== "" && sentSample !== undefined && manifest !== undefined && !sampled.isFetching,
+    enabled: quiet.trim() !== "" && tryInput !== undefined && manifest !== undefined && !sampled.isFetching,
     retry: false,
     refetchOnWindowFocus: false,
     queryFn: () =>
-      run(project, "jc_pipeline_try_mapping", { pipeline: manifest, sample: sentSample }, t("pipelines.workbench.failed"), readMapping),
+      run(project, "jc_pipeline_try_mapping", { pipeline: manifest, ...tryInput }, t("pipelines.workbench.failed"), readMapping),
   });
   const records = (tried.data?.records ?? []).filter(
     (record): record is Record<string, unknown> => typeof record === "object" && record !== null && !Array.isArray(record),
@@ -724,6 +842,15 @@ export function PipelineWorkbench({
           <Alert role="alert" tone="danger">
             {failedText(inlined.error)}
           </Alert>
+        ) : listening && sampled.isFetching ? (
+          <p role="status" className="text-caption text-fg-subtle">
+            {t("pipelines.workbench.sample.listening", {
+              source: draft?.source?.dataSourceRef ?? "",
+              max: STREAM_MESSAGES,
+              elapsed,
+              seconds: sampled.data?.seconds || 5,
+            })}
+          </p>
         ) : sampled.isPending ? (
           <p role="status" className="text-caption text-fg-subtle">
             {t("pipelines.workbench.running")}
@@ -732,6 +859,8 @@ export function PipelineWorkbench({
           <Alert role="alert" tone="danger">
             {failedText(sampled.error)}
           </Alert>
+        ) : sampled.data.streamed ? (
+          <StreamedSample answer={sampled.data} onAgain={() => void sampled.refetch()} />
         ) : sampled.data.errors.length > 0 ? (
           <Alert role="alert" tone="danger">
             {/* A source that answered a web page fails the engine's JSON read with "invalid
