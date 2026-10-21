@@ -1738,6 +1738,27 @@ fn batching() -> Vec<Value> {
     ]
 }
 
+/// How many messages of a resident source one write carries at most, the gateway's batch
+/// limit, and how long the first of them waits for the rest (T-5046).
+const RESIDENT_BATCH: u64 = 1000;
+const RESIDENT_BATCH_PERIOD: &str = "1s";
+
+/// A resident source (MQTT, WebSocket) read in batches (T-5046): a message is one record, and
+/// unbatched every record was its own upsert, 64 waiting on the gateway at once per stream (the
+/// HSL feed held the gateway's in-flight bound and saw 503s). A batch is one upsert of up to
+/// [`RESIDENT_BATCH`] records, or of what came in [`RESIDENT_BATCH_PERIOD`]. The source keeps
+/// the `input` label: Bento counts what a broker's input received under the input's own label,
+/// never the broker's.
+fn resident_batches(input: Value) -> Value {
+    serde_json::json!({
+        "label": "input_batches",
+        "broker": {
+            "inputs": [labelled(input, "input")],
+            "batching": { "count": RESIDENT_BATCH, "period": RESIDENT_BATCH_PERIOD },
+        },
+    })
+}
+
 /// A DataSource's input and the processors that belong to it (PL-47, PL-50): an `http`
 /// DataSource polls on a `generate` clock through the `http` processor, because Bento's
 /// `http_client` input polls without pause.
@@ -1788,6 +1809,11 @@ fn datasource_input(
             }
         });
         (inp, vec![p1, p2])
+    } else if matches!(
+        source.source_type,
+        DataSourceType::Mqtt | DataSourceType::WebSocket
+    ) {
+        (resident_batches(input_json), Vec::new())
     } else {
         (input_json, Vec::new())
     };
@@ -3527,6 +3553,71 @@ output:
             render_endpoint_stream(&spec, "helsinki", "helsinki/kpi", "src", true, "dst")
                 .expect("endpoint");
         assert_eq!(endpoint["pipeline"]["threads"], POLLED_IN_FLIGHT);
+    }
+
+    /// T-5046: one HSL frame was one upsert, 64 of them waiting on the gateway per stream. A
+    /// resident source is read in batches that become one write each; the source keeps the
+    /// `input` label its counters are read by, and a polled one is not wrapped.
+    #[test]
+    fn a_resident_source_is_read_in_batches_and_keeps_its_input_label() {
+        let resident = |source: serde_json::Value| {
+            let spec: DataSourceSpec = serde_json::from_value(source).expect("source");
+            let hfp: PipelineSpec = serde_json::from_value(serde_json::json!({
+                "class": "resident",
+                "source": { "dataSourceRef": { "kind": "DataSource", "name": "hfp" } },
+                "compute": { "kind": "bloblang", "bloblang": "root = this" },
+                "targetEndpoint": "urn:ngsi-ld:Endpoint:example.org:helsinki:helsinki-all"
+            }))
+            .expect("resident pipeline");
+            render_stream(&hfp, "hfp", "helsinki", &spec, "hfp", "abc123", None).expect("resident")
+        };
+        for (kind, stream) in [
+            (
+                "mqtt",
+                resident(serde_json::json!({ "type": "mqtt", "mqtt": {
+                    "urls": ["wss://mqtt.hsl.fi:443/"], "topics": ["/hfp/v2/journey/ongoing/vp/#"] } })),
+            ),
+            (
+                "websocket",
+                resident(
+                    serde_json::json!({ "type": "websocket", "webSocket": { "url": "wss://feed.example/live" } }),
+                ),
+            ),
+        ] {
+            let input = &stream["input"];
+            assert_eq!(input["label"], "input_batches", "{input}");
+            assert_eq!(
+                input["broker"]["batching"],
+                serde_json::json!({ "count": 1000, "period": "1s" })
+            );
+            let inner = &input["broker"]["inputs"];
+            assert_eq!(inner.as_array().map(Vec::len), Some(1), "{inner}");
+            assert_eq!(inner[0]["label"], "input");
+            assert!(inner[0].get(kind).is_some(), "{inner}");
+            assert!(!input_ends_by_itself(input));
+            // The batch becomes one array, cut at the gateway's limits, before the write.
+            let steps = stream["pipeline"]["processors"]
+                .as_array()
+                .expect("processors");
+            assert!(steps
+                .iter()
+                .any(|p| p.get("archive") == Some(&serde_json::json!({ "format": "json_array" }))));
+        }
+        let polled = render_stream(
+            &helsinki_pipeline_spec(),
+            "citybikes-free",
+            "helsinki",
+            &helsinki_datasource_spec(),
+            "hsl-citybikes-free",
+            "abc123",
+            None,
+        )
+        .expect("polled");
+        assert!(
+            polled["input"].get("broker").is_none(),
+            "{}",
+            polled["input"]
+        );
     }
 
     #[test]
