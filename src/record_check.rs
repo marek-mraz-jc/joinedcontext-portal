@@ -2,8 +2,9 @@
 //! record a pipeline's sample makes, judged where its write would be judged, before it is
 //! proposed. Three sources say why a record would not be written:
 //!
-//! - `model`: the space's compiled model, [`ModelSchema::check`], the check the runner's
-//!   validation stage compiles into its JSON Schema (`pipeline_validation::stage`);
+//! - `model`: the space's compiled model,
+//!   [`ModelSchema::check`](crate::pipeline_validation::ModelSchema::check), the check the
+//!   runner's validation stage compiles into its JSON Schema (`pipeline_validation::stage`);
 //! - `endpoint`: the gateway's own decision ([`evaluate`] and [`write_guard::check`], the crate
 //!   the gateway runs) over the Policies bound to the target Endpoint, the pipeline's own derived
 //!   from the draft, then the broker's view of the Endpoint as the reconciler writes it: a write
@@ -756,6 +757,8 @@ mod tests {
         let schema = json!({ "definitions": { "Bus": { "type": "object", "properties": {
             "observedOn": { "type": "string", "format": "date-time", "x-ngsi-ld-kind": "Property" },
             "speed": { "type": "number", "x-ngsi-ld-kind": "Property" },
+            "line": { "type": "string", "enum": ["550", "551"], "x-ngsi-ld-kind": "Property" },
+            "plate": { "type": "string", "pattern": "^[A-Z]{3}-[0-9]{3}$", "x-ngsi-ld-kind": "Property" },
             "position": { "type": "object", "x-ngsi-ld-kind": "GeoProperty" }
         }}}});
         let model = crate::pipeline_validation::ModelSchema::compile(
@@ -819,6 +822,25 @@ mod tests {
             (checked.checked, checked.rejected, checked.ok),
             (2, 1, false)
         );
+    }
+
+    /// A refusal names the rule and the attribute, never the value the record carries: a
+    /// finding is shown and kept, a record value is not (sh:in, sh:pattern).
+    #[test]
+    fn a_model_refusal_never_quotes_the_records_value() {
+        let mut record = bus(json!(41));
+        record["line"] = json!({ "type": "Property", "value": "secret-line-77" });
+        record["plate"] = json!({ "type": "Property", "value": "secret-plate-99" });
+        let checked = check(&world(), &pipeline(json!([])), &[record]);
+        let findings = &checked.records[0].findings;
+        for field in ["line", "plate"] {
+            assert!(
+                findings.iter().any(|f| f.field == field),
+                "{field}: {findings:?}"
+            );
+        }
+        let text = serde_json::to_string(findings).expect("JSON");
+        assert!(!text.contains("secret-"), "{text}");
     }
 
     /// The same record judged by the check and by the runtime stage: both are the space's

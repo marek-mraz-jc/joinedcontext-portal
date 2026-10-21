@@ -368,7 +368,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_pipeline_try_mapping",
             title: "Try a Pipeline Mapping",
-            description: "Runs a candidate pipeline's steps over a sample on the project's runner without writing: each record as it would be written and every failure at its step and line (the workbench's mapped output, ADR-N-034)",
+            description: "Runs a candidate pipeline's steps over a sample on the project's runner without writing: each record as it would be written and every failure at its step and line (the workbench's mapped output, ADR-N-034); the record check of what it made is kept on the draft for its proposal (T-4840)",
             input: try_mapping_input_schema,
             output: try_mapping_output_schema,
             annotations: OperationAnnotations {
@@ -392,18 +392,36 @@ pub fn operations() -> Vec<Operation> {
             run: |caller, state, project, val| {
                 Box::pin(async move {
                     let input: TryMappingInput = parse_input(val)?;
-                    let (pipeline, _) =
+                    let (pipeline, draft) =
                         candidate(state, project, input.pipeline, input.draft.as_ref()).await?;
                     let trace = pipeline_test::execute_test_pipeline(
                         &caller.identity,
                         state,
                         project,
                         pipeline_test::TestRequest {
-                            pipeline,
+                            pipeline: pipeline.clone(),
                             sample: input.sample,
                         },
                     )
                     .await?;
+                    // The records the mapping made, judged where their write is: the record
+                    // check a proposal needs (T-4840), kept beside the draft's own verdict.
+                    if let Some(draft) = draft {
+                        let checked = crate::record_check::check_trace(
+                            state,
+                            project,
+                            &pipeline,
+                            &trace.mapping,
+                        )?;
+                        let shown = &trace.mapping
+                            [..trace.mapping.len().min(crate::record_check::MAX_RECORDS)];
+                        let mut records = checked.verdict(&pipeline, shown);
+                        records.ok &= trace.errors.is_empty();
+                        crate::ops::proposals::record_records(
+                            caller, state, project, &draft, &pipeline, records,
+                        )
+                        .await;
+                    }
                     Ok(json!({
                         "input": trace.input,
                         "records": trace.mapping,
@@ -436,7 +454,7 @@ pub fn operations() -> Vec<Operation> {
                 }
                 Ok(())
             },
-            run: |caller, state, project, val| {
+            run: |_caller, state, project, val| {
                 Box::pin(async move {
                     let input: ValidateInput = parse_input(val)?;
                     let pipeline = match (input.pipeline, input.draft.as_ref()) {
@@ -445,8 +463,10 @@ pub fn operations() -> Vec<Operation> {
                     };
                     let (space, schema) =
                         target(state, project, input.space, pipeline.as_ref().map(|p| &p.0))?;
-                    // With a pipeline, each record is judged where its write is (T-4840) and the
-                    // verdict is kept for its proposal; with a space alone, by the model only.
+                    // With a pipeline, each record is judged where its write is (T-4840); with a
+                    // space alone, by the model only. Records a caller types prove nothing about
+                    // the mapping, so no verdict is kept here: only the harness run
+                    // (jc_pipeline_test) sets the record check a proposal needs.
                     let checked = match &pipeline {
                         Some((manifest, _)) => Some(crate::record_check::check_records(
                             state,
@@ -457,19 +477,6 @@ pub fn operations() -> Vec<Operation> {
                         )?),
                         None => None,
                     };
-                    if let (Some((manifest, Some(draft))), Some(checked)) = (&pipeline, &checked) {
-                        let mut verdict = crate::ops::verdict::Verdict::new(
-                            checked.ok && checked.checked > 0,
-                            crate::record_check::verdict_findings(checked),
-                            None,
-                            manifest,
-                        );
-                        verdict.records = Some(Box::new(checked.verdict(manifest, &input.records)));
-                        crate::ops::proposals::record_verdict(
-                            caller, state, project, draft, manifest, &verdict,
-                        )
-                        .await;
-                    }
                     let verdicts: Vec<RecordVerdict> = input
                         .records
                         .iter()

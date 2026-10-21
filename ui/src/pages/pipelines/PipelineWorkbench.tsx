@@ -539,14 +539,21 @@ export function PipelineWorkbench({
     [draft, quiet, toManifest],
   );
   const tried = useQuery({
-    queryKey: ["pipeline-workbench", project, "mapping", manifest, sentSample],
+    queryKey: ["pipeline-workbench", project, "mapping", manifest, sentSample, draftName],
     // After the sample step, never beside it: a project runs one test at a time, and the two
     // started together answered "a pipeline test is already running" on every page load.
     enabled: quiet.trim() !== "" && sentSample !== undefined && manifest !== undefined && !sampled.isFetching,
     retry: false,
     refetchOnWindowFocus: false,
     queryFn: () =>
-      run(project, "jc_pipeline_try_mapping", { pipeline: manifest, sample: sentSample }, t("pipelines.workbench.failed"), readMapping),
+      run(
+        project,
+        "jc_pipeline_try_mapping",
+        // The record check of what the mapping makes is kept on the dialog's draft (T-4840).
+        { pipeline: manifest, sample: sentSample, ...(draftName ? { draft: { kind: "Pipeline", name: draftName } } : {}) },
+        t("pipelines.workbench.failed"),
+        readMapping,
+      ),
   });
   const records = (tried.data?.records ?? []).filter(
     (record): record is Record<string, unknown> => typeof record === "object" && record !== null && !Array.isArray(record),
@@ -554,7 +561,7 @@ export function PipelineWorkbench({
 
   // Step 6: the verdicts against the target space's model.
   const validated = useQuery({
-    queryKey: ["pipeline-workbench", project, "validate", manifest, records, draftName],
+    queryKey: ["pipeline-workbench", project, "validate", manifest, records],
     enabled: records.length > 0 && Boolean(draft?.targetEndpoint),
     retry: false,
     refetchOnWindowFocus: false,
@@ -565,7 +572,6 @@ export function PipelineWorkbench({
         {
           pipeline: manifest,
           records: records.slice(0, 100),
-          ...(draftName ? { draft: { kind: "Pipeline", name: draftName } } : {}),
         },
         t("pipelines.workbench.failed"),
         readValidation,
