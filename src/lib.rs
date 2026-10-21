@@ -5,6 +5,7 @@
 // default of 128 (ci-full readme, 534379bd).
 #![recursion_limit = "256"]
 
+pub mod access_requests;
 pub mod activity;
 pub mod agents;
 pub mod alerts;
@@ -36,6 +37,7 @@ pub mod openapi;
 pub mod ops;
 pub use ops::drafts;
 pub use ops::verdict;
+pub mod mqtt_allowance;
 pub mod people;
 pub mod permissions;
 pub mod pipeline_expiry;

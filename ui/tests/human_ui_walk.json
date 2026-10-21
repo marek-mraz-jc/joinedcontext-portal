@@ -1384,6 +1384,24 @@
         "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
       ]
     },
+    "src/pages/pipelines/AccessRequests.tsx": {
+      "walkedBy": "worker-t4863",
+      "date": "2026-10-21",
+      "screenshots": [
+        "evidence/worker-t4863/T-4863/access-requests-empty-1440.png",
+        "evidence/worker-t4863/T-4863/access-requests-empty-400.png",
+        "evidence/worker-t4863/T-4863/access-requests-filled-1440.png",
+        "evidence/worker-t4863/T-4863/access-requests-filled-400.png",
+        "evidence/worker-t4863/T-4863/access-requests-missing-1440.png",
+        "evidence/worker-t4863/T-4863/access-requests-missing-400.png",
+        "evidence/worker-t4863/T-4863/access-requests-refusal-1440.png",
+        "evidence/worker-t4863/T-4863/access-requests-refusal-400.png",
+        "evidence/worker-t4863/T-4863/access-requests-inbox-1440.png",
+        "evidence/worker-t4863/T-4863/access-requests-inbox-400.png",
+        "evidence/worker-t4863/T-4863/access-requests-inbox-empty-1440.png",
+        "evidence/worker-t4863/T-4863/access-requests-inbox-empty-400.png"
+      ]
+    },
     "src/pages/pipelines/DebugPanel.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
@@ -1660,8 +1678,24 @@
         "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
       ]
     },
-    "src/pages/workspaces/BringBackPage.tsx": null,
-    "src/pages/workspaces/TryItPage.tsx": null,
+    "src/pages/workspaces/BringBackPage.tsx": {
+      "walkedBy": "worker-t4868",
+      "date": "2026-10-21",
+      "screenshots": [
+        "supervisor/reports/workflows-2026-10-21/copies/walk/bring-back-1440.png",
+        "supervisor/reports/workflows-2026-10-21/copies/walk/bring-back-400.png"
+      ]
+    },
+    "src/pages/workspaces/TryItPage.tsx": {
+      "walkedBy": "worker-t4868",
+      "date": "2026-10-21",
+      "screenshots": [
+        "supervisor/reports/workflows-2026-10-21/copies/walk/try-it-not-started-1440.png",
+        "supervisor/reports/workflows-2026-10-21/copies/walk/try-it-started-1440.png",
+        "supervisor/reports/workflows-2026-10-21/copies/walk/try-it-copied-1440.png",
+        "supervisor/reports/workflows-2026-10-21/copies/walk/try-it-copied-400.png"
+      ]
+    },
     "src/router.tsx": null,
     "src/routes/AllEndpointsPage.tsx": {
       "walkedBy": "deployer",

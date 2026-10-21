@@ -1,7 +1,7 @@
 import type { Manifest } from "../../api/manifest";
 import { ORG_NAMESPACE } from "../../api/manifest";
 import { bindingOf } from "./RoleBindings";
-import type { RolesSpec, Subject } from "../apps/RolesAndMembers";
+import type { RolesSpec, Subject } from "../apps/members";
 
 /** Where a binding holds (PF-49): the organization, one project, or one space of a project. */
 export type Place =

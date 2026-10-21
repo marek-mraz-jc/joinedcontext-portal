@@ -177,23 +177,53 @@ fn spec_of(pipeline: &Value, project: &str) -> Result<PipelineSpec, ApiError> {
         .map_err(|e| ApiError::BadRequest(format!("spec is not a valid Pipeline: {e}")))
 }
 
+/// How long a test waits for what the harness posts, and how much it keeps.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Window {
+    /// The longest wait, from the stream's create.
+    pub(crate) deadline: Duration,
+    /// Silence after a message that ends the wait early; `None` waits out the deadline.
+    pub(crate) quiet: Option<Duration>,
+    /// The input bytes kept over every message; the message past them ends the wait unkept.
+    pub(crate) bytes: usize,
+}
+
+/// A source that answers a request: one answer, read within three seconds.
+pub(crate) const REQUEST: Window = Window {
+    deadline: DEADLINE,
+    quiet: Some(QUIET),
+    bytes: usize::MAX,
+};
+
 /// Waits for what the harness posts: until the runner has been quiet after its first message,
-/// until enough messages, or until the deadline.
-async fn collect(receiver: &mut mpsc::UnboundedReceiver<Captured>) -> Vec<Captured> {
+/// until enough messages or bytes, or until the deadline. `true` beside the messages when a limit
+/// ended the wait, so the source had more to give.
+async fn collect(
+    receiver: &mut mpsc::UnboundedReceiver<Captured>,
+    window: Window,
+) -> (Vec<Captured>, bool) {
     let mut captured = Vec::new();
-    let deadline = tokio::time::Instant::now() + DEADLINE;
+    let mut bytes = 0;
+    let deadline = tokio::time::Instant::now() + window.deadline;
     while captured.len() < MAX_MESSAGES {
-        let wait = if captured.is_empty() {
-            deadline
-        } else {
-            (tokio::time::Instant::now() + QUIET).min(deadline)
+        let wait = match window.quiet {
+            Some(quiet) if !captured.is_empty() => {
+                (tokio::time::Instant::now() + quiet).min(deadline)
+            }
+            _ => deadline,
         };
         match tokio::time::timeout_at(wait, receiver.recv()).await {
-            Ok(Some(message)) => captured.push(message),
-            _ => break,
+            Ok(Some(message)) => {
+                bytes += message.input.as_ref().map_or(0, String::len);
+                if bytes > window.bytes {
+                    return (captured, true);
+                }
+                captured.push(message);
+            }
+            _ => return (captured, false),
         }
     }
-    captured
+    (captured, true)
 }
 
 /// Executes a candidate pipeline test and returns the trace (PL-43, MF-38).
@@ -203,10 +233,22 @@ pub async fn execute_test_pipeline(
     project: &str,
     request: TestRequest,
 ) -> Result<TestTrace, ApiError> {
+    let spec = tested_spec(identity, state, project, &request.pipeline)?;
+    run_harness(state, project, &spec, &request.sample).await
+}
+
+/// The spec of a candidate this caller may test: a Pipeline of this project, with a source, that
+/// the caller may propose (PL-43).
+pub(crate) fn tested_spec(
+    identity: &crate::auth::session::Identity,
+    state: &AppState,
+    project: &str,
+    pipeline: &Value,
+) -> Result<PipelineSpec, ApiError> {
     if !is_dns1123(project) {
         return Err(ApiError::NotFound(format!("project '{project}' not found")));
     }
-    let spec = spec_of(&request.pipeline, project)?;
+    let spec = spec_of(pipeline, project)?;
     let has_source = spec
         .sources()
         .iter()
@@ -219,9 +261,9 @@ pub async fn execute_test_pipeline(
     crate::permissions::for_request(state, identity, project).check(
         "Pipeline",
         Verb::Propose,
-        Some(&request.pipeline),
+        Some(pipeline),
     )?;
-    run_harness(state, project, &spec, &request.sample).await
+    Ok(spec)
 }
 
 /// `POST /api/v1/projects/{project}/pipelines/test` (PL-43, MF-38).
@@ -290,6 +332,59 @@ pub(crate) async fn run_harness(
     .await
 }
 
+/// `spec` run over the messages a streaming source gave (T-4841): each message reaches the steps
+/// alone, as the live input hands it over, and not as one page of them.
+pub(crate) async fn run_messages(
+    state: &AppState,
+    project: &str,
+    spec: &PipelineSpec,
+    messages: &[Value],
+) -> Result<TestTrace, ApiError> {
+    let sample = messages_sample(messages);
+    run_stream(state, project, |capture| {
+        let mut config =
+            harness(spec, &sample, capture).map_err(|e| ApiError::BadRequest(e.to_string()))?;
+        split_messages(&mut config);
+        Ok(config)
+    })
+    .await
+}
+
+/// The messages as one text sample: a JSON array of each message's bytes in base64, a text
+/// message as it is and any other as its JSON.
+fn messages_sample(messages: &[Value]) -> Sample {
+    use base64::Engine;
+    let encoded: Vec<Value> = messages
+        .iter()
+        .map(|message| {
+            let text = match message {
+                Value::String(text) => text.clone(),
+                other => other.to_string(),
+            };
+            Value::String(base64::engine::general_purpose::STANDARD.encode(text))
+        })
+        .collect();
+    Sample {
+        text: Some(Value::Array(encoded).to_string()),
+        url: None,
+        format: SampleFormat::Text,
+    }
+}
+
+/// The harness of [`messages_sample`] reading its array one message each, each message's own
+/// bytes again, before anything else runs.
+fn split_messages(config: &mut Value) {
+    if let Some(processors) = config["pipeline"]["processors"].as_array_mut() {
+        processors.splice(
+            0..0,
+            [
+                serde_json::json!({ "unarchive": { "format": "json_array" } }),
+                serde_json::json!({ "mapping": "root = this.decode(\"base64\")" }),
+            ],
+        );
+    }
+}
+
 /// One ephemeral stream on the project's runner: `config` builds it from its capture URL, the
 /// captured messages are the trace, the stream is deleted whatever happened.
 pub(crate) async fn run_stream(
@@ -297,6 +392,18 @@ pub(crate) async fn run_stream(
     project: &str,
     config: impl FnOnce(&str) -> Result<Value, ApiError>,
 ) -> Result<TestTrace, ApiError> {
+    run_stream_within(state, project, REQUEST, config)
+        .await
+        .map(|(trace, _)| trace)
+}
+
+/// `run_stream` waiting as `window` says; `true` beside the trace when a limit ended the wait.
+pub(crate) async fn run_stream_within(
+    state: &AppState,
+    project: &str,
+    window: Window,
+    config: impl FnOnce(&str) -> Result<Value, ApiError>,
+) -> Result<(TestTrace, bool), ApiError> {
     let runner = state
         .config
         .pipeline_runner_url
@@ -320,7 +427,8 @@ pub(crate) async fn run_stream(
 
     let stream = format!("{runner}/streams/{STREAM_PREFIX}{id}");
     let identity = state.config.pipeline_identity;
-    let outcome = create_and_trace(project, &stream, &config, identity, &mut receiver).await;
+    let outcome =
+        create_and_trace(project, &stream, &config, identity, window, &mut receiver).await;
 
     // Gone whatever happened: a runner that timed out or answered 5xx may still have created the
     // stream, and one it keeps answers 409 on the next test's create. A delete it refuses (anything
@@ -332,7 +440,7 @@ pub(crate) async fn run_stream(
         Ok(answer) => Err(answer.status().to_string()),
         Err(err) => Err(err.to_string()),
     };
-    let mut result = outcome?;
+    let (mut result, limited) = outcome?;
     if let Err(err) = deleted {
         tracing::warn!(project = %project, error = %err, "pipeline test stream not deleted");
         result.errors.push(TestError {
@@ -343,7 +451,7 @@ pub(crate) async fn run_stream(
             message: "the test stream could not be deleted; the runner keeps it until it is".into(),
         });
     }
-    Ok(result)
+    Ok((result, limited))
 }
 
 /// Creates the harness stream and reads its trace: what the harness posted back, or the lint
@@ -354,8 +462,9 @@ async fn create_and_trace(
     stream: &str,
     config: &Value,
     identity: bool,
+    window: Window,
     receiver: &mut mpsc::UnboundedReceiver<Captured>,
-) -> Result<TestTrace, ApiError> {
+) -> Result<(TestTrace, bool), ApiError> {
     let config = credentialed(config, project, identity);
     let created = http().post(stream).json(&config).send().await.map_err(|err| {
         tracing::warn!(project = %project, error = %err, "pipeline runner unreachable for a test");
@@ -365,12 +474,14 @@ async fn create_and_trace(
     let refusal = created.text().await.unwrap_or_default();
 
     if status.is_success() {
-        Ok(trace(&collect(receiver).await))
+        let (captured, limited) = collect(receiver, window).await;
+        Ok((trace(&captured), limited))
     } else if status.is_client_error() {
-        Ok(TestTrace {
+        let refused = TestTrace {
             errors: lint_errors(&refusal),
             ..TestTrace::default()
-        })
+        };
+        Ok((refused, false))
     } else {
         tracing::warn!(project = %project, status = %status, "pipeline runner refused a test stream");
         Err(ApiError::Unavailable(
@@ -879,10 +990,101 @@ mod tests {
             captured("id-c", &Bytes::from("not json")),
             StatusCode::BAD_REQUEST
         );
+        let (messages, limited) = collect(&mut receiver, REQUEST).await;
         assert_eq!(
-            collect(&mut receiver).await.len(),
-            1,
+            (messages.len(), limited),
+            (1, false),
             "one message, then the quiet period ends the wait"
         );
+    }
+
+    #[test]
+    fn streamed_messages_reach_the_steps_one_each_before_anything_reads_them() {
+        let messages = [
+            json!({ "VP": { "veh": 12 } }),
+            json!("plain text, \"quoted\""),
+        ];
+        let sample = messages_sample(&messages);
+        let spec: PipelineSpec = serde_json::from_value(json!({
+            "class": "auto",
+            "targetEndpoint": "urn:ngsi-ld:Endpoint:probe.local:probe:probe"
+        }))
+        .expect("spec");
+        let mut config = harness(&spec, &sample, "http://portal/x").expect("harness");
+        split_messages(&mut config);
+        let processors = config["pipeline"]["processors"]
+            .as_array()
+            .expect("processors");
+        assert_eq!(processors[0]["unarchive"]["format"], "json_array");
+        assert_eq!(processors[1]["mapping"], "root = this.decode(\"base64\")");
+        assert!(
+            processors[2]["mapping"]
+                .as_str()
+                .is_some_and(|m| m.contains("jc_input")),
+            "the input is read after the split: {processors:?}"
+        );
+        use base64::Engine;
+        let array: Vec<String> =
+            serde_json::from_str(sample.text.as_deref().expect("text")).expect("an array");
+        let decoded: Vec<String> = array
+            .iter()
+            .map(|m| {
+                String::from_utf8(
+                    base64::engine::general_purpose::STANDARD
+                        .decode(m)
+                        .expect("base64"),
+                )
+                .expect("utf-8")
+            })
+            .collect();
+        assert_eq!(decoded, [r#"{"VP":{"veh":12}}"#, r#"plain text, "quoted""#]);
+    }
+
+    fn message(input: &str) -> Captured {
+        Captured {
+            input: Some(input.to_owned()),
+            ..Captured::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn a_window_without_quiet_waits_out_slow_messages_and_stops_at_its_bytes() {
+        let window = Window {
+            deadline: Duration::from_millis(400),
+            quiet: None,
+            bytes: 10,
+        };
+        let (sender, mut receiver) = mpsc::unbounded_channel();
+        let late = sender.clone();
+        sender.send(message("1234")).expect("sent");
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(150)).await;
+            _ = late.send(message("5678"));
+        });
+        let (kept, limited) = collect(&mut receiver, window).await;
+        assert_eq!(
+            (kept.len(), limited),
+            (2, false),
+            "a quiet gap does not end it"
+        );
+
+        sender.send(message("123456")).expect("sent");
+        sender.send(message("7890ab")).expect("sent");
+        let (kept, limited) = collect(&mut receiver, window).await;
+        assert_eq!(
+            (kept.len(), limited),
+            (1, true),
+            "the message past the bytes is not kept, and the wait says it was cut"
+        );
+
+        for n in 0..=MAX_MESSAGES {
+            sender.send(message(&n.to_string())).expect("sent");
+        }
+        let window = Window {
+            bytes: usize::MAX,
+            ..window
+        };
+        let (kept, limited) = collect(&mut receiver, window).await;
+        assert_eq!((kept.len(), limited), (MAX_MESSAGES, true));
     }
 }
