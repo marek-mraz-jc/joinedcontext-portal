@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized } from "../../api/manifest";
+import { operationAreas } from "../../components/AccessWords";
 import {
   Badge,
   Field,
@@ -115,7 +116,14 @@ function GrantTable({ entries, caption }: { entries: GrantEntry[]; caption: stri
                   <span className="text-fg-subtle">{t("access.matrix.none")}</span>
                 ) : (
                   <ul className="flex flex-wrap gap-1">
-                    {reads.map((action) => (
+                    {/* By area, the CIM 009 names on hover and to a screen reader (T-4990). */}
+                    {operationAreas(reads).areas.map(({ area, operations }) => (
+                      <li key={area} title={operations.join(", ")}>
+                        <Badge>{t(`access.words.area.${area}`)}</Badge>
+                        <span className="sr-only"> ({operations.join(", ")})</span>
+                      </li>
+                    ))}
+                    {operationAreas(reads).other.map((action) => (
                       <li key={action}>
                         <Badge mono>{action}</Badge>
                       </li>
@@ -128,11 +136,16 @@ function GrantTable({ entries, caption }: { entries: GrantEntry[]; caption: stri
                   <span className="text-fg-subtle">{t("access.matrix.none")}</span>
                 ) : (
                   <ul className="flex flex-wrap gap-1">
-                    {writes.map((action) => (
+                    {/* By area, the CIM 009 names on hover and to a screen reader (T-4990). */}
+                    {operationAreas(writes).areas.map(({ area, operations }) => (
+                      <li key={area} title={operations.join(", ")}>
+                        <Badge tone="warning">{t(`access.words.area.${area}`)}</Badge>
+                        <span className="sr-only"> ({operations.join(", ")})</span>
+                      </li>
+                    ))}
+                    {operationAreas(writes).other.map((action) => (
                       <li key={action}>
-                        <Badge mono tone="warning">
-                          {action}
-                        </Badge>
+                        <Badge mono tone="warning">{action}</Badge>
                       </li>
                     ))}
                   </ul>

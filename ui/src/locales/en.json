@@ -825,7 +825,12 @@
       "surface": {
         "ngsi-ld": "NGSI-LD",
         "ogc-features": "OGC Features",
-        "odata": "OData"
+        "odata": "OData",
+        "mcp": "MCP",
+        "csv": "CSV",
+        "sta": "SensorThings",
+        "websocket": "WebSocket",
+        "ical": "iCal"
       },
       "copySurface": "Copy the {surface} URL"
     },
@@ -3181,7 +3186,8 @@
       "grantIn": "{role} in {where}",
       "grantOrg": "{role} in the whole organization",
       "emptyHint": "A service account is how a program outside the Portal reads or writes this project: a script, a pipeline elsewhere, another platform. Each signs in with its own Keycloak client and holds only the role you give it.",
-      "emptyOrganization": "The organization has no service account of its own. A project's service accounts are on that project's settings and in Agents."
+      "emptyOrganization": "The organization has no service account of its own. A project's service accounts are on that project's settings and in Agents.",
+      "emptyHintOrganization": "A service account of the organization is how a program outside the Portal reads or writes across its projects: a script, a pipeline elsewhere, another platform. Each signs in with its own Keycloak client and holds only the role you give it."
     },
     "matrix": {
       "title": "Data access",
@@ -3264,7 +3270,13 @@
       "checked": "Last checked {when}.",
       "publish": "Publish this TXT record in the domain's DNS:",
       "copy": "Copy the record",
-      "copied": "Record copied"
+      "copied": "Record copied",
+      "steps": {
+        "title": "Verify the domain in three steps",
+        "wait": "Wait until the record is visible in DNS; that usually takes a few minutes, at most a day.",
+        "check": "The Portal checks the record again on its next sync and marks the domain verified.",
+        "lastCheck": "Last check: {reason}"
+      }
     },
     "groupPage": {
       "lead": "Who is in this group, and what the group may do.",
@@ -3420,6 +3432,33 @@
         "starts": "{grant} starts {when}",
         "noGrant": "No grant names it"
       }
+    },
+    "words": {
+      "verb": {
+        "read": "Read",
+        "propose": "Propose",
+        "approve": "Approve",
+        "delete": "Delete",
+        "create": "Create",
+        "update": "Change",
+        "disable": "Switch off"
+      },
+      "area": {
+        "read": "Read entities",
+        "history": "Read history",
+        "subscribe": "Manage subscriptions",
+        "create": "Create entities",
+        "change": "Change entities",
+        "delete": "Delete entities",
+        "registrations": "Manage registrations",
+        "federate": "Federate"
+      },
+      "kinds": "{count, plural, one {# kind} other {# kinds}}",
+      "everyKind": "every kind",
+      "noKind": "no kind yet",
+      "nothing": "Nothing granted yet",
+      "endpointRole": "Every caller of endpoint {endpoint}",
+      "endpointTier": "App role {tier} on endpoint {endpoint}"
     }
   },
   "flows": {

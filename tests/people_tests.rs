@@ -466,6 +466,58 @@ async fn a_caller_without_people_admin_is_refused_on_every_route() {
     assert!(!wrote, "nothing reached the realm's admin API");
 }
 
+/// T-5000: a page of people asks the realm for each person's sessions a few at a time. The home
+/// page lists 50, and 50 session lookups sent together met Keycloak's pool of 7 and answered 503.
+/// Each lookup takes `DELAY`, so a page sent at most four at a time takes at least
+/// ceil(40 / 4) x `DELAY`; sent all at once it takes about one `DELAY`.
+#[tokio::test]
+async fn a_page_of_people_asks_for_their_sessions_a_few_at_a_time() {
+    const DELAY: std::time::Duration = std::time::Duration::from_millis(100);
+    let kc = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/realms/hel/protocol/openid-connect/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "access_token": "t" })))
+        .mount(&kc)
+        .await;
+    let users: Vec<Value> = (0..40)
+        .map(|n| user(&format!("p-{n}"), &format!("p{n}@hel.fi")))
+        .collect();
+    Mock::given(method("GET"))
+        .and(path(format!("{ADMIN}/users")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(users))
+        .mount(&kc)
+        .await;
+    Mock::given(method("GET"))
+        .and(path_regex(format!("^{ADMIN}/users/p-[0-9]+/sessions$")))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!([{ "lastAccess": 1_758_700_000_000_i64 }]))
+                .set_delay(DELAY),
+        )
+        .mount(&kc)
+        .await;
+    let gitea = forge().await;
+    let state = state_with(&kc, &gitea);
+
+    let started = std::time::Instant::now();
+    let listed = send(&state, person("ada"), "GET", PEOPLE, None).await;
+    let took = started.elapsed();
+
+    assert_eq!(listed.status, StatusCode::OK, "{}", listed.text);
+    let page: Value = serde_json::from_str(&listed.text).unwrap_or_default();
+    let items = page["items"].as_array().cloned().unwrap_or_default();
+    assert_eq!(items.len(), 40);
+    assert!(
+        items.iter().all(|item| item["lastSeen"].is_string()),
+        "every person keeps their last access"
+    );
+    assert_eq!(received(&kc, "GET", "/sessions").await.len(), 40);
+    assert!(
+        took >= DELAY * 10,
+        "40 session lookups took {took:?}: they were sent more than four at a time"
+    );
+}
+
 /// PF-92: an e-mail another person has is a 409 naming it; bad input is a 400 in RFC 7807.
 #[tokio::test]
 async fn a_taken_email_is_a_conflict_and_bad_input_a_bad_request() {

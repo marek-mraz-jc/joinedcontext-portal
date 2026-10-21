@@ -4,12 +4,14 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ApiError, queryKeys } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
-import { asManifests, isChange, ORG_NAMESPACE, storedMetadata } from "../../api/manifest";
+import { asManifests, isChange, localized, ORG_NAMESPACE, storedMetadata } from "../../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
 import { beyondOwnRights, ownRights, usePermissions, useReadableList } from "../../api/permissions";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { FormRecordLink } from "../../components/RecordLink";
+import { RulesInWords } from "../../components/AccessWords";
+import { presetOfRules } from "../../components/forms/widgets/accessPresets";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
 import { FormFrame, useCreateForm, useFormRoute } from "../../components/forms/FormRoute";
@@ -40,6 +42,8 @@ interface Rule {
 /** One role of the list, with the namespace it came from so its row can be edited where it lives. */
 interface Row {
   name: string;
+  /** The role's title in the page's language, when its manifest gives one (T-4990). */
+  title?: string;
   home: string;
   rules: Rule[];
 }
@@ -255,7 +259,7 @@ export function Roles({
   project: string;
   scope?: RoleScope;
 }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const organization = useRoles(ORG_NAMESPACE, scope !== "project");
   // The organization's own namespace has no project roles: the same list twice would be the
   // same rows twice (one query key, one cache entry).
@@ -270,21 +274,18 @@ export function Roles({
   const rows: Row[] = [
     ...asManifests((ownRoles ? here.data?.items : undefined) ?? []).map((role: Manifest) => ({
       name: role.metadata.name,
+      title: localized(role.metadata.title, i18n.language, ""),
       home: project,
       rules: ((role.spec ?? {}) as { rules?: Rule[] }).rules ?? [],
     })),
     ...asManifests(organization.data?.items ?? []).map((role: Manifest) => ({
       name: role.metadata.name,
+      title: localized(role.metadata.title, i18n.language, ""),
       home: ORG_NAMESPACE,
       rules: ((role.spec ?? {}) as { rules?: Rule[] }).rules ?? [],
     })),
   ];
 
-  /** What a role grants, in one line: `propose, approve on Pipeline, DataSource`. */
-  const grants = (rules: Rule[]) =>
-    rules
-      .map((rule) => `${(rule.verbs ?? []).join(", ")} ${t("access.projectRoles.on")} ${(rule.kinds ?? []).join(", ")}`)
-      .join("; ");
 
   const error = organization.error ?? here.error;
   // A list this page does not ask for is not pending: an idle query stays `isPending` forever.
@@ -351,7 +352,10 @@ export function Roles({
                   <TableRow key={`${row.home}/${row.name}`}>
                     <TableCell primary>
                       <span className="inline-flex items-center gap-2">
-                        <FormRecordLink name={row.name} />
+                        <span className="flex flex-col">
+                          <FormRecordLink name={row.name}>{row.title || row.name}</FormRecordLink>
+                          {row.title ? <span className="text-caption font-normal text-fg-muted">{row.name}</span> : null}
+                        </span>
                         {row.home === ORG_NAMESPACE &&
                         (SEEDED_ROLES as readonly string[]).includes(row.name) ? (
                           <Badge tone="neutral">{t("organization.roles.seeded")}</Badge>
@@ -363,7 +367,9 @@ export function Roles({
                         ? t("access.roles.organization")
                         : t("access.roles.project", { name: row.home })}
                     </TableCell>
-                    <TableCell>{grants(row.rules)}</TableCell>
+                    <TableCell>
+                      <RulesInWords rules={row.rules} preset={presetOfRules(row.rules)} />
+                    </TableCell>
                     <TableCell align="right">
                       <span className="inline-flex items-center gap-1.5">
                         <EditResourceAction

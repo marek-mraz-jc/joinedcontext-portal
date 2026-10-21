@@ -54,13 +54,13 @@ async function stubApi(page: Page): Promise<{ writes: string[] }> {
   const writes: string[] = [];
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
-    const path = new URL(request.url()).pathname;
+    const { pathname: path, search } = new URL(request.url());
     const json = (body: unknown, status = 200) =>
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 
     if (path.endsWith("/auth/me")) return json(IDENTITY);
     if (request.method() !== "GET") {
-      writes.push(`${request.method()} ${path}`);
+      writes.push(`${request.method()} ${path}${search}`);
       return json(
         {
           apiVersion: "joinedcontext.com/v1alpha1",
@@ -120,10 +120,13 @@ for (const width of [1440, 400]) {
     for (const role of await page.getByLabel("Role", { exact: true }).all()) {
       await expect(role).toHaveAccessibleDescription(/e\.g\. /);
     }
-    // The flow still works: a member typed and added is one proposal.
+    // The flow still works: a member picked by a full e-mail and added is one proposal (T-4947):
+    // proposeChecked sends the dry run, then the change itself.
     await email.fill("petra@hel.fi");
+    await page.getByRole("option", { name: "Use petra@hel.fi (not signed in yet)" }).click();
     await page.getByRole("button", { name: "Add member" }).click();
-    await expect.poll(() => writes.length).toBe(1);
+    const group = "PUT /api/v1/projects/org/groups/air-quality-steward";
+    await expect.poll(() => writes).toEqual([`${group}?dryRun=All`, group]);
     const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(sideways, "the page scrolls sideways").toBeLessThanOrEqual(0);
     expect(await axeViolations(page)).toEqual([]);

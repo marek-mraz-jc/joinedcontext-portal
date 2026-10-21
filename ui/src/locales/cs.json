@@ -825,7 +825,12 @@
       "surface": {
         "ngsi-ld": "NGSI-LD",
         "ogc-features": "OGC Features",
-        "odata": "OData"
+        "odata": "OData",
+        "mcp": "MCP",
+        "csv": "CSV",
+        "sta": "SensorThings",
+        "websocket": "WebSocket",
+        "ical": "iCal"
       },
       "copySurface": "Kopírovat URL {surface}"
     },
@@ -3181,7 +3186,8 @@
       "grantIn": "{role} v {where}",
       "grantOrg": "{role} v celé organizaci",
       "emptyHint": "Servisní účet je způsob, jak program mimo Portál čte nebo zapisuje tento projekt: skript, pipeline jinde, jiná platforma. Každý se přihlašuje vlastním klientem v Keycloaku a má jen roli, kterou mu dáte.",
-      "emptyOrganization": "Organizace nemá vlastní servisní účet. Servisní účty projektu jsou v nastavení projektu a v sekci Agenti."
+      "emptyOrganization": "Organizace nemá vlastní servisní účet. Servisní účty projektu jsou v nastavení projektu a v sekci Agenti.",
+      "emptyHintOrganization": "Servisní účet organizace je způsob, jakým program mimo Portál čte nebo zapisuje napříč jejími projekty: skript, pipeline jinde, jiná platforma. Každý se přihlašuje vlastním klientem Keycloak a má jen roli, kterou mu dáte."
     },
     "matrix": {
       "title": "Přístup k datům",
@@ -3264,7 +3270,13 @@
       "checked": "Naposledy zkontrolováno {when}.",
       "publish": "Zveřejněte tento záznam TXT v DNS domény:",
       "copy": "Kopírovat záznam",
-      "copied": "Záznam zkopírován"
+      "copied": "Záznam zkopírován",
+      "steps": {
+        "title": "Ověřte doménu ve třech krocích",
+        "wait": "Počkejte, až bude záznam viditelný v DNS; obvykle to trvá pár minut, nejvýše den.",
+        "check": "Portál záznam znovu zkontroluje při další synchronizaci a doménu označí jako ověřenou.",
+        "lastCheck": "Poslední kontrola: {reason}"
+      }
     },
     "groupPage": {
       "lead": "Kdo je v této skupině a co skupina smí.",
@@ -3420,6 +3432,33 @@
         "starts": "{grant} začíná {when}",
         "noGrant": "Žádné oprávnění to neuvádí"
       }
+    },
+    "words": {
+      "verb": {
+        "read": "Číst",
+        "propose": "Navrhovat",
+        "approve": "Schvalovat",
+        "delete": "Mazat",
+        "create": "Vytvářet",
+        "update": "Měnit",
+        "disable": "Vypínat"
+      },
+      "area": {
+        "read": "Číst entity",
+        "history": "Číst historii",
+        "subscribe": "Spravovat odběry",
+        "create": "Vytvářet entity",
+        "change": "Měnit entity",
+        "delete": "Mazat entity",
+        "registrations": "Spravovat registrace",
+        "federate": "Federovat"
+      },
+      "kinds": "{count, plural, one {# druh} few {# druhy} other {# druhů}}",
+      "everyKind": "každý druh",
+      "noKind": "zatím žádný druh",
+      "nothing": "Zatím nic nepovoleno",
+      "endpointRole": "Každý volající endpointu {endpoint}",
+      "endpointTier": "Role aplikace {tier} na endpointu {endpoint}"
     }
   },
   "flows": {

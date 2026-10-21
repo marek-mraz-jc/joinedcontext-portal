@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueries } from "@tanstack/react-query";
@@ -266,5 +266,70 @@ export function CopyUrlButton({ url, label }: { url: string; label?: string }): 
     >
       {copied ? t("endpoints.copied") : (label ?? t("endpoints.copyUrl"))}
     </Button>
+  );
+}
+
+/** The surfaces a summary names first: the ones most people connect with (T-4989). */
+const SUMMARY_FIRST = ["ngsi-ld", "mcp", "ogc-features"];
+const SUMMARY_NAMED = 3;
+
+/**
+ * What an endpoint serves in one line for a list row (T-4989): the three main surfaces by name
+ * and "+N more" for the rest, which a hover or keyboard focus shows and a screen reader reads.
+ * The per-surface links are on the endpoint's own page.
+ */
+export function RepresentationSummary({ served }: { served: string[] }): JSX.Element {
+  const { t } = useTranslation();
+  const tipId = useId();
+  const [open, setOpen] = useState(false);
+  if (served.length === 0) {
+    return <span className="text-fg-subtle">{t("endpoints.field.noRepresentations")}</span>;
+  }
+  const rank = (rep: string): number => {
+    const at = SUMMARY_FIRST.indexOf(rep);
+    return at < 0 ? SUMMARY_FIRST.length : at;
+  };
+  const labels = [...served]
+    .sort((a, b) => rank(a) - rank(b))
+    .map((rep) => t(`spaces.api.surface.${rep}`, { defaultValue: rep }));
+  const named = labels.slice(0, SUMMARY_NAMED);
+  const rest = labels.slice(SUMMARY_NAMED);
+  return (
+    <span className="relative inline-flex max-w-full items-center gap-1.5 whitespace-nowrap text-body text-fg">
+      <span className="truncate" title={labels.join(", ")}>
+        {named.join(", ")}
+      </span>
+      {rest.length > 0 ? (
+        <>
+          <span
+            tabIndex={0}
+            aria-describedby={tipId}
+            className="focus-ring cursor-help rounded-sm border-b border-dotted border-fg-muted text-caption text-fg-muted"
+            onMouseEnter={() => setOpen(true)}
+            onMouseLeave={() => setOpen(false)}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setOpen(false)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && open) {
+                event.stopPropagation();
+                setOpen(false);
+              }
+            }}
+          >
+            {t("endpoints.field.more", { count: rest.length })}
+          </span>
+          <span
+            id={tipId}
+            role="tooltip"
+            className={clsx(
+              "absolute left-0 top-full z-20 mt-1 rounded-md border border-border bg-surface px-2 py-1 text-caption text-fg shadow-2",
+              open ? "block" : "sr-only",
+            )}
+          >
+            {rest.join(", ")}
+          </span>
+        </>
+      ) : null}
+    </span>
   );
 }

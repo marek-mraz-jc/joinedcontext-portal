@@ -259,11 +259,13 @@ describe("endpoints view", () => {
 
     const row = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
     expect(within(row).getByText(en.endpoints.audience.public)).toBeInTheDocument();
-    expect(within(row).getByText("ngsi-ld")).toBeInTheDocument();
-    expect(within(row).getByText("mcp")).toBeInTheDocument();
-    // The retired `geojson` the manifest still lists is no link (T-4600), and csv is not listed.
-    expect(within(row).queryByText("geojson")).not.toBeInTheDocument();
-    expect(within(row).queryByText("csv")).not.toBeInTheDocument();
+    // One summary names the served surfaces (T-4989); the retired `geojson` the manifest still
+    // lists is not served (T-4600), and csv is not listed.
+    const surfaces = en.spaces.api.surface;
+    expect(
+      within(row).getByText(`${surfaces["ngsi-ld"]}, ${surfaces.mcp}`, { exact: true }),
+    ).toBeInTheDocument();
+    expect(row.textContent).not.toMatch(/geojson|csv/i);
     expect(within(row).getByText(en.phase.live)).toBeInTheDocument();
   });
 

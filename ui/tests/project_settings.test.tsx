@@ -227,7 +227,9 @@ describe("Your access (PF-50, PF-60)", () => {
   it("lists the caller's own grants with the binding and scope each came from", async () => {
     renderTab("access");
     const row = await screen.findByRole("row", { name: /steward/ });
-    expect(within(row).getByText("propose, approve on Pipeline, DataSource, Role, RoleBinding")).toBeInTheDocument();
+    // Grouped in words, the four kinds one click away (T-4990).
+    expect(row.querySelector("summary")?.textContent).toBe("Propose and approve: 4 kinds");
+    expect(within(row).getByText(/^pipelines, data sources, roles/)).toBeInTheDocument();
     expect(within(row).getByText("binding helsinki-stewards, project:helsinki")).toBeInTheDocument();
   });
 });
