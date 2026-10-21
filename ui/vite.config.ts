@@ -63,6 +63,9 @@ export default defineConfig({
     ],
     globals: true,
     css: true,
+    // Vitest forks one worker per core; five parallel full runs on the shared 16-core host drove load to 78
+    // (T-4979). Outside CI cap at 3, VITEST_MAX_WORKERS overrides; CI keeps vitest's default.
+    maxWorkers: Number(process.env.VITEST_MAX_WORKERS) || (process.env.CI ? undefined : 3),
     include: ["tests/**/*.test.{ts,tsx}"],
     // Rendering the whole app (router, i18n, rjsf) takes seconds on a shared CPU, and the
     // 5 s default would kill a test in the middle of an assertion that is merely slow.

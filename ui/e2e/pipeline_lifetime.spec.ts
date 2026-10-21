@@ -5,8 +5,8 @@ import type { Attribute } from "../src/pages/pipelines/outputMapper";
 import { digestOf } from "../src/api/digest";
 import { greenVerdict, isCheck } from "./verdict";
 
-// T-4839: the mapper's "When do entities go away?" writes the pipeline's `spec.lifetime` (PL-80),
-// and a T-4822 step that wrote its own `expiresAt` moves into it on open. The API is answered in
+// T-4839, T-4842: the workbench's Lifetime step writes the pipeline's `spec.lifetime` (PL-80), and
+// a T-4822 step that wrote its own `expiresAt` moves into it on open. The API is answered in
 // the browser, as in pipeline_editor.spec.ts; JC_SHOTS=<dir> also saves each state at 1440 and
 // 400 px for the review.
 
@@ -106,7 +106,7 @@ async function stubApi(page: Page, pipelines: unknown[], stub: Stub): Promise<vo
   });
 }
 
-async function shot(page: Page, name: string, testId = "mapper-expiry"): Promise<void> {
+async function shot(page: Page, name: string, testId = "pipeline-lifetime"): Promise<void> {
   const dir = process.env.JC_SHOTS;
   if (!dir) return;
   for (const [width, label] of [
@@ -137,9 +137,9 @@ test.describe("pipeline lifetime in the mapper", () => {
     await stubApi(page, [pipeline(body)], stub);
     const dialog = await openEditor(page);
 
-    const expiry = dialog.getByTestId("mapper-expiry");
-    await expect(dialog.getByText(/now the pipeline's lifetime setting below/)).toBeVisible();
-    await expect(expiry.getByRole("radio", { name: /At a time the source gives/ })).toBeChecked();
+    const expiry = dialog.getByTestId("pipeline-lifetime");
+    await expect(dialog.getByText(/now the pipeline's lifetime, in the Lifetime step/)).toBeVisible();
+    await expect(expiry.getByRole("radio", { name: /Whole entity expires/ })).toBeChecked();
     await expect(expiry.getByLabel("Time from")).toHaveValue("observedOn");
     await expect(dialog.getByTestId("mapper-preview")).toContainText('"expiresAt": "2026-10-20T20:08:00Z"');
     await shot(page, "migrated");
@@ -151,11 +151,11 @@ test.describe("pipeline lifetime in the mapper", () => {
     expect(spec.steps?.[0]?.bloblang).not.toContain("expiresAt");
 
     // The write time plus a while, the other end the choice offers.
-    await expiry.getByLabel("Time from").selectOption("");
-    await expect(dialog.getByText(/now the pipeline's lifetime setting below/)).toHaveCount(0);
+    await expiry.getByRole("radio", { name: /After each write/ }).check();
+    await expect(expiry.getByTestId("pipeline-lifetime-sentence")).toContainText("10 minutes after its last write");
     await shot(page, "rolling");
 
-    await expiry.getByRole("radio", { name: /^Never/ }).click();
+    await expiry.getByRole("radio", { name: /Keep entities/ }).click();
     await expect(expiry.getByLabel("Time from")).toHaveCount(0);
     await shot(page, "never");
   });
@@ -166,11 +166,12 @@ test.describe("pipeline lifetime in the mapper", () => {
     const dialog = await openEditor(page);
     // An unreadable header starts the mapper over from the sample; map observedOn to a text field.
     await dialog.getByRole("combobox", { name: /Source of observedOn/ }).selectOption("field:desi");
-    const expiry = dialog.getByTestId("mapper-expiry");
-    await expiry.getByRole("radio", { name: /At a time the source gives/ }).click();
+    const expiry = dialog.getByTestId("pipeline-lifetime");
+    await expiry.getByRole("radio", { name: /Whole entity expires/ }).click();
     await expiry.getByLabel("Time from").selectOption("observedOn");
-    await expect(expiry.getByText(/desi holds 550, which is no time/)).toBeVisible();
-    await shot(page, "error");
+    // The mapper says it where the field is mapped.
+    await expect(dialog.getByText(/desi holds 550, which is no time/)).toBeVisible();
+    await shot(page, "error", "mapper-preview");
   });
 
   test("the door's refusal names the slot and the type's slots", async ({ page }) => {
@@ -181,9 +182,10 @@ test.describe("pipeline lifetime in the mapper", () => {
     const step = `# jc-mapper ${JSON.stringify({ ...LEGACY_STATE, expires: undefined })}\n`;
     await stubApi(page, [pipeline(step, lifetime)], stub);
     const dialog = await openEditor(page);
-    const expiry = dialog.getByTestId("mapper-expiry");
-    // An entry the choice cannot show stays as the manifest holds it.
-    await expect(expiry).toContainText("set in the pipeline's manifest");
+    const expiry = dialog.getByTestId("pipeline-lifetime");
+    // An entry naming a slot the model lacks stays as the manifest holds it, shown in its row.
+    await expect(expiry.getByRole("radio", { name: /Only some fields expire/ })).toBeChecked();
+    await expect(expiry.getByRole("combobox", { name: "Field" })).toHaveValue("position");
     await expect(dialog.getByText(/is not a slot of `Vehicle`/).first()).toBeVisible();
     await shot(page, "refusal-kept");
     await shot(page, "refusal", "draft-verdict");

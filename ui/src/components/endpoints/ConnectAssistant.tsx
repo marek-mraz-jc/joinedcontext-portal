@@ -49,13 +49,25 @@ export function ConnectAssistant({ domain }: { domain: string | undefined }): JS
         </a>
       </div>
       <div className="flex flex-col gap-1">
-        <pre className="overflow-x-auto rounded bg-surface-muted p-2 font-mono text-caption">{lines.claude}</pre>
+        <pre
+          tabIndex={0}
+          aria-label={t("endpoints.hub.claudeLine")}
+          className="focus-ring overflow-x-auto rounded bg-surface-muted p-2 font-mono text-caption"
+        >
+          {lines.claude}
+        </pre>
         <div>
           <CopyUrlButton url={lines.claude} label={t("endpoints.hub.claude")} />
         </div>
       </div>
       <div className="flex flex-col gap-1">
-        <pre className="overflow-x-auto rounded bg-surface-muted p-2 font-mono text-caption">{lines.json}</pre>
+        <pre
+          tabIndex={0}
+          aria-label={t("endpoints.hub.jsonLine")}
+          className="focus-ring overflow-x-auto rounded bg-surface-muted p-2 font-mono text-caption"
+        >
+          {lines.json}
+        </pre>
         <div>
           <CopyUrlButton url={lines.json} label={t("endpoints.hub.json")} />
         </div>

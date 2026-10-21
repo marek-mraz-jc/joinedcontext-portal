@@ -89,6 +89,22 @@ pub enum SyncError {
     },
 }
 
+/// The feed's sentence for a run that could not load the repository (T-4967): a refused forge
+/// credential names what an operator checks; anything else says what failed.
+fn drift_summary(err: &SyncError) -> String {
+    match err {
+        SyncError::Git(GitError::Api {
+            status: status @ (401 | 403),
+            ..
+        }) => format!(
+            "The repository did not load: the forge refused the Portal's token (HTTP {status}). \
+             The Portal keeps serving the last revision that loaded; if this lasts, an operator checks the \
+             forge and the Portal's forge token."
+        ),
+        other => format!("The repository did not load: {other}"),
+    }
+}
+
 /// Background reconciler synchronizing repository manifests into the in-memory mirror.
 pub struct Syncer {
     gitea: Arc<GiteaClient>,
@@ -618,7 +634,7 @@ impl Syncer {
                     .unwrap_or_else(|p| p.into_inner())
                     .last_error = Some(message.clone());
                 if !repeated {
-                    self.say_drifted(&message).await;
+                    self.say_drifted(&drift_summary(&err)).await;
                 }
                 Err(err)
             }
@@ -667,7 +683,7 @@ impl Syncer {
                 space: None,
                 kind: "config.drifted".to_string(),
                 source: "reconciler".to_string(),
-                summary: format!("The repository did not load: {message}"),
+                summary: message.to_string(),
                 severity: "error".to_string(),
                 correlation_id: None,
                 details: serde_json::Value::Null,
@@ -3784,6 +3800,29 @@ output_error{stream="kpi"} 6
             .expect("list");
         assert_eq!(page.items.len(), 1, "{:?}", page.items);
         assert_eq!(page.items[0].severity, "error");
+    }
+
+    /// T-4967: a refused forge token says what an operator checks, never the forge's body.
+    #[test]
+    fn a_refused_forge_token_reads_as_a_sentence() {
+        let refused = SyncError::Git(GitError::Api {
+            status: 401,
+            message: "invalid username, password or token".into(),
+        });
+        let summary = drift_summary(&refused);
+        assert!(
+            summary.contains("refused the Portal's token (HTTP 401)"),
+            "{summary}"
+        );
+        assert!(
+            !summary.contains('{') && !summary.contains("git api error"),
+            "{summary}"
+        );
+        let other = SyncError::Empty("no manifests".into());
+        assert_eq!(
+            drift_summary(&other),
+            "The repository did not load: no manifests"
+        );
     }
 
     /// The one-space repository both the success test and the activity tests read.
