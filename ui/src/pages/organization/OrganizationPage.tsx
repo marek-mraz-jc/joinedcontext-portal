@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -46,6 +46,9 @@ import { ValidationHealth } from "./ValidationHealth";
 import { Brokers } from "./Brokers";
 import { McpServersPage } from "../mcp/McpServersPage";
 import { ORGANIZATION_GROUPS } from "./AdminNav";
+
+/** Only an administrator opens Agents, so its code loads with the tab (bundle budget, T-4849). */
+const Agents = lazy(() => import("./Agents").then((module) => ({ default: module.Agents })));
 import type { OrganizationTab } from "./AdminNav";
 
 export type { OrganizationTab };
@@ -330,6 +333,11 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
         {tab === "roles" ? <Roles project={ORG_NAMESPACE} scope="organization" /> : null}
         {tab === "groups" ? <Groups project={ORG_NAMESPACE} /> : null}
         {tab === "service-accounts" ? <ServiceAccounts project={ORG_NAMESPACE} /> : null}
+        {tab === "agents" ? (
+          <Suspense fallback={<p role="status" className="text-body text-fg-muted">{t("app.loading")}</p>}>
+            <Agents />
+          </Suspense>
+        ) : null}
         {tab === "blueprints" ? <OrganizationKind plural="blueprints" kind="Blueprint" /> : null}
         {tab === "agentprofiles" ? <OrganizationKind plural="agentprofiles" kind="AgentProfile" /> : null}
         {tab === "dataspaceparticipants" ? <OrganizationKind plural="dataspaceparticipants" kind="DataSpaceParticipant" /> : null}
