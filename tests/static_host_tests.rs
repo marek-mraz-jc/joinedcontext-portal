@@ -1482,6 +1482,67 @@ async fn each_visibility_opens_for_its_own_callers_alone() {
     }
 }
 
+/// T-4922: the edge asks `/edge/apps/{name}/admit` before a pod App's server or a wasm App's shard
+/// answers, and gets the T-4910 matrix: `204` where the static host would serve the page, else the
+/// static host's own refusal, the `404` of a draft byte for byte or the `403` page of a `roles` App.
+#[tokio::test]
+async fn the_edge_admits_each_visibility_of_a_pod_or_wasm_app_for_its_own_callers_alone() {
+    let dir = app_root("visibility-admit", &[("index.html", INDEX)]);
+    let token =
+        |who: &str, roles: &[&str]| Some(common::REALM.person_token("air-quality", who, roles));
+    let callers = [
+        ("anonymous", None),
+        ("pavol", token("pavol", &[])),
+        ("eva", token("eva", &[])),
+        ("marek", token("marek", &[])),
+        ("olga", token("olga", &[])),
+        ("jana", token("jana", &["viewer"])),
+    ];
+    let table = [
+        ("public", [204, 204, 204, 204, 204, 204]),
+        ("organization", [404, 404, 204, 204, 204, 404]),
+        ("project", [404, 404, 404, 204, 404, 404]),
+        ("private", [404, 404, 404, 404, 204, 404]),
+        ("roles", [403, 403, 403, 403, 403, 204]),
+    ];
+    let uri = "/edge/apps/air-quality/admit";
+    for class in ["ui-rust", "wasm"] {
+        for (visibility, expected) in table {
+            let mirror = roles_app();
+            let mut app = mirror
+                .get("ovzdusie", "App", "air-quality")
+                .expect("the app");
+            app.spec["kind"] = serde_json::json!(class);
+            app.spec["visibility"] = serde_json::json!(visibility);
+            app.metadata
+                .annotations
+                .insert("joinedcontext.com/owner".into(), "sub-olga".into());
+            mirror.upsert(app.clone());
+            common::bind(&mirror, "marek", "ovzdusie");
+            common::bind(&mirror, "eva", "doprava");
+            common::bind(&mirror, "olga", "doprava");
+            let draft = roles_app();
+            app.spec["lifecycle"] = serde_json::json!("draft");
+            draft.upsert(app);
+            for ((caller, token), expected) in callers.iter().zip(expected) {
+                let (status, _, body) =
+                    get_as(dir.path(), mirror.clone(), token.clone(), uri).await;
+                let case = format!("{caller} on {class} {visibility}");
+                assert_eq!(status.as_u16(), expected, "{case}");
+                match expected {
+                    204 => assert!(body.is_empty(), "{case}"),
+                    404 => {
+                        let (_, _, missing) =
+                            get_as(dir.path(), draft.clone(), token.clone(), uri).await;
+                        assert_eq!(body, missing, "{case}");
+                    }
+                    _ => assert!(String::from_utf8_lossy(&body).contains("Viewer"), "{case}"),
+                }
+            }
+        }
+    }
+}
+
 /// One request to a Portal that lives across the test, as the edge forwards it.
 async fn ask_held(
     state: &AppState,

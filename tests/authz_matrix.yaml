@@ -25,6 +25,10 @@ routes:
   - route: GET /apps/{name}/{*path}
     rule: "app-edge"
     expect: [404, 404, 404, 404, 404, 404, 404, 404]
+  - route: GET /edge/apps/{name}/admit
+    rule: "app-edge"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "the edge's forward-auth before a pod or wasm App: the static host's own check and refusal (T-4922)"
   - route: GET /templates/{name}
     rule: "public"
     expect: [404, 404, 404, 404, 404, 404, 404, 404]
