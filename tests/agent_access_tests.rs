@@ -1,4 +1,4 @@
-//! The Access view of an agent's ServiceAccount and revoking a grant now (API/01 §51,
+//! The Access view of an agent's ServiceAccount and revoking a grant now (API/01 §52,
 //! AG-130…AG-132): who may read it, who may revoke, and what a revoke refuses before the forge.
 
 use axum::body::Body;

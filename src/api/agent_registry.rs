@@ -184,7 +184,7 @@ async fn namespace_items(
 
 /// The runs of a project the caller would see in its run list: their own, or every person's
 /// for an approver of the project (AG-93, as `GET …/agent-runs` lists them).
-async fn visible_runs(
+pub(crate) async fn visible_runs(
     state: &AppState,
     identity: &Identity,
     project: &str,

@@ -1,5 +1,5 @@
 /**
- * T-4850, API/01 §51, AG-130…AG-132: an agent account's Access view. Each grant with its state,
+ * T-4850, API/01 §52, AG-130…AG-132: an agent account's Access view. Each grant with its state,
  * the kind × verb matrix with the grant behind each cell or why it is refused, approve never, and
  * Revoke now behind a confirmation for a person who may revoke.
  */

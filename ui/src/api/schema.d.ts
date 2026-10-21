@@ -636,6 +636,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/agents/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Agent Activity
+         * @description The agent runs the caller may see (their own, every person's for an approver of the project), newest first, each with its tool calls, writes, refusals, tokens and cost, and the alerts over them. Step arguments and outputs are never included.
+         */
+        get: operations["list_agent_activity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organization/brokers": {
         parameters: {
             query?: never;
@@ -3098,7 +3118,7 @@ export interface paths {
         };
         /**
          * Read An Agent Account's Access
-         * @description Every grant of one ServiceAccount: role, scope, validity window and its state now (active, pending, expired), with the Portal rules its Role carries, never `approve` (API/01 §51, AG-130, AG-131). Needs `read` on ServiceAccount.
+         * @description Every grant of one ServiceAccount: role, scope, validity window and its state now (active, pending, expired), with the Portal rules its Role carries, never `approve` (API/01 §52, AG-130, AG-131). Needs `read` on ServiceAccount.
          */
         get: operations["account_access"];
         put?: never;
@@ -3120,7 +3140,7 @@ export interface paths {
         put?: never;
         /**
          * Revoke An Agent Account's Grant Now
-         * @description Removes one grant of a ServiceAccount at once (API/01 §51, AG-132): a person who may propose and approve ServiceAccounts sends it from their Portal session, the Portal writes the Change and merges it because it only removes access, checked against the manifest on the main branch; recorded as an `access.revoked` activity event. A token of a service account or an agent is refused. The account's next token is decided without the grant once the Portal has synced.
+         * @description Removes one grant of a ServiceAccount at once (API/01 §52, AG-132): a person who may propose and approve ServiceAccounts sends it from their Portal session, the Portal writes the Change and merges it because it only removes access, checked against the manifest on the main branch; recorded as an `access.revoked` activity event. A token of a service account or an agent is refused. The account's next token is decided without the grant once the Portal has synced.
          */
         post: operations["revoke_grant"];
         delete?: never;
@@ -4029,6 +4049,12 @@ export interface components {
              */
             since?: string | null;
         };
+        ActivityChoices: {
+            /** @description The starters of the runs, sorted. */
+            people: string[];
+            /** @description The Context Spaces the runs read, sorted. */
+            spaces: string[];
+        };
         ActivityEvent: {
             correlationId?: string | null;
             /**
@@ -4051,6 +4077,44 @@ export interface components {
             kind: string;
             next?: string | null;
         };
+        ActivityRun: {
+            /**
+             * Format: double
+             * @description The sum of the costs the provider reported, in USD; none when no call reported one.
+             */
+            costUsd?: number | null;
+            createdAt: string;
+            /** Format: int64 */
+            durationMs?: number | null;
+            finishedAt?: string | null;
+            id: string;
+            /** @description Whether this caller may stop it now (`POST …/agent-runs/{id}/cancel`). */
+            mayStop: boolean;
+            profile: string;
+            project: string;
+            refusals: number;
+            spaces: string[];
+            startedBy: string;
+            status: string;
+            steps: components["schemas"]["ActivityStep"][];
+            title: string;
+            /** Format: int64 */
+            tokens: number;
+            writes: number;
+        };
+        ActivityStep: {
+            at: string;
+            /** Format: int64 */
+            durationMs?: number | null;
+            /** @description The refusal's problem text, or the reason a write gave; masked. */
+            reason?: string | null;
+            /** @description What the call named: an Endpoint, a resource, a page; never its arguments. */
+            target?: string | null;
+            tool: string;
+            verdict: components["schemas"]["StepVerdict"];
+            /** @description The call changes something (its operation is not read-only). */
+            write: boolean;
+        };
         /**
          * @description Something the caller may or may not do that no rule expresses as a kind and a verb, with the
          *     API's own words for the refusal: the control is rendered disabled with the reason, never
@@ -4064,11 +4128,33 @@ export interface components {
         AgentAccessList: {
             items: components["schemas"]["ProfileAccess"][];
         };
+        AgentActivity: {
+            /** @description The signals over the runs the filters select, newest first; one per agent or run. */
+            alerts: components["schemas"]["AgentAlert"][];
+            /** @description The values the person and space filters offer: those of the runs this caller sees. */
+            choices: components["schemas"]["ActivityChoices"];
+            nextCursor?: string | null;
+            runs: components["schemas"]["ActivityRun"][];
+        };
         /**
          * @description Whose rights an agent uses (AG-94, AG-115).
          * @enum {string}
          */
         AgentActsAs: "self" | "caller";
+        AgentAlert: {
+            at: string;
+            /**
+             * Format: int64
+             * @description Refusals in the hour, percent of the cap, or writes outside office hours.
+             */
+            count: number;
+            kind: components["schemas"]["AlertKind"];
+            profile: string;
+            project: string;
+            runId?: string | null;
+            /** @description The run's title as its card shows it, so an alert names the run a person recognises. */
+            runTitle?: string | null;
+        };
         /** @description One agent identity (API/01 §48). */
         AgentItem: {
             actsAs: components["schemas"]["AgentActsAs"];
@@ -4200,6 +4286,8 @@ export interface components {
         AlertDelivery: "portal" | "digest";
         /** @enum {string} */
         AlertEvent: "failure" | "stale" | "zero";
+        /** @enum {string} */
+        AlertKind: "refusalSpike" | "spendShare" | "offHoursWrite";
         /** @description How long a subscription stays muted, or `null` to unmute. */
         AlertMute: {
             for?: string | null;
@@ -7356,6 +7444,8 @@ export interface components {
              */
             sourceUrl?: string | null;
         };
+        /** @enum {string} */
+        StepVerdict: "ok" | "refused";
         /** @description A request about one data subject. */
         SubjectRequest: {
             /** @description Why, for the audit record: the request's reference, the legal ground. */
@@ -9085,6 +9175,74 @@ export interface operations {
             };
             /** @description The run store did not answer */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_agent_activity: {
+        parameters: {
+            query?: {
+                /** @description Only this project's runs. */
+                project?: string;
+                /** @description Only the runs of this agent profile. */
+                profile?: string;
+                /** @description Only this run. */
+                run?: string;
+                /** @description Only the runs this person started. */
+                person?: string;
+                /** @description Only the runs that read an Endpoint of this Context Space. */
+                space?: string;
+                /** @description `refused`: runs with a refused step; `ok`: runs without one. */
+                verdict?: string;
+                /** @description RFC 3339; runs started at or after. */
+                since?: string;
+                /** @description RFC 3339; runs started before. */
+                until?: string;
+                /** @description 1–50, default 20. */
+                limit?: number;
+                /** @description `nextCursor` of the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of runs and the alerts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentActivity"];
+                };
+            };
+            /** @description A filter or the cursor is malformed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller reads no project */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

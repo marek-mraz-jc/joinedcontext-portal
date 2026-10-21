@@ -1,4 +1,4 @@
-//! What an agent's own ServiceAccount may do, and revoking it at once (API/01 §51, AG-130…AG-132).
+//! What an agent's own ServiceAccount may do, and revoking it at once (API/01 §52, AG-130…AG-132).
 //!
 //! The Access tab reads one account's grants: each `spec.roles` entry with its scope, its window
 //! and where it stands now, and the Portal rules its `Role` carries, `approve` never among them
@@ -78,7 +78,7 @@ fn as_value(env: &ResourceEnvelope) -> Result<Value, ApiError> {
     get,
     path = "/api/v1/projects/{project}/serviceaccounts/{name}/access",
     summary = "Read An Agent Account's Access",
-    description = "Every grant of one ServiceAccount: role, scope, validity window and its state now (active, pending, expired), with the Portal rules its Role carries, never `approve` (API/01 §51, AG-130, AG-131). Needs `read` on ServiceAccount.",
+    description = "Every grant of one ServiceAccount: role, scope, validity window and its state now (active, pending, expired), with the Portal rules its Role carries, never `approve` (API/01 §52, AG-130, AG-131). Needs `read` on ServiceAccount.",
     tag = "access",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -145,7 +145,7 @@ pub fn only_removes_grants(base: &Value, head: &Value) -> bool {
     post,
     path = "/api/v1/projects/{project}/serviceaccounts/{name}/revoke",
     summary = "Revoke An Agent Account's Grant Now",
-    description = "Removes one grant of a ServiceAccount at once (API/01 §51, AG-132): a person who may propose and approve ServiceAccounts sends it from their Portal session, the Portal writes the Change and merges it because it only removes access, checked against the manifest on the main branch; recorded as an `access.revoked` activity event. A token of a service account or an agent is refused. The account's next token is decided without the grant once the Portal has synced.",
+    description = "Removes one grant of a ServiceAccount at once (API/01 §52, AG-132): a person who may propose and approve ServiceAccounts sends it from their Portal session, the Portal writes the Change and merges it because it only removes access, checked against the manifest on the main branch; recorded as an `access.revoked` activity event. A token of a service account or an agent is refused. The account's next token is decided without the grant once the Portal has synced.",
     tag = "access",
     params(
         ("project" = String, Path, description = "Project name"),
