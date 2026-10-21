@@ -93,6 +93,10 @@
       "reason": "the publisher: the catalogue's publisher facet should be offered, free entry kept",
       "task": "T-4948"
     },
+    "src/pages/catalogue/PublishDataset.tsx :: Type the endpoint's name to confirm": {
+      "class": "FREE",
+      "reason": "typing the picked endpoint's name back is the red-lane confirmation for a public publication (EP-142)"
+    },
     "src/pages/ckan/CkanPage.tsx :: Default organization": {
       "class": "REF",
       "reason": "a CKAN organization of the instance: typed today",

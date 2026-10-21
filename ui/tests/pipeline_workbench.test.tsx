@@ -17,8 +17,17 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import type { Manifest } from "../src/api/manifest";
 import type { PipelineForm } from "../src/pages/pipelines/PipelineEditor";
-import { PipelineWorkbench, answeredHtml, classOfMapping, exampleOf, flatten, readSample, readValidation } from "../src/pages/pipelines/PipelineWorkbench";
+import type { ReactNode } from "react";
+import { PipelineWorkbench, answeredHtml, classOfMapping, exampleOf, flatten, mapperType, readSample, readValidation } from "../src/pages/pipelines/PipelineWorkbench";
 import { expectAxeClean, jsonResponse, problem } from "./pageHarness";
+import { pageFindings } from "./pageChecks";
+import { plainValue } from "../src/pages/pipelines/PipelineStudio";
+
+// The Lifetime step links the space's retention rules; this harness renders the steps without a
+// router, so the link is a plain anchor here (T-4842).
+vi.mock("../src/components/RecordLink", () => ({
+  RecordLink: ({ children }: { children: ReactNode }) => <a href="#space">{children}</a>,
+}));
 
 const URN = "urn:ngsi-ld:Endpoint:banskabystrica.sk:ovzdusie:air-write";
 
@@ -71,6 +80,8 @@ interface Answers {
   sample?: Response | unknown;
   mapping?: unknown;
   validate?: unknown;
+  /** The target model, when a test needs another than LINKML. */
+  linkml?: string;
 }
 
 interface Seen {
@@ -102,7 +113,7 @@ function stub(answers: Answers, seen: Seen) {
         });
       }
       if (path.endsWith("/datamodels")) {
-        return jsonResponse({ items: [manifest("DataModel", "air", { linkml: LINKML, classes: ["AirQualityObserved"] })] });
+        return jsonResponse({ items: [manifest("DataModel", "air", { linkml: answers.linkml ?? LINKML, classes: ["AirQualityObserved"] })] });
       }
       return jsonResponse({ items: [] });
     }),
@@ -302,7 +313,7 @@ describe("the pipeline workbench", () => {
     expect(value.split("\n").at(-1)).toBe('root.quality = { "type": "Property", "value": "good" }');
   });
 
-  it("shows_six_steps_in_order_each_with_its_hint", () => {
+  it("shows_seven_steps_in_order_each_with_its_hint", () => {
     stub({}, { ops: [] });
     show({});
     const titles = screen
@@ -316,6 +327,7 @@ describe("the pipeline workbench", () => {
       "workbench-target-title",
       "workbench-mapping-title",
       "workbench-output-title",
+      "workbench-lifetime-title",
       "workbench-validation-title",
     ]);
     for (const hint of [
@@ -349,24 +361,58 @@ describe("the pipeline workbench", () => {
     expect(screen.getByText("2 records with 2 fields")).toBeInTheDocument();
 
     const output = step(en.pipelines.workbench.output.title);
-    const records = await within(output).findByRole("table", { name: en.pipelines.workbench.output.caption });
-    const rows = within(records).getAllByRole("row");
-    expect(rows).toHaveLength(3);
-    // The second record breaks the model: its row names the rule and the field.
-    expect(await within(rows[2]).findByText("sh:datatype")).toBeInTheDocument();
-    expect(within(rows[2]).getByText("pm10")).toBeInTheDocument();
-    expect(within(rows[1]).getByText(en.pipelines.workbench.validation.valid)).toBeInTheDocument();
+    // Each record is a table of its attributes (T-4842): the value, the verdict at its field.
+    const first = await within(output).findByTestId("workbench-record-0");
+    const second = within(output).getByTestId("workbench-record-1");
+    expect(within(second).getByRole("table", { name: /urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:02/ })).toBeInTheDocument();
+    // The second record breaks the model: its pm10 row names the rule.
+    expect(await within(second).findByText("sh:datatype")).toBeInTheDocument();
+    const pm10 = within(second).getAllByRole("row").find((row) => within(row).queryByText('"x"'));
+    expect(pm10 && within(pm10).getByText("sh:datatype")).toBeTruthy();
+    expect(within(first).getByText(en.pipelines.workbench.validation.valid)).toBeInTheDocument();
+    expect(within(first).getByText("18.2")).toBeInTheDocument();
 
     const verdict = within(step(en.pipelines.workbench.validation.title)).getByRole("status");
     expect(verdict).toHaveTextContent("1 record breaks air 1.0.0 and would not be written; 1 valid.");
     await waitFor(() => expect(verdicts.at(-1)).toEqual({ ok: false, bloblang: MAPPING }));
 
     // Every step ran the operation an agent runs, with the source and the sample it names.
-    expect(seen.ops.map((op) => op.name)).toEqual(["jc_pipeline_sample_source", "jc_pipeline_try_mapping", "jc_pipeline_validate"]);
-    expect(seen.ops[0].body).toEqual({ dataSource: "shmu-csv" });
-    expect(seen.ops[1].body.sample).toEqual({ url: "https://feeds.example/air.csv", format: "csv" });
-    expect((seen.ops[2].body.records as unknown[]).length).toBe(2);
+    // The Target step asks the same operation which attributes the Endpoint grants (T-4842).
+    const judged = seen.ops.filter((op) => op.body.type !== undefined);
+    expect(judged.map((op) => [op.name, op.body.type, op.body.records])).toEqual([["jc_pipeline_validate", "AirQualityObserved", []]]);
+    const ops = seen.ops.filter((op) => op.body.type === undefined);
+    expect(ops.map((op) => op.name)).toEqual(["jc_pipeline_sample_source", "jc_pipeline_try_mapping", "jc_pipeline_validate"]);
+    expect(ops[0].body).toEqual({ dataSource: "shmu-csv" });
+    expect(ops[1].body.sample).toEqual({ url: "https://feeds.example/air.csv", format: "csv" });
+    expect((ops[2].body.records as unknown[]).length).toBe(2);
     await expectAxeClean(container);
+  });
+
+  it("shows a nested sample value in words, never as JSON (T-4972)", async () => {
+    // An XML source's root element holds its namespaces: Bento reads `xmlns:gml` as `-gml`.
+    const XML = {
+      records: [{ FeatureCollection: { "-BsWfs": "http://xml.fmi.fi/schema/wfs/2.0", "-gml": "http://www.opengis.net/gml/3.2" }, members: [1, 2] }],
+      fields: ["FeatureCollection", "members"],
+      count: 1,
+      truncated: false,
+      errors: [],
+    };
+    stub({ sample: XML, mapping: MAPPED, validate: ONE_BAD }, { ops: [] });
+    show({ targetEndpoint: URN, compute: { kind: "bloblang", bloblang: MAPPING } });
+
+    await userEvent.selectOptions(screen.getByLabelText(en.pipelines.workbench.source.pick), "datasource:shmu-csv");
+    const sample = await within(step(en.pipelines.workbench.sample.title)).findByRole("table", {
+      name: en.pipelines.workbench.sample.caption,
+    });
+    expect(within(sample).getByRole("cell", { name: "-BsWfs: http://xml.fmi.fi/schema/wfs/2.0; -gml: http://www.…" })).toBeInTheDocument();
+    expect(within(sample).getByRole("cell", { name: "1, 2" })).toBeInTheDocument();
+    expect(pageFindings({ namespaces: [], layout: false }).filter((finding) => finding.startsWith("raw-json"))).toEqual([]);
+  });
+
+  it("reads a nested value as key and value pairs, a list as its items", () => {
+    expect(plainValue({ a: 1, b: { c: [true, null], d: "x" } })).toBe("a: 1; b: (c: true, null; d: x)");
+    expect(plainValue(undefined)).toBe("");
+    expect(plainValue([[[[1]]]])).toBe("…");
   });
 
   it("gives_a_green_verdict_only_for_the_mapping_that_ran_and_only_when_every_record_is_valid", async () => {
@@ -410,14 +456,17 @@ describe("the pipeline workbench", () => {
     show({ targetEndpoint: URN, compute: { kind: "bloblang", bloblang: MAPPING } }, [], "air-draft");
     await userEvent.selectOptions(screen.getByLabelText(en.pipelines.workbench.source.pick), "datasource:shmu-csv");
     const output = step(en.pipelines.workbench.output.title);
-    const records = await within(output).findByRole("table", { name: en.pipelines.workbench.output.caption });
-    const rows = within(records).getAllByRole("row");
-    expect(await within(rows[2]).findByText("not writable through helsinki-all")).toBeInTheDocument();
-    expect(within(rows[2]).getByText(en.pipelines.workbench.validation.source.endpoint)).toBeInTheDocument();
-    expect(within(rows[2]).getByText(en.pipelines.workbench.validation.source.lifetime)).toBeInTheDocument();
-    const ends = within(rows[1]).getByRole("list", { name: en.pipelines.workbench.validation.expiresLabel });
-    expect(ends).toHaveTextContent("Entity expires 2026-10-20T12:08:00Z");
-    expect(ends).toHaveTextContent("pm10 expires 2026-10-20T12:05:00Z");
+    const first = await within(output).findByTestId("workbench-record-0");
+    const second = within(output).getByTestId("workbench-record-1");
+    expect(await within(second).findByText("not writable through helsinki-all")).toBeInTheDocument();
+    expect(within(second).getByText(en.pipelines.workbench.validation.source.endpoint)).toBeInTheDocument();
+    expect(within(second).getByText(en.pipelines.workbench.validation.source.lifetime)).toBeInTheDocument();
+    expect(within(second).getByText("2 problems")).toBeInTheDocument();
+    // The ends it would be written with: the entity's and the attribute's, in the Expires column.
+    const entity = within(first).getAllByRole("row").find((row) => within(row).queryByText("expiresAt"));
+    expect(entity).toHaveTextContent("2026-10-20T12:08:00Z");
+    const pm10 = within(first).getAllByRole("row").find((row) => within(row).queryByText("pm10"));
+    expect(pm10).toHaveTextContent("2026-10-20T12:05:00Z");
     // The run of the mapping keeps its record check on the dialog's draft, for the proposal;
     // the records shown back to the validation step keep nothing (T-4840).
     const tried = seen.ops.find((op) => op.name === "jc_pipeline_try_mapping");
@@ -448,6 +497,18 @@ describe("the pipeline workbench", () => {
         "The records land in the space ovzdusie, checked against the model air.",
       ),
     ).toBeInTheDocument();
+  });
+
+  // T-4971: a model of several classes asks which one the mapping writes; that picker carries its
+  // one-line hint like every other field (UI-16, the walker's field-hint check).
+  it("the_class_picker_of_a_model_with_several_classes_carries_its_hint", async () => {
+    const twoClasses = LINKML.replace("classes:\n", "classes:\n  WeatherObserved:\n    slots: [pm10]\n");
+    stub({ linkml: twoClasses }, { ops: [] });
+    show({ targetEndpoint: URN, compute: { kind: "bloblang", bloblang: MAPPING } });
+    const mapping = step(en.pipelines.workbench.mapping.title);
+    const picker = await within(mapping).findByRole("combobox", { name: en.pipelines.workbench.mapping.type });
+    expect(picker).toHaveAccessibleDescription(en.pipelines.workbench.mapping.typeHint);
+    expect(en.pipelines.workbench.mapping.typeHint).toMatch(/for example/);
   });
 
   // T-3296: the target is step 3, so a newcomer picks it before writing the mapping, and the
@@ -507,7 +568,9 @@ describe("the pipeline workbench", () => {
     expect(await screen.findByText("Sample: air-quality.csv")).toBeInTheDocument();
     const editor = screen.getByLabelText(en.pipelines.field.bloblang);
     await waitFor(() => expect((editor as HTMLTextAreaElement).value).toContain("root.type"));
-    await waitFor(() => expect(seen.ops[0]?.body).toEqual({ sample: { text: "station,pm10\n01,18.2\n", format: "csv" } }));
+    await waitFor(() =>
+      expect(seen.ops.find((op) => op.name === "jc_pipeline_sample_source")?.body).toEqual({ sample: { text: "station,pm10\n01,18.2\n", format: "csv" } }),
+    );
   });
 
   it("is_worked_from_the_keyboard_in_the_order_of_the_steps", async () => {
@@ -547,12 +610,20 @@ describe("what the workbench reads from an answer", () => {
 
   it("names_the_class_a_mapping_writes_and_an_example_per_range", () => {
     expect(classOfMapping('root.type = "Tram"', ["Bus", "Tram"])).toBe("Tram");
-    expect(classOfMapping('root.type = "Ferry"', ["Bus", "Tram"])).toBe("Bus");
+    // A type the model lacks is no reason to show another one's slots (T-4842).
+    expect(classOfMapping('root.type = "Ferry"', ["Bus", "Tram"])).toBeUndefined();
+    expect(classOfMapping('root.type = "Ferry"', ["Bus"])).toBe("Bus");
+    // The output's declared type wins over the first class the text names.
+    expect(classOfMapping('"type": "Event"', ["Event", "Vehicle"], "Vehicle")).toBe("Vehicle");
+    expect(classOfMapping("", ["Event", "Vehicle"], "Ferry")).toBeUndefined();
     expect(classOfMapping("", [])).toBeUndefined();
     // T-4818: a bento.yaml builds whole entities, `"type": "…"`; the first known class wins.
     const bento = 'root = $rows.map_each(r -> { "type": "Property", "id": r.id })\n  "type": "AirQualityObserved",';
     expect(classOfMapping(bento, ["Event", "AirQualityObserved"])).toBe("AirQualityObserved");
-    expect(classOfMapping('"type": "Ferry"', ["Event", "Tram"])).toBe("Event");
+    expect(classOfMapping('"type": "Ferry"', ["Event", "Tram"])).toBeUndefined();
+    expect(mapperType('# jc-mapper {"type":"Vehicle","attributes":{}}\nroot = {}')).toBe("Vehicle");
+    expect(mapperType('# jc-mapper {not json\n')).toBeUndefined();
+    expect(mapperType('root.type = "Vehicle"')).toBeUndefined();
     expect(exampleOf({ range: "integer", kind: "Property" })).toBe("12");
     // T-2861: a relationship's example is an id of its target class, a list on a many end.
     expect(exampleOf({ range: "Station", kind: "Relationship" })).toBe('"urn:ngsi-ld:Station:…"');

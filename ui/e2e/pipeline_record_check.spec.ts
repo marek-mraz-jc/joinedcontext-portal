@@ -83,8 +83,12 @@ const PIPELINE = {
 
 interface Stub {
   validate: unknown;
+  /** The source's records, when not SAMPLE. */
+  sample?: Record<string, unknown>[];
   status?: number;
   seen: Record<string, unknown>[];
+  /** The bodies the workbench sent to jc_pipeline_try_mapping. */
+  tried?: Record<string, unknown>[];
 }
 
 async function stubApi(page: Page, stub: Stub): Promise<void> {
@@ -100,9 +104,13 @@ async function stubApi(page: Page, stub: Stub): Promise<void> {
     }
     if (isCheck(request.method(), request.url())) return json(greenVerdict(request.postData()));
     if (/\/ops\/jc_pipeline_sample_source$/.test(path)) {
-      return json({ records: SAMPLE, fields: Object.keys(SAMPLE[0]), count: SAMPLE.length, truncated: false, errors: [] });
+      const records = stub.sample ?? SAMPLE;
+      return json({ records, fields: Object.keys(records[0]), count: records.length, truncated: false, errors: [] });
     }
-    if (/\/ops\/jc_pipeline_try_mapping$/.test(path)) return json({ input: {}, records: RECORDS, errors: [] });
+    if (/\/ops\/jc_pipeline_try_mapping$/.test(path)) {
+      stub.tried?.push(JSON.parse(request.postData() ?? "{}") as Record<string, unknown>);
+      return json({ input: {}, records: RECORDS, errors: [] });
+    }
     if (/\/ops\/jc_pipeline_validate$/.test(path)) {
       stub.seen.push(JSON.parse(request.postData() ?? "{}") as Record<string, unknown>);
       return json(stub.validate, stub.status ?? 200);
@@ -122,7 +130,7 @@ async function stubApi(page: Page, stub: Stub): Promise<void> {
   });
 }
 
-async function shot(page: Page, name: string): Promise<void> {
+async function shot(page: Page, name: string, steps = ["workbench-output", "workbench-validation"]): Promise<void> {
   const dir = process.env.JC_SHOTS;
   if (!dir) return;
   for (const [width, label] of [
@@ -130,7 +138,7 @@ async function shot(page: Page, name: string): Promise<void> {
     [400, "phone"],
   ] as const) {
     await page.setViewportSize({ width, height: 900 });
-    for (const step of ["workbench-output", "workbench-validation"]) {
+    for (const step of steps) {
       const section = page.locator(`section[aria-labelledby="${step}-title"]`);
       await section.scrollIntoViewIfNeeded();
       await section.screenshot({ path: `${dir}/record-check-${name}-${step.replace("workbench-", "")}-${label}.png` });
@@ -152,15 +160,18 @@ const validation = (page: Page) => page.locator('section[aria-labelledby="workbe
 
 test.describe("the record check in the pipeline workbench", () => {
   test("a green check shows the expiry each record is written with", async ({ page }) => {
-    const stub: Stub = { validate: GREEN, seen: [] };
+    const stub: Stub = { validate: GREEN, seen: [], tried: [] };
     await stubApi(page, stub);
     await openEditor(page);
     await expect(validation(page).getByRole("status")).toContainText("All 2 records are valid against hsl-transit 1.0.0.");
-    const ends = output(page).getByRole("list", { name: "Expiry the record is written with" }).first();
-    await expect(ends).toContainText("Entity expires 2026-10-20T20:08:00Z");
-    await expect(ends).toContainText("speed expires 2026-10-20T20:03:00Z");
-    // The verdict is kept on the draft the dialog edits, for the proposal (PF-57).
-    expect(stub.seen.at(-1)?.draft).toEqual({ kind: "Pipeline", name: "hsl-hfp-vehicles" });
+    // Each record is a table of its attributes (T-4842): the ends sit in its Expires column.
+    const first = output(page).getByTestId("workbench-record-0");
+    await expect(first.getByRole("row").filter({ hasText: "expiresAt" })).toContainText("2026-10-20T20:08:00Z");
+    await expect(first.getByRole("row").filter({ hasText: "speed" })).toContainText("2026-10-20T20:03:00Z");
+    // The run of the mapping keeps its record check on the draft the dialog edits, for the
+    // proposal (PF-57); the validation of the records shown back keeps nothing (T-4840).
+    expect(stub.tried?.at(-1)?.draft).toEqual({ kind: "Pipeline", name: "hsl-hfp-vehicles" });
+    expect(stub.seen.at(-1)?.draft).toBeUndefined();
     await shot(page, "green");
   });
 
@@ -168,7 +179,7 @@ test.describe("the record check in the pipeline workbench", () => {
     await stubApi(page, { validate: REFUSED, seen: [] });
     await openEditor(page);
     await expect(validation(page).getByRole("status")).toContainText("1 record breaks hsl-transit 1.0.0 and would not be written; 1 valid.");
-    const row = output(page).getByRole("row").nth(2);
+    const row = output(page).getByTestId("workbench-record-1");
     await expect(row).toContainText("not writable through helsinki-all");
     for (const source of ["Model", "Endpoint", "Lifetime"]) {
       await expect(row.getByText(source, { exact: true })).toBeVisible();
@@ -185,5 +196,16 @@ test.describe("the record check in the pipeline workbench", () => {
     await openEditor(page);
     await expect(validation(page).getByRole("alert")).toBeVisible();
     await shot(page, "error");
+  });
+
+  test("an XML source's nested values read as words in the sample, never as JSON (T-4972)", async ({ page }) => {
+    // Bento reads an XML root's namespace declarations as `-prefix` members of one object.
+    const xml = [{ FeatureCollection: { "-BsWfs": "http://xml.fmi.fi/schema/wfs/2.0", "-gml": "http://www.opengis.net/gml/3.2" }, numberMatched: "24" }];
+    await stubApi(page, { validate: GREEN, sample: xml, seen: [] });
+    await openEditor(page);
+    const sample = page.locator('section[aria-labelledby="workbench-sample-title"]').getByRole("table", { name: "Sample records" });
+    await expect(sample.getByRole("cell").first()).toHaveText("-BsWfs: http://xml.fmi.fi/schema/wfs/2.0; -gml: http://www.…");
+    await expect(sample).not.toContainText('{"');
+    await shot(page, "xml", ["workbench-sample"]);
   });
 });

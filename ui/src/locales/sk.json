@@ -325,7 +325,9 @@
       },
       "anyKind": "Akýkoľvek druh"
     },
-    "reasonFirst": "Najprv napíšte, prečo zmenu zamietate."
+    "reasonFirst": "Najprv napíšte, prečo zmenu zamietate.",
+    "publication": "Dataset {name} v CKAN po schválení",
+    "publicationPublic": "Po schválení tento dataset môže čítať ktokoľvek bez prihlásenia. Pred napísaním názvu si prečítajte stránku aj zmeny polí vyššie."
   },
   "lane": {
     "green": "Zelená",
@@ -1680,6 +1682,8 @@
       "lead": "Jedna MCP adresa pre všetky endpointy. Pridajte ju raz do AI asistenta: otvorené endpointy odpovedajú bez prihlásenia a po prihlásení pribudnú tie, ktoré smiete čítať. Asistent si endpoint vyberie, prečíta jeho atribúty, model a prístup a každé volanie prebehne pod politikou daného endpointu.",
       "claude": "Kopírovať pre Claude Code",
       "json": "Kopírovať pre iného MCP klienta",
+      "claudeLine": "Príkaz pre Claude Code",
+      "jsonLine": "Konfigurácia pre iného klienta MCP",
       "vscode": "Pridať do VS Code",
       "cursor": "Pridať do Cursor"
     },
@@ -2335,7 +2339,8 @@
         "fileHint": "Procesory, ktoré táto pipeline spúšťa, tak ako ich repozitár drží vedľa jej manifestu. Prihlasovacie údaje sú odkazy, ktoré doplní runner, nikdy nie hodnoty.",
         "fileEdit": "Upraviť súbor mapovania; Navrhnúť ho pošle s manifestom",
         "fileEditDisabled": "Súbor mapovania môžete upraviť, keď sa načíta.",
-        "type": "Typ, ktorý mapovanie zapisuje"
+        "type": "Typ, ktorý mapovanie zapisuje",
+        "typeHint": "Model má niekoľko tried: vyberte tú, ktorou sa stane každý záznam, napríklad meranie kvality ovzdušia. Zoznam nižšie ukazuje, čo prijíma."
       },
       "output": {
         "title": "Namapovaný výstup",
@@ -2346,7 +2351,16 @@
         "caption": "Namapované záznamy",
         "record": "Záznam",
         "written": "Ako sa zapíše",
-        "problems": "Problémy"
+        "problems": "Problémy",
+        "recordN": "Záznam {n}",
+        "problemCount": "{count, plural, one {# problém} few {# problémy} other {# problémov}}",
+        "recordCaption": "Atribúty {id} tak, ako sa zapíšu",
+        "value": "Hodnota",
+        "check": "Kontrola",
+        "expires": "Vyprší",
+        "observedAt": "pozorované {at}",
+        "entityLifetime": "životnosť entity",
+        "passes": "prešlo"
       },
       "validation": {
         "title": "Validácia",
@@ -2369,7 +2383,27 @@
         "hint": "Určte endpoint, cez ktorý sa záznamy zapíšu; uloženie navrhne zmenu.",
         "lands": "Záznamy pristanú v priestore {space}, kontrolované voči modelu {model}.",
         "landsUnmodelled": "Záznamy pristanú v priestore {space}, ktorý zatiaľ nemenuje dátový model.",
-        "save": "Pomenujte pipeline nižšie a navrhnite ju: nič sa nezapíše, kým zmenu neschvália."
+        "save": "Pomenujte pipeline nižšie a navrhnite ju: nič sa nezapíše, kým zmenu neschvália.",
+        "card": "Čo pipeline zapisuje",
+        "space": "Priestor",
+        "model": "Model",
+        "type": "Zapisuje typ",
+        "noType": "Typ vyberte v kroku 4",
+        "explain": "Čo model priestoru prijíma pre {type} a čo tento endpoint dovolí pipeline zapísať. Pole, ktoré endpoint nepovoľuje, sa odmietne pred návrhom, nie až za behu.",
+        "caption": "Atribúty typu {type}",
+        "field": "Pole",
+        "kind": "Druh",
+        "value": "Hodnota",
+        "required": "Povinné",
+        "writable": "Zapisovateľné tu",
+        "locked": "nezapisovateľné",
+        "judging": "overuje sa…",
+        "lifetimeKind": "životnosť entity",
+        "instant": "okamih",
+        "inLifetime": "nastavuje sa v kroku Životnosť",
+        "isRequired": "povinné",
+        "optional": "nepovinné",
+        "isWritable": "zapisovateľné"
       },
       "changes": {
         "title": "Čo by sa zmenilo v {space}",
@@ -2387,6 +2421,11 @@
           "update": "Zmenená",
           "unchanged": "Bez zmeny"
         }
+      },
+      "lifetime": {
+        "title": "Životnosť",
+        "hint": "Kedy entity alebo niektoré ich polia opustia priestor. Uloží sa ako životnosť pipeline, nikdy ako kód mapovania.",
+        "pickType": "Najprv vyberte cieľ a typ, ktorý mapovanie zapisuje: životnosť sa nastavuje pre každý typ."
       }
     },
     "mapper": {
@@ -2434,28 +2473,9 @@
         "notTime": "{field} obsahuje {value}, čo nie je čas: použite text RFC 3339, napríklad 2026-10-20T14:30:00Z, alebo Unix sekundy."
       },
       "expiry": {
-        "title": "Kedy entity zmiznú?",
-        "legend": "Entity tohto typu sa odstránia",
-        "never": "Nikdy",
-        "neverHint": "Zostanú, kým ich niekto nezmaže alebo ich neodstráni pravidlo priestoru.",
-        "source": "V čase, ktorý dá zdroj",
-        "sourceHint": "Každá entita dostane vlastné expiresAt: časový atribút plus určitý čas, napríklad observedOn plus 10 minút, alebo čas zápisu záznamu plus určitý čas. Pipeline ho zapíše po vašom mapovaní.",
-        "stale": "Keď ich zdroj prestane posielať",
-        "staleHint": "Raz za hodinu pipeline zmaže entity tohto typu, ktoré počas okna neaktualizovala.",
-        "from": "Čas z",
-        "written": "Čas zápisu záznamu",
-        "plus": "Pripočítať",
-        "plusUnit": "Jednotka pridaného času",
-        "after": "Neaktualizované počas",
-        "afterUnit": "Jednotka okna",
-        "afterHint": "Entity typu {type} neaktualizované takto dlho sa raz za hodinu zmažú.",
-        "refusals": "Návrh sa odmietne, keď má pipeline viac ako jeden výstup, keď do toho istého priestoru zapisuje iná pipeline, alebo keď žiadna Policy nedáva tejto pipeline deleteBatch a queryBatch na typ; odmietnutie pomenuje Policy, ktorú treba rozšíriť.",
-        "history": "História typu {type} sa riadi pravidlami priestoru.",
-        "spaceRules": "Uchovávanie v {space}",
-        "noTimeSlot": "Zatiaľ nie je namapovaný žiadny atribút dátumu a času typu {type}, preto sa koniec počíta od času zápisu záznamu.",
-        "inManifest": "Životnosť typu {type} je nastavená v manifeste pipeline (pevný dátum, strop alebo vybrané atribúty). Zmeňte ju v zobrazení YAML; tento editor ju ponechá bez zmeny.",
-        "migrated": "Čas konca, ktorý tento krok doteraz zapisoval, je teraz nastavením životnosti pipeline nižšie. Uloží sa s vaším ďalším návrhom.",
-        "migrateField": "Tento krok zapisuje expiresAt z poľa záznamu {field} a z tohto poľa nie je namapovaný žiadny atribút dátumu a času. Namapujte ho na atribút dátumu a času alebo nižšie zvoľte iný čas; dovtedy si krok ponechá vlastné riadky expiresAt."
+        "migrated": "Čas konca, ktorý tento krok zapisoval, je teraz životnosťou pipeline v kroku Životnosť. Uloží sa s vaším ďalším návrhom.",
+        "migrateField": "Tento krok zapisuje expiresAt z poľa záznamu {field} a z neho sa nemapuje žiadny atribút s dátumom a časom. Namapujte ho na taký atribút, vyberte koniec v kroku Životnosť alebo zahoďte vlastné riadky kroku.",
+        "drop": "Zahodiť vlastné expiresAt kroku"
       }
     },
     "debug": {
@@ -2635,6 +2655,68 @@
       "rejectedUnavailable": "Odmietnuté záznamy sa nepodarilo načítať.",
       "noRejected": "Model neodmietol žiadny záznam tejto pipeline.",
       "credentials": "Prihlasovacie údaje"
+    },
+    "lifetime": {
+      "legend": "Čo sa stane s každou entitou {type}",
+      "keep": "Ponechať entity",
+      "keepHint": "Zostanú, kým ich niekto nezmaže alebo ich pravidlo priestoru neodstráni.",
+      "entity": "Celá entita vyprší",
+      "entityHint": "Entita {type} zmizne v čase, ktorý nastavíte.",
+      "attributes": "Vypršia len niektoré polia",
+      "attributesHint": "Entita {type} zostane; vybrané polia zmiznú, keď zostarnú.",
+      "stale": "Zmazať, keď ich zdroj prestane posielať",
+      "staleHint": "Raz za hodinu pipeline zmaže entity tohto typu, ktoré istý čas neaktualizovala. Odmietne sa, keď má pipeline viac výstupov alebo jej žiadna Policy nepovoľuje deleteBatch na typ.",
+      "kind": {
+        "legend": "Koniec",
+        "from": "Od poľa",
+        "fromHint": "Čas zo záznamu plus nejaký čas.",
+        "rolling": "Po každom zápise",
+        "rollingHint": "Každý zápis začne čas odznova.",
+        "at": "K pevnému dátumu",
+        "atHint": "Jeden dátum a čas pre všetky."
+      },
+      "from": "Čas od",
+      "observedAt": "observedAt (najnovší z jej polí)",
+      "noTimeSlot": "Typ nemá atribút s dátumom a časom: koniec sa počíta od najnovšieho observedAt jej polí.",
+      "plus": "Pridať",
+      "keepFor": "Ponechať",
+      "unitOf": "Jednotka: {what}",
+      "cap": "Najviac po zápise",
+      "noCap": "bez limitu",
+      "capOf": "{span}",
+      "at": "Dátum a čas",
+      "atHint": "Vo vašom časovom pásme; uloží sa v UTC.",
+      "attribute": "Pole",
+      "remove": "Odstrániť",
+      "removeOf": "Odstrániť koniec poľa {name}",
+      "add": "Pridať pole",
+      "noAttributes": "Tento endpoint nedovolí pipeline zapísať žiadne pole typu {type}, takže žiadne pole nemôže vypršať.",
+      "after": "Neaktualizované",
+      "afterUnit": "Jednotka okna",
+      "afterHint": "Entity typu {type}, ktoré sa tak dlho neaktualizovali, sa raz za hodinu zmažú.",
+      "history": "História typu {type} sa riadi pravidlami priestoru bez ohľadu na voľbu tu.",
+      "spaceRules": "Uchovávanie v {space}",
+      "span": "{count} {unit}",
+      "noSpan": "žiadny čas",
+      "problem": {
+        "date": "Zadajte dátum a čas.",
+        "past": "Dátum je v minulosti: všetky entity by sa odstránili naraz. Vyberte neskorší.",
+        "span": "Zadajte, ako dlho ich ponechať: aspoň minútu."
+      },
+      "says": {
+        "keep": "Každá entita {type} zostane, kým ju niekto nezmaže alebo ju pravidlo priestoru neodstráni.",
+        "entity": "Každá entita {type} sa odstráni {end}.",
+        "renewed": "Novší zápis posunie koniec ďalej.",
+        "attribute": "Pole {name} každej entity {type} zmizne {end}.",
+        "from": "{span} po jej {from}",
+        "fromExact": "v jej {from}",
+        "observedAt": "poslednom observedAt",
+        "cap": "a najneskôr {span} po zápise",
+        "rolling": "{span} po jej poslednom zápise",
+        "at": "{date}",
+        "stale": "Raz za hodinu pipeline zmaže každú entitu {type}, ktorú neaktualizovala {span}."
+      },
+      "allAdded": "Každé pole, ktoré endpoint povoľuje, už má koniec."
     },
     "access": {
       "section": "Prístup k iným priestorom",
@@ -4054,7 +4136,8 @@
       },
       "lastChange": "Posledná zmena {time}: {summary}",
       "lastFailed": "Posledný beh zlyhal {time}: {summary}. Odstráňte príčinu a zverejnite znova.",
-      "needsCatalogue": "Najprv vyššie pridajte katalóg: dataset potrebuje portál CKAN, kam sa zverejní."
+      "needsCatalogue": "Najprv vyššie pridajte katalóg: dataset potrebuje portál CKAN, kam sa zverejní.",
+      "mapAndTable": "Mapa a tabuľka na stránke datasetu"
     },
     "statusFailed": "Stav katalógov tohto projektu sa nepodarilo načítať, takže nižšie uvedené môže byť neúplné: {reason}. Obnovte stránku a skúste to znova.",
     "access": {
@@ -5238,7 +5321,18 @@
       },
       "assistant": {
         "transcript": "Čítanie uložených konverzácií"
-      }
+      },
+      "knowledge": {
+        "file": {
+          "uploaded": "Súbor pridaný do zdroja znalostí",
+          "removed": "Súbor odstránený zo zdroja znalostí"
+        },
+        "answers": {
+          "forgotten": "Uložené odpovede zabudnuté"
+        }
+      },
+      "access-request": "Žiadosť o prístup",
+      "personal-data": "Žiadosť o osobné údaje"
     },
     "sources": {
       "reconciler": "Konfigurácia",
@@ -6981,7 +7075,7 @@
       "contactHelp": "Rolová adresa ako oddelenie otvorených dát, nikdy osobný e-mail.",
       "keywords": "Kľúčové slová",
       "keywordsHelp": "Oddelené čiarkami, v jazyku {language}.",
-      "spatialHelp": "Kódy NUTS alebo odkazy na miesta oddelené čiarkami, napríklad SK032.",
+      "spatialHelp": "Región, ktorý dáta pokrývajú, napríklad Banskobystrický kraj (SK032). Mapa datasetu ukáže jeho záznamy všade, kde majú polohu.",
       "start": "Obsahuje dáta od",
       "end": "Obsahuje dáta do",
       "back": "Späť",
@@ -6994,7 +7088,37 @@
         "licence": "Vyberte licenciu.",
         "contactBoth": "Uveďte meno aj e-mail kontaktu, alebo ani jedno.",
         "email": "Zadajte e-mailovú adresu, napríklad opendata@example.org.",
-        "period": "Koniec obdobia nemôže byť pred jeho začiatkom. Vyberte dátum konca po začiatku."
+        "period": "Koniec obdobia nemôže byť pred jeho začiatkom. Vyberte dátum konca po začiatku.",
+        "title": "Zadajte názov datasetu."
+      },
+      "datasetTitle": "Názov datasetu",
+      "datasetTitleHelp": "Názov, pod ktorým ho katalóg uvádza, v jazyku {language}.",
+      "datasetDescription": "Popis",
+      "datasetDescriptionHelp": "Čo dáta sú a odkiaľ pochádzajú, v jazyku {language}.",
+      "mapExtent": "Územie na mape",
+      "noArea": "Bez územia",
+      "attributes": "Čo verejný dataset ukáže",
+      "attributesHelp": "Odškrtnite atribút, ktorý má zostať mimo. Osobné atribúty sa nikdy neponúkajú: model ich označuje ako osobné údaje, takže ich verejný dataset nesmie niesť.",
+      "noAttributes": "Dátový model endpointu zatiaľ neuvádza žiadne atribúty. Najprv pridajte dátový model do priestoru endpointu a potom návrh vytvorte znova.",
+      "ofType": "Typ {type}",
+      "withheld": {
+        "personal": "V modeli sú to osobné údaje: verejný dataset ich nikdy nenesie.",
+        "hidden": "Endpoint ho už skrýva. Ak ho chcete ukázať, zmeňte skryté atribúty endpointu."
+      },
+      "datastore": "Vložiť riadky do tabuľky v CKAN",
+      "datastoreHelp": "CKAN ich ukáže ako tabuľku, ktorú možno filtrovať a dopytovať cez SQL.",
+      "datastoreUnavailable": "Endpoint neposkytuje CSV, z ktorého sa tabuľka v CKAN plní. Najprv na endpointe zapnite reprezentáciu CSV.",
+      "confirmLabel": "Na potvrdenie napíšte názov endpointu",
+      "confirmHelp": "Zverejnenie sprístupní {name} komukoľvek. Na potvrdenie napíšte {name}.",
+      "confirmFirst": "Najprv potvrďte napísaním {name} vyššie.",
+      "ckanPage": "Ako bude vyzerať stránka v CKAN",
+      "resources": "Dáta a zdroje",
+      "columns": "Stĺpce",
+      "resource": {
+        "datastore": "Tabuľka v CKAN (filter, SQL)",
+        "map": "Mapa záznamov s polohou",
+        "api": "NGSI-LD API a ďalšie formáty endpointu",
+        "dcat": "Záznam DCAT-AP (JSON-LD)"
       }
     },
     "licence": {
@@ -8041,6 +8165,7 @@
     "decisions": "Čaká na vaše rozhodnutie",
     "decisionsHint": "Schválenie zmeny v červenom pruhu si pýta jej názov, ako na jej vlastnej stránke.",
     "noDecisions": "Nič nečaká na vaše rozhodnutie.",
+    "listFailed": "Zmeny projektu {project} sa nenačítali, zoznam preto nemusí byť úplný: {reason} Schránka to skúsi znova o 30 sekúnd.",
     "by": "navrhol {author} v {project}",
     "openChange": "Otvoriť zmenu",
     "showDiff": "Ukázať, čo mení",

@@ -41,6 +41,15 @@ const NO_FILTER: Filter = { kind: "", name: "", author: "", since: "", until: ""
  * newest first, a page at a time. The API applies the read rule of the open list, so a change to
  * a kind this person does not read is not here.
  */
+// A manifest kind is a fixed vocabulary: the kinds the person holds a right on, any kind a
+// listed change names, and the one the list is filtered by (T-4947).
+function kindChoices(held: readonly string[], params: readonly unknown[], current: string): string[] {
+  const named = params
+    .map((value) => (value as Record<string, unknown>).kind)
+    .filter((kind): kind is string => typeof kind === "string");
+  return [...new Set([...held, ...named, ...(current ? [current] : [])])].sort();
+}
+
 export function ApprovalsHistory({
   project,
 }: {
@@ -114,17 +123,11 @@ export function ApprovalsHistory({
   });
 
   const items = history.data?.pages.flatMap((page) => page.items) ?? [];
-  // A manifest kind is a fixed vocabulary: the kinds the person holds a right on, and any kind
-  // a listed change names (T-4947).
-  const kinds = [
-    ...new Set([
-      ...ownRights(permissions.data).kinds,
-      ...items
-        .map((item) => (item.summary.params as Record<string, unknown>).kind)
-        .filter((kind): kind is string => typeof kind === "string"),
-      ...(filter.kind ? [filter.kind] : []),
-    ]),
-  ].sort();
+  const kinds = kindChoices(
+    ownRights(permissions.data).kinds,
+    items.map((item) => item.summary.params),
+    filter.kind,
+  );
   const filtered = Object.values(filter).some((value) => value !== "");
   const dateFormatter = new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",

@@ -1006,7 +1006,7 @@
     "src/pages/catalogue/PublishDataset.tsx": {
       "controls": {
         "Button": 6,
-        "Checkbox": 1
+        "Checkbox": 3
       },
       "tests": [
         "catalogue_publish.test.tsx"
@@ -1522,19 +1522,18 @@
         "pipeline_debug_view.test.tsx"
       ]
     },
-    "src/pages/pipelines/ExpiryChoice.tsx": {
+    "src/pages/pipelines/LifetimeChoice.tsx": {
       "controls": {
-        "RadioGroup": 1
+        "Button": 2,
+        "RadioGroup": 2
       },
       "tests": [
-        "expiry_choice.test.tsx",
-        "output_mapper_ui.test.tsx",
-        "retention_expiry.test.ts"
+        "lifetime_choice.test.tsx"
       ]
     },
     "src/pages/pipelines/OutputMapper.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 3
       },
       "tests": [
         "output_mapper_ui.test.tsx"
@@ -1600,7 +1599,8 @@
         "pipeline_flow_steps.test.tsx",
         "pipeline_kpi_preset.test.tsx",
         "pipeline_studio_debug.test.tsx",
-        "pipeline_studio_functions.test.ts"
+        "pipeline_studio_functions.test.ts",
+        "pipeline_workbench.test.tsx"
       ]
     },
     "src/pages/pipelines/PipelineTemplates.tsx": {

@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { pageFindings } from "../tests/pageChecks";
 import { axeViolations } from "./axe";
 
 // The same shape as the other journeys: the built bundle, the API answered from the browser.
@@ -42,7 +46,36 @@ const FORWARDED = {
   details: { object: "endpoints/hub-read", count: 1 },
 };
 
-async function stubApi(page: Page): Promise<void> {
+// Two kinds the Portal writes past the ingest door (T-4968): the walker found the raw key
+// "knowledge.file.uploaded" in the feed on dev.
+const UPLOADED = {
+  time: "2026-09-16T09:10:00Z",
+  project: "helsinki",
+  kind: "knowledge.file.uploaded",
+  source: "portal",
+  summary: "jana.kovacova uploaded rules.pdf to city-rules",
+  severity: "info",
+  details: { actor: "jana.kovacova", source: "city-rules", name: "rules.pdf", bytes: 48213 },
+};
+
+const ASKED = {
+  time: "2026-09-16T09:12:00Z",
+  project: "helsinki",
+  kind: "access-request",
+  source: "portal",
+  summary: "jana.kovacova asked for access: pipeline helsinki/air on endpoint hub/air-read",
+  severity: "info",
+  details: { actor: "jana.kovacova", action: "asked for access" },
+};
+
+const NAMESPACES = Object.keys(
+  JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/locales/en.json"), "utf8")) as object,
+);
+
+async function stubApi(
+  page: Page,
+  { items = [LOADED], live = FORWARDED }: { items?: object[]; live?: { kind: string } } = {},
+): Promise<void> {
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
     const json = (body: unknown, status = 200) =>
@@ -54,14 +87,14 @@ async function stubApi(page: Page): Promise<void> {
         status: 200,
         contentType: "text/event-stream",
         headers: { "cache-control": "no-cache" },
-        body: `event: federation.forward\ndata: ${JSON.stringify(FORWARDED)}\n\n`,
+        body: `event: ${live.kind}\ndata: ${JSON.stringify(live)}\n\n`,
       });
     }
     if (url.pathname.endsWith("/activity")) {
       return json({
         apiVersion: "joinedcontext.com/v1alpha1",
         kind: "ActivityList",
-        items: [LOADED],
+        items,
       });
     }
     if (url.pathname.endsWith("/auth/me")) {
@@ -128,4 +161,24 @@ test.describe("activity", () => {
     await expect(page.getByRole("table")).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
   });
+
+  for (const width of [1440, 400]) {
+    test(`kinds the Portal writes read as words at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await stubApi(page, { items: [UPLOADED], live: ASKED });
+
+      await page.goto("/projects/helsinki/activity?lang=en");
+      await expect(page.getByRole("cell", { name: UPLOADED.summary })).toBeVisible();
+      // The live tail listens per kind: an access-request event reaches it as it happens.
+      await expect(page.getByRole("cell", { name: ASKED.summary })).toBeVisible({ timeout: 2000 });
+      const row = (summary: string) => page.getByRole("row").filter({ hasText: summary });
+      await expect(row(UPLOADED.summary)).toContainText("File added to a knowledge source");
+      await expect(row(ASKED.summary)).toContainText("Access request");
+      await expect(page.getByLabel("Kind").locator("option", { hasText: "File added to a knowledge source" })).toHaveCount(1);
+
+      // The live walker's own checks (tests/pageChecks.ts), raw-i18n-key among them.
+      expect(await page.evaluate(pageFindings, { namespaces: NAMESPACES, layout: true })).toEqual([]);
+      if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/activity-kinds-${width}.png`, fullPage: true });
+    });
+  }
 });

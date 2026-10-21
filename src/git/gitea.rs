@@ -73,12 +73,45 @@ impl From<GitError> for ApiError {
                 ApiError::NotFound("resource not found in git repository".to_string())
             }
             GitError::Conflict(msg) => ApiError::Conflict(msg),
+            // The forge down, slow or refusing the Portal's own token is an outage the person
+            // can wait out, not a fault of their request (T-4966: a Gitea 401 emptied the inbox).
+            GitError::Transport(_)
+            | GitError::Api {
+                status: 401 | 403 | 408 | 429 | 500..=599,
+                ..
+            } => {
+                tracing::warn!(error = %err, "git forge unavailable");
+                ApiError::Unavailable(
+                    "The Git repository did not answer the Portal. Try again in a minute; if it \
+                     lasts, ask the operator to check the forge and the Portal's forge token."
+                        .to_string(),
+                )
+            }
             other => {
                 tracing::error!(error = %other, "git error");
                 ApiError::Internal("git operation failed".to_string())
             }
         }
     }
+}
+
+/// The sentence of a forge error answer: Gitea answers `{"message": …, "url": <its swagger
+/// page>}`, and only the message reaches a person, never the raw body (T-4967). Any other body
+/// keeps its first line, capped, since a proxy in front of the forge may answer a whole page.
+async fn forge_message(res: reqwest::Response) -> String {
+    let body = res.text().await.unwrap_or_default();
+    if let Ok(serde_json::Value::Object(map)) = serde_json::from_str(&body) {
+        if let Some(serde_json::Value::String(message)) = map.get("message") {
+            return message.trim().to_string();
+        }
+    }
+    body.lines()
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .chars()
+        .take(200)
+        .collect()
 }
 
 /// A team of the forge organization (PF-87).
@@ -859,11 +892,10 @@ impl GiteaClient {
         } else if status == reqwest::StatusCode::NOT_FOUND {
             Err(GitError::NotFound)
         } else if status == reqwest::StatusCode::CONFLICT {
-            let message = res.text().await.unwrap_or_default();
-            Err(GitError::Conflict(message))
+            Err(GitError::Conflict(forge_message(res).await))
         } else {
             let status_code = status.as_u16();
-            let message = res.text().await.unwrap_or_default();
+            let message = forge_message(res).await;
             Err(GitError::Api {
                 status: status_code,
                 message,

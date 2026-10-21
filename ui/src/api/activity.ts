@@ -26,6 +26,11 @@ export const ACTIVITY_KINDS = [
   "person.changed",
   "model.key",
   "assistant.transcript",
+  "knowledge.file.uploaded",
+  "knowledge.file.removed",
+  "knowledge.answers.forgotten",
+  "access-request",
+  "personal-data",
 ] as const;
 
 export const ACTIVITY_SOURCES = [

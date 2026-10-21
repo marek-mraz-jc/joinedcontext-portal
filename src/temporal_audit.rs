@@ -11,6 +11,7 @@
 //! output samples through the same rules is the upgrade path.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::LazyLock;
 
 use jc_core::kinds::RetentionRule;
 use serde::Serialize;
@@ -186,12 +187,18 @@ fn enclosing(blank: &[u8], at: usize) -> Option<(usize, usize)> {
 
 /// The expression of member `name` at the object's own level.
 fn member<'a>(text: &'a str, blank: &[u8], obj: (usize, usize), name: &str) -> Option<&'a str> {
-    let pattern = regex::Regex::new(&format!(r#""{name}"\s*:\s*"#)).ok()?;
-    for m in pattern.find_iter(&text[obj.0..obj.1]) {
-        if enclosing(blank, obj.0 + m.start()) != Some(obj) {
+    let quoted = format!("\"{name}\"");
+    let inside = &text[obj.0..obj.1];
+    for (at, _) in inside.match_indices(&quoted) {
+        if enclosing(blank, obj.0 + at) != Some(obj) {
             continue;
         }
-        let from = obj.0 + m.end();
+        // `"name"`, blanks, `:`, blanks: the member's key, as a JSON or Bloblang object writes it
+        let after = &inside[at + quoted.len()..];
+        let Some(value) = after.trim_start().strip_prefix(':') else {
+            continue;
+        };
+        let from = obj.1 - value.trim_start().len();
         let mut depth = 0usize;
         let mut to = from;
         while to < obj.1 {
@@ -225,16 +232,22 @@ fn observed_source(expr: Option<&str>) -> ObservedAt {
     }
 }
 
+/// The entity type literal and the member keys of a mapping, built once (T-4965). The patterns
+/// are constants: a failure to build one is a bug a test catches, never input.
+static PATTERNS: LazyLock<Option<(regex::Regex, regex::Regex)>> = LazyLock::new(|| {
+    Some((
+        regex::Regex::new(r#""type"\s*:\s*"([A-Za-z_][\w-]*)""#).ok()?,
+        regex::Regex::new(
+            r#""([A-Za-z_@][\w@]*)"\s*:|root\.([A-Za-z_]\w*)\s*=|(\$[A-Za-z_]\w*)\s*:"#,
+        )
+        .ok()?,
+    ))
+});
+
 /// Each (entity type, attribute) a mapping writes. `default_type` is the type of an attribute
 /// written before any entity type literal, the pipeline's one output type.
 pub fn scan(text: &str, default_type: Option<&str>) -> BTreeMap<(String, String), Seen> {
-    // The patterns are constants; a failure to build one is a bug a test catches, never input.
-    let (Ok(type_literal), Ok(key)) = (
-        regex::Regex::new(r#""type"\s*:\s*"([A-Za-z_][\w-]*)""#),
-        regex::Regex::new(
-            r#""([A-Za-z_@][\w@]*)"\s*:|root\.([A-Za-z_]\w*)\s*=|(\$[A-Za-z_]\w*)\s*:"#,
-        ),
-    ) else {
+    let Some((type_literal, key)) = PATTERNS.as_ref() else {
         return BTreeMap::new();
     };
     let blank = blanked(text.as_bytes());
@@ -477,6 +490,16 @@ root = {
             ["urn:ngsi-ld:Dataset:a".to_owned()].into()
         );
         assert!(at("level").received_with_unit && !at("speed").received_with_unit);
+    }
+
+    #[test]
+    fn a_member_key_is_its_quoted_name_then_a_colon_across_blanks() {
+        let found = scan(
+            "root = { \"type\": \"Tag\", \"tag\": { \"type\": \"Property\", \"value\": \"observedAt\", \"observedAt\"\n    :  this.t } }",
+            None,
+        );
+        let tag = &found[&("Tag".to_owned(), "tag".to_owned())];
+        assert_eq!(tag.observed_at, set(&[ObservedAt::Mapped]));
     }
 
     #[test]

@@ -16,6 +16,7 @@ function fakePage(width: number) {
   const page = {
     viewportSize: () => ({ width, height: 812 }),
     locator: (selector: string) => ({ selector }),
+    getByText: (text: RegExp) => ({ text: String(text) }),
     screenshot: async (option: { path: string }) => {
       options.push(option);
       writeFileSync(option.path, "png");
@@ -46,14 +47,14 @@ describe("shot", () => {
     );
   });
 
-  it("does nothing without SHOTS_DIR and masks password fields when it shoots", async () => {
+  it("does nothing without SHOTS_DIR and masks password fields and token-shaped text when it shoots", async () => {
     const { page, options } = fakePage(375);
     expect(await shot(page, { area: "portal", route: "/", state: "start", who: "steward", lang: "en" }, "")).toBeUndefined();
     expect(options).toEqual([]);
     const dir = mkdtempSync(join(tmpdir(), "shots-"));
     const file = await shot(page, { area: "portal", route: "/", state: "start", who: "steward", lang: "en" }, dir);
     expect(file).toBe(join(dir, "portal-root-start-steward-en-375.png"));
-    expect(options[0]).toMatchObject({ fullPage: true, mask: [{ selector: "input[type=password]" }] });
+    expect(options[0]).toMatchObject({ fullPage: true, mask: [{ selector: "input[type=password]" }, { text: expect.stringContaining("eyJ") }] });
   });
 });
 

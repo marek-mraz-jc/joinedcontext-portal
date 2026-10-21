@@ -511,8 +511,12 @@ fn git_error_converts_to_api_error() {
     let conflict = GitError::Conflict("branch exists".into());
     assert!(matches!(ApiError::from(conflict), ApiError::Conflict(_)));
 
+    // The forge down or refusing the Portal's own token is an outage, not the caller's fault (T-4966).
     let transport = GitError::Transport("connection reset".into());
-    assert!(matches!(ApiError::from(transport), ApiError::Internal(_)));
+    assert!(matches!(
+        ApiError::from(transport),
+        ApiError::Unavailable(_)
+    ));
 
     let config = GitError::Config("missing var".into());
     assert!(matches!(ApiError::from(config), ApiError::Internal(_)));
@@ -521,7 +525,13 @@ fn git_error_converts_to_api_error() {
         status: 500,
         message: "internal".into(),
     };
-    assert!(matches!(ApiError::from(api), ApiError::Internal(_)));
+    assert!(matches!(ApiError::from(api), ApiError::Unavailable(_)));
+
+    let refused = GitError::Api {
+        status: 422,
+        message: "invalid".into(),
+    };
+    assert!(matches!(ApiError::from(refused), ApiError::Internal(_)));
 }
 
 #[tokio::test]
@@ -853,4 +863,41 @@ fn the_clone_address_is_the_public_forge() {
         config.repo, "configuration",
         "the configuration client is unchanged"
     );
+}
+
+/// T-4967: the forge answers errors as `{"message": …, "url": <its swagger page>}`; the error
+/// carries the message alone, so the activity feed and a 409 answer never show the raw body.
+#[tokio::test]
+async fn a_forge_error_keeps_only_its_message() {
+    let server = MockServer::start().await;
+    let base_url = server.uri().parse().unwrap();
+    let client = GiteaClient::new(base_url, "test-owner", "test-repo", "secret-token").unwrap();
+    let body = json!({
+        "message": "invalid username, password or token",
+        "url": "https://forge.example/api/swagger"
+    });
+    Mock::given(method("DELETE"))
+        .and(path("/api/v1/repos/test-owner/test-repo/branches/refused"))
+        .respond_with(ResponseTemplate::new(401).set_body_json(body.clone()))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/repos/test-owner/test-repo/branches"))
+        .respond_with(ResponseTemplate::new(409).set_body_json(json!({
+            "message": "The branch already exists.",
+            "url": "https://forge.example/api/swagger"
+        })))
+        .mount(&server)
+        .await;
+
+    let err = client.delete_branch("refused").await.unwrap_err();
+    assert_eq!(
+        err,
+        GitError::Api {
+            status: 401,
+            message: "invalid username, password or token".into()
+        }
+    );
+    let err = client.create_branch("taken", "main").await.unwrap_err();
+    assert_eq!(err, GitError::Conflict("The branch already exists.".into()));
 }
