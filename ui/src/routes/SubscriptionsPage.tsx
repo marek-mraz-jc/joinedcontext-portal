@@ -187,7 +187,57 @@ function Watched({ project, form }: { project: string; form: SubscriptionForm })
   );
 }
 
-const COLUMNS = 6;
+/** What the space reports of a subscription's deliveries, in `status.notifications` (T-4866). */
+export interface Deliveries {
+  status?: string;
+  timesSent?: number;
+  timesFailed?: number;
+  lastNotification?: string;
+  lastSuccess?: string;
+  lastFailure?: string;
+}
+
+/**
+ * Whether the receiver gets what the subscription watches, in words: delivered with the last
+ * time, failing with the last failure, or nothing sent yet. The tone never carries it alone.
+ */
+export function DeliveryCell({ deliveries, live }: { deliveries?: Deliveries; live: boolean }): JSX.Element {
+  const { t, i18n } = useTranslation();
+  if (!live) return <>—</>;
+  const when = (at?: string) =>
+    at
+      ? new Intl.DateTimeFormat(i18n.resolvedLanguage ?? i18n.language ?? "en", {
+          dateStyle: "medium",
+          timeStyle: "medium",
+        }).format(new Date(at))
+      : "";
+  const sent = deliveries?.timesSent ?? 0;
+  const failed = deliveries?.timesFailed ?? 0;
+  if (!deliveries?.lastNotification && sent === 0 && failed === 0) {
+    return <span className="text-caption text-fg-muted">{t("subscriptions.delivery.none")}</span>;
+  }
+  const failing = deliveries?.status === "failed";
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <Badge tone={failing ? "danger" : "success"}>
+        {failing ? t("subscriptions.delivery.failing") : t("subscriptions.delivery.ok")}
+      </Badge>
+      <span className="text-caption">
+        {failing
+          ? t("subscriptions.delivery.lastFailure", { at: when(deliveries?.lastFailure ?? deliveries?.lastNotification) })
+          : t("subscriptions.delivery.lastSuccess", { at: when(deliveries?.lastSuccess ?? deliveries?.lastNotification) })}
+      </span>
+      <span className="text-caption text-fg-muted">
+        {t("subscriptions.delivery.counts", { sent, failed })}
+      </span>
+      {failing ? (
+        <span className="text-caption text-fg-muted">{t("subscriptions.delivery.failingHint")}</span>
+      ) : null}
+    </div>
+  );
+}
+
+const COLUMNS = 7;
 
 /**
  * The subscriptions of one project: what each one watches, in which space, and where its
@@ -296,6 +346,7 @@ export function SubscriptionsPage({ project, edit }: { project: string; edit?: s
             </TableHeaderCell>
             <TableHeaderCell>{t("subscriptions.field.watches")}</TableHeaderCell>
             <TableHeaderCell>{t("subscriptions.field.receiver")}</TableHeaderCell>
+            <TableHeaderCell>{t("subscriptions.field.deliveries")}</TableHeaderCell>
             <TableHeaderCell>{t("resourceList.phase")}</TableHeaderCell>
             <TableHeaderCell align="right">{t("approvals.actions")}</TableHeaderCell>
           </TableHead>
@@ -349,6 +400,12 @@ export function SubscriptionsPage({ project, edit }: { project: string; edit?: s
                 <span className="break-all font-mono text-caption">
                   {shape.notification.endpoint.uri || "—"}
                 </span>
+              </TableCell>
+              <TableCell>
+                <DeliveryCell
+                  deliveries={(subscription.status as { notifications?: Deliveries } | undefined)?.notifications}
+                  live={subscription.status?.phase === "Live"}
+                />
               </TableCell>
               <TableCell>
                 <LifecycleBadge kind="phase" value={subscription.status?.phase} />

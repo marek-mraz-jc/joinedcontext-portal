@@ -86,7 +86,19 @@ fn mirror(project: &str) -> Arc<Mirror> {
         "DataSource",
         "broker",
         project,
-        json!({ "type": "mqtt", "mqtt": { "urls": ["tcp://broker:1883"], "topics": ["t"] } }),
+        json!({ "type": "mqtt", "mqtt": {
+            "urls": ["tcp://mqtt.example:1883"],
+            "topics": ["$share/live/hfp/v2/journey/ongoing/vp/#"],
+            "username": "reader",
+            "passwordRef": { "name": "hfp-broker", "key": "password" }
+        } }),
+    ));
+    // Another project's source: nobody here reads it by name.
+    mirror.upsert(envelope(
+        "DataSource",
+        "elsewhere",
+        "other-project",
+        json!({ "type": "mqtt", "mqtt": { "urls": ["tcp://mqtt.example:1883"], "topics": ["x"] } }),
     ));
     mirror
 }
@@ -231,8 +243,8 @@ async fn a_source_with_a_credential_a_stream_or_no_name_says_what_to_give_instea
     let state = state("refusals", None);
     for (source, status, words) in [
         ("locked", StatusCode::BAD_REQUEST, "declares a credential"),
-        ("broker", StatusCode::BAD_REQUEST, "type mqtt"),
         ("nobody", StatusCode::NOT_FOUND, "'nobody' not found"),
+        ("elsewhere", StatusCode::NOT_FOUND, "'elsewhere' not found"),
     ] {
         let answer = send(
             &state,
@@ -494,4 +506,245 @@ async fn validating_refuses_a_space_without_a_model_too_many_records_and_a_stran
     )
     .await;
     assert_eq!(stranger.status, StatusCode::FORBIDDEN, "{}", stranger.text);
+}
+
+/// What the runner posts for one streamed message, as the sample's envelope maps it.
+fn streamed(message: Value) -> Value {
+    json!({ "input": message.to_string(), "output": message, "error": null })
+}
+
+#[tokio::test]
+async fn a_streaming_source_is_listened_to_and_each_message_is_one_record() {
+    let runner = runner().await;
+    let state = state("listen", Some(&runner));
+    let messages: Vec<Value> = (0..20)
+        .map(|n| streamed(json!({ "VP": { "veh": n, "lat": 60.17 } })))
+        .collect();
+    let uri = op("listen", "jc_pipeline_sample_source");
+    let (answer, harness) = tokio::join!(
+        send(
+            &state,
+            person("dev"),
+            "POST",
+            &uri,
+            Some(json!({ "dataSource": "broker" })),
+        ),
+        play_runner(&runner, &state, 0, &messages),
+    );
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
+    let body = json_of(&answer.text);
+    assert_eq!(body["streamed"], true);
+    assert_eq!(body["count"], 20);
+    assert_eq!(
+        body["truncated"], true,
+        "20 messages is the most a sample takes"
+    );
+    assert_eq!(body["fields"], json!(["VP"]));
+    assert_eq!(body["records"][3]["VP"]["veh"], 3);
+
+    // The saved source's broker and topic, read beside the live pipelines: no shared
+    // subscription, a session the broker drops, a client id no Pipeline can have.
+    let mqtt = &harness["input"]["mqtt"];
+    assert_eq!(mqtt["urls"], json!(["tcp://mqtt.example:1883"]));
+    assert_eq!(mqtt["topics"], json!(["hfp/v2/journey/ongoing/vp/#"]));
+    assert_eq!(mqtt["clean_session"], true);
+    assert!(
+        mqtt["client_id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("jc-listen-workbench_sample_")
+                && harness["output"]["http_client"]["url"]
+                    .as_str()
+                    .is_some_and(|url| id.contains(url.rsplit('/').next().unwrap_or("?")))),
+        "{mqtt}"
+    );
+    // The credential is the runner's own variable, never a value and never a secretRef name.
+    let password = mqtt["password"].as_str().expect("a password variable");
+    assert!(
+        password.starts_with("${") && password.ends_with('}'),
+        "{password}"
+    );
+    assert!(!answer.text.contains(password), "{}", answer.text);
+    // It reads and publishes nothing: its one output is the capture route.
+    let output = harness["output"].as_object().expect("an output");
+    assert!(output.contains_key("http_client"), "{output:?}");
+    assert!(output.get("mqtt").is_none(), "{output:?}");
+}
+
+#[tokio::test]
+async fn a_quiet_topic_answers_no_records_after_five_seconds_and_an_oversized_message_is_named() {
+    let runner = runner().await;
+    let state = state("quiet", Some(&runner));
+    let uri = op("quiet", "jc_pipeline_sample_source");
+    let started = std::time::Instant::now();
+    let (answer, _) = tokio::join!(
+        send(
+            &state,
+            person("dev"),
+            "POST",
+            &uri,
+            Some(json!({ "dataSource": "broker" }))
+        ),
+        play_runner(&runner, &state, 0, &[]),
+    );
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
+    assert!(
+        started.elapsed() >= Duration::from_secs(5),
+        "{:?}",
+        started.elapsed()
+    );
+    let body = json_of(&answer.text);
+    assert_eq!(
+        (body["count"].clone(), body["truncated"].clone()),
+        (json!(0), json!(false))
+    );
+    assert_eq!(body["records"], json!([]));
+
+    let oversized = json!({
+        "input": "",
+        "error": "a message of 70000 bytes is over the 65536 bytes a sample keeps of one message"
+    });
+    let posted = [streamed(json!({ "VP": { "veh": 1 } })), oversized];
+    let (answer, _) = tokio::join!(
+        send(
+            &state,
+            person("dev"),
+            "POST",
+            &uri,
+            Some(json!({ "dataSource": "broker" }))
+        ),
+        play_runner(&runner, &state, 1, &posted),
+    );
+    let body = json_of(&answer.text);
+    assert_eq!(body["count"], 1, "{body}");
+    assert_eq!(body["errors"][0]["stage"], "source");
+    assert!(body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(|m| m.contains("70000 bytes")));
+}
+
+#[tokio::test]
+async fn another_projects_source_is_not_listened_to_and_listening_is_rate_limited() {
+    let state = state("bounds", None);
+    // A caller with no grant in the source's own project is refused there.
+    let answer = send(
+        &state,
+        person("dev"),
+        "POST",
+        &op("other-project", "jc_pipeline_sample_source"),
+        Some(json!({ "dataSource": "elsewhere" })),
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::FORBIDDEN, "{}", answer.text);
+
+    // kim proposes here; with no runner each listen is 503, and the seventh in a minute is 429.
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "kim-author",
+        ORG_NAMESPACE,
+        json!({
+            "subjects": [{ "user": "kim@hel.fi" }],
+            "role": "pipeline-author",
+            "scope": { "project": "bounds" },
+        }),
+    ));
+    let uri = op("bounds", "jc_pipeline_sample_source");
+    for n in 0..6 {
+        let answer = send(
+            &state,
+            person("kim"),
+            "POST",
+            &uri,
+            Some(json!({ "dataSource": "broker" })),
+        )
+        .await;
+        assert_eq!(
+            answer.status,
+            StatusCode::SERVICE_UNAVAILABLE,
+            "{n}: {}",
+            answer.text
+        );
+    }
+    let answer = send(
+        &state,
+        person("kim"),
+        "POST",
+        &uri,
+        Some(json!({ "dataSource": "broker" })),
+    )
+    .await;
+    assert_eq!(
+        answer.status,
+        StatusCode::TOO_MANY_REQUESTS,
+        "{}",
+        answer.text
+    );
+    // The limit is the person's: the request path of another source is not held by it.
+    let answer = send(
+        &state,
+        person("kim"),
+        "POST",
+        &uri,
+        Some(json!({ "sample": { "text": "a\n1\n", "format": "csv" } })),
+    )
+    .await;
+    assert_eq!(
+        answer.status,
+        StatusCode::SERVICE_UNAVAILABLE,
+        "{}",
+        answer.text
+    );
+}
+
+#[tokio::test]
+async fn streamed_messages_are_tried_one_each_and_bounded() {
+    let runner = runner().await;
+    let state = state("messages", Some(&runner));
+    let pipeline = json!({
+        "apiVersion": "joinedcontext.com/v1alpha1",
+        "kind": "Pipeline",
+        "metadata": { "name": "hfp" },
+        "spec": {
+            "class": "resident",
+            "source": { "dataSourceRef": { "kind": "DataSource", "name": "broker" } },
+            "compute": { "kind": "bloblang", "bloblang": "root.id = this.VP.veh.string()" },
+            "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:bikes:bikes-write"
+        }
+    });
+    let uri = op("messages", "jc_pipeline_try_mapping");
+    let captured =
+        [json!({ "input": "{\"VP\":{\"veh\":1}}", "output": { "id": "1" }, "error": null })];
+    let (tried, harness) = tokio::join!(
+        send(
+            &state,
+            person("dev"),
+            "POST",
+            &uri,
+            Some(json!({ "pipeline": pipeline, "messages": [{ "VP": { "veh": 1 } }, "plain"] })),
+        ),
+        play_runner(&runner, &state, 0, &captured),
+    );
+    assert_eq!(tried.status, StatusCode::OK, "{}", tried.text);
+    assert_eq!(json_of(&tried.text)["records"][0]["id"], "1");
+    assert_eq!(
+        harness["pipeline"]["processors"][0]["unarchive"]["format"], "json_array",
+        "each message reaches the mapping alone: {harness}"
+    );
+
+    let many: Vec<Value> = (0..21).map(|n| json!({ "n": n })).collect();
+    let huge = "x".repeat(70_000);
+    for body in [
+        json!({ "pipeline": pipeline, "messages": many }),
+        json!({ "pipeline": pipeline, "messages": [huge] }),
+        json!({ "pipeline": pipeline, "messages": [] }),
+        json!({ "pipeline": pipeline, "messages": [1], "sample": { "text": "a", "format": "text" } }),
+        json!({ "pipeline": pipeline }),
+    ] {
+        let answer = send(&state, person("dev"), "POST", &uri, Some(body.clone())).await;
+        assert_eq!(
+            answer.status,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "{body}: {}",
+            answer.text
+        );
+    }
 }

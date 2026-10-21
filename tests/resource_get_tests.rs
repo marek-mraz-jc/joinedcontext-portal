@@ -72,6 +72,7 @@ fn seed_demo_mirror() -> Arc<Mirror> {
             shard: None,
             domain_verification: None,
             jobs: Vec::new(),
+            notifications: None,
         }),
     });
 
