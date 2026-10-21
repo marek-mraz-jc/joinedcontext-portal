@@ -373,98 +373,7 @@ pub fn operations() -> Vec<Operation> {
                 Ok(())
             },
             run: |caller, state, project, val| {
-                Box::pin(async move {
-                    let input: PipelineTestInput =
-                        serde_json::from_value(val).map_err(|e| {
-                            let (path, message) = serde_error_path_and_message(&e);
-                            OpError::InvalidInput { path, message }
-                        })?;
-                    let (pipeline, draft_ref) =
-                        candidate(state, project, input.pipeline, input.draft.as_ref()).await?;
-
-                    let req = pipeline_test::TestRequest {
-                        pipeline: pipeline.clone(),
-                        sample: input.sample,
-                    };
-                    let trace = pipeline_test::execute_test_pipeline(
-                        &caller.identity,
-                        state,
-                        project,
-                        req,
-                    )
-                    .await?;
-
-                    // What the spec alone says against the target spaces' models (T-3223): a
-                    // type the model lacks is red before any record of the sample is read.
-                    let static_problems = serde_json::from_value::<jc_core::kinds::PipelineSpec>(
-                        pipeline["spec"].clone(),
-                    )
-                    .map(|spec| {
-                        crate::pipeline_validation::output_type_problems(
-                            &state.model_schemas,
-                            &state.mirror,
-                            project,
-                            &spec,
-                        )
-                    })
-                    .unwrap_or_default();
-                    // Each record where its write is judged (T-4840): the model, the Endpoint
-                    // and the lifetime.
-                    let checked = crate::record_check::check_trace(
-                        state,
-                        project,
-                        &pipeline,
-                        &trace.mapping,
-                    )?;
-                    let ok = static_problems.is_empty()
-                        && trace.errors.is_empty()
-                        && !trace.validation.is_empty()
-                        && trace.validation.iter().all(|v| v.ok)
-                        && checked.ok;
-                    let mut findings: Vec<Finding> = static_problems
-                        .into_iter()
-                        .map(|problem| Finding {
-                            level: Level::Error,
-                            path: problem.path,
-                            message: problem.message,
-                        })
-                        .collect();
-                    for err in &trace.errors {
-                        findings.push(Finding {
-                            level: Level::Error,
-                            path: err.stage.clone(),
-                            message: err.message.clone(),
-                        });
-                    }
-                    for val in &trace.validation {
-                        if !val.ok {
-                            for problem in &val.problems {
-                                findings.push(Finding {
-                                    level: Level::Error,
-                                    path: format!("validation[{}]", val.index),
-                                    message: problem.clone(),
-                                });
-                            }
-                        }
-                    }
-                    findings.extend(crate::record_check::verdict_findings(&checked));
-                    let checked_records =
-                        &trace.mapping[..trace.mapping.len().min(crate::record_check::MAX_RECORDS)];
-                    let mut verdict = Verdict::new(
-                        ok,
-                        findings,
-                        Some(serde_json::to_value(&trace).unwrap_or_default()),
-                        &pipeline,
-                    );
-                    verdict.records = Some(Box::new(checked.verdict(&pipeline, checked_records)));
-                    if let Some(d) = &draft_ref {
-                        record_verdict(caller, state, project, d, &pipeline, &verdict).await;
-                    }
-                    let mut out = serde_json::to_value(&trace)?;
-                    out["check"] = serde_json::to_value(&checked)?;
-                    out["verdict"] = serde_json::to_value(&verdict)?;
-                    Ok(out)
-                })
+                Box::pin(pipeline_test_run(caller, state, project, val))
             },
         },        Operation {
             name: "jc_model_infer",
@@ -524,6 +433,93 @@ pub fn operations() -> Vec<Operation> {
             },
         },
     ]
+}
+
+/// `jc_pipeline_test` (PL-43, T-4840): the harness on the runner, the static output types, each
+/// record where its write is judged, and the verdict kept on the draft.
+async fn pipeline_test_run(
+    caller: &super::Caller,
+    state: &crate::state::AppState,
+    project: &str,
+    val: Value,
+) -> Result<Value, OpError> {
+    let input: PipelineTestInput = serde_json::from_value(val).map_err(|e| {
+        let (path, message) = serde_error_path_and_message(&e);
+        OpError::InvalidInput { path, message }
+    })?;
+    let (pipeline, draft_ref) =
+        candidate(state, project, input.pipeline, input.draft.as_ref()).await?;
+
+    let req = pipeline_test::TestRequest {
+        pipeline: pipeline.clone(),
+        sample: input.sample,
+    };
+    let trace = pipeline_test::execute_test_pipeline(&caller.identity, state, project, req).await?;
+
+    // What the spec alone says against the target spaces' models (T-3223): a
+    // type the model lacks is red before any record of the sample is read.
+    let static_problems =
+        serde_json::from_value::<jc_core::kinds::PipelineSpec>(pipeline["spec"].clone())
+            .map(|spec| {
+                crate::pipeline_validation::output_type_problems(
+                    &state.model_schemas,
+                    &state.mirror,
+                    project,
+                    &spec,
+                )
+            })
+            .unwrap_or_default();
+    // Each record where its write is judged (T-4840): the model, the Endpoint
+    // and the lifetime.
+    let checked = crate::record_check::check_trace(state, project, &pipeline, &trace.mapping)?;
+    let ok = static_problems.is_empty()
+        && trace.errors.is_empty()
+        && !trace.validation.is_empty()
+        && trace.validation.iter().all(|v| v.ok)
+        && checked.ok;
+    let mut findings: Vec<Finding> = static_problems
+        .into_iter()
+        .map(|problem| Finding {
+            level: Level::Error,
+            path: problem.path,
+            message: problem.message,
+        })
+        .collect();
+    for err in &trace.errors {
+        findings.push(Finding {
+            level: Level::Error,
+            path: err.stage.clone(),
+            message: err.message.clone(),
+        });
+    }
+    for val in &trace.validation {
+        if !val.ok {
+            for problem in &val.problems {
+                findings.push(Finding {
+                    level: Level::Error,
+                    path: format!("validation[{}]", val.index),
+                    message: problem.clone(),
+                });
+            }
+        }
+    }
+    findings.extend(crate::record_check::verdict_findings(&checked));
+    let checked_records =
+        &trace.mapping[..trace.mapping.len().min(crate::record_check::MAX_RECORDS)];
+    let mut verdict = Verdict::new(
+        ok,
+        findings,
+        Some(serde_json::to_value(&trace).unwrap_or_default()),
+        &pipeline,
+    );
+    verdict.records = Some(Box::new(checked.verdict(&pipeline, checked_records)));
+    if let Some(d) = &draft_ref {
+        record_verdict(caller, state, project, d, &pipeline, &verdict).await;
+    }
+    let mut out = serde_json::to_value(&trace)?;
+    out["check"] = serde_json::to_value(&checked)?;
+    out["verdict"] = serde_json::to_value(&verdict)?;
+    Ok(out)
 }
 
 /// A draft model from what an address answers (T-3250): one fetch on the project's runner, the
