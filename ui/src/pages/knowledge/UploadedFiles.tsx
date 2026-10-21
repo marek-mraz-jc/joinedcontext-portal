@@ -24,15 +24,15 @@ import { reasonOf } from "./KnowledgePage";
 import { bytesText, knowledgeKeys, listFiles, removeFile, UPLOAD_ACCEPT, uploadFile } from "./knowledge";
 import type { UploadedFile } from "./knowledge";
 
-/**
- * The files of a `source: upload` (T-4185, API/05 §3): uploaded one request each, read into
- * passages at once, and removed with their passages.
- */
 /** The assistant has not taken the approved source up yet: it answers 404 for about a minute (T-4869). */
 function notTakenUp(error: unknown): boolean {
   return error instanceof ApiError && error.status === 404;
 }
 
+/**
+ * The files of a `source: upload` (T-4185, API/05 §3): uploaded one request each, read into
+ * passages at once, and removed with their passages.
+ */
 export function UploadedFiles({ project, source }: { project: string; source: string }): JSX.Element {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();

@@ -1133,7 +1133,9 @@
       "date": "2026-10-21",
       "screenshots": [
         "evidence/worker-t4869/T-4869/ask-grounded-1440.png",
-        "evidence/worker-t4869/T-4869/ask-grounded-400.png"
+        "evidence/worker-t4869/T-4869/ask-grounded-400.png",
+        "evidence/worker-t4869/T-4869/after/after-answer-1440.png",
+        "evidence/worker-t4869/T-4869/after/after-answer-400.png"
       ]
     },
     "src/pages/knowledge/ConversationsPage.tsx": {
@@ -1149,7 +1151,8 @@
       "date": "2026-10-21",
       "screenshots": [
         "evidence/worker-t4869/T-4869/files-indexed-1440.png",
-        "evidence/worker-t4869/T-4869/files-indexed-400.png"
+        "evidence/worker-t4869/T-4869/files-indexed-400.png",
+        "evidence/worker-t4869/T-4869/after/after-source-400.png"
       ]
     },
     "src/pages/knowledge/KnowledgePage.tsx": {
@@ -1159,7 +1162,9 @@
         "evidence/worker-t4869/T-4869/list-before-1440.png",
         "evidence/worker-t4869/T-4869/files-listed-1440.png",
         "evidence/worker-t4869/T-4869/files-listed-400.png",
-        "evidence/worker-t4869/T-4869/viewer-list-1440.png"
+        "evidence/worker-t4869/T-4869/viewer-list-1440.png",
+        "evidence/worker-t4869/T-4869/after/after-list-1440.png",
+        "evidence/worker-t4869/T-4869/after/after-list-400.png"
       ]
     },
     "src/pages/knowledge/SourcePage.tsx": {
@@ -1168,7 +1173,9 @@
       "screenshots": [
         "evidence/worker-t4869/T-4869/files-search-1440.png",
         "evidence/worker-t4869/T-4869/files-search-400.png",
-        "evidence/worker-t4869/T-4869/viewer-source-1440.png"
+        "evidence/worker-t4869/T-4869/viewer-source-1440.png",
+        "evidence/worker-t4869/T-4869/after/after-source-1440.png",
+        "evidence/worker-t4869/T-4869/after/after-source-400.png"
       ]
     },
     "src/pages/knowledge/UploadedFiles.tsx": {
@@ -1177,7 +1184,9 @@
       "screenshots": [
         "evidence/worker-t4869/T-4869/files-source-empty-1440.png",
         "evidence/worker-t4869/T-4869/files-indexed-1440.png",
-        "evidence/worker-t4869/T-4869/viewer-source-400.png"
+        "evidence/worker-t4869/T-4869/viewer-source-400.png",
+        "evidence/worker-t4869/T-4869/after/after-source-1440.png",
+        "evidence/worker-t4869/T-4869/after/after-source-400.png"
       ]
     },
     "src/pages/knowledge/UsageSummary.tsx": {

@@ -834,6 +834,16 @@ describe("the chat's stream and snippet", () => {
     expect(second.rest).toBe("");
   });
 
+  it("keeps an uploaded file's citation by its upload: address, and no other scheme (T-4869)", () => {
+    const { events } = readEvents('event: citations\ndata: [{"n":1,"url":"upload:files/a.pdf#page=2"},{"n":2,"url":"file:///etc/passwd"}]\n\n');
+    expect(events).toEqual([
+      { name: "citations", citations: [
+        { n: 1, url: "upload:files/a.pdf#page=2", tool: undefined, endpoint: undefined },
+        { n: 2, url: undefined, tool: undefined, endpoint: undefined },
+      ] },
+    ]);
+  });
+
   it("keeps only http links among the citations and ignores an unknown event", () => {
     const { events } = readEvents(
       'event: citations\ndata: [{"n":1,"url":"javascript:alert(1)"},{"n":2,"url":"https://a.example/"},{"x":3}]\n\nevent: surprise\ndata: {}\n\n',

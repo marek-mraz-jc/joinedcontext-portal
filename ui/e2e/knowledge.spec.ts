@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { axeViolations } from "./axe";
 
 // T-3057: the knowledge assistant's sources in a real browser, the API answered in the browser.
@@ -214,5 +216,80 @@ test.describe("the knowledge sources", () => {
     ]);
     await expect(p.getByRole("button", { name: "Embed staff" })).toHaveCount(0);
     expect(await axeViolations(p)).toEqual([]);
+  });
+});
+
+// T-4869: an upload source as journey 41 met it on dev, after the fixes: its state in words, its
+// file on a phone, a search hit by file and page, and an answer that cites the file. With
+// JC_EVIDENCE_DIR set, each screen is kept at 1440 and 400 px.
+const FILES_SOURCE = {
+  source: "hel-files", type: "upload", state: "crawled", startUrls: [], ckanInstanceRef: null, schedule: null,
+  visibility: "internal", pages: 0, pagesIncluded: 0, documents: 1, passages: 1, embedded: 1, pending: 0,
+};
+const UPLOAD_ANSWER = [
+  `event: conversation\ndata: {"id":"${CONVERSATION}"}`,
+  'event: answer\ndata: {"text":"The committee meets on the third Thursday of each month at 18:40 in the Liljankukka pavilion [1]."}',
+  'event: citations\ndata: [{"n":1,"url":"upload:hel-files/kumpula-garden-rules.pdf#page=1"}]',
+  'event: done\ndata: {"tokens":400}',
+].join("\n\n") + "\n\n";
+
+async function keep(p: Page, name: string): Promise<void> {
+  const dir = process.env.JC_EVIDENCE_DIR;
+  if (!dir) return;
+  mkdirSync(dir, { recursive: true });
+  for (const width of [1440, 400]) {
+    await p.setViewportSize({ width, height: 900 });
+    await p.screenshot({ path: join(dir, `${name}-${width}.png`), fullPage: true });
+  }
+  await p.setViewportSize({ width: 1440, height: 900 });
+}
+
+test.describe("an upload source (T-4869)", () => {
+  test("says its state in words, names its file and page, and an answer cites the file", async ({ page: p }) => {
+    await stubApi(p);
+    await p.route("**/api/v1/projects/helsinki/**", async (route) => {
+      const url = new URL(route.request().url());
+      const json = (body: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+      const base = "/api/v1/projects/helsinki/knowledge";
+      if (url.pathname === `${base}/sources`) return json({ items: [...SOURCES.items, FILES_SOURCE] });
+      if (url.pathname === `${base}/sources/hel-files/files`) {
+        return json({ items: [{ id: 1, name: "kumpula-garden-rules.pdf", mime: "application/pdf", bytes: 1362, passages: 1, status: "fetched" }] });
+      }
+      if (url.pathname === `${base}/sources/hel-files/search`) {
+        return json({ hits: [{ title: null, url: "upload:hel-files/kumpula-garden-rules.pdf#page=1", publisher: null, description: null,
+          published: null, modified: null, language: "en", text: "The committee meets on the third Thursday of each month at 18:40.", score: 0.02 }] });
+      }
+      if (url.pathname.endsWith("/deployments/staff/chat")) return route.fulfill({ status: 200, contentType: "text/event-stream", body: UPLOAD_ANSWER });
+      return route.fallback();
+    });
+    await p.goto("/projects/helsinki/knowledge?lang=en");
+    const row = p.getByRole("table", { name: "Knowledge sources" }).getByRole("row").filter({ hasText: "hel-files" });
+    await expect(row).toContainText("Read");
+    await expect(row).not.toContainText("Crawled");
+    await keep(p, "after-list");
+
+    await row.getByRole("link", { name: "hel-files" }).click();
+    await expect(p.getByRole("table", { name: "Files" })).toContainText("kumpula-garden-rules.pdf");
+    await p.getByRole("searchbox", { name: "Question or words" }).fill("Liljankukka");
+    await p.getByRole("button", { name: "Try the search" }).click();
+    const hits = p.getByRole("list", { name: /Hits for/ });
+    await expect(hits).toContainText("kumpula-garden-rules.pdf, page 1");
+    await expect(hits).not.toContainText("upload:");
+    await p.setViewportSize({ width: 400, height: 900 });
+    // At a phone's width Remove stays inside the screen, beside the file's name (UI-27).
+    const remove = p.getByRole("button", { name: "Remove kumpula-garden-rules.pdf" });
+    await remove.scrollIntoViewIfNeeded();
+    const box = await remove.boundingBox();
+    expect((box?.x ?? 999) + (box?.width ?? 0)).toBeLessThanOrEqual(400);
+    await p.setViewportSize({ width: 1440, height: 900 });
+    await keep(p, "after-source");
+
+    await p.goto("/projects/helsinki/knowledge?lang=en");
+    await p.getByRole("button", { name: "Ask staff" }).click();
+    const dialog = p.getByRole("dialog", { name: "Ask staff" });
+    await dialog.getByRole("textbox", { name: "Your question" }).fill("When does the garden committee meet?");
+    await dialog.getByRole("textbox", { name: "Your question" }).press("Enter");
+    await expect(dialog.getByRole("list", { name: "Sources" })).toContainText("kumpula-garden-rules.pdf");
+    await keep(p, "after-answer");
   });
 });
