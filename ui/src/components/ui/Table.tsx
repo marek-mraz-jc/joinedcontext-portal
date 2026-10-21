@@ -35,7 +35,9 @@ export function Table({
   const frame = useRef<HTMLDivElement>(null);
   const more = useColumnsBeyond(frame);
   return (
-    <div className="relative">
+    // `min-w-0`: as a flex or grid item this wrapper has visible overflow, so its automatic
+    // minimum width is the table's and it pushed the page sideways (model diagram at 375 px).
+    <div className="relative min-w-0">
       {/* The frame scrolls sideways, so it is focusable and a keyboard scrolls it with the arrow
           keys (WCAG 2.1.1): `overflow-x-auto` alone left the columns past the right edge reachable
           with a pointer and by nothing else. It is named after the caption, or it would be an
