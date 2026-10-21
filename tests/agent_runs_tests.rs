@@ -1692,7 +1692,7 @@ async fn a_function_of_the_run_answers_through_jc_functions() {
         .and(path("/invoke"))
         .and(has_header("authorization", "Bearer the-portals-own-token"))
         .and(body_partial_json(json!({
-            "entry": "@app/functions/summary.ts",
+            "entry": "@app/entry.js",
             "request": {
                 "method": "POST",
                 "query": { "types": "Station" },
