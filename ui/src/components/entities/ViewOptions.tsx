@@ -26,19 +26,18 @@ export interface ViewOptionsProps {
   enums: Record<string, EnumOption[]>;
   value: ViewExtras;
   onChange: (next: ViewExtras) => void;
+  /** One part alone, as the grid's toolbar opens it in its own panel (T-4883); all three without it. */
+  part?: "fields" | "colours" | "group";
 }
 
-export function ViewOptions({ attributes, enums, value, onChange }: ViewOptionsProps): JSX.Element {
+export function ViewOptions({ attributes, enums, value, onChange, part }: ViewOptionsProps): JSX.Element {
   const { t } = useTranslation();
   const id = useId();
   const hidden = new Set(value.hidden ?? []);
   const colour = value.colour ?? [];
   const setColour = (next: ColourRule[]) => onChange({ ...value, colour: next });
 
-  return (
-    <details className="rounded-md border border-border p-3">
-      <summary className="cursor-pointer text-body font-semibold">{t("spaces.saved.options")}</summary>
-      <div className="mt-3 grid gap-4 md:grid-cols-3">
+  const fields = (
         <fieldset className="flex flex-col gap-1">
           <legend className="text-body font-semibold">{t("spaces.saved.fields")}</legend>
           {attributes.length === 0 ? <p className="text-caption text-fg-muted">{t("spaces.saved.noFields")}</p> : null}
@@ -56,7 +55,8 @@ export function ViewOptions({ attributes, enums, value, onChange }: ViewOptionsP
             />
           ))}
         </fieldset>
-
+  );
+  const colours = (
         <fieldset className="flex flex-col gap-2">
           <legend className="text-body font-semibold">{t("spaces.saved.colours")}</legend>
           <p className="text-caption text-fg-muted">{t("spaces.saved.coloursHelp")}</p>
@@ -105,7 +105,8 @@ export function ViewOptions({ attributes, enums, value, onChange }: ViewOptionsP
             {t("spaces.saved.addRule")}
           </Button>
         </fieldset>
-
+  );
+  const grouping = (
         <Field id={`${id}-group`} label={t("spaces.saved.group")} help={t("spaces.saved.groupHelp")}>
           <Select
             id={`${id}-group`}
@@ -120,6 +121,15 @@ export function ViewOptions({ attributes, enums, value, onChange }: ViewOptionsP
             ))}
           </Select>
         </Field>
+  );
+  if (part) return { fields, colours, group: grouping }[part];
+  return (
+    <details className="rounded-md border border-border p-3">
+      <summary className="cursor-pointer text-body font-semibold">{t("spaces.saved.options")}</summary>
+      <div className="mt-3 grid gap-4 md:grid-cols-3">
+        {fields}
+        {colours}
+        {grouping}
       </div>
     </details>
   );

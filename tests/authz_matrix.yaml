@@ -398,6 +398,9 @@ routes:
     rule: "space-read, then the view's mode"
     expect: [403, 404, 404, 404, 404, 404, 404, 404]
     note: "the fixture holds no view 0000000000000000; who sees and changes a view is its mode's (tests/data_views_api_tests.rs)"
+  - route: GET /projects/{project}/spaces/{space}/temporal-audit
+    rule: "space-read, then pipeline-read per row"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
   - route: GET /projects/{project}/spaces/{space}/types/{type}/attributes
     rule: "space-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
@@ -747,6 +750,10 @@ routes:
   - route: GET /projects/{project}/permissions/me
     rule: "project-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/mqtt/allowance
+    rule: "project-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    note: "the project's MQTT allowance and the broker modes it may use (T-4859)"
   - route: POST /projects/{project}/pipelines/test
     rule: "project-verb:propose:Pipeline"
     expect: [403, 403, allow, allow, 403, allow, 403, 403]
