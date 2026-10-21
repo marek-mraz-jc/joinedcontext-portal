@@ -15,9 +15,10 @@
 //! that never appears.
 
 use crate::error::ApiError;
-use crate::permissions::{for_request, Effective};
+use crate::permissions::{effective, Effective};
 use crate::state::AppState;
 use crate::store::Mirror;
+use chrono::Utc;
 use jc_core::kinds::{PipelineSpec, Verb};
 use serde_json::Value;
 
@@ -31,21 +32,14 @@ pub fn check(
     manifest: &Value,
     verb: Verb,
 ) -> Result<(), ApiError> {
-    if manifest.get("kind").and_then(Value::as_str) != Some("Pipeline") {
-        return Ok(());
-    }
-    let effective = for_request(state, identity, project);
-    if effective.bootstrap {
-        return Ok(());
-    }
-    // A spec jc-core cannot read is refused by the kind's own validation at every door.
-    let Some(spec) = manifest
-        .get("spec")
-        .and_then(|spec| serde_json::from_value::<PipelineSpec>(spec.clone()).ok())
-    else {
-        return Ok(());
-    };
-    let missing = unreachable(&state.mirror, &effective, project, &spec, verb);
+    let missing = missing(
+        &state.mirror,
+        &state.config.bootstrap_admins,
+        identity,
+        project,
+        manifest,
+        verb,
+    );
     if missing.is_empty() {
         return Ok(());
     }
@@ -59,6 +53,34 @@ pub fn check(
          and writes, ask for read on the source or write on the target first (PL-94)",
         missing.join(", ")
     )))
+}
+
+/// The references of the Pipeline `manifest` that `identity` cannot reach with `verb` today,
+/// each once, as the manifest names them: what [`check`] refuses at a door, and what the
+/// reconciler re-asks for a Pipeline's recorded authors at each render (PL-95).
+pub fn missing(
+    mirror: &Mirror,
+    bootstrap_group: &str,
+    identity: &crate::auth::session::Identity,
+    project: &str,
+    manifest: &Value,
+    verb: Verb,
+) -> Vec<String> {
+    if manifest.get("kind").and_then(Value::as_str) != Some("Pipeline") {
+        return Vec::new();
+    }
+    let effective = effective(mirror, bootstrap_group, identity, project, Utc::now());
+    if effective.bootstrap {
+        return Vec::new();
+    }
+    // A spec jc-core cannot read is refused by the kind's own validation at every door.
+    let Some(spec) = manifest
+        .get("spec")
+        .and_then(|spec| serde_json::from_value::<PipelineSpec>(spec.clone()).ok())
+    else {
+        return Vec::new();
+    };
+    unreachable(mirror, &effective, project, &spec, verb)
 }
 
 /// The references of `spec` the caller lacks, each once, as the manifest names them.
