@@ -9,7 +9,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
-import { expectDenied } from "./checks";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -296,18 +295,10 @@ describe("the catalogue control carries the refusal (T-2243)", () => {
     ],
   };
 
-  it("a viewer meets it disabled, with the verb and the kind in the reason", async () => {
+  it("a viewer reads why instead of a form whose submit only refuses (T-4997)", async () => {
     renderCkan(STATUS, VIEWER);
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: en.ckan.instances.propose })).toHaveAttribute(
-        "aria-disabled",
-        "true",
-      ),
-    );
-    expectDenied(
-      screen.getByRole("button", { name: en.ckan.instances.propose }),
-      "Disabled: your role does not permit 'propose' on 'CkanInstance' in this project",
-    );
+    expect(await screen.findByText(en.form.mayNotCreate)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: en.ckan.instances.propose })).not.toBeInTheDocument();
   });
 
   it("a publisher is offered it", async () => {
