@@ -5224,7 +5224,18 @@
       },
       "assistant": {
         "transcript": "Stored conversations read"
-      }
+      },
+      "knowledge": {
+        "file": {
+          "uploaded": "File added to a knowledge source",
+          "removed": "File removed from a knowledge source"
+        },
+        "answers": {
+          "forgotten": "Kept answers forgotten"
+        }
+      },
+      "access-request": "Access request",
+      "personal-data": "Personal data request"
     },
     "sources": {
       "reconciler": "Configuration",

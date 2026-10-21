@@ -5224,7 +5224,18 @@
       },
       "assistant": {
         "transcript": "Gespeicherte Unterhaltungen gelesen"
-      }
+      },
+      "knowledge": {
+        "file": {
+          "uploaded": "Datei zu einer Wissensquelle hinzugefügt",
+          "removed": "Datei aus einer Wissensquelle entfernt"
+        },
+        "answers": {
+          "forgotten": "Gespeicherte Antworten vergessen"
+        }
+      },
+      "access-request": "Zugriffsanfrage",
+      "personal-data": "Anfrage zu personenbezogenen Daten"
     },
     "sources": {
       "reconciler": "Konfiguration",
