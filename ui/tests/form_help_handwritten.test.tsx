@@ -177,7 +177,8 @@ describe("the help beside a hand-built form field", () => {
       expect(describedText(field).length, field.id).toBeGreaterThan(15);
     }
     // One example per form (T-2882): the address, whose shape is the one a person gets wrong.
-    const examples = fields.filter((field) => field.getAttribute("placeholder"));
+    // A picker's "Search" placeholder is no example (T-4948).
+    const examples = fields.filter((field) => field.getAttribute("placeholder") && field.getAttribute("role") !== "combobox");
     expect(examples.map((field) => field.getAttribute("placeholder"))).toEqual(["https://opendata.example.org"]);
   });
 
@@ -234,7 +235,8 @@ describe("the help beside a hand-built form field", () => {
     for (const field of fields) {
       expect(describedText(field).length, field.id).toBeGreaterThan(15);
     }
-    const examples = fields.filter((field) => field.getAttribute("placeholder"));
+    // A picker's "Search" placeholder is no example (T-4948).
+    const examples = fields.filter((field) => field.getAttribute("placeholder") && field.getAttribute("role") !== "combobox");
     expect(examples.map((field) => field.getAttribute("placeholder"))).toEqual(["firstname.lastname@example.org"]);
   });
 

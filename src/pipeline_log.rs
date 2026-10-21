@@ -371,6 +371,24 @@ pub fn source_failure(url: &str) -> serde_json::Value {
     }]})
 }
 
+/// Puts the run-log report in place of each processor labelled `label` (PL-104): a run whose
+/// step found it must write nothing reports why as a `failed` line, then drops the message.
+pub fn with_problems(stream: &mut serde_json::Value, label: &str, url: &str) {
+    let Some(processors) = stream
+        .pointer_mut("/pipeline/processors")
+        .and_then(serde_json::Value::as_array_mut)
+    else {
+        return;
+    };
+    for processor in processors.iter_mut() {
+        if processor.get("label").and_then(serde_json::Value::as_str) == Some(label) {
+            let mut report = source_failure(url);
+            report["label"] = serde_json::json!(label);
+            *processor = report;
+        }
+    }
+}
+
 fn clean(text: &str) -> String {
     let short: String = text.chars().take(TEXT_CHARS).collect();
     crate::pipeline_outcomes::mask_text(&short)

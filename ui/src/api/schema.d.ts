@@ -2161,6 +2161,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/flow-map": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Data Flow Map
+         * @description Every MQTT broker, DataSource, Pipeline, Endpoint and Context Space of the project the caller may read, with the edges between them: which source feeds which pipeline, which Endpoint it reads and writes, the Policy that grants the pipelines account each read and write (named only to a caller who reads Policy in that space; or `missing` with the fix), each pipeline's phase and latest run. Another project's Endpoint a pipeline reads is named only, unless the caller reads that project.
+         */
+        get: operations["get_flow_map"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/flows": {
         parameters: {
             query?: never;
@@ -4627,6 +4647,8 @@ export interface components {
         /** @description Every facet of the list. */
         CatalogueFacets: {
             format: components["schemas"]["CatalogueFacetValue"][];
+            /** @description The keywords datasets carry, offered when a dataset is published (T-4948); no filter. */
+            keyword?: components["schemas"]["CatalogueFacetValue"][];
             licence: components["schemas"]["CatalogueFacetValue"][];
             publisher: components["schemas"]["CatalogueFacetValue"][];
             spatial: components["schemas"]["CatalogueFacetValue"][];
@@ -5421,6 +5443,72 @@ export interface components {
             message: string;
             path: string;
         };
+        FlowEdge: {
+            from: string;
+            grant?: null | components["schemas"]["FlowGrant"];
+            relation: components["schemas"]["FlowRelation"];
+            to: string;
+        };
+        /** @description What permits a pipeline to read or write through an Endpoint. */
+        FlowGrant: {
+            endpoint: string;
+            /** @description What to change when it is missing. */
+            fix?: string | null;
+            /** @description The operation the edge needs, as a Policy names it. */
+            operation: string;
+            /** @description The Policy that grants it, named only to a caller who may read Policy in its space. */
+            policy?: string | null;
+            state: components["schemas"]["FlowGrantState"];
+        };
+        /** @enum {string} */
+        FlowGrantState: "granted" | "missing" | "external";
+        /**
+         * @description What a node is on the map.
+         * @enum {string}
+         */
+        FlowKind: "MqttBroker" | "DataSource" | "Pipeline" | "Endpoint" | "ContextSpace";
+        /** @description The map of one project, or of the paths that touch one of its spaces. */
+        FlowMap: {
+            edges: components["schemas"]["FlowEdge"][];
+            nodes: components["schemas"]["FlowNode"][];
+            project: string;
+        };
+        /**
+         * @description One resource on the map. Only facts a reader of the manifest already sees: no secret, no
+         *     credential, no URL path or query (a token can ride in one), only a source's host.
+         */
+        FlowNode: {
+            audience?: string | null;
+            /** @description `false` for a paused pipeline. */
+            enabled?: boolean | null;
+            /** @description The hosts a DataSource connects to, without user, path or query. */
+            hosts?: string[];
+            /** @description `{project}/{kind}/{name}`, what the edges name. */
+            id: string;
+            kind: components["schemas"]["FlowKind"];
+            lastRun?: null | components["schemas"]["FlowRun"];
+            name: string;
+            /** @description Another project's resource the caller may not read: its name, nothing else. */
+            opaque: boolean;
+            /** @description A pipeline's phase as the reconciler last set it. */
+            phase?: string | null;
+            project: string;
+            role?: null | components["schemas"]["FlowRole"];
+            /** @description An Endpoint's address segment and its audience. */
+            slug?: string | null;
+            /** @description A DataSource's connection type (`mqtt`, `http`, …). */
+            sourceType?: string | null;
+            /** @description The space an Endpoint reads and writes. */
+            space?: string | null;
+            title?: string | null;
+            /** @description The topic filters an MQTT DataSource subscribes to. */
+            topics?: string[];
+        };
+        /**
+         * @description How data moves along an edge.
+         * @enum {string}
+         */
+        FlowRelation: "connects" | "feeds" | "exposes" | "reads" | "writes" | "stores";
         /** @description Running a blueprint: the parameters the form collected (API/01 §13). */
         FlowRequest: {
             /** @description The organization-level Blueprint to run. */
@@ -5432,6 +5520,28 @@ export interface components {
              *     expansion against a schema the user never saw (CC-26).
              */
             version: string;
+        };
+        /**
+         * @description What a pipeline does on the map: reads the outside world, computes from a space, or writes
+         *     indicators (PL-45). A space ending in `-kpi` is an indicator space (PF-54).
+         * @enum {string}
+         */
+        FlowRole: "ingest" | "derived" | "kpi";
+        /** @description A pipeline's latest run, as the Portal logged it (PL-62). */
+        FlowRun: {
+            /** @description The last line the Portal took for it, RFC 3339. */
+            at: string;
+            /** Format: int64 */
+            failed: number;
+            /**
+             * Format: double
+             * @description Records sent per minute over the run, when it lasted a minute or more.
+             */
+            perMinute?: number | null;
+            /** Format: int64 */
+            rejected: number;
+            /** Format: int64 */
+            sent: number;
         };
         /**
          * @description Heading and body font stacks. Self-hosted or system families only: nothing on a page
@@ -14211,6 +14321,59 @@ export interface operations {
             };
             /** @description No repository configured */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_flow_map: {
+        parameters: {
+            query?: {
+                /** @description Only the paths that read or write this Context Space. */
+                space?: string | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The map */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlowMap"];
+                };
+            };
+            /** @description Not a space name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project the caller may read */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

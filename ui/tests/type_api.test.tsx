@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import type { Manifest } from "../src/api/manifest";
-import { TypeApi, callsOf, webhooksOf } from "../src/pages/spaces/TypeApi";
+import { TypeApi, callsOf, viewQueryUrls, webhooksOf } from "../src/pages/spaces/TypeApi";
 import { expectNoViolations } from "./checks";
 import { renderPage } from "./page_contract";
 
@@ -46,6 +46,31 @@ describe("the calls of a type", () => {
   });
 });
 
+describe("the query of the view on screen (T-4884)", () => {
+  const at = `${window.location.origin}/api/endpoint/abc`;
+  it("gives the same q to NGSI-LD, and to OGC Features and OData as ngsild.q, for each one served", () => {
+    const urls = viewQueryUrls("abc", "Event", 'category=="music";startDate>=2026-10-01', ["ngsi-ld", "ogc-features", "odata"]);
+    const q = encodeURIComponent('category=="music";startDate>=2026-10-01');
+    expect(urls).toEqual([
+      { key: "ngsi-ld", url: `${at}/ngsi-ld/v1/entities?type=Event&q=${q}` },
+      { key: "ogc-features", url: `${at}/ogc/features/collections/Event/items?ngsild.q=${q}` },
+      { key: "odata", url: `${at}/odata/v4/Event?ngsild.q=${q}` },
+    ]);
+  });
+
+  it("asks the whole type without a filter, and only the representations the Endpoint serves", () => {
+    expect(viewQueryUrls("abc", "Event", "  ", ["ngsi-ld", "csv"])).toEqual([
+      { key: "ngsi-ld", url: `${at}/ngsi-ld/v1/entities?type=Event` },
+    ]);
+  });
+
+  it("keeps a q that tries to add a parameter inside its own value", () => {
+    const [ngsi] = viewQueryUrls("abc", "Event", "name==\"a\"&limit=1000#x", ["ngsi-ld"]);
+    expect(new URL(ngsi.url).searchParams.get("q")).toBe('name=="a"&limit=1000#x');
+    expect(new URL(ngsi.url).searchParams.get("limit")).toBeNull();
+  });
+});
+
 describe("the API tab", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
@@ -54,9 +79,9 @@ describe("the API tab", () => {
     vi.unstubAllGlobals();
   });
 
-  function show(endpoints = [endpoint("public-bikes", "abc"), endpoint("draft-ep", undefined)]) {
+  function show(endpoints = [endpoint("public-bikes", "abc"), endpoint("draft-ep", undefined)], q?: string) {
     const puts: { path: string; body: unknown }[] = [];
-    renderPage(<TypeApi project="helsinki" space="bikes" type="BikeHireDockingStation" endpoints={endpoints} />, {
+    renderPage(<TypeApi project="helsinki" space="bikes" type="BikeHireDockingStation" endpoints={endpoints} q={q} />, {
       path: "/projects/helsinki/spaces/bikes",
       answer: async (url, request) => {
         if (url.pathname.startsWith("/api/endpoint/abc/ngsi-ld/v1/entities")) {
@@ -84,11 +109,20 @@ describe("the API tab", () => {
     return { puts };
   }
 
+  it("shows the URL of the view's own query with a copy button per representation", async () => {
+    show([endpoint("public-bikes", "abc", { enabledRepresentations: ["ngsi-ld", "odata"] })], "availableBikeNumber<3");
+    const query = await screen.findByTestId("api-view-query");
+    expect(within(query).getByText(/availableBikeNumber<3/)).toBeInTheDocument();
+    expect(within(query).getByText(/entities\?type=BikeHireDockingStation&q=availableBikeNumber%3C3$/)).toBeInTheDocument();
+    expect(within(query).getByText(/odata\/v4\/BikeHireDockingStation\?ngsild\.q=availableBikeNumber%3C3$/)).toBeInTheDocument();
+    expect(within(query).getByRole("button", { name: "Copy the OData URL" })).toBeInTheDocument();
+  });
+
   it("shows each Endpoint's calls for the type, tries one with the session, and lists its webhooks", async () => {
     show();
     const api = await screen.findByTestId("view-api");
     // An Endpoint with no slug yet answers nothing, so it is not offered.
-    expect(within(api).getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual([
+    expect(within(api).getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
       "Through public-bikes",
       en.spaces.api.tokens,
       en.spaces.api.webhooks,

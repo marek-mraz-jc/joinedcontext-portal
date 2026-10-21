@@ -5,6 +5,10 @@ import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { ORG_NAMESPACE, asManifests, localized } from "../../api/manifest";
 import { useProjects } from "../../api/projects";
+import { Combobox } from "../../components/pickers/Combobox";
+import type { PickerOption } from "../../components/pickers/Combobox";
+import { useThemeLabel } from "../catalogue/CataloguePage";
+import { THEMES } from "../catalogue/publish";
 import { useBranding } from "../../branding";
 import { namedServerUrl } from "../../components/endpoints/links";
 import { Alert, Button, Card, Checkbox, Dialog, EmptyState, Field, Input, PageHeader } from "../../components/ui";
@@ -12,6 +16,7 @@ import { CopyValue } from "./McpServerPanels";
 import { clientConfig } from "./mcp";
 import {
   ACCESS_LEVELS,
+  DOMAINS,
   MAX_CONNECTORS,
   asReadable,
   connectorProblems,
@@ -22,7 +27,7 @@ import {
   toForm,
   useConnectors,
 } from "./connectors";
-import type { Connector, ConnectorForm, Readable } from "./connectors";
+import type { Connector, ConnectorForm, ConnectorRefusal, Readable } from "./connectors";
 
 /** Every Endpoint the person may read, across the projects they see (SP-20). */
 function useReadable(): Readable[] {
@@ -43,6 +48,28 @@ function useReadable(): Readable[] {
       ),
     [projects.data, lists],
   );
+}
+
+/** The context spaces of these projects the person may read: the server filters each list. */
+function useReadableSpaces(projects: string[]): { items: { project: string; name: string; title: string }[]; loading: boolean } {
+  const { i18n } = useTranslation();
+  const lists = useQueries({
+    queries: projects.map((name) => ({
+      queryKey: queryKeys.list(name, "contextspaces"),
+      queryFn: async () =>
+        unwrap(await api.GET("/api/v1/projects/{project}/{plural}", { params: { path: { project: name, plural: "contextspaces" } } })),
+    })),
+  });
+  return {
+    items: projects.flatMap((project, index) =>
+      asManifests(lists[index]?.data?.items ?? []).map((space) => ({
+        project,
+        name: space.metadata.name,
+        title: localized(space.metadata.title, i18n.language, space.metadata.name),
+      })),
+    ),
+    loading: lists.some((list) => list.isPending),
+  };
 }
 
 /**
@@ -187,7 +214,10 @@ function ConnectorDialog({ stored, others, onClose }: { stored?: Connector; othe
   const [form, setForm] = useState<ConnectorForm>(() => toForm(stored));
   const [tried, setTried] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [refused, setRefused] = useState<string | null>(null);
+  const [refused, setRefused] = useState<{ message: string; fields: string[] } | null>(null);
+  const projects = useProjects();
+  const spaces = useReadableSpaces(projects.data ?? []);
+  const themeLabel = useThemeLabel();
   const connector = fromForm(form);
   const problems = connectorProblems(connector, others);
   const set = (patch: Partial<ConnectorForm>) => setForm((current) => ({ ...current, ...patch }));
@@ -201,14 +231,34 @@ function ConnectorDialog({ stored, others, onClose }: { stored?: Connector; othe
       stored ? current.map((one) => (one.name === stored.name ? connector : one)) : [...current, connector],
     )
       .then(onClose)
-      .catch((error: Error) => setRefused(error.message))
+      .catch((error: ConnectorRefusal) => setRefused({ message: error.message, fields: error.fields ?? [] }))
       .finally(() => setSaving(false));
   };
-  const text = (field: "projects" | "spaces" | "domains" | "themes") => (
-    <Field id={`connector-${field}`} label={t(`connectors.field.${field}`)} help={t(`connectors.help.${field}`)} errors={shown(field)}>
-      <Input id={`connector-${field}`} value={form[field]} autoComplete="off" spellCheck={false} onChange={(event) => set({ [field]: event.target.value })} />
-    </Field>
-  );
+  // Each selector field picks from what the server lists for this person, and the server checks
+  // each value again on save (T-4948): its refusal shows beside the field it names.
+  const picker = (
+    field: "projects" | "spaces" | "domains" | "themes",
+    options: PickerOption[],
+    list: { loading?: boolean; empty: string },
+  ) => {
+    const refusedHere = refused?.fields.includes(field) ? [refused.message] : undefined;
+    return (
+      <Field id={`connector-${field}`} label={t(`connectors.field.${field}`)} help={t(`connectors.help.${field}`)} errors={refusedHere ?? shown(field)}>
+        <Combobox
+          id={`connector-${field}`}
+          labelled
+          label={t(`connectors.field.${field}`)}
+          multiple
+          value={form[field]}
+          onChange={(values) => set({ [field]: values })}
+          options={options}
+          loading={list.loading}
+          invalid={Boolean(refusedHere)}
+          empty={list.empty}
+        />
+      </Field>
+    );
+  };
   return (
     <Dialog
       open
@@ -233,10 +283,28 @@ function ConnectorDialog({ stored, others, onClose }: { stored?: Connector; othe
           <Input id="connector-name" value={form.name} autoComplete="off" spellCheck={false} onChange={(event) => set({ name: event.target.value.trim() })} />
         </Field>
         <div className="grid gap-4 md:grid-cols-2">
-          {text("projects")}
-          {text("spaces")}
-          {text("domains")}
-          {text("themes")}
+          {picker(
+            "projects",
+            (projects.data ?? []).map((name) => ({ value: name, label: name, group: t("connectors.field.projects") })),
+            { loading: projects.isPending, empty: t("connectors.noMatch.projects") },
+          )}
+          {picker(
+            "spaces",
+            spaces.items
+              .filter((space) => form.projects.length === 0 || form.projects.includes(space.project))
+              .map((space) => ({ value: `${space.project}/${space.name}`, label: space.title, detail: `${space.project}/${space.name}`, group: space.project })),
+            { loading: spaces.loading, empty: t("connectors.noMatch.spaces") },
+          )}
+          {picker(
+            "domains",
+            DOMAINS.map((domain) => ({ value: domain, label: domain, group: t("connectors.field.domains") })),
+            { empty: t("connectors.noMatch.none") },
+          )}
+          {picker(
+            "themes",
+            THEMES.map((theme) => ({ value: theme, label: themeLabel(theme), detail: theme, group: t("connectors.field.themes") })),
+            { empty: t("connectors.noMatch.none") },
+          )}
         </div>
         <fieldset className="flex flex-col gap-1">
           <legend className="text-body font-semibold">{t("connectors.field.accessLevel")}</legend>
@@ -259,9 +327,9 @@ function ConnectorDialog({ stored, others, onClose }: { stored?: Connector; othe
           ))}
         </fieldset>
         {shown("select") ? <Alert tone="danger">{shown("select")?.[0]}</Alert> : null}
-        {refused ? (
+        {refused && refused.fields.length === 0 ? (
           <Alert tone="danger" role="alert">
-            {refused}
+            {refused.message}
           </Alert>
         ) : null}
       </div>

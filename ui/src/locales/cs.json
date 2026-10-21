@@ -724,7 +724,8 @@
         "calendar": "Kalendář",
         "timeline": "Časová osa",
         "form": "Formulář",
-        "api": "API"
+        "api": "API",
+        "map": "Mapa"
       },
       "truncated": "Zobrazuje se prvních {count} entit; zužte filtr, abyste viděli další.",
       "image": "Obrázek",
@@ -777,7 +778,18 @@
       "restore": "Vrátit",
       "restoreOne": "Vrátit {name}",
       "restoreRefused": "{name} se nevrátil: {reason}",
-      "liveChanged": "Entity tohoto typu se změnily v {time}; zobrazeno tak, jak jsou teď."
+      "liveChanged": "Entity tohoto typu se změnily v {time}; zobrazeno tak, jak jsou teď.",
+      "moveReason": "Proč přesouváte (nepovinné)",
+      "boardReadOnly": "Tuto tabuli můžete číst. Žádný z vašich Endpointů vám nedovolí měnit {attr}, proto karty zůstávají na místě.",
+      "nothingThisSpan": "V tomto období nic není. Přejděte na jiné nebo vyberte jiné pole s datem.",
+      "noDateTimeline": "Časová osa potřebuje pole s datem (jako startDate a endDate); tento typ žádné nemá.",
+      "timelineDrag": "Tažením pruhu do strany posunete obě data o celé dny, nebo otevřete řádek a vyberte nový začátek.",
+      "moveStart": "Nový {start} ({end} se posune o stejný počet dní)",
+      "noGeo": "Mapa potřebuje pole s místem (jako location); žádný ze zobrazených řádků ho nemá.",
+      "placeBy": "Umístit podle",
+      "placed": "{count, plural, one {# řádek} few {# řádky} other {# řádků}} z {total} na mapě; řádky bez místa se nekreslí.",
+      "mapLabel": "Mapa řádků podle {attr}",
+      "openRow": "Otevřít řádek"
     },
     "api": {
       "lead": "Jak program čte {type}: přes endpoint tohoto prostoru, s vlastním tokenem, a webhooky, které mu řeknou, když se něco změní.",
@@ -806,7 +818,16 @@
       "webhooks": "Webhooky",
       "webhooksLead": "NGSI-LD subscription na {type}, která zavolá URL, když se entita změní, navržená jako změna.",
       "noWebhook": "Tento typ zatím nesleduje žádný webhook.",
-      "newWebhook": "Nový webhook pro tento typ"
+      "newWebhook": "Nový webhook pro tento typ",
+      "viewQuery": "Dotaz tohoto pohledu",
+      "viewQueryLead": "Řádky tohoto pohledu, filtrované podle {q}: každá URL níže vrátí tytéž řádky.",
+      "viewQueryAll": "Není nastaven filtr: každá URL vrátí všechny {type}, které smíte číst.",
+      "surface": {
+        "ngsi-ld": "NGSI-LD",
+        "ogc-features": "OGC Features",
+        "odata": "OData"
+      },
+      "copySurface": "Kopírovat URL {surface}"
     },
     "share": {
       "title": "Zveřejnit tento typ jako veřejný odkaz",
@@ -1278,6 +1299,11 @@
         "failed": "selhalo: přečtěte si chybu a zkuste později"
       },
       "exported": "{count, plural, one {Exportován # záznam do souboru ve stažených souborech.} few {Exportovány # záznamy do souboru ve stažených souborech.} many {Exportováno # záznamů do souboru ve stažených souborech.} other {Exportováno # záznamů do souboru ve stažených souborech.}}"
+    },
+    "viewHints": {
+      "moveReason": "Uloží se u každého přesunu do historie změn, např. „Přesunuto, protože místo zrušili“.",
+      "moveStart": "Vyberte den, např. 2026-11-03.",
+      "placeBy": "Pole s místem, které dá každý řádek na mapu, např. location."
     }
   },
   "endpoints": {
@@ -2821,6 +2847,87 @@
       "revokeOf": "Odebrat přístup {account}",
       "reasonFirst": "Nejprve napište důvod."
     },
+    "map": {
+      "views": "Zobrazení pipeline",
+      "view": {
+        "list": "Seznam",
+        "map": "Mapa toků dat"
+      },
+      "title": "Mapa toků dat",
+      "space": "Prostor",
+      "allSpaces": "Všechny prostory",
+      "legend": "Barvy čar",
+      "empty": "V tomto projektu zatím netečou žádná data.",
+      "emptySpace": "Tento prostor zatím nečte ani nezapisuje žádná pipeline.",
+      "emptyHint": "Přidejte zdroj dat nebo MQTT broker a pošlete ho do prostoru: mapa odtud nakreslí každou cestu.",
+      "missingTitle": "{count, plural, one {# cestě chybí potřebné oprávnění} few {# cestám chybí potřebné oprávnění} other {# cestám chybí potřebné oprávnění}}",
+      "paused": "Pozastavená",
+      "noPhase": "Ještě nenasazená",
+      "sent": "{count, plural, one {# záznam v posledním běhu} few {# záznamy v posledním běhu} other {# záznamů v posledním běhu}}",
+      "opaque": "Endpoint jiného projektu",
+      "opaqueOwner": "Projekt {project}; jeho podrobnosti nemůžete číst",
+      "from": "Z {name}",
+      "to": "Do {name}",
+      "close": "Zavřít",
+      "grants": "Oprávnění",
+      "byPolicy": "Povoleno politikou {policy}",
+      "fix": "Oprava: {fix}",
+      "counts": "odesláno {sent}, odmítnuto {rejected}, selhalo {failed}",
+      "perMinute": "{rate} záznamů za minutu",
+      "openPipeline": "Otevřít pipeline",
+      "openRuns": "Běhy",
+      "openRejected": "Odmítnuté záznamy",
+      "edit": "Upravit",
+      "openEndpoint": "Otevřít endpoint",
+      "openSpace": "Otevřít prostor",
+      "brokerFirst": "Pipeline čte broker přes zdroj dat. Vytvořte ho pro tento broker a pak ho pošlete do prostoru.",
+      "newDataSource": "Vytvořit zdroj dat pro tento broker",
+      "sendTarget": "Zapisovat do",
+      "sendTargetLater": "Vybrat v editoru",
+      "sendTargetOption": "{endpoint} (prostor {space})",
+      "send": "Poslat do prostoru",
+      "kind": {
+        "MqttBroker": "MQTT broker",
+        "DataSource": "Zdroj dat",
+        "Pipeline": "Pipeline",
+        "Endpoint": "Endpoint",
+        "ContextSpace": "Prostor"
+      },
+      "role": {
+        "ingest": "příjem",
+        "derived": "odvozená",
+        "kpi": "KPI"
+      },
+      "grant": {
+        "granted": "povoleno",
+        "missing": "chybí oprávnění",
+        "external": "povoluje vlastník"
+      },
+      "group": {
+        "sources": "Zdroje",
+        "pipelines": "Pipeliny",
+        "endpoints": "Endpointy",
+        "spaces": "Prostory"
+      },
+      "fact": {
+        "name": "Název",
+        "owner": "Vlastník",
+        "sourceType": "Připojení",
+        "hosts": "Servery",
+        "topics": "Témata",
+        "space": "Prostor",
+        "slug": "Adresa",
+        "audience": "Publikum",
+        "state": "Stav",
+        "lastRun": "Poslední běh",
+        "counts": "Záznamy",
+        "rate": "Rychlost"
+      },
+      "edge": {
+        "reads": "Čte prostor {other} přes endpoint {endpoint} ({operation})",
+        "writes": "Zapisuje do prostoru {other} přes endpoint {endpoint} ({operation})"
+      }
+    },
     "source": {
       "section": "Zdroj a prostor",
       "lead": "Dokazuje, že prostor drží to, co zdroj uvádí: poslední úplné načtení zdroje vedle entit, které tato pipeline drží v prostoru, co ze zdroje zmizelo, co nedorazilo a co pipeline smazala a proč.",
@@ -4197,7 +4304,9 @@
       "secretKeyHelp": "Položka toho secretu, která obsahuje token. Nechte apiToken, pokud operátor neurčí jinak.",
       "secretKeyInvalid": "Klíč tvoří písmena, číslice, tečky, pomlčky a podtržítka.",
       "secretInvalid": "Název secretu tvoří malá písmena, číslice, pomlčky a tečky, například ckan-api-token.",
-      "secretIsToken": "Toto vypadá jako samotný API token. Nevkládejte ho sem: požádejte operátora, aby ho uložil do úložiště secretů, a napište název toho secretu."
+      "secretIsToken": "Toto vypadá jako samotný API token. Nevkládejte ho sem: požádejte operátora, aby ho uložil do úložiště secretů, a napište název toho secretu.",
+      "organizationsKnown": "Organizace v katalogu",
+      "organizationNone": "Katalog Portálu nemá odpovídající organizaci: napište její krátký název a vyberte „Nové“."
     },
     "publications": {
       "title": "Publikované endpointy",
@@ -7243,7 +7352,7 @@
       "contactEmail": "E-mail kontaktu",
       "contactHelp": "Rolová adresa jako oddělení otevřených dat, nikdy osobní e-mail.",
       "keywords": "Klíčová slova",
-      "keywordsHelp": "Oddělená čárkami, v jazyce {language}.",
+      "keywordsHelp": "Vyberte klíčová slova katalogu nebo napište nové; v jazyce {language}.",
       "spatialHelp": "Region, který data pokrývají, například Banskobystrický kraj (SK032). Mapa datové sady ukáže její záznamy všude, kde mají polohu.",
       "start": "Obsahuje data od",
       "end": "Obsahuje data do",
@@ -7288,7 +7397,9 @@
         "map": "Mapa záznamů s polohou",
         "api": "NGSI-LD API a další formáty endpointu",
         "dcat": "Záznam DCAT-AP (JSON-LD)"
-      }
+      },
+      "inCatalogue": "Již v katalogu",
+      "typeNew": "V katalogu nic neodpovídá: napište nový a vyberte „Nové“."
     },
     "licence": {
       "CC_BY_4_0": "Creative Commons Attribution 4.0",
@@ -7797,6 +7908,8 @@
     "client": "Přihlašovací klient",
     "config": "Záznam do konfigurace AI klienta",
     "signIn": "AI klient najde přihlášení podle adresy a přihlásí osobu klientem {client} (bez tajemství, PKCE). Do konfigurace nejde žádný token.",
+    "connectPage": "Otevřít veřejnou stránku připojení",
+    "connectPageHint": "Ukazuje nástroje, které dostane kdokoli bez přihlášení, a nastavení pro Claude, ChatGPT a další klienty; její adresu můžete sdílet i v popisu datové sady.",
     "copy": "Kopírovat",
     "copied": "Zkopírováno",
     "copyOf": "Kopírovat: {what}",
@@ -7821,7 +7934,7 @@
       "description": "Co server obsahuje, v jedné či dvou větách; AI klient to čte jako své pokyny.",
       "members": "Nabízejí se jen endpointy, které smíte číst. Každé volání člena je vlastní volání toho endpointu, o kterém rozhoduje jeho vlastní politika.",
       "audience": "Ne širší než nejužší člen. Veřejný server potřebuje všechny členy veřejné a schvalovatele, který smí publikovat.",
-      "allowedProjects": "Názvy projektů oddělené čárkami; prázdné připouští jen tento projekt.",
+      "allowedProjects": "Vyberte projekty, jejichž členové se smějí připojit; nabízejí se jen projekty, které smíte číst. Prázdné připouští jen tento projekt.",
       "knowledgeSources": "Server nabídne nástroj search_documents nad veřejnými stránkami a dokumenty zde vybraných zdrojů; bez nich takový nástroj nenabízí."
     },
     "form": {
@@ -7837,7 +7950,9 @@
       "sourcesUnreadable": "Zdroje znalostí projektu se nepodařilo načíst; již připojené zůstávají, jak jsou.",
       "noPublicSources": "Projekt nemá žádný veřejný zdroj znalostí k připojení.",
       "sourcesFull": "Nejvýše {max} zdrojů.",
-      "keptSources": "Ponechané, jak jsou: {sources}."
+      "keptSources": "Ponechané, jak jsou: {sources}.",
+      "yourProjects": "Projekty, které smíte číst",
+      "noProjects": "Neodpovídá žádný projekt, který smíte číst. Správce organizace vás přidá do projektu v Přístup → Skupiny."
     },
     "problem": {
       "name": "Použijte malá písmena, číslice a pomlčky, nejvýše 63 znaků.",
@@ -8686,10 +8801,10 @@
     },
     "help": {
       "name": "Malá písmena, číslice a pomlčky; poslední část adresy.",
-      "projects": "Názvy projektů oddělené čárkou.",
-      "spaces": "projekt/prostor, oddělené čárkou.",
-      "domains": "Domény Smart Data Models: Environment, Transportation, …",
-      "themes": "Datová témata EU, například ENVI nebo TRAN.",
+      "projects": "Vyberte z projektů, které smíte číst, např. mesto.",
+      "spaces": "Vyberte z kontextových prostorů, které smíte číst, zúženo na projekty vybrané výše.",
+      "domains": "Domény Smart Data Models z klasifikace Endpointů.",
+      "themes": "Datová témata EU z katalogových záznamů Endpointů.",
       "endpoints": "Koncový bod sem přidáte hvězdičkou na jeho stránce."
     },
     "level": {
@@ -8709,7 +8824,12 @@
       "add": "Přidat do mých konektorů",
       "in": "V konektoru: {names}"
     },
-    "full": "Máte 10 konektorů, víc nejde. Chcete-li přidat další, jeden smažte."
+    "full": "Máte 10 konektorů, víc nejde. Chcete-li přidat další, jeden smažte.",
+    "noMatch": {
+      "projects": "Neodpovídá žádný projekt, který smíte číst. Správce organizace vás přidá do projektu v Přístup → Skupiny.",
+      "spaces": "Neodpovídá žádný kontextový prostor, který smíte číst. Projekt ho vytvoří v Data → Kontextové prostory.",
+      "none": "Napsanému nic neodpovídá."
+    }
   },
   "conversations": {
     "title": "Konverzace",
@@ -8739,7 +8859,8 @@
       "deployment": "Asistent",
       "from": "Od",
       "to": "Do",
-      "expensive": "Nad $0,02"
+      "expensive": "Nad $0,02",
+      "noDeployments": "Tento projekt ještě nemá asistenta. Přidejte ho v Asistent → Nasazení."
     },
     "status": {
       "ok": "Zodpovězeno",

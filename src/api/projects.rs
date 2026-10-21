@@ -43,6 +43,13 @@ pub struct ProjectSummary {
 /// (PF-109, T-3234). It grants nothing: who may read the project is their grants' question alone.
 pub const SAMPLE_LABEL: &str = "joinedcontext.com/sample";
 
+/// Whether `name` is a project the caller may read: the one rule of the project list and of every
+/// field that names a project (T-4948). An unknown project reads like an unreadable one.
+pub fn readable(state: &AppState, identity: &crate::auth::session::Identity, name: &str) -> bool {
+    state.mirror.namespaces().iter().any(|known| known == name)
+        && crate::permissions::for_request(state, identity, name).may_read_project()
+}
+
 /// The projects this caller may read, and no others (PF-59, T-0974).
 ///
 /// A project a caller has no grant in answers `404` everywhere else, so naming it here would
@@ -66,9 +73,7 @@ pub async fn list_projects(
         .mirror
         .namespaces()
         .into_iter()
-        .filter(|name| {
-            crate::permissions::for_request(&state, &user.0.identity, name).may_read_project()
-        })
+        .filter(|name| readable(&state, &user.0.identity, name))
         .map(|name| {
             let manifest = state
                 .mirror
