@@ -2168,7 +2168,13 @@
         "countFirst": "Die ersten {count, plural, one {# Datensatz} other {# Datensätze}} mit {fields, plural, one {# Feld} other {# Feldern}}; die Quelle hat mehr",
         "caption": "Datensätze der Stichprobe",
         "notJson": "Die Quelle hat eine Webseite geliefert, keine Daten. Prüfen Sie die Adresse ihrer Datenquelle.",
-        "details": "Meldung der Engine"
+        "details": "Meldung der Engine",
+        "listening": "Höre {source} zu: {elapsed} von {seconds} s, höchstens {max} Nachrichten",
+        "listenAgain": "Erneut zuhören",
+        "streamCount": "{count} von {max} Nachrichten kamen innerhalb von {seconds} s an, mit {fields, plural, one {# Feld} other {# Feldern}}",
+        "streamSkipped": "{count, plural, one {# Nachricht wurde nicht behalten} other {# Nachrichten wurden nicht behalten}}",
+        "streamEmptyTitle": "Innerhalb von {seconds} s kam keine Nachricht an",
+        "streamEmpty": "Das Topic ist vielleicht gerade still, oder der Broker hat die Verbindung oder die Zugangsdaten der Datenquelle abgelehnt. Hören Sie erneut zu oder prüfen Sie Adresse, Topic und Zugangsdaten der Datenquelle."
       },
       "mapping": {
         "title": "Abbildung",

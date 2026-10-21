@@ -1011,7 +1011,7 @@ const TRANSCRIPT_MISSES: usize = 20;
 /// How many of `key`'s times in `window` fall within `span` of `now`, `now` counted.
 // ponytail: one window per replica, in memory, like the feedback route's; a shared counter if
 // the Portal runs several.
-fn counted(
+pub(crate) fn counted(
     window: &OnceLock<Mutex<HashMap<String, Vec<Instant>>>>,
     key: &str,
     now: Instant,

@@ -2168,7 +2168,13 @@
         "countFirst": "Prvé {count, plural, one {# záznam} few {# záznamy} other {# záznamov}} s {fields, plural, one {# poľom} other {# poľami}}; zdroj má viac",
         "caption": "Záznamy vzorky",
         "notJson": "Zdroj vrátil webovú stránku, nie údaje. Skontrolujte adresu jeho zdroja údajov.",
-        "details": "Správa nástroja"
+        "details": "Správa nástroja",
+        "listening": "Počúvam {source}: {elapsed} z {seconds} s, najviac {max} správ",
+        "listenAgain": "Počúvať znova",
+        "streamCount": "{count} z {max} správ prišlo do {seconds} s, s {fields, plural, one {# poľom} other {# poľami}}",
+        "streamSkipped": "{count, plural, one {# správa nebola ponechaná} few {# správy neboli ponechané} other {# správ nebolo ponechaných}}",
+        "streamEmptyTitle": "Do {seconds} s neprišla žiadna správa",
+        "streamEmpty": "Téma môže byť práve tichá, alebo broker odmietol pripojenie či prihlasovacie údaje zdroja údajov. Počúvajte znova, alebo skontrolujte adresu, tému a prihlasovacie údaje zdroja údajov."
       },
       "mapping": {
         "title": "Mapovanie",

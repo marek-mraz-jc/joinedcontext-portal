@@ -2168,7 +2168,13 @@
         "countFirst": "Prvních {count, plural, one {# záznam} few {# záznamy} other {# záznamů}} s {fields, plural, one {# polem} other {# poli}}; zdroj má více",
         "caption": "Záznamy vzorku",
         "notJson": "Zdroj vrátil webovou stránku, ne data. Zkontrolujte adresu jeho datového zdroje.",
-        "details": "Zpráva nástroje"
+        "details": "Zpráva nástroje",
+        "listening": "Poslouchám {source}: {elapsed} z {seconds} s, nejvýše {max} zpráv",
+        "listenAgain": "Poslouchat znovu",
+        "streamCount": "{count} z {max} zpráv přišlo do {seconds} s, s {fields, plural, one {# polem} other {# poli}}",
+        "streamSkipped": "{count, plural, one {# zpráva nebyla ponechána} few {# zprávy nebyly ponechány} other {# zpráv nebylo ponecháno}}",
+        "streamEmptyTitle": "Do {seconds} s nepřišla žádná zpráva",
+        "streamEmpty": "Téma může být právě tichá, nebo broker odmítl připojení či přihlašovací údaje zdroje dat. Poslouchejte znovu, nebo zkontrolujte adresu, téma a přihlašovací údaje zdroje dat."
       },
       "mapping": {
         "title": "Mapování",
