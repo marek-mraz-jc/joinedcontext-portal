@@ -12703,6 +12703,191 @@
         }
       }
     },
+    "/api/v1/projects/{project}/pipelines/{name}/source-deletes": {
+      "get": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Preview Source Deletes",
+        "description": "The dry run of a snapshot pipeline (PL-97): how many entities its source ledger holds, the ids one more complete run without them deletes, the ids due now, and the held run if one is held. Nothing is deleted.",
+        "operationId": "get_source_deletes",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Pipeline name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The ledger and the dry run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineSourceDeletes"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The pipeline is not a snapshot pipeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The ledger could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Release or Keep Source Deletes",
+        "description": "Answers a snapshot pipeline's held run (PL-97): `delete` hands the due ids to the runner once, deleted through the pipeline's own Endpoint and grant like any of its deletes; `keep` clears every miss, so nothing is deleted until complete runs miss the ids again. Needs approve on Pipeline, and each answer is an activity event `pipeline.source-delete`.",
+        "operationId": "post_source_deletes",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Pipeline name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineSourceDecision"
+              },
+              "example": {
+                "decision": "keep"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Done, or the deletes handed to the runner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineSourceDecided"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not approve the pipeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not a snapshot pipeline, or nothing is due",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The ledger or the runner did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/pipelines/{name}/stats": {
       "get": {
         "tags": [
@@ -21924,6 +22109,15 @@
           "unknown"
         ]
       },
+      "HoldReason": {
+        "type": "string",
+        "description": "Why a run deleted nothing and alerts the pipeline's subscribers.",
+        "enum": [
+          "share-exceeded",
+          "empty",
+          "incomplete"
+        ]
+      },
       "Identity": {
         "type": "object",
         "description": "Who is signed in. Returned by `GET /api/v1/auth/me` and used by every protected route.",
@@ -23881,6 +24075,114 @@
           "withheld": {
             "type": "boolean",
             "description": "True when a target Endpoint hides attributes (or cannot be read): the nodes before the\nmapping carry the source's own field names, so only `output` is served."
+          }
+        }
+      },
+      "PipelineSourceDecided": {
+        "type": "object",
+        "description": "What a decision did.",
+        "required": [
+          "deleting"
+        ],
+        "properties": {
+          "deleting": {
+            "type": "integer",
+            "description": "The ids handed to the runner to delete; 0 on keep.",
+            "minimum": 0
+          }
+        }
+      },
+      "PipelineSourceDecision": {
+        "type": "object",
+        "description": "A person's answer to a held run (PL-97).",
+        "required": [
+          "decision"
+        ],
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/SourceChoice",
+            "description": "`delete` deletes the due ids once, past the share; `keep` counts every id as read again."
+          }
+        },
+        "additionalProperties": false
+      },
+      "PipelineSourceDeletes": {
+        "type": "object",
+        "description": "The ledger as the pipeline's page shows it, with the dry run: what the next complete run that\nmisses them again would delete (PL-97).",
+        "required": [
+          "misses",
+          "maxShare",
+          "ledger",
+          "next",
+          "due"
+        ],
+        "properties": {
+          "due": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The ids whose misses already reached the rule and wait for a delete or a release."
+          },
+          "hold": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PipelineSourceHold"
+              }
+            ]
+          },
+          "ledger": {
+            "type": "integer",
+            "description": "The ids in the ledger.",
+            "minimum": 0
+          },
+          "maxShare": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "misses": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "next": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The ids at their last miss: one more complete run without them deletes them."
+          }
+        }
+      },
+      "PipelineSourceHold": {
+        "type": "object",
+        "description": "A run that deleted nothing, as the pipeline's page and its alert say it.",
+        "required": [
+          "run",
+          "reason",
+          "would",
+          "ledger"
+        ],
+        "properties": {
+          "ledger": {
+            "type": "integer",
+            "description": "The ids in the ledger.",
+            "minimum": 0
+          },
+          "reason": {
+            "$ref": "#/components/schemas/HoldReason"
+          },
+          "run": {
+            "type": "string"
+          },
+          "would": {
+            "type": "integer",
+            "description": "The ids the run would have deleted.",
+            "minimum": 0
           }
         }
       },
@@ -25934,6 +26236,13 @@
           }
         },
         "additionalProperties": false
+      },
+      "SourceChoice": {
+        "type": "string",
+        "enum": [
+          "delete",
+          "keep"
+        ]
       },
       "SourceDryRunResult": {
         "type": "object",
