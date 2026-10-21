@@ -9,10 +9,11 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { callOperation } from "../../api/operations";
-import { Alert, Badge, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
+import { Alert, Badge, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
 import { RECORD_LINK_STYLE } from "../../components/RecordLink";
 import { attributesOf } from "./OutputMapper";
 import type { Attribute } from "./outputMapper";
+import { HEARTBEATS, KEEPS, RECEIVED, planOf, withPlan, type History, type Keep, type Plan } from "./history";
 
 /** One attribute as the target Endpoint lets the pipeline write it. */
 export interface Writable {
@@ -96,10 +97,91 @@ export interface TargetCardProps {
   space: string;
   type: string | undefined;
   target: TargetType;
+  /** `spec.history` of the draft; with `onHistory`, each attribute gets its History column. */
+  history?: History[];
+  onHistory?: (history: History[] | undefined) => void;
+  /** The date-time slots a row's time may come from, picked from the sample. */
+  timeSlots?: string[];
+  /** The record check's history findings of the draft (PL-109); absent until it ran. */
+  historyFindings?: CheckFinding[];
+}
+
+interface HistoryCellProps {
+  name: string;
+  plan: Plan | undefined;
+  timeSlots: string[];
+  findings: CheckFinding[] | undefined;
+  onPlan: (plan: Plan | undefined) => void;
+}
+
+/** One attribute's history plan: what is kept, the time of a row, and the server's verdict on it. */
+function HistoryCell({ name, plan, timeSlots, findings, onPlan }: HistoryCellProps): JSX.Element {
+  const { t } = useTranslation();
+  const id = `workbench-history-${name}`;
+  const refused = findings?.filter((f) => f.field === name) ?? [];
+  const times = [...new Set([...timeSlots, ...(plan?.observedAt && plan.observedAt !== RECEIVED ? [plan.observedAt] : [])])];
+  return (
+    <div className="flex min-w-48 flex-col gap-1">
+      <Select
+        id={id}
+        aria-label={t("pipelines.history.keepOf", { name })}
+        value={plan?.keep ?? ""}
+        onChange={(event) => onPlan(event.target.value ? { ...(plan ?? {}), keep: event.target.value as Keep } : undefined)}
+      >
+        <option value="">{t("pipelines.history.asMapped")}</option>
+        {KEEPS.map((keep) => (
+          <option key={keep} value={keep}>
+            {t(`pipelines.history.keep.${keep}`)}
+          </option>
+        ))}
+      </Select>
+      {plan ? (
+        <Select
+          id={`${id}-time`}
+          aria-label={t("pipelines.history.timeOf", { name })}
+          value={plan.observedAt ?? ""}
+          onChange={(event) => onPlan({ ...plan, observedAt: event.target.value || undefined })}
+        >
+          <option value="">{t("pipelines.history.timeMapped")}</option>
+          {times.map((slot) => (
+            <option key={slot} value={slot}>
+              {t("pipelines.history.timeFrom", { slot })}
+            </option>
+          ))}
+          <option value={RECEIVED}>{t("pipelines.history.timeReceived")}</option>
+        </Select>
+      ) : null}
+      {plan?.keep === "changes" ? (
+        <Select
+          id={`${id}-heartbeat`}
+          aria-label={t("pipelines.history.heartbeatOf", { name })}
+          value={plan.heartbeat ?? "PT1H"}
+          onChange={(event) => onPlan({ ...plan, heartbeat: event.target.value })}
+        >
+          {HEARTBEATS.map((beat) => (
+            <option key={beat} value={beat}>
+              {t(`pipelines.history.heartbeat.${beat}`)}
+            </option>
+          ))}
+        </Select>
+      ) : null}
+      {refused.length > 0 ? (
+        refused.map((finding) => (
+          <span key={finding.rule} className="text-caption" role="status">
+            <Badge tone="danger">{t("pipelines.history.refused")}</Badge> <span className="text-fg-muted">{finding.reason}</span>
+          </span>
+        ))
+      ) : plan && findings ? (
+        <span className="text-caption" role="status">
+          <Badge tone="success">{t("pipelines.history.kept")}</Badge>
+        </span>
+      ) : null}
+    </div>
+  );
 }
 
 /** Step 3's card: space, model version, the type written and, per attribute, whether it is writable here. */
-export function TargetCard({ space, type, target }: TargetCardProps): JSX.Element {
+export function TargetCard({ space, type, target, history, onHistory, timeSlots = [], historyFindings }: TargetCardProps): JSX.Element {
   const { t } = useTranslation();
   const judged = (name: string) => target.writable?.find((one) => one.name === name);
   return (
@@ -120,13 +202,15 @@ export function TargetCard({ space, type, target }: TargetCardProps): JSX.Elemen
       {type && target.attributes.length > 0 ? (
         <>
           <p className="text-caption text-fg-muted">{t("pipelines.workbench.target.explain", { type })}</p>
-          <Table caption={t("pipelines.workbench.target.caption", { type })} maxHeight="max-h-80">
+          {onHistory ? <p className="text-caption text-fg-muted">{t("pipelines.history.explain")}</p> : null}
+          <Table caption={t("pipelines.workbench.target.caption", { type })} {...(onHistory ? {} : { maxHeight: "max-h-80" })}>
             <TableHead>
               <TableHeaderCell>{t("pipelines.workbench.target.field")}</TableHeaderCell>
               <TableHeaderCell>{t("pipelines.workbench.target.kind")}</TableHeaderCell>
               <TableHeaderCell>{t("pipelines.workbench.target.value")}</TableHeaderCell>
               <TableHeaderCell>{t("pipelines.workbench.target.required")}</TableHeaderCell>
               <TableHeaderCell>{t("pipelines.workbench.target.writable")}</TableHeaderCell>
+              {onHistory ? <TableHeaderCell>{t("pipelines.history.column")}</TableHeaderCell> : null}
             </TableHead>
             <TableBody>
               {target.attributes
@@ -159,6 +243,21 @@ export function TargetCard({ space, type, target }: TargetCardProps): JSX.Elemen
                           </span>
                         )}
                       </TableCell>
+                      {onHistory && type ? (
+                        <TableCell>
+                          {verdict?.writable === false ? (
+                            <span className="text-fg-subtle">—</span>
+                          ) : (
+                            <HistoryCell
+                              name={attribute.name}
+                              plan={planOf(history, type, attribute.name)}
+                              timeSlots={timeSlots.filter((slot) => slot !== attribute.name)}
+                              findings={historyFindings}
+                              onPlan={(plan) => onHistory(withPlan(history, type, attribute.name, plan))}
+                            />
+                          )}
+                        </TableCell>
+                      ) : null}
                     </TableRow>
                   );
                 })}
@@ -174,6 +273,7 @@ export function TargetCard({ space, type, target }: TargetCardProps): JSX.Elemen
                     {t("pipelines.workbench.target.inLifetime")}
                   </a>
                 </TableCell>
+                {onHistory ? <TableCell>—</TableCell> : null}
               </TableRow>
             </TableBody>
           </Table>

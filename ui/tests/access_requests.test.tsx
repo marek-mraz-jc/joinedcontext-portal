@@ -12,7 +12,7 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
-import { AccessRequestInbox, attrList, PipelineAccessRequests, requestBody } from "../src/pages/pipelines/AccessRequests";
+import { AccessRequestInbox, PipelineAccessRequests, requestBody } from "../src/pages/pipelines/AccessRequests";
 import type { AccessRequestView } from "../src/pages/pipelines/AccessRequests";
 import { InRouter } from "./pageHarness";
 
@@ -38,15 +38,14 @@ const request = (state: AccessRequestView["state"]): AccessRequestView => ({
 });
 
 describe("the request a form builds (PL-90)", () => {
-  it("splits attributes and asks for what is missing first", () => {
-    expect(attrList(" pm10, pm25  no2,,")).toEqual(["pm10", "pm25", "no2"]);
-    const form = { project: "helsinki", endpoint: "air-quality", operations: "read" as const, rows: [{ type: "AirQualityObserved", attrs: "pm10" }], until: "", reason: "why" };
+  it("asks for what is missing first", () => {
+    const form = { project: "helsinki", endpoint: "air-quality", operations: "read" as const, rows: [{ type: "AirQualityObserved", attrs: ["pm10"] }], until: "", reason: "why" };
     expect(requestBody(form)).toEqual({
       body: { endpoint: { project: "helsinki", name: "air-quality" }, operations: "read", types: [{ type: "AirQualityObserved", attrs: ["pm10"] }], reason: "why" },
     });
     expect(requestBody({ ...form, endpoint: " " })).toEqual({ missing: "endpoint" });
-    expect(requestBody({ ...form, rows: [{ type: "AirQualityObserved", attrs: "" }] })).toEqual({ missing: "types" });
-    expect(requestBody({ ...form, rows: [{ type: "", attrs: "" }] })).toEqual({ missing: "types" });
+    expect(requestBody({ ...form, rows: [{ type: "AirQualityObserved", attrs: [] }] })).toEqual({ missing: "types" });
+    expect(requestBody({ ...form, rows: [{ type: "", attrs: [] }] })).toEqual({ missing: "types" });
     expect(requestBody({ ...form, reason: "" })).toEqual({ missing: "reason" });
     expect((requestBody({ ...form, until: "2027-01-31" }) as { body: { until: string } }).body.until).toMatch(/^2027-0[12]-/);
   });
@@ -54,7 +53,11 @@ describe("the request a form builds (PL-90)", () => {
 
 describe("access requests on the pages (PL-90, PL-91, PL-93)", () => {
   let sent: { path: string; body: unknown }[];
-  function serve(items: AccessRequestView[]) {
+  const offered = [
+    { project: "helsinki", name: "air-quality", space: "air", types: [{ type: "AirQualityObserved", attrs: ["pm10", "pm25", "no2"] }] },
+    { project: "traffic", name: "counts", space: "roads", types: [] },
+  ];
+  function serve(items: AccessRequestView[], endpoints: unknown[] = offered, refusal?: { status: number; detail: string }) {
     sent = [];
     vi.stubGlobal(
       "fetch",
@@ -65,11 +68,18 @@ describe("access requests on the pages (PL-90, PL-91, PL-93)", () => {
         if (req.method === "POST") {
           const text = await req.text();
           sent.push({ path: url.pathname, body: text ? JSON.parse(text) : null });
+          if (refusal) {
+            return new Response(JSON.stringify({ title: "Invalid Request", status: refusal.status, detail: refusal.detail }), {
+              status: refusal.status,
+              headers: { "Content-Type": "application/problem+json" },
+            });
+          }
           if (url.pathname.endsWith("/approve") || url.pathname.endsWith("/revoke")) {
             return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "Change", metadata: { name: "chg-00000042", namespace: "helsinki" }, status: { lane: "red", phase: "PendingApproval", plan: { create: 1, update: 1, delete: 0 } } }, 202);
           }
           return json(request("pending"), 201);
         }
+        if (url.pathname.endsWith("/access-requests/endpoints")) return json({ items: endpoints });
         if (url.pathname.endsWith("/access-requests")) return json({ items });
         return json({ items: [] });
       }),
@@ -99,10 +109,15 @@ describe("access requests on the pages (PL-90, PL-91, PL-93)", () => {
     await userEvent.click(screen.getByRole("button", { name: L.send }));
     expect(await screen.findByRole("alert")).toHaveTextContent(L.missing.endpoint);
     expect(sent).toHaveLength(0);
-    await userEvent.type(screen.getByLabelText(new RegExp(L.project)), "helsinki");
-    await userEvent.type(screen.getByLabelText(new RegExp(`^${L.endpoint}`)), "air-quality");
-    await userEvent.type(screen.getByLabelText(L.type), "AirQualityObserved");
-    await userEvent.type(screen.getByLabelText(L.attrs), "pm10, pm25");
+    // The Endpoint, its type and its attributes are picked from what the server offers, never typed.
+    await userEvent.click(screen.getByRole("combobox", { name: L.endpoint }));
+    expect(await screen.findByRole("option", { name: /counts/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("option", { name: /air-quality/ }));
+    await userEvent.click(screen.getByRole("combobox", { name: L.type }));
+    await userEvent.click(await screen.findByRole("option", { name: /AirQualityObserved/ }));
+    await userEvent.click(screen.getByRole("combobox", { name: L.attrs }));
+    await userEvent.click(await screen.findByRole("option", { name: /pm10/ }));
+    await userEvent.click(await screen.findByRole("option", { name: /pm25/ }));
     await userEvent.type(screen.getByLabelText(new RegExp(L.reason)), "air index");
     await userEvent.click(screen.getByRole("button", { name: L.send }));
     await waitFor(() => expect(sent).toHaveLength(1));
@@ -114,6 +129,61 @@ describe("access requests on the pages (PL-90, PL-91, PL-93)", () => {
       reason: "air index",
     });
     expect(await screen.findByText(L.sent)).toBeInTheDocument();
+  });
+
+  it("asks for an Endpoint the list does not offer by its typed name, with typed types the owners check", async () => {
+    serve([]);
+    wrap(<PipelineAccessRequests project="city-kpis" name="air-index" />);
+    await userEvent.click(await screen.findByRole("button", { name: L.request }));
+    expect(screen.getByText(L.endpointHelp)).toBeInTheDocument();
+    await userEvent.type(screen.getByRole("combobox", { name: L.endpoint }), "Not a name{Enter}");
+    expect(await screen.findByText(L.endpointTypedBad.replace("{name}", "not a name"))).toBeInTheDocument();
+    await userEvent.clear(screen.getByRole("combobox", { name: L.endpoint }));
+    await userEvent.type(screen.getByRole("combobox", { name: L.endpoint }), "parks/trees{Enter}");
+    expect(await screen.findByText(L.typedTypeHelp)).toBeInTheDocument();
+    await userEvent.type(screen.getByRole("combobox", { name: L.type }), "TreeObserved{Enter}");
+    await userEvent.type(screen.getByRole("combobox", { name: L.attrs }), "height{Enter}");
+    await userEvent.type(screen.getByLabelText(new RegExp(L.reason)), "tree index");
+    await userEvent.click(screen.getByRole("button", { name: L.send }));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].body).toEqual({
+      endpoint: { project: "parks", name: "trees" },
+      operations: "read",
+      types: [{ type: "TreeObserved", attrs: ["height"] }],
+      reason: "tree index",
+    });
+  });
+
+  it("says why an Endpoint offers no type, and how to go on when none is offered at all", async () => {
+    serve([]);
+    wrap(<PipelineAccessRequests project="city-kpis" name="air-index" />);
+    await userEvent.click(await screen.findByRole("button", { name: L.request }));
+    await userEvent.click(screen.getByRole("combobox", { name: L.endpoint }));
+    await userEvent.click(await screen.findByRole("option", { name: /counts/ }));
+    expect(screen.getByText(L.noTypes)).toBeInTheDocument();
+  });
+
+  it("lists no Endpoint when the server offers none", async () => {
+    serve([], []);
+    wrap(<PipelineAccessRequests project="city-kpis" name="air-index" />);
+    await userEvent.click(await screen.findByRole("button", { name: L.request }));
+    await userEvent.click(screen.getByRole("combobox", { name: L.endpoint }));
+    expect(await screen.findByText(L.noEndpoints)).toBeInTheDocument();
+  });
+
+  it("shows the server's refusal of a value beside the form", async () => {
+    serve([], offered, { status: 400, detail: "types[0].attrs: 'pm25' is no attribute of AirQualityObserved at endpoint 'helsinki/air-quality'" });
+    wrap(<PipelineAccessRequests project="city-kpis" name="air-index" />);
+    await userEvent.click(await screen.findByRole("button", { name: L.request }));
+    await userEvent.click(screen.getByRole("combobox", { name: L.endpoint }));
+    await userEvent.click(await screen.findByRole("option", { name: /air-quality/ }));
+    await userEvent.click(screen.getByRole("combobox", { name: L.type }));
+    await userEvent.click(await screen.findByRole("option", { name: /AirQualityObserved/ }));
+    await userEvent.click(screen.getByRole("combobox", { name: L.attrs }));
+    await userEvent.click(await screen.findByRole("option", { name: /pm25/ }));
+    await userEvent.type(screen.getByLabelText(new RegExp(L.reason)), "air index");
+    await userEvent.click(screen.getByRole("button", { name: L.send }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("types[0].attrs: 'pm25'");
   });
 
   it("shows the requester where each request stands and the owner's reason", async () => {

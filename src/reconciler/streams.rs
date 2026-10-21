@@ -1363,6 +1363,7 @@ pub fn render_stream(
         (None, None) => {}
     }
 
+    processors.extend(history_step(pipeline)?);
     processors.extend(lifetime_step(pipeline)?);
     processors.extend(batching());
     processors.extend(writes(
@@ -1393,6 +1394,9 @@ pub fn render_stream(
 /// The label of a pipeline's compute step, the studio's `compute` node (PL-66).
 pub const COMPUTE_LABEL: &str = "compute";
 
+/// The label of the step `spec.history` compiles to (PL-107).
+pub const HISTORY_LABEL: &str = "history";
+
 /// A page whose read failed is dropped; a kpi source keeps it as an error instead (PL-104).
 const DROP_ERRORED: &str = "root = if errored() { deleted() }";
 
@@ -1404,6 +1408,14 @@ pub const LIFETIME_LABEL: &str = "lifetime";
 pub(crate) fn lifetime_step(pipeline: &PipelineSpec) -> Result<Option<Value>, RenderError> {
     let step = jcctl::lifetime::step(pipeline).map_err(|e| RenderError::Custom(e.to_string()))?;
     Ok(step.map(|text| labelled(serde_json::json!({ "mapping": text }), LIFETIME_LABEL)))
+}
+
+/// `spec.history` as its one Bento step (PL-107, T-4845): the planned `observedAt` of each
+/// attribute, after the author's steps and before the lifetime step, whose `from: observedAt`
+/// then reads the same time.
+pub(crate) fn history_step(pipeline: &PipelineSpec) -> Result<Option<Value>, RenderError> {
+    let step = jcctl::history::step(pipeline).map_err(|e| RenderError::Custom(e.to_string()))?;
+    Ok(step.map(|text| labelled(serde_json::json!({ "mapping": text }), HISTORY_LABEL)))
 }
 
 /// One Bento component with a `label`, so its counters are attributable (PL-24, T-1125).
@@ -1675,6 +1687,7 @@ pub fn render_endpoint_stream(
         COMPUTE_LABEL,
     ));
 
+    processors.extend(history_step(pipeline)?);
     processors.extend(lifetime_step(pipeline)?);
     processors.extend(batching());
     processors.extend(writes(
@@ -2086,6 +2099,7 @@ pub fn render_merged(
         processors.extend(routing);
         Some(cases)
     };
+    processors.extend(history_step(pipeline)?);
     processors.extend(lifetime_step(pipeline)?);
     processors.extend(batching());
     match routed {

@@ -24,10 +24,7 @@ import { PageFailed } from "../../components/ui/PageState";
 
 type AccountAccessAnswer = components["schemas"]["AccountAccess"];
 type AccountGrant = components["schemas"]["AccountGrant"];
-interface GrantRule {
-  kinds?: string[];
-  verbs?: string[];
-}
+type GrantRule = components["schemas"]["AccountRule"];
 
 /** The columns of the matrix; `approve` is there to say no account ever holds it (PF-58). */
 export const MATRIX_VERBS = ["read", "propose", "delete", "approve"] as const;
@@ -42,11 +39,9 @@ export interface MatrixCell {
 }
 
 function covers(rule: GrantRule, kind: string, verb: MatrixVerb): boolean {
-  const kinds = rule.kinds ?? [];
-  const verbs = rule.verbs ?? [];
-  const named = kinds.includes(kind) || kinds.includes("*");
+  const named = rule.kinds.includes(kind) || rule.kinds.includes("*");
   // `propose` on a kind implies `read` on it (jc-core `Rule::grants`).
-  return named && (verbs.includes(verb) || (verb === "read" && verbs.includes("propose")));
+  return named && (rule.verbs.includes(verb) || (verb === "read" && rule.verbs.includes("propose")));
 }
 
 /**
@@ -54,7 +49,7 @@ function covers(rule: GrantRule, kind: string, verb: MatrixVerb): boolean {
  * grant it comes from, or why it is refused. `approve` is never held by an account (PF-58).
  */
 export function accessMatrix(grants: AccountGrant[]): { kind: string; cells: Record<MatrixVerb, MatrixCell> }[] {
-  const kinds = [...new Set(grants.flatMap((grant) => (grant.rules as GrantRule[]).flatMap((rule) => rule.kinds ?? [])))].sort();
+  const kinds = [...new Set(grants.flatMap((grant) => grant.rules.flatMap((rule) => rule.kinds ?? [])))].sort();
   return kinds.map((kind) => {
     const cells = {} as Record<MatrixVerb, MatrixCell>;
     for (const verb of MATRIX_VERBS) {
@@ -62,7 +57,7 @@ export function accessMatrix(grants: AccountGrant[]): { kind: string; cells: Rec
         cells[verb] = { allowed: false, sources: [], reason: { key: "access.agent.reason.neverApproves" } };
         continue;
       }
-      const giving = grants.filter((grant) => (grant.rules as GrantRule[]).some((rule) => covers(rule, kind, verb)));
+      const giving = grants.filter((grant) => grant.rules.some((rule) => covers(rule, kind, verb)));
       const active = giving.filter((grant) => grant.state === "active");
       const source = (grant: AccountGrant) => `${grant.role} · ${grant.scope}`;
       if (active.length > 0) {

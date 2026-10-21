@@ -43,6 +43,12 @@ fn role(state: &AppState, name: &str, user: &str, project: &str, kinds: &[&str],
 
 /// `jana` stewards the KPI pipeline; `olli` owns Helsinki's air space; `eve` reads Helsinki only.
 async fn state(pool: sqlx::PgPool, pipeline: &str, pipeline_identity: bool) -> AppState {
+    world(pipeline, pipeline_identity).await.with_db(pool)
+}
+
+/// The same world without a database: the request form's list and the request door's refusals
+/// answer before anything is stored.
+async fn world(pipeline: &str, pipeline_identity: bool) -> AppState {
     let gitea = common::forge().await;
     let client = GiteaClient::new(
         gitea.uri().parse().expect("mock url"),
@@ -54,9 +60,7 @@ async fn state(pool: sqlx::PgPool, pipeline: &str, pipeline_identity: bool) -> A
     std::mem::forget(gitea);
     let mut config = Config::for_tests();
     config.pipeline_identity = pipeline_identity;
-    let state = AppState::new(config, None)
-        .with_gitea(Arc::new(client))
-        .with_db(pool);
+    let state = AppState::new(config, None).with_gitea(Arc::new(client));
     for (project, space) in [(KPIS, "kpi"), (HELSINKI, "air")] {
         state.mirror.upsert(common::envelope(
             "Project",
@@ -160,6 +164,8 @@ async fn a_request_is_approved_in_the_owning_project_and_revoked_there() {
     let id = request["id"].as_str().expect("an id").to_owned();
     assert_eq!(request["state"], "pending");
     assert_eq!(request["account"], format!("{KPIS}/pl-{pipeline}"));
+    // T-4946: jana cannot read Helsinki, so her answer does not say which space the name reaches.
+    assert!(request.get("space").is_none(), "{}", filed.text);
     assert!(
         state
             .mirror
@@ -384,14 +390,6 @@ async fn a_request_is_refused_before_it_is_stored() {
         send(&state, "jana", "POST", &uri, Some(all)).await.status,
         StatusCode::BAD_REQUEST
     );
-    let mut nowhere = ask();
-    nowhere["endpoint"]["name"] = json!("not-there");
-    assert_eq!(
-        send(&state, "jana", "POST", &uri, Some(nowhere))
-            .await
-            .status,
-        StatusCode::NOT_FOUND
-    );
     let shared = state_shared(pool, &pipeline).await;
     let answer = send(&shared, "jana", "POST", &uri, Some(ask())).await;
     assert_eq!(answer.status, StatusCode::CONFLICT, "{}", answer.text);
@@ -406,8 +404,228 @@ async fn a_request_is_refused_before_it_is_stored() {
         json!([]),
         "nothing was stored"
     );
+
+    // T-4946: a name that exists nowhere is answered as an unreadable one is, so the answer never
+    // tells which Endpoints exist; it waits with no space, and no owner is ever shown it.
+    let mut nowhere = ask();
+    nowhere["endpoint"]["name"] = json!("not-there");
+    let filed = send(&state, "jana", "POST", &uri, Some(nowhere)).await;
+    assert_eq!(filed.status, StatusCode::CREATED, "{}", filed.text);
+    assert!(!filed.text.contains("\"space\""), "{}", filed.text);
+    let inbox = send(
+        &state,
+        "olli",
+        "GET",
+        &format!("/api/v1/projects/{HELSINKI}/access-requests"),
+        None,
+    )
+    .await;
+    assert_eq!(inbox.status, StatusCode::OK, "{}", inbox.text);
+    assert!(!inbox.text.contains("not-there"), "{}", inbox.text);
 }
 
 async fn state_shared(pool: sqlx::PgPool, pipeline: &str) -> AppState {
     state(pool, pipeline, false).await
+}
+
+/// Helsinki's `air` space compiles a model whose AirQualityObserved has `pm10` and `pm25`; besides
+/// the private `air-quality` it serves `air-open` to the whole organization; the KPI project has an
+/// Endpoint on the pipeline's own space; `pia` stewards the pipeline and reads Helsinki too.
+fn modelled(state: &AppState) {
+    use joinedcontext_portal::pipeline_validation::ModelSchema;
+    state
+        .model_schemas
+        .replace(std::collections::HashMap::from([(
+            (HELSINKI.to_owned(), "air".to_owned()),
+            Arc::new(ModelSchema::compile(
+                "air",
+                "1.0.0",
+                &json!({ "definitions": { "AirQualityObserved": { "properties": {
+                    "pm10": { "type": "number", "x-ngsi-ld-kind": "Property" },
+                    "pm25": { "type": "number", "x-ngsi-ld-kind": "Property" }
+                }}}}),
+                &["AirQualityObserved".to_owned()],
+                false,
+            )),
+        )]));
+    state.mirror.upsert(common::envelope(
+        "Endpoint",
+        "air-open",
+        HELSINKI,
+        json!({ "contextSpaceRef": "air", "slug": "m3k8w2q7d4x9n5p6r1t0v2b7cy", "audience": "organization" }),
+    ));
+    state.mirror.upsert(common::envelope(
+        "Endpoint",
+        "kpi-out",
+        KPIS,
+        json!({ "contextSpaceRef": "kpi", "slug": "q8m2d7x4k9w3n6p5r1t0v2b7cz", "audience": "project-list" }),
+    ));
+    role(
+        state,
+        "kpi-steward",
+        "pia",
+        KPIS,
+        &["Pipeline"],
+        &["read", "propose"],
+    );
+    role(
+        state,
+        "air-reader",
+        "pia",
+        HELSINKI,
+        &["ContextSpace", "Endpoint"],
+        &["read"],
+    );
+}
+
+fn listed_names(answer: &common::Answer) -> Vec<String> {
+    let body: Value = serde_json::from_str(&answer.text).expect("json");
+    body["items"]
+        .as_array()
+        .expect("items")
+        .iter()
+        .map(|item| {
+            format!(
+                "{}/{}",
+                item["project"].as_str().unwrap_or_default(),
+                item["name"].as_str().unwrap_or_default()
+            )
+        })
+        .collect()
+}
+
+/// T-4946: the request form lists the Endpoints of other spaces the caller may read, or whose
+/// audience is the organization, with their model's types and attributes; never the pipeline's own
+/// space, never a private Endpoint of a project the caller cannot read, and nothing to a person
+/// who may not propose the pipeline.
+#[tokio::test]
+async fn the_form_lists_endpoints_of_other_spaces_with_their_types() {
+    let pipeline = unique("air");
+    let state = world(&pipeline, true).await;
+    modelled(&state);
+    let uri = format!("/api/v1/projects/{KPIS}/pipelines/{pipeline}/access-requests/endpoints");
+
+    // Jana proposes the pipeline and reads nothing of Helsinki: only the organization's Endpoint.
+    let listed = send(&state, "jana", "GET", &uri, None).await;
+    assert_eq!(listed.status, StatusCode::OK, "{}", listed.text);
+    assert_eq!(
+        listed_names(&listed),
+        [format!("{HELSINKI}/air-open")],
+        "{}",
+        listed.text
+    );
+    let body: Value = serde_json::from_str(&listed.text).expect("json");
+    assert_eq!(body["items"][0]["types"][0]["type"], "AirQualityObserved");
+    assert_eq!(
+        body["items"][0]["types"][0]["attrs"],
+        json!(["pm10", "pm25"])
+    );
+    assert!(!listed.text.contains("air-quality"), "{}", listed.text);
+
+    // Pia reads Helsinki's Endpoints as well: the private one is hers to choose too.
+    let read = send(&state, "pia", "GET", &uri, None).await;
+    assert_eq!(read.status, StatusCode::OK, "{}", read.text);
+    assert_eq!(
+        listed_names(&read),
+        [
+            format!("{HELSINKI}/air-open"),
+            format!("{HELSINKI}/air-quality")
+        ],
+        "{}",
+        read.text
+    );
+    assert!(!read.text.contains("kpi-out"), "{}", read.text);
+
+    // Eve may not propose the pipeline: she learns nothing of it, nor of the Endpoints.
+    let refused = send(&state, "eve", "GET", &uri, None).await;
+    assert_eq!(refused.status, StatusCode::NOT_FOUND, "{}", refused.text);
+}
+
+/// T-4946: the request door checks a listed Endpoint's types and attributes against its model and
+/// refuses naming the field; an Endpoint the caller may not read and one that exists nowhere get
+/// one answer, with no model check that would tell its types (here both reach the missing store);
+/// the pipeline's own space is refused, and so is a name that is no name.
+#[tokio::test]
+async fn the_door_refuses_what_the_form_would_not_offer() {
+    let pipeline = unique("air");
+    let state = world(&pipeline, true).await;
+    modelled(&state);
+    let uri = format!("/api/v1/projects/{KPIS}/pipelines/{pipeline}/access-requests");
+    let with = |endpoint: Value, types: Value| {
+        let mut body = ask();
+        body["endpoint"] = endpoint;
+        body["types"] = types;
+        Some(body)
+    };
+    let open = json!({ "project": HELSINKI, "name": "air-open" });
+    let types = json!([{ "type": "AirQualityObserved", "attrs": ["pm10"] }]);
+
+    let allowed = send(
+        &state,
+        "jana",
+        "POST",
+        &uri,
+        with(open.clone(), types.clone()),
+    )
+    .await;
+    assert_eq!(
+        allowed.status,
+        StatusCode::SERVICE_UNAVAILABLE,
+        "{}",
+        allowed.text
+    );
+
+    let no_type = with(
+        open.clone(),
+        json!([{ "type": "WeatherObserved", "attrs": ["pm10"] }]),
+    );
+    let refused = send(&state, "jana", "POST", &uri, no_type).await;
+    assert_eq!(refused.status, StatusCode::BAD_REQUEST, "{}", refused.text);
+    assert!(refused.text.contains("types[0].type"), "{}", refused.text);
+
+    let no_attr = with(
+        open,
+        json!([{ "type": "AirQualityObserved", "attrs": ["pm10", "secret"] }]),
+    );
+    let refused = send(&state, "jana", "POST", &uri, no_attr).await;
+    assert_eq!(refused.status, StatusCode::BAD_REQUEST, "{}", refused.text);
+    assert!(
+        refused.text.contains("types[0].attrs: 'secret'"),
+        "{}",
+        refused.text
+    );
+
+    // Unreadable and unknown: the same answer, whatever the types name.
+    let guess = json!([{ "type": "WeatherObserved", "attrs": ["secret"] }]);
+    let unreadable = with(
+        json!({ "project": HELSINKI, "name": "air-quality" }),
+        guess.clone(),
+    );
+    let unreadable = send(&state, "jana", "POST", &uri, unreadable).await;
+    let unknown = with(
+        json!({ "project": "other-org-city", "name": "air-quality" }),
+        guess,
+    );
+    let unknown = send(&state, "jana", "POST", &uri, unknown).await;
+    for answer in [&unreadable, &unknown] {
+        assert_eq!(
+            answer.status,
+            StatusCode::SERVICE_UNAVAILABLE,
+            "{}",
+            answer.text
+        );
+    }
+    assert_eq!(unreadable.text, unknown.text);
+
+    let own = with(json!({ "project": KPIS, "name": "kpi-out" }), types.clone());
+    let own = send(&state, "jana", "POST", &uri, own).await;
+    let bad = with(
+        json!({ "project": "Helsinki", "name": "air quality" }),
+        types,
+    );
+    let bad = send(&state, "jana", "POST", &uri, bad).await;
+    for answer in [&own, &bad] {
+        assert_eq!(answer.status, StatusCode::BAD_REQUEST, "{}", answer.text);
+        assert!(answer.text.contains("endpoint.name"), "{}", answer.text);
+    }
 }

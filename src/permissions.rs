@@ -1157,8 +1157,23 @@ pub struct AccountGrant {
     #[schema(value_type = Option<String>, format = DateTime)]
     pub not_after: Option<DateTime<Utc>>,
     pub state: GrantState,
+    pub rules: Vec<AccountRule>,
+}
+
+/// One rule of the `Role` behind an [`AccountGrant`]: the jc-core [`Rule`] with `approve` taken
+/// out, typed for the OpenAPI document so the Access tab reads `kinds` and `verbs` (AG-130).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountRule {
+    /// Manifest kinds the rule covers, e.g. `Pipeline`.
+    pub kinds: Vec<String>,
+    /// Verbs granted on those kinds, e.g. `propose`; never `approve`.
+    #[schema(value_type = Vec<String>)]
+    pub verbs: Vec<Verb>,
+    /// Constraints every covered manifest must satisfy, as the Role writes them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     #[schema(value_type = Vec<Object>)]
-    pub rules: Vec<Rule>,
+    pub constraints: Vec<Constraint>,
 }
 
 /// Every grant of `spec` at `now`, in manifest order (AG-130).
@@ -1192,7 +1207,11 @@ pub fn account_access(
                                 .copied()
                                 .filter(|v| *v != Verb::Approve)
                                 .collect();
-                            (!verbs.is_empty()).then_some(Rule { verbs, ..rule })
+                            (!verbs.is_empty()).then_some(AccountRule {
+                                kinds: rule.kinds,
+                                verbs,
+                                constraints: rule.constraints,
+                            })
                         })
                         .collect()
                 })

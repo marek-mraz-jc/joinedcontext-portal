@@ -7,6 +7,7 @@ import type { Change } from "../../api/manifest";
 import { isChange } from "../../api/manifest";
 import type { components } from "../../api/schema";
 import { ChangeNotice } from "../../components/ChangeNotice";
+import { Combobox } from "../../components/pickers/Combobox";
 import { Alert, Badge, Button, Field, Input, RadioGroup, Textarea } from "../../components/ui";
 
 /**
@@ -21,7 +22,8 @@ export interface AccessRequestView {
   pipeline: { project: string; name: string };
   account: string;
   endpoint: { project: string; name: string };
-  space: string;
+  /** Only on the owners' side: the pipeline's side never learns whether a typed name exists. */
+  space?: string;
   operations: "read" | "write";
   types: { type: string; attrs: string[] }[];
   until: string | null;
@@ -37,6 +39,9 @@ export interface AccessRequestView {
 
 const KEY = "access-requests";
 
+/** A typed `project/endpoint`, both DNS-1123 labels as the server checks them. */
+const TYPED_ENDPOINT = /^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?\/[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$/;
+
 type NewRequest = components["schemas"]["NewRequest"];
 
 /** The list routes answer `{ items }` of the view above (API/01 §47). */
@@ -45,26 +50,21 @@ async function listed(answer: Promise<unknown>): Promise<{ items: AccessRequestV
   return body as { items: AccessRequestView[] };
 }
 
-/** The attribute names typed into one box: split on commas and spaces, empties dropped. */
-export function attrList(text: string): string[] {
-  return text
-    .split(/[\s,]+/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-}
+/** One Endpoint the request may name, with the types and attributes its space's model serves. */
+export type RequestableEndpoint = components["schemas"]["Requestable"];
 
 /** The request body from the form, or the first thing the person still has to fill in. */
 export function requestBody(form: {
   project: string;
   endpoint: string;
   operations: "read" | "write";
-  rows: { type: string; attrs: string }[];
+  rows: { type: string; attrs: string[] }[];
   until: string;
   reason: string;
 }): { body: NewRequest } | { missing: "endpoint" | "types" | "reason" } {
   if (!form.project.trim() || !form.endpoint.trim()) return { missing: "endpoint" };
   const types = form.rows
-    .map((row) => ({ type: row.type.trim(), attrs: attrList(row.attrs) }))
+    .map((row) => ({ type: row.type.trim(), attrs: row.attrs }))
     .filter((row) => row.type !== "" || row.attrs.length > 0);
   if (types.length === 0 || types.some((row) => row.type === "" || row.attrs.length === 0)) return { missing: "types" };
   if (!form.reason.trim()) return { missing: "reason" };
@@ -115,10 +115,9 @@ export function PipelineAccessRequests({ project, name }: { project: string; nam
   const ids = useId();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [owner, setOwner] = useState("");
-  const [endpoint, setEndpoint] = useState("");
+  const [chosen, setChosen] = useState("");
   const [operations, setOperations] = useState<"read" | "write">("read");
-  const [rows, setRows] = useState([{ type: "", attrs: "" }]);
+  const [rows, setRows] = useState<{ type: string; attrs: string[] }[]>([{ type: "", attrs: [] }]);
   const [until, setUntil] = useState("");
   const [reason, setReason] = useState("");
   const [missing, setMissing] = useState<string | null>(null);
@@ -145,11 +144,34 @@ export function PipelineAccessRequests({ project, name }: { project: string; nam
       ),
     onSuccess: () => {
       setOpen(false);
-      setRows([{ type: "", attrs: "" }]);
+      setRows([{ type: "", attrs: [] }]);
       setReason("");
       void queryClient.invalidateQueries({ queryKey: [KEY, project, name] });
     },
   });
+
+  // The choices come from the server, by the rule the request door applies again (T-4946).
+  const offered = useQuery({
+    queryKey: [KEY, project, name, "endpoints"],
+    enabled: open,
+    retry: false,
+    queryFn: async () => {
+      const body: unknown = await unwrap(
+        await api.GET("/api/v1/projects/{project}/pipelines/{name}/access-requests/endpoints", {
+          params: { path: { project, name } },
+        }),
+      );
+      return body as { items: RequestableEndpoint[] };
+    },
+  });
+  const endpoints = offered.data?.items ?? [];
+  const target = endpoints.find((one) => `${one.project}/${one.name}` === chosen);
+  // An Endpoint the list does not offer is asked for by its typed name; its owners check the
+  // types and attributes then, so those are typed too (T-4946).
+  const typed = !target && TYPED_ENDPOINT.test(chosen);
+  const [owner, endpoint] = target ? [target.project, target.name] : typed ? chosen.split("/") : ["", ""];
+  const typesOf = (type: string) => target?.types.find((one) => one.type === type)?.attrs ?? [];
+  const failedList = offered.isError ? { reason: problem(offered.error, t("app.error.generic")), retry: () => void offered.refetch() } : undefined;
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -192,14 +214,40 @@ export function PipelineAccessRequests({ project, name }: { project: string; nam
             {t("pipelines.access.request")}
           </h3>
           <p className="text-caption text-fg-muted">{t("pipelines.access.lead")}</p>
-          <div className="flex flex-wrap gap-3">
-            <Field id={`${ids}-project`} label={t("pipelines.access.project")} help={t("pipelines.access.projectHelp")} required>
-              <Input id={`${ids}-project`} value={owner} onChange={(e) => setOwner(e.target.value)} autoComplete="off" />
-            </Field>
-            <Field id={`${ids}-endpoint`} label={t("pipelines.access.endpoint")} required>
-              <Input id={`${ids}-endpoint`} value={endpoint} onChange={(e) => setEndpoint(e.target.value)} autoComplete="off" />
-            </Field>
-          </div>
+          <Field
+            id={`${ids}-endpoint`}
+            label={t("pipelines.access.endpoint")}
+            help={t("pipelines.access.endpointHelp")}
+            errors={chosen && !target && !typed ? [t("pipelines.access.endpointTypedBad", { name: chosen })] : undefined}
+            required
+          >
+            <Combobox
+              id={`${ids}-endpoint`}
+              label={t("pipelines.access.endpoint")}
+              labelled
+              value={chosen ? [chosen] : []}
+              options={endpoints.map((one) => ({
+                value: `${one.project}/${one.name}`,
+                label: one.name,
+                detail: t("pipelines.access.endpointSpace", { space: one.space }),
+                group: t("pipelines.access.endpointProject", { project: one.project }),
+              }))}
+              loading={offered.isLoading}
+              failed={failedList}
+              empty={t("pipelines.access.noEndpoints")}
+              onChange={(values) => {
+                setChosen(values[0] ?? "");
+                setRows([{ type: "", attrs: [] }]);
+              }}
+              create={{
+                label: (text) => t("pipelines.access.endpointTyped", { name: text }),
+                onCreate: (text) => {
+                  setChosen(text.trim().toLowerCase());
+                  setRows([{ type: "", attrs: [] }]);
+                },
+              }}
+            />
+          </Field>
           <RadioGroup
             name={`${ids}-ops`}
             legend={t("pipelines.access.operationsLegend")}
@@ -216,18 +264,58 @@ export function PipelineAccessRequests({ project, name }: { project: string; nam
             <p className="text-caption text-fg-muted">{t("pipelines.access.typesHelp")}</p>
             {rows.map((row, at) => (
               <div key={at} className="flex flex-wrap items-end gap-2">
-                <Field id={`${ids}-type-${at}`} label={t("pipelines.access.type")}>
-                  <Input
+                <Field
+                  id={`${ids}-type-${at}`}
+                  label={t("pipelines.access.type")}
+                  help={
+                    typed
+                      ? t("pipelines.access.typedTypeHelp")
+                      : target && target.types.length === 0
+                        ? t("pipelines.access.noTypes")
+                        : t("pipelines.access.typeHelp")
+                  }
+                >
+                  <Combobox
                     id={`${ids}-type-${at}`}
-                    value={row.type}
-                    onChange={(e) => setRows(rows.map((r, i) => (i === at ? { ...r, type: e.target.value } : r)))}
+                    label={t("pipelines.access.type")}
+                    labelled
+                    disabled={!target && !typed}
+                    value={row.type ? [row.type] : []}
+                    options={(target?.types ?? [])
+                      .filter((one) => one.type === row.type || !rows.some((other) => other.type === one.type))
+                      .map((one) => ({ value: one.type, label: one.type, group: target?.space ?? "" }))}
+                    empty={typed ? t("pipelines.access.typedTypeHelp") : target ? t("pipelines.access.noTypes") : t("pipelines.access.endpointFirst")}
+                    onChange={(values) => setRows(rows.map((r, i) => (i === at ? { type: values[0] ?? "", attrs: [] } : r)))}
+                    create={
+                      typed
+                        ? {
+                            label: (text) => t("picker.type.create", { name: text }),
+                            onCreate: (text) => setRows(rows.map((r, i) => (i === at ? { type: text.trim(), attrs: [] } : r))),
+                          }
+                        : undefined
+                    }
                   />
                 </Field>
-                <Field id={`${ids}-attrs-${at}`} label={t("pipelines.access.attrs")}>
-                  <Input
+                <Field id={`${ids}-attrs-${at}`} label={t("pipelines.access.attrs")} help={t("pipelines.access.attrsHelp")}>
+                  <Combobox
                     id={`${ids}-attrs-${at}`}
+                    label={t("pipelines.access.attrs")}
+                    labelled
+                    multiple
+                    disabled={!row.type}
                     value={row.attrs}
-                    onChange={(e) => setRows(rows.map((r, i) => (i === at ? { ...r, attrs: e.target.value } : r)))}
+                    options={typesOf(row.type).map((attr) => ({ value: attr, label: attr, group: row.type }))}
+                    empty={row.type ? t("pipelines.access.noAttrs", { type: row.type }) : t("pipelines.access.typeFirst")}
+                    onChange={(values) => setRows(rows.map((r, i) => (i === at ? { ...r, attrs: values } : r)))}
+                    create={
+                      typed
+                        ? {
+                            label: (text) => t("picker.createNamed", { name: text }),
+                            onCreate: (text) =>
+                              setRows(rows.map((r, i) => (i === at && !r.attrs.includes(text.trim()) ? { ...r, attrs: [...r.attrs, text.trim()] } : r))),
+                          }
+                        : undefined
+                    }
                   />
                 </Field>
                 {rows.length > 1 ? (
@@ -250,7 +338,7 @@ export function PipelineAccessRequests({ project, name }: { project: string; nam
                 variant="secondary"
                 disabled={rows.length >= 20}
                 disabledReason={t("pipelines.access.tooManyTypes")}
-                onClick={() => setRows([...rows, { type: "", attrs: "" }])}
+                onClick={() => setRows([...rows, { type: "", attrs: [] }])}
               >
                 {t("pipelines.access.addType")}
               </Button>

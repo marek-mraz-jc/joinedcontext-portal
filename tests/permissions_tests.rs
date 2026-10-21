@@ -1413,3 +1413,50 @@ fn an_account_grant_outside_its_window_grants_nothing() {
         .all(|rule| !rule.verbs.contains(&Verb::Approve)));
     assert!(access[0].rules[0].verbs.contains(&Verb::Delete));
 }
+
+/// T-4845: a Pipeline that carries a `spec.history`, for the door's refusals below.
+fn pipeline_with_history(history: Value) -> Value {
+    let mut body = pipeline("aq");
+    body["spec"]["history"] = history;
+    body
+}
+
+#[tokio::test]
+async fn a_steward_without_the_pipeline_grant_cannot_set_a_history_plan() {
+    let config = Config::for_tests();
+    let steward = org(
+        "Role",
+        "space-steward",
+        json!({ "rules": [{ "kinds": ["Endpoint", "Policy", "ContextSpace"], "verbs": ["propose"] }] }),
+    );
+    let app = app_with(
+        &config,
+        vec![
+            steward,
+            binding(
+                "ovzdusie-stewards",
+                "space-steward",
+                json!([{ "user": "steward@hel.fi" }]),
+                json!({ "project": "ovzdusie" }),
+                None,
+            ),
+            in_project("ContextSpace", "ovzdusie"),
+            in_project("DataSource", "mqtt-mesto"),
+        ],
+    );
+    let (status, body) = post(
+        app,
+        &config,
+        identity("steward@hel.fi", &[]),
+        "/api/v1/projects/ovzdusie/pipelines?dryRun=All",
+        &pipeline_with_history(json!([{ "type": "AirQualityObserved", "attributes": [
+            { "names": ["pm10"], "keep": "changes", "heartbeat": "PT1H" }
+        ] }])),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert!(
+        body.contains("propose") && body.contains("Pipeline"),
+        "{body}"
+    );
+}

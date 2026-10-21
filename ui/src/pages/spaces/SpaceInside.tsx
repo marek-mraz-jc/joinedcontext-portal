@@ -1268,7 +1268,7 @@ function OtherView({
       {view === "calendar" ? <CalendarView rows={shown} source={source} editable={editable} onDelete={onDelete} /> : null}
       {view === "timeline" ? <TimelineView rows={shown} source={source} editable={editable} onDelete={onDelete} /> : null}
       {view === "map" ? <MapOfRows project={project} rows={shown} source={source} onDelete={onDelete} /> : null}
-      <AiFieldPanel space={space} type={type} endpoints={endpoints} rows={shown} />
+      <AiFieldPanel project={project} space={space} type={type} endpoints={endpoints} rows={shown} />
     </RowExtra.Provider>
   );
 }

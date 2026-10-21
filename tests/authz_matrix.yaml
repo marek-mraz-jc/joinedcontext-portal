@@ -828,6 +828,9 @@ routes:
     rule: "project-verb:read:Pipeline (PL-90)"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
     note: "a reader's 503 is the fixture's: it has no database"
+  - route: GET /projects/{project}/pipelines/{name}/access-requests/endpoints
+    rule: "project-verb:propose:Pipeline (PL-90): the request form's choices, by the rule the request door applies (T-4946)"
+    expect: [401, 403, allow, allow, 403, allow, 404, 403]
   - route: GET /projects/{project}/pipelines/{name}/rejected
     rule: "project-verb:read:Pipeline"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
