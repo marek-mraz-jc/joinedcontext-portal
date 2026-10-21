@@ -182,27 +182,25 @@ export function PipelineSourceReport({
       {data.idsHidden ? null : data.removed.length === 0 ? (
         <p className="text-sm text-fg-subtle">{t("pipelines.source.noneRemoved", { misses: data.misses })}</p>
       ) : (
-        // The ids keep one line; the table scrolls in its own box at phone width, by keyboard too.
-        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={t("pipelines.source.removed")}>
-          <Table>
-            <TableHead>
-              <TableHeaderCell>{t("pipelines.source.entity")}</TableHeaderCell>
-              <TableHeaderCell>{t("pipelines.source.when")}</TableHeaderCell>
-              <TableHeaderCell>{t("pipelines.source.why")}</TableHeaderCell>
-            </TableHead>
-            <TableBody>
-              {data.removed.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell className="whitespace-nowrap font-mono">{r.id}</TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    <time dateTime={r.at}>{time.format(new Date(r.at))}</time>
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">{t("pipelines.source.removedAtSource", { pipeline: r.pipeline, run: r.run })}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        // The ids keep one line; the Table's own frame scrolls at phone width, by keyboard too.
+        <Table caption={t("pipelines.source.removed")}>
+          <TableHead>
+            <TableHeaderCell>{t("pipelines.source.entity")}</TableHeaderCell>
+            <TableHeaderCell>{t("pipelines.source.when")}</TableHeaderCell>
+            <TableHeaderCell>{t("pipelines.source.why")}</TableHeaderCell>
+          </TableHead>
+          <TableBody>
+            {data.removed.map((r) => (
+              <TableRow key={r.id}>
+                <TableCell className="whitespace-nowrap font-mono">{r.id}</TableCell>
+                <TableCell className="whitespace-nowrap">
+                  <time dateTime={r.at}>{time.format(new Date(r.at))}</time>
+                </TableCell>
+                <TableCell className="whitespace-nowrap">{t("pipelines.source.removedAtSource", { pipeline: r.pipeline, run: r.run })}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
       <div>
         <Button
