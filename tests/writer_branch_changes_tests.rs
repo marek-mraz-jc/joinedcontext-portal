@@ -371,3 +371,25 @@ async fn a_writer_who_lost_the_binding_has_no_change_any_more() {
     assert_eq!(approve(&state, APPROVER, 11).await, StatusCode::NOT_FOUND);
     assert!(merged(&server).await.is_empty());
 }
+
+#[tokio::test]
+async fn a_forge_that_refuses_the_portals_token_is_a_503_that_says_what_to_do() {
+    // dev 2026-10-21 (T-4966): Gitea answered every token 401 and the change list was a bare
+    // 500, which the inbox showed as "Nothing waits for your decision".
+    let (server, state) = forge(&["read", "propose"]).await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REPO}/pulls")))
+        .respond_with(
+            ResponseTemplate::new(401)
+                .set_body_json(json!({ "message": "invalid username, password or token" })),
+        )
+        .with_priority(1)
+        .mount(&server)
+        .await;
+
+    let (status, body) = get(&state, APPROVER, "/api/v1/projects/ovzdusie/changes").await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
+    let detail = body["detail"].as_str().unwrap_or_default();
+    assert!(detail.contains("Git repository did not answer"), "{body}");
+    assert!(!body.to_string().contains("token-xyz"), "{body}");
+}

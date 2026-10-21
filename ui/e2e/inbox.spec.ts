@@ -48,7 +48,7 @@ const APPROVED = {
   status: { lane: "yellow", phase: "Deploying", plan: { update: 1 } },
 };
 
-async function stubApi(page: Page): Promise<{ approvals: string[] }> {
+async function stubApi(page: Page, forgeDown?: string): Promise<{ approvals: string[] }> {
   const approvals: string[] = [];
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
@@ -64,6 +64,18 @@ async function stubApi(page: Page): Promise<{ approvals: string[] }> {
     }
     if (url.pathname === "/api/v1/projects") {
       return json(PROJECTS);
+    }
+    if (forgeDown && url.pathname === `/api/v1/projects/${forgeDown}/changes`) {
+      return route.fulfill({
+        status: 503,
+        contentType: "application/problem+json",
+        body: JSON.stringify({
+          type: "about:blank",
+          title: "Service Unavailable",
+          status: 503,
+          detail: "The Git repository did not answer the Portal. Try again in a minute; if it lasts, ask the operator to check the forge and the Portal's forge token.",
+        }),
+      });
     }
     if (url.pathname.endsWith("/changes")) {
       return json({
@@ -97,5 +109,23 @@ test.describe("the inbox", () => {
     await expect(waiting.getByRole("status")).toHaveText("Approved: it is being deployed.");
     expect(approvals).toEqual(["/api/v1/projects/helsinki/changes/chg-1a2b3c4d/approve"]);
     await expect(page).toHaveURL(/\/projects\/helsinki\/inbox/);
+  });
+
+  test("a project whose changes did not load says so, and the inbox still lists the other projects' (T-4966)", async ({ page }, testInfo) => {
+    await stubApi(page, "praha");
+    await page.route("**/api/v1/projects", (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ ...PROJECTS, items: [{ name: "helsinki" }, { name: "praha" }] }) }),
+    );
+    for (const width of [1440, 400]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/projects/helsinki/inbox?lang=en");
+      const failed = page.getByRole("alert");
+      await expect(failed).toContainText("The changes of praha did not load");
+      await expect(failed).toContainText("ask the operator to check the forge");
+      await expect(page.getByText("Nothing waits for your decision.")).toBeHidden();
+      await expect(page.getByTestId("inbox-decisions").getByText("proposed by Marek Mráz in helsinki")).toBeVisible();
+      expect(await axeViolations(page)).toEqual([]);
+      await page.screenshot({ path: testInfo.outputPath(`inbox-forge-down-${width}.png`), fullPage: true });
+    }
   });
 });
