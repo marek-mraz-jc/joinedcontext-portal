@@ -224,6 +224,21 @@ impl Effective {
         self.may_read_in(kind, space_ref(manifest).as_deref())
     }
 
+    /// The context spaces this caller's grants reach: `None` when one grant is the project's or
+    /// wider, else the spaces the bindings are scoped to. What a space's events (activity) are
+    /// shown by (T-4876).
+    pub fn spaces_reached(&self) -> Option<Vec<String>> {
+        if self.bootstrap || self.grants.iter().any(|grant| grant.space.is_none()) {
+            return None;
+        }
+        let spaces: BTreeSet<String> = self
+            .grants
+            .iter()
+            .filter_map(|grant| grant.space.clone())
+            .collect();
+        Some(spaces.into_iter().collect())
+    }
+
     /// [`Self::may_read_manifest`] for a manifest known only by its kind and its context space
     /// (`None` for a kind that lives outside one), as a draft event carries them.
     pub fn may_read_in(&self, kind: &str, space: Option<&str>) -> bool {

@@ -1741,7 +1741,10 @@ GET /api/v1/projects/{project}/activity            the list, newest first, paged
 GET /api/v1/projects/{project}/activity/stream     the same filter, as Server-Sent Events
 ```
 
-Both take the same query parameters, so a view switches between them without rewriting anything:
+Both take the same query parameters, so a view switches between them without rewriting anything.
+Both answer readers of the project (`404` otherwise). An event of a Context Space reaches only a
+reader whose bindings reach that space (a project or organization binding, or one scoped to that
+space); the stream checks each event against the bindings of that moment (T-4876).
 
 | Parameter | Meaning |
 |---|---|
@@ -3023,7 +3026,7 @@ GET /api/v1/organization/limits     the catalog, its bounds and the values in fo
 ```
 
 - `entries` lists every numeric entry of the catalog in its order. `section` is one of
-  `projects`, `applications`, `edge`, `signIn`, `people`, `agents`, `pipelinesAndData`.
+  `projects`, `applications`, `edge`, `signIn`, `people`, `agents`, `pipelinesAndData`, `mqtt`.
   `security` is `true` for an entry whose bound the operator may only tighten.
 - `min` and `max` are the range an organization may set: the operator's bound where
   `portal.organizationBounds` sets one, else the catalog's own. `max` is `null` where neither
@@ -3035,6 +3038,11 @@ GET /api/v1/organization/limits     the catalog, its bounds and the values in fo
   `default` (neither, so no limit). `quota` holds each dimension: `limit` is `null` for no
   limit, and `used` is the manifest count for the four countable dimensions (PF-75), `null` for
   a limit enforced at run time.
+- The MQTT allowance (PF-117, ADR-N-048 §2.9) is in `entries` under section `mqtt`, one entry
+  per number (`spec.limits.mqtt.brokers`, `connections`, `messagesPerSecond`,
+  `maxMessageBytes`); `enabled` and the lists are read from §47 per project. A project row's
+  `quota` carries `mqttBrokers`, `mqttConnections` and `mqttMessagesPerSecond` with `limit` and
+  `used`, and `origin` `project` when its `spec.quotas.mqtt` is set.
 - Any signed-in person reads the route: the catalog and the bounds are the installation's, not
   a project's. A project the caller may not read is left out of `projects`, so nothing of its
   size is said (R20).
@@ -3110,6 +3118,8 @@ DELETE /api/v1/projects/{project}/spaces/{space}/views/{id}     delete it → 20
     "group": "status",
     "hidden": ["dateLastReported"],
     "width": { "name": 240 },
+    "order": ["name", "availableBikeNumber"],
+    "labels": { "availableBikeNumber": "Bikes" },
     "colour": [{ "when": "availableBikeNumber==0", "colour": "danger" }],
     "settings": {}
   },
@@ -3124,7 +3134,11 @@ DELETE /api/v1/projects/{project}/spaces/{space}/views/{id}     delete it → 20
   (`^[A-Za-z][A-Za-z0-9_-]*$`), `kind` one of `grid`, `gallery`, `kanban`, `calendar`, `timeline`,
   `form`, `mode` one of `personal`, `collaborative`, `locked`, `title` 1 to 120 characters.
 - `config`: `q` is an NGSI-LD query of at most 4,096 characters, sent as the person's own `q`
-  when the view opens; `sort` names at most 3 attributes; `hidden` and `width` name attributes;
+  when the view opens; `sort` names at most 3 attributes; `hidden` and `width` name attributes,
+  a width between 40 and 2,000 pixels; `order` lists at most 256 attributes in the order the grid
+  shows them, the rest after them in the display order (DM-98); `labels` gives at most 256
+  attributes a label of the view's own, 1 to 80 characters without control characters, shown as
+  text and never written to the model (T-4827);
   `colour` holds at most 20 rules, each a `q` and one of the colour tokens `neutral`, `info`,
   `success`, `warning`, `danger`, evaluated in the page on the rows it shows (terms joined by `;`
   and `|`, without parentheses; a rule the page cannot evaluate marks nothing and the editor says
@@ -3192,12 +3206,12 @@ DELETE /api/v1/projects/{project}/spaces/{space}/trash/{id}          forget a co
 - A project or a space the caller may not read is `404`, as in §27. A person keeps at most 1,000
   copies per space; the oldest goes first. A copy older than 30 days is gone.
 
-## 32. Live updates of a space's entities (ADR-N-042 §3.4, T-3105)
+## 32. Live updates of a space's entities (ADR-N-042 §3.4, T-3105, T-4876)
 
 An open data view hears when an entity of its type changes, from anyone and through any door,
 without polling. The Portal holds one NGSI-LD subscription per space and type that a view has
-open, created through the space surface with the Portal's own ServiceAccount, and passes each
-notification on to the views that show that space and type.
+open, created through the space surface with the Portal's own ServiceAccount, and tells the views
+that show that project, space and type that it changed.
 
 ```text
 GET  /api/v1/projects/{project}/spaces/{space}/live?type={type}    the changes of one type, as server-sent events → 200
@@ -3205,17 +3219,23 @@ POST /live-notify/{liveKey}                                        where the gat
 ```
 
 - `GET …/live` follows the space's read rule (`404` for a space the caller may not read) and needs
-  `type`, an NGSI-LD type name (`400` otherwise). Each event is `changed` with
-  `{"type": "…", "ids": ["urn:…"], "attrs": ["…"]}`: which entities and attributes changed, never
-  their values. A view reads the changed rows again with the person's own session, so an event
-  shows nobody anything their grants do not; a keep-alive comment comes every 20 seconds.
+  `type`, an NGSI-LD type name (`400` otherwise). Each event is `changed` with `{"type": "…"}` and
+  nothing else: no entity id, no attribute name, no value. The notification was read under the
+  Portal's ServiceAccount, whose grants are not the reader's, so the Portal cannot tell which rows and
+  attributes the reader's row and attribute grants cover. The view reads the rows again with the
+  person's own session, which the gateway narrows to those grants; a keep-alive comment comes every
+  20 seconds.
+- Channels are keyed by project, space and type: a space of the same name in another project
+  never reaches the view.
 - The subscription watches `entities: [{type}]`, notifies with `attributes` only by name
   (`notification.format: keyValues` of `id`, `type` and the changed attributes is what the broker
-  sends; the Portal keeps the names) and expires 24 hours after it was written; a view opened
+  sends; the Portal reads none of it) and expires 24 hours after it was written; a view opened
   after half of that writes it again. Nothing else removes it.
 - `POST /live-notify/{liveKey}` is outside `/api/v1`: the broker that calls it through the gateway holds
-  no token. `liveKey` is an HMAC of the space and type under a secret only this Portal holds, so a key
-  names one subscription and cannot be made up; an unknown key is `404`. A body larger than 1 MiB
+  no token. `liveKey` is an HMAC of the project, space and type under a secret only this Portal process holds
+  (drawn from the CSPRNG at start, never stored or logged), so a key names one subscription and
+  cannot be made up; it is compared with each watched pair's HMAC in constant time, and an unknown
+  key is `404`. A body larger than 1 MiB
   is `413`. A forged notification can only make a view read again.
 - The process that receives a notification passes it on to its own views. With several replicas
   the edge hands each notification to one of them, so a view on another replica hears it on that
@@ -3867,6 +3887,61 @@ An erasure finds the Entities naming the subject in each such class and erases, 
 ```
 
 The erasure answers at once and stays `open` until every store reports `done`: a store that does not answer is asked again each minute, the CKAN DataStore at each reconciler run, and after an hour of refusals it is `failed`, which leaves the erasure for a person to read why. The erasure log keeps the subject's keyed hash, the Entities and the counts, never a value, outside the broker's database; when the Portal starts and every hour after, it sends again every erasure whose record a broker no longer holds, after that broker's database was restored from an older backup ([Deployment/07 §5](../Deployment/07-backup-restore.md#5-backups-and-erasure)). Every call is audited with its `reason`; a call without one answers `400` naming `reason-required`.
+
+## 47. MQTT allowance and capture (PF-117…PF-120, MF-62, PL-87, ADR-N-048 §2.9–2.10)
+
+What a project may run as MQTT edge brokers, what its brokers use of it, and, in `capture` mode,
+the newest messages a broker received. The allowance is written only as a field of a manifest:
+`Organization.spec.limits.mqtt` or `Project.spec.quotas.mqtt`, through a red-lane Change an
+`org-admin` approves (PF-98, PF-117). There is no write route for it here.
+
+```text
+GET    /api/v1/projects/{project}/mqtt/allowance                       → 200
+```
+
+Not served yet: `GET /api/v1/projects/{project}/mqttbrokers/{name}/captured?topic=&limit=` → 200
+and `DELETE /api/v1/projects/{project}/mqttbrokers/{name}/captured` → 204 arrive with the capture
+subscriber (T-4880). The rest of this section describes them as they will be served.
+
+```json
+{"enabled": true, "origin": "project",
+ "raise": "an org admin can raise this in Organization settings > Projects > helsinki",
+ "modes": ["ingest", "capture"], "addresses": ["platform", "dedicatedPort"],
+ "ports": [18831], "customHostnames": [], "deviceAuth": ["token"],
+ "brokers": {"limit": 2, "used": 1, "left": 1},
+ "connections": {"limit": 2000, "used": 1000, "left": 1000},
+ "messagesPerSecond": {"limit": 20000, "used": 10000, "left": 10000},
+ "maxMessageBytes": {"limit": 65536},
+ "portsInUse": [{"port": 18831, "broker": "cameras"}]}
+```
+
+```json
+{"broker": "cameras", "mode": "capture", "window": "PT1H", "messagesPerTopic": 20,
+ "messages": [{"topic": "cams/cam-west/frame-meta", "receivedAt": "2026-10-20T19:41:02Z",
+               "clientId": "helsinki-cam-west", "bytes": 212,
+               "payload": "{\"seq\": 4411, \"objects\": 3}", "encoding": "utf-8"}],
+ "truncated": false}
+```
+
+- `origin` is `project` (the Project's `spec.quotas.mqtt`), `organization`
+  (`spec.limits.mqtt`) or `default` (neither: `enabled: false` and every number `0`). `raise`
+  is the sentence the verdict uses when it refuses a broker (PF-101).
+- `used` sums the project's committed `MqttBroker` manifests, not the connected devices:
+  `connections` sums `spec.limits.maxConnections`, `messagesPerSecond` sums
+  `maxConnections` × `messagesPerSecond` of each broker (ADR-N-048 §2.9). `left` is never below
+  `0`; a project over a lowered allowance shows `used` above `limit` (PF-100).
+- Who may read the allowance: whoever may read the project. `clientCaRef` and the hostnames'
+  `certificateRef` are not part of the answer; a hostname with a stored certificate carries its
+  `notAfter` instead.
+- `captured` answers the broker's kept messages, newest first, at most `limit` (1…1000, default
+  100), only of `topic` when given (an exact topic, no wildcard). `payload` is the message as
+  UTF-8 text when it decodes, else base64 with `encoding: "base64"`. A broker not in `capture`
+  mode answers an empty `messages` and its `mode`.
+- Who may read or delete the capture: a person whose binding holds `approve` on `MqttBroker`
+  in the project (PL-87). Anybody else, a reader of the manifest included, gets `404`, the
+  same answer as a broker the project does not declare (PF-59). `DELETE` removes every kept
+  message of the broker at once and records who did it in the activity log, without the
+  payloads.
 
 ## Related
 
