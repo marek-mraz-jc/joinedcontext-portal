@@ -93,6 +93,8 @@ pub struct AppState {
     pub pipeline_stats: Arc<crate::pipeline_stats::Samples>,
     /// Each pipeline's runs and their log (PL-62), durable with a database.
     pub pipeline_log: Arc<crate::pipeline_log::LogStore>,
+    /// The source ledgers and holds of the snapshot pipelines (PL-97, T-4891).
+    pub source_ledger: Arc<crate::pipeline_source_deletes::Ledger>,
     /// The last messages through each node of a running stream, in memory (T-3974).
     pub pipeline_samples: Arc<crate::pipeline_samples::SampleStore>,
     /// What the last drift scan found, by project (CC-21). Always present; empty until the
@@ -209,6 +211,7 @@ impl AppState {
             alerts: Arc::new(crate::alerts::AlertStore::new(None)),
             live: Arc::new(crate::live::LiveHub::new(&public_base, None)),
             pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),
+            source_ledger: Arc::new(crate::pipeline_source_deletes::Ledger::new(None)),
             pipeline_samples: Arc::default(),
             pipeline_stats: Arc::default(),
             drift_watch: None,
@@ -274,6 +277,9 @@ impl AppState {
             db.clone(),
         )));
         self.pipeline_log = Arc::new(crate::pipeline_log::LogStore::new(Some(db.clone())));
+        self.source_ledger = Arc::new(crate::pipeline_source_deletes::Ledger::new(Some(
+            db.clone(),
+        )));
         self.trash = Arc::new(crate::entity_trash::TrashStore::new(Some(db.clone())));
         self.comments = Arc::new(crate::entity_comments::CommentStore::new(Some(db.clone())));
         self.feedback = Arc::new(crate::feedback::FeedbackStore::new(Some(db.clone())));
@@ -331,6 +337,7 @@ impl AppState {
             ));
         }
         state.pipeline_log = Arc::new(crate::pipeline_log::LogStore::new(db.clone()));
+        state.source_ledger = Arc::new(crate::pipeline_source_deletes::Ledger::new(db.clone()));
         state.db = db;
         // What the process before this one refused stays refused (T-0980).
         state.load_revocations().await;
@@ -363,11 +370,14 @@ impl AppState {
                 .with_apps_cache_dir(state.config.apps_cache_dir.clone())
                 .with_apps_dir(state.config.apps_dir.clone())
                 // The alerts people chose (T-3261): from the statuses every run of the leader sets.
-                .with_alerts(Arc::new(crate::alerts::Evaluator::new(
-                    Arc::clone(&state.mirror),
-                    Arc::clone(&state.quality),
-                    Arc::clone(&state.alerts),
-                )));
+                .with_alerts(Arc::new(
+                    crate::alerts::Evaluator::new(
+                        Arc::clone(&state.mirror),
+                        Arc::clone(&state.quality),
+                        Arc::clone(&state.alerts),
+                    )
+                    .with_source_holds(Arc::clone(&state.source_ledger)),
+                ));
             syncer = state.wire_cluster_writers(syncer);
             syncer = state.wire_database_steps(syncer);
             syncer = state.wire_app_deployment(syncer);
@@ -738,9 +748,18 @@ impl AppState {
     fn wire_streams(&self, mut syncer: Syncer) -> Syncer {
         if let Some(url) = self.config.pipeline_runner_url.clone() {
             let (batch, short) = self.config.pipelines_concurrency;
+            // A snapshot pipeline judges its source deletes when its run ends (T-4891).
+            let (ends, mut ended) = tokio::sync::mpsc::unbounded_channel();
+            let judge = self.clone();
+            tokio::spawn(async move {
+                while let Some(end) = ended.recv().await {
+                    crate::pipeline_source_deletes::run_ended(&judge, end).await;
+                }
+            });
             let deployer = StreamDeployer::new(url)
                 .with_pipeline_identity(self.config.pipeline_identity)
-                .with_concurrency(batch, short);
+                .with_concurrency(batch, short)
+                .with_run_ends(ends);
             // A refused record reaches the Portal on the listener the test harness reaches
             // (PL-61); without that address the stream writes as it did, unvalidated.
             let deployer = match self.config.pipeline_test_capture_url.clone() {
