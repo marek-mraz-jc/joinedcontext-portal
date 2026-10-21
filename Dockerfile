@@ -66,6 +66,7 @@ COPY apps/banskabystrica-mapa/ui/package.json apps/banskabystrica-mapa/ui/pnpm-l
 COPY apps/banskabystrica-data/ui/package.json apps/banskabystrica-data/ui/pnpm-lock.yaml ./apps/banskabystrica-data/ui/
 COPY apps/banskabystrica-skoly/ui/package.json apps/banskabystrica-skoly/ui/pnpm-lock.yaml ./apps/banskabystrica-skoly/ui/
 COPY apps/bbsk-mapa/ui/package.json apps/bbsk-mapa/ui/pnpm-lock.yaml ./apps/bbsk-mapa/ui/
+COPY apps/bbsk-podujatia/ui/package.json apps/bbsk-podujatia/ui/pnpm-lock.yaml ./apps/bbsk-podujatia/ui/
 COPY apps/bbsk-data/ui/package.json apps/bbsk-data/ui/pnpm-lock.yaml ./apps/bbsk-data/ui/
 COPY apps/bbsk-mosty/ui/package.json apps/bbsk-mosty/ui/pnpm-lock.yaml ./apps/bbsk-mosty/ui/
 COPY apps/praha-mapa/ui/package.json apps/praha-mapa/ui/pnpm-lock.yaml ./apps/praha-mapa/ui/
@@ -88,6 +89,7 @@ RUN corepack enable && cd sdk && pnpm install --frozen-lockfile \
     && cd ../../banskabystrica-data/ui && pnpm install --frozen-lockfile \
     && cd ../../banskabystrica-skoly/ui && pnpm install --frozen-lockfile \
     && cd ../../bbsk-mapa/ui && pnpm install --frozen-lockfile \
+    && cd ../../bbsk-podujatia/ui && pnpm install --frozen-lockfile \
     && cd ../../bbsk-data/ui && pnpm install --frozen-lockfile \
     && cd ../../bbsk-mosty/ui && pnpm install --frozen-lockfile \
     && cd ../../praha-mapa/ui && pnpm install --frozen-lockfile \
@@ -110,6 +112,7 @@ COPY apps/banskabystrica-mapa/ui/ ./apps/banskabystrica-mapa/ui/
 COPY apps/banskabystrica-data/ui/ ./apps/banskabystrica-data/ui/
 COPY apps/banskabystrica-skoly/ui/ ./apps/banskabystrica-skoly/ui/
 COPY apps/bbsk-mapa/ui/ ./apps/bbsk-mapa/ui/
+COPY apps/bbsk-podujatia/ui/ ./apps/bbsk-podujatia/ui/
 COPY apps/bbsk-data/ui/ ./apps/bbsk-data/ui/
 COPY apps/bbsk-mosty/ui/ ./apps/bbsk-mosty/ui/
 COPY apps/praha-mapa/ui/ ./apps/praha-mapa/ui/
@@ -149,6 +152,9 @@ RUN cd apps/banskabystrica-skoly/ui && pnpm build \
 RUN cd apps/bbsk-mapa/ui && pnpm build \
     && cp -r dist /srv/apps/bbsk-mapa \
     && node /work/scripts/app-integrity.mjs /srv/apps/bbsk-mapa
+RUN cd apps/bbsk-podujatia/ui && pnpm build \
+    && cp -r dist /srv/apps/bbsk-podujatia \
+    && node /work/scripts/app-integrity.mjs /srv/apps/bbsk-podujatia
 RUN cd apps/bbsk-data/ui && pnpm build \
     && cp -r dist /srv/apps/bbsk-data \
     && node /work/scripts/app-integrity.mjs /srv/apps/bbsk-data
