@@ -2824,6 +2824,31 @@
       "personHelp": "Die Personen der Organisation, nach E-Mail; die Suche darüber grenzt die Liste ein.",
       "accountHelp": "Die Dienstkonten des Projekts, die Programme, die Endpoints aufrufen.",
       "nameHelp": "Der Name genau so, wie er in Keycloak geschrieben ist."
+    },
+    "presets": {
+      "legend": "Zugriff",
+      "advanced": "Erweitert",
+      "unavailable": "Sie halten das nicht vollständig selbst und können es daher nicht vergeben.",
+      "reader": {
+        "label": "Leser",
+        "description": "Liest Daten und Einstellungen; ändert nichts."
+      },
+      "writer": {
+        "label": "Schreiber",
+        "description": "Liest und schlägt Änderungen an Datenwerten vor oder macht sie."
+      },
+      "steward": {
+        "label": "Verwalter",
+        "description": "Liest, schlägt Änderungen an Daten und Einstellungen vor und genehmigt sie; nicht am Zugriff."
+      },
+      "pipelineWriter": {
+        "label": "Pipeline-Schreiber",
+        "description": "Bringt Daten ein: legt Entitäten an und ändert sie, schlägt Pipelines und Quellen vor."
+      },
+      "custom": {
+        "label": "Benutzerdefiniert",
+        "description": "Jede Berechtigung selbst wählen."
+      }
     }
   },
   "flows": {
@@ -3238,7 +3263,14 @@
       "noClasses": "Dieses Modell deklariert noch keine Klasse und erzeugt daher kein Formular.",
       "formClass": "Klasse",
       "formReadOnly": "Das ist das Formular, das das Modell erzeugt, mit seinem Beispiel gefüllt; hier wird nichts gespeichert.",
-      "jsonType": {"number": "Zahl", "integer": "Ganze Zahl", "string": "Text", "boolean": "Ja oder nein", "object": "Gruppe von Feldern", "array": "Liste"},
+      "jsonType": {
+        "number": "Zahl",
+        "integer": "Ganze Zahl",
+        "string": "Text",
+        "boolean": "Ja oder nein",
+        "object": "Gruppe von Feldern",
+        "array": "Liste"
+      },
       "asJson": "Als JSON angezeigt.",
       "yaml": "Die Quelle des Modells (LinkML YAML)",
       "copyYaml": "YAML kopieren",
