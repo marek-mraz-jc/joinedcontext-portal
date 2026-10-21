@@ -6,7 +6,7 @@ description: One section per problem type the platform and the Portal answer wit
 
 # Problem Types
 
-Every refusal of the platform and of the Portal is an `application/problem+json` document whose `type` is `https://joinedcontext.com/errors/{slug}` ([API/00 §4](00-intro.md#4-standard-error-handling-rfc-7807)). This page has one section per slug, at `09-errors#{slug}`; the Portal links the section from the error it shows. The NGSI-LD surface answers with the ETSI type and puts the slug in `code`.
+Every refusal of the platform and of the Portal is an `application/problem+json` document whose `type` is `https://joinedcontext.com/errors/{slug}` ([API/00 §4](00-intro.md#4-standard-error-handling-rfc-7807)). This page has one section per slug, at `09-errors#{slug}`; the Portal links the section from the error it shows. The NGSI-LD surface answers with the ETSI type and puts the slug in `code`. The OData surface (`odata/v4`) answers with the OData JSON error object (OData Part 1 §9.4, JSON Format §21.1): the slug in `error.code`, the `detail` (else the `title`) in `error.message`, and the problem document itself in `error.innererror` (T-4929).
 
 The list is the code's: jc-core's `PROBLEM_TYPES` and the Portal's `PORTAL_PROBLEM_TYPES`. `scripts/check-docs-against-code.py` fails when a slug in either has no section here, or a section here has no slug (T-4485, TS-19).
 
@@ -243,6 +243,14 @@ What to do: Read this endpoint through its NGSI-LD surface; its iCalendar feed n
 An OData `$batch` reached an endpoint, which serves no batches.
 
 What to do: Send each OData write as a request of its own; $batch is not served through an endpoint.
+
+### `odata-not-implemented` {#odata-not-implemented}
+
+**OData Feature Not Implemented**, status 501.
+
+The broker's view of the endpoint does not serve the OData feature the request needs, such as `$crossjoin`, `$all` or `$entity`; the gateway names this instead of a `broker-failure`, since asking again gives the same answer.
+
+What to do: Ask the entity sets the service document and $metadata list; this endpoint does not serve every OData feature, such as $crossjoin, $all or $entity.
 
 ### `broker-failure` {#broker-failure}
 

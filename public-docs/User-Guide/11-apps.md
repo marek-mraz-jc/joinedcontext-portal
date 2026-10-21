@@ -96,7 +96,30 @@ Deploying an application to production generates a declarative `App` manifest th
 
 Type into the composer: `Propose publication for the news-feed-summary application`. The assistant prepares the change proposal for approver adjudication.
 
-## 5. Application or Dashboard?
+## 5. Sharing an Application
+
+An application starts visible to its project. **Share** widens or narrows who opens it, always through a change an approver reviews, never as a live switch.
+
+### Changing Who Opens the Application
+
+#### By hand
+
+1. Open `/projects/helsinki/apps`, open the menu of the application card and click **Share**.
+2. The dialog shows who opens the application now and each choice with who it reaches and how many people that is, for example "Everyone in Helsinki, 42 people".
+3. Pick a choice. **People with a role** is offered when the application declares roles; **Anyone on the internet** only while the organization allows public applications.
+4. Click **Propose the change**. The dialog says the change waits for approval and links to Approvals.
+5. An approver approves it in `/projects/helsinki/approvals`. Making an application public needs a person holding `publisher` or `org-admin` who did not propose it; the assistant, an agent or a service account cannot approve it.
+6. Click **Copy link** to copy the application's address and send it to the people you shared it with.
+
+#### By asking the assistant
+
+Type into the composer: `Share the news-feed-summary application with the whole organization`. The assistant proposes the same change; an approver still decides.
+
+### Finding Applications Shared With You
+
+The Portal home lists **Shared with me**: the published applications of other projects that their owners shared with the whole organization and that you may open. Click a title to open the application. An application visible only to its project, to role holders or to its author never appears there.
+
+## 6. Application or Dashboard?
 
 When visualizing municipal data on screen, choose between an Application and a Dashboard based on workflow needs:
 

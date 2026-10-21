@@ -56,7 +56,7 @@ Start from what the source tells you:
 
 - *The source says when an item ends* (a vehicle position is stale after minutes, an alert has a valid-to time, a permit has an end date): give the pipeline a **Lifetime**. Every write renews it, and the entity goes the moment it passes.
 - *Only one field goes stale, the item stays* (a vehicle's position, a parking space's occupancy): a **Lifetime** with **Only some fields expire**.
-- *The source sends the whole list every run and stops listing an item* (stations, a register, a catalogue export): switch on pipeline expiry with a window a few runs long.
+- *The source sends the whole list every run and stops listing an item* (stations, a register, a catalogue export): use `sourceDeletes` with `snapshot` ([section 13](#13-when-the-source-deletes-a-record)), or pipeline expiry with a window a few runs long.
 - *Every entity of a type goes stale after a fixed time without an update, whoever wrote it*: a space rule **Current values** for that type.
 - *History grows too large*: shorten the type's **History**, set it to **Off** for types where only now matters, or record on change so a sensor that reads the same value all night writes one row an hour.
 
@@ -172,7 +172,7 @@ spec:
       entity: { from: validTo, notAfter: P30D }
 ```
 
-`2026-10-21T06:00:00+03:00` becomes `2026-10-21T03:00:00Z`. A `validTo` of `2062-10-21` becomes 30 days after the write, and every write of the alert moves that cap on. An alert without `validTo`, or with a value that is not a time, gets no end time, stays until the source withdraws it and is counted in the pipeline's problems. An alert whose `validTo` already passed is written and disappears at once. This replaces a cleanup pipeline that deleted ended alerts.
+`2026-10-21T06:00:00+03:00` becomes `2026-10-21T03:00:00Z`. A `validTo` of `2062-10-21` becomes 30 days after the write, and every write of the alert moves that cap on. An alert without `validTo`, or with a value that is not a time, ends 30 days after the write, the **At most after the write** value, and is counted in the pipeline's problems. Without that value such an alert gets no end time and stays until the source withdraws it. An alert whose `validTo` already passed is written and disappears at once. This replaces a cleanup pipeline that deleted ended alerts.
 
 Without the **Lifetime** step, the mapping line has no cap:
 
@@ -302,6 +302,37 @@ A row with an empty `validUntil` stays. Pipeline expiry does not suit a one-off 
 ## 12. Recipe: Personal Data
 
 Mark the attribute as personal in the data model, with its legal basis, purpose and maximum retention; the Portal refuses the model without them. Until the platform deletes personal values by that maximum on its own, set the type's **History** in the space no longer than the maximum, and send a person's erasure request through erasure, which removes their values from the current state, the history and every copy.
+
+## 13. When the Source Deletes a Record
+
+A record that an open-data portal withdraws must leave your space too, and only when the source really removed it. Tell the pipeline how its source shows a removal, in the pipeline manifest under `sourceDeletes`:
+
+| Choice | What happens to a record the source removed | Pick it when |
+|---|---|---|
+| `never` | it stays in the space with its last value | you keep an archive, or the source never removes records |
+| `snapshot` | it goes after two complete runs that no longer list it | the source returns its whole list every run: a catalogue, a register, a CSV export |
+| `events` | it goes when the mapped record matches `deletedWhen` | the source marks removals, for example `status` set to `withdrawn` |
+| `lease` | it goes when the source stops sending it, by a rolling **Lifetime** | the source only sends what is current, such as live buses |
+
+```yaml excerpt title="projects/bbsk/pipelines/datasets/pipeline.yaml"
+spec:
+  schedule: "0 3 * * *"
+  sourceDeletes:
+    mode: snapshot
+    misses: 2        # complete runs without the record before it goes
+    maxShare: 10     # at most 10 % of the records per run; more holds the run
+```
+
+How you can be sure a removal is real:
+
+- A run that failed, timed out or read fewer records than the source says it holds deletes nothing.
+- A record goes only after it is missing from `misses` complete runs in a row.
+- If one run would remove more than `maxShare` percent of the records, nothing is removed: the run is held and you get an alert. Check the source, then release the run.
+- Only records this pipeline wrote are removed. Fields another pipeline wrote into the same entity stay, and a record a person edited is listed in the run instead of removed.
+- The dry run of the pipeline lists what the next run would remove, before anything goes.
+- The pipeline needs a Policy that lets it delete those types; the Portal refuses the pipeline until one does.
+
+A removed record stays in the history with the time it was deleted and the reason `source-snapshot` or `source-event`, so you can always see when and why it left. Choose `snapshot` instead of pipeline expiry when the source sends its whole list: expiry guesses from the age of the last update, a snapshot knows. The two cannot be set on one pipeline.
 
 ## Related
 

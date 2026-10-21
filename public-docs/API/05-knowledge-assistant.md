@@ -373,6 +373,7 @@ DELETE …/knowledge/conversations/{conversation}
 | `costUsd`, `uncosted` | the sum of the priced model calls, and how many calls the provider sent no price for; with `uncosted > 0` the sum is a floor and the Portal says the price is unknown, never $0 |
 | `tokensIn`, `tokensOut`, `cachedTokens` | the turns' prompt and completion tokens, and the prompt tokens the provider read from its cache (`null` when no call reported any, T-4728) |
 | `firstTokenMs`, `models` | the first turn's time to its first token (`null` when none came), and the models its calls used |
+| `lastError` | what the newest failed or timed-out turn told the visitor (its error's `detail`, else its `title`), `null` when every turn answered (T-4994) |
 
 - `status` is `error`, `timeout` or `ok`; `feedback` is `up`, `down` or `none`; `slow=true` keeps
   conversations with a turn over 15 seconds; `minCostUsd` keeps those whose sum is at least that;

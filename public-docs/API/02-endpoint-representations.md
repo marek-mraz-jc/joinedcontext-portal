@@ -957,24 +957,83 @@ One connection carries NGSI-LD Subscriptions made over the socket and the Notifi
 
 ## 8b. Domain standards and the data model they need
 
-A domain standard, such as iCalendar, is a representation of one Smart Data Models type in another standard's terms. It is served only where `spec.enabledRepresentations` lists it (never by the EP-104 default), and only on an Endpoint whose Context Space's data model has that type with every attribute the standard's mandatory fields come from, each one a slot marked `required: true` (EP-125). The requirement is code: the platform's `Representation::requirement()` declares it, and [`schemas/surface-requirements.md`](https://github.com/marek-mraz-jc/joinedcontext-platform/blob/main/schemas/surface-requirements.md) in the platform repository is generated from it and checked against it by the platform's tests. This section quotes that file.
+A domain standard, such as iCalendar, is a representation of the Endpoint's entities in another standard's terms. It is served only where `spec.enabledRepresentations` lists it (never by the EP-104 default). It reads through the same view and the same NGSI-LD query as the NGSI-LD surface: `type`, `q`, `scopeQ`, `georel`/`geometry`/`coordinates`, `attrs` and the paging parameters pass through, so it serves only what the Endpoint's Policy grants the caller, and it has no filter parameters of its own. Events in one town are `?q=address.addressLocality=="Zvolen"`, not a `town=` parameter.
+
+How the standard's fields come from the NGSI-LD attributes is a mapping written on the Endpoint, `spec.representations.<name>` (EP-125). A mapping is data, never code: each field names attributes of the type and at most the remaps listed below, never an expression or a template. `jcctl validate`, the Portal's propose and the Endpoint form check it against the Context Space's data model with the same code (platform `jc-core`, `kinds::ical_mapping`) and the same sentences. [`schemas/surface-requirements.md`](https://github.com/marek-mraz-jc/joinedcontext-platform/blob/main/schemas/surface-requirements.md) in the platform repository lists the fields, the presets and the ranges each remap accepts; it is generated from that code and checked by the platform's tests.
 
 ### iCalendar (`ical`, RFC 5545)
 
-Smart Data Models type: `Event` (`https://smartdatamodels.org/dataModel.Event/Event`).
+```yaml excerpt
+spec:
+  enabledRepresentations: [ngsi-ld, ical]
+  representations:
+    ical:
+      type: Event               # the NGSI-LD type the feed maps; default Event
+      preset: sdm-event         # sdm-event (default) or schema-org
+      mapping:                  # overrides on top of the preset, field by field
+        LOCATION: { join: [address.streetAddress, address.addressLocality], separator: ", " }
+        SUMMARY: { attribute: name, language: sk, truncate: 200 }
+        DTEND: { attribute: endDate, date: date, endInclusive: true }
+```
 
-| Field | Standard | Source attribute | Mandatory |
-|---|---|---|---|
-| `UID` | RFC 5545 §3.6.1, §3.8.4.7 | entity `id` | yes |
-| `DTSTAMP` | RFC 5545 §3.6.1, §3.8.7.2 | entity `modifiedAt` (system) | yes |
-| `DTSTART` | RFC 5545 §3.6.1, §3.8.2.4 | `startDate` | yes |
-| `SUMMARY` | RFC 5545 §3.8.1.12 | `name` | yes (a calendar entry without a title is of no use) |
-| `DTEND` | RFC 5545 §3.8.2.2 | `endDate` | no: absent, the event has no end |
-| `DESCRIPTION` | RFC 5545 §3.8.1.5 | `description` | no |
-| `LOCATION`, `GEO` | RFC 5545 §3.8.1.7, §3.8.1.6 | `address`, `location` | no |
-| `URL` | RFC 5545 §3.8.4.6 | `url` | no |
+No `representations.ical` written means the `sdm-event` preset over type `Event`, so an Endpoint that listed `ical` before mappings existed serves what it served. A `preset` with a `mapping` is the preset with those fields replaced; a `mapping` without a `preset` is the whole mapping. An optional field a preset maps is checked leniently: left out of the feed when the type does not have its attribute, otherwise each value checked as the feed is served; a field the Endpoint writes itself is checked strictly against the model.
 
-`id` and `modifiedAt` belong to every entity, so the model has to declare `startDate` and `name` as required slots of `Event`.
+| Field | RFC 5545 | Level | `sdm-event` | `schema-org` |
+|---|---|---|---|---|
+| `UID` | §3.6.1, §3.8.4.7 | required, fixed | entity `id` | entity `id` |
+| `DTSTAMP` | §3.6.1, §3.8.7.2 | required, fixed | entity `modifiedAt` | entity `modifiedAt` |
+| `DTSTART` | §3.6.1, §3.8.2.4 | required | `startDate` | `startDate` |
+| `SUMMARY` | §3.8.1.12 | required (platform rule: an entry without a title is of no use) | `name` | `name` |
+| `DTEND` | §3.8.2.2 | optional, never with `DURATION` | `endDate` | `endDate` |
+| `DURATION` | §3.8.2.5 | optional, never with `DTEND` | | |
+| `DESCRIPTION` | §3.8.1.5 | optional | `description` | `description` |
+| `LOCATION` | §3.8.1.7 | optional | `address` | `address` |
+| `GEO` | §3.8.1.6 | optional | `location` | `location` |
+| `URL` | §3.8.4.6 | optional | `url` | `url` |
+| `CATEGORIES` | §3.8.1.2 | optional | | |
+| `STATUS` | §3.8.1.11 | optional | | `eventStatus`, mapped |
+| `ORGANIZER` | §3.8.4.3 | optional | | |
+| `LAST-MODIFIED` | §3.8.7.3 | optional | | |
+| `CLASS` | §3.8.1.3 | optional, `PUBLIC` only | | |
+
+`UID` and `DTSTAMP` are not mappable: the entity id is the stable identity a calendar client keys on, and `modifiedAt` is set by the broker. The `schema-org` preset maps `eventStatus` with `EventScheduled`, `EventRescheduled` and `EventMovedOnline` to `CONFIRMED`, `EventPostponed` to `TENTATIVE`, `EventCancelled` to `CANCELLED`, default `CONFIRMED`.
+
+A field's source is an attribute name (`DTSTART: startDate`) or an object with one source and the remaps it allows:
+
+| Key | Meaning | Allowed on |
+|---|---|---|
+| `attribute` | an attribute of the type, or a dotted path into its value (`address.addressLocality`) | every field |
+| `firstOf` | the first of a list of attributes that has a value | every field |
+| `join` + `separator` | the values of several attributes that have one, joined (default `", "`) | `SUMMARY`, `DESCRIPTION`, `LOCATION`, `CATEGORIES` |
+| `constant` | a fixed value | `CLASS` (`PUBLIC` only), `CATEGORIES` |
+| `language` | `sk`, `en`, … or `first`: which text of a LanguageProperty (default `first`) | text fields |
+| `date` | `auto`, `date` or `datetime` (default `auto`, as the value is) | `DTSTART`, `DTEND`, `LAST-MODIFIED` |
+| `timezone` | the IANA zone of a floating time (default `Europe/Bratislava`); a `VTIMEZONE` is emitted when used | `DTSTART`, `DTEND` |
+| `endInclusive` | `true`: the source names the last day, so `DTEND` is the next day | `DTEND` |
+| `map` + `default` | source value → calendar value; `default` for any other | `STATUS`, `CATEGORIES` |
+| `truncate` | at most n characters | `SUMMARY`, `DESCRIPTION` |
+
+### The model check
+
+`jcctl validate`, the Portal's propose and the Endpoint form refuse a mapping with one sentence per gap:
+
+- a required field (`DTSTART`, `SUMMARY`) without a source;
+- a mapped attribute the type does not have in the space's model, or a dotted path into a class that lacks the member;
+- an attribute whose range the field does not accept: `date` or `datetime` for `DTSTART`, `DTEND` and `LAST-MODIFIED`; a string, an enum or a LanguageProperty for the text fields (`LOCATION` also takes a structured address); a GeoProperty for `GEO` (NGSI-LD `location`); `uri` for `URL`;
+- a required field whose source is not a required slot, or a `firstOf` that does not end in one;
+- a `map` over an enum that does not cover every permissible value and names no `default`; a `STATUS` value other than `TENTATIVE`, `CONFIRMED` or `CANCELLED`;
+- a remap on a field that does not allow it, an unknown field or remap key, `UID` or `DTSTAMP` mapped, `DTEND` beside `DURATION`, `CLASS` other than `PUBLIC`.
+
+`id`, `type`, `createdAt`, `modifiedAt` (datetimes) and `location`, `observationSpace`, `operationSpace` (GeoProperties) belong to every NGSI-LD entity, so a model never declares them.
+
+```text
+Endpoint banskabystrica/banskabystrica-podujatia, space banskabystrica-verejne: `ical` maps SUMMARY to `description`, which is not a required attribute of Event: mark it required or end a firstOf with a required one (EP-125)
+Endpoint banskabystrica/banskabystrica-podujatia, space banskabystrica-verejne: `ical` maps DTSTART to `name`, a LanguageProperty; DTSTART takes date or datetime (EP-125)
+```
+
+### The check of each entity
+
+The broker renders the mapping (T-4901). An entity read with no value for `DTSTART` or `SUMMARY`, a `DTEND` not after `DTSTART`, a `GEO` outside -90..90 / -180..180, a `URL` that is not http(s) or a date it cannot parse is left out of the feed and counted in `antares_surface_records_skipped_total{surface="ical", reason}`; the feed stays valid RFC 5545 (CRLF lines, 75-octet folding, TEXT escaping, one `UID` per entity, EP-126).
 
 ### SensorThings (`sta`, OGC 18-088 v1.1)
 
@@ -992,7 +1051,7 @@ No fixed type: the broker reads each entity as a Thing and each numeric Property
 An air-quality model with `pm10: {range: float, unit: {ucum_code: ug/m3}}` passes; a model of articles with only texts and dates is refused:
 
 ```text
-Endpoint bb/clanky: `sta` needs a type with a numeric attribute that declares its unit in the data model of space clanky (EP-125)
+Endpoint bb/clanky, space clanky: `sta` needs a type with a numeric attribute that declares its unit (EP-125)
 ```
 
 ### Surfaces that serve any type
@@ -1006,16 +1065,6 @@ The model checked is a `published` or `deprecated` version of the space's DataMo
 ```text
 Endpoint bb/podujatia: `ical` needs a published data model in space podujatia; its model is draft (EP-125, DM-26)
 ```
-
-### The refusal
-
-```text
-Endpoint banskabystrica/banskabystrica-podujatia: `ical` needs the type Event with the required attribute(s) startDate in the data model of space banskabystrica-verejne (EP-125)
-```
-
-### An entity that lacks a mandatory attribute
-
-An entity read without `startDate` or `name` is left out of the feed and counted in `antares_surface_records_skipped_total{surface="ical", attribute="startDate"}`; the feed stays valid RFC 5545 (EP-126).
 
 ---
 

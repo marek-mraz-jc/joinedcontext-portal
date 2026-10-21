@@ -148,6 +148,8 @@ GET    /api/v1/projects/{project}/registry              the project's registry e
 PUT    /api/v1/projects/{project}/registry              pin another ref or set other parameter values → 202 + red-lane Change on the organization repository (PF-86, CC-88)
 GET    /api/v1/projects/{project}/permissions/me        the caller's effective rules here (PF-51, PF-61)
 GET    /api/v1/projects/{project}/apps/{name}/me        the caller's roles in one published App, for a fullstack backend (AP-109)
+GET    /api/v1/projects/{project}/apps/{name}/audience  how many people each visibility of the App reaches, for the Share dialog: `read` on `App` (AP-173)
+GET    /api/v1/shared-apps                              the published Apps of other projects shared with the caller's organization that the caller may open (AP-174)
 ```
 
 `DELETE /api/v1/projects/{project}` proposes one red-lane `Change` whose merge request removes
@@ -2093,8 +2095,14 @@ proposes; it writes nothing. The caller needs `propose` on `Endpoint` in the pro
     "publisher": { "name": { "sk": "Banskobystrický samosprávny kraj" } },
     "contactPoint": { "name": "Open data desk", "email": "opendata@example.org" }
   },
-  "publish": { "ckan": { "instanceRef": { "kind": "CkanInstance", "name": "bbsk" } } },
-  "missing": ["spatial", "frequency"]
+  "publish": { "ckan": { "instanceRef": { "kind": "CkanInstance", "name": "bbsk" },
+                         "datastore": { "representation": "csv" } } },
+  "missing": ["spatial", "frequency"],
+  "attributes": [
+    { "type": "KeyPerformanceIndicator", "name": "kpiValue" },
+    { "type": "KeyPerformanceIndicator", "name": "reporterEmail", "withheld": "personal" }
+  ],
+  "datastoreAvailable": true
 }
 ```
 
@@ -2107,6 +2115,14 @@ proposes; it writes nothing. The caller needs `propose` on `Endpoint` in the pro
   with a publisher's approval (EP-76, PF-72).
 - The UI proposes the Change through the resource API (`PUT …/endpoints/{name}`, §4) with the two
   blocks merged into the Endpoint's manifest.
+- `attributes` lists each slot of the space model's classes (`id` and `type` left out) with
+  `withheld` when a public dataset cannot carry it: `personal` for a slot the model marks
+  `personalData` (DM-122), `hidden` for one the Endpoint's `projection.hiddenAttributes` names
+  already. The UI never offers a withheld slot, adds every personal one and each slot the person
+  leaves out to `projection.hiddenAttributes`, and asks for the Endpoint's name typed back before
+  it proposes a public publication (EP-142).
+- `datastoreAvailable` is `true` when the Endpoint serves `csv`, the one representation a DataStore
+  mirror reads (EP-65); a drafted `publish.ckan` then carries `datastore`.
 - `404` for an unknown Endpoint; `409` naming `CkanInstance` when the project has none to publish to.
 
 ## 17. Federation registrations and the graph (MF-36, UI-27, UI-28, EP-71, PF-48)
@@ -3093,7 +3109,7 @@ GET /api/v1/projects/{project}/spaces/{space}/usage     the space's entity count
 
 A saved way of looking at one entity type of a space: which attributes show, the filter, the
 order, the grouping and the colours, and the view kind (grid, gallery, kanban, calendar, timeline,
-form). The view is the Portal's own record in its database (`data_views`); the rows it shows are
+map, form). The view is the Portal's own record in its database (`data_views`); the rows it shows are
 the space's entities, read with the person's own session, so a view narrows what the person may
 read and never widens it (ADR-N-042 §3.2).
 
@@ -3132,7 +3148,7 @@ DELETE /api/v1/projects/{project}/spaces/{space}/views/{id}     delete it → 20
 - The body of `POST` is `type`, `kind`, `mode`, `title` and `config`; of `PUT` the same without
   `type`, plus `expectedVersion`. Unknown keys are `400`. `type` is an NGSI-LD type name
   (`^[A-Za-z][A-Za-z0-9_-]*$`), `kind` one of `grid`, `gallery`, `kanban`, `calendar`, `timeline`,
-  `form`, `mode` one of `personal`, `collaborative`, `locked`, `title` 1 to 120 characters.
+  `map` (the rows placed by a GeoProperty, T-4884), `form`, `mode` one of `personal`, `collaborative`, `locked`, `title` 1 to 120 characters.
 - `config`: `q` is an NGSI-LD query of at most 4,096 characters, sent as the person's own `q`
   when the view opens; `sort` names at most 3 attributes; `hidden` and `width` name attributes,
   a width between 40 and 2,000 pixels; `order` lists at most 256 attributes in the order the grid
@@ -3942,6 +3958,246 @@ subscriber (T-4880). The rest of this section describes them as they will be ser
   same answer as a broker the project does not declare (PF-59). `DELETE` removes every kept
   message of the broker at once and records who did it in the activity log, without the
   payloads.
+
+## 48. Pipeline access requests (PL-90…PL-93)
+
+A pipeline that reads or writes a Context Space it has no grant on asks the space's owner for one. The request lives in the owning project and grants nothing until an owner there approves it; approval proposes the grant as a Change of the owning project, through its lane.
+
+```text
+POST   /api/v1/projects/{project}/pipelines/{name}/access-requests   { "endpoint": { "project", "name" }, "operations": "read"|"write", "types": [{ "type", "attrs": [...] }], "until"?, "reason" } → 201
+GET    /api/v1/projects/{project}/pipelines/{name}/access-requests   the pipeline's requests, outgoing → 200
+GET    /api/v1/projects/{project}/pipelines/{name}/access-requests/endpoints   the Endpoints the request may name → 200
+GET    /api/v1/projects/{project}/access-requests                        the requests into this project's spaces, incoming → 200
+POST   /api/v1/projects/{project}/access-requests/{id}/approve           {} → 202, the Change
+POST   /api/v1/projects/{project}/access-requests/{id}/decline           { "reason" } → 200
+POST   /api/v1/projects/{project}/access-requests/{id}/revoke            { "reason" } → 202, the Change
+```
+
+Filing needs `propose` on the Pipeline in `{project}`, and so does the `endpoints` list the request form picks from: each Endpoint of another Context Space (in this project or another) that the caller may read in its project, or whose `audience` is `organization` or `public`, with the classes of its space's compiled model and their attribute names, as `{ "items": [{ "project", "name", "space", "types": [{ "type", "attrs": [...] }] }] }`, names only and never data; a private Endpoint of a project the caller cannot read is never listed. Filing checks a listed Endpoint against its model: a type or attribute the model does not hold answers `400` with one `errors` line per value naming `types[i].type` or `types[i].attrs`; a space with no compiled model lists no type, and its owner judges the names. Any other Endpoint is asked for by its typed `project/endpoint` name: one the caller may not read and one that does not exist get the same answer, `201` with the request pending and no model check, so filing never tells which Endpoints, types or attributes exist; the owners of the Endpoint's space judge the types and attributes when they decide, and a request for a name that exists nowhere is shown to no owner. A name that is no DNS-1123 label, or an Endpoint of the pipeline's own space, answers `400` naming `endpoint.name`. The pipeline's side of a request (the filing answer and the outgoing list) carries no `space`. The incoming list, approve, decline and revoke need `approve` on the Endpoint's ContextSpace in the owning project, and a caller without it reads `404` for a request of a space they cannot read. An outgoing request shows the owning project's name, the Endpoint's name, the types and attributes asked for and the state (`pending`, `approved`, `declined`, `revoked`, `ended`), never the space's data. Approving or revoking answers the Change (MF-12); its lane is the owning project's, and its approval follows the four-eyes rule there. The requester approving their own request answers `403 self-approval`.
+
+```json
+{
+  "id": "ar-0a1b2c3d4e5f",
+  "pipeline": { "project": "city-kpis", "name": "air-index" },
+  "account": "city-kpis/pl-air-index",
+  "endpoint": { "project": "helsinki", "name": "air-quality" },
+  "operations": "read",
+  "types": [{ "type": "AirQualityObserved", "attrs": ["pm10", "pm25", "dateObserved"] }],
+  "until": "2027-01-31T23:59:59Z",
+  "state": "pending",
+  "requestedBy": "jana",
+  "requestedAt": "2026-10-20T19:40:00Z",
+  "decidedBy": null,
+  "change": null
+}
+```
+
+## 49. The agent registry (T-4849, AG-126…AG-129)
+
+Administration → Agents: every agent identity of the organization and its projects in one
+answer, so an administrator sees which agents exist, whom each acts as, what it reaches and
+which ones run now.
+
+```text
+GET /api/v1/organization/agents                                    → 200
+```
+
+```json
+{"items": [
+  {"kind": "AssistantDeployment", "name": "city-chat", "project": "helsinki",
+   "title": "City chat", "owner": {"type": "project", "name": "helsinki"},
+   "actsAs": "self", "spaces": ["air"], "endpoints": ["air-quality"],
+   "lastActivity": null, "spend": {"used": null, "cap": 200000, "per": "day"},
+   "state": "active", "runId": null},
+  {"kind": "AgentRun", "name": "Air quality dashboard", "project": "helsinki",
+   "title": null, "owner": {"type": "person", "name": "jana@example.org"},
+   "actsAs": "caller", "spaces": ["air"], "endpoints": ["air-quality"],
+   "lastActivity": "2026-10-21T02:10:00Z", "spend": {"used": 41000, "cap": 400000, "per": "run"},
+   "state": "running", "runId": "run-7f3a", "profile": "builder"}
+]}
+```
+
+- `kind` is `AssistantDeployment`, `AgentProfile`, `McpServer`, `ServiceAccount` or `AgentRun`;
+  `project` is `org` for the organization's own manifests (agent profiles, organization service
+  accounts and MCP servers). Items come namespace by namespace, the organization first, then
+  kind by kind in the order above and by name, a project's runs after its manifests, newest
+  first.
+- `owner` is the service account's `spec.owner.user` or the run's starter (`type: person`), else
+  the project that holds the manifest (`type: project`).
+- `actsAs` is `self` for a service account and for a deployment on a channel other than
+  `internal` (it calls with the `jc-assistant` service account), and `caller` for an `internal`
+  deployment (the person's own token, AG-115), an agent profile and its runs (AG-94) and an MCP
+  server (each client's own token).
+- `endpoints` names the Endpoints an item reaches as far as its manifest says: a deployment's
+  `connectors` and `mcpServer`, an MCP server's `Endpoint` members, a run's endpoints; `spaces`
+  adds their `contextSpaceRef` and a service account's role scopes.
+- `spend` is in tokens: a deployment's `budget.tokensPerDay` as its `cap` per `day` with `used`
+  `null`, since the day's count lives in `jc-agent-proxy` (AG-110); an agent profile's `used` sums
+  today's (UTC) runs of it that the caller sees, with no `cap`; a run's `used` is its tokens so far
+  and its `cap` its profile's `model.maxTokensPerRun`. Service accounts and MCP servers carry
+  `null` for all three.
+- `state` is `active`, `paused` (a deployment with `enabled: false`), `running` or `waiting` (a
+  run interviewing its person or awaiting approval). `lastActivity` is a run's latest timestamp,
+  and for a deployment or a profile the newest of its runs the caller sees, else `null`.
+- Who may read: any signed-in person, who gets per namespace only the kinds their bindings read
+  there (`read` on the kind; a binding to one space reads only the manifests of that space), and
+  a run only when they started it or approve in its project; nothing they may not read is
+  counted. A caller who reads no agent kind anywhere gets `403` with the sentence that names who
+  can grant it. No token, credential, key, `secretRef`, system prompt or
+  prompt is part of the answer (AG-127).
+- Pause and resume use no route of their own: the page proposes the deployment's manifest with
+  `spec.enabled` flipped by `PUT /api/v1/projects/{project}/assistantdeployments/{name}`, after
+  its dry run, like any edit (AG-129); the answer is the Change, which the project's review
+  merges.
+
+## 50. The data flow map (T-4862, PL-31…PL-33, PL-45, PL-52, PL-76)
+
+The Pipelines page draws every path data takes through a project: MQTT broker or DataSource,
+pipeline, Endpoint, Context Space, and on through derived and KPI pipelines into the next space.
+The Portal builds it from the manifests it mirrors and the runs it logged; it asks neither the
+runner nor the broker.
+
+```text
+GET /api/v1/projects/{project}/flow-map[?space={space}]          → 200
+```
+
+```json
+{"project": "helsinki",
+ "nodes": [{"id": "helsinki/DataSource/hsl-hfp", "kind": "DataSource", "name": "hsl-hfp",
+            "project": "helsinki", "opaque": false, "sourceType": "mqtt",
+            "hosts": ["mqtt.hsl.fi:8883"], "topics": ["/hfp/v2/journey/ongoing/vp/#"]},
+           {"id": "helsinki/Pipeline/stop-delays", "kind": "Pipeline", "name": "stop-delays",
+            "project": "helsinki", "opaque": false, "role": "derived", "phase": "Live",
+            "enabled": true, "lastRun": {"at": "2026-10-21T04:00:00Z", "sent": 310,
+            "rejected": 0, "failed": 0, "perMinute": 5.2}}],
+ "edges": [{"from": "helsinki/Pipeline/stop-delays", "to": "helsinki/Endpoint/stops-write",
+            "relation": "writes",
+            "grant": {"state": "missing", "endpoint": "stops-write", "operation": "upsertBatch",
+                      "fix": "add a Policy on space stops that grants the ServiceAccount pipelines upsertBatch"}}]}
+```
+
+- `kind` is one of `MqttBroker`, `DataSource`, `Pipeline`, `Endpoint`, `ContextSpace`; `id` is
+  `{project}/{kind}/{name}`, which the edges name. `relation` is `connects` (a broker a
+  DataSource reads by `mqtt.brokerRef`), `feeds` (a DataSource a pipeline reads), `exposes` (a
+  space an Endpoint serves), `reads` (an Endpoint a pipeline reads), `writes` (an Endpoint a
+  pipeline writes) or `stores` (the space an Endpoint writes into).
+- Every `reads` and `writes` edge carries its `grant`: `granted` names the Policy that gives the
+  `pipelines` ServiceAccount `upsertBatch` (a write) or `queryEntity`/`queryBatch` (a read) on the
+  Endpoint's space (the name only to a caller who reads Policy in that space; others see
+  `granted` without it); `missing` says which Policy to add, and the runner is refused there;
+  `external` marks an Endpoint of another project, whose owner's grant decides (PL-32).
+- A pipeline's `role` is `kpi` when it writes a space ending in `-kpi` or the type
+  `KeyPerformanceIndicator` (PL-45, PF-54), `derived` when it reads an Endpoint, else `ingest`.
+  `phase` is the reconciler's, `enabled: false` a paused pipeline, `lastRun` the newest run
+  (PL-62) with `perMinute` over runs of a minute or more, read only for the pipelines on the
+  map; a run log that cannot be read leaves that pipeline without `lastRun`.
+- `space` keeps only the pipelines that read or write that space, with their sources, Endpoints
+  and spaces; without it the map also lists the brokers, DataSources and spaces no pipeline uses
+  yet. A value that is not a space name is `400`.
+- Who may read: whoever may read the project; each node only when the caller may read its kind
+  there (a pipeline, Endpoint or space in the space a binding names). Anybody else gets `404`
+  (PF-59). An Endpoint of another project a pipeline reads is a node with its name alone
+  (`opaque: true`) unless the caller reads that project. A DataSource shows its hosts without
+  user, path or query, never a secret or a token.
+
+## 51. Agent activity (T-4851, AG-134…AG-136)
+
+An agent's Activity tab: what its runs did, step by step, and the alerts an administrator acts
+on.
+
+```text
+GET /api/v1/organization/agents/activity?profile=builder&verdict=refused&limit=20  → 200
+```
+
+```json
+{"runs": [
+  {"id": "run-7f3a", "project": "helsinki", "profile": "builder",
+   "title": "Air quality dashboard", "startedBy": "jana@example.org", "status": "building",
+   "createdAt": "2026-10-21T02:10:00Z", "spaces": ["air"], "tokens": 41000,
+   "costUsd": 0.0125, "refusals": 1, "writes": 0, "mayStop": true,
+   "steps": [
+     {"at": "2026-10-21T02:10:04Z", "tool": "jc_resource_list", "target": "Endpoint",
+      "verdict": "ok", "write": false, "durationMs": 9},
+     {"at": "2026-10-21T02:10:09Z", "tool": "jc_endpoint_propose", "target": "air",
+      "verdict": "refused", "write": true, "reason": "forbidden: missing role steward"}
+   ]}
+ ],
+ "nextCursor": "2026-10-21T02:10:00Z|run-7f3a",
+ "alerts": [
+   {"kind": "spendShare", "project": "helsinki", "profile": "builder", "runId": "run-7f3a",
+    "runTitle": "Air quality dashboard", "count": 85, "at": "2026-10-21T02:10:00Z"}
+ ],
+ "choices": {"people": ["jana@example.org"], "spaces": ["air"]}}
+```
+
+- Filters, each optional: `project`, `profile` (an agent profile's name), `run` (a run id),
+  `person` (the starter), `space` (a Context Space one of its Endpoints is in), `verdict` (`ok`:
+  no refused step, `refused`: at least one), `since` and `until` (RFC 3339, on the start),
+  `limit` (1–50, default 20) and `cursor` (`nextCursor` of the previous page). Any other
+  parameter, or a malformed value, is `400`.
+- `choices` lists the starters and the Context Spaces of the runs the caller sees for this
+  agent or run, whatever the other filters; the Activity tab offers `person` and `space` only
+  from it. A `person` or `space` outside it is `403` naming the field.
+- Who sees what: the runs of every project the caller reads, their own, or every person's where
+  they approve (AG-93); a caller who reads no project gets `403`. The answer reads the 500 newest
+  of those runs.
+- A step is one tool call: `target` is the Endpoint, resource, page or space it named, never its
+  arguments; `write` is true for an operation that is not read-only; `reason` is a refusal's
+  problem text or the reason a write gave, masked and cut at 400 characters. Its input and output
+  are never part of the answer (MF-52 `transcriptRedaction`). `costUsd` sums the costs the
+  provider reported and is absent when none did.
+- `mayStop` is true for a run in flight that the caller may cancel with
+  `POST /api/v1/projects/{project}/agent-runs/{id}/cancel`; that run's event stream then says
+  who stopped it (AG-135).
+- `alerts`, newest first, over the runs the filters select before paging: `refusalSpike` per
+  agent profile with 5 or more refused steps in the last hour (`count` the refusals),
+  `spendShare` per run at 80 % or more of its profile's `model.maxTokensPerRun` (`count` the
+  percent), `offHoursWrite` per run that wrote outside Monday to Friday 06:00–18:00 UTC
+  (`count` the writes); a run alert carries `runId` and `runTitle`, the title the run's card shows.
+- Every read is logged with the caller and the filters.
+
+## 52. What an agent account may do (T-4850, AG-130…AG-133)
+
+The Access view of one `ServiceAccount`, the identity an agent acts as when it acts as itself:
+each grant, where it holds, until when, and what it gives in the Portal.
+
+```text
+GET  /api/v1/projects/{project}/serviceaccounts/{name}/access     → 200
+POST /api/v1/projects/{project}/serviceaccounts/{name}/revoke     → 202 Change
+```
+
+```json
+{"account": "vendor-ci", "project": "helsinki", "delegates": false,
+ "mayPropose": true, "mayRevoke": true,
+ "grants": [
+   {"index": 0, "role": "pipeline-admin", "scope": "project:helsinki", "state": "active",
+    "notAfter": "2026-11-01T00:00:00Z",
+    "rules": [{"kinds": ["Pipeline"], "verbs": ["propose", "delete"]}]},
+   {"index": 1, "role": "space-reader", "scope": "contextSpace:air", "state": "expired",
+    "notAfter": "2026-10-20T00:00:00Z", "rules": []}
+ ]}
+```
+
+- `state` is `active` (no window, or now inside it), `pending` (`notBefore` ahead) or `expired`
+  (`notAfter` passed); only an `active` grant gives anything, here and at the gateway (AG-131).
+- `rules` are the rules of the `Role` the grant names, without `approve`, which no account holds
+  (PF-58); a role that names no `Role` (a gateway template, CC-60) has none and acts on data
+  alone, through the Policies of the Endpoints the account reaches (§41 shows those).
+- `delegates` is `true` for an account with `spec.delegation: token-exchange`: a person's token
+  its client exchanged is decided as that person, not with these grants (AG-95).
+- Who may read: `read` on `ServiceAccount` in the project; otherwise `403`, and `404` for no such
+  account. `mayRevoke` is `true` for a Portal session with `propose` and `approve` on it.
+- Revoke takes `{"index": 1, "role": "space-reader"}`, the grant's position and its role, so a
+  list that moved since the page read it removes nothing: a mismatch is `409`, and so is the
+  account's last grant (delete the account to take all its access away). The Portal writes the
+  Change and merges it at once when the manifest on the main branch differs from it by removed
+  grants alone; otherwise the Change waits for a second person like every access change. A
+  bearer token is `403`. Each revoke is an `access.revoked` activity event (AG-132).
+- Widening (a new grant, a wider scope, a later or removed `notAfter`) uses no route of its own:
+  the page proposes the account's manifest like any edit, a red-lane Change that someone other
+  than its proposer approves (PF-58, T-4833).
+- `POST /api/v1/projects/{project}/changes/{id}/approve` and `/reject` refuse every bearer token
+  with `403` (AG-133).
 
 ## Related
 
