@@ -63,6 +63,14 @@ struct RecordVerdict {
     index: usize,
     ok: bool,
     problems: Vec<Problem>,
+    /// Where its write is judged (T-4840): the Endpoint, each finding from the model, the
+    /// Endpoint and the lifetime, and the ends the record would be written with.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    endpoint: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    findings: Option<Vec<crate::record_check::Finding>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    expires: Option<crate::record_check::Expires>,
 }
 
 fn sample_schema() -> Value {
@@ -169,7 +177,10 @@ fn validate_output_schema() -> Value {
                     "properties": {
                         "index": { "type": "integer" },
                         "ok": { "type": "boolean" },
-                        "problems": { "type": "array", "description": "Each rule broken: its SHACL component, the attribute and why" }
+                        "problems": { "type": "array", "description": "Each rule broken: its SHACL component, the attribute and why" },
+                        "endpoint": { "type": "string", "description": "The Endpoint the record is written through" },
+                        "findings": { "type": "array", "description": "Each reason the record would not be written: its source (model, endpoint, lifetime), rule, field and reason (T-4840)" },
+                        "expires": { "type": "object", "description": "The expiresAt of the entity and of each attribute the record would be written with" }
                     }
                 }
             }
@@ -387,7 +398,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_pipeline_validate",
             title: "Validate Pipeline Records",
-            description: "Checks records against the data model of the space a pipeline writes into, the check the runner's validation stage makes before it writes: a verdict per record with each rule it broke (the workbench's validation step, PL-59, ADR-N-034)",
+            description: "Checks records where a pipeline's write is judged: the data model of the space it writes into (the runner's validation stage), the target Endpoint's Policies and view, and the lifetime: a verdict per record with each finding and the expiresAt it would get (the workbench's validation step, PL-59, ADR-N-034, T-4840)",
             input: validate_input_schema,
             output: validate_output_schema,
             annotations: OperationAnnotations {
@@ -408,24 +419,54 @@ pub fn operations() -> Vec<Operation> {
                 }
                 Ok(())
             },
-            run: |_caller, state, project, val| {
+            run: |caller, state, project, val| {
                 Box::pin(async move {
                     let input: ValidateInput = parse_input(val)?;
                     let pipeline = match (input.pipeline, input.draft.as_ref()) {
                         (None, None) => None,
-                        (pipeline, draft) => Some(candidate(state, project, pipeline, draft).await?.0),
+                        (pipeline, draft) => Some(candidate(state, project, pipeline, draft).await?),
                     };
-                    let (space, schema) = target(state, project, input.space, pipeline.as_ref())?;
+                    let (space, schema) =
+                        target(state, project, input.space, pipeline.as_ref().map(|p| &p.0))?;
+                    // With a pipeline, each record is judged where its write is (T-4840) and the
+                    // verdict is kept for its proposal; with a space alone, by the model only.
+                    let checked = match &pipeline {
+                        Some((manifest, _)) => Some(crate::record_check::check_records(
+                            state,
+                            project,
+                            manifest,
+                            &input.records,
+                            chrono::Utc::now(),
+                        )?),
+                        None => None,
+                    };
+                    if let (Some((manifest, Some(draft))), Some(checked)) = (&pipeline, &checked) {
+                        let mut verdict = crate::ops::verdict::Verdict::new(
+                            checked.ok && checked.checked > 0,
+                            crate::record_check::verdict_findings(checked),
+                            None,
+                            manifest,
+                        );
+                        verdict.records = Some(Box::new(checked.verdict(manifest, &input.records)));
+                        crate::ops::proposals::record_verdict(
+                            caller, state, project, draft, manifest, &verdict,
+                        )
+                        .await;
+                    }
                     let verdicts: Vec<RecordVerdict> = input
                         .records
                         .iter()
                         .enumerate()
                         .map(|(index, record)| {
                             let problems = schema.check(record);
+                            let check = checked.as_ref().map(|c| c.records[index].clone());
                             RecordVerdict {
                                 index,
-                                ok: problems.is_empty(),
+                                ok: check.as_ref().map_or(problems.is_empty(), |c| c.ok),
                                 problems,
+                                endpoint: check.as_ref().and_then(|c| c.endpoint.clone()),
+                                expires: check.as_ref().and_then(|c| c.expires.clone()),
+                                findings: check.map(|c| c.findings),
                             }
                         })
                         .collect();

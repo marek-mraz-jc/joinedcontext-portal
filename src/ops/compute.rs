@@ -408,10 +408,19 @@ pub fn operations() -> Vec<Operation> {
                         )
                     })
                     .unwrap_or_default();
+                    // Each record where its write is judged (T-4840): the model, the Endpoint
+                    // and the lifetime.
+                    let checked = crate::record_check::check_trace(
+                        state,
+                        project,
+                        &pipeline,
+                        &trace.mapping,
+                    )?;
                     let ok = static_problems.is_empty()
                         && trace.errors.is_empty()
                         && !trace.validation.is_empty()
-                        && trace.validation.iter().all(|v| v.ok);
+                        && trace.validation.iter().all(|v| v.ok)
+                        && checked.ok;
                     let mut findings: Vec<Finding> = static_problems
                         .into_iter()
                         .map(|problem| Finding {
@@ -438,16 +447,21 @@ pub fn operations() -> Vec<Operation> {
                             }
                         }
                     }
-                    let verdict = Verdict::new(
+                    findings.extend(crate::record_check::verdict_findings(&checked));
+                    let checked_records =
+                        &trace.mapping[..trace.mapping.len().min(crate::record_check::MAX_RECORDS)];
+                    let mut verdict = Verdict::new(
                         ok,
                         findings,
                         Some(serde_json::to_value(&trace).unwrap_or_default()),
                         &pipeline,
                     );
+                    verdict.records = Some(Box::new(checked.verdict(&pipeline, checked_records)));
                     if let Some(d) = &draft_ref {
                         record_verdict(caller, state, project, d, &pipeline, &verdict).await;
                     }
                     let mut out = serde_json::to_value(&trace)?;
+                    out["check"] = serde_json::to_value(&checked)?;
                     out["verdict"] = serde_json::to_value(&verdict)?;
                     Ok(out)
                 })

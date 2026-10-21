@@ -6226,6 +6226,17 @@ export interface components {
             /** @description 1 to 10 places, newest first. */
             places: components["schemas"]["Place"][];
         };
+        /** @description The record check a Pipeline's proposal needs (T-4840): green, of the spec proposed. */
+        RecordsVerdict: {
+            /** @description The records checked and how many of them would not be written. */
+            checked: number;
+            ok: boolean;
+            rejected: number;
+            /** @description [`digest_of`] the records, so the proposal names the sample its verdict was given on. */
+            sampleDigest: string;
+            /** @description [`digest_of`] the Pipeline's `spec` the records came from. */
+            specDigest: string;
+        };
         /** @description What a registration's card shows (UI-27, PF-48). */
         RegistrationCard: {
             /** @description Whether the source is on this platform or outside it. */
@@ -6908,6 +6919,7 @@ export interface components {
             findings: components["schemas"]["Finding"][];
             inputDigest: string;
             ok: boolean;
+            records?: null | components["schemas"]["RecordsVerdict"];
             trace?: unknown;
             /**
              * @description The open changes whose resources this manifest names (MF-48): it resolves once they are
@@ -15549,7 +15561,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The trace: what the harness read, what each step made of it, and the messages it would have written */
+            /** @description The trace: what the harness read, what each step made of it, and the messages it would have written; `check` is each record's verdict from the space's model, the target Endpoint and the lifetime (T-4840) */
             200: {
                 headers: {
                     [name: string]: unknown;

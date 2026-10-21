@@ -606,7 +606,12 @@ fn verdict_gate(
         None => Some("verdict_absent"),
         Some(v) if !v.ok => Some("verdict_failed"),
         Some(v) if !v.is_fresh_for(manifest) => Some("stale"),
-        _ => None,
+        Some(v) => verdict::records_refusal(v, manifest),
+    };
+    // A Pipeline's records are checked by its test, whatever check the door names (T-4840).
+    let check_op = match reason {
+        Some(r) if r.starts_with("records_") => "jc_pipeline_test",
+        _ => check_op,
     };
 
     if let Some(reason) = reason {
@@ -620,6 +625,18 @@ fn verdict_gate(
                         "The {subject}'s check found problems; resolve them and check it again."
                     )
                 }
+                "records_unchecked" => format!(
+                    "The {subject}'s records have not been checked against the space's model, the \
+                     target Endpoint and the lifetime; test it on a sample, then propose it."
+                ),
+                "records_failed" => format!(
+                    "Records of the {subject}'s sample would not be written; resolve what the test \
+                     names and test it again."
+                ),
+                "records_stale" => format!(
+                    "The {subject} changed since its records were checked; test it again, then \
+                     propose it."
+                ),
                 _ => format!(
                     "The {subject} changed since its check; check it again, then propose it."
                 ),

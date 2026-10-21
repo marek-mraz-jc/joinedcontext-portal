@@ -1374,7 +1374,7 @@ pub const LIFETIME_LABEL: &str = "lifetime";
 
 /// `spec.lifetime` as its one Bento step (PL-82, T-4839): after the author's steps and routes,
 /// before the batching, so the validation stage at the split checks the `expiresAt` it wrote.
-fn lifetime_step(pipeline: &PipelineSpec) -> Result<Option<Value>, RenderError> {
+pub(crate) fn lifetime_step(pipeline: &PipelineSpec) -> Result<Option<Value>, RenderError> {
     let step = jcctl::lifetime::step(pipeline).map_err(|e| RenderError::Custom(e.to_string()))?;
     Ok(step.map(|text| labelled(serde_json::json!({ "mapping": text }), LIFETIME_LABEL)))
 }

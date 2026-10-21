@@ -254,7 +254,9 @@ pub async fn execute_test_pipeline(
     ),
     responses(
         (status = 200, description = "The trace: what the harness read, what each step made of \
-                                      it, and the messages it would have written", body = Object),
+                                      it, and the messages it would have written; `check` is \
+                                      each record's verdict from the space's model, the target \
+                                      Endpoint and the lifetime (T-4840)", body = Object),
         (status = 400, description = "A manifest that is not a Pipeline, a source that declares \
                                       neither `dataSourceRef` nor `endpointRef`, or a sample \
                                       past the byte limit", body = ProblemDetails),
@@ -270,10 +272,14 @@ pub async fn test_pipeline(
     State(state): State<AppState>,
     Path(project): Path<String>,
     Json(request): Json<TestRequest>,
-) -> Result<Json<TestTrace>, ApiError> {
-    execute_test_pipeline(&user.0.identity, &state, &project, request)
-        .await
-        .map(Json)
+) -> Result<Json<Value>, ApiError> {
+    let pipeline = request.pipeline.clone();
+    let trace = execute_test_pipeline(&user.0.identity, &state, &project, request).await?;
+    let check = crate::record_check::check_trace(&state, &project, &pipeline, &trace.mapping)?;
+    let mut answer = serde_json::to_value(&trace).map_err(|e| ApiError::Internal(e.to_string()))?;
+    answer["check"] =
+        serde_json::to_value(&check).map_err(|e| ApiError::Internal(e.to_string()))?;
+    Ok(Json(answer))
 }
 
 /// One run of `spec` over `sample` on the project's runner: the harness (PL-43) as an
@@ -285,9 +291,42 @@ pub(crate) async fn run_harness(
     sample: &Sample,
 ) -> Result<TestTrace, ApiError> {
     run_stream(state, project, |capture| {
-        harness(spec, sample, capture).map_err(|e| ApiError::BadRequest(e.to_string()))
+        let mut config =
+            harness(spec, sample, capture).map_err(|e| ApiError::BadRequest(e.to_string()))?;
+        with_lifetime(&mut config, spec)?;
+        Ok(config)
     })
     .await
+}
+
+/// The harness with the pipeline's lifetime step after its own steps, where a live stream runs
+/// it (PL-82, T-4840), so the trace's records carry the `expiresAt` they would be written with.
+/// A message that already failed skips it: its envelope keeps the error it failed with.
+fn with_lifetime(config: &mut Value, spec: &PipelineSpec) -> Result<(), ApiError> {
+    let Some(step) = crate::reconciler::streams::lifetime_step(spec)
+        .map_err(|e| ApiError::BadRequest(format!("spec.lifetime: {e}")))?
+    else {
+        return Ok(());
+    };
+    let Some(processors) = config
+        .pointer_mut("/pipeline/processors")
+        .and_then(Value::as_array_mut)
+    else {
+        return Err(ApiError::Internal("the harness has no processors".into()));
+    };
+    let envelope = processors
+        .iter()
+        .position(|p| {
+            p["mapping"]
+                .as_str()
+                .is_some_and(|m| m.starts_with("let failed = errored()"))
+        })
+        .ok_or_else(|| ApiError::Internal("the harness has no envelope step".into()))?;
+    processors.insert(
+        envelope,
+        serde_json::json!({ "switch": [{ "check": "!errored()", "processors": [step] }] }),
+    );
+    Ok(())
 }
 
 /// One ephemeral stream on the project's runner: `config` builds it from its capture URL, the
@@ -598,6 +637,57 @@ mod tests {
         }))
         .expect("spec");
         harness(&spec, &sample, "http://portal-internal:9090/x").expect("harness")
+    }
+
+    /// T-4840: the test runs the lifetime step where a live stream does, after the author's
+    /// steps and before the envelope, and only on a message that did not fail.
+    #[test]
+    fn the_harness_runs_the_lifetime_step_before_the_envelope() {
+        let spec: PipelineSpec = serde_json::from_value(json!({
+            "class": "auto",
+            "outputs": [{ "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:vehicles:helsinki-all", "type": "Bus" }],
+            "lifetime": [{ "type": "Bus", "entity": { "rolling": "PT10M" } }]
+        }))
+        .expect("spec");
+        let sample = Sample {
+            text: Some("{}".into()),
+            url: None,
+            format: SampleFormat::Json,
+        };
+        let mut config = harness(&spec, &sample, "http://portal-internal:9090/x").expect("harness");
+        let before = config["pipeline"]["processors"]
+            .as_array()
+            .expect("processors")
+            .len();
+        with_lifetime(&mut config, &spec).expect("the step");
+        let processors = config["pipeline"]["processors"]
+            .as_array()
+            .expect("processors");
+        assert_eq!(processors.len(), before + 1);
+        let at = processors
+            .iter()
+            .position(|p| p.get("switch").is_some())
+            .expect("the lifetime step");
+        assert_eq!(processors[at]["switch"][0]["check"], "!errored()");
+        let step = &processors[at]["switch"][0]["processors"][0];
+        assert_eq!(step["label"], "lifetime");
+        assert!(step["mapping"]
+            .as_str()
+            .is_some_and(|m| m.contains("expiresAt")));
+        assert!(processors[at + 1]["mapping"]
+            .as_str()
+            .is_some_and(|m| m.starts_with("let failed = errored()")));
+
+        // No lifetime, the harness jcctl rendered.
+        let plain = harness_for(sample);
+        let mut unchanged = plain.clone();
+        let none: PipelineSpec = serde_json::from_value(json!({
+            "class": "auto",
+            "targetEndpoint": "urn:ngsi-ld:Endpoint:probe.local:probe:probe"
+        }))
+        .expect("spec");
+        with_lifetime(&mut unchanged, &none).expect("nothing to add");
+        assert_eq!(unchanged, plain);
     }
 
     #[test]

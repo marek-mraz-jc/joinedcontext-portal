@@ -246,6 +246,37 @@ async fn op(
     .await
 }
 
+/// The green record check of `manifest` its workbench would keep on its own draft (T-4840).
+async fn records_checked(state: &AppState, project: &str, manifest: &Value) {
+    use joinedcontext_portal::ops::verdict::{digest_of, RecordsVerdict, Verdict};
+    let name = manifest["metadata"]["name"].as_str().expect("a name");
+    let store = joinedcontext_portal::ops::drafts::draft_store(state);
+    store
+        .put(
+            project,
+            "Pipeline",
+            name,
+            manifest.clone(),
+            Some(0),
+            "steward",
+            "person",
+        )
+        .await
+        .expect("the draft");
+    let mut verdict = Verdict::green(manifest, None);
+    verdict.records = Some(Box::new(RecordsVerdict {
+        ok: true,
+        checked: 1,
+        rejected: 0,
+        spec_digest: digest_of(&manifest["spec"]),
+        sample_digest: digest_of(&json!([])),
+    }));
+    store
+        .set_verdict(project, "Pipeline", name, verdict)
+        .await
+        .expect("the verdict");
+}
+
 /// The file paths the forge was asked to write or remove.
 async fn written(gitea: &MockServer) -> Vec<String> {
     gitea
@@ -362,6 +393,10 @@ async fn an_endpoint_a_pipeline_a_policy_and_a_role_binding_are_proposed_at_thei
         "org",
         json!({ "displayName": "Air quality team" }),
     ));
+
+    // A Pipeline proposes on a green record check of its spec (T-4840), which its workbench
+    // keeps; this case is about the paths, so the check is recorded the way it would be.
+    records_checked(&state, "ovzdusie", &pipeline()).await;
 
     for (project, manifest) in [
         ("ovzdusie", changed),

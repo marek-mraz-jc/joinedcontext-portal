@@ -78,8 +78,31 @@ interface ValidationAnswer {
   version: string;
   valid: number;
   rejected: number;
-  verdicts: { index: number; ok: boolean; problems: Problem[] }[];
+  verdicts: RecordVerdict[];
 }
+
+/** Where a record's write is judged (T-4840): the space's model, the target Endpoint, the lifetime. */
+export type FindingSource = "model" | "endpoint" | "lifetime";
+
+/** One reason a record would not be written, from the check of its write (T-4840). */
+interface Finding {
+  source: FindingSource;
+  rule: string;
+  field: string;
+  reason: string;
+}
+
+interface RecordVerdict {
+  index: number;
+  ok: boolean;
+  problems: Problem[];
+  /** Absent from an answer older than the record check: the problems are then the model's alone. */
+  findings?: Finding[];
+  /** The `expiresAt` the record would be written with: the entity's and each attribute's. */
+  expires?: { entity?: string; attributes: Record<string, string> };
+}
+
+const SOURCES: readonly FindingSource[] = ["model", "endpoint", "lifetime"];
 
 /** The value a mapping writes most often for a slot's range, shown as its example. */
 export function exampleOf(slot: Pick<LinkmlSlot, "range" | "kind" | "multivalued">, enumFirst?: string): string {
@@ -211,6 +234,7 @@ export function readValidation(output: unknown): ValidationAnswer {
       problems: listOf(verdict.problems)
         .filter(isObject)
         .map((problem) => ({ rule: textOf(problem.rule), path: textOf(problem.path), message: textOf(problem.message) })),
+      ...readCheck(verdict),
     }));
   return {
     space: textOf(answer.space),
@@ -220,6 +244,71 @@ export function readValidation(output: unknown): ValidationAnswer {
     rejected: numberOf(answer.rejected),
     verdicts,
   };
+}
+
+/**
+ * One record's verdict (T-4840): valid, or each finding with where it comes from (the space's
+ * model, the target Endpoint, the lifetime), and the `expiresAt` the record would be written with.
+ */
+function RecordVerdictCell({ verdict }: { verdict: RecordVerdict }): JSX.Element {
+  const { t } = useTranslation();
+  const findings: Finding[] =
+    verdict.findings ??
+    verdict.problems.map((problem) => ({ source: "model", rule: problem.rule, field: problem.path, reason: problem.message }));
+  const ends = verdict.expires;
+  return (
+    <div className="flex flex-col items-start gap-1">
+      {verdict.ok ? (
+        <Badge tone="success">{t("pipelines.workbench.validation.valid")}</Badge>
+      ) : (
+        <ul className="flex flex-col gap-1">
+          {findings.map((finding, at) => (
+            <li key={at} className="text-caption">
+              <Badge tone="danger">{t(`pipelines.workbench.validation.source.${finding.source}`)}</Badge>{" "}
+              <span className="font-mono text-fg-subtle">{finding.rule}</span>{" "}
+              {finding.field ? <span className="font-mono">{finding.field}</span> : null}{" "}
+              <span className="text-fg-muted">{finding.reason}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {ends ? (
+        <ul className="flex flex-col gap-0.5 text-caption text-fg-muted" aria-label={t("pipelines.workbench.validation.expiresLabel")}>
+          {ends.entity ? <li>{t("pipelines.workbench.validation.expiresEntity", { at: ends.entity })}</li> : null}
+          {Object.entries(ends.attributes).map(([name, at]) => (
+            <li key={name}>
+              {t("pipelines.workbench.validation.expiresAttribute", { name, at })}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+/** A verdict's record check (T-4840), when the answer carries one. */
+function readCheck(verdict: Record<string, unknown>): Pick<RecordVerdict, "findings" | "expires"> {
+  const out: Pick<RecordVerdict, "findings" | "expires"> = {};
+  if (Array.isArray(verdict.findings)) {
+    out.findings = verdict.findings.filter(isObject).map((finding) => ({
+      source: SOURCES.find((source) => source === finding.source) ?? "model",
+      rule: textOf(finding.rule),
+      field: textOf(finding.field),
+      reason: textOf(finding.reason),
+    }));
+  }
+  if (isObject(verdict.expires)) {
+    const { entity, attributes } = verdict.expires;
+    out.expires = {
+      ...(typeof entity === "string" ? { entity } : {}),
+      attributes: Object.fromEntries(
+        Object.entries(isObject(attributes) ? attributes : {}).filter(
+          (entry): entry is [string, string] => typeof entry[1] === "string",
+        ),
+      ),
+    };
+  }
+  return out;
 }
 
 async function run<T>(
@@ -308,6 +397,11 @@ export interface PipelineWorkbenchProps {
    * it in place of the Bloblang box, read-only until the person switches Edit on.
    */
   mappingFile?: MappingFile;
+  /**
+   * The Portal draft the dialog edits: the validation step's verdict is kept on it, and the
+   * proposal needs that verdict green for the spec it proposes (T-4840, PF-57).
+   */
+  draftName?: string;
 }
 
 /** The `bento.yaml` beside an edited pipeline, as the editor loaded it (T-4818). */
@@ -341,6 +435,7 @@ export function PipelineWorkbench({
   onVerdict,
   children,
   mappingFile,
+  draftName,
 }: PipelineWorkbenchProps): JSX.Element {
   const { t } = useTranslation();
   const [file, setFile] = useState<{ name: string; text: string; format: SampleFormat } | null>(null);
@@ -482,7 +577,7 @@ export function PipelineWorkbench({
 
   // Step 6: the verdicts against the target space's model.
   const validated = useQuery({
-    queryKey: ["pipeline-workbench", project, "validate", manifest, records],
+    queryKey: ["pipeline-workbench", project, "validate", manifest, records, draftName],
     enabled: records.length > 0 && Boolean(draft?.targetEndpoint),
     retry: false,
     refetchOnWindowFocus: false,
@@ -490,7 +585,11 @@ export function PipelineWorkbench({
       run(
         project,
         "jc_pipeline_validate",
-        { pipeline: manifest, records: records.slice(0, 100) },
+        {
+          pipeline: manifest,
+          records: records.slice(0, 100),
+          ...(draftName ? { draft: { kind: "Pipeline", name: draftName } } : {}),
+        },
         t("pipelines.workbench.failed"),
         readValidation,
       ),
@@ -925,20 +1024,8 @@ export function PipelineWorkbench({
                           </pre>
                         </TableCell>
                         <TableCell>
-                          {verdict === undefined ? null : verdict.ok ? (
-                            <Badge tone="success">{t("pipelines.workbench.validation.valid")}</Badge>
-                          ) : (
-                            <ul className="flex flex-col gap-1">
-                              {verdict.problems.map((problem, at) => (
-                                <li key={at} className="text-caption">
-                                  <Badge mono tone="danger">
-                                    {problem.rule}
-                                  </Badge>{" "}
-                                  {problem.path ? <span className="font-mono">{problem.path}</span> : null}{" "}
-                                  <span className="text-fg-muted">{problem.message}</span>
-                                </li>
-                              ))}
-                            </ul>
+                          {verdict === undefined ? null : (
+                            <RecordVerdictCell verdict={verdict} />
                           )}
                         </TableCell>
                       </TableRow>
