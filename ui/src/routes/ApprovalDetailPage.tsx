@@ -250,7 +250,10 @@ export function ApprovalDetailPage({
               {t("approvals.mergeRequest")}
             </dt>
             <dd className="mt-1 text-sm font-medium">
-              <ExternalLink href={proposal.status.mergeRequest} className="text-primary-soft-fg">
+              <ExternalLink
+                href={proposal.status.mergeRequest}
+                className="text-primary-soft-fg [overflow-wrap:anywhere]"
+              >
                 {proposal.status.mergeRequest}
               </ExternalLink>
             </dd>
@@ -275,19 +278,23 @@ export function ApprovalDetailPage({
                 {file.kind ? (
                   <span className="text-sm font-medium text-surface-fg">{file.kind}</span>
                 ) : null}
-                {file.fields ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-pressed={selected?.path === file.path}
-                    onClick={() => setSelectedPath(selected?.path === file.path ? null : file.path)}
-                    className="px-1 font-mono text-caption text-primary-soft-fg hover:underline"
-                  >
-                    {file.path}
-                  </Button>
-                ) : (
-                  <span className="font-mono text-caption text-fg-subtle">{file.path}</span>
-                )}
+                <div className="min-w-0 flex-1">
+                  {file.fields ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-pressed={selected?.path === file.path}
+                      onClick={() => setSelectedPath(selected?.path === file.path ? null : file.path)}
+                      className="h-auto min-h-8 px-1 text-left font-mono text-caption text-primary-soft-fg [overflow-wrap:anywhere] hover:underline"
+                    >
+                      {file.path}
+                    </Button>
+                  ) : (
+                    <span className="font-mono text-caption text-fg-subtle [overflow-wrap:anywhere]">
+                      {file.path}
+                    </span>
+                  )}
+                </div>
                 <span className="ml-auto text-caption text-fg-muted">
                   {t(OPERATION_LABEL[file.operation])}
                 </span>
