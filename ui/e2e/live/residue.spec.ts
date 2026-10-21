@@ -14,19 +14,26 @@
  */
 import { expect, test } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
-import { JANITOR, STEWARD, approve, listedNames, signIn } from "./portal";
+import { JANITOR, STEWARD, approve, csrf, listedNames, reject, signIn } from "./portal";
 
 const PROJECT = "helsinki";
 /** A take's suffix is the HH:MM it started at; an act with a fixed name is listed by it. */
 const TAKE = /-\d{4}$/;
 /**
  * A live journey names what it creates after its own task, so its leftovers are recognisable:
- * `t1585-…`, `t1588-…`, `t1589r-…`. A journey that approves a change cannot simply DELETE what it
- * made — a removal is a Red change that needs an approval too — so anything a journey abandons is
- * swept here (T-1592, and the six spaces this rule found on dev on 2026-09-18).
+ * `t1585-…`, `t1588-…`, `t1589r-…`, `t4843-…`. A journey that approves a change cannot simply DELETE
+ * what it made — a removal is a Red change that needs an approval too — so anything a journey
+ * abandons is swept here (T-1592, and the six spaces this rule found on dev on 2026-09-18). Any
+ * four-digit task counts: the t1xxx-only rule missed T-4668's models and T-4843's space (T-4993).
  */
-const JOURNEY = /^t1[0-9]{3}[a-z]?-/;
+const JOURNEY = /^t[0-9]{4}[a-z]?-/;
 const SWEEP: { plural: string; residue: (name: string) => boolean }[] = [
+  // An assistant names its knowledge sources, so it goes before them (T-4869's journey makes both).
+  { plural: "assistantdeployments", residue: (name) => JOURNEY.test(name) },
+  { plural: "knowledgesources", residue: (name) => JOURNEY.test(name) },
+  { plural: "syncsources", residue: (name) => JOURNEY.test(name) },
+  // The policy-new-user journey's policy (T-4993 found two on dev).
+  { plural: "policies", residue: (name) => JOURNEY.test(name) || /^newuser-policy-[a-z0-9]+$/.test(name) },
   { plural: "endpoints", residue: (name) => JOURNEY.test(name) || /^bikes-regional-[a-z0-9]+$/.test(name) },
   { plural: "pipelines", residue: (name) => JOURNEY.test(name) || TAKE.test(name) },
   { plural: "datasources", residue: (name) => JOURNEY.test(name) || TAKE.test(name) },
@@ -150,4 +157,72 @@ test("no residue of takes or e2e is left in helsinki", async ({ browser }) => {
       .toEqual([]);
   }
   await steward.context.close();
+});
+
+/**
+ * A create a journey proposed and nobody approved (T-4993: Journey 44's KnowledgeSource
+ * t4869-files-… waited on dev's approvals page for days): the journey's removal found nothing to
+ * remove, so the open proposal stays. The janitor rejects it, with a reason the proposer reads.
+ */
+async function openJourneyCreates(page: Page): Promise<string[]> {
+  const answer = await page.request.get(`/api/v1/projects/${PROJECT}/changes`);
+  expect(answer.ok(), `list changes: ${await answer.text()}`).toBe(true);
+  const body = (await answer.json()) as {
+    items?: { metadata: { name: string }; status?: { phase?: string }; summary?: { key?: string; params?: { name?: string } } }[];
+  };
+  return (body.items ?? [])
+    .filter((item) => item.status?.phase === "PendingApproval" && item.summary?.key === "change.summary.create")
+    .filter((item) => JOURNEY.test(item.summary?.params?.name ?? ""))
+    .map((item) => item.metadata.name);
+}
+
+test("no open proposal of a journey is left in helsinki", async ({ browser }) => {
+  const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/approvals?lang=en`);
+  try {
+    const open = await openJourneyCreates(steward.page);
+    test.info().annotations.push({ type: "proposals", description: open.join(", ") || "none" });
+    if (open.length > 0) {
+      const janitor = await signIn(browser, JANITOR, `/projects/${PROJECT}/approvals?lang=en`);
+      try {
+        for (const change of open) {
+          await reject(janitor.page, PROJECT, change, "A live journey ended before this proposal was approved; the residue sweep rejects it.");
+        }
+      } finally {
+        await janitor.context.close();
+      }
+    }
+    expect(await openJourneyCreates(steward.page)).toEqual([]);
+  } finally {
+    await steward.context.close();
+  }
+});
+
+/**
+ * A journey's draft is the steward's own: the drafts page listed twenty t4869-…, t4866-… and
+ * t4824-… drafts on dev (T-4993). Each is dropped through the same route the page's Discard uses;
+ * a draft of another person, or one without a journey's name, is left alone.
+ */
+test("no draft of a journey is left in helsinki", async ({ browser }) => {
+  const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/drafts?lang=en`);
+  const mine = async (): Promise<{ kind: string; name: string }[]> => {
+    const answer = await steward.page.request.get(`/api/v1/projects/${PROJECT}/drafts`);
+    expect(answer.ok(), `list drafts: ${await answer.text()}`).toBe(true);
+    const body = (await answer.json()) as { items?: { kind: string; name: string; touchedBy?: string }[] };
+    return (body.items ?? []).filter((draft) => draft.touchedBy === STEWARD.user && JOURNEY.test(draft.name));
+  };
+  try {
+    const found = await mine();
+    test.info().annotations.push({ type: "drafts", description: found.map((d) => `${d.kind}/${d.name}`).join(", ") || "none" });
+    const token = await csrf(steward.context);
+    for (const draft of found) {
+      const answer = await steward.page.request.delete(
+        `/api/v1/projects/${PROJECT}/drafts/${encodeURIComponent(draft.kind)}/${encodeURIComponent(draft.name)}`,
+        { headers: { "x-csrf-token": token } },
+      );
+      expect([200, 204, 404], `drop draft ${draft.kind}/${draft.name}: ${await answer.text()}`).toContain(answer.status());
+    }
+    expect(await mine()).toEqual([]);
+  } finally {
+    await steward.context.close();
+  }
 });
