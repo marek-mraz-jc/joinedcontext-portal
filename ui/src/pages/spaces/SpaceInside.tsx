@@ -57,6 +57,7 @@ import {
   deleteRow,
   GalleryView,
   KanbanView,
+  MapOfRows,
   LiveNotice,
   RowExtra,
   TimelineView,
@@ -919,7 +920,13 @@ function SpaceData({
       ) : null}
       {probe.isSuccess && view === "api" ? (
         <div {...tabPanelProps("space-data-view", view)}>
-          <TypeApi project={project} space={space} type={type} endpoints={endpoints} />
+          <TypeApi
+            project={project}
+            space={space}
+            type={type}
+            endpoints={endpoints}
+            q={andQ(asked.q, gridQuery?.q) ?? q}
+          />
           <SharePanel key={type} project={project} space={space} type={type} attributes={slots.map((slot) => slot.name)} />
         </div>
       ) : null}
@@ -949,7 +956,8 @@ function SpaceData({
           />
           <OtherView
             project={project}
-            source={source}
+            source={gridSource}
+            editable={writer?.attrs ?? []}
             space={space}
             type={type}
             q={q}
@@ -1197,7 +1205,7 @@ function TypeList({
 }
 
 /** The views of a space's entities (ADR-N-042 §3.2); the grid is the first. */
-const DATA_VIEWS = ["grid", "gallery", "kanban", "calendar", "timeline", "form", "api"] as const;
+const DATA_VIEWS = ["grid", "gallery", "kanban", "calendar", "timeline", "map", "form", "api"] as const;
 type DataView = (typeof DATA_VIEWS)[number];
 
 /** One view other than the grid, over one page of the filtered type. */
@@ -1210,9 +1218,12 @@ function OtherView({
   view,
   enums,
   endpoints,
+  editable,
 }: {
   project: string;
   source: ReturnType<typeof sourceFor>;
+  /** The attributes the person's Endpoint grants let them write (T-4826): a board's move, a date's. */
+  editable: readonly string[];
   space: string;
   type: string;
   q: string | undefined;
@@ -1251,9 +1262,12 @@ function OtherView({
     <RowExtra.Provider value={(row) => <CommentsPanel project={project} space={space} urn={row.id} />}>
       <LiveNotice change={live} />
       {view === "gallery" ? <GalleryView rows={shown} source={source} onDelete={onDelete} /> : null}
-      {view === "kanban" ? <KanbanView rows={shown} source={source} enums={enums} onDelete={onDelete} /> : null}
-      {view === "calendar" ? <CalendarView rows={shown} source={source} onDelete={onDelete} /> : null}
-      {view === "timeline" ? <TimelineView rows={shown} source={source} onDelete={onDelete} /> : null}
+      {view === "kanban" ? (
+        <KanbanView rows={shown} source={source} enums={enums} editable={editable} onDelete={onDelete} />
+      ) : null}
+      {view === "calendar" ? <CalendarView rows={shown} source={source} editable={editable} onDelete={onDelete} /> : null}
+      {view === "timeline" ? <TimelineView rows={shown} source={source} editable={editable} onDelete={onDelete} /> : null}
+      {view === "map" ? <MapOfRows project={project} rows={shown} source={source} onDelete={onDelete} /> : null}
       <AiFieldPanel project={project} space={space} type={type} endpoints={endpoints} rows={shown} />
     </RowExtra.Provider>
   );

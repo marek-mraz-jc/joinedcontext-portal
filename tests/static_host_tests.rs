@@ -1481,3 +1481,230 @@ async fn each_visibility_opens_for_its_own_callers_alone() {
         }
     }
 }
+
+/// One request to a Portal that lives across the test, as the edge forwards it.
+async fn ask_held(
+    state: &AppState,
+    token: Option<&str>,
+    uri: &str,
+    if_none_match: Option<&str>,
+) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
+    let mut request = Request::builder()
+        .uri(uri)
+        .header(header::ACCEPT_LANGUAGE, "en");
+    if let Some(token) = token {
+        request = request.header("x-access-token", token);
+    }
+    if let Some(etag) = if_none_match {
+        request = request.header(header::IF_NONE_MATCH, etag);
+    }
+    let response = server::app(state.clone())
+        .oneshot(request.body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let status = response.status();
+    let headers = response.headers().clone();
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, body.to_vec())
+}
+
+const HASHED_JS: &str = "/apps/air-quality/assets/index-B4tq81Zr.js";
+
+fn held_app(case: &str) -> tempdir::Dir {
+    app_root(
+        case,
+        &[
+            ("index.html", INDEX),
+            ("bundle.js", BUNDLE_JS),
+            ("assets/index-B4tq81Zr.js", BUNDLE_JS),
+        ],
+    )
+}
+
+/// T-4914: the cache headers per visibility. A non-public App's index is kept by nobody, its
+/// hashed files a minute and its other files not without asking; every answer varies on the
+/// edge's session cookie. A public App's hashed files are kept for good. No answer is `public`.
+#[tokio::test]
+async fn each_visibility_caches_for_its_readers_alone() {
+    let dir = held_app("cache-per-visibility");
+    let olga = common::REALM.person_token("air-quality", "olga", &["viewer"]);
+    let table = [
+        (
+            "public",
+            [
+                "private, no-store",
+                "no-cache",
+                "private, max-age=31536000, immutable",
+            ],
+        ),
+        (
+            "organization",
+            [
+                "private, no-store",
+                "private, no-cache",
+                "private, max-age=60",
+            ],
+        ),
+        (
+            "project",
+            [
+                "private, no-store",
+                "private, no-cache",
+                "private, max-age=60",
+            ],
+        ),
+        (
+            "private",
+            [
+                "private, no-store",
+                "private, no-cache",
+                "private, max-age=60",
+            ],
+        ),
+        (
+            "roles",
+            [
+                "private, no-store",
+                "private, no-cache",
+                "private, max-age=60",
+            ],
+        ),
+    ];
+    for (visibility, expected) in table {
+        let mirror = roles_app();
+        let mut app = mirror
+            .get("ovzdusie", "App", "air-quality")
+            .expect("the app");
+        app.spec["visibility"] = serde_json::json!(visibility);
+        app.metadata
+            .annotations
+            .insert("joinedcontext.com/owner".into(), "sub-olga".into());
+        mirror.upsert(app);
+        common::bind(&mirror, "olga", "ovzdusie");
+        let state = AppState::new(edge_config(dir.path()), None).with_mirror(mirror);
+        let uris = [
+            "/apps/air-quality/",
+            "/apps/air-quality/bundle.js",
+            HASHED_JS,
+        ];
+        for (uri, cache) in uris.into_iter().zip(expected) {
+            let (status, headers, _) = ask_held(&state, Some(&olga), uri, None).await;
+            assert_eq!(status, StatusCode::OK, "{visibility} {uri}");
+            assert_eq!(headers[header::CACHE_CONTROL], cache, "{visibility} {uri}");
+            assert_eq!(
+                headers.get(header::VARY).map(|v| v.to_str().unwrap()),
+                (visibility != "public").then_some("Cookie"),
+                "{visibility} {uri}"
+            );
+            // A file is revalidated by its digest; the index is the reader's own and has none.
+            assert_eq!(
+                headers.contains_key(header::ETAG),
+                uri != "/apps/air-quality/",
+                "{visibility} {uri}"
+            );
+        }
+    }
+}
+
+/// T-4914: each way of ending a reader's access takes effect on the reader's next request, a
+/// revalidation included, and a retired App answers every file `404`. The clock
+/// measures each step against the one-minute bound the edge's token lifespan sets.
+#[tokio::test]
+async fn revoking_access_ends_it_at_the_next_request() {
+    let dir = held_app("revocation");
+    let mirror = roles_app();
+    let set = |field: &str, value: &str| {
+        let mut app = mirror
+            .get("ovzdusie", "App", "air-quality")
+            .expect("the app");
+        app.spec[field] = serde_json::json!(value);
+        mirror.upsert(app);
+    };
+    set("visibility", "project");
+    common::bind(&mirror, "marek", "ovzdusie");
+    common::bind(&mirror, "eva", "doprava");
+    common::bind(&mirror, "olga", "ovzdusie");
+    let state = AppState::new(edge_config(dir.path()), None).with_mirror(mirror.clone());
+    let token = |who: &str| common::REALM.person_token("air-quality", who, &[]);
+    let (marek, eva, olga) = (token("marek"), token("eva"), token("olga"));
+    let limit = std::time::Duration::from_secs(60);
+
+    // The digest a reader's browser revalidates with: unchanged, a reader keeps it with a 304.
+    let (status, headers, _) = ask_held(&state, Some(&marek), HASHED_JS, None).await;
+    assert_eq!(status, StatusCode::OK);
+    let etag = headers[header::ETAG].to_str().unwrap().to_owned();
+    let (status, _, body) = ask_held(&state, Some(&marek), HASHED_JS, Some(&etag)).await;
+    assert_eq!(status, StatusCode::NOT_MODIFIED);
+    assert!(body.is_empty());
+
+    // 1. A member removed from the project.
+    let clock = std::time::Instant::now();
+    let binding = joinedcontext_portal::resource::ResourceKey {
+        namespace: joinedcontext_portal::permissions::ORG_NAMESPACE.into(),
+        kind: "RoleBinding".into(),
+        name: "marek-in-ovzdusie".into(),
+    };
+    assert!(mirror.remove(&binding).is_some());
+    for (uri, etag) in [
+        ("/apps/air-quality/", None),
+        (HASHED_JS, Some(etag.as_str())),
+    ] {
+        let (status, _, _) = ask_held(&state, Some(&marek), uri, etag).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "removed member on {uri}");
+    }
+    assert!(clock.elapsed() < limit);
+
+    // 2. Visibility narrowed from the organization to the project.
+    set("visibility", "organization");
+    assert_eq!(
+        ask_held(&state, Some(&eva), HASHED_JS, None).await.0,
+        StatusCode::OK
+    );
+    let clock = std::time::Instant::now();
+    set("visibility", "project");
+    for uri in ["/apps/air-quality/", HASHED_JS] {
+        let (status, _, _) = ask_held(&state, Some(&eva), uri, Some(&etag)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "narrowed on {uri}");
+    }
+    assert!(clock.elapsed() < limit);
+
+    // 3. A session ended (back-channel logout): the token it issued opens nothing.
+    assert_eq!(
+        ask_held(&state, Some(&olga), "/apps/air-quality/", None)
+            .await
+            .0,
+        StatusCode::OK
+    );
+    let clock = std::time::Instant::now();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    state
+        .revoke_subject("sub-olga", i64::try_from(now).unwrap() + 1)
+        .await;
+    for uri in ["/apps/air-quality/", HASHED_JS] {
+        let (status, _, _) = ask_held(&state, Some(&olga), uri, Some(&etag)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "ended session on {uri}");
+    }
+    assert!(clock.elapsed() < limit);
+
+    // 4. The App retired: a 404 for a role holder too.
+    let jana = common::REALM.person_token("air-quality", "jana", &["viewer"]);
+    set("visibility", "roles");
+    assert_eq!(
+        ask_held(&state, Some(&jana), HASHED_JS, None).await.0,
+        StatusCode::OK
+    );
+    let clock = std::time::Instant::now();
+    set("lifecycle", "retired");
+    for uri in [
+        "/apps/air-quality/",
+        HASHED_JS,
+        "/apps/air-quality/bundle.js",
+    ] {
+        let (status, _, _) = ask_held(&state, Some(&jana), uri, Some(&etag)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "retired on {uri}");
+    }
+    assert!(clock.elapsed() < limit);
+}

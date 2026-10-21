@@ -724,7 +724,8 @@
         "calendar": "Kalender",
         "timeline": "Zeitleiste",
         "form": "Formular",
-        "api": "API"
+        "api": "API",
+        "map": "Karte"
       },
       "truncated": "Die ersten {count} Entitäten werden gezeigt; schränken Sie den Filter ein, um weitere zu sehen.",
       "image": "Bild",
@@ -777,7 +778,18 @@
       "restore": "Zurücklegen",
       "restoreOne": "{name} zurücklegen",
       "restoreRefused": "{name} wurde nicht zurückgelegt: {reason}",
-      "liveChanged": "Entitäten dieses Typs wurden um {time} geändert; so gezeigt, wie sie jetzt sind."
+      "liveChanged": "Entitäten dieses Typs wurden um {time} geändert; so gezeigt, wie sie jetzt sind.",
+      "moveReason": "Warum Sie verschieben (optional)",
+      "boardReadOnly": "Sie können diese Tafel lesen. Keiner Ihrer Endpoints erlaubt Ihnen, {attr} zu ändern, daher bleiben die Karten, wo sie sind.",
+      "nothingThisSpan": "In diesem Zeitraum liegt nichts. Wechseln Sie den Zeitraum oder wählen Sie ein anderes Datumsfeld.",
+      "noDateTimeline": "Eine Zeitachse braucht ein Datumsfeld (wie startDate und endDate); dieser Typ hat keines.",
+      "timelineDrag": "Ziehen Sie einen Balken seitwärts, um beide Daten um ganze Tage zu verschieben, oder öffnen Sie eine Zeile und wählen Sie den neuen Beginn.",
+      "moveStart": "Neues {start} ({end} verschiebt sich um dieselben Tage)",
+      "noGeo": "Eine Karte braucht ein Ortsfeld (wie location); keine der gezeigten Zeilen hat eines.",
+      "placeBy": "Platzieren nach",
+      "placed": "{count, plural, one {# Zeile} other {# Zeilen}} von {total} auf der Karte; Zeilen ohne Ort werden nicht gezeichnet.",
+      "mapLabel": "Karte der Zeilen nach {attr}",
+      "openRow": "Zeile öffnen"
     },
     "api": {
       "lead": "Wie ein Programm {type} liest: über einen Endpoint dieses Raums, mit eigenem Token, und die Webhooks, die ihm sagen, wenn sich etwas ändert.",
@@ -806,7 +818,16 @@
       "webhooks": "Webhooks",
       "webhooksLead": "Eine NGSI-LD-Subscription auf {type}, die eine URL aufruft, wenn sich eine Entität ändert, als Change vorgeschlagen.",
       "noWebhook": "Noch kein Webhook beobachtet diesen Typ.",
-      "newWebhook": "Neuer Webhook für diesen Typ"
+      "newWebhook": "Neuer Webhook für diesen Typ",
+      "viewQuery": "Abfrage dieser Ansicht",
+      "viewQueryLead": "Die Zeilen dieser Ansicht, gefiltert nach {q}: jede URL unten liefert dieselben Zeilen.",
+      "viewQueryAll": "Kein Filter gesetzt: jede URL liefert alle {type}, die Sie lesen dürfen.",
+      "surface": {
+        "ngsi-ld": "NGSI-LD",
+        "ogc-features": "OGC Features",
+        "odata": "OData"
+      },
+      "copySurface": "{surface}-URL kopieren"
     },
     "share": {
       "title": "Diesen Typ als öffentlichen Link veröffentlichen",
@@ -1278,6 +1299,11 @@
         "failed": "gescheitert: Fehler lesen und später erneut versuchen"
       },
       "exported": "{count, plural, one {# Datensatz in eine Datei in Ihren Downloads exportiert.} other {# Datensätze in eine Datei in Ihren Downloads exportiert.}}"
+    },
+    "viewHints": {
+      "moveReason": "Wird bei jeder Verschiebung im Änderungsverlauf gespeichert, z. B. „Verschoben, weil der Ort abgesagt hat“.",
+      "moveStart": "Wählen Sie einen Tag, z. B. 2026-11-03.",
+      "placeBy": "Das Ortsfeld, das jede Zeile auf die Karte setzt, z. B. location."
     }
   },
   "endpoints": {
