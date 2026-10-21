@@ -195,6 +195,9 @@ pub struct Syncer {
     /// Which secret backend answers a pipeline's `secretRef` (T-0927, PL-15). `None` leaves a
     /// pipeline that declares one undeployed, with the reason on the Pipeline.
     pipeline_secrets: Option<crate::pipeline_secrets::Resolver>,
+    /// Who proposed and approved each Pipeline, re-checked at each render (PL-95). `None` runs
+    /// every pipeline whatever its authors reach.
+    author_rights: Option<Arc<super::pipeline_authors::AuthorRights>>,
     /// Where each pass leaves the resolved inbound secret of every webhook-driven `SyncSource`
     /// (MF-44, T-2297). `None` leaves the webhook route shut, which is what a Portal with no
     /// reconciler should answer.
@@ -277,6 +280,7 @@ impl Syncer {
             artifact_store: None,
             credentials: None,
             pipeline_secrets: None,
+            author_rights: None,
             webhook_secrets: None,
             ckan: None,
             catalog: None,
@@ -310,6 +314,12 @@ impl Syncer {
     /// nobody, so the pipelines that need them stay undeployed.
     pub fn with_pipeline_secrets(mut self, resolver: crate::pipeline_secrets::Resolver) -> Self {
         self.pipeline_secrets = Some(resolver);
+        self
+    }
+
+    /// Makes each run pause a Pipeline whose proposer or approver lost a reference (PL-95).
+    pub fn with_author_rights(mut self, rights: super::pipeline_authors::AuthorRights) -> Self {
+        self.author_rights = Some(Arc::new(rights));
         self
     }
 
@@ -945,6 +955,16 @@ impl Syncer {
         let refused = self
             .resolve_pipeline_secrets(&fresh_mirror, scratch.path())
             .await;
+        // 5a-authors. A pipeline whose proposer or approver no longer reaches a source or
+        //      target is held out the same way, the reference as its reason (PL-95, T-4917).
+        let lost = self
+            .lost_authors(&fresh_mirror, &repository, &scratch, &revision)
+            .await;
+        let held: BTreeMap<_, _> = refused
+            .iter()
+            .chain(&lost)
+            .map(|(key, reason)| (key.clone(), reason.clone()))
+            .collect();
 
         // 5a*. A pipeline the repository no longer holds takes its refused records and its log
         //      with it (PL-61, PL-62); a paused one is still in the repository and keeps them.
@@ -1016,7 +1036,7 @@ impl Syncer {
         // for a whole run (T-4599). A pipeline whose credential did not resolve says so over
         // it, whatever the wave writes (T-0927, PL-15): the reference, never the value.
         serve_leaders_phases(&fresh_mirror, &self.leaders_phases().await, LEADING);
-        mark_refused_pipelines(&fresh_mirror, &refused);
+        mark_refused_pipelines(&fresh_mirror, &refused, &lost);
 
         // 5f. The open-data catalogue of every project (EP-62…EP-67, T-2405). Before the mirror
         //     is swapped on purpose: a dataset is withdrawn only when the Endpoint that declared
@@ -1045,9 +1065,9 @@ impl Syncer {
         //     wait for that (T-2891). After the swap: a merged change is served while the
         //     runner is still answering, and the wave's outcome lands on the stream pipelines
         //     alone (T-4599).
-        self.converge_streams(&fresh_mirror, &repository, &scratch, &bentos, &refused)
+        self.converge_streams(&fresh_mirror, &repository, &scratch, &bentos, &held)
             .await;
-        mark_refused_pipelines(&fresh_mirror, &refused);
+        mark_refused_pipelines(&fresh_mirror, &refused, &lost);
         transitions.keep_all(&fresh_mirror);
         let phases = stream_phases(&fresh_mirror);
         serve_leaders_phases(&self.mirror, &phases, LEADING);
@@ -2050,6 +2070,47 @@ impl Syncer {
         if let Some(evaluator) = self.alerts.as_ref() {
             evaluator.start();
         }
+    }
+
+    /// The Pipelines of this render an author of which lost a reference (PL-95), each read
+    /// from its own repository at the ref the render staged.
+    async fn lost_authors(
+        &self,
+        mirror: &Mirror,
+        repository: &Repository,
+        scratch: &Render,
+        revision: &str,
+    ) -> BTreeMap<(String, String), String> {
+        let Some(rights) = self.author_rights.as_ref() else {
+            return BTreeMap::new();
+        };
+        let mut placed = Vec::new();
+        for (id, resource) in repository.iter() {
+            if id.kind != "Pipeline" {
+                continue;
+            }
+            let path = resource.path.to_string_lossy().to_string();
+            let namespace = id.namespace.clone().unwrap_or_else(|| namespace_of(&path));
+            let Ok(manifest) = serde_json::to_value(&resource.manifest) else {
+                continue;
+            };
+            let (forge, git_ref) = path
+                .strip_prefix("projects/")
+                .and_then(|tail| tail.split_once('/'))
+                .and_then(|(slug, _)| scratch.projects.get(slug))
+                .map_or((self.gitea.as_ref(), revision), |(client, git_ref)| {
+                    (client, git_ref.as_str())
+                });
+            placed.push(super::pipeline_authors::Placed {
+                namespace,
+                name: id.name.clone(),
+                manifest,
+                forge,
+                git_ref,
+                path,
+            });
+        }
+        rights.lost(mirror, placed).await
     }
 
     /// Resolves every pipeline's references and writes them into the runner's one Secret.
@@ -3208,20 +3269,24 @@ fn bentos_beside(repository: &Repository, root: &Path) -> Bentos {
 }
 
 /// A pipeline whose credential did not resolve reads Error, whatever else this run wrote on it
-/// (T-0927, PL-15). The condition names the reference, never the value.
-fn mark_refused_pipelines(fresh_mirror: &Mirror, refused: &BTreeMap<(String, String), String>) {
-    for ((namespace, name), reason) in refused {
+/// (T-0927, PL-15). The condition names the reference, never the value. One whose author lost
+/// a reference reads the same with its own reason (PL-95).
+fn mark_refused_pipelines(
+    fresh_mirror: &Mirror,
+    refused: &BTreeMap<(String, String), String>,
+    lost: &BTreeMap<(String, String), String>,
+) {
+    let marks = refused
+        .iter()
+        .map(|entry| (entry, "SecretUnresolved"))
+        .chain(lost.iter().map(|entry| (entry, "AuthorLostAccess")));
+    for (((namespace, name), reason), code) in marks {
         let Some(mut envelope) = fresh_mirror.get(namespace, "Pipeline", name) else {
             continue;
         };
         if let Some(status) = envelope.status.as_mut() {
             status.phase = crate::resource::Phase::Error;
-            status.conditions = vec![make_condition(
-                "StreamDeployed",
-                "False",
-                "SecretUnresolved",
-                reason,
-            )];
+            status.conditions = vec![make_condition("StreamDeployed", "False", code, reason)];
         }
         fresh_mirror.upsert(envelope);
     }
@@ -4748,11 +4813,34 @@ output_error{stream="kpi"} 6
                 ),
                 (("p".to_owned(), "gone".to_owned()), "never mind".to_owned()),
             ]),
+            &BTreeMap::new(),
         );
         let x = status_of(&mirror, "Pipeline", "x");
         assert_eq!(x.phase, crate::resource::Phase::Error);
         assert_eq!(x.conditions.len(), 1);
         assert_eq!(x.conditions[0].reason.as_deref(), Some("SecretUnresolved"));
         assert!(mirror.get("p", "Pipeline", "gone").is_none());
+    }
+
+    /// PL-95: a pipeline whose author lost a reference reads Error with that reference.
+    #[test]
+    fn a_pipeline_whose_author_lost_access_reads_error_with_the_reference() {
+        let mirror = Mirror::new();
+        mirror.upsert(envelope("Pipeline", "p", "x"));
+        mark_refused_pipelines(
+            &mirror,
+            &BTreeMap::new(),
+            &BTreeMap::from([(
+                ("p".to_owned(), "x".to_owned()),
+                "author lost access to source Endpoint ep-b".to_owned(),
+            )]),
+        );
+        let x = status_of(&mirror, "Pipeline", "x");
+        assert_eq!(x.phase, crate::resource::Phase::Error);
+        assert_eq!(x.conditions[0].reason.as_deref(), Some("AuthorLostAccess"));
+        assert_eq!(
+            x.conditions[0].message.as_deref(),
+            Some("author lost access to source Endpoint ep-b")
+        );
     }
 }
