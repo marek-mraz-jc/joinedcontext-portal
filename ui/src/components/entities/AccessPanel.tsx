@@ -97,6 +97,17 @@ export function useAccess(slug: string | undefined) {
  * the person's typing (UI-67). The gateway still decides every write; this only spares the person
  * an editor they cannot use.
  */
+/**
+ * Whether a grant lets its caller delete entities of `type` (T-4883): a permission covering the
+ * type names `deleteEntity` and no prohibition covering it names it. The gateway's Policy still
+ * decides each delete; this only keeps a button from offering what will be refused.
+ */
+export function mayDelete(doc: GrantDocument | undefined, type: string): boolean {
+  const names = (entry: GrantEntry) =>
+    (entry.resource?.type === undefined || covers(entry, type)) && (entry.actions ?? []).includes("deleteEntity");
+  return (doc?.permissions ?? []).some(names) && !(doc?.prohibitions ?? []).some(names);
+}
+
 export function editableAttributes(
   doc: GrantDocument | undefined,
   type: string | undefined,
