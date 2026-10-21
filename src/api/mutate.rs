@@ -848,6 +848,16 @@ async fn propose_engine(
     }
     // 4d. Nobody grants above their own rights (PF-52, AG-77).
     crate::permissions::within_own_rights(state, identity, &body_val, "proposer")?;
+    // 4e. A pipeline reaches only what its proposer reads and writes (PL-94).
+    if operation != Operation::Delete {
+        crate::pipeline_rights::check(
+            state,
+            identity,
+            project,
+            &body_val,
+            jc_core::kinds::Verb::Propose,
+        )?;
+    }
 
     if operation != Operation::Delete {
         check_organization_names(state, identity, project, kind_info.kind, &envelope).await?;
@@ -1551,6 +1561,10 @@ async fn check_organization_names(
         &envelope.metadata.name,
         &envelope.spec,
     )?;
+
+    // 4j. A lifetime names only what the spaces it lands in hold (PL-81): each type a class of
+    //     the space's model, each name one of its slots, each `from` a date-time slot.
+    crate::pipeline_lifetime::check(state, project, kind, &envelope.spec)?;
     Ok(())
 }
 
@@ -1918,27 +1932,39 @@ async fn check_surfaces(
     let Ok(endpoint) = serde_json::from_value::<EndpointSpec>(spec.clone()) else {
         return Ok(());
     };
-    if !endpoint
+    let Some(wanted) = endpoint
         .served_representations()
-        .iter()
-        .any(|r| r.needs_model())
-    {
+        .into_iter()
+        .find(|r| r.needs_model())
+    else {
         return Ok(());
-    }
+    };
     let space = endpoint.context_space_ref.name();
+    // The space's own model, a published version first: jcctl validate's choice (EP-125).
     let model = state
         .mirror
         .list(project, "DataModel", &crate::store::ListOptions::default())
         .items
         .into_iter()
-        .find(|model| {
-            serde_json::from_value::<DataModelSpec>(model.spec.clone()).is_ok_and(|m| {
-                m.context_space_ref.as_deref() == Some(space)
-                    && m.lifecycle != DataModelLifecycle::Mirrored
-                    && m.validate().is_ok()
-            })
-        });
-    let linkml = match model {
+        .filter_map(|model| {
+            serde_json::from_value::<DataModelSpec>(model.spec.clone())
+                .ok()
+                .filter(|m| {
+                    m.context_space_ref.as_deref() == Some(space)
+                        && m.lifecycle != DataModelLifecycle::Mirrored
+                        && m.validate().is_ok()
+                })
+                .map(|m| (m.lifecycle, model))
+        })
+        .min_by_key(|(lifecycle, _)| !published(*lifecycle));
+    // A draft can still change under a public feed (DM-26).
+    if let Some((lifecycle, _)) = model.as_ref().filter(|(l, _)| !published(*l)) {
+        return Err(ApiError::BadRequest(format!(
+            "Endpoint {project}/{name}: `{wanted}` needs a published data model in space {space}; its model is {} (EP-125, DM-26)",
+            lifecycle.as_str()
+        )));
+    }
+    let linkml = match model.map(|(_, model)| model) {
         Some(model) => {
             Some(crate::api::datamodels::read_source(state, project, &model.metadata.name).await?)
         }
@@ -1957,6 +1983,13 @@ async fn check_surfaces(
             "{at}: the representations cannot be checked against the data model: {err} (EP-125)"
         ))),
     }
+}
+
+/// Whether a model in this lifecycle backs a domain-standard representation (EP-125, DM-26);
+/// jc-core's `DataModelLifecycle::backs_surfaces` once the platform pin carries it.
+fn published(lifecycle: jc_core::kinds::DataModelLifecycle) -> bool {
+    use jc_core::kinds::DataModelLifecycle::{Deprecated, Published};
+    matches!(lifecycle, Published | Deprecated)
 }
 
 async fn check_projection(state: &AppState, project: &str, spec: &Value) -> Result<(), ApiError> {

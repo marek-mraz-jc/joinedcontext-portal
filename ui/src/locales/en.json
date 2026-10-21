@@ -100,6 +100,12 @@
     "home": "Home",
     "inbox": "Inbox",
     "mqttbrokers": "MQTT brokers",
+    "knowledgesources": "Knowledge sources",
+    "assistantdeployments": "Assistant deployments",
+    "datamodels": "Data models",
+    "serviceaccounts": "Service accounts",
+    "mappings": "Mappings",
+    "layers": "Map layers",
     "csrs": "Context sources"
   },
   "auth": {
@@ -766,7 +772,7 @@
       "restore": "Put back",
       "restoreOne": "Put back {name}",
       "restoreRefused": "{name} was not put back: {reason}",
-      "liveChanged": "{count, plural, one {# entity} other {# entities}} changed ({attrs}); shown as they are now."
+      "liveChanged": "Entities of this type changed at {time}; shown as they are now."
     },
     "api": {
       "lead": "How a program reads {type}: through an Endpoint of this space, with its own token, and the webhooks that tell it when something changes.",
@@ -2307,7 +2313,7 @@
         "never": "Never",
         "neverHint": "They stay until someone deletes them or a space rule removes them.",
         "source": "At a time the source gives",
-        "sourceHint": "Each entity gets its own expiresAt: a time field of the record plus a while, for example observedAt plus 10 minutes for a bus position.",
+        "sourceHint": "Each entity gets its own expiresAt: a time attribute plus a while, for example observedOn plus 10 minutes, or the time the record is written plus a while. The pipeline writes it after your mapping.",
         "stale": "When the source stops sending them",
         "staleHint": "Once an hour the pipeline deletes entities of this type it has not updated for the window.",
         "from": "Time from",
@@ -2319,7 +2325,11 @@
         "afterHint": "Entities of {type} not updated for this long are deleted, once an hour.",
         "refusals": "The proposal is refused when the pipeline has more than one output, when another pipeline writes into the same space, or when no Policy grants this pipeline deleteBatch and queryBatch on the type; the refusal names the Policy to extend.",
         "history": "History of {type} follows the space's rules.",
-        "spaceRules": "Retention of {space}"
+        "spaceRules": "Retention of {space}",
+        "noTimeSlot": "No date-time attribute of {type} is mapped yet, so the end counts from the time the record is written.",
+        "inManifest": "The lifetime of {type} is set in the pipeline's manifest (a fixed date, a cap or chosen attributes). Change it in the YAML view; this editor keeps it as it is.",
+        "migrated": "The end time this step used to write is now the pipeline's lifetime setting below. It is saved with your next proposal.",
+        "migrateField": "This step writes expiresAt from the record field {field}, and no date-time attribute is mapped from that field. Map it to a date-time attribute or pick another time below; until then the step keeps its own expiresAt lines."
       }
     },
     "debug": {
@@ -3871,6 +3881,10 @@
     "factorFor": "Conversion factor for {slot}",
     "golden": "Golden test",
     "input": "Input example (JSON)",
+    "inputHelp": "A source record as JSON, such as one entity the source sends; the output beside it shows what the mapping makes of it.",
+    "sourceHelp": "The model the records arrive in.",
+    "targetHelp": "The model the records are turned into.",
+    "nameHelp": "The mapping's name in the project: lower-case letters, digits and hyphens; the golden test files are named after it.",
     "output": "Transformed output",
     "unchecked": "Not evaluated here, they come from native bloblang: {slots}. CI runs them through Bento.",
     "missing": "The input example carries no value for: {slots}.",
@@ -4002,7 +4016,9 @@
     "nameInvalid": "Lowercase letters, digits and hyphens, starting and ending with a letter or a digit.",
     "nameReserved": "'org' is the organization's own namespace, never a project.",
     "displayNameLabel": "Display name",
+    "displayNameHint": "The name people read in the project menu and on the catalogue; leave it empty to show the name above.",
     "descriptionLabel": "Description",
+    "descriptionHint": "One sentence on what the project is for, shown under its name in the project list.",
     "notAllowed": "This organization does not let you open a project.",
     "nameNeeded": "A usable name is needed to open a project.",
     "planLocked": "Close the dialog and start again to change this; the plan was made for it."
@@ -4067,6 +4083,7 @@
     "filterRow": "Filters",
     "sortPage": "Sort this page by",
     "matching": "matching",
+    "noTotal": "the endpoint gives no total for this answer",
     "history": "History",
     "historyWindow": {
       "hour": "Last hour",
@@ -4806,7 +4823,8 @@
       "green": "Checked {age}",
       "red": "Check failed {age}",
       "stale": "Changed since the check",
-      "waiting": "Passes once {changes} is approved · checked {age}"
+      "waiting": "Passes once {changes} is approved · checked {age}",
+      "refused": "Check failed: see the reason below"
     },
     "proposeReason": {
       "none": "Run the check first: nothing is proposed without a fresh green verdict.",

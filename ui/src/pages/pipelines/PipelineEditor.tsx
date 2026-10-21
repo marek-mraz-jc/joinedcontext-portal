@@ -8,6 +8,8 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests, knownSecretNames, overlay, plainTitle, prune, refName } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
+import { allowsIn, usePermissions } from "../../api/permissions";
+import type { Effective } from "../../api/permissions";
 import { useBranding } from "../../branding";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
 import type { ManifestSource } from "../../components/ResourceFormDialog";
@@ -18,6 +20,7 @@ import { PipelineStudio } from "./PipelineStudio";
 import { PipelineWorkbench } from "./PipelineWorkbench";
 import type { MappingFile } from "./PipelineWorkbench";
 import type { UiSchema } from "../../components/forms/types";
+import type { Lifetime } from "./ExpiryChoice";
 
 /** The form of a pipeline: `PipelineSpec` with every reference flattened to its name. */
 export interface PipelineForm {
@@ -60,6 +63,8 @@ export interface PipelineForm {
   allowFeedback?: boolean;
   /** Stale-entity expiry: off unless both are given (PL-64). */
   expiry?: { after?: string; types?: string[] };
+  /** When entities and attributes end by themselves, the runner's step after the mapping (PL-80). */
+  lifetime?: Lifetime[];
   secretRefs?: { name?: string; key?: string; envVar?: string }[];
   quotas?: { maxMemoryMb?: number; cpuMillicores?: number };
 }
@@ -137,6 +142,19 @@ export function endpointUrn(orgDomain: string, endpoint: Manifest): string | und
   return `urn:ngsi-ld:Endpoint:${orgDomain}:${space}:${endpoint.metadata.name}`;
 }
 
+/**
+ * The Endpoints a person may name in a pipeline (PL-94): a public one, or one into a space where
+ * they read `Entity`. The server refuses the rest at every door with "No access to …"; a target
+ * also needs `propose` on Pipeline there, which the API judges.
+ */
+export function reachableEndpoints(effective: Effective | undefined, endpoints: Manifest[]): Manifest[] {
+  return endpoints.filter((endpoint) => {
+    const spec = endpoint.spec as { audience?: unknown; contextSpaceRef?: unknown };
+    const space = refName(spec.contextSpaceRef);
+    return (spec.audience ?? "public") === "public" || (space !== "" && allowsIn(effective, "Entity", "read", space));
+  });
+}
+
 /** The spec keys the form writes; the rest of an edited manifest travels as it is (T-0885). */
 const OWNED_SPEC = [
   "class",
@@ -148,6 +166,7 @@ const OWNED_SPEC = [
   "output",
   "allowFeedback",
   "expiry",
+  "lifetime",
   "secretRefs",
   "quotas",
   "sources",
@@ -269,6 +288,7 @@ export function toEnvelope(project: string, form: PipelineForm, base?: Manifest)
     compute,
     allowFeedback,
     expiry,
+    lifetime,
     secretRefs,
     quotas,
     processors,
@@ -287,6 +307,7 @@ export function toEnvelope(project: string, form: PipelineForm, base?: Manifest)
     allowFeedback: allowFeedback ? true : undefined,
     // An emptied expiry is gone, not an empty object the manifest refuses: off means absent.
     expiry: expiry?.after || expiry?.types?.length ? expiry : undefined,
+    lifetime: lifetime?.length ? lifetime : undefined,
     secretRefs,
     quotas,
   }) as Record<string, unknown>;
@@ -554,7 +575,11 @@ export function PipelineEditorDialog({
     () => asManifests(dataSources.data?.items ?? []),
     [dataSources.data],
   );
-  const endpointList = useMemo(() => asManifests(endpoints.data?.items ?? []), [endpoints.data]);
+  const permissions = usePermissions(project);
+  const endpointList = useMemo(
+    () => reachableEndpoints(permissions.data, asManifests(endpoints.data?.items ?? [])),
+    [endpoints.data, permissions.data],
+  );
   const dataSourceNames = useMemo(
     () =>
       withCurrent(

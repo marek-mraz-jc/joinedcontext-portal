@@ -56,6 +56,12 @@ fn admin() -> Identity {
 
 /// The Portal against a forge holding `linkml` as the model of space `podujatia`.
 async fn portal(linkml: &str) -> (AppState, wiremock::MockServer) {
+    // Deprecated backs a surface like published, without the four artifacts (DM-02, DM-26).
+    portal_at(linkml, "deprecated").await
+}
+
+/// The Portal with the space's model in `lifecycle`.
+async fn portal_at(linkml: &str, lifecycle: &str) -> (AppState, wiremock::MockServer) {
     let gitea = common::forge().await;
     Mock::given(method("GET"))
         .and(path(format!(
@@ -83,7 +89,7 @@ async fn portal(linkml: &str) -> (AppState, wiremock::MockServer) {
             "contextSpaceRef": "podujatia",
             "linkml": "./model.linkml.yaml",
             "version": "1.0.0",
-            "lifecycle": "draft",
+            "lifecycle": lifecycle,
         }),
     ));
     (state, gitea)
@@ -224,6 +230,39 @@ async fn a_written_mapping_is_refused_per_gap_and_the_dry_run_says_the_same() {
         json!({ "DTSTART": "startDate", "SUMMARY": { "attribute": "name", "truncate": 120 } }),
     );
     let answer = propose(&state, fitting).await;
+    assert!(
+        answer.status.is_success(),
+        "{} {}",
+        answer.status,
+        answer.text
+    );
+}
+
+/// T-4886: a draft or retired model backs no domain standard; the fitting Event model is refused
+/// until it is published, with the lifecycle named and nothing of the data shown.
+#[tokio::test]
+async fn ical_on_a_draft_model_is_refused_until_it_is_published() {
+    for lifecycle in ["draft", "retired"] {
+        let (state, gitea) = portal_at(EVENTS, lifecycle).await;
+        let answer = propose(&state, endpoint(json!(["ngsi-ld", "ical"]))).await;
+        assert_eq!(answer.status, StatusCode::BAD_REQUEST, "{}", answer.text);
+        assert!(
+            answer.text.contains(&format!(
+                "Endpoint kultura/kalendar: `ical` needs a published data model in space \
+                 podujatia; its model is {lifecycle} (EP-125, DM-26)"
+            )),
+            "{}",
+            answer.text
+        );
+        let requests = gitea.received_requests().await.expect("recorded");
+        assert!(!requests.iter().any(|r| r.method.as_str() == "POST"));
+    }
+}
+
+#[tokio::test]
+async fn a_draft_model_does_not_hold_back_an_endpoint_without_a_domain_standard() {
+    let (state, _gitea) = portal_at(PLACES, "draft").await;
+    let answer = propose(&state, endpoint(json!(["ngsi-ld", "csv"]))).await;
     assert!(
         answer.status.is_success(),
         "{} {}",

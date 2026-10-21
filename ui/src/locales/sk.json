@@ -100,6 +100,12 @@
     "home": "Domov",
     "inbox": "Doručené",
     "mqttbrokers": "MQTT brokery",
+    "knowledgesources": "Zdroje znalostí",
+    "assistantdeployments": "Nasadenia asistenta",
+    "datamodels": "Dátové modely",
+    "serviceaccounts": "Servisné účty",
+    "mappings": "Mapovania",
+    "layers": "Mapové vrstvy",
     "csrs": "Kontextové zdroje"
   },
   "auth": {
@@ -766,7 +772,7 @@
       "restore": "Vrátiť",
       "restoreOne": "Vrátiť {name}",
       "restoreRefused": "{name} sa nevrátil: {reason}",
-      "liveChanged": "{count, plural, one {Zmenila sa # entita} few {Zmenili sa # entity} other {Zmenilo sa # entít}} ({attrs}); zobrazené tak, ako sú teraz."
+      "liveChanged": "Entity tohto typu sa zmenili o {time}; zobrazené tak, ako sú teraz."
     },
     "api": {
       "lead": "Ako program číta {type}: cez endpoint tohto priestoru, s vlastným tokenom, a webhooky, ktoré mu povedia, keď sa niečo zmení.",
@@ -2307,7 +2313,7 @@
         "never": "Nikdy",
         "neverHint": "Zostanú, kým ich niekto nezmaže alebo ich neodstráni pravidlo priestoru.",
         "source": "V čase, ktorý dá zdroj",
-        "sourceHint": "Každá entita dostane vlastný expiresAt: časové pole záznamu plus nejaký čas, napríklad observedAt plus 10 minút pre polohu autobusu.",
+        "sourceHint": "Každá entita dostane vlastné expiresAt: časový atribút plus určitý čas, napríklad observedOn plus 10 minút, alebo čas zápisu záznamu plus určitý čas. Pipeline ho zapíše po vašom mapovaní.",
         "stale": "Keď ich zdroj prestane posielať",
         "staleHint": "Raz za hodinu pipeline zmaže entity tohto typu, ktoré počas okna neaktualizovala.",
         "from": "Čas z",
@@ -2319,7 +2325,11 @@
         "afterHint": "Entity typu {type} neaktualizované takto dlho sa raz za hodinu zmažú.",
         "refusals": "Návrh sa odmietne, keď má pipeline viac ako jeden výstup, keď do toho istého priestoru zapisuje iná pipeline, alebo keď žiadna Policy nedáva tejto pipeline deleteBatch a queryBatch na typ; odmietnutie pomenuje Policy, ktorú treba rozšíriť.",
         "history": "História typu {type} sa riadi pravidlami priestoru.",
-        "spaceRules": "Uchovávanie v {space}"
+        "spaceRules": "Uchovávanie v {space}",
+        "noTimeSlot": "Zatiaľ nie je namapovaný žiadny atribút dátumu a času typu {type}, preto sa koniec počíta od času zápisu záznamu.",
+        "inManifest": "Životnosť typu {type} je nastavená v manifeste pipeline (pevný dátum, strop alebo vybrané atribúty). Zmeňte ju v zobrazení YAML; tento editor ju ponechá bez zmeny.",
+        "migrated": "Čas konca, ktorý tento krok doteraz zapisoval, je teraz nastavením životnosti pipeline nižšie. Uloží sa s vaším ďalším návrhom.",
+        "migrateField": "Tento krok zapisuje expiresAt z poľa záznamu {field} a z tohto poľa nie je namapovaný žiadny atribút dátumu a času. Namapujte ho na atribút dátumu a času alebo nižšie zvoľte iný čas; dovtedy si krok ponechá vlastné riadky expiresAt."
       }
     },
     "debug": {
@@ -3871,6 +3881,10 @@
     "factorFor": "Prevodný koeficient pre {slot}",
     "golden": "Zlatý test",
     "input": "Vstupný príklad (JSON)",
+    "inputHelp": "Zdrojový záznam ako JSON, napríklad jedna entita, ktorú zdroj posiela; výstup vedľa neho ukazuje, čo z neho mapovanie urobí.",
+    "sourceHelp": "Model, v ktorom záznamy prichádzajú.",
+    "targetHelp": "Model, na ktorý sa záznamy premenia.",
+    "nameHelp": "Názov mapovania v projekte: malé písmená, číslice a pomlčky; podľa neho sa volajú súbory zlatého testu.",
     "output": "Transformovaný výstup",
     "unchecked": "Tu sa nevyhodnocujú, pochádzajú z natívneho bloblangu: {slots}. CI ich spustí cez Bento.",
     "missing": "Vstupný príklad neobsahuje hodnotu pre: {slots}.",
@@ -4002,7 +4016,9 @@
     "nameInvalid": "Malé písmená, číslice a spojovníky, na začiatku a na konci písmeno alebo číslica.",
     "nameReserved": "„org“ je vlastný menný priestor organizácie, nikdy nie projekt.",
     "displayNameLabel": "Zobrazovaný názov",
+    "displayNameHint": "Názov, ktorý ľudia čítajú v ponuke projektov a v katalógu; ak ho necháte prázdny, zobrazí sa názov vyššie.",
     "descriptionLabel": "Popis",
+    "descriptionHint": "Jedna veta o tom, na čo projekt slúži, zobrazená pod jeho názvom v zozname projektov.",
     "notAllowed": "Táto organizácia vám neumožňuje otvoriť projekt.",
     "nameNeeded": "Na otvorenie projektu je potrebné použiteľné meno.",
     "planLocked": "Ak to chcete zmeniť, zatvorte okno a začnite znova; plán bol pripravený pre túto hodnotu."
@@ -4067,6 +4083,7 @@
     "filterRow": "Filtre",
     "sortPage": "Zoradiť túto stranu podľa",
     "matching": "vyhovujúcich",
+    "noTotal": "endpoint pri tejto odpovedi neuvádza celkový počet",
     "history": "História",
     "historyWindow": {
       "hour": "Poslednú hodinu",
@@ -4806,7 +4823,8 @@
       "green": "Skontrolované {age}",
       "red": "Kontrola zlyhala {age}",
       "stale": "Zmenené od kontroly",
-      "waiting": "Prejde po schválení {changes} · skontrolované {age}"
+      "waiting": "Prejde po schválení {changes} · skontrolované {age}",
+      "refused": "Kontrola zlyhala: dôvod je nižšie"
     },
     "proposeReason": {
       "none": "Najprv spustite kontrolu: nič sa nenavrhuje bez čerstvého zeleného verdiktu.",

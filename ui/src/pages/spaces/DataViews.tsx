@@ -1072,16 +1072,19 @@ export function TrashPanel({
   );
 }
 
-/** Which entities and attributes changed, by name (API/01 §32). */
+/**
+ * That entities of a type changed (API/01 §32). The event names no entity or attribute: the
+ * Portal heard it under its own account, and the read again shows what this person may see (T-4876).
+ */
 export interface LiveChange {
   type: string;
-  ids: string[];
-  attrs: string[];
+  /** When this window heard it. */
+  at: Date;
 }
 
 /**
- * Listens for changes of one type of a space while a view is open (T-3105, API/01 §32). Each event
- * names what changed and never a value, so `onChange` reads the rows again with the person's own
+ * Listens for changes of one type of a space while a view is open (T-3105, API/01 §32). An event
+ * says only that the type changed, so `onChange` reads the rows again with the person's own
  * session; the browser's EventSource reconnects by itself. A browser without one hears nothing.
  */
 export function useLive(project: string, space: string, type: string, onChange: (change: LiveChange) => void): void {
@@ -1096,8 +1099,8 @@ export function useLive(project: string, space: string, type: string, onChange: 
     );
     const changed = (event: MessageEvent<string>) => {
       try {
-        const change = JSON.parse(event.data) as LiveChange;
-        if (Array.isArray(change.ids)) latest.current(change);
+        const change = JSON.parse(event.data) as { type?: unknown };
+        if (typeof change.type === "string") latest.current({ type: change.type, at: new Date() });
       } catch {
         // Not JSON: no change to act on.
       }
@@ -1110,12 +1113,12 @@ export function useLive(project: string, space: string, type: string, onChange: 
   }, [project, space, type]);
 }
 
-/** The line a live view shows after others changed rows: how many, read again just now. */
+/** The line a live view shows after others changed rows: when, read again just now. */
 export function LiveNotice({ change }: { change: LiveChange | null }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   return (
     <p role="status" aria-live="polite" className="text-caption text-fg-muted" data-testid="view-live">
-      {change ? t("spaces.views.liveChanged", { count: change.ids.length, attrs: change.attrs.join(", ") }) : ""}
+      {change ? t("spaces.views.liveChanged", { time: change.at.toLocaleTimeString(i18n.resolvedLanguage ?? i18n.language) }) : ""}
     </p>
   );
 }

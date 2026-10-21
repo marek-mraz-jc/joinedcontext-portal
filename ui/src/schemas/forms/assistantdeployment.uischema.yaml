@@ -83,6 +83,7 @@ spec:
         sk: "Endpointy, ktorých nástroje smie volať pre aktuálne hodnoty; žiadny pre asistenta, ktorý odpovedá len zo znalostí."
         cs: "Endpointy, jejichž nástroje smí volat pro aktuální hodnoty; žádný pro asistenta, který odpovídá jen ze znalostí."
         de: "Endpoints, deren Werkzeuge er für aktuelle Werte rufen darf; keiner für einen Assistenten, der nur aus seinem Wissen antwortet."
+      folded: true
       fields: [connectors, select, exclude]
     - title:
         en: "How it answers"
@@ -94,6 +95,7 @@ spec:
         sk: "Tón a dosah odpovede; vlastné pravidlá platformy majú vždy prednosť."
         cs: "Tón a dosah odpovědi; vlastní pravidla platformy mají vždy přednost."
         de: "Ton und Reichweite einer Antwort; die eigenen Regeln der Plattform gehen immer vor."
+      folded: true
       fields: [systemPrompt, sandbox]
     - title:
         en: "Language"
@@ -105,6 +107,7 @@ spec:
         sk: "Každý jazyk z tohto zoznamu môže mať nižšie vlastné návrhy a upozornenie."
         cs: "Každý jazyk z tohoto seznamu může mít níže vlastní návrhy a upozornění."
         de: "Jede hier genannte Sprache kann unten eigene Vorschläge und einen eigenen Hinweis bekommen."
+      folded: true
       fields: [languages]
     - title:
         en: "Widget"
@@ -116,6 +119,7 @@ spec:
         sk: "Ako chat vyzerá, víta a vyberá jazyk, z čoho odpovedá a tlačidlá užitočnosti pod každou odpoveďou; zmena sa do chatu dostane bez nasadenia."
         cs: "Jak chat vypadá, vítá a vybírá jazyk, z čeho odpovídá a tlačítka užitečnosti pod každou odpovědí; změna se do chatu dostane bez nasazení."
         de: "Wie der Chat aussieht, begrüßt und seine Sprache wählt, woraus er antwortet und die Hilfreich-Knöpfe unter jeder Antwort; eine Änderung erreicht den Chat ohne Deployment."
+      folded: true
       fields: [theme, widget, suggestions, disclaimer, answer, feedback]
     - title:
         en: "Where it may appear"
@@ -127,6 +131,7 @@ spec:
         sk: "Na stránke iného webu sa chat neotvorí; asistent overí pôvod každej požiadavky podľa tohto zoznamu."
         cs: "Na stránce jiného webu se chat neotevře; asistent ověří původ každého požadavku podle tohoto seznamu."
         de: "Auf der Seite einer anderen Website öffnet sich der Chat nicht; der Assistent prüft die Herkunft jeder Anfrage gegen diese Liste."
+      folded: true
       fields: [allowedOrigins]
     - title:
         en: "Limits and budget"
@@ -138,6 +143,7 @@ spec:
         sk: "Ako často sa smie jeden návštevník pýtať, koľko smie stáť deň a aké modely používa; verejný kanál potrebuje limit aj rozpočet."
         cs: "Jak často se smí jeden návštěvník ptát, kolik smí stát den a jaké modely používá; veřejný kanál potřebuje limit i rozpočet."
         de: "Wie oft ein Besucher fragen darf, was ein Tag kosten darf und welche Modelle er nutzt; öffentlich braucht Limit und Budget."
+      folded: true
       fields: [rateLimit, budget, model]
   fields:
     categories:
