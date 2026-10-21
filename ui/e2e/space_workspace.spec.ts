@@ -111,8 +111,14 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     const tabs = page.getByRole("tablist", { name: "Parts of the space" });
     await expect(tabs.getByRole("tab", { name: "Data", exact: true })).toHaveAttribute("aria-selected", "true");
     const types = page.getByRole("navigation", { name: "Entity types" });
-    await expect(types.locator('button[aria-current="true"]').first()).toHaveAttribute("title", TYPES[0]);
-    await expect(types.getByRole("button", { name: "Over target" })).toBeVisible();
+    if (width >= 1024) {
+      await expect(types.locator('button[aria-current="true"]').first()).toHaveAttribute("title", TYPES[0]);
+      await expect(types.getByRole("button", { name: "Over target" })).toBeVisible();
+    } else {
+      // Below lg the types are a picker above the grid (T-4992).
+      await expect(types).toBeHidden();
+      await expect(page.getByRole("combobox", { name: "Type", exact: true })).toHaveValue(TYPES[0]);
+    }
     await expect(page.getByText("District 1", { exact: true })).toBeVisible();
     // The rows count through the grid's own answer; the whole space's scan is on the model tab (T-4885).
     await expect(page.getByTestId("space-total")).toHaveCount(0);
