@@ -330,6 +330,7 @@
     "+ Debug",
     "debug",
     "MQTT",
+    "Tokens",
     "OGC Features",
     "OData"
   ]
