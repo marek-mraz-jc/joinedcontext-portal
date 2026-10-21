@@ -1702,7 +1702,12 @@ async fn approve_every_file(
             envelope.kind.as_str(),
             "Role" | "RoleBinding" | "ServiceAccount"
         );
-        let public = public_publication(identity, &file, &envelope)?;
+        let namespace = envelope.metadata.namespace.as_deref().unwrap_or(&home);
+        let was_public = state
+            .mirror
+            .get(namespace, "App", &envelope.metadata.name)
+            .is_some_and(|stored| app_is_public(&stored.kind, &stored.spec));
+        let public = public_publication(identity, &file, &envelope, was_public)?;
         publishes |= public;
         // A public publication is held for a second person like an access change (EP-142).
         changes_access |= public;
@@ -1754,22 +1759,35 @@ async fn approve_every_file(
     Ok((lane, deletes_every_kind, changes_access, publishes))
 }
 
-/// Whether this file of a change publishes in the public catalogue (EP-142). Making data public
-/// is a person's decision, taken by a second person: never its proposer, a service account, the
-/// assistant or MCP, so a service account approving such a file is refused here.
+/// Whether this file of a change publishes in the public catalogue (EP-142) or makes an App
+/// public (AP-175; `was_public` says whether the stored App already is). Making data or an App
+/// public is a person's decision, taken by a second person: never its proposer, a service
+/// account, the assistant or MCP, so a service account approving such a file is refused here.
 fn public_publication(
     identity: &crate::auth::session::Identity,
     file: &crate::git::gitea::ChangedFile,
     envelope: &ResourceEnvelope,
+    was_public: bool,
 ) -> Result<bool, ApiError> {
-    let public = !file.deleted && publishes_publicly(envelope);
+    let app = !was_public && app_is_public(&envelope.kind, &envelope.spec);
+    let public = !file.deleted && (publishes_publicly(envelope) || app);
     if public && identity.client.is_some() {
+        let what = if app {
+            "makes an App public (AP-175)"
+        } else {
+            "publishes an Endpoint in the public catalogue (EP-142)"
+        };
         return Err(ApiError::Denied(format!(
-            "'{}' publishes an Endpoint in the public catalogue, which a person approves in the Portal, never a service account (EP-142)",
+            "'{}' {what}, which a person approves in the Portal, never a service account",
             file.path
         )));
     }
     Ok(public)
+}
+
+/// An App anyone opens without a login (AP-120).
+fn app_is_public(kind: &str, spec: &serde_json::Value) -> bool {
+    kind == "App" && spec.get("visibility").and_then(|v| v.as_str()) == Some("public")
 }
 
 /// A public publication (EP-142): an Endpoint whose audience is `public` and that declares
@@ -1865,7 +1883,7 @@ pub async fn approve_change_for(
     if publishes && by == ApprovedBy::Operation {
         tracing::warn!(change = %id, approver = %identity.username, "refused: an operation may not approve a public publication");
         return Err(ApiError::Denied(
-            "a public publication is approved by a person in the Portal, never by the assistant, an agent or MCP (EP-142)".to_string(),
+            "a public publication or a public App is approved by a person in the Portal, never by the assistant, an agent or MCP (EP-142, AP-175)".to_string(),
         ));
     }
     merges_after(id, &awaited_changes(state, gitea, &pr, project).await?)?;
@@ -2414,10 +2432,34 @@ mod tests {
             client: Some("svc-ingest".into()),
             ..person.clone()
         };
-        assert!(public_publication(&person, &file(false), &endpoint).unwrap());
-        assert!(!public_publication(&robot, &file(true), &endpoint).unwrap());
-        let refused = public_publication(&robot, &file(false), &endpoint).unwrap_err();
+        assert!(public_publication(&person, &file(false), &endpoint, false).unwrap());
+        assert!(!public_publication(&robot, &file(true), &endpoint, false).unwrap());
+        let refused = public_publication(&robot, &file(false), &endpoint, false).unwrap_err();
         assert!(matches!(refused, ApiError::Denied(m) if m.contains("EP-142")));
+    }
+
+    #[test]
+    fn making_an_app_public_is_a_public_publication_and_keeping_it_public_is_not() {
+        let app: ResourceEnvelope = serde_json::from_value(json!({
+            "apiVersion": crate::resource::API_VERSION, "kind": "App", "metadata": {"name": "map"},
+            "spec": {"visibility": "public"}
+        }))
+        .unwrap();
+        let file = crate::git::gitea::ChangedFile {
+            path: "projects/p/apps/map.yaml".into(),
+            deleted: false,
+            added: false,
+        };
+        let person = test_user("jana@example.org", vec![]).0.identity;
+        let robot = Identity {
+            client: Some("svc-ingest".into()),
+            ..person.clone()
+        };
+        assert!(public_publication(&person, &file, &app, false).unwrap());
+        assert!(!public_publication(&person, &file, &app, true).unwrap());
+        assert!(public_publication(&robot, &file, &app, true).is_ok());
+        let refused = public_publication(&robot, &file, &app, false).unwrap_err();
+        assert!(matches!(refused, ApiError::Denied(m) if m.contains("AP-175")));
     }
 
     #[test]

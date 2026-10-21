@@ -301,6 +301,9 @@ routes:
   - route: POST /preferences/recent
     rule: "signed-in"
     expect: [403, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /shared-apps
+    rule: "signed-in"
+    expect: [401, allow, allow, allow, allow, allow, allow, allow]
   - route: GET /endpoints
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]
@@ -652,6 +655,10 @@ routes:
   - route: GET /projects/{project}/apps/{name}/me
     rule: "app-edge"
     expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: GET /projects/{project}/apps/{name}/audience
+    rule: "project-verb:read:App"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    note: "a person who may not read the App gets the 404 of a name never created (AP-173)"
   - route: POST /projects/{project}/apps/rename-shapes
     rule: "project-verb:propose:App"
     expect: [403, 403, 403, allow, 403, allow, 404, 403]

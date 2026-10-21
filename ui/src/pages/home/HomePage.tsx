@@ -15,6 +15,7 @@ import { Alert, Badge, Button, PageFailed, PageHeader } from "../../components/u
 import { cardsFor, draftPage, firstRunSteps, roleOf, sampleToTry, welcomeStep } from "./home";
 import type { Facts } from "./home";
 import { useFirstRun } from "./firstRun";
+import { SharedWithMe } from "./SharedWithMe";
 
 interface Listed {
   items?: { metadata?: { name?: string }; kind?: string; name?: string; status?: { phase?: string }; requiredActions?: unknown[] }[];
@@ -224,6 +225,8 @@ export function HomePage({
           </ul>
         </section>
       ) : null}
+
+      <SharedWithMe />
     </section>
   );
 }
