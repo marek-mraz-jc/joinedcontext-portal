@@ -4,6 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { usePermissions } from "../../api/permissions";
+import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 import {
   Alert,
   Badge,
@@ -129,11 +130,15 @@ export function ConversationsPage({
             <option value="totalMs">{t("conversations.sort.totalMs")}</option>
           </Select>
         </Field>
-        <Field id="conv-deployment" label={t("conversations.filter.deployment")} className="w-44">
-          <Input
+        <Field id="conv-deployment" label={t("conversations.filter.deployment")} className="w-56">
+          <ResourceNamePicker
             id="conv-deployment"
+            labelled
+            label={t("conversations.filter.deployment")}
+            from={{ project, plural: "assistantdeployments" }}
             value={filter.deployment ?? ""}
-            onChange={(e) => set({ deployment: e.target.value })}
+            onChange={(deployment) => set({ deployment })}
+            empty={t("conversations.filter.noDeployments")}
           />
         </Field>
         <Field id="conv-from" label={t("conversations.filter.from")} className="w-44">

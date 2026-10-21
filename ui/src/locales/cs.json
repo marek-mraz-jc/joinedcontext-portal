@@ -4159,7 +4159,9 @@
       "secretKeyHelp": "Položka toho secretu, která obsahuje token. Nechte apiToken, pokud operátor neurčí jinak.",
       "secretKeyInvalid": "Klíč tvoří písmena, číslice, tečky, pomlčky a podtržítka.",
       "secretInvalid": "Název secretu tvoří malá písmena, číslice, pomlčky a tečky, například ckan-api-token.",
-      "secretIsToken": "Toto vypadá jako samotný API token. Nevkládejte ho sem: požádejte operátora, aby ho uložil do úložiště secretů, a napište název toho secretu."
+      "secretIsToken": "Toto vypadá jako samotný API token. Nevkládejte ho sem: požádejte operátora, aby ho uložil do úložiště secretů, a napište název toho secretu.",
+      "organizationsKnown": "Organizace v katalogu",
+      "organizationNone": "Katalog Portálu nemá odpovídající organizaci: napište její krátký název a vyberte „Nové“."
     },
     "publications": {
       "title": "Publikované endpointy",
@@ -7205,7 +7207,7 @@
       "contactEmail": "E-mail kontaktu",
       "contactHelp": "Rolová adresa jako oddělení otevřených dat, nikdy osobní e-mail.",
       "keywords": "Klíčová slova",
-      "keywordsHelp": "Oddělená čárkami, v jazyce {language}.",
+      "keywordsHelp": "Vyberte klíčová slova katalogu nebo napište nové; v jazyce {language}.",
       "spatialHelp": "Region, který data pokrývají, například Banskobystrický kraj (SK032). Mapa datové sady ukáže její záznamy všude, kde mají polohu.",
       "start": "Obsahuje data od",
       "end": "Obsahuje data do",
@@ -7250,7 +7252,9 @@
         "map": "Mapa záznamů s polohou",
         "api": "NGSI-LD API a další formáty endpointu",
         "dcat": "Záznam DCAT-AP (JSON-LD)"
-      }
+      },
+      "inCatalogue": "Již v katalogu",
+      "typeNew": "V katalogu nic neodpovídá: napište nový a vyberte „Nové“."
     },
     "licence": {
       "CC_BY_4_0": "Creative Commons Attribution 4.0",
@@ -7785,7 +7789,7 @@
       "description": "Co server obsahuje, v jedné či dvou větách; AI klient to čte jako své pokyny.",
       "members": "Nabízejí se jen endpointy, které smíte číst. Každé volání člena je vlastní volání toho endpointu, o kterém rozhoduje jeho vlastní politika.",
       "audience": "Ne širší než nejužší člen. Veřejný server potřebuje všechny členy veřejné a schvalovatele, který smí publikovat.",
-      "allowedProjects": "Názvy projektů oddělené čárkami; prázdné připouští jen tento projekt.",
+      "allowedProjects": "Vyberte projekty, jejichž členové se smějí připojit; nabízejí se jen projekty, které smíte číst. Prázdné připouští jen tento projekt.",
       "knowledgeSources": "Server nabídne nástroj search_documents nad veřejnými stránkami a dokumenty zde vybraných zdrojů; bez nich takový nástroj nenabízí."
     },
     "form": {
@@ -7801,7 +7805,9 @@
       "sourcesUnreadable": "Zdroje znalostí projektu se nepodařilo načíst; již připojené zůstávají, jak jsou.",
       "noPublicSources": "Projekt nemá žádný veřejný zdroj znalostí k připojení.",
       "sourcesFull": "Nejvýše {max} zdrojů.",
-      "keptSources": "Ponechané, jak jsou: {sources}."
+      "keptSources": "Ponechané, jak jsou: {sources}.",
+      "yourProjects": "Projekty, které smíte číst",
+      "noProjects": "Neodpovídá žádný projekt, který smíte číst. Správce organizace vás přidá do projektu v Přístup → Skupiny."
     },
     "problem": {
       "name": "Použijte malá písmena, číslice a pomlčky, nejvýše 63 znaků.",
@@ -8650,10 +8656,10 @@
     },
     "help": {
       "name": "Malá písmena, číslice a pomlčky; poslední část adresy.",
-      "projects": "Názvy projektů oddělené čárkou.",
-      "spaces": "projekt/prostor, oddělené čárkou.",
-      "domains": "Domény Smart Data Models: Environment, Transportation, …",
-      "themes": "Datová témata EU, například ENVI nebo TRAN.",
+      "projects": "Vyberte z projektů, které smíte číst, např. mesto.",
+      "spaces": "Vyberte z kontextových prostorů, které smíte číst, zúženo na projekty vybrané výše.",
+      "domains": "Domény Smart Data Models z klasifikace Endpointů.",
+      "themes": "Datová témata EU z katalogových záznamů Endpointů.",
       "endpoints": "Koncový bod sem přidáte hvězdičkou na jeho stránce."
     },
     "level": {
@@ -8673,7 +8679,12 @@
       "add": "Přidat do mých konektorů",
       "in": "V konektoru: {names}"
     },
-    "full": "Máte 10 konektorů, víc nejde. Chcete-li přidat další, jeden smažte."
+    "full": "Máte 10 konektorů, víc nejde. Chcete-li přidat další, jeden smažte.",
+    "noMatch": {
+      "projects": "Neodpovídá žádný projekt, který smíte číst. Správce organizace vás přidá do projektu v Přístup → Skupiny.",
+      "spaces": "Neodpovídá žádný kontextový prostor, který smíte číst. Projekt ho vytvoří v Data → Kontextové prostory.",
+      "none": "Napsanému nic neodpovídá."
+    }
   },
   "conversations": {
     "title": "Konverzace",
@@ -8703,7 +8714,8 @@
       "deployment": "Asistent",
       "from": "Od",
       "to": "Do",
-      "expensive": "Nad $0,02"
+      "expensive": "Nad $0,02",
+      "noDeployments": "Tento projekt ještě nemá asistenta. Přidejte ho v Asistent → Nasazení."
     },
     "status": {
       "ok": "Zodpovězeno",

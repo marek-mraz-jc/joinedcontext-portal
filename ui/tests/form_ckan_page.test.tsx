@@ -54,6 +54,15 @@ const STATUS = {
 function reads(over: { status?: () => Response } = {}) {
   return (url: URL) => {
     if (url.pathname === STATUS_PATH) return over.status?.() ?? json(STATUS);
+    // The catalogue's organizations, which the Default organization picker offers (T-4948).
+    if (url.pathname === "/api/v1/catalogue") {
+      const none: unknown[] = [];
+      return json({
+        total: 0, page: 1, pageSize: 20, datasets: [], unavailable: [],
+        facets: { publisher: [{ value: "mesto-banska-bystrica", label: "Mesto Banská Bystrica", count: 3 }],
+                  theme: none, format: none, licence: none, spatial: none, year: none, keyword: none },
+      });
+    }
     if (url.pathname === INSTANCES && url.searchParams.get("dryRun") === "All") {
       return json({ valid: true, verdict: { ok: true, findings: [] } });
     }
@@ -72,7 +81,6 @@ const spec: FormSpec = {
       // What `type="url"` lets through and this form refuses itself.
       browser: { refuses: "javascript:alert(1)", accepts: "https://opendata.example.sk" },
     },
-    { id: "ckan-instance-org", label: /Default organization/, value: "mesto-banska-bystrica" },
     { id: "ckan-instance-secret", label: /API token secret/, value: "ckan-api-token", required: true },
   ],
   submit: /Propose catalogue/,
@@ -93,6 +101,16 @@ afterEach(() => {
 });
 
 describe("the catalogue form (T-1765)", () => {
+  it("offers the catalogue's organizations and takes a new one typed, lower case (T-4948)", async () => {
+    const user = userEvent.setup();
+    renderPage(page(), { path: `/projects/${PROJECT}`, answer: reads() });
+    const org = await screen.findByLabelText(/Default organization/);
+    expect(org).toHaveAccessibleDescription(/organization\/<name>/);
+    await user.type(org, "Mesto-BB");
+    await user.click(await screen.findByRole("option", { name: /New: “Mesto-BB”/ }));
+    expect((org as HTMLInputElement).value).toBe("mesto-bb");
+  });
+
   it("meets_the_form_contract", async () => {
     await checkForm(page, spec);
   });
@@ -115,7 +133,8 @@ describe("the catalogue form (T-1765)", () => {
     await user.type(await screen.findByLabelText(/^Name/), "opendata-bb");
     await user.clear(screen.getByLabelText(/^URL/));
     await user.type(screen.getByLabelText(/^URL/), "https://opendata.example.sk");
-    await user.type(screen.getByLabelText(/Default organization/), "mesto-banska-bystrica");
+    await user.click(screen.getByLabelText(/Default organization/));
+    await user.click(await screen.findByRole("option", { name: /Mesto Banská Bystrica/ }));
     await user.type(screen.getByLabelText(/API token secret/), "ckan-api-token");
     await user.click(screen.getByRole("button", { name: /Propose catalogue/ }));
 
@@ -170,16 +189,15 @@ describe("the catalogue form (T-1765)", () => {
     await user.type(await screen.findByLabelText(/^Name/), "opendata-bb");
     await user.clear(screen.getByLabelText(/^URL/));
     await user.type(screen.getByLabelText(/^URL/), "https://opendata.example.sk");
-    await user.type(screen.getByLabelText(/Default organization/), "mesto-banska-bystrica");
+    await user.click(screen.getByLabelText(/Default organization/));
+    await user.click(await screen.findByRole("option", { name: /Mesto Banská Bystrica/ }));
     await user.type(screen.getByLabelText(/API token secret/), "ckan-api-token");
     await user.click(screen.getByRole("button", { name: /Propose catalogue/ }));
 
     expect(await screen.findByText(REFUSAL)).toBeInTheDocument();
     expect((screen.getByLabelText(/^Name/) as HTMLInputElement).value).toBe("opendata-bb");
     expect((screen.getByLabelText(/^URL/) as HTMLInputElement).value).toBe("https://opendata.example.sk");
-    expect((screen.getByLabelText(/Default organization/) as HTMLInputElement).value).toBe(
-      "mesto-banska-bystrica",
-    );
+    expect((screen.getByLabelText(/Default organization/) as HTMLInputElement).value).toBe("Mesto Banská Bystrica");
     expect((screen.getByLabelText(/API token secret/) as HTMLInputElement).value).toBe("ckan-api-token");
   });
 
