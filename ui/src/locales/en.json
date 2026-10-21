@@ -2828,6 +2828,31 @@
       "personHelp": "The people of the organization, by email; the search above narrows the list.",
       "accountHelp": "The project's service accounts, the workloads that call endpoints.",
       "nameHelp": "The name exactly as it is written in Keycloak."
+    },
+    "presets": {
+      "legend": "Access",
+      "advanced": "Advanced",
+      "unavailable": "You do not hold all of this yourself, so you cannot give it.",
+      "reader": {
+        "label": "Reader",
+        "description": "Reads data and settings; changes nothing."
+      },
+      "writer": {
+        "label": "Writer",
+        "description": "Reads, and proposes or makes changes to data values."
+      },
+      "steward": {
+        "label": "Steward",
+        "description": "Reads, proposes and approves changes to data and its settings; not to who has access."
+      },
+      "pipelineWriter": {
+        "label": "Pipeline writer",
+        "description": "Brings data in: creates and updates entities, proposes pipelines and their sources."
+      },
+      "custom": {
+        "label": "Custom",
+        "description": "Pick each permission yourself."
+      }
     }
   },
   "flows": {
@@ -3242,7 +3267,14 @@
       "noClasses": "This model declares no class yet, so it generates no form.",
       "formClass": "Class",
       "formReadOnly": "This is the form the model generates, filled with its example; nothing is saved from here.",
-      "jsonType": {"number": "Number", "integer": "Whole number", "string": "Text", "boolean": "Yes or no", "object": "Group of fields", "array": "List"},
+      "jsonType": {
+        "number": "Number",
+        "integer": "Whole number",
+        "string": "Text",
+        "boolean": "Yes or no",
+        "object": "Group of fields",
+        "array": "List"
+      },
       "asJson": "Shown as JSON.",
       "yaml": "The model's source (LinkML YAML)",
       "copyYaml": "Copy the YAML",
