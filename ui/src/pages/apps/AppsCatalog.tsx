@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -47,7 +47,9 @@ import {
 import { RECORD_LINK_STYLE, RecordLink } from "../../components/RecordLink";
 import { RenameShapesNotice } from "./RenameShapesNotice";
 import { AppTemplates } from "./AppTemplates";
-import { ShareDialog } from "./ShareDialog";
+
+// Loaded on first open: the dialog is not needed to draw the page (bundle cap).
+const ShareDialog = lazy(() => import("./ShareDialog").then((module) => ({ default: module.ShareDialog })));
 
 type WorkflowRun = components["schemas"]["WorkflowRun"];
 type AppBuild = components["schemas"]["AppBuild"];
@@ -531,13 +533,15 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
       </ul>
 
       {sharing && (
-        <ShareDialog
-          project={project}
-          app={sharing}
-          onClose={() => {
-            setSharing(null);
-          }}
-        />
+        <Suspense fallback={null}>
+          <ShareDialog
+            project={project}
+            app={sharing}
+            onClose={() => {
+              setSharing(null);
+            }}
+          />
+        </Suspense>
       )}
       {confirming && (
         <LifecycleDialog
