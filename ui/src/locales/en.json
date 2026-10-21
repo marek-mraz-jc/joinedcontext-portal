@@ -322,7 +322,8 @@
         "create": "{author} proposed to create {kind} {name}",
         "update": "{author} proposed to change {kind} {name}",
         "delete": "{author} proposed to remove {kind} {name}"
-      }
+      },
+      "anyKind": "Any kind"
     },
     "reasonFirst": "Write why you reject the change first."
   },
@@ -1701,7 +1702,8 @@
       "send": "Send",
       "fill": "Fill in the fields the call needs first.",
       "answered": "The endpoint answered {status}.",
-      "code": "The same call as code"
+      "code": "The same call as code",
+      "noType": "No entity type yet: once a pipeline or a person writes entities through this Endpoint, their types are listed here."
     },
     "docs": {
       "title": "API documentation",
@@ -2790,7 +2792,7 @@
       "propose": "Propose grant",
       "emptyHint": "A role binding says who may do what in this project. Until one exists, only an administrator of the organization can change anything here.",
       "subjectKindHelp": "Whether the role goes to one person or to a group of them. A group is granted once and keeps its members in step.",
-      "personHelp": "The username or e-mail the identity provider carries for this person, exactly as they sign in.",
+      "personHelp": "Pick one of the organization's people, or type the full e-mail of someone who has not signed in yet, e.g. jana.novak@example.org.",
       "groupHelp": "The name of a group declared under Groups. Everyone in it holds the role while they are a member.",
       "roleHelp": "What the person may do: each role is a set of verbs on a set of kinds, listed under Roles.",
       "whereHelp": "How far the role reaches: this project, the whole organization, or one context space of the project.",
@@ -2997,7 +2999,7 @@
       "ckanVia": "through the role {role}",
       "appNotLoaded": "The app is still loading, or you may not read it.",
       "hint": {
-        "email": "The e-mail the person signs in with, e.g. jana.novak@example.org; known people are offered as you type.",
+        "email": "Pick one of the organization's people, or type the full e-mail of someone who has not signed in yet, e.g. jana.novak@example.org.",
         "where": "Where the role holds: the whole organization or one project, e.g. helsinki.",
         "space": "Keep the whole project, or narrow the role to one context space, e.g. air-quality.",
         "role": "What the members may do there, e.g. viewer reads, steward also proposes changes.",
@@ -3040,7 +3042,7 @@
       "kindHelp": "A person, a group, a role or a service account: whose access the page lists.",
       "personHelp": "The people of the organization, by email; the search above narrows the list.",
       "accountHelp": "The project's service accounts, the workloads that call endpoints.",
-      "nameHelp": "The name exactly as it is written in Keycloak."
+      "nameHelp": "Pick a group of the organization, or a role of this project or of the organization."
     },
     "presets": {
       "legend": "Access",
@@ -5601,7 +5603,7 @@
         "search": "Part of a name or an email address.",
         "person": "The person the gateway decides for.",
         "account": "One of this project's service accounts.",
-        "name": "The name as the realm spells it.",
+        "name": "Pick a group of the organization, or a role of this project or of the organization.",
         "action": "The NGSI-LD operation the call would make."
       },
       "pickFirst": "Pick the Endpoint and who to try first."
@@ -6780,7 +6782,15 @@
       "importedOrganization": "Imported from the organization model {name}"
     },
     "createNamed": "New: “{name}”",
-    "list": "Choices"
+    "list": "Choices",
+    "person": {
+      "group": "People of the organization",
+      "typed": "Typed e-mail",
+      "none": "Nobody matches. Type the person's full e-mail to name someone who has not signed in yet.",
+      "unlisted": "You may not list the organization's people. Type the person's full e-mail, e.g. jana.novak@example.org.",
+      "invite": "Use {email} (not signed in yet)",
+      "needEmail": "Type the person's full e-mail address."
+    }
   },
   "units": {
     "search": "Search by code, symbol, name or quantity",

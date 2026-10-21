@@ -4,6 +4,7 @@ import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-q
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../api/client";
+import { ownRights, usePermissions } from "../api/permissions";
 import { ChangeNotice } from "../components/ChangeNotice";
 import { changeSentence } from "./changeWords";
 import { ChangedFields } from "../components/ResourceHistory";
@@ -16,6 +17,7 @@ import {
   Field,
   Input,
   PermissionGuard,
+  Select,
   TableCell,
   TableHead,
   TableHeaderCell,
@@ -48,6 +50,7 @@ export function ApprovalsHistory({
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const id = useId();
   // What the form holds, and what the list was last asked for: a keystroke asks the forge nothing.
+  const permissions = usePermissions(project);
   const [draft, setDraft] = useState<Filter>(NO_FILTER);
   const [filter, setFilter] = useState<Filter>(NO_FILTER);
   const [opened, setOpened] = useState<string | null>(null);
@@ -111,13 +114,17 @@ export function ApprovalsHistory({
   });
 
   const items = history.data?.pages.flatMap((page) => page.items) ?? [];
+  // A manifest kind is a fixed vocabulary: the kinds the person holds a right on, and any kind
+  // a listed change names (T-4947).
   const kinds = [
-    ...new Set(
-      items
+    ...new Set([
+      ...ownRights(permissions.data).kinds,
+      ...items
         .map((item) => (item.summary.params as Record<string, unknown>).kind)
         .filter((kind): kind is string => typeof kind === "string"),
-    ),
-  ];
+      ...(filter.kind ? [filter.kind] : []),
+    ]),
+  ].sort();
   const filtered = Object.values(filter).some((value) => value !== "");
   const dateFormatter = new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
@@ -154,21 +161,19 @@ export function ApprovalsHistory({
         className="flex flex-wrap items-end gap-4"
       >
         <Field id={`${id}-kind`} label={t("approvals.history.kind")}>
-          <Input
+          <Select
             id={`${id}-kind`}
-            list={`${id}-kinds`}
             value={draft.kind}
-            placeholder="Endpoint"
-            onChange={(event) =>
-              setDraft({ ...draft, kind: event.target.value })
-            }
-          />
+            onChange={(event) => setDraft({ ...draft, kind: event.target.value })}
+          >
+            <option value="">{t("approvals.history.anyKind")}</option>
+            {kinds.map((kind) => (
+              <option key={kind} value={kind}>
+                {kind}
+              </option>
+            ))}
+          </Select>
         </Field>
-        <datalist id={`${id}-kinds`}>
-          {kinds.map((kind) => (
-            <option key={kind} value={kind} />
-          ))}
-        </datalist>
         <Field id={`${id}-name`} label={t("approvals.history.name")}>
           <Input
             id={`${id}-name`}

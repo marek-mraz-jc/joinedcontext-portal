@@ -16,6 +16,7 @@ type Entry = Record<string, unknown>;
 /** An entity type from the space's model and its imports, or the project's models without a space. */
 const TYPE: Entry = { "ui:widget": "typePicker", "ui:options": { spaceField: "contextSpaceRef" } };
 const MODEL: Entry = { "ui:widget": "dataModelPicker" };
+const PERSON: Entry = { "ui:widget": "personPicker" };
 const project = (plural: string): Entry => ({ "ui:widget": "resourcePicker", "ui:options": { plural } });
 
 export const REFERENCE_PICKERS: Record<string, Record<string, Entry>> = {
@@ -61,7 +62,9 @@ export const REFERENCE_PICKERS: Record<string, Record<string, Entry>> = {
     "federation.serviceAccountRef": project("serviceaccounts"),
     "information[].entities[].type": TYPE,
   },
-  ServiceAccount: { "roles[].types[]": TYPE },
+  // T-4947: a person is one of the people the caller may list, or a full e-mail.
+  Group: { "members[].user": PERSON },
+  ServiceAccount: { "roles[].types[]": TYPE, "owner.user": PERSON },
   App: { "dataNeeds[].contextSpaceRef": project("spaces"), "dataNeeds[].types[]": TYPE },
   Mapping: { contextSpaceRef: project("spaces"), "source.name": MODEL, "target.name": MODEL },
   // The knowledge assistant's kinds (T-3057): a catalogue, the project's own sources and the
@@ -71,17 +74,14 @@ export const REFERENCE_PICKERS: Record<string, Record<string, Entry>> = {
 };
 
 /**
- * Reference fields that stay as they are, each with the reason. A person is not a manifest and
- * has no list to pick from until the People page's route exists (T-2684).
+ * Reference fields that stay as they are, each with the reason.
  */
 export const UNPICKED: Record<string, Record<string, string>> = {
-  Group: { "members[].user": "a person: the People list is T-2684" },
   ServiceAccount: {
-    "owner.user": "a person: the People list is T-2684",
     "roles[].scope.name": "a space or a project by roles[].scope.level; the page lists both as suggestions",
-    "roles[].role": "an organization or a project role: the page offers both lists as one choice once they load",
+    "roles[].role": "a oneOf of the roles the page read (T-2758); a gateway role template name when it read none (CC-60)",
   },
-  Role: { "rules[].kinds[]": "a manifest kind, a fixed vocabulary the page offers from the author's own rights (PF-68)" },
+  Role: { "rules[].kinds[]": "a manifest kind: roleUiSchema makes it checkboxes of the kinds the author holds (PF-68)" },
   Organization: { "projects.creation": "anyone, org-admin or group:<name>: a rule, validated by its pattern" },
   SyncSource: { "platformApi.project": "a project on another platform, which this one cannot list" },
 };

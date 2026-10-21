@@ -509,6 +509,7 @@ export function EndpointPage({
               endpoint={manifest}
               segment={space ? spaceSegment(project, space, asManifests(spaces.data?.items ?? [])) : ""}
               enums={modelSource ? enumsOfClasses(modelSource, classesOf(filtered)) : {}}
+              geoProperties={geoPropertiesOf(modelSource, classesOf(filtered))}
               live={(manifest.status?.phase ?? "").toLowerCase() === "live"}
             />
             {projection ? (
@@ -699,12 +700,15 @@ function FilterForm({
   endpoint,
   segment,
   enums,
+  geoProperties,
   live,
 }: {
   project: string;
   projection: Manifest;
   /** The permissible values of each enum attribute of the model, by attribute (T-2706). */
   enums: Record<string, string[]>;
+  /** The GeoProperties of the projected types, `location` first (T-4947). */
+  geoProperties: string[];
   /** The projection does not exist yet: a proposal creates it with the endpoint that names it. */
   creating: boolean;
   /** The endpoint whose hidden attributes the editor holds; its slug is what the proof reads. */
@@ -885,7 +889,7 @@ function FilterForm({
           ))}
         </div>
         <MatchCount slug={slug} type={classesOf(projection)[0]} q={draft.q ?? ""} live={live} />
-        <AreaFromBox onSet={(geoQ) => setDraft({ ...draft, geoQ })} />
+        <AreaFromBox geoProperties={geoProperties} onSet={(geoQ) => setDraft({ ...draft, geoQ })} />
         <ConditionBuilder
           attributes={slotsOf(projection)}
           enums={enums}
@@ -1191,7 +1195,17 @@ export function boxFault(box: Record<string, string>): "numbers" | "range" | "or
  * Drawing the shape on a map is the grid's job and stays there; this is the part a settings page can do
  * honestly without a map.
  */
-function AreaFromBox({ onSet }: { onSet: (geoQ: string) => void }): JSX.Element {
+/** The GeoProperties the model declares on `classes`, NGSI-LD's default `location` first. */
+export function geoPropertiesOf(source: string | undefined, classes: string[]): string[] {
+  const declared = classes.flatMap((cls) =>
+    filterSlotsOf(source, cls)
+      .filter((slot) => slot.kind === "GeoProperty")
+      .map((slot) => slot.name),
+  );
+  return [...new Set(["location", ...declared])];
+}
+
+function AreaFromBox({ geoProperties, onSet }: { geoProperties: string[]; onSet: (geoQ: string) => void }): JSX.Element {
   const { t } = useTranslation();
   const [box, setBox] = useState<Record<string, string>>({ west: "", south: "", east: "", north: "" });
   const [property, setProperty] = useState("location");
@@ -1236,12 +1250,18 @@ function AreaFromBox({ onSet }: { onSet: (geoQ: string) => void }): JSX.Element 
           </Field>
         ))}
         <Field id="area-property" label={t("endpoints.area.property")} className="w-40">
-          <Input
+          <Select
             id="area-property"
             aria-describedby="area-hint"
             value={property}
             onChange={(event) => setProperty(event.target.value)}
-          />
+          >
+            {geoProperties.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </Select>
         </Field>
         <Button type="button" variant="secondary" onClick={apply}>
           {t("endpoints.area.set")}

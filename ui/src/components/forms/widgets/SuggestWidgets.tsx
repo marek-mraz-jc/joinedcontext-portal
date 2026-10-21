@@ -9,6 +9,7 @@ import { asManifests, ORG_NAMESPACE } from "../../../api/manifest";
 import { readsOnceKnown, usePermissions } from "../../../api/permissions";
 import type { Manifest } from "../../../api/manifest";
 import { filterSlotsOf } from "../../entities/filters";
+import { PersonPicker } from "../../pickers/PersonPicker";
 import { Input } from "../../ui";
 import { useShownErrors } from "../touched";
 import { FormDataContext } from "./EntitySelectorField";
@@ -156,3 +157,27 @@ export function AttributeSuggest(props: WidgetProps): JSX.Element {
       : undefined;
   return <Suggested {...props} choices={choices} note={note} />;
 }
+
+/**
+ * A person of the organization in a manifest form (`Group.members[].user`,
+ * `ServiceAccount.owner.user`, T-4947): the realm's people the caller may list, or a full e-mail
+ * of someone not signed in yet. The Group and ServiceAccount doors still decide the write.
+ */
+export function PersonPickerWidget(props: WidgetProps): JSX.Element {
+  const { id, value, required, disabled, readonly, onChange, rawErrors, label } = props;
+  const errors = useShownErrors(id, rawErrors);
+  return (
+    <PersonPicker
+      id={id}
+      label={label || id}
+      labelled
+      value={typeof value === "string" ? value : ""}
+      onChange={(email) => onChange(email === "" ? undefined : email)}
+      disabled={disabled || readonly}
+      required={required}
+      invalid={Boolean(errors && errors.length > 0)}
+      describedBy={ariaDescribedByIds(id)}
+    />
+  );
+}
+

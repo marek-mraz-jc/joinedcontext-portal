@@ -35,7 +35,7 @@ import {
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { useReadableList } from "../../api/permissions";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
-import { usePeopleChoices } from "../organization/People";
+import { PersonPicker } from "../../components/pickers/PersonPicker";
 
 interface Scope {
   organization?: string;
@@ -161,9 +161,6 @@ export function GrantRoleDialog({
   const { t, i18n } = useTranslation();
   const formRoute = useFormRoute();
   const ids = useId();
-  // The people of the realm, for a caller who may read them: a choice under the typing, never a
-  // wall, so a person not yet listed can still be named (T-3216, T-2685).
-  const people = usePeopleChoices();
   const queryClient = useQueryClient();
   const branding = useBranding();
   const [form, setForm] = useState<GrantForm>(() => formOf(prefill, project, scope));
@@ -172,7 +169,6 @@ export function GrantRoleDialog({
   // meeting a button that does nothing (UI-04, T-1492).
   const [missing, setMissing] = useState<{ subject?: boolean; role?: boolean }>({});
   const [discarding, setDiscarding] = useState(false);
-  const subjectRef = useRef<HTMLInputElement | null>(null);
   const roleRef = useRef<HTMLSelectElement | null>(null);
   const roles = useReadableList(ORG_NAMESPACE, "roles", "Role");
   // A binding in a project may name that project's own role as well as an organization one
@@ -240,8 +236,8 @@ export function GrantRoleDialog({
     const gaps = { subject: form.subject.trim() === "", role: form.role === "" };
     if (gaps.subject || gaps.role) {
       setMissing(gaps);
-      // The group picker is its own control, found by the id its field gives it.
-      (gaps.subject ? (subjectRef.current ?? document.getElementById(`${ids}-subject`)) : roleRef.current)?.focus();
+      // Each subject picker is its own control, found by the id its field gives it.
+      (gaps.subject ? document.getElementById(`${ids}-subject`) : roleRef.current)?.focus();
       return;
     }
     setMissing({});
@@ -325,8 +321,8 @@ export function GrantRoleDialog({
             errors={missing.subject ? [t("form.required")] : undefined}
           >
             {form.subjectKind === "group" ? (
-              // A group is one the organization has (ADR-N-033); a person is typed, with the
-              // realm's people offered under the typing when the caller may read them (T-3216).
+              // A group is one the organization has (ADR-N-033); a person one of the realm's people
+              // the caller may list, or a full e-mail of someone not signed in yet (T-3216, T-4947).
               <ResourceNamePicker
                 id={`${ids}-subject`}
                 label={t("access.roles.groupLabel")}
@@ -338,25 +334,17 @@ export function GrantRoleDialog({
                 invalid={missing.subject}
               />
             ) : (
-              <Input
+              <PersonPicker
                 id={`${ids}-subject`}
-                ref={subjectRef}
+                label={t("access.roles.personLabel")}
+                labelled
                 value={form.subject}
-                autoComplete="off"
-                spellCheck={false}
-                placeholder="firstname.lastname@example.org"
-                list={people.length > 0 ? `${ids}-people` : undefined}
-                onChange={(event) => set({ subject: event.target.value })}
+                onChange={(subject) => set({ subject })}
+                required
+                invalid={missing.subject}
               />
             )}
           </Field>
-          {form.subjectKind === "user" && people.length > 0 ? (
-            <datalist id={`${ids}-people`}>
-              {people.map((person) => (
-                <option key={person} value={person} />
-              ))}
-            </datalist>
-          ) : null}
           <Field
             id={`${ids}-role`}
             label={t("access.roles.roleLabel")}
