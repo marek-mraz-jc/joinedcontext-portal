@@ -2447,7 +2447,8 @@
         "source": {
           "model": "Model",
           "endpoint": "Endpoint",
-          "lifetime": "Životnosť"
+          "lifetime": "Životnosť",
+          "history": "História"
         },
         "expiresLabel": "Platnosť, s ktorou sa záznam zapíše",
         "expiresEntity": "Entita vyprší {at}",
@@ -2792,6 +2793,30 @@
       },
       "allAdded": "Každé pole, ktoré endpoint povoľuje, už má koniec."
     },
+    "history": {
+      "column": "História",
+      "explain": "História: ktoré záznamy si priestor ponechá z každého poľa a odkiaľ sa berie čas záznamu. Kontrola po namapovanom výstupe povie, či to priestor dokáže dodržať.",
+      "keepOf": "Čo ponechať z {name}",
+      "asMapped": "Ako to zapíše mapovanie",
+      "keep": {
+        "every": "Ponechať každé meranie",
+        "changes": "Ponechať len zmeny",
+        "latest": "Ponechať len poslednú hodnotu"
+      },
+      "timeOf": "Čas záznamu {name}",
+      "timeMapped": "Čas: ako ho zapíše mapovanie",
+      "timeFrom": "Čas: z {slot}",
+      "timeReceived": "Čas: keď príde",
+      "heartbeatOf": "Záznam aspoň raz za, pre {name}",
+      "heartbeat": {
+        "PT15M": "záznam aspoň každých 15 minút",
+        "PT1H": "záznam aspoň každú hodinu",
+        "P1D": "záznam aspoň každý deň",
+        "P7D": "záznam aspoň každých 7 dní"
+      },
+      "refused": "nedá sa dodržať",
+      "kept": "ponechá sa podľa voľby"
+    },
     "access": {
       "section": "Prístup k iným priestorom",
       "lead": "Požiadajte vlastníka iného priestoru o čítanie alebo zápis pre túto pipeline. Kým to neschváli, nič sa neudelí.",
@@ -2846,6 +2871,87 @@
       "revoke": "Odobrať",
       "revokeOf": "Odobrať prístup {account}",
       "reasonFirst": "Najprv napíšte dôvod."
+    },
+    "map": {
+      "views": "Zobrazenia pipeline",
+      "view": {
+        "list": "Zoznam",
+        "map": "Mapa tokov dát"
+      },
+      "title": "Mapa tokov dát",
+      "space": "Priestor",
+      "allSpaces": "Všetky priestory",
+      "legend": "Farby čiar",
+      "empty": "V tomto projekte zatiaľ netečú žiadne dáta.",
+      "emptySpace": "Tento priestor zatiaľ nečíta ani nezapisuje žiadna pipeline.",
+      "emptyHint": "Pridajte zdroj údajov alebo MQTT broker a pošlite ho do priestoru: mapa odtiaľ nakreslí každú cestu.",
+      "missingTitle": "{count, plural, one {# ceste chýba potrebné oprávnenie} few {# cestám chýba potrebné oprávnenie} other {# cestám chýba potrebné oprávnenie}}",
+      "paused": "Pozastavená",
+      "noPhase": "Ešte nenasadená",
+      "sent": "{count, plural, one {# záznam v poslednom behu} few {# záznamy v poslednom behu} other {# záznamov v poslednom behu}}",
+      "opaque": "Endpoint iného projektu",
+      "opaqueOwner": "Projekt {project}; jeho podrobnosti nemôžete čítať",
+      "from": "Z {name}",
+      "to": "Do {name}",
+      "close": "Zavrieť",
+      "grants": "Oprávnenia",
+      "byPolicy": "Povolené politikou {policy}",
+      "fix": "Oprava: {fix}",
+      "counts": "odoslané {sent}, odmietnuté {rejected}, zlyhané {failed}",
+      "perMinute": "{rate} záznamov za minútu",
+      "openPipeline": "Otvoriť pipeline",
+      "openRuns": "Behy",
+      "openRejected": "Odmietnuté záznamy",
+      "edit": "Upraviť",
+      "openEndpoint": "Otvoriť endpoint",
+      "openSpace": "Otvoriť priestor",
+      "brokerFirst": "Pipeline číta broker cez zdroj údajov. Vytvorte ho pre tento broker a potom ho pošlite do priestoru.",
+      "newDataSource": "Vytvoriť zdroj údajov pre tento broker",
+      "sendTarget": "Zapisovať do",
+      "sendTargetLater": "Vybrať v editore",
+      "sendTargetOption": "{endpoint} (priestor {space})",
+      "send": "Poslať do priestoru",
+      "kind": {
+        "MqttBroker": "MQTT broker",
+        "DataSource": "Zdroj údajov",
+        "Pipeline": "Pipeline",
+        "Endpoint": "Endpoint",
+        "ContextSpace": "Priestor"
+      },
+      "role": {
+        "ingest": "príjem",
+        "derived": "odvodená",
+        "kpi": "KPI"
+      },
+      "grant": {
+        "granted": "povolené",
+        "missing": "chýba oprávnenie",
+        "external": "povoľuje vlastník"
+      },
+      "group": {
+        "sources": "Zdroje",
+        "pipelines": "Pipeliny",
+        "endpoints": "Endpointy",
+        "spaces": "Priestory"
+      },
+      "fact": {
+        "name": "Názov",
+        "owner": "Vlastník",
+        "sourceType": "Pripojenie",
+        "hosts": "Servery",
+        "topics": "Témy",
+        "space": "Priestor",
+        "slug": "Adresa",
+        "audience": "Publikum",
+        "state": "Stav",
+        "lastRun": "Posledný beh",
+        "counts": "Záznamy",
+        "rate": "Rýchlosť"
+      },
+      "edge": {
+        "reads": "Číta priestor {other} cez endpoint {endpoint} ({operation})",
+        "writes": "Zapisuje do priestoru {other} cez endpoint {endpoint} ({operation})"
+      }
     }
   },
   "dashboards": {
@@ -5354,7 +5460,8 @@
         "throughput": "Priepustnosť pipeline",
         "error": "Chyba pipeline",
         "restarted": "Pipeline reštartovaná",
-        "run": "Spustený beh pipeline"
+        "run": "Spustený beh pipeline",
+        "source-delete": "Rozhodnutie o mazaní podľa zdroja"
       },
       "endpoint": {
         "traffic": "Prevádzka endpointu"

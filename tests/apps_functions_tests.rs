@@ -272,6 +272,18 @@ async fn an_anonymous_call_to_a_public_app_carries_no_token() {
 async fn refusals_never_reach_the_runtime() {
     let rig = rig("fn-refusals").await;
     let edge = [("x-access-token", "the-persons-edge-token")];
+    // The edge sets its token from the session cookie whatever else the request carries, so a
+    // bearer beside it is no credential of this call and waives no CSRF check (T-4915).
+    let edge_and_bearer = [
+        ("x-access-token", "the-persons-edge-token"),
+        ("authorization", "Bearer planted-by-another-app"),
+    ];
+    // A token the page could not read off this App's own host never matches its cookie.
+    let foreign_csrf = [
+        ("x-access-token", "the-persons-edge-token"),
+        ("cookie", "__Host-jc_csrf=this-apps-token"),
+        ("x-csrf-token", "another-apps-token"),
+    ];
     for (uri, headers, body, expected) in [
         // A name no function file could have.
         (
@@ -304,6 +316,18 @@ async fn refusals_never_reach_the_runtime() {
         (
             "/apps/open-data/api/functions/near-me",
             &edge[..],
+            Vec::new(),
+            StatusCode::FORBIDDEN,
+        ),
+        (
+            "/apps/open-data/api/functions/near-me",
+            &edge_and_bearer[..],
+            Vec::new(),
+            StatusCode::FORBIDDEN,
+        ),
+        (
+            "/apps/open-data/api/functions/near-me",
+            &foreign_csrf[..],
             Vec::new(),
             StatusCode::FORBIDDEN,
         ),

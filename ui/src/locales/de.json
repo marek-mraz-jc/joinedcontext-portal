@@ -2447,7 +2447,8 @@
         "source": {
           "model": "Modell",
           "endpoint": "Endpoint",
-          "lifetime": "Lebensdauer"
+          "lifetime": "Lebensdauer",
+          "history": "Verlauf"
         },
         "expiresLabel": "Ablauf, mit dem der Datensatz geschrieben wird",
         "expiresEntity": "Entität läuft ab {at}",
@@ -2792,6 +2793,30 @@
         "stale": "Einmal pro Stunde löscht die Pipeline jeden {type}, den sie seit {span} nicht aktualisiert hat."
       }
     },
+    "history": {
+      "column": "Verlauf",
+      "explain": "Verlauf: welche Zeilen der Raum von jedem Feld behält und woher die Zeit einer Zeile kommt. Die Prüfung nach der zugeordneten Ausgabe sagt, ob der Raum das einhalten kann.",
+      "keepOf": "Was von {name} behalten wird",
+      "asMapped": "Wie die Zuordnung es schreibt",
+      "keep": {
+        "every": "Jede Messung behalten",
+        "changes": "Nur Änderungen behalten",
+        "latest": "Nur den letzten Wert behalten"
+      },
+      "timeOf": "Zeit einer Zeile von {name}",
+      "timeMapped": "Zeit: wie die Zuordnung sie schreibt",
+      "timeFrom": "Zeit: aus {slot}",
+      "timeReceived": "Zeit: beim Eingang",
+      "heartbeatOf": "Mindestens eine Zeile je, für {name}",
+      "heartbeat": {
+        "PT15M": "mindestens alle 15 Minuten eine Zeile",
+        "PT1H": "mindestens jede Stunde eine Zeile",
+        "P1D": "mindestens jeden Tag eine Zeile",
+        "P7D": "mindestens alle 7 Tage eine Zeile"
+      },
+      "refused": "nicht einzuhalten",
+      "kept": "wie gewählt behalten"
+    },
     "access": {
       "section": "Zugriff auf andere Räume",
       "lead": "Bitten Sie den Eigentümer eines anderen Raums um Lese- oder Schreibzugriff für diese Pipeline. Bis zur Genehmigung wird nichts gewährt.",
@@ -2846,6 +2871,87 @@
       "revoke": "Entziehen",
       "revokeOf": "Zugriff von {account} entziehen",
       "reasonFirst": "Schreiben Sie zuerst die Begründung."
+    },
+    "map": {
+      "views": "Pipeline-Ansichten",
+      "view": {
+        "list": "Liste",
+        "map": "Datenflusskarte"
+      },
+      "title": "Datenflusskarte",
+      "space": "Bereich",
+      "allSpaces": "Alle Bereiche",
+      "legend": "Linienfarben",
+      "empty": "In diesem Projekt fließen noch keine Daten.",
+      "emptySpace": "Noch keine Pipeline liest oder schreibt diesen Bereich.",
+      "emptyHint": "Fügen Sie eine Datenquelle oder einen MQTT-Broker hinzu und senden Sie sie in einen Bereich: Die Karte zeichnet von dort jeden Weg.",
+      "missingTitle": "{count, plural, one {# Weg fehlt die nötige Berechtigung} other {# Wegen fehlt die nötige Berechtigung}}",
+      "paused": "Pausiert",
+      "noPhase": "Noch nicht angewendet",
+      "sent": "{count, plural, one {# Datensatz im letzten Lauf} other {# Datensätze im letzten Lauf}}",
+      "opaque": "Endpunkt eines anderen Projekts",
+      "opaqueOwner": "Projekt {project}; Sie dürfen seine Details nicht lesen",
+      "from": "Von {name}",
+      "to": "Nach {name}",
+      "close": "Schließen",
+      "grants": "Berechtigungen",
+      "byPolicy": "Erlaubt durch Policy {policy}",
+      "fix": "Behebung: {fix}",
+      "counts": "{sent} gesendet, {rejected} abgelehnt, {failed} fehlgeschlagen",
+      "perMinute": "{rate} Datensätze pro Minute",
+      "openPipeline": "Pipeline öffnen",
+      "openRuns": "Läufe",
+      "openRejected": "Abgelehnte Datensätze",
+      "edit": "Bearbeiten",
+      "openEndpoint": "Endpunkt öffnen",
+      "openSpace": "Bereich öffnen",
+      "brokerFirst": "Eine Pipeline liest einen Broker über eine Datenquelle. Legen Sie eine für diesen Broker an und senden Sie sie dann in einen Bereich.",
+      "newDataSource": "Datenquelle für diesen Broker anlegen",
+      "sendTarget": "Schreiben in",
+      "sendTargetLater": "Im Editor wählen",
+      "sendTargetOption": "{endpoint} (Bereich {space})",
+      "send": "In einen Bereich senden",
+      "kind": {
+        "MqttBroker": "MQTT-Broker",
+        "DataSource": "Datenquelle",
+        "Pipeline": "Pipeline",
+        "Endpoint": "Endpunkt",
+        "ContextSpace": "Bereich"
+      },
+      "role": {
+        "ingest": "Eingang",
+        "derived": "abgeleitet",
+        "kpi": "KPI"
+      },
+      "grant": {
+        "granted": "erlaubt",
+        "missing": "Berechtigung fehlt",
+        "external": "vom Eigentümer erlaubt"
+      },
+      "group": {
+        "sources": "Quellen",
+        "pipelines": "Pipelines",
+        "endpoints": "Endpunkte",
+        "spaces": "Bereiche"
+      },
+      "fact": {
+        "name": "Name",
+        "owner": "Eigentümer",
+        "sourceType": "Verbindung",
+        "hosts": "Server",
+        "topics": "Themen",
+        "space": "Bereich",
+        "slug": "Adresse",
+        "audience": "Zielgruppe",
+        "state": "Zustand",
+        "lastRun": "Letzter Lauf",
+        "counts": "Datensätze",
+        "rate": "Durchsatz"
+      },
+      "edge": {
+        "reads": "Liest Bereich {other} über Endpunkt {endpoint} ({operation})",
+        "writes": "Schreibt in Bereich {other} über Endpunkt {endpoint} ({operation})"
+      }
     }
   },
   "dashboards": {
@@ -5354,7 +5460,8 @@
         "throughput": "Pipeline-Durchsatz",
         "error": "Pipeline-Fehler",
         "restarted": "Pipeline neu gestartet",
-        "run": "Pipeline-Lauf gestartet"
+        "run": "Pipeline-Lauf gestartet",
+        "source-delete": "Entscheidung über Quell-Löschungen"
       },
       "endpoint": {
         "traffic": "Endpunkt-Verkehr"

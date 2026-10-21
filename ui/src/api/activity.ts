@@ -14,6 +14,7 @@ export const ACTIVITY_KINDS = [
   "pipeline.error",
   "pipeline.restarted",
   "pipeline.run",
+  "pipeline.source-delete",
   "endpoint.traffic",
   "access.denied",
   "access.simulated",

@@ -1541,6 +1541,14 @@
         "lifetime_choice.test.tsx"
       ]
     },
+    "src/pages/pipelines/FlowMapView.tsx": {
+      "controls": {
+        "Button": 11
+      },
+      "tests": [
+        "flow_map.test.tsx"
+      ]
+    },
     "src/pages/pipelines/OutputMapper.tsx": {
       "controls": {
         "Button": 3

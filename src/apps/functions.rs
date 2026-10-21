@@ -12,7 +12,7 @@ use std::path::Path as FsPath;
 
 use axum::body::Bytes;
 use axum::extract::{Path, Query, State};
-use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode, Uri};
+use axum::http::{header, HeaderMap, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 
@@ -55,7 +55,7 @@ pub(super) async fn call(
         return not_found();
     }
     let token = edge_token(&state, &headers);
-    if token.is_some() && !crate::auth::csrf::is_allowed(&Method::POST, &headers) {
+    if token.is_some() && !crate::auth::csrf::double_submitted(&headers) {
         return ApiError::Forbidden.into_response();
     }
     let Some(root) = app_root(
