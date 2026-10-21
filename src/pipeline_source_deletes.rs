@@ -180,6 +180,10 @@ type Key = (String, String);
 struct Book {
     rows: BTreeMap<String, Row>,
     hold: Option<Hold>,
+    /// The last complete run and when it was judged.
+    complete: Option<(String, String)>,
+    /// What the pipeline deleted, oldest first, at most `REMOVALS_KEPT`.
+    removed: Vec<(String, Removal)>,
 }
 
 enum Inner {
@@ -440,6 +444,192 @@ impl Ledger {
     }
 }
 
+/// One entity a snapshot pipeline deleted because its source no longer listed it (T-4892): the
+/// tombstone's "removed at the source" as the pipeline's panel and the space say it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[schema(as = PipelineSourceRemoval)]
+pub struct Removal {
+    pub id: String,
+    pub pipeline: String,
+    pub run: String,
+    /// When the gateway confirmed the delete, RFC 3339.
+    pub at: String,
+    /// The `JC-Reason` the delete carried.
+    pub reason: String,
+}
+
+/// The removals the memory ledger keeps per pipeline; the database keeps `REMOVED_DAYS`.
+const REMOVALS_KEPT: usize = 1000;
+/// How long a removal is remembered.
+const REMOVED_DAYS: i32 = 400;
+
+impl Ledger {
+    /// Notes the last run that read the source completely (T-4892).
+    pub async fn completed(
+        &self,
+        project: &str,
+        pipeline: &str,
+        run: &str,
+    ) -> Result<(), sqlx::Error> {
+        if let Inner::Postgres(pool) = &self.inner {
+            sqlx::query(
+                "INSERT INTO pipeline_source_complete (project, pipeline, run) VALUES ($1, $2, $3) \
+                 ON CONFLICT (project, pipeline) DO UPDATE SET run = $3, at = now()",
+            )
+            .bind(project)
+            .bind(pipeline)
+            .bind(run)
+            .execute(pool)
+            .await?;
+            return Ok(());
+        }
+        if let Some(mut map) = self.memory() {
+            map.entry((project.to_owned(), pipeline.to_owned()))
+                .or_default()
+                .complete = Some((run.to_owned(), chrono::Utc::now().to_rfc3339()));
+        }
+        Ok(())
+    }
+
+    /// The last complete run and when it was judged.
+    pub async fn last_complete(
+        &self,
+        project: &str,
+        pipeline: &str,
+    ) -> Result<Option<(String, String)>, sqlx::Error> {
+        if let Inner::Postgres(pool) = &self.inner {
+            let row: Option<(String, time::OffsetDateTime)> = sqlx::query_as(
+                "SELECT run, at FROM pipeline_source_complete WHERE project = $1 AND pipeline = $2",
+            )
+            .bind(project)
+            .bind(pipeline)
+            .fetch_optional(pool)
+            .await?;
+            return Ok(row.map(|(run, at)| (run, crate::pipeline_log::rfc3339(at))));
+        }
+        let map = self.memory();
+        Ok(map
+            .as_ref()
+            .and_then(|map| map.get(&(project.to_owned(), pipeline.to_owned())))
+            .and_then(|book| book.complete.clone()))
+    }
+
+    /// Remembers the ids a delete stream removed from `space`, with the run that decided it.
+    pub async fn removed(
+        &self,
+        project: &str,
+        space: &str,
+        pipeline: &str,
+        run: &str,
+        ids: &[String],
+    ) -> Result<(), sqlx::Error> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+        if let Inner::Postgres(pool) = &self.inner {
+            let mut tx = pool.begin().await?;
+            sqlx::query(
+                "INSERT INTO pipeline_source_removed (project, space, entity_id, pipeline, run) \
+                 SELECT $1, $2, i, $3, $4 FROM UNNEST($5::text[]) AS t(i) \
+                 ON CONFLICT (project, space, entity_id) DO UPDATE SET pipeline = $3, run = $4, \
+                 at = now()",
+            )
+            .bind(project)
+            .bind(space)
+            .bind(pipeline)
+            .bind(run)
+            .bind(ids)
+            .execute(&mut *tx)
+            .await?;
+            sqlx::query(
+                "DELETE FROM pipeline_source_removed WHERE project = $1 \
+                 AND at < now() - make_interval(days => $2)",
+            )
+            .bind(project)
+            .bind(REMOVED_DAYS)
+            .execute(&mut *tx)
+            .await?;
+            return tx.commit().await;
+        }
+        if let Some(mut map) = self.memory() {
+            let book = map
+                .entry((project.to_owned(), pipeline.to_owned()))
+                .or_default();
+            let at = chrono::Utc::now().to_rfc3339();
+            for id in ids {
+                book.removed.retain(|(_, removal)| &removal.id != id);
+                let removal = Removal {
+                    id: id.clone(),
+                    pipeline: pipeline.to_owned(),
+                    run: run.to_owned(),
+                    at: at.clone(),
+                    reason: reason(pipeline, run),
+                };
+                book.removed.push((space.to_owned(), removal));
+            }
+            let over = book.removed.len().saturating_sub(REMOVALS_KEPT);
+            book.removed.drain(..over);
+        }
+        Ok(())
+    }
+
+    /// The newest removals, at most `limit`: of one pipeline, or of every pipeline in one space.
+    pub async fn removals(
+        &self,
+        project: &str,
+        of: RemovalsOf<'_>,
+        limit: usize,
+    ) -> Result<Vec<Removal>, sqlx::Error> {
+        let (pipeline, space) = match of {
+            RemovalsOf::Pipeline(name) => (Some(name), None),
+            RemovalsOf::Space(name) => (None, Some(name)),
+        };
+        if let Inner::Postgres(pool) = &self.inner {
+            let rows: Vec<(String, String, String, time::OffsetDateTime)> = sqlx::query_as(
+                "SELECT entity_id, pipeline, run, at FROM pipeline_source_removed \
+                 WHERE project = $1 AND ($2::text IS NULL OR pipeline = $2) \
+                 AND ($3::text IS NULL OR space = $3) ORDER BY at DESC, entity_id LIMIT $4",
+            )
+            .bind(project)
+            .bind(pipeline)
+            .bind(space)
+            .bind(i64::try_from(limit).unwrap_or(i64::MAX))
+            .fetch_all(pool)
+            .await?;
+            return Ok(rows
+                .into_iter()
+                .map(|(id, pipeline, run, at)| Removal {
+                    reason: reason(&pipeline, &run),
+                    id,
+                    pipeline,
+                    run,
+                    at: crate::pipeline_log::rfc3339(at),
+                })
+                .collect());
+        }
+        let map = self.memory();
+        let mut found: Vec<Removal> = map
+            .iter()
+            .flat_map(|map| map.iter())
+            .filter(|((p, name), _)| p == project && pipeline.is_none_or(|want| want == name))
+            .flat_map(|(_, book)| book.removed.iter())
+            .filter(|(at_space, _)| space.is_none_or(|want| want == at_space))
+            .map(|(_, removal)| removal.clone())
+            .collect();
+        found.sort_by(|a, b| b.at.cmp(&a.at).then_with(|| a.id.cmp(&b.id)));
+        found.truncate(limit);
+        Ok(found)
+    }
+}
+
+/// Whose removals [`Ledger::removals`] lists.
+#[derive(Debug, Clone, Copy)]
+pub enum RemovalsOf<'a> {
+    Pipeline(&'a str),
+    Space(&'a str),
+}
+
 async fn set_hold(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     project: &str,
@@ -539,15 +729,14 @@ async fn judge_and_delete(
 ) -> Result<(), sqlx::Error> {
     let ledger = &state.source_ledger;
     let (rows, _) = ledger.book(project, pipeline).await?;
-    let failed = state
+    let logged = state
         .pipeline_log
         .runs(project, pipeline, crate::pipeline_log::RUNS_KEPT)
         .await?
         .into_iter()
-        .find(|logged| logged.run == run)
-        .map(|logged| logged.failed);
+        .find(|logged| logged.run == run);
     // A run that did not finish or failed on a record read part of its source at best.
-    if !finished || failed.is_some_and(|failed| failed > 0) {
+    if !finished || logged.as_ref().is_some_and(|logged| logged.failed > 0) {
         let hold = Hold {
             run: run.to_owned(),
             reason: HoldReason::Incomplete,
@@ -556,10 +745,21 @@ async fn judge_and_delete(
         };
         return ledger.settle(project, pipeline, &[], Some(&hold)).await;
     }
+    let rejected = logged.map_or(0, |logged| logged.rejected);
+    crate::telemetry::pipeline_missing(
+        project,
+        pipeline,
+        usize::try_from(rejected).unwrap_or(usize::MAX),
+    );
     if rows.is_empty() {
-        return Ok(());
+        return ledger.completed(project, pipeline, run).await;
     }
     let (misses, verdict) = judge(&rows, run, rule);
+    if !matches!(&verdict, Verdict::Held(hold) if hold.reason == HoldReason::Empty) {
+        ledger.completed(project, pipeline, run).await?;
+    }
+    let orphans = misses.iter().filter(|(_, missed)| *missed > 0).count();
+    crate::telemetry::pipeline_orphans(project, pipeline, orphans);
     match verdict {
         Verdict::Held(hold) => ledger.settle(project, pipeline, &misses, Some(&hold)).await,
         Verdict::Delete(doomed) => {
@@ -582,14 +782,30 @@ pub fn doomed(rows: &BTreeMap<String, Row>, rule: &SourceDeletes) -> Vec<String>
         .collect()
 }
 
-/// The space and the Endpoint slug of the pipeline's first output.
-fn target(state: &AppState, project: &str, spec: &Value) -> Option<String> {
+/// The spec of the Endpoint the pipeline's first output writes through.
+fn output_endpoint(state: &AppState, project: &str, spec: &Value) -> Option<Value> {
     let spec: jc_core::kinds::PipelineSpec = serde_json::from_value(spec.clone()).ok()?;
     let output = spec.outputs().into_iter().next()?;
     let endpoint = state
         .mirror
         .get(project, "Endpoint", output.target_endpoint.local_id())?;
-    Some(endpoint.spec.get("slug")?.as_str()?.to_owned())
+    Some(endpoint.spec)
+}
+
+/// The Endpoint slug of the pipeline's first output.
+fn target(state: &AppState, project: &str, spec: &Value) -> Option<String> {
+    Some(
+        output_endpoint(state, project, spec)?
+            .get("slug")?
+            .as_str()?
+            .to_owned(),
+    )
+}
+
+/// The space the pipeline's first output writes into.
+pub fn space_of(state: &AppState, project: &str, spec: &Value) -> Option<String> {
+    let endpoint = output_endpoint(state, project, spec)?;
+    crate::api::assistant::ref_name(endpoint.get("contextSpaceRef")?)
 }
 
 /// Hands the runner the stream that deletes `ids` (PL-97): through the output Endpoint, as the
@@ -772,11 +988,22 @@ pub async fn reported(
         .cloned()
         .collect();
     state.source_ledger.forget(project, pipeline, &left).await?;
-    let deleted: Vec<&String> = report
+    let deleted: Vec<String> = report
         .deleted
         .iter()
         .filter(|id| rows.contains_key(*id))
+        .cloned()
         .collect();
+    let space = state
+        .mirror
+        .get(project, "Pipeline", pipeline)
+        .and_then(|p| space_of(state, project, &p.spec));
+    if let Some(space) = space {
+        state
+            .source_ledger
+            .removed(project, &space, pipeline, &report.run, &deleted)
+            .await?;
+    }
     let failed: Vec<String> = report
         .failed
         .iter()
@@ -840,10 +1067,82 @@ pub struct Overview {
     pub due: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hold: Option<Hold>,
+    /// The space the pipeline writes into.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub space: Option<String>,
+    /// The last run that read the source completely: the source side of the report (T-4892).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_complete: Option<CompleteRun>,
+    /// In the space, gone at the source: ids at least one complete run in a row did not read.
+    pub orphans: usize,
+    pub orphan_ids: Vec<String>,
+    /// At the source, not in the space: records the last complete run read and the model refused.
+    pub missing: usize,
+    pub missing_ids: Vec<String>,
+    /// The newest entities the pipeline deleted because its source dropped them.
+    pub removed: Vec<Removal>,
+}
+
+/// The last run that read the source completely.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[schema(as = PipelineSourceCompleteRun)]
+pub struct CompleteRun {
+    pub run: String,
+    /// When the run was judged, RFC 3339.
+    pub at: String,
+    /// The records the run read: written and refused.
+    pub read: u64,
 }
 
 /// The most ids each list of the overview names.
 const LISTED: usize = 200;
+
+/// The pipeline's report: the ledger and its dry run beside what the last complete run read,
+/// what it could not write and what the pipeline deleted (T-4892). Ids only.
+pub async fn report(
+    state: &AppState,
+    project: &str,
+    pipeline: &str,
+    spec: &Value,
+    rule: &SourceDeletes,
+) -> Result<Overview, sqlx::Error> {
+    let ledger = &state.source_ledger;
+    let (rows, hold) = ledger.book(project, pipeline).await?;
+    let mut report = overview(&rows, hold, rule);
+    report.space = space_of(state, project, spec);
+    report.removed = ledger
+        .removals(project, RemovalsOf::Pipeline(pipeline), LISTED)
+        .await?;
+    let Some((run, at)) = ledger.last_complete(project, pipeline).await? else {
+        return Ok(report);
+    };
+    let log = &state.pipeline_log;
+    let read = log
+        .runs(project, pipeline, crate::pipeline_log::RUNS_KEPT)
+        .await?
+        .into_iter()
+        .find(|logged| logged.run == run)
+        .map_or(0, |logged| logged.sent + logged.rejected);
+    let lines = log
+        .lines(
+            project,
+            pipeline,
+            &run,
+            crate::pipeline_log::LINES_KEPT,
+            None,
+        )
+        .await?;
+    let missing: std::collections::BTreeSet<String> = lines
+        .into_iter()
+        .filter(|line| line.outcome == crate::pipeline_log::Outcome::Rejected)
+        .map(|line| line.record_id)
+        .collect();
+    report.missing = missing.len();
+    report.missing_ids = missing.into_iter().take(LISTED).collect();
+    report.last_complete = Some(CompleteRun { run, at, read });
+    Ok(report)
+}
 
 pub fn overview(
     rows: &BTreeMap<String, Row>,
@@ -866,6 +1165,18 @@ pub fn overview(
         next: at(rule.misses() - 1),
         due: at(rule.misses()),
         hold,
+        space: None,
+        last_complete: None,
+        orphans: rows.values().filter(|row| row.misses > 0).count(),
+        orphan_ids: rows
+            .iter()
+            .filter(|(_, row)| row.misses > 0)
+            .map(|(id, _)| id.clone())
+            .take(LISTED)
+            .collect(),
+        missing: 0,
+        missing_ids: Vec::new(),
+        removed: Vec::new(),
     }
 }
 

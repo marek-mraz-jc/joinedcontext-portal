@@ -28,7 +28,7 @@ fn id(n: usize) -> String {
     format!("urn:ngsi-ld:Dataset:hel.fi:open:ds-{n}")
 }
 
-/// `jana` may approve pipelines, `eva` only reads; `registry` harvests a catalogue every night
+/// `jana` may approve pipelines and reads the space `open`, `eva` only reads pipelines; `registry` harvests a catalogue every night
 /// and deletes what two complete runs in a row no longer list, at most `max_share` percent.
 async fn world(max_share: u8) -> (AppState, MockServer) {
     let runner = MockServer::start().await;
@@ -70,6 +70,25 @@ async fn world(max_share: u8) -> (AppState, MockServer) {
             }),
         ));
     }
+    state.mirror.upsert(envelope(
+        "Role",
+        "space-reader",
+        ORG_NAMESPACE,
+        json!({ "rules": [{ "kinds": ["ContextSpace"], "verbs": ["read"] }] }),
+    ));
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "jana-space-reader",
+        ORG_NAMESPACE,
+        json!({
+            "subjects": [{ "user": "jana@hel.fi" }],
+            "role": "space-reader",
+            "scope": { "project": "helsinki" },
+        }),
+    ));
+    state
+        .mirror
+        .upsert(envelope("ContextSpace", "open", "helsinki", json!({})));
     state.mirror.upsert(envelope(
         "Endpoint",
         "open-write",
@@ -234,6 +253,87 @@ async fn three_of_fifty_dropped_are_deleted_after_two_complete_runs_with_the_rea
                 && event.summary.contains("deleted 2 entities")),
         "{feed:?}"
     );
+
+    // The report (T-4892): the source read 47 at r3, nothing orphaned any more, the two deletes
+    // with their reason, and the space says the same of each tombstone.
+    let report = send(&state, person("eva"), "GET", PAGE, None).await;
+    let report: Value = serde_json::from_str(&report.text).expect("json");
+    assert_eq!(report["lastComplete"]["run"], "r3");
+    assert_eq!(report["lastComplete"]["read"], 47);
+    assert_eq!(
+        (report["ledger"].clone(), report["orphans"].clone()),
+        (json!(47), json!(0))
+    );
+    assert_eq!(report["space"], "open");
+    let removed: Vec<&str> = report["removed"]
+        .as_array()
+        .expect("removed")
+        .iter()
+        .map(|r| r["id"].as_str().unwrap_or_default())
+        .collect();
+    assert_eq!(removed, [id(17), id(4)]);
+    assert_eq!(
+        report["removed"][0]["reason"],
+        "source-snapshot: pipeline registry run r3"
+    );
+    let space = send(
+        &state,
+        person("jana"),
+        "GET",
+        "/api/v1/projects/helsinki/spaces/open/source-removals",
+        None,
+    )
+    .await;
+    assert_eq!(space.status, StatusCode::OK, "{}", space.text);
+    let space: Value = serde_json::from_str(&space.text).expect("json");
+    assert_eq!(space.as_array().map(Vec::len), Some(2));
+    assert_eq!(space[0]["pipeline"], "registry");
+    assert_eq!(space[0]["run"], "r3");
+}
+
+#[tokio::test]
+async fn the_report_counts_orphans_and_the_records_the_model_refused() {
+    let (state, _runner) = world(10).await;
+    run(&state, "registry", "r1", &without(&[]), 0, true).await;
+    // r2: the source lists 47 of them and one record the model refuses, so it is not in the space.
+    let refused = NewLine {
+        record_id: "urn:ngsi-ld:Dataset:hel.fi:open:bad".to_owned(),
+        step: None,
+        outcome: Outcome::Rejected,
+        message: "name is required".to_owned(),
+    };
+    state
+        .pipeline_log
+        .append("helsinki", "registry", "r2", &[refused])
+        .await
+        .expect("log");
+    run(&state, "registry", "r2", &without(&[4, 17, 33]), 0, true).await;
+    let report = send(&state, person("eva"), "GET", PAGE, None).await;
+    assert_eq!(report.status, StatusCode::OK, "{}", report.text);
+    let report: Value = serde_json::from_str(&report.text).expect("json");
+    assert_eq!(report["orphans"], 3);
+    assert_eq!(report["orphanIds"], json!([id(17), id(33), id(4)]));
+    assert_eq!(report["missing"], 1);
+    assert_eq!(
+        report["missingIds"],
+        json!(["urn:ngsi-ld:Dataset:hel.fi:open:bad"])
+    );
+    assert_eq!(report["lastComplete"]["read"], 48);
+}
+
+#[tokio::test]
+async fn a_space_the_caller_cannot_read_lists_no_removal() {
+    // eva reads the pipeline but not the space it writes: its tombstones stay out of her sight.
+    let (state, _runner) = world(10).await;
+    let other = send(
+        &state,
+        person("eva"),
+        "GET",
+        "/api/v1/projects/helsinki/spaces/open/source-removals",
+        None,
+    )
+    .await;
+    assert_eq!(other.status, StatusCode::NOT_FOUND, "{}", other.text);
 }
 
 #[tokio::test]

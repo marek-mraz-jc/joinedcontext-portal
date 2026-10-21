@@ -81,6 +81,12 @@ const MODEL_KEY_REMAINING: &str = "jc_model_key_remaining";
 
 /// Run-and-delete pipelines waiting in the run queue, by lane (PL-78).
 const PIPELINE_QUEUE_DEPTH: &str = "jc_pipeline_queue_depth";
+/// Entities a snapshot pipeline wrote that its last complete run no longer read, by project and
+/// pipeline (T-4892): in the space, gone at the source.
+const PIPELINE_ORPHANS: &str = "jc_pipeline_orphans";
+/// Records the last complete run read that the model refused, by project and pipeline (T-4892):
+/// at the source, not in the space.
+const PIPELINE_MISSING: &str = "jc_pipeline_missing";
 /// Seconds one queued pipeline run held the runner, by outcome (PL-78).
 const PIPELINE_RUN_SECONDS: &str = "jc_pipeline_run_seconds";
 /// Up to the 15 min a run may take.
@@ -244,6 +250,24 @@ pub fn pipeline_queue_depth(lane: &'static str, waiting: usize) {
     metrics::gauge!(PIPELINE_QUEUE_DEPTH, "lane" => lane).set(waiting as f64);
 }
 
+/// A snapshot pipeline's orphans after its last complete run (T-4892).
+pub fn pipeline_orphans(project: &str, pipeline: &str, orphans: usize) {
+    let labels = [
+        ("project", project.to_owned()),
+        ("pipeline", pipeline.to_owned()),
+    ];
+    metrics::gauge!(PIPELINE_ORPHANS, &labels).set(orphans as f64);
+}
+
+/// A snapshot pipeline's records missing from the space after its last complete run (T-4892).
+pub fn pipeline_missing(project: &str, pipeline: &str, missing: usize) {
+    let labels = [
+        ("project", project.to_owned()),
+        ("pipeline", pipeline.to_owned()),
+    ];
+    metrics::gauge!(PIPELINE_MISSING, &labels).set(missing as f64);
+}
+
 /// One queued pipeline run ended: `finished`, `failed` or `timeout` (PL-78).
 pub fn pipeline_run(outcome: &'static str, seconds: f64) {
     metrics::histogram!(PIPELINE_RUN_SECONDS, "outcome" => outcome).record(seconds);
@@ -403,6 +427,24 @@ mod agent_series_tests {
         }
         assert!(!text.contains("secret/model-name") && !text.contains("rm -rf"));
         assert!(!text.contains("made-up-kind"));
+    }
+
+    /// T-4892: a snapshot pipeline's orphans and missing records, under the names the alerts read.
+    #[test]
+    fn the_reconciliation_gauges_carry_the_project_and_the_pipeline() {
+        super::install();
+        super::pipeline_orphans("helsinki", "registry", 3);
+        super::pipeline_missing("helsinki", "registry", 1);
+        super::pipeline_orphans("helsinki", "registry", 0);
+        let text = super::handle().render();
+        assert!(
+            text.contains("jc_pipeline_orphans{project=\"helsinki\",pipeline=\"registry\"} 0"),
+            "{text}"
+        );
+        assert!(
+            text.contains("jc_pipeline_missing{project=\"helsinki\",pipeline=\"registry\"} 1"),
+            "{text}"
+        );
     }
 
     /// T-3065, AG-96: the model key's gauges exist under the names the alerts read; a figure the

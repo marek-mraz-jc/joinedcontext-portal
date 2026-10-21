@@ -376,7 +376,7 @@ fn clean(text: &str) -> String {
     crate::pipeline_outcomes::mask_text(&short)
 }
 
-fn rfc3339(at: time::OffsetDateTime) -> String {
+pub(crate) fn rfc3339(at: time::OffsetDateTime) -> String {
     at.format(&time::format_description::well_known::Rfc3339)
         .unwrap_or_default()
 }

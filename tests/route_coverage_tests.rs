@@ -216,6 +216,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/projects/{project}/knowledge/conversations/{conversation}", "one stored conversation with its steps, from jc-assistant's store (API/01 §34, T-4670)"),
 ("DELETE", "/projects/{project}/knowledge/conversations/{conversation}", "erases one stored conversation in jc-assistant for a visitor's request (API/01 §34, T-4670)"),
 ("GET", "/projects/{project}/knowledge/conversations/{conversation}/turns/{turn}/same", "the stored turns of one question, from jc-assistant's store, to compare two answers (API/01 §34, T-4681)"),
+("GET", "/projects/{project}/spaces/{space}/source-removals", "what snapshot pipelines deleted from a space because their source dropped it, ids and reasons only (T-4892, PL-100); an agent reads a pipeline's report with jc_pipeline_metrics"),
 ("GET", "/projects/{project}/spaces/{space}/trash", "the caller's own copies of what they deleted from a data view: a person's record in the Portal's database, not a manifest (API/01 §31, T-3107)"),
 ("POST", "/projects/{project}/spaces/{space}/trash", "keeps the caller's copy of an entity they are about to delete through the gateway: the delete itself is their gateway write (API/01 §31)"),
 ("DELETE", "/projects/{project}/spaces/{space}/trash/{id}", "forgets one of the caller's copies after a restore or a refused delete (API/01 §31)"),
