@@ -87,6 +87,8 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await page.setViewportSize({ width, height });
     await stubApi(page);
     await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
+    // The grid keeps Import under its toolbar's "More" panel (T-4883).
+    await page.locator("summary", { hasText: /^More$/ }).click();
     await page.getByRole("button", { name: "Import rows" }).click();
     const dialog = page.getByRole("dialog", { name: `Import rows into ${TYPE}` });
     const input = dialog.locator("input[type=file]");
