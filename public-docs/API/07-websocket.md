@@ -45,7 +45,7 @@ Every message, in both directions, is one text frame holding one JSON object wit
 | `x-result` | server | the created or updated Subscription, or a ProblemDetails; `metadata.x-status` is the HTTP status the same request would get over REST, `x-id` echoes yours |
 | `x-notification` | server | the NGSI-LD Notification (TS 104 175 §5.2.6.9.1), the same body an HTTP subscriber would receive; `metadata.x-seq` counts from 1 per connection |
 | `x-gap` | server | none; notifications `x-from` to `x-to` were lost, so read the entities again over REST |
-| `x-closing` | server, before it closes | none; `x-reason` is `lifetime`, `overflow`, `view-removed`, `shutdown` or `idle` |
+| `x-closing` | server, before it closes | none; `x-reason` is `lifetime`, `overflow`, `view-removed`, `shutdown`, `idle` or `rate` |
 
 A Subscription made over the socket lives on that connection only. The gateway serves your sockets of an Endpoint from one broker subscription made as you, which the Endpoint's Policy decides as a read, and matches your filters itself ([ADR-N-049](../Decisions/adr-n-049-websocket-fan-out-per-endpoint.md)), so `GET {endpointUrl}/ngsi-ld/v1/subscriptions` does not list it. It ends 30 seconds after the connection closes unless you resume. Keep its id from `x-result`; it is the `x-subscription` of every `x-update` and `x-unsubscribe`.
 
@@ -55,10 +55,13 @@ A notification carries only the attributes your grant reads. A change to an attr
 
 | Limit | Value | When exceeded |
 |---|---|---|
+| Open connections per client address, at the edge | 50 | the upgrade answers `429` |
 | Connections per caller (token subject, or client address when anonymous) | 10 | the upgrade answers `429` |
 | Connections per Endpoint's space | 1 000 (an installation may set fewer) | the upgrade answers `503` |
+| Endpoint fan-outs (Endpoint and caller identity, each one broker connection) per gateway replica | 64, at most 32 per space (an installation may set others) | a fan-out without a client gives way; when every one has a client, the upgrade answers `503` [`fan-out-full`](09-errors.md#fan-out-full) |
 | Subscriptions per connection | 64 (an installation may set fewer) | `x-result` with `x-status: 400` |
 | Message you send | 64 KiB (16 KiB per frame) | the connection closes with code `1009` |
+| Frames you send (messages, Pings and Pongs) | 100 at once, then 20 a second | `x-closing: rate`, then the connection closes with code `1008` |
 | Message the server sends | one entity per notification, up to 1 MiB | the gateway does not read the change, and every socket of the Endpoint gets `x-gap` |
 | Idle time (no message and no Subscription) | 60 s | `x-closing: idle` |
 | Unread notifications queued | 256 (an installation may set fewer) | `x-gap`, then `x-closing: overflow` |
