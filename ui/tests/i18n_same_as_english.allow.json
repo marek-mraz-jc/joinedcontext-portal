@@ -97,7 +97,9 @@
     "/min",
     "MQTT",
     "Agent",
-    "MCP server"
+    "MCP server",
+    "OGC Features",
+    "OData"
   ],
   "cs": [
     "@context",
@@ -194,7 +196,9 @@
     "/min",
     "MQTT",
     "Agent",
-    "MCP server"
+    "MCP server",
+    "OGC Features",
+    "OData"
   ],
   "de": [
     "@context",
@@ -326,6 +330,8 @@
     "+ Debug",
     "debug",
     "MQTT",
-    "Tokens"
+    "Tokens",
+    "OGC Features",
+    "OData"
   ]
 }
