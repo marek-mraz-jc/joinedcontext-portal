@@ -89,10 +89,10 @@ spec:
     roles[].publish:
       placeholder: cameras/${clientid}/frames
       help:
-        en: Topics the role may publish to; ${clientid} stands for the device's own id, + for one level, # for every level below.
-        sk: Témy, do ktorých smie rola publikovať; ${clientid} je vlastné id zariadenia, + jedna úroveň, # všetky úrovne pod ňou.
-        cs: Témata, do kterých smí role publikovat; ${clientid} je vlastní id zařízení, + jedna úroveň, # všechny úrovně pod ní.
-        de: Topics, in die die Rolle veröffentlichen darf; ${clientid} ist die eigene ID des Geräts, + eine Ebene, # alle Ebenen darunter.
+        en: "Topics the role may publish to; ${clientid} stands for the device's own id, + for one level, # for every level below."
+        sk: "Témy, do ktorých smie rola publikovať; ${clientid} je vlastné id zariadenia, + jedna úroveň, # všetky úrovne pod ňou."
+        cs: "Témata, do kterých smí role publikovat; ${clientid} je vlastní id zařízení, + jedna úroveň, # všechny úrovně pod ní."
+        de: "Topics, in die die Rolle veröffentlichen darf; ${clientid} ist die eigene ID des Geräts, + eine Ebene, # alle Ebenen darunter."
     roles[].subscribe:
       help:
         en: Topics the role may subscribe to, only under the device's own ${clientid}.

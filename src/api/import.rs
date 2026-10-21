@@ -1972,6 +1972,13 @@ fn authorize(
                     .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))?;
                 effective.check(&envelope.kind, jc_core::kinds::Verb::Propose, Some(&raw))?;
                 crate::permissions::within_own_rights(state, identity, &raw, "proposer")?;
+                crate::pipeline_rights::check(
+                    state,
+                    identity,
+                    project,
+                    &raw,
+                    jc_core::kinds::Verb::Propose,
+                )?;
                 // PF-84, AP-14a, AP-114, AP-115: the same refusals as the single-manifest door.
                 crate::spaces::check(
                     state,
