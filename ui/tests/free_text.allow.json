@@ -1,0 +1,376 @@
+{
+  "$comment": "T-4945: text boxes whose label names a picked thing (tests/free_text.ts PICKED) or cannot be read, each with why it stays a box. FREE stays; REF, ENUM and SUGGEST with a task are waiting for that task, which removes the entry. rule: the server rule that decides which values a person may pick.",
+  "fields": {
+    "src/assistant/AssistantDock.tsx :: Ask the assistant": {
+      "class": "FREE",
+      "reason": "a question in prose"
+    },
+    "src/assistant/EndpointPicker.tsx :: Search endpoints": {
+      "class": "FREE",
+      "reason": "a search box: the text filters a list on the page, the list itself is the choice"
+    },
+    "src/components/DeleteProjectDialog.tsx :: Type {name} to confirm": {
+      "class": "FREE",
+      "reason": "typing the name is the confirmation itself (GitHub-style guard)"
+    },
+    "src/components/DeleteResourceDialog.tsx :: Type {name} to confirm": {
+      "class": "FREE",
+      "reason": "typing the name is the confirmation itself"
+    },
+    "src/components/DuplicateProjectDialog.tsx :: (no label)": {
+      "class": "FREE",
+      "reason": "the name of the new project being created"
+    },
+    "src/components/ImportProjectDialog.tsx :: (no label)": {
+      "class": "FREE",
+      "reason": "a template parameter without an enum; one with an enum is already a Select beside it"
+    },
+    "src/components/entities/EntityFilters.tsx :: (no label)": {
+      "class": "FREE",
+      "reason": "the value of a filter row (a number, a date, a text) compared against an attribute"
+    },
+    "src/components/entities/EntityFilters.tsx :: Attribute": {
+      "class": "REF",
+      "reason": "an attribute of the filtered type: typed today",
+      "task": "T-4946",
+      "rule": "list: the attributes of the chosen type in the space model (AttributeSuggest, filterSlotsOf); submit: the Policy's propertyNames/relationshipNames and the model check refuse an attribute outside them"
+    },
+    "src/components/entities/EntityFilters.tsx :: Entity type": {
+      "class": "REF",
+      "reason": "an entity type of the space: typed today",
+      "task": "T-4946",
+      "rule": "list: the space's DataModel types and imports (TypePickerWidget reads GET /api/v1/projects/{project}/datamodels, may_read DataModel); submit: the Endpoint's Policy (jc-core policy check) and the space model refuse a type outside them"
+    },
+    "src/components/entities/EntityFilters.tsx :: Scope": {
+      "class": "FREE",
+      "reason": "an NGSI-LD scopeQ expression (/city/#)"
+    },
+    "src/components/forms/theme.tsx :: (no label)": {
+      "class": "FREE",
+      "reason": "rjsf's base text and textarea templates: the field's own picker comes from REFERENCE_PICKERS (tests/reference_pickers.test.ts gates it)"
+    },
+    "src/components/forms/widgets/EntityPicker.tsx :: (no label)": {
+      "class": "FREE",
+      "reason": "the search box inside the entity picker"
+    },
+    "src/components/forms/widgets/IcalMappingField.tsx :: (no label)": {
+      "class": "SUGGEST",
+      "reason": "already a combobox: the feed's fields offered through a datalist, free entry kept"
+    },
+    "src/components/forms/widgets/IcalMappingField.tsx :: Type it maps": {
+      "class": "REF",
+      "reason": "the entity type an iCal feed maps to: typed today",
+      "task": "T-4947",
+      "rule": "list: the space's DataModel types and imports (TypePickerWidget reads GET /api/v1/projects/{project}/datamodels, may_read DataModel); submit: the Endpoint's Policy (jc-core policy check) and the space model refuse a type outside them"
+    },
+    "src/components/forms/widgets/SuggestWidgets.tsx :: (no label)": {
+      "class": "FREE",
+      "reason": "the shared suggest widget itself (datalist of the existing choices)"
+    },
+    "src/components/pickers/Combobox.tsx :: (no label)": {
+      "class": "FREE",
+      "reason": "the shared combobox's own search box"
+    },
+    "src/components/ui/Input.tsx :: (no label)": {
+      "class": "FREE",
+      "reason": "the Input and Textarea primitives"
+    },
+    "src/pages/access/AccessExplorer.tsx :: Search people": {
+      "class": "FREE",
+      "reason": "a search box: the text filters a list on the page, the list itself is the choice"
+    },
+    "src/pages/access/AccessExplorer.tsx :: policies.try.kinds.${kind}": {
+      "class": "REF",
+      "reason": "a group or role name to explore: typed today",
+      "task": "T-4947",
+      "rule": "list: the organization's groups (groups.rs) and roles the caller holds; submit: RoleBinding Effective::check(RoleBinding, Propose); a role above the caller's own is refused (PF-68)"
+    },
+    "src/pages/access/GroupPage.tsx :: E-mail of the person": {
+      "class": "REF",
+      "reason": "a person: a datalist suggests people, any text is still taken",
+      "task": "T-4947",
+      "rule": "list: GET /api/v1/organization/people (people.rs list_people, organization admin); submit: groups::check and the RoleBinding door (Effective::check RoleBinding Propose) refuse an unknown person"
+    },
+    "src/pages/access/RoleBindings.tsx :: Group name": {
+      "class": "REF",
+      "reason": "the subject of a binding (person or group): a datalist suggests people, any text is still taken",
+      "task": "T-4947",
+      "rule": "list: the organization's groups (groups.rs) and roles the caller holds; submit: RoleBinding Effective::check(RoleBinding, Propose); a role above the caller's own is refused (PF-68)"
+    },
+    "src/pages/apps/AppGenerator.tsx :: App name": {
+      "class": "FREE",
+      "reason": "the name of the new App"
+    },
+    "src/pages/apps/AppGenerator.tsx :: Only this application role may write (optional)": {
+      "class": "REF",
+      "reason": "an application role of the App: typed today",
+      "task": "T-4948",
+      "rule": "list: the App's own roles (App manifest spec.roles); submit: the App door (apps::names::check) refuses a role the App does not declare"
+    },
+    "src/pages/apps/AppGenerator.tsx :: What should the app do?": {
+      "class": "FREE",
+      "reason": "a prompt in prose"
+    },
+    "src/pages/apps/ConversationPanel.tsx :: Tell the assistant what to build or change…": {
+      "class": "FREE",
+      "reason": "a prompt in prose"
+    },
+    "src/pages/apps/NewEndpointPanel.tsx :: Endpoint name": {
+      "class": "FREE",
+      "reason": "the name of the new Endpoint"
+    },
+    "src/pages/catalogue/PublishDataset.tsx :: Keywords": {
+      "class": "SUGGEST",
+      "reason": "keywords: the catalogue's existing tags should be offered, free entry kept",
+      "task": "T-4948"
+    },
+    "src/pages/catalogue/PublishDataset.tsx :: Publisher": {
+      "class": "SUGGEST",
+      "reason": "the publisher: the catalogue's publisher facet should be offered, free entry kept",
+      "task": "T-4948"
+    },
+    "src/pages/ckan/CkanPage.tsx :: Default organization": {
+      "class": "REF",
+      "reason": "a CKAN organization of the instance: typed today",
+      "task": "T-4948",
+      "rule": "list: the CKAN instance's organizations the instance token may publish to; submit: CKAN refuses an owner_org the token does not hold, the Portal names the field"
+    },
+    "src/pages/datasources/TemplateGallery.tsx :: datasources.template.${picked.id}.url": {
+      "class": "FREE",
+      "reason": "the address of an outside feed"
+    },
+    "src/pages/endpoints/EndpointPage.tsx :: Geometry attribute": {
+      "class": "REF",
+      "reason": "a GeoProperty of the Endpoint's types: typed today",
+      "task": "T-4947",
+      "rule": "list: the attributes of the chosen type in the space model (AttributeSuggest, filterSlotsOf); submit: the Policy's propertyNames/relationshipNames and the model check refuse an attribute outside them"
+    },
+    "src/pages/endpoints/EndpointPage.tsx :: endpoints.area.${corner}": {
+      "class": "FREE",
+      "reason": "a coordinate of the bounding box"
+    },
+    "src/pages/endpoints/EndpointPage.tsx :: endpoints.filter.${key}": {
+      "class": "FREE",
+      "reason": "an NGSI-LD q, scopeQ, geoQ or temporalQ expression"
+    },
+    "src/pages/endpoints/ModelPicker.tsx :: Scope": {
+      "class": "SUGGEST",
+      "reason": "an NGSI-LD scope: the space's scopes should be offered, free entry kept",
+      "task": "T-4947"
+    },
+    "src/pages/endpoints/Playground.tsx :: Entity type": {
+      "class": "REF",
+      "reason": "an entity type the Endpoint serves: typed today",
+      "task": "T-4947",
+      "rule": "list: the space's DataModel types and imports (TypePickerWidget reads GET /api/v1/projects/{project}/datamodels, may_read DataModel); submit: the Endpoint's Policy (jc-core policy check) and the space model refuse a type outside them"
+    },
+    "src/pages/endpoints/SchemaProjectionPanel.tsx :: Hide an attribute by name": {
+      "class": "REF",
+      "reason": "an attribute of the projected types: typed today",
+      "task": "T-4947",
+      "rule": "list: the attributes of the chosen type in the space model (AttributeSuggest, filterSlotsOf); submit: the Policy's propertyNames/relationshipNames and the model check refuse an attribute outside them"
+    },
+    "src/pages/import/ImportPage.tsx :: Organisation domain": {
+      "class": "SUGGEST",
+      "reason": "the domain URNs are minted under: the organization's verified domains should be offered",
+      "task": "T-4946"
+    },
+    "src/pages/inbox/InboxPage.tsx :: For red lane, type the resource name to confirm:": {
+      "class": "FREE",
+      "reason": "typing the name is the confirmation itself"
+    },
+    "src/pages/knowledge/ConversationsPage.tsx :: Assistant": {
+      "class": "REF",
+      "reason": "filters conversations by assistant deployment: typed today",
+      "task": "T-4948",
+      "rule": "list: GET /api/v1/projects/{project}/assistantdeployments (may_read AssistantDeployment); filter only, no write"
+    },
+    "src/pages/mcp/ConnectorsPage.tsx :: connectors.field.${field}": {
+      "class": "REF",
+      "reason": "projects, spaces, domains and themes a connector reads, comma separated: typed today",
+      "task": "T-4948",
+      "rule": "list: GET /api/v1/projects (projects.rs list_projects, the caller's bindings only); submit: the connector/MCP save re-checks each project exists and the caller may read it"
+    },
+    "src/pages/mcp/McpServerDialog.tsx :: Find an Endpoint": {
+      "class": "FREE",
+      "reason": "a search box: the text filters a list on the page, the list itself is the choice"
+    },
+    "src/pages/mcp/McpServerDialog.tsx :: Projects it admits": {
+      "class": "REF",
+      "reason": "projects, comma separated: typed today",
+      "task": "T-4948",
+      "rule": "list: GET /api/v1/projects (projects.rs list_projects, the caller's bindings only); submit: the connector/MCP save re-checks each project exists and the caller may read it"
+    },
+    "src/pages/models/LinkmlVisualEditor.tsx :: New type": {
+      "class": "FREE",
+      "reason": "the name of a new class"
+    },
+    "src/pages/models/SmartDataModelsImport.tsx :: Attribute name": {
+      "class": "FREE",
+      "reason": "the new name of an imported attribute"
+    },
+    "src/pages/models/SmartDataModelsImport.tsx :: Find an attribute": {
+      "class": "FREE",
+      "reason": "a search box: the text filters a list on the page, the list itself is the choice"
+    },
+    "src/pages/models/SmartDataModelsImport.tsx :: Search models and attributes": {
+      "class": "FREE",
+      "reason": "a search box: the text filters a list on the page, the list itself is the choice"
+    },
+    "src/pages/organization/OrganizationApplications.tsx :: Name in the project": {
+      "class": "FREE",
+      "reason": "the name the new application gets in the project"
+    },
+    "src/pages/organization/People.tsx :: Search people": {
+      "class": "FREE",
+      "reason": "a search box: the text filters a list on the page, the list itself is the choice"
+    },
+    "src/pages/organization/People.tsx :: organization.people.form.${key}": {
+      "class": "FREE",
+      "reason": "e-mail, first and last name of a new person"
+    },
+    "src/pages/pipelines/AccessRequests.tsx :: Attributes": {
+      "class": "REF",
+      "reason": "attributes of the requested type, comma separated: typed today",
+      "task": "T-4946",
+      "rule": "list: the attributes of the chosen type in the space model (AttributeSuggest, filterSlotsOf); submit: the Policy's propertyNames/relationshipNames and the model check refuse an attribute outside them"
+    },
+    "src/pages/pipelines/AccessRequests.tsx :: Endpoint": {
+      "class": "REF",
+      "reason": "an Endpoint of the owning project: typed today",
+      "task": "T-4946",
+      "rule": "list: GET /api/v1/projects/{project}/endpoints of the owning project as the caller may read them (cross-project: the Endpoint's admitted projects); submit: access_requests.rs refuses an Endpoint that does not admit the requesting project"
+    },
+    "src/pages/pipelines/AccessRequests.tsx :: Entity type": {
+      "class": "REF",
+      "reason": "a type the Endpoint serves: typed today",
+      "task": "T-4946",
+      "rule": "list: the space's DataModel types and imports (TypePickerWidget reads GET /api/v1/projects/{project}/datamodels, may_read DataModel); submit: the Endpoint's Policy (jc-core policy check) and the space model refuse a type outside them"
+    },
+    "src/pages/pipelines/AccessRequests.tsx :: Owning project": {
+      "class": "REF",
+      "reason": "another project: typed today",
+      "task": "T-4946",
+      "rule": "list: GET /api/v1/projects (projects.rs list_projects, the caller's bindings only); submit: the connector/MCP save re-checks each project exists and the caller may read it"
+    },
+    "src/pages/pipelines/AccessRequests.tsx :: Why the pipeline needs it": {
+      "class": "FREE",
+      "reason": "a reason in prose"
+    },
+    "src/pages/pipelines/PipelineFlow.tsx :: Attribute filter": {
+      "class": "FREE",
+      "reason": "an NGSI-LD q expression"
+    },
+    "src/pages/pipelines/PipelineFlow.tsx :: Attributes": {
+      "class": "REF",
+      "reason": "attributes of the source type, comma separated: typed today",
+      "task": "T-4946",
+      "rule": "list: the attributes of the chosen type in the space model (AttributeSuggest, filterSlotsOf); submit: the Policy's propertyNames/relationshipNames and the model check refuse an attribute outside them"
+    },
+    "src/pages/pipelines/PipelineStudio.tsx :: Mapping on the compute node": {
+      "class": "FREE",
+      "reason": "a Bloblang program"
+    },
+    "src/pages/pipelines/PipelineStudio.tsx :: studio-aggregate-attribute": {
+      "class": "REF",
+      "reason": "an attribute to aggregate: typed today",
+      "task": "T-4946",
+      "rule": "list: the attributes of the chosen type in the space model (AttributeSuggest, filterSlotsOf); submit: the Policy's propertyNames/relationshipNames and the model check refuse an attribute outside them"
+    },
+    "src/pages/pipelines/PipelineStudio.tsx :: studio-kpi-attribute": {
+      "class": "REF",
+      "reason": "the attribute a KPI reads: typed today",
+      "task": "T-4946",
+      "rule": "list: the attributes of the chosen type in the space model (AttributeSuggest, filterSlotsOf); submit: the Policy's propertyNames/relationshipNames and the model check refuse an attribute outside them"
+    },
+    "src/pages/pipelines/PipelineWorkbench.tsx :: Bloblang mapping": {
+      "class": "FREE",
+      "reason": "a Bloblang program"
+    },
+    "src/pages/pipelines/PipelineWorkbench.tsx :: Mapping file (bento.yaml)": {
+      "class": "FREE",
+      "reason": "a Bento configuration file"
+    },
+    "src/pages/pipelines/RecipeGallery.tsx :: Attribute to average": {
+      "class": "REF",
+      "reason": "an attribute of the chosen type: typed today",
+      "task": "T-4946",
+      "rule": "list: the attributes of the chosen type in the space model (AttributeSuggest, filterSlotsOf); submit: the Policy's propertyNames/relationshipNames and the model check refuse an attribute outside them"
+    },
+    "src/pages/pipelines/RecipeGallery.tsx :: Entity type": {
+      "class": "REF",
+      "reason": "an entity type: typed today",
+      "task": "T-4946",
+      "rule": "list: the space's DataModel types and imports (TypePickerWidget reads GET /api/v1/projects/{project}/datamodels, may_read DataModel); submit: the Endpoint's Policy (jc-core policy check) and the space model refuse a type outside them"
+    },
+    "src/pages/policies/TryAPerson.tsx :: Entity type": {
+      "class": "REF",
+      "reason": "an entity type to try: typed today",
+      "task": "T-4947",
+      "rule": "list: the space's DataModel types and imports (TypePickerWidget reads GET /api/v1/projects/{project}/datamodels, may_read DataModel); submit: the Endpoint's Policy (jc-core policy check) and the space model refuse a type outside them"
+    },
+    "src/pages/policies/TryAPerson.tsx :: Find a person": {
+      "class": "FREE",
+      "reason": "a search box: the text filters a list on the page, the list itself is the choice"
+    },
+    "src/pages/policies/TryAPerson.tsx :: policies.try.kinds.${kind}": {
+      "class": "REF",
+      "reason": "a group or role name to try: typed today",
+      "task": "T-4947",
+      "rule": "list: the organization's groups (groups.rs) and roles the caller holds; submit: RoleBinding Effective::check(RoleBinding, Propose); a role above the caller's own is refused (PF-68)"
+    },
+    "src/pages/spaces/AiField.tsx :: Attribute to fill": {
+      "class": "REF",
+      "reason": "an attribute of the row's type: typed today",
+      "task": "T-4946",
+      "rule": "list: the attributes of the chosen type in the space model (AttributeSuggest, filterSlotsOf); submit: the Policy's propertyNames/relationshipNames and the model check refuse an attribute outside them"
+    },
+    "src/pages/spaces/FormView.tsx :: (no label)": {
+      "class": "REF",
+      "reason": "a form answer; a relationship answer is typed as a URN (urn:ngsi-ld:Type:id)",
+      "task": "T-4946",
+      "rule": "list: the target type's entities the form's Endpoint Policy lets the submitter read; submit: the Endpoint's Policy and the model check the relationship object"
+    },
+    "src/pages/spaces/FormView.tsx :: Endpoint name": {
+      "class": "FREE",
+      "reason": "the name of the new public form Endpoint"
+    },
+    "src/pages/spaces/FormView.tsx :: spaces.form.${part}": {
+      "class": "FREE",
+      "reason": "a part of an address answer (street, town, postcode)"
+    },
+    "src/pages/spaces/PublicView.tsx :: Endpoint name": {
+      "class": "FREE",
+      "reason": "the name of the new public Endpoint"
+    },
+    "src/pages/spaces/SpaceComplete.tsx :: Endpoint URL": {
+      "class": "FREE",
+      "reason": "the address of an outside NGSI-LD Endpoint"
+    },
+    "src/pages/spaces/UploadCsv.tsx :: Type name": {
+      "class": "FREE",
+      "reason": "the name of a new type the upload creates; an existing type is the picker above it"
+    },
+    "src/routes/AllEndpointsPage.tsx :: Find an endpoint by project, space, name or slug": {
+      "class": "FREE",
+      "reason": "a search box: the text filters a list on the page, the list itself is the choice"
+    },
+    "src/routes/ApprovalsHistory.tsx :: Kind": {
+      "class": "ENUM",
+      "reason": "a manifest kind: a datalist suggests kinds, any text is still taken",
+      "task": "T-4947"
+    },
+    "src/routes/EndpointsPage.tsx :: Find an endpoint by name or title": {
+      "class": "FREE",
+      "reason": "a search box: the text filters a list on the page, the list itself is the choice"
+    },
+    "src/routes/PipelinesPage.tsx :: Find a pipeline": {
+      "class": "FREE",
+      "reason": "a search box: the text filters a list on the page, the list itself is the choice"
+    },
+    "src/routes/PoliciesPage.tsx :: Find a policy": {
+      "class": "FREE",
+      "reason": "a search box: the text filters a list on the page, the list itself is the choice"
+    }
+  }
+}
