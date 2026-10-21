@@ -121,6 +121,14 @@ for (const [who, person] of [
           if (index === 0) {
             await page.goto(`${visit.address}${visit.address.includes("?") ? "&" : "?"}lang=${lang}`, { waitUntil: "load" });
             await page.locator("h1:visible").first().waitFor({ timeout: 30_000 }).catch(() => undefined);
+            // index.html's fallback means a script the edge refused (429 while the swarm is busy):
+            // load the page again after the edge's minute window, twice at most; a page still on the
+            // fallback is reported as `boot`, never judged as the page (T-5069).
+            for (let retry = 0; retry < 2 && (await page.locator("#boot-failed").count()) > 0; retry++) {
+              await page.waitForTimeout(20_000);
+              await page.reload({ waitUntil: "load" });
+              await page.locator("h1:visible").first().waitFor({ timeout: 30_000 }).catch(() => undefined);
+            }
             // The lists and forms read after the first paint; judge the page a person looks at.
             await page.waitForTimeout(1500);
           } else await page.waitForTimeout(300);

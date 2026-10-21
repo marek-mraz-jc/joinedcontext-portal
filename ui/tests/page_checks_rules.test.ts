@@ -9,6 +9,16 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
+describe("the walkers' boot check", () => {
+  it("names a Portal that never drew the page instead of judging index.html's fallback", () => {
+    document.body.innerHTML = `<div id="root"><main id="boot-failed" role="alert">
+      <p lang="en"><strong>The Portal did not load.</strong> Load the page again.</p></main></div>`;
+    expect(pageFindings({ namespaces: [], layout: false })).toEqual([
+      "boot: the Portal did not load, The Portal did not load. Load the page again.",
+    ]);
+  });
+});
+
 describe("the walkers' purpose-line check", () => {
   it("passes a title with the line that says what the page manages", () => {
     document.body.innerHTML = `<main><h1>Spaces</h1><p>Where the project keeps its context data.</p></main>`;
