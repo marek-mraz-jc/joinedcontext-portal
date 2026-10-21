@@ -1,3 +1,5 @@
 # Bento 1.21.1's documented example for a CosmosDB connection string (the public emulator key), copied into a
 # secret field's placeholder by ui/scripts/bento-processor-forms.mjs before it dropped examples on secret fields.
 cf4fb8ba5f14b454ed320db8e820449b9191c1f4:ui/src/schemas/bento-processor-forms.json:generic-api-key:1
+# RFC 6455 section 1.3's sample Sec-WebSocket-Key (a public nonce, not a secret) sent by the Endpoint WebSocket probe.
+f789dca0131b1d4b73364f37e5d141bea8dd791a:src/health_probe.rs:generic-api-key:54

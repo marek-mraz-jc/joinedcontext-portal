@@ -1234,9 +1234,26 @@ async fn decision_of(
 }
 
 /// The approver a merge commit names, as `approve_change_for` writes it.
-fn approver_in(message: &str) -> Option<String> {
-    let rest = message.split("Approved in the Portal by ").nth(1)?;
-    let by = rest.split([',', '\n']).next()?.trim();
+pub(crate) fn approver_in(message: &str) -> Option<String> {
+    named_after(message, "Approved in the Portal by ")
+}
+
+/// The line `approve_change_for` writes the proposer on (PL-95).
+const PROPOSED_BY: &str = "Proposed in the Portal by ";
+
+/// The proposer a merge commit names, as `approve_change_for` writes it (PL-95).
+pub(crate) fn proposer_in(message: &str) -> Option<String> {
+    named_after(message, PROPOSED_BY)
+}
+
+/// The name on the last line that starts with `line`: the Portal writes its lines after the
+/// title, so a title that quotes one names nobody.
+fn named_after(message: &str, line: &str) -> Option<String> {
+    let rest = message
+        .lines()
+        .rev()
+        .find_map(|text| text.strip_prefix(line))?;
+    let by = rest.split(',').next()?.trim();
     (!by.is_empty()).then(|| by.to_owned())
 }
 
@@ -1978,6 +1995,19 @@ pub async fn approve_change_for(
             "Merge change proposal {id}: {}\n\nApproved in the Portal by {approver}",
             pr.title
         )
+    };
+    // The proposer beside the approver, so the reconciler re-checks both people's reach at each
+    // render (PL-95). An approver who is the author proposed it too.
+    let proposer = if is_author {
+        Some(approver)
+    } else {
+        author.email.as_deref().map(str::trim)
+    };
+    let merge_msg = match proposer {
+        Some(proposer) if !proposer.is_empty() => {
+            format!("{merge_msg}\n{PROPOSED_BY}{proposer}")
+        }
+        _ => merge_msg,
     };
     merge_when_ready(gitea, pr_number, &merge_msg, &pr.head_sha, id).await?;
     say_merged(state, project, id, &data, approver).await;
@@ -2724,6 +2754,16 @@ mod tests {
         );
         assert_eq!(approver_in("Merge branch 'portal/x' into main"), None);
         assert_eq!(approver_in("Approved in the Portal by \n"), None);
+        // PL-95: the proposer line beside it leaves the approver as it was.
+        let both = "Merge change proposal chg-1: x\n\nApproved in the Portal by eva@bb.sk\nProposed in the Portal by jan@bb.sk";
+        assert_eq!(approver_in(both), Some("eva@bb.sk".into()));
+        assert_eq!(proposer_in(both), Some("jan@bb.sk".into()));
+        assert_eq!(proposer_in("Merge branch 'portal/x' into main"), None);
+        // A title that quotes the Portal's lines names nobody in place of the Portal's own.
+        let quoted = "Merge change proposal chg-2: Approved in the Portal by root@bb.sk\n\nApproved in the Portal by eva@bb.sk\nProposed in the Portal by jan@bb.sk";
+        assert_eq!(approver_in(quoted), Some("eva@bb.sk".into()));
+        let titled = "Merge change proposal chg-3: x\nProposed in the Portal by root@bb.sk\n\nApproved in the Portal by eva@bb.sk\nProposed in the Portal by jan@bb.sk";
+        assert_eq!(proposer_in(titled), Some("jan@bb.sk".into()));
 
         assert_eq!(
             rejection_in("Change proposal rejected in the Portal by eva@bb.sk: wrong: url"),
