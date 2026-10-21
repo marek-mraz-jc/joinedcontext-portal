@@ -2708,7 +2708,8 @@
         "workload": "Úloha v clusteru",
         "kubernetes": "Kubernetes",
         "k8sNamespace": "Jmenný prostor",
-        "k8sServiceAccount": "Servisní účet Kubernetes"
+        "k8sServiceAccount": "Servisní účet Kubernetes",
+        "notAfter": "Přístup končí"
       },
       "grantIn": "{role} v {where}",
       "grantOrg": "{role} v celé organizaci",
@@ -2905,6 +2906,42 @@
       "custom": {
         "label": "Vlastní",
         "description": "Každé oprávnění vyberete sami."
+      }
+    },
+    "agent": {
+      "open": "Co smí tento účet dělat",
+      "title": "Přístup",
+      "grants": "Oprávnění",
+      "delegates": "Jeho klient může jednat i za osobu, která ho spustila; pak rozhodují práva té osoby, ne tato.",
+      "state": {
+        "active": "Platné",
+        "pending": "Ještě ne",
+        "expired": "Skončené"
+      },
+      "ends": "končí {when}",
+      "ended": "skončilo {when}",
+      "revoke": "Odebrat hned",
+      "revokeNamed": "Odebrat {role} v {scope} hned",
+      "revokeTitle": "Odebrat {role} účtu {account} hned?",
+      "revokeHelp": "Oprávnění se odstraní okamžitě a zaznamená se. Další token účtu se posoudí už bez něj. Vrátit ho je nová změna, kterou schválí druhá osoba.",
+      "revokeFailed": "Oprávnění se neodebralo. Načtěte přístup účtu znovu a zkuste to ještě jednou.",
+      "gatewayOnly": "Jeho role nejmenují žádnou roli Portálu: pracuje jen s daty, přes politiky endpointů, ke kterým má přístup.",
+      "matrix": "Co smí {account} dělat, podle druhu",
+      "kind": "Druh",
+      "everyKind": "Každý druh",
+      "verb": {
+        "read": "Číst",
+        "propose": "Navrhnout",
+        "delete": "Smazat",
+        "approve": "Schválit"
+      },
+      "allowed": "Povoleno",
+      "refused": "Zamítnuto",
+      "reason": {
+        "neverApproves": "Účet nikdy neschvaluje; schvaluje osoba",
+        "ended": "{grant} skončilo {when}",
+        "starts": "{grant} začíná {when}",
+        "noGrant": "Žádné oprávnění to neuvádí"
       }
     }
   },

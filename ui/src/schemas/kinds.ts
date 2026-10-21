@@ -2286,6 +2286,12 @@ export function serviceAccountSchema(
               items: { type: "string", pattern: ENTITY_TYPE_PATTERN },
               uniqueItems: true,
             },
+            // A grant may end (AG-131): after it, it grants nothing and the Portal removes it.
+            notAfter: {
+              type: "string",
+              title: t("access.accounts.field.notAfter"),
+              pattern: RFC3339_PATTERN,
+            },
           },
         },
       },

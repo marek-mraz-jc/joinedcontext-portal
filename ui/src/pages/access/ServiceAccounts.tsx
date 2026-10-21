@@ -22,6 +22,7 @@ import {
 } from "../../schemas/kinds";
 import { Button, Card, EmptyState, Icon, Skeleton } from "../../components/ui";
 import { OPERATION_PRESETS } from "../../components/forms/widgets/accessPresets";
+import { AccountAccess } from "./AccountAccess";
 import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
 
 interface Credential {
@@ -56,6 +57,9 @@ export interface ServiceAccountGrant {
   scope: { level: (typeof ROLE_SCOPE_LEVELS)[number]; name: string };
   operations?: string[];
   types?: string[];
+  /** When the grant ends (AG-131); `notBefore` has no field and travels on unchanged. */
+  notAfter?: string;
+  notBefore?: string;
 }
 
 export interface ServiceAccountForm {
@@ -95,11 +99,16 @@ export function toServiceAccountEnvelope(
       roles: form.roles.map((grant) => {
         const operations = filled(grant.operations);
         const types = filled(grant.types);
+        const notAfter = grant.notAfter?.trim();
+        const notBefore = grant.notBefore?.trim();
         return {
           role: grant.role,
           scope: { [grant.scope.level]: grant.scope.name },
           ...(operations ? { operations } : {}),
           ...(types ? { types } : {}),
+          ...(notAfter || notBefore
+            ? { validity: { ...(notBefore ? { notBefore } : {}), ...(notAfter ? { notAfter } : {}) } }
+            : {}),
         };
       }),
       credentials: form.credentials.map((credential) => {
@@ -126,6 +135,14 @@ export function toServiceAccountEnvelope(
   };
 }
 
+function windowOf(validity: unknown): { notAfter?: string; notBefore?: string } {
+  const window = (validity ?? {}) as { notAfter?: unknown; notBefore?: unknown };
+  return {
+    ...(typeof window.notAfter === "string" ? { notAfter: window.notAfter } : {}),
+    ...(typeof window.notBefore === "string" ? { notBefore: window.notBefore } : {}),
+  };
+}
+
 /** The stored manifest back as the form: the same pair, so the YAML view and the fields agree. */
 export function fromServiceAccountEnvelope(manifest: unknown): ServiceAccountForm {
   const envelope = (manifest ?? {}) as { metadata?: { name?: string }; spec?: Record<string, unknown> };
@@ -144,6 +161,8 @@ export function fromServiceAccountEnvelope(manifest: unknown): ServiceAccountFor
         scope: { level, name: scope[level] ?? "" },
         ...(grant.operations ? { operations: grant.operations as string[] } : {}),
         ...(grant.types ? { types: grant.types as string[] } : {}),
+        // The window travels through an edit: dropping it would quietly widen the grant (AG-131).
+        ...windowOf(grant.validity),
       };
     }),
     credentials: ((spec.credentials as ServiceAccountForm["credentials"] | undefined) ?? []).map(
@@ -152,6 +171,22 @@ export function fromServiceAccountEnvelope(manifest: unknown): ServiceAccountFor
     ...(spec.limits ? { limits: spec.limits as ServiceAccountForm["limits"] } : {}),
     ...(spec.workload ? { workload: spec.workload as ServiceAccountForm["workload"] } : {}),
   };
+}
+
+/** What the account may do, read when the person opens it: one request per opened account. */
+function AccessDisclosure({ project, account }: { project: string; account: string }): JSX.Element {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  return (
+    <details className="mt-3" onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className="cursor-pointer text-body font-medium text-fg">{t("access.agent.open")}</summary>
+      {open ? (
+        <div className="mt-2">
+          <AccountAccess project={project} account={account} />
+        </div>
+      ) : null}
+    </details>
+  );
 }
 
 /** Every non-human caller of one project: who owns it, what it may do, and its credentials. */
@@ -357,7 +392,7 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
                       </div>
                     ) : null}
                   </dl>
-
+                  <AccessDisclosure project={project} account={account.metadata.name} />
                 </Card>
               </li>
             );

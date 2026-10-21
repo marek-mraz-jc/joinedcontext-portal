@@ -1,6 +1,7 @@
 pub mod access_explore;
 pub mod access_simulate;
 pub mod activity;
+pub mod agent_access;
 pub mod agent_runs;
 pub mod alerts;
 pub mod app_build;
@@ -113,6 +114,7 @@ pub fn router() -> Router<AppState> {
         .merge(people::router())
         .merge(access_simulate::router())
         .merge(access_explore::router())
+        .merge(agent_access::router())
         .merge(endpoint_preview::router())
         .merge(setup::router())
         .merge(pipelines::router())
