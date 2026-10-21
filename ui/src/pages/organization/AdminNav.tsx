@@ -23,6 +23,17 @@ export const ORGANIZATION_GROUPS = [
 export type OrganizationTab = (typeof ORGANIZATION_GROUPS)[number]["tabs"][number];
 
 /**
+ * The sections of `/organization/{tab}`, in the order of the side navigation's groups
+ * (Architecture/09 §14.1, T-4831). Here, not with the page, so the router checks a tab without
+ * loading every Administration section with the first page (bundle budget).
+ */
+export const ORGANIZATION_TABS: readonly OrganizationTab[] = ORGANIZATION_GROUPS.flatMap((group) => group.tabs);
+
+export function isOrganizationTab(value: string): value is OrganizationTab {
+  return (ORGANIZATION_TABS as readonly string[]).includes(value);
+}
+
+/**
  * The sidebar of Administration (T-4831): a way back to the project the person came from, then
  * one list per group. It replaces the project navigation, so the switcher no longer suggests the
  * page belongs to a project. Somebody who does not administer the organization sees the way back
