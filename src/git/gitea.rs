@@ -73,6 +73,20 @@ impl From<GitError> for ApiError {
                 ApiError::NotFound("resource not found in git repository".to_string())
             }
             GitError::Conflict(msg) => ApiError::Conflict(msg),
+            // The forge down, slow or refusing the Portal's own token is an outage the person
+            // can wait out, not a fault of their request (T-4966: a Gitea 401 emptied the inbox).
+            GitError::Transport(_)
+            | GitError::Api {
+                status: 401 | 403 | 408 | 429 | 500..=599,
+                ..
+            } => {
+                tracing::warn!(error = %err, "git forge unavailable");
+                ApiError::Unavailable(
+                    "The Git repository did not answer the Portal. Try again in a minute; if it \
+                     lasts, ask the operator to check the forge and the Portal's forge token."
+                        .to_string(),
+                )
+            }
             other => {
                 tracing::error!(error = %other, "git error");
                 ApiError::Internal("git operation failed".to_string())
