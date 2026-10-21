@@ -282,7 +282,7 @@
     },
     "src/components/entities/EndpointDataView.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "endpoint_data_view.test.tsx"

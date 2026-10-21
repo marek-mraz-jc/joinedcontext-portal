@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { JSX, ReactNode } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Playground } from "./Playground";
@@ -48,6 +48,8 @@ import { parseModel } from "../models/linkml";
 import type { CatalogManifest } from "./catalog";
 import { TypeLink } from "../models/ModelLinks";
 import { ConnectorStar } from "../mcp/ConnectorStar";
+import { EndpointDataView } from "../../components/entities/EndpointDataView";
+import type { DataLink } from "../../components/entities/EndpointDataView";
 import { PublishDatasetDialog } from "../catalogue/PublishDataset";
 import {
   Alert,
@@ -95,6 +97,20 @@ export function EndpointPage({
   const { domain } = useBranding();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const navigate = useNavigate();
+  // The data view's type, query and order live in the address, so a link opens what was seen.
+  const search = useSearch({ strict: false }) as { dataType?: string; dataQ?: string; dataSort?: string };
+  const dataLink: DataLink = { type: search.dataType, q: search.dataQ, sort: search.dataSort };
+  const writeDataLink = useCallback(
+    (next: DataLink) => {
+      if (next.type === search.dataType && next.q === search.dataQ && next.sort === search.dataSort) return;
+      void navigate({
+        to: ".",
+        search: (previous: Record<string, unknown>) => ({ ...previous, dataType: next.type, dataQ: next.q, dataSort: next.sort }),
+        replace: true,
+      });
+    },
+    [navigate, search.dataType, search.dataQ, search.dataSort],
+  );
   const permissions = usePermissions(project);
   // An action a role cannot take stays in the menu with its reason; UI-44 does not stop at a menu's
   // edge (T-2279).
@@ -490,6 +506,22 @@ export function EndpointPage({
           ) : null}
         </Facts>
       </Section>
+
+      {/* The rows themselves, read with the person's own session through the Endpoint, so a steward
+          sees what their grants show and nothing more (T-5082). Only a Live endpoint answers. */}
+      {slug && (manifest.status?.phase ?? "").toLowerCase() === "live" ? (
+        <Section title={t("endpoints.data.section")} lead={t("endpoints.data.sectionLead")}>
+          <EndpointDataView
+            project={project}
+            slug={slug}
+            hidden={spec.projection?.hiddenAttributes ?? []}
+            space={space}
+            link={dataLink}
+            onLink={writeDataLink}
+            csv={servedRepresentations(spec).includes("csv")}
+          />
+        </Section>
+      ) : null}
 
       {/* This Endpoint's query card and MCP address, then the one connector for every Endpoint (EP-113). */}
       {slug && servedRepresentations(spec).includes("mcp") ? (
