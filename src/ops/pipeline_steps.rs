@@ -205,8 +205,8 @@ fn validate_output_schema() -> Value {
                         "ok": { "type": "boolean" },
                         "problems": { "type": "array", "description": "Each rule broken: its SHACL component, the attribute and why" },
                         "endpoint": { "type": "string", "description": "The Endpoint the record is written through" },
-                        "findings": { "type": "array", "description": "Each reason the record would not be written: its source (model, endpoint, lifetime), rule, field and reason (T-4840)" },
-                        "expires": { "type": "object", "description": "The expiresAt of the entity and of each attribute the record would be written with" }
+                        "findings": { "type": "array", "description": "Why the record would not be written: source (model, endpoint, lifetime), rule, field, reason" },
+                        "expires": { "type": "object", "description": "The expiresAt of the entity and each attribute" }
                     }
                 }
             }
@@ -568,7 +568,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_pipeline_try_mapping",
             title: "Try a Pipeline Mapping",
-            description: "Runs a candidate pipeline's steps over a sample on the project's runner without writing: each record as it would be written and every failure at its step and line (the workbench's mapped output, ADR-N-034); the record check of what it made is kept on the draft for its proposal (T-4840)",
+            description: "Runs a candidate pipeline's steps over a sample on the project's runner without writing: each record as it would be written and every failure at its step and line (the workbench's mapped output, ADR-N-034)",
             input: try_mapping_input_schema,
             output: try_mapping_output_schema,
             annotations: OperationAnnotations {
@@ -585,7 +585,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_pipeline_validate",
             title: "Validate Pipeline Records",
-            description: "Checks records where a pipeline's write is judged: the data model of the space it writes into (the runner's validation stage), the target Endpoint's Policies and view, and the lifetime: a verdict per record with each finding and the expiresAt it would get (the workbench's validation step, PL-59, ADR-N-034, T-4840)",
+            description: "Checks records against the target space's data model, the target Endpoint's Policies and view, and the lifetime: a verdict per record with each finding and its expiresAt (the workbench's validation step, PL-59, ADR-N-034)",
             input: validate_input_schema,
             output: validate_output_schema,
             annotations: OperationAnnotations {
