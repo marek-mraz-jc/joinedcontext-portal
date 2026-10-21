@@ -9,7 +9,7 @@ import { useDecision, useDecisions, useDecisionsError } from "../../api/decision
 import { useProjects } from "../../api/projects";
 import { PlanDiffViewer } from "../../components/diff/PlanDiffViewer";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
-import { Alert, Button, Field, Input, PageHeader, Textarea } from "../../components/ui";
+import { Alert, Button, Card, Field, Input, PageHeader, Textarea } from "../../components/ui";
 import { NOTIFICATIONS_KEY } from "../spaces/Comments";
 
 type ChangeProposal = components["schemas"]["ChangeProposal"];
@@ -39,7 +39,7 @@ function Decision({ project, change }: { project: string; change: ChangeProposal
   const decided = detail.data && detail.data.status.phase !== "PendingApproval";
   const summary = t(change.summary.key, change.summary.params as Record<string, unknown>);
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
+    <Card as="li" padding="sm" className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-body font-semibold text-fg">{summary}</span>
         <LifecycleBadge kind="lane" value={change.status.lane} />
@@ -121,7 +121,7 @@ function Decision({ project, change }: { project: string; change: ChangeProposal
           ) : null}
         </div>
       )}
-    </li>
+    </Card>
   );
 }
 

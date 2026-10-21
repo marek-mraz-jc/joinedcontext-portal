@@ -96,5 +96,23 @@
       "group": "ui-pages",
       "reason": "`h-[60vh]` sizes the map against the window and the spacing scale has no viewport step; the colour-ramp swatch takes its fill from the layer's own scale, which is a value, not a token."
     }
+  },
+  "panel_is_a_card": {
+    "_max": 3,
+    "src/pages/apps/AppsCatalog.tsx": {
+      "lines": 2,
+      "group": "ui-parts",
+      "reason": "T-4888: an app tile is one Link whose whole surface is the target, with a hover tone; Card renders a non-interactive element, so the link keeps the card's border, radius and surface tokens itself."
+    },
+    "src/pages/home/HomePage.tsx": {
+      "lines": 1,
+      "group": "ui-parts",
+      "reason": "T-4888: a next-step tile is one Link whose whole surface is the target, with a hover tone; Card renders a non-interactive element, so the link keeps the card's tokens itself."
+    },
+    "src/pages/gallery/Gallery.tsx": {
+      "lines": 1,
+      "group": "ui-pages",
+      "reason": "T-4888: the development gallery frames each specimen without a shadow so the specimen's own shadow reads; it ships in no production build."
+    }
   }
 }

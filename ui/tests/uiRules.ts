@@ -80,6 +80,13 @@ export function overCeiling(allow: Allowed): OverCeiling[] {
 /** The pattern behind each allow-listed rule, so a stale entry can be found by the same measure. */
 export const RULE_OF: Record<string, RegExp> = {
   hand_made_control: /<(?:button|input|select|textarea|table)\b/,
+  // A panel drawn by hand instead of `<Card>` (T-4888). A popover or a floating dock is a layer,
+  // not a panel: `absolute` or `fixed` earlier in the same class string keeps it out.
+  panel_is_a_card:
+    /(?<!\b(?:absolute|fixed)\b[^"`]*)\brounded-(?:lg|xl) border border-border bg-surface(?![-\w])/,
+  // A `p-*` class on a Card loses or wins against its own padding by CSS source order: the
+  // `padding` prop is the one way to size it (T-4888). A `flush` card has no padding to fight.
+  card_padding_is_a_prop: /<Card\b(?![^>]*\bflush\b)[^>]*\bclassName="[^"]*(?<![\w-])p-\d/,
   colour_is_a_token:
     /#[0-9a-fA-F]{3,8}\b(?![-\w])|\brgba?\(|\b(?:bg|text|border|ring|fill|stroke)-(?:red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|slate|gray|zinc|neutral|stone)-\d{2,3}\b/,
   size_is_on_the_scale:

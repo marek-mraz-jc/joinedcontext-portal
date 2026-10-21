@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../../api/client";
-import { Alert, Button, buttonClass } from "../../components/ui";
+import { Alert, Button, buttonClass, Card } from "../../components/ui";
 import { endpointFields, PRESETS, slugOf, useAppNeeds } from "./AppGenerator";
 import type { Preset } from "./AppGenerator";
 
@@ -104,7 +104,7 @@ export function AppBuildCard({
   const titleId = `app-build-${name}`;
 
   return (
-    <section aria-labelledby={titleId} className="space-y-2 rounded-lg border border-border bg-surface p-3">
+    <Card as="section" padding="sm" aria-labelledby={titleId} className="space-y-2">
       <h3 id={titleId} className="text-sm font-semibold">
         {t("apps.buildCard.title", { name })}
       </h3>
@@ -147,6 +147,6 @@ export function AppBuildCard({
           {start.isPending ? t("apps.buildCard.building") : t("apps.buildCard.build")}
         </Button>
       )}
-    </section>
+    </Card>
   );
 }

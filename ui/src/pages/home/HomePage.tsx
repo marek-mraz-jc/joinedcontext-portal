@@ -11,7 +11,7 @@ import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { mayRead, usePermissions } from "../../api/permissions";
 import { spaceUsageQuery } from "../../api/spaceUsage";
 import { useSampleProjects } from "../../api/projects";
-import { Alert, Badge, Button, PageFailed, PageHeader } from "../../components/ui";
+import { Alert, Badge, Button, Card, PageFailed, PageHeader } from "../../components/ui";
 import { cardsFor, draftPage, firstRunSteps, roleOf, sampleToTry, welcomeStep } from "./home";
 import type { Facts } from "./home";
 import { useFirstRun } from "./firstRun";
@@ -173,7 +173,7 @@ export function HomePage({
       {checklistOpen ? null : sampleLine}
 
       {checklistOpen ? (
-        <section aria-labelledby="first-run-heading" className="space-y-3 rounded-lg border border-border bg-surface p-4">
+        <Card as="section" padding="md" aria-labelledby="first-run-heading" className="space-y-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 id="first-run-heading" className="text-title font-semibold text-fg">
               {t("home.firstRun.title")}
@@ -202,7 +202,7 @@ export function HomePage({
           <Button variant="secondary" size="sm" onClick={() => firstRun.dismiss()}>
             {t("home.firstRun.dismiss")}
           </Button>
-        </section>
+        </Card>
       ) : null}
 
       {cards.length > 0 ? (

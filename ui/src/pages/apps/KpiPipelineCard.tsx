@@ -7,7 +7,7 @@ import { ApiError, forPeople } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
 import { Badge } from "../../components/ui/Badge";
 import { Button, buttonClass } from "../../components/ui/Button";
-import { InlineError } from "../../components/ui";
+import { Card, InlineError } from "../../components/ui";
 
 /**
  * An indicator kept up to date (AG-74, PL-45, PL-51): the pipeline the assistant drafted, what
@@ -127,10 +127,7 @@ export function KpiPipelineCard({ project, pipeline }: { project: string; pipeli
   };
 
   return (
-    <section
-      aria-label={t("agentRun.kpiPipeline.title")}
-      className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 text-body"
-    >
+    <Card as="section" padding="sm" aria-label={t("agentRun.kpiPipeline.title")} className="flex flex-col gap-2 text-body">
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone="accent">{t("agentRun.kpiPipeline.badge")}</Badge>
         <span className="min-w-0 break-words font-medium">{pipeline.title ?? pipeline.name}</span>
@@ -205,6 +202,6 @@ export function KpiPipelineCard({ project, pipeline }: { project: string; pipeli
           {t("agentRun.kpiPipeline.open")}
         </Link>
       </div>
-    </section>
+    </Card>
   );
 }

@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Alert, Button, Dialog, Icon, PageHeader, PageLoading } from "../ui";
+import { Alert, Button, Card, Dialog, Icon, PageHeader, PageLoading } from "../ui";
 import type { DialogSize } from "../ui";
 import { failureKind } from "../ui/PageState";
 import { proposesAnything, usePermissions } from "../../api/permissions";
@@ -287,9 +287,9 @@ export function FormFrame({
         </Button>
       </div>
       <PageHeader title={title} description={description} />
-      <div className="rounded-xl border border-border bg-surface p-6">
+      <Card>
         <FormPageContext.Provider value>{children}</FormPageContext.Provider>
-      </div>
+      </Card>
       {footer ? <div className="flex flex-wrap items-center justify-end gap-2">{footer}</div> : null}
     </section>,
     route.slot,
