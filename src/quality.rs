@@ -70,6 +70,14 @@ pub struct Freshness {
     pub paused: bool,
 }
 
+impl Freshness {
+    /// Whether the operators' alert fires: the data is stale and the pipeline is meant to run
+    /// (T-5020). A paused pipeline's data ages by choice.
+    pub fn alerting(&self) -> bool {
+        self.state == FreshState::Stale && !self.paused
+    }
+}
+
 /// What one run found in one space.
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -481,7 +489,12 @@ impl Scanner {
         let token = self.watch.scan_token().await?;
         for (project, space) in &spaces {
             match self.space(&token, project, space).await {
-                Ok(quality) => self.store.put(project, space, quality),
+                Ok(quality) => {
+                    for row in &quality.freshness {
+                        crate::telemetry::pipeline_stale(project, &row.pipeline, row.alerting());
+                    }
+                    self.store.put(project, space, quality)
+                }
                 // One space that cannot be read keeps its last report; the others go on.
                 Err(err) => tracing::warn!(project, space, error = %err, "a space was not checked"),
             }
@@ -788,6 +801,30 @@ mod tests {
         assert_eq!(
             fresh_state(Some(at("2026-01-01T00:00:00Z")), None, now),
             FreshState::Untargeted
+        );
+    }
+
+    // T-5020: dev's road-weather (every 10 min, target 20 min) read five weeks old and no one
+    // was told. A planted stale source alerts; the same age on a paused pipeline does not.
+    #[test]
+    fn stale_data_of_a_running_pipeline_alerts() {
+        let now = at("2026-10-21T12:40:00Z");
+        let target = target_seconds(Some(600), Some("*/10 * * * *"));
+        assert_eq!(target, Some(1_200), "twice the schedule");
+        let row = |newest: &str, paused: bool| Freshness {
+            pipeline: "road-weather".into(),
+            entity_type: "WeatherObserved".into(),
+            newest: Some(at(newest)),
+            target_seconds: target,
+            state: fresh_state(Some(at(newest)), target, now),
+            paused,
+        };
+        assert!(row("2026-09-14T07:00:00Z", false).alerting());
+        assert!(!row("2026-09-14T07:00:00Z", true).alerting());
+        assert!(!row("2026-10-21T12:38:49Z", false).alerting());
+        assert!(
+            !row("2026-10-21T12:20:01Z", false).alerting(),
+            "inside 2x the schedule"
         );
     }
 
