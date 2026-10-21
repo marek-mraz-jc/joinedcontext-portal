@@ -27,7 +27,7 @@ export interface TypePickerProps {
   required?: boolean;
   invalid?: boolean;
   describedBy?: string;
-  /** Stamped by a wrapping `Field` (see `Combobox`). */
+  /** What a surrounding `Field` hands its control: its hint and error ids. */
   "aria-describedby"?: string;
 }
 
@@ -166,8 +166,7 @@ export function TypePicker({
       disabled={disabled}
       required={required}
       invalid={invalid}
-      describedBy={describedBy}
-      aria-describedby={fieldDescribedBy}
+      describedBy={describedBy ?? fieldDescribedBy}
       loading={query.isLoading || sources.some((s) => s.isLoading)}
       failed={failed}
       empty={space === undefined ? t("picker.type.noneInProject") : t("picker.type.none", { space })}
