@@ -47,8 +47,9 @@ pub fn app(state: AppState) -> Router {
     let content_security_policy = HeaderValue::from_str(&format!(
         "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; \
          frame-src {frame_src}; form-action 'self'; img-src 'self' data: blob:; \
-         style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; \
-         worker-src 'self' blob:"
+         style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src {connect_src}; \
+         worker-src 'self' blob:",
+        connect_src = connect_src(&state.config)
     ))
     .expect("an origin serializes to header-safe ASCII");
 
@@ -127,6 +128,19 @@ pub fn app(state: AppState) -> Router {
 /// `spec.creates.embedOrigins` under the Endpoint's own rule (EP-101). `None` for any other path,
 /// an unknown slug, an empty list, or a list that does not pass the rule: then the page keeps the
 /// Portal's own framing headers.
+/// `connect-src` of the Portal's pages: its own origin and the data host it hands out
+/// (`api.{domain}`, [`Config::api_base_url`]), the one origin the public /connect page asks for a
+/// named MCP server's tools (T-4949). Exactly that origin, never a wildcard; a Portal that is its
+/// own data host adds nothing.
+fn connect_src(config: &Config) -> String {
+    let api = config.api_base_url().origin().ascii_serialization();
+    if api == config.public_base_url.origin().ascii_serialization() {
+        "'self'".to_owned()
+    } else {
+        format!("'self' {api}")
+    }
+}
+
 fn embed_origins(state: &AppState, path: &str) -> Option<Vec<String>> {
     let slug = path.strip_prefix("/f/")?;
     if slug.is_empty() || slug.contains(['/', '.']) {
@@ -340,5 +354,20 @@ async fn shutdown_signal() {
     tokio::select! {
         _ = ctrl_c => {},
         _ = terminate => {},
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn connect_src_adds_the_data_host_and_nothing_else() {
+        let mut config = Config::for_tests();
+        assert_eq!(connect_src(&config), "'self'");
+        config.public_base_url = "https://portal.dev.example.org/".parse().expect("a url");
+        assert_eq!(connect_src(&config), "'self' https://api.dev.example.org");
+        config.public_base_url = "https://dev.example.org/".parse().expect("a url");
+        assert_eq!(connect_src(&config), "'self'");
     }
 }

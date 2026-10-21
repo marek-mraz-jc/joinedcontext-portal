@@ -225,6 +225,13 @@
   flex: 1 1 20rem;
 }
 
+/* The hint of "Edit as text" (T-4949): its own line under the query, in the muted caption size. */
+.jc-grid-query-hint {
+  flex: 1 0 100%;
+  font-size: 0.8125rem;
+  opacity: 0.75;
+}
+
 .jc-grid-query-value,
 .jc-grid-query-input {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

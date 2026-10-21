@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
 import { catalogueKey } from "../src/pages/catalogue/CataloguePage";
-import { datasetKey, resourceSays } from "../src/pages/catalogue/DatasetPage";
+import { datasetKey, notesBlocks, resourceSays } from "../src/pages/catalogue/DatasetPage";
 import { narrowed, parseCatalogueSearch, toggled } from "../src/pages/catalogue/search";
 import { snippets } from "../src/pages/catalogue/snippets";
 
@@ -347,5 +347,25 @@ describe("what a resource is, in words (T-4264, T-4160 #16)", () => {
     expect(resourceSays("HTML", t)).toBeNull();
     expect(resourceSays("", t)).toBeNull();
     await i18n.changeLanguage("en");
+  });
+});
+
+describe("the publisher's Markdown, in words and code (T-4949)", () => {
+  it("splits paragraphs from indented code, so JSON and commands land in code", () => {
+    const text =
+      "Live updates: open one WebSocket. With `websocat`, then type the subscription:\n\n" +
+      "    websocat --protocol ngsi-ld-ws 'wss://api.example/ws'\n" +
+      '    {"metadata":{"x-op":"x-subscribe"}}\n\n' +
+      "The message format: https://docs.example/API/07-websocket";
+    expect(notesBlocks(text)).toEqual([
+      { code: false, text: "Live updates: open one WebSocket. With `websocat`, then type the subscription:" },
+      { code: true, text: "websocat --protocol ngsi-ld-ws 'wss://api.example/ws'\n{\"metadata\":{\"x-op\":\"x-subscribe\"}}" },
+      { code: false, text: "The message format: https://docs.example/API/07-websocket" },
+    ]);
+    expect(notesBlocks("")).toEqual([]);
+    expect(notesBlocks("One line.\r\n\r\n\tcurl x")).toEqual([
+      { code: false, text: "One line." },
+      { code: true, text: "curl x" },
+    ]);
   });
 });
