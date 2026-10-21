@@ -152,3 +152,79 @@ export function catalogOf(draft: CatalogBlock, form: PublishForm): CatalogBlock 
   set("frequency", form.frequency, form.frequency === "");
   return out;
 }
+
+/** One attribute of the draft (`CatalogueDraft.attributes`): offered unless `withheld` says why. */
+export interface DraftAttribute {
+  type: string;
+  name: string;
+  withheld?: "personal" | "hidden";
+}
+
+/**
+ * The Endpoint's `projection.hiddenAttributes` after the form (DM-122, EP-61): what it hid
+ * already, every personal attribute (a public projection of one is refused, so it is hidden
+ * rather than left to fail), and each offered attribute the person left out of the dataset.
+ */
+export function hiddenOf(current: unknown, attributes: DraftAttribute[], leftOut: string[]): string[] {
+  const kept = Array.isArray(current) ? current.filter((h): h is string => typeof h === "string") : [];
+  const personal = attributes.filter((a) => a.withheld === "personal").map((a) => a.name);
+  return [...new Set([...kept, ...personal, ...leftOut])].sort();
+}
+
+/** The columns the public dataset carries: the offered attributes the person kept. */
+export function columnsOf(attributes: DraftAttribute[], leftOut: string[]): string[] {
+  return [...new Set(attributes.filter((a) => !a.withheld && !leftOut.includes(a.name)).map((a) => a.name))];
+}
+
+/** A text per language with `language`'s entry set to `value`, or removed when it is empty. */
+export function textsWith(current: unknown, language: string, value: string): Record<string, string> | undefined {
+  const next: Record<string, string> =
+    typeof current === "string" && current.trim() !== ""
+      ? { [language]: current }
+      : Object.fromEntries(Object.entries(record(current)).filter((e): e is [string, string] => typeof e[1] === "string"));
+  if (value.trim() === "") delete next[language];
+  else next[language] = value.trim();
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * A manifest with a change's field diff applied (`FieldChange`: dotted paths with `[i]` indices,
+ * `to` absent for a removed leaf), so the approval page previews what the Change makes. Only the
+ * members the preview reads are needed; a key holding a dot (a label) is outside them.
+ */
+export function applyFields(
+  base: Record<string, unknown>,
+  fields: Array<{ path: string; to?: unknown }>,
+): Record<string, unknown> {
+  const out = structuredClone(base);
+  for (const field of fields) {
+    const keys = field.path
+      .split(".")
+      .flatMap((part) => part.split(/\[(\d+)\]/).filter((k) => k !== ""))
+      .map((k) => (/^\d+$/.test(k) ? Number(k) : k));
+    let node: Record<string | number, unknown> = out;
+    keys.forEach((key, i) => {
+      if (i === keys.length - 1) {
+        if (field.to === undefined) {
+          if (Array.isArray(node)) node[key as number] = undefined;
+          else delete node[key];
+        } else {
+          node[key] = field.to;
+        }
+        return;
+      }
+      if (node[key] === null || typeof node[key] !== "object") {
+        node[key] = typeof keys[i + 1] === "number" ? [] : {};
+      }
+      node = node[key] as Record<string | number, unknown>;
+    });
+  }
+  // A removed array element leaves a hole; the manifest has none.
+  const compact = (value: unknown): unknown =>
+    Array.isArray(value)
+      ? value.filter((v) => v !== undefined).map(compact)
+      : value && typeof value === "object"
+        ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, compact(v)]))
+        : value;
+  return compact(out) as Record<string, unknown>;
+}

@@ -65,6 +65,8 @@ function renderDetail(
     permissions?: unknown;
     // The change the API serves once it was approved, for a page that polls through Deploying.
     afterApproval?: Record<string, unknown>;
+    // The live Endpoint the change edits, for the publication preview (T-4847).
+    endpoint?: Record<string, unknown>;
   } = {},
 ) {
   const change = options.change ?? proposal();
@@ -84,6 +86,9 @@ function renderDetail(
       return Promise.resolve(
         json({ project: "banskabystrica", bootstrap: approver, grants: [] }),
       );
+    }
+    if (options.endpoint && request.url.includes("/endpoints/air-quality")) {
+      return Promise.resolve(json(options.endpoint));
     }
     if (request.method === "POST") {
       approved = true;
@@ -136,6 +141,48 @@ describe("approval actions", () => {
     ).toBeInTheDocument();
     const rejected = screen.getByText(en.approvals.waitsOn.rejected.replace("{change}", "chg-00000009"));
     expect(rejected.closest("[role=status]")?.className).toContain("danger");
+  });
+
+  // T-4847, EP-142: the approver reads the CKAN page the publication becomes, beside the diff.
+  it("previews the CKAN page a public publication becomes and asks for the name typed back", async () => {
+    const files = [
+      {
+        path: "projects/banskabystrica/endpoints/air-quality.yaml",
+        kind: "Endpoint",
+        operation: "Update",
+        lane: "red",
+        fields: [
+          { path: "spec.audience", from: "organization", to: "public" },
+          { path: "metadata.title.en", from: "Air", to: "Air quality in the city" },
+          { path: "spec.catalog.license", to: "CC0" },
+          { path: "spec.catalog.keywords.en[0]", to: "pm10" },
+          { path: "spec.publish.ckan.instanceRef", to: "bbsk" },
+          { path: "spec.publish.ckan.datastore.representation", to: "csv" },
+        ],
+      },
+    ];
+    const fetchMock = renderDetail({
+      change: proposal({ files, status: { lane: "red", phase: "PendingApproval", plan: { update: 1 } } }),
+      endpoint: {
+        apiVersion: "joinedcontext.com/v1alpha1",
+        kind: "Endpoint",
+        metadata: { name: "air-quality", namespace: "banskabystrica", title: { en: "Air" } },
+        spec: { audience: "organization", catalog: { themes: ["ENVI"] } },
+      },
+    });
+    const preview = await screen.findByRole("region", { name: "The CKAN page of air-quality after the approval" });
+    expect(within(preview).getByRole("heading", { name: "Air quality in the city" })).toBeInTheDocument();
+    expect(within(preview).getByText("Creative Commons Zero 1.0")).toBeInTheDocument();
+    expect(within(preview).getByText("Environment")).toBeInTheDocument();
+    expect(within(preview).getByText("pm10")).toBeInTheDocument();
+    expect(within(preview).getByText(/Table in CKAN/)).toBeInTheDocument();
+    expect(screen.getByText(en.approvals.publicationPublic)).toBeInTheDocument();
+
+    // Red lane: approve stays shut until the name is typed back, and nothing is posted.
+    const approve = screen.getByRole("button", { name: en.approvals.approve });
+    expect(approve).toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(approve);
+    expect(posts(fetchMock)).toHaveLength(0);
   });
 
   it("posts the approval to the change of the route, with the CSRF token", async () => {

@@ -325,7 +325,9 @@
       },
       "anyKind": "Jede Art"
     },
-    "reasonFirst": "Schreiben Sie zuerst, warum Sie die Änderung ablehnen."
+    "reasonFirst": "Schreiben Sie zuerst, warum Sie die Änderung ablehnen.",
+    "publication": "Die CKAN-Seite von {name} nach der Genehmigung",
+    "publicationPublic": "Nach Ihrer Genehmigung kann jede Person diesen Datensatz ohne Anmeldung lesen. Lesen Sie die Seite und die Feldänderungen oben, bevor Sie den Namen eingeben."
   },
   "lane": {
     "green": "Grün",
@@ -4043,7 +4045,8 @@
       },
       "lastChange": "Letzte Änderung {time}: {summary}",
       "lastFailed": "Letzter Lauf fehlgeschlagen {time}: {summary}. Beheben Sie die Ursache und veröffentlichen Sie erneut.",
-      "needsCatalogue": "Fügen Sie zuerst oben einen Katalog hinzu: ein Datensatz braucht ein CKAN-Portal."
+      "needsCatalogue": "Fügen Sie zuerst oben einen Katalog hinzu: ein Datensatz braucht ein CKAN-Portal.",
+      "mapAndTable": "Karte und Tabelle auf der Seite des Datensatzes"
     },
     "statusFailed": "Der Katalogstatus dieses Projekts konnte nicht gelesen werden, daher kann die Liste unten unvollständig sein: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen.",
     "access": {
@@ -6964,7 +6967,7 @@
       "contactHelp": "Eine Funktionsadresse wie eine Open-Data-Stelle, nie die E-Mail einer Person.",
       "keywords": "Schlagwörter",
       "keywordsHelp": "Durch Kommas getrennt, in der Sprache {language}.",
-      "spatialHelp": "NUTS-Codes oder Ortslinks, durch Kommas getrennt, zum Beispiel SK032.",
+      "spatialHelp": "Die Region, die die Daten abdecken, zum Beispiel Banskobystrický kraj (SK032). Die Karte des Datensatzes zeigt seine Einträge überall dort, wo sie einen Ort haben.",
       "start": "Enthält Daten ab",
       "end": "Enthält Daten bis",
       "back": "Zurück",
@@ -6977,7 +6980,37 @@
         "licence": "Eine Lizenz wählen.",
         "contactBoth": "Name und E-Mail des Kontakts gemeinsam angeben oder keines von beiden.",
         "email": "Eine E-Mail-Adresse wie opendata@example.org eingeben.",
-        "period": "Das Ende des Zeitraums darf nicht vor seinem Beginn liegen. Wählen Sie ein Enddatum nach dem Beginn."
+        "period": "Das Ende des Zeitraums darf nicht vor seinem Beginn liegen. Wählen Sie ein Enddatum nach dem Beginn.",
+        "title": "Geben Sie dem Datensatz einen Titel."
+      },
+      "datasetTitle": "Titel des Datensatzes",
+      "datasetTitleHelp": "Der Name, unter dem der Katalog ihn führt, in der Sprache {language}.",
+      "datasetDescription": "Beschreibung",
+      "datasetDescriptionHelp": "Was die Daten sind und woher sie stammen, in der Sprache {language}.",
+      "mapExtent": "Gebiet auf der Karte",
+      "noArea": "Kein Gebiet",
+      "attributes": "Was der öffentliche Datensatz zeigt",
+      "attributesHelp": "Entfernen Sie den Haken bei einem Attribut, um es wegzulassen. Personenbezogene Attribute werden nie angeboten: Das Modell kennzeichnet sie als personenbezogene Daten, daher darf ein öffentlicher Datensatz sie nicht enthalten.",
+      "noAttributes": "Das Datenmodell des Endpoints nennt noch keine Attribute. Fügen Sie dem Bereich des Endpoints zuerst ein Datenmodell hinzu und erstellen Sie den Entwurf dann neu.",
+      "ofType": "Typ {type}",
+      "withheld": {
+        "personal": "Im Modell personenbezogene Daten: Ein öffentlicher Datensatz enthält sie nie.",
+        "hidden": "Der Endpoint blendet es bereits aus. Ändern Sie die ausgeblendeten Attribute des Endpoints, um es zu zeigen."
+      },
+      "datastore": "Zeilen in eine CKAN-Tabelle übernehmen",
+      "datastoreHelp": "CKAN zeigt sie als Tabelle, die man filtern und per SQL abfragen kann.",
+      "datastoreUnavailable": "Der Endpoint liefert kein CSV, aus dem die CKAN-Tabelle gefüllt wird. Aktivieren Sie zuerst die CSV-Darstellung am Endpoint.",
+      "confirmLabel": "Zur Bestätigung den Namen des Endpoints eingeben",
+      "confirmHelp": "Die Veröffentlichung macht {name} für alle lesbar. Geben Sie zur Bestätigung {name} ein.",
+      "confirmFirst": "Bestätigen Sie zuerst oben mit {name}.",
+      "ckanPage": "So wird die CKAN-Seite aussehen",
+      "resources": "Daten und Ressourcen",
+      "columns": "Spalten",
+      "resource": {
+        "datastore": "Tabelle in CKAN (Filter, SQL)",
+        "map": "Karte der Einträge mit Ort",
+        "api": "NGSI-LD-API und die weiteren Formate des Endpoints",
+        "dcat": "DCAT-AP-Eintrag (JSON-LD)"
       }
     },
     "licence": {
