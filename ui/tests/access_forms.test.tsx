@@ -533,6 +533,8 @@ describe("the role form on a phone (T-4213)", () => {
         { kinds: ["Role"], verbs: ["propose"] },
       ]),
     );
+    // A preset first (T-4832); the rule list is what Custom shows.
+    await userEvent.click(await screen.findByRole("radio", { name: "Custom" }));
     expect(await screen.findByRole("checkbox", { name: "Endpoint" })).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Pipeline" })).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Propose changes" })).toBeInTheDocument();

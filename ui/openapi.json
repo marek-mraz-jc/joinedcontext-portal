@@ -13304,7 +13304,7 @@
           "spaces"
         ],
         "summary": "Watch A Type Of A Space",
-        "description": "Server-sent `changed` events naming the entities and attributes of one type that changed, never their values (API/01 §32). The view reads the rows again with the caller's session.",
+        "description": "Server-sent `changed` events saying that entities of one type changed, with no entity id, attribute name or value (API/01 §32, T-4876). The view reads the rows again with the caller's session, which the gateway narrows to the caller's grants.",
         "operationId": "watch",
         "parameters": [
           {
@@ -13949,6 +13949,80 @@
           },
           "503": {
             "description": "The space or the key is not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/spaces/{space}/temporal-audit": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Audit How Pipelines Create History",
+        "description": "For every pipeline the caller may read that writes the space: each entity type and attribute its mapping writes, the record mode the space's retention gives it (DM-108), where its observedAt comes from (mapped, constant, or stamped on receipt, DM-107), its unitCode and datasetId, the type's history and the pipeline's lifetime, and a verdict: ok, loses-history, unbounded-growth, duplicates-rows or stamped-on-receive (T-4844). Names only, never a value of the data.",
+        "operationId": "temporal_audit",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pipeline",
+            "in": "query",
+            "description": "Only this pipeline.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rows and the count of each verdict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemporalAudit"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read, or no such pipeline the caller may read",
             "content": {
               "application/json": {
                 "schema": {
@@ -22384,6 +22458,15 @@
         },
         "additionalProperties": false
       },
+      "ObservedAtSource": {
+        "type": "string",
+        "description": "Where a row's `observedAt` comes from.",
+        "enum": [
+          "mapped",
+          "constant",
+          "received"
+        ]
+      },
       "ObservedPage": {
         "type": "object",
         "description": "One page of the application as the frame rendered it.",
@@ -25833,6 +25916,118 @@
             "description": "The project's templates, newest first."
           }
         }
+      },
+      "TemporalAudit": {
+        "type": "object",
+        "description": "The audit of one space.",
+        "required": [
+          "rows",
+          "unread",
+          "verdicts"
+        ],
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemporalAuditRow"
+            },
+            "description": "One row per pipeline, entity type and attribute, by pipeline, type and attribute."
+          },
+          "unread": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The pipelines whose `bento.yaml` the forge did not answer: their rows may be missing."
+          },
+          "verdicts": {
+            "type": "object",
+            "description": "The rows of each verdict.",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "TemporalAuditRow": {
+        "type": "object",
+        "description": "One row of the audit (T-4844). Names and sources only: no value of the data.",
+        "required": [
+          "pipeline",
+          "entityType",
+          "attribute",
+          "record",
+          "observedAt",
+          "unitCode",
+          "datasetId",
+          "history",
+          "lifetime",
+          "verdict"
+        ],
+        "properties": {
+          "attribute": {
+            "type": "string"
+          },
+          "datasetId": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The literal `datasetId`s, or `mapped` for one the record decides."
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "history": {
+            "type": "string",
+            "description": "How long the type's rows are kept: the rule's, the space's `*` rule's, or the platform's."
+          },
+          "lifetime": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What ends the entities: the pipeline's `lifetime` and `expiry`, or an `expiresAt` it maps."
+          },
+          "observedAt": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ObservedAtSource"
+            }
+          },
+          "pipeline": {
+            "type": "string"
+          },
+          "record": {
+            "type": "string",
+            "description": "`every`, `onChange`, or `none` under `history: off` (DM-108)."
+          },
+          "unitCode": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The codes the mapping writes, or the model's unit as `model <code>` when it writes none."
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/TemporalVerdict"
+          }
+        }
+      },
+      "TemporalVerdict": {
+        "type": "string",
+        "description": "What the rows of one attribute come to.",
+        "enum": [
+          "ok",
+          "loses-history",
+          "unbounded-growth",
+          "duplicates-rows",
+          "stamped-on-receive"
+        ]
       },
       "TenantDigest": {
         "type": "object",

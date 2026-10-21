@@ -152,3 +152,4 @@ The live journey `copy-agent.spec.ts` replays these steps.
 - [Data Modeling](./03-data-models.md): visual LinkML modeling and schema versioning.
 - [Endpoints & Sharing](./05-endpoints-and-sharing.md): exposing space data to consumers and tools.
 - [Users, Roles & Approvals](./07-users-roles-approvals.md): role assignments, service accounts, and change reviews.
+- [Retention & Expiry](./14-retention-and-expiry.md): how long a space keeps current values and history.

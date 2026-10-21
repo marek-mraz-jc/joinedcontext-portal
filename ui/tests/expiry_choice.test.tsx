@@ -4,7 +4,7 @@
  * where the form holds `spec.expiry`; the guide link shows only when the installation serves a
  * guide (UI-02).
  */
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRootRoute, createRoute, createRouter, Outlet, RouterProvider } from "@tanstack/react-router";
@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { BrandingProvider } from "../src/branding";
 import { RETENTION_GUIDE, RetentionGuide } from "../src/components/RetentionGuide";
-import { ExpiryChoice, modeOf, timeFieldOf } from "../src/pages/pipelines/ExpiryChoice";
+import { ExpiryChoice, modeOf, timeFieldOf, withFrom } from "../src/pages/pipelines/ExpiryChoice";
 import type { ExpiryChoiceProps } from "../src/pages/pipelines/ExpiryChoice";
 
 function branded(documentationBaseUrl: string | undefined): void {
@@ -46,22 +46,22 @@ function renderIn(child: () => ReactNode) {
 
 function choice(props: Partial<ExpiryChoiceProps> = {}) {
   const onMode = vi.fn();
-  const onExpires = vi.fn();
+  const onLifetime = vi.fn();
   const onExpiry = vi.fn();
   const all: ExpiryChoiceProps = {
     project: "helsinki",
     space: "mobility",
     type: "Vehicle",
-    fields: ["id", "observedAt", "speed"],
-    expires: undefined,
+    slots: ["observedOn", "validTo"],
+    lifetime: undefined,
     expiry: undefined,
     onMode,
-    onExpires,
+    onLifetime,
     onExpiry,
     ...props,
   };
   renderIn(() => <ExpiryChoice {...all} />);
-  return { onMode, onExpires, onExpiry };
+  return { onMode, onLifetime, onExpiry };
 }
 
 afterEach(() => {
@@ -70,7 +70,8 @@ afterEach(() => {
 
 describe("modeOf and timeFieldOf", () => {
   it("reads an own expiresAt first, then the sweep, else never", () => {
-    expect(modeOf({ field: "observedAt" }, { after: "1d" })).toBe("source");
+    expect(modeOf({ from: "observedOn", plus: "PT10M" }, { after: "1d" })).toBe("source");
+    expect(modeOf({ rolling: "PT10M" }, undefined)).toBe("source");
     expect(modeOf(undefined, { after: "14d" })).toBe("stale");
     expect(modeOf(undefined, { types: ["Vehicle"] })).toBe("stale");
     expect(modeOf(undefined, {})).toBe("never");
@@ -82,19 +83,38 @@ describe("modeOf and timeFieldOf", () => {
     expect(timeFieldOf(["id", "validDate"])).toBe("validDate");
     expect(timeFieldOf(["id", "speed"])).toBeUndefined();
   });
+
+  it("moves between a slot and the write time and keeps the while", () => {
+    expect(withFrom({ from: "observedOn", plus: "PT2H" }, undefined)).toEqual({ rolling: "PT2H" });
+    expect(withFrom({ rolling: "P1D" }, "validTo")).toEqual({ from: "validTo", plus: "P1D" });
+    expect(withFrom(undefined, undefined)).toEqual({ rolling: "PT10M" });
+  });
 });
 
 describe("ExpiryChoice", () => {
-  it("sets the bus recipe, observedAt plus 10 minutes, and clears the sweep in one change", async () => {
+  it("sets the bus recipe, a time slot plus 10 minutes, and clears the sweep in one change", async () => {
     branded(undefined);
     const { onMode } = choice();
     await userEvent.click(await screen.findByRole("radio", { name: /At a time the source gives/ }));
-    expect(onMode).toHaveBeenCalledWith({ field: "observedAt", plus: "PT10M" }, undefined);
+    expect(onMode).toHaveBeenCalledWith({ from: "observedOn", plus: "PT10M" }, undefined);
+  });
+
+  it("counts from the write time when no date-time attribute is mapped, and says so", async () => {
+    branded(undefined);
+    const { onMode } = choice({ slots: [] });
+    await userEvent.click(await screen.findByRole("radio", { name: /At a time the source gives/ }));
+    expect(onMode).toHaveBeenCalledWith({ rolling: "PT10M" }, undefined);
+  });
+
+  it("names the missing date-time attribute under the time choice", async () => {
+    branded(undefined);
+    choice({ slots: [], lifetime: { rolling: "PT10M" } });
+    expect(await screen.findByText(/No date-time attribute of Vehicle is mapped yet/)).toBeTruthy();
   });
 
   it("sets the sweep for the written type and drops an own expiresAt", async () => {
     branded(undefined);
-    const { onMode } = choice({ expires: { field: "observedAt", plus: "PT10M" } });
+    const { onMode } = choice({ lifetime: { from: "observedOn", plus: "PT10M" } });
     await userEvent.click(await screen.findByRole("radio", { name: /When the source stops sending them/ }));
     expect(onMode).toHaveBeenCalledWith(undefined, { after: "14d", types: ["Vehicle"] });
   });
@@ -110,24 +130,34 @@ describe("ExpiryChoice", () => {
   it("offers no sweep where the form holds no spec.expiry", async () => {
     branded(undefined);
     renderIn(() => (
-      <ExpiryChoice project="helsinki" space="mobility" type="Vehicle" fields={[]} expires={undefined} expiry={undefined} onMode={vi.fn()} onExpires={vi.fn()} />
+      <ExpiryChoice project="helsinki" space="mobility" type="Vehicle" slots={[]} lifetime={undefined} expiry={undefined} onMode={vi.fn()} onLifetime={vi.fn()} />
     ));
     await screen.findByRole("radio", { name: /^Never/ });
     expect(screen.queryByRole("radio", { name: /When the source stops sending them/ })).toBeNull();
   });
 
-  it("writes the added time as an ISO duration and the field the person picks", async () => {
+  it("writes the added time as an ISO duration and the slot the person picks", async () => {
     branded(undefined);
-    const { onExpires } = choice({ expires: { field: "observedAt", plus: "PT10M" } });
+    const { onLifetime } = choice({ lifetime: { from: "observedOn", plus: "PT10M" } });
     await userEvent.selectOptions(await screen.findByLabelText("Unit of the added time"), "hours");
-    expect(onExpires).toHaveBeenLastCalledWith({ field: "observedAt", plus: "PT10H" });
+    expect(onLifetime).toHaveBeenLastCalledWith({ from: "observedOn", plus: "PT10H" });
     await userEvent.selectOptions(await screen.findByLabelText("Time from"), "");
-    expect(onExpires).toHaveBeenLastCalledWith({ field: undefined, plus: "PT10M" });
+    expect(onLifetime).toHaveBeenLastCalledWith({ rolling: "PT10M" });
+    await userEvent.selectOptions(await screen.findByLabelText("Time from"), "validTo");
+    expect(onLifetime).toHaveBeenLastCalledWith({ from: "validTo", plus: "PT10M" });
+  });
+
+  it("keeps a rolling end's while when the amount is cleared to zero", async () => {
+    branded(undefined);
+    const { onLifetime } = choice({ lifetime: { rolling: "PT2H" } });
+    const amount = await screen.findByLabelText("Plus");
+    fireEvent.change(amount, { target: { value: "0" } });
+    expect(onLifetime).toHaveBeenLastCalledWith({ rolling: "PT2H" });
   });
 
   it("says the problem with the time field at the field", async () => {
     branded(undefined);
-    choice({ expires: { field: "speed" }, problem: "speed holds no time" });
+    choice({ lifetime: { from: "observedOn" }, problem: "speed holds no time" });
     expect(await screen.findByText("speed holds no time")).toBeTruthy();
   });
 

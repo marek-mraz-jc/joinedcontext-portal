@@ -772,7 +772,7 @@
       "restore": "Vrátiť",
       "restoreOne": "Vrátiť {name}",
       "restoreRefused": "{name} sa nevrátil: {reason}",
-      "liveChanged": "{count, plural, one {Zmenila sa # entita} few {Zmenili sa # entity} other {Zmenilo sa # entít}} ({attrs}); zobrazené tak, ako sú teraz."
+      "liveChanged": "Entity tohto typu sa zmenili o {time}; zobrazené tak, ako sú teraz."
     },
     "api": {
       "lead": "Ako program číta {type}: cez endpoint tohto priestoru, s vlastným tokenom, a webhooky, ktoré mu povedia, keď sa niečo zmení.",
@@ -1117,6 +1117,59 @@
       "write": "{count, plural, =0 {Nie je čo zapísať} one {Zapísať # riadok} few {Zapísať # riadky} other {Zapísať # riadkov}}",
       "done": "{written, plural, =0 {Nezapísal sa žiadny riadok} one {Zapísaný # riadok} few {Zapísané # riadky} other {Zapísaných # riadkov}}, {refused, plural, =0 {žiadny odmietnutý.} other {odmietnutých: #.}}",
       "preview": "Náhľad {count, plural, one {prvej # entity} few {prvých # entít} other {prvých # entít}} ako NGSI-LD"
+    },
+    "temporal": {
+      "title": "Ako vznikajú riadky histórie",
+      "lead": "Každý atribút, ktorý pipeline zapisuje do tohto priestoru, ako ho priestor zaznamenáva a odkiaľ berie čas každého riadku. Verdikt iný ako OK hovorí, čo zmeniť.",
+      "summary": "Riadky podľa verdiktu",
+      "count": "{verdict}: {n}",
+      "failed": "Audit sa nepodarilo načítať: {detail}. Skúste stránku načítať znova.",
+      "empty": "Do tohto priestoru nezapisuje žiadna pipeline, ktorú môžete čítať",
+      "emptyHint": "Pipeline, ktorej cieľový Endpoint patrí tomuto priestoru, sa tu zobrazí s každým atribútom, ktorý mapuje.",
+      "unread": "Mapovanie {pipelines} sa nepodarilo načítať z repozitára, jeho riadky chýbajú. Skúste stránku načítať znova.",
+      "pipelineFilter": "Pipeline",
+      "allPipelines": "Všetky pipeline",
+      "verdictFilter": "Verdikt",
+      "allVerdicts": "Všetky verdikty",
+      "noMatch": "Týmto filtrom nezodpovedá žiadny riadok",
+      "caption": "Ako sa zápisy každej pipeline menia na riadky histórie",
+      "attribute": "Atribút",
+      "kept": "Uchováva sa",
+      "verdictColumn": "Verdikt",
+      "of": "{type} z pipeline {pipeline}",
+      "none": "žiadne",
+      "datasets": "Identifikátory datasetu: {n}",
+      "history": "História {history}",
+      "lifetime": "Koniec entity: {lifetime}",
+      "recordMode": {
+        "every": "Uchovať každé meranie",
+        "onChange": "Uchovať len zmeny",
+        "none": "Uchovať len poslednú hodnotu"
+      },
+      "source": {
+        "mapped": "Zo záznamu",
+        "constant": "Pevný čas",
+        "received": "Čas prijatia"
+      },
+      "verdict": {
+        "ok": "Riadky zodpovedajú meraniam",
+        "loses-history": "Stráca históriu",
+        "unbounded-growth": "Rastie bez obmedzenia",
+        "duplicates-rows": "Duplikuje riadky",
+        "stamped-on-receive": "Čas prijatia"
+      },
+      "fix": {
+        "loses-history": "Každý zápis má rovnaký čas, takže nahradí predchádzajúci: mapujte observedAt zo záznamu.",
+        "unbounded-growth": "História sa uchováva navždy: nastavte trvanie na karte Uchovávanie.",
+        "duplicates-rows": "Nezmenená hodnota je pri každom zápise nový riadok: mapujte observedAt zo záznamu alebo uchovajte len zmeny.",
+        "stamped-on-receive": "Meranie bez vlastného času: mapujte observedAt zo záznamu."
+      },
+      "expiresMapped": "jej expiresAt z mapovania",
+      "expiry": "neaktuálna po {after}",
+      "rows": "Riadky",
+      "timeOf": "Čas: {source}",
+      "unitOf": "Jednotka: {unit}",
+      "noMatchHint": "Vyberte Všetky pipeline a Všetky verdikty, aby ste videli každý riadok."
     }
   },
   "endpoints": {
@@ -2288,7 +2341,7 @@
         "never": "Nikdy",
         "neverHint": "Zostanú, kým ich niekto nezmaže alebo ich neodstráni pravidlo priestoru.",
         "source": "V čase, ktorý dá zdroj",
-        "sourceHint": "Každá entita dostane vlastný expiresAt: časové pole záznamu plus nejaký čas, napríklad observedAt plus 10 minút pre polohu autobusu.",
+        "sourceHint": "Každá entita dostane vlastné expiresAt: časový atribút plus určitý čas, napríklad observedOn plus 10 minút, alebo čas zápisu záznamu plus určitý čas. Pipeline ho zapíše po vašom mapovaní.",
         "stale": "Keď ich zdroj prestane posielať",
         "staleHint": "Raz za hodinu pipeline zmaže entity tohto typu, ktoré počas okna neaktualizovala.",
         "from": "Čas z",
@@ -2300,7 +2353,11 @@
         "afterHint": "Entity typu {type} neaktualizované takto dlho sa raz za hodinu zmažú.",
         "refusals": "Návrh sa odmietne, keď má pipeline viac ako jeden výstup, keď do toho istého priestoru zapisuje iná pipeline, alebo keď žiadna Policy nedáva tejto pipeline deleteBatch a queryBatch na typ; odmietnutie pomenuje Policy, ktorú treba rozšíriť.",
         "history": "História typu {type} sa riadi pravidlami priestoru.",
-        "spaceRules": "Uchovávanie v {space}"
+        "spaceRules": "Uchovávanie v {space}",
+        "noTimeSlot": "Zatiaľ nie je namapovaný žiadny atribút dátumu a času typu {type}, preto sa koniec počíta od času zápisu záznamu.",
+        "inManifest": "Životnosť typu {type} je nastavená v manifeste pipeline (pevný dátum, strop alebo vybrané atribúty). Zmeňte ju v zobrazení YAML; tento editor ju ponechá bez zmeny.",
+        "migrated": "Čas konca, ktorý tento krok doteraz zapisoval, je teraz nastavením životnosti pipeline nižšie. Uloží sa s vaším ďalším návrhom.",
+        "migrateField": "Tento krok zapisuje expiresAt z poľa záznamu {field} a z tohto poľa nie je namapovaný žiadny atribút dátumu a času. Namapujte ho na atribút dátumu a času alebo nižšie zvoľte iný čas; dovtedy si krok ponechá vlastné riadky expiresAt."
       }
     },
     "debug": {
@@ -2824,6 +2881,31 @@
       "personHelp": "Ľudia organizácie podľa e-mailu; vyhľadávanie vyššie zúži zoznam.",
       "accountHelp": "Servisné účty projektu, teda programy, ktoré volajú endpointy.",
       "nameHelp": "Názov presne tak, ako je napísaný v Keycloaku."
+    },
+    "presets": {
+      "legend": "Prístup",
+      "advanced": "Rozšírené",
+      "unavailable": "Toto celé sami nedržíte, preto to nemôžete udeliť.",
+      "reader": {
+        "label": "Čitateľ",
+        "description": "Číta dáta a nastavenia; nič nemení."
+      },
+      "writer": {
+        "label": "Zapisovateľ",
+        "description": "Číta a navrhuje alebo robí zmeny hodnôt dát."
+      },
+      "steward": {
+        "label": "Správca",
+        "description": "Číta, navrhuje a schvaľuje zmeny dát a ich nastavení; nie toho, kto má prístup."
+      },
+      "pipelineWriter": {
+        "label": "Zápis z pipeline",
+        "description": "Privádza dáta: vytvára a mení entity, navrhuje pipeline a ich zdroje."
+      },
+      "custom": {
+        "label": "Vlastné",
+        "description": "Každé oprávnenie vyberiete sami."
+      }
     }
   },
   "flows": {
@@ -3238,7 +3320,14 @@
       "noClasses": "Tento model zatiaľ nedeklaruje žiadnu triedu, takže negeneruje formulár.",
       "formClass": "Trieda",
       "formReadOnly": "Toto je formulár, ktorý model generuje, vyplnený jeho príkladom; odtiaľto sa nič neukladá.",
-      "jsonType": {"number": "Číslo", "integer": "Celé číslo", "string": "Text", "boolean": "Áno alebo nie", "object": "Skupina polí", "array": "Zoznam"},
+      "jsonType": {
+        "number": "Číslo",
+        "integer": "Celé číslo",
+        "string": "Text",
+        "boolean": "Áno alebo nie",
+        "object": "Skupina polí",
+        "array": "Zoznam"
+      },
       "asJson": "Zobrazené ako JSON.",
       "yaml": "Zdroj modelu (LinkML YAML)",
       "copyYaml": "Kopírovať YAML",

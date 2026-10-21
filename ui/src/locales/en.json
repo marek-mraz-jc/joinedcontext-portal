@@ -772,7 +772,7 @@
       "restore": "Put back",
       "restoreOne": "Put back {name}",
       "restoreRefused": "{name} was not put back: {reason}",
-      "liveChanged": "{count, plural, one {# entity} other {# entities}} changed ({attrs}); shown as they are now."
+      "liveChanged": "Entities of this type changed at {time}; shown as they are now."
     },
     "api": {
       "lead": "How a program reads {type}: through an Endpoint of this space, with its own token, and the webhooks that tell it when something changes.",
@@ -1117,6 +1117,59 @@
       "write": "{count, plural, =0 {Nothing to write} one {Write # row} other {Write # rows}}",
       "done": "{written, plural, =0 {No row was written} one {# row written} other {# rows written}}, {refused, plural, =0 {none refused.} one {# refused.} other {# refused.}}",
       "preview": "Preview the first {count, plural, one {# entity} other {# entities}} as NGSI-LD"
+    },
+    "temporal": {
+      "title": "How history rows are created",
+      "lead": "Each attribute a pipeline writes into this space, how the space records it and where the time of each row comes from. A verdict other than OK names what to change.",
+      "summary": "Rows per verdict",
+      "count": "{verdict}: {n}",
+      "failed": "The audit could not be read: {detail}. Reload the page to try again.",
+      "empty": "No pipeline you can read writes this space",
+      "emptyHint": "A pipeline whose target Endpoint belongs to this space appears here with each attribute it maps.",
+      "unread": "The mapping of {pipelines} could not be read from the repository, so its rows are missing. Reload the page to try again.",
+      "pipelineFilter": "Pipeline",
+      "allPipelines": "All pipelines",
+      "verdictFilter": "Verdict",
+      "allVerdicts": "All verdicts",
+      "noMatch": "No row matches these filters",
+      "caption": "How each pipeline's writes become history rows",
+      "attribute": "Attribute",
+      "kept": "Kept",
+      "verdictColumn": "Verdict",
+      "of": "{type}, pipeline {pipeline}",
+      "none": "none",
+      "datasets": "{n} dataset ids",
+      "history": "History {history}",
+      "lifetime": "Entity ends: {lifetime}",
+      "recordMode": {
+        "every": "Keep every reading",
+        "onChange": "Keep only changes",
+        "none": "Keep the latest value only"
+      },
+      "source": {
+        "mapped": "From the record",
+        "constant": "A fixed time",
+        "received": "Time received"
+      },
+      "verdict": {
+        "ok": "Rows match readings",
+        "loses-history": "Loses history",
+        "unbounded-growth": "Grows without bound",
+        "duplicates-rows": "Duplicates rows",
+        "stamped-on-receive": "Stamped on receipt"
+      },
+      "fix": {
+        "loses-history": "Every write has the same time, so each replaces the last: map observedAt from the record.",
+        "unbounded-growth": "History is kept forever: set a duration on the Retention tab.",
+        "duplicates-rows": "An unchanged value is a new row on every write: map observedAt from the record, or keep only changes.",
+        "stamped-on-receive": "A measurement without its own time: map observedAt from the record."
+      },
+      "expiresMapped": "its expiresAt, set by the mapping",
+      "expiry": "stale after {after}",
+      "rows": "Rows",
+      "timeOf": "Time: {source}",
+      "unitOf": "Unit: {unit}",
+      "noMatchHint": "Choose All pipelines and All verdicts to see every row."
     }
   },
   "endpoints": {
@@ -2288,7 +2341,7 @@
         "never": "Never",
         "neverHint": "They stay until someone deletes them or a space rule removes them.",
         "source": "At a time the source gives",
-        "sourceHint": "Each entity gets its own expiresAt: a time field of the record plus a while, for example observedAt plus 10 minutes for a bus position.",
+        "sourceHint": "Each entity gets its own expiresAt: a time attribute plus a while, for example observedOn plus 10 minutes, or the time the record is written plus a while. The pipeline writes it after your mapping.",
         "stale": "When the source stops sending them",
         "staleHint": "Once an hour the pipeline deletes entities of this type it has not updated for the window.",
         "from": "Time from",
@@ -2300,7 +2353,11 @@
         "afterHint": "Entities of {type} not updated for this long are deleted, once an hour.",
         "refusals": "The proposal is refused when the pipeline has more than one output, when another pipeline writes into the same space, or when no Policy grants this pipeline deleteBatch and queryBatch on the type; the refusal names the Policy to extend.",
         "history": "History of {type} follows the space's rules.",
-        "spaceRules": "Retention of {space}"
+        "spaceRules": "Retention of {space}",
+        "noTimeSlot": "No date-time attribute of {type} is mapped yet, so the end counts from the time the record is written.",
+        "inManifest": "The lifetime of {type} is set in the pipeline's manifest (a fixed date, a cap or chosen attributes). Change it in the YAML view; this editor keeps it as it is.",
+        "migrated": "The end time this step used to write is now the pipeline's lifetime setting below. It is saved with your next proposal.",
+        "migrateField": "This step writes expiresAt from the record field {field}, and no date-time attribute is mapped from that field. Map it to a date-time attribute or pick another time below; until then the step keeps its own expiresAt lines."
       }
     },
     "debug": {
@@ -2824,6 +2881,31 @@
       "personHelp": "The people of the organization, by email; the search above narrows the list.",
       "accountHelp": "The project's service accounts, the workloads that call endpoints.",
       "nameHelp": "The name exactly as it is written in Keycloak."
+    },
+    "presets": {
+      "legend": "Access",
+      "advanced": "Advanced",
+      "unavailable": "You do not hold all of this yourself, so you cannot give it.",
+      "reader": {
+        "label": "Reader",
+        "description": "Reads data and settings; changes nothing."
+      },
+      "writer": {
+        "label": "Writer",
+        "description": "Reads, and proposes or makes changes to data values."
+      },
+      "steward": {
+        "label": "Steward",
+        "description": "Reads, proposes and approves changes to data and its settings; not to who has access."
+      },
+      "pipelineWriter": {
+        "label": "Pipeline writer",
+        "description": "Brings data in: creates and updates entities, proposes pipelines and their sources."
+      },
+      "custom": {
+        "label": "Custom",
+        "description": "Pick each permission yourself."
+      }
     }
   },
   "flows": {
@@ -3238,7 +3320,14 @@
       "noClasses": "This model declares no class yet, so it generates no form.",
       "formClass": "Class",
       "formReadOnly": "This is the form the model generates, filled with its example; nothing is saved from here.",
-      "jsonType": {"number": "Number", "integer": "Whole number", "string": "Text", "boolean": "Yes or no", "object": "Group of fields", "array": "List"},
+      "jsonType": {
+        "number": "Number",
+        "integer": "Whole number",
+        "string": "Text",
+        "boolean": "Yes or no",
+        "object": "Group of fields",
+        "array": "List"
+      },
       "asJson": "Shown as JSON.",
       "yaml": "The model's source (LinkML YAML)",
       "copyYaml": "Copy the YAML",

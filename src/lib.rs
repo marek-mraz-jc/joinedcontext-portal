@@ -40,6 +40,7 @@ pub mod mqtt_allowance;
 pub mod people;
 pub mod permissions;
 pub mod pipeline_expiry;
+pub mod pipeline_lifetime;
 pub mod pipeline_log;
 pub mod pipeline_outcomes;
 pub mod pipeline_rights;
@@ -65,6 +66,7 @@ pub mod state;
 pub mod store;
 pub mod sync;
 pub mod telemetry;
+pub mod temporal_audit;
 pub mod tools;
 
 /// Name reported by `/api/v1/health` and the process banner.

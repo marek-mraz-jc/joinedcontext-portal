@@ -1,6 +1,7 @@
-//! API/01 §32, T-3105: a view watches a type of a space it may read and hears which entities and
-//! attributes changed, from the gateway's delivery to `/live-notify/{key}`, which needs no session
-//! and refuses a key the Portal never made.
+//! API/01 §32, T-3105, T-4876: a view watches a type of a space it may read and hears that the
+//! type changed, from the gateway's delivery to `/live-notify/{key}`, which needs no session and
+//! refuses a key the Portal never made. No entity id or attribute name reaches the window: the
+//! notification was read under the Portal's ServiceAccount, not the person's grants.
 
 use axum::body::Body;
 use axum::http::{header, Request, StatusCode};
@@ -130,7 +131,7 @@ async fn call(
 const LIVE: &str = "/api/v1/projects/helsinki/spaces/air/live?type=AirQualityObserved";
 
 #[tokio::test]
-async fn a_reader_watches_a_type_and_hears_a_delivered_change_by_name() {
+async fn a_reader_hears_that_the_type_changed_and_nothing_the_portal_account_read() {
     let state = world();
     let request = Request::builder()
         .uri(LIVE)
@@ -149,17 +150,27 @@ async fn a_reader_watches_a_type_and_hears_a_delivered_change_by_name() {
     let mut body = response.into_body();
 
     // The gateway delivers with no session and no CSRF token: the key is the credential.
-    let key = state.live.key("air", "AirQualityObserved");
-    let delivery = Request::builder()
-        .method("POST")
-        .uri(format!("/live-notify/{key}"))
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(
-            json!({ "data": [{ "id": "urn:ngsi-ld:AirQualityObserved:hel.fi:air:1", "pm10": 40 }] }).to_string(),
-        ))
-        .expect("a request");
+    // The same space name in another project, watched there; its delivery must not reach here.
+    let _espoo = state.live.watch("espoo", "air", "AirQualityObserved");
+    let theirs = state.live.key("espoo", "air", "AirQualityObserved");
+    let deliver = |key: String| {
+        Request::builder()
+            .method("POST")
+            .uri(format!("/live-notify/{key}"))
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                json!({ "data": [{ "id": "urn:ngsi-ld:AirQualityObserved:hel.fi:air:secret-row", "secretAttr": 40 }] }).to_string(),
+            ))
+            .expect("a request")
+    };
+    let answered = server::app(state.clone())
+        .oneshot(deliver(theirs))
+        .await
+        .expect("a response");
+    assert_eq!(answered.status(), StatusCode::NO_CONTENT);
+    let key = state.live.key(PROJECT, "air", "AirQualityObserved");
     let delivered = server::app(state.clone())
-        .oneshot(delivery)
+        .oneshot(deliver(key))
         .await
         .expect("a response");
     assert_eq!(delivered.status(), StatusCode::NO_CONTENT);
@@ -170,13 +181,17 @@ async fn a_reader_watches_a_type_and_hears_a_delivered_change_by_name() {
         .expect("a frame")
         .expect("no error");
     let text = String::from_utf8(frame.into_data().expect("data").to_vec()).expect("utf-8");
-    assert!(text.starts_with("event: changed"), "{text}");
-    assert!(
-        text.contains("\"ids\":[\"urn:ngsi-ld:AirQualityObserved:hel.fi:air:1\"]"),
-        "{text}"
+    assert_eq!(
+        text, "event: changed\ndata: {\"type\":\"AirQualityObserved\"}\n\n",
+        "one event, this project's, naming no id, attribute or value"
     );
-    assert!(text.contains("\"attrs\":[\"pm10\"]"), "{text}");
-    assert!(!text.contains("40"), "no value is passed on: {text}");
+    // espoo's delivery came first: had it leaked, a second `changed` frame would follow.
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(300), body.frame())
+            .await
+            .is_err(),
+        "another project's same-named space reached this window"
+    );
 }
 
 #[tokio::test]
@@ -201,7 +216,7 @@ async fn a_key_the_portal_never_made_is_a_404_and_a_huge_body_is_refused() {
     let big = format!("{{\"data\":\"{}\"}}", "x".repeat(2 * 1024 * 1024));
     let answer = server::app(state.clone())
         .oneshot(post(
-            format!("/live-notify/{}", state.live.key("air", "T")),
+            format!("/live-notify/{}", state.live.key(PROJECT, "air", "T")),
             big,
         ))
         .await
