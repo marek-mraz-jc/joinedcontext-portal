@@ -1280,6 +1280,19 @@ async fn a_lifetime_naming_no_slot_of_the_spaces_model_is_refused_before_a_chang
             json!({ "project": "ovzdusie" }),
             None,
         ),
+        // The proposer reads the target space's entities, as PL-94 asks of a pipeline's writer.
+        org(
+            "Role",
+            "entity-reader",
+            json!({ "rules": [{ "kinds": ["Entity"], "verbs": ["read"] }] }),
+        ),
+        binding(
+            "ovzdusie-readers",
+            "entity-reader",
+            json!([{ "group": "air-quality-team" }]),
+            json!({ "contextSpace": "ovzdusie" }),
+            None,
+        ),
         in_project("ContextSpace", "ovzdusie"),
         in_project("DataSource", "mqtt-mesto"),
         ResourceEnvelope {
