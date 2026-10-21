@@ -6745,6 +6745,7 @@ export interface components {
              *     computed by the reconciler, never read from Git.
              */
             jobs?: components["schemas"]["JobRun"][];
+            notifications?: null | components["schemas"]["SubscriptionDeliveries"];
             observedRevision?: string | null;
             phase?: components["schemas"]["Phase"];
             /**
@@ -6765,6 +6766,23 @@ export interface components {
             reason: string;
             /** @description The value of the class's `dataSubjectRef` slot. */
             subject: string;
+        };
+        /**
+         * @description What the space says of one subscription's deliveries (TS 104 175 §5.2.14, the
+         *     NotificationParams members the broker maintains), kept in `status.notifications` so a person
+         *     sees whether the receiver gets what it watches (T-4866). Never the endpoint, a header or a
+         *     payload: only an outcome, two counts and three instants.
+         */
+        SubscriptionDeliveries: {
+            lastFailure?: string | null;
+            lastNotification?: string | null;
+            lastSuccess?: string | null;
+            /** @description `ok` when the last notification was delivered, `failed` when it was not. */
+            status?: string | null;
+            /** Format: int64 */
+            timesFailed?: number | null;
+            /** Format: int64 */
+            timesSent?: number | null;
         };
         /** @description What one run did, and where the source stands afterwards. */
         SyncRunReport: {

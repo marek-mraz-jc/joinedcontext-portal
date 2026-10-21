@@ -5472,7 +5472,17 @@
       "expiresAt": "Läuft ab am",
       "isActive": "Benachrichtigungen senden",
       "receiver": "Sendet an",
-      "watches": "Beobachtet"
+      "watches": "Beobachtet",
+      "deliveries": "Zustellungen"
+    },
+    "delivery": {
+      "none": "Noch keine Benachrichtigung: sie wird gesendet, wenn sich eine beobachtete Entität ändert.",
+      "ok": "Zugestellt",
+      "failing": "Fehlgeschlagen",
+      "lastSuccess": "Zuletzt zugestellt {at}",
+      "lastFailure": "Letzter Fehler {at}",
+      "counts": "{sent} gesendet, {failed} fehlgeschlagen",
+      "failingHint": "Der Empfänger hat die letzte Benachrichtigung nicht angenommen: Prüfen Sie, ob seine Adresse über https antwortet und POST annimmt."
     }
   },
   "registrations": {

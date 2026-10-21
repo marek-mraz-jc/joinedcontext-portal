@@ -25506,6 +25506,17 @@
             },
             "description": "The last run of each scheduled job of a `wasm` App, as its shard reports it (AP-154):\ncomputed by the reconciler, never read from Git."
           },
+          "notifications": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SubscriptionDeliveries",
+                "description": "What a `Subscription`'s space reports of its deliveries (T-4866): computed by the\nreconciler after each write, never read from Git, and only ever on a Subscription."
+              }
+            ]
+          },
           "observedRevision": {
             "type": [
               "string",
@@ -25549,6 +25560,54 @@
           "subject": {
             "type": "string",
             "description": "The value of the class's `dataSubjectRef` slot."
+          }
+        },
+        "additionalProperties": false
+      },
+      "SubscriptionDeliveries": {
+        "type": "object",
+        "description": "What the space says of one subscription's deliveries (TS 104 175 §5.2.14, the\nNotificationParams members the broker maintains), kept in `status.notifications` so a person\nsees whether the receiver gets what it watches (T-4866). Never the endpoint, a header or a\npayload: only an outcome, two counts and three instants.",
+        "properties": {
+          "lastFailure": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastNotification": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastSuccess": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`ok` when the last notification was delivered, `failed` when it was not."
+          },
+          "timesFailed": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "timesSent": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
           }
         },
         "additionalProperties": false

@@ -5472,7 +5472,17 @@
       "expiresAt": "Platí do",
       "isActive": "Posielať notifikácie",
       "receiver": "Posiela na",
-      "watches": "Sleduje"
+      "watches": "Sleduje",
+      "deliveries": "Doručenia"
+    },
+    "delivery": {
+      "none": "Zatiaľ žiadne upozornenie: odošle sa, keď sa sledovaná entita zmení.",
+      "ok": "Doručené",
+      "failing": "Zlyháva",
+      "lastSuccess": "Naposledy doručené {at}",
+      "lastFailure": "Posledné zlyhanie {at}",
+      "counts": "Odoslané: {sent}, zlyhalo: {failed}",
+      "failingHint": "Príjemca neprijal posledné upozornenie: overte, že jeho adresa odpovedá cez https a prijíma POST."
     }
   },
   "registrations": {
