@@ -170,21 +170,22 @@ describe("the flow map page", () => {
     };
     await renderRoute({
       path: PATH,
-      answer: async (path, request) => {
+      answer: (path, request) => {
         if (path.endsWith("/flow-map")) return jsonResponse(MAP);
         if (path.endsWith("/pipelines/hfp-ingest") && request.method === "GET") return jsonResponse(manifest);
         if (path.endsWith("/pipelines/hfp-ingest") && request.method === "PUT") {
           const dryRun = new URL(request.url).searchParams.get("dryRun") === "All";
-          const body = (await request.json()) as { spec: { enabled?: unknown } };
-          sent.push({ dryRun, enabled: body.spec.enabled });
-          return dryRun
-            ? jsonResponse({ valid: true, verdict: { ok: true, findings: [] } })
-            : jsonResponse({
-                apiVersion: "joinedcontext.com/v1alpha1",
-                kind: "Change",
-                metadata: { name: "chg-00000042", namespace: "helsinki" },
-                status: { lane: "green", phase: "Applied" },
-              });
+          return (request.json() as Promise<{ spec: { enabled?: unknown } }>).then((body) => {
+            sent.push({ dryRun, enabled: body.spec.enabled });
+            return dryRun
+              ? jsonResponse({ valid: true, verdict: { ok: true, findings: [] } })
+              : jsonResponse({
+                  apiVersion: "joinedcontext.com/v1alpha1",
+                  kind: "Change",
+                  metadata: { name: "chg-00000042", namespace: "helsinki" },
+                  status: { lane: "green", phase: "Applied" },
+                });
+          });
         }
         return undefined;
       },
