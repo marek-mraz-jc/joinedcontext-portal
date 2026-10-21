@@ -553,6 +553,16 @@ describe("the manifest a data source form describes", () => {
     expect(wfs.full).toContain("?service=WFS");
     // A literal password in the address is dropped, not shown.
     expect(endpointView("postgres://reader:hunter2@db.example.org/city")).toEqual({ shown: "db.example.org/city", full: "postgres://db.example.org/city", secrets: [] });
+    // A raw @, / or ? inside the password leaves no part of it in the cell or the title (T-4991 review).
+    for (const leaky of ["https://user:p@ss@host.example/x", "https://user:pa/ss@host.example/x", "https://user:pa?ss@host.example/x", "postgres://reader:hunter@2@host.example/x"]) {
+      const view = endpointView(leaky);
+      expect(view.shown).toBe("host.example/x");
+      expect(view.full).toBe(`${leaky.split("://")[0]}://host.example/x`);
+    }
+    expect(endpointView("https://user:p/a@ss@host.example/x").shown).toBe("host.example/x");
+    // An @ only in the path keeps the host.
+    expect(endpointView("https://host.example/users/@me").shown).toBe("host.example/users/@me");
+    expect(endpointView("http://[::1]:8080/@me").shown).toBe("[::1]:8080/@me");
     expect(endpointView("wss://mqtt.hsl.fi:443/").shown).toBe("mqtt.hsl.fi:443");
     expect(endpointView("/data/in.csv, /data/b.csv").shown).toBe("/data/in.csv, /data/b.csv");
     expect(endpointView("https://x.example/${TOKEN}/feed").shown).toBe("x.example/…/feed");
