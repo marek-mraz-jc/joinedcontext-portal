@@ -394,9 +394,24 @@ pub fn rows(input: &Input) -> Vec<AuditRow> {
     let lifetime = lifetime_of(input.spec, &mapping);
     let rule = |t: &str| input.retention.iter().find(|r| r.entity_type == t);
     let any = rule(ANY_TYPE).and_then(|r| r.history.clone());
+    // A history plan's `observedAt` is the time the rendered step writes (PL-107), over the scan's.
+    let planned: Vec<crate::pipeline_history::Plan> =
+        serde_json::from_value::<jc_core::kinds::PipelineSpec>(input.spec.clone())
+            .map(|spec| crate::pipeline_history::plans(input.pipeline, &spec))
+            .unwrap_or_default();
     scan(&mapping, input.default_type)
         .into_iter()
-        .map(|((entity_type, attribute), seen)| {
+        .map(|((entity_type, attribute), mut seen)| {
+            let plan = planned
+                .iter()
+                .find(|p| p.entity_type == entity_type && p.attribute == attribute);
+            match plan.and_then(|p| p.observed_at.as_deref()) {
+                Some(jc_core::kinds::pipeline_history::RECEIVED) => {
+                    seen.observed_at = [ObservedAt::Received].into();
+                }
+                Some(_) => seen.observed_at = [ObservedAt::Mapped].into(),
+                None => {}
+            }
             let own = rule(&entity_type);
             let history = own
                 .and_then(|r| r.history.clone())

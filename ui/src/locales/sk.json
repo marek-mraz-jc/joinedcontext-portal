@@ -2447,7 +2447,8 @@
         "source": {
           "model": "Model",
           "endpoint": "Endpoint",
-          "lifetime": "Životnosť"
+          "lifetime": "Životnosť",
+          "history": "História"
         },
         "expiresLabel": "Platnosť, s ktorou sa záznam zapíše",
         "expiresEntity": "Entita vyprší {at}",
@@ -2791,6 +2792,30 @@
         "stale": "Raz za hodinu pipeline zmaže každú entitu {type}, ktorú neaktualizovala {span}."
       },
       "allAdded": "Každé pole, ktoré endpoint povoľuje, už má koniec."
+    },
+    "history": {
+      "column": "História",
+      "explain": "História: ktoré záznamy si priestor ponechá z každého poľa a odkiaľ sa berie čas záznamu. Kontrola po namapovanom výstupe povie, či to priestor dokáže dodržať.",
+      "keepOf": "Čo ponechať z {name}",
+      "asMapped": "Ako to zapíše mapovanie",
+      "keep": {
+        "every": "Ponechať každé meranie",
+        "changes": "Ponechať len zmeny",
+        "latest": "Ponechať len poslednú hodnotu"
+      },
+      "timeOf": "Čas záznamu {name}",
+      "timeMapped": "Čas: ako ho zapíše mapovanie",
+      "timeFrom": "Čas: z {slot}",
+      "timeReceived": "Čas: keď príde",
+      "heartbeatOf": "Záznam aspoň raz za, pre {name}",
+      "heartbeat": {
+        "PT15M": "záznam aspoň každých 15 minút",
+        "PT1H": "záznam aspoň každú hodinu",
+        "P1D": "záznam aspoň každý deň",
+        "P7D": "záznam aspoň každých 7 dní"
+      },
+      "refused": "nedá sa dodržať",
+      "kept": "ponechá sa podľa voľby"
     },
     "access": {
       "section": "Prístup k iným priestorom",

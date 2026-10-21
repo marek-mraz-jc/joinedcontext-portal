@@ -2447,7 +2447,8 @@
         "source": {
           "model": "Model",
           "endpoint": "Endpoint",
-          "lifetime": "Lifetime"
+          "lifetime": "Lifetime",
+          "history": "History"
         },
         "expiresLabel": "Expiry the record is written with",
         "expiresEntity": "Entity expires {at}",
@@ -2791,6 +2792,30 @@
         "stale": "Once an hour, the pipeline deletes each {type} it has not updated for {span}."
       },
       "allAdded": "Every field the endpoint grants has an end already."
+    },
+    "history": {
+      "column": "History",
+      "explain": "History: which rows the space keeps of each field and where the time of a row comes from. The check after the mapped output says whether the space can keep it.",
+      "keepOf": "What to keep of {name}",
+      "asMapped": "As the mapping writes it",
+      "keep": {
+        "every": "Keep every reading",
+        "changes": "Keep only changes",
+        "latest": "Keep the latest value only"
+      },
+      "timeOf": "Time of a row of {name}",
+      "timeMapped": "Time: as the mapping writes it",
+      "timeFrom": "Time: from {slot}",
+      "timeReceived": "Time: when it arrives",
+      "heartbeatOf": "Row at least every, for {name}",
+      "heartbeat": {
+        "PT15M": "a row at least every 15 minutes",
+        "PT1H": "a row at least every hour",
+        "P1D": "a row at least every day",
+        "P7D": "a row at least every 7 days"
+      },
+      "refused": "cannot be kept",
+      "kept": "kept as chosen"
     },
     "access": {
       "section": "Access to other spaces",

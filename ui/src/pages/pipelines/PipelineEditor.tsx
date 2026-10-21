@@ -20,6 +20,7 @@ import { PipelineStudio } from "./PipelineStudio";
 import { PipelineWorkbench } from "./PipelineWorkbench";
 import type { MappingFile } from "./PipelineWorkbench";
 import type { UiSchema } from "../../components/forms/types";
+import type { History } from "./history";
 import type { Lifetime } from "./lifetime";
 
 /** The form of a pipeline: `PipelineSpec` with every reference flattened to its name. */
@@ -65,6 +66,8 @@ export interface PipelineForm {
   expiry?: { after?: string; types?: string[] };
   /** When entities and attributes end by themselves, the runner's step after the mapping (PL-80). */
   lifetime?: Lifetime[];
+  /** Which history rows the broker keeps of each written attribute, and the time of a row (PL-106). */
+  history?: History[];
   secretRefs?: { name?: string; key?: string; envVar?: string }[];
   quotas?: { maxMemoryMb?: number; cpuMillicores?: number };
 }
@@ -167,6 +170,7 @@ const OWNED_SPEC = [
   "allowFeedback",
   "expiry",
   "lifetime",
+  "history",
   "secretRefs",
   "quotas",
   "sources",
@@ -289,6 +293,7 @@ export function toEnvelope(project: string, form: PipelineForm, base?: Manifest)
     allowFeedback,
     expiry,
     lifetime,
+    history,
     secretRefs,
     quotas,
     processors,
@@ -308,6 +313,7 @@ export function toEnvelope(project: string, form: PipelineForm, base?: Manifest)
     // An emptied expiry is gone, not an empty object the manifest refuses: off means absent.
     expiry: expiry?.after || expiry?.types?.length ? expiry : undefined,
     lifetime: lifetime?.length ? lifetime : undefined,
+    history: history?.length ? history : undefined,
     secretRefs,
     quotas,
   }) as Record<string, unknown>;
