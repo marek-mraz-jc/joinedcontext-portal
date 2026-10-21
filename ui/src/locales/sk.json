@@ -473,6 +473,7 @@
     "lead": "Úprava sa navrhne ako zmena; schvaľovateľ ju posúdi skôr, než sa niečo zmení.",
     "propose": "Navrhnúť zmenu",
     "renamed": "Ponechajte názov {name}; iný názov by bol nový zdroj.",
+    "parseError": "Riadok {line}: {reason}. Opravte YAML, aby ste mohli navrhnúť zmenu.",
     "button": "Upraviť",
     "action": "Upraviť {name}",
     "loading": "Načítava sa {name}…",
@@ -3892,6 +3893,7 @@
       "views": "Pohľady na model",
       "view": {
         "overview": "Prehľad",
+        "fields": "Polia",
         "diagram": "Diagram",
         "form": "Formulár",
         "yaml": "YAML",
@@ -4012,6 +4014,26 @@
       "any": "Ľubovoľná hodnota",
       "object": "Obsahuje {fields}",
       "linkTo": "Odkaz na {target}"
+    },
+    "fields": {
+      "title": "Polia a čo priestor obsahuje",
+      "noSpace": "Tento model nemenuje žiadny kontextový priestor, preto pri jeho poliach nie sú žiadne údaje. Priestor zadajte v nastaveniach modelu, napríklad ilma.",
+      "notYet": "Denná kontrola kvality ešte nečítala priestor {space}; údaje sa tu zobrazia po jej prvom behu.",
+      "observed": "Údaje z priestoru {space}, prečítané dennou kontrolou kvality {at}.",
+      "factsFailed": "Údaje priestoru sa nepodarilo prečítať: {reason}. Znova načítajte stránku, alebo požiadajte správcu priestoru o prístup na čítanie.",
+      "noTypes": "Tento model zatiaľ nedeklaruje žiadny typ. Pridajte ho cez Upraviť.",
+      "count": "{count} v priestore",
+      "caption": "Polia typu {type}, čo každé povoľuje a čo priestor obsahuje",
+      "allowed": "Povolené hodnoty",
+      "description": "Popis",
+      "inSpace": "V priestore",
+      "query": "Dopyt",
+      "anyValue": "Akákoľvek hodnota typu",
+      "noEntities": "Zatiaľ žiadna entita tohto typu",
+      "seenRange": "videné {min} – {max}",
+      "broken": "{count, plural, one {# entita porušuje} few {# entity porušujú} other {# entít porušuje}} {rules}",
+      "queryAction": "Dopytovať",
+      "queryLabel": "Otvoriť Prieskum na entitách {type}, ktoré majú {field}"
     }
   },
   "apps": {
@@ -8474,7 +8496,8 @@
     "event": {
       "failure": "zlyhá",
       "stale": "jej údaje zastarajú",
-      "zero": "nič nezapíše"
+      "zero": "nič nezapíše",
+      "invalid": "jeho dáta porušia pravidlo modelu, ktoré deň predtým neporušili"
     },
     "delivery": "Ako",
     "portal": "V Portáli, hneď",

@@ -85,7 +85,7 @@ describe("choosing a pipeline's alerts", () => {
       project: "helsinki",
       scope: "pipeline",
       target: "bikes",
-      events: ["failure", "zero"],
+      events: ["failure", "zero", "invalid"],
       delivery: "portal",
     });
     expect(await screen.findByRole("button", { name: a.change })).toBeInTheDocument();
@@ -96,7 +96,7 @@ describe("choosing a pipeline's alerts", () => {
     stubbed([]);
     show();
     await screen.findByRole("button", { name: a.subscribe });
-    for (const event of ["failure", "stale", "zero"] as const) await user.click(screen.getByLabelText(a.event[event]));
+    for (const event of ["failure", "stale", "zero", "invalid"] as const) await user.click(screen.getByLabelText(a.event[event]));
     expect(screen.getByRole("button", { name: a.subscribe })).toHaveAttribute("aria-disabled", "true");
   });
 
