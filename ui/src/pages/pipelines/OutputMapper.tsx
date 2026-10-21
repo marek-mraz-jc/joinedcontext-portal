@@ -95,7 +95,7 @@ export function OutputMapper({ project, space, orgDomain, records, bloblang, onB
     queryFn: () => attributesOf(project, space, picked ?? ""),
     retry: false,
   });
-  const attributes = typed.data?.attributes ?? [];
+  const attributes = useMemo(() => typed.data?.attributes ?? [], [typed.data]);
   const state = picked && typed.data ? readBack(bloblang, attributes, space) : undefined;
   const handWritten = bloblang.trim() !== "" && typed.data !== undefined && state === undefined && !bloblang.startsWith("# jc-mapper ");
 
