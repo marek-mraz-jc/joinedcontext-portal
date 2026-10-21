@@ -284,8 +284,10 @@ export function assistantDeploymentSchema(
         type: "object",
         title: t("knowledge.field.budget"),
         properties: {
-          tokensPerDay: { type: "integer", title: t("knowledge.field.tokensPerDay"), minimum: 1, maximum: 100_000_000 },
-          tokensPerConversation: { type: "integer", title: t("knowledge.field.tokensPerConversation"), minimum: 1, maximum: 100_000_000 },
+          // The defaults are Architecture/22's example: an object the form fills with defaults has to
+          // carry both, or jc-core refuses the budget as incomplete (T-4824).
+          tokensPerDay: { type: "integer", title: t("knowledge.field.tokensPerDay"), minimum: 1, maximum: 100_000_000, default: 2_000_000 },
+          tokensPerConversation: { type: "integer", title: t("knowledge.field.tokensPerConversation"), minimum: 1, maximum: 100_000_000, default: 40_000 },
           costPerDayUsd: { type: "number", title: t("knowledge.field.costPerDayUsd"), minimum: 0.01, maximum: 1_000, default: 3 },
           outputTokensPerAnswer: { type: "integer", title: t("knowledge.field.outputTokensPerAnswer"), minimum: 100, maximum: 4_000, default: 700 },
           messagesPerConversation: { type: "integer", title: t("knowledge.field.messagesPerConversation"), minimum: 1, maximum: 200, default: 30 },

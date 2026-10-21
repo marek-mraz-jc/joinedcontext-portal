@@ -13,9 +13,16 @@ use std::time::{Duration, Instant, SystemTime};
 
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
+use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::net::TcpStream;
+use tokio_rustls::rustls::pki_types::ServerName;
+use tokio_rustls::rustls::{ClientConfig, RootCertStore};
+use tokio_rustls::TlsConnector;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+use tokio_tungstenite::tungstenite::handshake::client::Request;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::WebSocketStream;
 
 use crate::{simple_value, App, Vehicle, FLEET, TYPE};
 
@@ -43,6 +50,55 @@ impl std::fmt::Debug for Resume {
             .field("seq", &self.seq)
             .finish()
     }
+}
+
+/// A plain or TLS stream under the socket.
+trait Io: AsyncRead + AsyncWrite + Unpin + Send {}
+impl<T: AsyncRead + AsyncWrite + Unpin + Send> Io for T {}
+
+/// Opens the socket: TCP, then for `wss` rustls with the webpki-roots 1.x public roots (the same
+/// roots as the REST client), then the WebSocket upgrade.
+async fn open(request: Request) -> Result<WebSocketStream<Box<dyn Io>>, String> {
+    let uri = request.uri();
+    let host = uri
+        .host()
+        .ok_or("the socket URL has no host")?
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .to_owned();
+    let tls = match uri.scheme_str() {
+        Some("wss") => true,
+        Some("ws") => false,
+        _ => return Err(format!("the socket URL {uri} is not ws:// or wss://")),
+    };
+    let port = uri.port_u16().unwrap_or(if tls { 443 } else { 80 });
+    let tcp = TcpStream::connect((host.as_str(), port))
+        .await
+        .map_err(|e| format!("connecting to {host}:{port}: {e}"))?;
+    let stream: Box<dyn Io> = if tls {
+        let name = ServerName::try_from(host).map_err(|e| e.to_string())?;
+        let roots = RootCertStore {
+            roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+        };
+        let config = ClientConfig::builder_with_provider(Arc::new(
+            tokio_rustls::rustls::crypto::ring::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .map_err(|e| e.to_string())?
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+        let tls = TlsConnector::from(Arc::new(config))
+            .connect(name, tcp)
+            .await
+            .map_err(|e| e.to_string())?;
+        Box::new(tls)
+    } else {
+        Box::new(tcp)
+    };
+    let (socket, _) = tokio_tungstenite::client_async(request, stream)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(socket)
 }
 
 /// `{endpoint}ws`, with the scheme a WebSocket client speaks.
@@ -180,9 +236,7 @@ impl App {
         request
             .headers_mut()
             .insert("sec-websocket-protocol", HeaderValue::from_static(PROTOCOL));
-        let (mut socket, _) = tokio_tungstenite::connect_async(request)
-            .await
-            .map_err(|e| e.to_string())?;
+        let mut socket = open(request).await?;
         let mut welcome: Option<Resume> = None;
         while let Some(frame) = socket.next().await {
             let text = match frame.map_err(|e| e.to_string())? {
@@ -279,6 +333,15 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn a_socket_url_without_a_websocket_scheme_is_refused() {
+        let request = "http://127.0.0.1:9/ws"
+            .into_client_request()
+            .expect("a request");
+        let error = open(request).await.err().expect("refused");
+        assert!(error.contains("not ws:// or wss://"), "{error}");
+    }
 
     #[test]
     fn a_resume_debug_never_shows_the_token() {
