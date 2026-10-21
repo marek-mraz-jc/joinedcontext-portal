@@ -77,58 +77,64 @@ pub const CONDITION: &str = "ViewWritten";
 /// The CIM 009 clause of a Table 4.20-1 operation, and the rows of Antares'
 /// `operation-matrix.yaml` that serve it through a view. Purge, Entity Maps and the source
 /// identity have no row a view serves (plan 2.1: they never enter a view).
-fn operation(op: Operation) -> (&'static str, &'static [&'static str]) {
+fn operation(op: Operation) -> (&'static [&'static str], &'static [&'static str]) {
     use Operation as O;
     match op {
-        O::CreateEntity => ("5.6.1", &["create_entity"]),
-        O::UpdateEntity => ("5.6.2", &["update_attributes"]),
-        O::AppendAttrs => ("5.6.3", &["append_attributes"]),
-        O::UpdateAttrs => ("5.6.4", &["partial_attribute_update"]),
-        O::DeleteAttrs => ("5.6.5", &["delete_attribute"]),
-        O::DeleteEntity => ("5.6.6", &["delete_entity"]),
-        O::CreateBatch => ("5.6.7", &["batch_create"]),
-        O::UpsertBatch => ("5.6.8", &["batch_upsert"]),
-        O::UpdateBatch => ("5.6.9", &["batch_update"]),
-        O::DeleteBatch => ("5.6.10", &["batch_delete"]),
-        O::UpsertTemporal => ("5.6.11", &["temporal_upsert"]),
-        O::AppendAttrsTemporal => ("5.6.12", &["temporal_add_attributes"]),
-        O::DeleteAttrsTemporal => ("5.6.13", &["temporal_delete_attribute"]),
-        O::UpdateAttrInstanceTemporal => ("5.6.14", &["temporal_modify_instance"]),
-        O::DeleteAttrInstanceTemporal => ("5.6.15", &["temporal_delete_instance"]),
-        O::DeleteTemporal => ("5.6.16", &["temporal_delete"]),
-        O::MergeEntity => ("5.6.17", &["merge_entity"]),
-        O::ReplaceEntity => ("5.6.18", &["replace_entity"]),
-        O::ReplaceAttrs => ("5.6.19", &["replace_attribute"]),
-        O::MergeBatch => ("5.6.20", &["batch_merge"]),
-        O::PurgeEntity => ("5.6.21", &[]),
+        O::CreateEntity => (&["5.6.1"], &["create_entity"]),
+        O::UpdateEntity => (&["5.6.2"], &["update_attributes"]),
+        O::AppendAttrs => (&["5.6.3"], &["append_attributes"]),
+        // The platform's updateAttrs is the attribute edit of either form: the gateway admits
+        // `PATCH …/attrs` (5.6.2) and `PATCH …/attrs/{attr}` (5.6.4) under it, every client
+        // sends the first, so the view and the engine admit both (T-5090).
+        O::UpdateAttrs => (
+            &["5.6.4", "5.6.2"],
+            &["partial_attribute_update", "update_attributes"],
+        ),
+        O::DeleteAttrs => (&["5.6.5"], &["delete_attribute"]),
+        O::DeleteEntity => (&["5.6.6"], &["delete_entity"]),
+        O::CreateBatch => (&["5.6.7"], &["batch_create"]),
+        O::UpsertBatch => (&["5.6.8"], &["batch_upsert"]),
+        O::UpdateBatch => (&["5.6.9"], &["batch_update"]),
+        O::DeleteBatch => (&["5.6.10"], &["batch_delete"]),
+        O::UpsertTemporal => (&["5.6.11"], &["temporal_upsert"]),
+        O::AppendAttrsTemporal => (&["5.6.12"], &["temporal_add_attributes"]),
+        O::DeleteAttrsTemporal => (&["5.6.13"], &["temporal_delete_attribute"]),
+        O::UpdateAttrInstanceTemporal => (&["5.6.14"], &["temporal_modify_instance"]),
+        O::DeleteAttrInstanceTemporal => (&["5.6.15"], &["temporal_delete_instance"]),
+        O::DeleteTemporal => (&["5.6.16"], &["temporal_delete"]),
+        O::MergeEntity => (&["5.6.17"], &["merge_entity"]),
+        O::ReplaceEntity => (&["5.6.18"], &["replace_entity"]),
+        O::ReplaceAttrs => (&["5.6.19"], &["replace_attribute"]),
+        O::MergeBatch => (&["5.6.20"], &["batch_merge"]),
+        O::PurgeEntity => (&["5.6.21"], &[]),
         // One Attribute of one Entity is a read of that Entity: the broker asks 5.7.1 for both
         // (Antares `OperationId::RetrieveAttributeValue`), and its MCP `get_attribute_value` is
         // offered only where the view names the row (T-4191).
-        O::RetrieveEntity => ("5.7.1", &["retrieve_entity", "retrieve_attribute_value"]),
-        O::QueryEntity => ("5.7.2", &["query_entities"]),
-        O::QueryBatch => ("5.7.2", &["query_entities_post"]),
-        O::RetrieveTemporal => ("5.7.3", &["temporal_retrieve"]),
-        O::QueryTemporal => ("5.7.4", &["temporal_query", "temporal_query_post"]),
-        O::RetrieveEntityTypes => ("5.7.5", &["retrieve_entity_types"]),
+        O::RetrieveEntity => (&["5.7.1"], &["retrieve_entity", "retrieve_attribute_value"]),
+        O::QueryEntity => (&["5.7.2"], &["query_entities"]),
+        O::QueryBatch => (&["5.7.2"], &["query_entities_post"]),
+        O::RetrieveTemporal => (&["5.7.3"], &["temporal_retrieve"]),
+        O::QueryTemporal => (&["5.7.4"], &["temporal_query", "temporal_query_post"]),
+        O::RetrieveEntityTypes => (&["5.7.5"], &["retrieve_entity_types"]),
         // The broker answers a type's details and the type list at one `/types`, and asks its
         // engine 5.7.5 for both (Antares `OperationId::gate_clause`); 5.7.6 is never asked, so a
         // permit naming it would grant nothing (T-3645). The same for the attributes' 5.7.8.
-        O::RetrieveEntityTypeDetails => ("5.7.5", &["retrieve_entity_type_details"]),
-        O::RetrieveEntityTypeInfo => ("5.7.7", &["retrieve_entity_type_info"]),
-        O::RetrieveAttrTypes => ("5.7.8", &["retrieve_attributes"]),
-        O::RetrieveAttrTypeDetails => ("5.7.8", &["retrieve_attribute_details"]),
-        O::RetrieveAttrTypeInfo => ("5.7.10", &["retrieve_attribute_info"]),
-        O::CreateSubscription => ("5.8.1", &["create_subscription"]),
-        O::UpdateSubscription => ("5.8.2", &["update_subscription"]),
-        O::RetrieveSubscription => ("5.8.3", &["retrieve_subscription"]),
-        O::QuerySubscription => ("5.8.4", &["query_subscriptions"]),
-        O::DeleteSubscription => ("5.8.5", &["delete_subscription"]),
-        O::RetrieveEntityMap => ("5.14.1", &[]),
-        O::UpdateEntityMap => ("5.14.2", &[]),
-        O::DeleteEntityMap => ("5.14.3", &[]),
-        O::CreateEntityMapQueryEntity => ("5.14.4", &[]),
-        O::CreateEntityMapQueryTemporal => ("5.14.5", &[]),
-        O::RetrieveContextSourceIdentity => ("5.15.1", &[]),
+        O::RetrieveEntityTypeDetails => (&["5.7.5"], &["retrieve_entity_type_details"]),
+        O::RetrieveEntityTypeInfo => (&["5.7.7"], &["retrieve_entity_type_info"]),
+        O::RetrieveAttrTypes => (&["5.7.8"], &["retrieve_attributes"]),
+        O::RetrieveAttrTypeDetails => (&["5.7.8"], &["retrieve_attribute_details"]),
+        O::RetrieveAttrTypeInfo => (&["5.7.10"], &["retrieve_attribute_info"]),
+        O::CreateSubscription => (&["5.8.1"], &["create_subscription"]),
+        O::UpdateSubscription => (&["5.8.2"], &["update_subscription"]),
+        O::RetrieveSubscription => (&["5.8.3"], &["retrieve_subscription"]),
+        O::QuerySubscription => (&["5.8.4"], &["query_subscriptions"]),
+        O::DeleteSubscription => (&["5.8.5"], &["delete_subscription"]),
+        O::RetrieveEntityMap => (&["5.14.1"], &[]),
+        O::UpdateEntityMap => (&["5.14.2"], &[]),
+        O::DeleteEntityMap => (&["5.14.3"], &[]),
+        O::CreateEntityMapQueryEntity => (&["5.14.4"], &[]),
+        O::CreateEntityMapQueryTemporal => (&["5.14.5"], &[]),
+        O::RetrieveContextSourceIdentity => (&["5.15.1"], &[]),
     }
 }
 
@@ -1363,9 +1369,10 @@ fn intersect(projection: &str, own: Option<&str>) -> Result<String, String> {
 fn policy_document(id: String, policy: &PolicySpec, window: Option<&str>) -> Value {
     let mut clauses: Vec<&str> = Vec::new();
     for op in permitted(policy) {
-        let clause = operation(op).0;
-        if !clauses.contains(&clause) {
-            clauses.push(clause);
+        for clause in operation(op).0 {
+            if !clauses.contains(clause) {
+                clauses.push(clause);
+            }
         }
     }
     let mut doc = Map::new();
@@ -3250,7 +3257,8 @@ mod tests {
                 "retrieve_entity_type_details",
                 "retrieve_entity_type_info",
                 "temporal_query",
-                "temporal_query_post"
+                "temporal_query_post",
+                "update_attributes"
             ])
         );
         let only_maps = fleet(sources(vec![(
@@ -3313,6 +3321,47 @@ mod tests {
         assert_eq!(clauses("city/no-delete"), Some(json!(["5.6.6"])));
     }
 
+    /// T-5090: the gateway admits `PATCH …/attrs` under updateAttrs, and the broker asks 5.6.2
+    /// for it: a grant of updateAttrs that opened only 5.6.4 answered every grid edit with the
+    /// view's 404. A prohibition of updateAttrs takes both forms back.
+    #[test]
+    fn update_attrs_admits_both_attribute_edits() {
+        let s = sources(vec![
+            (
+                "editor",
+                policy(json!({"operations": ["updateAttrs"],
+                              "information": [{"entities": [{"type": "Car"}], "propertyNames": ["speed"]}]})),
+            ),
+            (
+                "no-edit",
+                policy(
+                    json!({"effect": "prohibition", "operations": ["updateAttrs"],
+                              "information": [{"entities": [{"type": "Car"}], "propertyNames": ["speed"]}]}),
+                ),
+            ),
+        ]);
+        let view = view_of(&s, &endpoint(json!({}))).expect("a view");
+        let rows = view["operations"].as_array().expect("rows");
+        for row in ["update_attributes", "partial_attribute_update"] {
+            assert!(rows.contains(&json!(row)), "{row} in {rows:?}");
+        }
+        let desired = desired(&s);
+        let policies = &desired.documents["city-air"].1["policies"];
+        let clauses = |id: &str| {
+            policies
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find(|p| p["id"] == id)
+                .map(|p| p["operations"].clone())
+        };
+        assert_eq!(
+            clauses("city/editor"),
+            Some(json!(["5.6.4", "5.6.2", "5.7.5", "5.7.7", "5.7.10"]))
+        );
+        assert_eq!(clauses("city/no-edit"), Some(json!(["5.6.4", "5.6.2"])));
+    }
+
     /// Every Table 4.20-1 name has the clause the broker asks its engine: Query Entities has two
     /// names, and a type's or an attribute's details share the list's clause (one `/types`, one
     /// `/attributes`, T-3645).
@@ -3320,7 +3369,7 @@ mod tests {
     fn every_operation_has_a_clause() {
         let mut clauses: BTreeMap<&str, Vec<Operation>> = BTreeMap::new();
         for op in Operation::ALL {
-            clauses.entry(operation(*op).0).or_default().push(*op);
+            clauses.entry(operation(*op).0[0]).or_default().push(*op);
         }
         assert_eq!(clauses.len(), Operation::ALL.len() - 3);
         assert_eq!(

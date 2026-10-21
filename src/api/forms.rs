@@ -6,8 +6,11 @@
 //! of every dialog. The manifests are organization-scoped and already in the mirror like every
 //! other kind (T-0451), so this is a filter over the store rather than a second way of reading
 //! the configuration repository.
+//!
+//! `GET /api/v1/kinds/{kind}/schema` beside it: the kind's draft-07 schema as jc-core exports it
+//! (MF-09), which the YAML view reads for the field descriptions it shows on hover (T-5052).
 
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::routing::get;
 use axum::{Json, Router};
 
@@ -54,6 +57,45 @@ pub async fn list_forms(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/kinds/{kind}/schema",
+    summary = "Get Kind Schema",
+    description = "The draft-07 JSON Schema of a manifest kind, as jc-core exports it (MF-09). Any signed-in caller may read it; it describes fields, never data. An unknown kind is 404.",
+    tag = "forms",
+    params(("kind" = String, Path, description = "The manifest kind, e.g. `Policy`")),
+    responses(
+        (status = 200, description = "The kind's JSON Schema", body = Object),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 404, description = "No such kind", body = ProblemDetails)
+    )
+)]
+pub async fn kind_schema(
+    _user: CurrentUser,
+    Path(kind): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    kind_schema_of(&kind).map(Json)
+}
+
+fn kind_schema_of(kind: &str) -> Result<serde_json::Value, ApiError> {
+    jc_core::registry::schema_of(kind)
+        .ok_or_else(|| ApiError::NotFound(format!("the platform has no kind named `{kind}`")))
+}
+
 pub fn router() -> Router<AppState> {
-    Router::new().route("/forms", get(list_forms))
+    Router::new()
+        .route("/forms", get(list_forms))
+        .route("/kinds/{kind}/schema", get(kind_schema))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_kind_answers_its_schema_and_an_unknown_one_is_404() {
+        let schema = kind_schema_of("Policy").expect("Policy");
+        assert!(schema["properties"]["spec"].is_object(), "{schema}");
+        assert!(matches!(kind_schema_of("Nope"), Err(ApiError::NotFound(_))));
+    }
 }

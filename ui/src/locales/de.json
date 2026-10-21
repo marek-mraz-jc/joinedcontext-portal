@@ -472,6 +472,7 @@
     "lead": "Ihre Bearbeitung wird als Änderung vorgeschlagen; eine genehmigende Person prüft sie, bevor sich etwas ändert.",
     "propose": "Änderung vorschlagen",
     "renamed": "Behalten Sie den Namen {name}; ein anderer Name wäre eine neue Ressource.",
+    "parseError": "Zeile {line}: {reason}. Korrigieren Sie das YAML, um die Änderung vorzuschlagen.",
     "button": "Bearbeiten",
     "action": "{name} bearbeiten",
     "loading": "{name} wird gelesen…",
@@ -3900,6 +3901,7 @@
       "views": "Ansichten des Modells",
       "view": {
         "overview": "Übersicht",
+        "fields": "Felder",
         "diagram": "Diagramm",
         "form": "Formular",
         "yaml": "YAML",
@@ -4020,6 +4022,26 @@
       "any": "Beliebiger Wert",
       "object": "Enthält {fields}",
       "linkTo": "Verweis auf {target}"
+    },
+    "fields": {
+      "title": "Felder und was der Raum enthält",
+      "noSpace": "Dieses Modell nennt keinen Context Space, daher stehen bei seinen Feldern keine Daten. Nennen Sie den Raum in den Einstellungen des Modells, zum Beispiel ilma.",
+      "notYet": "Der tägliche Qualitätslauf hat den Raum {space} noch nicht gelesen; die Werte erscheinen hier nach seinem ersten Lauf.",
+      "observed": "Werte aus dem Raum {space}, gelesen vom täglichen Qualitätslauf am {at}.",
+      "factsFailed": "Die Werte des Raums konnten nicht gelesen werden: {reason}. Laden Sie die Seite neu, oder bitten Sie die verantwortliche Person des Raums um Lesezugriff.",
+      "noTypes": "Dieses Modell deklariert noch keinen Typ. Fügen Sie einen mit Bearbeiten hinzu.",
+      "count": "{count} im Raum",
+      "caption": "Felder von {type}, was jedes erlaubt und was der Raum enthält",
+      "allowed": "Erlaubte Werte",
+      "description": "Beschreibung",
+      "inSpace": "Im Raum",
+      "query": "Abfrage",
+      "anyValue": "Jeder Wert des Typs",
+      "noEntities": "Noch keine Entität dieses Typs",
+      "seenRange": "gesehen {min} – {max}",
+      "broken": "{count, plural, one {# Entität verletzt} other {# Entitäten verletzen}} {rules}",
+      "queryAction": "Abfragen",
+      "queryLabel": "Explore für die {type}-Entitäten mit {field} öffnen"
     }
   },
   "apps": {
@@ -8483,7 +8505,8 @@
     "event": {
       "failure": "sie fehlschlägt",
       "stale": "ihre Daten veralten",
-      "zero": "sie nichts schreibt"
+      "zero": "sie nichts schreibt",
+      "invalid": "seine Daten eine Modellregel verletzen, die sie am Vortag nicht verletzten"
     },
     "delivery": "Wie",
     "portal": "Im Portal, sofort",

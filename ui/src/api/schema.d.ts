@@ -531,6 +531,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/kinds/{kind}/schema": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Kind Schema
+         * @description The draft-07 JSON Schema of a manifest kind, as jc-core exports it (MF-09). Any signed-in caller may read it; it describes fields, never data. An unknown kind is 404.
+         */
+        get: operations["kind_schema"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mcp": {
         parameters: {
             query?: never;
@@ -4365,7 +4385,7 @@ export interface components {
         /** @enum {string} */
         AlertDelivery: "portal" | "digest";
         /** @enum {string} */
-        AlertEvent: "failure" | "stale" | "zero";
+        AlertEvent: "failure" | "stale" | "zero" | "invalid";
         /** @enum {string} */
         AlertKind: "refusalSpike" | "spendShare" | "offHoursWrite";
         /** @description How long a subscription stays muted, or `null` to unmute. */
@@ -9137,6 +9157,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
+                };
+            };
+        };
+    };
+    kind_schema: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The manifest kind, e.g. `Policy` */
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The kind's JSON Schema */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such kind */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
         };
