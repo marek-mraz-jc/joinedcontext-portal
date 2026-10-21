@@ -322,7 +322,8 @@
         "create": "{author} schlug vor, {kind} {name} anzulegen",
         "update": "{author} schlug vor, {kind} {name} zu ändern",
         "delete": "{author} schlug vor, {kind} {name} zu entfernen"
-      }
+      },
+      "anyKind": "Jede Art"
     },
     "reasonFirst": "Schreiben Sie zuerst, warum Sie die Änderung ablehnen."
   },
@@ -1701,7 +1702,8 @@
       "send": "Senden",
       "fill": "Füllen Sie zuerst die Felder aus, die der Aufruf braucht.",
       "answered": "Der Endpunkt antwortete {status}.",
-      "code": "Derselbe Aufruf als Code"
+      "code": "Derselbe Aufruf als Code",
+      "noType": "Noch kein Entitätstyp: Sobald eine Pipeline oder eine Person Entitäten über diesen Endpoint schreibt, werden ihre Typen hier aufgeführt."
     },
     "docs": {
       "title": "API-Dokumentation",
@@ -2790,7 +2792,7 @@
       "propose": "Vergabe vorschlagen",
       "emptyHint": "Eine Rollenbindung sagt, wer in diesem Projekt was darf. Solange es keine gibt, kann hier nur eine Administratorin der Organisation etwas ändern.",
       "subjectKindHelp": "Ob die Rolle an eine Person oder an eine Gruppe geht. Eine Gruppe wird einmal berechtigt und hält ihre Mitglieder selbst nach.",
-      "personHelp": "Der Benutzername oder die E-Mail-Adresse, die der Identitätsanbieter für diese Person führt, genau wie sie sich anmeldet.",
+      "personHelp": "Wählen Sie eine Person der Organisation oder geben Sie die vollständige E-Mail einer Person ein, die sich noch nicht angemeldet hat, z. B. jana.novak@example.org.",
       "groupHelp": "Der Name einer unter Gruppen erklärten Gruppe. Die Rolle hält, wer Mitglied ist.",
       "roleHelp": "Was die Person darf: jede Rolle ist eine Menge von Verben auf einer Menge von Arten, aufgeführt unter Rollen.",
       "whereHelp": "Wie weit die Rolle reicht: dieses Projekt, die ganze Organisation, oder ein Kontextraum des Projekts.",
@@ -2997,7 +2999,7 @@
       "ckanVia": "über die Rolle {role}",
       "appNotLoaded": "Die App wird noch geladen, oder Sie dürfen sie nicht lesen.",
       "hint": {
-        "email": "Die E-Mail, mit der sich die Person anmeldet, z. B. jana.novak@example.org; bekannte Personen werden beim Tippen angeboten.",
+        "email": "Wählen Sie eine Person der Organisation oder geben Sie die vollständige E-Mail einer Person ein, die sich noch nicht angemeldet hat, z. B. jana.novak@example.org.",
         "where": "Wo die Rolle gilt: die ganze Organisation oder ein Projekt, z. B. helsinki.",
         "space": "Das ganze Projekt behalten oder die Rolle auf einen Kontextraum begrenzen, z. B. air-quality.",
         "role": "Was die Mitglieder dort dürfen, z. B. viewer liest, steward schlägt auch Änderungen vor.",
@@ -3040,7 +3042,7 @@
       "kindHelp": "Eine Person, eine Gruppe, eine Rolle oder ein Dienstkonto: wessen Zugriff die Seite auflistet.",
       "personHelp": "Die Personen der Organisation, nach E-Mail; die Suche darüber grenzt die Liste ein.",
       "accountHelp": "Die Dienstkonten des Projekts, die Programme, die Endpoints aufrufen.",
-      "nameHelp": "Der Name genau so, wie er in Keycloak geschrieben ist."
+      "nameHelp": "Wählen Sie eine Gruppe der Organisation oder eine Rolle dieses Projekts oder der Organisation."
     },
     "presets": {
       "legend": "Zugriff",
@@ -5601,7 +5603,7 @@
         "search": "Ein Teil des Namens oder der E-Mail-Adresse.",
         "person": "Die Person, für die das Gateway entscheidet.",
         "account": "Eines der Dienstkonten dieses Projekts.",
-        "name": "Der Name, wie der Realm ihn schreibt.",
+        "name": "Wählen Sie eine Gruppe der Organisation oder eine Rolle dieses Projekts oder der Organisation.",
         "action": "Die NGSI-LD-Operation, die der Aufruf ausführen würde."
       },
       "pickFirst": "Wählen Sie zuerst den Endpoint und wen Sie ausprobieren."
@@ -6780,7 +6782,15 @@
       "importedOrganization": "Importiert aus dem Organisationsmodell {name}"
     },
     "createNamed": "Neu: „{name}“",
-    "list": "Auswahl"
+    "list": "Auswahl",
+    "person": {
+      "group": "Personen der Organisation",
+      "typed": "Eingegebene E-Mail",
+      "none": "Niemand passt. Geben Sie die vollständige E-Mail einer Person ein, die sich noch nicht angemeldet hat.",
+      "unlisted": "Sie dürfen die Personen der Organisation nicht auflisten. Geben Sie die vollständige E-Mail ein, z. B. jana.novak@example.org.",
+      "invite": "{email} verwenden (noch nicht angemeldet)",
+      "needEmail": "Geben Sie die vollständige E-Mail-Adresse der Person ein."
+    }
   },
   "units": {
     "search": "Nach Code, Symbol, Name oder Größe suchen",
