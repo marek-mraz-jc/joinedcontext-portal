@@ -17,17 +17,25 @@ import { shippedForms } from "../schemas/forms";
 import { useBranding } from "../branding";
 import type { UiSchema } from "./forms/types";
 import type { ResourceTarget } from "./DeleteResourceDialog";
-import { CodeBlock, Alert, Button, PageFailed, PageLoading } from "./ui";
+import { Alert, Button, PageFailed, PageLoading } from "./ui";
 import { FormFrame, useFormRoute } from "./forms/FormRoute";
 import type { EditableForm } from "./EditResourceDialog";
+import { describe as describeField, marksOf, parseErrorsOf } from "./yamlManifest";
 
 const MonacoSourceView = lazy(() => import("../pages/models/MonacoSourceView"));
+
+/** The sections in the order `jcctl fmt` writes them (T-5052); the rest after them. */
+const SECTIONS = ["apiVersion", "kind", "metadata", "spec"];
 
 /** The manifest as it is written: status is the Portal's to compute and never goes back (MF-04). */
 function writable(manifest: Record<string, unknown>): string {
   const rest = { ...manifest };
   delete rest.status;
-  return stringifyYaml(rest);
+  const ordered = Object.fromEntries([
+    ...SECTIONS.filter((key) => key in rest).map((key) => [key, rest[key]]),
+    ...Object.entries(rest).filter(([key]) => !SECTIONS.includes(key)),
+  ]);
+  return stringifyYaml(ordered, { indentSeq: true, lineWidth: 0 });
 }
 
 /**
@@ -78,6 +86,15 @@ export function EditResourceDialogBody({
       ),
   });
   const source = text ?? (current.data ? writable(current.data as Record<string, unknown>) : "");
+  // The kind's schema, for what a field is for on hover (T-5052); the view works without it.
+  const kindSchema = useQuery({
+    queryKey: ["kind-schema", target.kind],
+    enabled: open && form === undefined,
+    staleTime: 60 * 60_000,
+    retry: false,
+    queryFn: async () =>
+      unwrap(await api.GET("/api/v1/kinds/{kind}/schema", { params: { path: { kind: target.kind } } })),
+  });
 
   // The help and the examples a new resource's form shows, on its edit as well (T-3220): the
   // edit used to render the bare fields, so changing a project's settings told a person nothing
@@ -162,13 +179,43 @@ export function EditResourceDialogBody({
   // What the edit itself was refused for. A manifest that could not be read is its own state
   // below, with the API's sentence and a retry, rather than a red line over a dialog that says
   // "Loading…" for ever (T-1752).
+  // Text that does not parse cannot be proposed: the first error, its line and reason, stands in
+  // the alert and on the disabled button until the text parses again (T-5052).
+  const parseError = form === undefined && !readOnly ? parseErrorsOf(source)[0] : undefined;
+  const parseFailure = parseError
+    ? t("resourceEdit.parseError", { line: parseError.line, reason: parseError.message })
+    : null;
   const failure =
     invalid ??
+    parseFailure ??
     (propose.error instanceof ApiError
       ? (propose.error.problem?.detail ?? propose.error.message)
       : propose.error
         ? t("app.error.generic")
         : null);
+
+  const refusals =
+    propose.error instanceof ApiError ? (propose.error.problem?.errors ?? []).filter((e): e is string => typeof e === "string") : [];
+  const marks = marksOf(source, refusals);
+  const yamlView = (readOnlyView: boolean) => (
+    <div className="overflow-hidden rounded-md border border-border">
+      <Suspense fallback={<PageLoading label={t("models.loadingEditor")} lines={1} className="p-3" />}>
+        <MonacoSourceView
+          value={source}
+          onChange={(next) => {
+            setText(next);
+            setInvalid(null);
+          }}
+          onMount={() => undefined}
+          height="24rem"
+          readOnly={readOnlyView}
+          marks={marks}
+          describeField={(path) => describeField(kindSchema.data as Record<string, unknown> | undefined, path)}
+          ariaLabel={t("resourceEdit.manifest", { name })}
+        />
+      </Suspense>
+    </div>
+  );
 
   return (
     <FormFrame
@@ -194,12 +241,12 @@ export function EditResourceDialogBody({
             <Button
               variant="primary"
               loading={propose.isPending}
-              disabled={!current.data}
+              disabled={!current.data || parseFailure !== null}
               // Reachable while it is refused, with the reason read out beside it: there is
               // nothing to propose until the stored manifest has arrived (UI-44).
               disabledReason={
                 current.data
-                  ? undefined
+                  ? (parseFailure ?? undefined)
                   : current.isError
                     ? t("resourceEdit.unreadable", { name })
                     : t("resourceEdit.loading", { name })
@@ -260,28 +307,8 @@ export function EditResourceDialogBody({
               />
               </Suspense>
             ) : null
-          ) : readOnly ? (
-            // Read, not edited: the text itself, scrollable and reachable from the keyboard.
-            <CodeBlock
-              label={t("resourceEdit.manifest", { name })}
-              className="max-h-96 rounded-md border border-border bg-surface-subtle p-3 font-mono text-caption"
-            >
-              {source}
-            </CodeBlock>
           ) : (
-            <div className="overflow-hidden rounded-md border border-border">
-              <Suspense fallback={<PageLoading label={t("models.loadingEditor")} lines={1} className="p-3" />}>
-                <MonacoSourceView
-                  value={source}
-                  onChange={(next) => {
-                    setText(next);
-                    setInvalid(null);
-                  }}
-                  onMount={() => undefined}
-                  height="24rem"
-                />
-              </Suspense>
-            </div>
+            yamlView(readOnly)
           )}
         </div>
       )}

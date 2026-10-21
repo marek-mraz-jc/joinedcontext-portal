@@ -35,6 +35,7 @@ import { ResourcePageFailed } from "../../components/ui/PageState";
 import { LinkmlGraphView } from "./LinkmlGraphView";
 import { MappingsEditor } from "./MappingsEditor";
 import type { MappingModel } from "./MappingsEditor";
+import { ModelFields } from "./ModelFields";
 import { ModelForm, ModelYaml, useImportSources } from "./ModelViews";
 import { ProposeLink, useProjectList, useProjectManifests } from "./ModelsList";
 import { classSlots, isAnyClass, parseModel, valueClasses } from "./linkml";
@@ -49,8 +50,8 @@ import { spaceOfModel, USING_KINDS, usesOfModel } from "./modelUsage";
 import type { ModelUse } from "./modelUsage";
 import { useUrlParam } from "../../navigation/urlState";
 
-type View = "overview" | "form" | "yaml" | "used" | "history" | "mappings";
-const VIEWS: View[] = ["overview", "form", "yaml", "used", "history", "mappings"];
+type View = "overview" | "fields" | "form" | "yaml" | "used" | "history" | "mappings";
+const VIEWS: View[] = ["overview", "fields", "form", "yaml", "used", "history", "mappings"];
 
 /** The source of a model: the manifest's own text, else the file the repository keeps (DM-56). */
 export function useSourceOf(project: string, model: Manifest | undefined) {
@@ -342,7 +343,7 @@ export function ModelPage({
         onChange={setView}
       />
       <div {...tabPanelProps("model-page", view)}>
-        {source.isError && (view === "overview" || view === "form" || view === "yaml" || view === "mappings") ? (
+        {source.isError && (view === "overview" || view === "fields" || view === "form" || view === "yaml" || view === "mappings") ? (
           <Alert tone="danger" role="alert">
             <p>{t("models.page.sourceFailed", { reason: source.error instanceof Error ? source.error.message : "" })}</p>
             <Button size="sm" className="mt-2" onClick={() => void source.refetch()}>
@@ -391,6 +392,7 @@ export function ModelPage({
                 ) : null}
               </div>
             ) : null}
+            {view === "fields" && parsed ? <ModelFields project={project} model={parsed} space={space} /> : null}
             {view === "form" && source.data !== undefined ? <ModelForm source={source.data} initialClass={initialClass} /> : null}
             {view === "yaml" && source.data !== undefined ? <ModelYaml source={source.data} name={name} /> : null}
             {view === "used" ? (

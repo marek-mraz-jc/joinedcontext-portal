@@ -73,6 +73,9 @@ function renderDialog(get: (attempt: number) => Response | Promise<Response>) {
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = input instanceof Request ? input : new Request(String(input), init);
       sent.push(request);
+      if (request.url.includes("/api/v1/kinds/")) {
+        return json({ type: "object" });
+      }
       if (request.method === "GET") {
         attempts += 1;
         return await get(attempts);

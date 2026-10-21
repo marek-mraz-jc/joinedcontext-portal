@@ -18,6 +18,13 @@ import { RecordLink } from "../src/components/RecordLink";
 import { jsonResponse, list, renderRoute } from "./pageHarness";
 import { pageFindings } from "./pageChecks";
 
+// Monaco cannot run in jsdom: the read-only YAML view stands in as a labelled, read-only text box.
+vi.mock("../src/pages/models/MonacoSourceView", () => ({
+  default: (props: { value: string; ariaLabel?: string; readOnly?: boolean }) => (
+    <textarea aria-label={props.ariaLabel} readOnly={Boolean(props.readOnly)} value={props.value} />
+  ),
+}));
+
 function Portalled(): React.JSX.Element {
   return createPortal(<span>in a dialog</span>, document.body);
 }
@@ -590,8 +597,9 @@ describe("a person who may not change a record still opens it, read only", () =>
 
   it("a reader reads a kind without a form as its manifest, not an editor", async () => {
     await renderRoute({ path: "/projects/helsinki/layers/alerting/edit?lang=en", answer, permissions: READER });
-    const text = await screen.findByRole("group", { name: "The manifest of alerting" });
-    expect(text).toHaveTextContent("kind: Layer");
+    const text = await screen.findByRole("textbox", { name: "The manifest of alerting" });
+    expect(text).toHaveAttribute("readonly");
+    expect((text as HTMLTextAreaElement).value).toContain("kind: Layer");
     expect(screen.queryByRole("button", { name: "Propose change" })).toBeNull();
   });
 
@@ -623,8 +631,9 @@ describe("a person who may not change a record still opens it, read only", () =>
         },
         permissions: READER,
       });
-      const text = await screen.findByRole("group", { name: `The manifest of ${name}` });
-      expect(text).toHaveTextContent(one.kind);
+      const text = await screen.findByRole("textbox", { name: `The manifest of ${name}` });
+      expect(text).toHaveAttribute("readonly");
+      expect((text as HTMLTextAreaElement).value).toContain(one.kind);
       expect(screen.getAllByText(`View ${name}`).length).toBeGreaterThan(0);
       expect(screen.queryByRole("button", { name: /^Propose/ })).toBeNull();
     });

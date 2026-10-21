@@ -315,6 +315,9 @@ impl AppState {
         };
         let mut state = Self::new(config, oidc);
         state.attach_stores(&db);
+        if let Err(err) = state.quality.load().await {
+            tracing::warn!(error = %err, "the kept data-quality reports were not read");
+        }
         // The live updates write their subscriptions as the reconciler writes declared ones: through
         // the space surface, as this Portal's own ServiceAccount (API/01 §32).
         if let (Some(base), Some(oidc), Some((id, secret)), Some(domain)) = (
@@ -947,6 +950,7 @@ impl AppState {
         self.comments = Arc::new(crate::entity_comments::CommentStore::new(db.clone()));
         self.feedback = Arc::new(crate::feedback::FeedbackStore::new(db.clone()));
         self.alerts = Arc::new(crate::alerts::AlertStore::new(db.clone()));
+        self.quality = Arc::new(crate::quality::Store::new(db.clone()));
     }
 
     /// The cluster clients a builder run and its test sandbox are scheduled with.

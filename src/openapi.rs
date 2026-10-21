@@ -87,6 +87,7 @@ use crate::tools::model_tools::{
         crate::api::resources::list_endpoints_everywhere,
         crate::api::blueprints::list_blueprints,
         crate::api::forms::list_forms,
+        crate::api::forms::kind_schema,
         crate::api::blueprints::start_flow,
         crate::api::datamodels::list_organization_datamodels,
         crate::api::datamodels::get_source,

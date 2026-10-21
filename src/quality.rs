@@ -4,8 +4,10 @@
 //! by a pipeline that stopped, is not. Once a day the leading replica reads every entity of every
 //! space that names a model through the space surface, as its own client, holds each one to the
 //! model the way a pipeline's validation stage does, and compares the age of the newest entity a
-//! pipeline writes with the pipeline's freshness target. The result is held in memory per space;
-//! a space whose read fails keeps its previous report.
+//! pipeline writes with the pipeline's freshness target. The result is held in memory per space
+//! and, with a database, kept there too (T-5066), so a restarted Portal shows the last report and
+//! does not run again before it is due; a space whose read fails keeps its previous report. A rule
+//! and path a space breaks that its previous report did not is new, and opens an `invalid` alert.
 
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -13,7 +15,7 @@ use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::ToSchema;
 
@@ -37,7 +39,7 @@ const MIN_SLACK: u64 = 600;
 const BETWEEN_PAGES: Duration = Duration::from_millis(100);
 
 /// One failing rule of a space: a SHACL component and the path it is about.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct RuleCount {
     pub rule: String,
     pub path: String,
@@ -46,7 +48,7 @@ pub struct RuleCount {
     pub examples: Vec<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum FreshState {
     Fresh,
@@ -56,7 +58,7 @@ pub enum FreshState {
 }
 
 /// How recent the data of one pipeline is.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Freshness {
     pub pipeline: String,
@@ -79,7 +81,7 @@ impl Freshness {
 }
 
 /// What one run found in one space.
-#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SpaceQuality {
     #[schema(value_type = String, format = DateTime)]
@@ -95,7 +97,7 @@ pub struct SpaceQuality {
 }
 
 /// What one run found of one entity type.
-#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TypeQuality {
     #[serde(rename = "type")]
@@ -109,7 +111,7 @@ pub struct TypeQuality {
 
 /// One attribute of one type: how many entities carry it and, for numbers, their range and the
 /// values far outside the rest.
-#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AttributeQuality {
     pub name: String,
@@ -404,12 +406,34 @@ pub fn fresh_state(
 #[derive(Debug, Default)]
 pub struct Store {
     by_space: RwLock<BTreeMap<(String, String), SpaceQuality>>,
+    /// Per space, the `rule path` pairs its last report broke and the one before did not.
+    new_rules: RwLock<BTreeMap<(String, String), Vec<String>>>,
     running: AtomicBool,
     /// When the last run started; a failed run moves it back so the next try is an hour away.
     last_start: RwLock<Option<DateTime<Utc>>>,
+    db: Option<sqlx::PgPool>,
+}
+
+/// The rules of `now` that `before` did not break, as `rule path`. A space's first report has
+/// nothing before it, so every rule it breaks is new.
+fn rules_new(before: Option<&SpaceQuality>, now: &SpaceQuality) -> Vec<String> {
+    now.rules
+        .iter()
+        .filter(|r| {
+            !before.is_some_and(|b| b.rules.iter().any(|o| o.rule == r.rule && o.path == r.path))
+        })
+        .map(|r| format!("{} {}", r.rule, r.path))
+        .collect()
 }
 
 impl Store {
+    pub fn new(db: Option<sqlx::PgPool>) -> Self {
+        Self {
+            db,
+            ..Self::default()
+        }
+    }
+
     pub fn get(&self, project: &str, space: &str) -> Option<SpaceQuality> {
         self.by_space
             .read()
@@ -418,11 +442,27 @@ impl Store {
             .cloned()
     }
 
-    fn put(&self, project: &str, space: &str, quality: SpaceQuality) {
-        self.by_space
+    /// The `rule path` pairs the space's last report broke for the first time.
+    pub fn new_rules(&self, project: &str, space: &str) -> Vec<String> {
+        self.new_rules
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&(project.to_owned(), space.to_owned()))
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Keeps a space's report and answers the rules it breaks for the first time.
+    pub(crate) fn put(&self, project: &str, space: &str, quality: SpaceQuality) -> Vec<String> {
+        let key = (project.to_owned(), space.to_owned());
+        let mut by_space = self.by_space.write().unwrap_or_else(|e| e.into_inner());
+        let fresh = rules_new(by_space.get(&key), &quality);
+        by_space.insert(key.clone(), quality);
+        self.new_rules
             .write()
             .unwrap_or_else(|e| e.into_inner())
-            .insert((project.to_owned(), space.to_owned()), quality);
+            .insert(key, fresh.clone());
+        fresh
     }
 
     /// Forgets the spaces that no longer name a model.
@@ -431,6 +471,73 @@ impl Store {
             .write()
             .unwrap_or_else(|e| e.into_inner())
             .retain(|key, _| spaces.contains(key));
+        self.new_rules
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .retain(|key, _| spaces.contains(key));
+    }
+
+    /// Reads the kept reports back after a restart, and counts the newest as the last run, so a
+    /// restart does not start a run that is not due. A row that no longer parses is skipped.
+    pub async fn load(&self) -> Result<usize, sqlx::Error> {
+        let Some(db) = &self.db else { return Ok(0) };
+        let rows: Vec<(String, String, Value, Vec<String>)> =
+            sqlx::query_as("SELECT project, space, report, new_rules FROM space_quality")
+                .fetch_all(db)
+                .await?;
+        let mut newest: Option<DateTime<Utc>> = None;
+        let mut loaded = 0;
+        for (project, space, report, fresh) in rows {
+            let Ok(report) = serde_json::from_value::<SpaceQuality>(report) else {
+                continue;
+            };
+            newest = newest.max(Some(report.observed_at));
+            let key = (project, space);
+            self.new_rules
+                .write()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(key.clone(), fresh);
+            self.by_space
+                .write()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(key, report);
+            loaded += 1;
+        }
+        let mut last = self.last_start.write().unwrap_or_else(|e| e.into_inner());
+        *last = (*last).max(newest);
+        Ok(loaded)
+    }
+
+    /// Keeps one space's report, replacing the one before.
+    async fn save(&self, project: &str, space: &str, fresh: &[String]) -> Result<(), sqlx::Error> {
+        let (Some(db), Some(report)) = (&self.db, self.get(project, space)) else {
+            return Ok(());
+        };
+        let report =
+            serde_json::to_value(&report).map_err(|err| sqlx::Error::Encode(Box::new(err)))?;
+        sqlx::query(
+            "INSERT INTO space_quality (project, space, report, new_rules) VALUES ($1, $2, $3, $4) \
+             ON CONFLICT (project, space) DO UPDATE \
+             SET report = EXCLUDED.report, new_rules = EXCLUDED.new_rules, at = now()",
+        )
+        .bind(project)
+        .bind(space)
+        .bind(report)
+        .bind(fresh)
+        .execute(db)
+        .await?;
+        Ok(())
+    }
+
+    /// Drops the kept reports of spaces that no longer name a model.
+    async fn forget_others(&self, spaces: &[(String, String)]) -> Result<(), sqlx::Error> {
+        let Some(db) = &self.db else { return Ok(()) };
+        let keys: Vec<String> = spaces.iter().map(|(p, s)| format!("{p}/{s}")).collect();
+        sqlx::query("DELETE FROM space_quality WHERE NOT (project || '/' || space = ANY($1))")
+            .bind(keys)
+            .execute(db)
+            .await?;
+        Ok(())
     }
 
     /// Whether a run is due at `now`; when it is, this call claims it.
@@ -493,13 +600,19 @@ impl Scanner {
                     for row in &quality.freshness {
                         crate::telemetry::pipeline_stale(project, &row.pipeline, row.alerting());
                     }
-                    self.store.put(project, space, quality)
+                    let fresh = self.store.put(project, space, quality);
+                    if let Err(err) = self.store.save(project, space, &fresh).await {
+                        tracing::warn!(project, space, error = %err, "a space's report was not kept");
+                    }
                 }
                 // One space that cannot be read keeps its last report; the others go on.
                 Err(err) => tracing::warn!(project, space, error = %err, "a space was not checked"),
             }
         }
         self.store.keep_only(&spaces);
+        if let Err(err) = self.store.forget_others(&spaces).await {
+            tracing::warn!(error = %err, "the reports of removed spaces were not dropped");
+        }
         Ok(())
     }
 
@@ -840,5 +953,78 @@ mod tests {
         store.finish(true);
         assert!(!store.claim(start + chrono::Duration::hours(24) + chrono::Duration::minutes(59)));
         assert!(store.claim(start + chrono::Duration::hours(25)));
+    }
+
+    fn report(rules: &[(&str, &str)]) -> SpaceQuality {
+        let mut tally = Tally::default();
+        for (rule, path) in rules {
+            tally.add(
+                &json!({ "id": "urn:ngsi-ld:T:1", "type": "T" }),
+                None,
+                &[problem(rule, path)],
+            );
+        }
+        tally.into_quality(at("2026-10-21T02:00:00Z"), Vec::new())
+    }
+
+    #[test]
+    fn a_rule_is_new_once_and_a_report_survives_its_json() {
+        let store = Store::default();
+        let first = report(&[("MinInclusive", "pm10")]);
+        assert_eq!(
+            store.put("p", "s", first.clone()),
+            vec!["MinInclusive pm10"]
+        );
+        assert_eq!(
+            store.put("p", "s", first.clone()),
+            Vec::<String>::new(),
+            "seen the day before"
+        );
+        let fresh = store.put(
+            "p",
+            "s",
+            report(&[("MinInclusive", "pm10"), ("In", "status")]),
+        );
+        assert_eq!(fresh, vec!["In status"]);
+        assert_eq!(store.new_rules("p", "s"), vec!["In status"]);
+        store.keep_only(&[]);
+        assert!(store.new_rules("p", "s").is_empty());
+        let back: SpaceQuality =
+            serde_json::from_value(serde_json::to_value(&first).expect("json")).expect("a report");
+        assert_eq!(back, first, "what the database keeps reads back the same");
+    }
+
+    /// A restarted Portal reads the last reports back, with their new rules, and counts the
+    /// newest as the last run; a space that no longer names a model leaves the table.
+    #[tokio::test]
+    async fn a_kept_report_comes_back_after_a_restart() {
+        let Some(url) = std::env::var("JC_PORTAL_TEST_DATABASE_URL")
+            .ok()
+            .filter(|url| !url.trim().is_empty())
+        else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let db = crate::db::connect(&url).await.expect("connect and migrate");
+        let before = Store::new(Some(db.clone()));
+        let kept = report(&[("In", "status")]);
+        let fresh = before.put("t5066", "air", kept.clone());
+        before.save("t5066", "air", &fresh).await.expect("save");
+        before.put("t5066", "gone", report(&[]));
+        before.save("t5066", "gone", &[]).await.expect("save");
+        before
+            .forget_others(&[("t5066".into(), "air".into())])
+            .await
+            .expect("forget");
+
+        let after = Store::new(Some(db));
+        assert_eq!(after.load().await.expect("load"), 1);
+        assert_eq!(after.get("t5066", "air"), Some(kept.clone()));
+        assert_eq!(after.get("t5066", "gone"), None);
+        assert_eq!(after.new_rules("t5066", "air"), vec!["In status"]);
+        assert!(
+            !after.claim(kept.observed_at + chrono::Duration::hours(23)),
+            "not due yet"
+        );
     }
 }
