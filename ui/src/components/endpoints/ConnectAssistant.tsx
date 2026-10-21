@@ -22,7 +22,10 @@ export function mcpInstall(hub: string): { claude: string; json: string; vscode:
   };
 }
 
-/** "Connect an AI assistant": the hub's URL and a line per client, each with its copy button. */
+/**
+ * "Connect an AI assistant": the hub's URL and a line per client, each with its copy button. Each
+ * line scrolls sideways at 400 px, so it takes focus for the arrow keys (WCAG 2.1.1, T-4975).
+ */
 export function ConnectAssistant({ domain }: { domain: string | undefined }): JSX.Element {
   const { t } = useTranslation();
   const hub = hubUrl(domain);
@@ -49,13 +52,13 @@ export function ConnectAssistant({ domain }: { domain: string | undefined }): JS
         </a>
       </div>
       <div className="flex flex-col gap-1">
-        <pre className="overflow-x-auto rounded bg-surface-muted p-2 font-mono text-caption">{lines.claude}</pre>
+        <pre tabIndex={0} className="focus-ring overflow-x-auto rounded bg-surface-muted p-2 font-mono text-caption">{lines.claude}</pre>
         <div>
           <CopyUrlButton url={lines.claude} label={t("endpoints.hub.claude")} />
         </div>
       </div>
       <div className="flex flex-col gap-1">
-        <pre className="overflow-x-auto rounded bg-surface-muted p-2 font-mono text-caption">{lines.json}</pre>
+        <pre tabIndex={0} className="focus-ring overflow-x-auto rounded bg-surface-muted p-2 font-mono text-caption">{lines.json}</pre>
         <div>
           <CopyUrlButton url={lines.json} label={t("endpoints.hub.json")} />
         </div>

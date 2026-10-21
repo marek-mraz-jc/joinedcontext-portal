@@ -8,6 +8,7 @@ import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
+import { expectNoViolations, focusables } from "./checks";
 import en from "../src/locales/en.json";
 import { ConnectAssistant, mcpInstall } from "../src/components/endpoints/ConnectAssistant";
 
@@ -69,6 +70,16 @@ describe("ConnectAssistant", () => {
     expect(writeText).toHaveBeenLastCalledWith(lines.claude);
     await userEvent.click(screen.getByRole("button", { name: en.endpoints.hub.json }));
     expect(writeText).toHaveBeenLastCalledWith(lines.json);
+  });
+
+  it("lets a keyboard reach and scroll each client's line (T-4975, axe scrollable-region-focusable)", async () => {
+    renderPanel("dev.city.example");
+    const lines = mcpInstall(HUB);
+    for (const text of [lines.claude, lines.json]) {
+      const block = screen.getByText((_, node) => node?.tagName === "PRE" && node.textContent === text);
+      expect(focusables(document.body)).toContain(block);
+    }
+    await expectNoViolations(document.body);
   });
 
   it("falls back to the page's origin when the installation names no host", () => {
