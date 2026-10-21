@@ -460,9 +460,9 @@ impl RunQueue {
                 continue;
             };
             crate::telemetry::pipeline_run(label, seconds as f64);
-            if let Some(run) = entry.run.clone() {
-                self.ends.push((key.clone(), run, failure.is_none()));
-            }
+            let finished = failure.is_none();
+            self.ends
+                .extend(entry.run.clone().map(|run| (key.clone(), run, finished)));
             entry.running = None;
             entry.last = Some(match failure {
                 None => Last::Finished { at: now, seconds },

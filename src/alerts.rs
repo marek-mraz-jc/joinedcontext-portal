@@ -970,6 +970,13 @@ impl Evaluator {
         self
     }
 
+    async fn add_holds(&self, signals: &mut Vec<Signal>) -> Result<(), sqlx::Error> {
+        if let Some(ledger) = &self.holds {
+            held_signals(signals, ledger.holds().await?);
+        }
+        Ok(())
+    }
+
     /// Starts a run in the background unless one is under way; the sync never waits.
     pub fn start(self: &Arc<Self>) {
         if self.running.swap(true, Ordering::AcqRel) {
@@ -987,9 +994,7 @@ impl Evaluator {
     /// One pass: open and close incidents, notify subscribers, write the digests that are due.
     pub async fn run(&self, now: DateTime<Utc>) -> Result<(), sqlx::Error> {
         let (pipelines, mut signals) = read_pipelines(&self.mirror, &self.quality);
-        if let Some(ledger) = &self.holds {
-            held_signals(&mut signals, ledger.holds().await?);
-        }
+        self.add_holds(&mut signals).await?;
         let open = self.store.open_incidents().await?;
         let (opening, closing) = step(&open, &signals);
         let subscriptions = self.store.all().await?;

@@ -1211,12 +1211,27 @@ pub async fn post_source_deletes(
     Path((project, name)): Path<(String, String)>,
     Json(request): Json<SourceDecision>,
 ) -> Result<(axum::http::StatusCode, Json<SourceDecided>), ApiError> {
-    let pipeline = readable_pipeline(&state, &user, &project, &name)?;
-    let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
+    let deleting = source_decision(&state, &user, &project, &name, request.decision).await?;
+    Ok((
+        axum::http::StatusCode::ACCEPTED,
+        Json(SourceDecided { deleting }),
+    ))
+}
+
+/// A steward's answer to a held run, checked and put on the activity feed.
+async fn source_decision(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    name: &str,
+    choice: SourceChoice,
+) -> Result<usize, ApiError> {
+    let pipeline = readable_pipeline(state, user, project, name)?;
+    let effective = crate::permissions::for_request(state, &user.0.identity, project);
     if !may_pipeline(
         &effective,
-        &state,
-        &project,
+        state,
+        project,
         &pipeline.spec,
         jc_core::kinds::Verb::Approve,
     ) {
@@ -1225,9 +1240,9 @@ pub async fn post_source_deletes(
         )));
     }
     let rule = snapshot_of(&pipeline)?;
-    let deleting = decide(&state, &project, &name, &rule, request.decision).await?;
+    let deleting = decide(state, project, name, &rule, choice).await?;
     let actor = &user.0.identity.username;
-    let summary = match request.decision {
+    let summary = match choice {
         SourceChoice::Delete => {
             format!("{actor} released {deleting} source deletes of pipeline {name}")
         }
@@ -1237,7 +1252,7 @@ pub async fn post_source_deletes(
     };
     let event = crate::activity::ActivityEvent {
         time: chrono::Utc::now(),
-        project: project.clone(),
+        project: project.to_owned(),
         space: None,
         kind: "pipeline.source-delete".to_owned(),
         source: "portal".to_owned(),
@@ -1249,10 +1264,7 @@ pub async fn post_source_deletes(
     if let Err(error) = state.activity.append(&[event]).await {
         tracing::warn!(%project, pipeline = %name, %error, "the decision is not on the activity feed");
     }
-    Ok((
-        axum::http::StatusCode::ACCEPTED,
-        Json(SourceDecided { deleting }),
-    ))
+    Ok(deleting)
 }
 
 /// Keeps every id, or hands the due ids to the runner once and clears the hold.
