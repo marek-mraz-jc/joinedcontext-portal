@@ -51,7 +51,7 @@ pub(super) async fn call(
         return not_found();
     };
     let person = super::roles::person(&state, &headers, &spec, &name).await;
-    if !super::roles::may_open(&spec, person.as_ref()) {
+    if !super::roles::may_open(&state, &project, &name, &spec, person.as_ref()) {
         return not_found();
     }
     let token = edge_token(&state, &headers);
@@ -102,7 +102,10 @@ pub(super) async fn call(
     });
     let modules = BTreeMap::from([
         ("@app/functions.js".to_owned(), bundle),
-        ("@app/entry.js".to_owned(), entry(&function)),
+        (
+            "@app/entry.js".to_owned(),
+            entry("@app/functions.js", &function),
+        ),
     ]);
     match invoke(
         &state,
@@ -119,18 +122,22 @@ pub(super) async fn call(
     }
 }
 
-/// The module the runtime calls: the bundle's export named `function`, or a `404` answered from
-/// inside the runtime when the build holds no such function.
-fn entry(function: &str) -> String {
-    let name = serde_json::to_string(function).unwrap_or_default();
+/// The module the runtime calls: `export` of `module` (the published bundle's function, or a
+/// preview file's default), or a `404` answered from inside the runtime when there is no such
+/// function. A data call the caller may not make answers its own `401`/`403` through
+/// `answeringRefusals`, so the page says "no access" and not "failed" (T-4912).
+pub(crate) fn entry(module: &str, export: &str) -> String {
+    let quoted = |text: &str| serde_json::to_string(text).unwrap_or_default();
     format!(
-        "import * as all from \"@app/functions.js\";\n\
+        "import * as all from {module};\n\
+         import {{ answeringRefusals }} from \"@joinedcontext/sdk/server\";\n\
          const found = all[{name}];\n\
          export default typeof found === \"function\"\n\
-         \x20 ? found\n\
+         \x20 ? answeringRefusals(found)\n\
          \x20 : () => ({{ status: 404, body: {{ title: \"Not Found\", status: 404, detail: {detail} }} }});\n",
-        detail = serde_json::to_string(&format!("this build has no function '{function}'"))
-            .unwrap_or_default(),
+        module = quoted(module),
+        name = quoted(export),
+        detail = quoted(&format!("this build has no function '{export}'")),
     )
 }
 
@@ -213,9 +220,21 @@ mod tests {
     /// code, and a function the bundle lacks answers 404 from inside the runtime.
     #[test]
     fn the_entry_quotes_the_function_name_and_answers_404_for_a_missing_one() {
-        let module = entry("near-me");
+        let module = entry("@app/functions.js", "near-me");
         assert!(module.contains("all[\"near-me\"]"), "{module}");
         assert!(module.contains("status: 404"), "{module}");
         assert!(module.starts_with("import * as all from \"@app/functions.js\";"));
+    }
+
+    /// T-4912: the function runs inside `answeringRefusals`, so a refused data call answers 403.
+    #[test]
+    fn the_entry_answers_a_refused_data_call_as_the_refusal() {
+        let module = entry("@app/functions/upcoming.ts", "default");
+        assert!(
+            module.contains("import { answeringRefusals } from \"@joinedcontext/sdk/server\";"),
+            "{module}"
+        );
+        assert!(module.contains("? answeringRefusals(found)"), "{module}");
+        assert!(module.starts_with("import * as all from \"@app/functions/upcoming.ts\";"));
     }
 }

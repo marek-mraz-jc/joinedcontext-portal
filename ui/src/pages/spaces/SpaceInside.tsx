@@ -77,6 +77,7 @@ import { AiFieldPanel } from "./AiField";
 import { SpaceChecks } from "./SpaceChecks";
 import { SpaceQuality } from "./SpaceQuality";
 import { SpaceRetention } from "./SpaceRetention";
+import { SpaceTemporalAudit } from "./SpaceTemporalAudit";
 import { rulesOf } from "./retention";
 import type { RetentionRule } from "./retention";
 import {
@@ -1393,6 +1394,11 @@ export function SpaceInside({ project, name }: { project: string; name: string }
       {tab === "retention" ? (
         <div {...tabPanelProps("space-inside", tab)}>
           <SpaceRetention project={project} space={name} manifest={manifest} types={types} />
+          <div className="mt-6">
+            <Section title={t("spaces.temporal.title")}>
+              <SpaceTemporalAudit project={project} space={name} />
+            </Section>
+          </div>
         </div>
       ) : null}
 
