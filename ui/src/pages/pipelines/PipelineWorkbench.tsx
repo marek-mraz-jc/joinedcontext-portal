@@ -31,7 +31,7 @@ import type { LinkmlModel, LinkmlSlot } from "../models/linkml";
 import { entityTypesOf, spaceOf } from "../spaces/spaceFacts";
 import type { PipelineForm } from "./PipelineEditor";
 import { inlineEndpointSample } from "../../api/pipelineTest";
-import { sampleUrlOf } from "./PipelineStudio";
+import { plainValue, sampleUrlOf } from "./PipelineStudio";
 import { MAX_SAMPLE_BYTES, draftFromRecord, draftFromSample, formatOf } from "./PipelineTest";
 import type { SampleFormat } from "./PipelineTest";
 import { SlotUnit } from "./SlotUnit";
@@ -378,8 +378,8 @@ export function answeredHtml(message: string): boolean {
 }
 
 function cell(value: unknown): string {
-  const text = typeof value === "string" ? value : JSON.stringify(value);
-  return text === undefined ? "" : text.length > 60 ? `${text.slice(0, 59)}…` : text;
+  const text = plainValue(value);
+  return text.length > 60 ? `${text.slice(0, 59)}…` : text;
 }
 
 /** `record`'s members by dotted path, objects opened two levels deep; lists stay whole. */
