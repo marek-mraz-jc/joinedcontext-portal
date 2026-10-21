@@ -96,6 +96,16 @@ function render({ items = [CHAT, ACCOUNT, RUN], status = 200, permissions = STEW
               status,
             );
       }
+      if (url.pathname === "/api/v1/projects/helsinki/serviceaccounts/sensor-feed/access") {
+        return json({
+          account: "sensor-feed",
+          project: "helsinki",
+          delegates: false,
+          mayPropose: true,
+          mayRevoke: false,
+          grants: [{ index: 0, role: "space-writer", scope: "project:helsinki", state: "active", rules: [{ kinds: ["Pipeline"], verbs: ["propose"] }] }],
+        });
+      }
       if (url.pathname === "/api/v1/projects/helsinki/assistantdeployments/city-chat") {
         if (request.method === "PUT") {
           puts.push({ url, body: await request.json() });
@@ -211,6 +221,17 @@ describe("An agent's page", () => {
     render({ page: "helsinki/ServiceAccount/sensor-feed" });
     expect(await screen.findByText(t.noPause)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: t.pause })).toBeNull();
+  });
+
+  it("shows a service account's grants and kind × verb matrix on its Access tab (T-4850)", async () => {
+    const { container } = render({ page: "helsinki/ServiceAccount/sensor-feed" });
+    const tabs = await screen.findByRole("tablist", { name: t.tabsLabel });
+    fireEvent.click(within(tabs).getByRole("tab", { name: t.tab.access }));
+    const matrix = await screen.findByRole("group", { name: "What sensor-feed may do, by kind" });
+    expect(within(matrix).getByRole("row", { name: /Pipeline/ })).toBeInTheDocument();
+    expect(screen.getByText("space-writer")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Revoke/ })).toBeNull();
+    await expectNoAxeViolations(container);
   });
 
   it("tells the person when the agent is no longer there", async () => {

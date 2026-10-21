@@ -749,6 +749,7 @@
         "Button": 1
       },
       "tests": [
+        "agent_access_matrix.test.tsx",
         "organization_agents.test.tsx",
         "service_accounts_view.test.tsx",
         "serviceaccount_form.test.tsx"
@@ -1993,6 +1994,14 @@
       },
       "tests": [
         "workspaces_ui.test.tsx"
+      ]
+    },
+    "src/pages/access/AccountAccess.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "agent_access_matrix.test.tsx"
       ]
     }
   }

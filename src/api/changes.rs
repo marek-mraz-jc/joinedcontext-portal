@@ -1489,6 +1489,7 @@ pub async fn approve_change(
                 .map_err(|e| ApiError::BadRequest(format!("invalid json body: {e}")))?,
         )
     };
+    refuse_bearer_decision(&user.0.identity)?;
     let confirm = approve_body.as_ref().and_then(|b| b.confirm.as_deref());
     let change = approve_change_for(
         &state,
@@ -2190,6 +2191,68 @@ pub(crate) async fn merge_if_only(
     change
 }
 
+/// Merges a Change the Portal just wrote that removes access and adds none (AG-132): its one file
+/// must be a manifest `narrows` accepts against the base the forge holds now, not the mirror, so a
+/// grant the main branch dropped since the mirror's last sync is never written back. Anything
+/// else comes back pending, for a second person like every access change (PF-58).
+pub(crate) async fn merge_if_narrowing(
+    state: &AppState,
+    project: &str,
+    change: Change,
+    message: &str,
+    narrows: impl Fn(&ResourceEnvelope, &ResourceEnvelope) -> bool,
+) -> Change {
+    let id = change.metadata.name.clone();
+    let Ok((gitea, number)) = resolve_change(state, project, &id) else {
+        return change;
+    };
+    let pr = match gitea.pull_request(number).await {
+        Ok(pr) => pr,
+        Err(err) => {
+            tracing::warn!(change = %id, error = %err, "the revoke waits for a person: its merge request could not be read");
+            return change;
+        }
+    };
+    let narrowed = match load_manifest_data(&gitea, &pr, project).await {
+        Ok(Some(ManifestData {
+            base_envelope: Some(base),
+            head_envelope: Some(head),
+            ..
+        })) => narrows(&base, &head),
+        _ => false,
+    };
+    if !narrowed {
+        tracing::warn!(change = %id, "the change does not only remove access and waits for a person");
+        return change;
+    }
+    let files = match gitea.pull_request_files(pr.number).await {
+        Ok(files) => files,
+        Err(err) => {
+            tracing::warn!(change = %id, error = %err, "the revoke waits for a person: its files could not be read");
+            return change;
+        }
+    };
+    let [file] = files.as_slice() else {
+        return change;
+    };
+    let path = file.path.clone();
+    merge_if_only(state, &gitea, &pr, &[path.as_str()], message, change).await
+}
+
+/// A person decides a Change with their own Portal session; a bearer token is a workload's or an
+/// agent's, and one exchanged for a person (AG-94) still speaks for the agent that holds it, so
+/// it never approves or rejects, whatever the person's own bindings grant (PF-58, AG-11).
+fn refuse_bearer_decision(identity: &crate::auth::session::Identity) -> Result<(), ApiError> {
+    if identity.client.is_some() {
+        return Err(ApiError::Denied(
+            "a change is approved or rejected by a person in the Portal, never with a service \
+             account's or an agent's token (PF-58, AG-11)"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
 /// A change a person just proposed with their own session, approved in the same call when they
 /// administer every kind it touches (PF-58): the button's one approval path, so the checks, the
 /// merge and its commit message are the same. Anyone else's change comes back as it was, waiting
@@ -2271,6 +2334,7 @@ pub async fn reject_change(
         serde_json::from_slice(&body)
             .map_err(|e| ApiError::BadRequest(format!("invalid json body: {e}")))?
     };
+    refuse_bearer_decision(&user.0.identity)?;
     let change = reject_change_for(
         &state,
         &user.0.identity,
@@ -2686,6 +2750,33 @@ mod tests {
             Err(ApiError::Unavailable(msg)) => assert!(msg.contains("git forge")),
             other => panic!("expected ApiError::Unavailable, got {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn a_bearer_token_never_approves_or_rejects_even_for_an_administrator() {
+        // A token an agent exchanged for a person carries the person and the agent's client
+        // (AG-94): the person's own rights would approve; the route refuses it before the forge.
+        let config = Config::for_tests();
+        let bootstrap = config.bootstrap_admins.clone();
+        let state = AppState::new(config, None);
+        let agent = || {
+            let CurrentUser(mut session) = test_user("jana@example.sk", vec![]);
+            session.identity.groups = vec![bootstrap.clone()];
+            session.identity.client = Some("helsinki-jc-agent-proxy".into());
+            CurrentUser(session)
+        };
+        let path = || Path(("ovzdusie".to_owned(), "chg-00000001".to_owned()));
+        let approved = approve_change(agent(), State(state.clone()), path(), Bytes::new())
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(&approved, ApiError::Denied(m) if m.contains("AG-11")),
+            "{approved:?}"
+        );
+        let rejected = reject_change(agent(), State(state), path(), Bytes::new())
+            .await
+            .unwrap_err();
+        assert!(matches!(rejected, ApiError::Denied(_)), "{rejected:?}");
     }
 
     #[tokio::test]
