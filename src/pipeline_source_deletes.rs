@@ -1465,4 +1465,96 @@ mod tests {
         // Another pipeline's ledger is its own.
         assert!(ledger.book("p", "y").await.expect("book").0.is_empty());
     }
+
+    /// Project helsinki: the vehicles space's Endpoint and a snapshot pipeline writing it.
+    fn snapshot_world(extra: Vec<crate::resource::ResourceEnvelope>) -> AppState {
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        let envelope = |kind: &str, name: &str, namespace: &str, spec: Value| ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: kind.to_owned(),
+            metadata: ObjectMeta::new(name, namespace),
+            spec,
+            status: None,
+        };
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        state.mirror.upsert(envelope(
+            "Endpoint",
+            "ep-vehicles",
+            "helsinki",
+            json!({ "contextSpaceRef": { "kind": "ContextSpace", "name": "vehicles" } }),
+        ));
+        state
+            .mirror
+            .upsert(envelope("Pipeline", "feed", "helsinki", snapshot_spec()));
+        for env in extra {
+            state.mirror.upsert(env);
+        }
+        state
+    }
+
+    fn snapshot_spec() -> Value {
+        json!({
+            "class": "scheduled",
+            "schedule": "0 * * * *",
+            "sources": [{ "dataSourceRef": { "kind": "DataSource", "name": "feed" } }],
+            "outputs": [{ "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:helsinki:ep-vehicles" }],
+            "sourceDeletes": { "mode": "snapshot", "misses": 2, "maxShare": 10 },
+        })
+    }
+
+    #[tokio::test]
+    async fn the_report_reads_the_ledger_the_last_complete_run_and_what_it_could_not_write() {
+        use crate::pipeline_log::{NewLine, Outcome};
+        let state = snapshot_world(Vec::new());
+        let ids = ["urn:a", "urn:b"].map(str::to_owned);
+        let ledger = &state.source_ledger;
+        ledger
+            .seen("helsinki", "feed", "r1", &ids, true)
+            .await
+            .expect("seen");
+        let line = |id: &str, outcome| NewLine {
+            record_id: id.to_owned(),
+            step: None,
+            outcome,
+            message: String::new(),
+        };
+        state
+            .pipeline_log
+            .append(
+                "helsinki",
+                "feed",
+                "r1",
+                &[
+                    line("urn:a", Outcome::Sent),
+                    line("urn:c", Outcome::Rejected),
+                ],
+            )
+            .await
+            .expect("log");
+        let rule = rule(2, 10);
+        let before = report(&state, "helsinki", "feed", &snapshot_spec(), &rule)
+            .await
+            .expect("report");
+        assert_eq!(
+            (before.ledger, before.space.as_deref()),
+            (2, Some("vehicles"))
+        );
+        assert!(
+            before.last_complete.is_none(),
+            "no run read its source completely yet"
+        );
+        ledger
+            .completed("helsinki", "feed", "r1")
+            .await
+            .expect("completed");
+        let after = report(&state, "helsinki", "feed", &snapshot_spec(), &rule)
+            .await
+            .expect("report");
+        let complete = after.last_complete.as_ref().expect("the complete run");
+        assert_eq!((complete.run.as_str(), complete.read), ("r1", 2));
+        assert_eq!(
+            (after.missing, after.missing_ids.clone()),
+            (1, vec!["urn:c".to_owned()])
+        );
+    }
 }

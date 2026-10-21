@@ -2015,51 +2015,7 @@ pub fn render_merged(
                 .to_owned(),
         ));
     }
-    let mut inputs = Vec::with_capacity(sources.len());
-    for (at, source) in sources.iter().enumerate() {
-        let (input, processors) = match source {
-            ResolvedSource::Data {
-                spec,
-                name: source_name,
-            } => datasource_input(pipeline, name, project, spec, source_name)?,
-            ResolvedSource::Endpoint {
-                source,
-                slug,
-                public,
-            } => endpoint_input(
-                pipeline,
-                project,
-                Some(source),
-                &format!("{project}/{name}#{at}"),
-                slug,
-                *public,
-            )?,
-        };
-        let processors = match kpi {
-            Some(_) => kpi_source(source, processors)?,
-            None => processors,
-        };
-        inputs.push(with_processors(input, processors));
-    }
-    let count = inputs.len();
-    let input = match count {
-        0 => {
-            return Err(RenderError::Custom(
-                "a pipeline reads at least one source".to_owned(),
-            ))
-        }
-        1 => inputs.remove(0),
-        // The run's pages meet in one message, one wrapped page per source (PL-104).
-        _ if kpi.is_some() => serde_json::json!({ "broker": {
-            "inputs": inputs,
-            "batching": {
-                "count": count,
-                "period": KPI_GATHER,
-                "processors": [{ "archive": { "format": "json_array" } }],
-            },
-        } }),
-        _ => serde_json::json!({ "broker": { "inputs": inputs } }),
-    };
+    let input = merged_input(pipeline, name, project, sources, kpi)?;
 
     let mut processors = Vec::new();
     // Each step by its place in the manifest (PL-66): the `j`-th processor step is `step_{j}`,
@@ -2130,6 +2086,60 @@ pub fn render_merged(
     });
     bound_in_flight(&mut stream, polled);
     Ok(stream)
+}
+
+/// The stream's input over every source: one source as it is, several through one broker, a kpi
+/// run's pages gathered into one message (PL-104).
+fn merged_input(
+    pipeline: &PipelineSpec,
+    name: &str,
+    project: &str,
+    sources: &[ResolvedSource],
+    kpi: Option<&jc_core::kpi_join::KpiStep>,
+) -> Result<Value, RenderError> {
+    let mut inputs = Vec::with_capacity(sources.len());
+    for (at, source) in sources.iter().enumerate() {
+        let (input, processors) = match source {
+            ResolvedSource::Data {
+                spec,
+                name: source_name,
+            } => datasource_input(pipeline, name, project, spec, source_name)?,
+            ResolvedSource::Endpoint {
+                source,
+                slug,
+                public,
+            } => endpoint_input(
+                pipeline,
+                project,
+                Some(source),
+                &format!("{project}/{name}#{at}"),
+                slug,
+                *public,
+            )?,
+        };
+        let processors = match kpi {
+            Some(_) => kpi_source(source, processors)?,
+            None => processors,
+        };
+        inputs.push(with_processors(input, processors));
+    }
+    let count = inputs.len();
+    match count {
+        0 => Err(RenderError::Custom(
+            "a pipeline reads at least one source".to_owned(),
+        )),
+        1 => Ok(inputs.remove(0)),
+        // The run's pages meet in one message, one wrapped page per source (PL-104).
+        _ if kpi.is_some() => Ok(serde_json::json!({ "broker": {
+            "inputs": inputs,
+            "batching": {
+                "count": count,
+                "period": KPI_GATHER,
+                "processors": [{ "archive": { "format": "json_array" } }],
+            },
+        } })),
+        _ => Ok(serde_json::json!({ "broker": { "inputs": inputs } })),
+    }
 }
 
 /// How long the broker waits for every source's page of a kpi run before it folds what came;

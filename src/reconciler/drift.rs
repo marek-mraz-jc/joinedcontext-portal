@@ -520,4 +520,48 @@ mod tests {
             .expect("the history");
         assert_eq!(history["id"], "urn:ngsi-ld:A:1");
     }
+
+    #[tokio::test]
+    async fn the_live_entity_is_none_when_the_space_holds_none_and_an_error_when_it_fails() {
+        use wiremock::matchers::{bearer_token, header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        let at = |id: &str| format!("/cs/ovzdusie/ngsi-ld/v1/entities/{id}");
+        Mock::given(method("GET"))
+            .and(path(at("urn:ngsi-ld:A:1")))
+            .and(bearer_token("t"))
+            .and(header("Accept", "application/json"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"id": "urn:ngsi-ld:A:1"})),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(at("urn:ngsi-ld:A:2")))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(at("urn:ngsi-ld:A:3")))
+            .respond_with(ResponseTemplate::new(503))
+            .mount(&server)
+            .await;
+        let watch = Watch::new(
+            server.uri(),
+            &format!("{}/realms/city", server.uri()),
+            "portal".to_owned(),
+            ClientAuth::Secret("s".into()),
+        );
+        let held = watch.live("t", "ovzdusie", "urn:ngsi-ld:A:1").await;
+        assert_eq!(held, Ok(Some(json!({"id": "urn:ngsi-ld:A:1"}))));
+        assert_eq!(
+            watch.live("t", "ovzdusie", "urn:ngsi-ld:A:2").await,
+            Ok(None)
+        );
+        let failed = watch.live("t", "ovzdusie", "urn:ngsi-ld:A:3").await;
+        assert_eq!(
+            failed,
+            Err("ovzdusie answered 503 Service Unavailable".to_owned())
+        );
+    }
 }

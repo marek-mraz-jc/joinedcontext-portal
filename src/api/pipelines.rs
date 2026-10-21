@@ -1670,4 +1670,88 @@ uptime_seconds 900
         assert_eq!(metrics.received, Some(5));
         assert!(metrics.nodes.is_empty());
     }
+
+    #[tokio::test]
+    async fn source_deletes_hide_the_ids_of_a_space_the_reader_does_not_read() {
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        use serde_json::json;
+        let envelope = |kind: &str, name: &str, spec: serde_json::Value| ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: kind.to_owned(),
+            metadata: ObjectMeta::new(name, crate::permissions::ORG_NAMESPACE),
+            spec,
+            status: None,
+        };
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let pipeline = |name: &str, spec: serde_json::Value| ResourceEnvelope {
+            metadata: ObjectMeta::new(name, "helsinki"),
+            ..envelope("Pipeline", name, spec)
+        };
+        state.mirror.upsert(pipeline(
+            "feed",
+            json!({
+                "class": "scheduled",
+                "schedule": "0 * * * *",
+                "sources": [{ "dataSourceRef": { "kind": "DataSource", "name": "feed" } }],
+                "outputs": [{ "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:helsinki:ep-vehicles" }],
+                "sourceDeletes": { "mode": "snapshot", "misses": 2, "maxShare": 10 },
+            }),
+        ));
+        state.mirror.upsert(pipeline(
+            "plain",
+            json!({ "class": "auto", "sources": [{ "dataSourceRef": { "kind": "DataSource", "name": "feed" } }] }),
+        ));
+        state.mirror.upsert(envelope(
+            "Role",
+            "reader",
+            json!({ "rules": [{ "kinds": ["Pipeline"], "verbs": ["read"] }] }),
+        ));
+        state.mirror.upsert(envelope(
+            "RoleBinding",
+            "reader",
+            json!({ "subjects": [{ "user": "reader@hel.fi" }], "role": "reader", "scope": { "project": "helsinki" } }),
+        ));
+        let ids = ["urn:a".to_owned()];
+        state
+            .source_ledger
+            .seen("helsinki", "feed", "r1", &ids, true)
+            .await
+            .expect("seen");
+        let who = |email: &str| {
+            CurrentUser(crate::auth::session::Session {
+                identity: crate::auth::session::Identity {
+                    client: None,
+                    subject: format!("f:1:{email}"),
+                    username: email.to_owned(),
+                    email: Some(email.to_owned()),
+                    name: None,
+                    roles: Vec::new(),
+                    groups: Vec::new(),
+                },
+                expires_at: 0,
+                issued_at: 0,
+                id_token: String::new(),
+                access_expires_at: 0,
+                refresh_token: None,
+            })
+        };
+        let ask = |email: &str, name: &str| {
+            get_source_deletes(
+                who(email),
+                State(state.clone()),
+                Path(("helsinki".to_owned(), name.to_owned())),
+            )
+        };
+        let overview = ask("reader@hel.fi", "feed").await.expect("the overview").0;
+        assert_eq!(overview.ledger, 1, "the counts are the pipeline's own");
+        assert!(overview.ids_hidden && overview.orphan_ids.is_empty());
+        assert!(matches!(
+            ask("reader@hel.fi", "plain").await,
+            Err(ApiError::Conflict(_))
+        ));
+        assert!(matches!(
+            ask("stranger@hel.fi", "feed").await,
+            Err(ApiError::NotFound(_))
+        ));
+    }
 }
