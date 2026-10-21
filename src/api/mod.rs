@@ -133,6 +133,7 @@ pub fn router() -> Router<AppState> {
         .merge(entity_comments::router())
         .merge(alerts::router())
         .merge(knowledge::router())
+        .merge(knowledge_usage::router())
         .merge(live::router())
         .merge(sync_sources::router())
         .merge(validation::router())

@@ -1714,7 +1714,8 @@ impl ViewSync {
             .await
             .map_err(|err| format!("the broker did not answer: {}", err.without_url()))?;
         let status = answer.status().as_u16();
-        Ok((status, answer.json().await.unwrap_or(Value::Null)))
+        let body = crate::capped::json(answer, crate::capped::ANSWER_BYTES).await;
+        Ok((status, body.unwrap_or(Value::Null)))
     }
 
     async fn apply(&self, desired: Desired) -> Vec<(Owner, ViewOutcome)> {
@@ -2034,11 +2035,13 @@ impl ViewSync {
             return Err(ViewOutcome::Failed(refusal(&what, response, None).await));
         }
         let artifacts: crate::tools::model_tools::Artifacts =
-            response.json().await.map_err(|err| {
-                ViewOutcome::Failed(format!(
-                    "model tools answered the data model {name} unreadably: {err}"
-                ))
-            })?;
+            crate::capped::json(response, crate::capped::ANSWER_BYTES)
+                .await
+                .map_err(|err| {
+                    ViewOutcome::Failed(format!(
+                        "model tools answered the data model {name} unreadably: {err}"
+                    ))
+                })?;
         match artifacts.broker_schema {
             Some(schema) => {
                 lock(&self.compiled).insert(
@@ -2276,7 +2279,9 @@ fn lock<T>(held: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 /// no status or API error ever carries it.
 async fn refusal(what: &str, response: reqwest::Response, token: Option<&str>) -> String {
     let status = response.status();
-    let body = response.text().await.unwrap_or_default();
+    let body = crate::capped::text(response, crate::capped::ANSWER_BYTES)
+        .await
+        .unwrap_or_default();
     let detail = serde_json::from_str::<Value>(&body)
         .ok()
         .and_then(|problem| {
