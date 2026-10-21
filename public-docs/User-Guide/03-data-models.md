@@ -161,3 +161,4 @@ A model's classes and attributes come from the LinkML editor. Two things about a
 - [Pipelines & Ingestion](./04-pipelines.md): using mappings in data transformation streams.
 - [Endpoints & Sharing](./05-endpoints-and-sharing.md): publishing projected model schemas.
 - [Users, Roles & Approvals](./07-users-roles-approvals.md): reviewing model change proposals.
+- [Retention & Expiry](./14-retention-and-expiry.md): how long the types of a model are kept, and personal attributes.

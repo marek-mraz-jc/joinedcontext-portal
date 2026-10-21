@@ -2340,7 +2340,7 @@
         "never": "Never",
         "neverHint": "They stay until someone deletes them or a space rule removes them.",
         "source": "At a time the source gives",
-        "sourceHint": "Each entity gets its own expiresAt: a time field of the record plus a while, for example observedAt plus 10 minutes for a bus position.",
+        "sourceHint": "Each entity gets its own expiresAt: a time attribute plus a while, for example observedOn plus 10 minutes, or the time the record is written plus a while. The pipeline writes it after your mapping.",
         "stale": "When the source stops sending them",
         "staleHint": "Once an hour the pipeline deletes entities of this type it has not updated for the window.",
         "from": "Time from",
@@ -2352,7 +2352,11 @@
         "afterHint": "Entities of {type} not updated for this long are deleted, once an hour.",
         "refusals": "The proposal is refused when the pipeline has more than one output, when another pipeline writes into the same space, or when no Policy grants this pipeline deleteBatch and queryBatch on the type; the refusal names the Policy to extend.",
         "history": "History of {type} follows the space's rules.",
-        "spaceRules": "Retention of {space}"
+        "spaceRules": "Retention of {space}",
+        "noTimeSlot": "No date-time attribute of {type} is mapped yet, so the end counts from the time the record is written.",
+        "inManifest": "The lifetime of {type} is set in the pipeline's manifest (a fixed date, a cap or chosen attributes). Change it in the YAML view; this editor keeps it as it is.",
+        "migrated": "The end time this step used to write is now the pipeline's lifetime setting below. It is saved with your next proposal.",
+        "migrateField": "This step writes expiresAt from the record field {field}, and no date-time attribute is mapped from that field. Map it to a date-time attribute or pick another time below; until then the step keeps its own expiresAt lines."
       }
     },
     "debug": {

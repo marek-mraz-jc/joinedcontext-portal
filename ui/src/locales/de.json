@@ -2340,7 +2340,7 @@
         "never": "Nie",
         "neverHint": "Sie bleiben, bis jemand sie löscht oder eine Regel des Raums sie entfernt.",
         "source": "Zu einer Zeit aus der Quelle",
-        "sourceHint": "Jede Entität erhält ihr eigenes expiresAt: ein Zeitfeld des Datensatzes plus eine Dauer, zum Beispiel observedAt plus 10 Minuten für eine Busposition.",
+        "sourceHint": "Jede Entität erhält ein eigenes expiresAt: ein Zeitattribut plus eine Dauer, zum Beispiel observedOn plus 10 Minuten, oder der Schreibzeitpunkt des Datensatzes plus eine Dauer. Die Pipeline schreibt es nach Ihrem Mapping.",
         "stale": "Wenn die Quelle sie nicht mehr sendet",
         "staleHint": "Stündlich löscht die Pipeline Entitäten dieses Typs, die sie im Fenster nicht aktualisiert hat.",
         "from": "Zeit aus",
@@ -2352,7 +2352,11 @@
         "afterHint": "Entitäten von {type}, die so lange nicht aktualisiert wurden, werden stündlich gelöscht.",
         "refusals": "Der Vorschlag wird abgelehnt, wenn die Pipeline mehr als eine Ausgabe hat, eine andere Pipeline in denselben Raum schreibt oder keine Policy dieser Pipeline deleteBatch und queryBatch für den Typ gewährt; die Ablehnung nennt die zu erweiternde Policy.",
         "history": "Die Historie von {type} folgt den Regeln des Raums.",
-        "spaceRules": "Aufbewahrung in {space}"
+        "spaceRules": "Aufbewahrung in {space}",
+        "noTimeSlot": "Noch ist kein Datum-Zeit-Attribut von {type} zugeordnet, daher zählt das Ende ab dem Schreibzeitpunkt des Datensatzes.",
+        "inManifest": "Die Lebensdauer von {type} ist im Manifest der Pipeline festgelegt (ein festes Datum, eine Obergrenze oder ausgewählte Attribute). Ändern Sie sie in der YAML-Ansicht; dieser Editor lässt sie unverändert.",
+        "migrated": "Die Endzeit, die dieser Schritt bisher selbst schrieb, ist jetzt die Lebensdauer-Einstellung der Pipeline unten. Sie wird mit Ihrem nächsten Vorschlag gespeichert.",
+        "migrateField": "Dieser Schritt schreibt expiresAt aus dem Datensatzfeld {field}, und aus diesem Feld ist kein Datum-Zeit-Attribut zugeordnet. Ordnen Sie es einem Datum-Zeit-Attribut zu oder wählen Sie unten eine andere Zeit; bis dahin behält der Schritt seine eigenen expiresAt-Zeilen."
       }
     },
     "debug": {
