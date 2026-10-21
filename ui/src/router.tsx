@@ -33,6 +33,9 @@ const ModelsList = lazy(() => import("./pages/models/ModelsList").then((module) 
 const ModelPage = lazy(() => import("./pages/models/ModelPage").then((module) => ({ default: module.ModelPage })));
 const ExplorePage = lazy(() => import("./pages/explore/ExplorePage").then((module) => ({ default: module.ExplorePage })));
 const CkanPage = lazy(() => import("./pages/ckan/CkanPage").then((module) => ({ default: module.CkanPage })));
+const AccessibilityPage = lazy(() =>
+  import("./pages/accessibility/AccessibilityPage").then((module) => ({ default: module.AccessibilityPage })),
+);
 const GlossaryPage = lazy(() => import("./pages/glossary/GlossaryPage").then((module) => ({ default: module.GlossaryPage })));
 const ConnectPage = lazy(() => import("./pages/connect/ConnectPage").then((module) => ({ default: module.ConnectPage })));
 import { HomePage } from "./pages/home/HomePage";
@@ -263,6 +266,17 @@ function PublicFrame({ children, anonymous = false }: { children: React.ReactNod
       <main id="main" className="mx-auto w-full max-w-7xl flex-1 p-6">
         <Suspense fallback={<PageLoading label={t("app.loading")} />}>{children}</Suspense>
       </main>
+      {/* The statement a public body must link from every page (T-5108). */}
+      <footer className="border-t border-border bg-surface px-4 py-3 text-caption">
+        <nav aria-label={t("accessibility.footer")} className="mx-auto flex max-w-7xl flex-wrap gap-x-4 gap-y-1">
+          <a className="text-primary-soft-fg underline hover:no-underline" href="/accessibility">
+            {t("accessibility.link")}
+          </a>
+          <a className="text-primary-soft-fg underline hover:no-underline" href="/glossary">
+            {t("glossary.page.title")}
+          </a>
+        </nav>
+      </footer>
     </div>
   );
 }
@@ -326,6 +340,15 @@ const glossaryRoute = createRoute({
   path: "/glossary",
   component: function GlossaryRoute() {
     return <CatalogueFrame>{() => <GlossaryPage />}</CatalogueFrame>;
+  },
+});
+
+/** The accessibility statement (T-5108, Decree 78/2020): public, linked from every frame. */
+const accessibilityRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/accessibility",
+  component: function AccessibilityRoute() {
+    return <CatalogueFrame>{() => <AccessibilityPage />}</CatalogueFrame>;
   },
 });
 
@@ -1277,6 +1300,7 @@ export const routeTree = rootRoute.addChildren([
   publicFormRoute,
   endpointDocsRoute,
   glossaryRoute,
+  accessibilityRoute,
   connectRoute,
   ...devRoutes,
   protectedRoute.addChildren([

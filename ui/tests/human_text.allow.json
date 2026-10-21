@@ -8,6 +8,12 @@
     "of the baseline one when the walk decides it stays."
   ],
   "strings": {
+    "accessibility.gaps.screenReader": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "NVDA and VoiceOver are the screen readers' own names; the statement says which were not tested yet"
+    },
     "activity.failed": {
       "rules": [
         "next-step"

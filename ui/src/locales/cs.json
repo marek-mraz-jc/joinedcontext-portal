@@ -9330,5 +9330,44 @@
     "result": "Výsledek skriptu",
     "text": "Uložený text",
     "json": "Podrobnosti v JSON"
+  },
+  "accessibility": {
+    "title": "Prohlášení o přístupnosti",
+    "link": "Přístupnost",
+    "lead": "{organisation} chce, aby tento portál a jeho katalog otevřených dat mohl používat každý, i člověk, který pracuje jen s klávesnicí, se čtečkou obrazovky nebo se zvětšením.",
+    "law": {
+      "heading": "Právní rámec",
+      "body": "Prohlášení se vztahuje na {host}. Přístupnost upravuje slovenský zákon č. 95/2019 Z. z. o informačních technologiích ve veřejné správě a vyhláška č. 78/2020 Z. z. o standardech pro informační technologie veřejné správy, která za standard bere WCAG 2.1 na úrovni AA."
+    },
+    "status": {
+      "heading": "Stav souladu",
+      "body": "Webové stránky jsou částečně v souladu s WCAG 2.1 na úrovni AA. Obsah uvedený níže zatím není plně přístupný."
+    },
+    "gaps": {
+      "heading": "Nepřístupný obsah",
+      "maps": "Mapy ukazují místa jen jako obrázek. Tatáž místa s adresami a souřadnicemi jsou v tabulce datové sady a v jejím souboru ke stažení.",
+      "charts": "Grafy ukazují čísla jen jako obrázek. Tatáž čísla jsou v tabulce datové sady a v jejím souboru ke stažení.",
+      "screenReader": "Test se čtečkami obrazovky NVDA a VoiceOver zatím neproběhl; čtečka může některé ovládací prvky přečíst nesrozumitelně.",
+      "thirdParty": "Okno AI asistenta a dokumenty, které nahrávají vydavatelé (PDF, tabulky), připravují jiní; jejich přístupnost nemůžeme zaručit."
+    },
+    "method": {
+      "heading": "Jak jsme přístupnost ověřili",
+      "body": "Vlastním hodnocením. Nástroj axe-core kontroluje každou stránku, kterou projde automatická procházka portálu, v angličtině a slovenštině, na šířce počítače i telefonu, a kontrola selže při každém závažném nebo kritickém nálezu. Pět hlavních postupů jsme prošli jen klávesnicí."
+    },
+    "dates": {
+      "heading": "Datum",
+      "body": "Prohlášení bylo připraveno {prepared} a naposledy přezkoumáno {reviewed}."
+    },
+    "contact": {
+      "heading": "Zpětná vazba a kontakt",
+      "body": "Narazili jste na bariéru? Napište nám adresu stránky a co jste chtěli udělat.",
+      "write": "Napište na",
+      "noEmail": "Tato instalace zatím nezveřejnila kontaktní adresu; obraťte se na jejího provozovatele, {organisation}."
+    },
+    "enforcement": {
+      "heading": "Vymáhání",
+      "body": "Pokud vás naše odpověď neuspokojí, obraťte se na Ministerstvo investic, regionálního rozvoje a informatizace Slovenské republiky, které dohlíží na přístupnost webových sídel veřejné správy."
+    },
+    "footer": "O této stránce"
   }
 }
