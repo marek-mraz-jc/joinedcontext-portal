@@ -846,7 +846,7 @@
       "title": "Vyplnit atribut pomocí AI",
       "lead": "Výzva zodpovězená pro každou entitu na obrazovce z jejích vlastních atributů. Asistent připraví hodnoty; vy je zkontrolujete a použijete s vašimi právy a volání modelu se počítají do vašeho denního rozpočtu.",
       "attribute": "Atribut k vyplnění",
-      "attributeHint": "Název atributu: písmeno, pak písmena, číslice nebo _, nejvýše 64.",
+      "attributeHint": "Vlastnost z modelu typu, do které se zapíší odpovědi.",
       "endpoint": "Přes endpoint",
       "prompt": "Výzva",
       "promptHint": "Co odpovědět pro každou entitu, nejvýše {count} znaků, např. Shrň popis jednou větou.",
@@ -2131,7 +2131,6 @@
         "endpointHint": "Endpoint, ze kterého se ukazatel počítá, čtený podle jeho politiky.",
         "nameHint": "Malá písmena, číslice a pomlčky; pojmenovává ukazatel i jeho pipeline.",
         "typeHint": "Typ entity, jehož hodnoty se agregují; modeluje ho prostor endpointu.",
-        "attributeHint": "Číselný atribut toho typu, který agregace čte.",
         "attributePick": "Číselné atributy, které model daného typu uvádí; vyberte ten, který agregace čte.",
         "aggregateHint": "Jak se hodnoty jednoho období sloučí do jednoho čísla.",
         "periodHint": "Jak často se ukazatel počítá, jako doba trvání, například 15m nebo 1h.",
@@ -2142,7 +2141,8 @@
       "spaceHint": "Prostor, který pipeline čte, přes jeden z jeho endpointů a politiku toho endpointu.",
       "attributeHint": "Atribut, se kterým pracuje úryvek níže.",
       "pickSpaceFirst": "Nejprve vyberte prostor.",
-      "pickTypeFirst": "Nejprve vyberte endpoint a typ."
+      "pickTypeFirst": "Nejprve vyberte endpoint a typ.",
+      "noAttributes": "Zatím není co agregovat: načtěte vzorek nebo přidejte atributy do modelu typu."
     },
     "test": {
       "title": "Vyzkoušet na vzorku",
@@ -2215,7 +2215,7 @@
       "outputWritesHint": "Endpoint, přes který tento výstup zapisuje každou zprávu, stejně jako první výstup.",
       "sourceReads": "Tento zdroj čte",
       "sourceReadsHint": "Runner sloučí všechny zdroje linky do jednoho proudu před prvním krokem.",
-      "attrsHint": "Oddělené čárkou; prázdné čte všechny atributy.",
+      "attrsHint": "Vyberte atributy ke čtení; bez výběru se čtou všechny.",
       "mappingRefHint": "Mapování tohoto projektu; krok ho použije na každý záznam.",
       "moduleHint": "Cesta nebo balík modulu, který krok spouští.",
       "functionHint": "Vstupní bod modulu, který krok volá pro každý záznam.",
@@ -2651,7 +2651,8 @@
         "source": "Endpoint ke čtení",
         "type": "Typ entity",
         "attribute": "Atribut k průměru",
-        "attributeHelp": "Číselný atribut typu, podle jeho názvu v modelu."
+        "attributeHelp": "Číselný atribut typu, např. pm10.",
+        "typeHelp": "Typ, který modeluje prostor zvoleného endpointu; jeho čísla se nabídnou níže."
       },
       "problem": {
         "source": "Vyberte zdroj.",
@@ -2822,8 +2823,6 @@
       "lead": "Požádejte vlastníka jiného prostoru o čtení nebo zápis pro tuto pipeline. Dokud to neschválí, nic se neudělí.",
       "none": "Tato pipeline nežádala o přístup k jinému prostoru.",
       "request": "Požádat o přístup",
-      "project": "Vlastnící projekt",
-      "projectHelp": "Projekt, kterému prostor patří, jak ho uvádí stránka katalogu.",
       "endpoint": "Endpoint",
       "operationsLegend": "Co tam pipeline dělá",
       "operations": {
@@ -2831,7 +2830,7 @@
         "write": "Zápis"
       },
       "types": "Typy a atributy",
-      "typesHelp": "Uveďte každý typ entity a každý atribut, který pipeline potřebuje, oddělené čárkami. Žádost nikdy nežádá o všechny.",
+      "typesHelp": "Uveďte každý typ entity a každý atribut, který pipeline potřebuje. Žádost nikdy nežádá o všechny.",
       "type": "Typ entity",
       "attrs": "Atributy",
       "addType": "Přidat typ",
@@ -2870,7 +2869,20 @@
       "declineOf": "Zamítnout přístup pro {account}",
       "revoke": "Odebrat přístup",
       "revokeOf": "Odebrat přístup {account}",
-      "reasonFirst": "Nejprve napište důvod."
+      "reasonFirst": "Nejprve napište důvod.",
+      "endpointHelp": "Endpoint jiného prostoru, který smíte číst, např. air-quality projektu helsinki. Pro endpoint, který nevidíte, napište projekt/endpoint, např. helsinki/air-quality; žádost schvalují jeho vlastníci.",
+      "endpointTyped": "Požádat o {name}",
+      "endpointTypedBad": "\"{name}\" není název ve tvaru projekt/endpoint; napište ho jako helsinki/air-quality.",
+      "typedTypeHelp": "Vlastníci napsaného endpointu ověří tento název vůči svému datovému modelu; napište ho tak, jak ho píše jejich model.",
+      "endpointSpace": "prostor {space}",
+      "endpointProject": "Projekt {project}",
+      "noEndpoints": "Žádný endpoint jiného prostoru nesmíte číst. Pro endpoint, který nevidíte, napište jeho projekt a název oddělené lomítkem.",
+      "typeHelp": "Typ, který model endpointu poskytuje.",
+      "attrsHelp": "Každý atribut, který pipeline potřebuje; žádost nikdy nežádá o všechny.",
+      "noTypes": "Prostor endpointu nemá zkompilovaný datový model, takže zatím nelze žádat o typ. Požádejte vlastníky, aby ho přidali.",
+      "endpointFirst": "Nejprve vyberte endpoint.",
+      "noAttrs": "Model nedeklaruje žádný atribut typu {type}.",
+      "typeFirst": "Nejprve vyberte typ entity."
     },
     "map": {
       "views": "Zobrazení pipeline",
@@ -4514,7 +4526,6 @@
   },
   "entities": {
     "type": "Typ entity",
-    "typePlaceholder": "Typ entity",
     "scopeQ": "Rozsah (scope)",
     "scopeQHint": "NGSI-LD scopeQ, např. /district/1",
     "filters": "Filtry",
@@ -4531,7 +4542,10 @@
     "qProblem": {
       "shape": "Každou podmínku napište jako atribut, porovnání a hodnotu bez mezer, např. name==\"Nemocnice\"; podmínky spojujte znakem ; (a zároveň) nebo | (nebo).",
       "unquoted": "Text patří do uvozovek: {fix}"
-    }
+    },
+    "typeHint": "Typ entit k výpisu; filtry níže se řídí jeho modelem.",
+    "noTypes": "Není co vybrat: datový model prostoru nedeklaruje žádný typ a prostor nemá entitu, kterou smíte číst.",
+    "noAttributes": "Model typu neuvádí žádný atribut: filtr napište níže jako Dotaz (q)."
   },
   "entityGrid": {
     "id": "ID",
@@ -5530,7 +5544,7 @@
     "namespace": "Projekt, do kterého se importuje",
     "namespaceHelp": "Každý importovaný manifest se do něj přepíše.",
     "orgDomain": "Doména organizace",
-    "orgDomainHelp": "Každé importované id se přepíše na ni.",
+    "orgDomainHelp": "Každý importovaný identifikátor se přepíše na ni, např. hel.fi; prázdné ponechá vlastní doménu organizace.",
     "orgDomainOwn": "vlastní této instance",
     "policy": "Zdroj, který tento projekt už má",
     "policyOption": {
@@ -5569,7 +5583,10 @@
         "credential": "Přístupový údaj"
       }
     },
-    "clearPasted": "Odstraňte z balíčku přihlašovací údaj a vyberte soubor znovu."
+    "clearPasted": "Odstraňte z balíčku přihlašovací údaj a vyberte soubor znovu.",
+    "orgDomainThis": "Tato organizace",
+    "orgDomainNone": "Organizace nemá nastavenou doménu: napište tu, pod kterou se tvoří identifikátory.",
+    "orgDomainOther": "Použít doménu „{name}“"
   },
   "drift": {
     "section": {
@@ -7172,6 +7189,18 @@
     },
     "createNamed": "Nové: „{name}“",
     "list": "Možnosti",
+    "attribute": {
+      "group": "{type} v {model}",
+      "relationship": "vztah",
+      "noType": "Nejprve vyberte typ entity.",
+      "none": "Model zatím nedeklaruje žádný atribut typu {type}.",
+      "noneNumeric": "Model zatím nedeklaruje žádný číselný atribut typu {type}.",
+      "addInModel": "Přidat atribut v datových modelech"
+    },
+    "entity": {
+      "noMatch": "Žádný {type} neodpovídá zadanému textu. Zkuste jinou část jeho názvu.",
+      "none": "V tomto prostoru zatím není žádný {type}, který smíte číst."
+    },
     "person": {
       "group": "Lidé organizace",
       "typed": "Zadaný e-mail",

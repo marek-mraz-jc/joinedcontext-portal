@@ -355,6 +355,7 @@ export function ExplorePage({
         <EntityFilters
           id="explore"
           types={types}
+          space={space || undefined}
           slots={slots}
           value={query}
           onChange={changeQuery}
