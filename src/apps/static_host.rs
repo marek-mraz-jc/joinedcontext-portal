@@ -172,25 +172,8 @@ async fn serve(
         bytes
     };
 
-    let mime = mime_guess::from_path(&path).first_or_octet_stream();
-    let mut response = Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, mime.as_ref())
-        // A republish reuses a path, so a file is revalidated; one whose name carries its own
-        // hash never changes under that name and is kept, a WebAssembly module included (AP-142).
-        // `private`: a non-public App's files are for its readers, never a shared cache.
-        .header(
-            header::CACHE_CONTROL,
-            if personal {
-                "private, no-store"
-            } else if hashed(&path) {
-                "private, max-age=31536000, immutable"
-            } else {
-                "no-cache"
-            },
-        )
-        .body(Body::from(bytes))
-        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
+    let shared = spec.visibility == AppVisibility::Public;
+    let mut response = file_response(&headers, &path, &expected, (personal, shared), bytes);
 
     // No `X-Frame-Options`: its `SAMEORIGIN` would refuse the Portal, whose host is not the apps
     // origin, and `frame-ancestors` says who may frame the App (AP-122).
@@ -207,6 +190,59 @@ async fn serve(
             .insert(header::CONTENT_SECURITY_POLICY, csp);
     }
     response
+}
+
+/// One file of an App with its caching headers, or `304` when the browser holds this digest.
+///
+/// A non-public App's file is asked for again within a minute, so a reader whose access ended
+/// keeps none of it longer than that; its digest makes the second ask a `304`, answered only
+/// after the access check (T-4914). The index is rewritten per reader and never revalidated.
+fn file_response(
+    headers: &HeaderMap,
+    path: &str,
+    digest: &str,
+    (personal, shared): (bool, bool),
+    bytes: Vec<u8>,
+) -> Response {
+    let etag = (path != "index.html").then(|| format!("\"{digest}\""));
+    let held = headers
+        .get(header::IF_NONE_MATCH)
+        .map(HeaderValue::as_bytes);
+    let unchanged = etag.is_some() && held == etag.as_deref().map(str::as_bytes);
+    let (status, body) = match unchanged {
+        true => (StatusCode::NOT_MODIFIED, Body::empty()),
+        false => (StatusCode::OK, Body::from(bytes)),
+    };
+    let mime = mime_guess::from_path(path).first_or_octet_stream();
+    let mut builder = Response::builder()
+        .status(status)
+        .header(header::CONTENT_TYPE, mime.as_ref())
+        .header(header::CACHE_CONTROL, cache_control(personal, shared, path));
+    if let Some(etag) = &etag {
+        builder = builder.header(header::ETAG, etag.as_str());
+    }
+    if !shared {
+        // The edge's session cookie says whom the answer was for.
+        builder = builder.header(header::VARY, "Cookie");
+    }
+    builder
+        .body(body)
+        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
+}
+
+/// `Cache-Control` of an App's file (AP-142, AP-95, T-4914). `private` throughout: an App's files
+/// are for its readers, never a shared cache. An index that carries a person is kept by nobody. A
+/// republish reuses a path, so a file is revalidated; one whose name carries its own hash never
+/// changes under that name and a public App's is kept, a WebAssembly module included. A
+/// non-public App's hashed file is kept a minute, the longest a revoked reader still runs it.
+fn cache_control(personal: bool, shared: bool, path: &str) -> &'static str {
+    match (personal, shared, hashed(path)) {
+        (true, _, _) => "private, no-store",
+        (false, true, true) => "private, max-age=31536000, immutable",
+        (false, true, false) => "no-cache",
+        (false, false, true) => "private, max-age=60",
+        (false, false, false) => "private, no-cache",
+    }
 }
 
 /// The Portal's own origin, the one host that frames every App under its header (AP-122), when
