@@ -672,7 +672,7 @@ fn reason_header(pipeline: &str, run: &str) -> String {
         .collect()
 }
 
-/// The delete stream: one message per [`CHUNK`] ids, each a batch delete on the Endpoint, its
+/// The delete stream: one message per `CHUNK` ids, each a batch delete on the Endpoint, its
 /// answer reduced to what went, what was gone already and what the gateway refused, and posted
 /// to `report`. The ids ride base64-encoded, so no id is ever read as config.
 pub fn render(
