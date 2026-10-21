@@ -22,6 +22,7 @@ export const REPRESENTATION_PATHS: Record<string, string> = {
   csv: "/file.csv",
   "ogc-features": "/ogc/features",
   sta: "/sta/v1.1",
+  ical: "/ical/v1/events.ics",
   websocket: "/ws",
 };
 
@@ -30,7 +31,7 @@ export const REPRESENTATION_PATHS: Record<string, string> = {
  * the one file (T-4600): the retired ones below are never offered, and a manifest that still
  * names one is read without it.
  */
-export const ALL_REPRESENTATIONS = ["ngsi-ld", "mcp", "csv", "ogc-features", "sta", "odata", "websocket"] as const;
+export const ALL_REPRESENTATIONS = ["ngsi-ld", "mcp", "csv", "ogc-features", "sta", "odata", "websocket", "ical"] as const;
 
 /** The file representations an Endpoint no longer serves (T-4600). */
 export const RETIRED_REPRESENTATIONS: readonly string[] = ["xlsx", "parquet", "json", "zip", "geojson"];
@@ -62,7 +63,7 @@ export function servedRepresentations(spec: {
   const listed =
     names(spec.enabledRepresentations)?.filter((rep) => !RETIRED_REPRESENTATIONS.includes(rep)) ??
     ALL_REPRESENTATIONS.filter(
-      (rep) => rep !== "sta" && !disabled.includes(rep) && (rep !== "mcp" || always.includes("mcp")),
+      (rep) => rep !== "sta" && rep !== "ical" && !disabled.includes(rep) && (rep !== "mcp" || always.includes("mcp")),
     );
   return [...listed, ...always.filter((rep) => !listed.includes(rep))];
 }
@@ -112,6 +113,11 @@ export function mcpOrigin(domain: string | undefined): string {
  * their clients connect to (a WebSocket client copies the one address API/07 and the catalogue
  * name, T-4132), every other one on this origin, where the edge turns the session into the bearer.
  */
+/** An https feed address as `webcal://`, which a calendar client opens as a subscription (RFC 5545 feeds). */
+export function webcalUrl(url: string): string {
+  return url.replace(/^https?:\/\//, "webcal://");
+}
+
 export function representationUrl(slug: string, representation: string, domain: string | undefined): string {
   const path = REPRESENTATION_PATHS[representation] ?? "/";
   return representation === "mcp" || representation === "websocket"
