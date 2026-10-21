@@ -13,6 +13,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { BrandingProvider } from "../src/branding";
+import { RETENTION_GUIDE } from "../src/components/RetentionGuide";
 import { LifetimeChoice } from "../src/pages/pipelines/LifetimeChoice";
 import { entriesOf, fromLocalInput, rowsOf, sentence, toLocalInput, withEntry } from "../src/pages/pipelines/lifetime";
 import type { Expiry, Lifetime } from "../src/pages/pipelines/lifetime";
@@ -195,6 +196,14 @@ describe("LifetimeChoice", () => {
     await user.click(screen.getByRole("radio", { name: /Only some fields expire/ }));
     expect(screen.getAllByText("This endpoint lets the pipeline write no field of Vehicle, so no field can expire.").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Add a field" })).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("links the space's retention rules and, where the installation serves one, the guide", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ documentationBaseUrl: "https://docs.example" })));
+    await show();
+    expect(screen.getByRole("link", { name: "Retention of helsinki" })).toHaveAttribute("href", expect.stringContaining("helsinki"));
+    const guide = await screen.findByRole("link", { name: /guide/i });
+    expect(guide.getAttribute("href")).toContain(RETENTION_GUIDE);
   });
 
   it("sets the sweep for this type and keeps it for others", async () => {

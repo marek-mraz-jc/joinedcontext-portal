@@ -2256,7 +2256,16 @@
         "caption": "Namapované záznamy",
         "record": "Záznam",
         "written": "Jak se zapíše",
-        "problems": "Problémy"
+        "problems": "Problémy",
+        "recordN": "Záznam {n}",
+        "problemCount": "{count, plural, one {# problém} few {# problémy} other {# problémů}}",
+        "recordCaption": "Atributy {id} tak, jak se zapíší",
+        "value": "Hodnota",
+        "check": "Kontrola",
+        "expires": "Vyprší",
+        "passes": "prošlo",
+        "observedAt": "pozorováno {at}",
+        "entityLifetime": "životnost entity"
       },
       "validation": {
         "title": "Validace",
@@ -2279,7 +2288,27 @@
         "hint": "Určete endpoint, přes který se záznamy zapíší; uložení navrhne změnu.",
         "lands": "Záznamy přistanou v prostoru {space}, kontrolované vůči modelu {model}.",
         "landsUnmodelled": "Záznamy přistanou v prostoru {space}, který zatím nejmenuje datový model.",
-        "save": "Pojmenujte pipeline níže a navrhněte ji: nic se nezapíše, dokud změnu neschválí."
+        "save": "Pojmenujte pipeline níže a navrhněte ji: nic se nezapíše, dokud změnu neschválí.",
+        "card": "Co pipeline zapisuje",
+        "space": "Prostor",
+        "model": "Model",
+        "type": "Zapisuje typ",
+        "noType": "Typ vyberte v kroku 4",
+        "explain": "Co model prostoru přijímá pro {type} a co tento endpoint pipeline dovolí zapsat. Pole, které endpoint nepovoluje, se odmítne před návrhem, ne až za běhu.",
+        "caption": "Atributy typu {type}",
+        "field": "Pole",
+        "kind": "Druh",
+        "value": "Hodnota",
+        "required": "Povinné",
+        "writable": "Zapisovatelné zde",
+        "locked": "nezapisovatelné",
+        "judging": "ověřuje se…",
+        "lifetimeKind": "životnost entity",
+        "instant": "okamžik",
+        "inLifetime": "nastavuje se v kroku Životnost",
+        "isRequired": "povinné",
+        "optional": "nepovinné",
+        "isWritable": "zapisovatelné"
       },
       "changes": {
         "title": "Co by se změnilo v {space}",
@@ -2297,6 +2326,11 @@
           "update": "Změněna",
           "unchanged": "Beze změny"
         }
+      },
+      "lifetime": {
+        "title": "Životnost",
+        "hint": "Kdy entity nebo některá jejich pole opustí prostor. Uloží se jako životnost pipeline, nikdy jako kód mapování.",
+        "pickType": "Nejprve vyberte cíl a typ, který mapování zapisuje: životnost se nastavuje pro každý typ."
       }
     },
     "mapper": {
@@ -2344,28 +2378,9 @@
         "notTime": "{field} obsahuje {value}, což není čas: použijte text RFC 3339, například 2026-10-20T14:30:00Z, nebo Unix sekundy."
       },
       "expiry": {
-        "title": "Kdy entity zmizí?",
-        "legend": "Entity tohoto typu se odstraní",
-        "never": "Nikdy",
-        "neverHint": "Zůstanou, dokud je někdo nesmaže nebo je neodstraní pravidlo prostoru.",
-        "source": "V čase, který dá zdroj",
-        "sourceHint": "Každá entita dostane vlastní expiresAt: časový atribut plus určitou dobu, například observedOn plus 10 minut, nebo čas zápisu záznamu plus určitou dobu. Pipeline ho zapíše po vašem mapování.",
-        "stale": "Když je zdroj přestane posílat",
-        "staleHint": "Jednou za hodinu pipeline smaže entity tohoto typu, které během okna neaktualizovala.",
-        "from": "Čas z",
-        "written": "Čas zápisu záznamu",
-        "plus": "Přičíst",
-        "plusUnit": "Jednotka přidaného času",
-        "after": "Neaktualizováno po dobu",
-        "afterUnit": "Jednotka okna",
-        "afterHint": "Entity typu {type} neaktualizované takto dlouho se jednou za hodinu smažou.",
-        "refusals": "Návrh se odmítne, když má pipeline více než jeden výstup, když do stejného prostoru zapisuje jiná pipeline, nebo když žádná Policy nedává této pipeline deleteBatch a queryBatch na typ; odmítnutí pojmenuje Policy, kterou je třeba rozšířit.",
-        "history": "Historie typu {type} se řídí pravidly prostoru.",
-        "spaceRules": "Uchovávání v {space}",
-        "noTimeSlot": "Zatím není namapován žádný atribut data a času typu {type}, proto se konec počítá od času zápisu záznamu.",
-        "inManifest": "Životnost typu {type} je nastavena v manifestu pipeline (pevné datum, strop nebo vybrané atributy). Změňte ji v zobrazení YAML; tento editor ji ponechá beze změny.",
-        "migrated": "Čas konce, který tento krok dosud zapisoval, je nyní nastavením životnosti pipeline níže. Uloží se s vaším dalším návrhem.",
-        "migrateField": "Tento krok zapisuje expiresAt z pole záznamu {field} a z tohoto pole není namapován žádný atribut data a času. Namapujte ho na atribut data a času nebo níže zvolte jiný čas; do té doby si krok ponechá vlastní řádky expiresAt."
+        "migrated": "Čas konce, který tento krok zapisoval, je nyní životností pipeline v kroku Životnost. Uloží se s vaším dalším návrhem.",
+        "migrateField": "Tento krok zapisuje expiresAt z pole záznamu {field} a z něj se nemapuje žádný atribut s datem a časem. Namapujte ho na takový atribut, vyberte konec v kroku Životnost nebo zahoďte vlastní řádky kroku.",
+        "drop": "Zahodit vlastní expiresAt kroku"
       }
     },
     "debug": {
@@ -2544,6 +2559,68 @@
       "rejectedUnavailable": "Odmítnuté záznamy se nepodařilo načíst.",
       "noRejected": "Model neodmítl žádný záznam této pipeline.",
       "credentials": "Přihlašovací údaje"
+    },
+    "lifetime": {
+      "legend": "Co se stane s každou entitou {type}",
+      "keep": "Ponechat entity",
+      "keepHint": "Zůstanou, dokud je někdo nesmaže nebo je pravidlo prostoru neodstraní.",
+      "entity": "Celá entita vyprší",
+      "entityHint": "Entita {type} zmizí v čase, který nastavíte.",
+      "attributes": "Vyprší jen některá pole",
+      "attributesHint": "Entita {type} zůstane; vybraná pole zmizí, když zestárnou.",
+      "stale": "Smazat, když je zdroj přestane posílat",
+      "staleHint": "Jednou za hodinu pipeline smaže entity tohoto typu, které nějakou dobu neaktualizovala. Odmítne se, když má pipeline víc výstupů nebo jí žádná Policy nepovoluje deleteBatch na typ.",
+      "kind": {
+        "legend": "Konec",
+        "from": "Od pole",
+        "fromHint": "Čas ze záznamu plus nějaká doba.",
+        "rolling": "Po každém zápisu",
+        "rollingHint": "Každý zápis začne čas znovu.",
+        "at": "K pevnému datu",
+        "atHint": "Jedno datum a čas pro všechny."
+      },
+      "from": "Čas od",
+      "observedAt": "observedAt (nejnovější z jejích polí)",
+      "noTimeSlot": "Typ nemá atribut s datem a časem: konec se počítá od nejnovějšího observedAt jejích polí.",
+      "plus": "Přidat",
+      "keepFor": "Ponechat",
+      "unitOf": "Jednotka: {what}",
+      "cap": "Nejvýše po zápisu",
+      "noCap": "bez limitu",
+      "capOf": "{span}",
+      "at": "Datum a čas",
+      "atHint": "Ve vašem časovém pásmu; uloží se v UTC.",
+      "attribute": "Pole",
+      "remove": "Odebrat",
+      "removeOf": "Odebrat konec pole {name}",
+      "add": "Přidat pole",
+      "noAttributes": "Tento endpoint pipeline nedovolí zapsat žádné pole typu {type}, takže žádné pole nemůže vypršet.",
+      "allAdded": "Každé pole, které endpoint povoluje, už má konec.",
+      "after": "Neaktualizováno",
+      "afterUnit": "Jednotka okna",
+      "afterHint": "Entity typu {type}, které se tak dlouho neaktualizovaly, se jednou za hodinu smažou.",
+      "history": "Historie typu {type} se řídí pravidly prostoru bez ohledu na volbu zde.",
+      "spaceRules": "Uchovávání v {space}",
+      "span": "{count} {unit}",
+      "noSpan": "žádný čas",
+      "problem": {
+        "date": "Zadejte datum a čas.",
+        "past": "Datum je v minulosti: všechny entity by se odstranily najednou. Vyberte pozdější.",
+        "span": "Zadejte, jak dlouho je ponechat: alespoň minutu."
+      },
+      "says": {
+        "keep": "Každá entita {type} zůstane, dokud ji někdo nesmaže nebo ji pravidlo prostoru neodstraní.",
+        "entity": "Každá entita {type} se odstraní {end}.",
+        "renewed": "Novější zápis posune konec dál.",
+        "attribute": "Pole {name} každé entity {type} zmizí {end}.",
+        "from": "{span} po jejím {from}",
+        "fromExact": "v jejím {from}",
+        "observedAt": "posledním observedAt",
+        "cap": "a nejpozději {span} po zápisu",
+        "rolling": "{span} po jejím posledním zápisu",
+        "at": "{date}",
+        "stale": "Jednou za hodinu pipeline smaže každou entitu {type}, kterou neaktualizovala {span}."
+      }
     }
   },
   "dashboards": {

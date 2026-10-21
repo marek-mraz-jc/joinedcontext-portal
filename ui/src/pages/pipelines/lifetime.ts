@@ -5,6 +5,7 @@
  * the form, the manifest and the sentence under the choice are one mapping and tested as one.
  */
 import type { TFunction } from "i18next";
+import i18n from "../../i18n";
 import { fromIso } from "../spaces/retention";
 
 /** The pipeline's stale-entity sweep as the manifest holds it (PL-64). */
@@ -86,7 +87,7 @@ export function entriesOf(rows: AttributeRow[]): NonNullable<Lifetime["attribute
   return rows.filter((row) => row.name !== "").map(({ name, ...mode }) => ({ names: [name], ...mode }));
 }
 
-/** An RFC 3339 instant as the value of `<input type="datetime-local">`, in the viewer's zone. */
+/** An RFC 3339 instant as the value of a `datetime-local` input, in the viewer's zone. */
 export function toLocalInput(at: string | undefined): string {
   const time = at ? Date.parse(at) : Number.NaN;
   if (Number.isNaN(time)) return "";
@@ -123,7 +124,7 @@ export function spanWords(iso: string | undefined, t: TFunction): string {
 function endWords(mode: LifetimeMode, t: TFunction): string {
   if (mode.at !== undefined) {
     const time = Date.parse(mode.at);
-    return t("pipelines.lifetime.says.at", { date: Number.isNaN(time) ? mode.at : new Date(time).toLocaleString() });
+    return t("pipelines.lifetime.says.at", { date: Number.isNaN(time) ? mode.at : new Date(time).toLocaleString(i18n.resolvedLanguage ?? i18n.language ?? "sk") });
   }
   if (mode.from === undefined) return t("pipelines.lifetime.says.rolling", { span: spanWords(mode.rolling, t) });
   const from = mode.from === OBSERVED_AT ? t("pipelines.lifetime.says.observedAt") : mode.from;

@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { callOperation } from "../../api/operations";
 import { Alert, Badge, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
+import { RECORD_LINK_STYLE } from "../../components/RecordLink";
 import { attributesOf } from "./OutputMapper";
 import type { Attribute } from "./outputMapper";
 
@@ -85,7 +86,8 @@ export function grantedNames(target: TargetType): string[] {
 function valueOf(attribute: Attribute): string {
   if (attribute.values?.length) return attribute.values.slice(0, 6).join(" · ") + (attribute.values.length > 6 ? " …" : "");
   if (attribute.relationship) return `→ ${attribute.relationship.target}`;
-  const range = attribute.minimum != null || attribute.maximum != null ? ` ${attribute.minimum ?? ""}–${attribute.maximum ?? ""}` : "";
+  const { minimum: low, maximum: high } = attribute;
+  const range = low != null && high != null ? ` ${low}–${high}` : low != null ? ` ≥ ${low}` : high != null ? ` ≤ ${high}` : "";
   const unit = attribute.unit?.code ?? attribute.unit?.ucum;
   return `${attribute.format ?? attribute.valueType ?? "any"}${range}${unit ? `, ${unit}` : ""}`;
 }
@@ -138,13 +140,13 @@ export function TargetCard({ space, type, target }: TargetCardProps): JSX.Elemen
                       </TableCell>
                       <TableCell>{attribute.kind}</TableCell>
                       <TableCell>{valueOf(attribute)}</TableCell>
-                      <TableCell>{attribute.required ? t("pipelines.workbench.target.yes") : t("pipelines.workbench.target.no")}</TableCell>
+                      <TableCell>{attribute.required ? t("pipelines.workbench.target.isRequired") : t("pipelines.workbench.target.optional")}</TableCell>
                       <TableCell>
                         {verdict === undefined ? (
                           <span className="text-fg-subtle">{target.loading ? t("pipelines.workbench.target.judging") : "—"}</span>
                         ) : verdict.writable ? (
                           <span>
-                            <Badge tone="success">{t("pipelines.workbench.target.yes")}</Badge>
+                            <Badge tone="success">{t("pipelines.workbench.target.isWritable")}</Badge>
                             {verdict.reason ? <span className="text-fg-muted"> {verdict.reason}</span> : null}
                           </span>
                         ) : (
@@ -166,9 +168,9 @@ export function TargetCard({ space, type, target }: TargetCardProps): JSX.Elemen
                 </TableCell>
                 <TableCell>{t("pipelines.workbench.target.lifetimeKind")}</TableCell>
                 <TableCell>{t("pipelines.workbench.target.instant")}</TableCell>
-                <TableCell>{t("pipelines.workbench.target.no")}</TableCell>
+                <TableCell>{t("pipelines.workbench.target.optional")}</TableCell>
                 <TableCell>
-                  <a className="text-link underline" href="#workbench-lifetime">
+                  <a className={RECORD_LINK_STYLE} href="#workbench-lifetime">
                     {t("pipelines.workbench.target.inLifetime")}
                   </a>
                 </TableCell>
@@ -209,12 +211,12 @@ export function valueText(member: unknown): string {
 }
 
 /** One finding: where it comes from, its rule, the field when it names one, and why. */
-function FindingLine({ finding }: { finding: CheckFinding }): JSX.Element {
+function FindingLine({ finding, named = true }: { finding: CheckFinding; named?: boolean }): JSX.Element {
   const { t } = useTranslation();
   return (
     <li className="text-caption">
       <Badge tone="danger">{t(`pipelines.workbench.validation.source.${finding.source}`)}</Badge> <span className="font-mono text-fg-subtle">{finding.rule}</span>{" "}
-      {finding.field ? <span className="font-mono">{finding.field}</span> : null} <span className="text-fg-muted">{finding.reason}</span>
+      {named && finding.field ? <span className="font-mono">{finding.field}</span> : null} <span className="text-fg-muted">{finding.reason}</span>
     </li>
   );
 }
@@ -274,11 +276,11 @@ export function RecordTable({ index, record, verdict }: RecordTableProps): JSX.E
                 </TableCell>
                 <TableCell>
                   {verdict === undefined ? null : found.length === 0 ? (
-                    <Badge tone="success">{t("pipelines.workbench.output.ok")}</Badge>
+                    <Badge tone="success">{t("pipelines.workbench.output.passes")}</Badge>
                   ) : (
                     <ul className="flex flex-col gap-0.5">
                       {found.map((finding, at) => (
-                        <FindingLine key={at} finding={finding} />
+                        <FindingLine key={at} finding={finding} named={false} />
                       ))}
                     </ul>
                   )}

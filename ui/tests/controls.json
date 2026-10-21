@@ -1496,19 +1496,18 @@
         "pipeline_debug_view.test.tsx"
       ]
     },
-    "src/pages/pipelines/ExpiryChoice.tsx": {
+    "src/pages/pipelines/LifetimeChoice.tsx": {
       "controls": {
-        "RadioGroup": 1
+        "Button": 2,
+        "RadioGroup": 2
       },
       "tests": [
-        "expiry_choice.test.tsx",
-        "output_mapper_ui.test.tsx",
-        "retention_expiry.test.ts"
+        "lifetime_choice.test.tsx"
       ]
     },
     "src/pages/pipelines/OutputMapper.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 3
       },
       "tests": [
         "output_mapper_ui.test.tsx"

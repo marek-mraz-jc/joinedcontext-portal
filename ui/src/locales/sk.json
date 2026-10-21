@@ -2263,9 +2263,9 @@
         "value": "Hodnota",
         "check": "Kontrola",
         "expires": "Vyprší",
-        "ok": "v poriadku",
         "observedAt": "pozorované {at}",
-        "entityLifetime": "životnosť entity"
+        "entityLifetime": "životnosť entity",
+        "passes": "prešlo"
       },
       "validation": {
         "title": "Validácia",
@@ -2301,13 +2301,14 @@
         "value": "Hodnota",
         "required": "Povinné",
         "writable": "Zapisovateľné tu",
-        "yes": "áno",
-        "no": "nie",
         "locked": "nezapisovateľné",
         "judging": "overuje sa…",
         "lifetimeKind": "životnosť entity",
         "instant": "okamih",
-        "inLifetime": "nastavuje sa v kroku Životnosť"
+        "inLifetime": "nastavuje sa v kroku Životnosť",
+        "isRequired": "povinné",
+        "optional": "nepovinné",
+        "isWritable": "zapisovateľné"
       },
       "changes": {
         "title": "Čo by sa zmenilo v {space}",
@@ -2581,7 +2582,7 @@
       "from": "Čas od",
       "observedAt": "observedAt (najnovší z jej polí)",
       "noTimeSlot": "Typ nemá atribút s dátumom a časom: koniec sa počíta od najnovšieho observedAt jej polí.",
-      "plus": "Plus",
+      "plus": "Pridať",
       "keepFor": "Ponechať",
       "unitOf": "Jednotka: {what}",
       "cap": "Najviac po zápise",

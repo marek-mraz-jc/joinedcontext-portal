@@ -156,9 +156,10 @@ test.describe("the record check in the pipeline workbench", () => {
     await stubApi(page, stub);
     await openEditor(page);
     await expect(validation(page).getByRole("status")).toContainText("All 2 records are valid against hsl-transit 1.0.0.");
-    const ends = output(page).getByRole("list", { name: "Expiry the record is written with" }).first();
-    await expect(ends).toContainText("Entity expires 2026-10-20T20:08:00Z");
-    await expect(ends).toContainText("speed expires 2026-10-20T20:03:00Z");
+    // Each record is a table of its attributes (T-4842): the ends sit in its Expires column.
+    const first = output(page).getByTestId("workbench-record-0");
+    await expect(first.getByRole("row").filter({ hasText: "expiresAt" })).toContainText("2026-10-20T20:08:00Z");
+    await expect(first.getByRole("row").filter({ hasText: "speed" })).toContainText("2026-10-20T20:03:00Z");
     // The verdict is kept on the draft the dialog edits, for the proposal (PF-57).
     expect(stub.seen.at(-1)?.draft).toEqual({ kind: "Pipeline", name: "hsl-hfp-vehicles" });
     await shot(page, "green");
@@ -168,7 +169,7 @@ test.describe("the record check in the pipeline workbench", () => {
     await stubApi(page, { validate: REFUSED, seen: [] });
     await openEditor(page);
     await expect(validation(page).getByRole("status")).toContainText("1 record breaks hsl-transit 1.0.0 and would not be written; 1 valid.");
-    const row = output(page).getByRole("row").nth(2);
+    const row = output(page).getByTestId("workbench-record-1");
     await expect(row).toContainText("not writable through helsinki-all");
     for (const source of ["Model", "Endpoint", "Lifetime"]) {
       await expect(row.getByText(source, { exact: true })).toBeVisible();

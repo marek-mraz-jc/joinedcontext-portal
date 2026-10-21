@@ -150,6 +150,17 @@ export function classOfMapping(bloblang: string, classes: string[], declared?: s
   return named ?? (classes.length === 1 ? classes[0] : undefined);
 }
 
+/** The type the output mapper's own step writes, from its `# jc-mapper` header. */
+export function mapperType(bloblang: string): string | undefined {
+  if (!bloblang.startsWith(HEADER)) return undefined;
+  try {
+    const type = (JSON.parse(bloblang.slice(HEADER.length).split("\n", 1)[0]) as { type?: unknown }).type;
+    return typeof type === "string" ? type : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** The sample the mapping is tried on, from the file the person gave or from the source. */
 export function sampleFor(
   draft: PipelineForm | undefined,
@@ -605,7 +616,10 @@ export function PipelineWorkbench({
       ? pickedClass
       : classOfMapping(fileShown ? mappingFile.text : bloblang, classNames, draft?.output?.type);
   const klass = parsed?.classes.find((c) => c.name === writtenClass);
-  const target = useTargetType(project, targetSpace, writtenClass, manifest, targetName);
+  // The type the Target card and the Lifetime step are about: the model's class above, else the
+  // output's declared type or the mapper's own, while the model's text is not read (T-4842).
+  const writtenType = writtenClass ?? draft?.output?.type ?? mapperType(bloblang);
+  const target = useTargetType(project, targetSpace, writtenType, manifest, targetName);
   const slots = parsed && klass ? classSlots(parsed, klass).filter((slot) => !["id", "type"].includes(slot.name)) : [];
 
   // T-3211: a source picked from the project drafts the mapping from its first record, once, as a
@@ -782,7 +796,7 @@ export function PipelineWorkbench({
               : t("pipelines.workbench.target.landsUnmodelled", { space: targetSpace })}
           </p>
         ) : null}
-        {targetSpace && targetModel ? <TargetCard space={targetSpace} type={writtenClass} target={target} /> : null}
+        {targetSpace && (targetModel || target.model) ? <TargetCard space={targetSpace} type={writtenType} target={target} /> : null}
       </Step>
 
       <Step number={4} id="workbench-mapping" title={t("pipelines.workbench.mapping.title")} hint={t("pipelines.workbench.mapping.hint")}>
@@ -973,7 +987,7 @@ export function PipelineWorkbench({
             ))}
             <p className="text-caption text-fg-subtle">{t("pipelines.workbench.output.count", { count: records.length })}</p>
             {records.length > 0 ? (
-              <div className="flex max-h-[32rem] flex-col gap-2 overflow-y-auto" role="region" tabIndex={0} aria-label={t("pipelines.workbench.output.caption")}>
+              <div className="flex max-h-96 flex-col gap-2 overflow-y-auto" role="region" tabIndex={0} aria-label={t("pipelines.workbench.output.caption")}>
                 {records.map((record, index) => {
                   const verdict = verdictOf(index);
                   return (
@@ -1002,17 +1016,17 @@ export function PipelineWorkbench({
       </Step>
 
       <Step number={6} id="workbench-lifetime" title={t("pipelines.workbench.lifetime.title")} hint={t("pipelines.workbench.lifetime.hint")}>
-        {targetSpace && writtenClass ? (
+        {targetSpace && writtenType ? (
           <LifetimeChoice
             project={project}
             space={targetSpace}
-            type={writtenClass}
+            type={writtenType}
             timeSlots={target.attributes.filter((a) => a.format === "date-time").map((a) => a.name)}
             attributes={grantedNames(target)}
-            entry={draft?.lifetime?.find((one) => one.type === writtenClass)}
+            entry={draft?.lifetime?.find((one) => one.type === writtenType)}
             expiry={draft?.expiry}
             sweep
-            onChange={(entry, expiry) => onChange({ ...(draft ?? {}), lifetime: withEntry(draft?.lifetime, writtenClass, entry), expiry })}
+            onChange={(entry, expiry) => onChange({ ...(draft ?? {}), lifetime: withEntry(draft?.lifetime, writtenType, entry), expiry })}
           />
         ) : (
           <p className="text-caption text-fg-subtle">{t("pipelines.workbench.lifetime.pickType")}</p>

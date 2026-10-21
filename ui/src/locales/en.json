@@ -2263,9 +2263,9 @@
         "value": "Value",
         "check": "Check",
         "expires": "Expires",
-        "ok": "ok",
         "observedAt": "observed {at}",
-        "entityLifetime": "entity lifetime"
+        "entityLifetime": "entity lifetime",
+        "passes": "passes"
       },
       "validation": {
         "title": "Validation",
@@ -2301,13 +2301,14 @@
         "value": "Value",
         "required": "Required",
         "writable": "Writable here",
-        "yes": "yes",
-        "no": "no",
         "locked": "not writable",
         "judging": "checking…",
         "lifetimeKind": "entity lifetime",
         "instant": "instant",
-        "inLifetime": "set in Lifetime"
+        "inLifetime": "set in Lifetime",
+        "isRequired": "required",
+        "optional": "optional",
+        "isWritable": "writable"
       },
       "changes": {
         "title": "What would change in {space}",

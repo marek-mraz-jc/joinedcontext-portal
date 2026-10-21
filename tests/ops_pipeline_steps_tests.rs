@@ -407,6 +407,43 @@ async fn validating_gives_a_verdict_per_record_with_the_rule_each_broke() {
     assert_eq!(verdicts[1]["findings"][0]["source"], "model");
     assert_eq!(verdicts[1]["findings"][0]["field"], "capacity");
 
+    // With a type, the answer lists each of its attributes as the pipeline may write it through
+    // its Endpoint (T-4842); this Portal writes no broker views, so the grant alone decides.
+    let judged = send(
+        &state,
+        person("jana"),
+        "POST",
+        &op("check", "jc_pipeline_validate"),
+        Some(json!({ "pipeline": pipeline, "records": [], "type": "BikeStation" })),
+    )
+    .await;
+    assert_eq!(judged.status, StatusCode::OK, "{}", judged.text);
+    let judged = json_of(&judged.text);
+    let names: Vec<&str> = judged["writable"]
+        .as_array()
+        .expect("writable")
+        .iter()
+        .filter_map(|w| w["name"].as_str())
+        .collect();
+    assert!(names.contains(&"capacity"), "{judged}");
+    assert!(judged["writable"]
+        .as_array()
+        .is_some_and(|all| all.iter().all(|w| w["writable"].is_boolean())));
+    let unknown = send(
+        &state,
+        person("jana"),
+        "POST",
+        &op("check", "jc_pipeline_validate"),
+        Some(json!({ "pipeline": pipeline, "records": [], "type": "Ferry" })),
+    )
+    .await;
+    assert_eq!(unknown.status, StatusCode::UNPROCESSABLE_ENTITY, "{}", unknown.text);
+    assert!(
+        unknown.text.contains("Ferry is not a class"),
+        "{}",
+        unknown.text
+    );
+
     // The space named directly gives the same verdicts by its model.
     let direct = send(
         &state,

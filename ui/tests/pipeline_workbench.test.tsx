@@ -18,7 +18,7 @@ import en from "../src/locales/en.json";
 import type { Manifest } from "../src/api/manifest";
 import type { PipelineForm } from "../src/pages/pipelines/PipelineEditor";
 import type { ReactNode } from "react";
-import { PipelineWorkbench, answeredHtml, classOfMapping, exampleOf, readSample, readValidation } from "../src/pages/pipelines/PipelineWorkbench";
+import { PipelineWorkbench, answeredHtml, classOfMapping, exampleOf, mapperType, readSample, readValidation } from "../src/pages/pipelines/PipelineWorkbench";
 import { expectAxeClean, jsonResponse, problem } from "./pageHarness";
 
 // The Lifetime step links the space's retention rules; this harness renders the steps without a
@@ -513,6 +513,9 @@ describe("what the workbench reads from an answer", () => {
     const bento = 'root = $rows.map_each(r -> { "type": "Property", "id": r.id })\n  "type": "AirQualityObserved",';
     expect(classOfMapping(bento, ["Event", "AirQualityObserved"])).toBe("AirQualityObserved");
     expect(classOfMapping('"type": "Ferry"', ["Event", "Tram"])).toBeUndefined();
+    expect(mapperType('# jc-mapper {"type":"Vehicle","attributes":{}}\nroot = {}')).toBe("Vehicle");
+    expect(mapperType('# jc-mapper {not json\n')).toBeUndefined();
+    expect(mapperType('root.type = "Vehicle"')).toBeUndefined();
     expect(exampleOf({ range: "integer", kind: "Property" })).toBe("12");
     // T-2861: a relationship's example is an id of its target class, a list on a many end.
     expect(exampleOf({ range: "Station", kind: "Relationship" })).toBe('"urn:ngsi-ld:Station:…"');
