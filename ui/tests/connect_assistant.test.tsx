@@ -71,6 +71,22 @@ describe("ConnectAssistant", () => {
     expect(writeText).toHaveBeenLastCalledWith(lines.json);
   });
 
+  it("lets the keyboard reach and scroll each code line, each under its own name (T-4973)", async () => {
+    renderPanel("dev.city.example");
+    const lines = mcpInstall(HUB);
+    for (const [name, text] of [
+      [en.endpoints.hub.claudeLine, lines.claude],
+      [en.endpoints.hub.jsonLine, lines.json],
+    ]) {
+      const block = screen.getByLabelText(name);
+      expect(block.tagName).toBe("PRE");
+      expect(block).toHaveTextContent(text.split("\n")[0]);
+      document.body.focus();
+      for (let step = 0; step < 10 && document.activeElement !== block; step++) await userEvent.tab();
+      expect(block).toHaveFocus();
+    }
+  });
+
   it("falls back to the page's origin when the installation names no host", () => {
     renderPanel(undefined);
     expect(screen.getByText(`${window.location.origin}/api/mcp`)).toBeInTheDocument();

@@ -1636,6 +1636,58 @@
         }
       }
     },
+    "/api/v1/organization/agents": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "List Agents",
+        "description": "Every agent identity of the organization and its projects the caller may read: assistant deployments, agent profiles, MCP servers, service accounts and runs not yet ended (API/01 §48, AG-126).",
+        "operationId": "list_agents",
+        "responses": {
+          "200": {
+            "description": "The agents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRegistry"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller reads no agent kind anywhere",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The run store did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organization/brokers": {
       "get": {
         "tags": [
@@ -17829,6 +17881,124 @@
           }
         }
       },
+      "AgentActsAs": {
+        "type": "string",
+        "description": "Whose rights an agent uses (AG-94, AG-115).",
+        "enum": [
+          "self",
+          "caller"
+        ]
+      },
+      "AgentItem": {
+        "type": "object",
+        "description": "One agent identity (API/01 §48).",
+        "required": [
+          "kind",
+          "name",
+          "project",
+          "owner",
+          "actsAs",
+          "spaces",
+          "endpoints",
+          "spend",
+          "state"
+        ],
+        "properties": {
+          "actsAs": {
+            "$ref": "#/components/schemas/AgentActsAs"
+          },
+          "endpoints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "kind": {
+            "type": "string",
+            "description": "`AssistantDeployment`, `AgentProfile`, `McpServer`, `ServiceAccount` or `AgentRun`."
+          },
+          "lastActivity": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/AgentOwner"
+          },
+          "profile": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The agent profile a run executes, for `AgentRun` only."
+          },
+          "project": {
+            "type": "string",
+            "description": "The namespace: a project, or `org` for the organization's own manifests."
+          },
+          "runId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The run's id, for `AgentRun` only."
+          },
+          "spaces": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "spend": {
+            "$ref": "#/components/schemas/AgentSpend"
+          },
+          "state": {
+            "$ref": "#/components/schemas/AgentState"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AgentOwner": {
+        "type": "object",
+        "description": "Who answers for an agent.",
+        "required": [
+          "type",
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "description": "`person` or `project`."
+          }
+        }
+      },
+      "AgentRegistry": {
+        "type": "object",
+        "description": "Every agent the caller may read.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentItem"
+            }
+          }
+        }
+      },
       "AgentRun": {
         "type": "object",
         "required": [
@@ -18059,6 +18229,44 @@
           "failed",
           "cancelled",
           "expired"
+        ]
+      },
+      "AgentSpend": {
+        "type": "object",
+        "description": "Tokens spent against a cap.",
+        "properties": {
+          "cap": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "per": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`day` or `run`."
+          },
+          "used": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "AgentState": {
+        "type": "string",
+        "description": "Whether an agent answers now.",
+        "enum": [
+          "active",
+          "paused",
+          "running",
+          "waiting"
         ]
       },
       "AlertDelivery": {
@@ -19338,12 +19546,25 @@
           "makesPublic",
           "catalog",
           "publish",
-          "missing"
+          "missing",
+          "attributes",
+          "datastoreAvailable"
         ],
         "properties": {
+          "attributes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DraftAttribute"
+            },
+            "description": "The model's attributes per type, and whether the public dataset can carry each one."
+          },
           "catalog": {
             "type": "object",
             "description": "The drafted `spec.catalog` (EP-78), or the one the Endpoint already declares."
+          },
+          "datastoreAvailable": {
+            "type": "boolean",
+            "description": "The Endpoint serves `csv`, so its rows can be mirrored into the CKAN DataStore (EP-65)."
           },
           "endpoint": {
             "type": "string"
@@ -21025,6 +21246,34 @@
               "null"
             ],
             "description": "The workspace the draft belongs to, or none (CC-76): a draft of one workspace is not\na draft of another, nor of the main project."
+          }
+        }
+      },
+      "DraftAttribute": {
+        "type": "object",
+        "description": "One attribute of one type the Endpoint serves, as the publish form lists it.",
+        "required": [
+          "type",
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "description": "The class (entity type) the attribute belongs to."
+          },
+          "withheld": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Withheld",
+                "description": "Why it is not offered; absent when the public dataset may carry it."
+              }
+            ]
           }
         }
       },
@@ -27274,6 +27523,14 @@
             "format": "date-time"
           }
         }
+      },
+      "Withheld": {
+        "type": "string",
+        "description": "Why an attribute stays out of a public dataset.",
+        "enum": [
+          "personal",
+          "hidden"
+        ]
       },
       "WorkflowRun": {
         "type": "object",

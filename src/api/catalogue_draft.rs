@@ -12,6 +12,7 @@ use axum::routing::post;
 use axum::{Json, Router};
 use jc_core::kinds::catalog::Catalog;
 use jc_core::kinds::Verb;
+use jc_core::kinds::{EndpointSpec, Representation};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use utoipa::ToSchema;
@@ -61,6 +62,33 @@ pub struct CatalogueDraft {
     pub publish: Value,
     /// Catalogue members nothing could fill.
     pub missing: Vec<String>,
+    /// The model's attributes per type, and whether the public dataset can carry each one.
+    pub attributes: Vec<DraftAttribute>,
+    /// The Endpoint serves `csv`, so its rows can be mirrored into the CKAN DataStore (EP-65).
+    pub datastore_available: bool,
+}
+
+/// Why an attribute stays out of a public dataset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum Withheld {
+    /// The model marks it `personalData` (DM-122): a public projection of it is refused.
+    Personal,
+    /// The Endpoint's projection hides it already (EP-61).
+    Hidden,
+}
+
+/// One attribute of one type the Endpoint serves, as the publish form lists it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DraftAttribute {
+    /// The class (entity type) the attribute belongs to.
+    #[serde(rename = "type")]
+    pub type_name: String,
+    pub name: String,
+    /// Why it is not offered; absent when the public dataset may carry it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub withheld: Option<Withheld>,
 }
 
 /// What the platform knows that a draft is made from; gathered from the mirror and the forge by
@@ -82,6 +110,8 @@ pub struct Known {
     pub contact: Option<(String, String)>,
     /// The `CkanInstance` the project publishes to.
     pub instance: Option<String>,
+    /// The Endpoint serves `csv` (EP-44), the one representation a DataStore mirror reads.
+    pub serves_csv: bool,
 }
 
 /// Smart Data Models domains whose EU data theme is plain; any other domain names none.
@@ -171,6 +201,64 @@ pub fn keywords(linkml: &str, classes: &[String], language: &str) -> Vec<String>
     out
 }
 
+/// Every attribute of `classes` with the reason a public dataset leaves it out (DM-122, EP-61):
+/// a slot, a `slot_usage` or an `attributes` entry annotated `personalData`, or a whole class so
+/// marked, is personal; a name in the projection's `hiddenAttributes` is hidden already.
+pub fn attributes(linkml: &str, classes: &[String], hidden: &[String]) -> Vec<DraftAttribute> {
+    use serde_norway::Value as Yaml;
+    let model = serde_norway::from_str::<Yaml>(linkml).unwrap_or_default();
+    let personal = |node: &Yaml| {
+        let mark = &node["annotations"]["personalData"];
+        let mark = if mark.get("value").is_some() {
+            &mark["value"]
+        } else {
+            mark
+        };
+        mark.as_bool() == Some(true)
+            || mark
+                .as_str()
+                .is_some_and(|s| s.eq_ignore_ascii_case("true"))
+    };
+    let mut out = Vec::new();
+    for class in classes {
+        let node = &model["classes"][class.as_str()];
+        let listed = node["slots"]
+            .as_sequence()
+            .into_iter()
+            .flatten()
+            .filter_map(Yaml::as_str);
+        let own = node["attributes"]
+            .as_mapping()
+            .into_iter()
+            .flatten()
+            .filter_map(|(k, _)| k.as_str());
+        let mut seen = BTreeSet::new();
+        for slot in listed.chain(own) {
+            // Identity and type are on every entity and served whatever a projection says.
+            if matches!(slot, "id" | "type") || !seen.insert(slot) {
+                continue;
+            }
+            let withheld = if personal(node)
+                || personal(&model["slots"][slot])
+                || personal(&node["slot_usage"][slot])
+                || personal(&node["attributes"][slot])
+            {
+                Some(Withheld::Personal)
+            } else if hidden.iter().any(|h| h == slot) {
+                Some(Withheld::Hidden)
+            } else {
+                None
+            };
+            out.push(DraftAttribute {
+                type_name: class.clone(),
+                name: slot.to_owned(),
+                withheld,
+            });
+        }
+    }
+    out
+}
+
 /// The draft for Endpoint `name` (EP-83): a block the Endpoint already declares is returned as
 /// it is, so running the flow again never overwrites what a steward wrote.
 pub fn draft(name: &str, known: &Known) -> CatalogueDraft {
@@ -182,6 +270,12 @@ pub fn draft(name: &str, known: &Known) -> CatalogueDraft {
     let publish = match known.endpoint.get("publish") {
         Some(existing) if existing.get("ckan").is_some() => existing.clone(),
         _ => match &known.instance {
+            // The rows go into the DataStore whenever the Endpoint can serve them as a table:
+            // the owner's ask is every published dataset in the DataStore and on the map.
+            Some(instance) if known.serves_csv => json!({ "ckan": {
+                "instanceRef": { "kind": "CkanInstance", "name": instance },
+                "datastore": { "representation": "csv" },
+            } }),
             Some(instance) => {
                 json!({ "ckan": { "instanceRef": { "kind": "CkanInstance", "name": instance } } })
             }
@@ -198,12 +292,24 @@ pub fn draft(name: &str, known: &Known) -> CatalogueDraft {
         })
         .map(|member| (*member).to_owned())
         .collect();
+    let hidden: Vec<String> = known.endpoint["projection"]["hiddenAttributes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|h| h.as_str().map(str::to_owned))
+        .collect();
     CatalogueDraft {
         endpoint: name.to_owned(),
         makes_public,
         catalog,
         publish,
         missing,
+        attributes: known
+            .linkml
+            .as_deref()
+            .map(|linkml| attributes(linkml, &known.classes, &hidden))
+            .unwrap_or_default(),
+        datastore_available: known.serves_csv,
     }
 }
 
@@ -336,6 +442,8 @@ async fn known(state: &AppState, project: &str, endpoint: &Value) -> Known {
         publisher,
         contact,
         instance: instances.into_iter().next().map(|(_, name)| name),
+        serves_csv: serde_json::from_value::<EndpointSpec>(endpoint.clone())
+            .is_ok_and(|spec| spec.served_representations().contains(&Representation::Csv)),
     }
 }
 
@@ -444,7 +552,70 @@ slots:
             publisher: BTreeMap::from([("sk".into(), "Banskobystrický samosprávny kraj".into())]),
             contact: Some(("Open data desk".into(), "opendata@example.org".into())),
             instance: Some("bbsk".into()),
+            serves_csv: false,
         }
+    }
+
+    #[test]
+    fn a_personal_slot_is_withheld_and_a_hidden_one_named() {
+        let linkml = r#"
+classes:
+  Visit:
+    slots: [id, visitor, count, place]
+    slot_usage:
+      place:
+        annotations: { personalData: { tag: personalData, value: "true" } }
+    attributes:
+      note:
+        annotations: { personalData: true }
+  Person:
+    annotations: { personalData: true }
+    slots: [age]
+slots:
+  visitor:
+    annotations: { personalData: true }
+"#;
+        let found = attributes(
+            linkml,
+            &["Visit".into(), "Person".into(), "Missing".into()],
+            &["count".into()],
+        );
+        let of = |name: &str| found.iter().find(|a| a.name == name).map(|a| a.withheld);
+        assert_eq!(of("visitor"), Some(Some(Withheld::Personal)));
+        assert_eq!(of("place"), Some(Some(Withheld::Personal)));
+        assert_eq!(of("note"), Some(Some(Withheld::Personal)));
+        assert_eq!(of("age"), Some(Some(Withheld::Personal)));
+        assert_eq!(of("count"), Some(Some(Withheld::Hidden)));
+        assert_eq!(of("id"), None, "identity is no attribute a person picks");
+        assert_eq!(found.len(), 5);
+        assert!(attributes(": broken [", &["Visit".into()], &[]).is_empty());
+    }
+
+    #[test]
+    fn a_csv_endpoint_is_drafted_with_its_datastore_mirror_and_its_attributes() {
+        let mut known = known();
+        known.serves_csv = true;
+        known.endpoint["projection"] = json!({ "hiddenAttributes": ["calculationMethod"] });
+        let draft = draft("bbsk-kpi", &known);
+        assert_eq!(
+            draft.publish["ckan"]["datastore"],
+            json!({ "representation": "csv" })
+        );
+        assert!(draft.datastore_available);
+        let offered: Vec<&str> = draft
+            .attributes
+            .iter()
+            .filter(|a| a.withheld.is_none())
+            .map(|a| a.name.as_str())
+            .collect();
+        assert_eq!(offered, vec!["kpiValue", "observedAt", "dataProvider"]);
+        // What the Endpoint already declares is never rewritten, the mirror included.
+        known.endpoint["publish"] = json!({ "ckan": { "instanceRef": "bbsk" } });
+        assert!(draft_has_no_datastore(&super::draft("bbsk-kpi", &known)));
+    }
+
+    fn draft_has_no_datastore(draft: &CatalogueDraft) -> bool {
+        draft.publish["ckan"].get("datastore").is_none()
     }
 
     #[test]
