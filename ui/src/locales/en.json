@@ -5011,11 +5011,16 @@
     "map": {
       "tab": "Map",
       "loading": "Reading the located entities…",
-      "none": "No entity of this view has a location.",
+      "none": "No entity of this view has a location; the Entities tab lists them all.",
       "count": "{shown} of {total} on the map",
-      "truncated": "Only the first {max}: narrow the filter to see the rest.",
+      "truncated": "More than {max} lie in this view: zoom in or narrow the filter to see them all.",
       "label": "Map of {type}",
-      "open": "Open the entity"
+      "open": "Open the entity",
+      "paged": "More than {max} match, so the map reads the part in view as you move or zoom.",
+      "inView": "{shown} in this view, {total} in all",
+      "noneInView": "No entity of this view lies in the part of the map shown.",
+      "reading": "Reading the part in view…",
+      "viewFailed": "The part in view could not be read ({reason}); move the map to try again."
     },
     "chart": {
       "open": "Chart",
