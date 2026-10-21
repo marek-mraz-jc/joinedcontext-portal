@@ -529,4 +529,91 @@ mod tests {
         ]});
         assert_eq!(role_spaces(&spec), ["air"]);
     }
+
+    /// Project helsinki, where `reader` may read `kinds`, holding `extra` too.
+    fn reader_world(
+        reader: &str,
+        kinds: serde_json::Value,
+        extra: Vec<crate::resource::ResourceEnvelope>,
+    ) -> AppState {
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        let envelope =
+            |kind: &str, name: &str, namespace: &str, spec: serde_json::Value| ResourceEnvelope {
+                api_version: API_VERSION.to_owned(),
+                kind: kind.to_owned(),
+                metadata: ObjectMeta::new(name, namespace),
+                spec,
+                status: None,
+            };
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let org = crate::permissions::ORG_NAMESPACE;
+        state.mirror.upsert(envelope(
+            "Role",
+            "reader",
+            org,
+            serde_json::json!({ "rules": [{ "kinds": kinds, "verbs": ["read"] }] }),
+        ));
+        state.mirror.upsert(envelope(
+            "RoleBinding",
+            "reader",
+            org,
+            serde_json::json!({ "subjects": [{ "user": reader }], "role": "reader", "scope": { "project": "helsinki" } }),
+        ));
+        for env in extra {
+            state.mirror.upsert(env);
+        }
+        state
+    }
+
+    fn signed_in(email: &str) -> CurrentUser {
+        CurrentUser(crate::auth::session::Session {
+            identity: crate::auth::session::Identity {
+                client: None,
+                subject: format!("f:1:{email}"),
+                username: email.to_owned(),
+                email: Some(email.to_owned()),
+                name: None,
+                roles: Vec::new(),
+                groups: Vec::new(),
+            },
+            expires_at: 0,
+            issued_at: 0,
+            id_token: String::new(),
+            access_expires_at: 0,
+            refresh_token: None,
+        })
+    }
+
+    #[tokio::test]
+    async fn the_registry_lists_what_the_caller_reads_and_refuses_one_who_reads_no_agent_kind() {
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        let account = ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: "ServiceAccount".to_owned(),
+            metadata: ObjectMeta::new("pipelines", "helsinki"),
+            spec: json!({}),
+            status: None,
+        };
+        let state = reader_world("reader@hel.fi", json!(["ServiceAccount"]), vec![account]);
+        let listed = list_agents(signed_in("reader@hel.fi"), State(state.clone()))
+            .await
+            .expect("the registry");
+        let names: Vec<_> = listed
+            .0
+            .items
+            .iter()
+            .map(|item| {
+                (
+                    item.kind.as_str(),
+                    item.project.as_str(),
+                    item.name.as_str(),
+                )
+            })
+            .collect();
+        assert_eq!(names, [("ServiceAccount", "helsinki", "pipelines")]);
+        match list_agents(signed_in("stranger@hel.fi"), State(state)).await {
+            Err(ApiError::Denied(reason)) => assert_eq!(reason, NO_AGENT_KIND),
+            other => panic!("not refused: {:?}", other.map(|_| ())),
+        }
+    }
 }

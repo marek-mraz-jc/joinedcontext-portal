@@ -4,7 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import type { components } from "../../api/schema";
-import { asManifests, ORG_NAMESPACE } from "../../api/manifest";
+import { asManifests, ORG_NAMESPACE, type Manifest } from "../../api/manifest";
 import { administersOrganization, usePermissions } from "../../api/permissions";
 import { RecordLink } from "../../components/RecordLink";
 import {
@@ -32,6 +32,28 @@ const KINDS: Kind[] = ["person", "group", "role", "serviceAccount", "public"];
 const ACTIONS = expandOperations(OPERATION_GROUP_NAMES).sort((a, b) =>
   a.localeCompare(b),
 );
+
+/**
+ * Where the names of a group or role come from: a Policy names an organization group, or a role
+ * of this project or the organization (AssigneePicker's lists), so these are the names worth trying.
+ */
+function namesFor(kind: Kind, project: string) {
+  return kind === "group"
+    ? { project: ORG_NAMESPACE, plural: "groups" }
+    : [
+        { project, plural: "roles" },
+        { project: ORG_NAMESPACE, plural: "roles" },
+      ];
+}
+
+/** The space of the named Endpoint: the types worth trying are the ones it holds. */
+function spaceOf(endpoints: Manifest[], name: string): string | undefined {
+  const spec = endpoints.find((e) => e.metadata.name === name)?.spec as
+    | { contextSpaceRef?: unknown }
+    | undefined;
+  const ref = spec?.contextSpaceRef;
+  return typeof ref === "string" && ref !== "" ? ref : undefined;
+}
 
 /**
  * "Try a person" (EP-103, T-3311): an organization administrator picks who, an Endpoint, an
@@ -100,12 +122,6 @@ function Panel({ project }: { project: string }): JSX.Element {
 
   const endpointManifests = asManifests(endpoints.data?.items ?? []);
   const endpointNames = endpointManifests.map((e) => e.metadata.name);
-  // The types worth trying are the ones the Endpoint's space holds.
-  const spaceOf = (name: string): string | undefined => {
-    const ref = (endpointManifests.find((e) => e.metadata.name === name)?.spec as { contextSpaceRef?: unknown } | undefined)
-      ?.contextSpaceRef;
-    return typeof ref === "string" && ref !== "" ? ref : undefined;
-  };
   const accountNames = asManifests(accounts.data?.items ?? []).map(
     (a) => a.metadata.name,
   );
@@ -283,16 +299,7 @@ function Panel({ project }: { project: string }): JSX.Element {
               id={`${id}-name`}
               label={t(`policies.try.kinds.${kind}`)}
               labelled
-              // A Policy names an organization group, or a role of this project or the
-              // organization (AssigneePicker's lists), so these are the names worth trying.
-              from={
-                kind === "group"
-                  ? { project: ORG_NAMESPACE, plural: "groups" }
-                  : [
-                      { project, plural: "roles" },
-                      { project: ORG_NAMESPACE, plural: "roles" },
-                    ]
-              }
+              from={namesFor(kind, project)}
               value={name}
               onChange={setName}
               required
@@ -327,7 +334,7 @@ function Panel({ project }: { project: string }): JSX.Element {
             label={t("policies.try.type")}
             labelled
             project={project}
-            space={spaceOf(chosenEndpoint)}
+            space={spaceOf(endpointManifests, chosenEndpoint)}
             value={type ? [type] : []}
             onChange={(types) => setType(types[0] ?? "")}
           />
