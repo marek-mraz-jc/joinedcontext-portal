@@ -2,10 +2,9 @@
  * Source vs space on dev (T-4892, PL-97, PL-100). For each project the walk reads every pipeline
  * whose `spec.sourceDeletes.mode` is `snapshot`, opens its page and checks the panel shows the
  * same counts the API answers: the last complete run's read, the entities in the space, the
- * orphans and the records missing from the space. On a pipeline with no orphan and no hold a
- * steward's "keep" changes nothing (every miss is already 0), so the walk sends it and checks the
- * report is the same afterwards. A dev without a snapshot pipeline fails: the feature has nothing
- * to show there.
+ * orphans and the records missing from the space. It only reads; the decision on a held run is
+ * pipeline-source-deletes.spec.ts. A dev without a snapshot pipeline fails: the feature has
+ * nothing to show there.
  */
 import { expect, test } from "@playwright/test";
 import { STEWARD, signIn } from "./portal";
@@ -21,11 +20,10 @@ interface Report {
   ledger: number;
   orphans: number;
   missing: number;
-  hold?: unknown;
   lastComplete?: { run: string; read: number } | null;
 }
 
-test("a steward reads each snapshot pipeline's source vs space and a keep on a clean one changes nothing", async ({
+test("a steward reads each snapshot pipeline's source vs space as the API counts it", async ({
   browser,
 }) => {
   test.setTimeout(15 * 60_000);
@@ -53,13 +51,6 @@ test("a steward reads each snapshot pipeline's source vs space and a keep on a c
           await expect(panel.getByText("At the source", { exact: true }).locator("..")).toContainText(
             String(report.lastComplete.read),
           );
-        }
-
-        if (report.orphans === 0 && !report.hold) {
-          const kept = await page.request.post(url, { data: { decision: "keep" } });
-          expect(kept.status(), await kept.text()).toBe(202);
-          const after = (await (await page.request.get(url)).json()) as Report;
-          expect([after.ledger, after.orphans]).toEqual([report.ledger, 0]);
         }
       }
     }
