@@ -6,8 +6,9 @@
  * `finally` writes the old value again if a step failed between the two. The viewer meets the same
  * grid without an editor and is refused a crafted write.
  *
- * No row is created: no demo person holds deleteEntity on a helsinki type, so a created row could
- * not be removed again (T-5064 left one such Alert on dev; see the task).
+ * The steward also adds an Alert through "Add row" and deletes it from the grid again (T-5092): the
+ * seed's steward-row-journey Policy lets them create and delete only Alerts of category `journey`
+ * without `source`, so the journey reaches no pipeline row.
  *
  * SHOTS_DIR set: each state is photographed at 1440 and 400 px.
  */
@@ -98,6 +99,64 @@ test("a steward opens a row form and corrects a cell in the grid with a reason, 
         headers: { "x-csrf-token": await csrf(context), "JC-Reason": "T-5064 journey: the value it had" },
         data: { category: { type: "Property", value: restore.category } },
       });
+    }
+    await context.close();
+  }
+});
+
+/** A row's stored answer, read with the person's session: 200 while it exists, 404 after. */
+async function statusOf(page: Page, id: string): Promise<number> {
+  return (await page.request.get(`/cs/${SPACE}/ngsi-ld/v1/entities/${encodeURIComponent(id)}?pick=id`)).status();
+}
+
+test("a steward adds a row through the form and deletes it from the grid", async ({ browser }) => {
+  const { context, page } = await signIn(browser, STEWARD, PAGE);
+  const name = `Journey row ${SUFFIX}`;
+  let created: string | undefined;
+  try {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(PAGE);
+    await expect(page.getByRole("tab", { name: "Grid" })).toBeVisible({ timeout: 60_000 });
+
+    await page.getByRole("button", { name: "Add row" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel(/^name/).first().fill(name);
+    await dialog.getByLabel(/^category/).first().fill("journey");
+    await dialog.getByRole("button", { name: "Create" }).click();
+    const status = dialog.getByRole("status");
+    await expect(status.or(dialog.getByRole("alert")).first()).toBeVisible({ timeout: 60_000 });
+    await expect(status, "the steward-row-journey Policy lets the steward create a journey Alert").toHaveText(/^Created urn:ngsi-ld:Alert:/);
+    created = (await status.textContent())?.replace(/^Created /, "").replace(/\.$/, "");
+    expect(created).toMatch(/^urn:ngsi-ld:Alert:/);
+    expect(await statusOf(page, created ?? "")).toBe(200);
+    await shoot(page, "row-created-steward");
+    await page.keyboard.press("Escape");
+
+    await page.getByPlaceholder("Search").first().fill(name);
+    const row = page.getByRole("row").filter({ hasText: name });
+    await expect(row).toHaveCount(1, { timeout: 60_000 });
+    await row.getByRole("checkbox", { name: /^Select row/ }).check();
+    await page.getByRole("button", { name: "Delete selected" }).click();
+    await shoot(page, "row-delete-confirm-steward");
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete selected" }).click();
+    await expect.poll(() => statusOf(page, created ?? ""), { timeout: 30_000 }).toBe(404);
+    await expect(page.getByText(/rows were not deleted/)).toHaveCount(0);
+    await expect(row).toHaveCount(0, { timeout: 30_000 });
+    await shoot(page, "row-deleted-steward");
+  } finally {
+    if (created && (await statusOf(page, created).catch(() => 404)) === 200) {
+      await page.request.delete(`/cs/${SPACE}/ngsi-ld/v1/entities/${encodeURIComponent(created)}`, {
+        headers: { "x-csrf-token": await csrf(context), "JC-Reason": "T-5092 journey: its own row" },
+      });
+    }
+    // The grid keeps the person's copy of a deleted row for 30 days; the journey's copy goes now.
+    const trash = await page.request.get(`/api/v1/projects/helsinki/spaces/${SPACE}/trash`);
+    if (created && trash.ok()) {
+      for (const kept of ((await trash.json()) as { id: number; urn: string }[]).filter((item) => item.urn === created)) {
+        await page.request.delete(`/api/v1/projects/helsinki/spaces/${SPACE}/trash/${kept.id}`, {
+          headers: { "x-csrf-token": await csrf(context) },
+        });
+      }
     }
     await context.close();
   }
