@@ -51,8 +51,9 @@ pub fn organization_default(mirror: &Mirror) -> Quotas {
 /// Whether one manifest counts against `dimension`: every context space, an app in `preview` or
 /// `published` of any class, a pipeline the runner keeps resident, an endpoint open to the public.
 /// A draft or retired App runs, serves and is built nowhere, so it counts nothing (PF-73, AP-18,
-/// AP-21, T-2654).
-fn counts(dimension: &str, kind: &str, spec: &Value) -> bool {
+/// AP-21, T-2654). A scheduled poll runs in the run queue and is deleted after each run, so only
+/// a pipeline that waits for pushes is resident (PL-78, T-4952).
+fn counts(mirror: &Mirror, project: &str, dimension: &str, kind: &str, spec: &Value) -> bool {
     match dimension {
         "contextSpaces" => kind == "ContextSpace",
         "apps" => {
@@ -68,8 +69,10 @@ fn counts(dimension: &str, kind: &str, spec: &Value) -> bool {
         "residentPipelines" => {
             kind == "Pipeline"
                 && serde_json::from_value::<jc_core::kinds::pipeline::PipelineSpec>(spec.clone())
-                    .map(|spec| crate::reconciler::streams::is_stream_pipeline(&spec))
-                    .unwrap_or(false)
+                    .is_ok_and(|spec| {
+                        crate::reconciler::streams::is_stream_pipeline(&spec)
+                            && crate::reconciler::streams::stays_resident(mirror, project, &spec)
+                    })
         }
         _ => false,
     }
@@ -84,7 +87,7 @@ pub fn usage(mirror: &Mirror, project: &str) -> BTreeMap<String, u32> {
                 .list(project, kind, &ListOptions::default())
                 .items
                 .into_iter()
-                .filter(|env| counts(dimension, kind, &env.spec))
+                .filter(|env| counts(mirror, project, dimension, kind, &env.spec))
                 .count() as u32;
             (dimension.to_owned(), held)
         })
@@ -123,7 +126,7 @@ pub fn beyond(mirror: &Mirror, project: &str, dimension: &str) -> Vec<String> {
         .list(project, kind, &ListOptions::default())
         .items
         .into_iter()
-        .filter(|env| counts(dimension, kind, &env.spec))
+        .filter(|env| counts(mirror, project, dimension, kind, &env.spec))
         .map(|env| env.metadata.name)
         .collect();
     counted.sort();
@@ -142,7 +145,7 @@ pub fn check(
 ) -> Result<(), ApiError> {
     let quotas = effective(mirror, project);
     for (dimension, counted_kind) in COUNTED {
-        if counted_kind != kind || !counts(dimension, kind, spec) {
+        if counted_kind != kind || !counts(mirror, project, dimension, kind, spec) {
             continue;
         }
         let Some(limit) = limits(&quotas).get(dimension).copied() else {
@@ -153,7 +156,7 @@ pub fn check(
         // fix to one (PF-74, T-2633). What stands beyond the quota stays unscheduled (`beyond`).
         if mirror
             .get(project, kind, name)
-            .is_some_and(|held| counts(dimension, kind, &held.spec))
+            .is_some_and(|held| counts(mirror, project, dimension, kind, &held.spec))
         {
             continue;
         }
@@ -161,7 +164,9 @@ pub fn check(
             .list(project, kind, &ListOptions::default())
             .items
             .into_iter()
-            .filter(|env| env.metadata.name != name && counts(dimension, kind, &env.spec))
+            .filter(|env| {
+                env.metadata.name != name && counts(mirror, project, dimension, kind, &env.spec)
+            })
             .count() as u32;
         let after = others + 1;
         if after > limit {
@@ -219,8 +224,19 @@ mod tests {
         )
     }
 
+    /// The MQTT feed every `resident` pipeline reads: it waits for pushes, so it stays loaded.
+    fn mqtt_source() -> ResourceEnvelope {
+        envelope(
+            "DataSource",
+            "mqtt",
+            "ovzdusie",
+            json!({ "type": "mqtt", "mqtt": { "urls": ["tcp://mqtt.bb.sk:1883"], "topics": ["air/#"] } }),
+        )
+    }
+
     fn mirror_with(items: Vec<ResourceEnvelope>) -> Mirror {
         let mirror = Mirror::new();
+        mirror.upsert(mqtt_source());
         for item in items {
             mirror.upsert(item);
         }
@@ -417,6 +433,69 @@ mod tests {
         // The same two keep running pass after pass rather than taking turns.
         assert_eq!(beyond(&mirror, "ovzdusie", "residentPipelines"), ["gamma"]);
         assert!(beyond(&mirror, "ovzdusie", "apps").is_empty());
+    }
+
+    #[test]
+    fn a_scheduled_feed_pipeline_holds_no_resident_slot() {
+        let daily = |name: &str| {
+            envelope(
+                "Pipeline",
+                name,
+                "ovzdusie",
+                json!({
+                    "class": "auto",
+                    "period": "24h",
+                    "schedule": "44 0 * * *",
+                    "source": { "dataSourceRef": { "kind": "DataSource", "name": "feed" } },
+                    "compute": { "kind": "bloblang", "bloblang": "root = this" },
+                    "targetEndpoint": "urn:ngsi-ld:Endpoint:bb.sk:ovzdusie:air"
+                }),
+            )
+        };
+        let mirror = mirror_with(vec![
+            envelope(
+                "Organization",
+                "bb",
+                ORG_NAMESPACE,
+                json!({ "domain": "bb.sk", "projects": { "quota": { "residentPipelines": 1 } } }),
+            ),
+            envelope(
+                "DataSource",
+                "feed",
+                "ovzdusie",
+                json!({ "type": "http", "http": { "url": "https://www.bb.sk/feed.xml" } }),
+            ),
+            resident("alpha"),
+            daily("daily-a"),
+            daily("daily-b"),
+        ]);
+        // The run queue creates a poll for its run and deletes it after (PL-78, T-4952).
+        assert_eq!(
+            usage(&mirror, "ovzdusie").get("residentPipelines"),
+            Some(&1)
+        );
+        assert!(beyond(&mirror, "ovzdusie", "residentPipelines").is_empty());
+        check(
+            &mirror,
+            "ovzdusie",
+            "Pipeline",
+            "daily-c",
+            &daily("daily-c").spec,
+        )
+        .expect("a daily feed is not resident");
+        // The cap still holds for what waits for pushes.
+        let refused = check(
+            &mirror,
+            "ovzdusie",
+            "Pipeline",
+            "beta",
+            &resident("beta").spec,
+        )
+        .expect_err("a second resident pipeline");
+        assert!(
+            refused.to_string().contains("residentPipelines 2 of 1"),
+            "{refused}"
+        );
     }
 
     #[test]

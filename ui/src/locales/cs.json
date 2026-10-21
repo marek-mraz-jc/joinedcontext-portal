@@ -8030,6 +8030,7 @@
     "decisions": "Čeká na vaše rozhodnutí",
     "decisionsHint": "Schválení změny v červeném pruhu si žádá její název, jako na její vlastní stránce.",
     "noDecisions": "Nic nečeká na vaše rozhodnutí.",
+    "listFailed": "Změny projektu {project} se nenačetly, seznam proto nemusí být úplný: {reason} Schránka to zkusí znovu za 30 sekund.",
     "by": "navrhl {author} v {project}",
     "openChange": "Otevřít změnu",
     "showDiff": "Ukázat, co mění",

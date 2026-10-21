@@ -8030,6 +8030,7 @@
     "decisions": "Wartet auf Ihre Entscheidung",
     "decisionsHint": "Eine Änderung der roten Spur verlangt zur Genehmigung ihren Namen, wie auf ihrer eigenen Seite.",
     "noDecisions": "Nichts wartet auf Ihre Entscheidung.",
+    "listFailed": "Die Änderungen von {project} wurden nicht geladen, die Liste kann daher unvollständig sein: {reason} Der Posteingang versucht es in 30 Sekunden erneut.",
     "by": "vorgeschlagen von {author} in {project}",
     "openChange": "Änderung öffnen",
     "showDiff": "Zeigen, was sie ändert",
