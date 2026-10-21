@@ -84,7 +84,9 @@ test("an endpoint proposed and approved through the UI: Live, the hidden attribu
   }).toPass({ timeout: 180_000, intervals: [10_000] });
   clock.live();
   await guideShot(page, "endpoint-3-live", { reloads: true });
-  const href = await row.getByRole("link", { name: "ngsi-ld" }).getAttribute("href");
+  // The surface links are on the endpoint's own page; the row opens it (T-4989).
+  await row.locator("a[data-row-link]").click();
+  const href = await page.getByRole("link", { name: "ngsi-ld" }).first().getAttribute("href");
   expect(href).toContain("/api/endpoint/");
   const link = href ?? "";
 

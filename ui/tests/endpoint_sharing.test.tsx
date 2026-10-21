@@ -211,8 +211,12 @@ describe("endpoint sharing", () => {
     for (const text of ["app-air-quality", i18n.t("endpoints.ofApp", { app: "air-quality" })]) {
       const line = within(row).getByText(text);
       expect(line.className).toMatch(/(^| )hidden( |$)/);
-      expect(line.className).toContain("sm:block");
+      expect(line.className).toContain("sm:inline");
     }
+    // One line from sm up (T-4989): the title is the row's link, not an underlined one.
+    const open = within(row).getByRole("link", { name: "Air quality" });
+    expect(open).toHaveAttribute("data-row-link");
+    expect(open.className).not.toMatch(/(^|\s)underline(\s|$)/);
   });
 
   it("shows the owner who each endpoint is shared with", async () => {
@@ -250,10 +254,9 @@ describe("endpoint sharing", () => {
       "href",
       "/projects/helsinki/spaces/liikenne",
     );
-    expect(within(bikes).getByRole("link", { name: "ngsi-ld" })).toHaveAttribute(
-      "href",
-      `${window.location.origin}/api/endpoint/${BIKES_SLUG}/ngsi-ld/v1/types`,
-    );
+    // What it serves is one summary; the surface links are on the endpoint's page (T-4989).
+    expect(within(bikes).getByText(/^NGSI-LD, MCP/)).toBeInTheDocument();
+    expect(within(bikes).queryByRole("link", { name: "ngsi-ld" })).not.toBeInTheDocument();
   });
 
   it("references a shared endpoint with one click through the write API", async () => {

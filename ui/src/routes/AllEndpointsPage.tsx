@@ -6,24 +6,16 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../api/client";
 import { asManifests, localized } from "../api/manifest";
 import type { Manifest } from "../api/manifest";
-import {
-  ENDPOINT_LINKS,
-  EndpointLink,
-  endpointUrl,
-  REPRESENTATION_PATHS,
-  representationUrl,
-  servedRepresentations,
-  useCatalogueLinks,
-} from "../components/endpoints/links";
+import { RepresentationSummary, servedRepresentations } from "../components/endpoints/links";
 import { useProjects } from "../api/projects";
-import { useBranding } from "../branding";
 import { DeleteResourceAction } from "../components/DeleteResourceDialog";
-import { PermissionGuard } from "../components/ui/PermissionGuard";
+import { RowActions } from "../components/ui/RowActions";
+import type { RowAction } from "../components/ui/RowActions";
+import { usePermissions } from "../api/permissions";
 import { CkanAccessPanel } from "../pages/ckan/CkanAccessPanel";
 import { SharedWithBadge, spaceOf } from "../components/endpoints/sharing";
 import {
   Alert,
-  Badge,
   Button,
   EmptyState,
   Icon,
@@ -40,7 +32,7 @@ import {
   Term,
 } from "../components/ui";
 
-const COLUMNS = 6;
+const COLUMNS = 5;
 /**
  * Rows per page (T-4831): each row carries its representation links, about 130 px, so ten keep the
  * page under three screens; the whole list was 22,822 px with no way to find one.
@@ -65,7 +57,6 @@ function matchesEndpoint(row: { project: string; endpoint: Manifest }, needle: s
  */
 export function AllEndpointsPage(): JSX.Element {
   const { t, i18n } = useTranslation();
-  const { domain } = useBranding();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const [needle, setNeedle] = useState("");
   const [projectFilter, setProjectFilter] = useState("");
@@ -74,18 +65,12 @@ export function AllEndpointsPage(): JSX.Element {
     queryKey: queryKeys.allEndpoints(),
     queryFn: async () => unwrap(await api.GET("/api/v1/endpoints")),
   });
-  // Only the projects that publish an Endpoint are asked for their catalogues.
-  const catalogueLink = useCatalogueLinks(
-    asManifests(endpoints.data?.items ?? [])
-      .filter((endpoint) => (endpoint.spec as { publish?: { ckan?: unknown } }).publish?.ckan)
-      .map((endpoint) => endpoint.metadata.namespace ?? ""),
-  );
 
   const head = (
     <TableHead>
-      <TableHeaderCell>{t("allEndpoints.field.project")}</TableHeaderCell>
+      {/* Project and Context Space share a column, one line a row (T-4989). */}
       <TableHeaderCell>
-        <Term name="contextSpace">{t("allEndpoints.field.space")}</Term>
+        {t("allEndpoints.field.project")} / <Term name="contextSpace">{t("allEndpoints.field.space")}</Term>
       </TableHeaderCell>
       <TableHeaderCell>{t("endpoints.field.name")}</TableHeaderCell>
       <TableHeaderCell>{t("endpoints.field.audience")}</TableHeaderCell>
@@ -215,88 +200,63 @@ export function AllEndpointsPage(): JSX.Element {
           ) : (
             rows.map(({ project, endpoint }) => {
               const spec = endpoint.spec as {
-                slug?: string;
                 audience?: string;
                 enabledRepresentations?: string[];
               };
               const space = spaceOf(endpoint);
-              const slug = spec.slug ?? "";
               const key = `${project}/${endpoint.metadata.name}`;
-              const catalogue = catalogueLink(project, endpoint);
               return (
                 <TableRow key={key}>
-                  <TableCell>
-                    <Link
-                      to="/projects/$project/$plural"
-                      params={{ project, plural: "endpoints" }}
-                      className="focus-ring rounded-sm font-medium text-fg hover:underline"
-                    >
-                      {project}
-                    </Link>
+                  <TableCell className="align-middle">
+                    <div className="flex min-w-0 max-w-40 items-baseline gap-1 whitespace-nowrap sm:max-w-60">
+                      <Link
+                        to="/projects/$project/$plural"
+                        params={{ project, plural: "endpoints" }}
+                        className="focus-ring shrink-0 rounded-sm font-medium text-fg hover:text-primary-soft-fg"
+                      >
+                        {project}
+                      </Link>
+                      {space ? (
+                        <>
+                          <span aria-hidden="true" className="text-fg-subtle">/</span>
+                          <Link
+                            to="/projects/$project/$plural/$name"
+                            params={{ plural: "spaces", project, name: space }}
+                            aria-label={`${t("spaces.inside.open")}: ${project}/${space}`}
+                            title={space}
+                            className="focus-ring truncate rounded-sm font-mono text-caption text-fg-muted hover:text-primary-soft-fg"
+                          >
+                            {space}
+                          </Link>
+                        </>
+                      ) : null}
+                    </div>
                   </TableCell>
-                  <TableCell>
-                    {space ? (
-                      <div className="flex flex-col gap-0.5">
-                        <span className="font-mono text-body text-fg">{space}</span>
-                        <Link
-                          to="/projects/$project/$plural/$name"
-                          params={{ plural: "spaces", project, name: space }}
-                          aria-label={`${t("spaces.inside.open")}: ${project}/${space}`}
-                          className="focus-ring inline-flex items-center gap-1 rounded-sm text-caption text-primary-soft-fg hover:underline"
-                        >
-                          {t("spaces.inside.open")}
-                          <Icon name="chevronRight" className="size-3.5" />
-                        </Link>
-                      </div>
-                    ) : (
-                      <span className="text-fg-subtle">—</span>
-                    )}
+                  <TableCell primary className="align-middle">
+                    {/* The whole row opens the endpoint's page, where its surface links are (T-4989). */}
+                    <div className="flex min-w-0 max-w-56 items-baseline gap-2 whitespace-nowrap">
+                      <Link
+                        data-row-link=""
+                        to="/projects/$project/$plural/$name"
+                        params={{ project, plural: "endpoints", name: endpoint.metadata.name }}
+                        className="focus-ring max-w-full shrink-0 truncate rounded-sm text-fg hover:text-primary-soft-fg"
+                      >
+                        {localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
+                      </Link>
+                      {endpoint.metadata.title ? (
+                        <span className="hidden truncate font-mono text-caption font-normal text-fg-subtle 2xl:inline">
+                          {endpoint.metadata.name}
+                        </span>
+                      ) : null}
+                    </div>
                   </TableCell>
-                  <TableCell primary>
-                    <div>{localized(endpoint.metadata.title, locale, endpoint.metadata.name)}</div>
-                    {endpoint.metadata.title ? (
-                      <div className="mt-0.5 font-mono text-caption text-fg-subtle">
-                        {endpoint.metadata.name}
-                      </div>
-                    ) : null}
-                  </TableCell>
-                  <TableCell>
+                  <TableCell className="align-middle">
                     <SharedWithBadge endpoint={endpoint} />
                   </TableCell>
-                  <TableCell>
-                    <ul className="flex flex-wrap gap-1">
-                      {servedRepresentations(spec).map((rep) => (
-                        <li key={rep}>
-                          {slug && REPRESENTATION_PATHS[rep] ? (
-                            <EndpointLink href={representationUrl(slug, rep, domain)}>
-                              {rep}
-                            </EndpointLink>
-                          ) : (
-                            <Badge mono>{rep}</Badge>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                    {slug ? (
-                      <ul className="mt-1.5 flex flex-wrap gap-1">
-                        {ENDPOINT_LINKS.map((link) => (
-                          <li key={link.key}>
-                            <EndpointLink muted href={endpointUrl(slug, link.path)}>
-                              {t(`endpoints.link.${link.key}`)}
-                            </EndpointLink>
-                          </li>
-                        ))}
-                        {catalogue ? (
-                          <li>
-                            <EndpointLink muted href={catalogue}>
-                              {t("endpoints.link.catalogue")}
-                            </EndpointLink>
-                          </li>
-                        ) : null}
-                      </ul>
-                    ) : null}
+                  <TableCell className="align-middle">
+                    <RepresentationSummary served={servedRepresentations(spec)} />
                   </TableCell>
-                  <TableCell align="right">
+                  <TableCell align="right" className="align-middle">
                     {spec.audience === "public" ? (
                       <PublicEndpointActions project={project} name={endpoint.metadata.name} />
                     ) : null}
@@ -353,25 +313,37 @@ export function AllEndpointsPage(): JSX.Element {
 function PublicEndpointActions({ project, name }: { project: string; name: string }): JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const permissions = usePermissions(project);
+  const [deleting, setDeleting] = useState(false);
+  const label = `${project}/${name}`;
+  const target = { project, kind: "Endpoint", plural: "endpoints", name, label };
+  // One menu, not two buttons, so the row keeps to the table's width (T-4989); an action the
+  // role does not grant stays in it, disabled, with the reason (UI-44).
+  const actions: RowAction[] = [
+    {
+      key: "edit",
+      label: t("allEndpoints.editShort"),
+      onSelect: () =>
+        void navigate({ to: "/projects/$project/$plural/$name/edit", params: { project, plural: "endpoints", name } }),
+      disabledReason: permissions.can("Endpoint", "propose")
+        ? undefined
+        : t("permissions.denied", { verb: "propose", kind: "Endpoint" }),
+    },
+    {
+      key: "delete",
+      label: t("resourceDelete.button"),
+      tone: "danger",
+      onSelect: () => setDeleting(true),
+      disabledReason: permissions.can("Endpoint", "delete")
+        ? undefined
+        : t("permissions.denied", { verb: "delete", kind: "Endpoint" }),
+    },
+  ];
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <PermissionGuard project={project} kind="Endpoint" verb="propose">
-        <Button
-          size="sm"
-          variant="secondary"
-          aria-label={t("allEndpoints.edit", { project, name })}
-          onClick={() =>
-            void navigate({
-              to: "/projects/$project/$plural/$name/edit",
-              params: { project, plural: "endpoints", name },
-            })
-          }
-        >
-          {t("allEndpoints.editShort")}
-        </Button>
-      </PermissionGuard>
-      <DeleteResourceAction target={{ project, kind: "Endpoint", plural: "endpoints", name, label: `${project}/${name}` }} />
-    </span>
+    <>
+      <RowActions label={label} actions={actions} />
+      <DeleteResourceAction target={target} trigger={false} open={deleting} onOpenChange={setDeleting} />
+    </>
   );
 }
 
