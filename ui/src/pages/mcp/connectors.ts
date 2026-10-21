@@ -23,24 +23,38 @@ export function connectorUrl(domain: string | undefined, name: string): string {
 /** What the form holds: the selector's lists as typed, comma-separated. */
 export interface ConnectorForm {
   name: string;
-  projects: string;
-  spaces: string;
-  domains: string;
-  themes: string;
+  projects: string[];
+  spaces: string[];
+  domains: string[];
+  themes: string[];
   accessLevel: string[];
   endpoints: string[];
 }
 
-const words = (text: string) => [...new Set(text.split(/[\s,]+/).filter(Boolean))];
+/** The Smart Data Models domains of jc-core's classification, the only ones the server keeps (MF-55). */
+export const DOMAINS = [
+  "CPSV-AP",
+  "Environment",
+  "KeyPerformanceIndicator",
+  "Organization",
+  "Parking",
+  "ParksAndGardens",
+  "PointOfInterest",
+  "TourismDestinations",
+  "Transportation",
+  "UrbanMobility",
+  "WasteManagement",
+  "Weather",
+] as const;
 
 export function toForm(connector?: Connector): ConnectorForm {
   const select = connector?.select ?? {};
   return {
     name: connector?.name ?? "",
-    projects: (select.projects ?? []).join(", "),
-    spaces: (select.spaces ?? []).join(", "),
-    domains: (select.domains ?? []).join(", "),
-    themes: (select.themes ?? []).join(", "),
+    projects: select.projects ?? [],
+    spaces: select.spaces ?? [],
+    domains: select.domains ?? [],
+    themes: select.themes ?? [],
     accessLevel: select.accessLevel ?? [],
     endpoints: select.endpoints ?? [],
   };
@@ -49,10 +63,10 @@ export function toForm(connector?: Connector): ConnectorForm {
 export function fromForm(form: ConnectorForm): Connector {
   const select: ConnectorSelect = {};
   const lists: [keyof ConnectorSelect, string[]][] = [
-    ["projects", words(form.projects)],
-    ["spaces", words(form.spaces)],
-    ["domains", words(form.domains)],
-    ["themes", words(form.themes).map((theme) => theme.toUpperCase())],
+    ["projects", form.projects],
+    ["spaces", form.spaces],
+    ["domains", form.domains],
+    ["themes", form.themes],
     ["accessLevel", form.accessLevel],
     ["endpoints", form.endpoints],
   ];
@@ -146,12 +160,18 @@ function load(): Promise<void> {
 }
 
 /** Saves `change` of the stored connectors; rejects with the server's reason when it refuses. */
+/** A refused save: the server's words and the connector fields it names. */
+export type ConnectorRefusal = Error & { fields?: string[] };
+
 export async function saveConnectors(change: (current: Connector[]) => Connector[]): Promise<void> {
   const stored = (await read()) ?? {};
   const answer = await api.PUT("/api/v1/preferences", { body: { ...stored, connectors: change(stored.connectors ?? []) } });
   if (!answer.data) {
-    const detail = (answer.error as { detail?: unknown } | undefined)?.detail;
-    throw new Error(typeof detail === "string" ? detail : "refused");
+    const problem = answer.error as { detail?: unknown; errors?: unknown } | undefined;
+    const refusal: ConnectorRefusal = new Error(typeof problem?.detail === "string" ? problem.detail : "refused");
+    // The field the server names, so the page shows its refusal beside that field (T-4948).
+    refusal.fields = Array.isArray(problem?.errors) ? problem.errors.filter((f): f is string => typeof f === "string") : [];
+    throw refusal;
   }
   publish(answer.data.connectors ?? []);
 }

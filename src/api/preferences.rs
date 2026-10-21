@@ -132,16 +132,18 @@ impl Connector {
         }) {
             return Err(wrong("project/space", sp));
         }
-        // A code the gateway's catalogue does not know selects nothing; only its shape is checked.
+        // The picker offers the classification's domains and the EU data themes alone, and the
+        // same lists decide here (T-4948), as they do for an McpServer's selector (MF-55).
         if let Some(d) = select
             .domains
             .iter()
-            .find(|d| d.is_empty() || d.len() > 64 || !d.chars().all(|c| c.is_ascii_alphanumeric()))
+            .find(|d| !jc_core::classification::is_domain(d))
         {
             return Err(wrong("domain", d));
         }
         if let Some(t) = select.themes.iter().find(|t| {
-            t.is_empty() || t.len() > 16 || !t.chars().all(|c| c.is_ascii_uppercase() || c == '_')
+            serde_json::from_value::<jc_core::kinds::catalog::DataTheme>(serde_json::json!(t))
+                .is_err()
         }) {
             return Err(wrong("theme", t));
         }
@@ -337,33 +339,27 @@ pub async fn put_preferences(
     preferences.validate().map_err(ApiError::BadRequest)?;
     let pool = pool(&state)?;
     let subject = &user.0.identity.subject;
-    // A favourite is checked when it is starred: one starred earlier and no longer readable stays
-    // stored (the gateway leaves it out of the reach, EP-123), so a later save of a theme still
-    // goes through.
-    let starred: Vec<&String> = preferences
-        .connectors
-        .iter()
-        .flat_map(|c| &c.select.endpoints)
-        .collect();
-    if !starred.is_empty() {
+    // A favourite, a project and a space are checked when they are added: one added earlier and
+    // no longer readable stays stored (the gateway leaves it out of the reach, EP-123), so a later
+    // save of a theme still goes through. An unknown one reads like an unreadable one (T-4948).
+    if preferences.connectors.iter().any(|c| {
+        let s = &c.select;
+        !(s.endpoints.is_empty() && s.projects.is_empty() && s.spaces.is_empty())
+    }) {
         let stored = db::load_preferences(pool, subject)
             .await
             .map_err(db_error)?
             .and_then(|value| serde_json::from_value::<Preferences>(value).ok())
             .unwrap_or_default();
-        let kept: Vec<&String> = stored
-            .connectors
-            .iter()
-            .flat_map(|c| &c.select.endpoints)
-            .collect();
-        if let Some(slug) = starred
-            .into_iter()
-            .find(|slug| !kept.contains(slug) && !readable_endpoint(&state, &user, slug))
-        {
-            return Err(ApiError::BadRequest(format!(
-                "endpoint '{slug}' is not one you may read"
-            )));
-        }
+        unreadable_selection(&state, &user, &preferences, &stored).map_or(
+            Ok(()),
+            |(field, value)| {
+                Err(ApiError::Invalid {
+                    detail: format!("{field} '{value}' is not one you may read"),
+                    errors: vec![field.to_owned()],
+                })
+            },
+        )?;
     }
     let value = serde_json::to_value(&preferences)
         .map_err(|e| ApiError::Internal(format!("preferences did not serialize: {e}")))?;
@@ -371,6 +367,62 @@ pub async fn put_preferences(
         .await
         .map_err(db_error)?;
     Ok(Json(preferences))
+}
+
+/// The first connector value added since `stored` that the caller may not read, with its field:
+/// a project by the project list's own rule, a space by its manifest, an Endpoint by its slug.
+fn unreadable_selection<'a>(
+    state: &AppState,
+    user: &CurrentUser,
+    preferences: &'a Preferences,
+    stored: &Preferences,
+) -> Option<(&'static str, &'a str)> {
+    let kept = |pick: fn(&ConnectorSelect) -> &Vec<String>, value: &String| {
+        stored
+            .connectors
+            .iter()
+            .any(|c| pick(&c.select).contains(value))
+    };
+    let identity = &user.0.identity;
+    preferences.connectors.iter().find_map(|c| {
+        let s = &c.select;
+        let project = s
+            .projects
+            .iter()
+            .find(|p| !kept(|s| &s.projects, p) && !super::projects::readable(state, identity, p))
+            .map(|p| ("projects", p.as_str()));
+        let space = || {
+            s.spaces
+                .iter()
+                .find(|sp| !kept(|s| &s.spaces, sp) && !readable_space(state, identity, sp))
+                .map(|sp| ("spaces", sp.as_str()))
+        };
+        let endpoint = || {
+            s.endpoints
+                .iter()
+                .find(|e| !kept(|s| &s.endpoints, e) && !readable_endpoint(state, user, e))
+                .map(|e| ("endpoints", e.as_str()))
+        };
+        project.or_else(space).or_else(endpoint)
+    })
+}
+
+/// Whether the caller may read the space written `{project}/{space}`.
+fn readable_space(
+    state: &AppState,
+    identity: &crate::auth::session::Identity,
+    written: &str,
+) -> bool {
+    let Some((project, name)) = written.split_once('/') else {
+        return false;
+    };
+    let Some(space) = state.mirror.get(project, "ContextSpace", name) else {
+        return false;
+    };
+    let manifest = serde_json::to_value(&space).unwrap_or(serde_json::Value::Null);
+    super::projects::readable(state, identity, project)
+        && crate::permissions::for_request(state, identity, project)
+            .may_read_manifest("ContextSpace", &manifest)
 }
 
 /// Whether the caller may read the Endpoint with this slug: a public one, or one whose manifest
@@ -624,6 +676,9 @@ mod tests {
             serde_json::json!({ "name": "a", "select": { "accessLevel": ["everyone"] } }),
             serde_json::json!({ "name": "a", "select": { "spaces": ["mesto"] } }),
             serde_json::json!({ "name": "a", "select": { "themes": ["envi"] } }),
+            // Only the EU data themes and the classification's domains (T-4948).
+            serde_json::json!({ "name": "a", "select": { "themes": ["SPACE"] } }),
+            serde_json::json!({ "name": "a", "select": { "domains": ["Astrology"] } }),
             serde_json::json!({ "name": "a", "select": { "endpoints": ["../x"] } }),
         ] {
             let p = prefs(serde_json::json!({ "connectors": [wrong.clone()] }));

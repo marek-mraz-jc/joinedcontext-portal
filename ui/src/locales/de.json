@@ -4032,7 +4032,9 @@
       "secretKeyHelp": "Der Eintrag dieses Secrets, der das Token enthält. Lassen Sie apiToken, wenn der Betreiber nichts anderes sagt.",
       "secretKeyInvalid": "Ein Schlüssel besteht aus Buchstaben, Ziffern, Punkten, Bindestrichen und Unterstrichen, etwa apiToken.",
       "secretInvalid": "Der Name eines Secrets besteht aus Kleinbuchstaben, Ziffern, Bindestrichen und Punkten, etwa ckan-api-token.",
-      "secretIsToken": "Das sieht nach dem API-Token selbst aus. Fügen Sie es hier nicht ein: bitten Sie den Betreiber, es in den Secret-Speicher zu laden, und geben Sie den Namen dieses Secrets ein."
+      "secretIsToken": "Das sieht nach dem API-Token selbst aus. Fügen Sie es hier nicht ein: bitten Sie den Betreiber, es in den Secret-Speicher zu laden, und geben Sie den Namen dieses Secrets ein.",
+      "organizationsKnown": "Organisationen im Katalog",
+      "organizationNone": "Der Katalog des Portals führt keine passende Organisation: Kurznamen eingeben und „Neu“ wählen."
     },
     "publications": {
       "title": "Veröffentlichte Endpunkte",
@@ -6968,7 +6970,7 @@
       "contactEmail": "E-Mail des Kontakts",
       "contactHelp": "Eine Funktionsadresse wie eine Open-Data-Stelle, nie die E-Mail einer Person.",
       "keywords": "Schlagwörter",
-      "keywordsHelp": "Durch Kommas getrennt, in der Sprache {language}.",
+      "keywordsHelp": "Schlagwörter des Katalogs wählen oder ein neues eingeben; in der Sprache {language}.",
       "spatialHelp": "Die Region, die die Daten abdecken, zum Beispiel Banskobystrický kraj (SK032). Die Karte des Datensatzes zeigt seine Einträge überall dort, wo sie einen Ort haben.",
       "start": "Enthält Daten ab",
       "end": "Enthält Daten bis",
@@ -7013,7 +7015,9 @@
         "map": "Karte der Einträge mit Ort",
         "api": "NGSI-LD-API und die weiteren Formate des Endpoints",
         "dcat": "DCAT-AP-Eintrag (JSON-LD)"
-      }
+      },
+      "inCatalogue": "Bereits im Katalog",
+      "typeNew": "Im Katalog passt nichts: Neues eingeben und „Neu“ wählen."
     },
     "licence": {
       "CC_BY_4_0": "Creative Commons Attribution 4.0",
@@ -7546,7 +7550,7 @@
       "description": "Was der Server enthält, in ein oder zwei Sätzen; der KI-Client liest es als seine Anweisungen.",
       "members": "Angeboten werden nur Endpoints, die Sie lesen dürfen. Jeder Aufruf eines Mitglieds ist ein eigener Aufruf dieses Endpoints, über den seine eigene Policy entscheidet.",
       "audience": "Nicht weiter als das engste Mitglied. Ein öffentlicher Server braucht nur öffentliche Mitglieder und eine freigebende Person, die veröffentlichen darf.",
-      "allowedProjects": "Projektnamen, durch Kommas getrennt; leer lässt nur dieses Projekt zu.",
+      "allowedProjects": "Wählen Sie die Projekte, deren Mitglieder sich verbinden dürfen; nur Projekte, die Sie lesen dürfen, stehen zur Wahl. Leer lässt nur dieses Projekt zu.",
       "knowledgeSources": "Der Server bietet das Werkzeug search_documents über die öffentlichen Seiten und Dokumente der hier gewählten Quellen; ohne sie bietet er kein solches Werkzeug."
     },
     "form": {
@@ -7562,7 +7566,9 @@
       "sourcesUnreadable": "Die Wissensquellen des Projekts ließen sich nicht auflisten; bereits angehängte bleiben, wie sie sind.",
       "noPublicSources": "Dieses Projekt hat keine öffentliche Wissensquelle zum Anhängen.",
       "sourcesFull": "Höchstens {max} Quellen.",
-      "keptSources": "Unverändert behalten: {sources}."
+      "keptSources": "Unverändert behalten: {sources}.",
+      "yourProjects": "Projekte, die Sie lesen dürfen",
+      "noProjects": "Kein Projekt, das Sie lesen dürfen, passt. Eine Organisationsadministration fügt Sie unter Zugriff → Gruppen einem Projekt hinzu."
     },
     "problem": {
       "name": "Verwenden Sie Kleinbuchstaben, Ziffern und Bindestriche, höchstens 63 Zeichen.",
@@ -8410,10 +8416,10 @@
     },
     "help": {
       "name": "Kleinbuchstaben, Ziffern und Bindestriche; der letzte Teil der Adresse.",
-      "projects": "Projektnamen, durch Kommas getrennt.",
-      "spaces": "projekt/raum, durch Kommas getrennt.",
-      "domains": "Smart-Data-Models-Domänen: Environment, Transportation, …",
-      "themes": "EU-Datenthemen, etwa ENVI oder TRAN.",
+      "projects": "Aus den Projekten wählen, die Sie lesen dürfen, z. B. mesto.",
+      "spaces": "Aus den Kontexträumen wählen, die Sie lesen dürfen, auf die oben gewählten Projekte eingegrenzt.",
+      "domains": "Smart-Data-Models-Domänen der Klassifikation der Endpoints.",
+      "themes": "EU-Datenthemen der Katalogeinträge der Endpoints.",
       "endpoints": "Einen Endpunkt fügen Sie mit dem Stern auf seiner Seite hinzu."
     },
     "level": {
@@ -8433,7 +8439,12 @@
       "add": "Zu meinen Konnektoren",
       "in": "Im Konnektor: {names}"
     },
-    "full": "Sie haben 10 Konnektoren, mehr geht nicht. Löschen Sie einen, um einen weiteren anzulegen."
+    "full": "Sie haben 10 Konnektoren, mehr geht nicht. Löschen Sie einen, um einen weiteren anzulegen.",
+    "noMatch": {
+      "projects": "Kein Projekt, das Sie lesen dürfen, passt. Eine Organisationsadministration fügt Sie unter Zugriff → Gruppen einem Projekt hinzu.",
+      "spaces": "Kein Kontextraum, den Sie lesen dürfen, passt. Ein Projekt legt einen unter Daten → Kontexträume an.",
+      "none": "Nichts passt zu Ihrer Eingabe."
+    }
   },
   "conversations": {
     "title": "Unterhaltungen",
@@ -8463,7 +8474,8 @@
       "deployment": "Assistent",
       "from": "Von",
       "to": "Bis",
-      "expensive": "Über $0,02"
+      "expensive": "Über $0,02",
+      "noDeployments": "Dieses Projekt hat noch keinen Assistenten. Fügen Sie einen unter Assistent → Bereitstellungen hinzu."
     },
     "status": {
       "ok": "Beantwortet",

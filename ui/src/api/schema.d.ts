@@ -4514,6 +4514,8 @@ export interface components {
         /** @description Every facet of the list. */
         CatalogueFacets: {
             format: components["schemas"]["CatalogueFacetValue"][];
+            /** @description The keywords datasets carry, offered when a dataset is published (T-4948); no filter. */
+            keyword?: components["schemas"]["CatalogueFacetValue"][];
             licence: components["schemas"]["CatalogueFacetValue"][];
             publisher: components["schemas"]["CatalogueFacetValue"][];
             spatial: components["schemas"]["CatalogueFacetValue"][];

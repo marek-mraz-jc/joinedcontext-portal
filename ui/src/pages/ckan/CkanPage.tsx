@@ -12,7 +12,8 @@ import { EditResourceAction } from "../../components/EditResourceDialog";
 import { RecordLink } from "../../components/RecordLink";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import { CkanAccessPanel } from "./CkanAccessPanel";
-import { PublishDatasetDialog } from "../catalogue/PublishDataset";
+import { PublishDatasetDialog, useCatalogueFacets } from "../catalogue/PublishDataset";
+import { Combobox } from "../../components/pickers/Combobox";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import type { components } from "../../api/schema";
 import {
@@ -236,6 +237,8 @@ function Instances({
   const { t } = useTranslation();
   const [draft, setDraft] = useState<InstanceDraft>(EMPTY_DRAFT);
   const [shown, setShown] = useState<Partial<Record<Fault, string>>>({});
+  // The CKAN organizations the Portal's catalogue lists; a new instance's own may be typed (T-4948).
+  const facets = useCatalogueFacets();
   const fields = useRef<Record<string, HTMLInputElement | null>>({});
   // A second press while the first proposal is in flight. `submitting` arrives with the render
   // after the mutation starts, which is one render too late for a double click: measured, two
@@ -353,10 +356,24 @@ function Instances({
           label={t("ckan.instances.organization")}
           description={t("ckan.instances.organizationHelp")}
         >
-          <Input
+          <Combobox
             id="ckan-instance-org"
-            value={draft.organizationDefault}
-            onChange={(event) => setDraft({ ...draft, organizationDefault: event.target.value })}
+            labelled
+            label={t("ckan.instances.organization")}
+            value={draft.organizationDefault ? [draft.organizationDefault] : []}
+            onChange={(values) => setDraft({ ...draft, organizationDefault: values[0] ?? "" })}
+            options={(facets.data?.publisher ?? []).map((org) => ({
+              value: org.value,
+              label: org.label,
+              detail: org.value,
+              group: t("ckan.instances.organizationsKnown"),
+            }))}
+            loading={facets.isPending}
+            empty={t("ckan.instances.organizationNone")}
+            create={{
+              label: (name) => t("picker.createNamed", { name }),
+              onCreate: (name) => setDraft({ ...draft, organizationDefault: name.trim().toLowerCase() }),
+            }}
           />
         </Field>
         <Field

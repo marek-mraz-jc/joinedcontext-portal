@@ -4032,7 +4032,9 @@
       "secretKeyHelp": "The entry of that secret that holds the token. Leave apiToken unless the operator says otherwise.",
       "secretKeyInvalid": "A key is letters, digits, dots, dashes and underscores, such as apiToken.",
       "secretInvalid": "A secret's name is lowercase letters, digits, dashes and dots, such as ckan-api-token.",
-      "secretIsToken": "This looks like the API token itself. Do not paste it here: ask the operator to load it into the secret store and type that secret's name."
+      "secretIsToken": "This looks like the API token itself. Do not paste it here: ask the operator to load it into the secret store and type that secret's name.",
+      "organizationsKnown": "Organizations in the catalogue",
+      "organizationNone": "The Portal's catalogue lists no matching organization: type its short name and pick “New”."
     },
     "publications": {
       "title": "Published endpoints",
@@ -6968,7 +6970,7 @@
       "contactEmail": "Contact e-mail",
       "contactHelp": "A role address such as an open-data desk, never a person's own e-mail.",
       "keywords": "Keywords",
-      "keywordsHelp": "Separated by commas, in the language {language}.",
+      "keywordsHelp": "Pick the catalogue's keywords or type a new one; in the language {language}.",
       "spatialHelp": "The region the data covers, for example Banskobystrický kraj (SK032). The dataset's map shows its records wherever they have a location.",
       "start": "Covers data from",
       "end": "Covers data until",
@@ -7013,7 +7015,9 @@
         "map": "Map of the records with a location",
         "api": "NGSI-LD API and the endpoint's other formats",
         "dcat": "DCAT-AP record (JSON-LD)"
-      }
+      },
+      "inCatalogue": "Already in the catalogue",
+      "typeNew": "None in the catalogue matches: type a new one and pick “New”."
     },
     "licence": {
       "CC_BY_4_0": "Creative Commons Attribution 4.0",
@@ -7546,7 +7550,7 @@
       "description": "What the server holds, in one or two sentences; the AI client reads it as its instructions.",
       "members": "Only Endpoints you may read are offered. Each call to a member is that Endpoint's own call, decided by its own Policy.",
       "audience": "No wider than the narrowest member. A public server needs every member public, and an approver who may publish.",
-      "allowedProjects": "Project names separated by commas; empty admits this project only.",
+      "allowedProjects": "Pick the projects whose members may connect; only projects you may read are listed. Empty admits this project only.",
       "knowledgeSources": "The server offers the tool search_documents over the public pages and documents of the sources picked here; with none it offers no such tool."
     },
     "form": {
@@ -7562,7 +7566,9 @@
       "sourcesUnreadable": "The project's knowledge sources could not be listed; the ones already attached stay as they are.",
       "noPublicSources": "This project has no public knowledge source to attach.",
       "sourcesFull": "At most {max} sources.",
-      "keptSources": "Kept as they are: {sources}."
+      "keptSources": "Kept as they are: {sources}.",
+      "yourProjects": "Projects you may read",
+      "noProjects": "No project you may read matches. An organization admin adds you to a project under Access → Groups."
     },
     "problem": {
       "name": "Use lowercase letters, digits and dashes, up to 63 characters.",
@@ -8410,10 +8416,10 @@
     },
     "help": {
       "name": "Lowercase letters, digits and dashes; the last part of the address.",
-      "projects": "Comma-separated project names.",
-      "spaces": "project/space, comma-separated.",
-      "domains": "Smart Data Models domains: Environment, Transportation, …",
-      "themes": "EU data themes, such as ENVI or TRAN.",
+      "projects": "Pick from the projects you may read, e.g. mesto.",
+      "spaces": "Pick from the context spaces you may read, narrowed to the projects picked above.",
+      "domains": "Smart Data Models domains of the Endpoints' classification.",
+      "themes": "EU data themes of the Endpoints' catalogue entries.",
       "endpoints": "Star an Endpoint on its page to add it here."
     },
     "level": {
@@ -8433,7 +8439,12 @@
       "add": "Add to my connectors",
       "in": "In connector: {names}"
     },
-    "full": "You have 10 connectors, the most there can be. Delete one to add another."
+    "full": "You have 10 connectors, the most there can be. Delete one to add another.",
+    "noMatch": {
+      "projects": "No project you may read matches. An organization admin adds you to a project under Access → Groups.",
+      "spaces": "No context space you may read matches. A project creates one under Data → Context spaces.",
+      "none": "Nothing matches what you typed."
+    }
   },
   "conversations": {
     "title": "Conversations",
@@ -8463,7 +8474,8 @@
       "deployment": "Assistant",
       "from": "From",
       "to": "To",
-      "expensive": "Over $0.02"
+      "expensive": "Over $0.02",
+      "noDeployments": "This project has no assistant yet. Add one under Assistant → Deployments."
     },
     "status": {
       "ok": "Answered",
