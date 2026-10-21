@@ -87,8 +87,21 @@ export function accessMatrix(grants: AccountGrant[]): { kind: string; cells: Rec
 
 const STATE_TONE = { active: "success", pending: "info", expired: "warning" } as const;
 
-/** What one ServiceAccount may do in the Portal, where each right comes from, and revoke now. */
-export function AccountAccess({ project, account }: { project: string; account: string }): JSX.Element {
+/**
+ * What one ServiceAccount may do in the Portal, where each right comes from, and revoke now.
+ * `level` keeps the heading order of the page it sits in: h4 in a ServiceAccount card, h2 on an
+ * agent's Access tab.
+ */
+export function AccountAccess({
+  project,
+  account,
+  level = 4,
+}: {
+  project: string;
+  account: string;
+  level?: 2 | 4;
+}): JSX.Element {
+  const Heading = level === 2 ? "h2" : "h4";
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [revoking, setRevoking] = useState<AccountGrant | null>(null);
@@ -137,9 +150,9 @@ export function AccountAccess({ project, account }: { project: string; account: 
 
   return (
     <section className="space-y-3" aria-labelledby={heading}>
-      <h4 id={heading} className="font-medium text-fg">
+      <Heading id={heading} className="font-medium text-fg">
         {t("access.agent.title")}
-      </h4>
+      </Heading>
       {delegates ? <p className="text-body text-fg-muted">{t("access.agent.delegates")}</p> : null}
       {change ? <ChangeNotice change={change} project={project} /> : null}
       {revoke.isError ? (

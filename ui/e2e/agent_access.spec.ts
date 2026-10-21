@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-// An agent account's Access view (T-4850, API/01 §49, AG-130…AG-132): its grants with their state,
+// An agent account's Access view (T-4850, API/01 §50, AG-130…AG-132): its grants with their state,
 // the kind × verb matrix with the grant behind each cell, and Revoke now behind a confirmation.
 // `vite preview` has no Portal API behind it, so the API is answered in the browser.
 // JC_SHOTS=<dir> saves a desktop 1440 and a phone 400 shot of each state.
@@ -38,6 +38,12 @@ const ACCESS = (mayRevoke: boolean) => ({
   ],
 });
 
+const AGENT = {
+  kind: "ServiceAccount", name: "vendor-ci", project: "helsinki", title: "Vendor CI",
+  owner: { type: "person", name: "jana@hel.fi" }, actsAs: "self", spaces: ["air"], endpoints: [],
+  lastActivity: null, spend: { used: null, cap: null, per: null }, state: "active", runId: null, profile: null,
+};
+
 async function stubApi(page: Page, access: { status: number; body: unknown }, admin: boolean): Promise<void> {
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -53,6 +59,7 @@ async function stubApi(page: Page, access: { status: number; body: unknown }, ad
     }
     if (path === "/api/v1/projects/helsinki/serviceaccounts") return json(list([ACCOUNT]));
     if (path.endsWith("/serviceaccounts/vendor-ci/access")) return json(access.body, access.status);
+    if (path === "/api/v1/organization/agents") return json({ items: [AGENT] });
     if (path.endsWith("/serviceaccounts/vendor-ci/revoke")) {
       return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "Change",
         metadata: { name: "chg-00000042", namespace: "helsinki" }, status: { phase: "Deploying", lane: "red" } }, 202);
@@ -91,6 +98,15 @@ test.describe("an agent account's Access view", () => {
     await page.getByRole("alertdialog").getByRole("button", { name: "Revoke now" }).click();
     await expect(page.getByRole("alertdialog")).toBeHidden();
     await shot(page, "revoked");
+  });
+
+  test("the agent's own page shows the same matrix on its Access tab", async ({ page }) => {
+    await stubApi(page, { status: 200, body: ACCESS(true) }, true);
+    await page.goto("/organization/agents/helsinki/ServiceAccount/vendor-ci?lang=en");
+    await page.getByRole("tab", { name: "Access" }).click();
+    const matrix = page.getByRole("group", { name: "What vendor-ci may do, by kind" });
+    await expect(matrix.getByRole("row", { name: /Pipeline/ })).toContainText("pipeline-admin · project:helsinki");
+    await shot(page, "agent-tab");
   });
 
   test("a reader sees the same matrix and no Revoke", async ({ page }) => {

@@ -1,4 +1,4 @@
-//! The Access view of an agent's ServiceAccount and revoking a grant now (API/01 §49,
+//! The Access view of an agent's ServiceAccount and revoking a grant now (API/01 §50,
 //! AG-130…AG-132): who may read it, who may revoke, and what a revoke refuses before the forge.
 
 use axum::body::Body;
@@ -13,7 +13,11 @@ use joinedcontext_portal::permissions::ORG_NAMESPACE;
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
 use joinedcontext_portal::server;
 use joinedcontext_portal::state::AppState;
+use joinedcontext_portal::git::GiteaClient;
 use serde_json::{json, Value};
+use std::sync::Arc;
+use wiremock::matchers::{method, path, path_regex};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 use tower::ServiceExt;
 
 const CSRF: &str = "agent-access-csrf";
@@ -90,7 +94,10 @@ fn bound(name: &str, role: &str, email: &str) -> ResourceEnvelope {
 }
 
 fn app(config: &Config, roles: Value) -> axum::Router {
-    let state = AppState::new(config.clone(), None);
+    server::app(seeded(AppState::new(config.clone(), None), roles))
+}
+
+fn seeded(state: AppState, roles: Value) -> AppState {
     for env in [
         envelope(
             "Role",
@@ -116,7 +123,7 @@ fn app(config: &Config, roles: Value) -> axum::Router {
     ] {
         state.mirror.upsert(env);
     }
-    server::app(state)
+    state
 }
 
 fn two_grants() -> Value {
@@ -310,4 +317,73 @@ async fn an_administrator_may_revoke_but_not_a_moved_grant_nor_the_last_one() {
         status.is_client_error() && status != StatusCode::FORBIDDEN,
         "{status}"
     );
+}
+
+/// The allow path: an administrator's revoke proposes the account without the grant and answers
+/// 202 with the Change; a forge that cannot show the merge request leaves it pending for a person.
+#[tokio::test]
+async fn an_administrators_revoke_proposes_the_account_without_the_grant() {
+    let forge = MockServer::start().await;
+    let repo = "/api/v1/repos/owner/config";
+    Mock::given(method("GET"))
+        .and(path(repo))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })))
+        .mount(&forge)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{repo}/branches")))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
+        .mount(&forge)
+        .await;
+    Mock::given(method("GET"))
+        .and(path_regex(r"/contents/.*vendor-ci"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "sha": "old", "content": "" })))
+        .mount(&forge)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path_regex(r"/contents/.*vendor-ci"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "commit": { "sha": "new" } })))
+        .mount(&forge)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{repo}/pulls")))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+            "number": 7, "html_url": "https://gitea.example.org/pulls/7",
+            "state": "open", "mergeable": true, "merged": false
+        })))
+        .mount(&forge)
+        .await;
+    let client = GiteaClient::new(forge.uri().parse().expect("url"), "owner", "config", "token")
+        .expect("client");
+    let config = Config::for_tests();
+    let state = seeded(
+        AppState::new(config.clone(), None).with_gitea(Arc::new(client)),
+        two_grants(),
+    );
+    let (status, body) = call(
+        server::app(state),
+        &config,
+        Some(person("ana@hel.fi", &[])),
+        "POST",
+        REVOKE,
+        Some(json!({ "index": 1, "role": "pipeline-admin" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+    assert!(body.contains("gitea.example.org/pulls/7"), "{body}");
+    let put = forge
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .find(|r| r.method.as_str() == "PUT")
+        .expect("the account was written");
+    let sent: Value = serde_json::from_slice(&put.body).expect("json");
+    let content = sent["content"].as_str().expect("content");
+    use base64::Engine;
+    let yaml = String::from_utf8(
+        base64::engine::general_purpose::STANDARD.decode(content).expect("base64"),
+    )
+    .expect("utf8");
+    assert!(yaml.contains("ovzdusie") && !yaml.contains("doprava"), "{yaml}");
 }
