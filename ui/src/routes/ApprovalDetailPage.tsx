@@ -10,6 +10,9 @@ import { api, queryKeys, unwrap } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { PlanDiffViewer } from "../components/diff/PlanDiffViewer";
+import { PublicationPreview } from "../pages/catalogue/PublicationPreview";
+import { applyFields } from "../pages/catalogue/publish";
+import { localized } from "../api/manifest";
 import type { components } from "../api/schema";
 import {
   Alert,
@@ -247,7 +250,10 @@ export function ApprovalDetailPage({
               {t("approvals.mergeRequest")}
             </dt>
             <dd className="mt-1 text-sm font-medium">
-              <ExternalLink href={proposal.status.mergeRequest} className="text-primary-soft-fg">
+              <ExternalLink
+                href={proposal.status.mergeRequest}
+                className="text-primary-soft-fg [overflow-wrap:anywhere]"
+              >
                 {proposal.status.mergeRequest}
               </ExternalLink>
             </dd>
@@ -272,19 +278,23 @@ export function ApprovalDetailPage({
                 {file.kind ? (
                   <span className="text-sm font-medium text-surface-fg">{file.kind}</span>
                 ) : null}
-                {file.fields ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-pressed={selected?.path === file.path}
-                    onClick={() => setSelectedPath(selected?.path === file.path ? null : file.path)}
-                    className="px-1 font-mono text-caption text-primary-soft-fg hover:underline"
-                  >
-                    {file.path}
-                  </Button>
-                ) : (
-                  <span className="font-mono text-caption text-fg-subtle">{file.path}</span>
-                )}
+                <div className="min-w-0 flex-1">
+                  {file.fields ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-pressed={selected?.path === file.path}
+                      onClick={() => setSelectedPath(selected?.path === file.path ? null : file.path)}
+                      className="h-auto min-h-8 px-1 text-left font-mono text-caption text-primary-soft-fg [overflow-wrap:anywhere] hover:underline"
+                    >
+                      {file.path}
+                    </Button>
+                  ) : (
+                    <span className="font-mono text-caption text-fg-subtle [overflow-wrap:anywhere]">
+                      {file.path}
+                    </span>
+                  )}
+                </div>
                 <span className="ml-auto text-caption text-fg-muted">
                   {t(OPERATION_LABEL[file.operation])}
                 </span>
@@ -300,6 +310,12 @@ export function ApprovalDetailPage({
         </h2>
         <PlanDiffViewer fields={selected ? selected.fields : proposal.planFields} />
       </section>
+
+      {files
+        .filter((file) => file.kind === "Endpoint" && file.operation !== "Delete" && publishes(file))
+        .map((file) => (
+          <PublicationOnApproval key={file.path} project={project} file={file} />
+        ))}
 
       {banner && proposal ? (
         <Alert role="status" tone={banner === "live" ? "success" : "info"}>
@@ -446,6 +462,58 @@ function ChangeSkeleton({ label }: { label: string }): JSX.Element {
         <Skeleton className="h-10" />
       </div>
       <Skeleton className="h-40" />
+    </div>
+  );
+}
+
+/** The file writes a CKAN publication or its catalogue description (EP-62, EP-83). */
+function publishes(file: ChangeFile): boolean {
+  return (file.fields ?? []).some((f) => /^spec\.(publish\.ckan|catalog)\b/.test(f.path));
+}
+
+/**
+ * The CKAN page the Endpoint becomes once this Change is merged: the live manifest with the
+ * file's diff applied, drawn by the publish flow's own preview, so the approver reads what the
+ * steward saw (EP-142, T-4847). An Endpoint the Change creates starts from nothing.
+ */
+type Texts = string | Record<string, string> | null;
+
+function PublicationOnApproval({ project, file }: { project: string; file: ChangeFile }): JSX.Element | null {
+  const { t, i18n } = useTranslation();
+  const name = file.path.split("/").pop()?.replace(/\.ya?ml$/, "") ?? "";
+  const live = useQuery({
+    queryKey: ["projects", project, "endpoints", name, "manifest"],
+    enabled: file.operation === "Update" && name !== "",
+    retry: false,
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/{plural}/{name}", {
+          params: { path: { project, plural: "endpoints", name } },
+        }),
+      ),
+  });
+  if (file.operation === "Update" && live.isPending) return null;
+  const base = live.data ? { metadata: live.data.metadata, spec: live.data.spec } : {};
+  const head = applyFields(base as Record<string, unknown>, file.fields ?? []) as {
+    metadata?: { name?: string; title?: Texts; description?: Texts };
+    spec?: { catalog?: Record<string, unknown>; publish?: { ckan?: { datastore?: unknown } }; audience?: string };
+  };
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
+  return (
+    <div className="space-y-2" data-testid="publication-preview">
+      <h2 className="text-base font-semibold text-surface-fg">
+        {t("approvals.publication", { name })}
+      </h2>
+      {head.spec?.audience === "public" ? (
+        <p className="text-caption text-fg-muted">{t("approvals.publicationPublic")}</p>
+      ) : null}
+      <PublicationPreview
+        label={t("approvals.publication", { name })}
+        title={localized(head.metadata?.title, locale, head.metadata?.name ?? name)}
+        description={localized(head.metadata?.description, locale, "")}
+        catalog={head.spec?.catalog ?? {}}
+        datastore={head.spec?.publish?.ckan?.datastore !== undefined}
+      />
     </div>
   );
 }

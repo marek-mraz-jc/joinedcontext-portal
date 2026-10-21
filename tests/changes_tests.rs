@@ -2595,6 +2595,22 @@ async fn a_publisher_other_than_the_proposer_approves_a_public_publication() {
 }
 
 #[tokio::test]
+async fn a_steward_who_may_not_approve_public_endpoints_never_approves_a_public_publication() {
+    // The publish editor's submit lands here (T-4847): a person without `approve` on a public
+    // Endpoint is refused, the typed name notwithstanding, and nothing merges.
+    let (server, state) = change_of_file(
+        PUBLIC_ENDPOINT_BRANCH,
+        PUBLIC_ENDPOINT_PATH,
+        &published_endpoint_yaml(),
+        steward_rules(),
+    )
+    .await;
+    let (status, body) = approve_endpoint(state, Some("air")).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert!(!merged_66(&server).await);
+}
+
+#[tokio::test]
 async fn the_proposer_never_approves_their_own_public_publication_even_as_an_administrator() {
     let (server, state) = change_of_file_by(
         PUBLIC_ENDPOINT_BRANCH,
