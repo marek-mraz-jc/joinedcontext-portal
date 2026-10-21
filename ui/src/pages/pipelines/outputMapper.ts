@@ -7,7 +7,7 @@
  * is the author's and the mapper leaves it alone.
  */
 import type { components } from "../../api/schema";
-import type { LifetimeMode } from "./ExpiryChoice";
+import type { LifetimeMode } from "./lifetime";
 
 export type Attribute = components["schemas"]["Attribute"];
 

@@ -36,6 +36,9 @@ import { MAX_SAMPLE_BYTES, draftFromRecord, draftFromSample, formatOf } from "./
 import type { SampleFormat } from "./PipelineTest";
 import { SlotUnit } from "./SlotUnit";
 import { OutputMapper } from "./OutputMapper";
+import { LifetimeChoice } from "./LifetimeChoice";
+import { withEntry } from "./lifetime";
+import { RecordTable, TargetCard, grantedNames, useTargetType } from "./WorkbenchTarget";
 import { HEADER } from "./outputMapper";
 
 /** How long the mapping rests before the workbench tries it again: one pause in typing. */
@@ -143,14 +146,28 @@ export function exampleOf(slot: Pick<LinkmlSlot, "range" | "kind" | "multivalued
 }
 
 /**
- * The class a mapping writes: the first of the model's classes its `root.type = "…"` or a
- * `"type": "…"` member names (a `bento.yaml` builds whole entities, T-4818), else the model's first.
+ * The class a mapping writes: the type the pipeline's output declares, else the first of the
+ * model's classes its `root.type = "…"` or a `"type": "…"` member names (a `bento.yaml` builds
+ * whole entities, T-4818), else the model's only class. Never a guess among several: a Vehicle
+ * pipeline once showed the slots of Event, the model's first class (T-4842).
  */
-export function classOfMapping(bloblang: string, classes: string[]): string | undefined {
+export function classOfMapping(bloblang: string, classes: string[], declared?: string): string | undefined {
+  if (declared && classes.includes(declared)) return declared;
   const named = [...bloblang.matchAll(/(?:root\.type\s*=|"type"\s*:)\s*"([A-Za-z][A-Za-z0-9_]*)"/g)]
     .map((match) => match[1])
     .find((name) => classes.includes(name));
-  return named ?? classes[0];
+  return named ?? (classes.length === 1 ? classes[0] : undefined);
+}
+
+/** The type the output mapper's own step writes, from its `# jc-mapper` header. */
+export function mapperType(bloblang: string): string | undefined {
+  if (!bloblang.startsWith(HEADER)) return undefined;
+  try {
+    const type = (JSON.parse(bloblang.slice(HEADER.length).split("\n", 1)[0]) as { type?: unknown }).type;
+    return typeof type === "string" ? type : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** The sample the mapping is tried on, from the file the person gave or from the source. */
@@ -278,46 +295,6 @@ export function readValidation(output: unknown): ValidationAnswer {
     rejected: numberOf(answer.rejected),
     verdicts,
   };
-}
-
-/**
- * One record's verdict (T-4840): valid, or each finding with where it comes from (the space's
- * model, the target Endpoint, the lifetime), and the `expiresAt` the record would be written with.
- */
-function RecordVerdictCell({ verdict }: { verdict: RecordVerdict }): JSX.Element {
-  const { t } = useTranslation();
-  const findings: Finding[] =
-    verdict.findings ??
-    verdict.problems.map((problem) => ({ source: "model", rule: problem.rule, field: problem.path, reason: problem.message }));
-  const ends = verdict.expires;
-  return (
-    <div className="flex flex-col items-start gap-1">
-      {verdict.ok ? (
-        <Badge tone="success">{t("pipelines.workbench.validation.valid")}</Badge>
-      ) : (
-        <ul className="flex flex-col gap-1">
-          {findings.map((finding, at) => (
-            <li key={at} className="text-caption">
-              <Badge tone="danger">{t(`pipelines.workbench.validation.source.${finding.source}`)}</Badge>{" "}
-              <span className="font-mono text-fg-subtle">{finding.rule}</span>{" "}
-              {finding.field ? <span className="font-mono">{finding.field}</span> : null}{" "}
-              <span className="text-fg-muted">{finding.reason}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {ends ? (
-        <ul className="flex flex-col gap-0.5 text-caption text-fg-muted" aria-label={t("pipelines.workbench.validation.expiresLabel")}>
-          {ends.entity ? <li>{t("pipelines.workbench.validation.expiresEntity", { at: ends.entity })}</li> : null}
-          {Object.entries(ends.attributes).map(([name, at]) => (
-            <li key={name}>
-              {t("pipelines.workbench.validation.expiresAttribute", { name, at })}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
-  );
 }
 
 /** A verdict's record check (T-4840), when the answer carries one. */
@@ -761,8 +738,12 @@ export function PipelineWorkbench({
   const writtenClass =
     pickedClass && classNames.includes(pickedClass)
       ? pickedClass
-      : classOfMapping(fileShown ? mappingFile.text : bloblang, classNames);
+      : classOfMapping(fileShown ? mappingFile.text : bloblang, classNames, draft?.output?.type);
   const klass = parsed?.classes.find((c) => c.name === writtenClass);
+  // The type the Target card and the Lifetime step are about: the model's class above, else the
+  // output's declared type or the mapper's own, while the model's text is not read (T-4842).
+  const writtenType = writtenClass ?? draft?.output?.type ?? mapperType(bloblang);
+  const target = useTargetType(project, targetSpace, writtenType, manifest, targetName);
   const slots = parsed && klass ? classSlots(parsed, klass).filter((slot) => !["id", "type"].includes(slot.name)) : [];
 
   // T-3211: a source picked from the project drafts the mapping from its first record, once, as a
@@ -950,6 +931,7 @@ export function PipelineWorkbench({
               : t("pipelines.workbench.target.landsUnmodelled", { space: targetSpace })}
           </p>
         ) : null}
+        {targetSpace && (targetModel || target.model) ? <TargetCard space={targetSpace} type={writtenType} target={target} /> : null}
       </Step>
 
       <Step number={4} id="workbench-mapping" title={t("pipelines.workbench.mapping.title")} hint={t("pipelines.workbench.mapping.hint")}>
@@ -1038,7 +1020,8 @@ export function PipelineWorkbench({
             </FormHeading>
             {classNames.length > 1 ? (
               <Field id="workbench-slots-type" label={t("pipelines.workbench.mapping.type")} description={t("pipelines.workbench.mapping.typeHint")}>
-                <Select id="workbench-slots-type" value={writtenClass ?? ""} onChange={(event) => setPickedClass(event.target.value)}>
+                <Select id="workbench-slots-type" value={writtenClass ?? ""} onChange={(event) => setPickedClass(event.target.value || undefined)}>
+                  {writtenClass ? null : <option value="">{t("form.choose")}</option>}
                   {classNames.map((name) => (
                     <option key={name} value={name}>
                       {name}
@@ -1139,41 +1122,53 @@ export function PipelineWorkbench({
             ))}
             <p className="text-caption text-fg-subtle">{t("pipelines.workbench.output.count", { count: records.length })}</p>
             {records.length > 0 ? (
-              <Table caption={t("pipelines.workbench.output.caption")} maxHeight="max-h-80">
-                <TableHead>
-                  <TableHeaderCell>{t("pipelines.workbench.output.record")}</TableHeaderCell>
-                  <TableHeaderCell>{t("pipelines.workbench.output.written")}</TableHeaderCell>
-                  <TableHeaderCell>{t("pipelines.workbench.output.problems")}</TableHeaderCell>
-                </TableHead>
-                <TableBody>
-                  {records.map((record, index) => {
-                    const verdict = verdictOf(index);
-                    return (
-                      <TableRow key={index}>
-                        <TableCell>
-                          <span className="tabular-nums">{index + 1}</span>
-                        </TableCell>
-                        <TableCell>
-                          <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all font-mono text-caption">
-                            {JSON.stringify(record, null, 2)}
-                          </pre>
-                        </TableCell>
-                        <TableCell>
-                          {verdict === undefined ? null : (
-                            <RecordVerdictCell verdict={verdict} />
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+              <div className="flex max-h-96 flex-col gap-2 overflow-y-auto" role="region" tabIndex={0} aria-label={t("pipelines.workbench.output.caption")}>
+                {records.map((record, index) => {
+                  const verdict = verdictOf(index);
+                  return (
+                    <RecordTable
+                      key={index}
+                      index={index}
+                      record={record}
+                      verdict={
+                        verdict
+                          ? {
+                              ok: verdict.ok,
+                              findings:
+                                verdict.findings ??
+                                verdict.problems.map((problem) => ({ source: "model", rule: problem.rule, field: problem.path, reason: problem.message })),
+                              ...(verdict.expires ? { expires: verdict.expires } : {}),
+                            }
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              </div>
             ) : null}
           </>
         )}
       </Step>
 
-      <Step number={6} id="workbench-validation" title={t("pipelines.workbench.validation.title")} hint={t("pipelines.workbench.validation.hint")}>
+      <Step number={6} id="workbench-lifetime" title={t("pipelines.workbench.lifetime.title")} hint={t("pipelines.workbench.lifetime.hint")}>
+        {targetSpace && writtenType ? (
+          <LifetimeChoice
+            project={project}
+            space={targetSpace}
+            type={writtenType}
+            timeSlots={target.attributes.filter((a) => a.format === "date-time").map((a) => a.name)}
+            attributes={grantedNames(target)}
+            entry={draft?.lifetime?.find((one) => one.type === writtenType)}
+            expiry={draft?.expiry}
+            sweep
+            onChange={(entry, expiry) => onChange({ ...(draft ?? {}), lifetime: withEntry(draft?.lifetime, writtenType, entry), expiry })}
+          />
+        ) : (
+          <p className="text-caption text-fg-subtle">{t("pipelines.workbench.lifetime.pickType")}</p>
+        )}
+      </Step>
+
+      <Step number={7} id="workbench-validation" title={t("pipelines.workbench.validation.title")} hint={t("pipelines.workbench.validation.hint")}>
         {!draft?.targetEndpoint ? (
           <p className="text-caption text-fg-subtle">{t("pipelines.workbench.mapping.pickTarget")}</p>
         ) : records.length === 0 ? (

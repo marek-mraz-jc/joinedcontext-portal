@@ -2351,7 +2351,16 @@
         "caption": "Abgebildete Datensätze",
         "record": "Datensatz",
         "written": "Wie geschrieben",
-        "problems": "Probleme"
+        "problems": "Probleme",
+        "recordN": "Datensatz {n}",
+        "problemCount": "{count, plural, one {# Problem} other {# Probleme}}",
+        "recordCaption": "Attribute von {id}, wie geschrieben",
+        "value": "Wert",
+        "check": "Prüfung",
+        "expires": "Läuft ab",
+        "passes": "bestanden",
+        "observedAt": "beobachtet {at}",
+        "entityLifetime": "Lebensdauer der Entität"
       },
       "validation": {
         "title": "Validierung",
@@ -2374,7 +2383,27 @@
         "hint": "Nennen Sie den Endpunkt, über den die Datensätze geschrieben werden; Speichern schlägt eine Änderung vor.",
         "lands": "Die Datensätze landen im Raum {space}, geprüft gegen das Modell {model}.",
         "landsUnmodelled": "Die Datensätze landen im Raum {space}, der noch kein Datenmodell nennt.",
-        "save": "Benennen Sie die Pipeline unten und schlagen Sie sie vor: nichts wird geschrieben, bevor die Änderung genehmigt ist."
+        "save": "Benennen Sie die Pipeline unten und schlagen Sie sie vor: nichts wird geschrieben, bevor die Änderung genehmigt ist.",
+        "card": "Was die Pipeline schreibt",
+        "space": "Raum",
+        "model": "Modell",
+        "type": "Schreibt Typ",
+        "noType": "Typ in Schritt 4 wählen",
+        "explain": "Was das Modell des Raums für {type} annimmt und was dieser Endpoint die Pipeline schreiben lässt. Ein Feld, das der Endpoint nicht gewährt, wird vor dem Vorschlag abgelehnt, nicht erst zur Laufzeit.",
+        "caption": "Attribute von {type}",
+        "field": "Feld",
+        "kind": "Art",
+        "value": "Wert",
+        "required": "Pflicht",
+        "writable": "Hier schreibbar",
+        "locked": "nicht schreibbar",
+        "judging": "wird geprüft…",
+        "lifetimeKind": "Lebensdauer der Entität",
+        "instant": "Zeitpunkt",
+        "inLifetime": "im Schritt Lebensdauer gesetzt",
+        "isRequired": "Pflicht",
+        "optional": "freiwillig",
+        "isWritable": "schreibbar"
       },
       "changes": {
         "title": "Was sich in {space} ändern würde",
@@ -2392,6 +2421,11 @@
           "update": "Geändert",
           "unchanged": "Unverändert"
         }
+      },
+      "lifetime": {
+        "title": "Lebensdauer",
+        "hint": "Wann die Entitäten oder einige ihrer Felder den Raum verlassen. Gespeichert als Lebensdauer der Pipeline, nie als Mapping-Code.",
+        "pickType": "Wählen Sie zuerst das Ziel und den Typ, den das Mapping schreibt: Die Lebensdauer gilt je Typ."
       }
     },
     "mapper": {
@@ -2439,28 +2473,9 @@
         "notTime": "{field} enthält {value}, das ist keine Zeit: RFC-3339-Text wie 2026-10-20T14:30:00Z oder Unix-Sekunden verwenden."
       },
       "expiry": {
-        "title": "Wann verschwinden Entitäten?",
-        "legend": "Entitäten dieses Typs werden entfernt",
-        "never": "Nie",
-        "neverHint": "Sie bleiben, bis jemand sie löscht oder eine Regel des Raums sie entfernt.",
-        "source": "Zu einer Zeit aus der Quelle",
-        "sourceHint": "Jede Entität erhält ein eigenes expiresAt: ein Zeitattribut plus eine Dauer, zum Beispiel observedOn plus 10 Minuten, oder der Schreibzeitpunkt des Datensatzes plus eine Dauer. Die Pipeline schreibt es nach Ihrem Mapping.",
-        "stale": "Wenn die Quelle sie nicht mehr sendet",
-        "staleHint": "Stündlich löscht die Pipeline Entitäten dieses Typs, die sie im Fenster nicht aktualisiert hat.",
-        "from": "Zeit aus",
-        "written": "Zeitpunkt des Schreibens",
-        "plus": "Zuzüglich",
-        "plusUnit": "Einheit der Dauer",
-        "after": "Nicht aktualisiert seit",
-        "afterUnit": "Einheit des Fensters",
-        "afterHint": "Entitäten von {type}, die so lange nicht aktualisiert wurden, werden stündlich gelöscht.",
-        "refusals": "Der Vorschlag wird abgelehnt, wenn die Pipeline mehr als eine Ausgabe hat, eine andere Pipeline in denselben Raum schreibt oder keine Policy dieser Pipeline deleteBatch und queryBatch für den Typ gewährt; die Ablehnung nennt die zu erweiternde Policy.",
-        "history": "Die Historie von {type} folgt den Regeln des Raums.",
-        "spaceRules": "Aufbewahrung in {space}",
-        "noTimeSlot": "Noch ist kein Datum-Zeit-Attribut von {type} zugeordnet, daher zählt das Ende ab dem Schreibzeitpunkt des Datensatzes.",
-        "inManifest": "Die Lebensdauer von {type} ist im Manifest der Pipeline festgelegt (ein festes Datum, eine Obergrenze oder ausgewählte Attribute). Ändern Sie sie in der YAML-Ansicht; dieser Editor lässt sie unverändert.",
-        "migrated": "Die Endzeit, die dieser Schritt bisher selbst schrieb, ist jetzt die Lebensdauer-Einstellung der Pipeline unten. Sie wird mit Ihrem nächsten Vorschlag gespeichert.",
-        "migrateField": "Dieser Schritt schreibt expiresAt aus dem Datensatzfeld {field}, und aus diesem Feld ist kein Datum-Zeit-Attribut zugeordnet. Ordnen Sie es einem Datum-Zeit-Attribut zu oder wählen Sie unten eine andere Zeit; bis dahin behält der Schritt seine eigenen expiresAt-Zeilen."
+        "migrated": "Die Endzeit, die dieser Schritt schrieb, ist jetzt die Lebensdauer der Pipeline im Schritt Lebensdauer. Sie wird mit Ihrem nächsten Vorschlag gespeichert.",
+        "migrateField": "Dieser Schritt schreibt expiresAt aus dem Datensatzfeld {field}, und kein Datum-Zeit-Attribut wird aus diesem Feld gemappt. Mappen Sie es auf ein solches Attribut, wählen Sie ein Ende im Schritt Lebensdauer oder verwerfen Sie die eigenen Zeilen des Schritts.",
+        "drop": "Eigenes expiresAt des Schritts verwerfen"
       }
     },
     "debug": {
@@ -2639,6 +2654,68 @@
       "rejectedUnavailable": "Die abgelehnten Datensätze konnten nicht gelesen werden.",
       "noRejected": "Das Modell hat keinen Datensatz dieser Pipeline abgelehnt.",
       "credentials": "Zugangsdaten"
+    },
+    "lifetime": {
+      "legend": "Was mit jedem {type} geschieht",
+      "keep": "Entitäten behalten",
+      "keepHint": "Sie bleiben, bis jemand sie löscht oder die Regel des Raums veraltete entfernt.",
+      "entity": "Ganze Entität läuft ab",
+      "entityHint": "Der {type} verschwindet zu einer Zeit, die Sie festlegen.",
+      "attributes": "Nur einige Felder laufen ab",
+      "attributesHint": "Der {type} bleibt; gewählte Felder verschwinden, wenn sie alt werden.",
+      "stale": "Löschen, wenn die Quelle sie nicht mehr sendet",
+      "staleHint": "Einmal pro Stunde löscht die Pipeline Entitäten dieses Typs, die sie eine Weile nicht aktualisiert hat. Abgelehnt, wenn die Pipeline mehr als eine Ausgabe hat oder keine Policy ihr deleteBatch auf den Typ gewährt.",
+      "kind": {
+        "legend": "Ende",
+        "from": "Ab einem Feld",
+        "fromHint": "Eine Zeit aus dem Datensatz plus eine Dauer.",
+        "rolling": "Nach jedem Schreiben",
+        "rollingHint": "Jedes Schreiben startet die Zeit neu.",
+        "at": "An einem festen Datum",
+        "atHint": "Ein Datum und eine Uhrzeit für alle."
+      },
+      "from": "Zeit ab",
+      "observedAt": "observedAt (das neueste ihrer Felder)",
+      "noTimeSlot": "Der Typ hat kein Datum-Zeit-Attribut: Das Ende zählt ab dem neuesten observedAt seiner Felder.",
+      "plus": "Zuzüglich",
+      "keepFor": "Behalten für",
+      "unitOf": "Einheit: {what}",
+      "cap": "Höchstens nach dem Schreiben",
+      "noCap": "keine Grenze",
+      "capOf": "{span}",
+      "at": "Datum und Uhrzeit",
+      "atHint": "In Ihrer Zeitzone; gespeichert in UTC.",
+      "attribute": "Feld",
+      "remove": "Entfernen",
+      "removeOf": "Ende von {name} entfernen",
+      "add": "Feld hinzufügen",
+      "noAttributes": "Dieser Endpoint lässt die Pipeline kein Feld von {type} schreiben, also kann kein Feld ablaufen.",
+      "allAdded": "Jedes Feld, das der Endpoint gewährt, hat schon ein Ende.",
+      "after": "Nicht aktualisiert seit",
+      "afterUnit": "Einheit des Fensters",
+      "afterHint": "Entitäten von {type}, die so lange nicht aktualisiert wurden, werden einmal pro Stunde gelöscht.",
+      "history": "Die Historie von {type} folgt den Regeln des Raums, was immer Sie hier wählen.",
+      "spaceRules": "Aufbewahrung in {space}",
+      "span": "{count} {unit}",
+      "noSpan": "keine Zeit",
+      "problem": {
+        "date": "Geben Sie Datum und Uhrzeit an.",
+        "past": "Das Datum liegt in der Vergangenheit: Alle Entitäten würden sofort entfernt. Wählen Sie ein späteres.",
+        "span": "Geben Sie an, wie lange sie bleiben: mindestens eine Minute."
+      },
+      "says": {
+        "keep": "Jeder {type} bleibt, bis jemand ihn löscht oder die Regel des Raums ihn entfernt.",
+        "entity": "Jeder {type} wird {end} entfernt.",
+        "renewed": "Ein neueres Schreiben verschiebt das Ende.",
+        "attribute": "Das Feld {name} jedes {type} verschwindet {end}.",
+        "from": "{span} nach seinem {from}",
+        "fromExact": "zu seinem {from}",
+        "observedAt": "letzten observedAt",
+        "cap": "und höchstens {span} nach dem Schreiben",
+        "rolling": "{span} nach seinem letzten Schreiben",
+        "at": "am {date}",
+        "stale": "Einmal pro Stunde löscht die Pipeline jeden {type}, den sie seit {span} nicht aktualisiert hat."
+      }
     },
     "access": {
       "section": "Zugriff auf andere Räume",
