@@ -99,3 +99,54 @@ describe("the Monaco source view", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("the Monaco source view while a person types (T-5066)", () => {
+  function fakeEditor(text: string) {
+    const editor = {
+      text,
+      edits: [] as string[],
+      getValue: () => editor.text,
+      setValue: (next: string) => {
+        editor.text = next;
+      },
+      getModel: () => ({ getFullModelRange: () => ({}) }),
+      executeEdits: (_: string, edits: { text: string }[]) => {
+        editor.text = edits[0].text;
+        editor.edits.push(edits[0].text);
+        return true;
+      },
+      pushUndoStop: () => true,
+      onDidDispose: () => undefined,
+    };
+    return editor;
+  }
+  const monaco = { languages: { registerHoverProvider: () => ({ dispose: () => undefined }) }, editor: { setModelMarkers: () => undefined }, MarkerSeverity: {} };
+
+  it("keeps what was typed when a render one keystroke behind arrives, and takes a change from elsewhere", () => {
+    stubTheme(false);
+    props.length = 0;
+    const view = (value: string) => (
+      <MonacoSourceView value={value} onChange={() => undefined} onMount={() => undefined} height="24rem" />
+    );
+    const { rerender } = render(view("a"));
+    const given = props.at(-1) as { value?: string; onMount: (e: unknown, m: unknown) => void; onChange: (v: string) => void };
+    // The editor owns its text: a controlled `value` let the library write the lagging one back.
+    expect(given.value).toBeUndefined();
+    const editor = fakeEditor("a");
+    act(() => given.onMount(editor, monaco));
+
+    editor.text = "ab";
+    act(() => given.onChange("ab"));
+    editor.text = "abc";
+    act(() => given.onChange("abc"));
+    rerender(view("ab"));
+    expect(editor.text).toBe("abc");
+    expect(editor.edits).toEqual([]);
+
+    rerender(view("abc"));
+    rerender(view("name: other"));
+    expect(editor.text).toBe("name: other");
+    expect(editor.edits).toEqual(["name: other"]);
+    vi.unstubAllGlobals();
+  });
+});

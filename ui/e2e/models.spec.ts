@@ -387,3 +387,40 @@ test.describe("a model's fields beside what its space holds (T-5066)", () => {
     });
   }
 });
+
+test.describe("removing a model from its page (T-5066)", () => {
+  for (const width of [1440, 400]) {
+    test(`proposes the removal with the name typed back at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await stubApi(page);
+      const deletes: string[] = [];
+      await page.route("**/api/v1/projects/helsinki/datamodels/helsinki?*", (route) => {
+        if (route.request().method() !== "DELETE") return route.fallback();
+        const url = new URL(route.request().url());
+        deletes.push(url.search);
+        const body = url.searchParams.has("dryRun")
+          ? { goesWith: [] }
+          : {
+              apiVersion: "joinedcontext.com/v1alpha1",
+              kind: "ChangeProposal",
+              metadata: { name: "chg-5066aaaa", namespace: "helsinki" },
+              status: { lane: "red", phase: "PendingApproval" },
+            };
+        return route.fulfill({ status: url.searchParams.has("dryRun") ? 200 : 202, contentType: "application/json", body: JSON.stringify(body) });
+      });
+      await page.goto("/projects/helsinki/models/helsinki?lang=en");
+      await page.getByRole("button", { name: /^Remove / }).click();
+      const dialog = page.getByRole("dialog");
+      const propose = dialog.getByRole("button", { name: "Propose removal" });
+      await expect(propose).toHaveAttribute("aria-disabled", "true");
+      await shot(page, `model-remove-empty-${width}`);
+      await dialog.getByLabel("Type helsinki to confirm").fill("helsink");
+      await shot(page, `model-remove-mismatch-${width}`);
+      await dialog.getByLabel("Type helsinki to confirm").fill("helsinki");
+      await propose.click();
+      await expect(dialog.getByText("chg-5066aaaa")).toBeVisible();
+      await shot(page, `model-remove-proposed-${width}`);
+      expect(deletes).toEqual(["?dryRun=All", "?confirm=helsinki"]);
+    });
+  }
+});

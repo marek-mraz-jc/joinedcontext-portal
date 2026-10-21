@@ -36,7 +36,7 @@ const may = (verbs: string[]) => ({
   grants: [{ rule: { kinds: ["ContextSourceRegistration"], verbs } }],
 });
 
-function renderList(options: { verbs: string[]; answer?: "change" | "referenced" }) {
+function renderList(options: { verbs: string[]; answer?: "change" | "referenced" | "open" }) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const request = input as Request;
     const path = new URL(request.url).pathname;
@@ -47,6 +47,21 @@ function renderList(options: { verbs: string[]; answer?: "change" | "referenced"
     }
     if (path.endsWith("/permissions/me")) {
       return json(may(options.verbs));
+    }
+    if (request.method === "DELETE" && options.answer === "open") {
+      // Nothing references it, but a removal proposed earlier still waits for its decision.
+      return new URL(request.url).searchParams.has("dryRun")
+        ? json({ goesWith: [] })
+        : json(
+            {
+              type: "https://joinedcontext.com/errors/conflict",
+              title: "Conflict",
+              status: 409,
+              detail: "a change for Endpoint 'live-traffic' is already open: chg-000000d0; approve or reject it first",
+            },
+            409,
+            "application/problem+json",
+          );
     }
     if (request.method === "DELETE") {
       return options.answer === "referenced"
@@ -157,6 +172,18 @@ async function rowMenuItem(name: string | RegExp) {
     const alert = await within(dialog).findByRole("alert");
     expect(alert).toHaveTextContent(en.resourceDelete.referenced);
     expect(alert).toHaveTextContent("Endpoint live-traffic");
+  });
+
+  it("says a removal is already open without calling the resource still in use (T-5066)", async () => {
+    renderList({ verbs: ["delete"], answer: "open" });
+    await userEvent.click(await rowMenuItem(new RegExp(en.resourceDelete.button)));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.type(within(dialog).getByLabelText(`Type ${NAME} to confirm`), NAME);
+    await userEvent.click(within(dialog).getByRole("button", { name: en.resourceDelete.propose }));
+
+    const alert = await within(dialog).findByRole("alert");
+    expect(alert).toHaveTextContent("already open: chg-000000d0; approve or reject it first");
+    expect(alert).not.toHaveTextContent(en.resourceDelete.referenced);
   });
 
   it("opens the confirmation at once for a page opened to remove one resource", async () => {

@@ -80,6 +80,32 @@ export default function MonacoSourceView({
   const monacoRef = useRef<Monaco | null>(null);
   const describeRef = useRef(describeField);
 
+  // The editor owns its text. A `value` that only echoes what it emitted, even one keystroke
+  // behind, is not written back: the controlled prop replaced the whole text with the lagging
+  // render's and dropped what was typed meanwhile (live: "# edited" saved as "#ted", T-5066).
+  // Anything else, a change from another view, replaces the text.
+  const emitted = useRef(new Set<string>());
+  const latest = useRef(value);
+  useEffect(() => {
+    latest.current = value;
+    const mounted = editorRef.current;
+    if (!mounted) return;
+    const current = mounted.getValue();
+    if (value === current) {
+      emitted.current.clear();
+    } else if (!emitted.current.has(value)) {
+      const model = mounted.getModel();
+      if (readOnly) {
+        // A read-only editor refuses edits; its text is only ever set from outside.
+        mounted.setValue(value);
+      } else if (model) {
+        mounted.executeEdits("", [{ range: model.getFullModelRange(), text: value, forceMoveMarkers: true }]);
+        mounted.pushUndoStop();
+      }
+      emitted.current.clear();
+    }
+  }, [value, readOnly]);
+
   useEffect(() => {
     describeRef.current = describeField;
     const model = editorRef.current?.getModel();
@@ -93,11 +119,16 @@ export default function MonacoSourceView({
       height={height}
       language="yaml"
       theme={dark ? "vs-dark" : "vs"}
-      value={value}
-      onChange={(next) => onChange(next ?? "")}
+      defaultValue={value}
+      onChange={(next) => {
+        emitted.current.add(next ?? "");
+        onChange(next ?? "");
+      }}
       onMount={(mounted, monaco) => {
         editorRef.current = mounted;
         monacoRef.current = monaco;
+        // A value that changed while Monaco loaded reached no editor yet.
+        if (mounted.getValue() !== latest.current) mounted.setValue(latest.current);
         const hover = monaco.languages.registerHoverProvider("yaml", {
           provideHover: (model: MonacoEditor.ITextModel, position: Position) => {
             if (model !== mounted.getModel()) {
