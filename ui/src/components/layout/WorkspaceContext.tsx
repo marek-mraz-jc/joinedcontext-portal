@@ -11,6 +11,11 @@ export function activeWorkspace(): string | null {
   return _active;
 }
 
+/** The search of a link that leaves the copy (Leave, another project): `keepCopy` keeps it otherwise. */
+export function withoutCopy<T extends Record<string, unknown>>(search: T): Omit<T, "workspace"> & { workspace: undefined } {
+  return { ...search, workspace: undefined };
+}
+
 export function setActiveWorkspace(name: string | null): void {
   _active = name;
 }
@@ -94,7 +99,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }): React.
   const leave = useCallback(() => {
     void navigate({
       to: ".",
-      search: ({ workspace: _left, ...rest }) => rest,
+      search: (prev) => withoutCopy(prev),
     });
   }, [navigate]);
 
