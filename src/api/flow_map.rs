@@ -24,7 +24,7 @@ pub struct FlowMapQuery {
     get,
     path = "/api/v1/projects/{project}/flow-map",
     summary = "Read Data Flow Map",
-    description = "Every MQTT broker, DataSource, Pipeline, Endpoint and Context Space of the project the caller may read, with the edges between them: which source feeds which pipeline, which Endpoint it reads and writes, the Policy that grants the pipelines account each read and write (or `missing` with the fix), each pipeline's phase and latest run. Another project's Endpoint a pipeline reads is named only, unless the caller reads that project.",
+    description = "Every MQTT broker, DataSource, Pipeline, Endpoint and Context Space of the project the caller may read, with the edges between them: which source feeds which pipeline, which Endpoint it reads and writes, the Policy that grants the pipelines account each read and write (named only to a caller who reads Policy in that space; or `missing` with the fix), each pipeline's phase and latest run. Another project's Endpoint a pipeline reads is named only, unless the caller reads that project.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -53,8 +53,16 @@ pub async fn get_flow_map(
             "'{space}' is not a space name"
         )));
     }
-    let runs = last_runs(&state, &project).await;
-    Ok(Json(map_for(&state, &user, &effective, &runs, space)))
+    let mut map = map_for(&state, &user, &effective, space);
+    let pipelines = map.pipelines();
+    let runs = last_runs(&pipelines, |name| {
+        let state = state.clone();
+        let project = project.clone();
+        async move { state.pipeline_log.runs(&project, &name, 1).await }
+    })
+    .await;
+    map.attach_runs(runs);
+    Ok(Json(map))
 }
 
 /// The map as this caller reads it: their grants in the project, and per other project whether
@@ -63,7 +71,6 @@ fn map_for(
     state: &AppState,
     user: &CurrentUser,
     effective: &crate::permissions::Effective,
-    runs: &BTreeMap<String, FlowRun>,
     space: Option<&str>,
 ) -> FlowMap {
     let may = |kind: &str, space: Option<&str>| effective.may_in(kind, Verb::Read, space);
@@ -74,29 +81,30 @@ fn map_for(
         may: &may,
         may_project: &may_project,
     };
-    crate::flow_map::build(&state.mirror, &effective.project, &reader, runs, space)
+    crate::flow_map::build(&state.mirror, &effective.project, &reader, space)
 }
 
-/// The latest run of each pipeline of the project; a log that cannot be read leaves the map
-/// without runs rather than without a map.
-async fn last_runs(state: &AppState, project: &str) -> BTreeMap<String, FlowRun> {
+/// The latest run of each named pipeline, read at once; a log that cannot be read for one
+/// leaves that pipeline without a last run.
+async fn last_runs<F, Fut, E>(pipelines: &[String], read: F) -> BTreeMap<String, FlowRun>
+where
+    F: Fn(String) -> Fut,
+    Fut: std::future::Future<Output = Result<Vec<crate::pipeline_log::Run>, E>>,
+    E: std::fmt::Display,
+{
+    let reads = pipelines.iter().map(|name| {
+        let read = read(name.clone());
+        async move { (name, read.await) }
+    });
     let mut runs = BTreeMap::new();
-    let pipelines = state
-        .mirror
-        .list(project, "Pipeline", &Default::default())
-        .items;
-    for pipeline in pipelines {
-        let name = pipeline.metadata.name;
-        match state.pipeline_log.runs(project, &name, 1).await {
+    for (name, read) in futures_util::future::join_all(reads).await {
+        match read {
             Ok(latest) => {
                 if let Some(run) = latest.first() {
-                    runs.insert(name, FlowRun::of(run));
+                    runs.insert(name.clone(), FlowRun::of(run));
                 }
             }
-            Err(error) => {
-                tracing::warn!(%project, pipeline = %name, %error, "the flow map read no runs");
-                break;
-            }
+            Err(error) => tracing::warn!(pipeline = %name, %error, "the flow map read no runs"),
         }
     }
     runs
@@ -104,4 +112,39 @@ async fn last_runs(state: &AppState, project: &str) -> BTreeMap<String, FlowRun>
 
 pub fn router() -> Router<AppState> {
     Router::new().route("/projects/{project}/flow-map", get(get_flow_map))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::pipeline_log::Run;
+
+    fn run(sent: u64) -> Run {
+        Run {
+            run: "r1".to_owned(),
+            first_at: "2026-10-21T04:00:00Z".to_owned(),
+            last_at: "2026-10-21T04:10:00Z".to_owned(),
+            sent,
+            rejected: 0,
+            failed: 0,
+            created: None,
+            updated: None,
+            unchanged: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn one_failed_log_read_leaves_only_that_pipeline_without_a_run() {
+        let names = ["broken", "fine", "idle"].map(str::to_owned);
+        let runs = last_runs(&names, |name| async move {
+            match name.as_str() {
+                "broken" => Err("the log is down"),
+                "fine" => Ok(vec![run(7)]),
+                _ => Ok(Vec::new()),
+            }
+        })
+        .await;
+        assert_eq!(runs.keys().collect::<Vec<_>>(), vec!["fine"]);
+        assert_eq!(runs["fine"].sent, 7);
+    }
 }

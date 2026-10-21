@@ -166,7 +166,7 @@ pub struct FlowGrant {
     pub endpoint: String,
     /// The operation the edge needs, as a Policy names it.
     pub operation: String,
-    /// The Policy that grants it.
+    /// The Policy that grants it, named only to a caller who may read Policy in its space.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy: Option<String>,
     /// What to change when it is missing.
@@ -193,6 +193,26 @@ pub struct FlowMap {
     pub edges: Vec<FlowEdge>,
 }
 
+impl FlowMap {
+    /// The names of the map's own pipelines: the ones whose runs the caller may see.
+    pub fn pipelines(&self) -> Vec<String> {
+        self.nodes
+            .iter()
+            .filter(|n| n.kind == FlowKind::Pipeline && n.project == self.project)
+            .map(|n| n.name.clone())
+            .collect()
+    }
+
+    /// Sets each own pipeline's latest run from `runs`, keyed by pipeline name.
+    pub fn attach_runs(&mut self, mut runs: BTreeMap<String, FlowRun>) {
+        for node in &mut self.nodes {
+            if node.kind == FlowKind::Pipeline && node.project == self.project {
+                node.last_run = runs.remove(&node.name);
+            }
+        }
+    }
+}
+
 /// Whether the caller may read `kind` in `space` of the map's project (`None`: a kind that
 /// lives outside a space), and whether they may read anything of another project.
 pub struct Reader<'a> {
@@ -201,17 +221,11 @@ pub struct Reader<'a> {
 }
 
 /// The map of `project` as `reader` may see it, only the paths touching `space` when one is
-/// given. `runs` holds the latest run per pipeline name.
-pub fn build(
-    mirror: &Mirror,
-    project: &str,
-    reader: &Reader<'_>,
-    runs: &BTreeMap<String, FlowRun>,
-    space: Option<&str>,
-) -> FlowMap {
+/// given. Runs come after, for the pipelines on the map: [`FlowMap::pipelines`], [`FlowMap::attach_runs`].
+pub fn build(mirror: &Mirror, project: &str, reader: &Reader<'_>, space: Option<&str>) -> FlowMap {
     let mut map = Builder::new(mirror, project, reader);
     for pipeline in map.list("Pipeline") {
-        map.pipeline(&pipeline, runs.get(&pipeline.metadata.name), space);
+        map.pipeline(&pipeline, space);
     }
     match space {
         Some(space) => {
@@ -324,11 +338,13 @@ fn wire(operation: Operation) -> String {
 }
 
 /// The grant of an edge through `endpoint` into `space` of the map's own project.
+/// The Policy is named only to a caller who may read Policy in `space` (`show_policy`).
 fn grant(
     policies: &[(String, PolicySpec)],
     endpoint: &str,
     space: &str,
     wanted: &[Operation],
+    show_policy: bool,
 ) -> FlowGrant {
     let operation = wire(wanted[0]);
     match policy_for(policies, space, wanted) {
@@ -336,7 +352,7 @@ fn grant(
             state: FlowGrantState::Granted,
             endpoint: endpoint.to_owned(),
             operation,
-            policy: Some(policy.to_owned()),
+            policy: show_policy.then(|| policy.to_owned()),
             fix: None,
         },
         None => FlowGrant {
@@ -518,12 +534,7 @@ impl<'a> Builder<'a> {
         (read, written)
     }
 
-    fn pipeline(
-        &mut self,
-        envelope: &crate::resource::ResourceEnvelope,
-        run: Option<&FlowRun>,
-        only: Option<&str>,
-    ) {
+    fn pipeline(&mut self, envelope: &crate::resource::ResourceEnvelope, only: Option<&str>) {
         let Ok(spec) = serde_json::from_value::<PipelineSpec>(envelope.spec.clone()) else {
             return;
         };
@@ -545,7 +556,6 @@ impl<'a> Builder<'a> {
             .status
             .as_ref()
             .map(|s| crate::resource::phase_str(s.phase).to_owned());
-        node.last_run = run.cloned();
         let key = node.id.clone();
         self.nodes.insert(key.clone(), node);
         self.inputs(&spec, &key);
@@ -583,7 +593,8 @@ impl<'a> Builder<'a> {
         let Some((from, space)) = self.endpoint(endpoint) else {
             return;
         };
-        let grant = grant(&self.policies, endpoint, &space, READ);
+        let show = (self.reader.may)("Policy", Some(&space));
+        let grant = grant(&self.policies, endpoint, &space, READ, show);
         self.edge(&from, pipeline, FlowRelation::Reads, Some(grant));
         if let Some(space_id) = self.space(self.project, &space) {
             self.edge(&space_id, &from, FlowRelation::Exposes, None);
@@ -596,7 +607,8 @@ impl<'a> Builder<'a> {
             let Some((to, space)) = self.endpoint(endpoint) else {
                 continue;
             };
-            let grant = grant(&self.policies, endpoint, &space, WRITE);
+            let show = (self.reader.may)("Policy", Some(&space));
+            let grant = grant(&self.policies, endpoint, &space, WRITE, show);
             self.edge(pipeline, &to, FlowRelation::Writes, Some(grant));
             if let Some(space_id) = self.space(self.project, &space) {
                 self.edge(&to, &space_id, FlowRelation::Stores, None);
@@ -763,13 +775,9 @@ mod tests {
                 per_minute: Some(20.0),
             },
         )]);
-        build(
-            &helsinki(),
-            "helsinki",
-            &Reader { may, may_project },
-            &runs,
-            space,
-        )
+        let mut map = build(&helsinki(), "helsinki", &Reader { may, may_project }, space);
+        map.attach_runs(runs);
+        map
     }
 
     fn node<'m>(map: &'m FlowMap, id: &str) -> &'m FlowNode {
@@ -920,6 +928,33 @@ mod tests {
             .edges
             .iter()
             .all(|e| ids.contains(e.from.as_str()) && ids.contains(e.to.as_str())));
+    }
+
+    #[test]
+    fn the_policy_is_named_only_to_a_caller_who_reads_policy() {
+        let no_policy = |kind: &str, _: Option<&str>| kind != "Policy";
+        let map = map_as(&no_policy, &|_| true, None);
+        let write = edge(
+            &map,
+            "helsinki/Pipeline/hfp-ingest",
+            "helsinki/Endpoint/ep-vehicles",
+        );
+        let grant = write.grant.as_ref().expect("a write carries its grant");
+        assert_eq!(grant.state, FlowGrantState::Granted);
+        assert_eq!(grant.policy, None);
+        assert!(map
+            .edges
+            .iter()
+            .filter_map(|e| e.grant.as_ref())
+            .all(|g| g.policy.is_none()));
+    }
+
+    #[test]
+    fn runs_are_asked_and_attached_only_for_pipelines_on_the_map() {
+        let stops = |_: &str, space: Option<&str>| space == Some("stops");
+        let map = map_as(&stops, &|_| false, None);
+        assert_eq!(map.pipelines(), vec!["stop-delays".to_owned()]);
+        assert!(map.nodes.iter().all(|n| n.last_run.is_none()));
     }
 
     #[test]

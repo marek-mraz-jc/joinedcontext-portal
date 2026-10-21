@@ -2070,7 +2070,7 @@ export interface paths {
         };
         /**
          * Read Data Flow Map
-         * @description Every MQTT broker, DataSource, Pipeline, Endpoint and Context Space of the project the caller may read, with the edges between them: which source feeds which pipeline, which Endpoint it reads and writes, the Policy that grants the pipelines account each read and write (or `missing` with the fix), each pipeline's phase and latest run. Another project's Endpoint a pipeline reads is named only, unless the caller reads that project.
+         * @description Every MQTT broker, DataSource, Pipeline, Endpoint and Context Space of the project the caller may read, with the edges between them: which source feeds which pipeline, which Endpoint it reads and writes, the Policy that grants the pipelines account each read and write (named only to a caller who reads Policy in that space; or `missing` with the fix), each pipeline's phase and latest run. Another project's Endpoint a pipeline reads is named only, unless the caller reads that project.
          */
         get: operations["get_flow_map"];
         put?: never;
@@ -5217,7 +5217,7 @@ export interface components {
             fix?: string | null;
             /** @description The operation the edge needs, as a Policy names it. */
             operation: string;
-            /** @description The Policy that grants it. */
+            /** @description The Policy that grants it, named only to a caller who may read Policy in its space. */
             policy?: string | null;
             state: components["schemas"]["FlowGrantState"];
         };
