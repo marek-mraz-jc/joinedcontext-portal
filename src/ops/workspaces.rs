@@ -1413,7 +1413,7 @@ pub async fn propose(
                 file.kind.as_str(),
                 "Role" | "RoleBinding" | "ServiceAccount"
             ) {
-                crate::permissions::within_own_rights(state, identity, doc, "proposer")?;
+                crate::permissions::within_own_rights(state, identity, doc, None, "proposer")?;
             }
             recheck(identity, state, project, &file.path, doc, file.operation).await?;
         }

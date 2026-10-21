@@ -369,10 +369,8 @@ async fn an_administrators_revoke_proposes_the_account_without_the_grant() {
         AppState::new(config.clone(), None).with_gitea(Arc::new(client)),
         two_grants(),
     );
-    // The propose door still checks the grants left behind against the proposer (PF-52).
-    state
-        .mirror
-        .upsert(bound("ana-pipelines", "pipeline-admin", "ana@hel.fi"));
+    // Ana holds no pipeline-admin: a revoke is measured against the account it replaces, not
+    // the grants it leaves behind (PF-52, T-5016).
     let (status, body) = call(
         server::app(state),
         &config,
@@ -404,4 +402,79 @@ async fn an_administrators_revoke_proposes_the_account_without_the_grant() {
         yaml.contains("ovzdusie") && !yaml.contains("doprava"),
         "{yaml}"
     );
+}
+
+const ACCOUNT: &str = "/api/v1/projects/ovzdusie/serviceaccounts/vendor-ci";
+
+fn account_with(roles: Value) -> Value {
+    json!({
+        "apiVersion": API_VERSION,
+        "kind": "ServiceAccount",
+        "metadata": { "name": "vendor-ci", "namespace": "ovzdusie" },
+        "spec": {
+            "owner": { "user": "jana@hel.fi" },
+            "purpose": "proposes pipelines from the vendor's CI",
+            "roles": roles,
+            "credentials": [{ "kind": "oauth-client", "name": "main" }]
+        }
+    })
+}
+
+/// The resource door (REST, MCP and the assistant propose through it): an update that only drops
+/// grants passes PF-52 for an account administrator, one that adds or widens a grant while it
+/// drops another is still measured whole, and a person who may not propose the kind is refused
+/// before any grant is read (T-5016).
+#[tokio::test]
+async fn an_update_is_measured_against_the_account_it_replaces() {
+    let config = Config::for_tests();
+    let ana = person("ana@hel.fi", &[]);
+    let kept = json!([{ "role": "pipeline-admin", "scope": { "project": "ovzdusie" } }]);
+    let (status, body) = call(
+        app(&config, two_grants()),
+        &config,
+        Some(ana.clone()),
+        "PUT",
+        ACCOUNT,
+        Some(account_with(kept.clone())),
+    )
+    .await;
+    assert!(
+        status != StatusCode::FORBIDDEN && !body.contains("PF-52"),
+        "{status} {body}"
+    );
+
+    // The expired doprava grant comes back without its window while ovzdusie goes.
+    let widened = json!([{ "role": "pipeline-admin", "scope": { "project": "doprava" } }]);
+    // Both grants stay and a third one comes.
+    let added = json!([
+        { "role": "pipeline-admin", "scope": { "project": "ovzdusie" } },
+        { "role": "pipeline-admin", "scope": { "project": "doprava" },
+          "validity": { "notAfter": "2020-01-01T00:00:00Z" } },
+        { "role": "pipeline-admin", "scope": { "project": "zdravie" } }
+    ]);
+    for roles in [widened, added] {
+        let (status, body) = call(
+            app(&config, two_grants()),
+            &config,
+            Some(ana.clone()),
+            "PUT",
+            ACCOUNT,
+            Some(account_with(roles)),
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+        assert!(body.contains("PF-52"), "{body}");
+    }
+
+    let (status, body) = call(
+        app(&config, two_grants()),
+        &config,
+        Some(person("eva@hel.fi", &[])),
+        "PUT",
+        ACCOUNT,
+        Some(account_with(kept)),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert!(!body.contains("PF-52"), "{body}");
 }

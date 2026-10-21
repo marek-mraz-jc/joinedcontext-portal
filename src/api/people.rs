@@ -464,8 +464,14 @@ async fn holds_what_they_hold(
     for (binding, _) in bindings_reaching(state, &email, &groups) {
         let manifest =
             serde_json::to_value(&binding).map_err(|e| ApiError::Internal(e.to_string()))?;
-        crate::permissions::within_own_rights(state, identity, &manifest, "people administrator")
-            .map_err(|err| match err {
+        crate::permissions::within_own_rights(
+            state,
+            identity,
+            &manifest,
+            None,
+            "people administrator",
+        )
+        .map_err(|err| match err {
             ApiError::Denied(reason) => ApiError::Denied(format!(
                 "{email} holds a right you do not, through the binding '{}': {reason} (PF-93)",
                 binding.metadata.name
