@@ -23,7 +23,7 @@ use crate::resource::is_dns1123;
 use crate::state::AppState;
 
 /// The bytes of one record the answer keeps; a larger message is cut, and shows as text.
-const RECORD_BYTES: usize = 64 * 1024;
+pub(crate) const RECORD_BYTES: usize = 64 * 1024;
 
 /// The runner configuration that reads `source` once and posts each record to `capture`.
 ///
@@ -36,7 +36,62 @@ pub(crate) fn connection_test(
     source: &DataSourceSpec,
     capture: &str,
 ) -> Result<Value, ApiError> {
-    let context = InputContext::new(name, project, "connection-test");
+    // The envelope the capture route reads: the record as text, or the read's error, worded as
+    // the probe words a failed fetch.
+    let envelope = format!(
+        concat!(
+            "root = {{}}\n",
+            "root.input = if errored() {{ \"\" }} else {{ content().string().slice(0, {}) }}\n",
+            "root.error = if errored() {{ \"{}\" + error() }} else {{ null }}"
+        ),
+        RECORD_BYTES, FETCH_FAILED
+    );
+    reading(name, project, "connection-test", source, capture, envelope)
+}
+
+/// The client name of a workbench sample's read, before the test's own id: a Pipeline name is
+/// DNS-1123, so no live pipeline of the source shares the MQTT client id the read connects with,
+/// and the id keeps two reads apart, since a broker drops one of two sessions of one client id.
+const SAMPLE_READER: &str = "workbench_sample";
+
+/// The runner configuration that reads a streaming `source` for the workbench's sample step
+/// (T-4841): the source's input as a live pipeline reads it, beside the live pipelines, each
+/// message posted whole as the sample's record (JSON parsed, anything else as text), and a
+/// message past [`RECORD_BYTES`] posted as an error with its size instead of its bytes.
+pub fn stream_sample(
+    name: &str,
+    project: &str,
+    source: &DataSourceSpec,
+    capture: &str,
+) -> Result<Value, ApiError> {
+    let envelope = format!(
+        concat!(
+            "let size = if errored() {{ 0 }} else {{ content().length() }}\n",
+            "let kept = !errored() && $size <= {max}\n",
+            "root = {{}}\n",
+            "root.input = if $kept {{ content().string() }} else {{ \"\" }}\n",
+            "root.output = if $kept {{ content().string().parse_json().catch(content().string()) }} else {{ deleted() }}\n",
+            "root.error = if errored() {{ \"{fetch}\" + error() }} else if !$kept {{ \"a message of %d bytes is over the {max} bytes a sample keeps of one message\".format($size) }} else {{ null }}"
+        ),
+        max = RECORD_BYTES,
+        fetch = FETCH_FAILED
+    );
+    let run = capture.rsplit('/').next().unwrap_or_default();
+    let reader = format!("{SAMPLE_READER}_{run}");
+    reading(name, project, &reader, source, capture, envelope)
+}
+
+/// `source`'s input read beside the live pipelines as `reader`, each record posted to `capture`
+/// in the shape `envelope` maps it to.
+fn reading(
+    name: &str,
+    project: &str,
+    reader: &str,
+    source: &DataSourceSpec,
+    capture: &str,
+    envelope: String,
+) -> Result<Value, ApiError> {
+    let context = InputContext::new(name, project, reader);
     let input = serde_json::to_value(input_of(source, &context))
         .map_err(|e| ApiError::Internal(e.to_string()))?;
     // The allow-list a pipeline step is held to (PL-07), over every address the input names.
@@ -62,13 +117,7 @@ pub(crate) fn connection_test(
         processors
             .push(serde_json::to_value(processor).map_err(|e| ApiError::Internal(e.to_string()))?);
     }
-    // The envelope the capture route reads: the record as text, or the read's error, worded as
-    // the probe words a failed fetch.
-    processors.push(json!({ "mapping": format!(concat!(
-        "root = {{}}\n",
-        "root.input = if errored() {{ \"\" }} else {{ content().string().slice(0, {}) }}\n",
-        "root.error = if errored() {{ \"{}\" + error() }} else {{ null }}"
-    ), RECORD_BYTES, FETCH_FAILED) }));
+    processors.push(json!({ "mapping": envelope }));
     processors.push(json!({ "catch": [] }));
 
     // The output, with the runner's own credential for the capture route, is the harness's.

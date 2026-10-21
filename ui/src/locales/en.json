@@ -2275,7 +2275,13 @@
         "countFirst": "The first {count, plural, one {# record} other {# records}} with {fields, plural, one {# field} other {# fields}}; the source has more",
         "caption": "Sample records",
         "notJson": "The source answered a web page, not data. Check the address of its data source.",
-        "details": "Engine message"
+        "details": "Engine message",
+        "listening": "Listening to {source} for messages: {elapsed} of {seconds} s, up to {max} messages",
+        "listenAgain": "Listen again",
+        "streamCount": "{count} of {max} messages arrived within {seconds} s, with {fields, plural, one {# field} other {# fields}}",
+        "streamSkipped": "{count, plural, one {# message was not kept} other {# messages were not kept}}",
+        "streamEmptyTitle": "No message arrived within {seconds} s",
+        "streamEmpty": "The topic may be quiet right now, or the broker refused the data source's connection or credentials. Listen again, or check the data source's address, topic and credential."
       },
       "mapping": {
         "title": "Mapping",
