@@ -32,6 +32,8 @@ export interface ComboboxProps {
   required?: boolean;
   invalid?: boolean;
   describedBy?: string;
+  /** What a wrapping `Field` hands its control: its help and error ids, read with `describedBy`. */
+  "aria-describedby"?: string;
   placeholder?: string;
   loading?: boolean;
   /** Why the list could not be read, with a retry; a failed list is not an empty one (T-1486). */
@@ -68,6 +70,7 @@ export function Combobox({
   required = false,
   invalid = false,
   describedBy,
+  "aria-describedby": fieldDescribedBy,
   placeholder,
   loading = false,
   failed,
@@ -238,7 +241,7 @@ export function Combobox({
           aria-controls={listId}
           aria-autocomplete="list"
           aria-activedescendant={open && count > 0 ? optionId(active) : undefined}
-          aria-describedby={describedBy}
+          aria-describedby={[describedBy, fieldDescribedBy].filter(Boolean).join(" ") || undefined}
           aria-invalid={invalid ? "true" : undefined}
           aria-required={required || undefined}
           disabled={disabled}

@@ -4007,7 +4007,9 @@
       "secretKeyHelp": "Položka toho secretu, ktorá obsahuje token. Nechajte apiToken, ak operátor neurčí inak.",
       "secretKeyInvalid": "Kľúč tvoria písmená, číslice, bodky, pomlčky a podčiarkovníky.",
       "secretInvalid": "Názov secretu tvoria malé písmená, číslice, pomlčky a bodky, napríklad ckan-api-token.",
-      "secretIsToken": "Toto vyzerá ako samotný API token. Nevkladajte ho sem: požiadajte operátora, aby ho uložil do úložiska secretov, a napíšte názov toho secretu."
+      "secretIsToken": "Toto vyzerá ako samotný API token. Nevkladajte ho sem: požiadajte operátora, aby ho uložil do úložiska secretov, a napíšte názov toho secretu.",
+      "organizationsKnown": "Organizácie v katalógu",
+      "organizationNone": "Katalóg Portálu nemá zodpovedajúcu organizáciu: napíšte jej krátky názov a vyberte „Nové“."
     },
     "publications": {
       "title": "Publikované endpointy",
@@ -6915,7 +6917,7 @@
       "contactEmail": "E-mail kontaktu",
       "contactHelp": "Rolová adresa ako oddelenie otvorených dát, nikdy osobný e-mail.",
       "keywords": "Kľúčové slová",
-      "keywordsHelp": "Oddelené čiarkami, v jazyku {language}.",
+      "keywordsHelp": "Vyberte kľúčové slová katalógu alebo napíšte nové; v jazyku {language}.",
       "spatialHelp": "Kódy NUTS alebo odkazy na miesta oddelené čiarkami, napríklad SK032.",
       "start": "Obsahuje dáta od",
       "end": "Obsahuje dáta do",
@@ -6930,7 +6932,9 @@
         "contactBoth": "Uveďte meno aj e-mail kontaktu, alebo ani jedno.",
         "email": "Zadajte e-mailovú adresu, napríklad opendata@example.org.",
         "period": "Koniec obdobia nemôže byť pred jeho začiatkom. Vyberte dátum konca po začiatku."
-      }
+      },
+      "inCatalogue": "Už v katalógu",
+      "typeNew": "V katalógu nič nezodpovedá: napíšte nový a vyberte „Nové“."
     },
     "licence": {
       "CC_BY_4_0": "Creative Commons Attribution 4.0",
@@ -7463,7 +7467,7 @@
       "description": "Čo server obsahuje, v jednej či dvoch vetách; AI klient to číta ako svoje pokyny.",
       "members": "Ponúkajú sa len endpointy, ktoré smiete čítať. Každé volanie člena je vlastné volanie toho endpointu, o ktorom rozhoduje jeho vlastná politika.",
       "audience": "Nie širšie ako najužší člen. Verejný server potrebuje všetkých členov verejných a schvaľovateľa, ktorý smie publikovať.",
-      "allowedProjects": "Názvy projektov oddelené čiarkami; prázdne pripúšťa len tento projekt.",
+      "allowedProjects": "Vyberte projekty, ktorých členovia sa môžu pripojiť; ponúkajú sa len projekty, ktoré smiete čítať. Prázdne pripúšťa len tento projekt.",
       "knowledgeSources": "Server ponúkne nástroj search_documents nad verejnými stránkami a dokumentmi tu vybraných zdrojov; bez nich taký nástroj neponúka."
     },
     "form": {
@@ -7479,7 +7483,9 @@
       "sourcesUnreadable": "Zdroje znalostí projektu sa nepodarilo načítať; už pripojené zostávajú, ako sú.",
       "noPublicSources": "Projekt nemá žiadny verejný zdroj znalostí na pripojenie.",
       "sourcesFull": "Najviac {max} zdrojov.",
-      "keptSources": "Ponechané, ako sú: {sources}."
+      "keptSources": "Ponechané, ako sú: {sources}.",
+      "yourProjects": "Projekty, ktoré smiete čítať",
+      "noProjects": "Nezodpovedá žiadny projekt, ktorý smiete čítať. Správca organizácie vás pridá do projektu v Prístup → Skupiny."
     },
     "problem": {
       "name": "Použite malé písmená, číslice a pomlčky, najviac 63 znakov.",
@@ -8325,10 +8331,10 @@
     },
     "help": {
       "name": "Malé písmená, číslice a pomlčky; posledná časť adresy.",
-      "projects": "Názvy projektov oddelené čiarkou.",
-      "spaces": "projekt/priestor, oddelené čiarkou.",
-      "domains": "Domény Smart Data Models: Environment, Transportation, …",
-      "themes": "Dátové témy EÚ, napríklad ENVI alebo TRAN.",
+      "projects": "Vyberte z projektov, ktoré smiete čítať, napr. mesto.",
+      "spaces": "Vyberte z kontextových priestorov, ktoré smiete čítať, zúžené na projekty vybrané vyššie.",
+      "domains": "Domény Smart Data Models z klasifikácie Endpointov.",
+      "themes": "Dátové témy EÚ z katalógových záznamov Endpointov.",
       "endpoints": "Endpoint sem pridáte hviezdičkou na jeho stránke."
     },
     "level": {
@@ -8348,7 +8354,12 @@
       "add": "Pridať do mojich konektorov",
       "in": "V konektore: {names}"
     },
-    "full": "Máte 10 konektorov, viac sa nedá. Ak chcete pridať ďalší, jeden zmažte."
+    "full": "Máte 10 konektorov, viac sa nedá. Ak chcete pridať ďalší, jeden zmažte.",
+    "noMatch": {
+      "projects": "Nezodpovedá žiadny projekt, ktorý smiete čítať. Správca organizácie vás pridá do projektu v Prístup → Skupiny.",
+      "spaces": "Nezodpovedá žiadny kontextový priestor, ktorý smiete čítať. Projekt ho vytvorí v Dáta → Kontextové priestory.",
+      "none": "Napísanému nič nezodpovedá."
+    }
   },
   "conversations": {
     "title": "Konverzácie",
@@ -8378,7 +8389,8 @@
       "deployment": "Asistent",
       "from": "Od",
       "to": "Do",
-      "expensive": "Nad $0,02"
+      "expensive": "Nad $0,02",
+      "noDeployments": "Tento projekt ešte nemá asistenta. Pridajte ho v Asistent → Nasadenia."
     },
     "status": {
       "ok": "Zodpovedané",

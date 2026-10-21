@@ -24,6 +24,8 @@ export interface ResourceNamePickerProps {
   invalid?: boolean;
   describedBy?: string;
   placeholder?: string;
+  /** What an empty list says: where the missing thing is made. */
+  empty?: string;
 }
 
 /**
@@ -43,6 +45,7 @@ export function ResourceNamePicker({
   invalid,
   describedBy,
   placeholder,
+  empty,
 }: ResourceNamePickerProps): JSX.Element {
   const { t, i18n } = useTranslation();
   const inProject = from === "projects" ? undefined : from;
@@ -94,7 +97,7 @@ export function ResourceNamePicker({
       placeholder={placeholder}
       loading={query.isLoading}
       failed={query.isError ? { reason: reasonOf(query.error), retry: () => void query.refetch() } : undefined}
-      empty={t("form.noResults")}
+      empty={empty ?? t("form.noResults")}
       onChange={(values) => {
         onChange(values[0] ?? "");
       }}

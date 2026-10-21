@@ -71,6 +71,12 @@ export function Dialog({
         <RadixDialog.Content
           role={role}
           onInteractOutside={role === "alertdialog" ? (event) => event.preventDefault() : undefined}
+          onEscapeKeyDown={(event) => {
+            // Escape in an open picker closes its list, not the whole form around it (T-4948).
+            if (event.target instanceof Element && event.target.closest('[role="combobox"][aria-expanded="true"]')) {
+              event.preventDefault();
+            }
+          }}
           onOpenAutoFocus={(event) => {
             opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
             // Radix would take the first tabbable element, which is the Close button in the
