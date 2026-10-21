@@ -4,6 +4,8 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { mount } from "../src/explorer/main";
+import i18n from "../src/explorer/i18n";
+import { Map as NoMap } from "../src/explorer/no-map";
 
 describe("the catalogue widget's mount", () => {
   it("refuses an origin that is not an api host and a slug that is no Endpoint's", () => {
@@ -18,5 +20,12 @@ describe("the catalogue widget's mount", () => {
     }
     expect(fetch).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
+  });
+
+  it("carries only the view's strings, in English and Slovak, and no map", () => {
+    expect(Object.keys(i18n.options.resources ?? {}).sort()).toEqual(["en", "sk"]);
+    expect(Object.keys(i18n.options.resources?.sk.translation ?? {}).sort()).toEqual(["app", "endpoints", "entityGrid"]);
+    expect(i18n.getFixedT("sk")("endpoints.data.full")).not.toBe(i18n.getFixedT("en")("endpoints.data.full"));
+    expect(() => new NoMap()).toThrow(/no map/);
   });
 });

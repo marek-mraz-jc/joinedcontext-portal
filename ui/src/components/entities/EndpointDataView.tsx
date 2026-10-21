@@ -195,7 +195,7 @@ export function EndpointDataView({
   }, [schema.data, type, columns]);
   // The whole answer of this query as one table, built by the endpoint under its own limits and
   // read with the person's own session, as the rows above are (EP-08, EP-44).
-  const download = type
+  const safe = type
     ? safeHref(
         `${origin ?? ""}/api/endpoint/${encodeURIComponent(slug)}/file.csv?${new URLSearchParams({
           type: type.name,
@@ -253,8 +253,8 @@ export function EndpointDataView({
         <Button size="sm" variant="secondary" aria-pressed={full} onClick={() => setFull((each) => !each)}>
           {full ? t("endpoints.data.fullLeave") : t("endpoints.data.full")}
         </Button>
-        {csv && download ? (
-          <a className="focus-ring rounded-sm text-caption text-primary-soft-fg underline hover:no-underline" href={download} download>
+        {csv && safe ? (
+          <a className="focus-ring rounded-sm text-caption text-primary-soft-fg underline hover:no-underline" href={safe} download>
             {t("endpoints.data.csv")}
           </a>
         ) : null}
