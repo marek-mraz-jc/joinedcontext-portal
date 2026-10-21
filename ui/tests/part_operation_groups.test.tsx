@@ -13,7 +13,7 @@
  * and the third is the one that matters, because an endpoint whose reference resolves to nothing
  * grants nothing, and drawing the space's policies there would show grants nobody has.
  */
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createRootRoute, createRouter } from "@tanstack/react-router";
 import { I18nextProvider } from "react-i18next";
@@ -316,6 +316,28 @@ describe("what the endpoint page says about who may call it", () => {
     const section = await grants();
     expect(within(section).getAllByText("queryEntity")).toHaveLength(1);
     expect(within(section).getByText(en.endpoints.page.operationSingle)).toBeInTheDocument();
+  });
+
+  // T-5015: one line per single operation and every policy unfolded made this section 9,500 px.
+  it("puts a policy's single operations in one row and folds after five policies", async () => {
+    const policies = Array.from({ length: 7 }, (_, n) =>
+      manifest("Policy", `readers-${n}`, {
+        contextSpaceRef: "ovzdusie",
+        assignee: { kind: "role", id: "public" },
+        operations: ["retrieveOps", "createSubscription", "deleteSubscription"],
+      }),
+    );
+    // No policyRef: every policy of the space applies, the shape a busy space has (T-5015).
+    show({ endpoint: manifest("Endpoint", NAME, { contextSpaceRef: "ovzdusie", slug: SLUG }), policies });
+    const section = await grants();
+    expect(within(section).getAllByRole("listitem")).toHaveLength(5);
+    expect(within(section).getAllByText("2 single operations")).toHaveLength(5);
+    const more = within(section).getByRole("button", { name: "Show all 7 policies" });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(more);
+    expect(within(section).getAllByRole("listitem")).toHaveLength(7);
+    fireEvent.click(within(section).getByRole("button", { name: en.endpoints.page.policiesFewer }));
+    expect(within(section).getAllByRole("listitem")).toHaveLength(5);
   });
 
   it("does not list another App's grant among who may call this endpoint", async () => {

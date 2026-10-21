@@ -59,6 +59,7 @@ export const ADDRESSES: Record<string, string[]> = {
   "/projects/$project/approvals": [`${P}/approvals`],
   "/projects/$project/approvals/$id": [`${P}/approvals/chg-0a1b2c3d`],
   "/projects/$project/access": [`${P}/access`],
+  "/projects/$project": [P],
   "/projects/$project/settings": [`${P}/settings`],
   "/projects/$project/settings/$tab": PROJECT_SETTINGS_TABS.map((tab) => `${P}/settings/${tab}`),
   "/projects/$project/settings/$tab/$": [`${P}/settings/members/new`, `${P}/settings/roles/new`, `${P}/settings/service-accounts/new`],

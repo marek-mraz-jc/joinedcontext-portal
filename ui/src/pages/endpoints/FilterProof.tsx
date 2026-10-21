@@ -21,7 +21,7 @@ import {
 import { Tabs, tabPanelProps } from "../../components/ui/Tabs";
 
 /** One page of the proof: what CIM 009 calls a page, and what the preview allows. */
-export const PROOF_PAGE = 50;
+export const PROOF_PAGE = 12;
 /** How long an edit rests before the left side is asked again. */
 const SETTLE_MS = 600;
 const RESULTS_COUNT = "NGSILD-Results-Count";
@@ -382,7 +382,8 @@ export function FilterProof({
       ) : null}
 
       <div {...(readable ? tabPanelProps("filter-proof-side", side) : {})}>
-        <Table caption={t("endpoints.proof.caption", { type })} zebra={false} className="table-fixed text-caption">
+        {/* A page of entities with every attribute was 8,500 px of this page (T-5015): the frame scrolls instead. */}
+        <Table caption={t("endpoints.proof.caption", { type })} zebra={false} maxHeight="max-h-160" className="table-fixed text-caption">
           <TableHead>
             <TableHeaderCell className={clsx(readable && side !== "served" && "hidden lg:table-cell")}>
               {t("endpoints.proof.served")}
