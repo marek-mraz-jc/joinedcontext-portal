@@ -1116,6 +1116,34 @@ mod tests {
         );
     }
 
+    /// T-5048: the health tab shows the newest failed or rejected line, never a sent one.
+    #[tokio::test]
+    async fn last_problem_is_the_newest_line_that_did_not_send() {
+        let store = LogStore::new(None);
+        assert_eq!(store.last_problem("p", "x").await.expect("read"), None);
+        store
+            .append(
+                "p",
+                "x",
+                "r1",
+                &[
+                    line("urn:1", Outcome::Failed, "timeout"),
+                    line("urn:2", Outcome::Rejected, "schema"),
+                    line("urn:3", Outcome::Sent, "ok"),
+                ],
+            )
+            .await
+            .expect("append");
+        let (message, at) = store
+            .last_problem("p", "x")
+            .await
+            .expect("read")
+            .expect("a problem");
+        assert_eq!(message, "schema");
+        assert!(!at.is_empty());
+        assert_eq!(store.last_problem("p", "other").await.expect("read"), None);
+    }
+
     #[tokio::test]
     async fn lines_are_paged_bounded_and_the_counts_outlive_them() {
         let store = LogStore::new(None);
