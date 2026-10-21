@@ -825,7 +825,12 @@
       "surface": {
         "ngsi-ld": "NGSI-LD",
         "ogc-features": "OGC Features",
-        "odata": "OData"
+        "odata": "OData",
+        "mcp": "MCP",
+        "csv": "CSV",
+        "sta": "SensorThings",
+        "websocket": "WebSocket",
+        "ical": "iCal"
       },
       "copySurface": "Kopírovat URL {surface}"
     },

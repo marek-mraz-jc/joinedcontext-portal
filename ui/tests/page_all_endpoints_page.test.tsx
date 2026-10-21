@@ -152,53 +152,43 @@ describe("all endpoints", () => {
   });
 
   // EP-08, EP-44: one direct link per representation, plus the links every endpoint has.
-  it("gives each endpoint one link per representation, on this origin", async () => {
+  // T-4989: a row is one line. What the endpoint serves is one summary, not a link per surface
+  // (those are on the endpoint's page), and the row opens the endpoint.
+  it("summarises what each endpoint serves and opens its page from the row", async () => {
     renderAll({ rows: 1 });
-    const geojson = await screen.findByRole("link", { name: "csv" });
-    expect(geojson).toHaveAttribute(
-      "href",
-      `${window.location.origin}/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcf0/file.csv`,
-    );
-    expect(screen.getByRole("link", { name: en.endpoints.link.index })).toHaveAttribute(
-      "href",
-      `${window.location.origin}/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcf0/`,
-    );
-    // A new tab never hands the opener over (PF-50).
-    expect(geojson).toHaveAttribute("rel", expect.stringContaining("noreferrer"));
+    expect(await screen.findByText("NGSI-LD, MCP, CSV")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "csv" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: en.endpoints.link.index })).not.toBeInTheDocument();
+    const open = screen.getByRole("link", { name: "Air quality 0" });
+    expect(open).toHaveAttribute("href", "/projects/city-0/endpoints/air-0");
+    expect(open).toHaveAttribute("data-row-link");
+    expect(open.className).not.toMatch(/(^|\s)underline(\s|$)/);
+    // The Context Space is one link on one line, named by its title for a long name.
+    const space = screen.getByRole("link", { name: `${en.spaces.inside.open}: city-0/ovzdusie` });
+    expect(space).toHaveAttribute("title", "ovzdusie");
+    expect(space).toHaveClass("truncate");
   });
 
-  // PF-50: a slug is a value out of a manifest. It is encoded, so it cannot climb out of the
-  // endpoint's own path, and a representation with no path stays a badge rather than a link.
-  it("cannot be walked out of the endpoint's own path by its slug", async () => {
-    renderAll({ items: [endpoint(0, { slug: "../../admin" })] });
-    const link = await screen.findByRole("link", { name: "csv" });
-    expect(link.getAttribute("href")).toBe(
-      `${window.location.origin}/api/endpoint/..%2F..%2Fadmin/file.csv`,
-    );
-    expect(link.getAttribute("href")).not.toContain("/admin/file.csv");
+  // PF-50: a name out of a manifest is encoded into the row's link.
+  it("cannot be walked out of the endpoint's own page by its name", async () => {
+    renderAll({ items: [endpoint(0, {}), { ...endpoint(1), metadata: { ...endpoint(1).metadata, name: "../../admin", title: undefined } }] });
+    const link = await screen.findByRole("link", { name: "../../admin" });
+    expect(link.getAttribute("href")).toBe("/projects/city-1/endpoints/..%2F..%2Fadmin");
   });
 
-  it("shows a representation it has no address for as a word, not a link", async () => {
-    renderAll({ items: [endpoint(0, { enabledRepresentations: ["odata"] })] });
-    expect(await screen.findByText("odata")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "odata" })).not.toBeInTheDocument();
-  });
-
-  // EP-24, T-2901: MCP is served by every Endpoint that does not opt out, listed or not, so its
-  // link is on the row; a manifest with `mcp: false` gets none.
-  it("links the MCP instance every endpoint serves unless it opts out", async () => {
+  // EP-24, T-2901: MCP is served by every Endpoint that does not opt out, listed or not; a
+  // manifest with `mcp: false` is summarised without it.
+  it("names MCP for every endpoint unless it opts out", async () => {
     renderAll({ items: [endpoint(0), endpoint(1, { mcp: false })] });
-    const links = await screen.findAllByRole("link", { name: "mcp" });
-    expect(links.map((link) => link.getAttribute("href"))).toEqual([
-      `${window.location.origin}/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcf0/mcp`,
-    ]);
+    expect(await screen.findByText("NGSI-LD, MCP, CSV")).toBeInTheDocument();
+    expect(screen.getByText("NGSI-LD, CSV")).toBeInTheDocument();
   });
 
   // UI-16: every link on the page is reached by keyboard, in the order the table is read, and
   // nothing takes focus on arrival.
   it("is reachable by keyboard in the order the table is read", async () => {
     const { container } = renderAll({ rows: 2 });
-    await screen.findAllByRole("link", { name: "csv" });
+    await screen.findAllByText("NGSI-LD, MCP, CSV");
     expect(document.activeElement).toBe(document.body);
     const reached = await tabOrder(container, 60);
     const projects = screen.getAllByRole("link", { name: /^city-/ });
@@ -242,7 +232,7 @@ describe("all endpoints", () => {
 
   it("has no axe violations with the table full", async () => {
     const { container } = renderAll({ rows: 4 });
-    await screen.findAllByRole("link", { name: "csv" });
+    await screen.findAllByText("NGSI-LD, MCP, CSV");
     await expectNoAxeViolations(container);
   });
 
