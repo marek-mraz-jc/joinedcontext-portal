@@ -1227,6 +1227,55 @@
       "timeOf": "Time: {source}",
       "unitOf": "Unit: {unit}",
       "noMatchHint": "Choose All pipelines and All verdicts to see every row."
+    },
+    "personal": {
+      "title": "A person's data",
+      "lead": "Answer a person's request about the data this space holds on them: export everything that names them, or erase it from current values, history and every copy. Only an owner of the space can do this, and each request is recorded with its reason. The space's model must name which attribute identifies the person.",
+      "hint": {
+        "subject": "The value the model's person attribute holds, exactly as stored, for example r-42. It is sent only in the request and is never kept or shown in the log.",
+        "reason": "Why you act, recorded with the request, for example: Art. 17 request 2026-10-19-07."
+      },
+      "subject": "Person's identifier",
+      "subjectError": {
+        "required": "Enter the person's identifier.",
+        "tooLong": "Use at most {max} characters.",
+        "characters": "Remove quotes, backslashes and control characters."
+      },
+      "reason": "Reason",
+      "reasonError": {
+        "required": "Enter the reason, for example the request's reference.",
+        "tooLong": "Use at most {max} characters."
+      },
+      "export": "Export the person's data",
+      "erase": "Erase the person's data…",
+      "confirmTitle": "Erase this person's data from {space}?",
+      "confirmLead": "The erasure cannot be undone. It removes the values from current state, every history version and every copy; a record without values stays.",
+      "confirm": "Erase",
+      "nothing": "The space holds nothing about this person. Erasing still records the request.",
+      "wouldErase": {
+        "attrs": "{count, plural, one {{type}: the personal attributes ({attrs}) of # entity} other {{type}: the personal attributes ({attrs}) of # entities}}",
+        "entity": "{count, plural, one {{type}: # whole entity} other {{type}: # whole entities}}"
+      },
+      "state": {
+        "open": "Erasure {id} is running ({count} entities). This page checks again every few seconds.",
+        "done": "Erasure {id} is done: every store reports its entities erased ({count} entities).",
+        "failed": "Erasure {id} failed in a store after an hour of retries. Read the error below and ask the platform team to fix that store; the erasure stays logged."
+      },
+      "store": "{store}: {state}, {count} removed",
+      "stores": {
+        "broker": "Current values and history",
+        "portal": "Trash and comments",
+        "ckanDatastore": "Open data tables",
+        "conversations": "Assistant conversations",
+        "exports": "Export files",
+        "caches": "Caches"
+      },
+      "storeState": {
+        "pending": "waiting",
+        "done": "done",
+        "failed": "failed: read the error and retry later"
+      },
+      "exported": "{count, plural, one {Exported # record to a file in your downloads.} other {Exported # records to a file in your downloads.}}"
     }
   },
   "endpoints": {

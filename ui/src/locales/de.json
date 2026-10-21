@@ -1227,6 +1227,55 @@
       "timeOf": "Zeit: {source}",
       "unitOf": "Einheit: {unit}",
       "noMatchHint": "Wählen Sie Alle Pipelines und Alle Urteile, um jede Zeile zu sehen."
+    },
+    "personal": {
+      "title": "Daten einer Person",
+      "lead": "Beantworten Sie die Anfrage einer Person zu den Daten, die dieser Bereich über sie hält: Exportieren Sie alles, was sie nennt, oder löschen Sie es aus aktuellen Werten, Verlauf und jeder Kopie. Nur ein Eigentümer des Bereichs kann das, und jede Anfrage wird mit ihrem Grund protokolliert. Das Modell des Bereichs muss angeben, welches Attribut die Person identifiziert.",
+      "hint": {
+        "subject": "Der Wert im Personenattribut des Modells, genau wie gespeichert, zum Beispiel r-42. Er wird nur in der Anfrage gesendet und nie gespeichert oder im Protokoll gezeigt.",
+        "reason": "Warum Sie handeln, mit der Anfrage protokolliert, zum Beispiel: Antrag nach Art. 17 2026-10-19-07."
+      },
+      "subject": "Kennung der Person",
+      "subjectError": {
+        "required": "Geben Sie die Kennung der Person ein.",
+        "tooLong": "Verwenden Sie höchstens {max} Zeichen.",
+        "characters": "Entfernen Sie Anführungszeichen, Backslashes und Steuerzeichen."
+      },
+      "reason": "Grund",
+      "reasonError": {
+        "required": "Geben Sie den Grund ein, zum Beispiel das Aktenzeichen der Anfrage.",
+        "tooLong": "Verwenden Sie höchstens {max} Zeichen."
+      },
+      "export": "Daten der Person exportieren",
+      "erase": "Daten der Person löschen…",
+      "confirmTitle": "Daten dieser Person aus {space} löschen?",
+      "confirmLead": "Die Löschung lässt sich nicht rückgängig machen. Sie entfernt die Werte aus dem aktuellen Stand, jeder Verlaufsversion und jeder Kopie; ein Eintrag ohne Werte bleibt.",
+      "confirm": "Löschen",
+      "nothing": "Der Bereich hält nichts über diese Person. Die Löschung protokolliert die Anfrage trotzdem.",
+      "wouldErase": {
+        "attrs": "{count, plural, one {{type}: die personenbezogenen Attribute ({attrs}) von # Entität} other {{type}: die personenbezogenen Attribute ({attrs}) von # Entitäten}}",
+        "entity": "{count, plural, one {{type}: # ganze Entität} other {{type}: # ganze Entitäten}}"
+      },
+      "state": {
+        "open": "Löschung {id} läuft (Entitäten: {count}). Diese Seite prüft alle paar Sekunden erneut.",
+        "done": "Löschung {id} ist fertig: jeder Speicher meldet die Löschung (Entitäten: {count}).",
+        "failed": "Löschung {id} ist nach einer Stunde Wiederholungen in einem Speicher gescheitert. Lesen Sie den Fehler unten und bitten Sie das Plattform-Team, diesen Speicher zu reparieren; die Löschung bleibt protokolliert."
+      },
+      "store": "{store}: {state}, {count} entfernt",
+      "stores": {
+        "broker": "Aktuelle Werte und Verlauf",
+        "portal": "Papierkorb und Kommentare",
+        "ckanDatastore": "Open-Data-Tabellen",
+        "conversations": "Assistenten-Gespräche",
+        "exports": "Exportdateien",
+        "caches": "Zwischenspeicher"
+      },
+      "storeState": {
+        "pending": "wartet",
+        "done": "fertig",
+        "failed": "gescheitert: Fehler lesen und später erneut versuchen"
+      },
+      "exported": "{count, plural, one {# Datensatz in eine Datei in Ihren Downloads exportiert.} other {# Datensätze in eine Datei in Ihren Downloads exportiert.}}"
     }
   },
   "endpoints": {

@@ -80,6 +80,7 @@ import type { FormSettings } from "./formView";
 import { AiFieldPanel } from "./AiField";
 import { SpaceChecks } from "./SpaceChecks";
 import { SpaceQuality } from "./SpaceQuality";
+import { SpacePersonalData } from "./SpacePersonalData";
 import { SpaceRetention } from "./SpaceRetention";
 import { SpaceTemporalAudit } from "./SpaceTemporalAudit";
 import { rulesOf } from "./retention";
@@ -1665,6 +1666,11 @@ export function SpaceInside({ project, name }: { project: string; name: string }
           <div className="mt-6">
             <Section title={t("spaces.temporal.title")}>
               <SpaceTemporalAudit project={project} space={name} />
+            </Section>
+          </div>
+          <div className="mt-6">
+            <Section title={t("spaces.personal.title")}>
+              <SpacePersonalData project={project} space={name} />
             </Section>
           </div>
         </div>

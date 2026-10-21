@@ -1227,6 +1227,55 @@
       "timeOf": "Čas: {source}",
       "unitOf": "Jednotka: {unit}",
       "noMatchHint": "Vyberte Všechny pipeline a Všechny verdikty, abyste viděli každý řádek."
+    },
+    "personal": {
+      "title": "Údaje o osobě",
+      "lead": "Vyřiďte žádost osoby o údaje, které o ní tento prostor má: exportujte vše, co ji uvádí, nebo to vymažte z aktuálních hodnot, historie a všech kopií. Může to udělat jen vlastník prostoru a každá žádost se zaznamená s důvodem. Model prostoru musí určovat, který atribut identifikuje osobu.",
+      "hint": {
+        "subject": "Hodnota atributu osoby v modelu přesně tak, jak je uložená, například r-42. Posílá se jen v žádosti a nikde se neukládá ani nezobrazuje v záznamu.",
+        "reason": "Proč jednáte, zaznamená se se žádostí, například: žádost podle čl. 17 2026-10-19-07."
+      },
+      "subject": "Identifikátor osoby",
+      "subjectError": {
+        "required": "Zadejte identifikátor osoby.",
+        "tooLong": "Použijte nejvýše {max} znaků.",
+        "characters": "Odstraňte uvozovky, zpětná lomítka a řídicí znaky."
+      },
+      "reason": "Důvod",
+      "reasonError": {
+        "required": "Zadejte důvod, například číslo žádosti.",
+        "tooLong": "Použijte nejvýše {max} znaků."
+      },
+      "export": "Exportovat údaje osoby",
+      "erase": "Vymazat údaje osoby…",
+      "confirmTitle": "Vymazat údaje této osoby z prostoru {space}?",
+      "confirmLead": "Výmaz nelze vrátit. Odstraní hodnoty z aktuálního stavu, ze všech verzí historie a ze všech kopií; zůstane jen záznam bez hodnot.",
+      "confirm": "Vymazat",
+      "nothing": "Prostor o této osobě nic nemá. Výmaz přesto zaznamená žádost.",
+      "wouldErase": {
+        "attrs": "{count, plural, one {{type}: osobní atributy ({attrs}) # entity} few {{type}: osobní atributy ({attrs}) # entit} many {{type}: osobní atributy ({attrs}) # entit} other {{type}: osobní atributy ({attrs}) # entit}}",
+        "entity": "{count, plural, one {{type}: # celá entita} few {{type}: # celé entity} many {{type}: # celých entit} other {{type}: # celých entit}}"
+      },
+      "state": {
+        "open": "Výmaz {id} probíhá (entity: {count}). Stránka to každých pár sekund ověří znovu.",
+        "done": "Výmaz {id} je hotový: každé úložiště hlásí vymazání (entity: {count}).",
+        "failed": "Výmaz {id} selhal v jednom úložišti po hodině pokusů. Přečtěte si chybu níže a požádejte tým platformy o opravu úložiště; výmaz zůstává zaznamenaný."
+      },
+      "store": "{store}: {state}, odstraněno {count}",
+      "stores": {
+        "broker": "Aktuální hodnoty a historie",
+        "portal": "Koš a komentáře",
+        "ckanDatastore": "Tabulky otevřených dat",
+        "conversations": "Konverzace s asistentem",
+        "exports": "Exportované soubory",
+        "caches": "Mezipaměti"
+      },
+      "storeState": {
+        "pending": "čeká",
+        "done": "hotovo",
+        "failed": "selhalo: přečtěte si chybu a zkuste později"
+      },
+      "exported": "{count, plural, one {Exportován # záznam do souboru ve stažených souborech.} few {Exportovány # záznamy do souboru ve stažených souborech.} many {Exportováno # záznamů do souboru ve stažených souborech.} other {Exportováno # záznamů do souboru ve stažených souborech.}}"
     }
   },
   "endpoints": {
