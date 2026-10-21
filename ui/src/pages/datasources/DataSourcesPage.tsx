@@ -220,6 +220,37 @@ export function endpointOf(spec: Record<string, unknown>): string {
   return "";
 }
 
+const TEMPLATE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
+
+/**
+ * The address without its `user:password@` part, also when the password holds a raw `@`, `/`, `?` or
+ * `#` (T-4991 review). The userinfo ends at the first `@` whose following host part has no `@`; an
+ * `@` only in the path (`https://host/users/@me`) is left alone.
+ */
+function withoutUserinfo(one: string): string {
+  const scheme = /^[a-z][a-z0-9+.-]*:\/\//i.exec(one)?.[0];
+  if (!scheme) return one;
+  const rest = one.slice(scheme.length);
+  const authority = (rest.split(/[/?#]/)[0] ?? "").replace(/\[[^\]]*\]/, "");
+  if (!authority.includes("@") && !/:(?!\d*$)/.test(authority)) return one;
+  for (let at = rest.indexOf("@"); at >= 0; at = rest.indexOf("@", at + 1)) {
+    if (!(rest.slice(at + 1).split(/[/?#]/)[0] ?? "").includes("@")) return scheme + rest.slice(at + 1);
+  }
+  return one;
+}
+
+/**
+ * An address as the table shows it (T-4991): host and path, the scheme left to the Type column,
+ * the query string only in the hover title, and no user or password part ever. A `${VAR}`
+ * template becomes the name of the secret it reads, never its text.
+ */
+export function endpointView(raw: string): { shown: string; full: string; secrets: string[] } {
+  const secrets = [...new Set([...raw.matchAll(TEMPLATE)].map((match) => match[1] as string))];
+  const each = raw.split(", ").map((one) => withoutUserinfo(one).replace(TEMPLATE, "…"));
+  const shown = each.map((one) => one.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").split(/[?#]/)[0]?.replace(/(.)\/$/, "$1") ?? "");
+  return { shown: shown.join(", "), full: each.join(", "), secrets };
+}
+
 // Moved to the manifest helpers so the pipeline editor offers the same names (T-3972).
 import { knownSecretNames } from "../../api/manifest";
 export { knownSecretNames };
@@ -596,8 +627,8 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
                   ? t(`datasources.type.${typeOf(source.spec)}`, { defaultValue: typeOf(source.spec) })
                   : inputLabel(typeOf(source.spec))}
               </TableCell>
-              <TableCell className="break-all font-mono text-caption">
-                {endpointOf(source.spec)}
+              <TableCell>
+                <EndpointCell raw={endpointOf(source.spec)} />
               </TableCell>
               <TableCell className="text-caption">
                 {/* The names of the references, never a value: the store holds the rest. */}
@@ -801,5 +832,22 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
       </SecretRefContext.Provider>
       )}
     </div>
+  );
+}
+
+function EndpointCell({ raw }: { raw: string }): JSX.Element {
+  const { t } = useTranslation();
+  const { shown, full, secrets } = endpointView(raw);
+  return (
+    <>
+      <span className="font-mono text-caption [overflow-wrap:anywhere]" title={full === shown ? undefined : full}>
+        {shown}
+      </span>
+      {secrets.map((name) => (
+        <span key={name} className="block text-caption text-fg-subtle">
+          {t("datasources.secretFrom", { name })}
+        </span>
+      ))}
+    </>
   );
 }

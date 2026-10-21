@@ -35,6 +35,14 @@ for (const width of [375, 768, 1024, 1440]) {
     await expect(drawing.getByRole("button", { name: "Open AirQualityObserved in the structure view" })).toBeVisible();
 
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    // T-4991: on load the drawing fits its frame's width and its frame stays under 45rem tall (max-h-180).
+    const fit = await drawing.evaluate((svg) => {
+      const frame = svg.parentElement as HTMLElement;
+      return { over: svg.getBoundingClientRect().width - frame.clientWidth, tall: frame.getBoundingClientRect().height };
+    });
+    // A phone may hit the 25 % floor and scroll the drawing inside its frame instead.
+    if (width >= 1024) expect(fit.over).toBeLessThanOrEqual(0);
+    expect(fit.tall).toBeLessThanOrEqual(720 + 2);
     expect(await axeViolations(page)).toEqual([]);
     const shots = process.env.DIAGRAM_SHOTS;
     if (shots && (width === 1440 || width === 375)) {

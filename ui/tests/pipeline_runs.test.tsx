@@ -174,6 +174,9 @@ describe("a pipeline's runs and log", () => {
     });
     const dialog = await openRuns();
     await within(dialog).findByText("urn:ngsi-ld:BikeStation:hel.fi:helsinki:s-9");
+    // The log shows the entity's own name; the whole URN is the hover title (T-4991).
+    expect(within(dialog).getByText("s-9")).toHaveAttribute("aria-hidden");
+    expect(within(dialog).getByTitle("urn:ngsi-ld:BikeStation:hel.fi:helsinki:s-9")).toBeInTheDocument();
     const runs = within(dialog).getByRole("table", { name: en.pipelines.runs.caption });
     await userEvent.click(within(runs).getAllByRole("button")[1]);
     expect(await within(dialog).findByText("urn:hour-8")).toBeInTheDocument();

@@ -1,4 +1,5 @@
 import { PageFailed } from "../../components/ui/PageState";
+import { urnName } from "../mqttbrokers/connections";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -368,9 +369,11 @@ function RunLog({
                     </time>
                   </TableCell>
                   <TableCell>
-                    <span className="break-all font-mono text-caption">
-                      {line.recordId || t("pipelines.runs.noId")}
-                    </span>
+                    {line.recordId ? (
+                      <RecordId id={line.recordId} />
+                    ) : (
+                      <span className="text-caption text-fg-subtle">{t("pipelines.runs.noId")}</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col items-start gap-1">
@@ -407,5 +410,17 @@ function RunLog({
         </>
       )}
     </section>
+  );
+}
+
+/** A record's entity by its own name; the whole URN on hover and for a screen reader (T-4991). */
+function RecordId({ id }: { id: string }): JSX.Element {
+  const short = urnName(id);
+  if (!short) return <span className="font-mono text-caption [overflow-wrap:anywhere]">{id}</span>;
+  return (
+    <span className="font-mono text-caption [overflow-wrap:anywhere]" title={id}>
+      <span aria-hidden>{short}</span>
+      <span className="sr-only">{id}</span>
+    </span>
   );
 }

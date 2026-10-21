@@ -118,3 +118,41 @@ test.describe("at 375 px", () => {
     expect(sideways, "the page scrolls sideways").toBeLessThanOrEqual(0);
   });
 });
+
+// T-4991: the data sources list shows each address as host and path, the query on hover, and
+// the secret an address template reads by name, never the template.
+for (const width of [400, 1440]) {
+  test(`the data sources list at ${width} px shows short addresses and fits the page`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const source = (name: string, spec: Record<string, unknown>) => ({
+      apiVersion: "joinedcontext.com/v1alpha1",
+      kind: "DataSource",
+      metadata: { name, namespace: PROJECT },
+      spec,
+    });
+    await stubApi(page);
+    await page.route(`**/api/v1/projects/${PROJECT}/datasources`, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          apiVersion: "joinedcontext.com/v1alpha1",
+          kind: "List",
+          items: [
+            source("demo-counters", { type: "nats", input: { urls: ["nats://demo:${DEMO_FEED_PASSWORD}@demo-nats.dev.svc.cluster.local:4222"] } }),
+            source("hel-districts", {
+              type: "http",
+              http: { url: "https://kartta.hel.fi/ws/geoserver/avoindata/wfs?service=WFS&version=2.0.0&request=GetFeature&outputFormat=application/json&typeNames=avoindata:Kaupunginosajako" },
+            }),
+          ],
+        }),
+      }),
+    );
+    await page.goto(`/projects/${PROJECT}/datasources?lang=en`);
+    await expect(page.getByText("kartta.hel.fi/ws/geoserver/avoindata/wfs", { exact: true })).toHaveAttribute("title", /\?service=WFS/);
+    await expect(page.getByText("secret from DEMO_FEED_PASSWORD")).toBeVisible();
+    await expect(page.getByText("${DEMO_FEED_PASSWORD}", { exact: false })).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
+    await page.screenshot({ path: test.info().outputPath(`datasources-${width}.png`), fullPage: true });
+  });
+}
