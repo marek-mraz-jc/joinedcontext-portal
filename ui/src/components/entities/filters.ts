@@ -369,7 +369,16 @@ async function gatewayGet(slug: string, path: string): Promise<Response> {
 export async function fetchEntities(
   slug: string,
   query: EntityQuery,
-  page: { limit: number; offset?: number; keyValues?: boolean; count?: boolean },
+  page: {
+    limit: number;
+    offset?: number;
+    keyValues?: boolean;
+    count?: boolean;
+    /** `[west, south, east, north]`: only entities whose geometry lies within it (T-5061). */
+    within?: [number, number, number, number];
+    /** The GeoProperty `within` tests, when it is not `location`. */
+    geoproperty?: string;
+  },
 ): Promise<EntityPage> {
   if (!query.type) {
     return { rows: [] };
@@ -395,6 +404,13 @@ export async function fetchEntities(
   }
   if (query.attrs && query.attrs.length > 0) {
     params.set("attrs", query.attrs.join(","));
+  }
+  if (page.within) {
+    const [w, s, e, n] = page.within;
+    params.set("georel", "within");
+    params.set("geometry", "Polygon");
+    params.set("coordinates", JSON.stringify([[[w, s], [e, s], [e, n], [w, n], [w, s]]]));
+    if (page.geoproperty && page.geoproperty !== "location") params.set("geoproperty", page.geoproperty);
   }
   const response = await gatewayGet(slug, `/ngsi-ld/v1/entities?${params.toString()}`);
   return { rows: entities(await response.json()), count: parseResultsCount(response.headers) };

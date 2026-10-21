@@ -1,3 +1,4 @@
+import { mkdirSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { axeViolations } from "./axe";
@@ -36,7 +37,50 @@ function dock(n: number, bikes: number, lon: number, lat: number) {
   };
 }
 
-async function stub(page: Page): Promise<string[]> {
+type Data = "points" | "polygons" | "empty" | "many" | "failing";
+
+// T-5061: a square around a point, for a type whose places are areas.
+function area(n: number, lon: number, lat: number) {
+  const d = 0.004;
+  return { ...dock(n, n % 5, lon, lat), location: { type: "Polygon", coordinates: [[[lon, lat], [lon + d, lat], [lon + d, lat + d], [lon, lat + d], [lon, lat]]] } };
+}
+
+// 12 000 docks spread over Helsinki, as the Endpoint would page them; an answer with `georel`
+// holds only those inside the asked polygon, at most `limit`.
+const MANY = 12_000;
+const spread = (i: number) => dock(i + 1, i % 5, 24.7 + (i % 120) * 0.004, 60.1 + Math.floor(i / 120) * 0.002);
+
+function entitiesAnswer(data: Data, url: URL): { status: number; rows: unknown[]; count?: number } {
+  const limit = Number(url.searchParams.get("limit") ?? 20);
+  const offset = Number(url.searchParams.get("offset") ?? 0);
+  // The map's reads are the export's pages of 500; the table's own page still answers.
+  if (data === "failing" && limit >= 500) return { status: 502, rows: [] };
+  if (data === "empty") return { status: 200, rows: [], count: 0 };
+  if (data === "polygons") {
+    const rows = Array.from({ length: 30 }, (_, i) => area(i + 1, 24.9 + (i % 6) * 0.01, 60.15 + Math.floor(i / 6) * 0.01));
+    return { status: 200, rows: rows.slice(offset, offset + limit), count: rows.length };
+  }
+  if (data === "many") {
+    const coordinates = url.searchParams.get("coordinates");
+    if (url.searchParams.get("georel") === "within" && coordinates) {
+      const ring = (JSON.parse(coordinates) as number[][][])[0];
+      const [w, s, e, n] = [ring[0][0], ring[0][1], ring[2][0], ring[2][1]];
+      const inside: unknown[] = [];
+      for (let i = 0; i < MANY; i += 1) {
+        const [lon, lat] = spread(i).location.coordinates;
+        if (lon >= w && lon <= e && lat >= s && lat <= n) inside.push(spread(i));
+      }
+      return { status: 200, rows: inside.slice(offset, offset + limit), count: inside.length };
+    }
+    return { status: 200, rows: Array.from({ length: Math.max(0, Math.min(limit, MANY - offset)) }, (_, i) => spread(offset + i)), count: MANY };
+  }
+  const docks = Array.from({ length: 40 }, (_, i) => dock(i + 1, i % 5, 24.9 + (i % 8) * 0.01, 60.15 + Math.floor(i / 8) * 0.01));
+  const q = url.searchParams.get("q") ?? "";
+  const shown = q.includes("availableBikeNumber==0") ? docks.filter((d) => d.availableBikeNumber === 0) : docks;
+  return { status: 200, rows: shown, count: shown.length };
+}
+
+async function stub(page: Page, data: Data = "points"): Promise<string[]> {
   const reads: string[] = [];
   await page.route("**/{api,cs}/**", async (route) => {
     const url = new URL(route.request().url());
@@ -50,10 +94,11 @@ async function stub(page: Page): Promise<string[]> {
     if (path.endsWith("/access")) return json({ permissions: [{ action: "queryEntity", resource: { type: TYPE }, attributes: "*" }], prohibitions: [] });
     if (path.endsWith("/entities")) {
       reads.push(url.search);
-      const docks = Array.from({ length: 40 }, (_, i) => dock(i + 1, i % 5, 24.9 + (i % 8) * 0.01, 60.15 + Math.floor(i / 8) * 0.01));
-      const q = url.searchParams.get("q") ?? "";
-      const shown = q.includes("availableBikeNumber==0") ? docks.filter((d) => d.availableBikeNumber === 0) : docks;
-      return json(shown, { "NGSILD-Results-Count": String(shown.length) });
+      const answer = entitiesAnswer(data, url);
+      if (answer.status !== 200) {
+        return route.fulfill({ status: answer.status, contentType: "application/json", body: JSON.stringify({ title: "Bad Gateway", status: answer.status }) });
+      }
+      return json(answer.rows, answer.count === undefined ? {} : { "NGSILD-Results-Count": String(answer.count) });
     }
     if (path === "/api/v1/projects") return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ProjectList", items: [{ name: "helsinki" }] });
     if (path.endsWith("/spaces")) {
@@ -99,3 +144,49 @@ test("charts an attribute of the view as the histogram its numbers suggest", asy
   await expect(dialog.getByRole("button", { name: "Save to the dashboard" })).toBeEnabled();
   expect(await axeViolations(page)).toEqual([]);
 });
+
+// T-5061: the map at both widths and both themes over points, areas, nothing, 12 000 entities and
+// an Endpoint that answers 502. Every state leaves a picture for the UX read in the task.
+const SHOTS = process.env.T5061_SHOTS ?? "test-results/explore-map";
+mkdirSync(SHOTS, { recursive: true });
+const STATUS: Record<Data, RegExp> = {
+  points: /^40 of 40 on the map$/,
+  polygons: /^30 of 30 on the map$/,
+  empty: /^No entity of this view has a location; the Entities tab lists them all\.$/,
+  many: /in this view, 12,000 in all. More than 5,000 (match|lie in this view)/,
+  failing: /./,
+};
+for (const data of ["points", "polygons", "empty", "many", "failing"] as const) {
+  for (const width of [1440, 400]) {
+    for (const scheme of ["light", "dark"] as const) {
+      test(`the map of ${data} at ${width} px, ${scheme}`, async ({ page }) => {
+        test.slow(data === "many");
+        await page.setViewportSize({ width, height: width === 400 ? 860 : 900 });
+        await page.emulateMedia({ colorScheme: scheme });
+        const sent: string[] = [];
+        page.on("request", (request) => {
+          if (request.url().includes("/entities")) sent.push(request.headers().authorization ?? "");
+        });
+        const reads = await stub(page, data);
+        await page.goto(`/projects/helsinki/explore?endpoint=helsinki-bikes&type=${TYPE}&lang=en`);
+        await page.getByRole("tab", { name: "Map" }).click();
+        if (data === "failing") {
+          await expect(page.getByRole("button", { name: "Retry" })).toBeVisible({ timeout: 30_000 });
+        } else {
+          const status = page.getByRole("status").filter({ hasText: /on the map|location|in this view/ });
+          await expect(status).toHaveText(STATUS[data], { timeout: 30_000 });
+          // Nothing located draws no empty map: the sentence says where the entities are.
+          await expect(page.getByRole("application", { name: `Map of ${TYPE}` })).toHaveCount(data === "empty" ? 0 : 1);
+        }
+        if (data === "many") {
+          // The first read stops at 5 000; the view the map fits is read again as a polygon.
+          expect(reads.some((search) => search.includes("georel=within") && search.includes("geometry=Polygon"))).toBe(true);
+          expect(reads.filter((search) => !search.includes("georel")).length).toBeGreaterThanOrEqual(5);
+        }
+        expect(sent.every((value) => value === "")).toBe(true);
+        expect(await axeViolations(page)).toEqual([]);
+        await page.screenshot({ path: `${SHOTS}/explore-map-${data}-${scheme}-${width}.png`, fullPage: true });
+      });
+    }
+  }
+}
