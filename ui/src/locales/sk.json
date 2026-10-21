@@ -325,7 +325,9 @@
       },
       "anyKind": "Akýkoľvek druh"
     },
-    "reasonFirst": "Najprv napíšte, prečo zmenu zamietate."
+    "reasonFirst": "Najprv napíšte, prečo zmenu zamietate.",
+    "publication": "Dataset {name} v CKAN po schválení",
+    "publicationPublic": "Po schválení tento dataset môže čítať ktokoľvek bez prihlásenia. Pred napísaním názvu si prečítajte stránku aj zmeny polí vyššie."
   },
   "lane": {
     "green": "Zelená",
@@ -4045,7 +4047,8 @@
       },
       "lastChange": "Posledná zmena {time}: {summary}",
       "lastFailed": "Posledný beh zlyhal {time}: {summary}. Odstráňte príčinu a zverejnite znova.",
-      "needsCatalogue": "Najprv vyššie pridajte katalóg: dataset potrebuje portál CKAN, kam sa zverejní."
+      "needsCatalogue": "Najprv vyššie pridajte katalóg: dataset potrebuje portál CKAN, kam sa zverejní.",
+      "mapAndTable": "Mapa a tabuľka na stránke datasetu"
     },
     "statusFailed": "Stav katalógov tohto projektu sa nepodarilo načítať, takže nižšie uvedené môže byť neúplné: {reason}. Obnovte stránku a skúste to znova.",
     "access": {
@@ -6966,7 +6969,7 @@
       "contactHelp": "Rolová adresa ako oddelenie otvorených dát, nikdy osobný e-mail.",
       "keywords": "Kľúčové slová",
       "keywordsHelp": "Oddelené čiarkami, v jazyku {language}.",
-      "spatialHelp": "Kódy NUTS alebo odkazy na miesta oddelené čiarkami, napríklad SK032.",
+      "spatialHelp": "Región, ktorý dáta pokrývajú, napríklad Banskobystrický kraj (SK032). Mapa datasetu ukáže jeho záznamy všade, kde majú polohu.",
       "start": "Obsahuje dáta od",
       "end": "Obsahuje dáta do",
       "back": "Späť",
@@ -6979,7 +6982,37 @@
         "licence": "Vyberte licenciu.",
         "contactBoth": "Uveďte meno aj e-mail kontaktu, alebo ani jedno.",
         "email": "Zadajte e-mailovú adresu, napríklad opendata@example.org.",
-        "period": "Koniec obdobia nemôže byť pred jeho začiatkom. Vyberte dátum konca po začiatku."
+        "period": "Koniec obdobia nemôže byť pred jeho začiatkom. Vyberte dátum konca po začiatku.",
+        "title": "Zadajte názov datasetu."
+      },
+      "datasetTitle": "Názov datasetu",
+      "datasetTitleHelp": "Názov, pod ktorým ho katalóg uvádza, v jazyku {language}.",
+      "datasetDescription": "Popis",
+      "datasetDescriptionHelp": "Čo dáta sú a odkiaľ pochádzajú, v jazyku {language}.",
+      "mapExtent": "Územie na mape",
+      "noArea": "Bez územia",
+      "attributes": "Čo verejný dataset ukáže",
+      "attributesHelp": "Odškrtnite atribút, ktorý má zostať mimo. Osobné atribúty sa nikdy neponúkajú: model ich označuje ako osobné údaje, takže ich verejný dataset nesmie niesť.",
+      "noAttributes": "Dátový model endpointu zatiaľ neuvádza žiadne atribúty. Najprv pridajte dátový model do priestoru endpointu a potom návrh vytvorte znova.",
+      "ofType": "Typ {type}",
+      "withheld": {
+        "personal": "V modeli sú to osobné údaje: verejný dataset ich nikdy nenesie.",
+        "hidden": "Endpoint ho už skrýva. Ak ho chcete ukázať, zmeňte skryté atribúty endpointu."
+      },
+      "datastore": "Vložiť riadky do tabuľky v CKAN",
+      "datastoreHelp": "CKAN ich ukáže ako tabuľku, ktorú možno filtrovať a dopytovať cez SQL.",
+      "datastoreUnavailable": "Endpoint neposkytuje CSV, z ktorého sa tabuľka v CKAN plní. Najprv na endpointe zapnite reprezentáciu CSV.",
+      "confirmLabel": "Na potvrdenie napíšte názov endpointu",
+      "confirmHelp": "Zverejnenie sprístupní {name} komukoľvek. Na potvrdenie napíšte {name}.",
+      "confirmFirst": "Najprv potvrďte napísaním {name} vyššie.",
+      "ckanPage": "Ako bude vyzerať stránka v CKAN",
+      "resources": "Dáta a zdroje",
+      "columns": "Stĺpce",
+      "resource": {
+        "datastore": "Tabuľka v CKAN (filter, SQL)",
+        "map": "Mapa záznamov s polohou",
+        "api": "NGSI-LD API a ďalšie formáty endpointu",
+        "dcat": "Záznam DCAT-AP (JSON-LD)"
       }
     },
     "licence": {

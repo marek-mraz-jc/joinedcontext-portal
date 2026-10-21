@@ -4471,8 +4471,12 @@ export interface components {
         };
         /** @description The two blocks the flow proposes, and what nothing could fill. */
         CatalogueDraft: {
+            /** @description The model's attributes per type, and whether the public dataset can carry each one. */
+            attributes: components["schemas"]["DraftAttribute"][];
             /** @description The drafted `spec.catalog` (EP-78), or the one the Endpoint already declares. */
             catalog: Record<string, never>;
+            /** @description The Endpoint serves `csv`, so its rows can be mirrored into the CKAN DataStore (EP-65). */
+            datastoreAvailable: boolean;
             endpoint: string;
             /** @description The Endpoint's audience is not `public`: the proposal makes it public, in the red lane. */
             makesPublic: boolean;
@@ -5065,6 +5069,13 @@ export interface components {
              *     a draft of another, nor of the main project.
              */
             workspace?: string | null;
+        };
+        /** @description One attribute of one type the Endpoint serves, as the publish form lists it. */
+        DraftAttribute: {
+            name: string;
+            /** @description The class (entity type) the attribute belongs to. */
+            type: string;
+            withheld?: null | components["schemas"]["Withheld"];
         };
         DraftEvent: {
             event: string;
@@ -7268,6 +7279,11 @@ export interface components {
             /** Format: date-time */
             "7d": string;
         };
+        /**
+         * @description Why an attribute stays out of a public dataset.
+         * @enum {string}
+         */
+        Withheld: "personal" | "hidden";
         /** @description A workflow run of an application's repository, as the App page links it (AP-86, AP-103). */
         WorkflowRun: {
             /** @description The commit the run built. */
