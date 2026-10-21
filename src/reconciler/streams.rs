@@ -123,6 +123,8 @@ pub struct StreamDeployer {
     replace_timeout: Duration,
     /// The pipelines that do not wait for pushes, each loaded only for its run (PL-78).
     queue: Mutex<RunQueue>,
+    /// Where each ended run is told, for the snapshot pipelines' source deletes (T-4891).
+    run_ends: Option<tokio::sync::mpsc::UnboundedSender<crate::pipeline_source_deletes::RunEnd>>,
 }
 
 /// How often the run queue looks at the runner.
@@ -213,7 +215,17 @@ impl StreamDeployer {
             pipeline_identity: false,
             replace_timeout: REPLACE_TIMEOUT,
             queue: Mutex::new(RunQueue::new(1, 1)),
+            run_ends: None,
         }
+    }
+
+    /// Tells `ends` of every run the queue saw end (T-4891).
+    pub fn with_run_ends(
+        mut self,
+        ends: tokio::sync::mpsc::UnboundedSender<crate::pipeline_source_deletes::RunEnd>,
+    ) -> Self {
+        self.run_ends = Some(ends);
+        self
     }
 
     /// Runs at most `batch` batch-lane and `short` short-lane pipelines at once (PL-78).
@@ -356,6 +368,7 @@ impl StreamDeployer {
         );
         *output = crate::pipeline_log::with_outcomes(output.take(), &url);
         crate::pipeline_log::with_passes(stream, &url);
+        crate::pipeline_log::with_problems(stream, KPI_PROBLEM_LABEL, &url);
         // What last crossed each node, for the studio's drawer (T-3974).
         let samples = format!(
             "{}/internal/pipelines/{project}/{pipeline}/samples",
@@ -1292,6 +1305,17 @@ impl Runner for StreamDeployer {
         }
     }
 
+    async fn ended(&self, key: &run_queue::Key, run: &str, finished: bool) {
+        if let Some(ends) = &self.run_ends {
+            let _ = ends.send(crate::pipeline_source_deletes::RunEnd {
+                project: key.0.clone(),
+                pipeline: key.1.clone(),
+                run: run.to_owned(),
+                finished,
+            });
+        }
+    }
+
     async fn delete(&self, key: &run_queue::Key) {
         if let Some(runner) = self.runner_for(&key.0) {
             self.remove(
@@ -1368,6 +1392,9 @@ pub fn render_stream(
 
 /// The label of a pipeline's compute step, the studio's `compute` node (PL-66).
 pub const COMPUTE_LABEL: &str = "compute";
+
+/// A page whose read failed is dropped; a kpi source keeps it as an error instead (PL-104).
+const DROP_ERRORED: &str = "root = if errored() { deleted() }";
 
 /// The label of the step `spec.lifetime` compiles to (PL-82).
 pub const LIFETIME_LABEL: &str = "lifetime";
@@ -1835,9 +1862,7 @@ fn endpoint_input(
         read["oauth2"] = pipeline_oauth2(project);
     }
     let p1 = paged_read(&read, &source_url);
-    let p2 = serde_json::json!({
-        "mutation": "root = if errored() { deleted() }"
-    });
+    let p2 = serde_json::json!({ "mutation": DROP_ERRORED });
 
     let mut processors = vec![p1, p2];
     if trigger.is_some() {
@@ -1970,6 +1995,13 @@ pub fn render_merged(
     sources: &[ResolvedSource],
     target_slugs: &[String],
 ) -> Result<Value, RenderError> {
+    let kpi = kpi_step(pipeline);
+    if kpi.is_some() && !pipeline.is_scheduled() {
+        return Err(RenderError::Custom(
+            "a kpi step runs on its schedule: set class scheduled and a schedule (PL-102)"
+                .to_owned(),
+        ));
+    }
     let mut inputs = Vec::with_capacity(sources.len());
     for (at, source) in sources.iter().enumerate() {
         let (input, processors) = match source {
@@ -1990,15 +2022,29 @@ pub fn render_merged(
                 *public,
             )?,
         };
+        let processors = match kpi {
+            Some(_) => kpi_source(source, processors)?,
+            None => processors,
+        };
         inputs.push(with_processors(input, processors));
     }
-    let input = match inputs.len() {
+    let count = inputs.len();
+    let input = match count {
         0 => {
             return Err(RenderError::Custom(
                 "a pipeline reads at least one source".to_owned(),
             ))
         }
         1 => inputs.remove(0),
+        // The run's pages meet in one message, one wrapped page per source (PL-104).
+        _ if kpi.is_some() => serde_json::json!({ "broker": {
+            "inputs": inputs,
+            "batching": {
+                "count": count,
+                "period": KPI_GATHER,
+                "processors": [{ "archive": { "format": "json_array" } }],
+            },
+        } }),
         _ => serde_json::json!({ "broker": { "inputs": inputs } }),
     };
 
@@ -2014,6 +2060,11 @@ pub fn render_merged(
             }
             Step::Compute(_) => COMPUTE_LABEL.to_owned(),
         };
+        if let Some(kpi) = kpi {
+            processors.push(labelled(kpi_mapping(pipeline, kpi, name, project)?, &label));
+            processors.push(labelled(kpi_problem(), KPI_PROBLEM_LABEL));
+            continue;
+        }
         if let Some(processor) = step_processor(step)? {
             processors.push(labelled(processor, &label));
         }
@@ -2065,6 +2116,81 @@ pub fn render_merged(
     });
     bound_in_flight(&mut stream, polled);
     Ok(stream)
+}
+
+/// How long the broker waits for every source's page of a kpi run before it folds what came;
+/// a source still silent then is the run's problem (PL-104).
+const KPI_GATHER: &str = "120s";
+
+/// The label of the step that reports a kpi run's problem to its log and drops it (PL-104).
+pub const KPI_PROBLEM_LABEL: &str = "kpi_problem";
+
+/// The `kpi` step of a pipeline (PL-102), when it has one.
+fn kpi_step(pipeline: &PipelineSpec) -> Option<&jc_core::kpi_join::KpiStep> {
+    pipeline.steps.iter().find_map(|step| match step {
+        Step::Compute(compute) => compute.kpi.as_deref(),
+        Step::Processor(_) => None,
+    })
+}
+
+/// A kpi source's processors (PL-104): its read keeps the error instead of dropping the page,
+/// and the page is wrapped with the source's name for the broker's batch. The error loses every
+/// URL query, as the run log's source failure does (T-4428).
+fn kpi_source(
+    source: &ResolvedSource,
+    mut processors: Vec<Value>,
+) -> Result<Vec<Value>, RenderError> {
+    let ResolvedSource::Endpoint { source, .. } = source else {
+        return Err(RenderError::Custom(
+            "a kpi step reads Endpoints, not DataSources (PL-102)".to_owned(),
+        ));
+    };
+    if source.trigger.is_some() {
+        return Err(RenderError::Custom(
+            "a kpi step runs on its schedule, not on a subscription (PL-102)".to_owned(),
+        ));
+    }
+    let name = source.name.as_deref().ok_or_else(|| {
+        RenderError::Custom("each source of a kpi step has a name (PL-102)".to_owned())
+    })?;
+    processors.retain(|p| p.get("mutation").and_then(Value::as_str) != Some(DROP_ERRORED));
+    processors.push(serde_json::json!({ "catch": [{ "mapping": r#"root = { "jc_kpi_error": error().or("the source refused the request").re_replace_all("""\?[^'"\s]*""", "") }"# }] }));
+    processors.push(serde_json::json!({ "mapping": jc_core::kpi_join::wrap_mapping(name) }));
+    Ok(processors)
+}
+
+/// The mapping a kpi step compiles to (PL-104): jc-core checks the step against the sources'
+/// names and attributes again, then renders the fold.
+fn kpi_mapping(
+    pipeline: &PipelineSpec,
+    kpi: &jc_core::kpi_join::KpiStep,
+    name: &str,
+    project: &str,
+) -> Result<Value, RenderError> {
+    let custom = |err: jc_core::Error| RenderError::Custom(err.to_string());
+    let mut inputs = pipeline.kpi_inputs().map_err(custom)?;
+    for (input, source) in inputs.iter_mut().zip(&pipeline.sources) {
+        if let Some(reference) = &source.endpoint_ref {
+            input.endpoint = reference.name().to_owned();
+        }
+    }
+    let expr = kpi.validate(&inputs).map_err(custom)?;
+    let target = jc_core::kpi_join::Target {
+        pipeline_space: project,
+        pipeline: name,
+    };
+    Ok(serde_json::json!({
+        "mapping": jc_core::kpi_join::bloblang(kpi, &expr, &inputs, &target)
+    }))
+}
+
+/// Stands where a kpi run's problem is reported; the log stage puts the report in (PL-62), and
+/// without one the run is dropped, never written.
+fn kpi_problem() -> Value {
+    serde_json::json!({ "switch": [{
+        "check": "errored()",
+        "processors": [{ "mapping": "root = deleted()" }],
+    }] })
 }
 
 /// The label of the output that routes by condition (PL-73). A route's own components are
@@ -2197,13 +2323,15 @@ pub fn eligible(spec: &PipelineSpec) -> bool {
     // run elsewhere (PL-33).
     if !steps.iter().all(|step| match step {
         Step::Processor(_) => true,
-        Step::Compute(c) => c.kind == ComputeKind::Bloblang,
+        Step::Compute(c) => matches!(c.kind, ComputeKind::Bloblang | ComputeKind::Kpi),
     }) {
         return false;
     }
     let maps = steps.iter().any(|step| match step {
         Step::Processor(_) => true,
-        Step::Compute(c) => c.bloblang.as_ref().is_some_and(|b| !b.trim().is_empty()),
+        Step::Compute(c) => {
+            c.kpi.is_some() || c.bloblang.as_ref().is_some_and(|b| !b.trim().is_empty())
+        }
     });
     let sources = spec.sources();
     !sources.is_empty()
@@ -5255,8 +5383,136 @@ output:
             function: None,
             mapping_ref: None,
             bloblang: None,
+            kpi: None,
         })];
         assert!(!eligible(&wasm));
+    }
+
+    fn kpi_spec(class: &str) -> PipelineSpec {
+        second_shape(serde_json::json!({
+            "class": class,
+            "schedule": "0 * * * *",
+            "sources": [
+                { "name": "parking", "endpointRef": { "kind": "Endpoint", "name": "helsinki-parking" },
+                  "query": { "type": "ParkingSite", "attrs": ["occupiedSpotNumber", "district"] } },
+                { "name": "stops", "endpointRef": { "kind": "Endpoint", "name": "helsinki-transit" },
+                  "query": { "type": "TransitStop", "attrs": ["district"] } }
+            ],
+            "steps": [{ "kind": "kpi", "kpi": {
+                "name": "parking-per-stop",
+                "formula": "sum(parking.occupiedSpotNumber) / count(stops)",
+                "unitCode": "C62",
+                "join": { "by": "area", "keys": { "parking": "district", "stops": "district" } }
+            } }],
+            "outputs": [{ "targetEndpoint": "urn:ngsi-ld:Endpoint:example.org:helsinki-kpi:kpi" }]
+        }))
+    }
+
+    fn kpi_sources(spec: &PipelineSpec) -> Vec<ResolvedSource> {
+        spec.sources()
+            .into_iter()
+            .map(|source| ResolvedSource::Endpoint {
+                source: Box::new(source),
+                slug: "slug".to_owned(),
+                public: false,
+            })
+            .collect()
+    }
+
+    /// PL-104 (T-4864): each source keeps its read's error and is wrapped with its name, the
+    /// broker folds one page per source into one message, jc-core's mapping computes, and a
+    /// problem is reported to the run log instead of written.
+    #[test]
+    fn a_kpi_step_gathers_one_page_per_source_and_reports_a_problem_instead_of_writing() {
+        let spec = kpi_spec("scheduled");
+        assert!(is_merged(&spec));
+        assert!(eligible(&spec));
+        let mut stream = render_merged(
+            &spec,
+            "parking-per-stop",
+            "helsinki",
+            &kpi_sources(&spec),
+            &["kpislug".to_owned()],
+        )
+        .expect("renders");
+
+        let broker = &stream["input"]["broker"];
+        assert_eq!(broker["batching"]["count"], 2);
+        assert_eq!(
+            broker["batching"]["processors"][0]["archive"]["format"],
+            "json_array"
+        );
+        for (input, name) in broker["inputs"]
+            .as_array()
+            .expect("inputs")
+            .iter()
+            .zip(["parking", "stops"])
+        {
+            let processors = input["processors"].as_array().expect("processors");
+            assert!(
+                processors.iter().all(|p| p["mutation"] != DROP_ERRORED),
+                "a failed read is kept as the run's problem, not dropped"
+            );
+            assert!(processors.iter().any(|p| p["catch"][0]["mapping"]
+                .as_str()
+                .is_some_and(|m| m.contains("jc_kpi_error"))));
+            let wrap = processors.last().expect("the wrap")["mapping"]
+                .as_str()
+                .expect("mapping");
+            assert!(wrap.contains(&format!("\"input\": \"{name}\"")), "{wrap}");
+        }
+
+        let processors = stream["pipeline"]["processors"]
+            .as_array()
+            .expect("processors");
+        let compute = processors
+            .iter()
+            .find(|p| p["label"] == COMPUTE_LABEL)
+            .expect("the compute step");
+        let mapping = compute["mapping"].as_str().expect("mapping");
+        assert!(
+            mapping.contains("division by zero: count(stops) is 0"),
+            "{mapping}"
+        );
+        assert!(
+            mapping.contains("urn:ngsi-ld:Pipeline:\" + $domain + \":helsinki:parking-per-stop")
+        );
+        let at = |label: &str| processors.iter().position(|p| p["label"] == label);
+        assert_eq!(at(KPI_PROBLEM_LABEL), at(COMPUTE_LABEL).map(|c| c + 1));
+
+        crate::pipeline_log::with_problems(
+            &mut stream,
+            KPI_PROBLEM_LABEL,
+            "http://portal/outcomes",
+        );
+        let problem = stream["pipeline"]["processors"]
+            .as_array()
+            .and_then(|p| p.iter().find(|p| p["label"] == KPI_PROBLEM_LABEL))
+            .expect("still labelled");
+        assert_eq!(problem["switch"][0]["check"], "errored()");
+        assert!(problem.to_string().contains("http://portal/outcomes"));
+    }
+
+    #[test]
+    fn a_kpi_step_runs_only_on_its_schedule_and_over_endpoints() {
+        let resident = kpi_spec("resident");
+        let refused = render_merged(
+            &resident,
+            "p",
+            "helsinki",
+            &kpi_sources(&resident),
+            &["s".to_owned()],
+        );
+        assert!(refused.is_err_and(|e| e.to_string().contains("runs on its schedule")));
+
+        let spec = kpi_spec("scheduled");
+        let mut sources = kpi_sources(&spec);
+        sources[1] = ResolvedSource::Data {
+            spec: Box::new(helsinki_datasource_spec()),
+            name: "gbfs".to_owned(),
+        };
+        let refused = render_merged(&spec, "p", "helsinki", &sources, &["s".to_owned()]);
+        assert!(refused.is_err_and(|e| e.to_string().contains("reads Endpoints")));
     }
 
     #[test]

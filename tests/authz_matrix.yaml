@@ -132,6 +132,9 @@ routes:
   - route: POST /internal/pipelines/{project}/{name}/rejected
     rule: "workload:pipeline-runner"
     expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: POST /internal/pipelines/{project}/{name}/source-deletes
+    rule: "workload:pipeline-runner"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
   - route: GET /internal/agent-runs/{id}/inbox
     rule: "workload:agent-proxy"
     expect: [401, 401, 401, 401, 401, 401, 401, 401]
@@ -209,6 +212,10 @@ routes:
   - route: GET /organization/health
     rule: "org-admin"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]
+  - route: GET /organization/agents
+    rule: "signed-in, filtered per namespace by read on each agent kind; 403 for a caller who reads none (AG-126)"
+    expect: [401, allow, allow, allow, allow, allow, 403, allow]
+    note: "every agent identity the caller may read, nothing counted that they may not; the other member reads no agent kind of the fixture, so 403 (API/01 §48, T-4849)"
   - route: GET /organization/brokers
     rule: "org-admin (approve and delete on RoleBinding, PF-03)"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]
@@ -823,6 +830,14 @@ routes:
     rule: "project-verb:propose:Pipeline"
     expect: [403, 403, allow, allow, 403, allow, 404, 403]
     body: {"ids": []}
+  - route: GET /projects/{project}/pipelines/{name}/source-deletes
+    rule: "project-verb:read:Pipeline"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/pipelines/{name}/source-deletes
+    rule: "project-verb:approve:Pipeline"
+    expect: [403, 403, allow, allow, allow, allow, 404, 403]
+    body: {"decision": "keep"}
+    note: "409 after the check: the fixture's pipeline has no snapshot rule; pipeline_source_deletes_tests holds the rule with one"
   - route: GET /projects/{project}/pipelines/{name}/runs
     rule: "project-verb:read:Pipeline"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

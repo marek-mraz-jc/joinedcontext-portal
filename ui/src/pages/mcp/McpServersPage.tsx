@@ -2,8 +2,9 @@ import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { Link } from "@tanstack/react-router";
 import { api, queryKeys, unwrap } from "../../api/client";
-import { asManifests, localized } from "../../api/manifest";
+import { asManifests, localized, ORG_NAMESPACE } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { useProjects } from "../../api/projects";
 import { useBranding } from "../../branding";
@@ -86,7 +87,7 @@ export function McpServersPage({ project, embedded = false }: { project: string;
       ) : null}
       {servers.isLoading ? <p role="status">{t("app.loading")}</p> : null}
       {!servers.isLoading && !servers.isError && items.length === 0 ? (
-        <EmptyState title={t("mcp.empty")} description={t("mcp.emptyHint")} icon="endpoints" action={create} />
+        <EmptyState title={t(project === ORG_NAMESPACE ? "mcp.emptyOrganization" : "mcp.empty")} description={t("mcp.emptyHint")} icon="endpoints" action={create} />
       ) : null}
       {items.map((server) => (
         <ServerCard
@@ -180,6 +181,15 @@ function ServerCard({
         </div>
         <CopyValue label={t("mcp.config")} value={clientConfig(url, name)} code />
         <p className="text-caption text-fg-muted">{t("mcp.signIn", { client: clientId(project, name) })}</p>
+        {form.audience === "public" ? (
+          // The page a stranger's AI client setup starts from: tools as anonymous callers see them (T-4871).
+          <p className="text-caption text-fg-muted">
+            <Link to="/connect/$project/$name" params={{ project, name }} className="text-primary-soft-fg underline hover:no-underline">
+              {t("mcp.connectPage")}
+            </Link>{" "}
+            {t("mcp.connectPageHint")}
+          </p>
+        ) : null}
         {unseen > 0 ? <p className="text-caption text-fg-muted">{t("mcp.form.unseen", { count: unseen })}</p> : null}
         <ToolPreview members={members} />
       </section>

@@ -948,7 +948,18 @@
         "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-ckan-dialog-publish-a-dataset-steward-en-1440.png"
       ]
     },
-    "src/pages/connect/ConnectPage.tsx": null,
+    "src/pages/connect/ConnectPage.tsx": {
+      "walkedBy": "worker-t4871",
+      "date": "2026-10-21",
+      "screenshots": [
+        "evidence/worker-t4871/T-4871/connect-dev-before-1440.png",
+        "evidence/worker-t4871/T-4871/connect-dev-before-400.png",
+        "evidence/worker-t4871/T-4871/connect-page-1440.png",
+        "evidence/worker-t4871/T-4871/connect-page-400.png",
+        "evidence/worker-t4871/T-4871/mcp-connect-link-1440.png",
+        "evidence/worker-t4871/T-4871/mcp-connect-link-400.png"
+      ]
+    },
     "src/pages/datasources/ConnectionTest.tsx": null,
     "src/pages/datasources/DataSourcesPage.tsx": {
       "walkedBy": "deployer",
@@ -1197,7 +1208,17 @@
         "evidence/worker-t4869/T-4869/conversations-400.png"
       ]
     },
-    "src/pages/mcp/ConnectorStar.tsx": null,
+    "src/pages/mcp/ConnectorStar.tsx": {
+      "walkedBy": "worker-t4871",
+      "date": "2026-10-21",
+      "screenshots": [
+        "evidence/worker-t4871/T-4871/star-steward-off-1440.png",
+        "evidence/worker-t4871/T-4871/star-steward-on-1440.png",
+        "evidence/worker-t4871/T-4871/star-steward-on-400.png",
+        "evidence/worker-t4871/T-4871/star-viewer-1440.png",
+        "evidence/worker-t4871/T-4871/star-viewer-400.png"
+      ]
+    },
     "src/pages/mcp/ConnectorsPage.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
@@ -1360,6 +1381,24 @@
       "date": "2026-10-20",
       "screenshots": []
     },
+    "src/pages/organization/Agents.tsx": {
+      "walkedBy": "worker-t4849",
+      "date": "2026-10-21",
+      "screenshots": [
+        "evidence/worker-t4849/T-4849/agents-detail-1440.png",
+        "evidence/worker-t4849/T-4849/agents-detail-400.png",
+        "evidence/worker-t4849/T-4849/agents-empty-1440.png",
+        "evidence/worker-t4849/T-4849/agents-empty-400.png",
+        "evidence/worker-t4849/T-4849/agents-list-1440.png",
+        "evidence/worker-t4849/T-4849/agents-list-400.png",
+        "evidence/worker-t4849/T-4849/agents-paused-sent-1440.png",
+        "evidence/worker-t4849/T-4849/agents-paused-sent-400.png",
+        "evidence/worker-t4849/T-4849/agents-refused-1440.png",
+        "evidence/worker-t4849/T-4849/agents-refused-400.png",
+        "evidence/worker-t4849/T-4849/agents-settings-1440.png",
+        "evidence/worker-t4849/T-4849/agents-settings-400.png"
+      ]
+    },
     "src/pages/organization/OrganizationApplications.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
@@ -1430,7 +1469,7 @@
         "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
       ]
     },
-    "src/pages/pipelines/ExpiryChoice.tsx": null,
+    "src/pages/pipelines/LifetimeChoice.tsx": null,
     "src/pages/pipelines/OutputMapper.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
@@ -1655,6 +1694,26 @@
         "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
         "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
         "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/spaces/SpacePersonalData.tsx": {
+      "walkedBy": "worker-t4870",
+      "date": "2026-10-21",
+      "screenshots": [
+        "supervisor/reports/workflows-2026-10-21/personal-data/personal-empty-desktop-1440.png",
+        "supervisor/reports/workflows-2026-10-21/personal-data/personal-empty-phone-400.png",
+        "supervisor/reports/workflows-2026-10-21/personal-data/personal-required-desktop-1440.png",
+        "supervisor/reports/workflows-2026-10-21/personal-data/personal-required-phone-400.png",
+        "supervisor/reports/workflows-2026-10-21/personal-data/personal-exported-desktop-1440.png",
+        "supervisor/reports/workflows-2026-10-21/personal-data/personal-exported-phone-400.png",
+        "supervisor/reports/workflows-2026-10-21/personal-data/personal-preview-desktop-1440.png",
+        "supervisor/reports/workflows-2026-10-21/personal-data/personal-preview-phone-400.png",
+        "supervisor/reports/workflows-2026-10-21/personal-data/personal-done-desktop-1440.png",
+        "supervisor/reports/workflows-2026-10-21/personal-data/personal-done-phone-400.png",
+        "supervisor/reports/workflows-2026-10-21/personal-data/personal-refused-desktop-1440.png",
+        "supervisor/reports/workflows-2026-10-21/personal-data/personal-refused-phone-400.png",
+        "supervisor/reports/workflows-2026-10-21/personal-data/personal-viewer-desktop-1440.png",
+        "supervisor/reports/workflows-2026-10-21/personal-data/personal-viewer-phone-400.png"
       ]
     },
     "src/pages/spaces/SpaceRetention.tsx": {

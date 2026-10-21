@@ -749,6 +749,7 @@
         "Button": 1
       },
       "tests": [
+        "organization_agents.test.tsx",
         "service_accounts_view.test.tsx",
         "serviceaccount_form.test.tsx"
       ]
@@ -1335,7 +1336,8 @@
         "Button": 3
       },
       "tests": [
-        "mcp_servers.test.tsx"
+        "mcp_servers.test.tsx",
+        "organization_agents.test.tsx"
       ]
     },
     "src/pages/models/DiagramEditing.tsx": {
@@ -1473,6 +1475,14 @@
         "sdm_import.test.tsx"
       ]
     },
+    "src/pages/organization/Agents.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "organization_agents.test.tsx"
+      ]
+    },
     "src/pages/organization/OrganizationApplications.tsx": {
       "controls": {
         "Button": 6,
@@ -1531,19 +1541,18 @@
         "pipeline_debug_view.test.tsx"
       ]
     },
-    "src/pages/pipelines/ExpiryChoice.tsx": {
+    "src/pages/pipelines/LifetimeChoice.tsx": {
       "controls": {
-        "RadioGroup": 1
+        "Button": 2,
+        "RadioGroup": 2
       },
       "tests": [
-        "expiry_choice.test.tsx",
-        "output_mapper_ui.test.tsx",
-        "retention_expiry.test.ts"
+        "lifetime_choice.test.tsx"
       ]
     },
     "src/pages/pipelines/OutputMapper.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 3
       },
       "tests": [
         "output_mapper_ui.test.tsx"
@@ -1760,6 +1769,14 @@
       "tests": [
         "part_space_inside.test.tsx",
         "space_inside.test.tsx"
+      ]
+    },
+    "src/pages/spaces/SpacePersonalData.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "space_personal_data.test.tsx"
       ]
     },
     "src/pages/spaces/SpaceRetention.tsx": {

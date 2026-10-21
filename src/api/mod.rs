@@ -2,6 +2,7 @@ pub mod access_explore;
 pub mod access_requests;
 pub mod access_simulate;
 pub mod activity;
+pub mod agent_registry;
 pub mod agent_runs;
 pub mod alerts;
 pub mod app_build;
@@ -142,6 +143,7 @@ pub fn router() -> Router<AppState> {
         .merge(visualization_templates::router())
         .merge(organization_limits::router())
         .merge(brokers::router())
+        .merge(agent_registry::router())
         .merge(space_move::router())
         .merge(mqtt_measured::router())
         .merge(mqtt_allowance::router())

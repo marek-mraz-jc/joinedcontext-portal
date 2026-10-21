@@ -1517,6 +1517,51 @@ fn unknown_operation(spec: &Value) -> Option<&str> {
         .find(|name| crate::ops::find(name).is_none())
 }
 
+/// Refuses an `McpServer` whose `spec.allowedProjects` adds a project the proposer may not read,
+/// by the project list's own rule (T-4948): the picker offers those alone, and an id typed
+/// through the API meets the same answer. An unknown project reads like an unreadable one. A
+/// project already admitted stays, so a later edit of the title still goes through.
+fn check_admitted_projects(
+    state: &AppState,
+    identity: &crate::auth::session::Identity,
+    project: &str,
+    kind: &str,
+    envelope: &ResourceEnvelope,
+) -> Result<(), ApiError> {
+    if kind != "McpServer" {
+        return Ok(());
+    }
+    let listed = |spec: &serde_json::Value| -> Vec<String> {
+        spec.get("allowedProjects")
+            .and_then(serde_json::Value::as_array)
+            .map(|names| {
+                names
+                    .iter()
+                    .filter_map(|n| n.as_str().map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let kept = state
+        .mirror
+        .get(project, kind, &envelope.metadata.name)
+        .map(|stored| listed(&stored.spec))
+        .unwrap_or_default();
+    match listed(&envelope.spec)
+        .into_iter()
+        .find(|name| !kept.contains(name) && !super::projects::readable(state, identity, name))
+    {
+        Some(name) => Err(ApiError::Invalid {
+            detail: format!(
+                "spec.allowedProjects names project '{name}', which is not one you may read; pick \
+                 one from the list"
+            ),
+            errors: vec!["spec.allowedProjects".to_owned()],
+        }),
+        None => Ok(()),
+    }
+}
+
 /// The names one organization shares (4e to 4i): Context Spaces, retention, brokers, Apps,
 /// Groups and the pipelines that expire entities, checked for a create or an update.
 async fn check_organization_names(
@@ -1564,6 +1609,9 @@ async fn check_organization_names(
     // 4f. An App name is one address for the organization (AP-14a): `/apps/{name}/` carries no
     //     project, so another project's App of the same name is refused before a Change exists.
     crate::apps::names::check(state, identity, project, kind, &envelope.metadata.name)?;
+
+    // 4f-mcp. A named MCP server admits only projects its proposer reads (T-4948).
+    check_admitted_projects(state, identity, project, kind, envelope)?;
 
     // 4g. A Group name is one Keycloak group for the organization (AP-115): one owned by the
     //     organization or another App, or held by the realm unmanaged, is refused here.

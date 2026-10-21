@@ -1229,6 +1229,55 @@
       "timeOf": "Čas: {source}",
       "unitOf": "Jednotka: {unit}",
       "noMatchHint": "Vyberte Všechny pipeline a Všechny verdikty, abyste viděli každý řádek."
+    },
+    "personal": {
+      "title": "Údaje o osobě",
+      "lead": "Vyřiďte žádost osoby o údaje, které o ní tento prostor má: exportujte vše, co ji uvádí, nebo to vymažte z aktuálních hodnot, historie a všech kopií. Může to udělat jen vlastník prostoru a každá žádost se zaznamená s důvodem. Model prostoru musí určovat, který atribut identifikuje osobu.",
+      "hint": {
+        "subject": "Hodnota atributu osoby v modelu přesně tak, jak je uložená, například r-42. Posílá se jen v žádosti a nikde se neukládá ani nezobrazuje v záznamu.",
+        "reason": "Proč jednáte, zaznamená se se žádostí, například: žádost podle čl. 17 2026-10-19-07."
+      },
+      "subject": "Identifikátor osoby",
+      "subjectError": {
+        "required": "Zadejte identifikátor osoby.",
+        "tooLong": "Použijte nejvýše {max} znaků.",
+        "characters": "Odstraňte uvozovky, zpětná lomítka a řídicí znaky."
+      },
+      "reason": "Důvod",
+      "reasonError": {
+        "required": "Zadejte důvod, například číslo žádosti.",
+        "tooLong": "Použijte nejvýše {max} znaků."
+      },
+      "export": "Exportovat údaje osoby",
+      "erase": "Vymazat údaje osoby…",
+      "confirmTitle": "Vymazat údaje této osoby z prostoru {space}?",
+      "confirmLead": "Výmaz nelze vrátit. Odstraní hodnoty z aktuálního stavu, ze všech verzí historie a ze všech kopií; zůstane jen záznam bez hodnot.",
+      "confirm": "Vymazat",
+      "nothing": "Prostor o této osobě nic nemá. Výmaz přesto zaznamená žádost.",
+      "wouldErase": {
+        "attrs": "{count, plural, one {{type}: osobní atributy ({attrs}) # entity} few {{type}: osobní atributy ({attrs}) # entit} many {{type}: osobní atributy ({attrs}) # entit} other {{type}: osobní atributy ({attrs}) # entit}}",
+        "entity": "{count, plural, one {{type}: # celá entita} few {{type}: # celé entity} many {{type}: # celých entit} other {{type}: # celých entit}}"
+      },
+      "state": {
+        "open": "Výmaz {id} probíhá (entity: {count}). Stránka to každých pár sekund ověří znovu.",
+        "done": "Výmaz {id} je hotový: každé úložiště hlásí vymazání (entity: {count}).",
+        "failed": "Výmaz {id} selhal v jednom úložišti po hodině pokusů. Přečtěte si chybu níže a požádejte tým platformy o opravu úložiště; výmaz zůstává zaznamenaný."
+      },
+      "store": "{store}: {state}, odstraněno {count}",
+      "stores": {
+        "broker": "Aktuální hodnoty a historie",
+        "portal": "Koš a komentáře",
+        "ckanDatastore": "Tabulky otevřených dat",
+        "conversations": "Konverzace s asistentem",
+        "exports": "Exportované soubory",
+        "caches": "Mezipaměti"
+      },
+      "storeState": {
+        "pending": "čeká",
+        "done": "hotovo",
+        "failed": "selhalo: přečtěte si chybu a zkuste později"
+      },
+      "exported": "{count, plural, one {Exportován # záznam do souboru ve stažených souborech.} few {Exportovány # záznamy do souboru ve stažených souborech.} many {Exportováno # záznamů do souboru ve stažených souborech.} other {Exportováno # záznamů do souboru ve stažených souborech.}}"
     }
   },
   "endpoints": {
@@ -2351,7 +2400,16 @@
         "caption": "Namapované záznamy",
         "record": "Záznam",
         "written": "Jak se zapíše",
-        "problems": "Problémy"
+        "problems": "Problémy",
+        "recordN": "Záznam {n}",
+        "problemCount": "{count, plural, one {# problém} few {# problémy} other {# problémů}}",
+        "recordCaption": "Atributy {id} tak, jak se zapíší",
+        "value": "Hodnota",
+        "check": "Kontrola",
+        "expires": "Vyprší",
+        "passes": "prošlo",
+        "observedAt": "pozorováno {at}",
+        "entityLifetime": "životnost entity"
       },
       "validation": {
         "title": "Validace",
@@ -2374,7 +2432,27 @@
         "hint": "Určete endpoint, přes který se záznamy zapíší; uložení navrhne změnu.",
         "lands": "Záznamy přistanou v prostoru {space}, kontrolované vůči modelu {model}.",
         "landsUnmodelled": "Záznamy přistanou v prostoru {space}, který zatím nejmenuje datový model.",
-        "save": "Pojmenujte pipeline níže a navrhněte ji: nic se nezapíše, dokud změnu neschválí."
+        "save": "Pojmenujte pipeline níže a navrhněte ji: nic se nezapíše, dokud změnu neschválí.",
+        "card": "Co pipeline zapisuje",
+        "space": "Prostor",
+        "model": "Model",
+        "type": "Zapisuje typ",
+        "noType": "Typ vyberte v kroku 4",
+        "explain": "Co model prostoru přijímá pro {type} a co tento endpoint pipeline dovolí zapsat. Pole, které endpoint nepovoluje, se odmítne před návrhem, ne až za běhu.",
+        "caption": "Atributy typu {type}",
+        "field": "Pole",
+        "kind": "Druh",
+        "value": "Hodnota",
+        "required": "Povinné",
+        "writable": "Zapisovatelné zde",
+        "locked": "nezapisovatelné",
+        "judging": "ověřuje se…",
+        "lifetimeKind": "životnost entity",
+        "instant": "okamžik",
+        "inLifetime": "nastavuje se v kroku Životnost",
+        "isRequired": "povinné",
+        "optional": "nepovinné",
+        "isWritable": "zapisovatelné"
       },
       "changes": {
         "title": "Co by se změnilo v {space}",
@@ -2392,6 +2470,11 @@
           "update": "Změněna",
           "unchanged": "Beze změny"
         }
+      },
+      "lifetime": {
+        "title": "Životnost",
+        "hint": "Kdy entity nebo některá jejich pole opustí prostor. Uloží se jako životnost pipeline, nikdy jako kód mapování.",
+        "pickType": "Nejprve vyberte cíl a typ, který mapování zapisuje: životnost se nastavuje pro každý typ."
       }
     },
     "mapper": {
@@ -2439,28 +2522,9 @@
         "notTime": "{field} obsahuje {value}, což není čas: použijte text RFC 3339, například 2026-10-20T14:30:00Z, nebo Unix sekundy."
       },
       "expiry": {
-        "title": "Kdy entity zmizí?",
-        "legend": "Entity tohoto typu se odstraní",
-        "never": "Nikdy",
-        "neverHint": "Zůstanou, dokud je někdo nesmaže nebo je neodstraní pravidlo prostoru.",
-        "source": "V čase, který dá zdroj",
-        "sourceHint": "Každá entita dostane vlastní expiresAt: časový atribut plus určitou dobu, například observedOn plus 10 minut, nebo čas zápisu záznamu plus určitou dobu. Pipeline ho zapíše po vašem mapování.",
-        "stale": "Když je zdroj přestane posílat",
-        "staleHint": "Jednou za hodinu pipeline smaže entity tohoto typu, které během okna neaktualizovala.",
-        "from": "Čas z",
-        "written": "Čas zápisu záznamu",
-        "plus": "Přičíst",
-        "plusUnit": "Jednotka přidaného času",
-        "after": "Neaktualizováno po dobu",
-        "afterUnit": "Jednotka okna",
-        "afterHint": "Entity typu {type} neaktualizované takto dlouho se jednou za hodinu smažou.",
-        "refusals": "Návrh se odmítne, když má pipeline více než jeden výstup, když do stejného prostoru zapisuje jiná pipeline, nebo když žádná Policy nedává této pipeline deleteBatch a queryBatch na typ; odmítnutí pojmenuje Policy, kterou je třeba rozšířit.",
-        "history": "Historie typu {type} se řídí pravidly prostoru.",
-        "spaceRules": "Uchovávání v {space}",
-        "noTimeSlot": "Zatím není namapován žádný atribut data a času typu {type}, proto se konec počítá od času zápisu záznamu.",
-        "inManifest": "Životnost typu {type} je nastavena v manifestu pipeline (pevné datum, strop nebo vybrané atributy). Změňte ji v zobrazení YAML; tento editor ji ponechá beze změny.",
-        "migrated": "Čas konce, který tento krok dosud zapisoval, je nyní nastavením životnosti pipeline níže. Uloží se s vaším dalším návrhem.",
-        "migrateField": "Tento krok zapisuje expiresAt z pole záznamu {field} a z tohoto pole není namapován žádný atribut data a času. Namapujte ho na atribut data a času nebo níže zvolte jiný čas; do té doby si krok ponechá vlastní řádky expiresAt."
+        "migrated": "Čas konce, který tento krok zapisoval, je nyní životností pipeline v kroku Životnost. Uloží se s vaším dalším návrhem.",
+        "migrateField": "Tento krok zapisuje expiresAt z pole záznamu {field} a z něj se nemapuje žádný atribut s datem a časem. Namapujte ho na takový atribut, vyberte konec v kroku Životnost nebo zahoďte vlastní řádky kroku.",
+        "drop": "Zahodit vlastní expiresAt kroku"
       }
     },
     "debug": {
@@ -2639,6 +2703,68 @@
       "rejectedUnavailable": "Odmítnuté záznamy se nepodařilo načíst.",
       "noRejected": "Model neodmítl žádný záznam této pipeline.",
       "credentials": "Přihlašovací údaje"
+    },
+    "lifetime": {
+      "legend": "Co se stane s každou entitou {type}",
+      "keep": "Ponechat entity",
+      "keepHint": "Zůstanou, dokud je někdo nesmaže nebo je pravidlo prostoru neodstraní.",
+      "entity": "Celá entita vyprší",
+      "entityHint": "Entita {type} zmizí v čase, který nastavíte.",
+      "attributes": "Vyprší jen některá pole",
+      "attributesHint": "Entita {type} zůstane; vybraná pole zmizí, když zestárnou.",
+      "stale": "Smazat, když je zdroj přestane posílat",
+      "staleHint": "Jednou za hodinu pipeline smaže entity tohoto typu, které nějakou dobu neaktualizovala. Odmítne se, když má pipeline víc výstupů nebo jí žádná Policy nepovoluje deleteBatch na typ.",
+      "kind": {
+        "legend": "Konec",
+        "from": "Od pole",
+        "fromHint": "Čas ze záznamu plus nějaká doba.",
+        "rolling": "Po každém zápisu",
+        "rollingHint": "Každý zápis začne čas znovu.",
+        "at": "K pevnému datu",
+        "atHint": "Jedno datum a čas pro všechny."
+      },
+      "from": "Čas od",
+      "observedAt": "observedAt (nejnovější z jejích polí)",
+      "noTimeSlot": "Typ nemá atribut s datem a časem: konec se počítá od nejnovějšího observedAt jejích polí.",
+      "plus": "Přidat",
+      "keepFor": "Ponechat",
+      "unitOf": "Jednotka: {what}",
+      "cap": "Nejvýše po zápisu",
+      "noCap": "bez limitu",
+      "capOf": "{span}",
+      "at": "Datum a čas",
+      "atHint": "Ve vašem časovém pásmu; uloží se v UTC.",
+      "attribute": "Pole",
+      "remove": "Odebrat",
+      "removeOf": "Odebrat konec pole {name}",
+      "add": "Přidat pole",
+      "noAttributes": "Tento endpoint pipeline nedovolí zapsat žádné pole typu {type}, takže žádné pole nemůže vypršet.",
+      "allAdded": "Každé pole, které endpoint povoluje, už má konec.",
+      "after": "Neaktualizováno",
+      "afterUnit": "Jednotka okna",
+      "afterHint": "Entity typu {type}, které se tak dlouho neaktualizovaly, se jednou za hodinu smažou.",
+      "history": "Historie typu {type} se řídí pravidly prostoru bez ohledu na volbu zde.",
+      "spaceRules": "Uchovávání v {space}",
+      "span": "{count} {unit}",
+      "noSpan": "žádný čas",
+      "problem": {
+        "date": "Zadejte datum a čas.",
+        "past": "Datum je v minulosti: všechny entity by se odstranily najednou. Vyberte pozdější.",
+        "span": "Zadejte, jak dlouho je ponechat: alespoň minutu."
+      },
+      "says": {
+        "keep": "Každá entita {type} zůstane, dokud ji někdo nesmaže nebo ji pravidlo prostoru neodstraní.",
+        "entity": "Každá entita {type} se odstraní {end}.",
+        "renewed": "Novější zápis posune konec dál.",
+        "attribute": "Pole {name} každé entity {type} zmizí {end}.",
+        "from": "{span} po jejím {from}",
+        "fromExact": "v jejím {from}",
+        "observedAt": "posledním observedAt",
+        "cap": "a nejpozději {span} po zápisu",
+        "rolling": "{span} po jejím posledním zápisu",
+        "at": "{date}",
+        "stale": "Jednou za hodinu pipeline smaže každou entitu {type}, kterou neaktualizovala {span}."
+      }
     },
     "access": {
       "section": "Přístup k jiným prostorům",
@@ -2870,7 +2996,8 @@
       },
       "grantIn": "{role} v {where}",
       "grantOrg": "{role} v celé organizaci",
-      "emptyHint": "Servisní účet je způsob, jak program mimo Portál čte nebo zapisuje tento projekt: skript, pipeline jinde, jiná platforma. Každý se přihlašuje vlastním klientem v Keycloaku a má jen roli, kterou mu dáte."
+      "emptyHint": "Servisní účet je způsob, jak program mimo Portál čte nebo zapisuje tento projekt: skript, pipeline jinde, jiná platforma. Každý se přihlašuje vlastním klientem v Keycloaku a má jen roli, kterou mu dáte.",
+      "emptyOrganization": "Organizace nemá vlastní servisní účet. Servisní účty projektu jsou v nastavení projektu a v sekci Agenti."
     },
     "matrix": {
       "title": "Přístup k datům",
@@ -4079,7 +4206,9 @@
       "secretKeyHelp": "Položka toho secretu, která obsahuje token. Nechte apiToken, pokud operátor neurčí jinak.",
       "secretKeyInvalid": "Klíč tvoří písmena, číslice, tečky, pomlčky a podtržítka.",
       "secretInvalid": "Název secretu tvoří malá písmena, číslice, pomlčky a tečky, například ckan-api-token.",
-      "secretIsToken": "Toto vypadá jako samotný API token. Nevkládejte ho sem: požádejte operátora, aby ho uložil do úložiště secretů, a napište název toho secretu."
+      "secretIsToken": "Toto vypadá jako samotný API token. Nevkládejte ho sem: požádejte operátora, aby ho uložil do úložiště secretů, a napište název toho secretu.",
+      "organizationsKnown": "Organizace v katalogu",
+      "organizationNone": "Katalog Portálu nemá odpovídající organizaci: napište její krátký název a vyberte „Nové“."
     },
     "publications": {
       "title": "Publikované endpointy",
@@ -5838,7 +5967,8 @@
       "health": "Stav ověření",
       "endpoints": "Všechny koncové body",
       "mcp-servers": "MCP servery organizace",
-      "brokers": "Brokery"
+      "brokers": "Brokery",
+      "agents": "Agenti"
     },
     "settings": {
       "title": "Nastavení",
@@ -6435,7 +6565,116 @@
       "platform": "Co instalace provozuje pro každý projekt: brokery, prostředí, členství v datovém prostoru a stav.",
       "settings": "Doména organizace, jazyky, kontakty, pravidla a limity a co ještě chybí v nastavení."
     },
-    "kindHidden": "Zde je vidí jen administrátor organizace, jehož role zahrnuje {kinds}. Požádejte administrátora organizace, aby je přidal do vaší role."
+    "kindHidden": "Zde je vidí jen administrátor organizace, jehož role zahrnuje {kinds}. Požádejte administrátora organizace, aby je přidal do vaší role.",
+    "agents": {
+      "title": "Agenti",
+      "lead": "Všichni AI agenti organizace a jejích projektů, které smíte vidět: asistenti, profily agentů, MCP servery, servisní účty a právě běžící běhy. Otevřete agenta a uvidíte, kam sahá, a asistenta můžete pozastavit.",
+      "caption": "Agenti organizace",
+      "empty": "Zatím žádný agent",
+      "emptyHint": "Asistenti, profily agentů, MCP servery a servisní účty se zde objeví, jakmile je projekt deklaruje.",
+      "column": {
+        "name": "Agent",
+        "owner": "Vlastník",
+        "actsAs": "Jedná jako",
+        "reach": "Sahá na",
+        "lastActivity": "Poslední aktivita",
+        "spend": "Spotřeba",
+        "state": "Stav"
+      },
+      "kind": {
+        "AssistantDeployment": "Asistent",
+        "AgentProfile": "Profil agenta",
+        "McpServer": "MCP server",
+        "ServiceAccount": "Servisní účet",
+        "AgentRun": "Běh"
+      },
+      "organization": "Organizace",
+      "ownerProject": "Projekt {project}",
+      "actsAs": {
+        "self": "Vlastní účet",
+        "caller": "Osoba, která ho volá"
+      },
+      "actsAsLong": {
+        "self": "Vlastní servisní účet: má práva přidělená tomuto účtu, ať se ptá kdokoli.",
+        "caller": "Osoba nebo klient, který ho volá: čte a zapisuje jen to, co smí tento volající."
+      },
+      "reachNone": "Nic neuvedeno",
+      "reachCount": "Prostory: {spaces} · Endpointy: {endpoints}",
+      "spendNone": "Bez rozpočtu tokenů",
+      "spendCapOnly": {
+        "day": "Strop {cap} tokenů za den",
+        "run": "Strop {cap} tokenů za běh"
+      },
+      "spendUsedOnly": {
+        "day": "{used} tokenů dnes",
+        "run": "{used} tokenů zatím"
+      },
+      "spendOf": {
+        "day": "{used} z {cap} tokenů dnes",
+        "run": "{used} z {cap} tokenů"
+      },
+      "state": {
+        "active": "Aktivní",
+        "paused": "Pozastavený",
+        "running": "Běží",
+        "waiting": "Čeká na člověka"
+      },
+      "noActivity": "Nic nezaznamenáno",
+      "back": "Všichni agenti",
+      "gone": "Tento agent není v seznamu",
+      "goneHint": "Byl odstraněn, nebo vám ho vaše role už nedovolují vidět.",
+      "tabsLabel": "O tomto agentovi",
+      "tab": {
+        "overview": "Přehled",
+        "access": "Přístup",
+        "activity": "Aktivita",
+        "settings": "Nastavení"
+      },
+      "spaces": "Prostory",
+      "endpoints": "Endpointy",
+      "none": "Žádné",
+      "pause": "Pozastavit asistenta",
+      "resume": "Obnovit asistenta",
+      "pauseLead": "Pozastavení zastaví všechny odpovědi asistenta, dokud ho neobnovíte. Je to změna, kterou projekt před použitím posoudí.",
+      "resumeLead": "Tento asistent teď nikomu neodpovídá. Obnovení je změna, kterou projekt před použitím posoudí.",
+      "pauseSent": "Pozastavení odesláno k posouzení. Asistent přestane odpovídat po schválení změny.",
+      "resumeSent": "Obnovení odesláno k posouzení. Asistent začne znovu odpovídat po schválení změny.",
+      "openChange": "Otevřít změnu",
+      "openHome": "Otevřít jeho stránku",
+      "noPause": "Tento druh nemá vypínač. Chcete-li ho zastavit, odstraňte ho na jeho stránce.",
+      "runStop": "Běh zastavíte zrušením na stránce jeho aplikace.",
+      "activityLead": "Co četl a zapsal, je na jeho vlastní stránce.",
+      "runSettings": "Běh se řídí profilem agenta {profile}; jeho nastavení jsou tam.",
+      "openManifest": "Upravit na jeho stránce",
+      "setting": {
+        "channel": "Kanál",
+        "enabled": "Odpovídá",
+        "role": "Role",
+        "purpose": "Účel",
+        "audience": "Publikum",
+        "credentials": "Přihlašovací údaje",
+        "model": {
+          "answer": "Model odpovědí",
+          "router": "Model směrování",
+          "provider": "Poskytovatel modelu",
+          "name": "Model",
+          "maxTokensPerRun": "Tokeny za běh"
+        },
+        "budget": {
+          "tokensPerDay": "Tokeny za den",
+          "costPerDayUsd": "Náklady za den (USD)"
+        },
+        "rateLimit": {
+          "requestsPerMinute": "Požadavky za minutu"
+        },
+        "limits": {
+          "stepsPerRun": "Kroky za běh",
+          "wallClock": "Nejdelší běh",
+          "concurrentRunsPerOrganization": "Souběžné běhy",
+          "requestsPerMinute": "Požadavky za minutu"
+        }
+      }
+    }
   },
   "projectDelete": {
     "title": "Smazat projekt {name}",
@@ -7015,7 +7254,7 @@
       "contactEmail": "E-mail kontaktu",
       "contactHelp": "Rolová adresa jako oddělení otevřených dat, nikdy osobní e-mail.",
       "keywords": "Klíčová slova",
-      "keywordsHelp": "Oddělená čárkami, v jazyce {language}.",
+      "keywordsHelp": "Vyberte klíčová slova katalogu nebo napište nové; v jazyce {language}.",
       "spatialHelp": "Region, který data pokrývají, například Banskobystrický kraj (SK032). Mapa datové sady ukáže její záznamy všude, kde mají polohu.",
       "start": "Obsahuje data od",
       "end": "Obsahuje data do",
@@ -7060,7 +7299,9 @@
         "map": "Mapa záznamů s polohou",
         "api": "NGSI-LD API a další formáty endpointu",
         "dcat": "Záznam DCAT-AP (JSON-LD)"
-      }
+      },
+      "inCatalogue": "Již v katalogu",
+      "typeNew": "V katalogu nic neodpovídá: napište nový a vyberte „Nové“."
     },
     "licence": {
       "CC_BY_4_0": "Creative Commons Attribution 4.0",
@@ -7569,6 +7810,8 @@
     "client": "Přihlašovací klient",
     "config": "Záznam do konfigurace AI klienta",
     "signIn": "AI klient najde přihlášení podle adresy a přihlásí osobu klientem {client} (bez tajemství, PKCE). Do konfigurace nejde žádný token.",
+    "connectPage": "Otevřít veřejnou stránku připojení",
+    "connectPageHint": "Ukazuje nástroje, které dostane kdokoli bez přihlášení, a nastavení pro Claude, ChatGPT a další klienty; její adresu můžete sdílet i v popisu datové sady.",
     "copy": "Kopírovat",
     "copied": "Zkopírováno",
     "copyOf": "Kopírovat: {what}",
@@ -7593,7 +7836,7 @@
       "description": "Co server obsahuje, v jedné či dvou větách; AI klient to čte jako své pokyny.",
       "members": "Nabízejí se jen endpointy, které smíte číst. Každé volání člena je vlastní volání toho endpointu, o kterém rozhoduje jeho vlastní politika.",
       "audience": "Ne širší než nejužší člen. Veřejný server potřebuje všechny členy veřejné a schvalovatele, který smí publikovat.",
-      "allowedProjects": "Názvy projektů oddělené čárkami; prázdné připouští jen tento projekt.",
+      "allowedProjects": "Vyberte projekty, jejichž členové se smějí připojit; nabízejí se jen projekty, které smíte číst. Prázdné připouští jen tento projekt.",
       "knowledgeSources": "Server nabídne nástroj search_documents nad veřejnými stránkami a dokumenty zde vybraných zdrojů; bez nich takový nástroj nenabízí."
     },
     "form": {
@@ -7609,7 +7852,9 @@
       "sourcesUnreadable": "Zdroje znalostí projektu se nepodařilo načíst; již připojené zůstávají, jak jsou.",
       "noPublicSources": "Projekt nemá žádný veřejný zdroj znalostí k připojení.",
       "sourcesFull": "Nejvýše {max} zdrojů.",
-      "keptSources": "Ponechané, jak jsou: {sources}."
+      "keptSources": "Ponechané, jak jsou: {sources}.",
+      "yourProjects": "Projekty, které smíte číst",
+      "noProjects": "Neodpovídá žádný projekt, který smíte číst. Správce organizace vás přidá do projektu v Přístup → Skupiny."
     },
     "problem": {
       "name": "Použijte malá písmena, číslice a pomlčky, nejvýše 63 znaků.",
@@ -7635,7 +7880,8 @@
       "writes": "Zapisuje",
       "offeredBy": "Nabízí: {members}"
     },
-    "leadOrganization": "MCP servery organizace: jedna adresa nad endpointy více projektů pro všechny, které publikum připouští."
+    "leadOrganization": "MCP servery organizace: jedna adresa nad endpointy více projektů pro všechny, které publikum připouští.",
+    "emptyOrganization": "Organizace zatím nemá vlastní MCP server. Servery projektu jsou na jeho stránce MCP a v sekci Agenti."
   },
   "notifications": {
     "label": "{count, plural, =0 {Upozornění} one {Upozornění, # nepřečtené} few {Upozornění, # nepřečtená} other {Upozornění, # nepřečtených}}",
@@ -8465,10 +8711,10 @@
     },
     "help": {
       "name": "Malá písmena, číslice a pomlčky; poslední část adresy.",
-      "projects": "Názvy projektů oddělené čárkou.",
-      "spaces": "projekt/prostor, oddělené čárkou.",
-      "domains": "Domény Smart Data Models: Environment, Transportation, …",
-      "themes": "Datová témata EU, například ENVI nebo TRAN.",
+      "projects": "Vyberte z projektů, které smíte číst, např. mesto.",
+      "spaces": "Vyberte z kontextových prostorů, které smíte číst, zúženo na projekty vybrané výše.",
+      "domains": "Domény Smart Data Models z klasifikace Endpointů.",
+      "themes": "Datová témata EU z katalogových záznamů Endpointů.",
       "endpoints": "Koncový bod sem přidáte hvězdičkou na jeho stránce."
     },
     "level": {
@@ -8488,7 +8734,12 @@
       "add": "Přidat do mých konektorů",
       "in": "V konektoru: {names}"
     },
-    "full": "Máte 10 konektorů, víc nejde. Chcete-li přidat další, jeden smažte."
+    "full": "Máte 10 konektorů, víc nejde. Chcete-li přidat další, jeden smažte.",
+    "noMatch": {
+      "projects": "Neodpovídá žádný projekt, který smíte číst. Správce organizace vás přidá do projektu v Přístup → Skupiny.",
+      "spaces": "Neodpovídá žádný kontextový prostor, který smíte číst. Projekt ho vytvoří v Data → Kontextové prostory.",
+      "none": "Napsanému nic neodpovídá."
+    }
   },
   "conversations": {
     "title": "Konverzace",
@@ -8518,7 +8769,8 @@
       "deployment": "Asistent",
       "from": "Od",
       "to": "Do",
-      "expensive": "Nad $0,02"
+      "expensive": "Nad $0,02",
+      "noDeployments": "Tento projekt ještě nemá asistenta. Přidejte ho v Asistent → Nasazení."
     },
     "status": {
       "ok": "Zodpovězeno",

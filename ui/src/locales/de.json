@@ -1229,6 +1229,55 @@
       "timeOf": "Zeit: {source}",
       "unitOf": "Einheit: {unit}",
       "noMatchHint": "Wählen Sie Alle Pipelines und Alle Urteile, um jede Zeile zu sehen."
+    },
+    "personal": {
+      "title": "Daten einer Person",
+      "lead": "Beantworten Sie die Anfrage einer Person zu den Daten, die dieser Bereich über sie hält: Exportieren Sie alles, was sie nennt, oder löschen Sie es aus aktuellen Werten, Verlauf und jeder Kopie. Nur ein Eigentümer des Bereichs kann das, und jede Anfrage wird mit ihrem Grund protokolliert. Das Modell des Bereichs muss angeben, welches Attribut die Person identifiziert.",
+      "hint": {
+        "subject": "Der Wert im Personenattribut des Modells, genau wie gespeichert, zum Beispiel r-42. Er wird nur in der Anfrage gesendet und nie gespeichert oder im Protokoll gezeigt.",
+        "reason": "Warum Sie handeln, mit der Anfrage protokolliert, zum Beispiel: Antrag nach Art. 17 2026-10-19-07."
+      },
+      "subject": "Kennung der Person",
+      "subjectError": {
+        "required": "Geben Sie die Kennung der Person ein.",
+        "tooLong": "Verwenden Sie höchstens {max} Zeichen.",
+        "characters": "Entfernen Sie Anführungszeichen, Backslashes und Steuerzeichen."
+      },
+      "reason": "Grund",
+      "reasonError": {
+        "required": "Geben Sie den Grund ein, zum Beispiel das Aktenzeichen der Anfrage.",
+        "tooLong": "Verwenden Sie höchstens {max} Zeichen."
+      },
+      "export": "Daten der Person exportieren",
+      "erase": "Daten der Person löschen…",
+      "confirmTitle": "Daten dieser Person aus {space} löschen?",
+      "confirmLead": "Die Löschung lässt sich nicht rückgängig machen. Sie entfernt die Werte aus dem aktuellen Stand, jeder Verlaufsversion und jeder Kopie; ein Eintrag ohne Werte bleibt.",
+      "confirm": "Löschen",
+      "nothing": "Der Bereich hält nichts über diese Person. Die Löschung protokolliert die Anfrage trotzdem.",
+      "wouldErase": {
+        "attrs": "{count, plural, one {{type}: die personenbezogenen Attribute ({attrs}) von # Entität} other {{type}: die personenbezogenen Attribute ({attrs}) von # Entitäten}}",
+        "entity": "{count, plural, one {{type}: # ganze Entität} other {{type}: # ganze Entitäten}}"
+      },
+      "state": {
+        "open": "Löschung {id} läuft (Entitäten: {count}). Diese Seite prüft alle paar Sekunden erneut.",
+        "done": "Löschung {id} ist fertig: jeder Speicher meldet die Löschung (Entitäten: {count}).",
+        "failed": "Löschung {id} ist nach einer Stunde Wiederholungen in einem Speicher gescheitert. Lesen Sie den Fehler unten und bitten Sie das Plattform-Team, diesen Speicher zu reparieren; die Löschung bleibt protokolliert."
+      },
+      "store": "{store}: {state}, {count} entfernt",
+      "stores": {
+        "broker": "Aktuelle Werte und Verlauf",
+        "portal": "Papierkorb und Kommentare",
+        "ckanDatastore": "Open-Data-Tabellen",
+        "conversations": "Assistenten-Gespräche",
+        "exports": "Exportdateien",
+        "caches": "Zwischenspeicher"
+      },
+      "storeState": {
+        "pending": "wartet",
+        "done": "fertig",
+        "failed": "gescheitert: Fehler lesen und später erneut versuchen"
+      },
+      "exported": "{count, plural, one {# Datensatz in eine Datei in Ihren Downloads exportiert.} other {# Datensätze in eine Datei in Ihren Downloads exportiert.}}"
     }
   },
   "endpoints": {
@@ -2351,7 +2400,16 @@
         "caption": "Abgebildete Datensätze",
         "record": "Datensatz",
         "written": "Wie geschrieben",
-        "problems": "Probleme"
+        "problems": "Probleme",
+        "recordN": "Datensatz {n}",
+        "problemCount": "{count, plural, one {# Problem} other {# Probleme}}",
+        "recordCaption": "Attribute von {id}, wie geschrieben",
+        "value": "Wert",
+        "check": "Prüfung",
+        "expires": "Läuft ab",
+        "passes": "bestanden",
+        "observedAt": "beobachtet {at}",
+        "entityLifetime": "Lebensdauer der Entität"
       },
       "validation": {
         "title": "Validierung",
@@ -2374,7 +2432,27 @@
         "hint": "Nennen Sie den Endpunkt, über den die Datensätze geschrieben werden; Speichern schlägt eine Änderung vor.",
         "lands": "Die Datensätze landen im Raum {space}, geprüft gegen das Modell {model}.",
         "landsUnmodelled": "Die Datensätze landen im Raum {space}, der noch kein Datenmodell nennt.",
-        "save": "Benennen Sie die Pipeline unten und schlagen Sie sie vor: nichts wird geschrieben, bevor die Änderung genehmigt ist."
+        "save": "Benennen Sie die Pipeline unten und schlagen Sie sie vor: nichts wird geschrieben, bevor die Änderung genehmigt ist.",
+        "card": "Was die Pipeline schreibt",
+        "space": "Raum",
+        "model": "Modell",
+        "type": "Schreibt Typ",
+        "noType": "Typ in Schritt 4 wählen",
+        "explain": "Was das Modell des Raums für {type} annimmt und was dieser Endpoint die Pipeline schreiben lässt. Ein Feld, das der Endpoint nicht gewährt, wird vor dem Vorschlag abgelehnt, nicht erst zur Laufzeit.",
+        "caption": "Attribute von {type}",
+        "field": "Feld",
+        "kind": "Art",
+        "value": "Wert",
+        "required": "Pflicht",
+        "writable": "Hier schreibbar",
+        "locked": "nicht schreibbar",
+        "judging": "wird geprüft…",
+        "lifetimeKind": "Lebensdauer der Entität",
+        "instant": "Zeitpunkt",
+        "inLifetime": "im Schritt Lebensdauer gesetzt",
+        "isRequired": "Pflicht",
+        "optional": "freiwillig",
+        "isWritable": "schreibbar"
       },
       "changes": {
         "title": "Was sich in {space} ändern würde",
@@ -2392,6 +2470,11 @@
           "update": "Geändert",
           "unchanged": "Unverändert"
         }
+      },
+      "lifetime": {
+        "title": "Lebensdauer",
+        "hint": "Wann die Entitäten oder einige ihrer Felder den Raum verlassen. Gespeichert als Lebensdauer der Pipeline, nie als Mapping-Code.",
+        "pickType": "Wählen Sie zuerst das Ziel und den Typ, den das Mapping schreibt: Die Lebensdauer gilt je Typ."
       }
     },
     "mapper": {
@@ -2439,28 +2522,9 @@
         "notTime": "{field} enthält {value}, das ist keine Zeit: RFC-3339-Text wie 2026-10-20T14:30:00Z oder Unix-Sekunden verwenden."
       },
       "expiry": {
-        "title": "Wann verschwinden Entitäten?",
-        "legend": "Entitäten dieses Typs werden entfernt",
-        "never": "Nie",
-        "neverHint": "Sie bleiben, bis jemand sie löscht oder eine Regel des Raums sie entfernt.",
-        "source": "Zu einer Zeit aus der Quelle",
-        "sourceHint": "Jede Entität erhält ein eigenes expiresAt: ein Zeitattribut plus eine Dauer, zum Beispiel observedOn plus 10 Minuten, oder der Schreibzeitpunkt des Datensatzes plus eine Dauer. Die Pipeline schreibt es nach Ihrem Mapping.",
-        "stale": "Wenn die Quelle sie nicht mehr sendet",
-        "staleHint": "Stündlich löscht die Pipeline Entitäten dieses Typs, die sie im Fenster nicht aktualisiert hat.",
-        "from": "Zeit aus",
-        "written": "Zeitpunkt des Schreibens",
-        "plus": "Zuzüglich",
-        "plusUnit": "Einheit der Dauer",
-        "after": "Nicht aktualisiert seit",
-        "afterUnit": "Einheit des Fensters",
-        "afterHint": "Entitäten von {type}, die so lange nicht aktualisiert wurden, werden stündlich gelöscht.",
-        "refusals": "Der Vorschlag wird abgelehnt, wenn die Pipeline mehr als eine Ausgabe hat, eine andere Pipeline in denselben Raum schreibt oder keine Policy dieser Pipeline deleteBatch und queryBatch für den Typ gewährt; die Ablehnung nennt die zu erweiternde Policy.",
-        "history": "Die Historie von {type} folgt den Regeln des Raums.",
-        "spaceRules": "Aufbewahrung in {space}",
-        "noTimeSlot": "Noch ist kein Datum-Zeit-Attribut von {type} zugeordnet, daher zählt das Ende ab dem Schreibzeitpunkt des Datensatzes.",
-        "inManifest": "Die Lebensdauer von {type} ist im Manifest der Pipeline festgelegt (ein festes Datum, eine Obergrenze oder ausgewählte Attribute). Ändern Sie sie in der YAML-Ansicht; dieser Editor lässt sie unverändert.",
-        "migrated": "Die Endzeit, die dieser Schritt bisher selbst schrieb, ist jetzt die Lebensdauer-Einstellung der Pipeline unten. Sie wird mit Ihrem nächsten Vorschlag gespeichert.",
-        "migrateField": "Dieser Schritt schreibt expiresAt aus dem Datensatzfeld {field}, und aus diesem Feld ist kein Datum-Zeit-Attribut zugeordnet. Ordnen Sie es einem Datum-Zeit-Attribut zu oder wählen Sie unten eine andere Zeit; bis dahin behält der Schritt seine eigenen expiresAt-Zeilen."
+        "migrated": "Die Endzeit, die dieser Schritt schrieb, ist jetzt die Lebensdauer der Pipeline im Schritt Lebensdauer. Sie wird mit Ihrem nächsten Vorschlag gespeichert.",
+        "migrateField": "Dieser Schritt schreibt expiresAt aus dem Datensatzfeld {field}, und kein Datum-Zeit-Attribut wird aus diesem Feld gemappt. Mappen Sie es auf ein solches Attribut, wählen Sie ein Ende im Schritt Lebensdauer oder verwerfen Sie die eigenen Zeilen des Schritts.",
+        "drop": "Eigenes expiresAt des Schritts verwerfen"
       }
     },
     "debug": {
@@ -2639,6 +2703,68 @@
       "rejectedUnavailable": "Die abgelehnten Datensätze konnten nicht gelesen werden.",
       "noRejected": "Das Modell hat keinen Datensatz dieser Pipeline abgelehnt.",
       "credentials": "Zugangsdaten"
+    },
+    "lifetime": {
+      "legend": "Was mit jedem {type} geschieht",
+      "keep": "Entitäten behalten",
+      "keepHint": "Sie bleiben, bis jemand sie löscht oder die Regel des Raums veraltete entfernt.",
+      "entity": "Ganze Entität läuft ab",
+      "entityHint": "Der {type} verschwindet zu einer Zeit, die Sie festlegen.",
+      "attributes": "Nur einige Felder laufen ab",
+      "attributesHint": "Der {type} bleibt; gewählte Felder verschwinden, wenn sie alt werden.",
+      "stale": "Löschen, wenn die Quelle sie nicht mehr sendet",
+      "staleHint": "Einmal pro Stunde löscht die Pipeline Entitäten dieses Typs, die sie eine Weile nicht aktualisiert hat. Abgelehnt, wenn die Pipeline mehr als eine Ausgabe hat oder keine Policy ihr deleteBatch auf den Typ gewährt.",
+      "kind": {
+        "legend": "Ende",
+        "from": "Ab einem Feld",
+        "fromHint": "Eine Zeit aus dem Datensatz plus eine Dauer.",
+        "rolling": "Nach jedem Schreiben",
+        "rollingHint": "Jedes Schreiben startet die Zeit neu.",
+        "at": "An einem festen Datum",
+        "atHint": "Ein Datum und eine Uhrzeit für alle."
+      },
+      "from": "Zeit ab",
+      "observedAt": "observedAt (das neueste ihrer Felder)",
+      "noTimeSlot": "Der Typ hat kein Datum-Zeit-Attribut: Das Ende zählt ab dem neuesten observedAt seiner Felder.",
+      "plus": "Zuzüglich",
+      "keepFor": "Behalten für",
+      "unitOf": "Einheit: {what}",
+      "cap": "Höchstens nach dem Schreiben",
+      "noCap": "keine Grenze",
+      "capOf": "{span}",
+      "at": "Datum und Uhrzeit",
+      "atHint": "In Ihrer Zeitzone; gespeichert in UTC.",
+      "attribute": "Feld",
+      "remove": "Entfernen",
+      "removeOf": "Ende von {name} entfernen",
+      "add": "Feld hinzufügen",
+      "noAttributes": "Dieser Endpoint lässt die Pipeline kein Feld von {type} schreiben, also kann kein Feld ablaufen.",
+      "allAdded": "Jedes Feld, das der Endpoint gewährt, hat schon ein Ende.",
+      "after": "Nicht aktualisiert seit",
+      "afterUnit": "Einheit des Fensters",
+      "afterHint": "Entitäten von {type}, die so lange nicht aktualisiert wurden, werden einmal pro Stunde gelöscht.",
+      "history": "Die Historie von {type} folgt den Regeln des Raums, was immer Sie hier wählen.",
+      "spaceRules": "Aufbewahrung in {space}",
+      "span": "{count} {unit}",
+      "noSpan": "keine Zeit",
+      "problem": {
+        "date": "Geben Sie Datum und Uhrzeit an.",
+        "past": "Das Datum liegt in der Vergangenheit: Alle Entitäten würden sofort entfernt. Wählen Sie ein späteres.",
+        "span": "Geben Sie an, wie lange sie bleiben: mindestens eine Minute."
+      },
+      "says": {
+        "keep": "Jeder {type} bleibt, bis jemand ihn löscht oder die Regel des Raums ihn entfernt.",
+        "entity": "Jeder {type} wird {end} entfernt.",
+        "renewed": "Ein neueres Schreiben verschiebt das Ende.",
+        "attribute": "Das Feld {name} jedes {type} verschwindet {end}.",
+        "from": "{span} nach seinem {from}",
+        "fromExact": "zu seinem {from}",
+        "observedAt": "letzten observedAt",
+        "cap": "und höchstens {span} nach dem Schreiben",
+        "rolling": "{span} nach seinem letzten Schreiben",
+        "at": "am {date}",
+        "stale": "Einmal pro Stunde löscht die Pipeline jeden {type}, den sie seit {span} nicht aktualisiert hat."
+      }
     },
     "access": {
       "section": "Zugriff auf andere Räume",
@@ -2870,7 +2996,8 @@
       },
       "grantIn": "{role} in {where}",
       "grantOrg": "{role} in der ganzen Organisation",
-      "emptyHint": "Ein Dienstkonto ist der Weg, auf dem ein Programm außerhalb des Portals dieses Projekt liest oder schreibt: ein Skript, eine Pipeline anderswo, eine andere Plattform. Jedes meldet sich mit einem eigenen Keycloak-Client an und hat nur die Rolle, die Sie ihm geben."
+      "emptyHint": "Ein Dienstkonto ist der Weg, auf dem ein Programm außerhalb des Portals dieses Projekt liest oder schreibt: ein Skript, eine Pipeline anderswo, eine andere Plattform. Jedes meldet sich mit einem eigenen Keycloak-Client an und hat nur die Rolle, die Sie ihm geben.",
+      "emptyOrganization": "Die Organisation hat kein eigenes Dienstkonto. Die Dienstkonten eines Projekts stehen in seinen Einstellungen und unter Agenten."
     },
     "matrix": {
       "title": "Datenzugriff",
@@ -4079,7 +4206,9 @@
       "secretKeyHelp": "Der Eintrag dieses Secrets, der das Token enthält. Lassen Sie apiToken, wenn der Betreiber nichts anderes sagt.",
       "secretKeyInvalid": "Ein Schlüssel besteht aus Buchstaben, Ziffern, Punkten, Bindestrichen und Unterstrichen, etwa apiToken.",
       "secretInvalid": "Der Name eines Secrets besteht aus Kleinbuchstaben, Ziffern, Bindestrichen und Punkten, etwa ckan-api-token.",
-      "secretIsToken": "Das sieht nach dem API-Token selbst aus. Fügen Sie es hier nicht ein: bitten Sie den Betreiber, es in den Secret-Speicher zu laden, und geben Sie den Namen dieses Secrets ein."
+      "secretIsToken": "Das sieht nach dem API-Token selbst aus. Fügen Sie es hier nicht ein: bitten Sie den Betreiber, es in den Secret-Speicher zu laden, und geben Sie den Namen dieses Secrets ein.",
+      "organizationsKnown": "Organisationen im Katalog",
+      "organizationNone": "Der Katalog des Portals führt keine passende Organisation: Kurznamen eingeben und „Neu“ wählen."
     },
     "publications": {
       "title": "Veröffentlichte Endpunkte",
@@ -5838,7 +5967,8 @@
       "health": "Prüfstatus",
       "endpoints": "Alle Endpunkte",
       "mcp-servers": "MCP-Server der Organisation",
-      "brokers": "Broker"
+      "brokers": "Broker",
+      "agents": "Agenten"
     },
     "settings": {
       "title": "Einstellungen",
@@ -6435,7 +6565,116 @@
       "platform": "Was die Installation für jedes Projekt betreibt: Broker, Umgebungen, Datenraum-Mitgliedschaft und Zustand.",
       "settings": "Domain, Sprachen, Kontakte, Regeln und Grenzen der Organisation und was der Einrichtung noch fehlt."
     },
-    "kindHidden": "Hier sieht sie nur eine Organisationsadministration, deren Rolle {kinds} umfasst. Bitten Sie die Organisationsadministration, sie Ihrer Rolle hinzuzufügen."
+    "kindHidden": "Hier sieht sie nur eine Organisationsadministration, deren Rolle {kinds} umfasst. Bitten Sie die Organisationsadministration, sie Ihrer Rolle hinzuzufügen.",
+    "agents": {
+      "title": "Agenten",
+      "lead": "Alle KI-Agenten der Organisation und ihrer Projekte, die Sie sehen dürfen: Assistenten, Agentenprofile, MCP-Server, Dienstkonten und die laufenden Ausführungen. Öffnen Sie einen, um zu sehen, worauf er zugreift, und um einen Assistenten anzuhalten.",
+      "caption": "Agenten der Organisation",
+      "empty": "Noch kein Agent",
+      "emptyHint": "Assistenten, Agentenprofile, MCP-Server und Dienstkonten erscheinen hier, sobald ein Projekt einen deklariert.",
+      "column": {
+        "name": "Name",
+        "owner": "Verantwortlich",
+        "actsAs": "Handelt als",
+        "reach": "Erreicht",
+        "lastActivity": "Letzte Aktivität",
+        "spend": "Verbrauch",
+        "state": "Zustand"
+      },
+      "kind": {
+        "AssistantDeployment": "Assistent",
+        "AgentProfile": "Agentenprofil",
+        "McpServer": "MCP-Server",
+        "ServiceAccount": "Dienstkonto",
+        "AgentRun": "Ausführung"
+      },
+      "organization": "Organisation",
+      "ownerProject": "Projekt {project}",
+      "actsAs": {
+        "self": "Eigenes Konto",
+        "caller": "Die aufrufende Person"
+      },
+      "actsAsLong": {
+        "self": "Sein eigenes Dienstkonto: Es hat die Rechte dieses Kontos, wer auch immer fragt.",
+        "caller": "Die Person oder der Client, der ihn aufruft: Er liest und schreibt nur, was dieser Aufrufer darf."
+      },
+      "reachNone": "Nichts angegeben",
+      "reachCount": "Räume: {spaces} · Endpunkte: {endpoints}",
+      "spendNone": "Kein Token-Budget",
+      "spendCapOnly": {
+        "day": "Obergrenze {cap} Tokens am Tag",
+        "run": "Obergrenze {cap} Tokens je Ausführung"
+      },
+      "spendUsedOnly": {
+        "day": "{used} Tokens heute",
+        "run": "{used} Tokens bisher"
+      },
+      "spendOf": {
+        "day": "{used} von {cap} Tokens heute",
+        "run": "{used} von {cap} Tokens"
+      },
+      "state": {
+        "active": "Aktiv",
+        "paused": "Angehalten",
+        "running": "Läuft",
+        "waiting": "Wartet auf eine Person"
+      },
+      "noActivity": "Nichts erfasst",
+      "back": "Alle Agenten",
+      "gone": "Dieser Agent ist nicht in der Liste",
+      "goneHint": "Er wurde entfernt, oder Ihre Rollen erlauben Ihnen nicht mehr, ihn zu sehen.",
+      "tabsLabel": "Über diesen Agenten",
+      "tab": {
+        "overview": "Übersicht",
+        "access": "Zugriff",
+        "activity": "Aktivität",
+        "settings": "Einstellungen"
+      },
+      "spaces": "Räume",
+      "endpoints": "Endpunkte",
+      "none": "Keine",
+      "pause": "Assistenten anhalten",
+      "resume": "Assistenten fortsetzen",
+      "pauseLead": "Anhalten stoppt jede Antwort dieses Assistenten, bis er fortgesetzt wird. Es ist eine Änderung, die das Projekt vor dem Anwenden prüft.",
+      "resumeLead": "Dieser Assistent antwortet gerade niemandem. Fortsetzen ist eine Änderung, die das Projekt vor dem Anwenden prüft.",
+      "pauseSent": "Anhalten zur Prüfung gesendet. Der Assistent hört auf, sobald die Änderung genehmigt ist.",
+      "resumeSent": "Fortsetzen zur Prüfung gesendet. Der Assistent antwortet wieder, sobald die Änderung genehmigt ist.",
+      "openChange": "Änderung öffnen",
+      "openHome": "Seite öffnen",
+      "noPause": "Diese Art hat keinen Ausschalter. Um ihn zu stoppen, entfernen Sie ihn auf seiner Seite.",
+      "runStop": "Eine Ausführung stoppen Sie, indem Sie sie auf der Seite ihrer Anwendung abbrechen.",
+      "activityLead": "Was er gelesen und geschrieben hat, steht auf seiner eigenen Seite.",
+      "runSettings": "Eine Ausführung folgt dem Agentenprofil {profile}; seine Einstellungen stehen dort.",
+      "openManifest": "Auf seiner Seite bearbeiten",
+      "setting": {
+        "channel": "Kanal",
+        "enabled": "Antwortet",
+        "role": "Rolle",
+        "purpose": "Zweck",
+        "audience": "Zielgruppe",
+        "credentials": "Zugangsdaten",
+        "model": {
+          "answer": "Antwortmodell",
+          "router": "Routing-Modell",
+          "provider": "Modellanbieter",
+          "name": "Modell",
+          "maxTokensPerRun": "Tokens je Ausführung"
+        },
+        "budget": {
+          "tokensPerDay": "Tokens am Tag",
+          "costPerDayUsd": "Kosten am Tag (USD)"
+        },
+        "rateLimit": {
+          "requestsPerMinute": "Anfragen pro Minute"
+        },
+        "limits": {
+          "stepsPerRun": "Schritte je Ausführung",
+          "wallClock": "Längste Ausführung",
+          "concurrentRunsPerOrganization": "Gleichzeitige Ausführungen",
+          "requestsPerMinute": "Anfragen pro Minute"
+        }
+      }
+    }
   },
   "projectDelete": {
     "title": "Projekt {name} löschen",
@@ -7015,7 +7254,7 @@
       "contactEmail": "E-Mail des Kontakts",
       "contactHelp": "Eine Funktionsadresse wie eine Open-Data-Stelle, nie die E-Mail einer Person.",
       "keywords": "Schlagwörter",
-      "keywordsHelp": "Durch Kommas getrennt, in der Sprache {language}.",
+      "keywordsHelp": "Schlagwörter des Katalogs wählen oder ein neues eingeben; in der Sprache {language}.",
       "spatialHelp": "Die Region, die die Daten abdecken, zum Beispiel Banskobystrický kraj (SK032). Die Karte des Datensatzes zeigt seine Einträge überall dort, wo sie einen Ort haben.",
       "start": "Enthält Daten ab",
       "end": "Enthält Daten bis",
@@ -7060,7 +7299,9 @@
         "map": "Karte der Einträge mit Ort",
         "api": "NGSI-LD-API und die weiteren Formate des Endpoints",
         "dcat": "DCAT-AP-Eintrag (JSON-LD)"
-      }
+      },
+      "inCatalogue": "Bereits im Katalog",
+      "typeNew": "Im Katalog passt nichts: Neues eingeben und „Neu“ wählen."
     },
     "licence": {
       "CC_BY_4_0": "Creative Commons Attribution 4.0",
@@ -7569,6 +7810,8 @@
     "client": "Anmelde-Client",
     "config": "Eintrag für die Konfiguration des KI-Clients",
     "signIn": "Der KI-Client findet die Anmeldung über die Adresse und meldet die Person mit dem Client {client} an (ohne Geheimnis, PKCE). In die Konfiguration kommt kein Token.",
+    "connectPage": "Öffentliche Verbindungsseite öffnen",
+    "connectPageHint": "Sie zeigt die Werkzeuge, die jeder ohne Anmeldung erhält, und eine Einrichtung für Claude, ChatGPT und andere Clients; teilen Sie ihre Adresse, zum Beispiel in der Datensatzbeschreibung.",
     "copy": "Kopieren",
     "copied": "Kopiert",
     "copyOf": "Kopieren: {what}",
@@ -7593,7 +7836,7 @@
       "description": "Was der Server enthält, in ein oder zwei Sätzen; der KI-Client liest es als seine Anweisungen.",
       "members": "Angeboten werden nur Endpoints, die Sie lesen dürfen. Jeder Aufruf eines Mitglieds ist ein eigener Aufruf dieses Endpoints, über den seine eigene Policy entscheidet.",
       "audience": "Nicht weiter als das engste Mitglied. Ein öffentlicher Server braucht nur öffentliche Mitglieder und eine freigebende Person, die veröffentlichen darf.",
-      "allowedProjects": "Projektnamen, durch Kommas getrennt; leer lässt nur dieses Projekt zu.",
+      "allowedProjects": "Wählen Sie die Projekte, deren Mitglieder sich verbinden dürfen; nur Projekte, die Sie lesen dürfen, stehen zur Wahl. Leer lässt nur dieses Projekt zu.",
       "knowledgeSources": "Der Server bietet das Werkzeug search_documents über die öffentlichen Seiten und Dokumente der hier gewählten Quellen; ohne sie bietet er kein solches Werkzeug."
     },
     "form": {
@@ -7609,7 +7852,9 @@
       "sourcesUnreadable": "Die Wissensquellen des Projekts ließen sich nicht auflisten; bereits angehängte bleiben, wie sie sind.",
       "noPublicSources": "Dieses Projekt hat keine öffentliche Wissensquelle zum Anhängen.",
       "sourcesFull": "Höchstens {max} Quellen.",
-      "keptSources": "Unverändert behalten: {sources}."
+      "keptSources": "Unverändert behalten: {sources}.",
+      "yourProjects": "Projekte, die Sie lesen dürfen",
+      "noProjects": "Kein Projekt, das Sie lesen dürfen, passt. Eine Organisationsadministration fügt Sie unter Zugriff → Gruppen einem Projekt hinzu."
     },
     "problem": {
       "name": "Verwenden Sie Kleinbuchstaben, Ziffern und Bindestriche, höchstens 63 Zeichen.",
@@ -7635,7 +7880,8 @@
       "writes": "Schreibt",
       "offeredBy": "Angeboten von: {members}"
     },
-    "leadOrganization": "Die MCP-Server der Organisation: eine Adresse über Endpoints mehrerer Projekte, für alle, die die Zielgruppe zulässt."
+    "leadOrganization": "Die MCP-Server der Organisation: eine Adresse über Endpoints mehrerer Projekte, für alle, die die Zielgruppe zulässt.",
+    "emptyOrganization": "Die Organisation hat noch keinen eigenen MCP-Server. Die Server eines Projekts stehen auf seiner MCP-Seite und unter Agenten."
   },
   "notifications": {
     "label": "{count, plural, =0 {Benachrichtigungen} one {Benachrichtigungen, # ungelesen} other {Benachrichtigungen, # ungelesen}}",
@@ -8465,10 +8711,10 @@
     },
     "help": {
       "name": "Kleinbuchstaben, Ziffern und Bindestriche; der letzte Teil der Adresse.",
-      "projects": "Projektnamen, durch Kommas getrennt.",
-      "spaces": "projekt/raum, durch Kommas getrennt.",
-      "domains": "Smart-Data-Models-Domänen: Environment, Transportation, …",
-      "themes": "EU-Datenthemen, etwa ENVI oder TRAN.",
+      "projects": "Aus den Projekten wählen, die Sie lesen dürfen, z. B. mesto.",
+      "spaces": "Aus den Kontexträumen wählen, die Sie lesen dürfen, auf die oben gewählten Projekte eingegrenzt.",
+      "domains": "Smart-Data-Models-Domänen der Klassifikation der Endpoints.",
+      "themes": "EU-Datenthemen der Katalogeinträge der Endpoints.",
       "endpoints": "Einen Endpunkt fügen Sie mit dem Stern auf seiner Seite hinzu."
     },
     "level": {
@@ -8488,7 +8734,12 @@
       "add": "Zu meinen Konnektoren",
       "in": "Im Konnektor: {names}"
     },
-    "full": "Sie haben 10 Konnektoren, mehr geht nicht. Löschen Sie einen, um einen weiteren anzulegen."
+    "full": "Sie haben 10 Konnektoren, mehr geht nicht. Löschen Sie einen, um einen weiteren anzulegen.",
+    "noMatch": {
+      "projects": "Kein Projekt, das Sie lesen dürfen, passt. Eine Organisationsadministration fügt Sie unter Zugriff → Gruppen einem Projekt hinzu.",
+      "spaces": "Kein Kontextraum, den Sie lesen dürfen, passt. Ein Projekt legt einen unter Daten → Kontexträume an.",
+      "none": "Nichts passt zu Ihrer Eingabe."
+    }
   },
   "conversations": {
     "title": "Unterhaltungen",
@@ -8518,7 +8769,8 @@
       "deployment": "Assistent",
       "from": "Von",
       "to": "Bis",
-      "expensive": "Über $0,02"
+      "expensive": "Über $0,02",
+      "noDeployments": "Dieses Projekt hat noch keinen Assistenten. Fügen Sie einen unter Assistent → Bereitstellungen hinzu."
     },
     "status": {
       "ok": "Beantwortet",

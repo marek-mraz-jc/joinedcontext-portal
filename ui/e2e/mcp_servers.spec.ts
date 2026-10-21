@@ -66,6 +66,17 @@ async function stubApi(page: Page): Promise<{ writes: { path: string; body: unkn
   return { writes };
 }
 
+/** With JC_EVIDENCE_DIR set, keeps the page at 1440 px and 400 px there (once, from the 1440 run). */
+async function shot(page: Page, name: string, width: number): Promise<void> {
+  const dir = process.env.JC_EVIDENCE_DIR;
+  if (!dir || width !== 1440) return;
+  for (const at of [1440, 400]) {
+    await page.setViewportSize({ width: at, height: 900 });
+    await page.screenshot({ path: `${dir}/${name}-${at}.png`, fullPage: true });
+  }
+  await page.setViewportSize({ width, height: 900 });
+}
+
 for (const width of [375, 1440]) {
   test.describe(`the MCP servers at ${width}px`, () => {
     test.use({ viewport: { width, height: 900 } });
@@ -79,6 +90,34 @@ for (const width of [375, 1440]) {
       await expect(card.getByText("mcp-helsinki-mobility", { exact: true })).toBeVisible();
       await expect(card.getByRole("list", { name: "Members and how they answer you" }).getByText("Answers, tools: 2")).toBeVisible();
       await expect(card.getByRole("list", { name: "Tools of the server" }).getByText("query_entities", { exact: true })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      expect(await axeViolations(page)).toEqual([]);
+    });
+
+    // T-4871: a public server's card leads to its connect page, which lists the tools a stranger gets.
+    test("a public server links to its connect page, which lists its tools", async ({ page }) => {
+      await stubApi(page);
+      const open = { ...SERVER, metadata: { ...SERVER.metadata, name: "open", title: { en: "Open data" } }, spec: { ...SERVER.spec, audience: "public" } };
+      await page.route("**/api/v1/projects/helsinki/mcpservers", (route) =>
+        route.fulfill({ contentType: "application/json", body: JSON.stringify(list([open, SERVER])) }),
+      );
+      await page.route("**/api/mcp/helsinki/open", async (route) => {
+        const { method } = route.request().postDataJSON() as { method: string };
+        const result =
+          method === "initialize"
+            ? { serverInfo: { name: "open", title: "Open data" }, instructions: "Read-only open data of Helsinki." }
+            : tools(["list_types", "query_entities"]).result;
+        await route.fulfill({ contentType: "application/json", body: JSON.stringify({ jsonrpc: "2.0", id: 1, result }) });
+      });
+      await page.goto("/projects/helsinki/mcp?lang=en");
+      const card = page.getByRole("region", { name: "Open data" });
+      await expect(page.getByRole("region", { name: "Mobility data" }).getByRole("link", { name: "Open the public connect page" })).toHaveCount(0);
+      await shot(page, "mcp-connect-link", width);
+      await card.getByRole("link", { name: "Open the public connect page" }).click();
+      await expect(page).toHaveURL(/\/connect\/helsinki\/open/);
+      await expect(page.getByRole("heading", { level: 2, name: "2 tools" })).toBeVisible();
+      await expect(page.getByText("query_entities", { exact: true })).toBeVisible();
+      await shot(page, "connect-page", width);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       expect(await axeViolations(page)).toEqual([]);
     });

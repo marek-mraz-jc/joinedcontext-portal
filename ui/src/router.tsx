@@ -62,6 +62,7 @@ const UploadCsv = lazy(() => import("./pages/spaces/UploadCsv").then((module) =>
 const AppPage = lazy(() => import("./pages/apps/AppPage").then((module) => ({ default: module.AppPage })));
 const AppOpenPage = lazy(() => import("./pages/apps/AppOpenPage").then((module) => ({ default: module.AppOpenPage })));
 const GroupPage = lazy(() => import("./pages/access/GroupPage").then((module) => ({ default: module.GroupPage })));
+const AgentPage = lazy(() => import("./pages/organization/Agents").then((module) => ({ default: module.AgentPage })));
 const OrganizationPage = lazy(() => import("./pages/organization/OrganizationPage").then((module) => ({ default: module.OrganizationPage })));
 const PersonPage = lazy(() => import("./pages/organization/People").then((module) => ({ default: module.PersonPage })));
 const EndpointPage = lazy(() => import("./pages/endpoints/EndpointPage").then((module) => ({ default: module.EndpointPage })));
@@ -687,6 +688,9 @@ const organizationFormRoute = createRoute({
     if (person !== null) {
       return <OrganizationPersonView id={person} />;
     }
+    if (tab === "agents" && rest !== "") {
+      return <OrganizationAgentView path={rest} />;
+    }
     const form = formOfRest(rest);
     return rest === "" || form !== null ? <OrganizationView tab={tab} form={form} /> : <NotFound />;
   },
@@ -708,6 +712,20 @@ function OrganizationGroupView({ name }: { name: string }): React.JSX.Element {
   return (
     <Shell project={first} sidebar={(close) => <AdminNav project={first} active="groups" onNavigate={close} />}>
       <GroupPage name={name} />
+    </Shell>
+  );
+}
+
+/** An agent's page in the Organization's shell (AG-128, T-4849): `agents/{project}/{kind}/{name}`. */
+function OrganizationAgentView({ path }: { path: string }): React.JSX.Element {
+  const projects = useProjects();
+  const first = preferredProject(projects.data);
+  if (!first) {
+    return <NoProject projects={projects} />;
+  }
+  return (
+    <Shell project={first} sidebar={(close) => <AdminNav project={first} active="agents" onNavigate={close} />}>
+      <AgentPage path={path} />
     </Shell>
   );
 }
