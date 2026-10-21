@@ -630,13 +630,11 @@ export function DashboardsPage({ project }: { project: string }): JSX.Element {
                 })}
               />
             ) : (
-              <p
-                key={`${widget.widgetType}-${index}`}
-                role="status"
-                className="rounded-lg border border-border bg-surface p-3 text-body text-fg-muted"
-              >
-                {t("dashboards.widget.unsupported", { type: widget.widgetType })}
-              </p>
+              <Card padding="sm" key={`${widget.widgetType}-${index}`}>
+                <p role="status" className="text-body text-fg-muted">
+                  {t("dashboards.widget.unsupported", { type: widget.widgetType })}
+                </p>
+              </Card>
             ),
           )}
         </div>
@@ -645,10 +643,7 @@ export function DashboardsPage({ project }: { project: string }): JSX.Element {
       {legend.length > 0 ? (
         <ul aria-label={t("dashboards.legend")} className="flex flex-wrap gap-2">
           {legend.map((entry) => (
-            <li
-              key={entry.name}
-              className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-body shadow-1"
-            >
+            <Card as="li" flush key={entry.name} className="flex flex-wrap items-center gap-2 px-3 py-2 text-body">
               <Checkbox
                 aria-label={`${t("dashboards.show")}: ${entry.name}`}
                 checked={!entry.off}
@@ -697,7 +692,7 @@ export function DashboardsPage({ project }: { project: string }): JSX.Element {
                   {t("dashboards.edit")}
                 </Button>
               </PermissionGuard>
-            </li>
+            </Card>
           ))}
         </ul>
       ) : null}

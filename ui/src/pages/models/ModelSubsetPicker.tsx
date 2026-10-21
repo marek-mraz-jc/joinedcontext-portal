@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Checkbox } from "../../components/ui";
+import { Alert, Card, Checkbox } from "../../components/ui";
 import { effectiveSlots } from "./linkml";
 import type { LinkmlModel } from "./linkml";
 import { IDENTITY_SLOTS, subsetProblems, toggleClass, toggleSlot } from "./subset";
@@ -43,7 +43,7 @@ export function ModelSubsetPicker({ model, subset, onChange }: ModelSubsetPicker
         {model.classes.map((klass) => {
           const picked = chosen.get(klass.name);
           return (
-            <li key={klass.name} className="rounded-lg border border-border bg-surface p-3">
+            <Card as="li" padding="sm" key={klass.name}>
               <Checkbox
                 className="font-medium"
                 label={klass.name}
@@ -71,7 +71,7 @@ export function ModelSubsetPicker({ model, subset, onChange }: ModelSubsetPicker
                   );
                 })}
               </ul>
-            </li>
+            </Card>
           );
         })}
       </ul>

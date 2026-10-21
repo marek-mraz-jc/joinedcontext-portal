@@ -158,8 +158,54 @@ const LISTS: Record<string, unknown> = {
   "agent-runs": list([RUN]),
 };
 
+/**
+ * What the twenty-page set (T-4888) answers besides: a person who may act in the project and
+ * the organization, the organization itself and one catalogue dataset, so each page settles
+ * on its content or its designed empty state instead of a skeleton.
+ */
+const MORE: Record<string, unknown> = {
+  [`/api/v1/projects/${PROJECT}/permissions/me`]: { project: PROJECT, bootstrap: true, grants: [] },
+  "/api/v1/projects/org/permissions/me": { project: "org", bootstrap: true, grants: [] },
+  "/api/v1/projects/org/organizations": list([
+    {
+      apiVersion: "joinedcontext.com/v1alpha1",
+      kind: "Organization",
+      metadata: { name: "hel", namespace: "org" },
+      spec: { domain: "hel.fi", locales: ["fi", "en"], defaultLocale: "fi" },
+    },
+  ]),
+  [`/api/v1/projects/org/projects/${PROJECT}`]: {
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "Project",
+    metadata: { name: PROJECT, namespace: "org", title: "Helsinki city data" },
+    spec: { organizationRef: "hel" },
+  },
+  "/api/v1/organization/datamodels": list([]),
+  "/api/v1/projects/org/rolebindings": list([]),
+  [`/api/v1/projects/${PROJECT}/knowledge/sources`]: list([]),
+  "/api/v1/catalogue": {
+    total: 1,
+    page: 1,
+    pageSize: 20,
+    datasets: [
+      {
+        name: "bbsk-kpi",
+        title: "Ukazovatele kraja",
+        notes: "Ukazovatele Banskobystrického samosprávneho kraja.",
+        publisher: { name: "bbsk", title: "Banskobystrický samosprávny kraj" },
+        licence: { id: "cc-by", title: "Creative Commons Attribution" },
+        formats: ["CSV", "NGSI-LD"],
+        themes: ["ECON"],
+        modified: "2026-09-21T05:52:34Z",
+      },
+    ],
+    facets: { publisher: [], theme: [], format: [], licence: [], spatial: [], year: [] },
+    unavailable: [],
+  },
+};
+
 /** The API from the browser: the lists above, the one change, the one run; the rest 404. */
-async function stubApi(page: Page): Promise<void> {
+async function stubApi(page: Page, more: Record<string, unknown> = {}): Promise<void> {
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     const json = (body: unknown, status = 200) =>
@@ -168,6 +214,7 @@ async function stubApi(page: Page): Promise<void> {
       return json({ type: "about:blank", title: "Not in the baseline", status: 404 }, 404);
     }
     if (path.endsWith("/auth/me")) return json(IDENTITY);
+    if (path in more) return json(more[path]);
     if (path === "/api/v1/projects") return json(PROJECTS);
     if (path === `/api/v1/projects/${PROJECT}`) return json(PROJECT_DETAIL);
     if (path.endsWith("/events")) {
@@ -177,6 +224,8 @@ async function stubApi(page: Page): Promise<void> {
     if (path.endsWith(`/changes/${PROPOSAL.metadata.name}`)) return json(PROPOSAL);
     const listed = path.match(new RegExp(`^/api/v1/projects/${PROJECT}/([a-z-]+)$`));
     if (listed && listed[1] in LISTS) return json(LISTS[listed[1]]);
+    // Any other collection of the project is empty, so a page shows its designed empty state.
+    if (listed) return json(list([]));
     if (path.startsWith("/api/endpoint/")) return json([]);
     return json({ type: "about:blank", title: "Not in the baseline", status: 404 }, 404);
   });
@@ -187,6 +236,8 @@ interface Screen {
   path: string;
   /** Anything to do once the page has settled, such as opening the assistant beside a run. */
   then?: (page: Page) => Promise<void>;
+  /** Held at the design sizes (1440, 400) only, not at the recording's. */
+  extra?: boolean;
 }
 
 const SCREENS: Screen[] = [
@@ -207,21 +258,36 @@ const SCREENS: Screen[] = [
     },
   },
   { name: "explore", path: `/projects/${PROJECT}/explore` },
+  // T-4888: the rest of the twenty pages a person meets first, held at 1440 and 400 only.
+  { name: "home", path: `/projects/${PROJECT}/home`, extra: true },
+  { name: "approvals", path: `/projects/${PROJECT}/approvals`, extra: true },
+  { name: "inbox", path: `/projects/${PROJECT}/inbox`, extra: true },
+  { name: "activity", path: `/projects/${PROJECT}/activity`, extra: true },
+  { name: "models", path: `/projects/${PROJECT}/models`, extra: true },
+  { name: "access", path: `/projects/${PROJECT}/access`, extra: true },
+  { name: "settings", path: `/projects/${PROJECT}/settings`, extra: true },
+  { name: "knowledge", path: `/projects/${PROJECT}/knowledge`, extra: true },
+  { name: "endpoint-new", path: `/projects/${PROJECT}/endpoints/new`, extra: true },
+  { name: "catalogue", path: "/catalogue", extra: true },
+  { name: "connectors", path: "/connectors", extra: true },
+  { name: "organization", path: "/organization", extra: true },
 ];
 
 const SIZES = [
   // The recording: 1920×1080 at zoom 1.5 lays the page out at 1280 CSS px.
   { name: "1920x1080-zoom1.5", viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.5 },
   { name: "400px", viewport: { width: 400, height: 860 }, deviceScaleFactor: 1 },
+  // The design size of T-4888: every page of the design system pass at a common laptop width.
+  { name: "1440", viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
 ];
 
 for (const size of SIZES) {
   test.describe(size.name, () => {
     test.use({ viewport: size.viewport, deviceScaleFactor: size.deviceScaleFactor });
 
-    for (const screen of SCREENS) {
+    for (const screen of SCREENS.filter((one) => !one.extra || !size.name.startsWith("1920"))) {
       test(`${screen.name} at ${size.name}`, async ({ page }) => {
-        await stubApi(page);
+        await stubApi(page, screen.extra ? MORE : {});
         // A frozen clock: "n s since the run started" and every other relative time hold still.
         await page.clock.setFixedTime(new Date("2026-09-12T08:10:00Z"));
         await page.goto(`${screen.path}?lang=en`, { waitUntil: "networkidle" });

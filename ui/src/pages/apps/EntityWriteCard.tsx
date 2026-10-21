@@ -3,15 +3,7 @@ import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { readCsrfToken } from "../../api/client";
 import { Button } from "../../components/ui/Button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
-  TableRowHeaderCell,
-} from "../../components/ui";
+import { Card, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TableRowHeaderCell } from "../../components/ui";
 import { localId, textOf } from "./QueryResultCard";
 
 /**
@@ -111,10 +103,7 @@ export function EntityWriteCard({ write, live }: { write: EntityWrite; live: boo
 
   const changed = write.entities.length - (state.kind === "applied" ? state.refused.length : 0);
   return (
-    <section
-      aria-label={t("agentRun.write.title")}
-      className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 text-sm"
-    >
+    <Card as="section" padding="sm" aria-label={t("agentRun.write.title")} className="flex flex-col gap-2 text-sm">
       <p className="font-medium">
         {t("agentRun.write.lead", { count: write.entities.length, endpoint: write.endpoint })}
       </p>
@@ -168,6 +157,6 @@ export function EntityWriteCard({ write, live }: { write: EntityWrite; live: boo
           </Button>
         </div>
       ) : null}
-    </section>
+    </Card>
   );
 }
