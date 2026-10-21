@@ -766,6 +766,37 @@ impl LogStore {
         }
     }
 
+    /// The newest failed or rejected line of the pipeline's log, with when it was taken (T-5048).
+    pub async fn last_problem(
+        &self,
+        project: &str,
+        pipeline: &str,
+    ) -> Result<Option<(String, String)>, sqlx::Error> {
+        match &self.inner {
+            Inner::Postgres(pool) => Ok(sqlx::query_as::<_, (String, time::OffsetDateTime)>(
+                "SELECT message, at FROM pipeline_log WHERE project = $1 AND pipeline = $2 \
+                 AND outcome <> 'sent' ORDER BY id DESC LIMIT 1",
+            )
+            .bind(project)
+            .bind(pipeline)
+            .fetch_optional(pool)
+            .await?
+            .map(|(message, at)| (message, rfc3339(at)))),
+            Inner::Memory(map) => Ok(map
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .get(&(project.to_owned(), pipeline.to_owned()))
+                .and_then(|memory| {
+                    memory
+                        .lines
+                        .iter()
+                        .rev()
+                        .find(|l| l.outcome != Outcome::Sent)
+                        .map(|l| (l.message.clone(), l.at.clone()))
+                })),
+        }
+    }
+
     /// One run's log lines, newest first, at most `limit`, older than `before` when given.
     pub async fn lines(
         &self,

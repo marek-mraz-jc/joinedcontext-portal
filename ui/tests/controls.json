@@ -1624,6 +1624,14 @@
         "pipeline_rejected.test.tsx"
       ]
     },
+    "src/pages/pipelines/PipelineHealth.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "page_pipeline_health.test.tsx"
+      ]
+    },
     "src/pages/pipelines/PipelineRuns.tsx": {
       "controls": {
         "Button": 4

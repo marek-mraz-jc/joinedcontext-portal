@@ -376,7 +376,8 @@ impl AppState {
                         Arc::clone(&state.quality),
                         Arc::clone(&state.alerts),
                     )
-                    .with_source_holds(Arc::clone(&state.source_ledger)),
+                    .with_source_holds(Arc::clone(&state.source_ledger))
+                    .with_run_health(Arc::clone(&state.pipeline_log)),
                 ));
             syncer = state.wire_cluster_writers(syncer);
             syncer = state.wire_database_steps(syncer);

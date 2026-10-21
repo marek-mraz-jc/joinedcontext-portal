@@ -2898,7 +2898,8 @@
       "views": "Pipeline-Ansichten",
       "view": {
         "list": "Liste",
-        "map": "Datenflusskarte"
+        "map": "Datenflusskarte",
+        "health": "Zustand der Quellen"
       },
       "title": "Datenflusskarte",
       "space": "Bereich",
@@ -3012,6 +3013,32 @@
       "missingList": "Im Raum fehlende IDs ({count})",
       "spaceRemovals": "An der Quelle entfernt ({count})",
       "spaceRemovalsLead": "Entitäten, die Pipelines löschten, weil ihre Quelle sie nicht mehr listete. Sie kehren zurück, wenn die Quelle sie wieder listet."
+    },
+    "health": {
+      "caption": "Zustand jeder Quelle",
+      "lead": "Der neueste Lauf jeder Pipeline gegenüber der Woche davor; Quellen, die Hilfe brauchen, stehen oben. Eine Quelle wird rot, wenn ihr neuester Lauf nichts geschrieben hat und ihr Log den Grund nennt, oder mehr als 80 % weniger als ihr 7-Tage-Median. Nach 3 fehlgeschlagenen Läufen in Folge oder einem solchen Einbruch erhalten ihre Beobachter eine Warnung.",
+      "empty": "Noch keine Pipelines zu prüfen",
+      "emptyHint": "Fügen Sie auf dem Reiter Liste eine Pipeline hinzu. Ihr Zustand erscheint hier nach dem ersten Lauf.",
+      "summary": "{broken, plural, one {# von {total} Quellen braucht} other {# von {total} Quellen brauchen}} einen Blick; {alerted, plural, =0 {noch keine Warnung} one {# mit Warnung} other {# mit Warnung}}.",
+      "allWell": "Alle {total} Quellen haben im neuesten Lauf geliefert oder nichts Neues gefunden.",
+      "source": "Quelle",
+      "state": "Zustand",
+      "lastSuccess": "Letzte Lieferung",
+      "lastSent": "Neuester Lauf schrieb",
+      "change": "Gegenüber dem 7-Tage-Median",
+      "lastLogLine": "Letzter Fehler",
+      "never": "Nie",
+      "failedRuns": "{count, plural, one {# fehlgeschlagener Lauf} other {# fehlgeschlagene Läufe in Folge}}",
+      "alerted": "Warnung an Beobachter gesendet",
+      "median": "Median {median}",
+      "openRuns": "Läufe und Log von {name}",
+      "states": {
+        "ok": "Liefert",
+        "empty": "Nichts gefunden",
+        "drift": "Eingebrochen",
+        "failing": "Schlägt fehl",
+        "never": "Noch nicht gelaufen"
+      }
     }
   },
   "dashboards": {

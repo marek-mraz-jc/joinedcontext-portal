@@ -2898,7 +2898,8 @@
       "views": "Pipeline views",
       "view": {
         "list": "List",
-        "map": "Data flow map"
+        "map": "Data flow map",
+        "health": "Source health"
       },
       "title": "Data flow map",
       "space": "Space",
@@ -3012,6 +3013,32 @@
       "missingList": "Ids missing from the space ({count})",
       "spaceRemovals": "Removed at the source ({count})",
       "spaceRemovalsLead": "Entities pipelines deleted because their source no longer listed them. To bring one back, it has to return at the source."
+    },
+    "health": {
+      "caption": "Health of each source",
+      "lead": "Each pipeline's newest run against the week before it; the sources that need a hand come first. A source turns red when its newest run sent nothing and its log says why, or sent more than 80 % less than its 7-day median. After 3 failed runs in a row, or such a drop, the people who follow it get an alert.",
+      "empty": "No pipelines to check yet",
+      "emptyHint": "Add a pipeline on the List tab. Its health shows here after its first run.",
+      "summary": "{broken, plural, one {# of {total} sources needs} other {# of {total} sources need}} a look; {alerted, plural, =0 {none is alerted yet} one {# is alerted} other {# are alerted}}.",
+      "allWell": "All {total} sources delivered in their newest run or found nothing new.",
+      "source": "Source",
+      "state": "State",
+      "lastSuccess": "Last delivery",
+      "lastSent": "Newest run sent",
+      "change": "Against the 7-day median",
+      "lastLogLine": "Last error",
+      "never": "Never",
+      "failedRuns": "{count, plural, one {# failed run} other {# failed runs in a row}}",
+      "alerted": "Alert sent to followers",
+      "median": "median {median}",
+      "openRuns": "Runs and log of {name}",
+      "states": {
+        "ok": "Delivering",
+        "empty": "Found nothing",
+        "drift": "Dropped",
+        "failing": "Failing",
+        "never": "Not run yet"
+      }
     }
   },
   "dashboards": {

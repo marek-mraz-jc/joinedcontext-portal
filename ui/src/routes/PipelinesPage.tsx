@@ -18,6 +18,7 @@ import { ResourceRowActions } from "../components/ResourceRowActions";
 import { PipelineEditorDialog, expiryWindow } from "../pages/pipelines/PipelineEditor";
 import { PipelineRejectedDialog } from "../pages/pipelines/PipelineRejected";
 import { PipelineRunsDialog } from "../pages/pipelines/PipelineRuns";
+import { PipelineHealthView } from "../pages/pipelines/PipelineHealth";
 import {
   LastRunCell,
   dataSourceOf,
@@ -121,18 +122,17 @@ export function pipelineMatches(
 const COLUMNS = 5;
 
 /** Ingestion pipelines of one project: what runs where, how it is doing, and its credentials. */
-type PipelineView = "list" | "map";
+type PipelineView = "list" | "map" | "health";
 
 function viewFromAddress(): PipelineView {
-  return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "map"
-    ? "map"
-    : "list";
+  const view = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("view");
+  return view === "map" || view === "health" ? view : "list";
 }
 
 function rememberView(view: PipelineView): void {
   const url = new URL(window.location.href);
-  if (view === "map") {
-    url.searchParams.set("view", "map");
+  if (view !== "list") {
+    url.searchParams.set("view", view);
   } else {
     url.searchParams.delete("view");
     url.searchParams.delete("space");
@@ -302,6 +302,7 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
   // whose proposal the server would refuse (T-2875).
   const permissions = usePermissions(project);
   const viewOnly = !permissions.isLoading && !permissions.can("Pipeline", "propose");
+  const steward = !permissions.isLoading && permissions.can("Pipeline", "approve");
   useOpenFromAddress(list.data ? pipelines : undefined, (pipeline) => pipeline.metadata.name, {
     create: () => openEditor(null),
     edit: openEditor,
@@ -338,6 +339,10 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
         tabs={[
           { value: "list", label: t("pipelines.map.view.list") },
           { value: "map", label: t("pipelines.map.view.map") },
+          // Each source's health (T-5048) is for stewards: the server refuses anyone else.
+          ...(steward
+            ? [{ value: "health" as const, label: t("pipelines.map.view.health") }]
+            : []),
         ]}
         value={view}
         onChange={(next) => {
@@ -346,7 +351,11 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
         }}
       />
 
-      {view === "map" ? (
+      {view === "health" && steward ? (
+        <div {...tabPanelProps("pipeline-views", "health")}>
+          <PipelineHealthView project={project} onOpenRuns={setRunsOf} />
+        </div>
+      ) : view === "map" ? (
         <div {...tabPanelProps("pipeline-views", "map")}>
           <FlowMapView
             project={project}
