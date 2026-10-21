@@ -341,15 +341,19 @@ pub(crate) async fn run_harness(
     .await
 }
 
-/// The harness with the pipeline's lifetime step after its own steps, where a live stream runs
-/// it (PL-82, T-4840), so the trace's records carry the `expiresAt` they would be written with.
-/// A message that already failed skips it: its envelope keeps the error it failed with.
+/// The harness with the pipeline's history and lifetime steps after its own steps, where a live
+/// stream runs them (PL-82, PL-103, T-4840, T-4845), so the trace's records carry the `observedAt`
+/// and `expiresAt` they would be written with. A message that already failed skips them: its
+/// envelope keeps the error it failed with.
 fn with_lifetime(config: &mut Value, spec: &PipelineSpec) -> Result<(), ApiError> {
-    let Some(step) = crate::reconciler::streams::lifetime_step(spec)
-        .map_err(|e| ApiError::BadRequest(format!("spec.lifetime: {e}")))?
-    else {
+    let history = crate::reconciler::streams::history_step(spec)
+        .map_err(|e| ApiError::BadRequest(format!("spec.history: {e}")))?;
+    let lifetime = crate::reconciler::streams::lifetime_step(spec)
+        .map_err(|e| ApiError::BadRequest(format!("spec.lifetime: {e}")))?;
+    let steps: Vec<Value> = history.into_iter().chain(lifetime).collect();
+    if steps.is_empty() {
         return Ok(());
-    };
+    }
     let Some(processors) = config
         .pointer_mut("/pipeline/processors")
         .and_then(Value::as_array_mut)
@@ -366,7 +370,7 @@ fn with_lifetime(config: &mut Value, spec: &PipelineSpec) -> Result<(), ApiError
         .ok_or_else(|| ApiError::Internal("the harness has no envelope step".into()))?;
     processors.insert(
         envelope,
-        serde_json::json!({ "switch": [{ "check": "!errored()", "processors": [step] }] }),
+        serde_json::json!({ "switch": [{ "check": "!errored()", "processors": steps }] }),
     );
     Ok(())
 }

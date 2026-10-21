@@ -42,6 +42,7 @@ pub mod mqtt_allowance;
 pub mod people;
 pub mod permissions;
 pub mod pipeline_expiry;
+pub mod pipeline_history;
 pub mod pipeline_lifetime;
 pub mod pipeline_log;
 pub mod pipeline_outcomes;

@@ -1583,6 +1583,8 @@ async fn check_organization_names(
     // 4j. A lifetime names only what the spaces it lands in hold (PL-81): each type a class of
     //     the space's model, each name one of its slots, each `from` a date-time slot.
     crate::pipeline_lifetime::check(state, project, kind, &envelope.spec)?;
+    // 4k. A history plan names only the slots of the spaces it lands in (PL-102).
+    crate::pipeline_history::check(state, project, kind, &envelope.spec)?;
     Ok(())
 }
 

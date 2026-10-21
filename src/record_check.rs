@@ -59,6 +59,7 @@ pub enum Source {
     Model,
     Endpoint,
     Lifetime,
+    History,
 }
 
 /// One reason a record would not be written as it is.
@@ -66,7 +67,8 @@ pub enum Source {
 pub struct Finding {
     pub source: Source,
     /// The rule: a SHACL component for the model, `policy`, `grant`, `view` or `NOT_WRITABLE`
-    /// for the Endpoint, `from` or `expiresAt` for the lifetime.
+    /// for the Endpoint, `from` or `expiresAt` for the lifetime, and for the history plan
+    /// `latest`, `historyOff`, `received`, `spaceRule`, `otherPipeline` or `observedAt` (PL-105).
     pub rule: String,
     /// The member at fault, empty for the record itself.
     pub field: String,
@@ -148,6 +150,7 @@ impl Finding {
             Source::Model => "model",
             Source::Endpoint => "endpoint",
             Source::Lifetime => "lifetime",
+            Source::History => "history",
         };
         if self.field.is_empty() {
             source.to_owned()
@@ -186,6 +189,11 @@ pub fn check_records(
         types,
         targets,
     } = writer(state, project, pipeline)?;
+    let name = pipeline
+        .pointer("/metadata/name")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let history = SpaceHistory::of(state, project, name, &spec, &targets);
 
     let checks: Vec<RecordCheck> = records
         .iter()
@@ -213,6 +221,7 @@ pub fn check_records(
                     Some(target) => {
                         judge_model(state, project, target, record, &mut findings);
                         judge_endpoint(&subject, target, entity_type, record, now, &mut findings);
+                        history.judge(target, entity_type, record, &mut findings);
                     }
                 }
                 judge_lifetime(&spec, entity_type, record, now, &mut findings);
@@ -233,6 +242,76 @@ pub fn check_records(
         rejected,
         records: checks,
     })
+}
+
+/// The history plans of the pipeline with what each target space holds to judge them by
+/// (PL-105): its retention rules and the other pipelines' plans, read once per check.
+struct SpaceHistory {
+    plans: Vec<crate::pipeline_history::Plan>,
+    spaces: BTreeMap<
+        String,
+        (
+            Vec<jc_core::kinds::RetentionRule>,
+            Vec<crate::pipeline_history::Plan>,
+        ),
+    >,
+}
+
+impl SpaceHistory {
+    fn of(
+        state: &AppState,
+        project: &str,
+        name: &str,
+        spec: &PipelineSpec,
+        targets: &[Target],
+    ) -> Self {
+        let plans = crate::pipeline_history::plans(name, spec);
+        let mut spaces = BTreeMap::new();
+        if !plans.is_empty() {
+            for space in targets.iter().filter_map(|t| t.space.as_deref()) {
+                spaces.entry(space.to_owned()).or_insert_with(|| {
+                    (
+                        crate::pipeline_history::space_rules(&state.mirror, project, space),
+                        crate::pipeline_history::other_plans(&state.mirror, project, space, name),
+                    )
+                });
+            }
+        }
+        SpaceHistory { plans, spaces }
+    }
+
+    /// Each plan of the record's type for an attribute the record carries: the space's and
+    /// broker's rules, then the record's own time.
+    fn judge(
+        &self,
+        target: &Target,
+        entity_type: &str,
+        record: &Value,
+        findings: &mut Vec<Finding>,
+    ) {
+        let Some(space) = target.space.as_deref() else {
+            return;
+        };
+        let Some((rules, others)) = self.spaces.get(space) else {
+            return;
+        };
+        for plan in self
+            .plans
+            .iter()
+            .filter(|p| p.entity_type == entity_type && record.get(&p.attribute).is_some())
+        {
+            let refused = crate::pipeline_history::refusal(rules, space, plan, others)
+                .or_else(|| crate::pipeline_history::record_refusal(plan, record));
+            if let Some((rule, reason)) = refused {
+                findings.push(Finding {
+                    source: Source::History,
+                    rule: rule.to_owned(),
+                    field: plan.attribute.clone(),
+                    reason,
+                });
+            }
+        }
+    }
 }
 
 /// The pipeline as the writer its records are judged as: its spec, its account, and per output

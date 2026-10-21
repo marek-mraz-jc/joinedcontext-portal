@@ -29,8 +29,8 @@ use jc_core::kinds::data_model::ModelImport;
 use jc_core::kinds::{
     ContextSpaceSpec, DataAgreementSpec, DataModelLifecycle, DataModelRef, DataModelSpec,
     DataOfferSpec, EndpointSpec, MappingSpec, ModelProjectionSpec, Operation, OperationRef,
-    PolicySpec, PrincipalKind, ProjectedClass, Projection, ProjectionFilter, QualityKind,
-    QualityRule, Representation, RetentionRule,
+    PipelineSpec, PolicySpec, PrincipalKind, ProjectedClass, Projection, ProjectionFilter,
+    QualityKind, QualityRule, Representation, RetentionRule,
 };
 use jcctl::loader::Repository;
 use serde_json::{json, Map, Value};
@@ -254,6 +254,51 @@ impl ModelSource {
 }
 
 impl Sources {
+    /// Each Pipeline's `spec.history` written into the retention rules of the spaces its outputs
+    /// write (PL-104), once every space and Endpoint is read.
+    fn fold_history(&mut self, repo: &Repository) {
+        let mut plans: BTreeMap<(String, String), Vec<crate::pipeline_history::Plan>> =
+            BTreeMap::new();
+        for (id, resource) in repo.iter() {
+            if id.kind != "Pipeline" {
+                continue;
+            }
+            let Ok(spec) = serde_json::from_value::<PipelineSpec>(resource.manifest.spec.clone())
+            else {
+                continue;
+            };
+            let project = id.namespace.clone().unwrap_or_default();
+            for plan in crate::pipeline_history::plans(&id.name, &spec) {
+                let spaces: BTreeSet<&str> = spec
+                    .outputs()
+                    .into_iter()
+                    .filter(|o| {
+                        o.entity_type
+                            .as_deref()
+                            .is_none_or(|t| t == plan.entity_type)
+                    })
+                    .filter_map(|o| {
+                        self.endpoints.iter().find(|e| {
+                            e.project == project && e.name == o.target_endpoint.local_id()
+                        })
+                    })
+                    .map(|e| e.spec.context_space_ref.name())
+                    .collect();
+                for space in spaces {
+                    plans
+                        .entry((project.clone(), space.to_owned()))
+                        .or_default()
+                        .push(plan.clone());
+                }
+            }
+        }
+        for (key, plans) in plans {
+            if let Some(rules) = self.retention.get_mut(&key) {
+                *rules = crate::pipeline_history::fold(rules, &plans);
+            }
+        }
+    }
+
     /// Reads the kinds the views are made of. A manifest whose spec does not parse is left
     /// out: the load already reported it.
     pub fn read(repo: &Repository) -> Self {
@@ -395,6 +440,7 @@ impl Sources {
                 _ => {}
             }
         }
+        sources.fold_history(repo);
         for (project, derived) in jcctl::pipeline_identity::derived(repo) {
             for (name, spec) in derived.policies {
                 let space = spec.context_space_ref.name().to_owned();
@@ -3651,6 +3697,54 @@ mod tests {
             read.mappings[&("city".to_owned(), "bare".to_owned())].space,
             "air"
         );
+    }
+
+    #[test]
+    fn a_pipelines_history_plan_reaches_its_spaces_retention_document() {
+        let dir = std::env::temp_dir().join(format!(
+            "portal-views-history-{}-{:?}",
+            std::process::id(),
+            std::time::SystemTime::now()
+        ));
+        let write = |rel: &str, body: &str| {
+            let path = dir.join(rel);
+            std::fs::create_dir_all(path.parent().expect("a parent")).expect("mkdir");
+            std::fs::write(path, body).expect("write");
+        };
+        write(
+            "projects/city/spaces/air/space.yaml",
+            "apiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata: { name: air, namespace: city }\nspec:\n  isSandbox: false\n  urnSegment: luft\n  retention:\n    - { entityType: Vehicle, history: P30D, attributes: { delay: { record: every } } }\n",
+        );
+        write(
+            "projects/city/spaces/air/endpoints/air-write.yaml",
+            &format!("apiVersion: joinedcontext.com/v1alpha1\nkind: Endpoint\nmetadata: {{ name: air-write, namespace: city }}\nspec:\n  contextSpaceRef: air\n  slug: {SLUG}\n  audience: public\n  enabledRepresentations: [ngsi-ld]\n"),
+        );
+        write(
+            "projects/city/pipelines/hfp.yaml",
+            "apiVersion: joinedcontext.com/v1alpha2\nkind: Pipeline\nmetadata: { name: hfp, namespace: city }\nspec:\n  class: resident\n  sources:\n    - dataSourceRef: { kind: DataSource, name: feed }\n  outputs:\n    - targetEndpoint: urn:ngsi-ld:Endpoint:air-write\n  history:\n    - type: Vehicle\n      attributes:\n        - { names: [location], keep: changes, heartbeat: PT15M, observedAt: observedOn }\n        - { names: [speed], keep: latest }\n        - { names: [delay], keep: changes, heartbeat: PT1H }\n",
+        );
+        let repo = Repository::load(&dir).expect("the repository loads");
+        let read = Sources::read(&repo);
+        let _ = std::fs::remove_dir_all(&dir);
+        let rules = &read.retention[&("city".to_owned(), "air".to_owned())];
+        let attributes = &rules[0].attributes;
+        assert_eq!(attributes["location"].record.as_deref(), Some("onChange"));
+        assert_eq!(attributes["location"].heartbeat.as_deref(), Some("PT15M"));
+        assert!(
+            !attributes.contains_key("speed"),
+            "latest writes no recording"
+        );
+        assert_eq!(
+            attributes["delay"].record.as_deref(),
+            Some("every"),
+            "the space's own rule wins"
+        );
+        let document = retention_document(rules, None);
+        let location = document["rules"][0]["attributes"]
+            .as_object()
+            .and_then(|a| a.iter().find(|(iri, _)| iri.ends_with("/location")))
+            .map(|(_, recording)| recording["record"].clone());
+        assert_eq!(location, Some(json!("onChange")), "{document}");
     }
 
     const TOKEN: &str = "an-admin-token-of-at-least-32-bytes!";
