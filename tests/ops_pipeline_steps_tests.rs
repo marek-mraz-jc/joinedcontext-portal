@@ -437,7 +437,12 @@ async fn validating_gives_a_verdict_per_record_with_the_rule_each_broke() {
         Some(json!({ "pipeline": pipeline, "records": [], "type": "Ferry" })),
     )
     .await;
-    assert_eq!(unknown.status, StatusCode::UNPROCESSABLE_ENTITY, "{}", unknown.text);
+    assert_eq!(
+        unknown.status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{}",
+        unknown.text
+    );
     assert!(
         unknown.text.contains("Ferry is not a class"),
         "{}",
