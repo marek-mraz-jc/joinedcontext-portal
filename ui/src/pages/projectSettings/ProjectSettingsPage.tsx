@@ -7,6 +7,7 @@ import { api, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized, ORG_NAMESPACE, plainTitle } from "../../api/manifest";
 import { administersOrganization, usePermissions } from "../../api/permissions";
 import type { Rule } from "../../api/permissions";
+import { RuleInWords, granteeName } from "../../components/AccessWords";
 import { DeleteProjectAction } from "../../components/DeleteProjectDialog";
 import { DuplicateProjectAction } from "../../components/DuplicateProjectDialog";
 import { EditResourceAction } from "../../components/EditResourceDialog";
@@ -286,11 +287,6 @@ function General({ project }: { project: string }): JSX.Element {
   );
 }
 
-/** One rule of a grant in words: `propose, approve on Pipeline, DataSource`. */
-function ruleInWords(rule: Rule, on: string): string {
-  return `${(rule.verbs ?? []).join(", ")} ${on} ${(rule.kinds ?? []).join(", ")}`;
-}
-
 /**
  * Your access (PF-50, PF-60): what the signed-in person's bindings let them do here, each grant
  * with the binding and the scope it came from, so an inherited grant does not look local. Then the
@@ -328,8 +324,12 @@ function YourAccess({ project }: { project: string }): JSX.Element {
               ) : (
                 grants.map((grant, index) => (
                   <TableRow key={`${grant.binding}-${grant.role}-${index}`}>
-                    <TableCell primary>{grant.role}</TableCell>
-                    <TableCell>{ruleInWords(grant.rule as Rule, t("access.projectRoles.on"))}</TableCell>
+                    <TableCell primary>
+                      <span title={grant.role}>{granteeName("role", grant.role, t)}</span>
+                    </TableCell>
+                    <TableCell>
+                      <RuleInWords rule={grant.rule as Rule} />
+                    </TableCell>
                     <TableCell>
                       {t("projectSettings.access.binding", { binding: grant.binding, scope: grant.scope })}
                     </TableCell>

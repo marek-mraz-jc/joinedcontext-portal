@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { GranteeInWords, OperationsInWords } from "../components/AccessWords";
 import { policySentence } from "../pages/policies/policySentence";
 import { TryAPerson } from "../pages/policies/TryAPerson";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
@@ -16,7 +17,6 @@ import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { ResourceFormDialog } from "../components/ResourceFormDialog";
 import { ResourceList } from "../components/ResourceList";
 import { ResourceRowActions } from "../components/ResourceRowActions";
-import { expandOperations } from "../components/endpoints/operationGroups";
 import { policySchema, policyUiSchema } from "../schemas/kinds";
 import {
   Badge,
@@ -325,19 +325,11 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
                 <span className="font-mono text-caption">{shape.contextSpaceRef || "—"}</span>
               </TableCell>
               <TableCell>
-                <span className="font-mono text-caption">
-                  {shape.assignee.kind}:{shape.assignee.id}
-                </span>
+                <GranteeInWords kind={shape.assignee.kind} id={shape.assignee.id} />
               </TableCell>
               <TableCell>
-                {/* The names the manifest carries, and what they cover: a group is a word nobody
-                    can check until the page says which operations it stands for (T-2282). */}
-                <div className="font-mono text-caption">{shape.operations.join(", ") || "—"}</div>
-                <div className="mt-0.5 text-caption text-fg-subtle">
-                  {t("policies.operations.total", {
-                    count: expandOperations(shape.operations).length,
-                  })}
-                </div>
+                {/* The areas first, the CIM 009 names they stand for one click away (T-2282, T-4990). */}
+                <OperationsInWords operations={shape.operations} />
               </TableCell>
               <TableCell>
                 <LifecycleBadge kind="phase" value={policy.status?.phase} />
