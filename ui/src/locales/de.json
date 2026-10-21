@@ -7112,7 +7112,9 @@
       "queued": "Steht an",
       "running": "Wird durchlaufen",
       "failed": "Letzter Durchlauf fehlgeschlagen",
-      "crawled": "Durchlaufen"
+      "crawled": "Durchlaufen",
+      "indexing": "Wird indexiert",
+      "read": "Gelesen"
     },
     "type": {
       "website": "Website",
@@ -7168,7 +7170,8 @@
       "findPages": "Seiten finden",
       "findPagesHelp": "Nach Titel oder Adresse, 2 bis 100 Zeichen; Groß- und Kleinschreibung und Akzente spielen keine Rolle. Höchstens 100 Seiten werden gezeigt.",
       "noPagesFound": "Keine Seite dieser Quelle hat „{q}“ im Titel oder in der Adresse.",
-      "modified": "geändert {at}"
+      "modified": "geändert {at}",
+      "filePage": "{name}, Seite {page}"
     },
     "field": {
       "name": "Name",
@@ -7294,6 +7297,7 @@
       "question": "Ihre Frage",
       "send": "Senden",
       "failed": "Die Antwort konnte nicht geladen werden. Bitte erneut versuchen.",
+      "modelUnavailable": "Das Modell des Assistenten hat nicht geantwortet. Ihre Frage bleibt im Feld: versuchen Sie es in einer Minute erneut.",
       "liveData": "Live-Daten",
       "sourceNumber": "Quelle {n}",
       "data": "Gelesene Daten der Antwort",
@@ -7335,7 +7339,8 @@
       "noneHint": "Laden Sie ein PDF, eine Tabelle oder eine Textdatei hoch, aus der der Assistent antwortet.",
       "name": "Datei",
       "remove": "Entfernen",
-      "removeOf": "{name} entfernen"
+      "removeOf": "{name} entfernen",
+      "notTakenUp": "Der Assistent hat diese Quelle noch nicht übernommen; das dauert etwa eine Minute nach der Freigabe. Die Seite prüft das selbst: Laden Sie die Dateien hoch, sobald die Schaltfläche wieder da ist."
     },
     "index": {
       "title": "Indexstatus",

@@ -91,4 +91,18 @@ describe("an answer's sources", () => {
     expect(label({ url: "https://www.hel.fi/en/events/", title: null, endpoint: null })).toBe("www.hel.fi/en/events");
     expect(JSON.stringify(list)).not.toMatch(/query_entities/);
   });
+
+  it("names an uploaded file it cites, without a link (T-4869)", () => {
+    const { list, position } = sources([
+      { n: 1, url: "upload:garden/kumpula-garden-rules.pdf" },
+      { n: 2, url: "upload:garden/kumpula-garden-rules.pdf#page=2", title: "Kumpula garden rules" },
+      { n: 3, url: "upload:garden/minutes.docx", title: "Committee minutes" },
+    ]);
+    expect(list).toEqual([
+      { url: null, title: "kumpula-garden-rules.pdf", live: false, endpoint: null, domain: "", numbers: [1, 2] },
+      { url: null, title: "Committee minutes", live: false, endpoint: null, domain: "", numbers: [3] },
+    ]);
+    expect(position).toEqual({ 1: 1, 2: 1, 3: 2 });
+    expect(label(list[0])).toBe("kumpula-garden-rules.pdf");
+  });
 });

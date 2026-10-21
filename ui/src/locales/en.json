@@ -7112,7 +7112,9 @@
       "queued": "Queued",
       "running": "Crawling",
       "failed": "Last crawl failed",
-      "crawled": "Crawled"
+      "crawled": "Crawled",
+      "indexing": "Indexing",
+      "read": "Read"
     },
     "type": {
       "website": "Website",
@@ -7168,7 +7170,8 @@
       "findPages": "Find pages",
       "findPagesHelp": "By title or address, 2 to 100 characters; case and accents do not matter. At most 100 pages are shown.",
       "noPagesFound": "No page of this source has “{q}” in its title or address.",
-      "modified": "changed {at}"
+      "modified": "changed {at}",
+      "filePage": "{name}, page {page}"
     },
     "field": {
       "name": "Name",
@@ -7294,6 +7297,7 @@
       "question": "Your question",
       "send": "Send",
       "failed": "The answer could not be loaded. Try again.",
+      "modelUnavailable": "The assistant's model did not answer. Your question is kept: try again in a minute.",
       "liveData": "Live data",
       "sourceNumber": "Source {n}",
       "data": "Data the answer read",
@@ -7335,7 +7339,8 @@
       "noneHint": "Upload a PDF, a spreadsheet or a text file for the assistant to answer from.",
       "name": "File",
       "remove": "Remove",
-      "removeOf": "Remove {name}"
+      "removeOf": "Remove {name}",
+      "notTakenUp": "The assistant has not taken this source up yet; that takes about a minute after its approval. This page checks again by itself: upload the files once the button is back."
     },
     "index": {
       "title": "Index status",

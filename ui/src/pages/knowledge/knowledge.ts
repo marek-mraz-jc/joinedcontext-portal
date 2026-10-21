@@ -272,6 +272,12 @@ export interface UploadedFile {
 /** The file types an upload source reads (API/05 §3): checked again by content on the server. */
 export const UPLOAD_ACCEPT = ".pdf,.docx,.xlsx,.csv,.md,.txt";
 
+/** The file and page an uploaded file's passage cites as `upload:{source}/{name}#page={n}`, else null. */
+export function uploadedFile(url: string): { name: string; page: number | null } | null {
+  const match = /^upload:[^/]*\/(.+?)(?:#page=(\d+))?$/.exec(url);
+  return match ? { name: match[1], page: match[2] ? Number(match[2]) : null } : null;
+}
+
 export async function listFiles(project: string, source: string): Promise<UploadedFile[]> {
   return items<UploadedFile>(
     await unwrap(
@@ -378,7 +384,7 @@ export type ChatEvent =
   | { name: "answer"; text: string }
   | { name: "citations"; citations: Citation[] }
   | { name: "data"; data: DataTable }
-  | { name: "error"; detail: string }
+  | { name: "error"; detail: string; title?: string }
   | { name: "done"; tokens: number };
 
 function text(value: unknown): string {
@@ -476,7 +482,8 @@ function chatEvent(name: string, data: unknown): ChatEvent | null {
           .filter((c): c is Record<string, unknown> => typeof c === "object" && c !== null && typeof c.n === "number")
           .map((c) => ({
             n: c.n as number,
-            url: typeof c.url === "string" && /^https?:\/\//.test(c.url) ? c.url : undefined,
+            // An uploaded file is cited as `upload:{source}/{file}`, shown by name, never as a link (T-4869).
+            url: typeof c.url === "string" && /^(https?:\/\/|upload:)/.test(c.url) ? c.url : undefined,
             tool: typeof c.tool === "string" ? c.tool : undefined,
             endpoint: typeof c.endpoint === "string" ? c.endpoint : undefined,
             title: typeof c.title === "string" ? c.title : undefined,
@@ -487,7 +494,7 @@ function chatEvent(name: string, data: unknown): ChatEvent | null {
       return table ? { name, data: table } : null;
     }
     case "error":
-      return { name, detail: text(d.detail) };
+      return { name, detail: text(d.detail), title: text(d.title) || undefined };
     case "done":
       return { name, tokens: typeof d.tokens === "number" ? d.tokens : 0 };
     default:
