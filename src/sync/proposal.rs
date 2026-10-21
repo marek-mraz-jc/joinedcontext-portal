@@ -68,7 +68,7 @@ pub async fn open(gitea: &GiteaClient, proposal: &Proposal<'_>) -> Result<PullRe
         // The same bytes are not written again: a rerun adds no empty commit to the review.
         if existing
             .as_ref()
-            .is_some_and(|file| &file.content == content)
+            .is_some_and(|file| file.content == crate::git::gitea::committed_text(path, content))
         {
             continue;
         }
@@ -286,7 +286,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_proposal_updates_its_open_merge_request_and_closes_the_days_before_it() {
-        let (server, gitea) = forge(&[("models/air.yaml", "same")]).await;
+        // What an earlier run committed: the text in the commit layout (T-5052).
+        let (server, gitea) = forge(&[("models/air.yaml", "same\n")]).await;
         let mut files = BTreeMap::new();
         files.insert("models/air.yaml".to_owned(), "same".to_owned());
         files.insert("models/air/schema.linkml.yaml".to_owned(), "new".to_owned());

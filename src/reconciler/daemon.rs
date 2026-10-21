@@ -2251,7 +2251,8 @@ impl Syncer {
         };
         for (path, content) in files {
             let existing = self.gitea.get_file(path, branch).await?;
-            if existing.as_ref().map(|f| f.content.as_str()) == Some(content.as_str()) {
+            let committed = crate::git::gitea::committed_text(path, &content);
+            if existing.as_ref().map(|f| f.content.as_str()) == Some(&*committed) {
                 continue;
             }
             let message = format!("roles: compile users/ into {path} (T-0527)");

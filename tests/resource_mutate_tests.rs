@@ -224,6 +224,12 @@ async fn create_returns_202_with_change_and_commits_to_gitea() {
     let decoded_bytes = STANDARD.decode(content_b64).expect("valid base64 content");
     let yaml_str = String::from_utf8(decoded_bytes).expect("valid UTF-8 YAML string");
     assert!(!yaml_str.contains("status:"));
+    // The commit holds the one layout `jcctl fmt` writes, as a hand edit would (T-5052).
+    assert_eq!(
+        jc_core::yaml_fmt::format(&yaml_str).as_deref(),
+        Ok(yaml_str.as_str())
+    );
+    assert!(yaml_str.starts_with("apiVersion: "), "{yaml_str}");
 
     assert!(requests.iter().any(|r| {
         r.method.as_str() == "POST" && r.url.path() == "/api/v1/repos/test-owner/test-repo/pulls"
