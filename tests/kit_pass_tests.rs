@@ -2401,7 +2401,7 @@ async fn preview_errors_and_call_function_answer_the_model_as_tool_results() {
         .and(path("/invoke"))
         .and(has_header("authorization", "Bearer the-portals-own-token"))
         .and(body_partial_json(json!({
-            "entry": "@app/functions/summary.ts",
+            "entry": "@app/entry.js",
             "request": { "method": "POST", "body": { "types": ["Station"] }, "user": { "email": format!("{STEWARD}@hel.fi") } },
             "token": null
         })))

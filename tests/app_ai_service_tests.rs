@@ -144,6 +144,7 @@ async fn state(proxy: &MockServer, project: &str, org_services: Value) -> Option
             "limits": { "aiTokensPerDay": 150 },
         }),
     ));
+    common::bind(&state.mirror, "jana", project);
     Some(state)
 }
 
