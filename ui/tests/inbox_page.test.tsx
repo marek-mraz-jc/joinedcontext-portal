@@ -34,11 +34,13 @@ function change(project: string, name: string, kind: string, lane = "yellow", au
   };
 }
 
+const FORGE_DOWN = "The Git repository did not answer the Portal. Try again in a minute.";
+
 interface Seen {
   writes: { path: string; body: unknown }[];
 }
 
-function show(seen: Seen) {
+function show(seen: Seen, unavailable?: string) {
   window.history.pushState({}, "", "/projects/helsinki/inbox");
   vi.stubGlobal(
     "fetch",
@@ -58,6 +60,12 @@ function show(seen: Seen) {
       if (url.pathname === "/api/v1/projects") return json({ items: [{ name: "helsinki" }, { name: "ovzdusie" }] });
       if (url.pathname.endsWith("/permissions/me")) {
         return json({ project: "x", bootstrap: false, grants: [{ role: "approver", binding: "b", scope: "project", rule: { kinds: ["Endpoint", "Policy"], verbs: ["approve"] } }] });
+      }
+      if (unavailable && url.pathname === `/api/v1/projects/${unavailable}/changes`) {
+        return new Response(JSON.stringify({ type: "about:blank", title: "Service Unavailable", status: 503, detail: FORGE_DOWN }), {
+          status: 503,
+          headers: { "Content-Type": "application/problem+json" },
+        });
       }
       if (url.pathname === "/api/v1/projects/helsinki/changes") {
         return json({ items: [change("helsinki", "chg-endpoint", "Endpoint"), change("helsinki", "chg-pipeline", "Pipeline")] });
@@ -164,6 +172,17 @@ describe("the inbox (T-3273)", () => {
       </QueryClientProvider>,
     );
     expect((await screen.findAllByText(en.inbox.noMentions)).length).toBeGreaterThan(0);
+  });
+
+  it("says a project's changes did not load instead of claiming nothing waits (T-4966)", async () => {
+    show({ writes: [] }, "helsinki");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("The changes of helsinki did not load");
+    expect(alert).toHaveTextContent(FORGE_DOWN);
+    const decisions = screen.getByTestId("inbox-decisions");
+    // The other project still lists what waits, and the list is not empty, so no "Nothing waits".
+    await waitFor(() => expect(decisions).toHaveTextContent("proposed by Marek in ovzdusie"));
+    expect(decisions).not.toBeEmptyDOMElement();
   });
 
   it("shows how to approve only while something waits, never to a person with nothing to decide (T-4165)", async () => {
