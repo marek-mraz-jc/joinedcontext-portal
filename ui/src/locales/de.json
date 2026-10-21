@@ -7522,6 +7522,8 @@
     "client": "Anmelde-Client",
     "config": "Eintrag für die Konfiguration des KI-Clients",
     "signIn": "Der KI-Client findet die Anmeldung über die Adresse und meldet die Person mit dem Client {client} an (ohne Geheimnis, PKCE). In die Konfiguration kommt kein Token.",
+    "connectPage": "Öffentliche Verbindungsseite öffnen",
+    "connectPageHint": "Sie zeigt die Werkzeuge, die jeder ohne Anmeldung erhält, und eine Einrichtung für Claude, ChatGPT und andere Clients; teilen Sie ihre Adresse, zum Beispiel in der Datensatzbeschreibung.",
     "copy": "Kopieren",
     "copied": "Kopiert",
     "copyOf": "Kopieren: {what}",

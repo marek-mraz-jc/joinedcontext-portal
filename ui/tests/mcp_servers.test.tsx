@@ -149,6 +149,14 @@ describe("the MCP servers page (T-3156)", () => {
     expect(probes.every((u) => u.startsWith(`${window.location.origin}/api/endpoint/`))).toBe(true);
   });
 
+  it("links a public server to its connect page and keeps an organization server off it (T-4871)", async () => {
+    renderAt("/projects/helsinki/mcp", { servers: [{ ...SERVER, metadata: { ...SERVER.metadata, name: "open", title: { en: "Open data" } }, spec: { ...SERVER.spec, audience: "public" } }, SERVER] });
+    const open = await screen.findByRole("region", { name: "Open data" });
+    expect(within(open).getByRole("link", { name: "Open the public connect page" })).toHaveAttribute("href", "/connect/helsinki/open");
+    const internal = await screen.findByRole("region", { name: "Mobility data" });
+    expect(within(internal).queryByRole("link", { name: "Open the public connect page" })).toBeNull();
+  });
+
   it("creates a server over two Endpoints of two projects as a checked Change", async () => {
     const { writes } = renderAt("/projects/helsinki/mcp", { servers: [] });
     await userEvent.click(await screen.findByRole("button", { name: "New MCP server" }));
