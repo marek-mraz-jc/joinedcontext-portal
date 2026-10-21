@@ -116,6 +116,39 @@ test.describe("approvals", () => {
     expect(approvals).toEqual(["/api/v1/projects/helsinki/changes/chg-1a2b3c4d/approve"]);
   });
 
+  test("at 400 px a long merge-request link and file path wrap inside the page (T-4976)", async ({ page }) => {
+    await page.setViewportSize({ width: 400, height: 900 });
+    // The walker found 101-126 px of sideways scroll on dev: Gitea's login-redirect link and a
+    // policy path are each one unbroken word wider than a phone.
+    const long = {
+      ...PROPOSAL,
+      status: {
+        ...PROPOSAL.status,
+        mergeRequest:
+          "https://dev.joinedcontext.com/git/user/oauth2/keycloak?redirect_to=%2Fgit%2Fjoinedcontext%2Fhelsinki%2Fpulls%2F185",
+      },
+      files: [
+        { path: "projects/helsinki/spaces/helsinki/policies/t4843-hro7z1-write.yaml", kind: "Policy", lane: "red", operation: "Create" },
+        { path: "projects/helsinki/spaces/helsinki/endpoints/air-quality-measurements-v2.yaml", kind: "Endpoint", lane: "yellow", operation: "Update", fields: PROPOSAL.planFields },
+      ],
+    };
+    await stubApi(page);
+    await page.route(`**/changes/${PROPOSAL.metadata.name}`, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(long) }),
+    );
+
+    await page.goto(`/projects/helsinki/approvals/${PROPOSAL.metadata.name}?lang=en`);
+    await expect(page.getByRole("button", { name: "Approve" })).toBeVisible();
+    await expect(page.getByTestId("change-file")).toHaveCount(2);
+    const sideways = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(sideways).toBe(0);
+    await page.screenshot({ path: test.info().outputPath("approval-detail-400.png"), fullPage: true });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.screenshot({ path: test.info().outputPath("approval-detail-1440.png"), fullPage: true });
+  });
+
   test("the approvals routes have no axe violations", async ({ page }) => {
     await stubApi(page);
 
