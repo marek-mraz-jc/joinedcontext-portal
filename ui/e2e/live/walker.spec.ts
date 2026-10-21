@@ -27,7 +27,7 @@ import { axeViolations } from "../axe";
 import { pageFindings, unexcused } from "../../tests/pageChecks";
 import type { Excused } from "../../tests/pageChecks";
 import { STEWARD, VIEWER, hiddenSections, inHiddenSection, signIn } from "./portal";
-import { shot, writeIndex } from "./shoot";
+import { secretMasks, shot, writeIndex } from "./shoot";
 import { P, visits } from "./walk-routes";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -133,14 +133,18 @@ for (const [who, person] of [
       // A section the installation hides is no page to walk (T-2874).
       const hidden = await hiddenSections(page.request);
       const all = (await visits(page, who)).filter((visit) => !inHiddenSection(visit.address, hidden) && (!ONLY || ONLY.test(visit.address)));
-      for (const lang of LANGS) for (const size of WIDTHS) {
-        await page.setViewportSize(size);
-        for (const visit of all) {
+      // Each address loads once per language and is judged at every width by resizing the open page:
+      // a reload per width doubled the walk, and the walk after a rollout has 15 minutes (T-4950).
+      for (const lang of LANGS) for (const visit of all) {
+        for (const [index, size] of WIDTHS.entries()) {
           current = [];
-          await page.goto(`${visit.address}${visit.address.includes("?") ? "&" : "?"}lang=${lang}`, { waitUntil: "load" });
-          await page.locator("h1:visible").first().waitFor({ timeout: 30_000 }).catch(() => undefined);
-          // The lists and forms read after the first paint; judge the page a person looks at.
-          await page.waitForTimeout(1500);
+          await page.setViewportSize(size);
+          if (index === 0) {
+            await page.goto(`${visit.address}${visit.address.includes("?") ? "&" : "?"}lang=${lang}`, { waitUntil: "load" });
+            await page.locator("h1:visible").first().waitFor({ timeout: 30_000 }).catch(() => undefined);
+            // The lists and forms read after the first paint; judge the page a person looks at.
+            await page.waitForTimeout(1500);
+          } else await page.waitForTimeout(300);
           const findings = [
             ...current,
             ...(await page.evaluate(pageFindings, { namespaces: NAMESPACES, layout: true })),
@@ -150,7 +154,7 @@ for (const [who, person] of [
             ...(who === "viewer" && !OWN.has(visit.route) ? await viewerWrites(page) : []),
           ];
           const screenshot = test.info().outputPath(`${who}-${lang}-${size.width}${visit.address.replace(/[^a-z0-9]+/gi, "-")}.png`);
-          await page.screenshot({ path: screenshot, fullPage: true });
+          await page.screenshot({ path: screenshot, fullPage: true, mask: secretMasks(page) });
           await shot(page, { area: "portal", route: visit.address, state: "open", who, lang });
           report.push({ ...visit, width: size.width, lang, findings: unexcused(visit.route, findings, allow.excused), screenshot });
         }
@@ -158,11 +162,11 @@ for (const [who, person] of [
       if (who === "viewer") refused = await endpointsRefused(page);
     } finally {
       const body = JSON.stringify(report, null, 2);
-      if (process.env.SHOTS_DIR) {
-        writeIndex(process.env.SHOTS_DIR);
-        // walk-rows.ts fills no row from a page this walker found anything on (T-3986).
-        writeFileSync(join(process.env.SHOTS_DIR, `walker-${who}.json`), body);
-      }
+      if (process.env.SHOTS_DIR) writeIndex(process.env.SHOTS_DIR);
+      // walk-rows.ts fills no row from a page this walker found anything on (T-3986); the walk after
+      // a rollout files a task per finding from it (rollout-walk.sh, T-4950).
+      const reports = process.env.WALK_REPORT_DIR ?? process.env.SHOTS_DIR;
+      if (reports) writeFileSync(join(reports, `walker-${who}.json`), body);
       await test.info().attach(`walker-${who}.json`, { body, contentType: "application/json" });
       await context.close();
     }

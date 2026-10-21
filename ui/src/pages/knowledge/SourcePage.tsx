@@ -505,21 +505,13 @@ function Links({ project, source, page }: { project: string; source: string; pag
   );
 }
 
-/** A page's or document's own title over its address, or the address alone when it states none (AG-120). */
+/**
+ * A page's or document's own title over its address, or the address alone when it states none (AG-120).
+ * An uploaded file has no address to open: its name and page, never `upload:…` (T-4869).
+ */
 function Titled({ row }: { row: { url: string; title?: string | null } }): JSX.Element {
-  const { t } = useTranslation();
-  // An uploaded file has no address to open: its name and page, never `upload:…` (T-4869).
   const file = uploadedFile(row.url);
-  if (file) {
-    return (
-      <span className="inline-flex min-w-0 flex-col">
-        {row.title ? <span className="[overflow-wrap:anywhere]">{row.title}</span> : null}
-        <span className="font-mono text-caption text-fg-muted [overflow-wrap:anywhere]">
-          {file.page === null ? file.name : t("knowledge.source.filePage", { name: file.name, page: file.page })}
-        </span>
-      </span>
-    );
-  }
+  if (file) return <UploadedTitled title={row.title} file={file} />;
   if (!row.title) {
     return (
       <ExternalLink href={row.url} className="font-mono [overflow-wrap:anywhere]">
@@ -533,6 +525,19 @@ function Titled({ row }: { row: { url: string; title?: string | null } }): JSX.E
         {row.title}
       </ExternalLink>
       <span className="font-mono text-caption text-fg-muted [overflow-wrap:anywhere]">{row.url}</span>
+    </span>
+  );
+}
+
+/** An uploaded file's passage: its title over the file's name and page. */
+function UploadedTitled({ title, file }: { title?: string | null; file: { name: string; page: number | null } }): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <span className="inline-flex min-w-0 flex-col">
+      {title ? <span className="[overflow-wrap:anywhere]">{title}</span> : null}
+      <span className="font-mono text-caption text-fg-muted [overflow-wrap:anywhere]">
+        {file.page === null ? file.name : t("knowledge.source.filePage", { name: file.name, page: file.page })}
+      </span>
     </span>
   );
 }
