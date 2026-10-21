@@ -526,6 +526,8 @@
       "data": "Data",
       "dataEmpty": "Zatím nic: do tohoto prostoru ještě nezapsala žádná pipeline.",
       "addRow": "Přidat řádek",
+      "copyLive": "Entity zůstávají v kopii živé",
+      "copyLiveHint": "Kopie drží zdroje projektu, ne jeho entity: řádky zde jsou živý prostor, proto v nich z kopie nelze nic změnit. Chcete-li měnit data bez zásahu do projektu, spusťte náhled kopie, zkopírujte do něj data a změňte je tam:",
       "addRowTitle": "Nový záznam: {type}",
       "dataThroughEndpoints": "Tento prostor můžete vidět přes jeho endpointy:",
       "dataNoTypes": "Tento prostor nepojmenovává datový model, takže není co číst.",

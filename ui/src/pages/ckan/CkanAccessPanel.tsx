@@ -12,8 +12,8 @@ import type { components } from "../../api/schema";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { Alert, Button, Field, Input, Select } from "../../components/ui";
-import { asUser } from "../apps/RolesAndMembers";
-import type { Subject } from "../apps/RolesAndMembers";
+import { asUser } from "../apps/members";
+import type { Subject } from "../apps/members";
 import { ckanAdminName, grantManifests, holdersOf, RefusedAccess, revokeManifest } from "./ckanAccess";
 
 function useList(project: string, plural: string, enabled = true) {
