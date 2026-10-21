@@ -526,6 +526,8 @@
       "data": "Data",
       "dataEmpty": "Zatím nic: do tohoto prostoru ještě nezapsala žádná pipeline.",
       "addRow": "Přidat řádek",
+      "copyLive": "Entity zůstávají v kopii živé",
+      "copyLiveHint": "Kopie drží zdroje projektu, ne jeho entity: řádky zde jsou živý prostor, proto v nich z kopie nelze nic změnit. Chcete-li měnit data bez zásahu do projektu, spusťte náhled kopie, zkopírujte do něj data a změňte je tam:",
       "addRowTitle": "Nový záznam: {type}",
       "dataThroughEndpoints": "Tento prostor můžete vidět přes jeho endpointy:",
       "dataNoTypes": "Tento prostor nepojmenovává datový model, takže není co číst.",
@@ -969,6 +971,8 @@
       "choose": "Vybrat soubor",
       "empty": "Soubor nemá pod hlavičkou žádné řádky.",
       "unreadable": "Soubor nelze přečíst: {reason}",
+      "tooLarge": "Soubor má {size} MB; import přečte nejvýše {limit} MB. Rozdělte ho na menší soubory nebo odstraňte sloupce, které nepotřebujete, a importujte každou část.",
+      "denied": "Nic se nezapsalo: prostor {space} vaší roli nedovoluje vytvářet entity {type} ({reason}). Požádejte vlastníka projektu o Policy na tomto prostoru, která vaší roli povolí dávkové vytváření {type}, a pak soubor importujte znovu.",
       "read": "{name}: {rows, plural, one {# řádek} few {# řádky} other {# řádků}}, {columns, plural, one {# sloupec} few {# sloupce} other {# sloupců}}.",
       "mapping": "Které pole plní každý sloupec",
       "column": "Sloupec",
@@ -1271,6 +1275,7 @@
       "slug": "Slug",
       "audience": "Publikum",
       "representations": "Reprezentace",
+      "representationMappings": "Mapování kalendáře",
       "more": "+{count} dalších",
       "noRepresentations": "žádné reprezentace",
       "phase": "Stav",
@@ -1417,7 +1422,31 @@
       "odata": "OData v4",
       "websocket": "Oznámení přes WebSocket",
       "sta": "SensorThings API",
+      "ical": "Kalendář iCalendar",
       "mcp": "MCP pro AI asistenty"
+    },
+    "ical": {
+      "subscribe": "Odběr kalendáře",
+      "preview": "Otevřít kalendář (.ics)",
+      "off": "Zapněte kalendář iCalendar v části Reprezentace, abyste mohli mapovat jeho pole.",
+      "help": "Ze kterého atributu modelu prostoru pochází každé pole kalendáře. Prázdný řádek použije atribut předvolby, zobrazený šedě. Zkontrolujte formulář a uvidíte verdikt serveru vůči datovému modelu.",
+      "start": "Začít od",
+      "presetDefault": "Výchozí (Smart Data Models Event)",
+      "preset": {
+        "sdm-event": "Smart Data Models Event",
+        "schema-org": "schema.org Event"
+      },
+      "presetOwn": "Jen pole níže",
+      "type": "Mapovaný typ",
+      "noModel": "Prostor {space} zatím nemá v tomto projektu datový model, proto nelze nabídnout atributy; kontrola mapování odmítne, dokud ho mít nebude.",
+      "missing": "Namapujte tato povinná pole: {fields}",
+      "caption": "Pole kalendáře a atributy, ze kterých pocházejí",
+      "field": "Pole kalendáře",
+      "attribute": "Atribut",
+      "fixed": "Nastavuje platforma: {attribute}",
+      "remap": "Zapsáno v YAML s úpravami; upravte jej v manifestu",
+      "unmapped": "Nemapováno",
+      "requiredBadge": "Povinné"
     },
     "section": {
       "projection": "Které třídy a atributy zobrazuje",
@@ -2273,7 +2302,13 @@
         "countFirst": "Prvních {count, plural, one {# záznam} few {# záznamy} other {# záznamů}} s {fields, plural, one {# polem} other {# poli}}; zdroj má více",
         "caption": "Záznamy vzorku",
         "notJson": "Zdroj vrátil webovou stránku, ne data. Zkontrolujte adresu jeho datového zdroje.",
-        "details": "Zpráva nástroje"
+        "details": "Zpráva nástroje",
+        "listening": "Poslouchám {source}: {elapsed} z {seconds} s, nejvýše {max} zpráv",
+        "listenAgain": "Poslouchat znovu",
+        "streamCount": "{count} z {max} zpráv přišlo do {seconds} s, s {fields, plural, one {# polem} other {# poli}}",
+        "streamSkipped": "{count, plural, one {# zpráva nebyla ponechána} few {# zprávy nebyly ponechány} other {# zpráv nebylo ponecháno}}",
+        "streamEmptyTitle": "Do {seconds} s nepřišla žádná zpráva",
+        "streamEmpty": "Téma může být právě tichá, nebo broker odmítl připojení či přihlašovací údaje zdroje dat. Poslouchejte znovu, nebo zkontrolujte adresu, téma a přihlašovací údaje zdroje dat."
       },
       "mapping": {
         "title": "Mapování",
@@ -2588,6 +2623,61 @@
       "rejectedUnavailable": "Odmítnuté záznamy se nepodařilo načíst.",
       "noRejected": "Model neodmítl žádný záznam této pipeline.",
       "credentials": "Přihlašovací údaje"
+    },
+    "access": {
+      "section": "Přístup k jiným prostorům",
+      "lead": "Požádejte vlastníka jiného prostoru o čtení nebo zápis pro tuto pipeline. Dokud to neschválí, nic se neudělí.",
+      "none": "Tato pipeline nežádala o přístup k jinému prostoru.",
+      "request": "Požádat o přístup",
+      "project": "Vlastnící projekt",
+      "projectHelp": "Projekt, kterému prostor patří, jak ho uvádí stránka katalogu.",
+      "endpoint": "Endpoint",
+      "operationsLegend": "Co tam pipeline dělá",
+      "operations": {
+        "read": "Čtení",
+        "write": "Zápis"
+      },
+      "types": "Typy a atributy",
+      "typesHelp": "Uveďte každý typ entity a každý atribut, který pipeline potřebuje, oddělené čárkami. Žádost nikdy nežádá o všechny.",
+      "type": "Typ entity",
+      "attrs": "Atributy",
+      "addType": "Přidat typ",
+      "removeType": "Odebrat",
+      "removeTypeOf": "Odebrat typ {n}",
+      "tooManyTypes": "Žádost uvádí nejvýše 20 typů.",
+      "untilLabel": "Datum konce",
+      "untilHelp": "Přístup skončí na konci tohoto dne. Prázdné znamená bez konce.",
+      "reason": "Proč to pipeline potřebuje",
+      "send": "Odeslat žádost",
+      "cancel": "Zrušit",
+      "sent": "Žádost odeslána. Rozhodnou o ní vlastníci prostoru; její stav uvidíte zde.",
+      "missing": {
+        "endpoint": "Uveďte vlastnící projekt a endpoint.",
+        "types": "Uveďte alespoň jeden typ, každý s jeho atributy.",
+        "reason": "Napište, proč to pipeline potřebuje."
+      },
+      "state": {
+        "pending": "Čeká na vlastníka",
+        "approved": "Schváleno",
+        "declined": "Zamítnuto",
+        "revoked": "Odebráno",
+        "ended": "Skončeno"
+      },
+      "until": "Do {date}",
+      "noEnd": "Bez data konce",
+      "decided": "{who}: {reason}",
+      "inbox": "Pipeline žádající o přístup",
+      "inboxLead": "Pipeline jiných prostorů a projektů, které žádají číst nebo zapisovat do tohoto prostoru. Schválení navrhne přístup jako změnu tohoto projektu.",
+      "inboxEmpty": "Žádná pipeline nežádala o přístup k tomuto prostoru.",
+      "on": "na {endpoint}, žádá {who}",
+      "decisionReason": "Důvod pro žadatele",
+      "approve": "Schválit",
+      "approveOf": "Schválit přístup pro {account}",
+      "decline": "Zamítnout",
+      "declineOf": "Zamítnout přístup pro {account}",
+      "revoke": "Odebrat přístup",
+      "revokeOf": "Odebrat přístup {account}",
+      "reasonFirst": "Nejprve napište důvod."
     }
   },
   "dashboards": {
@@ -5524,7 +5614,17 @@
       "expiresAt": "Platí do",
       "isActive": "Posílat notifikace",
       "receiver": "Posílá na",
-      "watches": "Sleduje"
+      "watches": "Sleduje",
+      "deliveries": "Doručení"
+    },
+    "delivery": {
+      "none": "Zatím žádné upozornění: odešle se, když se sledovaná entita změní.",
+      "ok": "Doručeno",
+      "failing": "Selhává",
+      "lastSuccess": "Naposledy doručeno {at}",
+      "lastFailure": "Poslední selhání {at}",
+      "counts": "Odesláno: {sent}, selhalo: {failed}",
+      "failingHint": "Příjemce nepřijal poslední upozornění: ověřte, že jeho adresa odpovídá přes https a přijímá POST."
     }
   },
   "registrations": {
@@ -6982,7 +7082,9 @@
       "queued": "Ve frontě",
       "running": "Prochází se",
       "failed": "Poslední procházení selhalo",
-      "crawled": "Projitý"
+      "crawled": "Projitý",
+      "indexing": "Indexuje se",
+      "read": "Přečteno"
     },
     "type": {
       "website": "Web",
@@ -7038,7 +7140,8 @@
       "findPages": "Najít stránky",
       "findPagesHelp": "Podle názvu nebo adresy, 2 až 100 znaků; na velikosti písmen a diakritice nezáleží. Zobrazí se nejvýše 100 stránek.",
       "noPagesFound": "Žádná stránka tohoto zdroje nemá „{q}“ v názvu ani v adrese.",
-      "modified": "změněno {at}"
+      "modified": "změněno {at}",
+      "filePage": "{name}, strana {page}"
     },
     "field": {
       "name": "Název",
@@ -7164,6 +7267,7 @@
       "question": "Vaše otázka",
       "send": "Odeslat",
       "failed": "Odpověď se nepodařilo načíst. Zkuste znovu.",
+      "modelUnavailable": "Model asistenta neodpověděl. Otázka zůstala v poli: zkuste to za minutu znovu.",
       "liveData": "Živá data",
       "sourceNumber": "Zdroj {n}",
       "data": "Data, která odpověď přečetla",
@@ -7205,7 +7309,8 @@
       "noneHint": "Nahrajte PDF, tabulku nebo textový soubor, ze kterého bude asistent odpovídat.",
       "name": "Soubor",
       "remove": "Odstranit",
-      "removeOf": "Odstranit {name}"
+      "removeOf": "Odstranit {name}",
+      "notTakenUp": "Asistent tento zdroj ještě nepřevzal; trvá to asi minutu po schválení. Stránka to ověřuje sama: soubory nahrajte, až se tlačítko vrátí."
     },
     "index": {
       "title": "Stav indexu",

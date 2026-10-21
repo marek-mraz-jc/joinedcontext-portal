@@ -526,6 +526,8 @@
       "data": "Daten",
       "dataEmpty": "Noch nichts: keine Pipeline hat in diesen Raum geschrieben.",
       "addRow": "Zeile hinzufügen",
+      "copyLive": "Entitäten bleiben in einer Kopie live",
+      "copyLiveHint": "Eine Kopie enthält die Ressourcen des Projekts, nicht seine Entitäten: Die Zeilen hier sind der Live-Space, darum lässt sich aus der Kopie nichts daran ändern. Um Daten zu ändern, ohne das Projekt zu berühren, starten Sie die Vorschau der Kopie, kopieren Sie Daten hinein und ändern Sie sie dort:",
       "addRowTitle": "Neu: {type}",
       "dataThroughEndpoints": "Sie können diesen Raum über seine Endpunkte sehen:",
       "dataNoTypes": "Dieser Raum nennt kein Datenmodell, also gibt es keinen Typ zu lesen.",
@@ -969,6 +971,8 @@
       "choose": "Datei wählen",
       "empty": "Die Datei enthält unter ihrer Kopfzeile keine Zeilen.",
       "unreadable": "Die Datei lässt sich nicht lesen: {reason}",
+      "tooLarge": "Die Datei hat {size} MB; ein Import liest höchstens {limit} MB. Teilen Sie sie in kleinere Dateien auf oder entfernen Sie nicht benötigte Spalten und importieren Sie jeden Teil.",
+      "denied": "Nichts wurde geschrieben: Der Raum {space} erlaubt Ihrer Rolle nicht, {type}-Entitäten anzulegen ({reason}). Bitten Sie einen Projektverantwortlichen um eine Policy auf diesem Raum, die Ihrer Rolle das Anlegen von {type} im Stapel erlaubt, und importieren Sie die Datei dann erneut.",
       "read": "{name}: {rows, plural, one {# Zeile} other {# Zeilen}}, {columns, plural, one {# Spalte} other {# Spalten}}.",
       "mapping": "Welches Feld jede Spalte füllt",
       "column": "Spalte",
@@ -1249,6 +1253,7 @@
       "publicUrl": "Öffentliche Adresse",
       "audience": "Zielgruppe",
       "representations": "Repräsentationen",
+      "representationMappings": "Kalender-Zuordnung",
       "more": "+{count} weitere",
       "noRepresentations": "keine Repräsentationen",
       "phase": "Zustand",
@@ -1417,7 +1422,31 @@
       "odata": "OData v4",
       "websocket": "Benachrichtigungen über WebSocket",
       "sta": "SensorThings API",
+      "ical": "iCalendar-Feed",
       "mcp": "MCP für KI-Assistenten"
+    },
+    "ical": {
+      "subscribe": "Kalenderabo",
+      "preview": "Feed öffnen (.ics)",
+      "off": "Schalten Sie den iCalendar-Feed unter Darstellungen ein, um seine Felder zuzuordnen.",
+      "help": "Aus welchem Attribut des Raummodells jedes Kalenderfeld stammt. Eine leere Zeile nutzt das grau gezeigte Attribut der Vorlage. Prüfen Sie das Formular, um das Urteil des Servers gegen das Datenmodell zu sehen.",
+      "start": "Beginnen mit",
+      "presetDefault": "Standard (Smart Data Models Event)",
+      "preset": {
+        "sdm-event": "Smart Data Models Event",
+        "schema-org": "schema.org Event"
+      },
+      "presetOwn": "Nur die Felder unten",
+      "type": "Zugeordneter Typ",
+      "noModel": "Der Raum {space} hat in diesem Projekt noch kein Datenmodell, daher können keine Attribute angeboten werden; die Prüfung lehnt die Zuordnung ab, bis er eines hat.",
+      "missing": "Ordnen Sie diese Pflichtfelder zu: {fields}",
+      "caption": "Kalenderfelder und die Attribute, aus denen sie stammen",
+      "field": "Kalenderfeld",
+      "attribute": "Attribut",
+      "fixed": "Von der Plattform gesetzt: {attribute}",
+      "remap": "In YAML mit Umwandlungen geschrieben; im Manifest bearbeiten",
+      "unmapped": "Nicht zugeordnet",
+      "requiredBadge": "Pflicht"
     },
     "section": {
       "projection": "Welche Klassen und Attribute er zeigt",
@@ -2273,7 +2302,13 @@
         "countFirst": "Die ersten {count, plural, one {# Datensatz} other {# Datensätze}} mit {fields, plural, one {# Feld} other {# Feldern}}; die Quelle hat mehr",
         "caption": "Datensätze der Stichprobe",
         "notJson": "Die Quelle hat eine Webseite geliefert, keine Daten. Prüfen Sie die Adresse ihrer Datenquelle.",
-        "details": "Meldung der Engine"
+        "details": "Meldung der Engine",
+        "listening": "Höre {source} zu: {elapsed} von {seconds} s, höchstens {max} Nachrichten",
+        "listenAgain": "Erneut zuhören",
+        "streamCount": "{count} von {max} Nachrichten kamen innerhalb von {seconds} s an, mit {fields, plural, one {# Feld} other {# Feldern}}",
+        "streamSkipped": "{count, plural, one {# Nachricht wurde nicht behalten} other {# Nachrichten wurden nicht behalten}}",
+        "streamEmptyTitle": "Innerhalb von {seconds} s kam keine Nachricht an",
+        "streamEmpty": "Das Topic ist vielleicht gerade still, oder der Broker hat die Verbindung oder die Zugangsdaten der Datenquelle abgelehnt. Hören Sie erneut zu oder prüfen Sie Adresse, Topic und Zugangsdaten der Datenquelle."
       },
       "mapping": {
         "title": "Abbildung",
@@ -2588,6 +2623,61 @@
       "rejectedUnavailable": "Die abgelehnten Datensätze konnten nicht gelesen werden.",
       "noRejected": "Das Modell hat keinen Datensatz dieser Pipeline abgelehnt.",
       "credentials": "Zugangsdaten"
+    },
+    "access": {
+      "section": "Zugriff auf andere Räume",
+      "lead": "Bitten Sie den Eigentümer eines anderen Raums um Lese- oder Schreibzugriff für diese Pipeline. Bis zur Genehmigung wird nichts gewährt.",
+      "none": "Diese Pipeline hat keinen Zugriff auf einen anderen Raum angefragt.",
+      "request": "Zugriff anfragen",
+      "project": "Besitzendes Projekt",
+      "projectHelp": "Das Projekt, dem der Raum gehört, wie seine Katalogseite es nennt.",
+      "endpoint": "Endpunkt",
+      "operationsLegend": "Was die Pipeline dort tut",
+      "operations": {
+        "read": "Lesen",
+        "write": "Schreiben"
+      },
+      "types": "Typen und Attribute",
+      "typesHelp": "Nennen Sie jeden Entitätstyp und jedes Attribut, das die Pipeline braucht, durch Kommas getrennt. Eine Anfrage fragt nie nach allen.",
+      "type": "Entitätstyp",
+      "attrs": "Attribute",
+      "addType": "Typ hinzufügen",
+      "removeType": "Entfernen",
+      "removeTypeOf": "Typ {n} entfernen",
+      "tooManyTypes": "Eine Anfrage nennt höchstens 20 Typen.",
+      "untilLabel": "Enddatum",
+      "untilHelp": "Der Zugriff endet am Ende dieses Tages. Leer bedeutet ohne Ende.",
+      "reason": "Warum die Pipeline ihn braucht",
+      "send": "Anfrage senden",
+      "cancel": "Abbrechen",
+      "sent": "Anfrage gesendet. Die Eigentümer des Raums entscheiden; ihr Stand erscheint hier.",
+      "missing": {
+        "endpoint": "Nennen Sie das besitzende Projekt und den Endpunkt.",
+        "types": "Nennen Sie mindestens einen Typ, jeden mit seinen Attributen.",
+        "reason": "Schreiben Sie, warum die Pipeline ihn braucht."
+      },
+      "state": {
+        "pending": "Wartet auf den Eigentümer",
+        "approved": "Genehmigt",
+        "declined": "Abgelehnt",
+        "revoked": "Entzogen",
+        "ended": "Beendet"
+      },
+      "until": "Bis {date}",
+      "noEnd": "Kein Enddatum",
+      "decided": "{who}: {reason}",
+      "inbox": "Pipelines, die Zugriff anfragen",
+      "inboxLead": "Pipelines anderer Räume und Projekte, die diesen Raum lesen oder beschreiben wollen. Eine Genehmigung schlägt den Zugriff als Änderung dieses Projekts vor.",
+      "inboxEmpty": "Keine Pipeline hat Zugriff auf diesen Raum angefragt.",
+      "on": "auf {endpoint}, angefragt von {who}",
+      "decisionReason": "Begründung für den Anfragenden",
+      "approve": "Genehmigen",
+      "approveOf": "Zugriff für {account} genehmigen",
+      "decline": "Ablehnen",
+      "declineOf": "Zugriff für {account} ablehnen",
+      "revoke": "Entziehen",
+      "revokeOf": "Zugriff von {account} entziehen",
+      "reasonFirst": "Schreiben Sie zuerst die Begründung."
     }
   },
   "dashboards": {
@@ -5524,7 +5614,17 @@
       "expiresAt": "Läuft ab am",
       "isActive": "Benachrichtigungen senden",
       "receiver": "Sendet an",
-      "watches": "Beobachtet"
+      "watches": "Beobachtet",
+      "deliveries": "Zustellungen"
+    },
+    "delivery": {
+      "none": "Noch keine Benachrichtigung: sie wird gesendet, wenn sich eine beobachtete Entität ändert.",
+      "ok": "Zugestellt",
+      "failing": "Fehlgeschlagen",
+      "lastSuccess": "Zuletzt zugestellt {at}",
+      "lastFailure": "Letzter Fehler {at}",
+      "counts": "{sent} gesendet, {failed} fehlgeschlagen",
+      "failingHint": "Der Empfänger hat die letzte Benachrichtigung nicht angenommen: Prüfen Sie, ob seine Adresse über https antwortet und POST annimmt."
     }
   },
   "registrations": {
@@ -6982,7 +7082,9 @@
       "queued": "Steht an",
       "running": "Wird durchlaufen",
       "failed": "Letzter Durchlauf fehlgeschlagen",
-      "crawled": "Durchlaufen"
+      "crawled": "Durchlaufen",
+      "indexing": "Wird indexiert",
+      "read": "Gelesen"
     },
     "type": {
       "website": "Website",
@@ -7038,7 +7140,8 @@
       "findPages": "Seiten finden",
       "findPagesHelp": "Nach Titel oder Adresse, 2 bis 100 Zeichen; Groß- und Kleinschreibung und Akzente spielen keine Rolle. Höchstens 100 Seiten werden gezeigt.",
       "noPagesFound": "Keine Seite dieser Quelle hat „{q}“ im Titel oder in der Adresse.",
-      "modified": "geändert {at}"
+      "modified": "geändert {at}",
+      "filePage": "{name}, Seite {page}"
     },
     "field": {
       "name": "Name",
@@ -7164,6 +7267,7 @@
       "question": "Ihre Frage",
       "send": "Senden",
       "failed": "Die Antwort konnte nicht geladen werden. Bitte erneut versuchen.",
+      "modelUnavailable": "Das Modell des Assistenten hat nicht geantwortet. Ihre Frage bleibt im Feld: versuchen Sie es in einer Minute erneut.",
       "liveData": "Live-Daten",
       "sourceNumber": "Quelle {n}",
       "data": "Gelesene Daten der Antwort",
@@ -7205,7 +7309,8 @@
       "noneHint": "Laden Sie ein PDF, eine Tabelle oder eine Textdatei hoch, aus der der Assistent antwortet.",
       "name": "Datei",
       "remove": "Entfernen",
-      "removeOf": "{name} entfernen"
+      "removeOf": "{name} entfernen",
+      "notTakenUp": "Der Assistent hat diese Quelle noch nicht übernommen; das dauert etwa eine Minute nach der Freigabe. Die Seite prüft das selbst: Laden Sie die Dateien hoch, sobald die Schaltfläche wieder da ist."
     },
     "index": {
       "title": "Indexstatus",

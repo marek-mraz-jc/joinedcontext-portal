@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect } from "react";
+import { keepCopy } from "./components/layout/keepCopy";
 import {
   createRootRouteWithContext,
   createRoute,
@@ -56,12 +57,12 @@ const ProjectSettingsPage = lazy(() =>
 const ImportPage = lazy(() => import("./pages/import/ImportPage").then((module) => ({ default: module.ImportPage })));
 // A page that carries a map, a grid or an editor loads with its route, not with the Portal: the
 // entry every visit downloads first was 1.7 MB gzipped while these sat in it (T-3280).
-const OrganizationPage = lazy(() => import("./pages/organization/OrganizationPage").then((module) => ({ default: module.OrganizationPage })));
 const SpaceInside = lazy(() => import("./pages/spaces/SpaceInside").then((module) => ({ default: module.SpaceInside })));
 const UploadCsv = lazy(() => import("./pages/spaces/UploadCsv").then((module) => ({ default: module.UploadCsv })));
 const AppPage = lazy(() => import("./pages/apps/AppPage").then((module) => ({ default: module.AppPage })));
 const AppOpenPage = lazy(() => import("./pages/apps/AppOpenPage").then((module) => ({ default: module.AppOpenPage })));
 const GroupPage = lazy(() => import("./pages/access/GroupPage").then((module) => ({ default: module.GroupPage })));
+const OrganizationPage = lazy(() => import("./pages/organization/OrganizationPage").then((module) => ({ default: module.OrganizationPage })));
 const PersonPage = lazy(() => import("./pages/organization/People").then((module) => ({ default: module.PersonPage })));
 const EndpointPage = lazy(() => import("./pages/endpoints/EndpointPage").then((module) => ({ default: module.EndpointPage })));
 const RegistrationPage = lazy(() => import("./routes/RegistrationPage").then((module) => ({ default: module.RegistrationPage })));
@@ -390,6 +391,8 @@ const protectedRoute = createRoute({
     workspace:
       typeof search.workspace === "string" && search.workspace !== "" ? search.workspace : undefined,
   }),
+  // And every link below keeps it, until Leave or another project says otherwise (T-4868).
+  search: { middlewares: [keepCopy] },
   component: function ProtectedRoute() {
     return (
       <WorkspaceProvider>

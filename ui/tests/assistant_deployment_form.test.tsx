@@ -111,6 +111,8 @@ describe("the deployment form's sources (T-4282)", () => {
       const folded = foldedGroup(group);
       expect(folded, group).toBeDefined();
       expect((folded as HTMLDetailsElement).open, group).toBe(false);
+      // Named by its title, as an open set is by its legend (T-4924).
+      expect(screen.getByRole("group", { name: group }), group).toBe(folded);
     }
     expect(screen.getByLabelText(/^Answers from/)).toHaveDisplayValue("Knowledge and live data");
   });
@@ -175,6 +177,15 @@ describe("the deployment manifest (T-4282)", () => {
     expect(defaults.budget.tokensPerDay).toBe(2_000_000);
     expect(defaults.budget.tokensPerConversation).toBeGreaterThan(0);
     expect(defaults.budget.tokensPerConversation).toBeLessThanOrEqual(defaults.budget.tokensPerDay);
+  });
+
+  it("a new deployment's rate limit is whole: jc-core needs both per-minute limits the form fills it without (T-4869)", () => {
+    const defaults = getDefaultFormState(validator, assistantDeploymentSchema(t) as RJSFSchema, {}) as {
+      rateLimit: { requestsPerMinute: number; perClientPerMinute: number };
+    };
+    expect(defaults.rateLimit.requestsPerMinute).toBeGreaterThan(0);
+    expect(defaults.rateLimit.perClientPerMinute).toBeGreaterThan(0);
+    expect(defaults.rateLimit.perClientPerMinute).toBeLessThanOrEqual(defaults.rateLimit.requestsPerMinute);
   });
 
   it("widget.language and widget.languageToggle are saved and read back as the form shows them (T-4343)", () => {

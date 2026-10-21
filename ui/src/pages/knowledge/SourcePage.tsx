@@ -40,6 +40,7 @@ import {
   setInclusion,
   timeText,
   trySearch,
+  uploadedFile,
 } from "./knowledge";
 import type { DocumentRow, InclusionCounts, PageRow } from "./knowledge";
 import { useUrlParam } from "../../navigation/urlState";
@@ -506,6 +507,19 @@ function Links({ project, source, page }: { project: string; source: string; pag
 
 /** A page's or document's own title over its address, or the address alone when it states none (AG-120). */
 function Titled({ row }: { row: { url: string; title?: string | null } }): JSX.Element {
+  const { t } = useTranslation();
+  // An uploaded file has no address to open: its name and page, never `upload:…` (T-4869).
+  const file = uploadedFile(row.url);
+  if (file) {
+    return (
+      <span className="inline-flex min-w-0 flex-col">
+        {row.title ? <span className="[overflow-wrap:anywhere]">{row.title}</span> : null}
+        <span className="font-mono text-caption text-fg-muted [overflow-wrap:anywhere]">
+          {file.page === null ? file.name : t("knowledge.source.filePage", { name: file.name, page: file.page })}
+        </span>
+      </span>
+    );
+  }
   if (!row.title) {
     return (
       <ExternalLink href={row.url} className="font-mono [overflow-wrap:anywhere]">

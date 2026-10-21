@@ -47,8 +47,8 @@ import { McpServersPage } from "../mcp/McpServersPage";
 import { ORGANIZATION_GROUPS } from "./AdminNav";
 import type { OrganizationTab } from "./AdminNav";
 
-export { isOrganizationTab, ORGANIZATION_TABS } from "./AdminNav";
 export type { OrganizationTab };
+export { isOrganizationTab, ORGANIZATION_TABS } from "./AdminNav";
 
 /**
  * Organization → Members (PF-59, T-2605): the bindings at organization scope, shown only to a

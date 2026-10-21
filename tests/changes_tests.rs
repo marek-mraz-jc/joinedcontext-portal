@@ -2197,6 +2197,17 @@ async fn change_of_file(
     content: &str,
     rules: Value,
 ) -> (MockServer, AppState) {
+    change_of_file_by(branch, file, content, rules, "someone@banskabystrica.sk").await
+}
+
+/// [`change_of_file`], proposed by the person with the e-mail `author`.
+async fn change_of_file_by(
+    branch: &str,
+    file: &str,
+    content: &str,
+    rules: Value,
+    author: &str,
+) -> (MockServer, AppState) {
     use joinedcontext_portal::permissions::ORG_NAMESPACE;
     use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
 
@@ -2239,7 +2250,7 @@ async fn change_of_file(
             "head": { "ref": branch },
             "base": { "ref": "main" },
             "created_at": "2026-09-16T09:14:22Z",
-            "user": { "login": "someone", "full_name": "Someone Else", "email": "someone@banskabystrica.sk" },
+            "user": { "login": "someone", "full_name": "Someone Else", "email": author },
             "mergeable": true,
             "merged": false
         })))
@@ -2538,6 +2549,120 @@ async fn the_operation_refuses_a_public_endpoint_in_the_same_words() {
     assert!(said.contains("publisher"), "{said}");
     assert!(said.contains("EP-76"), "{said}");
     assert!(!merged_66(&server).await);
+}
+
+// ---------------------------------------------------------------------------
+// A public publication in the catalogue: a second person decides (EP-142, T-4846)
+// ---------------------------------------------------------------------------
+
+fn published_endpoint_yaml() -> String {
+    format!(
+        "{}  publish:\n    ckan:\n      instanceRef: catalogue\n",
+        endpoint_yaml("public")
+    )
+}
+
+/// A publisher who may also delete Endpoints: an administrator of the kind, whom PF-58 lets
+/// approve their own change of any other kind.
+fn publishing_admin_rules() -> Value {
+    json!([{ "kinds": ["Endpoint"], "verbs": ["read", "propose", "approve", "delete"] }])
+}
+
+fn person(client: Option<&str>) -> Identity {
+    Identity {
+        client: client.map(str::to_owned),
+        subject: "sub-jana.approver".into(),
+        username: "jana.approver".into(),
+        email: Some("jana.approver@banskabystrica.sk".into()),
+        name: Some("Jana Approver".into()),
+        roles: Vec::new(),
+        groups: Vec::new(),
+    }
+}
+
+#[tokio::test]
+async fn a_publisher_other_than_the_proposer_approves_a_public_publication() {
+    let (server, state) = change_of_file(
+        PUBLIC_ENDPOINT_BRANCH,
+        PUBLIC_ENDPOINT_PATH,
+        &published_endpoint_yaml(),
+        publisher_rules(),
+    )
+    .await;
+    let (status, body) = approve_endpoint(state, Some("air")).await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+    assert!(merged_66(&server).await);
+}
+
+#[tokio::test]
+async fn the_proposer_never_approves_their_own_public_publication_even_as_an_administrator() {
+    let (server, state) = change_of_file_by(
+        PUBLIC_ENDPOINT_BRANCH,
+        PUBLIC_ENDPOINT_PATH,
+        &published_endpoint_yaml(),
+        publishing_admin_rules(),
+        "jana.approver@banskabystrica.sk",
+    )
+    .await;
+    let (status, body) = approve_endpoint(state, Some("air")).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert!(body.contains("never by its proposer"), "{body}");
+    assert!(!merged_66(&server).await);
+
+    // The same administrator approves their own public Endpoint that publishes nothing (PF-58).
+    let (server, state) = change_of_file_by(
+        PUBLIC_ENDPOINT_BRANCH,
+        PUBLIC_ENDPOINT_PATH,
+        &endpoint_yaml("public"),
+        publishing_admin_rules(),
+        "jana.approver@banskabystrica.sk",
+    )
+    .await;
+    let (status, body) = approve_endpoint(state, Some("air")).await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+    assert!(merged_66(&server).await);
+}
+
+#[tokio::test]
+async fn an_agent_mcp_or_service_account_never_approves_a_public_publication() {
+    use joinedcontext_portal::api::changes::{approve_change_for, ApprovedBy};
+    for (identity, by, says) in [
+        (
+            person(None),
+            ApprovedBy::Operation,
+            "never by the assistant, an agent or MCP",
+        ),
+        (
+            person(Some("ckan-bot")),
+            ApprovedBy::Person,
+            "never a service account",
+        ),
+    ] {
+        let (server, state) = change_of_file(
+            PUBLIC_ENDPOINT_BRANCH,
+            PUBLIC_ENDPOINT_PATH,
+            &published_endpoint_yaml(),
+            publisher_rules(),
+        )
+        .await;
+        let refused = approve_change_for(
+            &state,
+            &identity,
+            "ovzdusie",
+            "chg-00000042",
+            Some("air"),
+            by,
+        )
+        .await
+        .expect_err("a person decides");
+        assert!(
+            matches!(refused, joinedcontext_portal::error::ApiError::Denied(_)),
+            "a 403: {refused:?}"
+        );
+        let said = refused.to_string();
+        assert!(said.contains(says) && said.contains("EP-142"), "{said}");
+        assert!(!merged_66(&server).await);
+    }
 }
 
 /// T-0861: the approval walks every file of the merge request, so the detail lists every file

@@ -71,6 +71,7 @@ import { SpaceDrift } from "./SpaceDrift";
 import { TypeApi } from "./TypeApi";
 import { SharePanel } from "./PublicView";
 import { ExportLinks, ImportRowsDialog } from "./ImportRows";
+import { useWorkspace } from "../../components/layout/WorkspaceContext";
 import { CommentsPanel } from "./Comments";
 import { importSlotsOf } from "./importRows";
 import { useOrgDomain } from "../../api/projects";
@@ -525,7 +526,13 @@ function SpaceData({
     queries: endpoints.slice(0, MAX_ACCESS_READS).map((endpoint) => accessQuery(slugOf(endpoint))),
     combine: grantsOf,
   });
-  const writer = useMemo(() => writerOf(grants, endpoints, type, slots, t), [grants, endpoints, type, slots, t]);
+  // Entities are not part of a copy (T-4868): inside one the grid reads the live space, so it
+  // offers no write at all; the copy's own data lives in its preview (Try it).
+  const { name: copy } = useWorkspace();
+  const writer = useMemo(
+    () => (copy ? null : writerOf(grants, endpoints, type, slots, t)),
+    [copy, grants, endpoints, type, slots, t],
+  );
   const gridSource = useMemo(
     () => (writer ? { ...source, patch: endpointSource(writer.slug, originTransport(), i18n.language).patch } : source),
     [writer, source, i18n.language],
@@ -618,14 +625,16 @@ function SpaceData({
     view === "grid" && typeSlots.length > 0 ? (
       // The same right as Import beside it; the space's Policy decides the write itself.
       <PermissionGuard project={project} kind="ContextSpace" verb="propose">
-        <Button size="sm" onClick={() => setCreating(true)}>{t("spaces.inside.addRow")}</Button>
+        <Button size="sm" onClick={() => setCreating(true)} disabled={!!copy} disabledReason={t("spaces.inside.copyLive")}>
+          {t("spaces.inside.addRow")}
+        </Button>
       </PermissionGuard>
     ) : null;
   const importButton =
     importSlots.length > 0 ? (
       // The same right as the upload link: the space has no grant document of its own (T-4263).
       <PermissionGuard project={project} kind="ContextSpace" verb="propose">
-        <Button variant="secondary" onClick={() => setImporting(true)}>
+        <Button variant="secondary" onClick={() => setImporting(true)} disabled={!!copy} disabledReason={t("spaces.inside.copyLive")}>
           {t("spaces.import.open")}
         </Button>
       </PermissionGuard>
@@ -673,6 +682,18 @@ function SpaceData({
         onView={applyView}
       />
       <div className="flex min-w-0 flex-col gap-3">
+      {copy ? (
+        <Alert tone="info" role="status" title={t("spaces.inside.copyLive")}>
+          {t("spaces.inside.copyLiveHint")}{" "}
+          <Link
+            to="/projects/$project/workspaces/$name/try-it"
+            params={{ project, name: copy }}
+            className="focus-ring underline hover:no-underline"
+          >
+            {t("workspaces.bar.tryIt")}
+          </Link>
+        </Alert>
+      ) : null}
       {model && modelSource !== undefined && ownClass ? (
         <div className="flex flex-col gap-2">
           <AddFieldDialog
@@ -781,7 +802,7 @@ function SpaceData({
           )}
         </>
       ) : null}
-      {probe.isSuccess ? (
+      {probe.isSuccess && !copy ? (
         <TrashPanel
           project={project}
           space={space}
@@ -904,7 +925,7 @@ function SpaceData({
       {probe.isSuccess && view === "form" ? (
         <div {...tabPanelProps("space-data-view", view)} className="flex flex-col gap-3">
           <FormSettingsEditor slots={typeSlots} value={formSettings} onChange={setFormSettings} />
-          <FormView space={space} type={type} slots={typeSlots} enums={enums} settings={formSettings} />
+          {copy ? null : <FormView space={space} type={type} slots={typeSlots} enums={enums} settings={formSettings} />}
           <FormSharePanel
             key={type}
             project={project}

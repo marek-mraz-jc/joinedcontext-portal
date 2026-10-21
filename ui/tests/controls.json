@@ -1496,6 +1496,15 @@
         "people_page.test.tsx"
       ]
     },
+    "src/pages/pipelines/AccessRequests.tsx": {
+      "controls": {
+        "Button": 8,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "access_requests.test.tsx"
+      ]
+    },
     "src/pages/pipelines/DebugPanel.tsx": {
       "controls": {
         "Button": 2
@@ -1613,7 +1622,7 @@
     },
     "src/pages/pipelines/PipelineWorkbench.tsx": {
       "controls": {
-        "Button": 1,
+        "Button": 2,
         "Checkbox": 1,
         "FilePicker": 1,
         "RadioGroup": 1
@@ -1846,7 +1855,8 @@
         "editor_round_trip.test.ts",
         "endpoint_catalog.test.tsx",
         "endpoint_open_data.test.tsx",
-        "endpoint_representations.test.ts"
+        "endpoint_representations.test.ts",
+        "ical_mapping_field.test.tsx"
       ]
     },
     "src/routes/LoginPage.tsx": {
@@ -1921,6 +1931,7 @@
       },
       "tests": [
         "form_required_reference_check.test.tsx",
+        "subscription_deliveries.test.tsx",
         "subscription_form.test.tsx"
       ]
     },
