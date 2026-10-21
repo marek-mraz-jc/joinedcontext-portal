@@ -325,6 +325,7 @@
     "Debug",
     "+ Debug",
     "debug",
-    "MQTT"
+    "MQTT",
+    "Tokens"
   ]
 }

@@ -28,6 +28,7 @@ import {
 } from "../../components/ui";
 import type { BadgeTone } from "../../components/ui/Badge";
 import { PageFailed } from "../../components/ui/PageState";
+import { AgentActivity } from "./AgentActivity";
 
 type AgentItem = components["schemas"]["AgentItem"];
 type AgentTab = "overview" | "access" | "activity" | "settings";
@@ -576,8 +577,23 @@ function Access({ item }: { item: AgentItem }): JSX.Element {
   );
 }
 
+/**
+ * The Activity tab: an agent profile's runs, or the one run, step by step (AG-134); a deployment,
+ * an MCP server or a service account keeps its record on its own page.
+ */
 function Activity({ item }: { item: AgentItem }): JSX.Element {
   const { t } = useTranslation();
+  if (item.kind === "AgentProfile" || item.runId) {
+    return (
+      <AgentActivity
+        scope={
+          item.runId
+            ? { project: item.project, run: item.runId }
+            : { project: "", profile: item.name }
+        }
+      />
+    );
+  }
   return (
     <>
       <Facts
