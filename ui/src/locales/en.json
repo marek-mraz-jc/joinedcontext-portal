@@ -2947,7 +2947,8 @@
       },
       "grantIn": "{role} in {where}",
       "grantOrg": "{role} in the whole organization",
-      "emptyHint": "A service account is how a program outside the Portal reads or writes this project: a script, a pipeline elsewhere, another platform. Each signs in with its own Keycloak client and holds only the role you give it."
+      "emptyHint": "A service account is how a program outside the Portal reads or writes this project: a script, a pipeline elsewhere, another platform. Each signs in with its own Keycloak client and holds only the role you give it.",
+      "emptyOrganization": "The organization has no service account of its own. A project's service accounts are on that project's settings and in Agents."
     },
     "matrix": {
       "title": "Data access",
@@ -5868,7 +5869,8 @@
       "health": "Health",
       "endpoints": "All endpoints",
       "mcp-servers": "Organization MCP servers",
-      "brokers": "Brokers"
+      "brokers": "Brokers",
+      "agents": "Agents"
     },
     "settings": {
       "title": "Settings",
@@ -6465,7 +6467,116 @@
       "platform": "What the installation runs for every project: brokers, environments, data space membership and health.",
       "settings": "The organization's domain, languages, contacts, policies and limits, and what setup still lacks."
     },
-    "kindHidden": "Only an organization administrator whose role includes {kinds} sees them here. Ask an organization administrator to add them to your role."
+    "kindHidden": "Only an organization administrator whose role includes {kinds} sees them here. Ask an organization administrator to add them to your role.",
+    "agents": {
+      "title": "Agents",
+      "lead": "Every AI agent of the organization and its projects you may see: assistants, agent profiles, MCP servers, service accounts and the runs going on now. Open one to see what it reaches and to pause an assistant.",
+      "caption": "Agents of the organization",
+      "empty": "No agent yet",
+      "emptyHint": "Assistants, agent profiles, MCP servers and service accounts appear here once a project declares one.",
+      "column": {
+        "name": "Agent",
+        "owner": "Owner",
+        "actsAs": "Acts as",
+        "reach": "Reaches",
+        "lastActivity": "Last activity",
+        "spend": "Spend",
+        "state": "State"
+      },
+      "kind": {
+        "AssistantDeployment": "Assistant",
+        "AgentProfile": "Agent profile",
+        "McpServer": "MCP server",
+        "ServiceAccount": "Service account",
+        "AgentRun": "Run"
+      },
+      "organization": "Organization",
+      "ownerProject": "Project {project}",
+      "actsAs": {
+        "self": "Its own account",
+        "caller": "The person who calls it"
+      },
+      "actsAsLong": {
+        "self": "Its own service account: it holds the rights granted to that account, whoever asks.",
+        "caller": "The person or client who calls it: it reads and writes only what that caller may."
+      },
+      "reachNone": "Nothing named",
+      "reachCount": "Spaces: {spaces} · Endpoints: {endpoints}",
+      "spendNone": "No token budget",
+      "spendCapOnly": {
+        "day": "Cap {cap} tokens a day",
+        "run": "Cap {cap} tokens a run"
+      },
+      "spendUsedOnly": {
+        "day": "{used} tokens today",
+        "run": "{used} tokens so far"
+      },
+      "spendOf": {
+        "day": "{used} of {cap} tokens today",
+        "run": "{used} of {cap} tokens"
+      },
+      "state": {
+        "active": "Active",
+        "paused": "Paused",
+        "running": "Running",
+        "waiting": "Waiting for a person"
+      },
+      "noActivity": "None recorded",
+      "back": "All agents",
+      "gone": "This agent is not in the list",
+      "goneHint": "It was removed, or your roles no longer let you see it.",
+      "tabsLabel": "About this agent",
+      "tab": {
+        "overview": "Overview",
+        "access": "Access",
+        "activity": "Activity",
+        "settings": "Settings"
+      },
+      "spaces": "Spaces",
+      "endpoints": "Endpoints",
+      "none": "None",
+      "pause": "Pause assistant",
+      "resume": "Resume assistant",
+      "pauseLead": "Pausing stops every answer of this assistant until it is resumed. It is a change the project reviews before it applies.",
+      "resumeLead": "This assistant answers nobody now. Resuming is a change the project reviews before it applies.",
+      "pauseSent": "Pause sent for review. The assistant stops once the change is approved.",
+      "resumeSent": "Resume sent for review. The assistant answers again once the change is approved.",
+      "openChange": "Open the change",
+      "openHome": "Open its page",
+      "noPause": "This kind has no pause switch. To stop it, remove it on its page.",
+      "runStop": "A run stops when you cancel it on its application's page.",
+      "activityLead": "What it read and wrote is on its own page.",
+      "runSettings": "A run follows the agent profile {profile}; its settings are there.",
+      "openManifest": "Edit it on its page",
+      "setting": {
+        "channel": "Channel",
+        "enabled": "Answers",
+        "role": "Role",
+        "purpose": "Purpose",
+        "audience": "Audience",
+        "credentials": "Credentials",
+        "model": {
+          "answer": "Answer model",
+          "router": "Router model",
+          "provider": "Model provider",
+          "name": "Model",
+          "maxTokensPerRun": "Tokens a run"
+        },
+        "budget": {
+          "tokensPerDay": "Tokens a day",
+          "costPerDayUsd": "Cost a day (USD)"
+        },
+        "rateLimit": {
+          "requestsPerMinute": "Requests a minute"
+        },
+        "limits": {
+          "stepsPerRun": "Steps a run",
+          "wallClock": "Longest run",
+          "concurrentRunsPerOrganization": "Runs at once",
+          "requestsPerMinute": "Requests a minute"
+        }
+      }
+    }
   },
   "projectDelete": {
     "title": "Delete project {name}",
@@ -7665,7 +7776,8 @@
       "writes": "Writes",
       "offeredBy": "Offered by: {members}"
     },
-    "leadOrganization": "The organization's MCP servers: one address over Endpoints of several projects, for everyone the audience admits."
+    "leadOrganization": "The organization's MCP servers: one address over Endpoints of several projects, for everyone the audience admits.",
+    "emptyOrganization": "The organization has no MCP server of its own yet. A project's servers are on that project's MCP page and in Agents."
   },
   "notifications": {
     "label": "{count, plural, =0 {Notifications} one {Notifications, # unread} other {Notifications, # unread}}",

@@ -209,6 +209,10 @@ routes:
   - route: GET /organization/health
     rule: "org-admin"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]
+  - route: GET /organization/agents
+    rule: "signed-in, filtered per namespace by read on each agent kind; 403 for a caller who reads none (AG-126)"
+    expect: [401, allow, allow, allow, allow, allow, 403, allow]
+    note: "every agent identity the caller may read, nothing counted that they may not; the other member reads no agent kind of the fixture, so 403 (API/01 §48, T-4849)"
   - route: GET /organization/brokers
     rule: "org-admin (approve and delete on RoleBinding, PF-03)"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]
