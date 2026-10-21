@@ -58,7 +58,11 @@ const PAGE = {
   page: 1,
   pageSize: 20,
   datasets: [],
-  facets: { publisher: [], theme: [], format: [], licence: [], spatial: [], year: [] },
+  facets: {
+    publisher: [{ value: "mesto-bb", label: "Mesto Banská Bystrica", count: 4 }],
+    theme: [], format: [], licence: [], spatial: [], year: [],
+    keyword: [{ value: "ovzdušie", label: "ovzdušie", count: 7 }],
+  },
   unavailable: [],
 };
 
@@ -142,6 +146,18 @@ describe("publish a dataset in one step (EP-83)", () => {
     expect(await within(dialog).findByText("Choose a licence.")).toBeInTheDocument();
     await user.selectOptions(within(dialog).getByRole("combobox", { name: /Licence/ }), "CC0");
     await user.click(within(dialog).getByRole("checkbox", { name: "Environment" }));
+    // Keywords and publishers the catalogue holds are offered, free entry kept (T-4948).
+    const keywords = within(dialog).getByRole("combobox", { name: "Keywords" });
+    expect(keywords).toHaveAccessibleDescription(/type a new one/);
+    expect(within(dialog).getByRole("list", { name: /Keywords/ })).toHaveTextContent(/ukazovateľ.*hodnota/);
+    await user.type(keywords, "ovz");
+    await user.click(await within(dialog).findByRole("option", { name: /ovzdušie/ }));
+    await user.type(keywords, "smog");
+    await user.click(await within(dialog).findByRole("option", { name: /New: “smog”/ }));
+    await user.click(within(dialog).getByRole("combobox", { name: "Publisher" }));
+    expect(await within(dialog).findByRole("option", { name: /Mesto Banská Bystrica/ })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("dialog", { name: "Publish a dataset" })).toBeInTheDocument();
     await user.selectOptions(within(dialog).getByRole("combobox", { name: "Area on the map" }), "SK032");
 
     // A title is required and in the space's language; the description is optional.
@@ -198,7 +214,7 @@ describe("publish a dataset in one step (EP-83)", () => {
     expect(body.spec.catalog).toEqual({
       license: "CC0",
       themes: ["ECON", "ENVI"],
-      keywords: { sk: ["ukazovateľ", "hodnota"] },
+      keywords: { sk: ["ukazovateľ", "hodnota", "ovzdušie", "smog"] },
       publisher: { name: { sk: "Banskobystrický samosprávny kraj" } },
       contactPoint: { name: "Open data desk", email: "opendata@example.org" },
       attribution: { sk: "Zdroj: BBSK" },

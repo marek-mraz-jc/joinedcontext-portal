@@ -158,6 +158,9 @@ pub struct CatalogueFacets {
     pub licence: Vec<CatalogueFacetValue>,
     pub spatial: Vec<CatalogueFacetValue>,
     pub year: Vec<CatalogueFacetValue>,
+    /// The keywords datasets carry, offered when a dataset is published (T-4948); no filter.
+    #[serde(default)]
+    pub keyword: Vec<CatalogueFacetValue>,
 }
 
 /// One value of a facet.
@@ -376,6 +379,7 @@ struct Filed {
     licence: Vec<(String, String)>,
     spatial: Vec<(String, String)>,
     year: Vec<(String, String)>,
+    keyword: Vec<(String, String)>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -386,15 +390,17 @@ enum Facet {
     Licence,
     Spatial,
     Year,
+    Keyword,
 }
 
-const FACETS: [Facet; 6] = [
+const FACETS: [Facet; 7] = [
     Facet::Publisher,
     Facet::Theme,
     Facet::Format,
     Facet::Licence,
     Facet::Spatial,
     Facet::Year,
+    Facet::Keyword,
 ];
 
 impl Filed {
@@ -431,6 +437,10 @@ impl Filed {
                 .into_iter()
                 .map(|y| (y.to_string(), y.to_string()))
                 .collect(),
+            keyword: keywords(dataset)
+                .into_iter()
+                .map(|k| (k.clone(), k))
+                .collect(),
             summary,
         }
     }
@@ -443,6 +453,7 @@ impl Filed {
             Facet::Licence => &self.licence,
             Facet::Spatial => &self.spatial,
             Facet::Year => &self.year,
+            Facet::Keyword => &self.keyword,
         }
     }
 
@@ -455,6 +466,8 @@ impl Filed {
             Facet::Licence => &filters.licence,
             Facet::Spatial => &filters.spatial,
             Facet::Year => &filters.year,
+            // Offered to a publisher, never a search filter.
+            Facet::Keyword => return true,
         };
         wanted.is_empty()
             || self
@@ -501,6 +514,7 @@ pub fn page_of(datasets: &[Value], filters: &Filters, this_year: i32) -> Catalog
             Facet::Licence => &mut facets.licence,
             Facet::Spatial => &mut facets.spatial,
             Facet::Year => &mut facets.year,
+            Facet::Keyword => &mut facets.keyword,
         } = values;
     }
 
@@ -523,6 +537,17 @@ pub fn page_of(datasets: &[Value], filters: &Filters, this_year: i32) -> Catalog
         facets,
         unavailable: Vec::new(),
     }
+}
+
+/// A dataset's CKAN tags, by the name a person reads.
+fn keywords(dataset: &Value) -> Vec<String> {
+    dataset
+        .get("tags")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|t| text(t, "display_name").or_else(|| text(t, "name")))
+        .collect()
 }
 
 fn text(value: &Value, key: &str) -> Option<String> {
@@ -802,6 +827,22 @@ fn slim(dataset: &Value) -> Value {
             }
         }
         kept.insert("organization".to_owned(), Value::Object(org));
+    }
+    // The keyword facet reads each tag's name (T-4948).
+    if let Some(tags) = dataset.get("tags").and_then(Value::as_array) {
+        let names = tags
+            .iter()
+            .map(|t| {
+                let mut tag = serde_json::Map::new();
+                for key in ["name", "display_name"] {
+                    if let Some(value) = t.get(key) {
+                        tag.insert(key.to_owned(), value.clone());
+                    }
+                }
+                Value::Object(tag)
+            })
+            .collect();
+        kept.insert("tags".to_owned(), Value::Array(names));
     }
     if let Some(resources) = dataset.get("resources").and_then(Value::as_array) {
         let formats = resources
@@ -1087,13 +1128,7 @@ pub async fn detail(state: &AppState, catalogue: &str, dataset: &Value) -> Catal
     };
 
     CatalogueDatasetDetail {
-        keywords: dataset
-            .get("tags")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|t| text(t, "display_name").or_else(|| text(t, "name")))
-            .collect(),
+        keywords: keywords(dataset),
         frequency: extra(dataset, "frequency"),
         spatial: spatial(dataset),
         temporal: match (
@@ -1442,6 +1477,32 @@ mod tests {
         }
         let cache = SEARCHES.lock().unwrap();
         assert!(cache.len() < 1000 && !cache.is_empty(), "{}", cache.len());
+    }
+
+    #[test]
+    fn the_keywords_datasets_carry_are_a_facet_that_filters_nothing() {
+        let mut datasets: Vec<Value> = fixture().into_iter().map(heavy).collect();
+        datasets[0]["tags"] =
+            json!([{ "name": "ovzdusie" }, { "name": "pm10", "display_name": "PM10" }]);
+        let filters = Filters::parse(Some("publisher=bbsk"));
+        let page = page_of(&datasets, &filters, 2026);
+        let keyword = |name: &str| {
+            page.facets
+                .keyword
+                .iter()
+                .find(|v| v.value == name)
+                .map(|v| v.count)
+        };
+        // The private dataset's tag is not counted, and the publisher filter narrows the keywords.
+        assert_eq!(keyword("ovzdusie"), Some(1), "{:?}", page.facets.keyword);
+        assert_eq!(keyword("PM10"), None, "{:?}", page.facets.keyword);
+        let all = page_of(&datasets, &Filters::parse(None), 2026);
+        assert_eq!(all.total, 2, "a keyword facet filters no dataset away");
+        assert!(all
+            .facets
+            .keyword
+            .iter()
+            .any(|v| v.value == "PM10" && v.count == 1));
     }
 
     #[test]

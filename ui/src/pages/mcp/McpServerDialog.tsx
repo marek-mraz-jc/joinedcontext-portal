@@ -2,7 +2,10 @@ import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { ApiError } from "../../api/client";
+import { useProjects } from "../../api/projects";
 import { useProposal } from "../../api/proposal";
+import { Combobox } from "../../components/pickers/Combobox";
 import type { Change, Manifest } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import {
@@ -86,6 +89,11 @@ export function McpServerDialog({
     proposal.mutation.mutate({ body: toManifest(project, form, stored), create: !stored });
   };
   const shownError = (field: string) => (tried && problems[field] ? [t(problems[field], { max: MAX_MEMBERS })] : undefined);
+  // The server checks each admitted project again (T-4948): its refusal shows beside the field.
+  const failure = proposal.mutation.error;
+  const refusedProjects =
+    failure instanceof ApiError && failure.problem?.errors?.includes("spec.allowedProjects") ? proposal.error : null;
+  const projects = useProjects();
 
   return (
     <Dialog
@@ -224,18 +232,24 @@ export function McpServerDialog({
               </Select>
             </Field>
             {form.audience === "project-list" ? (
-              <Field id="mcp-projects" label={t("mcp.field.allowedProjects")} help={t("mcp.help.allowedProjects")} errors={shownError("allowedProjects")}>
-                <Input
+              <Field
+                id="mcp-projects"
+                label={t("mcp.field.allowedProjects")}
+                help={t("mcp.help.allowedProjects")}
+                errors={refusedProjects ? [refusedProjects] : shownError("allowedProjects")}
+              >
+                <Combobox
                   id="mcp-projects"
-                  value={form.allowedProjects.join(", ")}
-                  onChange={(event) =>
-                    set({
-                      allowedProjects: event.target.value
-                        .split(",")
-                        .map((value) => value.trim())
-                        .filter(Boolean),
-                    })
-                  }
+                  labelled
+                  label={t("mcp.field.allowedProjects")}
+                  multiple
+                  value={form.allowedProjects}
+                  onChange={(allowedProjects) => set({ allowedProjects })}
+                  options={(projects.data ?? []).map((name) => ({ value: name, label: name, group: t("mcp.form.yourProjects") }))}
+                  loading={projects.isPending}
+                  failed={projects.isError ? { reason: projects.error.message, retry: () => void projects.refetch() } : undefined}
+                  invalid={Boolean(refusedProjects)}
+                  empty={t("mcp.form.noProjects")}
                 />
               </Field>
             ) : null}
@@ -248,7 +262,7 @@ export function McpServerDialog({
 
           <ToolPreview members={picked} />
 
-          {proposal.error ? (
+          {proposal.error && !refusedProjects ? (
             <Alert tone="danger" role="alert">
               {proposal.error}
             </Alert>
