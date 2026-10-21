@@ -23,6 +23,7 @@ import {
 } from "../../components/ui";
 import { PageFailed } from "../../components/ui/PageState";
 
+type Activity = components["schemas"]["AgentActivity"];
 type ActivityRun = components["schemas"]["ActivityRun"];
 type ActivityStep = components["schemas"]["ActivityStep"];
 type AgentAlert = components["schemas"]["AgentAlert"];
@@ -75,8 +76,8 @@ export function AgentActivity({
     queryKey: ["agentActivity", scope, filters],
     retry: false,
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (last) => last.nextCursor ?? undefined,
-    queryFn: async ({ pageParam }) =>
+    getNextPageParam: (last: Activity) => last.nextCursor ?? undefined,
+    queryFn: async ({ pageParam }): Promise<Activity> =>
       unwrap(
         await api.GET("/api/v1/organization/agents/activity", {
           params: {
