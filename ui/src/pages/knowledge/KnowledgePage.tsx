@@ -39,6 +39,11 @@ export function reasonOf(error: unknown, fallback: string): string {
 
 /** How a source stands: never crawled, waiting, being read, read, or failed with its reason. */
 export function standing(row: KnowledgeSourceRow): { key: string; tone: BadgeTone } {
+  // Nobody crawls an upload source: it holds files or none, and its passages are searchable or still waiting (T-4869).
+  if (row.type === "upload") {
+    if (!row.documents) return { key: "knowledge.files.none", tone: "neutral" };
+    return row.pending ? { key: "knowledge.state.indexing", tone: "info" } : { key: "knowledge.state.read", tone: "success" };
+  }
   if (row.state === "not-crawled" && !row.job) return { key: "knowledge.state.notCrawled", tone: "neutral" };
   switch (row.job?.state) {
     case "queued":
