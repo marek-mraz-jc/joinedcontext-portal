@@ -9,16 +9,16 @@ use http_body_util::BodyExt;
 use joinedcontext_portal::auth::csrf::{CSRF_COOKIE, CSRF_HEADER};
 use joinedcontext_portal::auth::session::{self, Identity, Session};
 use joinedcontext_portal::config::Config;
+use joinedcontext_portal::git::GiteaClient;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
 use joinedcontext_portal::server;
 use joinedcontext_portal::state::AppState;
-use joinedcontext_portal::git::GiteaClient;
 use serde_json::{json, Value};
 use std::sync::Arc;
+use tower::ServiceExt;
 use wiremock::matchers::{method, path, path_regex};
 use wiremock::{Mock, MockServer, ResponseTemplate};
-use tower::ServiceExt;
 
 const CSRF: &str = "agent-access-csrf";
 const ACCESS: &str = "/api/v1/projects/ovzdusie/serviceaccounts/vendor-ci/access";
@@ -337,12 +337,16 @@ async fn an_administrators_revoke_proposes_the_account_without_the_grant() {
         .await;
     Mock::given(method("GET"))
         .and(path_regex(r"/contents/.*vendor-ci"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "sha": "old", "content": "" })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({ "sha": "old", "content": "" })),
+        )
         .mount(&forge)
         .await;
     Mock::given(method("PUT"))
         .and(path_regex(r"/contents/.*vendor-ci"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "commit": { "sha": "new" } })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({ "commit": { "sha": "new" } })),
+        )
         .mount(&forge)
         .await;
     Mock::given(method("POST"))
@@ -353,13 +357,22 @@ async fn an_administrators_revoke_proposes_the_account_without_the_grant() {
         })))
         .mount(&forge)
         .await;
-    let client = GiteaClient::new(forge.uri().parse().expect("url"), "owner", "config", "token")
-        .expect("client");
+    let client = GiteaClient::new(
+        forge.uri().parse().expect("url"),
+        "owner",
+        "config",
+        "token",
+    )
+    .expect("client");
     let config = Config::for_tests();
     let state = seeded(
         AppState::new(config.clone(), None).with_gitea(Arc::new(client)),
         two_grants(),
     );
+    // The propose door still checks the grants left behind against the proposer (PF-52).
+    state
+        .mirror
+        .upsert(bound("ana-pipelines", "pipeline-admin", "ana@hel.fi"));
     let (status, body) = call(
         server::app(state),
         &config,
@@ -382,8 +395,13 @@ async fn an_administrators_revoke_proposes_the_account_without_the_grant() {
     let content = sent["content"].as_str().expect("content");
     use base64::Engine;
     let yaml = String::from_utf8(
-        base64::engine::general_purpose::STANDARD.decode(content).expect("base64"),
+        base64::engine::general_purpose::STANDARD
+            .decode(content)
+            .expect("base64"),
     )
     .expect("utf8");
-    assert!(yaml.contains("ovzdusie") && !yaml.contains("doprava"), "{yaml}");
+    assert!(
+        yaml.contains("ovzdusie") && !yaml.contains("doprava"),
+        "{yaml}"
+    );
 }
