@@ -58,6 +58,8 @@ export interface GridLabels {
   sortPage: string;
   /** What the footer calls the endpoint's own count of matching entities. */
   matching: string;
+  /** Beside the loaded rows when the endpoint's answer carries no total (R22, T-4885). */
+  noTotal: string;
   /** The entry that opens one attribute's history, and the panel's own labels (T-1431). */
   history: string;
   historyLabels?: Partial<import("./EntityHistory").HistoryLabels>;
@@ -204,6 +206,7 @@ export const DEFAULT_LABELS: GridLabels = {
   noFilter: "All",
   sortPage: "Sort this page by",
   matching: "matching",
+  noTotal: "the endpoint gives no total for this answer",
   history: "History",
   edit: "Edit",
   pending: "not applied yet",

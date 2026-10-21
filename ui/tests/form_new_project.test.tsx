@@ -142,6 +142,16 @@ describe("the sidebar control when the organization refuses (UI-44)", () => {
     await userEvent.click(button);
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
+
+  it("says_what_each_field_is_for_and_names_it_to_a_screen_reader", async () => {
+    show(<NewProjectButton project={PROJECT} />);
+    const button = await screen.findByRole("button", { name: en.projects.new });
+    await waitFor(() => expectOpen(button));
+    await userEvent.click(button);
+    const open = await screen.findByRole("dialog");
+    expect(within(open).getByLabelText(en.projects.displayNameLabel)).toHaveAccessibleDescription(en.projects.displayNameHint);
+    expect(within(open).getByLabelText(en.projects.descriptionLabel)).toHaveAccessibleDescription(en.projects.descriptionHint);
+  });
 });
 
 describe("the name that becomes every path of the project (PF-67)", () => {

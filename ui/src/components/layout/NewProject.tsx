@@ -157,14 +157,14 @@ export function NewProjectDialog({
               onChange={(event) => setName(event.target.value)}
             />
           </Field>
-          <Field id={`${ids}-display`} label={t("projects.displayNameLabel")}>
+          <Field id={`${ids}-display`} label={t("projects.displayNameLabel")} help={t("projects.displayNameHint")}>
             <Input
               id={`${ids}-display`}
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
             />
           </Field>
-          <Field id={`${ids}-description`} label={t("projects.descriptionLabel")}>
+          <Field id={`${ids}-description`} label={t("projects.descriptionLabel")} help={t("projects.descriptionHint")}>
             <Input
               id={`${ids}-description`}
               value={description}
