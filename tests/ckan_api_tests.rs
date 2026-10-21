@@ -82,6 +82,7 @@ fn envelope(kind: &str, name: &str, spec: Value) -> ResourceEnvelope {
             shard: None,
             domain_verification: None,
             jobs: Vec::new(),
+            notifications: None,
         }),
     }
 }

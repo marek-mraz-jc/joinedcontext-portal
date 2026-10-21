@@ -3,7 +3,7 @@
  * place, with the attribute's metadata under "Details". Every action is a button or a field, so a
  * keyboard reaches each one; dragging a header or its edge does the same as Move and Width.
  */
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { GridLabels } from "./useEntityGrid";
 
 export interface ColumnMenuProps {
@@ -42,6 +42,40 @@ export const ColumnMenu = React.forwardRef<HTMLDivElement, ColumnMenuProps>(func
   useEffect(() => {
     first.current?.focus();
   }, []);
+  // The grid clips what overflows it, so under a short grid the menu lost everything below its
+  // first items (T-4924): it sits fixed at its header cell, inside the window, and follows it.
+  const box = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const menu = box.current;
+    const cell = menu?.parentElement;
+    if (!menu || !cell) return;
+    const place = () => {
+      const at = cell.getBoundingClientRect();
+      const width = menu.offsetWidth;
+      const below = window.innerHeight - at.bottom;
+      // Above the cell when it does not fit below and there is more room above; it scrolls inside.
+      const up = menu.scrollHeight > below && at.top > below;
+      const room = up ? at.top : below;
+      menu.style.maxHeight = `${room}px`;
+      menu.style.top = `${up ? at.top - Math.min(menu.scrollHeight, room) : at.bottom}px`;
+      menu.style.left = `${Math.max(0, Math.min(at.right - width, window.innerWidth - width))}px`;
+    };
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    // Opening Details makes it taller: placed again, it may go above the cell.
+    menu.addEventListener("toggle", place, true);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+      menu.removeEventListener("toggle", place, true);
+    };
+  }, []);
+  const setBox = (el: HTMLDivElement | null) => {
+    box.current = el;
+    if (typeof ref === "function") ref(el);
+    else if (ref) ref.current = el;
+  };
   const commit = () => {
     const text = draft.trim();
     if (text !== "" && text !== label) onRename(text);
@@ -49,7 +83,7 @@ export const ColumnMenu = React.forwardRef<HTMLDivElement, ColumnMenuProps>(func
   return (
     <div
       className="jc-grid-meta-menu jc-grid-col-menu"
-      ref={ref}
+      ref={setBox}
       role="dialog"
       aria-label={`${labels.columnMenu}: ${label}`}
       onKeyDown={(e) => {

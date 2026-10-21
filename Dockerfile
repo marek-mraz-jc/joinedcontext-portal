@@ -126,6 +126,7 @@ COPY apps/zilina-mapa/ui/ ./apps/zilina-mapa/ui/
 COPY apps/zilina-ukazovatele/ui/ ./apps/zilina-ukazovatele/ui/
 COPY apps/zilina-zaznamy/ui/ ./apps/zilina-zaznamy/ui/
 COPY apps/zilina-vyskum/ui/ ./apps/zilina-vyskum/ui/
+COPY apps/sharing-probe/bundle/ ./apps/sharing-probe/bundle/
 COPY scripts/app-integrity.mjs ./scripts/
 RUN cd apps/bbsk-ukazovatele/ui && pnpm build \
     && mkdir -p /srv/apps && cp -r dist /srv/apps/bbsk-ukazovatele \
@@ -193,6 +194,12 @@ RUN cd apps/zilina-zaznamy/ui && pnpm build \
 RUN cd apps/zilina-vyskum/ui && pnpm build \
     && cp -r dist /srv/apps/zilina-vyskum \
     && node /work/scripts/app-integrity.mjs /srv/apps/zilina-vyskum
+# The App sharing matrix's test page (T-4911): one plain-HTML bundle, no build, shipped under the
+# five names whose manifests differ only in visibility (deployment seed/sharing, dev only).
+RUN for name in sharing-private sharing-project sharing-organization sharing-roles sharing-public; do \
+      cp -r apps/sharing-probe/bundle "/srv/apps/$name" \
+      && node /work/scripts/app-integrity.mjs "/srv/apps/$name" || exit 1; \
+    done
 
 FROM rust:1.97-slim-trixie@sha256:8e8cf8f7fd54a2d23d5a743b3a03f56e26b6c774276c33fa0595111704ebb15c AS build
 WORKDIR /src

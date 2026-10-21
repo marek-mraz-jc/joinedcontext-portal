@@ -971,6 +971,8 @@
       "choose": "Vybrať súbor",
       "empty": "Súbor nemá pod hlavičkou žiadne riadky.",
       "unreadable": "Súbor sa nedá prečítať: {reason}",
+      "tooLarge": "Súbor má {size} MB; import prečíta najviac {limit} MB. Rozdeľte ho na menšie súbory alebo odstráňte stĺpce, ktoré nepotrebujete, a importujte každú časť.",
+      "denied": "Nič sa nezapísalo: priestor {space} vašej roli nedovoľuje vytvárať entity {type} ({reason}). Požiadajte vlastníka projektu o Policy na tomto priestore, ktorá vašej roli povolí dávkové vytváranie {type}, a potom súbor importujte znova.",
       "read": "{name}: {rows, plural, one {# riadok} few {# riadky} other {# riadkov}}, {columns, plural, one {# stĺpec} few {# stĺpce} other {# stĺpcov}}.",
       "mapping": "Ktoré pole plní každý stĺpec",
       "column": "Stĺpec",
@@ -1273,6 +1275,7 @@
       "slug": "Slug",
       "audience": "Publikum",
       "representations": "Reprezentácie",
+      "representationMappings": "Mapovanie kalendára",
       "more": "+{count} ďalších",
       "noRepresentations": "žiadne reprezentácie",
       "phase": "Stav",
@@ -1419,7 +1422,31 @@
       "odata": "OData v4",
       "websocket": "Notifikácie cez WebSocket",
       "sta": "SensorThings API",
+      "ical": "Kalendár iCalendar",
       "mcp": "MCP pre AI asistentov"
+    },
+    "ical": {
+      "subscribe": "Odber kalendára",
+      "preview": "Otvoriť kalendár (.ics)",
+      "off": "Zapnite kalendár iCalendar v časti Reprezentácie, aby ste mohli mapovať jeho polia.",
+      "help": "Z ktorého atribútu modelu priestoru pochádza každé pole kalendára. Prázdny riadok použije atribút predvoľby, zobrazený sivo. Skontrolujte formulár a uvidíte verdikt servera voči dátovému modelu.",
+      "start": "Začať od",
+      "presetDefault": "Predvolené (Smart Data Models Event)",
+      "preset": {
+        "sdm-event": "Smart Data Models Event",
+        "schema-org": "schema.org Event"
+      },
+      "presetOwn": "Len polia nižšie",
+      "type": "Mapovaný typ",
+      "noModel": "Priestor {space} zatiaľ nemá v tomto projekte dátový model, preto nemožno ponúknuť atribúty; kontrola mapovanie odmietne, kým ho nebude mať.",
+      "missing": "Namapujte tieto povinné polia: {fields}",
+      "caption": "Polia kalendára a atribúty, z ktorých pochádzajú",
+      "field": "Pole kalendára",
+      "attribute": "Atribút",
+      "fixed": "Nastavuje platforma: {attribute}",
+      "remap": "Zapísané v YAML s úpravami; upravte ho v manifeste",
+      "unmapped": "Nemapované",
+      "requiredBadge": "Povinné"
     },
     "section": {
       "projection": "Ktoré triedy a atribúty zobrazuje",
@@ -2275,7 +2302,13 @@
         "countFirst": "Prvé {count, plural, one {# záznam} few {# záznamy} other {# záznamov}} s {fields, plural, one {# poľom} other {# poľami}}; zdroj má viac",
         "caption": "Záznamy vzorky",
         "notJson": "Zdroj vrátil webovú stránku, nie údaje. Skontrolujte adresu jeho zdroja údajov.",
-        "details": "Správa nástroja"
+        "details": "Správa nástroja",
+        "listening": "Počúvam {source}: {elapsed} z {seconds} s, najviac {max} správ",
+        "listenAgain": "Počúvať znova",
+        "streamCount": "{count} z {max} správ prišlo do {seconds} s, s {fields, plural, one {# poľom} other {# poľami}}",
+        "streamSkipped": "{count, plural, one {# správa nebola ponechaná} few {# správy neboli ponechané} other {# správ nebolo ponechaných}}",
+        "streamEmptyTitle": "Do {seconds} s neprišla žiadna správa",
+        "streamEmpty": "Téma môže byť práve tichá, alebo broker odmietol pripojenie či prihlasovacie údaje zdroja údajov. Počúvajte znova, alebo skontrolujte adresu, tému a prihlasovacie údaje zdroja údajov."
       },
       "mapping": {
         "title": "Mapovanie",
@@ -2590,6 +2623,61 @@
       "rejectedUnavailable": "Odmietnuté záznamy sa nepodarilo načítať.",
       "noRejected": "Model neodmietol žiadny záznam tejto pipeline.",
       "credentials": "Prihlasovacie údaje"
+    },
+    "access": {
+      "section": "Prístup k iným priestorom",
+      "lead": "Požiadajte vlastníka iného priestoru o čítanie alebo zápis pre túto pipeline. Kým to neschváli, nič sa neudelí.",
+      "none": "Táto pipeline nežiadala o prístup k inému priestoru.",
+      "request": "Požiadať o prístup",
+      "project": "Vlastniaci projekt",
+      "projectHelp": "Projekt, ktorému priestor patrí, ako ho uvádza stránka katalógu.",
+      "endpoint": "Endpoint",
+      "operationsLegend": "Čo tam pipeline robí",
+      "operations": {
+        "read": "Čítanie",
+        "write": "Zápis"
+      },
+      "types": "Typy a atribúty",
+      "typesHelp": "Uveďte každý typ entity a každý atribút, ktorý pipeline potrebuje, oddelené čiarkami. Žiadosť nikdy nežiada o všetky.",
+      "type": "Typ entity",
+      "attrs": "Atribúty",
+      "addType": "Pridať typ",
+      "removeType": "Odstrániť",
+      "removeTypeOf": "Odstrániť typ {n}",
+      "tooManyTypes": "Žiadosť uvádza najviac 20 typov.",
+      "untilLabel": "Dátum konca",
+      "untilHelp": "Prístup skončí na konci tohto dňa. Prázdne znamená bez konca.",
+      "reason": "Prečo to pipeline potrebuje",
+      "send": "Odoslať žiadosť",
+      "cancel": "Zrušiť",
+      "sent": "Žiadosť odoslaná. Rozhodnú o nej vlastníci priestoru; jej stav uvidíte tu.",
+      "missing": {
+        "endpoint": "Uveďte vlastniaci projekt a endpoint.",
+        "types": "Uveďte aspoň jeden typ, každý s jeho atribútmi.",
+        "reason": "Napíšte, prečo to pipeline potrebuje."
+      },
+      "state": {
+        "pending": "Čaká na vlastníka",
+        "approved": "Schválené",
+        "declined": "Zamietnuté",
+        "revoked": "Odobraté",
+        "ended": "Skončené"
+      },
+      "until": "Do {date}",
+      "noEnd": "Bez dátumu konca",
+      "decided": "{who}: {reason}",
+      "inbox": "Pipeline žiadajúce o prístup",
+      "inboxLead": "Pipeline iných priestorov a projektov, ktoré žiadajú čítať alebo zapisovať do tohto priestoru. Schválenie navrhne prístup ako zmenu tohto projektu.",
+      "inboxEmpty": "Žiadna pipeline nežiadala o prístup k tomuto priestoru.",
+      "on": "na {endpoint}, žiada {who}",
+      "decisionReason": "Dôvod pre žiadateľa",
+      "approve": "Schváliť",
+      "approveOf": "Schváliť prístup pre {account}",
+      "decline": "Zamietnuť",
+      "declineOf": "Zamietnuť prístup pre {account}",
+      "revoke": "Odobrať",
+      "revokeOf": "Odobrať prístup {account}",
+      "reasonFirst": "Najprv napíšte dôvod."
     }
   },
   "dashboards": {
@@ -5526,7 +5614,17 @@
       "expiresAt": "Platí do",
       "isActive": "Posielať notifikácie",
       "receiver": "Posiela na",
-      "watches": "Sleduje"
+      "watches": "Sleduje",
+      "deliveries": "Doručenia"
+    },
+    "delivery": {
+      "none": "Zatiaľ žiadne upozornenie: odošle sa, keď sa sledovaná entita zmení.",
+      "ok": "Doručené",
+      "failing": "Zlyháva",
+      "lastSuccess": "Naposledy doručené {at}",
+      "lastFailure": "Posledné zlyhanie {at}",
+      "counts": "Odoslané: {sent}, zlyhalo: {failed}",
+      "failingHint": "Príjemca neprijal posledné upozornenie: overte, že jeho adresa odpovedá cez https a prijíma POST."
     }
   },
   "registrations": {

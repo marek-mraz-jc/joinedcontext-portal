@@ -6,7 +6,7 @@
  * of each widget is rjsf's own: the value encoding of a select, the toggling of a checkbox
  * group, the ids of an array item; only the markup and the classes are the Portal's.
  */
-import { createContext, useCallback, useContext } from "react";
+import { createContext, useCallback, useContext, useId } from "react";
 import type { ChangeEvent, FocusEvent, ReactNode } from "react";
 import { getDefaultRegistry } from "@rjsf/core";
 import {
@@ -412,11 +412,14 @@ function Fieldset({
   children: ReactNode;
 }): React.JSX.Element {
   const box = "flex flex-col gap-4 rounded-lg border border-border bg-surface-subtle/60 p-4";
+  const titleId = useId();
   if (folded && title) {
+    // A `<details>` group takes no name from its summary: the title names it, as a legend does
+    // an open set, so a screen reader announces which group it is in (T-4924).
     return (
-      <details className={box} open={open || undefined}>
+      <details className={box} open={open || undefined} aria-labelledby={titleId}>
         <summary className="cursor-pointer text-body font-semibold text-fg marker:text-fg-muted">
-          {title}
+          <span id={titleId}>{title}</span>
           {description ? (
             <span className="ml-2 font-normal text-caption text-fg-muted">{description}</span>
           ) : null}

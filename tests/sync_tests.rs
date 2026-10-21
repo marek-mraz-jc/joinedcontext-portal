@@ -362,6 +362,7 @@ async fn failed_tree_listing_preserves_mirror_and_records_error_in_sync_status()
             shard: None,
             domain_verification: None,
             jobs: Vec::new(),
+            notifications: None,
         }),
     });
     assert_eq!(mirror.len(), 1);

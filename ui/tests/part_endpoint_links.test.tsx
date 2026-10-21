@@ -181,8 +181,8 @@ describe("what an endpoint serves", () => {
   it("adds_ngsi_ld_and_mcp_to_every_endpoint", () => {
     expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld", "csv"] })).toEqual(["ngsi-ld", "csv", "mcp"]);
     expect(servedRepresentations({ enabledRepresentations: ["mcp", "ngsi-ld"] })).toEqual(["mcp", "ngsi-ld"]);
-    // No list (EP-104): every standard but sta, less the disabled ones.
-    const everyButSta = ALL_REPRESENTATIONS.filter((rep) => rep !== "sta");
+    // No list (EP-104): every standard but the opt-in sta and ical (EP-125), less the disabled ones.
+    const everyButSta = ALL_REPRESENTATIONS.filter((rep) => rep !== "sta" && rep !== "ical");
     expect(servedRepresentations({})).toEqual(everyButSta);
     expect(servedRepresentations({ disabledRepresentations: ["csv"] })).toEqual(
       everyButSta.filter((rep) => rep !== "csv"),
@@ -208,9 +208,9 @@ describe("what an endpoint serves", () => {
 
   it("drops_a_list_entry_that_is_not_a_name", () => {
     expect(servedRepresentations({ enabledRepresentations: ["ngsi-ld", 7, null], mcp: false })).toEqual(["ngsi-ld"]);
-    // Not a list at all reads as no list: every standard but sta.
+    // Not a list at all reads as no list: every standard but the opt-in sta and ical.
     expect(servedRepresentations({ enabledRepresentations: "ngsi-ld" })).toEqual(
-      ALL_REPRESENTATIONS.filter((rep) => rep !== "sta"),
+      ALL_REPRESENTATIONS.filter((rep) => rep !== "sta" && rep !== "ical"),
     );
   });
 });

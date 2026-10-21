@@ -1,7 +1,8 @@
 //! An Endpoint that lists a domain-standard representation is checked against its space's model
-//! on the write path (EP-125, T-4584): `ical` needs the type Event with `startDate` and `name`
-//! marked required, and the Portal refuses one that lacks them with `jcctl validate`'s sentence
-//! before a Change exists, so the reconciler is never handed an Endpoint jcctl would refuse.
+//! on the write path (EP-125, T-4584, T-4900): the `ical` mapping, the `sdm-event` preset when
+//! none is written, must fit the space's model, and the Portal refuses one that does not with
+//! `jcctl validate`'s sentences before a Change exists, so the reconciler is never handed an
+//! Endpoint jcctl would refuse. The form's dry run answers the same sentences.
 
 mod common;
 
@@ -127,8 +128,8 @@ async fn ical_on_a_space_without_the_event_type_is_refused_with_jcctl_s_sentence
     assert_eq!(answer.status, StatusCode::BAD_REQUEST, "{}", answer.text);
     assert!(
         answer.text.contains(
-            "Endpoint kultura/kalendar: `ical` needs the type Event in the data model of space \
-             podujatia (EP-125)"
+            "Endpoint kultura/kalendar, space podujatia: `ical` maps the type Event, which the \
+             data model does not have (EP-125)"
         ),
         "{}",
         answer.text
@@ -151,9 +152,9 @@ async fn ical_without_a_required_start_names_the_attribute() {
     let answer = propose(&state, endpoint(json!(["ical"]))).await;
     assert_eq!(answer.status, StatusCode::BAD_REQUEST, "{}", answer.text);
     assert!(
-        answer
-            .text
-            .contains("`ical` needs the type Event with the required attribute(s) startDate"),
+        answer.text.contains(
+            "`ical` maps DTSTART to `startDate`, which is not a required attribute of Event"
+        ),
         "{}",
         answer.text
     );
@@ -175,6 +176,60 @@ async fn ical_on_the_sdm_event_model_opens_a_change() {
 async fn an_endpoint_without_ical_is_not_held_to_the_event_type() {
     let (state, _gitea) = portal(PLACES).await;
     let answer = propose(&state, endpoint(json!(["ngsi-ld", "csv"]))).await;
+    assert!(
+        answer.status.is_success(),
+        "{} {}",
+        answer.status,
+        answer.text
+    );
+}
+
+fn mapped(mapping: Value) -> Value {
+    let mut manifest = endpoint(json!(["ngsi-ld", "ical"]));
+    manifest["spec"]["representations"] = json!({ "ical": { "mapping": mapping } });
+    manifest
+}
+
+/// A mapping the Endpoint writes is checked field by field: every gap is one line, in the words
+/// jc-core gives `jcctl validate`, and the form's dry run shows the same lines.
+#[tokio::test]
+async fn a_written_mapping_is_refused_per_gap_and_the_dry_run_says_the_same() {
+    let (state, gitea) = portal(EVENTS).await;
+    let broken = mapped(json!({ "SUMMARY": "name", "DTEND": "name" }));
+    let answer = propose(&state, broken.clone()).await;
+    assert_eq!(answer.status, StatusCode::BAD_REQUEST, "{}", answer.text);
+    let lines = [
+        "Endpoint kultura/kalendar, space podujatia: `ical` maps no DTSTART, which every calendar entry needs (EP-125)",
+        "Endpoint kultura/kalendar, space podujatia: `ical` maps DTEND to `name`, range string; DTEND takes date or datetime (EP-125)",
+    ];
+    for line in lines {
+        assert!(answer.text.contains(line), "{line} in {}", answer.text);
+    }
+    let dry = common::checked_send(
+        &state,
+        admin(),
+        "POST",
+        &format!("/api/v1/projects/{PROJECT}/endpoints?dryRun=All"),
+        Some(broken),
+    )
+    .await;
+    for line in lines {
+        assert!(
+            dry.text.contains(line),
+            "{line} in the dry run {}",
+            dry.text
+        );
+    }
+    let requests = gitea.received_requests().await.expect("recorded");
+    assert!(
+        !requests.iter().any(|r| r.method.as_str() == "POST"),
+        "no Change was opened"
+    );
+
+    let fitting = mapped(
+        json!({ "DTSTART": "startDate", "SUMMARY": { "attribute": "name", "truncate": 120 } }),
+    );
+    let answer = propose(&state, fitting).await;
     assert!(
         answer.status.is_success(),
         "{} {}",

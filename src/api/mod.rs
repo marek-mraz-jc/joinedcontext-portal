@@ -1,4 +1,5 @@
 pub mod access_explore;
+pub mod access_requests;
 pub mod access_simulate;
 pub mod activity;
 pub mod agent_runs;
@@ -123,6 +124,7 @@ pub fn router() -> Router<AppState> {
         .merge(space_usage::router())
         .merge(space_retention::router())
         .merge(erasures::router())
+        .merge(access_requests::router())
         .merge(data_views::router())
         .merge(pipeline_templates::router())
         .merge(temporal_audit::router())
