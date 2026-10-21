@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
 import { expectNoRawKeys, expectNoViolations, expectTabOrder } from "./checks";
 import { LinkmlVisualEditor } from "../src/pages/models/LinkmlVisualEditor";
-import { diagnose, parseModel } from "../src/pages/models/linkml";
+import { blankSource, diagnose, parseModel } from "../src/pages/models/linkml";
 
 const SOURCE = `# the model the city publishes
 id: https://banskabystrica.sk/models/air
@@ -84,6 +84,24 @@ describe("LinkML visual editor", () => {
     ]);
     expect(source()).toContain("# the model the city publishes");
     expect(await screen.findByRole("button", { name: "WeatherObserved" })).toBeInTheDocument();
+  });
+
+  it("makes a new type an NGSI-LD entity type when the model imports ngsi-ld-core, so Check finds one (T-5066)", async () => {
+    const { source, user } = renderEditor(blankSource("hel.fi", "stations"));
+
+    await user.type(screen.getByLabelText("New type"), "Station");
+    await user.click(screen.getByRole("button", { name: "Add type" }));
+
+    expect(parseModel(source()).classes.find((klass) => klass.name === "Station")?.is_a).toBe("Entity");
+  });
+
+  it("leaves a new type without a parent in a model that has no Entity to specialise", async () => {
+    const { source, user } = renderEditor();
+
+    await user.type(screen.getByLabelText("New type"), "WeatherObserved");
+    await user.click(screen.getByRole("button", { name: "Add type" }));
+
+    expect(parseModel(source()).classes.find((klass) => klass.name === "WeatherObserved")?.is_a).toBeUndefined();
   });
 
   it("adds a slot to the open class and lists it with its range", async () => {

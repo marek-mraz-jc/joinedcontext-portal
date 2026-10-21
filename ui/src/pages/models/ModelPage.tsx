@@ -16,6 +16,7 @@ import { localized } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
 import { ResourceHistory } from "../../components/ResourceHistory";
 import { ChangeNotice } from "../../components/ChangeNotice";
+import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import {
   Alert,
   Badge,
@@ -328,6 +329,10 @@ export function ModelPage({
                 {t("models.page.edit")}
               </ProposeLink>
               <ShareWithOrganization project={project} name={name} version={version} lifecycle={lifecycle} />
+              {/* Removal proposes a Red change (CC-19); shown only to a role that may delete a DataModel. */}
+              <DeleteResourceAction
+                target={{ project, kind: "DataModel", plural: "datamodels", name, label: localized(model.metadata.title, i18n.language, name) }}
+              />
             </div>
           }
         />

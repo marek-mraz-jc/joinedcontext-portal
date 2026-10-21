@@ -22,6 +22,7 @@ import {
   EMPTY_MODEL,
   NGSI_LD_KINDS,
   RANGES,
+  newTypeParent,
   parseModel,
   reservedNamespace,
   slotAffordance,
@@ -123,7 +124,7 @@ export function LinkmlVisualEditor({
     if (!name) {
       return;
     }
-    if (run({ op: "addClass", name })) {
+    if (run({ op: "addClass", name, ...newTypeParent(model) })) {
       setSelectedClass(name);
       setNewClass("");
     }

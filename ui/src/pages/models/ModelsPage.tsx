@@ -28,6 +28,7 @@ import { takePrefill } from "../../assistant/state";
 import { getDraft, putDraft } from "../../api/drafts";
 import { Link } from "@tanstack/react-router";
 import { LinkmlEditor } from "./LinkmlEditor";
+import { replaceOwnSearch } from "../../assistant/HandOff";
 import { ModelFileDrop } from "./ModelFileDrop";
 import { spaceOfModel } from "./modelUsage";
 import { mergeModels } from "./linkml";
@@ -261,10 +262,12 @@ export function ModelsPage({
             keptVersion,
           );
           setKept({ name: targetName, version: answer.version });
-          const url = new URL(window.location.href);
-          if (url.searchParams.get("draft") !== targetName) {
-            url.searchParams.set("draft", targetName);
-            window.history.replaceState(null, "", url.toString());
+          // The page's own address (T-3239): a bare replaceState read as an assistant hand-off
+          // and mounted the page afresh, closing the editor view the person had open (T-5066).
+          const query = new URLSearchParams(window.location.search);
+          if (query.get("draft") !== targetName) {
+            query.set("draft", targetName);
+            replaceOwnSearch(query);
           }
         } catch (err: unknown) {
           // Somebody else has this draft open and saved first; keeping ours would overwrite

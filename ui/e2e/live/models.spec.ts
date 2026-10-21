@@ -178,20 +178,36 @@ test("a steward proposes removing a model, and the rejected removal keeps it", a
   const page = steward.page;
   const listed = await page.request.get(`/api/v1/projects/${PROJECT}/datamodels`);
   expect(listed.ok()).toBe(true);
-  const [model] = ((await listed.json()) as { items: { metadata: { name: string } }[] }).items.map((item) => item.metadata.name);
-  expect(model, "the project has no model to propose removing").toBeDefined();
-
-  const row = page.locator("tr, li").filter({ hasText: model }).first();
-  await row.getByRole("button", { name: /^More actions for / }).click();
-  await page.getByRole("menuitem", { name: "Remove" }).click();
+  const names = ((await listed.json()) as { items: { metadata: { name: string } }[] }).items.map((item) => item.metadata.name);
   const dialog = page.getByRole("dialog");
   const propose = dialog.getByRole("button", { name: "Propose removal" });
-  // Nothing is proposed until the name is typed back (a Red change, CC-19).
-  await expect(propose).toHaveAttribute("aria-disabled", "true");
-  await dialog.getByLabel(`Type ${model} to confirm`).fill(model);
-  await propose.click();
   const id = dialog.getByText(/^chg-[0-9a-f]{8}$/);
-  await expect(id).toBeVisible({ timeout: 60_000 });
+  // A model still used by a space is refused before anything is typed (409, named), and one whose
+  // removal an earlier run left open is refused at Propose: take the first one that proposes.
+  let model: string | undefined;
+  for (const candidate of names) {
+    // The model's own page holds Remove since the T-4829 list (T-5066).
+    await page.goto(`/projects/${PROJECT}/models/${candidate}?lang=en`);
+    const dryRun = page.waitForResponse((answer) => answer.request().method() === "DELETE" && answer.url().includes("dryRun"));
+    await page.getByRole("button", { name: /^Remove / }).click();
+    if ((await dryRun).status() === 409) {
+      await expect(dialog.getByText("Still in use")).toBeVisible();
+      await dialog.getByRole("button", { name: "Cancel" }).click();
+      continue;
+    }
+    // Nothing is proposed until the name is typed back (a Red change, CC-19).
+    await expect(propose).toHaveAttribute("aria-disabled", "true");
+    await dialog.getByLabel(`Type ${candidate} to confirm`).fill(candidate);
+    await propose.click();
+    const open = dialog.getByRole("alert").filter({ hasText: /is already open: chg-/ });
+    await expect(id.or(open)).toBeVisible({ timeout: 60_000 });
+    if (await id.isVisible()) {
+      model = candidate;
+      break;
+    }
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+  }
+  expect(model, "every model the project has is still in use or has a removal open").toBeDefined();
   await reject(approver.page, PROJECT, (await id.textContent()) ?? "");
 
   const kept = await page.request.get(`/api/v1/projects/${PROJECT}/datamodels/${model}`);
