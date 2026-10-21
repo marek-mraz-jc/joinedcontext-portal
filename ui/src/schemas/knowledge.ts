@@ -407,6 +407,9 @@ export function toKindManifest(
     const needed = projectsNamed(spec).filter((p) => p !== project && !listed.includes(p));
     if (needed.length > 0) spec.scope = { ...scope, projects: [...listed, ...needed] };
   }
+  // The form fills the upload limits' defaults whatever the type, and jc-core refuses them on a
+  // website or catalogue source: no website source could be proposed (T-4869).
+  if (kind === "KnowledgeSource" && spec.source !== "upload") delete spec.upload;
   const kept = (stored as { metadata?: Record<string, unknown> } | null | undefined)?.metadata ?? {};
   return {
     apiVersion: "joinedcontext.com/v1alpha1",

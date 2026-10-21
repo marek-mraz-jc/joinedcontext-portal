@@ -303,7 +303,13 @@ export function AssistantChat({
         (streamed) => {
           if (streamed.name === "conversation") conversation.current = streamed.id;
           if (streamed.name === "error") missed();
-          setTurns((all) => [...all.slice(0, -1), apply(all[all.length - 1], streamed)]);
+          // The assistant words a failed model call for a public visitor, in Slovak; the Portal
+          // says it in the person's language (T-4869).
+          const event =
+            streamed.name === "error" && streamed.title === "Model Unavailable"
+              ? { ...streamed, detail: t("knowledge.chat.modelUnavailable") }
+              : streamed;
+          setTurns((all) => [...all.slice(0, -1), apply(all[all.length - 1], event)]);
         },
         abort.current.signal,
       );

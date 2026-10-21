@@ -5,7 +5,7 @@
 // src/pages/knowledge/knowledge.ts through the pages
 // they belong to; each was confirmed by
 // making the module throw and watching this file go red.
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -133,6 +133,7 @@ interface Stub {
   sources?: { code: number; body: unknown };
   chat?: { code: number; body: string };
   upload?: { code: number; body: unknown };
+  files?: { code: number; body: unknown };
 }
 
 const ANSWER = [
@@ -167,6 +168,7 @@ function renderAt(path: string, stub: Stub = {}) {
       const upload = stub.upload ?? { code: 201, body: { id: 8, name: "ziadosti.csv", mime: "text/csv", bytes: 8, passages: 3, status: "fetched" } };
       return json(upload.body, upload.code);
     }
+    if (url.pathname === `${base}/sources/bb-files/files` && stub.files) return json(stub.files.body, stub.files.code);
     if (url.pathname === `${base}/sources/bb-files/files`) {
       return json({ items: [{ id: 7, name: "rozpocet-2026.xlsx", mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes: 48_000, passages: 12, status: "fetched" }] });
     }
@@ -195,6 +197,10 @@ function renderAt(path: string, stub: Stub = {}) {
       ] });
     }
     if (url.pathname === `${base}/sources`) return json(stub.sources?.body ?? SOURCES, stub.sources?.code ?? 200);
+    if (url.pathname === `${base}/sources/bb-web/search` && url.searchParams.get("q") === "zber") {
+      return json({ hits: [{ title: null, url: "upload:bb-web/Návod.pdf#page=3", publisher: null, description: null, published: null,
+        modified: null, language: "sk", text: "Zber je v stredu.", score: 0.02 }] });
+    }
     if (url.pathname === `${base}/sources/bb-web/search`) {
       return json({ hits: [{ title: "Odvoz odpadu", url: "https://www.banskabystrica.sk/odpad", publisher: "banskabystrica",
         description: "Kalendár zvozu", published: null, modified: "2026-09-30T08:12:00Z", language: "sk",
@@ -428,6 +434,15 @@ describe("finding pages and trying the search (UI-99, T-4659)", () => {
     );
   });
 
+  it("names an uploaded file's hit by its file and page, with no link (T-4869)", async () => {
+    renderAt("/projects/banskabystrica/knowledge/bb-web");
+    await userEvent.type(await screen.findByRole("searchbox", { name: "Question or words" }), "zber{Enter}");
+    const hits = await screen.findByRole("list", { name: "Hits for “zber”" });
+    expect(within(hits).getByText("Návod.pdf, page 3")).toBeInTheDocument();
+    expect(within(hits).queryByRole("link")).toBeNull();
+    expect(hits).not.toHaveTextContent("upload:");
+  });
+
   it("titles a document by what it states and shows its last change", async () => {
     renderAt("/projects/banskabystrica/knowledge/bb-web");
     await userEvent.click(await screen.findByRole("tab", { name: "Documents" }));
@@ -511,6 +526,23 @@ describe("the files of an upload source (T-4185)", () => {
     const table = await screen.findByRole("table", { name: "Knowledge sources" });
     expect(within(table).getByRole("link", { name: "bb-files" })).toBeInTheDocument();
     expect(within(table).queryByRole("button", { name: "Crawl bb-files now" })).toBeNull();
+    // Nobody crawls an upload source: before its first file it says so (T-4869).
+    expect(within(table).getByRole("row", { name: /bb-files/ })).toHaveTextContent("No file yet");
+    expect(within(table).getByRole("row", { name: /bb-files/ })).not.toHaveTextContent(/crawl/i);
+  });
+
+  it("says an upload source's files are indexing, then read (T-4869)", async () => {
+    const holding = (pending: number) => ({
+      items: [{ ...FILES.items[FILES.items.length - 1], state: "crawled", documents: 1, passages: 3, embedded: 3 - pending, pending }],
+    });
+    renderAt("/projects/banskabystrica/knowledge", { sources: { code: 200, body: holding(2) } });
+    const table = await screen.findByRole("table", { name: "Knowledge sources" });
+    expect(within(table).getByRole("row", { name: /bb-files/ })).toHaveTextContent("Indexing");
+    cleanup();
+    renderAt("/projects/banskabystrica/knowledge", { sources: { code: 200, body: holding(0) } });
+    const read = await screen.findByRole("table", { name: "Knowledge sources" });
+    expect(within(read).getByRole("row", { name: /bb-files/ })).toHaveTextContent("Read");
+    expect(within(read).getByRole("row", { name: /bb-files/ })).not.toHaveTextContent("Crawled");
   });
 
   it("lists the files, uploads the chosen ones as they are and removes one", async () => {
@@ -536,6 +568,26 @@ describe("the files of an upload source (T-4185)", () => {
     await userEvent.upload(await screen.findByLabelText("Choose files to upload"), new File(["\u0000\u0001"], "zoznam.csv", { type: "text/csv" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("zoznam.csv was not uploaded: this is not a PDF, a DOCX, an XLSX or UTF-8 text");
     expect(writes).toHaveLength(1);
+  });
+
+  it("says a source the assistant has not taken up yet will be ready, and offers no upload until then (T-4869)", async () => {
+    const missing = { status: 404, title: "Not Found", detail: "project banskabystrica declares no KnowledgeSource `bb-files`" };
+    renderAt("/projects/banskabystrica/knowledge/bb-files", { sources: { code: 200, body: FILES }, files: { code: 404, body: missing } });
+    expect((await screen.findAllByText(/has not taken this source up yet/)).length).toBeGreaterThan(0);
+    expect(screen.queryByLabelText("Choose files to upload")).toBeNull();
+    expect(screen.getByRole("button", { name: "Upload files" })).toHaveAccessibleDescription(/has not taken this source up yet/);
+    expect(screen.queryByText(/Check the name in the address/)).toBeNull();
+  });
+
+  it("an upload refused because the source is not taken up yet says to wait, not to fix the file (T-4869)", async () => {
+    renderAt("/projects/banskabystrica/knowledge/bb-files", {
+      sources: { code: 200, body: FILES },
+      upload: { code: 404, body: { status: 404, title: "Not Found", detail: "project banskabystrica declares no KnowledgeSource `bb-files`" } },
+    });
+    await userEvent.upload(await screen.findByLabelText("Choose files to upload"), new File(["a"], "a.txt", { type: "text/plain" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/has not taken this source up yet/);
+    expect(alert).not.toHaveTextContent(/Fix the file/);
   });
 
   it("says what to send when the source holds no file yet", async () => {
@@ -688,7 +740,7 @@ describe("asking an assistant in the Portal (T-3058, AG-115)", () => {
     const dialog = await screen.findByRole("dialog", { name: "Ask obcania" });
     const box = within(dialog).getByRole("textbox", { name: "Your question" });
     await userEvent.type(box, "Kedy vyvážajú odpad?{Enter}");
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Model asistenta neodpovedal");
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("The assistant's model did not answer. Your question is kept: try again in a minute.");
     expect(box).toHaveValue("Kedy vyvážajú odpad?");
     const closest = within(dialog).getByRole("list", { name: "The sources that match your question best" });
     expect(within(closest).getByRole("link", { name: /Odvoz odpadu/ })).toHaveAttribute("href", "https://www.banskabystrica.sk/odpad");
