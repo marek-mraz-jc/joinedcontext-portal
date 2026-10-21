@@ -20,7 +20,14 @@ import { useFirstRun } from "./firstRun";
 const SharedWithMe = lazy(() => import("./SharedWithMe").then((module) => ({ default: module.SharedWithMe })));
 
 interface Listed {
-  items?: { metadata?: { name?: string }; kind?: string; name?: string; status?: { phase?: string }; requiredActions?: unknown[] }[];
+  items?: {
+    metadata?: { name?: string };
+    kind?: string;
+    name?: string;
+    spec?: { publish?: { ckan?: unknown } };
+    status?: { phase?: string };
+    requiredActions?: unknown[];
+  }[];
 }
 
 function useList(project: string, plural: string, enabled: boolean) {
@@ -55,7 +62,6 @@ export function HomePage({
   const reads = (kind: string) => mayRead(permissions.data, kind) === true;
 
   const spaces = useList(project, "spaces", reads("ContextSpace"));
-  const datasources = useList(project, "datasources", reads("DataSource"));
   const pipelines = useList(project, "pipelines", reads("Pipeline"));
   const endpoints = useList(project, "endpoints", reads("Endpoint"));
   const dashboards = useList(project, "dashboards", role === "viewer" && reads("Dashboard"));
@@ -86,11 +92,12 @@ export function HomePage({
   const phases = (pipelines.data?.items ?? []).map((item) => (item.status?.phase ?? "").toLowerCase());
 
   const firstRun = useFirstRun();
+  // The other way in, beside the upload: a live source read by URL or API (welcomeStep's editor page).
+  const liveSource: string = welcomeStep(project, "editor");
+  const endpointItems = endpoints.data?.items ?? [];
   const steps = firstRunSteps(project, {
-    spaces: spaceNames,
-    datasources: datasources.data?.items?.length ?? 0,
-    pipelinePhases: phases,
-    endpoints: endpoints.data?.items?.length ?? 0,
+    endpoints: endpointItems.map((item) => item.metadata?.name ?? "").filter(Boolean),
+    published: endpointItems.filter((item) => item.spec?.publish?.ckan !== undefined).length,
     spaceWithData,
   });
   const doneCount = steps.filter((step) => step.done).length;
@@ -113,12 +120,12 @@ export function HomePage({
   const trySample = sampleToTry(project, samples);
   // The checklist counts what the project holds, so it waits for the lists it counts: a read that
   // failed would count as nothing made yet and send the person to make what they have (T-4165).
-  const counted = [spaces, datasources, pipelines, endpoints];
+  const counted = [spaces, endpoints];
   const failed = counted.find((query) => query.isError);
   const counting = counted.some((query) => query.isLoading);
   // Offered while the person keeps the first-run guidance (PF-109): inside the checklist while it
   // is open, on its own once every step is done, and nowhere after it was put away.
-  // A viewer may do none of the steps (make a space, connect a source, run a pipeline): their
+  // A viewer may do none of the steps (upload into a space, propose an Endpoint, publish it): their
   // home offers what they can open instead (T-4165, photo audit T-4157).
   const builds = role === "steward" || role === "editor";
   const checklistOpen = builds && firstRun.shown && !failed && !counting && doneCount < steps.length;
@@ -184,19 +191,32 @@ export function HomePage({
               {t("home.firstRun.progress", { done: doneCount, total: steps.length })}
             </p>
           </div>
-          <ol className="space-y-2">
+          <p className="text-body text-fg-muted">{t("home.firstRun.lead")}</p>
+          <ol className="space-y-3">
             {steps.map((step, at) => (
-              <li key={step.key} className="flex flex-wrap items-center gap-3 text-body" data-done={step.done}>
+              <li key={step.key} className="flex gap-3 text-body" data-done={step.done}>
                 <span className={step.done ? "text-success" : "text-fg-muted"} aria-hidden="true">
                   {step.done ? "✓" : at + 1}
                 </span>
-                <span className={step.done ? "text-fg-muted line-through" : "text-fg"}>{t(`home.firstRun.step.${step.key}`)}</span>
-                <span className="sr-only">{step.done ? t("home.firstRun.done") : t("home.firstRun.todo")}</span>
-                {step.done ? null : (
-                  <Link to={step.to} className="text-body font-medium text-primary-soft-fg underline">
-                    {t(`home.firstRun.go.${step.key}`)}
-                  </Link>
-                )}
+                <div className="min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className={step.done ? "text-fg-muted line-through" : "font-medium text-fg"}>
+                      {t(`home.firstRun.step.${step.key}`)}
+                    </span>
+                    <span className="sr-only">{step.done ? t("home.firstRun.done") : t("home.firstRun.todo")}</span>
+                    {step.done ? null : (
+                      <Link to={step.to} className="text-body font-medium text-primary-soft-fg underline">
+                        {t(`home.firstRun.go.${step.key}`)}
+                      </Link>
+                    )}
+                  </div>
+                  {step.done ? null : <p className="text-caption text-fg-muted">{t(`home.firstRun.hint.${step.key}`)}</p>}
+                  {step.key === "upload" && !step.done ? (
+                    <Link to={liveSource} className="text-caption font-medium text-primary-soft-fg underline">
+                      {t("home.firstRun.liveSource")}
+                    </Link>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ol>

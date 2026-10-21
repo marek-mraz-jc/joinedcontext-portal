@@ -605,12 +605,9 @@ pub async fn run(
                         "contextSpaceRef": space_name,
                         "slug": crate::agents::share::slug(),
                         "audience": "organization",
-                        "enabledRepresentations": ["ngsi-ld"],
-                        // Every class the space's model declares (T-1041). An endpoint that
-                        // projects nothing is a door onto no data, and the person would have
-                        // to tick them by hand before the Check passes. Widening it later is
-                        // the steward's, who approves this draft either way.
-                        "projection": { "classes": [class_name.clone()] }
+                        // The read Policy drafted with it names the class (`policies_for`);
+                        // an Endpoint has no class list of its own (T-5109).
+                        "enabledRepresentations": ["ngsi-ld"]
                     }
                 }));
                 inferred_endpoint = true;
@@ -680,8 +677,7 @@ pub async fn run(
                 "contextSpaceRef": space_name,
                 "slug": crate::agents::share::slug(),
                 "audience": "organization",
-                "enabledRepresentations": ["ngsi-ld"],
-                "projection": { "classes": [class_name.clone()] }
+                "enabledRepresentations": ["ngsi-ld"]
             }
         }));
         inferred_endpoint = true;
@@ -715,8 +711,7 @@ pub async fn run(
                 "contextSpaceRef": space_name,
                 "slug": crate::agents::share::slug(),
                 "audience": "project",
-                "enabledRepresentations": ["ngsi-ld"],
-                "projection": { "classes": [class_name.clone()] }
+                "enabledRepresentations": ["ngsi-ld"]
             }
         }));
         app_endpoint = true;
@@ -779,7 +774,8 @@ pub async fn run(
 
     // Save ContextSpace draft
     if let Some(m) = space_manifest {
-        drafts.push(checked_draft(caller, state, project, m, inferred_space).await?);
+        let checked = checked_draft(caller, state, project, m, inferred_space, &drafts).await?;
+        drafts.push(checked);
     }
 
     // Save DataSource draft
@@ -848,16 +844,25 @@ pub async fn run(
                 &audience,
                 &caller.identity.username,
             ) {
-                drafts.push(checked_draft(caller, state, project, policy, true).await?);
+                let checked = checked_draft(caller, state, project, policy, true, &drafts).await?;
+                drafts.push(checked);
             }
         }
-        drafts.push(
-            checked_draft(caller, state, project, m, inferred_endpoint || app_endpoint).await?,
-        );
+        let checked = checked_draft(
+            caller,
+            state,
+            project,
+            m,
+            inferred_endpoint || app_endpoint,
+            &drafts,
+        )
+        .await?;
+        drafts.push(checked);
     }
     if input.upload && sample_bytes.is_some() {
         let grant = upload_policy(project, &space_name, &class_name, &caller.identity.username);
-        drafts.push(checked_draft(caller, state, project, grant, true).await?);
+        let checked = checked_draft(caller, state, project, grant, true, &drafts).await?;
+        drafts.push(checked);
     }
 
     // Save Pipeline draft
@@ -908,7 +913,8 @@ pub async fn run(
     }
 
     for m in map_manifests {
-        drafts.push(checked_draft(caller, state, project, m, true).await?);
+        let checked = checked_draft(caller, state, project, m, true, &drafts).await?;
+        drafts.push(checked);
     }
 
     let propose_ready = !drafts.is_empty()
@@ -923,11 +929,20 @@ pub async fn run(
     let change = if input.propose {
         if !propose_ready {
             let failing_check = failing_check(&drafts);
+            // The draft and the field a person opens in Drafts to fix it (T-5109); never the
+            // finding's message, which can quote a value typed into the manifest (T-2238).
+            let (draft, at) = not_ready(&drafts);
             return Err(OpError::Conflict(json!({
                 "error": "verdict_required",
                 "check": failing_check,
                 "reason": "propose_not_ready",
-                "detail": "A draft of this space has not passed its check; check the drafts again, then propose them."
+                "draft": draft,
+                "detail": format!(
+                    "The {} draft '{}' has not passed its check{}; open it in Drafts, fix it, then propose again.",
+                    draft["kind"].as_str().unwrap_or("resource"),
+                    draft["name"].as_str().unwrap_or_default(),
+                    at.map(|path| format!(" (at {path})")).unwrap_or_default(),
+                )
             })));
         }
 
@@ -1190,6 +1205,24 @@ async fn pipeline_verdict(
 }
 
 /// The check to run again for the first draft whose verdict is missing or stale.
+/// The first draft that blocks the proposal, as `{kind, name}`, and the path of its first error.
+fn not_ready(drafts: &[CompletedDraft]) -> (Value, Option<String>) {
+    let Some(draft) = drafts.iter().find(|d| {
+        d.verdict
+            .as_ref()
+            .is_none_or(|v| !v.is_fresh_for(&d.manifest))
+    }) else {
+        return (Value::Null, None);
+    };
+    let at = draft
+        .verdict
+        .as_ref()
+        .and_then(|v| v.findings.iter().find(|f| f.level == Level::Error))
+        .map(|f| f.path.clone())
+        .filter(|path| !path.is_empty());
+    (json!({ "kind": draft.kind, "name": draft.name }), at)
+}
+
 fn failing_check(drafts: &[CompletedDraft]) -> &'static str {
     drafts
         .iter()
@@ -1396,7 +1429,7 @@ fn policies_for(
     owner: &str,
 ) -> Vec<Value> {
     let org = crate::api::assistant::org_domain(state, project);
-    let (writer, account) = writer_of(state, project, owner);
+    let (writer, account) = writer_of(state, project, space, owner);
     let reader = match audience {
         "public" => json!({ "kind": "role", "id": "public" }),
         _ => json!({ "kind": "group", "id": org }),
@@ -1470,7 +1503,7 @@ fn upload_policy(project: &str, space: &str, class: &str, person: &str) -> Value
 /// refused at admission far from the cause, and an account created later under that name inherited a
 /// grant written for another purpose. A grant names something that exists — in the project or in the
 /// same set of drafts a person approves.
-fn writer_of(state: &AppState, project: &str, owner: &str) -> (Value, Option<Value>) {
+fn writer_of(state: &AppState, project: &str, space: &str, owner: &str) -> (Value, Option<Value>) {
     const ACCOUNT: &str = "pipelines";
     let assignee = |id: &str| json!({ "kind": "serviceAccount", "id": id });
     let from_policy = state
@@ -1510,10 +1543,11 @@ fn writer_of(state: &AppState, project: &str, owner: &str) -> (Value, Option<Val
                 "owner": { "user": owner },
                 "purpose": "The runner authenticates as this identity to write what the pipelines \
                             of this project load",
-                // One OAuth client, and no platform role: what this identity may write is the
-                // Policy beside it, and nothing else (PF-31, PF-39).
+                // One OAuth client, and the writer's role in this space alone, as the seeded
+                // accounts hold it: what it may write is the Policy beside it (PF-31, PF-39).
+                // A ServiceAccount without a role is refused (T-5109).
                 "credentials": [{ "kind": "oauth-client", "name": "main" }],
-                "roles": []
+                "roles": [{ "role": "space-writer", "scope": { "contextSpace": space } }]
             }
         })),
     )
@@ -1574,6 +1608,7 @@ async fn checked_draft(
     project: &str,
     manifest: Value,
     inferred: bool,
+    before: &[CompletedDraft],
 ) -> Result<CompletedDraft, OpError> {
     let kind = manifest["kind"].as_str().unwrap_or_default().to_owned();
     let name = manifest["metadata"]["name"]
@@ -1593,15 +1628,20 @@ async fn checked_draft(
         )
         .await
         .map_err(ops::drafts::draft_error)?;
-    let verdict = match ops::call(
+    // The drafts before this one are proposed with it as one Change, so a reference to one of
+    // them (the space naming its new model, the Endpoint its new space) resolves (T-5109).
+    let bundle = before
+        .iter()
+        .map(|d| (d.kind.clone(), d.name.clone()))
+        .collect();
+    let check = ops::call(
         ops::find("jc_manifest_dry_run").expect("jc_manifest_dry_run is registered"),
         caller,
         state,
         project,
         json!({ "manifest": manifest }),
-    )
-    .await
-    {
+    );
+    let verdict = match crate::references::BUNDLE.scope(bundle, check).await {
         Ok(val) => {
             serde_json::from_value::<Verdict>(val.get("verdict").cloned().unwrap_or(Value::Null))
                 .ok()
@@ -1793,6 +1833,12 @@ mod tests {
         assert_eq!(
             super::failing_check(&[draft("Endpoint")]),
             "jc_manifest_dry_run"
+        );
+        // The refusal names the draft to open, never a finding's text (T-5109, T-2238).
+        assert_eq!(super::not_ready(&[]), (serde_json::Value::Null, None));
+        assert_eq!(
+            super::not_ready(&[draft("Endpoint")]),
+            (json!({ "kind": "Endpoint", "name": "n" }), None)
         );
         assert!(matches!(
             super::sample_format("a.csv"),

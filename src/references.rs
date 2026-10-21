@@ -175,6 +175,20 @@ pub struct Missing {
     pub name: String,
 }
 
+tokio::task_local! {
+    /// The resources proposed in one Change with the manifest under check, as `(kind, name)`:
+    /// a reference to one of them resolves when that Change merges (T-5109). Only
+    /// `jc_space_complete` sets it, around the check of each draft of the bundle it commits whole.
+    pub static BUNDLE: Vec<(String, String)>;
+}
+
+/// Whether the Change being checked proposes `kind` `name` itself ([`BUNDLE`]).
+fn in_bundle(kind: &str, name: &str) -> bool {
+    BUNDLE
+        .try_with(|bundle| bundle.iter().any(|(k, n)| k == kind && n == name))
+        .unwrap_or(false)
+}
+
 /// Every reference of the manifest into its own project that the mirror does not hold (MF-13).
 ///
 /// A reference into another project is left to the door that owns it: resolving it here would
@@ -191,6 +205,7 @@ pub fn missing(mirror: &Mirror, project: &str, kind: &str, spec: &Value) -> Vec<
             mirror
                 .get(project, reference.kind, reference.name)
                 .is_none()
+                && !in_bundle(reference.kind, reference.name)
         })
         .map(|reference| Missing {
             path: reference.path,

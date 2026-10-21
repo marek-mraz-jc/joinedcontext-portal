@@ -40,6 +40,8 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
   const [ownType, setOwnType] = useState("");
   const [space, setSpace] = useState(given);
   const [busy, setBusy] = useState(false);
+  // The file's name while it is read and ranked: the catalogue can take seconds (T-5109).
+  const [reading, setReading] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [proposed, setProposed] = useState<Proposed | null>(null);
   const [progress, setProgress] = useState<{ sent: number; total: number } | null>(null);
@@ -52,6 +54,7 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
     setRead(null);
     setProposed(null);
     setDone(null);
+    setReading(file.name);
     try {
       const table = await readTable(file);
       if (table.rows.length === 0) {
@@ -73,6 +76,8 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
       setChoice(matches[0]?.model.id ?? "");
     } catch (error) {
       setProblem(unreadableText(t, error));
+    } finally {
+      setReading(null);
     }
   };
 
@@ -150,6 +155,11 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
             {t("spaces.upload.choose")}
           </span>
         </FilePicker>
+        {reading ? (
+          <p role="status" className="text-body text-fg-muted">
+            {t("spaces.upload.reading", { name: reading })}
+          </p>
+        ) : null}
         {read ? (
           <p className="text-body text-fg-muted">
             {t("spaces.import.read", { name: read.name, rows: read.table.rows.length, columns: read.table.columns.length })}
