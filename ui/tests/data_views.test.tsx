@@ -33,6 +33,8 @@ import {
   daysOf,
   imageOf,
   linkAttributes,
+  nearestDay,
+  observedChoices,
   primaryOf,
   rescheduled,
   stepOf,
@@ -113,6 +115,11 @@ describe("the gallery", () => {
     const first = cards[0];
     expect(within(first).getByRole("button", { name: "Station 1" })).toBeInTheDocument();
     expect(within(first).getAllByRole("term")).toHaveLength(CARD_FIELDS);
+    // A long text keeps a card to three lines and the whole of it in the tooltip (T-5064: a 400 px
+    // gallery of Helsinki's events was 28 800 px tall).
+    const value = within(first).getAllByRole("definition")[0];
+    expect(value).toHaveClass("line-clamp-3");
+    expect(value.getAttribute("title")).toBe(value.textContent === "—" ? null : value.textContent);
     await expectNoViolations(screen.getByTestId("view-gallery"));
 
     await userEvent.click(within(first).getByRole("button", { name: "Station 1" }));
@@ -207,9 +214,27 @@ describe("the board (T-3101)", () => {
     );
   });
 
-  it("says why there is no board when the model lists no values", () => {
+  it("says why there is no board when neither the model nor the rows give a short list of values", () => {
     show(sourceWith(vi.fn()), {});
     expect(screen.getByText(en.spaces.views.noEnum)).toBeInTheDocument();
+  });
+
+  // T-5064: dev's Event model lists no enum, yet eventStatus holds three values over 122 rows.
+  it("makes columns of the values the rows hold when the model lists none, and never of a name", async () => {
+    const status = (n: number, value: string) => station(n, { eventStatus: { type: "Property", value } });
+    const held = [status(1, "EventScheduled"), status(2, "EventScheduled"), status(3, "EventCancelled"), status(4, "EventScheduled")];
+    expect(observedChoices(held)).toEqual({
+      eventStatus: [{ value: "EventCancelled" }, { value: "EventScheduled" }],
+    });
+    expect(observedChoices([...held, station(5, { startDate: { type: "Property", value: "2026-10-21" } })])).not.toHaveProperty("startDate");
+    const patch = vi.fn(async () => undefined);
+    render(
+      <I18nextProvider i18n={i18n}>
+        <KanbanView rows={held} source={sourceWith(patch)} enums={{}} />
+      </I18nextProvider>,
+    );
+    expect(within(screen.getByTestId("kanban-column-EventScheduled")).getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.queryByText(en.spaces.views.noEnum)).toBeNull();
   });
 });
 
@@ -568,10 +593,19 @@ describe("writes, reasons and phones (T-4884)", () => {
     expect(within(screen.getByTestId("calendar-day-2026-10-06")).getByRole("button", { name: "Event 1" }).getAttribute("draggable")).toBe("false");
   });
 
-  it("says on a phone when nothing falls in the month shown, and hides the empty days", () => {
-    wrap(<CalendarView rows={[event(1, "2026-12-06")]} source={{ query: vi.fn(), get: vi.fn() }} today="2026-10-06" />);
-    expect(screen.getByText(en.spaces.views.nothingThisSpan)).toHaveClass("sm:hidden");
+  it("says when nothing falls in the month shown, hides the empty days on a phone and goes to the nearest row", async () => {
+    wrap(<CalendarView rows={[event(1, "2026-12-06"), event(2, "2025-01-03")]} source={{ query: vi.fn(), get: vi.fn() }} today="2026-10-06" />);
+    expect(screen.getByText(en.spaces.views.nothingThisSpan)).toBeVisible();
     expect(screen.getByTestId("calendar-day-2026-10-06")).toHaveClass("hidden");
+    await userEvent.click(screen.getByRole("button", { name: "Go to December 6, 2026" }));
+    expect(within(screen.getByTestId("calendar-day-2026-12-06")).getByRole("button", { name: "Event 1" })).toBeInTheDocument();
+    expect(screen.queryByText(en.spaces.views.nothingThisSpan)).toBeNull();
+  });
+
+  it("picks the row day nearest to the shown one, the earlier on a tie", () => {
+    expect(nearestDay([undefined, "2026-12-06", "2025-01-03"], "2026-10-06")).toBe("2026-12-06");
+    expect(nearestDay(["2026-10-08", "2026-10-04"], "2026-10-06")).toBe("2026-10-04");
+    expect(nearestDay([undefined], "2026-10-06")).toBeUndefined();
   });
 
   it("starts a calendar and a timeline from the key named as a start, not the first in name order", () => {

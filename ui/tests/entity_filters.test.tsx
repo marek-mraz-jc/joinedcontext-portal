@@ -11,6 +11,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import type { Manifest } from "../src/api/manifest";
+import { EntityFilters } from "../src/components/entities/EntityFilters";
 import { filterSlotsOf, filtersFromQ, opsFor, qFromFilters, qProblem } from "../src/components/entities/filters";
 
 const IDENTITY = { subject: "b7c1e0f4", username: "jana.kovacova", name: "Jana Kováčová", roles: [] };
@@ -298,5 +299,34 @@ describe("data explorer (UI-33)", () => {
         urlOf(call[0]).pathname.endsWith("/datamodels/bb-air-quality/source"),
       ),
     ).toBe(true);
+  });
+});
+
+// T-5064: a space's board and calendar showed a type, a scope and attribute checkboxes that changed
+// nothing (the page keeps only q); in that place the component offers the filters and q alone.
+describe("the filters of a space's view", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  it("offers only the filter rows and q, and sends a typed q", async () => {
+    const onChange = vi.fn();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <EntityFilters
+          id="view"
+          onlyQuery
+          types={["Event"]}
+          slots={[{ name: "eventStatus", kind: "Property" }]}
+          value={{ type: "Event" }}
+          onChange={onChange}
+        />
+      </I18nextProvider>,
+    );
+    expect(screen.queryByLabelText(en.entities.type)).toBeNull();
+    expect(screen.queryByLabelText(en.entities.scopeQ)).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: "eventStatus" })).toBeNull();
+    await userEvent.type(screen.getByLabelText(en.entities.q), "x");
+    expect(onChange).toHaveBeenLastCalledWith({ type: "Event", q: "x" });
   });
 });

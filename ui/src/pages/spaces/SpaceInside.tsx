@@ -27,7 +27,7 @@ import {
 import { useBranding } from "../../branding";
 import { SharedWithBadge } from "../../components/endpoints/sharing";
 import { useIdentity } from "../../auth/AuthProvider";
-import { accessQuery, deniedAttributes, editableAttributes, mayDelete } from "../../components/entities/AccessPanel";
+import { accessQuery, deniedAttributes, editableAttributes, mayCreate, mayDelete } from "../../components/entities/AccessPanel";
 import type { GrantDocument } from "../../components/entities/AccessPanel";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { EntityFilters } from "../../components/entities/EntityFilters";
@@ -536,6 +536,12 @@ function SpaceData({
     () => (copy ? null : writerOf(grants, endpoints, type, slots, t)),
     [copy, grants, endpoints, type, slots, t],
   );
+  // The Endpoint a new row is created through: the first whose grant creates the type (T-5064).
+  // The space surface alone refused the demo steward every create its Endpoints grant.
+  const creator = useMemo(
+    () => (copy ? undefined : grants.map((doc, at) => (mayCreate(doc, type) ? slugOf(endpoints[at]) : undefined)).find(Boolean)),
+    [copy, grants, endpoints, type],
+  );
   const gridSource = useMemo(
     () => (writer ? { ...source, patch: endpointSource(writer.slug, originTransport(), i18n.language).patch } : source),
     [writer, source, i18n.language],
@@ -760,6 +766,7 @@ function SpaceData({
             size="lg"
           >
             <FormView
+              endpoint={creator}
               space={space}
               type={type}
               slots={typeSlots}
@@ -935,7 +942,7 @@ function SpaceData({
       {probe.isSuccess && view === "form" ? (
         <div {...tabPanelProps("space-data-view", view)} className="flex flex-col gap-3">
           <FormSettingsEditor slots={typeSlots} value={formSettings} onChange={setFormSettings} />
-          {copy ? null : <FormView space={space} type={type} slots={typeSlots} enums={enums} settings={formSettings} />}
+          {copy ? null : <FormView space={space} endpoint={creator} type={type} slots={typeSlots} enums={enums} settings={formSettings} />}
           <FormSharePanel
             key={type}
             project={project}
@@ -951,6 +958,7 @@ function SpaceData({
         <div {...tabPanelProps("space-data-view", view)} className="flex flex-col gap-3">
           <EntityFilters
             id="space-view-filter"
+            onlyQuery
             types={[type]}
             slots={slots}
             value={{ type, q }}

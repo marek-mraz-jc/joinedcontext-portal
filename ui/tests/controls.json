@@ -293,6 +293,7 @@
         "Checkbox": 1
       },
       "tests": [
+        "entity_filters.test.tsx",
         "form_entity_filters.test.tsx"
       ]
     },
@@ -1754,7 +1755,7 @@
     },
     "src/pages/spaces/DataViews.tsx": {
       "controls": {
-        "Button": 14,
+        "Button": 15,
         "Checkbox": 1
       },
       "tests": [
