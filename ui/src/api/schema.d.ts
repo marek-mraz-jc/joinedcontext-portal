@@ -9983,6 +9983,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "reason": "The KPI project ended"
+                 *     }
+                 */
                 "application/json": components["schemas"]["Decision"];
             };
         };
@@ -10048,6 +10053,11 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "reason": "The KPI project ended"
+                 *     }
+                 */
                 "application/json": components["schemas"]["Decision"];
             };
         };
@@ -16026,6 +16036,26 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "endpoint": {
+                 *         "name": "air-quality",
+                 *         "project": "helsinki"
+                 *       },
+                 *       "operations": "read",
+                 *       "reason": "Daily air-quality KPI for the city board",
+                 *       "types": [
+                 *         {
+                 *           "attrs": [
+                 *             "pm10",
+                 *             "no2"
+                 *           ],
+                 *           "type": "AirQualityObserved"
+                 *         }
+                 *       ],
+                 *       "until": "2027-01-01T00:00:00Z"
+                 *     }
+                 */
                 "application/json": components["schemas"]["NewRequest"];
             };
         };

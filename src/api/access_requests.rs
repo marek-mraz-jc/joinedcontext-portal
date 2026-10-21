@@ -202,7 +202,11 @@ fn endpoint_of(state: &AppState, project: &str, name: &str) -> Option<Value> {
         ("project" = String, Path, description = "The pipeline's project"),
         ("name" = String, Path, description = "The pipeline"),
     ),
-    request_body = NewRequest,
+    request_body(
+        content = NewRequest,
+        content_type = "application/json",
+        example = json!({ "endpoint": { "project": "helsinki", "name": "air-quality" }, "operations": "read", "types": [{ "type": "AirQualityObserved", "attrs": ["pm10", "no2"] }], "until": "2027-01-01T00:00:00Z", "reason": "Daily air-quality KPI for the city board" })
+    ),
     responses(
         (status = 201, description = "The request, pending", body = Object),
         (status = 400, description = "The request names too much, too little or a bad name", body = crate::error::ProblemDetails),
@@ -475,7 +479,11 @@ fn decision(body: Result<Json<Decision>, JsonRejection>) -> Result<String, ApiEr
         ("project" = String, Path, description = "The owning project"),
         ("id" = String, Path, description = "The request"),
     ),
-    request_body = Decision,
+    request_body(
+        content = Decision,
+        content_type = "application/json",
+        example = json!({ "reason": "The KPI project ended" })
+    ),
     responses(
         (status = 200, description = "The request, declined", body = Object),
         (status = 400, description = "No reason", body = crate::error::ProblemDetails),
@@ -518,7 +526,11 @@ pub(crate) async fn decline_request(
         ("project" = String, Path, description = "The owning project"),
         ("id" = String, Path, description = "The request"),
     ),
-    request_body = Decision,
+    request_body(
+        content = Decision,
+        content_type = "application/json",
+        example = json!({ "reason": "The KPI project ended" })
+    ),
     responses(
         (status = 202, description = "The Change that revokes it", body = crate::change::Change),
         (status = 400, description = "No reason", body = crate::error::ProblemDetails),

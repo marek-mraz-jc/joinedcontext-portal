@@ -3450,6 +3450,9 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Decision"
+              },
+              "example": {
+                "reason": "The KPI project ended"
               }
             }
           },
@@ -3542,6 +3545,9 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Decision"
+              },
+              "example": {
+                "reason": "The KPI project ended"
               }
             }
           },
@@ -11863,6 +11869,24 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/NewRequest"
+              },
+              "example": {
+                "endpoint": {
+                  "name": "air-quality",
+                  "project": "helsinki"
+                },
+                "operations": "read",
+                "reason": "Daily air-quality KPI for the city board",
+                "types": [
+                  {
+                    "attrs": [
+                      "pm10",
+                      "no2"
+                    ],
+                    "type": "AirQualityObserved"
+                  }
+                ],
+                "until": "2027-01-01T00:00:00Z"
               }
             }
           },
