@@ -264,6 +264,20 @@ describe("Card, EmptyState and PageHeader, at their edges", () => {
     expect(container.firstElementChild?.className).not.toMatch(/\bp-5\b/);
   });
 
+  it("a_card_carries_exactly_one_padding_and_the_element_it_is_asked_for", () => {
+    // T-4888: a `p-3` class beside the default `p-5` lost by CSS source order; the prop is the one padding.
+    const { container } = wrap(
+      <ul>
+        <Card as="li" padding="sm">
+          ovzdusie
+        </Card>
+      </ul>,
+    );
+    const card = container.querySelector("li");
+    expect(card?.className.match(/(?<![\w-])p-\d/g)).toEqual(["p-3"]);
+    expect(wrap(<Card>quota</Card>).container.firstElementChild?.className).toMatch(/(?<![\w-])p-5\b/);
+  });
+
   it("a_card_header_with_only_a_title_renders_neither_an_empty_description_nor_an_empty_action_bar", () => {
     const { container } = wrap(
       <Card>

@@ -7,7 +7,7 @@ import { api, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { Instantiate } from "./Instantiate";
-import { Button, EmptyState, PageFailed, PageHeader, PageLoading } from "../../components/ui";
+import { Button, Card, EmptyState, PageFailed, PageHeader, PageLoading } from "../../components/ui";
 
 /** The three review lanes a blueprint declares (CC-59, CC-63). */
 const RISK_STYLES: Record<string, string> = {
@@ -152,10 +152,7 @@ export function FlowGallery({ project }: { project: string }): JSX.Element {
           const spec = blueprintSpec(blueprint);
           const title = localized(blueprint.metadata.title, i18n.language, blueprint.metadata.name);
           return (
-            <li
-              key={blueprint.metadata.name}
-              className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4 shadow-1"
-            >
+            <Card as="li" padding="md" key={blueprint.metadata.name} className="flex flex-col gap-2">
               <div className="flex items-start justify-between gap-2">
                 <h2 className="font-semibold">{title}</h2>
                 <RiskBadge riskClass={spec.riskClass} />
@@ -175,7 +172,7 @@ export function FlowGallery({ project }: { project: string }): JSX.Element {
               >
                 {t("flows.run")}
               </Button>
-            </li>
+            </Card>
           );
         })}
       </ul>

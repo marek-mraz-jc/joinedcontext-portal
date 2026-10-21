@@ -485,7 +485,7 @@ function Publications({
       <ul className="space-y-4">
         {publications.map((publication) => (
           <li key={publication.endpoint}>
-            <Card className="p-3">
+            <Card padding="sm">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono font-semibold">{publication.endpoint}</span>
                 <StatusChip publication={publication} />

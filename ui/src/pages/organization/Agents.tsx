@@ -10,22 +10,7 @@ import type { Manifest, ResourceProposal } from "../../api/manifest";
 import { allows, usePermissions } from "../../api/permissions";
 import { proposeChecked } from "../../api/proposal";
 import type { components } from "../../api/schema";
-import {
-  Alert,
-  Badge,
-  Button,
-  EmptyState,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
-  TableSkeleton,
-  Tabs,
-  safeHref,
-  tabPanelProps,
-} from "../../components/ui";
+import { Alert, Badge, Button, Card, EmptyState, safeHref, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TableSkeleton, tabPanelProps, Tabs } from "../../components/ui";
 import type { BadgeTone } from "../../components/ui/Badge";
 import { PageFailed } from "../../components/ui/PageState";
 
@@ -117,10 +102,7 @@ export function Agents(): JSX.Element {
             aria-label={t("organization.agents.caption")}
           >
             {items.map((item) => (
-              <li
-                key={agentPath(item)}
-                className="rounded-lg border border-border bg-surface p-4 shadow-1"
-              >
+              <Card as="li" padding="md" key={agentPath(item)}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <Link
@@ -145,7 +127,7 @@ export function Agents(): JSX.Element {
                 <p className="text-caption text-fg-muted">
                   {reachText(t, item)} · {spendText(t, item)}
                 </p>
-              </li>
+              </Card>
             ))}
           </ul>
           <div className="hidden sm:block">

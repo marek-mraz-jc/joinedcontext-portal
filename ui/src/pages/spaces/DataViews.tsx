@@ -276,7 +276,7 @@ export function GalleryView({
           const picture = imageOf(row, chosenImage || undefined);
           return (
             <li key={row.id}>
-              <Card className="flex h-full flex-col gap-2 p-3">
+              <Card padding="sm" className="flex h-full flex-col gap-2">
                 {picture && "src" in picture ? (
                   <img src={picture.src} alt="" className="aspect-video w-full rounded-md object-cover" loading="lazy" />
                 ) : picture ? (
@@ -570,7 +570,7 @@ export function KanbanView({
                     }}
                     onDragEnd={() => setDragging(null)}
                   >
-                    <Card className="flex flex-col gap-1 p-2">
+                    <Card padding="xs" className="flex flex-col gap-1">
                       <Button
                         variant="ghost"
                         className="justify-start px-0 text-left font-semibold [overflow-wrap:anywhere]"

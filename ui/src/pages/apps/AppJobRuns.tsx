@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
-import { Badge, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TableRowHeaderCell } from "../../components/ui";
+import { Badge, Card, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TableRowHeaderCell } from "../../components/ui";
 import type { BadgeTone } from "../../components/ui/Badge";
 
 /** One declared job, `spec.server.jobs[]` (AP-154). */
@@ -73,7 +73,7 @@ export function AppJobRuns({ project, name }: { project: string; name: string })
   };
 
   return (
-    <section aria-labelledby={heading} className="space-y-2 rounded-lg border border-border bg-surface p-3">
+    <Card as="section" padding="sm" aria-labelledby={heading} className="space-y-2">
       <h2 id={heading} className="text-sm font-semibold">
         {t("apps.jobs.title")}
       </h2>
@@ -116,6 +116,6 @@ export function AppJobRuns({ project, name }: { project: string; name: string })
         </TableBody>
       </Table>
       <p className="text-caption text-fg-muted">{t("apps.jobs.note")}</p>
-    </section>
+    </Card>
   );
 }

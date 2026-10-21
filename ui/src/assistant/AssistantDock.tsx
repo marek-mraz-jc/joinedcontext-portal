@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Alert, Button, Field, PermissionGuard, Textarea } from "../components/ui";
+import { Alert, Button, Card, Field, PermissionGuard, Textarea } from "../components/ui";
 import type { JSX, ReactNode } from "react";
 import { clsx } from "clsx";
 import { useQueryClient } from "@tanstack/react-query";
@@ -553,11 +553,7 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
   }
 
   const conversation = building ? (
-        <div
-          id="run-chat"
-          data-testid="assistant-build"
-          className="flex min-h-48 w-full flex-1 flex-col gap-3 overflow-y-auto rounded-lg border border-border bg-surface p-3"
-        >
+        <Card padding="sm" id="run-chat" data-testid="assistant-build" className="flex min-h-48 w-full flex-1 flex-col gap-3 overflow-y-auto">
           <Button
             size="sm"
             onClick={() => {
@@ -576,14 +572,10 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
               }}
             />
           </Suspense>
-        </div>
+        </Card>
       ) : !run ? (
         <>
-          <div
-            id="run-chat"
-            data-testid="assistant-empty"
-            className="flex min-h-48 w-full flex-1 flex-col gap-4 overflow-y-auto rounded-lg border border-border bg-surface p-3"
-          >
+          <Card padding="sm" id="run-chat" data-testid="assistant-empty" className="flex min-h-48 w-full flex-1 flex-col gap-4 overflow-y-auto">
             <p className="text-body text-fg-muted">{t("assistant.empty.lead")}</p>
             <Paths
               project={activeProject}
@@ -593,7 +585,7 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
                 void startConversation("", path);
               }}
             />
-          </div>
+          </Card>
 
           <form
             className="flex flex-col gap-2"
@@ -678,10 +670,7 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
               </Button>
             </div>
           ) : null}
-          <div
-            id="run-chat"
-            className="min-h-48 w-full flex-1 rounded-lg border border-border bg-surface [&>section]:h-full [&>section]:min-h-0"
-          >
+          <Card flush id="run-chat" className="min-h-48 w-full flex-1 [&>section]:h-full [&>section]:min-h-0">
             <ConversationPanel
               project={run.project}
               events={events}
@@ -735,7 +724,7 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
               }}
               usedEndpoints={liveEndpoints}
             />
-          </div>
+          </Card>
         </>
       );
 

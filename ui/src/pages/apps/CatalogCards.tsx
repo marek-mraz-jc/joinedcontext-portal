@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
-import { Button } from "../../components/ui";
+import { Button, Card } from "../../components/ui";
 import { Icon } from "../../components/ui/icons";
 import type { IconName } from "../../components/ui/icons";
 
@@ -129,10 +129,7 @@ export function CatalogCards({
   const hidden = items.length - FIRST_ROWS;
   return (
     <div className="flex min-w-0 max-w-full flex-col text-xs">
-      <ul
-        className="min-w-0 divide-y divide-border rounded-lg border border-border bg-surface"
-        aria-label={t("agentRun.catalog.title")}
-      >
+      <Card as="ul" flush className="min-w-0 divide-y divide-border" aria-label={t("agentRun.catalog.title")}>
         {shown.map((item) => {
           const open = item.access.verdict === "allowed";
           const access = `${open ? t("agentRun.catalog.allowed") : t("agentRun.catalog.restricted")} · ${item.access.reason}`;
@@ -228,7 +225,7 @@ export function CatalogCards({
             </li>
           );
         })}
-      </ul>
+      </Card>
       {hidden > 0 ? (
         <Button
           variant="ghost"

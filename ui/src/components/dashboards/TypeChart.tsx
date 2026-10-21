@@ -9,7 +9,7 @@ import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { unitTitle } from "@joinedcontext/sdk";
 import { fetchEntities } from "../entities/filters";
-import { Skeleton } from "../ui";
+import { Card, Skeleton } from "../ui";
 import { PageFailed } from "../ui/PageState";
 import { collect } from "../../pages/explore/exportView";
 import { barsOf, binsOf, unitCodeOf } from "./typeCharts";
@@ -51,20 +51,20 @@ export function TypeChart({
 
   if (read.isPending) {
     return (
-      <figure className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
+      <Card as="figure" padding="sm" className="flex flex-col gap-2">
         <figcaption className="text-body font-medium">{title}</figcaption>
         <div role="status" aria-busy="true" aria-label={t("app.loading")}>
           <Skeleton className="h-32 w-full" />
         </div>
-      </figure>
+      </Card>
     );
   }
   if (read.isError) {
     return (
-      <figure className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
+      <Card as="figure" padding="sm" className="flex flex-col gap-2">
         <figcaption className="text-body font-medium">{title}</figcaption>
         <PageFailed error={read.error} onRetry={() => void read.refetch()} />
-      </figure>
+      </Card>
     );
   }
 
@@ -82,7 +82,7 @@ export function TypeChart({
   const height = rows.length * 10;
 
   return (
-    <figure className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
+    <Card as="figure" padding="sm" className="flex flex-col gap-2">
       <figcaption className="text-body font-medium">{title}</figcaption>
       {rows.length === 0 ? (
         <p role="status" className="text-caption text-fg-muted">
@@ -121,6 +121,6 @@ export function TypeChart({
           </ul>
         </>
       )}
-    </figure>
+    </Card>
   );
 }

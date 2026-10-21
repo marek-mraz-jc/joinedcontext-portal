@@ -1,3 +1,4 @@
+import { Card } from "../../components/ui";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -98,10 +99,7 @@ export function EndpointProposalCard({
   };
 
   return (
-    <section
-      aria-label={t("agentRun.proposal.title")}
-      className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 text-sm"
-    >
+    <Card as="section" padding="sm" aria-label={t("agentRun.proposal.title")} className="flex flex-col gap-2 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone="primary">Endpoint</Badge>
         <span className="min-w-0 break-words font-medium">
@@ -176,6 +174,6 @@ export function EndpointProposalCard({
           {t("agentRun.proposal.review")}
         </Button>
       </div>
-    </section>
+    </Card>
   );
 }

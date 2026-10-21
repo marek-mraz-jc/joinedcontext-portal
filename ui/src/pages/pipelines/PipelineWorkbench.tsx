@@ -9,23 +9,7 @@ import type { Manifest } from "../../api/manifest";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { useModelSource } from "../../components/entities/filters";
 import { FormHeading } from "../../components/forms/FormRoute";
-import {
-  Alert,
-  Badge,
-  Button,
-  Checkbox,
-  Field,
-  FilePicker,
-  RadioGroup,
-  Select,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
-  Textarea,
-} from "../../components/ui";
+import { Alert, Badge, Button, Card, Checkbox, Field, FilePicker, RadioGroup, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Textarea } from "../../components/ui";
 import { classSlots, parseModel, unitCode } from "../models/linkml";
 import type { LinkmlModel, LinkmlSlot } from "../models/linkml";
 import { entityTypesOf, spaceOf } from "../spaces/spaceFacts";
@@ -451,10 +435,7 @@ function Step({
   children: ReactNode;
 }): JSX.Element {
   return (
-    <section
-      aria-labelledby={`${id}-title`}
-      className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
-    >
+    <Card as="section" padding="md" aria-labelledby={`${id}-title`} className="flex flex-col gap-3">
       <div>
         <FormHeading id={`${id}-title`} className="text-body font-semibold text-fg">
           <span className="mr-2 tabular-nums text-fg-subtle">{number}.</span>
@@ -463,7 +444,7 @@ function Step({
         <p className="text-caption text-fg-muted">{hint}</p>
       </div>
       {children}
-    </section>
+    </Card>
   );
 }
 
