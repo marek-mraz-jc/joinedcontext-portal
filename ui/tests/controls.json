@@ -1550,6 +1550,14 @@
         "lifetime_choice.test.tsx"
       ]
     },
+    "src/pages/pipelines/FlowMapView.tsx": {
+      "controls": {
+        "Button": 11
+      },
+      "tests": [
+        "flow_map.test.tsx"
+      ]
+    },
     "src/pages/pipelines/OutputMapper.tsx": {
       "controls": {
         "Button": 3
@@ -1709,7 +1717,7 @@
     },
     "src/pages/spaces/DataViews.tsx": {
       "controls": {
-        "Button": 13,
+        "Button": 14,
         "Checkbox": 1
       },
       "tests": [

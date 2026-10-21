@@ -8,7 +8,7 @@ import type { components } from "./schema";
 export type DataView = components["schemas"]["DataView"];
 export type ViewConfig = components["schemas"]["ViewConfig"];
 export type ViewMode = "personal" | "collaborative" | "locked";
-export type ViewKind = "grid" | "gallery" | "kanban" | "calendar" | "timeline" | "form";
+export type ViewKind = "grid" | "gallery" | "kanban" | "calendar" | "timeline" | "map" | "form";
 
 export const VIEW_MODES: ViewMode[] = ["personal", "collaborative", "locked"];
 

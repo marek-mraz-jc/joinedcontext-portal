@@ -322,6 +322,9 @@ routes:
     expect: [403, 403, 403, 403, 403, allow, 404, 403]
     body: {"name": "helsinki-copy"}
     note: "a 404 where the rule allows is an object the fixture does not hold; the check before it passed"
+  - route: GET /projects/{project}/flow-map
+    rule: "project-read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
   - route: GET /projects/{project}/registry
     rule: "project-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

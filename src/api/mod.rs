@@ -38,6 +38,7 @@ pub mod export;
 pub mod export_git;
 pub mod federation;
 pub mod feedback;
+pub mod flow_map;
 pub mod forms;
 pub mod health;
 pub mod import;
@@ -103,6 +104,7 @@ pub fn router() -> Router<AppState> {
         .merge(changes::router())
         .merge(restore::router())
         .merge(feedback::router())
+        .merge(flow_map::router())
         .merge(ckan::router())
         .merge(datamodels::router())
         .merge(drafts::router())
