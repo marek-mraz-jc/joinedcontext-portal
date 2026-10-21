@@ -24,8 +24,8 @@ export type OrganizationTab = (typeof ORGANIZATION_GROUPS)[number]["tabs"][numbe
 
 /**
  * The sections of `/organization/{tab}`, in the order of the side navigation's groups
- * (Architecture/09 §14.1, T-4831). Here, beside the groups, so the router knows a tab without
- * loading the Organization page itself.
+ * (Architecture/09 §14.1, T-4831). Here, not with the page, so the router checks a tab without
+ * loading every Administration section with the first page (bundle budget).
  */
 export const ORGANIZATION_TABS: readonly OrganizationTab[] = ORGANIZATION_GROUPS.flatMap((group) => group.tabs);
 

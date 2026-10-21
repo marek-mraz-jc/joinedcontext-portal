@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect } from "react";
+import { keepCopy } from "./components/layout/keepCopy";
 import {
   createRootRouteWithContext,
   createRoute,
@@ -25,10 +26,6 @@ const InboxPage = lazy(() => import("./pages/inbox/InboxPage").then((module) => 
 import { FormRouteHost } from "./components/forms/FormRoute";
 import type { FormTarget } from "./components/forms/FormRoute";
 import { ActivityPage } from "./routes/ActivityPage";
-// The Organization page (people, settings, limits, MQTT, agents) loads with its first visit (T-3280).
-const OrganizationPage = lazy(() =>
-  import("./pages/organization/OrganizationPage").then((module) => ({ default: module.OrganizationPage })),
-);
 const ApprovalsPage = lazy(() => import("./routes/ApprovalsPage").then((module) => ({ default: module.ApprovalsPage })));
 const ApprovalDetailPage = lazy(() => import("./routes/ApprovalDetailPage").then((module) => ({ default: module.ApprovalDetailPage })));
 const ModelsPage = lazy(() => import("./pages/models/ModelsPage").then((module) => ({ default: module.ModelsPage })));
@@ -65,6 +62,7 @@ const UploadCsv = lazy(() => import("./pages/spaces/UploadCsv").then((module) =>
 const AppPage = lazy(() => import("./pages/apps/AppPage").then((module) => ({ default: module.AppPage })));
 const AppOpenPage = lazy(() => import("./pages/apps/AppOpenPage").then((module) => ({ default: module.AppOpenPage })));
 const GroupPage = lazy(() => import("./pages/access/GroupPage").then((module) => ({ default: module.GroupPage })));
+const OrganizationPage = lazy(() => import("./pages/organization/OrganizationPage").then((module) => ({ default: module.OrganizationPage })));
 const PersonPage = lazy(() => import("./pages/organization/People").then((module) => ({ default: module.PersonPage })));
 const EndpointPage = lazy(() => import("./pages/endpoints/EndpointPage").then((module) => ({ default: module.EndpointPage })));
 const RegistrationPage = lazy(() => import("./routes/RegistrationPage").then((module) => ({ default: module.RegistrationPage })));
@@ -393,6 +391,8 @@ const protectedRoute = createRoute({
     workspace:
       typeof search.workspace === "string" && search.workspace !== "" ? search.workspace : undefined,
   }),
+  // And every link below keeps it, until Leave or another project says otherwise (T-4868).
+  search: { middlewares: [keepCopy] },
   component: function ProtectedRoute() {
     return (
       <WorkspaceProvider>

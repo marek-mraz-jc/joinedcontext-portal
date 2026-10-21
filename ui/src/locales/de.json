@@ -526,6 +526,8 @@
       "data": "Daten",
       "dataEmpty": "Noch nichts: keine Pipeline hat in diesen Raum geschrieben.",
       "addRow": "Zeile hinzufügen",
+      "copyLive": "Entitäten bleiben in einer Kopie live",
+      "copyLiveHint": "Eine Kopie enthält die Ressourcen des Projekts, nicht seine Entitäten: Die Zeilen hier sind der Live-Space, darum lässt sich aus der Kopie nichts daran ändern. Um Daten zu ändern, ohne das Projekt zu berühren, starten Sie die Vorschau der Kopie, kopieren Sie Daten hinein und ändern Sie sie dort:",
       "addRowTitle": "Neu: {type}",
       "dataThroughEndpoints": "Sie können diesen Raum über seine Endpunkte sehen:",
       "dataNoTypes": "Dieser Raum nennt kein Datenmodell, also gibt es keinen Typ zu lesen.",

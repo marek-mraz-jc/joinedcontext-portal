@@ -641,3 +641,55 @@ async fn a_write_into_someone_elses_workspace_is_refused() {
     assert_eq!(answer.status, StatusCode::FORBIDDEN, "{}", answer.text);
     assert!(answer.text.contains("only its owner"), "{}", answer.text);
 }
+
+#[tokio::test]
+async fn a_form_checks_and_writes_its_draft_into_the_owners_workspace() {
+    // T-4868: every Portal form names the draft it holds beside the manifest; inside a copy the
+    // API refused that with "a draft is proposed on its own", so no form could change a copy.
+    let (server, state) = world().await;
+    opened(&state).await;
+    let mut proposal = json!({
+        "apiVersion": "joinedcontext.com/v1alpha1",
+        "kind": "ContextSpace",
+        "metadata": { "name": "air", "namespace": PROJECT },
+        "spec": { "isSandbox": true, "defaultLocale": "en", "ttlDays": 12 }
+    });
+    proposal["draft"] = json!({ "kind": "ContextSpace", "name": "air" });
+    let uri = "/api/v1/projects/ovzdusie/spaces/air";
+    let checked = send(
+        &state,
+        steward(),
+        "PUT",
+        &format!("{uri}?dryRun=All&workspace=air-v2"),
+        Some(proposal.clone()),
+    )
+    .await;
+    assert_eq!(checked.status, StatusCode::OK, "{}", checked.text);
+    assert_eq!(
+        body(&checked.text)["verdict"]["ok"],
+        true,
+        "{}",
+        checked.text
+    );
+    let written = send(
+        &state,
+        steward(),
+        "PUT",
+        &format!("{uri}?workspace=air-v2"),
+        Some(proposal),
+    )
+    .await;
+    assert_eq!(written.status, StatusCode::OK, "{}", written.text);
+    assert_eq!(
+        body(&written.text)["branch"],
+        "workspace/air-v2",
+        "{}",
+        written.text
+    );
+    assert!(
+        body(&written.text)["metadata"].is_null(),
+        "a write, not a Change of the project: {}",
+        written.text
+    );
+    drop(server);
+}
