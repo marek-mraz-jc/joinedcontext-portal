@@ -846,7 +846,7 @@
       "title": "Fill an attribute with AI",
       "lead": "A prompt answered for each entity on screen, from its own attributes. The assistant prepares the values; you review them and apply, with your rights, and the model calls count against your daily budget.",
       "attribute": "Attribute to fill",
-      "attributeHint": "An attribute name: a letter, then letters, digits or _, at most 64.",
+      "attributeHint": "A property of the type's model the answers are written to.",
       "endpoint": "Through Endpoint",
       "prompt": "Prompt",
       "promptHint": "What to answer for each entity, at most {count} characters, e.g. Summarise the description in one sentence.",
@@ -2123,7 +2123,6 @@
         "endpointHint": "The endpoint the indicator is computed from, read under its policy.",
         "nameHint": "Lower-case letters, digits and hyphens; it names the indicator and its pipeline.",
         "typeHint": "The entity type whose values are aggregated, one the endpoint's space models.",
-        "attributeHint": "The numeric attribute of that type the aggregate reads.",
         "attributePick": "The numeric attributes the model of that type lists; pick the one the aggregate reads.",
         "aggregateHint": "How the values of one period become one number.",
         "periodHint": "How often the indicator is computed, as a duration such as 15m or 1h.",
@@ -2142,7 +2141,8 @@
       "spaceHint": "The space the pipeline reads, through one of its endpoints and that endpoint's policy.",
       "attributeHint": "The attribute the snippet below works on.",
       "pickSpaceFirst": "Pick a space first.",
-      "pickTypeFirst": "Pick an endpoint and a type first."
+      "pickTypeFirst": "Pick an endpoint and a type first.",
+      "noAttributes": "No attribute to aggregate yet: load a sample or add attributes to the type's model."
     },
     "test": {
       "title": "Try it on a sample",
@@ -2215,7 +2215,7 @@
       "outputWritesHint": "The Endpoint this output writes every message through, as the first output does.",
       "sourceReads": "This source reads",
       "sourceReadsHint": "The runner merges every source of the pipeline into one stream before the first step.",
-      "attrsHint": "Comma-separated; empty reads every attribute.",
+      "attrsHint": "Pick the attributes to read; none picked reads every attribute.",
       "mappingRefHint": "A Mapping of this project; the step applies it to each record.",
       "moduleHint": "The path or package of the module the step runs.",
       "functionHint": "The module's entry point the step calls for each record.",
@@ -2650,7 +2650,8 @@
         "source": "The endpoint to read",
         "type": "Entity type",
         "attribute": "Attribute to average",
-        "attributeHelp": "A numeric attribute of the type, by its name in the model."
+        "attributeHelp": "A numeric attribute of the type, e.g. pm10.",
+        "typeHelp": "A type the chosen endpoint's space models; its numbers are offered below."
       },
       "problem": {
         "source": "Choose the source.",
@@ -2797,8 +2798,6 @@
       "lead": "Ask the owner of another space for this pipeline's read or write there. Nothing is granted until they approve.",
       "none": "This pipeline has asked for no access to another space.",
       "request": "Request access",
-      "project": "Owning project",
-      "projectHelp": "The project that owns the space, as its catalog page names it.",
       "endpoint": "Endpoint",
       "operationsLegend": "What the pipeline does there",
       "operations": {
@@ -2806,7 +2805,7 @@
         "write": "Write"
       },
       "types": "Types and attributes",
-      "typesHelp": "Name each entity type and every attribute the pipeline needs, separated by commas. A request never asks for all of them.",
+      "typesHelp": "Name each entity type and every attribute the pipeline needs. A request never asks for all of them.",
       "type": "Entity type",
       "attrs": "Attributes",
       "addType": "Add a type",
@@ -2845,7 +2844,20 @@
       "declineOf": "Decline access for {account}",
       "revoke": "Revoke",
       "revokeOf": "Revoke access of {account}",
-      "reasonFirst": "Write the reason first."
+      "reasonFirst": "Write the reason first.",
+      "endpointHelp": "An Endpoint of another space you may read, e.g. air-quality of project helsinki. For one you cannot see, type project/endpoint, e.g. helsinki/air-quality; its owners approve the request.",
+      "endpointTyped": "Ask for {name}",
+      "endpointTypedBad": "\"{name}\" is no project/endpoint name; type it as helsinki/air-quality.",
+      "typedTypeHelp": "The owners of a typed Endpoint check this name against their data model; type it as their model spells it.",
+      "endpointSpace": "space {space}",
+      "endpointProject": "Project {project}",
+      "noEndpoints": "No Endpoint of another space is yours to read. For one you cannot see, type its project and name with a slash between them.",
+      "typeHelp": "A type the Endpoint's model serves.",
+      "attrsHelp": "Every attribute the pipeline needs; a request never asks for all.",
+      "noTypes": "The Endpoint's space has no compiled data model, so no type can be asked for yet. Ask its owners to add one.",
+      "endpointFirst": "Choose the Endpoint first.",
+      "noAttrs": "The model declares no attribute of {type}.",
+      "typeFirst": "Choose the entity type first."
     },
     "map": {
       "views": "Pipeline views",
@@ -4489,7 +4501,6 @@
   },
   "entities": {
     "type": "Entity type",
-    "typePlaceholder": "Entity type",
     "scopeQ": "Scope",
     "scopeQHint": "NGSI-LD scopeQ, e.g. /district/1",
     "filters": "Filters",
@@ -4506,7 +4517,10 @@
     "qProblem": {
       "shape": "Write each condition as an attribute, a comparison and a value with no spaces, e.g. name==\"Hospital\"; join conditions with ; (and) or | (or).",
       "unquoted": "Text goes in double quotes: {fix}"
-    }
+    },
+    "typeHint": "The type of entity to list; the filters below follow its model.",
+    "noTypes": "No type to choose: the space's data model declares none and the space holds no entity you may read.",
+    "noAttributes": "The type's model lists no attribute: write the filter as Query (q) below."
   },
   "entityGrid": {
     "id": "ID",
@@ -5504,7 +5518,7 @@
     "namespace": "Project to import into",
     "namespaceHelp": "Every imported manifest is rewritten into it.",
     "orgDomain": "Organisation domain",
-    "orgDomainHelp": "Every imported id is rewritten to it.",
+    "orgDomainHelp": "Every imported id is rewritten to it, e.g. hel.fi; empty keeps this organization's own.",
     "orgDomainOwn": "this instance's own",
     "policy": "A resource this project already has",
     "policyOption": {
@@ -5543,7 +5557,10 @@
         "credential": "Credential"
       }
     },
-    "clearPasted": "Remove the credential from the bundle and choose the file again."
+    "clearPasted": "Remove the credential from the bundle and choose the file again.",
+    "orgDomainThis": "This organization",
+    "orgDomainNone": "No domain is set for this organization: type the one the ids are minted under.",
+    "orgDomainOther": "Use the domain “{name}”"
   },
   "drift": {
     "section": {
@@ -7146,6 +7163,18 @@
     },
     "createNamed": "New: “{name}”",
     "list": "Choices",
+    "attribute": {
+      "group": "{type} in {model}",
+      "relationship": "relationship",
+      "noType": "Choose the entity type first.",
+      "none": "The model declares no attribute of {type} yet.",
+      "noneNumeric": "The model declares no numeric attribute of {type} yet.",
+      "addInModel": "Add an attribute in the data models"
+    },
+    "entity": {
+      "noMatch": "No {type} matches what you typed. Try another part of its name.",
+      "none": "No {type} you may read is in this space yet."
+    },
     "person": {
       "group": "People of the organization",
       "typed": "Typed e-mail",

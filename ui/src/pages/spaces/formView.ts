@@ -32,6 +32,8 @@ export interface FormField {
   required: boolean;
   kind: FieldKind;
   options?: FieldOption[];
+  /** The entity type a relationship points to, when the model names it. */
+  target?: string;
 }
 
 /** One field as a view's settings name it. */
@@ -113,6 +115,7 @@ export function fieldsOf(
       required: Boolean(slot.required) || Boolean(setting.required),
       kind: kindOf(slot, options),
       ...(options && options.length > 0 ? { options } : {}),
+      ...(slot.kind === "Relationship" && slot.range ? { target: slot.range } : {}),
     });
   }
   return fields;

@@ -19,6 +19,7 @@ import type { Change, ResourceProposal } from "../../api/manifest";
 import { useProposal } from "../../api/proposal";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { endpointUrl } from "../../components/endpoints/links";
+import { EntitySearchPicker } from "../../components/pickers/EntitySearchPicker";
 import { Alert, Button, Checkbox, ExternalLink, Field, Input, Select, Textarea } from "../../components/ui";
 import { DNS1123 } from "../../schemas/kinds";
 import type { LinkmlSlot } from "../models/linkml";
@@ -54,7 +55,10 @@ export function FormFields({
   answers,
   problems,
   onAnswer,
+  space,
 }: {
+  /** A signed-in form's space: a relationship then picks an entity the person may read there. */
+  space?: string;
   idPrefix: string;
   fields: FormField[];
   answers: Answers;
@@ -110,7 +114,19 @@ export function FormFields({
         }
         return (
           <Field key={field.attr} id={id} label={field.label} required={field.required} help={field.help} errors={errors}>
-            {field.kind === "enum" ? (
+            {field.kind === "relationship" && space && field.target ? (
+              <EntitySearchPicker
+                id={id}
+                label={field.label}
+                labelled
+                space={space}
+                type={field.target}
+                value={answers[field.attr] ?? ""}
+                onChange={(picked) => onAnswer(field.attr, picked)}
+                required={field.required}
+                invalid={Boolean(errors)}
+              />
+            ) : field.kind === "enum" ? (
               <Select id={id} value={answers[field.attr] ?? ""} onChange={(event) => onAnswer(field.attr, event.target.value)}>
                 <option value="">{t("spaces.form.choose")}</option>
                 {(field.options ?? []).map((option: FieldOption) => (
@@ -158,6 +174,7 @@ function EntityFormBody({
   send,
   trap,
   test = false,
+  space,
 }: {
   idPrefix: string;
   type: string;
@@ -171,6 +188,8 @@ function EntityFormBody({
   trap?: string;
   /** A test run (EP-102): `send` writes nothing, and its answer says what a real one would do. */
   test?: boolean;
+  /** The signed-in form's space; a public form has none and reads nothing. */
+  space?: string;
 }): JSX.Element {
   const { t } = useTranslation();
   const { answers, set, reset } = useAnswers(initial);
@@ -204,7 +223,7 @@ function EntityFormBody({
 
   return (
     <form className="flex max-w-xl flex-col gap-3" noValidate onSubmit={(event) => void submit(event)}>
-      <FormFields idPrefix={idPrefix} fields={shown} answers={answers} problems={tried ? problems : {}} onAnswer={set} />
+      <FormFields idPrefix={idPrefix} fields={shown} answers={answers} problems={tried ? problems : {}} onAnswer={set} space={space} />
       {trap ? (
         <div aria-hidden="true" className="absolute -left-[10000px] h-px w-px overflow-hidden">
           <label htmlFor={`${idPrefix}-${trap}`}>{t("spaces.form.trap")}</label>
@@ -263,6 +282,7 @@ export function FormView({
       // A view or a type chosen anew is a fresh form: nothing typed carries over.
       key={`${type}-${JSON.stringify(settings ?? {})}`}
       idPrefix="space-form"
+      space={space}
       type={type}
       fields={fields}
       conditions={settings?.conditions}

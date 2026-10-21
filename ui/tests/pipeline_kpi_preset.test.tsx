@@ -90,6 +90,9 @@ function mockFetch(testResponse?: { status: number; body: unknown }, endpointSta
           headers: { "Content-Type": "application/json" },
         }),
       );
+    if (url.includes("/api/v1/projects/helsinki/datamodels/bikes/source")) {
+      return Promise.resolve(new Response(BIKES_LINKML, { status: 200, headers: { "Content-Type": "text/yaml" } }));
+    }
     if (url.includes("/api/v1/organization/datamodels")) {
       return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: MODELS, smartDataModels: [] });
     }
@@ -266,17 +269,15 @@ describe("PipelineStudio KPI preset", () => {
     const { onChange } = renderStudio();
     await userEvent.selectOptions(screen.getByLabelText(en.pipelines.studio.preset.title), "kpi");
     await userEvent.selectOptions(await screen.findByLabelText(en.pipelines.studio.kpi.endpoint), "helsinki-all");
-    const attribute = await waitFor(() => {
-      const control = screen.getByLabelText(en.pipelines.studio.kpi.attribute);
-      expect(control.tagName).toBe("SELECT");
-      return control as HTMLSelectElement;
-    });
-    const offered = [...attribute.options].map((option) => option.value).filter(Boolean);
-    expect(offered).toContain("totalSlotNumber");
-    expect(offered).toContain("availableBikeNumber");
-    expect(offered).not.toContain("name");
+    // The model's numbers are offered in a picker, never a text box (T-4946).
+    const attribute = screen.getByRole("combobox", { name: en.pipelines.studio.kpi.attribute });
     expect(attribute).toHaveAccessibleDescription(en.pipelines.studio.kpi.attributePick);
-    await userEvent.selectOptions(attribute, "totalSlotNumber");
+    await userEvent.click(attribute);
+    expect(await screen.findByRole("option", { name: /totalSlotNumber/ })).toBeInTheDocument();
+    const offered = screen.getAllByRole("option").map((option) => option.textContent ?? "");
+    expect(offered.some((text) => text.includes("availableBikeNumber"))).toBe(true);
+    expect(offered.some((text) => /^name/.test(text))).toBe(false);
+    await userEvent.click(screen.getByRole("option", { name: /totalSlotNumber/ }));
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ source: expect.objectContaining({ query: expect.objectContaining({ attrs: ["totalSlotNumber"] }) }) }),
     );
@@ -394,13 +395,12 @@ describe("PipelineStudio KPI preset", () => {
       "helsinki-all",
     );
 
-    const attrInput = screen.getByLabelText(en.pipelines.studio.kpi.attribute);
-    await userEvent.clear(attrInput);
-    await userEvent.type(attrInput, "freeBikeCount");
+    await userEvent.click(screen.getByRole("combobox", { name: en.pipelines.studio.kpi.attribute }));
+    await userEvent.click(await screen.findByRole("option", { name: /totalSlotNumber/ }));
 
     await waitFor(() => {
       const form = (onChange as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as PipelineForm;
-      expect(form.compute?.bloblang).toContain("freeBikeCount");
+      expect(form.compute?.bloblang).toContain("totalSlotNumber");
     });
   });
 });
