@@ -199,8 +199,39 @@ pub async fn checked_send(
             }
             _ => {}
         }
+        if let (Some(project), Some(name)) = (
+            rest.first(),
+            body.as_ref()
+                .and_then(|b| b.get("manifest").unwrap_or(b).pointer("/metadata/name"))
+                .and_then(Value::as_str)
+                .or_else(|| rest.get(2).copied()),
+        ) {
+            records_checked(state, project, name).await;
+        }
     }
     send(state, identity, http, uri, body).await
+}
+
+/// A Pipeline also proposes on a green record check of its spec (T-4840), which the workbench
+/// keeps on its draft: the check of the draft's manifest, recorded the way a sample would give it.
+/// Anything but a Pipeline draft with a verdict is left alone.
+pub async fn records_checked(state: &AppState, project: &str, name: &str) {
+    use joinedcontext_portal::ops::verdict::{digest_of, RecordsVerdict};
+    let store = joinedcontext_portal::ops::drafts::draft_store(state);
+    let Ok(Some(draft)) = store.get(project, "Pipeline", name).await else {
+        return;
+    };
+    let Some(mut verdict) = draft.verdict else {
+        return;
+    };
+    verdict.records = Some(Box::new(RecordsVerdict {
+        ok: true,
+        checked: 1,
+        rejected: 0,
+        spec_digest: digest_of(&draft.manifest["spec"]),
+        sample_digest: digest_of(&Value::Array(Vec::new())),
+    }));
+    let _ = store.set_verdict(project, "Pipeline", name, verdict).await;
 }
 
 /// A mirror holding the resources a manifest under test points at (MF-13, T-2233).

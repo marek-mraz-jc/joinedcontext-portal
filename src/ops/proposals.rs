@@ -299,7 +299,8 @@ async fn resolve_manifest_input(
     })
 }
 
-/// Records a check's verdict on the draft it names (AG-61, AG-62). A form saves its draft after
+/// Records a check's verdict on the draft it names, for a caller who may propose its kind (AG-61,
+/// AG-62, T-4840); anybody else's check is answered and kept nowhere. A form saves its draft after
 /// a debounce, so a check can name a draft that does not exist yet: the check then creates it
 /// from the manifest it judged, for a caller who may propose the kind, and a Check followed at
 /// once by Propose finds the draft and its verdict instead of a 404.
@@ -311,15 +312,6 @@ pub(crate) async fn record_verdict(
     manifest: &Value,
     verdict: &Verdict,
 ) {
-    let store = draft_store(state);
-    if !matches!(
-        store
-            .set_verdict(project, &draft.kind, &draft.name, verdict.clone())
-            .await,
-        Err(DraftError::NotFound { .. })
-    ) {
-        return;
-    }
     // An App's default group is checked by whoever may propose the App (AP-119).
     let update = state
         .mirror
@@ -338,7 +330,18 @@ pub(crate) async fn record_verdict(
     let may_propose = permissions.check(&draft.kind, Verb::Propose, None).is_ok()
         || (manifest.pointer("/status/build").is_some()
             && permissions.may_write_status_field(&draft.kind, "status.build"));
+    // Only a verdict of a person who may propose counts, on an existing draft as on a new
+    // one: a reader's check never replaces the proposer's (T-4840).
     if !may_propose {
+        return;
+    }
+    let store = draft_store(state);
+    if !matches!(
+        store
+            .set_verdict(project, &draft.kind, &draft.name, verdict.clone())
+            .await,
+        Err(DraftError::NotFound { .. })
+    ) {
         return;
     }
     let created = store
@@ -357,6 +360,41 @@ pub(crate) async fn record_verdict(
             .set_verdict(project, &draft.kind, &draft.name, verdict.clone())
             .await;
     }
+}
+
+/// Keeps the record check of a harness run (T-4840) on the verdict of `draft`, for a caller who
+/// may propose it. The verdict's own ok and findings stay those of the check that wrote them, so
+/// a run of the mapping never turns a red check green; with no verdict yet the record check waits
+/// on a red one, until the manifest's own check replaces it and keeps the records.
+/// ponytail: read then write, not one transaction; a dry run landing in between loses to the
+/// verdict read before it, and the gate then asks for the check again.
+pub(crate) async fn record_records(
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+    draft: &DraftRef,
+    manifest: &Value,
+    records: verdict::RecordsVerdict,
+) {
+    let earlier = draft_store(state)
+        .get(project, &draft.kind, &draft.name)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|d| d.verdict);
+    let mut verdict = earlier.unwrap_or_else(|| {
+        Verdict::red(
+            manifest,
+            vec![Finding {
+                level: Level::Error,
+                path: String::new(),
+                message: "The Pipeline itself has not been checked yet: run its check.".into(),
+            }],
+            None,
+        )
+    });
+    verdict.records = Some(Box::new(records));
+    record_verdict(caller, state, project, draft, manifest, &verdict).await;
 }
 
 /// The check an operation's gate names when it refuses a draft nobody has checked (PF-57).
@@ -606,7 +644,12 @@ fn verdict_gate(
         None => Some("verdict_absent"),
         Some(v) if !v.ok => Some("verdict_failed"),
         Some(v) if !v.is_fresh_for(manifest) => Some("stale"),
-        _ => None,
+        Some(v) => verdict::records_refusal(v, manifest),
+    };
+    // A Pipeline's records are checked by its test, whatever check the door names (T-4840).
+    let check_op = match reason {
+        Some(r) if r.starts_with("records_") => "jc_pipeline_test",
+        _ => check_op,
     };
 
     if let Some(reason) = reason {
@@ -620,6 +663,18 @@ fn verdict_gate(
                         "The {subject}'s check found problems; resolve them and check it again."
                     )
                 }
+                "records_unchecked" => format!(
+                    "The {subject}'s records have not been checked against the space's model, the \
+                     target Endpoint and the lifetime; test it on a sample, then propose it."
+                ),
+                "records_failed" => format!(
+                    "Records of the {subject}'s sample would not be written; resolve what the test \
+                     names and test it again."
+                ),
+                "records_stale" => format!(
+                    "The {subject} changed since its records were checked; test it again, then \
+                     propose it."
+                ),
                 _ => format!(
                     "The {subject} changed since its check; check it again, then propose it."
                 ),

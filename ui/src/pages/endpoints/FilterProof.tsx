@@ -105,8 +105,33 @@ export function shownValue(attribute: unknown): string {
         : "languageMap" in member && member.languageMap && typeof member.languageMap === "object"
           ? Object.values(member.languageMap as Record<string, unknown>)[0]
           : member;
-  const text = typeof raw === "string" ? raw : JSON.stringify(raw);
+  const text = valueWords(raw);
   return text.length > 80 ? `${text.slice(0, 79)}…` : text;
+}
+
+/**
+ * A structured value in words, never JSON (T-4949): a GeoJSON point as latitude, longitude; any
+ * other shape as its type; a postal address as its line; another object as `key: value` pairs.
+ */
+function valueWords(raw: unknown): string {
+  if (raw === null || raw === undefined) return "";
+  if (typeof raw !== "object") return String(raw);
+  if (Array.isArray(raw)) return raw.map(valueWords).join(", ");
+  const record = raw as Record<string, unknown>;
+  const at = record.coordinates;
+  if (record.type === "Point" && Array.isArray(at) && typeof at[0] === "number" && typeof at[1] === "number") {
+    return `${at[1].toFixed(5)}, ${at[0].toFixed(5)}`;
+  }
+  if (typeof record.type === "string" && "coordinates" in record) return record.type;
+  const part = (key: string) => (typeof record[key] === "string" ? (record[key] as string).trim() : "");
+  const address = [part("streetAddress"), [part("postalCode"), part("addressLocality")].filter(Boolean).join(" ")]
+    .filter(Boolean)
+    .join(", ");
+  if (address) return address;
+  return Object.entries(record)
+    .filter(([, each]) => each !== null && each !== undefined && each !== "")
+    .map(([key, each]) => `${key}: ${valueWords(each)}`)
+    .join(" · ");
 }
 
 /** The last segment of an NGSI-LD id, which is what tells two rows apart on screen. */
