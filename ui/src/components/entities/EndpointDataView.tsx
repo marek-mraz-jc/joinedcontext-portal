@@ -72,6 +72,11 @@ export interface EndpointDataViewProps {
   onLink?: (next: DataLink) => void;
   /** The endpoint serves `file.csv`, so the current query can be downloaded as a table. */
   csv?: boolean;
+  /**
+   * Where `/api/endpoint/{slug}` answers: the Portal's own origin with the person's session
+   * (default), or the catalogue's `https://api.{domain}`, read without a cookie or token (T-5082).
+   */
+  origin?: string;
 }
 
 export function EndpointDataView({
@@ -82,6 +87,7 @@ export function EndpointDataView({
   link,
   onLink,
   csv = false,
+  origin,
 }: EndpointDataViewProps): JSX.Element {
   const { t, i18n } = useTranslation();
   const [chosen, setChosen] = useState<string>(link?.type ?? "");
@@ -89,7 +95,13 @@ export function EndpointDataView({
   // The query the grid last asked, for the link and the download of exactly these rows.
   const [asked, setAsked] = useState<string | undefined>(link?.q);
   const [comparing, setComparing] = useState(false);
-  const base = `${window.location.origin}/api/endpoint/${slug}/schema`;
+  const root = origin ?? window.location.origin;
+  const base = `${root}/api/endpoint/${slug}/schema`;
+  // Another origin is read anonymously: a cross-origin fetch with `same-origin` credentials sends no cookie.
+  const source = useMemo(
+    () => (origin ? sourceFor({ kind: "endpoint", slug }, originTransport((path, init) => fetch(origin + String(path), init)), i18n.language) : undefined),
+    [origin, slug, i18n.language],
+  );
 
   const index = useQuery({
     queryKey: ["endpoint-schema-index", slug],
@@ -185,7 +197,7 @@ export function EndpointDataView({
   // read with the person's own session, as the rows above are (EP-08, EP-44).
   const download = type
     ? safeHref(
-        `/api/endpoint/${encodeURIComponent(slug)}/file.csv?${new URLSearchParams({
+        `${origin ?? ""}/api/endpoint/${encodeURIComponent(slug)}/file.csv?${new URLSearchParams({
           type: type.name,
           ...(asked ? { q: asked } : {}),
           ...(sortText ? { orderBy: sortText } : {}),
@@ -281,6 +293,7 @@ export function EndpointDataView({
           key={`${slug}-${type.name}`}
           project={project}
           config={config}
+          source={source}
           enums={enums}
           relations={relations}
           view={opened}

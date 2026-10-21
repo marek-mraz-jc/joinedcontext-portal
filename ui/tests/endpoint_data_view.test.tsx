@@ -15,6 +15,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { EndpointDataView, fieldsOf, sortOfLink } from "../src/components/entities/EndpointDataView";
 import { expectNoAxeViolations, json, renderPart } from "./page_contract";
+import type { PageHarness } from "./page_contract";
 
 const SCHEMA = {
   $defs: {
@@ -55,7 +56,7 @@ function answer(url: URL): Response | undefined {
   return undefined;
 }
 
-function show(props: Partial<React.ComponentProps<typeof EndpointDataView>> = {}, own = answer) {
+function show(props: Partial<React.ComponentProps<typeof EndpointDataView>> = {}, own: PageHarness["answer"] = answer) {
   return renderPart(<EndpointDataView project="helsinki" slug="air-quality" {...props} />, {
     answer: own,
   });
@@ -233,5 +234,23 @@ describe("the data section of an endpoint", () => {
     expect(screen.getByRole("button", { name: en.endpoints.data.fullLeave })).toHaveAttribute("aria-pressed", "true");
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("reads another origin without a cookie or token when the catalogue hosts it (T-5082)", async () => {
+    const asked: Request[] = [];
+    show({ origin: "https://api.example.test", csv: true }, (url, request) => {
+      asked.push(request);
+      return answer(url);
+    });
+    await waitFor(() => expect(screen.getByRole("grid")).toBeInTheDocument());
+    await waitFor(() => expect(asked.some((each) => each.url.includes("/ngsi-ld/v1/entities"))).toBe(true));
+    for (const request of asked) {
+      expect(new URL(request.url).origin).toBe("https://api.example.test");
+      expect(request.url).toContain("/api/endpoint/air-quality/");
+      expect(request.credentials).not.toBe("include");
+      expect(request.headers.get("authorization")).toBeNull();
+    }
+    const link = await screen.findByRole("link", { name: en.endpoints.data.csv });
+    expect(new URL(link.getAttribute("href") ?? "").origin).toBe("https://api.example.test");
   });
 });
