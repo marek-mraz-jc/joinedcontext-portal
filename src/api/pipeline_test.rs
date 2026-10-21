@@ -388,6 +388,7 @@ pub(crate) async fn run_messages(
         let mut config =
             harness(spec, &sample, capture).map_err(|e| ApiError::BadRequest(e.to_string()))?;
         split_messages(&mut config);
+        with_lifetime(&mut config, spec)?;
         Ok(config)
     })
     .await

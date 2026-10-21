@@ -43,6 +43,13 @@ const ADMIN = {
   ],
 };
 
+const GROUP = {
+  apiVersion: "joinedcontext.com/v1alpha1",
+  kind: "Group",
+  metadata: { name: "air-quality-steward", namespace: "org" },
+  spec: { members: [{ user: "jana@hel.fi" }] },
+};
+
 async function stubApi(page: Page): Promise<{ writes: string[] }> {
   const writes: string[] = [];
   await page.route("**/api/v1/**", async (route) => {
@@ -76,6 +83,7 @@ async function stubApi(page: Page): Promise<{ writes: string[] }> {
       });
     }
     if (path === "/api/v1/projects/org/organizations") return json(LIST([ORGANIZATION]));
+    if (path === "/api/v1/projects/org/groups/air-quality-steward") return json(GROUP);
     if (path === "/api/v1/projects/org/roles") {
       return json(
         LIST([
@@ -91,6 +99,36 @@ async function stubApi(page: Page): Promise<{ writes: string[] }> {
     return json(LIST([]));
   });
   return { writes };
+}
+
+// T-4949, UI-16: each field of a group's page says what to enter, with an example; the live
+// walker found five without a hint on dev.
+for (const width of [1440, 400]) {
+  test(`a group's fields each carry a hint with an example at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const { writes } = await stubApi(page);
+    await page.goto("/organization/groups/air-quality-steward?lang=en");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    const email = page.getByLabel("E-mail of the person");
+    await expect(email).toHaveAccessibleDescription(/e\.g\. jana\.novak@example\.org/);
+    await expect(page.getByLabel("Where")).toHaveAccessibleDescription(/e\.g\. helsinki/);
+    await page.getByLabel("Where").selectOption("helsinki");
+    await expect(page.getByLabel("Context space")).toHaveAccessibleDescription(/narrow the role to one context space/);
+    for (const label of ["Project", "Application"]) {
+      await expect(page.getByLabel(label, { exact: true })).toHaveAccessibleDescription(/e\.g\. /);
+    }
+    for (const role of await page.getByLabel("Role", { exact: true }).all()) {
+      await expect(role).toHaveAccessibleDescription(/e\.g\. /);
+    }
+    // The flow still works: a member typed and added is one proposal.
+    await email.fill("petra@hel.fi");
+    await page.getByRole("button", { name: "Add member" }).click();
+    await expect.poll(() => writes.length).toBe(1);
+    const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(sideways, "the page scrolls sideways").toBeLessThanOrEqual(0);
+    expect(await axeViolations(page)).toEqual([]);
+    if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/group-hints-${width}.png`, fullPage: true });
+  });
 }
 
 test.describe("the Organization page", () => {

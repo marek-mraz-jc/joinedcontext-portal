@@ -172,6 +172,18 @@ describe("a knowledge source's newer fields", () => {
   });
 });
 
+describe("a knowledge source's manifest (T-4869)", () => {
+  const limits = { maxBytes: 20 * 1024 * 1024, maxFiles: 100 };
+  it("keeps the upload limits only on an upload source, as jc-core requires", () => {
+    for (const source of ["website", "ckan"]) {
+      const manifest = toKindManifest("KnowledgeSource", "helsinki", { name: "web", source, startUrls: ["https://example.com/"], visibility: "internal", upload: limits });
+      expect((manifest.spec as Record<string, unknown>).upload, source).toBeUndefined();
+    }
+    const upload = toKindManifest("KnowledgeSource", "helsinki", { name: "files", source: "upload", visibility: "internal", upload: limits });
+    expect((upload.spec as Record<string, unknown>).upload).toEqual(limits);
+  });
+});
+
 describe("a website source's WordPress types (T-4154, MF-51)", () => {
   const sourceErrors = (wordpressTypes: unknown) =>
     validator

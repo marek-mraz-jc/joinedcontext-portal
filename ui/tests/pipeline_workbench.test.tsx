@@ -78,6 +78,8 @@ interface Answers {
   sample?: Response | unknown;
   mapping?: unknown;
   validate?: unknown;
+  /** The target model, when a test needs another than LINKML. */
+  linkml?: string;
 }
 
 interface Seen {
@@ -109,7 +111,7 @@ function stub(answers: Answers, seen: Seen) {
         });
       }
       if (path.endsWith("/datamodels")) {
-        return jsonResponse({ items: [manifest("DataModel", "air", { linkml: LINKML, classes: ["AirQualityObserved"] })] });
+        return jsonResponse({ items: [manifest("DataModel", "air", { linkml: answers.linkml ?? LINKML, classes: ["AirQualityObserved"] })] });
       }
       return jsonResponse({ items: [] });
     }),
@@ -436,9 +438,12 @@ describe("the pipeline workbench", () => {
     expect(entity).toHaveTextContent("2026-10-20T12:08:00Z");
     const pm10 = within(first).getAllByRole("row").find((row) => within(row).queryByText("pm10"));
     expect(pm10).toHaveTextContent("2026-10-20T12:05:00Z");
-    // The verdict is kept on the dialog's draft, for the proposal (T-4840).
+    // The run of the mapping keeps its record check on the dialog's draft, for the proposal;
+    // the records shown back to the validation step keep nothing (T-4840).
+    const tried = seen.ops.find((op) => op.name === "jc_pipeline_try_mapping");
+    expect(tried?.body.draft).toEqual({ kind: "Pipeline", name: "air-draft" });
     await waitFor(() => expect(seen.ops.at(-1)?.name).toBe("jc_pipeline_validate"));
-    expect(seen.ops.at(-1)?.body.draft).toEqual({ kind: "Pipeline", name: "air-draft" });
+    expect(seen.ops.at(-1)?.body.draft).toBeUndefined();
   });
 
   it("names_each_slot_of_the_target_model_with_its_type_whether_required_its_values_and_an_example", async () => {
@@ -463,6 +468,18 @@ describe("the pipeline workbench", () => {
         "The records land in the space ovzdusie, checked against the model air.",
       ),
     ).toBeInTheDocument();
+  });
+
+  // T-4971: a model of several classes asks which one the mapping writes; that picker carries its
+  // one-line hint like every other field (UI-16, the walker's field-hint check).
+  it("the_class_picker_of_a_model_with_several_classes_carries_its_hint", async () => {
+    const twoClasses = LINKML.replace("classes:\n", "classes:\n  WeatherObserved:\n    slots: [pm10]\n");
+    stub({ linkml: twoClasses }, { ops: [] });
+    show({ targetEndpoint: URN, compute: { kind: "bloblang", bloblang: MAPPING } });
+    const mapping = step(en.pipelines.workbench.mapping.title);
+    const picker = await within(mapping).findByRole("combobox", { name: en.pipelines.workbench.mapping.type });
+    expect(picker).toHaveAccessibleDescription(en.pipelines.workbench.mapping.typeHint);
+    expect(en.pipelines.workbench.mapping.typeHint).toMatch(/for example/);
   });
 
   // T-3296: the target is step 3, so a newcomer picks it before writing the mapping, and the

@@ -61,9 +61,9 @@ class Refused extends Error {
  * One JSON-RPC call to the server on this origin, as an anonymous caller: `credentials: "omit"`,
  * so a signed-in visitor sees what the page promises a stranger, not their own grants.
  */
-async function call(path: string, method: string, params: object, signal?: AbortSignal): Promise<unknown> {
+async function call(url: string, method: string, params: object, signal?: AbortSignal): Promise<unknown> {
   const response = await globalThis.fetch(
-    new Request(`${window.location.origin}${path}`, {
+    new Request(url, {
       method: "POST",
       credentials: "omit",
       headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
@@ -87,10 +87,12 @@ async function call(path: string, method: string, params: object, signal?: Abort
 
 /** The server's title, instructions and tools for an anonymous caller. */
 export async function readServer(project: string, name: string, signal?: AbortSignal): Promise<ServerAnswer> {
-  const path = `/api/mcp/${encodeURIComponent(project)}/${encodeURIComponent(name)}`;
+  // Straight to the data host the setups name: the Portal host would answer an anonymous call
+  // with a 308 there anyway, a hop the page's CSP and the edge's CORS each judge (T-4949).
+  const url = serverUrl(window.location.hostname, project, name);
   try {
     const hello = (await call(
-      path,
+      url,
       "initialize",
       { protocolVersion: PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: "joinedcontext-connect-page", version: "1" } },
       signal,
@@ -98,7 +100,7 @@ export async function readServer(project: string, name: string, signal?: AbortSi
     const info = hello?.result?.serverInfo;
     const title = typeof info?.title === "string" ? info.title : typeof info?.name === "string" ? info.name : name;
     const instructions = typeof hello?.result?.instructions === "string" ? hello.result.instructions : "";
-    const tools = toolsOf(await call(path, "tools/list", {}, signal));
+    const tools = toolsOf(await call(url, "tools/list", {}, signal));
     return { state: "answers", server: { title, instructions, tools } };
   } catch (error) {
     if (error instanceof Refused) return error.answer;

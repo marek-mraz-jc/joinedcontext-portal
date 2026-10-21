@@ -322,7 +322,8 @@
         "create": "{author} proposed to create {kind} {name}",
         "update": "{author} proposed to change {kind} {name}",
         "delete": "{author} proposed to remove {kind} {name}"
-      }
+      },
+      "anyKind": "Any kind"
     },
     "reasonFirst": "Write why you reject the change first."
   },
@@ -1346,7 +1347,8 @@
       "missingRow": "not in this endpoint (filter or policy)",
       "hiddenColumn": "hidden by the projection",
       "same": "This endpoint answers this page exactly as the space holds it.",
-      "spaceRefused": "You may read this endpoint but not the space behind it, so there is nothing to compare it with."
+      "spaceRefused": "You may read this endpoint but not the space behind it, so there is nothing to compare it with.",
+      "typeHelp": "Which type of record the table lists; pick another to see its rows, e.g. the air quality readings."
     },
     "projection": {
       "title": "Published attributes",
@@ -1700,7 +1702,8 @@
       "send": "Send",
       "fill": "Fill in the fields the call needs first.",
       "answered": "The endpoint answered {status}.",
-      "code": "The same call as code"
+      "code": "The same call as code",
+      "noType": "No entity type yet: once a pipeline or a person writes entities through this Endpoint, their types are listed here."
     },
     "docs": {
       "title": "API documentation",
@@ -2332,7 +2335,8 @@
         "fileHint": "The processors this pipeline runs, as the repository holds them beside its manifest. Credentials appear as references the runner fills, never as values.",
         "fileEdit": "Edit the mapping file; Propose sends it with the manifest",
         "fileEditDisabled": "You can edit the mapping file once it has loaded.",
-        "type": "Type the mapping writes"
+        "type": "Type the mapping writes",
+        "typeHint": "The model has several classes: pick the one each record becomes, for example an air quality reading. The list below shows what it takes."
       },
       "output": {
         "title": "Mapped output",
@@ -2891,7 +2895,7 @@
       "propose": "Propose grant",
       "emptyHint": "A role binding says who may do what in this project. Until one exists, only an administrator of the organization can change anything here.",
       "subjectKindHelp": "Whether the role goes to one person or to a group of them. A group is granted once and keeps its members in step.",
-      "personHelp": "The username or e-mail the identity provider carries for this person, exactly as they sign in.",
+      "personHelp": "Pick one of the organization's people, or type the full e-mail of someone who has not signed in yet, e.g. jana.novak@example.org.",
       "groupHelp": "The name of a group declared under Groups. Everyone in it holds the role while they are a member.",
       "roleHelp": "What the person may do: each role is a set of verbs on a set of kinds, listed under Roles.",
       "whereHelp": "How far the role reaches: this project, the whole organization, or one context space of the project.",
@@ -3096,7 +3100,16 @@
       "noCkan": "This group manages no catalogue.",
       "ckanInstance": "{project} / {name}",
       "ckanVia": "through the role {role}",
-      "appNotLoaded": "The app is still loading, or you may not read it."
+      "appNotLoaded": "The app is still loading, or you may not read it.",
+      "hint": {
+        "email": "Pick one of the organization's people, or type the full e-mail of someone who has not signed in yet, e.g. jana.novak@example.org.",
+        "where": "Where the role holds: the whole organization or one project, e.g. helsinki.",
+        "space": "Keep the whole project, or narrow the role to one context space, e.g. air-quality.",
+        "role": "What the members may do there, e.g. viewer reads, steward also proposes changes.",
+        "project": "The project the application belongs to, e.g. helsinki.",
+        "app": "The application whose role the group gets, e.g. air-quality-dashboard.",
+        "appRole": "One of the roles the application defines, e.g. reader."
+      }
     },
     "explorer": {
       "title": "See what someone can access",
@@ -3132,7 +3145,7 @@
       "kindHelp": "A person, a group, a role or a service account: whose access the page lists.",
       "personHelp": "The people of the organization, by email; the search above narrows the list.",
       "accountHelp": "The project's service accounts, the workloads that call endpoints.",
-      "nameHelp": "The name exactly as it is written in Keycloak."
+      "nameHelp": "Pick a group of the organization, or a role of this project or of the organization."
     },
     "presets": {
       "legend": "Access",
@@ -4521,7 +4534,15 @@
     "kindStructured": "Structured value",
     "kindList": "List",
     "points": "points",
-    "openTarget": "Open"
+    "openTarget": "Open",
+    "hint": {
+      "filterText": "Choose a test, then type the words, e.g. contains Espoo.",
+      "filterNumber": "Choose a test, then type a number, e.g. greater than 40.",
+      "filterDate": "Choose a test, then pick a date, e.g. after 2026-10-01.",
+      "filterEnum": "Choose a test; with any of, pick one or more allowed values:",
+      "filterOther": "Choose a test, e.g. has a value, or empty.",
+      "editAsText": "Write the NGSI-LD query yourself, e.g. pm10>40;name~=\"Espoo\"."
+    }
   },
   "explore": {
     "title": "Explore data",
@@ -5306,7 +5327,18 @@
       },
       "assistant": {
         "transcript": "Stored conversations read"
-      }
+      },
+      "knowledge": {
+        "file": {
+          "uploaded": "File added to a knowledge source",
+          "removed": "File removed from a knowledge source"
+        },
+        "answers": {
+          "forgotten": "Kept answers forgotten"
+        }
+      },
+      "access-request": "Access request",
+      "personal-data": "Personal data request"
     },
     "sources": {
       "reconciler": "Configuration",
@@ -5685,7 +5717,7 @@
         "search": "Part of a name or an email address.",
         "person": "The person the gateway decides for.",
         "account": "One of this project's service accounts.",
-        "name": "The name as the realm spells it.",
+        "name": "Pick a group of the organization, or a role of this project or of the organization.",
         "action": "The NGSI-LD operation the call would make."
       },
       "pickFirst": "Pick the Endpoint and who to try first."
@@ -6204,6 +6236,15 @@
           "requestsPerMinute": {
             "label": "Requests per minute per project",
             "hint": "The most requests per minute the endpoints of one project serve."
+          },
+          "mqttBrokers": {
+            "label": "MQTT brokers"
+          },
+          "mqttConnections": {
+            "label": "MQTT connections"
+          },
+          "mqttMessagesPerSecond": {
+            "label": "MQTT messages per second"
           }
         },
         "nameCooldownDays": {
@@ -6301,6 +6342,24 @@
             "label": "App file storage (MiB)",
             "hint": "What one App may store in its files; a project or an App may set less."
           }
+        },
+        "mqtt": {
+          "brokers": {
+            "label": "MQTT brokers per project",
+            "hint": "How many brokers one project may declare."
+          },
+          "connections": {
+            "label": "MQTT connections per project",
+            "hint": "The sum of the connection limits of a project's brokers."
+          },
+          "messagesPerSecond": {
+            "label": "MQTT messages per second per project",
+            "hint": "Connections × messages per second per device, over a project's brokers."
+          },
+          "maxMessageBytes": {
+            "label": "Largest MQTT message (bytes)",
+            "hint": "The ceiling of each broker's message size."
+          }
         }
       },
       "policies": {
@@ -6342,7 +6401,9 @@
       "pipelines": "Pipelines",
       "pipelinesHint": "What pipelines keep and read.",
       "data": "Data",
-      "dataHint": "What a person may upload."
+      "dataHint": "What a person may upload.",
+      "mqtt": "MQTT default",
+      "mqttHint": "What a project without its own MQTT allowance may run."
     },
     "limits": {
       "title": "Policies and limits",
@@ -6370,7 +6431,8 @@
         "signIn": "Sign-in",
         "people": "People",
         "agents": "Assistant",
-        "pipelinesAndData": "Pipelines and data"
+        "pipelinesAndData": "Pipelines and data",
+        "mqtt": "MQTT"
       },
       "origin": {
         "project": "the project",
@@ -6834,7 +6896,15 @@
       "importedOrganization": "Imported from the organization model {name}"
     },
     "createNamed": "New: “{name}”",
-    "list": "Choices"
+    "list": "Choices",
+    "person": {
+      "group": "People of the organization",
+      "typed": "Typed e-mail",
+      "none": "Nobody matches. Type the person's full e-mail to name someone who has not signed in yet.",
+      "unlisted": "You may not list the organization's people. Type the person's full e-mail, e.g. jana.novak@example.org.",
+      "invite": "Use {email} (not signed in yet)",
+      "needEmail": "Type the person's full e-mail address."
+    }
   },
   "units": {
     "search": "Search by code, symbol, name or quantity",
@@ -7192,7 +7262,9 @@
       "queued": "Queued",
       "running": "Crawling",
       "failed": "Last crawl failed",
-      "crawled": "Crawled"
+      "crawled": "Crawled",
+      "indexing": "Indexing",
+      "read": "Read"
     },
     "type": {
       "website": "Website",
@@ -7248,7 +7320,8 @@
       "findPages": "Find pages",
       "findPagesHelp": "By title or address, 2 to 100 characters; case and accents do not matter. At most 100 pages are shown.",
       "noPagesFound": "No page of this source has “{q}” in its title or address.",
-      "modified": "changed {at}"
+      "modified": "changed {at}",
+      "filePage": "{name}, page {page}"
     },
     "field": {
       "name": "Name",
@@ -7374,6 +7447,7 @@
       "question": "Your question",
       "send": "Send",
       "failed": "The answer could not be loaded. Try again.",
+      "modelUnavailable": "The assistant's model did not answer. Your question is kept: try again in a minute.",
       "liveData": "Live data",
       "sourceNumber": "Source {n}",
       "data": "Data the answer read",
@@ -7415,7 +7489,8 @@
       "noneHint": "Upload a PDF, a spreadsheet or a text file for the assistant to answer from.",
       "name": "File",
       "remove": "Remove",
-      "removeOf": "Remove {name}"
+      "removeOf": "Remove {name}",
+      "notTakenUp": "The assistant has not taken this source up yet; that takes about a minute after its approval. This page checks again by itself: upload the files once the button is back."
     },
     "index": {
       "title": "Index status",
@@ -8129,7 +8204,11 @@
       "maxMessageBytes": "Largest message (bytes)",
       "messagesPerSecond": "Messages per second per device",
       "maxConnections": "Connections at most",
-      "port": "Dedicated port"
+      "port": "Dedicated port",
+      "mode": "What the broker does",
+      "capture": "Kept messages",
+      "messagesPerTopic": "Messages kept per topic",
+      "window": "Kept for"
     },
     "acl": {
       "caption": "Topic access of {broker} by role",
@@ -8146,7 +8225,12 @@
       "password": "Password",
       "token": "An access token of the device's own client, fetched with its key; never a stored password.",
       "pipeline": "Pipelines",
-      "brokerRef": "Pick {broker} as the platform broker of an MQTT data source."
+      "brokerRef": "Pick {broker} as the platform broker of an MQTT data source.",
+      "certificate": "Certificate",
+      "certificateIssued": "Issued by the platform for {host} from a public certificate authority; devices check it with their system CA store.",
+      "example": "Try it",
+      "copyExample": "Copy the command",
+      "exampleHint": "Set TOKEN to an access token of the device's client first; the Portal never shows one."
     },
     "measured": {
       "title": "Measured",
@@ -8185,6 +8269,9 @@
       "unread": "No pipeline reads it",
       "noEndpoint": "No Endpoint {endpoint} in this project",
       "noPolicy": "No Policy {policy} in this project"
+    },
+    "capture": {
+      "kept": "Keeps the last {count} messages per topic for {window}, for building the mapping."
     }
   },
   "connect": {
@@ -8221,7 +8308,8 @@
       "copy": "Copy the configuration"
     },
     "tools": "{count, plural, one {# tool} other {# tools}}",
-    "noTools": "The connector offers no tools to anonymous callers right now."
+    "noTools": "The connector offers no tools to anonymous callers right now.",
+    "lead": "Add this data to an AI assistant such as Claude or ChatGPT: copy the address into the client and ask it questions."
   },
   "kinds": {
     "AgentProfile": {
@@ -8533,5 +8621,58 @@
     "which-one-wins": "Which rule wins (User Guide)",
     "4-recipe-buses-and-live-vehicles": "Recipe: buses and live vehicles (User Guide)",
     "8-recipe-data-imported-from-a-file": "Recipe: data imported from a file (User Guide)"
+  },
+  "mqttAllowance": {
+    "field": {
+      "enabled": "MQTT brokers allowed",
+      "enabledHint": "Off: the project cannot add a broker.",
+      "brokers": "Brokers at most",
+      "brokersHint": "Empty: the organization's default.",
+      "connections": "Device connections in total",
+      "connectionsHint": "The sum of every broker's connection limit.",
+      "messagesPerSecond": "Messages per second in total",
+      "messagesPerSecondHint": "Connections × messages per second per device, summed over the brokers.",
+      "maxMessageBytes": "Largest message (bytes)",
+      "maxMessageBytesHint": "No broker of the project may accept larger messages.",
+      "modes": "What brokers may do",
+      "modesHint": "None ticked: devices send data in, nothing more.",
+      "addresses": "Addresses devices may use",
+      "addressesHint": "None ticked: the platform address with its certificate.",
+      "ports": "Dedicated ports of this project",
+      "portsHint": "From 18830 to 18849, each port for one project only."
+    },
+    "mode": {
+      "ingest": "Ingest",
+      "capture": "Ingest and keep",
+      "relay": "Two-way"
+    },
+    "modeLong": {
+      "ingest": "Devices send data in",
+      "capture": "…and keep the last messages so you can build the mapping",
+      "relay": "…and devices can also receive"
+    },
+    "address": {
+      "platform": "Platform address (port 8883, certificate by the platform)",
+      "dedicatedPort": "Dedicated port"
+    },
+    "admin": {
+      "button": "MQTT",
+      "action": "MQTT allowance of {project}",
+      "column": "MQTT",
+      "on": "On · {used} of {limit} brokers",
+      "off": "Off"
+    },
+    "project": {
+      "errorTitle": "The MQTT allowance did not load",
+      "error": "The Portal could not read what this project may add. Reload the page; if it stays, ask an organization administrator.",
+      "offTitle": "MQTT is off for this project",
+      "off": "An organization administrator can turn it on in Administration › Projects › {project} › MQTT.",
+      "title": "What this project may add",
+      "left": "{used} of {limit} brokers in use, {connections} of {connectionsLimit} connections left, {rate} messages per second left.",
+      "modes": "Modes this project may use",
+      "addresses": "Addresses: {addresses}.",
+      "ports": "Ports: {ports}.",
+      "full": "All {limit} brokers are in use: a new one is refused. An organization administrator can raise the limit in Administration › Projects."
+    }
   }
 }

@@ -54,6 +54,14 @@ export interface GridLabels {
   filterRow: string;
   /** The unset choice of a column's filter: it lets every row through (T-4222). */
   noFilter: string;
+  /** The one-line hint of a column's filter, by what the column holds (T-4949, UI-16). */
+  filterHintText: string;
+  filterHintNumber: string;
+  filterHintDate: string;
+  filterHintEnum: string;
+  filterHintOther: string;
+  /** The hint of the switch that hands the query to the person. */
+  editAsTextHint: string;
   /** Said on a sortable header, because the order is of the loaded page only (UI-66). */
   sortPage: string;
   /** What the footer calls the endpoint's own count of matching entities. */
@@ -204,6 +212,12 @@ export const DEFAULT_LABELS: GridLabels = {
   editAsText: "Edit as text",
   filterRow: "Filters",
   noFilter: "All",
+  filterHintText: "Choose a test, then type the words, e.g. contains Espoo.",
+  filterHintNumber: "Choose a test, then type a number, e.g. greater than 40.",
+  filterHintDate: "Choose a test, then pick a date, e.g. after 2026-10-01.",
+  filterHintEnum: "Choose a test; with any of, pick one or more allowed values:",
+  filterHintOther: "Choose a test, e.g. has a value, or empty.",
+  editAsTextHint: "Write the NGSI-LD query yourself, e.g. pm10>40;name~=\"Espoo\".",
   sortPage: "Sort this page by",
   matching: "matching",
   noTotal: "the endpoint gives no total for this answer",
@@ -656,6 +670,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
           meta: column.meta,
           kind: filterKindOf(column, config, rows, enums),
           options: column.attr !== null && column.meta === null ? enums?.[column.attr] : undefined,
+          unit: column.attr !== null && column.meta === null ? unitSymbol(unitOfColumn(rows, column.attr)) : undefined,
         }))
         // A computed end is not stored, so no `q` can ask about it.
         .filter((column) => opsForKind(column.kind).length > 0 && !(column.attr !== null && relations?.[column.attr]?.inverseOf)),

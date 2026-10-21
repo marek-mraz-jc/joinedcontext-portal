@@ -658,14 +658,21 @@ export function PipelineWorkbench({
     [draft, quiet, toManifest],
   );
   const tried = useQuery({
-    queryKey: ["pipeline-workbench", project, "mapping", manifest, tryInput],
+    queryKey: ["pipeline-workbench", project, "mapping", manifest, tryInput, draftName],
     // After the sample step, never beside it: a project runs one test at a time, and the two
     // started together answered "a pipeline test is already running" on every page load.
     enabled: quiet.trim() !== "" && tryInput !== undefined && manifest !== undefined && !sampled.isFetching,
     retry: false,
     refetchOnWindowFocus: false,
     queryFn: () =>
-      run(project, "jc_pipeline_try_mapping", { pipeline: manifest, ...tryInput }, t("pipelines.workbench.failed"), readMapping),
+      run(
+        project,
+        "jc_pipeline_try_mapping",
+        // The record check of what the mapping makes is kept on the dialog's draft (T-4840).
+        { pipeline: manifest, ...tryInput, ...(draftName ? { draft: { kind: "Pipeline", name: draftName } } : {}) },
+        t("pipelines.workbench.failed"),
+        readMapping,
+      ),
   });
   const records = (tried.data?.records ?? []).filter(
     (record): record is Record<string, unknown> => typeof record === "object" && record !== null && !Array.isArray(record),
@@ -673,7 +680,7 @@ export function PipelineWorkbench({
 
   // Step 6: the verdicts against the target space's model.
   const validated = useQuery({
-    queryKey: ["pipeline-workbench", project, "validate", manifest, records, draftName],
+    queryKey: ["pipeline-workbench", project, "validate", manifest, records],
     enabled: records.length > 0 && Boolean(draft?.targetEndpoint),
     retry: false,
     refetchOnWindowFocus: false,
@@ -684,7 +691,6 @@ export function PipelineWorkbench({
         {
           pipeline: manifest,
           records: records.slice(0, 100),
-          ...(draftName ? { draft: { kind: "Pipeline", name: draftName } } : {}),
         },
         t("pipelines.workbench.failed"),
         readValidation,
@@ -1033,7 +1039,7 @@ export function PipelineWorkbench({
                 : t("pipelines.workbench.mapping.slots")}
             </FormHeading>
             {classNames.length > 1 ? (
-              <Field id="workbench-slots-type" label={t("pipelines.workbench.mapping.type")}>
+              <Field id="workbench-slots-type" label={t("pipelines.workbench.mapping.type")} description={t("pipelines.workbench.mapping.typeHint")}>
                 <Select id="workbench-slots-type" value={writtenClass ?? ""} onChange={(event) => setPickedClass(event.target.value || undefined)}>
                   {writtenClass ? null : <option value="">{t("form.choose")}</option>}
                   {classNames.map((name) => (

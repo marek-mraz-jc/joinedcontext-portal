@@ -322,7 +322,8 @@
         "create": "{author} navrhol vytvoriť {kind} {name}",
         "update": "{author} navrhol zmeniť {kind} {name}",
         "delete": "{author} navrhol odstrániť {kind} {name}"
-      }
+      },
+      "anyKind": "Akýkoľvek druh"
     },
     "reasonFirst": "Najprv napíšte, prečo zmenu zamietate."
   },
@@ -1346,7 +1347,8 @@
       "missingRow": "nie je v tomto endpointe (filter alebo politika)",
       "hiddenColumn": "skryté projekciou",
       "same": "Tento endpoint odpovedá túto stranu presne tak, ako ju priestor drží.",
-      "spaceRefused": "Tento endpoint čítať smiete, priestor za ním nie, takže niet s čím porovnávať."
+      "spaceRefused": "Tento endpoint čítať smiete, priestor za ním nie, takže niet s čím porovnávať.",
+      "typeHelp": "Ktorý typ záznamov tabuľka zobrazuje; vyberte iný a uvidíte jeho riadky, napr. merania kvality ovzdušia."
     },
     "projection": {
       "title": "Zverejnené atribúty",
@@ -1700,7 +1702,8 @@
       "send": "Odoslať",
       "fill": "Najprv vyplňte polia, ktoré volanie potrebuje.",
       "answered": "Endpoint odpovedal {status}.",
-      "code": "To isté volanie ako kód"
+      "code": "To isté volanie ako kód",
+      "noType": "Zatiaľ žiadny typ entity: keď pipeline alebo osoba zapíše entity cez tento Endpoint, ich typy sa zobrazia tu."
     },
     "docs": {
       "title": "Dokumentácia API",
@@ -2332,7 +2335,8 @@
         "fileHint": "Procesory, ktoré táto pipeline spúšťa, tak ako ich repozitár drží vedľa jej manifestu. Prihlasovacie údaje sú odkazy, ktoré doplní runner, nikdy nie hodnoty.",
         "fileEdit": "Upraviť súbor mapovania; Navrhnúť ho pošle s manifestom",
         "fileEditDisabled": "Súbor mapovania môžete upraviť, keď sa načíta.",
-        "type": "Typ, ktorý mapovanie zapisuje"
+        "type": "Typ, ktorý mapovanie zapisuje",
+        "typeHint": "Model má niekoľko tried: vyberte tú, ktorou sa stane každý záznam, napríklad meranie kvality ovzdušia. Zoznam nižšie ukazuje, čo prijíma."
       },
       "output": {
         "title": "Namapovaný výstup",
@@ -2891,7 +2895,7 @@
       "propose": "Navrhnúť pridelenie",
       "emptyHint": "Viazanie roly hovorí, kto smie v tomto projekte čo robiť. Kým žiadne nie je, môže tu niečo meniť len správca organizácie.",
       "subjectKindHelp": "Či rolu dostane jeden človek alebo skupina ľudí. Skupina sa udeľuje raz a členov si drží sama.",
-      "personHelp": "Používateľské meno alebo e-mail, ktorý o tomto človeku vedie poskytovateľ identity, presne ako sa prihlasuje.",
+      "personHelp": "Vyberte osobu z organizácie alebo zadajte celý e-mail niekoho, kto sa ešte neprihlásil, napr. jana.novak@example.org.",
       "groupHelp": "Názov skupiny vyhlásenej v časti Skupiny. Rolu drží každý, kým je jej členom.",
       "roleHelp": "Čo daný človek smie: každá rola je množina slovies nad množinou druhov, vypísaná v časti Roly.",
       "whereHelp": "Kam až rola siaha: tento projekt, celá organizácia, alebo jeden kontextový priestor projektu.",
@@ -3096,7 +3100,16 @@
       "noCkan": "Táto skupina nespravuje žiadny katalóg.",
       "ckanInstance": "{project} / {name}",
       "ckanVia": "cez rolu {role}",
-      "appNotLoaded": "Aplikácia sa ešte načítava alebo ju nemôžete čítať."
+      "appNotLoaded": "Aplikácia sa ešte načítava alebo ju nemôžete čítať.",
+      "hint": {
+        "email": "Vyberte osobu z organizácie alebo zadajte celý e-mail niekoho, kto sa ešte neprihlásil, napr. jana.novak@example.org.",
+        "where": "Kde rola platí: celá organizácia alebo jeden projekt, napr. helsinki.",
+        "space": "Ponechajte celý projekt alebo zúžte rolu na jeden kontextový priestor, napr. air-quality.",
+        "role": "Čo môžu členovia robiť, napr. viewer číta, steward aj navrhuje zmeny.",
+        "project": "Projekt, do ktorého aplikácia patrí, napr. helsinki.",
+        "app": "Aplikácia, ktorej rolu skupina dostane, napr. air-quality-dashboard.",
+        "appRole": "Jedna z rolí, ktoré aplikácia definuje, napr. reader."
+      }
     },
     "explorer": {
       "title": "Pozrite, k čomu má niekto prístup",
@@ -3132,7 +3145,7 @@
       "kindHelp": "Osoba, skupina, rola alebo servisný účet: čí prístup stránka vypíše.",
       "personHelp": "Ľudia organizácie podľa e-mailu; vyhľadávanie vyššie zúži zoznam.",
       "accountHelp": "Servisné účty projektu, teda programy, ktoré volajú endpointy.",
-      "nameHelp": "Názov presne tak, ako je napísaný v Keycloaku."
+      "nameHelp": "Vyberte skupinu organizácie alebo rolu tohto projektu či organizácie."
     },
     "presets": {
       "legend": "Prístup",
@@ -4521,7 +4534,15 @@
     "kindStructured": "Štruktúrovaná hodnota",
     "kindList": "Zoznam",
     "points": "bodov",
-    "openTarget": "Otvoriť"
+    "openTarget": "Otvoriť",
+    "hint": {
+      "filterText": "Vyberte test a napíšte slová, napr. obsahuje Espoo.",
+      "filterNumber": "Vyberte test a napíšte číslo, napr. väčšie ako 40.",
+      "filterDate": "Vyberte test a zvoľte dátum, napr. po 2026-10-01.",
+      "filterEnum": "Vyberte test; pri „ktorákoľvek z“ zvoľte jednu alebo viac povolených hodnôt:",
+      "filterOther": "Vyberte test, napr. má hodnotu alebo prázdne.",
+      "editAsText": "Napíšte dopyt NGSI-LD sami, napr. pm10>40;name~=\"Espoo\"."
+    }
   },
   "explore": {
     "title": "Prehliadať dáta",
@@ -5306,7 +5327,18 @@
       },
       "assistant": {
         "transcript": "Čítanie uložených konverzácií"
-      }
+      },
+      "knowledge": {
+        "file": {
+          "uploaded": "Súbor pridaný do zdroja znalostí",
+          "removed": "Súbor odstránený zo zdroja znalostí"
+        },
+        "answers": {
+          "forgotten": "Uložené odpovede zabudnuté"
+        }
+      },
+      "access-request": "Žiadosť o prístup",
+      "personal-data": "Žiadosť o osobné údaje"
     },
     "sources": {
       "reconciler": "Konfigurácia",
@@ -5685,7 +5717,7 @@
         "search": "Časť mena alebo e-mailovej adresy.",
         "person": "Osoba, za ktorú brána rozhoduje.",
         "account": "Jeden zo servisných účtov tohto projektu.",
-        "name": "Názov tak, ako ho píše realm.",
+        "name": "Vyberte skupinu organizácie alebo rolu tohto projektu či organizácie.",
         "action": "Operácia NGSI-LD, ktorú by volanie vykonalo."
       },
       "pickFirst": "Najprv vyberte Endpoint a koho chcete vyskúšať."
@@ -6204,6 +6236,15 @@
           "requestsPerMinute": {
             "label": "Požiadavky za minútu na projekt",
             "hint": "Najviac požiadaviek za minútu, ktoré obslúžia endpointy jedného projektu."
+          },
+          "mqttBrokers": {
+            "label": "MQTT brokery"
+          },
+          "mqttConnections": {
+            "label": "MQTT pripojenia"
+          },
+          "mqttMessagesPerSecond": {
+            "label": "MQTT správy za sekundu"
           }
         },
         "nameCooldownDays": {
@@ -6301,6 +6342,24 @@
             "label": "Úložisko súborov aplikácie (MiB)",
             "hint": "Koľko môže jedna aplikácia uložiť do svojich súborov; projekt alebo aplikácia môže nastaviť menej."
           }
+        },
+        "mqtt": {
+          "brokers": {
+            "label": "MQTT brokerov na projekt",
+            "hint": "Koľko brokerov smie projekt deklarovať."
+          },
+          "connections": {
+            "label": "MQTT pripojení na projekt",
+            "hint": "Súčet limitov pripojení brokerov projektu."
+          },
+          "messagesPerSecond": {
+            "label": "MQTT správ za sekundu na projekt",
+            "hint": "Pripojenia × správy za sekundu na zariadenie, za brokery projektu."
+          },
+          "maxMessageBytes": {
+            "label": "Najväčšia MQTT správa (bajty)",
+            "hint": "Strop veľkosti správy každého brokera."
+          }
         }
       },
       "policies": {
@@ -6342,7 +6401,9 @@
       "pipelines": "Pipeliny",
       "pipelinesHint": "Čo pipeliny uchovávajú a čítajú.",
       "data": "Dáta",
-      "dataHint": "Čo môže človek nahrať."
+      "dataHint": "Čo môže človek nahrať.",
+      "mqtt": "Predvolené MQTT",
+      "mqttHint": "Čo smie spustiť projekt bez vlastného MQTT povolenia."
     },
     "limits": {
       "title": "Pravidlá a limity",
@@ -6370,7 +6431,8 @@
         "signIn": "Prihlásenie",
         "people": "Ľudia",
         "agents": "Asistent",
-        "pipelinesAndData": "Pipeliny a dáta"
+        "pipelinesAndData": "Pipeliny a dáta",
+        "mqtt": "MQTT"
       },
       "origin": {
         "project": "projekt",
@@ -6834,7 +6896,15 @@
       "importedOrganization": "Importované z modelu organizácie {name}"
     },
     "createNamed": "Nové: „{name}“",
-    "list": "Možnosti"
+    "list": "Možnosti",
+    "person": {
+      "group": "Ľudia organizácie",
+      "typed": "Zadaný e-mail",
+      "none": "Nikto nezodpovedá. Zadajte celý e-mail osoby, ktorá sa ešte neprihlásila.",
+      "unlisted": "Ľudí organizácie nemôžete zobraziť. Zadajte celý e-mail osoby, napr. jana.novak@example.org.",
+      "invite": "Použiť {email} (ešte sa neprihlásil/a)",
+      "needEmail": "Zadajte celú e-mailovú adresu osoby."
+    }
   },
   "units": {
     "search": "Hľadať podľa kódu, značky, názvu alebo veličiny",
@@ -7192,7 +7262,9 @@
       "queued": "Vo fronte",
       "running": "Prechádza sa",
       "failed": "Posledné prechádzanie zlyhalo",
-      "crawled": "Prejdený"
+      "crawled": "Prejdený",
+      "indexing": "Indexuje sa",
+      "read": "Prečítané"
     },
     "type": {
       "website": "Web",
@@ -7248,7 +7320,8 @@
       "findPages": "Nájsť stránky",
       "findPagesHelp": "Podľa názvu alebo adresy, 2 až 100 znakov; na veľkosti písmen a diakritike nezáleží. Zobrazí sa najviac 100 stránok.",
       "noPagesFound": "Žiadna stránka tohto zdroja nemá „{q}“ v názve ani v adrese.",
-      "modified": "zmenené {at}"
+      "modified": "zmenené {at}",
+      "filePage": "{name}, strana {page}"
     },
     "field": {
       "name": "Názov",
@@ -7374,6 +7447,7 @@
       "question": "Vaša otázka",
       "send": "Odoslať",
       "failed": "Odpoveď sa nepodarilo načítať. Skúste znova.",
+      "modelUnavailable": "Model asistenta neodpovedal. Otázka zostala v poli: skúste to o minútu znova.",
       "liveData": "Živé dáta",
       "sourceNumber": "Zdroj {n}",
       "data": "Údaje, ktoré odpoveď prečítala",
@@ -7415,7 +7489,8 @@
       "noneHint": "Nahrajte PDF, tabuľku alebo textový súbor, z ktorého bude asistent odpovedať.",
       "name": "Súbor",
       "remove": "Odstrániť",
-      "removeOf": "Odstrániť {name}"
+      "removeOf": "Odstrániť {name}",
+      "notTakenUp": "Asistent tento zdroj ešte neprevzal; trvá to asi minútu po schválení. Stránka to overuje sama: súbory nahrajte, keď sa tlačidlo vráti."
     },
     "index": {
       "title": "Stav indexu",
@@ -8129,7 +8204,11 @@
       "maxMessageBytes": "Najväčšia správa (bajty)",
       "messagesPerSecond": "Správ za sekundu na zariadenie",
       "maxConnections": "Najviac spojení",
-      "port": "Vlastný port"
+      "port": "Vlastný port",
+      "mode": "Čo broker robí",
+      "capture": "Uchované správy",
+      "messagesPerTopic": "Uchovaných správ na tému",
+      "window": "Uchované počas"
     },
     "acl": {
       "caption": "Prístup k témam brokera {broker} podľa roly",
@@ -8146,7 +8225,12 @@
       "password": "Heslo",
       "token": "Prístupový token vlastného klienta zariadenia, získaný jeho kľúčom; nikdy uložené heslo.",
       "pipeline": "Pipeline",
-      "brokerRef": "Vyberte {broker} ako broker platformy MQTT zdroja údajov."
+      "brokerRef": "Vyberte {broker} ako broker platformy MQTT zdroja údajov.",
+      "certificate": "Certifikát",
+      "certificateIssued": "Vydáva ho platforma pre {host} od verejnej certifikačnej autority; zariadenia ho overia systémovými CA.",
+      "example": "Vyskúšajte",
+      "copyExample": "Kopírovať príkaz",
+      "exampleHint": "Najprv nastavte TOKEN na prístupový token klienta zariadenia; Portál ho nikdy nezobrazí."
     },
     "measured": {
       "title": "Namerané",
@@ -8185,6 +8269,9 @@
       "unread": "Žiadna pipeline ho nečíta",
       "noEndpoint": "V projekte nie je Endpoint {endpoint}",
       "noPolicy": "V projekte nie je Policy {policy}"
+    },
+    "capture": {
+      "kept": "Uchováva posledných {count} správ na tému počas {window} na zostavenie mapovania."
     }
   },
   "connect": {
@@ -8221,7 +8308,8 @@
       "copy": "Kopírovať konfiguráciu"
     },
     "tools": "{count, plural, one {# nástroj} few {# nástroje} other {# nástrojov}}",
-    "noTools": "Konektor teraz neponúka anonymným volajúcim žiadne nástroje."
+    "noTools": "Konektor teraz neponúka anonymným volajúcim žiadne nástroje.",
+    "lead": "Pridajte tieto dáta do AI asistenta, napríklad Claude alebo ChatGPT: skopírujte adresu do klienta a pýtajte sa."
   },
   "kinds": {
     "AgentProfile": {
@@ -8533,5 +8621,58 @@
     "which-one-wins": "Ktoré pravidlo platí (Používateľská príručka)",
     "4-recipe-buses-and-live-vehicles": "Recept: autobusy a vozidlá naživo (Používateľská príručka)",
     "8-recipe-data-imported-from-a-file": "Recept: dáta importované zo súboru (Používateľská príručka)"
+  },
+  "mqttAllowance": {
+    "field": {
+      "enabled": "MQTT brokery povolené",
+      "enabledHint": "Vypnuté: projekt nemôže pridať broker.",
+      "brokers": "Najviac brokerov",
+      "brokersHint": "Prázdne: predvolená hodnota organizácie.",
+      "connections": "Pripojení zariadení spolu",
+      "connectionsHint": "Súčet limitov pripojení všetkých brokerov.",
+      "messagesPerSecond": "Správ za sekundu spolu",
+      "messagesPerSecondHint": "Pripojenia × správy za sekundu na zariadenie, súčet za brokery.",
+      "maxMessageBytes": "Najväčšia správa (bajty)",
+      "maxMessageBytesHint": "Žiadny broker projektu nesmie prijať väčšiu správu.",
+      "modes": "Čo môžu brokery robiť",
+      "modesHint": "Nič nezaškrtnuté: zariadenia len posielajú dáta.",
+      "addresses": "Adresy pre zariadenia",
+      "addressesHint": "Nič nezaškrtnuté: adresa platformy s jej certifikátom.",
+      "ports": "Vyhradené porty projektu",
+      "portsHint": "Od 18830 do 18849, každý port len pre jeden projekt."
+    },
+    "mode": {
+      "ingest": "Príjem",
+      "capture": "Príjem a uchovanie",
+      "relay": "Obojsmerný"
+    },
+    "modeLong": {
+      "ingest": "Zariadenia posielajú dáta",
+      "capture": "…a uchová posledné správy, aby ste mohli zostaviť mapovanie",
+      "relay": "…a zariadenia môžu aj prijímať"
+    },
+    "address": {
+      "platform": "Adresa platformy (port 8883, certifikát od platformy)",
+      "dedicatedPort": "Vyhradený port"
+    },
+    "admin": {
+      "button": "MQTT",
+      "action": "MQTT povolenie projektu {project}",
+      "column": "MQTT",
+      "on": "Zapnuté · {used} z {limit} brokerov",
+      "off": "Vypnuté"
+    },
+    "project": {
+      "errorTitle": "MQTT povolenie sa nenačítalo",
+      "error": "Portál nevedel prečítať, čo smie tento projekt pridať. Načítajte stránku znova; ak to pretrvá, obráťte sa na správcu organizácie.",
+      "offTitle": "MQTT je pre tento projekt vypnuté",
+      "off": "Zapnúť ho môže administrátor organizácie v Administrácia › Projekty › {project} › MQTT.",
+      "title": "Čo môže projekt pridať",
+      "left": "Použité {used} z {limit} brokerov, zostáva {connections} z {connectionsLimit} pripojení a {rate} správ za sekundu.",
+      "modes": "Režimy, ktoré projekt môže použiť",
+      "addresses": "Adresy: {addresses}.",
+      "ports": "Porty: {ports}.",
+      "full": "Všetkých {limit} brokerov je použitých: nový bude odmietnutý. Limit môže zvýšiť administrátor organizácie v Administrácia › Projekty."
+    }
   }
 }

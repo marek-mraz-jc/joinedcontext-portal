@@ -322,7 +322,8 @@
         "create": "{author} navrhl vytvořit {kind} {name}",
         "update": "{author} navrhl změnit {kind} {name}",
         "delete": "{author} navrhl odstranit {kind} {name}"
-      }
+      },
+      "anyKind": "Jakýkoli druh"
     },
     "reasonFirst": "Nejprve napište, proč změnu zamítáte."
   },
@@ -1346,7 +1347,8 @@
       "missingRow": "není v tomto endpointu (filtr nebo politika)",
       "hiddenColumn": "skryto projekcí",
       "same": "Tento endpoint odpovídá tuto stranu přesně tak, jak ji prostor drží.",
-      "spaceRefused": "Tento endpoint číst smíte, prostor za ním ne, takže není s čím porovnávat."
+      "spaceRefused": "Tento endpoint číst smíte, prostor za ním ne, takže není s čím porovnávat.",
+      "typeHelp": "Který typ záznamů tabulka zobrazuje; vyberte jiný a uvidíte jeho řádky, např. měření kvality ovzduší."
     },
     "projection": {
       "title": "Zveřejněné atributy",
@@ -1700,7 +1702,8 @@
       "send": "Odeslat",
       "fill": "Nejprve vyplňte pole, která volání potřebuje.",
       "answered": "Endpoint odpověděl {status}.",
-      "code": "Totéž volání jako kód"
+      "code": "Totéž volání jako kód",
+      "noType": "Zatím žádný typ entity: jakmile pipeline nebo osoba zapíše entity přes tento Endpoint, jejich typy se zobrazí zde."
     },
     "docs": {
       "title": "Dokumentace API",
@@ -2332,7 +2335,8 @@
         "fileHint": "Procesory, které tato pipeline spouští, tak jak je repozitář drží vedle jejího manifestu. Přihlašovací údaje jsou odkazy, které doplní runner, nikdy ne hodnoty.",
         "fileEdit": "Upravit soubor mapování; Navrhnout jej pošle s manifestem",
         "fileEditDisabled": "Soubor mapování můžete upravit, až se načte.",
-        "type": "Typ, který mapování zapisuje"
+        "type": "Typ, který mapování zapisuje",
+        "typeHint": "Model má několik tříd: vyberte tu, kterou se stane každý záznam, například měření kvality ovzduší. Seznam níže ukazuje, co přijímá."
       },
       "output": {
         "title": "Namapovaný výstup",
@@ -2891,7 +2895,7 @@
       "propose": "Navrhnout přidělení",
       "emptyHint": "Vazba role říká, kdo smí v tomto projektu co dělat. Dokud žádná není, může tu něco měnit jen správce organizace.",
       "subjectKindHelp": "Zda roli dostane jeden člověk, nebo skupina lidí. Skupina se uděluje jednou a členy si drží sama.",
-      "personHelp": "Uživatelské jméno nebo e-mail, který o tomto člověku vede poskytovatel identity, přesně jak se přihlašuje.",
+      "personHelp": "Vyberte osobu z organizace nebo zadejte celý e-mail někoho, kdo se ještě nepřihlásil, např. jana.novak@example.org.",
       "groupHelp": "Název skupiny vyhlášené v části Skupiny. Roli drží každý, dokud je jejím členem.",
       "roleHelp": "Co daný člověk smí: každá role je množina sloves nad množinou druhů, vypsaná v části Role.",
       "whereHelp": "Kam až role sahá: tento projekt, celá organizace, nebo jeden kontextový prostor projektu.",
@@ -3096,7 +3100,16 @@
       "noCkan": "Tato skupina nespravuje žádný katalog.",
       "ckanInstance": "{project} / {name}",
       "ckanVia": "přes roli {role}",
-      "appNotLoaded": "Aplikace se ještě načítá nebo ji nemůžete číst."
+      "appNotLoaded": "Aplikace se ještě načítá nebo ji nemůžete číst.",
+      "hint": {
+        "email": "Vyberte osobu z organizace nebo zadejte celý e-mail někoho, kdo se ještě nepřihlásil, např. jana.novak@example.org.",
+        "where": "Kde role platí: celá organizace nebo jeden projekt, např. helsinki.",
+        "space": "Ponechte celý projekt nebo zužte roli na jeden kontextový prostor, např. air-quality.",
+        "role": "Co mohou členové dělat, např. viewer čte, steward také navrhuje změny.",
+        "project": "Projekt, do kterého aplikace patří, např. helsinki.",
+        "app": "Aplikace, jejíž roli skupina dostane, např. air-quality-dashboard.",
+        "appRole": "Jedna z rolí, které aplikace definuje, např. reader."
+      }
     },
     "explorer": {
       "title": "Podívejte se, k čemu má kdo přístup",
@@ -3132,7 +3145,7 @@
       "kindHelp": "Osoba, skupina, role nebo servisní účet: čí přístup stránka vypíše.",
       "personHelp": "Lidé organizace podle e-mailu; vyhledávání výše seznam zúží.",
       "accountHelp": "Servisní účty projektu, tedy programy, které volají endpointy.",
-      "nameHelp": "Název přesně tak, jak je zapsán v Keycloaku."
+      "nameHelp": "Vyberte skupinu organizace nebo roli tohoto projektu či organizace."
     },
     "presets": {
       "legend": "Přístup",
@@ -4521,7 +4534,15 @@
     "kindStructured": "Strukturovaná hodnota",
     "kindList": "Seznam",
     "points": "bodů",
-    "openTarget": "Otevřít"
+    "openTarget": "Otevřít",
+    "hint": {
+      "filterText": "Vyberte test a napište slova, např. obsahuje Espoo.",
+      "filterNumber": "Vyberte test a napište číslo, např. větší než 40.",
+      "filterDate": "Vyberte test a zvolte datum, např. po 2026-10-01.",
+      "filterEnum": "Vyberte test; u „kterákoli z“ zvolte jednu nebo více povolených hodnot:",
+      "filterOther": "Vyberte test, např. má hodnotu nebo prázdné.",
+      "editAsText": "Napište dotaz NGSI-LD sami, např. pm10>40;name~=\"Espoo\"."
+    }
   },
   "explore": {
     "title": "Procházet data",
@@ -5306,7 +5327,18 @@
       },
       "assistant": {
         "transcript": "Čtení uložených konverzací"
-      }
+      },
+      "knowledge": {
+        "file": {
+          "uploaded": "Soubor přidán do zdroje znalostí",
+          "removed": "Soubor odebrán ze zdroje znalostí"
+        },
+        "answers": {
+          "forgotten": "Uložené odpovědi zapomenuty"
+        }
+      },
+      "access-request": "Žádost o přístup",
+      "personal-data": "Žádost o osobní údaje"
     },
     "sources": {
       "reconciler": "Konfigurace",
@@ -5685,7 +5717,7 @@
         "search": "Část jména nebo e-mailové adresy.",
         "person": "Osoba, za kterou brána rozhoduje.",
         "account": "Jeden ze servisních účtů tohoto projektu.",
-        "name": "Název tak, jak ho píše realm.",
+        "name": "Vyberte skupinu organizace nebo roli tohoto projektu či organizace.",
         "action": "Operace NGSI-LD, kterou by volání provedlo."
       },
       "pickFirst": "Nejprve vyberte Endpoint a koho chcete vyzkoušet."
@@ -6204,6 +6236,15 @@
           "requestsPerMinute": {
             "label": "Požadavky za minutu na projekt",
             "hint": "Nejvíce požadavků za minutu, které obslouží endpointy jednoho projektu."
+          },
+          "mqttBrokers": {
+            "label": "MQTT brokery"
+          },
+          "mqttConnections": {
+            "label": "MQTT připojení"
+          },
+          "mqttMessagesPerSecond": {
+            "label": "MQTT zprávy za sekundu"
           }
         },
         "nameCooldownDays": {
@@ -6301,6 +6342,24 @@
             "label": "Úložiště souborů aplikace (MiB)",
             "hint": "Kolik smí jedna aplikace uložit do svých souborů; projekt nebo aplikace může nastavit méně."
           }
+        },
+        "mqtt": {
+          "brokers": {
+            "label": "MQTT brokerů na projekt",
+            "hint": "Kolik brokerů smí projekt deklarovat."
+          },
+          "connections": {
+            "label": "MQTT připojení na projekt",
+            "hint": "Součet limitů připojení brokerů projektu."
+          },
+          "messagesPerSecond": {
+            "label": "MQTT zpráv za sekundu na projekt",
+            "hint": "Připojení × zprávy za sekundu na zařízení, za brokery projektu."
+          },
+          "maxMessageBytes": {
+            "label": "Největší MQTT zpráva (bajty)",
+            "hint": "Strop velikosti zprávy každého brokeru."
+          }
         }
       },
       "policies": {
@@ -6342,7 +6401,9 @@
       "pipelines": "Pipeliny",
       "pipelinesHint": "Co pipeliny uchovávají a čtou.",
       "data": "Data",
-      "dataHint": "Co smí člověk nahrát."
+      "dataHint": "Co smí člověk nahrát.",
+      "mqtt": "Výchozí MQTT",
+      "mqttHint": "Co smí spustit projekt bez vlastního MQTT povolení."
     },
     "limits": {
       "title": "Pravidla a limity",
@@ -6370,7 +6431,8 @@
         "signIn": "Přihlášení",
         "people": "Lidé",
         "agents": "Asistent",
-        "pipelinesAndData": "Pipeliny a data"
+        "pipelinesAndData": "Pipeliny a data",
+        "mqtt": "MQTT"
       },
       "origin": {
         "project": "projekt",
@@ -6834,7 +6896,15 @@
       "importedOrganization": "Importováno z modelu organizace {name}"
     },
     "createNamed": "Nové: „{name}“",
-    "list": "Možnosti"
+    "list": "Možnosti",
+    "person": {
+      "group": "Lidé organizace",
+      "typed": "Zadaný e-mail",
+      "none": "Nikdo neodpovídá. Zadejte celý e-mail osoby, která se ještě nepřihlásila.",
+      "unlisted": "Lidi organizace nemůžete zobrazit. Zadejte celý e-mail osoby, např. jana.novak@example.org.",
+      "invite": "Použít {email} (ještě se nepřihlásil/a)",
+      "needEmail": "Zadejte celou e-mailovou adresu osoby."
+    }
   },
   "units": {
     "search": "Hledat podle kódu, značky, názvu nebo veličiny",
@@ -7192,7 +7262,9 @@
       "queued": "Ve frontě",
       "running": "Prochází se",
       "failed": "Poslední procházení selhalo",
-      "crawled": "Projitý"
+      "crawled": "Projitý",
+      "indexing": "Indexuje se",
+      "read": "Přečteno"
     },
     "type": {
       "website": "Web",
@@ -7248,7 +7320,8 @@
       "findPages": "Najít stránky",
       "findPagesHelp": "Podle názvu nebo adresy, 2 až 100 znaků; na velikosti písmen a diakritice nezáleží. Zobrazí se nejvýše 100 stránek.",
       "noPagesFound": "Žádná stránka tohoto zdroje nemá „{q}“ v názvu ani v adrese.",
-      "modified": "změněno {at}"
+      "modified": "změněno {at}",
+      "filePage": "{name}, strana {page}"
     },
     "field": {
       "name": "Název",
@@ -7374,6 +7447,7 @@
       "question": "Vaše otázka",
       "send": "Odeslat",
       "failed": "Odpověď se nepodařilo načíst. Zkuste znovu.",
+      "modelUnavailable": "Model asistenta neodpověděl. Otázka zůstala v poli: zkuste to za minutu znovu.",
       "liveData": "Živá data",
       "sourceNumber": "Zdroj {n}",
       "data": "Data, která odpověď přečetla",
@@ -7415,7 +7489,8 @@
       "noneHint": "Nahrajte PDF, tabulku nebo textový soubor, ze kterého bude asistent odpovídat.",
       "name": "Soubor",
       "remove": "Odstranit",
-      "removeOf": "Odstranit {name}"
+      "removeOf": "Odstranit {name}",
+      "notTakenUp": "Asistent tento zdroj ještě nepřevzal; trvá to asi minutu po schválení. Stránka to ověřuje sama: soubory nahrajte, až se tlačítko vrátí."
     },
     "index": {
       "title": "Stav indexu",
@@ -8129,7 +8204,11 @@
       "maxMessageBytes": "Největší zpráva (bajty)",
       "messagesPerSecond": "Zpráv za sekundu na zařízení",
       "maxConnections": "Nejvýše spojení",
-      "port": "Vlastní port"
+      "port": "Vlastní port",
+      "mode": "Co broker dělá",
+      "capture": "Uchované zprávy",
+      "messagesPerTopic": "Uchovaných zpráv na téma",
+      "window": "Uchováno po dobu"
     },
     "acl": {
       "caption": "Přístup k tématům brokeru {broker} podle role",
@@ -8146,7 +8225,12 @@
       "password": "Heslo",
       "token": "Přístupový token vlastního klienta zařízení, získaný jeho klíčem; nikdy uložené heslo.",
       "pipeline": "Pipeline",
-      "brokerRef": "Vyberte {broker} jako broker platformy MQTT zdroje dat."
+      "brokerRef": "Vyberte {broker} jako broker platformy MQTT zdroje dat.",
+      "certificate": "Certifikát",
+      "certificateIssued": "Vydává ho platforma pro {host} od veřejné certifikační autority; zařízení ho ověří systémovými CA.",
+      "example": "Vyzkoušejte",
+      "copyExample": "Kopírovat příkaz",
+      "exampleHint": "Nejprve nastavte TOKEN na přístupový token klienta zařízení; Portál ho nikdy nezobrazí."
     },
     "measured": {
       "title": "Naměřeno",
@@ -8185,6 +8269,9 @@
       "unread": "Žádná pipeline ho nečte",
       "noEndpoint": "V projektu není Endpoint {endpoint}",
       "noPolicy": "V projektu není Policy {policy}"
+    },
+    "capture": {
+      "kept": "Uchovává posledních {count} zpráv na téma po dobu {window} pro sestavení mapování."
     }
   },
   "connect": {
@@ -8221,7 +8308,8 @@
       "copy": "Kopírovat konfiguraci"
     },
     "tools": "{count, plural, one {# nástroj} few {# nástroje} other {# nástrojů}}",
-    "noTools": "Konektor teď nenabízí anonymním volajícím žádné nástroje."
+    "noTools": "Konektor teď nenabízí anonymním volajícím žádné nástroje.",
+    "lead": "Přidejte tato data do AI asistenta, například Claude nebo ChatGPT: zkopírujte adresu do klienta a ptejte se."
   },
   "kinds": {
     "AgentProfile": {
@@ -8533,5 +8621,58 @@
     "which-one-wins": "Které pravidlo platí (Uživatelská příručka)",
     "4-recipe-buses-and-live-vehicles": "Recept: autobusy a vozidla živě (Uživatelská příručka)",
     "8-recipe-data-imported-from-a-file": "Recept: data importovaná ze souboru (Uživatelská příručka)"
+  },
+  "mqttAllowance": {
+    "field": {
+      "enabled": "MQTT brokery povoleny",
+      "enabledHint": "Vypnuto: projekt nemůže přidat broker.",
+      "brokers": "Nejvýše brokerů",
+      "brokersHint": "Prázdné: výchozí hodnota organizace.",
+      "connections": "Připojení zařízení celkem",
+      "connectionsHint": "Součet limitů připojení všech brokerů.",
+      "messagesPerSecond": "Zpráv za sekundu celkem",
+      "messagesPerSecondHint": "Připojení × zprávy za sekundu na zařízení, součet za brokery.",
+      "maxMessageBytes": "Největší zpráva (bajty)",
+      "maxMessageBytesHint": "Žádný broker projektu nesmí přijmout větší zprávu.",
+      "modes": "Co mohou brokery dělat",
+      "modesHint": "Nic nezaškrtnuto: zařízení jen posílají data.",
+      "addresses": "Adresy pro zařízení",
+      "addressesHint": "Nic nezaškrtnuto: adresa platformy s jejím certifikátem.",
+      "ports": "Vyhrazené porty projektu",
+      "portsHint": "Od 18830 do 18849, každý port jen pro jeden projekt."
+    },
+    "mode": {
+      "ingest": "Příjem",
+      "capture": "Příjem a uchování",
+      "relay": "Obousměrný"
+    },
+    "modeLong": {
+      "ingest": "Zařízení posílají data",
+      "capture": "…a uchová poslední zprávy, abyste mohli sestavit mapování",
+      "relay": "…a zařízení mohou i přijímat"
+    },
+    "address": {
+      "platform": "Adresa platformy (port 8883, certifikát od platformy)",
+      "dedicatedPort": "Vyhrazený port"
+    },
+    "admin": {
+      "button": "MQTT",
+      "action": "MQTT povolení projektu {project}",
+      "column": "MQTT",
+      "on": "Zapnuto · {used} z {limit} brokerů",
+      "off": "Vypnuto"
+    },
+    "project": {
+      "errorTitle": "MQTT povolení se nenačetlo",
+      "error": "Portál nedokázal přečíst, co smí tento projekt přidat. Načtěte stránku znovu; pokud to trvá, obraťte se na správce organizace.",
+      "offTitle": "MQTT je pro tento projekt vypnuto",
+      "off": "Zapnout ho může administrátor organizace v Administrace › Projekty › {project} › MQTT.",
+      "title": "Co může projekt přidat",
+      "left": "Použito {used} z {limit} brokerů, zbývá {connections} z {connectionsLimit} připojení a {rate} zpráv za sekundu.",
+      "modes": "Režimy, které projekt může použít",
+      "addresses": "Adresy: {addresses}.",
+      "ports": "Porty: {ports}.",
+      "full": "Všech {limit} brokerů je použito: nový bude odmítnut. Limit může zvýšit administrátor organizace v Administrace › Projekty."
+    }
   }
 }

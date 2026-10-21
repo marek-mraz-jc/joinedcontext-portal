@@ -128,6 +128,13 @@ function grid(mode: "view" | "edit") {
 }
 
 describe("an enum column in the grid", () => {
+  it("hints its filter with the allowed values, by title (T-4949, UI-16)", async () => {
+    grid("view");
+    const filter = await screen.findByLabelText("Filter: Category");
+    expect(filter).toHaveAccessibleDescription(expect.stringContaining(DEFAULT_LABELS.filterHintEnum));
+    expect(filter).toHaveAccessibleDescription(expect.stringContaining("Traffic"));
+  });
+
   it("reads a stored value as its title, and one outside the enum as written (T-4200)", async () => {
     grid("view");
     // The filter row's options say the titles too; the cells are what is asked about here.

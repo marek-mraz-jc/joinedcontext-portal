@@ -322,7 +322,8 @@
         "create": "{author} schlug vor, {kind} {name} anzulegen",
         "update": "{author} schlug vor, {kind} {name} zu ändern",
         "delete": "{author} schlug vor, {kind} {name} zu entfernen"
-      }
+      },
+      "anyKind": "Jede Art"
     },
     "reasonFirst": "Schreiben Sie zuerst, warum Sie die Änderung ablehnen."
   },
@@ -1323,7 +1324,8 @@
       "missingRow": "nicht in diesem Endpunkt (Filter oder Policy)",
       "hiddenColumn": "durch die Projektion verborgen",
       "same": "Dieser Endpunkt antwortet diese Seite genau so, wie der Raum sie hält.",
-      "spaceRefused": "Sie dürfen diesen Endpunkt lesen, aber nicht den Raum dahinter, also gibt es nichts zu vergleichen."
+      "spaceRefused": "Sie dürfen diesen Endpunkt lesen, aber nicht den Raum dahinter, also gibt es nichts zu vergleichen.",
+      "typeHelp": "Welchen Datensatztyp die Tabelle zeigt; einen anderen wählen, um seine Zeilen zu sehen, z. B. die Luftqualitätsmessungen."
     },
     "projection": {
       "title": "Veröffentlichte Attribute",
@@ -1700,7 +1702,8 @@
       "send": "Senden",
       "fill": "Füllen Sie zuerst die Felder aus, die der Aufruf braucht.",
       "answered": "Der Endpunkt antwortete {status}.",
-      "code": "Derselbe Aufruf als Code"
+      "code": "Derselbe Aufruf als Code",
+      "noType": "Noch kein Entitätstyp: Sobald eine Pipeline oder eine Person Entitäten über diesen Endpoint schreibt, werden ihre Typen hier aufgeführt."
     },
     "docs": {
       "title": "API-Dokumentation",
@@ -2332,7 +2335,8 @@
         "fileHint": "Die Prozessoren, die diese Pipeline ausführt, so wie das Repository sie neben ihrem Manifest hält. Zugangsdaten erscheinen als Verweise, die der Runner füllt, nie als Werte.",
         "fileEdit": "Mapping-Datei bearbeiten; Vorschlagen sendet sie mit dem Manifest",
         "fileEditDisabled": "Die Mapping-Datei lässt sich bearbeiten, sobald sie geladen ist.",
-        "type": "Typ, den das Mapping schreibt"
+        "type": "Typ, den das Mapping schreibt",
+        "typeHint": "Das Modell hat mehrere Klassen: Wählen Sie die, zu der jeder Datensatz wird, zum Beispiel eine Luftgütemessung. Die Liste darunter zeigt, was sie nimmt."
       },
       "output": {
         "title": "Abgebildete Ausgabe",
@@ -2891,7 +2895,7 @@
       "propose": "Vergabe vorschlagen",
       "emptyHint": "Eine Rollenbindung sagt, wer in diesem Projekt was darf. Solange es keine gibt, kann hier nur eine Administratorin der Organisation etwas ändern.",
       "subjectKindHelp": "Ob die Rolle an eine Person oder an eine Gruppe geht. Eine Gruppe wird einmal berechtigt und hält ihre Mitglieder selbst nach.",
-      "personHelp": "Der Benutzername oder die E-Mail-Adresse, die der Identitätsanbieter für diese Person führt, genau wie sie sich anmeldet.",
+      "personHelp": "Wählen Sie eine Person der Organisation oder geben Sie die vollständige E-Mail einer Person ein, die sich noch nicht angemeldet hat, z. B. jana.novak@example.org.",
       "groupHelp": "Der Name einer unter Gruppen erklärten Gruppe. Die Rolle hält, wer Mitglied ist.",
       "roleHelp": "Was die Person darf: jede Rolle ist eine Menge von Verben auf einer Menge von Arten, aufgeführt unter Rollen.",
       "whereHelp": "Wie weit die Rolle reicht: dieses Projekt, die ganze Organisation, oder ein Kontextraum des Projekts.",
@@ -3096,7 +3100,16 @@
       "noCkan": "Diese Gruppe verwaltet keinen Katalog.",
       "ckanInstance": "{project} / {name}",
       "ckanVia": "über die Rolle {role}",
-      "appNotLoaded": "Die App wird noch geladen, oder Sie dürfen sie nicht lesen."
+      "appNotLoaded": "Die App wird noch geladen, oder Sie dürfen sie nicht lesen.",
+      "hint": {
+        "email": "Wählen Sie eine Person der Organisation oder geben Sie die vollständige E-Mail einer Person ein, die sich noch nicht angemeldet hat, z. B. jana.novak@example.org.",
+        "where": "Wo die Rolle gilt: die ganze Organisation oder ein Projekt, z. B. helsinki.",
+        "space": "Das ganze Projekt behalten oder die Rolle auf einen Kontextraum begrenzen, z. B. air-quality.",
+        "role": "Was die Mitglieder dort dürfen, z. B. viewer liest, steward schlägt auch Änderungen vor.",
+        "project": "Das Projekt, zu dem die Anwendung gehört, z. B. helsinki.",
+        "app": "Die Anwendung, deren Rolle die Gruppe erhält, z. B. air-quality-dashboard.",
+        "appRole": "Eine der Rollen, die die Anwendung festlegt, z. B. reader."
+      }
     },
     "explorer": {
       "title": "Sehen, worauf jemand zugreifen kann",
@@ -3132,7 +3145,7 @@
       "kindHelp": "Eine Person, eine Gruppe, eine Rolle oder ein Dienstkonto: wessen Zugriff die Seite auflistet.",
       "personHelp": "Die Personen der Organisation, nach E-Mail; die Suche darüber grenzt die Liste ein.",
       "accountHelp": "Die Dienstkonten des Projekts, die Programme, die Endpoints aufrufen.",
-      "nameHelp": "Der Name genau so, wie er in Keycloak geschrieben ist."
+      "nameHelp": "Wählen Sie eine Gruppe der Organisation oder eine Rolle dieses Projekts oder der Organisation."
     },
     "presets": {
       "legend": "Zugriff",
@@ -4521,7 +4534,15 @@
     "kindStructured": "Strukturierter Wert",
     "kindList": "Liste",
     "points": "Punkte",
-    "openTarget": "Öffnen"
+    "openTarget": "Öffnen",
+    "hint": {
+      "filterText": "Einen Test wählen, dann die Wörter tippen, z. B. enthält Espoo.",
+      "filterNumber": "Einen Test wählen, dann eine Zahl tippen, z. B. größer als 40.",
+      "filterDate": "Einen Test wählen, dann ein Datum, z. B. nach 2026-10-01.",
+      "filterEnum": "Einen Test wählen; bei „eines von“ einen oder mehrere erlaubte Werte wählen:",
+      "filterOther": "Einen Test wählen, z. B. hat einen Wert oder leer.",
+      "editAsText": "Die NGSI-LD-Abfrage selbst schreiben, z. B. pm10>40;name~=\"Espoo\"."
+    }
   },
   "explore": {
     "title": "Daten erkunden",
@@ -5306,7 +5327,18 @@
       },
       "assistant": {
         "transcript": "Gespeicherte Unterhaltungen gelesen"
-      }
+      },
+      "knowledge": {
+        "file": {
+          "uploaded": "Datei zu einer Wissensquelle hinzugefügt",
+          "removed": "Datei aus einer Wissensquelle entfernt"
+        },
+        "answers": {
+          "forgotten": "Gespeicherte Antworten vergessen"
+        }
+      },
+      "access-request": "Zugriffsanfrage",
+      "personal-data": "Anfrage zu personenbezogenen Daten"
     },
     "sources": {
       "reconciler": "Konfiguration",
@@ -5685,7 +5717,7 @@
         "search": "Ein Teil des Namens oder der E-Mail-Adresse.",
         "person": "Die Person, für die das Gateway entscheidet.",
         "account": "Eines der Dienstkonten dieses Projekts.",
-        "name": "Der Name, wie der Realm ihn schreibt.",
+        "name": "Wählen Sie eine Gruppe der Organisation oder eine Rolle dieses Projekts oder der Organisation.",
         "action": "Die NGSI-LD-Operation, die der Aufruf ausführen würde."
       },
       "pickFirst": "Wählen Sie zuerst den Endpoint und wen Sie ausprobieren."
@@ -6204,6 +6236,15 @@
           "requestsPerMinute": {
             "label": "Anfragen pro Minute pro Projekt",
             "hint": "Die meisten Anfragen pro Minute, die die Endpunkte eines Projekts bedienen."
+          },
+          "mqttBrokers": {
+            "label": "MQTT-Broker"
+          },
+          "mqttConnections": {
+            "label": "MQTT-Verbindungen"
+          },
+          "mqttMessagesPerSecond": {
+            "label": "MQTT-Nachrichten pro Sekunde"
           }
         },
         "nameCooldownDays": {
@@ -6301,6 +6342,24 @@
             "label": "Dateispeicher einer App (MiB)",
             "hint": "Wie viel eine App in ihren Dateien speichern darf; ein Projekt oder eine App kann weniger festlegen."
           }
+        },
+        "mqtt": {
+          "brokers": {
+            "label": "MQTT-Broker je Projekt",
+            "hint": "Wie viele Broker ein Projekt deklarieren darf."
+          },
+          "connections": {
+            "label": "MQTT-Verbindungen je Projekt",
+            "hint": "Summe der Verbindungsgrenzen der Broker eines Projekts."
+          },
+          "messagesPerSecond": {
+            "label": "MQTT-Nachrichten pro Sekunde je Projekt",
+            "hint": "Verbindungen × Nachrichten pro Sekunde je Gerät, über die Broker eines Projekts."
+          },
+          "maxMessageBytes": {
+            "label": "Größte MQTT-Nachricht (Byte)",
+            "hint": "Obergrenze der Nachrichtengröße jedes Brokers."
+          }
         }
       },
       "policies": {
@@ -6342,7 +6401,9 @@
       "pipelines": "Pipelines",
       "pipelinesHint": "Was Pipelines behalten und lesen.",
       "data": "Daten",
-      "dataHint": "Was man hochladen darf."
+      "dataHint": "Was man hochladen darf.",
+      "mqtt": "MQTT-Standard",
+      "mqttHint": "Was ein Projekt ohne eigenes MQTT-Kontingent betreiben darf."
     },
     "limits": {
       "title": "Richtlinien und Limits",
@@ -6370,7 +6431,8 @@
         "signIn": "Anmeldung",
         "people": "Personen",
         "agents": "Assistent",
-        "pipelinesAndData": "Pipelines und Daten"
+        "pipelinesAndData": "Pipelines und Daten",
+        "mqtt": "MQTT"
       },
       "origin": {
         "project": "das Projekt",
@@ -6834,7 +6896,15 @@
       "importedOrganization": "Importiert aus dem Organisationsmodell {name}"
     },
     "createNamed": "Neu: „{name}“",
-    "list": "Auswahl"
+    "list": "Auswahl",
+    "person": {
+      "group": "Personen der Organisation",
+      "typed": "Eingegebene E-Mail",
+      "none": "Niemand passt. Geben Sie die vollständige E-Mail einer Person ein, die sich noch nicht angemeldet hat.",
+      "unlisted": "Sie dürfen die Personen der Organisation nicht auflisten. Geben Sie die vollständige E-Mail ein, z. B. jana.novak@example.org.",
+      "invite": "{email} verwenden (noch nicht angemeldet)",
+      "needEmail": "Geben Sie die vollständige E-Mail-Adresse der Person ein."
+    }
   },
   "units": {
     "search": "Nach Code, Symbol, Name oder Größe suchen",
@@ -7192,7 +7262,9 @@
       "queued": "Steht an",
       "running": "Wird durchlaufen",
       "failed": "Letzter Durchlauf fehlgeschlagen",
-      "crawled": "Durchlaufen"
+      "crawled": "Durchlaufen",
+      "indexing": "Wird indexiert",
+      "read": "Gelesen"
     },
     "type": {
       "website": "Website",
@@ -7248,7 +7320,8 @@
       "findPages": "Seiten finden",
       "findPagesHelp": "Nach Titel oder Adresse, 2 bis 100 Zeichen; Groß- und Kleinschreibung und Akzente spielen keine Rolle. Höchstens 100 Seiten werden gezeigt.",
       "noPagesFound": "Keine Seite dieser Quelle hat „{q}“ im Titel oder in der Adresse.",
-      "modified": "geändert {at}"
+      "modified": "geändert {at}",
+      "filePage": "{name}, Seite {page}"
     },
     "field": {
       "name": "Name",
@@ -7374,6 +7447,7 @@
       "question": "Ihre Frage",
       "send": "Senden",
       "failed": "Die Antwort konnte nicht geladen werden. Bitte erneut versuchen.",
+      "modelUnavailable": "Das Modell des Assistenten hat nicht geantwortet. Ihre Frage bleibt im Feld: versuchen Sie es in einer Minute erneut.",
       "liveData": "Live-Daten",
       "sourceNumber": "Quelle {n}",
       "data": "Gelesene Daten der Antwort",
@@ -7415,7 +7489,8 @@
       "noneHint": "Laden Sie ein PDF, eine Tabelle oder eine Textdatei hoch, aus der der Assistent antwortet.",
       "name": "Datei",
       "remove": "Entfernen",
-      "removeOf": "{name} entfernen"
+      "removeOf": "{name} entfernen",
+      "notTakenUp": "Der Assistent hat diese Quelle noch nicht übernommen; das dauert etwa eine Minute nach der Freigabe. Die Seite prüft das selbst: Laden Sie die Dateien hoch, sobald die Schaltfläche wieder da ist."
     },
     "index": {
       "title": "Indexstatus",
@@ -8129,7 +8204,11 @@
       "maxMessageBytes": "Größte Nachricht (Bytes)",
       "messagesPerSecond": "Nachrichten pro Sekunde je Gerät",
       "maxConnections": "Höchstens Verbindungen",
-      "port": "Eigener Port"
+      "port": "Eigener Port",
+      "mode": "Was der Broker tut",
+      "capture": "Aufbewahrte Nachrichten",
+      "messagesPerTopic": "Nachrichten je Thema",
+      "window": "Aufbewahrt für"
     },
     "acl": {
       "caption": "Topic-Zugriff von {broker} nach Rolle",
@@ -8146,7 +8225,12 @@
       "password": "Passwort",
       "token": "Ein Access-Token des eigenen Clients des Geräts, mit seinem Schlüssel geholt; nie ein gespeichertes Passwort.",
       "pipeline": "Pipelines",
-      "brokerRef": "{broker} als Plattform-Broker einer MQTT-Datenquelle wählen."
+      "brokerRef": "{broker} als Plattform-Broker einer MQTT-Datenquelle wählen.",
+      "certificate": "Zertifikat",
+      "certificateIssued": "Von der Plattform für {host} bei einer öffentlichen Zertifizierungsstelle ausgestellt; Geräte prüfen es mit ihrem System-CA-Speicher.",
+      "example": "Ausprobieren",
+      "copyExample": "Befehl kopieren",
+      "exampleHint": "Setzen Sie zuerst TOKEN auf ein Zugriffstoken des Geräte-Clients; das Portal zeigt nie eines."
     },
     "measured": {
       "title": "Gemessen",
@@ -8185,6 +8269,9 @@
       "unread": "Keine Pipeline liest sie",
       "noEndpoint": "Kein Endpoint {endpoint} in diesem Projekt",
       "noPolicy": "Keine Policy {policy} in diesem Projekt"
+    },
+    "capture": {
+      "kept": "Behält die letzten {count} Nachrichten je Thema für {window}, um das Mapping zu bauen."
     }
   },
   "connect": {
@@ -8221,7 +8308,8 @@
       "copy": "Konfiguration kopieren"
     },
     "tools": "{count, plural, one {# Werkzeug} other {# Werkzeuge}}",
-    "noTools": "Der Konnektor bietet anonymen Aufrufern gerade keine Werkzeuge an."
+    "noTools": "Der Konnektor bietet anonymen Aufrufern gerade keine Werkzeuge an.",
+    "lead": "Diese Daten einem KI-Assistenten wie Claude oder ChatGPT hinzufügen: die Adresse in den Client kopieren und Fragen stellen."
   },
   "kinds": {
     "AgentProfile": {
@@ -8533,5 +8621,58 @@
     "which-one-wins": "Welche Regel gilt (Benutzerhandbuch)",
     "4-recipe-buses-and-live-vehicles": "Rezept: Busse und Live-Fahrzeuge (Benutzerhandbuch)",
     "8-recipe-data-imported-from-a-file": "Rezept: aus einer Datei importierte Daten (Benutzerhandbuch)"
+  },
+  "mqttAllowance": {
+    "field": {
+      "enabled": "MQTT-Broker erlaubt",
+      "enabledHint": "Aus: Das Projekt kann keinen Broker hinzufügen.",
+      "brokers": "Höchstens Broker",
+      "brokersHint": "Leer: Standard der Organisation.",
+      "connections": "Geräteverbindungen insgesamt",
+      "connectionsHint": "Summe der Verbindungsgrenzen aller Broker.",
+      "messagesPerSecond": "Nachrichten pro Sekunde insgesamt",
+      "messagesPerSecondHint": "Verbindungen × Nachrichten pro Sekunde je Gerät, über alle Broker summiert.",
+      "maxMessageBytes": "Größte Nachricht (Byte)",
+      "maxMessageBytesHint": "Kein Broker des Projekts darf größere Nachrichten annehmen.",
+      "modes": "Was Broker dürfen",
+      "modesHint": "Nichts angekreuzt: Geräte senden nur Daten.",
+      "addresses": "Adressen für Geräte",
+      "addressesHint": "Nichts angekreuzt: die Plattformadresse mit ihrem Zertifikat.",
+      "ports": "Eigene Ports des Projekts",
+      "portsHint": "Von 18830 bis 18849, jeder Port nur für ein Projekt."
+    },
+    "mode": {
+      "ingest": "Eingang",
+      "capture": "Eingang mit Aufbewahrung",
+      "relay": "Zweiwege"
+    },
+    "modeLong": {
+      "ingest": "Geräte senden Daten",
+      "capture": "…und die letzten Nachrichten behalten, um das Mapping zu bauen",
+      "relay": "…und Geräte können auch empfangen"
+    },
+    "address": {
+      "platform": "Plattformadresse (Port 8883, Zertifikat der Plattform)",
+      "dedicatedPort": "Eigener Port"
+    },
+    "admin": {
+      "button": "MQTT",
+      "action": "MQTT-Kontingent von {project}",
+      "column": "MQTT",
+      "on": "An · {used} von {limit} Brokern",
+      "off": "Aus"
+    },
+    "project": {
+      "errorTitle": "Das MQTT-Kontingent wurde nicht geladen",
+      "error": "Das Portal konnte nicht lesen, was dieses Projekt hinzufügen darf. Laden Sie die Seite neu; bleibt es so, fragen Sie eine Organisationsadministration.",
+      "offTitle": "MQTT ist für dieses Projekt aus",
+      "off": "Ein Administrator der Organisation kann es unter Verwaltung › Projekte › {project} › MQTT einschalten.",
+      "title": "Was dieses Projekt hinzufügen darf",
+      "left": "{used} von {limit} Brokern belegt, {connections} von {connectionsLimit} Verbindungen und {rate} Nachrichten pro Sekunde frei.",
+      "modes": "Modi, die das Projekt nutzen darf",
+      "addresses": "Adressen: {addresses}.",
+      "ports": "Portnummern: {ports}.",
+      "full": "Alle {limit} Broker sind belegt: ein neuer wird abgelehnt. Ein Administrator der Organisation kann das Limit unter Verwaltung › Projekte erhöhen."
+    }
   }
 }

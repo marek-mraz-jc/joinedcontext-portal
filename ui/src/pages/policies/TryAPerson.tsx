@@ -20,6 +20,8 @@ import {
   Input,
   Select,
 } from "../../components/ui";
+import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
+import { TypePicker } from "../../components/pickers/TypePicker";
 
 type Who = components["schemas"]["Who"];
 type Simulated = components["schemas"]["Simulated"];
@@ -96,9 +98,14 @@ function Panel({ project }: { project: string }): JSX.Element {
       ),
   });
 
-  const endpointNames = asManifests(endpoints.data?.items ?? []).map(
-    (e) => e.metadata.name,
-  );
+  const endpointManifests = asManifests(endpoints.data?.items ?? []);
+  const endpointNames = endpointManifests.map((e) => e.metadata.name);
+  // The types worth trying are the ones the Endpoint's space holds.
+  const spaceOf = (name: string): string | undefined => {
+    const ref = (endpointManifests.find((e) => e.metadata.name === name)?.spec as { contextSpaceRef?: unknown } | undefined)
+      ?.contextSpaceRef;
+    return typeof ref === "string" && ref !== "" ? ref : undefined;
+  };
   const accountNames = asManifests(accounts.data?.items ?? []).map(
     (a) => a.metadata.name,
   );
@@ -272,12 +279,23 @@ function Panel({ project }: { project: string }): JSX.Element {
             help={t("policies.try.hints.name")}
             required
           >
-            <Input
+            <ResourceNamePicker
               id={`${id}-name`}
+              label={t(`policies.try.kinds.${kind}`)}
+              labelled
+              // A Policy names an organization group, or a role of this project or the
+              // organization (AssigneePicker's lists), so these are the names worth trying.
+              from={
+                kind === "group"
+                  ? { project: ORG_NAMESPACE, plural: "groups" }
+                  : [
+                      { project, plural: "roles" },
+                      { project: ORG_NAMESPACE, plural: "roles" },
+                    ]
+              }
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={255}
-              autoComplete="off"
+              onChange={setName}
+              required
             />
           </Field>
         ) : null}
@@ -304,12 +322,14 @@ function Panel({ project }: { project: string }): JSX.Element {
           label={t("policies.try.type")}
           help={t("policies.try.typeHelp")}
         >
-          <Input
+          <TypePicker
             id={`${id}-type`}
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-            maxLength={255}
-            autoComplete="off"
+            label={t("policies.try.type")}
+            labelled
+            project={project}
+            space={spaceOf(chosenEndpoint)}
+            value={type ? [type] : []}
+            onChange={(types) => setType(types[0] ?? "")}
           />
         </Field>
         <div className="sm:col-span-2">

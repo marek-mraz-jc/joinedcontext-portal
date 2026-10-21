@@ -202,6 +202,27 @@ describe("a group's page", () => {
     await expectNoViolations(members);
   });
 
+  // T-4949, UI-16: every field says what to enter, with an example, wired to the field.
+  it("gives every field a hint with an example", async () => {
+    const user = userEvent.setup();
+    renderGroup();
+    const g = en.access.groupPage;
+    const members = await section(g.members);
+    expect(within(members).getByLabelText(g.email)).toHaveAccessibleDescription(g.hint.email);
+    const platform = await section(g.platformRoles);
+    expect(within(platform).getByLabelText(g.where)).toHaveAccessibleDescription(g.hint.where);
+    expect(within(platform).getByLabelText(g.role)).toHaveAccessibleDescription(g.hint.role);
+    await user.selectOptions(within(platform).getByLabelText(g.where), "helsinki");
+    expect(within(platform).getByLabelText(g.space)).toHaveAccessibleDescription(g.hint.space);
+    const apps = await section(g.appRoles);
+    expect(within(apps).getByLabelText(g.project)).toHaveAccessibleDescription(g.hint.project);
+    expect(within(apps).getByLabelText(g.app)).toHaveAccessibleDescription(g.hint.app);
+    expect(within(apps).getByLabelText(g.role)).toHaveAccessibleDescription(g.hint.appRole);
+    for (const hint of [g.hint.email, g.hint.where, g.hint.role, g.hint.space, g.hint.project, g.hint.app, g.hint.appRole]) {
+      expect(hint).toMatch(/e\.g\. /);
+    }
+  });
+
   it("lists the catalogues the group's bindings let it manage, and none without one", async () => {
     renderGroup({ ckan: true });
     const reached = await section(en.access.groupPage.ckanTitle);
@@ -217,21 +238,29 @@ describe("a group's page", () => {
   });
 
   it("offers the realm's people who are not members yet", async () => {
+    const user = userEvent.setup();
     renderGroup({ people: true });
     const members = await section(en.access.groupPage.members);
-    // With a list of choices the e-mail field is a combobox to a screen reader.
-    const field = await within(members).findByRole("combobox", { name: en.access.groupPage.email });
-    const offered = [...document.querySelectorAll(`#${CSS.escape(field.getAttribute("list") ?? "")} option`)].map(
-      (option) => (option as HTMLOptionElement).value,
-    );
+    // The member field is the shared people picker (T-4947): a combobox over a listbox.
+    await user.click(await within(members).findByRole("combobox", { name: en.access.groupPage.email }));
+    const offered = within(await screen.findByRole("listbox")).getAllByRole("option").map((option) => option.textContent ?? "");
     // jana is a member already; a disabled person is not offered.
-    expect(offered).toEqual(["petra@hel.fi"]);
+    expect(offered.some((text) => text.includes("petra@hel.fi"))).toBe(true);
+    expect(offered.some((text) => text.includes("jana@hel.fi"))).toBe(false);
   });
 
-  it("types a member in full when the caller may not list people", async () => {
+  it("names a member by a full e-mail when the caller may not list people, and nothing else", async () => {
+    const user = userEvent.setup();
     renderGroup();
     const members = await section(en.access.groupPage.members);
-    expect(within(members).getByRole("textbox", { name: en.access.groupPage.email })).not.toHaveAttribute("list");
+    const box = within(members).getByRole("combobox", { name: en.access.groupPage.email });
+    await user.click(box);
+    expect(await screen.findByText(en.picker.person.unlisted)).toBeInTheDocument();
+    await user.type(box, "petra");
+    // Text that is not an e-mail is never offered as a person.
+    expect(await screen.findByText(en.picker.person.needEmail)).toBeInTheDocument();
+    await user.type(box, "@hel.fi");
+    expect(await screen.findByText(i18n.t("picker.person.invite", { email: "petra@hel.fi" }))).toBeInTheDocument();
   });
 
   it("adds a member as the Group manifest with that one member more, metadata kept", async () => {

@@ -10,7 +10,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 export interface Shot {
   area: string;
@@ -31,6 +31,14 @@ export function shotName({ area, route, state, who, lang, width }: Shot): string
   return `${[area, route, state, who, lang].map(slug).join("-")}-${width}.png`;
 }
 
+/**
+ * What no picture shows (T-4950): a typed password (the same mask as guide.ts) and any text on the
+ * page shaped like a token, a JWT or a bearer credential, wherever a page happens to print one.
+ */
+export function secretMasks(page: Page): Locator[] {
+  return [page.locator("input[type=password]"), page.getByText(/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|\bBearer\s+[A-Za-z0-9._~+/=-]{16,}/)];
+}
+
 /** Saves the page as it stands; returns the file path, or undefined when `SHOTS_DIR` is unset. */
 export async function shot(page: Page, what: Omit<Shot, "width">, dir = process.env.SHOTS_DIR): Promise<string | undefined> {
   if (!dir) return undefined;
@@ -38,8 +46,7 @@ export async function shot(page: Page, what: Omit<Shot, "width">, dir = process.
   const entry: Shot = { ...what, width };
   const file = shotName(entry);
   mkdirSync(dir, { recursive: true });
-  // A typed password never reaches a picture (the same mask as guide.ts).
-  await page.screenshot({ path: join(dir, file), fullPage: true, mask: [page.locator("input[type=password]")] });
+  await page.screenshot({ path: join(dir, file), fullPage: true, mask: secretMasks(page) });
   appendFileSync(join(dir, "shots.jsonl"), `${JSON.stringify({ file, ...entry })}\n`);
   return join(dir, file);
 }

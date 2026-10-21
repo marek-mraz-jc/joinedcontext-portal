@@ -1078,6 +1078,7 @@
         "Checkbox": 2
       },
       "tests": [
+        "endpoint_geo_property.test.ts",
         "part_endpoint_links.test.tsx",
         "part_operation_groups.test.tsx"
       ]
@@ -1494,6 +1495,14 @@
       "tests": [
         "people_invite.test.tsx",
         "people_page.test.tsx"
+      ]
+    },
+    "src/pages/organization/ProjectMqtt.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "mqtt_allowance_ui.test.tsx"
       ]
     },
     "src/pages/pipelines/AccessRequests.tsx": {
