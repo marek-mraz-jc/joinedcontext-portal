@@ -5532,7 +5532,17 @@
       "expiresAt": "Expires at",
       "isActive": "Deliver notifications",
       "receiver": "Sends to",
-      "watches": "Watches"
+      "watches": "Watches",
+      "deliveries": "Deliveries"
+    },
+    "delivery": {
+      "none": "No notification yet: it is sent when a watched entity changes.",
+      "ok": "Delivered",
+      "failing": "Failing",
+      "lastSuccess": "Last delivered {at}",
+      "lastFailure": "Last failure {at}",
+      "counts": "{sent} sent, {failed} failed",
+      "failingHint": "The receiver did not accept the last notification: check that its address answers over https and accepts a POST."
     }
   },
   "registrations": {

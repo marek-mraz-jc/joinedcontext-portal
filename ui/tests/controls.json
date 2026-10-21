@@ -1921,6 +1921,7 @@
       },
       "tests": [
         "form_required_reference_check.test.tsx",
+        "subscription_deliveries.test.tsx",
         "subscription_form.test.tsx"
       ]
     },

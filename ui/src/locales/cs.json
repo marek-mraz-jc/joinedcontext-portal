@@ -5532,7 +5532,17 @@
       "expiresAt": "Platí do",
       "isActive": "Posílat notifikace",
       "receiver": "Posílá na",
-      "watches": "Sleduje"
+      "watches": "Sleduje",
+      "deliveries": "Doručení"
+    },
+    "delivery": {
+      "none": "Zatím žádné upozornění: odešle se, když se sledovaná entita změní.",
+      "ok": "Doručeno",
+      "failing": "Selhává",
+      "lastSuccess": "Naposledy doručeno {at}",
+      "lastFailure": "Poslední selhání {at}",
+      "counts": "Odesláno: {sent}, selhalo: {failed}",
+      "failingHint": "Příjemce nepřijal poslední upozornění: ověřte, že jeho adresa odpovídá přes https a přijímá POST."
     }
   },
   "registrations": {
