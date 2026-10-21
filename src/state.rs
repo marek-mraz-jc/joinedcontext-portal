@@ -382,7 +382,17 @@ impl AppState {
                     )
                     .with_source_holds(Arc::clone(&state.source_ledger))
                     .with_run_health(Arc::clone(&state.pipeline_log))
-                    .with_health_log(Arc::clone(&state.health_log)),
+                    .with_health_log(
+                        Arc::clone(&state.health_log),
+                        Arc::new(crate::health_probe::Probes::new(
+                            state
+                                .config
+                                .gateway_url
+                                .as_deref()
+                                .and_then(|g| url::Url::parse(g).ok()),
+                            Some(Arc::clone(&state.space_usage)),
+                        )),
+                    ),
                 ));
             syncer = state.wire_cluster_writers(syncer);
             syncer = state.wire_database_steps(syncer);

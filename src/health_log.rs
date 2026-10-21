@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 use std::sync::RwLock;
 
 use chrono::{DateTime, Duration, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::alerts::{chrono_of, rfc3339, stamp_of, Event, Signal};
@@ -125,10 +125,10 @@ pub struct Finding {
     pub project: String,
     pub kind: Kind,
     pub name: String,
-    pub check: &'static str,
+    pub check: String,
     pub status: Status,
-    pub detail: String,
-    pub fix_hint: String,
+    pub detail: Text,
+    pub fix: Text,
     pub evidence_url: String,
 }
 
@@ -140,7 +140,7 @@ impl Finding {
             self.project.clone(),
             self.kind,
             self.name.clone(),
-            self.check.to_owned(),
+            self.check.clone(),
         )
     }
 }
@@ -154,6 +154,115 @@ pub struct Point {
     pub status: Status,
 }
 
+/// A message of the health log: its key under `health.say` in the UI's locales with the values
+/// it names, and its English text for the API and the logs. A text a component wrote (a broker's
+/// error) has no key: it is shown as it came, credentials masked.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[schema(as = HealthCheckText)]
+pub struct Text {
+    /// The key under `health.say`; empty for a component's own words.
+    pub code: String,
+    /// The values the message names, by placeholder.
+    pub args: BTreeMap<String, String>,
+    /// The message in English.
+    pub text: String,
+}
+
+/// The English of every message the checks say, `{name}` a placeholder.
+const SAY: &[(&str, &str)] = &[
+    ("notApplied", "not applied yet"),
+    ("waitingApproval", "waiting for approval"),
+    ("noNewData", "no new observation in the window its schedule promises"),
+    ("countFellToZero", "the space held {before} entities and now holds none"),
+    ("countHalved", "the space fell from {before} to {now} entities"),
+    ("counted", "{entities} entities, {history} history rows"),
+    ("notCounted", "the broker could not count the space: {reason}"),
+    ("invalid", "{invalid} of {checked} entities break the model's rules, most often {rule}"),
+    ("valid", "{checked} entities follow the model"),
+    ("staleType", "{type} has no observation newer than {newest}, written by {pipeline}"),
+    ("noReader", "no pipeline reads this source"),
+    ("readBy", "read by {pipelines}"),
+    ("readerSaid", "{pipeline}: {said}"),
+    ("answered", "{surface} answered {status} in {ms} ms"),
+    ("slow", "{surface} answered in {ms} ms, over 3 s"),
+    ("anonymousRefused", "{surface} refused an anonymous reader ({status}) though the Endpoint is public"),
+    ("notServed", "{surface} answered {status}"),
+    ("noAnswer", "{surface} did not answer: {reason}"),
+    ("policyWrite", "The broker refused the write: the target Endpoint's Policy must grant pl-{name} create and update, or spec.outputs[].targetEndpoint must name an Endpoint without policyRef."),
+    ("policy", "A Policy refuses this operation: check the Endpoint's policyRef and the Policy's rules on the Policies page."),
+    ("token", "The account's token was refused: check the service account and its secretRef, then sync again."),
+    ("robots", "The source's robots.txt disallows the reader: point spec.source.url at an allowed address or ask the publisher."),
+    ("sourceDown", "The source or the broker did not answer: check that spec.source.url opens, then use Run now on the pipeline page."),
+    ("serviceDown", "A service did not answer: wait for the next check; if it stays red, read the broker's status on the Administration page."),
+    ("runLog", "Open the run log on the pipeline page and fix the step its newest failed line names."),
+    ("manifest", "Open the {kind} manifest, change the field the message names and propose the change."),
+    ("approve", "Approve its change on the Approvals page; the next sync applies it."),
+    ("drift", "The platform holds something else than the repository: open it and keep the platform's state or restore the repository's."),
+    ("drop", "The newest run sent far less than the week before: compare the source with the pipeline's filter and mapping on the pipeline page."),
+    ("schedule", "Check spec.schedule and the source, then use Run now on the pipeline page."),
+    ("countFell", "Open the pipelines writing this space and their newest runs: a source that answered empty or a retention rule may have removed the entities."),
+    ("validation", "Open the space's Quality tab: it lists each broken rule with examples; fix the pipeline's mapping or the model."),
+    ("retention", "The history grows without a bound: set spec.retention on the Context Space."),
+    ("addReader", "Add a pipeline that reads this source, or remove the source."),
+    ("publicRefused", "The Endpoint is public but its surface asks for a token: check spec.audience and the Policy named in spec.policyRef."),
+    ("surfaceMissing", "The gateway does not serve this surface: check spec.enabledRepresentations and that the Endpoint is applied."),
+    ("slowSurface", "The surface answers slowly: check the broker's load and the Endpoint's filter."),
+];
+
+impl Text {
+    /// Message `code` with `args`, its English filled in.
+    pub fn say(code: &'static str, args: &[(&str, String)]) -> Self {
+        let mut text = SAY
+            .iter()
+            .find(|(key, _)| *key == code)
+            .map_or(code, |(_, english)| english)
+            .to_owned();
+        for (name, value) in args {
+            text = text.replace(&format!("{{{name}}}"), value);
+        }
+        Self {
+            code: code.to_owned(),
+            args: args
+                .iter()
+                .map(|(name, value)| ((*name).to_owned(), value.clone()))
+                .collect(),
+            text,
+        }
+    }
+
+    /// A component's own words, masked.
+    pub fn raw(text: &str) -> Self {
+        Self {
+            text: shown(text),
+            ..Self::default()
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.text.is_empty()
+    }
+
+    /// The text as its two columns hold it: the English, and `{"code", "args"}` as JSON.
+    fn from_columns(text: String, say: &str) -> Self {
+        #[derive(Deserialize, Default)]
+        #[serde(default)]
+        struct Say {
+            code: String,
+            args: BTreeMap<String, String>,
+        }
+        let say: Say = serde_json::from_str(say).unwrap_or_default();
+        Self {
+            code: say.code,
+            args: say.args,
+            text,
+        }
+    }
+
+    fn say_json(&self) -> String {
+        serde_json::json!({ "code": self.code, "args": self.args }).to_string()
+    }
+}
+
 /// One check of one resource as the Health page shows it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -162,7 +271,8 @@ pub struct Check {
     pub project: String,
     pub kind: Kind,
     pub name: String,
-    /// `reconcile`, `runs` or `freshness`.
+    /// `reconcile`, `runs`, `freshness`, `entities`, `storage`, `validation`, `reachable`, or a
+    /// surface an Endpoint serves (`ngsi-ld`, `odata`, `mcp`, ...).
     pub check: String,
     pub status: Status,
     /// Since when this status holds, RFC 3339.
@@ -173,9 +283,9 @@ pub struct Check {
     /// When the leader last judged it, RFC 3339.
     pub checked_at: String,
     /// What the check found, credentials masked.
-    pub detail: String,
-    /// The manifest field or the page to change.
-    pub fix_hint: String,
+    pub detail: Text,
+    /// The manifest field or the page to change; empty when there is nothing to fix.
+    pub fix: Text,
     /// The Portal page of the resource.
     pub evidence_url: String,
     /// The statuses of the last 7 days, oldest first.
@@ -207,30 +317,20 @@ fn shown(detail: &str) -> String {
 }
 
 /// What a person changes when a check of `kind` failed with `detail`.
-pub fn fix_hint(kind: Kind, name: &str, detail: &str) -> String {
+pub fn fix_hint(kind: Kind, name: &str, detail: &str) -> Text {
     let lower = detail.to_ascii_lowercase();
     let has = |needles: &[&str]| needles.iter().any(|n| lower.contains(n));
     if has(&["403", "forbidden", "no policy grants"]) {
         return match kind {
-            Kind::Pipeline => format!(
-                "The broker refused the write: the target Endpoint's Policy must grant pl-{name} \
-                 create and update, or spec.outputs[].targetEndpoint must name an Endpoint \
-                 without policyRef."
-            ),
-            _ => "A Policy refuses this operation: check the Endpoint's policyRef and the \
-                  Policy's rules on the Policies page."
-                .into(),
+            Kind::Pipeline => Text::say("policyWrite", &[("name", name.to_owned())]),
+            _ => Text::say("policy", &[]),
         };
     }
     if has(&["401", "unauthorized", "invalid_client", "invalid token"]) {
-        return "The account's token was refused: check the ServiceAccount and its secretRef, \
-                then sync again."
-            .into();
+        return Text::say("token", &[]);
     }
     if has(&["robots"]) {
-        return "The source's robots.txt disallows the reader: point spec.source.url at an \
-                allowed address or ask the publisher."
-            .into();
+        return Text::say("robots", &[]);
     }
     if has(&[
         "timed out",
@@ -242,70 +342,159 @@ pub fn fix_hint(kind: Kind, name: &str, detail: &str) -> String {
         "504",
     ]) {
         return match kind {
-            Kind::Pipeline | Kind::Datasource => {
-                "The source or the broker did not answer: check that spec.source.url opens, \
-                 then use Run now on the pipeline page."
-                    .into()
-            }
-            _ => "A service did not answer: wait for the next sync; if it stays red, read the \
-                  broker's status on the Organization page."
-                .into(),
+            Kind::Pipeline | Kind::Datasource => Text::say("sourceDown", &[]),
+            _ => Text::say("serviceDown", &[]),
         };
     }
     match kind {
-        Kind::Pipeline => "Open the run log on the pipeline page and fix the step its newest \
-                           failed line names."
-            .into(),
-        _ => format!(
-            "Open the {} manifest, change the field the message names and propose the change.",
-            kind.manifest_kind()
-        ),
+        Kind::Pipeline => Text::say("runLog", &[]),
+        _ => Text::say("manifest", &[("kind", kind.manifest_kind().to_owned())]),
+    }
+}
+
+impl Finding {
+    pub fn new(project: &str, kind: Kind, name: &str, check: &str) -> Self {
+        Self {
+            project: project.to_owned(),
+            kind,
+            name: name.to_owned(),
+            check: check.to_owned(),
+            status: Status::Ok,
+            detail: Text::default(),
+            fix: Text::default(),
+            evidence_url: kind.page(project, name),
+        }
+    }
+
+    pub fn judged(mut self, status: Status, detail: Text, fix: Text) -> Self {
+        self.status = status;
+        self.detail = detail;
+        self.fix = fix;
+        self
     }
 }
 
 /// The `reconcile` check of one resource: its phase and the condition that says why.
 fn reconcile(project: &str, kind: Kind, envelope: &ResourceEnvelope) -> Finding {
     let name = &envelope.metadata.name;
-    let detail = shown(&said(envelope));
-    let approvals = "Approve its change on the Approvals page; the next sync applies it.";
-    let (status, detail, fix_hint) = match envelope.status.as_ref().map(|s| s.phase) {
+    let detail = Text::raw(&said(envelope));
+    let (status, detail, fix) = match envelope.status.as_ref().map(|s| s.phase) {
         None => (
             Status::Warn,
-            "not applied yet".to_owned(),
-            approvals.to_owned(),
+            Text::say("notApplied", &[]),
+            Text::say("approve", &[]),
         ),
-        Some(Phase::Live | Phase::Deploying) => (Status::Ok, detail, String::new()),
+        Some(Phase::Live | Phase::Deploying) => (Status::Ok, detail, Text::default()),
         Some(Phase::Draft | Phase::Pending) => (
             Status::Warn,
-            "waiting for approval".to_owned(),
-            approvals.to_owned(),
+            Text::say("waitingApproval", &[]),
+            Text::say("approve", &[]),
         ),
-        Some(Phase::Drifted) => (
-            Status::Warn,
-            detail,
-            "The platform holds something else than the repository: open it and keep the \
-             platform's state or restore the repository's."
-                .to_owned(),
-        ),
+        Some(Phase::Drifted) => (Status::Warn, detail, Text::say("drift", &[])),
         Some(Phase::Error) => {
-            let hint = fix_hint(kind, name, &detail);
-            (Status::Error, detail, hint)
+            let fix = fix_hint(kind, name, &detail.text);
+            (Status::Error, detail, fix)
         }
     };
-    Finding {
-        project: project.to_owned(),
-        kind,
-        name: name.clone(),
-        check: "reconcile",
-        status,
-        detail,
-        fix_hint,
-        evidence_url: kind.page(project, name),
-    }
+    Finding::new(project, kind, name, "reconcile").judged(status, detail, fix)
 }
 
-/// Every check of every resource the mirror holds, judged with the alert signals of this run.
-pub fn derive(mirror: &Mirror, signals: &[Signal]) -> Vec<Finding> {
+/// The pipelines of the mirror that read DataSource `name` of `project`, by name.
+fn readers_of(mirror: &Mirror, project: &str, name: &str) -> Vec<String> {
+    let names = |spec: &serde_json::Value| -> bool {
+        let reads = |source: &serde_json::Value| {
+            source
+                .get("dataSourceRef")
+                .and_then(crate::resource::reference_name)
+                == Some(name)
+        };
+        reads(spec)
+            || spec.get("source").is_some_and(reads)
+            || spec
+                .get("sources")
+                .and_then(serde_json::Value::as_array)
+                .is_some_and(|sources| sources.iter().any(reads))
+    };
+    let mut readers: Vec<String> = mirror
+        .matching(|env| {
+            env.kind == "Pipeline" && env.metadata.namespace.as_deref() == Some(project)
+        })
+        .into_iter()
+        .filter(|env| names(&env.spec))
+        .map(|env| env.metadata.name)
+        .collect();
+    readers.sort();
+    readers
+}
+
+/// The checks a space's quality report answers (T-3252): its newest observation against each
+/// writer's schedule, and how many entities break the model's rules.
+fn space_quality(project: &str, name: &str, report: &crate::quality::SpaceQuality) -> Vec<Finding> {
+    let stale = report.freshness.iter().find(|row| row.alerting());
+    let freshness = Finding::new(project, Kind::Space, name, "freshness");
+    let freshness = match stale {
+        Some(row) => freshness.judged(
+            Status::Warn,
+            Text::say(
+                "staleType",
+                &[
+                    (
+                        "type",
+                        if row.entity_type.is_empty() {
+                            name.to_owned()
+                        } else {
+                            row.entity_type.clone()
+                        },
+                    ),
+                    (
+                        "newest",
+                        row.newest.map_or_else(|| "none".to_owned(), rfc3339),
+                    ),
+                    ("pipeline", row.pipeline.clone()),
+                ],
+            ),
+            Text::say("schedule", &[]),
+        ),
+        None => freshness,
+    };
+    let validation = Finding::new(project, Kind::Space, name, "validation");
+    let validation = if report.invalid > 0 {
+        let rule = report
+            .rules
+            .iter()
+            .max_by_key(|rule| rule.count)
+            .map_or_else(String::new, |rule| {
+                format!("{} at {}", rule.rule, rule.path)
+            });
+        validation.judged(
+            Status::Warn,
+            Text::say(
+                "invalid",
+                &[
+                    ("invalid", report.invalid.to_string()),
+                    ("checked", report.checked.to_string()),
+                    ("rule", rule),
+                ],
+            ),
+            Text::say("validation", &[]),
+        )
+    } else {
+        validation.judged(
+            Status::Ok,
+            Text::say("valid", &[("checked", report.checked.to_string())]),
+            Text::default(),
+        )
+    };
+    vec![freshness, validation]
+}
+
+/// Every check of every resource the mirror holds, judged with the alert signals of this run and
+/// the spaces' quality reports.
+pub fn derive(
+    mirror: &Mirror,
+    quality: &crate::quality::Store,
+    signals: &[Signal],
+) -> Vec<Finding> {
     let signal = |project: &str, name: &str, event: Event| {
         signals
             .iter()
@@ -317,57 +506,78 @@ pub fn derive(mirror: &Mirror, signals: &[Signal]) -> Vec<Finding> {
             let Some(project) = envelope.metadata.namespace.clone() else {
                 continue;
             };
-            findings.push(reconcile(&project, kind, &envelope));
-            if kind != Kind::Pipeline {
-                continue;
-            }
             let name = envelope.metadata.name.clone();
-            let page = kind.page(&project, &name);
-            let (status, detail) = match (
-                signal(&project, &name, Event::Failure),
-                signal(&project, &name, Event::Zero),
-            ) {
-                (Some(failure), _) => (Status::Error, shown(&failure.detail)),
-                (None, Some(zero)) => (Status::Warn, shown(&zero.detail)),
-                (None, None) => (Status::Ok, String::new()),
-            };
-            let hint = match status {
-                Status::Ok => String::new(),
-                Status::Warn => "The newest run sent far less than the week before: compare the \
-                                 source with the pipeline's filter and mapping on the pipeline page."
-                    .into(),
-                Status::Error => fix_hint(kind, &name, &detail),
-            };
-            findings.push(Finding {
-                project: project.clone(),
-                kind,
-                name: name.clone(),
-                check: "runs",
-                status,
-                detail,
-                fix_hint: hint,
-                evidence_url: page.clone(),
-            });
-            let stale = signal(&project, &name, Event::Stale).is_some();
-            findings.push(Finding {
-                project,
-                kind,
-                name,
-                check: "freshness",
-                status: if stale { Status::Warn } else { Status::Ok },
-                detail: if stale {
-                    "no new observation in the window its schedule promises".into()
-                } else {
-                    String::new()
-                },
-                fix_hint: if stale {
-                    "Check spec.schedule and the source, then use Run now on the pipeline page."
-                        .into()
-                } else {
-                    String::new()
-                },
-                evidence_url: page,
-            });
+            findings.push(reconcile(&project, kind, &envelope));
+            match kind {
+                Kind::Pipeline => {
+                    let runs = Finding::new(&project, kind, &name, "runs");
+                    findings.push(
+                        match (
+                            signal(&project, &name, Event::Failure),
+                            signal(&project, &name, Event::Zero),
+                        ) {
+                            (Some(failure), _) => {
+                                let detail = Text::raw(&failure.detail);
+                                let fix = fix_hint(kind, &name, &detail.text);
+                                runs.judged(Status::Error, detail, fix)
+                            }
+                            (None, Some(zero)) => runs.judged(
+                                Status::Warn,
+                                Text::raw(&zero.detail),
+                                Text::say("drop", &[]),
+                            ),
+                            (None, None) => runs,
+                        },
+                    );
+                    let freshness = Finding::new(&project, kind, &name, "freshness");
+                    findings.push(if signal(&project, &name, Event::Stale).is_some() {
+                        freshness.judged(
+                            Status::Warn,
+                            Text::say("noNewData", &[]),
+                            Text::say("schedule", &[]),
+                        )
+                    } else {
+                        freshness
+                    });
+                }
+                Kind::Space => {
+                    if let Some(report) = quality.get(&project, &name) {
+                        findings.extend(space_quality(&project, &name, &report));
+                    }
+                }
+                Kind::Datasource => {
+                    let readers = readers_of(mirror, &project, &name);
+                    let reachable = Finding::new(&project, kind, &name, "reachable");
+                    let failing = readers.iter().find_map(|reader| {
+                        Some((reader, signal(&project, reader, Event::Failure)?))
+                    });
+                    findings.push(match failing {
+                        _ if readers.is_empty() => reachable.judged(
+                            Status::Warn,
+                            Text::say("noReader", &[]),
+                            Text::say("addReader", &[]),
+                        ),
+                        Some((reader, failure)) => {
+                            let said = Text::raw(&failure.detail).text;
+                            let fix = fix_hint(kind, reader, &said);
+                            reachable.judged(
+                                Status::Error,
+                                Text::say(
+                                    "readerSaid",
+                                    &[("pipeline", reader.clone()), ("said", said)],
+                                ),
+                                fix,
+                            )
+                        }
+                        None => reachable.judged(
+                            Status::Ok,
+                            Text::say("readBy", &[("pipelines", readers.join(", "))]),
+                            Text::default(),
+                        ),
+                    });
+                }
+                Kind::Endpoint | Kind::Model => {}
+            }
         }
     }
     findings
@@ -439,7 +649,7 @@ impl Memory {
                 last_ok: held.last_ok.map(rfc3339),
                 checked_at: rfc3339(held.checked_at),
                 detail: held.finding.detail.clone(),
-                fix_hint: held.finding.fix_hint.clone(),
+                fix: held.finding.fix.clone(),
                 evidence_url: held.finding.evidence_url.clone(),
                 history: self
                     .history
@@ -475,6 +685,8 @@ type Row = (
     String,
     Vec<time::OffsetDateTime>,
     Vec<String>,
+    String,
+    String,
 );
 
 /// The health log, durable with a database, in memory without one.
@@ -531,26 +743,30 @@ impl HealthStore {
         let mut tx = pool.begin().await?;
         sqlx::query(
             "INSERT INTO health_check AS h (project, kind, name, \"check\", status, since, last_ok, \
-             checked_at, detail, fix_hint, evidence_url) \
-             SELECT p, k, n, c, s, $1, CASE WHEN s = 'ok' THEN $1 END, $1, d, f, e \
+             checked_at, detail, fix_hint, evidence_url, detail_say, fix_say) \
+             SELECT p, k, n, c, s, $1, CASE WHEN s = 'ok' THEN $1 END, $1, d, f, e, ds::jsonb, \
+             fs::jsonb \
              FROM UNNEST($2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], \
-             $8::text[], $9::text[]) AS t(p, k, n, c, s, d, f, e) \
+             $8::text[], $9::text[], $10::text[], $11::text[]) AS t(p, k, n, c, s, d, f, e, ds, fs) \
              ON CONFLICT (project, kind, name, \"check\") DO UPDATE SET \
              status = EXCLUDED.status, \
              since = CASE WHEN h.status = EXCLUDED.status THEN h.since ELSE EXCLUDED.since END, \
              last_ok = COALESCE(EXCLUDED.last_ok, h.last_ok), checked_at = EXCLUDED.checked_at, \
              detail = EXCLUDED.detail, fix_hint = EXCLUDED.fix_hint, \
-             evidence_url = EXCLUDED.evidence_url",
+             evidence_url = EXCLUDED.evidence_url, detail_say = EXCLUDED.detail_say, \
+             fix_say = EXCLUDED.fix_say",
         )
         .bind(at)
         .bind(column(|f| f.project.clone()))
         .bind(column(|f| f.kind.as_str().to_owned()))
         .bind(column(|f| f.name.clone()))
-        .bind(column(|f| f.check.to_owned()))
+        .bind(column(|f| f.check.clone()))
         .bind(column(|f| f.status.as_str().to_owned()))
-        .bind(column(|f| f.detail.clone()))
-        .bind(column(|f| f.fix_hint.clone()))
+        .bind(column(|f| f.detail.text.clone()))
+        .bind(column(|f| f.fix.text.clone()))
         .bind(column(|f| f.evidence_url.clone()))
+        .bind(column(|f| f.detail.say_json()))
+        .bind(column(|f| f.fix.say_json()))
         .execute(&mut *tx)
         .await?;
         sqlx::query("DELETE FROM health_check WHERE checked_at < $1")
@@ -593,7 +809,8 @@ impl HealthStore {
                 let rows: Vec<Row> = sqlx::query_as(
                     "SELECT h.project, h.kind, h.name, h.\"check\", h.status, h.since, h.last_ok, \
                      h.checked_at, h.detail, h.fix_hint, h.evidence_url, \
-                     COALESCE(p.ats, '{}'), COALESCE(p.statuses, '{}') \
+                     COALESCE(p.ats, '{}'), COALESCE(p.statuses, '{}'), \
+                     h.detail_say::text, h.fix_say::text \
                      FROM health_check h LEFT JOIN LATERAL ( \
                        SELECT array_agg(x.at ORDER BY x.at) AS ats, \
                               array_agg(x.status ORDER BY x.at) AS statuses \
@@ -617,8 +834,8 @@ impl HealthStore {
                             since: rfc3339(chrono_of(row.5)),
                             last_ok: row.6.map(|at| rfc3339(chrono_of(at))),
                             checked_at: rfc3339(chrono_of(row.7)),
-                            detail: row.8,
-                            fix_hint: row.9,
+                            detail: Text::from_columns(row.8, &row.13),
+                            fix: Text::from_columns(row.9, &row.14),
                             evidence_url: row.10,
                             history: row
                                 .11
@@ -705,17 +922,22 @@ mod tests {
                 envelope("DataModel", "events", Some(Phase::Pending), ""),
                 envelope("DataSource", "rss", None, ""),
             ]),
+            &crate::quality::Store::default(),
             &[],
         );
         assert_eq!(find(&findings, "air", "reconcile").status, Status::Ok);
         let endpoint = find(&findings, "air-api", "reconcile");
         assert_eq!(endpoint.status, Status::Error);
         assert_eq!(endpoint.kind, Kind::Endpoint);
-        assert_eq!(endpoint.detail, "policyRef open-air not found");
+        assert_eq!(endpoint.detail.text, "policyRef open-air not found");
+        assert_eq!(
+            endpoint.detail.code, "",
+            "a component's own words stay as they came"
+        );
         assert!(
-            endpoint.fix_hint.contains("Endpoint manifest"),
+            endpoint.fix.text.contains("Endpoint manifest"),
             "{}",
-            endpoint.fix_hint
+            endpoint.fix.text
         );
         assert_eq!(endpoint.evidence_url, "/projects/bbsk/endpoints/air-api");
         assert_eq!(find(&findings, "events", "reconcile").status, Status::Warn);
@@ -739,16 +961,22 @@ mod tests {
                 Some(Phase::Live),
                 "",
             )]),
+            &crate::quality::Store::default(),
             &signals,
         );
         let runs = find(&findings, "bbsk-events", "runs");
         assert_eq!(runs.status, Status::Error);
         assert!(
-            runs.fix_hint.contains("pl-bbsk-events"),
+            runs.fix.text.contains("pl-bbsk-events"),
             "{}",
-            runs.fix_hint
+            runs.fix.text
         );
-        assert!(runs.fix_hint.contains("policyRef"), "{}", runs.fix_hint);
+        assert!(runs.fix.text.contains("policyRef"), "{}", runs.fix.text);
+        assert_eq!(runs.fix.code, "policyWrite");
+        assert_eq!(
+            runs.fix.args.get("name").map(String::as_str),
+            Some("bbsk-events")
+        );
         assert_eq!(
             find(&findings, "bbsk-events", "freshness").status,
             Status::Ok
@@ -774,12 +1002,13 @@ mod tests {
         ];
         let findings = derive(
             &mirror(vec![envelope("Pipeline", "weather", Some(Phase::Live), "")]),
+            &crate::quality::Store::default(),
             &signals,
         );
         assert_eq!(find(&findings, "weather", "runs").status, Status::Warn);
         let fresh = find(&findings, "weather", "freshness");
         assert_eq!(fresh.status, Status::Warn);
-        assert!(fresh.fix_hint.contains("spec.schedule"));
+        assert!(fresh.fix.text.contains("spec.schedule"));
     }
 
     #[test]
@@ -791,15 +1020,16 @@ mod tests {
                 Some(Phase::Error),
                 "upstream said Bearer abcdefghijklmnopqrstuvwxyz0123456789 is 401",
             )]),
+            &crate::quality::Store::default(),
             &[],
         );
         let leaky = find(&findings, "leaky", "reconcile");
         assert!(
-            !leaky.detail.contains("abcdefghijklmnop"),
+            !leaky.detail.text.contains("abcdefghijklmnop"),
             "{}",
-            leaky.detail
+            leaky.detail.text
         );
-        assert!(leaky.fix_hint.contains("secretRef"), "{}", leaky.fix_hint);
+        assert!(leaky.fix.text.contains("secretRef"), "{}", leaky.fix.text);
     }
 
     fn finding(status: Status) -> Finding {
@@ -807,10 +1037,10 @@ mod tests {
             project: "bbsk".into(),
             kind: Kind::Pipeline,
             name: "events".into(),
-            check: "runs",
+            check: "runs".into(),
             status,
-            detail: String::new(),
-            fix_hint: String::new(),
+            detail: Text::default(),
+            fix: Text::default(),
             evidence_url: String::new(),
         }
     }
@@ -906,5 +1136,98 @@ mod tests {
             .await
             .expect("record");
         assert!(store.list(None, t0 + EVERY).await.expect("list").is_empty());
+    }
+
+    #[test]
+    fn a_data_source_is_judged_by_the_pipelines_that_read_it() {
+        let mut reader = envelope("Pipeline", "rss-reader", Some(Phase::Live), "");
+        reader.spec = serde_json::json!({"sources": [{"dataSourceRef": {"kind": "DataSource", "name": "rss"}}]});
+        let mirror = mirror(vec![
+            envelope("DataSource", "rss", Some(Phase::Live), ""),
+            envelope("DataSource", "orphan", Some(Phase::Live), ""),
+            reader,
+        ]);
+        let quality = crate::quality::Store::default();
+        let ok = derive(&mirror, &quality, &[]);
+        assert_eq!(find(&ok, "rss", "reachable").status, Status::Ok);
+        assert_eq!(
+            find(&ok, "rss", "reachable").detail.text,
+            "read by rss-reader"
+        );
+        assert_eq!(find(&ok, "orphan", "reachable").status, Status::Warn);
+        let signals = [Signal {
+            key: ("bbsk".into(), "rss-reader".into(), Event::Failure),
+            detail: "GET https://example.sk/rss answered robots.txt disallow".into(),
+        }];
+        let broken = derive(&mirror, &quality, &signals);
+        let rss = find(&broken, "rss", "reachable");
+        assert_eq!(
+            (rss.status, rss.fix.code.as_str()),
+            (Status::Error, "robots")
+        );
+        assert_eq!(rss.detail.code, "readerSaid");
+    }
+
+    #[test]
+    fn a_space_report_flags_stale_types_and_broken_rules() {
+        use crate::quality::{FreshState, Freshness, RuleCount, SpaceQuality};
+        let report = SpaceQuality {
+            observed_at: at("2026-10-21T08:00:00Z"),
+            checked: 40,
+            invalid: 3,
+            truncated: false,
+            rules: vec![RuleCount {
+                rule: "required".into(),
+                path: "name".into(),
+                count: 3,
+                examples: Vec::new(),
+            }],
+            freshness: vec![Freshness {
+                pipeline: "air-feed".into(),
+                entity_type: "AirQualityObserved".into(),
+                newest: Some(at("2026-10-20T08:00:00Z")),
+                target_seconds: Some(3600),
+                state: FreshState::Stale,
+                paused: false,
+            }],
+            types: Vec::new(),
+        };
+        let findings = space_quality("bbsk", "air", &report);
+        let fresh = find(&findings, "air", "freshness");
+        assert_eq!(
+            (fresh.status, fresh.detail.code.as_str()),
+            (Status::Warn, "staleType")
+        );
+        assert!(
+            fresh.detail.text.contains("AirQualityObserved"),
+            "{}",
+            fresh.detail.text
+        );
+        let valid = find(&findings, "air", "validation");
+        assert_eq!(valid.status, Status::Warn);
+        assert!(
+            valid.detail.text.contains("3 of 40"),
+            "{}",
+            valid.detail.text
+        );
+        assert!(
+            valid.detail.text.contains("required at name"),
+            "{}",
+            valid.detail.text
+        );
+    }
+
+    #[test]
+    fn every_message_has_its_english_and_fills_its_placeholders() {
+        let text = Text::say(
+            "countHalved",
+            &[("before", "100".into()), ("now", "40".into())],
+        );
+        assert_eq!(text.text, "the space fell from 100 to 40 entities");
+        for (code, english) in SAY {
+            assert!(!english.is_empty(), "{code}");
+        }
+        let stored = Text::from_columns(text.text.clone(), &text.say_json());
+        assert_eq!(stored, text);
     }
 }

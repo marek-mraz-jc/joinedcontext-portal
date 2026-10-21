@@ -14,6 +14,9 @@ const list = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", 
 const days = (statuses: string[]) =>
   statuses.map((status, i) => ({ at: new Date(Date.UTC(2026, 9, 15, i * 4)).toISOString(), status }));
 
+const none = { code: "", args: {}, text: "" };
+const said = (code: string, text: string, args: Record<string, string> = {}) => ({ code, args, text });
+
 const check = (over: Record<string, unknown>) => ({
   project: "bbsk",
   kind: "pipeline",
@@ -22,8 +25,8 @@ const check = (over: Record<string, unknown>) => ({
   since: "2026-10-20T06:00:00Z",
   lastOk: "2026-10-21T08:00:00Z",
   checkedAt: "2026-10-21T08:00:00Z",
-  detail: "",
-  fixHint: "",
+  detail: none,
+  fix: none,
   history: days(Array(30).fill("ok")),
   ...over,
 });
@@ -35,8 +38,8 @@ const CHECKS = [
       status: "error",
       since: "2026-10-19T06:00:00Z",
       lastOk: "2026-10-18T06:00:00Z",
-      detail: "3 runs in a row sent nothing: 403 no policy grants this operation",
-      fixHint: `The broker refused the write: the target Endpoint's Policy must grant pl-${name} create and update, or spec.outputs[].targetEndpoint must name an Endpoint without policyRef.`,
+      detail: said("", "3 runs in a row sent nothing: 403 no policy grants this operation"),
+      fix: said("policyWrite", `The broker refused the write: the target Endpoint's Policy must grant pl-${name} create and update.`, { name }),
       evidenceUrl: `/projects/bbsk/pipelines/${name}`,
       history: days([...Array(20).fill("ok"), ...Array(10).fill("error")]),
     }),
@@ -46,10 +49,29 @@ const CHECKS = [
     name: "podujatia-api",
     check: "reconcile",
     status: "warn",
-    detail: "waiting for approval",
-    fixHint: "Approve its change on the Approvals page; the next sync applies it.",
+    detail: said("waitingApproval", "waiting for approval"),
+    fix: said("approve", "Approve its change on the Approvals page; the next sync applies it."),
     evidenceUrl: "/projects/bbsk/endpoints/podujatia-api",
     history: days(["warn"]),
+  }),
+  check({
+    kind: "endpoint",
+    name: "podujatia-api",
+    check: "odata",
+    status: "error",
+    detail: said("anonymousRefused", "odata refused an anonymous reader (401) though the Endpoint is public", { surface: "odata", status: "401", ms: "42" }),
+    fix: said("publicRefused", "The Endpoint is public but its surface asks for a token."),
+    evidenceUrl: "/projects/bbsk/endpoints/podujatia-api",
+    history: days([...Array(28).fill("ok"), "warn", "error"]),
+  }),
+  check({
+    kind: "space",
+    name: "podujatia",
+    check: "storage",
+    status: "warn",
+    detail: said("counted", "1520 entities, 48211 history rows", { entities: "1520", history: "48211" }),
+    fix: said("retention", "The history grows without a bound: set spec.retention on the Context Space."),
+    evidenceUrl: "/projects/bbsk/spaces/podujatia",
   }),
   check({ name: "podujatia-zvolen", check: "freshness", evidenceUrl: "/projects/bbsk/pipelines/podujatia-zvolen" }),
   check({ kind: "space", name: "podujatia", check: "reconcile", evidenceUrl: "/projects/bbsk/spaces/podujatia" }),
@@ -86,13 +108,14 @@ test.describe("the health log (T-5067)", () => {
         await page.emulateMedia({ colorScheme: scheme });
         await stubApi(page, filled);
         await page.goto(`/projects/bbsk/health?lang=${lang}`);
-        const header = lang === "en" ? "What it found" : "Čo našla";
-        await expect(page.getByRole("columnheader", { name: header })).toBeVisible();
-        const rows = page.getByRole("table").getByRole("row");
-        await expect(rows).toHaveCount(CHECKS.length + 1);
-        await expect(rows.nth(1)).toContainText("403 no policy grants this operation");
-        await expect(rows.nth(1)).toContainText("pl-podujatia-brezno");
-        await expect(rows.nth(4)).toContainText("podujatia-api");
+        const caption = lang === "en" ? "Health checks" : "Kontroly zdravia";
+        const rows = width > 600
+          ? page.getByRole("table", { name: caption }).getByRole("row").filter({ hasNot: page.getByRole("columnheader") })
+          : page.getByRole("list", { name: caption }).getByRole("listitem");
+        await expect(rows).toHaveCount(CHECKS.length);
+        await expect(rows.nth(0)).toContainText("403 no policy grants this operation");
+        await expect(rows.nth(0)).toContainText("pl-podujatia-brezno");
+        await expect(rows.nth(0)).toContainText(lang === "en" ? "Endpoint's Policy must grant" : "Policy cieľového Endpointu");
         expect(await axeViolations(page)).toEqual([]);
         await shot(page, `health-filled-${lang}-${scheme}-${width}`);
       });
@@ -103,7 +126,10 @@ test.describe("the health log (T-5067)", () => {
       await stubApi(page, filled);
       await page.goto("/projects/bbsk/health?lang=en");
       await page.getByLabel("Show").selectOption("endpoint");
-      await expect(page.getByRole("table").getByRole("row")).toHaveCount(2);
+      const rows = width > 600
+        ? page.getByRole("table", { name: "Health checks" }).getByRole("row").filter({ hasNot: page.getByRole("columnheader") })
+        : page.getByRole("list", { name: "Health checks" }).getByRole("listitem");
+      await expect(rows).toHaveCount(2);
       await shot(page, `health-filtered-${width}`);
     });
 
@@ -138,8 +164,7 @@ test.describe("the health log (T-5067)", () => {
             : undefined,
       );
       await page.goto("/organization/health?lang=en");
-      await expect(page.getByRole("columnheader", { name: "Project" })).toBeVisible();
-      await expect(page.getByRole("cell", { name: "helsinki" })).toBeVisible();
+      await expect(page.getByText("Project: helsinki").filter({ visible: true })).toHaveCount(1);
       await shot(page, `health-admin-${width}`);
     });
   }

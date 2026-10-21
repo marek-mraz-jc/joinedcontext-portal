@@ -5934,16 +5934,19 @@ export interface components {
         Health: "up" | "down" | "unknown";
         /** @description One check of one resource as the Health page shows it. */
         HealthCheck: {
-            /** @description `reconcile`, `runs` or `freshness`. */
+            /**
+             * @description `reconcile`, `runs`, `freshness`, `entities`, `storage`, `validation`, `reachable`, or a
+             *     surface an Endpoint serves (`ngsi-ld`, `odata`, `mcp`, ...).
+             */
             check: string;
             /** @description When the leader last judged it, RFC 3339. */
             checkedAt: string;
             /** @description What the check found, credentials masked. */
-            detail: string;
+            detail: components["schemas"]["HealthCheckText"];
             /** @description The Portal page of the resource. */
             evidenceUrl: string;
-            /** @description The manifest field or the page to change. */
-            fixHint: string;
+            /** @description The manifest field or the page to change; empty when there is nothing to fix. */
+            fix: components["schemas"]["HealthCheckText"];
             /** @description The statuses of the last 7 days, oldest first. */
             history: components["schemas"]["HealthCheckPoint"][];
             kind: components["schemas"]["HealthCheckKind"];
@@ -5972,6 +5975,21 @@ export interface components {
          * @enum {string}
          */
         HealthCheckStatus: "error" | "warn" | "ok";
+        /**
+         * @description A message of the health log: its key under `health.say` in the UI's locales with the values
+         *     it names, and its English text for the API and the logs. A text a component wrote (a broker's
+         *     error) has no key: it is shown as it came, credentials masked.
+         */
+        HealthCheckText: {
+            /** @description The values the message names, by placeholder. */
+            args: {
+                [key: string]: string;
+            };
+            /** @description The key under `health.say`; empty for a component's own words. */
+            code: string;
+            /** @description The message in English. */
+            text: string;
+        };
         /**
          * @description Why a run deleted nothing and alerts the pipeline's subscribers.
          * @enum {string}

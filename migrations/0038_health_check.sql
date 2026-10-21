@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS health_check (
   detail       text        NOT NULL DEFAULT '',
   fix_hint     text        NOT NULL DEFAULT '',
   evidence_url text        NOT NULL DEFAULT '',
+  -- The detail and the fix as the UI translates them: {"code": key under health.say, "args": {...}}.
+  detail_say   jsonb       NOT NULL DEFAULT '{}',
+  fix_say      jsonb       NOT NULL DEFAULT '{}',
   PRIMARY KEY (project, kind, name, "check")
 );
 

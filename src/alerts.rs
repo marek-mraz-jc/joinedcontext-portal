@@ -981,7 +981,10 @@ pub struct Evaluator {
     runs: Option<Arc<crate::pipeline_log::LogStore>>,
     health: tokio::sync::Mutex<Option<(DateTime<Utc>, Vec<Signal>)>>,
     /// The health log every run's signals are written to (T-5067).
-    log: Option<Arc<crate::health_log::HealthStore>>,
+    log: Option<(
+        Arc<crate::health_log::HealthStore>,
+        Arc<crate::health_probe::Probes>,
+    )>,
     running: AtomicBool,
 }
 
@@ -1020,8 +1023,13 @@ impl Evaluator {
     }
 
     /// Writes every resource's checks to the health log with this run's signals (T-5067).
-    pub fn with_health_log(mut self, log: Arc<crate::health_log::HealthStore>) -> Self {
-        self.log = Some(log);
+    /// `probes` asks every live Endpoint's surfaces and counts every space for it.
+    pub fn with_health_log(
+        mut self,
+        log: Arc<crate::health_log::HealthStore>,
+        probes: Arc<crate::health_probe::Probes>,
+    ) -> Self {
+        self.log = Some((log, probes));
         self
     }
 
@@ -1090,8 +1098,9 @@ impl Evaluator {
         let (pipelines, mut signals) = read_pipelines(&self.mirror, &self.quality);
         self.add_holds(&mut signals).await?;
         self.add_health(&pipelines, &mut signals, now).await?;
-        if let Some(log) = &self.log {
-            let findings = crate::health_log::derive(&self.mirror, &signals);
+        if let Some((log, probes)) = &self.log {
+            let mut findings = crate::health_log::derive(&self.mirror, &self.quality, &signals);
+            findings.extend(probes.findings(&self.mirror, now).await);
             if let Err(error) = log.record_due(now, findings).await {
                 tracing::warn!(%error, "the health log was not written");
             }

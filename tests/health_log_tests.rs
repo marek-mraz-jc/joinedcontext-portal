@@ -4,19 +4,14 @@
 //! otherwise.
 
 use chrono::{DateTime, Duration, Utc};
-use joinedcontext_portal::health_log::{Finding, HealthStore, Kind, Status, KEEP};
+use joinedcontext_portal::health_log::{Finding, HealthStore, Kind, Status, Text, KEEP};
 
 fn finding(name: &str, status: Status) -> Finding {
-    Finding {
-        project: "t5067".into(),
-        kind: Kind::Pipeline,
-        name: name.into(),
-        check: "runs",
+    Finding::new("t5067", Kind::Pipeline, name, "runs").judged(
         status,
-        detail: "403 no policy grants this operation".into(),
-        fix_hint: "grant pl-x".into(),
-        evidence_url: format!("/projects/t5067/pipelines/{name}"),
-    }
+        Text::raw("403 no policy grants this operation"),
+        Text::say("policyWrite", &[("name", name.to_owned())]),
+    )
 }
 
 fn at(text: &str) -> DateTime<Utc> {
@@ -69,7 +64,15 @@ async fn the_postgres_log_keeps_since_recovers_and_bounds_its_history() {
         "one point per change: {:?}",
         held.history
     );
-    assert!(held.detail.contains("403"));
+    assert!(held.detail.text.contains("403"));
+    assert_eq!(
+        held.fix.code, "policyWrite",
+        "the key the UI translates survives the round trip"
+    );
+    assert_eq!(
+        held.fix.args.get("name").map(String::as_str),
+        Some("events")
+    );
 
     let t3 = t2 + Duration::minutes(2);
     store
