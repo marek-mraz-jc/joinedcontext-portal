@@ -221,8 +221,23 @@ export function aggregateBloblang(
   ].join("\n");
 }
 
+/**
+ * A record's value as a person reads it in a cell (T-4972): text as it is, a nested object as
+ * `key: value` pairs and a list as its items, never JSON (an XML source's root holds its
+ * namespaces, `{"-gml": "http://…"}`).
+ */
+export function plainValue(value: unknown, depth = 0): string {
+  if (typeof value === "string") return value;
+  if (value === undefined) return "";
+  if (value === null || typeof value !== "object") return String(value);
+  if (depth >= 3) return "…";
+  if (Array.isArray(value)) return value.map((item) => plainValue(item, depth + 1)).join(", ");
+  const pairs = Object.entries(value).map(([key, member]) => `${key}: ${plainValue(member, depth + 1)}`).join("; ");
+  return depth === 0 ? pairs : `(${pairs})`;
+}
+
 function cell(value: unknown): string {
-  const text = typeof value === "string" ? value : JSON.stringify(value);
+  const text = plainValue(value);
   return text.length > 32 ? `${text.slice(0, 31)}…` : text;
 }
 
