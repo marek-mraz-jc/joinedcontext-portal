@@ -108,9 +108,13 @@ pub fn is_allowed(method: &Method, headers: &HeaderMap) -> bool {
     // session's `Front` rule: the bearer wins over the cookie), so no cookie is ever the
     // credential behind it and there is nothing for a cross-site form to ride on. Scripts,
     // the smoke, MCP clients and agents mutate this way (AG-59).
-    if headers.contains_key(axum::http::header::AUTHORIZATION) {
-        return true;
-    }
+    headers.contains_key(axum::http::header::AUTHORIZATION) || double_submitted(headers)
+}
+
+/// True when the request echoes its `CSRF_COOKIE` in `X-CSRF-Token`, whatever else it carries.
+/// The App doors use it alone: there the edge sets the person's token from the session cookie
+/// even beside an `Authorization` header, so that header is no reason to skip the check (T-4915).
+pub fn double_submitted(headers: &HeaderMap) -> bool {
     let jar = CookieJar::from_headers(headers);
     let Some(expected) = jar.get(CSRF_COOKIE).map(|c| c.value().to_string()) else {
         return false;
@@ -166,6 +170,26 @@ mod tests {
             headers.insert(CSRF_HEADER, v.parse().expect("csrf header"));
         }
         headers
+    }
+
+    /// T-4915: on an App door the edge's cookie token rides beside any `Authorization` a page
+    /// adds, so the bearer that `is_allowed` trusts waives nothing there.
+    #[test]
+    fn the_double_submit_ignores_an_authorization_header() {
+        let mut headers = headers_with(None, None);
+        headers.insert(
+            axum::http::header::AUTHORIZATION,
+            "Bearer planted".parse().expect("bearer"),
+        );
+        assert!(is_allowed(&Method::POST, &headers));
+        assert!(!double_submitted(&headers));
+        let mut headers = headers_with(Some("abc"), Some("abc"));
+        assert!(double_submitted(&headers));
+        headers.insert(
+            axum::http::header::AUTHORIZATION,
+            "Bearer planted".parse().expect("bearer"),
+        );
+        assert!(double_submitted(&headers));
     }
 
     #[test]
