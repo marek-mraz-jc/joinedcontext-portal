@@ -24467,7 +24467,8 @@
           "orphanIds",
           "missing",
           "missingIds",
-          "removed"
+          "removed",
+          "idsHidden"
         ],
         "properties": {
           "due": {
@@ -24486,6 +24487,10 @@
                 "$ref": "#/components/schemas/PipelineSourceHold"
               }
             ]
+          },
+          "idsHidden": {
+            "type": "boolean",
+            "description": "The caller may read the pipeline but not its space: the counts stay, every id is left out."
           },
           "lastComplete": {
             "oneOf": [

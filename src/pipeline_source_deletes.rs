@@ -1081,6 +1081,21 @@ pub struct Overview {
     pub missing_ids: Vec<String>,
     /// The newest entities the pipeline deleted because its source dropped them.
     pub removed: Vec<Removal>,
+    /// The caller may read the pipeline but not its space: the counts stay, every id is left out.
+    pub ids_hidden: bool,
+}
+
+impl Overview {
+    /// Leaves out every id, for a caller who may not read the space they are in.
+    pub fn without_ids(mut self) -> Self {
+        self.next.clear();
+        self.due.clear();
+        self.orphan_ids.clear();
+        self.missing_ids.clear();
+        self.removed.clear();
+        self.ids_hidden = true;
+        self
+    }
 }
 
 /// The last run that read the source completely.
@@ -1177,6 +1192,7 @@ pub fn overview(
         missing: 0,
         missing_ids: Vec::new(),
         removed: Vec::new(),
+        ids_hidden: false,
     }
 }
 

@@ -6244,6 +6244,8 @@ export interface components {
             /** @description The ids whose misses already reached the rule and wait for a delete or a release. */
             due: string[];
             hold?: null | components["schemas"]["PipelineSourceHold"];
+            /** @description The caller may read the pipeline but not its space: the counts stay, every id is left out. */
+            idsHidden: boolean;
             lastComplete?: null | components["schemas"]["PipelineSourceCompleteRun"];
             /** @description The ids in the ledger. */
             ledger: number;

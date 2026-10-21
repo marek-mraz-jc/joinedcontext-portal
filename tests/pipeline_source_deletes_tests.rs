@@ -202,11 +202,20 @@ async fn three_of_fifty_dropped_are_deleted_after_two_complete_runs_with_the_rea
     run(&state, "registry", "r2", &without(&[4, 17, 33]), 0, true).await;
     assert!(handed(&runner).await.is_empty(), "one miss deletes nothing");
 
-    let preview = send(&state, person("eva"), "GET", PAGE, None).await;
+    let preview = send(&state, person("jana"), "GET", PAGE, None).await;
     assert_eq!(preview.status, StatusCode::OK, "{}", preview.text);
     let preview: Value = serde_json::from_str(&preview.text).expect("json");
     assert_eq!(preview["ledger"], 50);
     assert_eq!(preview["next"], json!([id(17), id(33), id(4)]));
+    // eva reads the pipeline, not its space: the counts without one id of the space.
+    let hidden = send(&state, person("eva"), "GET", PAGE, None).await;
+    let hidden: Value = serde_json::from_str(&hidden.text).expect("json");
+    assert_eq!(
+        (hidden["orphans"].clone(), hidden["idsHidden"].clone()),
+        (json!(3), json!(true))
+    );
+    assert_eq!(hidden["next"], json!([]));
+    assert_eq!(hidden["orphanIds"], json!([]));
 
     run(&state, "registry", "r3", &without(&[4, 17, 33]), 0, true).await;
     let handed = handed(&runner).await;
@@ -256,7 +265,7 @@ async fn three_of_fifty_dropped_are_deleted_after_two_complete_runs_with_the_rea
 
     // The report (T-4892): the source read 47 at r3, nothing orphaned any more, the two deletes
     // with their reason, and the space says the same of each tombstone.
-    let report = send(&state, person("eva"), "GET", PAGE, None).await;
+    let report = send(&state, person("jana"), "GET", PAGE, None).await;
     let report: Value = serde_json::from_str(&report.text).expect("json");
     assert_eq!(report["lastComplete"]["run"], "r3");
     assert_eq!(report["lastComplete"]["read"], 47);
@@ -308,7 +317,7 @@ async fn the_report_counts_orphans_and_the_records_the_model_refused() {
         .await
         .expect("log");
     run(&state, "registry", "r2", &without(&[4, 17, 33]), 0, true).await;
-    let report = send(&state, person("eva"), "GET", PAGE, None).await;
+    let report = send(&state, person("jana"), "GET", PAGE, None).await;
     assert_eq!(report.status, StatusCode::OK, "{}", report.text);
     let report: Value = serde_json::from_str(&report.text).expect("json");
     assert_eq!(report["orphans"], 3);
@@ -456,7 +465,7 @@ async fn more_than_the_share_is_held_until_a_steward_releases_or_keeps_it() {
         run(&state, "registry", r, &ids, 0, true).await;
     }
     assert!(handed(&runner).await.is_empty(), "8 of 50 is past 10 %");
-    let preview = send(&state, person("eva"), "GET", PAGE, None).await;
+    let preview = send(&state, person("jana"), "GET", PAGE, None).await;
     let preview: Value = serde_json::from_str(&preview.text).expect("json");
     assert_eq!(preview["hold"]["reason"], "share-exceeded");
     assert_eq!(preview["hold"]["would"], 8);

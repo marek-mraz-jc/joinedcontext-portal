@@ -1151,10 +1151,19 @@ pub async fn get_source_deletes(
 ) -> Result<Json<crate::pipeline_source_deletes::Overview>, ApiError> {
     let pipeline = readable_pipeline(&state, &user, &project, &name)?;
     let rule = snapshot_of(&pipeline)?;
-    crate::pipeline_source_deletes::report(&state, &project, &name, &pipeline.spec, &rule)
-        .await
-        .map(Json)
-        .map_err(ledger_unavailable)
+    let report =
+        crate::pipeline_source_deletes::report(&state, &project, &name, &pipeline.spec, &rule)
+            .await
+            .map_err(ledger_unavailable)?;
+    // Ids of a space the caller may not read stay in it; the counts are the pipeline's own.
+    let space = report.space.as_deref().unwrap_or_default();
+    let identity = &user.0.identity;
+    let readable = crate::api::data_views::readable_space(&state, identity, &project, space);
+    Ok(Json(if readable.is_ok() {
+        report
+    } else {
+        report.without_ids()
+    }))
 }
 
 #[utoipa::path(
