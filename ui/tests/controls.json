@@ -1078,6 +1078,7 @@
         "Checkbox": 2
       },
       "tests": [
+        "endpoint_geo_property.test.ts",
         "part_endpoint_links.test.tsx",
         "part_operation_groups.test.tsx"
       ]

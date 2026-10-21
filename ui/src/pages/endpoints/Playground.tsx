@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import type { JSX } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useAccess } from "../../components/entities/AccessPanel";
 import type { GrantDocument } from "../../components/entities/AccessPanel";
@@ -20,6 +21,14 @@ export interface Fields {
   q: string;
   limit: string;
   id: string;
+}
+
+/** The type names of an NGSI-LD `/types` answer: an EntityTypeList, or a list of EntityType. */
+export function typeNames(answer: unknown): string[] {
+  const list = (answer as { typeList?: unknown } | null)?.typeList ?? answer;
+  if (!Array.isArray(list)) return [];
+  const names = list.map((item) => (typeof item === "string" ? item : (item as { typeName?: unknown } | null)?.typeName));
+  return [...new Set(names.filter((name): name is string => typeof name === "string" && name !== ""))].sort();
 }
 
 /** The path of one call, every value encoded; `undefined` while a field it needs is empty. */
@@ -106,6 +115,21 @@ export function Playground({ slug, types, open }: { slug: string; types: string[
   const [answer, setAnswer] = useState<{ status: number; text: string } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  // An Endpoint that names no type serves every type of its space: the types it answers this
+  // caller with are the choice, read from the Endpoint itself so its Policy decides (T-4947).
+  const served = useQuery({
+    queryKey: ["endpoint", slug, "types"],
+    enabled: types.length === 0 && allowed.includes("list"),
+    retry: false,
+    queryFn: async () => {
+      const response = await globalThis.fetch(
+        new Request(endpointUrl(slug, "/ngsi-ld/v1/types"), { credentials: "same-origin", headers: { Accept: "application/json" } }),
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return typeNames(await response.json());
+    },
+  });
+  const typeChoices = types.length > 0 ? types : (served.data ?? []);
 
   if (access.isPending) {
     return <p className="text-caption text-fg-muted">{t("endpoints.playground.reading")}</p>;
@@ -113,7 +137,7 @@ export function Playground({ slug, types, open }: { slug: string; types: string[
   if (allowed.length === 0 || operation === undefined) {
     return <p className="text-body text-fg-muted">{t("endpoints.playground.nothing")}</p>;
   }
-  const path = requestOf(operation, fields);
+  const path = requestOf(operation, { ...fields, type: fields.type || typeChoices[0] || "" });
   const url = path ? endpointUrl(slug, path) : undefined;
   const set = (key: keyof Fields) => (event: { target: { value: string } }) => setFields({ ...fields, [key]: event.target.value });
 
@@ -155,17 +179,22 @@ export function Playground({ slug, types, open }: { slug: string; types: string[
         </Field>
         {operation === "list" || operation === "count" ? (
           <Field id={`${id}-type`} label={t("endpoints.playground.type")}>
-            {types.length > 0 ? (
-              <Select id={`${id}-type`} value={fields.type} onChange={set("type")}>
-                {types.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </Select>
-            ) : (
-              <Input id={`${id}-type`} value={fields.type} onChange={set("type")} placeholder="WeatherObserved" />
-            )}
+            <Select
+              id={`${id}-type`}
+              value={fields.type || typeChoices[0] || ""}
+              onChange={set("type")}
+              disabled={typeChoices.length === 0}
+              title={typeChoices.length === 0 ? t("endpoints.playground.noType") : undefined}
+            >
+              {typeChoices.length === 0 ? (
+                <option value="">{served.isLoading ? t("app.loading") : t("endpoints.playground.noType")}</option>
+              ) : null}
+              {typeChoices.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </Select>
           </Field>
         ) : null}
         {operation === "list" || operation === "count" ? (
