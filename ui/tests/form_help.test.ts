@@ -12,7 +12,7 @@
  * pattern would reject.
  */
 import { describe, expect, it } from "vitest";
-import { arrange, localized, paths } from "../src/components/forms/uischema";
+import { arrange, localized, paths, prefilled } from "../src/components/forms/uischema";
 import type { UiSchemaManifest } from "../src/components/forms/uischema";
 import { shippedForms } from "../src/schemas/forms";
 import * as kinds from "../src/schemas/kinds";
@@ -334,8 +334,13 @@ describe("the help and the example beside every form field", () => {
         // The first group is never folded: a form that opens with nothing on it explains nothing.
         expect(groups[0]?.folded ?? false, `${kind}'s first group is open`).toBe(false);
         for (const group of groups.filter((one) => one.folded === true)) {
-          // A folded group holds no required field, so nothing the form insists on is out of sight.
-          const required = new Set(branches.flatMap((schema) => schema.required ?? []));
+          // A folded group holds no required field a person has to type, so nothing the form insists
+          // on is out of sight; one the form fills from its default (AgentProfile limits) may fold.
+          const required = new Set(
+            branches.flatMap((schema) =>
+              (schema.required ?? []).filter((field) => !prefilled(schema.properties?.[field])),
+            ),
+          );
           expect(
             group.fields.filter((field) => required.has(field)),
             `${kind}: the folded group "${localized(group.title, "en")}" hides a required field`,

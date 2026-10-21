@@ -100,6 +100,12 @@
     "home": "Domů",
     "inbox": "Doručené",
     "mqttbrokers": "MQTT brokery",
+    "knowledgesources": "Zdroje znalostí",
+    "assistantdeployments": "Nasazení asistenta",
+    "datamodels": "Datové modely",
+    "serviceaccounts": "Servisní účty",
+    "mappings": "Mapování",
+    "layers": "Mapové vrstvy",
     "csrs": "Kontextové zdroje"
   },
   "auth": {
@@ -766,7 +772,7 @@
       "restore": "Vrátit",
       "restoreOne": "Vrátit {name}",
       "restoreRefused": "{name} se nevrátil: {reason}",
-      "liveChanged": "{count, plural, one {Změnila se # entita} few {Změnily se # entity} other {Změnilo se # entit}} ({attrs}); zobrazeno tak, jak jsou teď."
+      "liveChanged": "Entity tohoto typu se změnily v {time}; zobrazeno tak, jak jsou teď."
     },
     "api": {
       "lead": "Jak program čte {type}: přes endpoint tohoto prostoru, s vlastním tokenem, a webhooky, které mu řeknou, když se něco změní.",
@@ -3905,6 +3911,10 @@
     "factorFor": "Převodní koeficient pro {slot}",
     "golden": "Zlatý test",
     "input": "Vstupní příklad (JSON)",
+    "inputHelp": "Zdrojový záznam jako JSON, například jedna entita, kterou zdroj posílá; výstup vedle něj ukazuje, co z něj mapování udělá.",
+    "sourceHelp": "Model, ve kterém záznamy přicházejí.",
+    "targetHelp": "Model, na který se záznamy převedou.",
+    "nameHelp": "Název mapování v projektu: malá písmena, číslice a pomlčky; podle něj se jmenují soubory zlatého testu.",
     "output": "Transformovaný výstup",
     "unchecked": "Zde se nevyhodnocují, pocházejí z nativního bloblangu: {slots}. CI je spustí přes Bento.",
     "missing": "Vstupní příklad neobsahuje hodnotu pro: {slots}.",
@@ -4036,7 +4046,9 @@
     "nameInvalid": "Malá písmena, číslice a spojovníky, na začátku a na konci písmeno nebo číslice.",
     "nameReserved": "„org“ je vlastní jmenný prostor organizace, nikdy ne projekt.",
     "displayNameLabel": "Zobrazovaný název",
+    "displayNameHint": "Název, který lidé čtou v nabídce projektů a v katalogu; když ho necháte prázdný, zobrazí se název výše.",
     "descriptionLabel": "Popis",
+    "descriptionHint": "Jedna věta o tom, k čemu projekt slouží, zobrazená pod jeho názvem v seznamu projektů.",
     "notAllowed": "Tato organizace vám neumožňuje otevřít projekt.",
     "nameNeeded": "K otevření projektu je potřeba použitelné jméno.",
     "planLocked": "Chcete-li to změnit, zavřete okno a začněte znovu; plán byl připraven pro tuto hodnotu."
@@ -4841,7 +4853,8 @@
       "green": "Zkontrolováno {age}",
       "red": "Kontrola selhala {age}",
       "stale": "Změněno od kontroly",
-      "waiting": "Projde po schválení {changes} · zkontrolováno {age}"
+      "waiting": "Projde po schválení {changes} · zkontrolováno {age}",
+      "refused": "Kontrola selhala: důvod je níže"
     },
     "proposeReason": {
       "none": "Nejprve spusťte kontrolu: nic se nenavrhuje bez čerstvého zeleného verdiktu.",
