@@ -43,6 +43,7 @@ export const ADDRESSES: Record<string, string[]> = {
   "/f/$slug": ["/f/air-form"],
   "/d/$slug": ["/d/air-docs"],
   "/glossary": ["/glossary"],
+  "/accessibility": ["/accessibility"],
   "/connect/$project/$name": ["/connect/bbsk/otvorene-data"],
   "/projects/$project/home": ["/projects/helsinki/home"],
   "/projects/$project/inbox": ["/projects/helsinki/inbox"],

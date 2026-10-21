@@ -173,6 +173,12 @@ function UserMenu() {
             {t("glossary.page.title")}
           </a>
         </MenuItem>
+        <MenuItem asChild>
+          <a href="/accessibility">
+            <Icon name="info" className="size-4" />
+            {t("accessibility.link")}
+          </a>
+        </MenuItem>
         <MenuSeparator />
         <MenuItem
           onSelect={() => {

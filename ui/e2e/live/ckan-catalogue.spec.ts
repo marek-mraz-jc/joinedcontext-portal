@@ -12,6 +12,7 @@
  *    `datastore_search` and written into the report, never typed.
  */
 import { expect, test } from "@playwright/test";
+import { axeViolations } from "../axe";
 import { STEWARD } from "./portal";
 
 test.setTimeout(180_000);
@@ -114,4 +115,49 @@ test("every dataset's DataStore sheet holds rows", async ({ request }, info) => 
   expect(Object.keys(totals).length, "the catalogue has at least one DataStore sheet").toBeGreaterThan(0);
   const empty = Object.entries(totals).filter(([, total]) => total === 0).map(([name]) => name);
   expect(empty, "datasets whose sheet is empty").toEqual([]);
+});
+
+/**
+ * T-5108 (WCAG 2.1 AA, Decree 78/2020): the catalogue's pages a visitor meets first carry no
+ * serious or critical axe finding at desktop and phone width, and the footer's accessibility
+ * statement is reachable with the keyboard alone.
+ */
+const AXE_PAGES = ["/", "/dataset/", "/organization/", "/about", "/accessibility"];
+
+for (const width of [1440, 400]) {
+  test(`the catalogue's first pages have no serious axe finding at ${width} px`, async ({ browser, request }) => {
+    const found = ((await (await request.get(`${CATALOGUE}/api/3/action/package_search?rows=1`)).json()) as {
+      result: { results: { name: string }[] };
+    }).result.results;
+    const pages = [...AXE_PAGES, ...found.map((dataset) => `/dataset/${dataset.name}`)];
+    const context = await browser.newContext({ viewport: { width, height: 900 } });
+    const page = await context.newPage();
+    const findings: string[] = [];
+    try {
+      for (const path of pages) {
+        const answer = await page.goto(`${CATALOGUE}${path}`, { waitUntil: "load" });
+        expect(answer?.status(), path).toBeLessThan(400);
+        findings.push(
+          ...(await axeViolations(page)).filter((line) => /\((serious|critical)\)/.test(line)).map((line) => `${path}: ${line}`),
+        );
+      }
+    } finally {
+      await context.close();
+    }
+    expect(findings).toEqual([]);
+  });
+}
+
+test("a keyboard-only visitor reaches the catalogue's accessibility statement from its footer", async ({ page }) => {
+  await page.goto(`${CATALOGUE}/`, { waitUntil: "load" });
+  const link = page.locator("footer").getByRole("link", { name: /^(Accessibility statement|Vyhlásenie o prístupnosti)$/ });
+  for (let presses = 0; presses < 120; presses += 1) {
+    await page.keyboard.press("Tab");
+    const focused = await page.evaluate(() => document.activeElement?.getAttribute("href") ?? "");
+    if (focused.endsWith("/accessibility")) break;
+  }
+  await expect(link).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/accessibility$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Accessibility statement|Vyhlásenie o prístupnosti/);
 });
