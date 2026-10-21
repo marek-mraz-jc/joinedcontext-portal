@@ -7,7 +7,7 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
-import { catalogueKey } from "../src/pages/catalogue/CataloguePage";
+import { catalogueKey, keyFormats } from "../src/pages/catalogue/CataloguePage";
 import { datasetKey, notesBlocks, resourceSays } from "../src/pages/catalogue/DatasetPage";
 import { narrowed, parseCatalogueSearch, toggled } from "../src/pages/catalogue/search";
 import { snippets } from "../src/pages/catalogue/snippets";
@@ -159,6 +159,40 @@ describe("the catalogue (EP-81, EP-82)", () => {
     expect(screen.getByRole("link", { name: "Catalogue", current: "page" })).toBeInTheDocument();
   });
 
+  it("ends a card in four key formats and counts the rest, which the dataset page lists (T-4995)", async () => {
+    const all = ["JSON", "JSON Schema", "JSON-LD", "LinkML", "MCP", "Markdown", "NGSI-LD", "OData", "OGCFEAT", "CSV", "SHACL"];
+    answers["/api/v1/catalogue"] = { status: 200, body: { ...PAGE, datasets: [{ ...PAGE.datasets[0], formats: all }] } };
+    renderAt("/catalogue");
+    const tags = await screen.findByRole("list", { name: "Themes and keywords" });
+    const chips = within(tags).getAllByRole("listitem").map((item) => item.textContent);
+    expect(chips).toEqual([
+      "Economy and finance",
+      "CSV",
+      "OGCFEAT",
+      "NGSI-LD",
+      "MCP",
+      "+7 formats: JSON, JSON Schema, JSON-LD, LinkML, Markdown, OData, SHACL",
+    ]);
+  });
+
+  it("opens the filters as a dialog from a button that counts the chosen values (T-4995)", async () => {
+    renderAt("/catalogue?publisher=bbsk&theme=ECON");
+    const open = await screen.findByRole("button", { name: "Filters (2)" });
+    fireEvent.click(open);
+    const sheet = await screen.findByRole("dialog", { name: "Filters" });
+    expect(within(sheet).getByRole("checkbox", { name: /Banskobystrický samosprávny kraj/ })).toBeChecked();
+    fireEvent.click(within(sheet).getByRole("checkbox", { name: /Helsinki/ }));
+    await waitFor(() => {
+      expect(catalogueCalls().at(-1)?.searchParams.getAll("publisher")).toEqual(["bbsk", "helsinki"]);
+    });
+    // The sheet stays open over the new answer, and its button closes it onto the list.
+    fireEvent.click(await within(screen.getByRole("dialog", { name: "Filters" })).findByRole("button", { name: "Show 2 datasets" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Filters" })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "Filters (3)" })).toBeInTheDocument();
+  });
+
   it("filters by a facet through the address, and a second value of the same facet is an alternative", async () => {
     renderAt("/catalogue");
     const filters = await screen.findByRole("complementary", { name: "Filters" });
@@ -296,6 +330,12 @@ describe("the catalogue's search in the address", () => {
     ).toEqual({ publisher: ["bbsk"], theme: ["ECON"] });
     expect(parseCatalogueSearch({ q: "x".repeat(300), page: 3 })).toEqual({ q: "x".repeat(200), page: 3 });
     expect(parseCatalogueSearch({ page: "2.5", year: [2024] })).toEqual({});
+  });
+
+  it("puts the formats a person picks first and keeps four", () => {
+    expect(keyFormats(["SHACL", "MCP", "OWL", "CSV", "RDF", "OData"])).toEqual(["CSV", "MCP", "SHACL", "OWL"]);
+    expect(keyFormats(["GeoJSON"])).toEqual(["GeoJSON"]);
+    expect(keyFormats([])).toEqual([]);
   });
 
   it("turns a value on and off and starts again at page one", () => {

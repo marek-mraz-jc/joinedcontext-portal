@@ -188,6 +188,71 @@ test.describe("the public catalogue", () => {
     });
   }
 
+  // T-4995 (audit T-4887 finding 7): a card ended in 13 format chips and, at 400 px, about 40 facet
+  // checkboxes came before the first dataset. Now four key formats and "+N", and the facets behind a
+  // "Filters" button under 768 px.
+  for (const width of [1440, 400]) {
+    test(`a card shows its key formats and the first dataset leads at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await stubApi(page, []);
+      const formats = ["CSV", "JSON", "JSON Schema", "JSON-LD", "LinkML", "MCP", "Markdown", "NGSI-LD", "OData", "OGCFEAT", "OWL", "RDF", "SHACL", "WebSocket"];
+      const many = (prefix: string, n: number) =>
+        Array.from({ length: n }, (_, i) => ({ value: `${prefix}-${i}`, label: `${prefix} ${i + 1}`, count: n - i }));
+      const crowded = {
+        ...PAGE,
+        total: 2,
+        datasets: [
+          { ...PAGE.datasets[0], formats, themes: ["ECON", "GOVE"] },
+          { ...PAGE.datasets[0], name: "bbsk-bikes", title: "Bicykle", formats: ["CSV", "OGCFEAT"], themes: ["TRAN"] },
+        ],
+        facets: {
+          ...PAGE.facets,
+          publisher: [...PAGE.facets.publisher, ...many("Publisher", 9)],
+          format: formats.map((f, i) => ({ value: f, label: f, count: 14 - i })),
+          licence: many("Licence", 6),
+          year: many("Year", 8),
+        },
+      };
+      await page.route((url) => url.pathname === "/api/v1/catalogue", (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(crowded) }),
+      );
+      await page.goto("/catalogue?lang=en");
+      const first = page.getByRole("link", { name: "Ukazovatele kraja" });
+      await expect(first).toBeVisible();
+      const card = page.getByRole("list", { name: "Themes and keywords" }).first();
+      await expect(card.getByRole("listitem")).toHaveText([
+        "Economy and finance",
+        "Government and public sector",
+        "CSV",
+        "OGCFEAT",
+        "NGSI-LD",
+        "MCP",
+        /^\+10 formats/,
+      ]);
+      const box = await first.boundingBox();
+      expect(box && box.y + box.height, "the first dataset is on the first screen").toBeLessThanOrEqual(900);
+      if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/catalogue-${width}.png` });
+      if (width < 768) {
+        await expect(page.getByRole("checkbox")).toHaveCount(0);
+        await page.getByRole("button", { name: "Filters" }).click();
+        const sheet = page.getByRole("dialog", { name: "Filters" });
+        await sheet.getByRole("checkbox", { name: /Economy and finance/ }).check();
+        await expect(page).toHaveURL(/theme=.*ECON/);
+        expect(await axeViolations(page)).toEqual([]);
+        if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/catalogue-filters-${width}.png` });
+        await sheet.getByRole("button", { name: "Show 2 datasets" }).click();
+        await expect(sheet).toBeHidden();
+        await expect(page.getByRole("button", { name: "Filters (1)" })).toBeFocused();
+      } else {
+        await expect(page.getByRole("button", { name: /^Filters/ })).toBeHidden();
+        await expect(page.getByRole("complementary", { name: "Filters" })).toBeVisible();
+      }
+      const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(sideways, "the page scrolls sideways").toBeLessThanOrEqual(0);
+      expect(await axeViolations(page)).toEqual([]);
+    });
+  }
+
   test("a dataset the catalogue does not hold says so and leads back", async ({ page }) => {
     await stubApi(page, []);
     await page.goto("/catalogue/gone?lang=en");
