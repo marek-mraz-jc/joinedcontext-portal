@@ -30,7 +30,9 @@ const COUNTED: [(&str, &str); 4] = [
 pub fn effective(mirror: &Mirror, project: &str) -> Quotas {
     let own = mirror
         .get(ORG_NAMESPACE, "Project", project)
-        .and_then(|env| serde_json::from_value::<Quotas>(env.spec.get("quotas")?.clone()).ok());
+        .and_then(|env| serde_json::from_value::<Quotas>(env.spec.get("quotas")?.clone()).ok())
+        // `spec.quotas` holding only `mqtt` leaves every PF-73 dimension to the organization.
+        .filter(Quotas::sets_dimensions);
     own.unwrap_or_else(|| organization_default(mirror))
 }
 
@@ -243,6 +245,17 @@ mod tests {
         ]);
         assert_eq!(effective(&mirror, "ovzdusie").resident_pipelines, Some(1));
         assert_eq!(effective(&mirror, "doprava").resident_pipelines, Some(3));
+        mirror.upsert(envelope(
+            "Project",
+            "mqtt-only",
+            ORG_NAMESPACE,
+            json!({ "organizationRef": { "name": "bb" }, "quotas": { "mqtt": { "enabled": true } } }),
+        ));
+        assert_eq!(
+            effective(&mirror, "mqtt-only").resident_pipelines,
+            Some(3),
+            "an MQTT allowance alone lifts no other quota"
+        );
     }
 
     #[test]

@@ -71,6 +71,10 @@ pub async fn me(
         return Err(not_found());
     }
     let person = crate::apps::roles::AppPerson::of(&spec, verified);
+    // A person the App's visibility keeps out learns no more than of a name never created (T-4910).
+    if !crate::apps::roles::may_open(&state, &project, &name, &spec, Some(&person)) {
+        return Err(not_found());
+    }
     let identity = &person.identity;
     // The API's own middleware marks every answer `no-store`, so no shared cache keeps one
     // person's roles for the next (AP-95).

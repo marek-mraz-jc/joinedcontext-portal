@@ -1117,6 +1117,111 @@
       "write": "{count, plural, =0 {Nie je čo zapísať} one {Zapísať # riadok} few {Zapísať # riadky} other {Zapísať # riadkov}}",
       "done": "{written, plural, =0 {Nezapísal sa žiadny riadok} one {Zapísaný # riadok} few {Zapísané # riadky} other {Zapísaných # riadkov}}, {refused, plural, =0 {žiadny odmietnutý.} other {odmietnutých: #.}}",
       "preview": "Náhľad {count, plural, one {prvej # entity} few {prvých # entít} other {prvých # entít}} ako NGSI-LD"
+    },
+    "toolbar": {
+      "filter": "Filter",
+      "hide": "Skryť polia",
+      "group": "Zoskupiť",
+      "colour": "Farba riadku",
+      "rowSize": "Výška riadku",
+      "rowSizes": {
+        "small": "Malá: jeden riadok",
+        "medium": "Stredná: dva riadky",
+        "large": "Veľká: štyri riadky"
+      },
+      "search": "Hľadať v riadkoch",
+      "searchPlaceholder": "Hľadať",
+      "more": "Viac",
+      "noFilters": "Žiadne podmienky: zobrazí sa každý riadok, ktorý vám endpoint dovolí čítať.",
+      "filterFull": "Pohľad má najviac {n} podmienok.",
+      "noFilterable": "Žiadne pole tohto typu sa nedá filtrovať na endpointe.",
+      "addCondition": "Pridať podmienku",
+      "addGroup": "Pridať skupinu podmienok",
+      "where": "Kde",
+      "join": "Spojenie podmienok",
+      "and": "a",
+      "or": "alebo",
+      "removeGroup": "Odstrániť skupinu",
+      "field": "Pole",
+      "operator": "Operátor",
+      "value": "Hodnota",
+      "upperValue": "Horná hodnota",
+      "removeCondition": "Odstrániť podmienku",
+      "selectRow": "Vybrať riadok",
+      "selectAll": "Vybrať všetky načítané riadky",
+      "aggregateOf": "Súhrn poľa {field}",
+      "aggregate": {
+        "none": "Nič",
+        "count": "Počet",
+        "filled": "Vyplnené",
+        "empty": "Prázdne",
+        "percentFilled": "Percento vyplnených",
+        "percentEmpty": "Percento prázdnych"
+      },
+      "aggregateFailed": "Endpoint nevrátil počet; skúste znova alebo zúžte filter.",
+      "aggregateFailedShort": "Nespočítané",
+      "aggregateNone": "Nespočítané",
+      "selection": "Vybrané riadky",
+      "selected": "Vybrané: {n}",
+      "deleteSelected": "Zmazať vybrané",
+      "deleteNotGranted": "Žiadny endpoint tohto priestoru vám nedovoľuje mazať tento typ.",
+      "clearSelection": "Zrušiť výber",
+      "deleteRefused": "Nezmazané riadky: {n}",
+      "deleteTitle": "Zmazať riadky ({n})?",
+      "deleteBody": "Každý riadok sa maže cez Policy priestoru, ktorá ho môže odmietnuť. Kópia každého zmazaného riadku zostane 30 dní vo vašom koši."
+    },
+    "temporal": {
+      "title": "Ako vznikajú riadky histórie",
+      "lead": "Každý atribút, ktorý pipeline zapisuje do tohto priestoru, ako ho priestor zaznamenáva a odkiaľ berie čas každého riadku. Verdikt iný ako OK hovorí, čo zmeniť.",
+      "summary": "Riadky podľa verdiktu",
+      "count": "{verdict}: {n}",
+      "failed": "Audit sa nepodarilo načítať: {detail}. Skúste stránku načítať znova.",
+      "empty": "Do tohto priestoru nezapisuje žiadna pipeline, ktorú môžete čítať",
+      "emptyHint": "Pipeline, ktorej cieľový Endpoint patrí tomuto priestoru, sa tu zobrazí s každým atribútom, ktorý mapuje.",
+      "unread": "Mapovanie {pipelines} sa nepodarilo načítať z repozitára, jeho riadky chýbajú. Skúste stránku načítať znova.",
+      "pipelineFilter": "Pipeline",
+      "allPipelines": "Všetky pipeline",
+      "verdictFilter": "Verdikt",
+      "allVerdicts": "Všetky verdikty",
+      "noMatch": "Týmto filtrom nezodpovedá žiadny riadok",
+      "caption": "Ako sa zápisy každej pipeline menia na riadky histórie",
+      "attribute": "Atribút",
+      "kept": "Uchováva sa",
+      "verdictColumn": "Verdikt",
+      "of": "{type} z pipeline {pipeline}",
+      "none": "žiadne",
+      "datasets": "Identifikátory datasetu: {n}",
+      "history": "História {history}",
+      "lifetime": "Koniec entity: {lifetime}",
+      "recordMode": {
+        "every": "Uchovať každé meranie",
+        "onChange": "Uchovať len zmeny",
+        "none": "Uchovať len poslednú hodnotu"
+      },
+      "source": {
+        "mapped": "Zo záznamu",
+        "constant": "Pevný čas",
+        "received": "Čas prijatia"
+      },
+      "verdict": {
+        "ok": "Riadky zodpovedajú meraniam",
+        "loses-history": "Stráca históriu",
+        "unbounded-growth": "Rastie bez obmedzenia",
+        "duplicates-rows": "Duplikuje riadky",
+        "stamped-on-receive": "Čas prijatia"
+      },
+      "fix": {
+        "loses-history": "Každý zápis má rovnaký čas, takže nahradí predchádzajúci: mapujte observedAt zo záznamu.",
+        "unbounded-growth": "História sa uchováva navždy: nastavte trvanie na karte Uchovávanie.",
+        "duplicates-rows": "Nezmenená hodnota je pri každom zápise nový riadok: mapujte observedAt zo záznamu alebo uchovajte len zmeny.",
+        "stamped-on-receive": "Meranie bez vlastného času: mapujte observedAt zo záznamu."
+      },
+      "expiresMapped": "jej expiresAt z mapovania",
+      "expiry": "neaktuálna po {after}",
+      "rows": "Riadky",
+      "timeOf": "Čas: {source}",
+      "unitOf": "Jednotka: {unit}",
+      "noMatchHint": "Vyberte Všetky pipeline a Všetky verdikty, aby ste videli každý riadok."
     }
   },
   "endpoints": {
@@ -2883,6 +2988,31 @@
       "personHelp": "Ľudia organizácie podľa e-mailu; vyhľadávanie vyššie zúži zoznam.",
       "accountHelp": "Servisné účty projektu, teda programy, ktoré volajú endpointy.",
       "nameHelp": "Názov presne tak, ako je napísaný v Keycloaku."
+    },
+    "presets": {
+      "legend": "Prístup",
+      "advanced": "Rozšírené",
+      "unavailable": "Toto celé sami nedržíte, preto to nemôžete udeliť.",
+      "reader": {
+        "label": "Čitateľ",
+        "description": "Číta dáta a nastavenia; nič nemení."
+      },
+      "writer": {
+        "label": "Zapisovateľ",
+        "description": "Číta a navrhuje alebo robí zmeny hodnôt dát."
+      },
+      "steward": {
+        "label": "Správca",
+        "description": "Číta, navrhuje a schvaľuje zmeny dát a ich nastavení; nie toho, kto má prístup."
+      },
+      "pipelineWriter": {
+        "label": "Zápis z pipeline",
+        "description": "Privádza dáta: vytvára a mení entity, navrhuje pipeline a ich zdroje."
+      },
+      "custom": {
+        "label": "Vlastné",
+        "description": "Každé oprávnenie vyberiete sami."
+      }
     }
   },
   "flows": {
@@ -3297,7 +3427,14 @@
       "noClasses": "Tento model zatiaľ nedeklaruje žiadnu triedu, takže negeneruje formulár.",
       "formClass": "Trieda",
       "formReadOnly": "Toto je formulár, ktorý model generuje, vyplnený jeho príkladom; odtiaľto sa nič neukladá.",
-      "jsonType": {"number": "Číslo", "integer": "Celé číslo", "string": "Text", "boolean": "Áno alebo nie", "object": "Skupina polí", "array": "Zoznam"},
+      "jsonType": {
+        "number": "Číslo",
+        "integer": "Celé číslo",
+        "string": "Text",
+        "boolean": "Áno alebo nie",
+        "object": "Skupina polí",
+        "array": "Zoznam"
+      },
       "asJson": "Zobrazené ako JSON.",
       "yaml": "Zdroj modelu (LinkML YAML)",
       "copyYaml": "Kopírovať YAML",

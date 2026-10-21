@@ -11351,6 +11351,59 @@
         }
       }
     },
+    "/api/v1/projects/{project}/mqtt/allowance": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "The Project's MQTT Allowance",
+        "description": "What the project may run as MQTT edge brokers and what its committed brokers use of it (API/01 §47, PF-117, PF-118). Whoever may read the project. Written only as Organization spec.limits.mqtt or Project spec.quotas.mqtt, by an org admin.",
+        "operationId": "get_allowance",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The allowance and its usage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Allowance"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project, or not readable by the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/mqttbrokers/{name}/measured": {
       "get": {
         "tags": [
@@ -14391,6 +14444,80 @@
           },
           "503": {
             "description": "The space or the key is not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/spaces/{space}/temporal-audit": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Audit How Pipelines Create History",
+        "description": "For every pipeline the caller may read that writes the space: each entity type and attribute its mapping writes, the record mode the space's retention gives it (DM-108), where its observedAt comes from (mapped, constant, or stamped on receipt, DM-107), its unitCode and datasetId, the type's history and the pipeline's lifetime, and a verdict: ok, loses-history, unbounded-growth, duplicates-rows or stamped-on-receive (T-4844). Names only, never a value of the data.",
+        "operationId": "temporal_audit",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pipeline",
+            "in": "query",
+            "description": "Only this pipeline.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rows and the count of each verdict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemporalAudit"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read, or no such pipeline the caller may read",
             "content": {
               "application/json": {
                 "schema": {
@@ -18095,6 +18222,76 @@
           }
         }
       },
+      "Allowance": {
+        "type": "object",
+        "description": "The project's MQTT allowance and its usage (API/01 §47).",
+        "required": [
+          "enabled",
+          "origin",
+          "raise",
+          "modes",
+          "addresses",
+          "ports",
+          "brokers",
+          "connections",
+          "messagesPerSecond",
+          "maxMessageBytes",
+          "portsInUse"
+        ],
+        "properties": {
+          "addresses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`platform`, `dedicatedPort`."
+          },
+          "brokers": {
+            "$ref": "#/components/schemas/Meter"
+          },
+          "connections": {
+            "$ref": "#/components/schemas/Meter"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "maxMessageBytes": {
+            "$ref": "#/components/schemas/Ceiling"
+          },
+          "messagesPerSecond": {
+            "$ref": "#/components/schemas/Meter"
+          },
+          "modes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`ingest`, `capture`, `relay`."
+          },
+          "origin": {
+            "$ref": "#/components/schemas/LimitOrigin",
+            "description": "`project` (its `spec.quotas.mqtt`), `organization` (`spec.limits.mqtt`) or `default`."
+          },
+          "ports": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          "portsInUse": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortInUse"
+            }
+          },
+          "raise": {
+            "type": "string",
+            "description": "The sentence a refusal ends with: who can raise the allowance, and where (PF-101)."
+          }
+        }
+      },
       "AnswerRequest": {
         "type": "object",
         "description": "An answer to one question the agent asked (AG-45).",
@@ -19534,6 +19731,20 @@
           },
           "label": {
             "type": "string"
+          }
+        }
+      },
+      "Ceiling": {
+        "type": "object",
+        "description": "A ceiling each broker is held to on its own.",
+        "required": [
+          "limit"
+        ],
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       },
@@ -22281,6 +22492,33 @@
         },
         "additionalProperties": false
       },
+      "Meter": {
+        "type": "object",
+        "description": "One summed limit: what the allowance gives, what the brokers use, and what is left.",
+        "required": [
+          "limit",
+          "used",
+          "left"
+        ],
+        "properties": {
+          "left": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Never below `0`; a project over a lowered allowance shows `used` above `limit` (PF-100).",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "used": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "Method": {
         "type": "string",
         "description": "Which of the two proofs verified the domain.",
@@ -22779,6 +23017,15 @@
           }
         },
         "additionalProperties": false
+      },
+      "ObservedAtSource": {
+        "type": "string",
+        "description": "Where a row's `observedAt` comes from.",
+        "enum": [
+          "mapped",
+          "constant",
+          "received"
+        ]
       },
       "ObservedPage": {
         "type": "object",
@@ -23851,6 +24098,24 @@
           }
         },
         "additionalProperties": false
+      },
+      "PortInUse": {
+        "type": "object",
+        "description": "A dedicated port of the project and the broker holding it.",
+        "required": [
+          "port",
+          "broker"
+        ],
+        "properties": {
+          "broker": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
       },
       "Preferences": {
         "type": "object",
@@ -26219,6 +26484,118 @@
             "description": "The project's templates, newest first."
           }
         }
+      },
+      "TemporalAudit": {
+        "type": "object",
+        "description": "The audit of one space.",
+        "required": [
+          "rows",
+          "unread",
+          "verdicts"
+        ],
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemporalAuditRow"
+            },
+            "description": "One row per pipeline, entity type and attribute, by pipeline, type and attribute."
+          },
+          "unread": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The pipelines whose `bento.yaml` the forge did not answer: their rows may be missing."
+          },
+          "verdicts": {
+            "type": "object",
+            "description": "The rows of each verdict.",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "TemporalAuditRow": {
+        "type": "object",
+        "description": "One row of the audit (T-4844). Names and sources only: no value of the data.",
+        "required": [
+          "pipeline",
+          "entityType",
+          "attribute",
+          "record",
+          "observedAt",
+          "unitCode",
+          "datasetId",
+          "history",
+          "lifetime",
+          "verdict"
+        ],
+        "properties": {
+          "attribute": {
+            "type": "string"
+          },
+          "datasetId": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The literal `datasetId`s, or `mapped` for one the record decides."
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "history": {
+            "type": "string",
+            "description": "How long the type's rows are kept: the rule's, the space's `*` rule's, or the platform's."
+          },
+          "lifetime": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What ends the entities: the pipeline's `lifetime` and `expiry`, or an `expiresAt` it maps."
+          },
+          "observedAt": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ObservedAtSource"
+            }
+          },
+          "pipeline": {
+            "type": "string"
+          },
+          "record": {
+            "type": "string",
+            "description": "`every`, `onChange`, or `none` under `history: off` (DM-108)."
+          },
+          "unitCode": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The codes the mapping writes, or the model's unit as `model <code>` when it writes none."
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/TemporalVerdict"
+          }
+        }
+      },
+      "TemporalVerdict": {
+        "type": "string",
+        "description": "What the rows of one attribute come to.",
+        "enum": [
+          "ok",
+          "loses-history",
+          "unbounded-growth",
+          "duplicates-rows",
+          "stamped-on-receive"
+        ]
       },
       "TenantDigest": {
         "type": "object",

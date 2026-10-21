@@ -176,7 +176,8 @@ export function Problem({ error, onRetry }: { error: ProblemError | Error | null
     <div className="jc-problem" role="alert">
       <strong>{title}</strong>
       {detail && <p>{detail}</p>}
-      {onRetry && (
+      {/* Asking again never grants a right: a refusal offers no retry (T-4912). */}
+      {onRetry && !denied && (
         <button type="button" onClick={onRetry}>
           {sdkWord(words, "state.retry")}
         </button>
