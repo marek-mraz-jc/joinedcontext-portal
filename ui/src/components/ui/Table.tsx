@@ -1,5 +1,7 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import type { HTMLAttributes, MouseEvent, ReactNode, TdHTMLAttributes, ThHTMLAttributes } from "react";
 import { clsx } from "clsx";
+import { Icon } from "./icons";
 import { Skeleton } from "./Skeleton";
 
 export interface TableProps extends HTMLAttributes<HTMLTableElement> {
@@ -30,63 +32,103 @@ export function Table({
   children,
   ...rest
 }: TableProps): React.JSX.Element {
+  const frame = useRef<HTMLDivElement>(null);
+  const more = useColumnsBeyond(frame);
   return (
-    // The frame scrolls sideways, so it is focusable and a keyboard scrolls it with the arrow
-    // keys (WCAG 2.1.1): `overflow-x-auto` alone left the columns past the right edge reachable
-    // with a pointer and by nothing else. It is named after the caption, or it would be an
-    // unlabelled stop in the tab order.
-    //
-    // `group`, not `region`: a region is a landmark, and most tables here sit inside a
-    // `<section aria-labelledby>` whose name is the caption — two nested landmarks with one
-    // name, which is the `landmark-unique` violation and an ambiguous query for every test that
-    // asks for that section by name. A group names the tab stop and adds no landmark.
-    //
-    // `relative`: the frame is the containing block of the `sr-only` labels in the cells. They are
-    // positioned absolutely, and an absolute box is clipped only by a scroller that contains its
-    // containing block, so without it a header's hidden "Actions" stood at the table's far right
-    // and the whole page scrolled sideways at 375 px (T-3088).
-    <div
-      role="group"
-      aria-label={caption}
-      tabIndex={0}
-      className={clsx(
-        // `scroll-hint-x` is the frame's surface with a shadow at its right edge while columns
-        // wait beyond it (T-4265, photo audit T-4160).
-        "focus-ring scroll-hint-x relative overflow-x-auto rounded-lg border border-border shadow-1",
-        maxHeight && ["overflow-y-auto", maxHeight],
-      )}
-    >
-      {status ? (
-        <p role="status" className="sr-only">
-          {status}
-        </p>
-      ) : null}
-      <table
-        aria-busy={status ? true : undefined}
+    <div className="relative">
+      {/* The frame scrolls sideways, so it is focusable and a keyboard scrolls it with the arrow
+          keys (WCAG 2.1.1): `overflow-x-auto` alone left the columns past the right edge reachable
+          with a pointer and by nothing else. It is named after the caption, or it would be an
+          unlabelled stop in the tab order.
+
+          `group`, not `region`: a region is a landmark, and most tables here sit inside a
+          `<section aria-labelledby>` whose name is the caption — two nested landmarks with one
+          name, which is the `landmark-unique` violation and an ambiguous query for every test that
+          asks for that section by name. A group names the tab stop and adds no landmark.
+
+          `relative`: the frame is the containing block of the `sr-only` labels in the cells. They are
+          positioned absolutely, and an absolute box is clipped only by a scroller that contains its
+          containing block, so without it a header's hidden "Actions" stood at the table's far right
+          and the whole page scrolled sideways at 375 px (T-3088). */}
+      <div
+        ref={frame}
+        role="group"
+        aria-label={caption}
+        tabIndex={0}
         className={clsx(
-          "w-full border-collapse text-left text-body",
-          // `:not(:hover)` keeps the stripe off the row under the pointer. Without it the zebra
-          // rule — two selectors deep, so more specific than the row's own `hover:` — won an
-          // even row's background outright and hovering half the table did nothing.
-          zebra && "[&>tbody>tr:nth-child(even):not(:hover)]:bg-surface-subtle/70",
-          // Below lg the first column, the row's name, stays at the left edge while the frame
-          // scrolls sideways: a row scrolled to its actions still says which record it is
-          // (T-4165, photo audit T-4159), at a tablet's width too (T-4265, photo audit T-4160
-          // #44). Only that cell is opaque, in its row's zebra and hover, so the frame's edge
-          // shadow shows through the rest of the row.
-          "max-lg:[&_tr>:first-child]:sticky max-lg:[&_tr>:first-child]:left-0 max-lg:[&_tr>:first-child]:z-10",
-          "max-lg:[&_tbody>tr>:first-child]:bg-surface max-lg:[&_thead>tr>:first-child]:bg-surface-subtle",
-          zebra && "max-lg:[&_tbody>tr:nth-child(even)>:first-child]:bg-surface-subtle",
-          "max-lg:[&_tbody>tr:hover>:first-child]:bg-primary-50",
-          className,
+          // `scroll-hint-x` is the frame's surface with a shadow at its right edge while columns
+          // wait beyond it (T-4265, photo audit T-4160).
+          "focus-ring scroll-hint-x relative overflow-x-auto rounded-lg border border-border shadow-1",
+          maxHeight && ["overflow-y-auto", maxHeight],
         )}
-        {...rest}
       >
-        <caption className="sr-only">{caption}</caption>
-        {children}
-      </table>
+        {status ? (
+          <p role="status" className="sr-only">
+            {status}
+          </p>
+        ) : null}
+        <table
+          aria-busy={status ? true : undefined}
+          className={clsx(
+            "w-full border-collapse text-left text-body",
+            // `:not(:hover)` keeps the stripe off the row under the pointer. Without it the zebra
+            // rule — two selectors deep, so more specific than the row's own `hover:` — won an
+            // even row's background outright and hovering half the table did nothing.
+            zebra && "[&>tbody>tr:nth-child(even):not(:hover)]:bg-surface-subtle/70",
+            // Below lg the first column, the row's name, stays at the left edge while the frame
+            // scrolls sideways: a row scrolled to its actions still says which record it is
+            // (T-4165, photo audit T-4159), at a tablet's width too (T-4265, photo audit T-4160
+            // #44). Only that cell is opaque, in its row's zebra and hover, so the frame's edge
+            // shadow shows through the rest of the row.
+            "max-lg:[&_tr>:first-child]:sticky max-lg:[&_tr>:first-child]:left-0 max-lg:[&_tr>:first-child]:z-10",
+            "max-lg:[&_tbody>tr>:first-child]:bg-surface max-lg:[&_thead>tr>:first-child]:bg-surface-subtle",
+            zebra && "max-lg:[&_tbody>tr:nth-child(even)>:first-child]:bg-surface-subtle",
+            "max-lg:[&_tbody>tr:hover>:first-child]:bg-primary-50",
+            className,
+          )}
+          {...rest}
+        >
+          <caption className="sr-only">{caption}</caption>
+          {children}
+        </table>
+      </div>
+      {/* The cue that columns wait past the right edge (T-4992): the frame's own edge shadow sat
+          under the rows' zebra and hover fills and showed on no phone. This one lies over the
+          rows and leaves once the frame is scrolled to its end. A pointer passes through it, and
+          a screen reader reaches every column without it. */}
+      {more ? (
+        <span
+          aria-hidden="true"
+          data-testid="table-more-columns"
+          className="pointer-events-none absolute inset-y-px right-px flex w-10 items-start justify-end rounded-r-lg scroll-cue-x pr-1 pt-2.5"
+        >
+          <Icon name="chevronRight" className="size-4 text-fg-muted" />
+        </span>
+      ) : null}
     </div>
   );
+}
+
+/** Whether the frame holds columns past its right edge, kept current on scroll and resize. */
+function useColumnsBeyond(frame: React.RefObject<HTMLDivElement | null>): boolean {
+  const [more, setMore] = useState(false);
+  useLayoutEffect(() => {
+    const element = frame.current;
+    if (!element) return;
+    const measure = () => setMore(element.scrollLeft + element.clientWidth < element.scrollWidth - 1);
+    measure();
+    element.addEventListener("scroll", measure, { passive: true });
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    // The rows change the width too: a table that loads its rows grows after the first paint.
+    const table = element.querySelector("table");
+    if (table) observer?.observe(table);
+    return () => {
+      element.removeEventListener("scroll", measure);
+      observer?.disconnect();
+    };
+  }, [frame]);
+  return more;
 }
 
 export function TableHead({

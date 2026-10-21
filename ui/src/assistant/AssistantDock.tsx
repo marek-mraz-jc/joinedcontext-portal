@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Alert, Button, Card, Field, PermissionGuard, Textarea } from "../components/ui";
 import type { JSX, ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { clsx } from "clsx";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
@@ -195,7 +196,14 @@ function Paths({
   );
 }
 
-export function AssistantDock({ project }: { project: string }): JSX.Element | null {
+export function AssistantDock({
+  project,
+  launcherSlot = null,
+}: {
+  project: string;
+  /** The header's place for the closed assistant's button on a phone (T-4992). */
+  launcherSlot?: HTMLElement | null;
+}): JSX.Element | null {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const raw = useSyncExternalStore(onAssistantChange, runSnapshot);
@@ -213,6 +221,7 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
     settlePrefill(pathname);
   }, [navigated, pathname]);
   const [open, setOpen] = useState(() => Boolean(parseRun(runSnapshot())));
+  const phone = useSyncExternalStore(onPhoneChange, isPhone);
   // Opened by the person (the bubble, Ctrl/Cmd+K), the panel lands on its text box, ready to
   // type; opened because a run was remembered, it leaves the focus where it was (T-2719).
   const focusBox = useRef(false);
@@ -525,6 +534,37 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
   ) : null;
 
   if (!open) {
+    const openPanel = () => {
+      focusBox.current = true;
+      setOpen(true);
+    };
+    const busyDot = isBusy ? (
+      <span
+        data-testid="assistant-busy"
+        className="absolute right-1 top-1 size-3 rounded-full bg-danger ring-2 ring-surface"
+      />
+    ) : null;
+    // On a phone the button sits in the header with the other menus (T-4992): floating, it lay
+    // over the last column of every list, the row's "..." menu included, wherever the page was
+    // scrolled to.
+    if (phone && launcherSlot) {
+      return createPortal(
+        <Button
+          variant="ghost"
+          size="sm"
+          className="relative"
+          aria-expanded={false}
+          aria-label={t("assistant.open")}
+          title={t("assistant.open")}
+          data-assistant-bubble=""
+          onClick={openPanel}
+          icon={<Icon name="chat" className="size-5" />}
+        >
+          {busyDot}
+        </Button>,
+        launcherSlot,
+      );
+    }
     return (
       // Hand-made on purpose: a 56 px round floating button, which the shared Button's fixed
       // heights would fight class by class. No `aria-controls`: the panel it opens is not in the
@@ -535,19 +575,11 @@ export function AssistantDock({ project }: { project: string }): JSX.Element | n
         aria-label={t("assistant.open")}
         title={t("assistant.open")}
         data-assistant-bubble=""
-        onClick={() => {
-          focusBox.current = true;
-          setOpen(true);
-        }}
+        onClick={openPanel}
         className="focus-ring fixed bottom-4 right-4 z-40 flex size-14 items-center justify-center rounded-full bg-primary text-primary-fg shadow-3 hover:bg-primary-hover"
       >
         <Icon name="chat" className="size-6" />
-        {isBusy ? (
-          <span
-            data-testid="assistant-busy"
-            className="absolute right-1 top-1 size-3 rounded-full bg-danger ring-2 ring-surface"
-          />
-        ) : null}
+        {busyDot}
       </button>
     );
   }
@@ -943,6 +975,19 @@ function onWideChange(changed: () => void): () => void {
   const query = typeof window.matchMedia === "function" ? window.matchMedia(WIDE) : null;
   query?.addEventListener("change", changed);
   return () => query?.removeEventListener("change", changed);
+}
+
+/** Below Tailwind's `sm`: the closed assistant's button moves into the header. */
+const PHONE = "(max-width: 39.98rem)";
+
+function onPhoneChange(changed: () => void): () => void {
+  const query = typeof window.matchMedia === "function" ? window.matchMedia(PHONE) : null;
+  query?.addEventListener("change", changed);
+  return () => query?.removeEventListener("change", changed);
+}
+
+function isPhone(): boolean {
+  return typeof window.matchMedia === "function" && window.matchMedia(PHONE).matches;
 }
 
 function isWide(): boolean {

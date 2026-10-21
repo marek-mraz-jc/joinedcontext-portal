@@ -567,7 +567,8 @@
       "sections": "Parts of the space",
       "counting": "Counting the space's entities…",
       "allRows": "All rows",
-      "savedViews": "Saved views"
+      "savedViews": "Saved views",
+      "typeHint": "Which kind of entity the rows below show, for example Event."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",

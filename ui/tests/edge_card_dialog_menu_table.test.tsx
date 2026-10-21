@@ -7,11 +7,11 @@
 // covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
 // src/components/ui/Menu.tsx through the page they belong to; each was confirmed by
 // making the module throw and watching this file go red.
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { I18nextProvider } from "react-i18next";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import {
   Card,
@@ -101,6 +101,54 @@ describe("Table, at its edges", () => {
     );
     expect(screen.getByRole("group", { name: caption })).toBeInTheDocument();
     expect(screen.getByRole("table")).toHaveAccessibleName(caption);
+  });
+
+  it("columns_past_the_right_edge_show_a_cue_that_leaves_at_the_end_of_the_scroll", () => {
+    // jsdom lays nothing out: the frame says it is 300 px wide over a 700 px table.
+    const sizes = [
+      vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(300),
+      vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(700),
+    ];
+    try {
+      const { container } = wrap(
+        <Table caption="Policies">
+          <TableHead>
+            <TableHeaderCell>Name</TableHeaderCell>
+            <TableHeaderCell>Granted to</TableHeaderCell>
+          </TableHead>
+          <TableBody>
+            <TableRow>
+              <TableCell>app-air-quality</TableCell>
+              <TableCell>role:endpoint</TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>,
+      );
+      const cue = screen.getByTestId("table-more-columns");
+      expect(cue).toHaveAttribute("aria-hidden", "true");
+      expect(cue.className).toContain("pointer-events-none");
+
+      const frame = screen.getByRole("group", { name: "Policies" });
+      frame.scrollLeft = 400;
+      fireEvent.scroll(frame);
+      expect(screen.queryByTestId("table-more-columns")).toBeNull();
+      expect(container.querySelector("table")).toHaveAccessibleName("Policies");
+    } finally {
+      sizes.forEach((spy) => spy.mockRestore());
+    }
+  });
+
+  it("a_table_that_fits_shows_no_cue", () => {
+    wrap(
+      <Table caption="Roles">
+        <TableBody>
+          <TableRow>
+            <TableCell>editor</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>,
+    );
+    expect(screen.queryByTestId("table-more-columns")).toBeNull();
   });
 
   it("zebra_off_leaves_the_row_hover_as_the_only_rule", () => {

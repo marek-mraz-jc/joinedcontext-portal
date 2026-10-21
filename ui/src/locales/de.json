@@ -567,7 +567,8 @@
       "sections": "Teile des Raums",
       "counting": "Die Entitäten des Raums werden gezählt…",
       "allRows": "Alle Zeilen",
-      "savedViews": "Gespeicherte Ansichten"
+      "savedViews": "Gespeicherte Ansichten",
+      "typeHint": "Welche Art von Entitäten die Zeilen unten zeigen, zum Beispiel Event."
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
