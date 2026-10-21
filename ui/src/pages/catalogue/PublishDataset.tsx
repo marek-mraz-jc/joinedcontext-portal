@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { JSX } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, unwrap } from "../../api/client";
 import { isChange, localized } from "../../api/manifest";
@@ -8,6 +8,8 @@ import type { Change, ResourceProposal } from "../../api/manifest";
 import { proposeChecked } from "../../api/proposal";
 import type { components } from "../../api/schema";
 import { ChangeNotice } from "../../components/ChangeNotice";
+import { Combobox } from "../../components/pickers/Combobox";
+import type { PickerOption } from "../../components/pickers/Combobox";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 import { Alert, Badge, Button, Checkbox, Dialog, Field, Input, Select } from "../../components/ui";
 import { problemOf, useThemeLabel } from "./CataloguePage";
@@ -68,6 +70,7 @@ function Flow({
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
+  const facets = useCatalogueFacets();
   const [picked, setPicked] = useState(endpoint ?? "");
   const [step, setStep] = useState<Step>("pick");
   const [drafted, setDrafted] = useState<Drafted | null>(null);
@@ -236,7 +239,17 @@ function Flow({
       ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field id="publish-publisher" label={t("catalogue.facets.publisher")} description={t("catalogue.publish.inLanguage", { language: drafted.form.language })}>
-          <Input id="publish-publisher" value={drafted.form.publisher} maxLength={200} onChange={(e) => update({ publisher: e.target.value })} />
+          <Combobox
+            id="publish-publisher"
+            labelled
+            label={t("catalogue.facets.publisher")}
+            value={drafted.form.publisher ? [drafted.form.publisher] : []}
+            onChange={(values) => update({ publisher: values[0] ?? "" })}
+            options={offered(facets.data?.publisher, t("catalogue.publish.inCatalogue"))}
+            loading={facets.isPending}
+            empty={t("catalogue.publish.typeNew")}
+            create={{ label: (text) => t("picker.createNamed", { name: text }), onCreate: (text) => update({ publisher: text.trim().slice(0, 200) }) }}
+          />
         </Field>
         <Field id="publish-licence" label={t("catalogue.facets.licence")} required errors={errorOf("license")}>
           <Select id="publish-licence" value={drafted.form.license} onChange={(e) => update({ license: e.target.value })}>
@@ -275,7 +288,21 @@ function Flow({
         </div>
       </fieldset>
       <Field id="publish-keywords" label={t("catalogue.publish.keywords")} description={t("catalogue.publish.keywordsHelp", { language: drafted.form.language })}>
-        <Input id="publish-keywords" value={drafted.form.keywords} maxLength={1000} onChange={(e) => update({ keywords: e.target.value })} />
+        <Combobox
+          id="publish-keywords"
+          labelled
+          label={t("catalogue.publish.keywords")}
+          multiple
+          value={keywordList(drafted.form.keywords)}
+          onChange={(values) => update({ keywords: values.join(", ") })}
+          options={offered(facets.data?.keyword, t("catalogue.publish.inCatalogue"))}
+          loading={facets.isPending}
+          empty={t("catalogue.publish.typeNew")}
+          create={{
+            label: (text) => t("picker.createNamed", { name: text }),
+            onCreate: (text) => update({ keywords: [...keywordList(drafted.form.keywords), ...keywordList(text)].join(", ") }),
+          }}
+        />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field id="publish-spatial" label={t("catalogue.facets.spatial")} description={t("catalogue.publish.spatialHelp")}>
@@ -309,6 +336,25 @@ function Flow({
 }
 
 /** The catalogue entry as the dataset page will show it (Architecture/21 §7, step 3). */
+/** The publishers (CKAN organizations) and keywords the catalogue already holds, offered beside free entry (T-4948). */
+export function useCatalogueFacets() {
+  return useQuery({
+    queryKey: ["catalogue", "facets"],
+    queryFn: async () => (await unwrap(await api.GET("/api/v1/catalogue", { params: { query: {} } }))).facets,
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** The keywords a comma-separated text names, each once. */
+function keywordList(text: string): string[] {
+  return [...new Set(text.split(",").map((word) => word.trim()).filter(Boolean))];
+}
+
+/** A facet's values as picker options, by the name a person reads. */
+function offered(values: { label: string; count: number }[] | undefined, group: string): PickerOption[] {
+  return [...new Set((values ?? []).map((value) => value.label))].map((label) => ({ value: label, label, group }));
+}
+
 function Preview({ drafted }: { drafted: Drafted }): JSX.Element {
   const { t, i18n } = useTranslation();
   const themeLabel = useThemeLabel();

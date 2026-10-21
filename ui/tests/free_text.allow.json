@@ -78,10 +78,8 @@
       "reason": "the name of the new App"
     },
     "src/pages/apps/AppGenerator.tsx :: Only this application role may write (optional)": {
-      "class": "REF",
-      "reason": "an application role of the App: typed today",
-      "task": "T-4948",
-      "rule": "list: the App's own roles (App manifest spec.roles); submit: the App door (apps::names::check) refuses a role the App does not declare"
+      "class": "FREE",
+      "reason": "the name of a role the new App declares: it exists only once the App is published, so there is nothing to pick yet (T-4948); the form checks its shape (isRoleName) and the App kind validates it again"
     },
     "src/pages/apps/AppGenerator.tsx :: What should the app do?": {
       "class": "FREE",
@@ -94,22 +92,6 @@
     "src/pages/apps/NewEndpointPanel.tsx :: Endpoint name": {
       "class": "FREE",
       "reason": "the name of the new Endpoint"
-    },
-    "src/pages/catalogue/PublishDataset.tsx :: Keywords": {
-      "class": "SUGGEST",
-      "reason": "keywords: the catalogue's existing tags should be offered, free entry kept",
-      "task": "T-4948"
-    },
-    "src/pages/catalogue/PublishDataset.tsx :: Publisher": {
-      "class": "SUGGEST",
-      "reason": "the publisher: the catalogue's publisher facet should be offered, free entry kept",
-      "task": "T-4948"
-    },
-    "src/pages/ckan/CkanPage.tsx :: Default organization": {
-      "class": "REF",
-      "reason": "a CKAN organization of the instance: typed today",
-      "task": "T-4948",
-      "rule": "list: the CKAN instance's organizations the instance token may publish to; submit: CKAN refuses an owner_org the token does not hold, the Portal names the field"
     },
     "src/pages/datasources/TemplateGallery.tsx :: datasources.template.${picked.id}.url": {
       "class": "FREE",
@@ -140,27 +122,9 @@
       "class": "FREE",
       "reason": "typing the name is the confirmation itself"
     },
-    "src/pages/knowledge/ConversationsPage.tsx :: Assistant": {
-      "class": "REF",
-      "reason": "filters conversations by assistant deployment: typed today",
-      "task": "T-4948",
-      "rule": "list: GET /api/v1/projects/{project}/assistantdeployments (may_read AssistantDeployment); filter only, no write"
-    },
-    "src/pages/mcp/ConnectorsPage.tsx :: connectors.field.${field}": {
-      "class": "REF",
-      "reason": "projects, spaces, domains and themes a connector reads, comma separated: typed today",
-      "task": "T-4948",
-      "rule": "list: GET /api/v1/projects (projects.rs list_projects, the caller's bindings only); submit: the connector/MCP save re-checks each project exists and the caller may read it"
-    },
     "src/pages/mcp/McpServerDialog.tsx :: Find an Endpoint": {
       "class": "FREE",
       "reason": "a search box: the text filters a list on the page, the list itself is the choice"
-    },
-    "src/pages/mcp/McpServerDialog.tsx :: Projects it admits": {
-      "class": "REF",
-      "reason": "projects, comma separated: typed today",
-      "task": "T-4948",
-      "rule": "list: GET /api/v1/projects (projects.rs list_projects, the caller's bindings only); submit: the connector/MCP save re-checks each project exists and the caller may read it"
     },
     "src/pages/models/LinkmlVisualEditor.tsx :: New type": {
       "class": "FREE",

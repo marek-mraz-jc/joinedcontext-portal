@@ -66,6 +66,8 @@ const TOOLS = (names: string[]) => ({
 interface Stub {
   verbs?: string[];
   servers?: unknown[];
+  /** The dry run refuses, naming this field (T-4948). */
+  refuseField?: string;
 }
 
 function renderAt(path: string, stub: Stub = {}) {
@@ -87,6 +89,9 @@ function renderAt(path: string, stub: Stub = {}) {
     if (url.pathname === "/api/endpoint/hiddenslug/mcp") return json({ title: "Forbidden", status: 403 }, 403);
     if (request.method !== "GET") {
       writes.push({ path: url.pathname + url.search, body: request.body ? await request.json() : null });
+      if (stub.refuseField) {
+        return json({ title: "Bad Request", status: 400, detail: "spec.allowedProjects names project 'espoo', which is not one you may read; pick one from the list", errors: [stub.refuseField] }, 400);
+      }
       if (url.searchParams.get("dryRun") === "All") return json({ valid: true, verdict: { ok: true, findings: [] } });
       return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "Change", metadata: { name: "chg-mcp-1", namespace: "helsinki" }, spec: { lane: "Yellow" }, status: { phase: "Proposed" } }, 202);
     }
@@ -180,6 +185,39 @@ describe("the MCP servers page (T-3156)", () => {
       { path: "/api/v1/projects/helsinki/mcpservers?dryRun=All", body: proposed },
       { path: "/api/v1/projects/helsinki/mcpservers", body: proposed },
     ]);
+  });
+
+  it("admits projects picked from the person's own list, and shows the server's refusal beside that field (T-4948)", async () => {
+    const { writes } = renderAt("/projects/helsinki/mcp", { servers: [] });
+    await userEvent.click(await screen.findByRole("button", { name: "New MCP server" }));
+    const dialog = await screen.findByRole("dialog", { name: "New MCP server" });
+    await userEvent.type(within(dialog).getByLabelText(/^Name/), "shared");
+    await userEvent.click(await within(dialog).findByRole("checkbox", { name: "bikes (helsinki/bikes)" }));
+    await userEvent.selectOptions(within(dialog).getByLabelText(/^Who may connect/), "project-list");
+    const admits = within(dialog).getByLabelText(/^Projects it admits/);
+    expect(admits).toHaveAccessibleDescription(/only projects you may read are listed/);
+    await userEvent.type(admits, "zzz");
+    expect(await screen.findByText(/No project you may read matches/)).toBeInTheDocument();
+    await userEvent.clear(admits);
+    await userEvent.type(admits, "esp");
+    await userEvent.click(await screen.findByRole("option", { name: /espoo/ }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Check and propose" }));
+    await waitFor(() => expect(writes).toHaveLength(2));
+    expect((writes[0]?.body as { spec: { allowedProjects?: string[] } }).spec.allowedProjects).toEqual(["espoo"]);
+  });
+
+  it("shows the server's refusal of an admitted project beside the field (T-4948)", async () => {
+    renderAt("/projects/helsinki/mcp", { servers: [], refuseField: "spec.allowedProjects" });
+    await userEvent.click(await screen.findByRole("button", { name: "New MCP server" }));
+    const dialog = await screen.findByRole("dialog", { name: "New MCP server" });
+    await userEvent.type(within(dialog).getByLabelText(/^Name/), "shared");
+    await userEvent.click(await within(dialog).findByRole("checkbox", { name: "bikes (helsinki/bikes)" }));
+    await userEvent.selectOptions(within(dialog).getByLabelText(/^Who may connect/), "project-list");
+    await userEvent.click(within(dialog).getByLabelText(/^Projects it admits/));
+    await userEvent.click(await screen.findByRole("option", { name: /espoo/ }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Check and propose" }));
+    await waitFor(() => expect(within(dialog).getByLabelText(/^Projects it admits/)).toHaveAccessibleDescription(/not one you may read/));
+    expect(within(dialog).getAllByText(/not one you may read/)).toHaveLength(1);
   });
 
   it("attaches the project's public knowledge sources only, and keeps one it does not list (MF-57, T-4659)", async () => {
