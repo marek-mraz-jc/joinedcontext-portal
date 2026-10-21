@@ -2288,7 +2288,7 @@
         "never": "Nikdy",
         "neverHint": "Zůstanou, dokud je někdo nesmaže nebo je neodstraní pravidlo prostoru.",
         "source": "V čase, který dá zdroj",
-        "sourceHint": "Každá entita dostane vlastní expiresAt: časové pole záznamu plus nějaký čas, například observedAt plus 10 minut pro polohu autobusu.",
+        "sourceHint": "Každá entita dostane vlastní expiresAt: časový atribut plus určitou dobu, například observedOn plus 10 minut, nebo čas zápisu záznamu plus určitou dobu. Pipeline ho zapíše po vašem mapování.",
         "stale": "Když je zdroj přestane posílat",
         "staleHint": "Jednou za hodinu pipeline smaže entity tohoto typu, které během okna neaktualizovala.",
         "from": "Čas z",
@@ -2300,7 +2300,11 @@
         "afterHint": "Entity typu {type} neaktualizované takto dlouho se jednou za hodinu smažou.",
         "refusals": "Návrh se odmítne, když má pipeline více než jeden výstup, když do stejného prostoru zapisuje jiná pipeline, nebo když žádná Policy nedává této pipeline deleteBatch a queryBatch na typ; odmítnutí pojmenuje Policy, kterou je třeba rozšířit.",
         "history": "Historie typu {type} se řídí pravidly prostoru.",
-        "spaceRules": "Uchovávání v {space}"
+        "spaceRules": "Uchovávání v {space}",
+        "noTimeSlot": "Zatím není namapován žádný atribut data a času typu {type}, proto se konec počítá od času zápisu záznamu.",
+        "inManifest": "Životnost typu {type} je nastavena v manifestu pipeline (pevné datum, strop nebo vybrané atributy). Změňte ji v zobrazení YAML; tento editor ji ponechá beze změny.",
+        "migrated": "Čas konce, který tento krok dosud zapisoval, je nyní nastavením životnosti pipeline níže. Uloží se s vaším dalším návrhem.",
+        "migrateField": "Tento krok zapisuje expiresAt z pole záznamu {field} a z tohoto pole není namapován žádný atribut data a času. Namapujte ho na atribut data a času nebo níže zvolte jiný čas; do té doby si krok ponechá vlastní řádky expiresAt."
       }
     },
     "debug": {
@@ -2824,6 +2828,31 @@
       "personHelp": "Lidé organizace podle e-mailu; vyhledávání výše seznam zúží.",
       "accountHelp": "Servisní účty projektu, tedy programy, které volají endpointy.",
       "nameHelp": "Název přesně tak, jak je zapsán v Keycloaku."
+    },
+    "presets": {
+      "legend": "Přístup",
+      "advanced": "Rozšířené",
+      "unavailable": "Tohle celé sami nedržíte, proto to nemůžete udělit.",
+      "reader": {
+        "label": "Čtenář",
+        "description": "Čte data a nastavení; nic nemění."
+      },
+      "writer": {
+        "label": "Zapisovatel",
+        "description": "Čte a navrhuje nebo provádí změny hodnot dat."
+      },
+      "steward": {
+        "label": "Správce",
+        "description": "Čte, navrhuje a schvaluje změny dat a jejich nastavení; ne toho, kdo má přístup."
+      },
+      "pipelineWriter": {
+        "label": "Zápis z pipeline",
+        "description": "Přivádí data: vytváří a mění entity, navrhuje pipeline a jejich zdroje."
+      },
+      "custom": {
+        "label": "Vlastní",
+        "description": "Každé oprávnění vyberete sami."
+      }
     }
   },
   "flows": {
@@ -3238,7 +3267,14 @@
       "noClasses": "Tento model zatím nedeklaruje žádnou třídu, takže negeneruje formulář.",
       "formClass": "Třída",
       "formReadOnly": "Toto je formulář, který model generuje, vyplněný jeho příkladem; odsud se nic neukládá.",
-      "jsonType": {"number": "Číslo", "integer": "Celé číslo", "string": "Text", "boolean": "Ano nebo ne", "object": "Skupina polí", "array": "Seznam"},
+      "jsonType": {
+        "number": "Číslo",
+        "integer": "Celé číslo",
+        "string": "Text",
+        "boolean": "Ano nebo ne",
+        "object": "Skupina polí",
+        "array": "Seznam"
+      },
       "asJson": "Zobrazeno jako JSON.",
       "yaml": "Zdroj modelu (LinkML YAML)",
       "copyYaml": "Kopírovat YAML",

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { JSX } from "react";
 import { ariaDescribedByIds } from "@rjsf/utils";
 import type { WidgetProps } from "@rjsf/utils";
@@ -10,6 +11,9 @@ import {
 } from "../../endpoints/operationGroups";
 import { Badge, Checkbox } from "../../ui";
 import { useShownErrors } from "../touched";
+import { AccessPresetChoice } from "./AccessPresetChoice";
+import type { PresetMode } from "./AccessPresetChoice";
+import { OPERATION_PRESETS, matchOperationsPreset } from "./accessPresets";
 
 /**
  * What a `Policy` grants or a `ContextSourceRegistration` is registered for, picked by the five CIM 009 names first (R8, GW34, UI-01, T-2326).
@@ -50,6 +54,13 @@ export function OperationsPicker(props: WidgetProps): JSX.Element {
   /** Every operation the current choice covers, groups expanded (T-2282). */
   const covered = expandOperations(chosen);
 
+  // `presets` (a service account grant, T-4832): a preset first, the groups only under Custom.
+  const presets = options.presets === true;
+  const [mode, setMode] = useState<PresetMode>(() => matchOperationsPreset(chosen) ?? "custom");
+  const offered = Array.isArray(options.enumOptions)
+    ? new Set(options.enumOptions.map((option) => String(option.value)))
+    : undefined;
+
   const toggle = (name: string, on: boolean): void => {
     const next = on ? [...chosen, name] : chosen.filter((held) => held !== name);
     // The order a person ticked them in is not the order the manifest reads best: the groups
@@ -61,7 +72,7 @@ export function OperationsPicker(props: WidgetProps): JSX.Element {
     onChange(sorted);
   };
 
-  return (
+  const picker = (
     <div
       role="group"
       aria-describedby={described}
@@ -133,5 +144,23 @@ export function OperationsPicker(props: WidgetProps): JSX.Element {
         <p className="text-caption text-danger">{errors[0]}</p>
       ) : null}
     </div>
+  );
+
+  if (!presets) return picker;
+  return (
+    <AccessPresetChoice
+      id={id}
+      mode={mode}
+      frozen={frozen}
+      available={(preset) =>
+        !offered || OPERATION_PRESETS[preset].every((name) => offered.has(name))
+      }
+      onPick={(next) => {
+        setMode(next);
+        if (next !== "custom") onChange([...OPERATION_PRESETS[next]]);
+      }}
+    >
+      {picker}
+    </AccessPresetChoice>
   );
 }

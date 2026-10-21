@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { effectiveCurrent, effectiveHistory, PLATFORM_HISTORY, rulesOf } from "../src/pages/spaces/retention";
-import { generate, plusSeconds, preview, problemsOf, readBack, type Attribute, type MapperState } from "../src/pages/pipelines/outputMapper";
+import { generate, migrated, plusSeconds, preview, problemsOf, readBack, type Attribute, type MapperState } from "../src/pages/pipelines/outputMapper";
 import { modeOf, timeFieldOf } from "../src/pages/pipelines/ExpiryChoice";
 import { EXPIRES_AT, expiresOf, toEntities } from "../src/pages/spaces/importRows";
 
@@ -81,21 +81,38 @@ describe("the expiry the output mapper writes", () => {
     for (const bad of ["P", "PT", "PT10S", "P3651D", "10m", "P1Y"]) expect(plusSeconds(bad), bad).toBeUndefined();
   });
 
-  it("previews the expiresAt and names a time field the sample lacks or cannot read", () => {
-    expect(preview(BUS, SPEED, RECORDS, "transport", "example.org")[0].expiresAt).toBe("2026-10-20T10:10:00Z");
+  it("previews the expiresAt the lifetime step writes and names a time field the sample lacks or cannot read (T-4839)", () => {
+    const timed: Attribute[] = [...SPEED, { name: "observedOn", kind: "Property", valueType: "string", format: "date-time", required: false }];
+    const bus: MapperState = { ...BUS, attributes: { ...BUS.attributes, observedOn: { field: "observedAt" } }, expires: undefined };
     const at = Date.parse("2026-10-20T12:00:00Z");
-    expect(preview({ ...BUS, expires: {} }, SPEED, RECORDS, "transport", "example.org", at)[0].expiresAt).toBe("2026-10-20T12:00:00Z");
-    expect(problemsOf(BUS, SPEED, RECORDS)).toEqual([]);
-    expect(problemsOf({ ...BUS, expires: { field: "gone" } }, SPEED, RECORDS)).toEqual([
-      { attribute: "expiresAt", kind: "notInSample", field: "gone" },
-    ]);
-    expect(problemsOf({ ...BUS, expires: { field: "speed" } }, SPEED, RECORDS)).toEqual([
-      { attribute: "expiresAt", kind: "notTime", field: "speed", value: "31" },
-    ]);
+    const end = (lifetime: Parameters<typeof preview>[6]) => preview(bus, timed, RECORDS, "transport", "example.org", at, lifetime)[0].expiresAt;
+    expect(end({ from: "observedOn", plus: "PT10M" })).toBe("2026-10-20T10:10:00Z");
+    expect(end({ rolling: "PT1H" })).toBe("2026-10-20T13:00:00Z");
+    expect(end({ at: "2030-01-01T00:00:00Z" })).toBe("2030-01-01T00:00:00Z");
+    expect(end(undefined)).toBeUndefined();
+    expect(problemsOf(bus, timed, RECORDS, { from: "observedOn" })).toEqual([]);
+    const gone = { ...bus, attributes: { ...bus.attributes, observedOn: { field: "gone" } } };
+    expect(problemsOf(gone, timed, RECORDS, { from: "observedOn" })).toContainEqual({ attribute: "expiresAt", kind: "notInSample", field: "gone" });
+    const speed = { ...bus, attributes: { ...bus.attributes, observedOn: { field: "speed" } } };
+    expect(problemsOf(speed, timed, RECORDS, { from: "observedOn" })).toEqual([{ attribute: "expiresAt", kind: "notTime", field: "speed", value: "31" }]);
+  });
+
+  it("moves a T-4822 header expiry to the lifetime it means", () => {
+    const timed: Attribute[] = [...SPEED, { name: "observedOn", kind: "Property", valueType: "string", format: "date-time", required: false }];
+    const mapped: MapperState = { ...BUS, attributes: { ...BUS.attributes, observedOn: { field: "observedAt" } } };
+    expect(migrated({ field: "observedAt", plus: "PT10M" }, mapped, timed)).toEqual({ from: "observedOn", plus: "PT10M" });
+    expect(migrated({ field: "observedAt" }, mapped, timed)).toEqual({ from: "observedOn" });
+    expect(migrated({ plus: "PT1H" }, mapped, timed)).toEqual({ rolling: "PT1H" });
+    expect(migrated({}, mapped, timed)).toEqual({ rolling: "PT1M" });
+    // A field mapped to no date-time attribute has no lifetime to move to: the person chooses.
+    expect(migrated({ field: "speed", plus: "PT10M" }, mapped, timed)).toBeUndefined();
+    expect(migrated({ field: "observedAt" }, BUS, SPEED)).toBeUndefined();
+    // The header still reads back, so the step is recognised as the mapper's and migrated.
+    expect(readBack(generate(mapped, timed, "transport"), timed, "transport")).toEqual(mapped);
   });
 
   it("is one choice: an own expiresAt, the pipeline's sweep, or never", () => {
-    expect(modeOf(BUS.expires, undefined)).toBe("source");
+    expect(modeOf({ from: "observedOn", plus: "PT10M" }, undefined)).toBe("source");
     expect(modeOf(undefined, { after: "14d", types: ["Vehicle"] })).toBe("stale");
     expect(modeOf(undefined, {})).toBe("never");
     expect(modeOf(undefined, undefined)).toBe("never");
