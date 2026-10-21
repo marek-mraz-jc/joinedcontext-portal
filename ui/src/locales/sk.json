@@ -472,6 +472,7 @@
     "lead": "Úprava sa navrhne ako zmena; schvaľovateľ ju posúdi skôr, než sa niečo zmení.",
     "propose": "Navrhnúť zmenu",
     "renamed": "Ponechajte názov {name}; iný názov by bol nový zdroj.",
+    "parseError": "Riadok {line}: {reason}. Opravte YAML, aby ste mohli navrhnúť zmenu.",
     "button": "Upraviť",
     "action": "Upraviť {name}",
     "loading": "Načítava sa {name}…",

@@ -20,7 +20,7 @@ import type { ResourceTarget } from "./DeleteResourceDialog";
 import { Alert, Button, PageFailed, PageLoading } from "./ui";
 import { FormFrame, useFormRoute } from "./forms/FormRoute";
 import type { EditableForm } from "./EditResourceDialog";
-import { describe as describeField, marksOf } from "./yamlManifest";
+import { describe as describeField, marksOf, parseErrorsOf } from "./yamlManifest";
 
 const MonacoSourceView = lazy(() => import("../pages/models/MonacoSourceView"));
 
@@ -179,8 +179,15 @@ export function EditResourceDialogBody({
   // What the edit itself was refused for. A manifest that could not be read is its own state
   // below, with the API's sentence and a retry, rather than a red line over a dialog that says
   // "Loading…" for ever (T-1752).
+  // Text that does not parse cannot be proposed: the first error, its line and reason, stands in
+  // the alert and on the disabled button until the text parses again (T-5052).
+  const parseError = form === undefined && !readOnly ? parseErrorsOf(source)[0] : undefined;
+  const parseFailure = parseError
+    ? t("resourceEdit.parseError", { line: parseError.line, reason: parseError.message })
+    : null;
   const failure =
     invalid ??
+    parseFailure ??
     (propose.error instanceof ApiError
       ? (propose.error.problem?.detail ?? propose.error.message)
       : propose.error
@@ -234,12 +241,12 @@ export function EditResourceDialogBody({
             <Button
               variant="primary"
               loading={propose.isPending}
-              disabled={!current.data}
+              disabled={!current.data || parseFailure !== null}
               // Reachable while it is refused, with the reason read out beside it: there is
               // nothing to propose until the stored manifest has arrived (UI-44).
               disabledReason={
                 current.data
-                  ? undefined
+                  ? (parseFailure ?? undefined)
                   : current.isError
                     ? t("resourceEdit.unreadable", { name })
                     : t("resourceEdit.loading", { name })

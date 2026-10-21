@@ -3,12 +3,12 @@
  * seams: the helpers that place a field, a description and an error on a line, and the props the
  * dialog hands the editor (read-only for a viewer, the marks of a refusal at its field's line).
  */
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
-import { describe as describeField, lineOf, marksOf, pathAt } from "../src/components/yamlManifest";
+import { describe as describeField, lineOf, marksOf, parseErrorsOf, pathAt } from "../src/components/yamlManifest";
 
 const editors: Record<string, unknown>[] = [];
 vi.mock("../src/pages/models/MonacoSourceView", () => ({
@@ -119,5 +119,25 @@ describe("the YAML view in the dialog", () => {
       expect(describe(["spec", "rules"])).toBe("What the assignee may do.");
     });
     expect(editors.at(-1)?.readOnly).toBe(false);
+  });
+
+  it("text that does not parse names its line and reason and holds the proposal until it parses", async () => {
+    renderDialog(false);
+    const dialog = await screen.findByRole("dialog");
+    await within(dialog).findByRole("textbox", { name: "YAML" });
+    const propose = within(dialog).getByRole("button", { name: "Propose change" });
+    const type = (next: string) => act(() => (editors.at(-1)?.onChange as (v: string) => void)(next));
+
+    type("apiVersion: joinedcontext.com/v1alpha1\nkind: Policy\nmetadata:\n  name: read\nspec:\n  rules: [\n");
+    const [error] = parseErrorsOf(String(editors.at(-1)?.value));
+    expect(error?.line).toBeGreaterThanOrEqual(6);
+    expect(error?.message).not.toMatch(/at line \d+/);
+    const alert = await within(dialog).findByRole("alert");
+    expect(alert).toHaveTextContent(`Line ${error?.line}: ${error?.message}. Fix the YAML to propose the change.`);
+    expect(propose).toHaveAttribute("aria-disabled", "true");
+
+    type(TEXT);
+    await vi.waitFor(() => expect(within(dialog).queryByRole("alert")).toBeNull());
+    expect(propose).not.toHaveAttribute("aria-disabled", "true");
   });
 });

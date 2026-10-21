@@ -472,6 +472,7 @@
     "lead": "Ihre Bearbeitung wird als Änderung vorgeschlagen; eine genehmigende Person prüft sie, bevor sich etwas ändert.",
     "propose": "Änderung vorschlagen",
     "renamed": "Behalten Sie den Namen {name}; ein anderer Name wäre eine neue Ressource.",
+    "parseError": "Zeile {line}: {reason}. Korrigieren Sie das YAML, um die Änderung vorzuschlagen.",
     "button": "Bearbeiten",
     "action": "{name} bearbeiten",
     "loading": "{name} wird gelesen…",

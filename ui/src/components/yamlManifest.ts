@@ -108,18 +108,23 @@ function resolve(root: Schema | null | undefined, node: Schema | null | undefine
   return defs?.[name] ?? null;
 }
 
+/** Each YAML parse error of `text` at its 1-based line, first line of its message only. */
+export function parseErrorsOf(text: string): LineMark[] {
+  const lineCounter = new LineCounter();
+  return parseDocument(text, { lineCounter }).errors.map((e) => ({
+    line: e.linePos?.[0]?.line ?? 1,
+    // The line is the mark's own; yaml's "… at line 3, column 9:" tail would say it twice.
+    message: (e.message.split("\n")[0] ?? e.message).replace(/ at line \d+, column \d+:?$/, ""),
+  }));
+}
+
 /**
  * The marks of a manifest's text: each YAML parse error at its line, and each refusal that names
  * a field path (`spec.rules: …`) at that field's line. A refusal naming no field it finds is
  * marked on line 1, so it is still read out beside the text.
  */
 export function marksOf(text: string, refusals: readonly string[]): LineMark[] {
-  const lineCounter = new LineCounter();
-  const doc = parseDocument(text, { lineCounter });
-  const parse = doc.errors.map((e) => ({
-    line: e.linePos?.[0]?.line ?? 1,
-    message: e.message.split("\n")[0] ?? e.message,
-  }));
+  const parse = parseErrorsOf(text);
   const refused = refusals.map((message) => {
     const field = /^`?((?:metadata|spec)(?:\.[\w-]+|\[\d+\])*)`?:?\s/.exec(message)?.[1];
     const path = field

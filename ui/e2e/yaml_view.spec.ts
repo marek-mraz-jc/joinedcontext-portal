@@ -107,6 +107,8 @@ for (const width of [1440, 400]) {
       await page.keyboard.press("End");
       await page.keyboard.type(": [");
       await expect(page.locator(".squiggly-error").first()).toBeVisible();
+      await expect(page.getByRole("main").getByRole("alert")).toContainText(/Line \d+: .+\. Fix the YAML to propose the change\.$/);
+      await expect(page.getByRole("button", { name: "Propose change" })).toHaveAttribute("aria-disabled", "true");
       await page.screenshot({ path: join(dir, `parse-error-${width}.png`) });
     });
 
