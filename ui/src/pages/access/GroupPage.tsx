@@ -11,11 +11,11 @@ import { proposeChecked } from "../../api/proposal";
 import { useBranding } from "../../branding";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
-import { Alert, Button, Field, Input, PageHeader, Select } from "../../components/ui";
+import { Alert, Button, Field, PageHeader, Select } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { asUser, withMember, withoutMember } from "../apps/members";
-import { usePeopleChoices } from "../organization/People";
+import { PersonPicker } from "../../components/pickers/PersonPicker";
 import type { RolesSpec } from "../apps/members";
 import {
   appRolesNaming,
@@ -271,10 +271,8 @@ function Members({
   const { t } = useTranslation();
   const heading = useId();
   const field = useId();
-  const choices = useId();
-  // The realm's people, offered as the address is typed (T-2685); a person the caller may not
-  // list is still typed in full.
-  const people = usePeopleChoices().filter((person) => !members.some((member) => member.user.toLowerCase() === person));
+  // The realm's people the caller may list, searched on the server; a person not signed in yet is
+  // named by a full e-mail (T-2685, T-4947).
   const [typed, setTyped] = useState("");
   const email = asUser(typed);
   const held = email !== null && members.some((member) => member.user.toLowerCase() === email);
@@ -318,23 +316,15 @@ function Members({
         }}
       >
         <Field id={field} label={t("access.groupPage.email")} description={t("access.groupPage.hint.email")}>
-          <Input
+          <PersonPicker
             id={field}
-            type="email"
-            autoComplete="off"
+            label={t("access.groupPage.email")}
+            labelled
             value={typed}
-            list={people.length > 0 ? choices : undefined}
-            placeholder="firstname.lastname@example.org"
-            onChange={(event) => setTyped(event.target.value)}
+            exclude={members.map((member) => member.user)}
+            onChange={setTyped}
           />
         </Field>
-        {people.length > 0 ? (
-          <datalist id={choices}>
-            {people.map((person) => (
-              <option key={person} value={person} />
-            ))}
-          </datalist>
-        ) : null}
         <PermissionGuard project={ORG_NAMESPACE} kind="Group" verb="propose">
           <Button type="submit" size="sm" className="self-start" disabled={busy || reason !== undefined} disabledReason={reason}>
             {t("access.groupPage.addMember")}
