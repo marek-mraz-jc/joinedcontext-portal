@@ -13510,6 +13510,184 @@
         }
       }
     },
+    "/api/v1/projects/{project}/serviceaccounts/{name}/access": {
+      "get": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Read An Agent Account's Access",
+        "description": "Every grant of one ServiceAccount: role, scope, validity window and its state now (active, pending, expired), with the Portal rules its Role carries, never `approve` (API/01 §50, AG-130, AG-131). Needs `read` on ServiceAccount.",
+        "operationId": "account_access",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "ServiceAccount name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The account's grants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAccess"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No `read` on ServiceAccount here",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such ServiceAccount",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/serviceaccounts/{name}/revoke": {
+      "post": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Revoke An Agent Account's Grant Now",
+        "description": "Removes one grant of a ServiceAccount at once (API/01 §50, AG-132): a person who may propose and approve ServiceAccounts sends it from their Portal session, the Portal writes the Change and merges it because it only removes access, checked against the manifest on the main branch; recorded as an `access.revoked` activity event. A token of a service account or an agent is refused. The account's next token is decided without the grant once the Portal has synced.",
+        "operationId": "revoke_grant",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "ServiceAccount name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeRequest"
+              },
+              "example": {
+                "index": 1,
+                "role": "space-writer"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "The Change, deploying when merged, pending when the forge held something else",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A bearer token, or no `propose` and `approve` on ServiceAccount here",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such ServiceAccount",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The grant moved, or it is the account's last one",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/spaces/{space}/comments": {
       "get": {
         "tags": [
@@ -17932,6 +18110,92 @@
   },
   "components": {
     "schemas": {
+      "AccountAccess": {
+        "type": "object",
+        "description": "One account's access as its Access tab reads it.",
+        "required": [
+          "account",
+          "project",
+          "delegates",
+          "grants",
+          "mayPropose",
+          "mayRevoke"
+        ],
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "delegates": {
+            "type": "boolean",
+            "description": "Whether a person's token its client exchanged is decided as that person (AG-95): then the\nperson's own rights apply on top of none of these."
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountGrant"
+            }
+          },
+          "mayPropose": {
+            "type": "boolean",
+            "description": "Whether the caller may propose a change of this account (a widening waits for a second\nperson, PF-58)."
+          },
+          "mayRevoke": {
+            "type": "boolean",
+            "description": "Whether the caller may revoke a grant at once (AG-132)."
+          },
+          "project": {
+            "type": "string"
+          }
+        }
+      },
+      "AccountGrant": {
+        "type": "object",
+        "description": "One entry of a ServiceAccount's `spec.roles` as its Access tab reads it (AG-130): the role and\nscope, the window and where it stands, and the Portal rules its `Role` carries, without\n`approve`, which no account holds (PF-58). A role that names no `Role` (a gateway template,\nCC-60) carries no Portal rule and acts at the gateway alone.",
+        "required": [
+          "index",
+          "role",
+          "scope",
+          "state",
+          "rules"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "The position in `spec.roles`, which a revoke names with the role (AG-132).",
+            "minimum": 0
+          },
+          "notAfter": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "notBefore": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "role": {
+            "type": "string"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "scope": {
+            "type": "string",
+            "description": "`organization`, `project:{name}` or `contextSpace:{name}`."
+          },
+          "state": {
+            "$ref": "#/components/schemas/GrantState"
+          }
+        }
+      },
       "AccountSeen": {
         "type": "object",
         "description": "One ServiceAccount of the broker's roles and its connected clients.",
@@ -22345,6 +22609,15 @@
           }
         }
       },
+      "GrantState": {
+        "type": "string",
+        "description": "Where one grant of a ServiceAccount stands at `now` (AG-131).",
+        "enum": [
+          "active",
+          "pending",
+          "expired"
+        ]
+      },
       "GroupRef": {
         "type": "object",
         "required": [
@@ -26039,6 +26312,24 @@
             }
           }
         }
+      },
+      "RevokeRequest": {
+        "type": "object",
+        "description": "Which grant to revoke: its position in `spec.roles` and its role, so a list that moved since\nthe page read it removes nothing it did not show.",
+        "required": [
+          "index",
+          "role"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       },
       "RuleChecks": {
         "type": "object",

@@ -2992,7 +2992,8 @@
         "workload": "Cluster-Workload",
         "kubernetes": "Kubernetes",
         "k8sNamespace": "Namespace",
-        "k8sServiceAccount": "Kubernetes-Dienstkonto"
+        "k8sServiceAccount": "Kubernetes-Dienstkonto",
+        "notAfter": "Zugriff endet"
       },
       "grantIn": "{role} in {where}",
       "grantOrg": "{role} in der ganzen Organisation",
@@ -3199,6 +3200,42 @@
       "custom": {
         "label": "Benutzerdefiniert",
         "description": "Jede Berechtigung selbst wählen."
+      }
+    },
+    "agent": {
+      "open": "Was dieses Konto darf",
+      "title": "Zugriff",
+      "grants": "Berechtigungen",
+      "delegates": "Sein Client darf auch für die Person handeln, die ihn gestartet hat; dann entscheiden deren eigene Rechte, nicht diese.",
+      "state": {
+        "active": "Aktiv",
+        "pending": "Noch nicht",
+        "expired": "Abgelaufen"
+      },
+      "ends": "endet {when}",
+      "ended": "endete {when}",
+      "revoke": "Sofort entziehen",
+      "revokeNamed": "{role} in {scope} sofort entziehen",
+      "revokeTitle": "{role} von {account} sofort entziehen?",
+      "revokeHelp": "Die Berechtigung wird sofort entfernt und protokolliert. Das nächste Token des Kontos wird ohne sie entschieden. Sie zurückzugeben ist eine neue Änderung, die eine zweite Person genehmigt.",
+      "revokeFailed": "Die Berechtigung wurde nicht entzogen. Laden Sie den Zugriff des Kontos neu und versuchen Sie es erneut.",
+      "gatewayOnly": "Seine Rollen nennen keine Portal-Rolle: Es arbeitet nur mit Daten, über die Richtlinien der Endpoints, die es erreicht.",
+      "matrix": "Was {account} darf, nach Art",
+      "kind": "Art",
+      "everyKind": "Jede Art",
+      "verb": {
+        "read": "Lesen",
+        "propose": "Vorschlagen",
+        "delete": "Löschen",
+        "approve": "Genehmigen"
+      },
+      "allowed": "Erlaubt",
+      "refused": "Verweigert",
+      "reason": {
+        "neverApproves": "Ein Konto genehmigt nie; eine Person tut es",
+        "ended": "{grant} endete {when}",
+        "starts": "{grant} beginnt {when}",
+        "noGrant": "Keine Berechtigung nennt es"
       }
     }
   },
