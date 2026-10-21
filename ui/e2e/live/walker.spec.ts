@@ -26,7 +26,7 @@ import type { Page, Response } from "@playwright/test";
 import { axeViolations } from "../axe";
 import { pageFindings, unexcused, viewerWriteFindings } from "../../tests/pageChecks";
 import type { Excused } from "../../tests/pageChecks";
-import { STEWARD, VIEWER, hiddenSections, inHiddenSection, signIn } from "./portal";
+import { STEWARD, VIEWER, hiddenSections, inHiddenSection, journeyMarkerOnPortalOnly, signIn } from "./portal";
 import { secretMasks, shot, writeIndex } from "./shoot";
 import { P, visits } from "./walk-routes";
 
@@ -90,6 +90,9 @@ for (const [who, person] of [
   test(`every page and form, at ${WIDTHS.map((size) => size.width).join(" and ")} px in ${LANGS.join(", ")}, for the ${who}`, async ({ browser }) => {
     test.setTimeout(2_400_000);
     const { context, page } = await signIn(browser, person, `${P}/spaces?lang=en`);
+    // A page's read of another origin (the API host's MCP route on /connect) failed its CORS
+    // preflight on the marker and the walk reported a console error no person meets (T-5025).
+    await journeyMarkerOnPortalOnly(context, new URL(page.url()).host);
     const report: { route: string; address: string; width: number; lang: string; findings: string[]; screenshot: string }[] = [];
     let current: string[] = [];
     let refused: string[] = [];
