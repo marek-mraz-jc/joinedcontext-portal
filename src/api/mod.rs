@@ -7,6 +7,7 @@ pub mod alerts;
 pub mod app_build;
 pub mod app_me;
 pub mod app_shapes;
+pub mod app_share;
 pub mod app_templates;
 pub mod app_transfer;
 pub mod assistant;
@@ -89,6 +90,7 @@ pub fn router() -> Router<AppState> {
         .merge(app_templates::router())
         .merge(app_shapes::router())
         .merge(app_me::router())
+        .merge(app_share::router())
         .merge(assistant::router())
         .merge(pipeline_test::router())
         .merge(datasource_test::router())

@@ -810,7 +810,7 @@
     },
     "src/pages/apps/AppPage.tsx": {
       "controls": {
-        "Button": 3
+        "Button": 4
       },
       "tests": [
         "app_route.test.tsx",
@@ -967,6 +967,15 @@
       },
       "tests": [
         "part_run_publication.test.tsx"
+      ]
+    },
+    "src/pages/apps/ShareDialog.tsx": {
+      "controls": {
+        "Button": 4,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "app_share.test.tsx"
       ]
     },
     "src/pages/assistant/AgentAccess.tsx": {

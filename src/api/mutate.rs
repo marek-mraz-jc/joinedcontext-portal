@@ -1850,6 +1850,24 @@ pub(crate) fn organization_within_bounds(
         })
 }
 
+/// Whether the Organization refuses public Apps (`spec.policies.apps.public`, PF-103).
+pub(crate) fn public_apps_refused(state: &AppState) -> bool {
+    use jc_core::kinds::{OrganizationPolicies, PublicApps};
+    state
+        .mirror
+        .list(
+            crate::permissions::ORG_NAMESPACE,
+            "Organization",
+            &crate::store::ListOptions::default(),
+        )
+        .items
+        .into_iter()
+        .find_map(|org| {
+            serde_json::from_value::<OrganizationPolicies>(org.spec.get("policies")?.clone()).ok()
+        })
+        .is_some_and(|policies| policies.apps.public == PublicApps::Refused)
+}
+
 /// An App made public while the organization refuses public Apps (`spec.policies.apps.public`,
 /// PF-100, PF-103). An App that is public already stays as it is: the policy stops new public
 /// Apps, it takes nothing offline, so an edit that keeps it public passes.
@@ -1859,7 +1877,6 @@ pub(crate) fn public_app_allowed(
     envelope: &ResourceEnvelope,
     refusal: fn(String) -> ApiError,
 ) -> Result<(), ApiError> {
-    use jc_core::kinds::{OrganizationPolicies, PublicApps};
     let public = |spec: &Value| spec.get("visibility").and_then(Value::as_str) == Some("public");
     if envelope.kind != "App" || !public(&envelope.spec) {
         return Ok(());
@@ -1872,20 +1889,7 @@ pub(crate) fn public_app_allowed(
     {
         return Ok(());
     }
-    let refused = state
-        .mirror
-        .list(
-            crate::permissions::ORG_NAMESPACE,
-            "Organization",
-            &crate::store::ListOptions::default(),
-        )
-        .items
-        .into_iter()
-        .find_map(|org| {
-            serde_json::from_value::<OrganizationPolicies>(org.spec.get("policies")?.clone()).ok()
-        })
-        .is_some_and(|policies| policies.apps.public == PublicApps::Refused);
-    if refused {
+    if public_apps_refused(state) {
         return Err(refusal(format!(
             "App '{name}' may not be public: the organization refuses public Apps \
              (spec.policies.apps.public). Keep it visible to the project or the organization, or \

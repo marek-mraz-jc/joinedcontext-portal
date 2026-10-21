@@ -47,6 +47,7 @@ import {
 import { RECORD_LINK_STYLE, RecordLink } from "../../components/RecordLink";
 import { RenameShapesNotice } from "./RenameShapesNotice";
 import { AppTemplates } from "./AppTemplates";
+import { ShareDialog } from "./ShareDialog";
 
 type WorkflowRun = components["schemas"]["WorkflowRun"];
 type AppBuild = components["schemas"]["AppBuild"];
@@ -223,6 +224,7 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
   const [runId, setRunId] = useState<string | null>(() => runInUrl());
   // The lifecycle move waiting for its confirmation: publish a preview, or retire a published app.
   const [confirming, setConfirming] = useState<{ app: Manifest; lifecycle: Lifecycle } | null>(null);
+  const [sharing, setSharing] = useState<Manifest | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [change, setChange] = useState<Change | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -483,6 +485,9 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
                 onLifecycle={(lifecycle) => {
                   setConfirming({ app, lifecycle });
                 }}
+                onShare={() => {
+                  setSharing(app);
+                }}
                 onRebuild={(outcome) => {
                   setError(outcome.error ?? null);
                   setNotice(outcome.error ? null : t("apps.build.started"));
@@ -525,6 +530,15 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
         })}
       </ul>
 
+      {sharing && (
+        <ShareDialog
+          project={project}
+          app={sharing}
+          onClose={() => {
+            setSharing(null);
+          }}
+        />
+      )}
       {confirming && (
         <LifecycleDialog
           project={project}
@@ -716,6 +730,7 @@ function AppCardActions({
   title,
   onPreview,
   onLifecycle,
+  onShare,
   onRebuild,
 }: {
   project: string;
@@ -723,6 +738,7 @@ function AppCardActions({
   title: string;
   onPreview: () => void;
   onLifecycle: (lifecycle: Lifecycle) => void;
+  onShare: () => void;
   onRebuild: (outcome: { error?: string }) => void;
 }): JSX.Element {
   const { t } = useTranslation();
@@ -797,9 +813,17 @@ function AppCardActions({
       void navigate({ to: "/projects/$project/$plural/$name", params: { project, plural: "apps", name } });
     },
   };
+  // Who opens the App, proposed as a Change (AP-173); a retired App reaches nobody.
+  const share: RowAction = {
+    key: "share",
+    label: t("apps.share.action"),
+    onSelect: onShare,
+    disabledReason: lifecycle === "retired" ? t("apps.share.retired") : mayPropose ? undefined : denied,
+  };
   const extra = [
     ...lifecycleActions.slice(0, -1),
     { ...lifecycleActions[lifecycleActions.length - 1], separatorAfter: true },
+    share,
     details,
     ...forgeActions,
   ];

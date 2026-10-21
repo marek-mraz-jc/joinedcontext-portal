@@ -1449,6 +1449,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/apps/{name}/audience": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who Each Visibility Of An App Reaches
+         * @description How many people the project, the organization and each role of the App reach, for the Share dialog (AP-173).
+         */
+        get: operations["app_audience"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/apps/{name}/build": {
         parameters: {
             query?: never;
@@ -3677,6 +3697,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/shared-apps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Apps Shared With Me
+         * @description The published Apps of other projects visible to the organization that the caller may open (AP-174).
+         */
+        get: operations["apps_shared_with_me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tools/generate": {
         parameters: {
             query?: never;
@@ -4045,6 +4085,21 @@ export interface components {
         AnswerRequest: {
             answers: unknown;
             questionId: string;
+        };
+        /**
+         * @description How many people each visibility of one App reaches (AP-173). Counted from the bindings in
+         *     force and the members of the `Group` manifests they name; a group the identity provider owns
+         *     lists no members here, so a count is at least that many people.
+         */
+        AppAudience: {
+            /** @description Everyone in the organization. */
+            organization: number;
+            /** @description Members of the App's project. */
+            project: number;
+            /** @description Whether the organization allows public Apps (PF-103). */
+            publicAllowed: boolean;
+            /** @description Holders of each role the App declares, in the order `spec.roles` lists them. */
+            roles: components["schemas"]["RoleAudience"][];
         };
         /** @description Where an application's build is, and whether this person may ask for another (AP-103). */
         AppBuild: {
@@ -6676,6 +6731,11 @@ export interface components {
         RevisionList: {
             items: components["schemas"]["Revision"][];
         };
+        RoleAudience: {
+            name: string;
+            /** @description Holders by lower-case identifier, counted once each. */
+            people: number;
+        };
         /** @description One rule of one type. */
         RuleChecks: {
             "24h": components["schemas"]["Counts"];
@@ -6800,6 +6860,14 @@ export interface components {
          */
         ShareBody: {
             confirm?: string | null;
+        };
+        /** @description One App another project shared with the caller's organization (AP-174). */
+        SharedApp: {
+            description: Record<string, never>;
+            name: string;
+            project: string;
+            /** @description One string, or a map per locale (UI-50). */
+            title: Record<string, never>;
         };
         /**
          * @description Where an organization model was shared from (DM-77): what lets that project offer to use the
@@ -11477,6 +11545,49 @@ export interface operations {
             };
             /** @description No forge */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    app_audience: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description App name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The count per visibility */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppAudience"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No App of this name the caller may read */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -20001,6 +20112,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Readiness"];
+                };
+            };
+        };
+    };
+    apps_shared_with_me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Apps shared with the caller, by project and name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedApp"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
         };

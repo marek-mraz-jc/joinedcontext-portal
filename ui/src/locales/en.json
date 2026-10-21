@@ -3997,7 +3997,54 @@
       "ms": "{count} ms",
       "note": "A job runs as the App's own identity and writes only through the App's Endpoint. The list shows runs since the host last started."
     },
-    "editWithAssistant": "Edit with the assistant"
+    "editWithAssistant": "Edit with the assistant",
+    "share": {
+      "action": "Share",
+      "title": "Share {name}",
+      "description": "Choose who opens the app. Your choice goes to an approver as a change; nothing changes until they approve it.",
+      "now": "Who opens it now: {audience}",
+      "legend": "Who opens the app",
+      "hint": "Example: pick Everyone in the organization so colleagues in other projects find it under Shared with me.",
+      "choice": {
+        "private": {
+          "label": "Only you",
+          "reach": "Nobody else opens it, not even the members of the project."
+        },
+        "project": {
+          "label": "Everyone in the project",
+          "reach": "Members of {project}: {people}"
+        },
+        "organization": {
+          "label": "Everyone in the organization",
+          "reach": "Everyone in {organization}: {people}"
+        },
+        "roles": {
+          "label": "People with a role",
+          "reach": "Holders of {roles}: {people}"
+        },
+        "public": {
+          "label": "Anyone on the internet",
+          "reach": "Anyone with the address, without signing in. A publisher or an organization admin other than you approves it."
+        }
+      },
+      "people": "{count, plural, one {# person} other {# people}}",
+      "counting": "counting people…",
+      "theOrganization": "the organization",
+      "rolesNone": "The app declares no roles yet. Add them under Roles and members on the app's page first.",
+      "publicRefused": "The organization does not allow public apps. An organization admin can allow them in Organization settings.",
+      "privatePublished": "A published app is never private: pick who else opens it, or retire it.",
+      "countFailed": "The number of people did not load. You can still pick and propose a choice.",
+      "address": "Address",
+      "addressHint": "Send this address to the people you share the app with. Example: paste it into an e-mail.",
+      "copy": "Copy link",
+      "copied": "Link copied.",
+      "copyFailed": "The browser did not allow copying. Select the address and copy it by hand.",
+      "propose": "Propose the change",
+      "cancel": "Cancel",
+      "same": "This is who opens it now. Pick another choice to propose a change.",
+      "proposed": "The change waits for approval. The app keeps its current audience until an approver approves it.",
+      "retired": "A retired app reaches nobody; publish it again first."
+    }
   },
   "appLifecycle": {
     "draft": "Draft",
@@ -7782,6 +7829,14 @@
       "body": "Look around: every page here shows what the project really holds. You can change only what your role allows, and nothing here touches your own projects.",
       "lead": "Want to see every feature filled with data first?",
       "try": "Try it with sample data"
+    },
+    "shared": {
+      "title": "Shared with me",
+      "lead": "Apps other projects shared with the whole organization that you may open.",
+      "loading": "Looking for apps shared with you…",
+      "empty": "Nothing is shared with you yet. When another project shares an app with the whole organization, it appears here.",
+      "from": "From the project {project}",
+      "newTab": "(opens in a new tab)"
     }
   },
   "alerts": {
