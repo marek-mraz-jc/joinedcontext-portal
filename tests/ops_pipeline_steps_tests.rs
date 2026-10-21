@@ -401,7 +401,13 @@ async fn validating_gives_a_verdict_per_record_with_the_rule_each_broke() {
         answer.text
     );
 
-    // The space named directly gives the same verdicts.
+    // With the pipeline each record also names its Endpoint and its findings (T-4840): here the
+    // model's rules, each one a problem.
+    assert_eq!(verdicts[0]["endpoint"], "bikes-write");
+    assert_eq!(verdicts[1]["findings"][0]["source"], "model");
+    assert_eq!(verdicts[1]["findings"][0]["field"], "capacity");
+
+    // The space named directly gives the same verdicts by its model.
     let direct = send(
         &state,
         person("jana"),
@@ -410,7 +416,12 @@ async fn validating_gives_a_verdict_per_record_with_the_rule_each_broke() {
         Some(json!({ "space": "bikes", "records": records })),
     )
     .await;
-    assert_eq!(json_of(&direct.text)["verdicts"], body["verdicts"]);
+    let direct = json_of(&direct.text);
+    for (at, verdict) in verdicts.iter().enumerate() {
+        assert_eq!(direct["verdicts"][at]["ok"], verdict["ok"]);
+        assert_eq!(direct["verdicts"][at]["problems"], verdict["problems"]);
+        assert!(direct["verdicts"][at].get("findings").is_none());
+    }
 }
 
 #[tokio::test]

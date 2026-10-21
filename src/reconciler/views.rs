@@ -132,6 +132,11 @@ fn operation(op: Operation) -> (&'static str, &'static [&'static str]) {
     }
 }
 
+/// The rows of a view's `operations` that admit `op` (T-4840).
+pub fn rows_of(op: Operation) -> &'static [&'static str] {
+    operation(op).1
+}
+
 /// The reads of a type's schema (the broker's LinkML surface: the documents, one class, one
 /// slot; clauses 5.7.5, 5.7.7 and 5.7.10 as the broker asks them). A Policy that permits anything on a type permits these too, as the gateway's schema
 /// surface did before the broker served it (T-3645): whoever may read or write an Entity may
@@ -1454,6 +1459,17 @@ pub struct ViewSync {
     last: Mutex<Option<Arc<Sources>>>,
 }
 
+/// What a pipeline's write meets at one Endpoint ([`ViewSync::write_view`], T-4840).
+#[derive(Debug, Clone)]
+pub struct WriteView {
+    pub space: String,
+    pub tenant: String,
+    /// The Policies bound to the Endpoint, the gateway's input.
+    pub policies: Vec<PolicySpec>,
+    /// The broker's view of the Endpoint, or why it has none.
+    pub view: Result<Value, String>,
+}
+
 /// The part of an Endpoint's filter the Portal's editor changes (API/01 §40): the classes,
 /// slots and rows of its `ModelProjection`, and its hidden attributes.
 #[derive(Debug, Clone, Default)]
@@ -1515,6 +1531,82 @@ impl ViewSync {
         let sources = Arc::new(Sources::read(repo));
         *lock(&self.last) = Some(Arc::clone(&sources));
         sources
+    }
+
+    /// What a pipeline's write through the Endpoint `name` of `project` meets (T-4840): its space
+    /// and tenant, the Policies bound to it with `derived` (the pipeline's own, from its draft) in
+    /// place of what the last run derived for `account` (`None` keeps the account's Policies, the
+    /// shared `pipelines` account's), and the view those Policies make, or why there is none.
+    /// `None` when the last run read no such Endpoint.
+    pub fn write_view(
+        &self,
+        project: &str,
+        name: &str,
+        account: &str,
+        derived: Option<&[(String, PolicySpec)]>,
+    ) -> Option<WriteView> {
+        let sources = lock(&self.last).clone()?;
+        let e = sources
+            .endpoints
+            .iter()
+            .find(|e| e.project == project && e.name == name)?;
+        let key = (
+            e.project.clone(),
+            e.spec.context_space_ref.name().to_owned(),
+        );
+        let mut policies: Vec<(String, PolicySpec)> = sources
+            .policies_of(&key.0, &key.1)
+            .iter()
+            .filter(|(_, p)| {
+                derived.is_none()
+                    || !(p.assignee.kind == PrincipalKind::ServiceAccount
+                        && p.assignee.id == account)
+            })
+            .cloned()
+            .collect();
+        policies.extend(
+            derived
+                .unwrap_or_default()
+                .iter()
+                .filter(|(_, p)| p.context_space_ref.name() == key.1)
+                .cloned(),
+        );
+        // Only what this Endpoint's view is made of, so a check copies no other space's model.
+        let narrow = Sources {
+            endpoints: vec![e.clone()],
+            policies: BTreeMap::from([(key.clone(), policies)]),
+            projections: sources.projections.clone(),
+            classes: sources
+                .classes
+                .get(&key)
+                .map(|c| BTreeMap::from([(key.clone(), c.clone())]))
+                .unwrap_or_default(),
+            apps: sources.apps.clone(),
+            mappings: sources
+                .mappings
+                .iter()
+                .filter(|(_, m)| m.space == key.1)
+                .map(|(k, m)| (k.clone(), m.clone()))
+                .collect(),
+            models: sources
+                .models
+                .get(&key)
+                .map(|m| BTreeMap::from([(key.clone(), m.clone())]))
+                .unwrap_or_default(),
+            quarantines: sources.quarantines.clone(),
+            ..Sources::default()
+        };
+        let bound = narrow
+            .bound(e)
+            .into_iter()
+            .map(|(_, p)| p.clone())
+            .collect();
+        Some(WriteView {
+            space: key.1,
+            tenant: e.tenant.clone(),
+            policies: bound,
+            view: endpoint_view(&narrow, e),
+        })
     }
 
     /// The view id of the Endpoint `name` of `project` and its view with `draft` in place of
@@ -2264,6 +2356,68 @@ mod tests {
                 .collect(),
         );
         sources
+    }
+
+    /// T-4840: a pipeline's write meets the Policies bound to the Endpoint with its draft's own
+    /// in place of what the last run derived for its account, and the view they make.
+    #[test]
+    fn a_pipelines_write_view_holds_its_drafts_policies_in_place_of_the_last_runs() {
+        let writes = |entity_type: &str| {
+            policy(json!({
+                "assignee": {"kind": "serviceAccount", "id": "pl-buses"},
+                "operations": ["upsertBatch", "createBatch", "queryBatch"],
+                "information": [{"entities": [{"type": entity_type}]}]
+            }))
+        };
+        let mut s = fleet(sources(vec![("pl-buses-w-1", writes("Car"))]));
+        s.endpoints.push(endpoint(json!({})));
+        let sync = ViewSync::new("http://broker.invalid", "/nonexistent");
+        assert!(sync
+            .write_view("city", "air-public", "pl-buses", None)
+            .is_none());
+        *lock(&sync.last) = Some(Arc::new(s));
+        assert!(sync
+            .write_view("city", "nowhere", "pl-buses", None)
+            .is_none());
+
+        let draft = vec![("pl-buses-w-1".to_owned(), writes("Bus"))];
+        let write = sync
+            .write_view("city", "air-public", "pl-buses", Some(&draft))
+            .expect("the Endpoint");
+        assert_eq!(
+            (write.space.as_str(), write.tenant.as_str()),
+            ("air", "city-air")
+        );
+        assert_eq!(
+            write.policies,
+            vec![writes("Bus")],
+            "the last run's Car grant is gone"
+        );
+        let view = write.view.expect("a view");
+        let bus = json!({"id": "urn:ngsi-ld:Bus:7", "type": "Bus",
+            "speed": {"type": "Property", "value": 41, "expiresAt": "2026-10-21T00:00:00Z"},
+            "expiresAt": "2026-10-21T00:00:00Z"});
+        assert!(crate::record_check::judge_view(&view, "air-public", "Bus", &bus).is_empty());
+        let mut stray = bus.clone();
+        stray["pm25"] = json!({"type": "Property", "value": 3});
+        let findings = crate::record_check::judge_view(&view, "air-public", "Bus", &stray);
+        assert_eq!(findings.len(), 1, "{findings:?}");
+        assert_eq!(findings[0].field, "pm25");
+        assert!(findings[0]
+            .reason
+            .starts_with("not writable through air-public"));
+        let car = json!({"id": "urn:ngsi-ld:Car:1", "type": "Car", "speed": {"type": "Property", "value": 1}});
+        assert_eq!(
+            crate::record_check::judge_view(&view, "air-public", "Car", &car)[0].field,
+            "type",
+            "the draft writes no Car any more"
+        );
+
+        // The shared account keeps the Policies it has.
+        let kept = sync
+            .write_view("city", "air-public", "pl-buses", None)
+            .expect("the Endpoint");
+        assert_eq!(kept.policies, vec![writes("Car")]);
     }
 
     /// `s` with `fleet_model()` as its space's data model.

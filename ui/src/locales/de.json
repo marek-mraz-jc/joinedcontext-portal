@@ -2260,11 +2260,19 @@
       },
       "validation": {
         "title": "Validierung",
-        "hint": "Nur Datensätze, die das Modell des Raums annimmt, werden geschrieben; der Rest kommt auf die Liste der abgelehnten.",
+        "hint": "Geschrieben werden nur Datensätze, die das Modell des Raums, der Ziel-Endpoint und die Lebensdauer annehmen; die übrigen kommen in die Liste der abgelehnten.",
         "waiting": "Die Urteile folgen, sobald die Abbildung Datensätze erzeugt.",
         "valid": "gültig",
         "allValid": "{count, plural, one {# Datensatz ist} other {Alle # Datensätze sind}} gültig gegen {model} {version}.",
-        "someRejected": "{count, plural, one {# Datensatz verletzt} other {# Datensätze verletzen}} {model} {version} und würden nicht geschrieben; {valid} gültig."
+        "someRejected": "{count, plural, one {# Datensatz verletzt} other {# Datensätze verletzen}} {model} {version} und würden nicht geschrieben; {valid} gültig.",
+        "source": {
+          "model": "Modell",
+          "endpoint": "Endpoint",
+          "lifetime": "Lebensdauer"
+        },
+        "expiresLabel": "Ablauf, mit dem der Datensatz geschrieben wird",
+        "expiresEntity": "Entität läuft ab {at}",
+        "expiresAttribute": "{name} läuft ab {at}"
       },
       "target": {
         "title": "Ziel",

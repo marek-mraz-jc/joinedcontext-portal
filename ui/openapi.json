@@ -11389,7 +11389,7 @@
         },
         "responses": {
           "200": {
-            "description": "The trace: what the harness read, what each step made of it, and the messages it would have written",
+            "description": "The trace: what the harness read, what each step made of it, and the messages it would have written; `check` is each record's verdict from the space's model, the target Endpoint and the lifetime (T-4840)",
             "content": {
               "application/json": {
                 "schema": {
@@ -24121,6 +24121,40 @@
         },
         "additionalProperties": false
       },
+      "RecordsVerdict": {
+        "type": "object",
+        "description": "The record check a Pipeline's proposal needs (T-4840): green, of the spec proposed.",
+        "required": [
+          "ok",
+          "checked",
+          "rejected",
+          "specDigest",
+          "sampleDigest"
+        ],
+        "properties": {
+          "checked": {
+            "type": "integer",
+            "description": "The records checked and how many of them would not be written.",
+            "minimum": 0
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "rejected": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sampleDigest": {
+            "type": "string",
+            "description": "[`digest_of`] the records, so the proposal names the sample its verdict was given on."
+          },
+          "specDigest": {
+            "type": "string",
+            "description": "[`digest_of`] the Pipeline's `spec` the records came from."
+          }
+        },
+        "additionalProperties": false
+      },
       "RegistrationCard": {
         "type": "object",
         "description": "What a registration's card shows (UI-27, PF-48).",
@@ -26142,6 +26176,17 @@
           },
           "ok": {
             "type": "boolean"
+          },
+          "records": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RecordsVerdict",
+                "description": "A Pipeline's record check (T-4840): what its sample's records got from the space's model,\nthe target Endpoint and the lifetime. A later check of another kind keeps it, and the\nproposal of a Pipeline needs it green and fresh for the spec it proposes."
+              }
+            ]
           },
           "trace": {},
           "waitsOn": {

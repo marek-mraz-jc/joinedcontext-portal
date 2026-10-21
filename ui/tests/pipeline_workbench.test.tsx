@@ -111,9 +111,11 @@ function stub(answers: Answers, seen: Seen) {
 function Harness({
   start,
   verdicts,
+  draftName,
 }: {
   start: PipelineForm;
   verdicts: { ok: boolean; bloblang: string }[];
+  draftName?: string;
 }): JSX.Element {
   const [draft, setDraft] = useState<PipelineForm>(start);
   return (
@@ -126,6 +128,7 @@ function Harness({
       targets={TARGETS}
       toManifest={(form) => ({ kind: "Pipeline", metadata: { name: form.name ?? "air" }, spec: form })}
       onVerdict={(ok, bloblang) => verdicts.push({ ok, bloblang })}
+      draftName={draftName}
     >
       <details>
         <summary>{en.pipelines.workbench.advanced}</summary>
@@ -135,11 +138,11 @@ function Harness({
   );
 }
 
-function show(start: PipelineForm, verdicts: { ok: boolean; bloblang: string }[] = []) {
+function show(start: PipelineForm, verdicts: { ok: boolean; bloblang: string }[] = [], draftName?: string) {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <I18nextProvider i18n={i18n}>
-        <Harness start={start} verdicts={verdicts} />
+        <Harness start={start} verdicts={verdicts} draftName={draftName} />
       </I18nextProvider>
     </QueryClientProvider>,
   );
@@ -330,6 +333,41 @@ describe("the pipeline workbench", () => {
       ),
     ).toBeInTheDocument();
     await waitFor(() => expect(verdicts.at(-1)).toEqual({ ok: true, bloblang: MAPPING }));
+  });
+
+  it("names_where_each_record_would_be_refused_and_the_expiry_it_would_get", async () => {
+    const seen: Seen = { ops: [] };
+    const checked = {
+      ...ONE_BAD,
+      verdicts: [
+        { index: 0, ok: true, problems: [], endpoint: "helsinki-all", findings: [], expires: { entity: "2026-10-20T12:08:00Z", attributes: { pm10: "2026-10-20T12:05:00Z" } } },
+        {
+          index: 1,
+          ok: false,
+          problems: [],
+          endpoint: "helsinki-all",
+          findings: [
+            { source: "endpoint", rule: "NOT_WRITABLE", field: "expiresAt", reason: "not writable through helsinki-all" },
+            { source: "lifetime", rule: "from", field: "observedAt", reason: "the record gives no date-time in observedAt" },
+          ],
+        },
+      ],
+    };
+    stub({ sample: SAMPLE, mapping: MAPPED, validate: checked }, seen);
+    show({ targetEndpoint: URN, compute: { kind: "bloblang", bloblang: MAPPING } }, [], "air-draft");
+    await userEvent.selectOptions(screen.getByLabelText(en.pipelines.workbench.source.pick), "datasource:shmu-csv");
+    const output = step(en.pipelines.workbench.output.title);
+    const records = await within(output).findByRole("table", { name: en.pipelines.workbench.output.caption });
+    const rows = within(records).getAllByRole("row");
+    expect(await within(rows[2]).findByText("not writable through helsinki-all")).toBeInTheDocument();
+    expect(within(rows[2]).getByText(en.pipelines.workbench.validation.source.endpoint)).toBeInTheDocument();
+    expect(within(rows[2]).getByText(en.pipelines.workbench.validation.source.lifetime)).toBeInTheDocument();
+    const ends = within(rows[1]).getByRole("list", { name: en.pipelines.workbench.validation.expiresLabel });
+    expect(ends).toHaveTextContent("Entity expires 2026-10-20T12:08:00Z");
+    expect(ends).toHaveTextContent("pm10 expires 2026-10-20T12:05:00Z");
+    // The verdict is kept on the dialog's draft, for the proposal (T-4840).
+    await waitFor(() => expect(seen.ops.at(-1)?.name).toBe("jc_pipeline_validate"));
+    expect(seen.ops.at(-1)?.body.draft).toEqual({ kind: "Pipeline", name: "air-draft" });
   });
 
   it("names_each_slot_of_the_target_model_with_its_type_whether_required_its_values_and_an_example", async () => {
