@@ -63,7 +63,7 @@ function bundle(text = BUNDLE, name = "export.yaml"): File {
   return new File([text], name, { type: "application/yaml" });
 }
 
-function renderPage(options: { refusal?: string; status?: number } = {}) {
+function renderPage(options: { refusal?: string; status?: number; grants?: unknown[] } = {}) {
   const posts: { url: string; body: FormData }[] = [];
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof Request ? input.url : String(input);
@@ -81,6 +81,12 @@ function renderPage(options: { refusal?: string; status?: number } = {}) {
       const dry = url.includes("dryRun=All");
       return new Response(JSON.stringify(dry ? REPORT : CHANGE), {
         status: dry ? 200 : 202,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (url.includes("/permissions/me") && options.grants) {
+      return new Response(JSON.stringify({ grants: options.grants }), {
+        status: 200,
         headers: { "Content-Type": "application/json" },
       });
     }
@@ -285,6 +291,29 @@ describe("the import wizard", () => {
  * shared ones inside a `Field`, axe is clean on both steps, Tab reaches every control in the
  * order they are read, and the four locales carry every string the page shows.
  */
+describe("who may import (T-4997)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("shows a viewer the refusal sentence and no drop zone or propose", async () => {
+    renderPage({ grants: [{ rule: { kinds: ["*"], verbs: ["read"] } }] });
+    expect(await screen.findByText(en.form.mayNotCreate)).toBeInTheDocument();
+    expect(screen.queryByLabelText(en.import.file)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: en.import.propose })).not.toBeInTheDocument();
+  });
+
+  it("shows a steward the drop zone and the propose button", async () => {
+    renderPage({ grants: [{ rule: { kinds: ["ContextSpace", "Endpoint"], verbs: ["read", "propose"] } }] });
+    expect(await screen.findByLabelText(en.import.file)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: en.import.propose })).toBeInTheDocument();
+    expect(screen.queryByText(en.form.mayNotCreate)).not.toBeInTheDocument();
+  });
+});
+
 describe("the import page against the UI contract", () => {
   afterEach(() => {
     vi.unstubAllGlobals();

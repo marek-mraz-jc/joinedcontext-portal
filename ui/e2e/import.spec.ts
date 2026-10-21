@@ -48,7 +48,7 @@ spec:
   isSandbox: false
 `;
 
-async function stubApi(page: Page): Promise<string[]> {
+async function stubApi(page: Page, verbs = ["read", "propose"]): Promise<string[]> {
   const imports: string[] = [];
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
@@ -58,6 +58,7 @@ async function stubApi(page: Page): Promise<string[]> {
 
     if (url.pathname.endsWith("/auth/me")) return json(IDENTITY);
     if (url.pathname === "/api/v1/projects") return json({ apiVersion: API, kind: "List", items: [{ name: PROJECT }] });
+    if (url.pathname.endsWith("/permissions/me")) return json({ grants: [{ rule: { kinds: ["*"], verbs } }] });
     if (url.pathname === `/api/v1/projects/${PROJECT}/import` && request.method() === "POST") {
       const dry = url.searchParams.get("dryRun") === "All";
       imports.push(dry ? "check" : "propose");
@@ -109,6 +110,16 @@ test.describe("importing a bundle", () => {
     await expect(page.getByRole("alert")).not.toContainText(pasted);
     await expect(page.getByRole("button", { name: "Check the bundle" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Propose the import" })).toBeDisabled();
+    expect(imports).toEqual([]);
+  });
+  test("a viewer reads why there is no import, and is offered no bundle to drop (T-4997)", async ({ page }) => {
+    const imports = await stubApi(page, ["read"]);
+    await page.goto(`/projects/${PROJECT}/import?lang=en`);
+    await expect(
+      page.getByText("Your role lets you look at these, not create one here.", { exact: false }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Propose the import" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Check the bundle" })).toHaveCount(0);
     expect(imports).toEqual([]);
   });
 });
