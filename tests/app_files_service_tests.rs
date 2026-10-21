@@ -78,6 +78,7 @@ fn state(store: &MockServer, services: Value) -> AppState {
             "limits": { "filesMiB": 1 },
         }),
     ));
+    common::bind(&state.mirror, "jana", PROJECT);
     state
 }
 
@@ -347,4 +348,31 @@ async fn a_put_url_is_held_to_25_mib_and_to_what_files_mib_has_left() {
         assert_eq!(status, StatusCode::BAD_REQUEST, "{body}: {text}");
         assert!(text.contains(why), "{body}: {text}");
     }
+}
+
+/// T-4910: a person of another project calling a project App's service gets the 404 of a name never
+/// created, and the store is never asked.
+#[tokio::test]
+async fn a_member_of_another_project_reaches_no_service_of_a_project_app() {
+    let store = store(4).await;
+    let state = state(&store, json!(["files"]));
+    // Jana's one binding now covers project `parks`, not the App's.
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        &format!("jana-in-{PROJECT}"),
+        "org",
+        json!({ "subjects": [{ "user": "jana@hel.fi" }], "role": "app-readers",
+                "scope": { "project": "parks" } }),
+    ));
+
+    let (status, _, text) = call(&state, "GET", "?prefix=", Vec::new()).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{text}");
+    assert!(
+        state.mirror.get(PROJECT, "App", APP).is_some(),
+        "the App is there"
+    );
+    assert!(
+        asked(&store, "GET").await.is_empty(),
+        "the store is never asked"
+    );
 }

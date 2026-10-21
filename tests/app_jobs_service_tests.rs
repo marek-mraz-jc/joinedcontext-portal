@@ -62,6 +62,7 @@ fn state(services: Value) -> AppState {
         .expect("a status"),
     );
     state.mirror.upsert(app);
+    common::bind(&state.mirror, "jana", PROJECT);
     state
 }
 

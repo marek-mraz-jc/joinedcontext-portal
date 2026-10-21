@@ -873,10 +873,12 @@ export function PipelineWorkbench({
                 onChange({ ...(draft ?? {}), compute: { ...(draft?.compute ?? {}), kind: "bloblang", bloblang: next } })
               }
               expiry={draft?.expiry}
-              onExpiry={(expiry, next) =>
+              lifetime={draft?.lifetime}
+              onEnds={({ expiry, lifetime, bloblang: next }) =>
                 onChange({
                   ...(draft ?? {}),
                   expiry,
+                  lifetime,
                   ...(next === undefined ? {} : { compute: { ...(draft?.compute ?? {}), kind: "bloblang", bloblang: next } }),
                 })
               }
