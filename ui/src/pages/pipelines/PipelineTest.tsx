@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { testPipeline } from "../../api/pipelineTest";
 import type { SampleFormat, Trace } from "../../api/pipelineTest";
-import { Alert, Button, Checkbox, FilePicker } from "../../components/ui";
+import { CodeBlock, Alert, Button, Checkbox, FilePicker } from "../../components/ui";
 import type { DebugEntry } from "./DebugPanel";
 import { messagesOf } from "./pipelineDebug";
 import type { PipelineForm } from "./PipelineEditor";
@@ -440,12 +440,12 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
               <p className="text-caption text-fg-muted">
                 {t("pipelines.test.events", { events: trace.input.events, bytes: trace.input.bytes })}
               </p>
-              {trace.input.sample !== undefined ? <pre className={pre}>{pretty(trace.input.sample)}</pre> : null}
+              {trace.input.sample !== undefined ? <CodeBlock label={t("pipelines.test.input")} className={pre}>{pretty(trace.input.sample)}</CodeBlock> : null}
             </div>
             <div className={panel}>
               <FormHeading sub className="text-caption font-semibold">{t("pipelines.test.mapping")}</FormHeading>
               <p className="text-caption text-fg-muted">{t("pipelines.test.entities", { count: trace.mapping.length })}</p>
-              {trace.mapping.length > 0 ? <pre className={pre}>{pretty(trace.mapping[0])}</pre> : null}
+              {trace.mapping.length > 0 ? <CodeBlock label={t("pipelines.test.mapping")} className={pre}>{pretty(trace.mapping[0])}</CodeBlock> : null}
             </div>
             <div className={panel}>
               <FormHeading sub className="text-caption font-semibold">{t("pipelines.test.validation")}</FormHeading>
@@ -471,7 +471,7 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
             </Alert>
           ) : null}
           {lines.size > 0 && bloblang ? (
-            <pre className={pre} aria-label={t("pipelines.field.bloblang")}>
+            <CodeBlock label={t("pipelines.field.bloblang")} className={pre}>
               {bloblang.split("\n").map((line, i) => (
                 <span
                   key={i}
@@ -481,7 +481,7 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
                   {String(i + 1).padStart(3, " ")} {line}
                 </span>
               ))}
-            </pre>
+            </CodeBlock>
           ) : null}
           {ready ? <Alert tone="success">{t("pipelines.test.ready", { count: trace.mapping.length })}</Alert> : null}
         </div>

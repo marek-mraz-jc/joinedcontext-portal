@@ -14,6 +14,9 @@ import { ConversationPanel } from "../src/pages/apps/ConversationPanel";
 import type { RunEvent } from "../src/pages/apps/useAgentRun";
 import { expectNoAxeViolations } from "./page_contract";
 
+/** The step rows: each is a `<details>`; the code blocks inside a step are named groups too (T-5014). */
+const stepsOf = () => screen.getAllByRole("group").filter((group) => group.tagName === "DETAILS");
+
 const EVENTS: RunEvent[] = [
   {
     seq: 1,
@@ -70,7 +73,7 @@ describe("the action inspector", () => {
 
   it("shows every step with its verdict and duration, and opens to the input and the output", async () => {
     renderPanel();
-    const steps = screen.getAllByRole("group");
+    const steps = stepsOf();
     expect(steps).toHaveLength(2);
 
     expect(within(steps[0]).getByRole("img", { name: en.agentRun.step.ok })).toBeInTheDocument();
@@ -85,7 +88,7 @@ describe("the action inspector", () => {
 
   it("sends a failed step back into the run with the error, only while the run is live", async () => {
     const onSend = renderPanel();
-    const failed = screen.getAllByRole("group")[1];
+    const failed = stepsOf()[1];
     expect(within(failed).getByRole("img", { name: en.agentRun.step.failed })).toBeInTheDocument();
 
     await userEvent.click(within(failed).getByText(en.agentRun.step.label.propose_endpoint));
@@ -128,7 +131,7 @@ describe("the action inspector", () => {
         },
       },
     ]);
-    const [step] = screen.getAllByRole("group");
+    const [step] = stepsOf();
     expect(within(step).getByText(en.agentRun.step.label.profile_sample)).toBeInTheDocument();
     expect(within(step).queryByText("profile_sample")).toBeNull();
   });
@@ -139,14 +142,14 @@ describe("the action inspector", () => {
       { seq: 2, kind: "message", payload: { text: "Found them.", sentBy: "agent" } },
       { seq: 3, kind: "tool", payload: { tool: "query_endpoint", status: "ok", durationMs: 41, input: {} } },
     ]);
-    const [search, query] = screen.getAllByRole("group");
+    const [search, query] = stepsOf();
     expect(within(search).queryByText(/\bms$/)).toBeNull();
     expect(within(query).getByText("41 ms")).toBeInTheDocument();
   });
 
   it("offers no fix once the run is over", () => {
     renderPanel(false);
-    const failed = screen.getAllByRole("group")[1];
+    const failed = stepsOf()[1];
     expect(within(failed).queryByRole("button", { name: en.agentRun.step.fix })).toBeNull();
   });
 
@@ -154,7 +157,7 @@ describe("the action inspector", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     renderPanel();
-    const failed = screen.getAllByRole("group")[1];
+    const failed = stepsOf()[1];
     await userEvent.click(within(failed).getByText(en.agentRun.step.label.propose_endpoint));
     await userEvent.click(within(failed).getByRole("button", { name: en.agentRun.step.copy }));
 
@@ -168,7 +171,7 @@ describe("the action inspector", () => {
 
   it("renders what the workspace sent as text, never as markup (AG-46)", async () => {
     renderPanel();
-    const failed = screen.getAllByRole("group")[1];
+    const failed = stepsOf()[1];
     await userEvent.click(within(failed).getByText(en.agentRun.step.label.propose_endpoint));
     expect(within(failed).getByText("<script>alert(1)</script>")).toBeInTheDocument();
     expect(document.querySelector("script")).toBeNull();
@@ -188,7 +191,7 @@ describe("the action inspector", () => {
         },
       },
     ]);
-    const step = screen.getByRole("group");
+    const step = stepsOf()[0];
     const reason = within(step).getByTestId("step-reason");
     expect(reason).toHaveTextContent("URLSearchParams is not defined (@joinedcontext/sdk/server:97)");
     expect(reason).toHaveAttribute("title", "URLSearchParams is not defined (@joinedcontext/sdk/server:97)");
@@ -217,7 +220,7 @@ describe("the action inspector", () => {
         },
       },
     ]);
-    const step = screen.getByRole("group");
+    const step = stepsOf()[0];
     expect(within(step).getByTestId("step-reason")).toHaveTextContent(
       "2 block(s) not applied: src/components/ExportButton.tsx: SEARCH not found",
     );
@@ -237,7 +240,7 @@ describe("the action inspector", () => {
   // T-3986: the app builder draws this card only in a model run, which the live walk cannot start (spend guard).
   it("has_no_serious_axe_violation_as_a_model_run_draws_it", async () => {
     renderPanel();
-    expect(screen.getAllByRole("group")).toHaveLength(2);
+    expect(stepsOf()).toHaveLength(2);
     await expectNoAxeViolations(document.body);
   });
 });

@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../../api/client";
 import { SchemaForm } from "../../components/forms/SchemaForm";
 import type { JsonSchema } from "../../components/forms/types";
-import {
+import { CodeBlock,
   Alert,
   Button,
   Skeleton,
@@ -147,10 +147,11 @@ export function unmappedTerms(
 }
 
 function Json({ value }: { value: unknown }): JSX.Element {
+  const { t } = useTranslation();
   return (
-    <pre className="max-h-96 overflow-auto rounded border border-border bg-surface-subtle p-3 font-mono text-caption text-fg">
+    <CodeBlock label={t("codeBlock.json")} className="max-h-96 rounded border border-border bg-surface-subtle p-3 font-mono text-caption text-fg">
       {JSON.stringify(value, null, 2)}
-    </pre>
+    </CodeBlock>
   );
 }
 
@@ -317,9 +318,9 @@ export function LinkmlPreviewPanel({
             ) : null}
             {tab === "docs" ? (
               artifacts?.docs ? (
-                <pre className="max-h-96 overflow-auto rounded-lg border border-border bg-surface-subtle p-3 font-mono text-caption text-fg">
+                <CodeBlock label={t("codeBlock.text")} className="max-h-96 rounded-lg border border-border bg-surface-subtle p-3 font-mono text-caption text-fg">
                   {artifacts.docs}
-                </pre>
+                </CodeBlock>
               ) : (
                 <p className="text-body text-fg-muted">{t("models.noArtifact")}</p>
               )

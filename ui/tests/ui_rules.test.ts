@@ -269,6 +269,15 @@ describe("what a page may not do by hand", () => {
   });
 });
 
+/** A `<pre>` opening tag, attributes in braces included. */
+const PRE_TAG = /<pre\b(?:[^>{}]|\{(?:[^{}]|\{[^{}]*\})*\})*>/g;
+
+/** Whether a `<pre>` tag can scroll: an overflow class, or a class string it does not spell out. */
+function scrollingPre(tag: string): boolean {
+  const open = tag.match(/<pre\b(?:[^>{}]|\{(?:[^{}]|\{[^{}]*\})*\})*>/)?.[0] ?? "";
+  return /\boverflow-(?:[xy]-)?(?:auto|scroll)\b|\bclassName=\{/.test(open);
+}
+
 describe("what nothing in the UI may do", () => {
   // No allow-list below this line: every one of these is zero today.
   const everywhere = (pattern: RegExp): string[] => all.flatMap((file) => hits(file, pattern));
@@ -297,6 +306,23 @@ describe("what nothing in the UI may do", () => {
       ),
     );
     expect(handMade).toEqual([]);
+  });
+
+  it("a_scrolling_block_is_the_shared_code_block", () => {
+    // T-5014: a `<pre>` that scrolls hid its overflow from anyone without a mouse (axe
+    // scrollable-region-focusable on twenty pages). `CodeBlock` is a named tab stop; a class held
+    // in a variable may scroll too, so it counts.
+    expect(scrollingPre('<pre className="max-h-40 overflow-auto font-mono">{x}</pre>')).toBe(true);
+    expect(scrollingPre('<pre\n  data-testid="x"\n  className={pre}\n>')).toBe(true);
+    expect(scrollingPre('<pre className="whitespace-pre-wrap [overflow-wrap:anywhere]">')).toBe(false);
+    const bare = all
+      .filter((file) => !file.path.endsWith("components/ui/CodeBlock.tsx"))
+      .flatMap((file) =>
+        [...file.text.matchAll(PRE_TAG)]
+          .filter((tag) => scrollingPre(tag[0]))
+          .map((tag) => `${file.path}:${file.text.slice(0, tag.index).split("\n").length}`),
+      );
+    expect(bare).toEqual([]);
   });
 
   it("no_code_is_built_from_a_string", () => {

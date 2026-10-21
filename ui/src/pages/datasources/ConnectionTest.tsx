@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized } from "../../api/manifest";
 import { RecordLink } from "../../components/RecordLink";
-import { Button } from "../../components/ui";
+import { CodeBlock, Button } from "../../components/ui";
 import { readsOf } from "../mqttbrokers/connections";
 
 /** What the server read from the source (`api/datasource_test.rs`), or why it read nothing. */
@@ -66,9 +66,9 @@ export function ConnectionTest({ project, name }: { project: string; name: strin
           <>
             <p className="text-body">{t("datasources.test.read", { records: probe.records ?? 0, bytes: probe.bytes ?? 0 })}</p>
             {probe.sample !== undefined ? (
-              <pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap break-words rounded-md bg-surface-subtle p-2 font-mono text-caption">
+              <CodeBlock label={t("codeBlock.sample")} className="mt-2 max-h-60 whitespace-pre-wrap break-words rounded-md bg-surface-subtle p-2 font-mono text-caption">
                 {typeof probe.sample === "string" ? probe.sample : JSON.stringify(probe.sample, null, 2)}
-              </pre>
+              </CodeBlock>
             ) : null}
           </>
         ) : null}

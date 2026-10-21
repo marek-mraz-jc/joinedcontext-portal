@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { JSX, MouseEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, ExternalLink, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
+import { CodeBlock, Button, ExternalLink, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
 import { Icon } from "../../components/ui/icons";
 import { safeHref } from "../../components/ui/safeHref";
 
@@ -271,9 +271,9 @@ export function Prose({ text, onOpenLink }: { text: string; onOpenLink?: OpenLin
           }
           case "code":
             return (
-              <pre key={at} className="overflow-x-auto rounded-md bg-surface p-2 font-mono text-xs">
+              <CodeBlock label={t("codeBlock.code")} key={at} className="overflow-x-auto rounded-md bg-surface p-2 font-mono text-xs">
                 <code>{block.text}</code>
-              </pre>
+              </CodeBlock>
             );
           case "table":
             return (

@@ -17,7 +17,7 @@ import { shippedForms } from "../schemas/forms";
 import { useBranding } from "../branding";
 import type { UiSchema } from "./forms/types";
 import type { ResourceTarget } from "./DeleteResourceDialog";
-import { Alert, Button, PageFailed, PageLoading } from "./ui";
+import { CodeBlock, Alert, Button, PageFailed, PageLoading } from "./ui";
 import { FormFrame, useFormRoute } from "./forms/FormRoute";
 import type { EditableForm } from "./EditResourceDialog";
 
@@ -262,14 +262,12 @@ export function EditResourceDialogBody({
             ) : null
           ) : readOnly ? (
             // Read, not edited: the text itself, scrollable and reachable from the keyboard.
-            <pre
-              role="group"
-              aria-label={t("resourceEdit.manifest", { name })}
-              tabIndex={0}
-              className="focus-ring max-h-96 overflow-auto rounded-md border border-border bg-surface-subtle p-3 font-mono text-caption"
+            <CodeBlock
+              label={t("resourceEdit.manifest", { name })}
+              className="max-h-96 rounded-md border border-border bg-surface-subtle p-3 font-mono text-caption"
             >
               {source}
-            </pre>
+            </CodeBlock>
           ) : (
             <div className="overflow-hidden rounded-md border border-border">
               <Suspense fallback={<PageLoading label={t("models.loadingEditor")} lines={1} className="p-3" />}>

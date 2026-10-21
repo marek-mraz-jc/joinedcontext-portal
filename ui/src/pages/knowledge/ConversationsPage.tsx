@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { usePermissions } from "../../api/permissions";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
-import {
+import { CodeBlock,
   Alert,
   Badge,
   Button,
@@ -401,7 +401,7 @@ function StoredText({ text }: { text: string }): JSX.Element {
   const shown = capped(text, all ? Infinity : undefined);
   return (
     <>
-      <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap bg-surface-subtle p-2">{visible(shown.text)}</pre>
+      <CodeBlock label={t("codeBlock.text")} className="mt-1 max-h-64 whitespace-pre-wrap bg-surface-subtle p-2">{visible(shown.text)}</CodeBlock>
       {shown.more ? (
         <Button size="sm" variant="ghost" onClick={() => setAll(true)}>
           {t("conversations.showMore", { size: Math.round(text.length / 1024) })}

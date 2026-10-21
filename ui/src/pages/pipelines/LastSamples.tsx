@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { liveLabelOf } from "./PipelineFlow";
 import type { FlowNodeId } from "./PipelineFlow";
+import { CodeBlock } from "../../components/ui";
 
 /** How many of the kept samples the drawer shows; the route keeps up to 20 per node. */
 const SHOWN = 5;
@@ -56,9 +57,9 @@ export function LastSamples({
               <time className="text-caption text-fg-muted" dateTime={sample.at}>
                 {new Date(sample.at).toLocaleString(i18n.language)}
               </time>
-              <pre className="max-h-36 overflow-auto font-mono text-caption whitespace-pre-wrap break-words">
+              <CodeBlock label={t("codeBlock.sample")} className="max-h-36 font-mono text-caption whitespace-pre-wrap break-words">
                 {JSON.stringify(sample.record, null, 2)}
-              </pre>
+              </CodeBlock>
             </li>
           ))}
         </ol>

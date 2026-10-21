@@ -1,7 +1,7 @@
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import type { components } from "../../api/schema";
-import { Badge, Table, TableBody, TableCell, TableHead, TableHeaderCell } from "../ui";
+import { CodeBlock, Badge, Table, TableBody, TableCell, TableHead, TableHeaderCell } from "../ui";
 
 export type FieldChange = components["schemas"]["FieldChange"];
 
@@ -60,7 +60,7 @@ function DiffValue({ value }: { value: unknown }): JSX.Element {
       <summary className="cursor-pointer">
         {t(Array.isArray(value) ? "diff.items" : "diff.fields", { count })}
       </summary>
-      <pre className="mt-1 max-w-xs overflow-x-auto font-mono text-xs whitespace-pre md:max-w-sm lg:max-w-md">{JSON.stringify(value, null, 2)}</pre>
+      <CodeBlock label={t(Array.isArray(value) ? "diff.items" : "diff.fields", { count })} className="mt-1 max-w-xs overflow-x-auto font-mono text-xs whitespace-pre md:max-w-sm lg:max-w-md">{JSON.stringify(value, null, 2)}</CodeBlock>
     </details>
   );
 }

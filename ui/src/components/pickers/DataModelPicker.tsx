@@ -30,6 +30,8 @@ export interface DataModelPickerProps {
   required?: boolean;
   invalid?: boolean;
   describedBy?: string;
+  /** The wrapping Field's hint and error ids, kept beside `describedBy`. */
+  "aria-describedby"?: string;
 }
 
 /**
@@ -52,6 +54,7 @@ export function DataModelPicker({
   required,
   invalid,
   describedBy,
+  "aria-describedby": fieldDescribedBy,
 }: DataModelPickerProps): JSX.Element {
   const { t } = useTranslation();
   const [typed, setTyped] = useState("");
@@ -112,6 +115,7 @@ export function DataModelPicker({
       required={required}
       invalid={invalid}
       describedBy={describedBy}
+      aria-describedby={fieldDescribedBy}
       loading={query.isLoading}
       failed={query.isError ? { reason: reasonOf(query.error), retry: () => void query.refetch() } : undefined}
       empty={t("picker.model.none")}

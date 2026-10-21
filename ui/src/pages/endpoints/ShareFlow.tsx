@@ -9,7 +9,7 @@ import { useProposal } from "../../api/proposal";
 import { useProjects } from "../../api/projects";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { endpointUrl } from "../../components/endpoints/links";
-import { Alert, Button, Checkbox, Field, Input, Select } from "../../components/ui";
+import { CodeBlock, Alert, Button, Checkbox, Field, Input, Select } from "../../components/ui";
 
 /**
  * Sharing an Endpoint with another project, guided (T-3275, EP-15): the Endpoint lists the
@@ -257,9 +257,9 @@ export function ShareFlow({
               {t("endpoints.shareFlow.previewLead", { types: chosen.join(", ") || "—", hidden: hidden.join(", ") || "—" })}
             </p>
             {preview.data && preview.data.length > 0 ? (
-              <pre className="mt-2 max-h-60 overflow-auto font-mono text-caption" data-testid="share-preview">
+              <CodeBlock label={t("endpoints.shareFlow.preview", { project: target })} className="mt-2 max-h-60 font-mono text-caption" data-testid="share-preview">
                 {JSON.stringify(preview.data, null, 2)}
-              </pre>
+              </CodeBlock>
             ) : null}
           </section>
         ) : null}

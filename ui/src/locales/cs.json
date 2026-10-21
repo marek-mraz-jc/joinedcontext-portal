@@ -9269,5 +9269,16 @@
       "ports": "Porty: {ports}.",
       "full": "Všech {limit} brokerů je použito: nový bude odmítnut. Limit může zvýšit administrátor organizace v Administrace › Projekty."
     }
+  },
+  "codeBlock": {
+    "code": "Kód",
+    "sample": "Ukázkový záznam",
+    "answer": "Odpověď",
+    "curl": "Požadavek přes curl",
+    "schema": "Schéma",
+    "entity": "Entita",
+    "result": "Výsledek skriptu",
+    "text": "Uložený text",
+    "json": "Podrobnosti v JSON"
   }
 }

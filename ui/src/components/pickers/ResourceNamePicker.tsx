@@ -110,7 +110,8 @@ export function ResourceNamePicker({
       disabled={disabled}
       required={required}
       invalid={invalid}
-      describedBy={describedBy ?? fieldDescribedBy}
+      describedBy={describedBy}
+      aria-describedby={fieldDescribedBy}
       placeholder={placeholder}
       loading={loading}
       failed={failure ? { reason: reasonOf(failure.error), retry: () => void failure.refetch() } : undefined}

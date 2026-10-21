@@ -6,7 +6,7 @@ import { ApiError } from "../../api/client";
 import type { ProblemDetails } from "../../api/client";
 import { SCHEMA_FORMALISMS } from "../../schemas/kinds";
 import type { SchemaFormalism } from "../../schemas/kinds";
-import {
+import { CodeBlock,
   Alert,
   Button,
   Checkbox,
@@ -241,9 +241,9 @@ export function SchemaProjectionPanel({
       ) : null}
 
       {formalism !== "json-schema" && schema.isSuccess ? (
-        <pre className="max-h-64 overflow-auto rounded border border-border bg-surface-subtle p-3 text-xs">
+        <CodeBlock label={t("codeBlock.schema")} className="max-h-64 rounded border border-border bg-surface-subtle p-3 text-xs">
           {String(schema.data)}
-        </pre>
+        </CodeBlock>
       ) : null}
 
       {types.map((type) => {

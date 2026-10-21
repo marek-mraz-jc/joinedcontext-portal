@@ -6,7 +6,7 @@ import { askAbout } from "../assistant/state";
 import { guideUrl, useBranding } from "../branding";
 import { helpFor } from "../pageHelp";
 import { WHATS_NEW, isUnread, lastSeen, markSeen } from "../whatsNew";
-import { Badge, Button, Dialog, ExternalLink, Icon, Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger, safeHref } from "./ui";
+import { CodeBlock, Badge, Button, Dialog, ExternalLink, Icon, Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger, safeHref } from "./ui";
 
 /**
  * Help in the header: help for the page the person is on (T-3269), what changed for the people who
@@ -215,7 +215,7 @@ function GuideSection({ pageKey }: { pageKey: string }): JSX.Element | null {
             );
           }
           if (kind === "h") return <h4 key={at} className="font-semibold">{body}</h4>;
-          if (kind === "pre") return <pre key={at} className="overflow-x-auto rounded bg-surface-subtle p-2 font-mono text-caption">{body}</pre>;
+          if (kind === "pre") return <CodeBlock label={t("codeBlock.code")} key={at} className="overflow-x-auto rounded bg-surface-subtle p-2 font-mono text-caption">{body}</CodeBlock>;
           return <p key={at}>{body}</p>;
         })}
       </div>

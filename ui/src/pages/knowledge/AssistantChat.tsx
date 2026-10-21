@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, JSX, KeyboardEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Button, Checkbox, ExternalLink, Field, Table, Textarea } from "../../components/ui";
+import { CodeBlock, Alert, Button, Checkbox, ExternalLink, Field, Table, Textarea } from "../../components/ui";
 import { useBranding } from "../../branding";
 import { askAssistant, cellText, dataChart, embedSnippet, launcherSnippet } from "./knowledge";
 import type { ChatEvent, ChatTurn, Citation, DataChart, DataTable } from "./knowledge";
@@ -74,9 +74,9 @@ function Answer({ text, citations, ids }: { text: string; citations: Citation[];
           block.tag === "p" ? (
             <p key={i}>{inlineNodes(block.children, ids, grouped.position, t)}</p>
           ) : block.tag === "pre" ? (
-            <pre key={i} className="overflow-x-auto rounded bg-surface-subtle p-3 font-mono text-caption">
+            <CodeBlock label={t("codeBlock.code")} key={i} className="overflow-x-auto rounded bg-surface-subtle p-3 font-mono text-caption">
               <code>{block.text}</code>
-            </pre>
+            </CodeBlock>
           ) : block.tag === "table" ? (
             <Table key={i} caption={t("knowledge.chat.data")} className="text-caption">
               <tbody>
@@ -390,8 +390,8 @@ export function AssistantChat({
             {turn.scripts.map((script, n) => (
               <details key={n} className="mt-2 text-caption">
                 <summary className="cursor-pointer">{t("knowledge.chat.script")}</summary>
-                <pre className="mt-1 overflow-x-auto rounded bg-surface-subtle p-2">{script.code}</pre>
-                <pre className="mt-1 overflow-x-auto rounded bg-surface-subtle p-2">{script.result}</pre>
+                <CodeBlock label={t("knowledge.chat.script")} className="mt-1 overflow-x-auto rounded bg-surface-subtle p-2">{script.code}</CodeBlock>
+                <CodeBlock label={t("codeBlock.result")} className="mt-1 overflow-x-auto rounded bg-surface-subtle p-2">{script.result}</CodeBlock>
               </details>
             ))}
           </li>
@@ -438,9 +438,9 @@ function Snippet({ label, code }: { label: string; code: string }): JSX.Element 
   const [copied, setCopied] = useState(false);
   return (
     <div className="space-y-2">
-      <pre aria-label={label} className="overflow-x-auto whitespace-pre-wrap break-all rounded bg-surface-subtle p-3 text-caption">
+      <CodeBlock label={label} className="overflow-x-auto whitespace-pre-wrap break-all rounded bg-surface-subtle p-3 text-caption">
         {code}
-      </pre>
+      </CodeBlock>
       <Button
         size="sm"
         aria-label={t("knowledge.embed.copyOf", { what: label })}

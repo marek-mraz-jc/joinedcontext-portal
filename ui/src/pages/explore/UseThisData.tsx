@@ -9,7 +9,7 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import type { EntityQuery } from "../../components/entities/filters";
 import { CopyUrlButton, endpointUrl } from "../../components/endpoints/links";
-import { Button, Dialog } from "../../components/ui";
+import { CodeBlock, Button, Dialog } from "../../components/ui";
 import { SNIPPET_LANGUAGES, TOKEN_VARIABLE, snippet, viewPath } from "./snippets";
 
 export function UseThisData({
@@ -68,12 +68,13 @@ export function UseThisData({
                   </h3>
                   <CopyUrlButton url={code} label={t("explore.useData.copy", { language: t(`explore.useData.language.${language}`) })} />
                 </div>
-                <pre
-                  className="max-h-64 overflow-auto rounded-md bg-surface-subtle p-2 font-mono text-caption"
+                <CodeBlock
+                  label={t(`explore.useData.language.${language}`)}
+                  className="max-h-64 rounded-md bg-surface-subtle p-2 font-mono text-caption"
                   data-snippet={language}
                 >
                   {code}
-                </pre>
+                </CodeBlock>
               </section>
             );
           })}

@@ -7,7 +7,7 @@ import { api, unwrap } from "../../api/client";
 import { isSeq, parseDocument } from "yaml";
 import { edit, parseModel } from "./linkml";
 import type { Artifacts } from "./LinkmlPreviewPanel";
-import { Alert, Button, Checkbox, Field, Input, RadioGroup, Select, Skeleton, safeHref } from "../../components/ui";
+import { CodeBlock, Alert, Button, Checkbox, Field, Input, RadioGroup, Select, Skeleton, safeHref } from "../../components/ui";
 
 /**
  * The primary path into a model: take an official Smart Data Model and adapt it (DM-07).
@@ -556,9 +556,9 @@ export function SmartDataModelsImport({
                 </Select>
               </label>
             ) : null}
-            <pre className="max-h-56 overflow-auto rounded border border-border bg-surface-subtle p-3 font-mono text-xs text-fg">
+            <CodeBlock label={t("codeBlock.code")} className="max-h-56 rounded border border-border bg-surface-subtle p-3 font-mono text-xs text-fg">
               {imported}
-            </pre>
+            </CodeBlock>
             <Button
               variant="primary"
               size="sm"

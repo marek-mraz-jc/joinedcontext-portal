@@ -9269,5 +9269,16 @@
       "ports": "Ports: {ports}.",
       "full": "All {limit} brokers are in use: a new one is refused. An organization administrator can raise the limit in Administration › Projects."
     }
+  },
+  "codeBlock": {
+    "code": "Code",
+    "sample": "Sample record",
+    "answer": "Answer",
+    "curl": "Request with curl",
+    "schema": "Schema",
+    "entity": "Entity",
+    "result": "Script result",
+    "text": "Stored text",
+    "json": "Details as JSON"
   }
 }

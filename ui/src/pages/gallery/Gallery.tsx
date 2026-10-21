@@ -20,6 +20,7 @@ import {
   Card,
   CardHeader,
   Checkbox,
+  CodeBlock,
   ConfirmDialog,
   Dialog,
   DialogClose,
@@ -446,6 +447,19 @@ export function Gallery(): JSX.Element {
             tone="danger"
             onConfirm={() => setConfirm(false)}
           />
+        </State>
+      </Specimen>
+
+      <Specimen name="CodeBlock">
+        <State is="short">
+          <CodeBlock label="Entity id" className="rounded bg-surface-subtle p-2 font-mono text-caption">
+            urn:ngsi-ld:AirQualityObserved:ba-01
+          </CodeBlock>
+        </State>
+        <State is="a line too long, scrolls sideways and takes focus">
+          <CodeBlock label="Request as curl" className="max-w-xs rounded bg-surface-subtle p-2 font-mono text-caption">
+            {`curl -H "Accept: application/ld+json" "https://api.example.sk/ngsi-ld/v1/entities?type=AirQualityObserved&limit=100"`}
+          </CodeBlock>
         </State>
       </Specimen>
 

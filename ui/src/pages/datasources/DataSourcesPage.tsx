@@ -16,7 +16,7 @@ import type { Change, Manifest } from "../../api/manifest";
 import type { Verdict } from "../../api/drafts";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { ResourceRowActions } from "../../components/ResourceRowActions";
-import {
+import { CodeBlock,
   Button,
   EmptyState,
   Field,
@@ -820,9 +820,9 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
                     {t("datasources.probe.records", { records: probe.records ?? 0, bytes: probe.bytes ?? 0 })}
                   </p>
                   {probe.sample !== undefined ? (
-                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-caption">
+                    <CodeBlock label={t("codeBlock.sample")} className="max-h-40 whitespace-pre-wrap break-words font-mono text-caption">
                       {JSON.stringify(probe.sample, null, 2)}
-                    </pre>
+                    </CodeBlock>
                   ) : null}
                 </>
               )}

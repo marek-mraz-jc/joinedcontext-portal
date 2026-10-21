@@ -15,7 +15,7 @@ import type { Change } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 import { usePermissions } from "../../api/permissions";
-import { Alert, Button, Card, Field, FilePicker, Input, PageHeader, RadioGroup } from "../../components/ui";
+import { CodeBlock, Alert, Button, Card, Field, FilePicker, Input, PageHeader, RadioGroup } from "../../components/ui";
 import { CITY_SUBJECTS, SAMPLE_BYTES, modelsOf, rankModels, sampleOf, uploadInput } from "./csvUpload";
 import type { SdmMatch } from "./csvUpload";
 import { createInBatches, importSlotsOf, readTable, rejectedCsv, suggestMapping, toEntities, unreadableText } from "./importRows";
@@ -204,9 +204,9 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
               <summary className="focus-ring cursor-pointer rounded-md text-body font-medium text-fg">
                 {t("spaces.upload.preview", { count: Math.min(PREVIEW, checked.entities.length) })}
               </summary>
-              <pre className="max-h-80 overflow-auto rounded-md bg-surface-muted p-3 font-mono text-caption" data-testid="upload-preview">
+              <CodeBlock label={t("spaces.upload.preview", { count: Math.min(PREVIEW, checked.entities.length) })} className="max-h-80 rounded-md bg-surface-muted p-3 font-mono text-caption" data-testid="upload-preview">
                 {JSON.stringify(checked.entities.slice(0, PREVIEW).map((each) => each.entity), null, 2)}
-              </pre>
+              </CodeBlock>
             </details>
           ) : null}
           {progress ? (
