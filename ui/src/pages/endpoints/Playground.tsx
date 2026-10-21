@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAccess } from "../../components/entities/AccessPanel";
 import type { GrantDocument } from "../../components/entities/AccessPanel";
 import { endpointUrl } from "../../components/endpoints/links";
-import { Alert, Button, Field, Input, Select, Tabs, tabPanelProps } from "../../components/ui";
+import { CodeBlock, Alert, Button, Field, Input, Select, Tabs, tabPanelProps } from "../../components/ui";
 
 /** The reads the playground sends, each with the gateway action that decides it (EP-55). */
 export const OPERATIONS = [
@@ -236,9 +236,9 @@ export function Playground({ slug, types, open }: { slug: string; types: string[
           <p className="text-caption text-fg-muted" role="status">
             {t("endpoints.playground.answered", { status: answer.status })}
           </p>
-          <pre tabIndex={0} className="focus-ring max-h-80 overflow-auto rounded-md bg-surface-subtle p-2 font-mono text-caption" data-testid="playground-answer">
+          <CodeBlock label={t("codeBlock.answer")} className="max-h-80 rounded-md bg-surface-subtle p-2 font-mono text-caption" data-testid="playground-answer">
             {answer.text}
-          </pre>
+          </CodeBlock>
         </div>
       ) : null}
       {snippets ? (
@@ -250,9 +250,9 @@ export function Playground({ slug, types, open }: { slug: string; types: string[
             value={language}
             onChange={setLanguage}
           />
-          <pre {...tabPanelProps(`${id}-code`, language)} tabIndex={0} className="focus-ring overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">
+          <CodeBlock label={t("endpoints.playground.code")} {...tabPanelProps(`${id}-code`, language)} className="overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">
             {snippets[language]}
-          </pre>
+          </CodeBlock>
           {!open ? <p className="text-caption text-fg-muted">{t("endpoints.page.firstCallToken")}</p> : null}
         </div>
       ) : null}

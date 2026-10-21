@@ -1,6 +1,7 @@
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { CopyUrlButton, hubUrl } from "./links";
+import { CodeBlock } from "../ui";
 
 /** The name every client lists the hub under, the same as the open-data catalogue's panel. */
 const NAME = "joinedcontext";
@@ -49,25 +50,23 @@ export function ConnectAssistant({ domain }: { domain: string | undefined }): JS
         </a>
       </div>
       <div className="flex flex-col gap-1">
-        <pre
-          tabIndex={0}
-          aria-label={t("endpoints.hub.claudeLine")}
-          className="focus-ring overflow-x-auto rounded bg-surface-muted p-2 font-mono text-caption"
+        <CodeBlock
+          label={t("endpoints.hub.claudeLine")}
+          className="overflow-x-auto rounded bg-surface-muted p-2 font-mono text-caption"
         >
           {lines.claude}
-        </pre>
+        </CodeBlock>
         <div>
           <CopyUrlButton url={lines.claude} label={t("endpoints.hub.claude")} />
         </div>
       </div>
       <div className="flex flex-col gap-1">
-        <pre
-          tabIndex={0}
-          aria-label={t("endpoints.hub.jsonLine")}
-          className="focus-ring overflow-x-auto rounded bg-surface-muted p-2 font-mono text-caption"
+        <CodeBlock
+          label={t("endpoints.hub.jsonLine")}
+          className="overflow-x-auto rounded bg-surface-muted p-2 font-mono text-caption"
         >
           {lines.json}
-        </pre>
+        </CodeBlock>
         <div>
           <CopyUrlButton url={lines.json} label={t("endpoints.hub.json")} />
         </div>

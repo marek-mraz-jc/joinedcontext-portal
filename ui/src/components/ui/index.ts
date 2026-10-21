@@ -23,6 +23,8 @@ export type { FilePickerProps } from "./FilePicker";
 export type { FieldProps } from "./Field";
 export { Icon } from "./icons";
 export type { IconName, IconProps } from "./icons";
+export { CodeBlock } from "./CodeBlock";
+export type { CodeBlockProps } from "./CodeBlock";
 export { Checkbox } from "./Checkbox";
 export type { CheckboxProps } from "./Checkbox";
 export { ConfirmDialog } from "./ConfirmDialog";

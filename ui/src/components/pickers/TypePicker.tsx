@@ -166,7 +166,8 @@ export function TypePicker({
       disabled={disabled}
       required={required}
       invalid={invalid}
-      describedBy={describedBy ?? fieldDescribedBy}
+      describedBy={describedBy}
+      aria-describedby={fieldDescribedBy}
       loading={query.isLoading || sources.some((s) => s.isLoading)}
       failed={failed}
       empty={space === undefined ? t("picker.type.noneInProject") : t("picker.type.none", { space })}

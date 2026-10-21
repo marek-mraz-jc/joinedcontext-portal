@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { readCard } from "../../pages/mcp/mcp";
 import { ASSISTANT_EVENT } from "../../navigation/shortcuts";
-import { Button } from "../ui";
+import { CodeBlock, Button } from "../ui";
 import { CopyUrlButton, representationUrl } from "./links";
 
 /**
@@ -60,13 +60,12 @@ export function QueryCard({
         </p>
       ) : (
         <div className="flex flex-col gap-1">
-          <pre
-            aria-label={t("endpoints.card.title")}
-            tabIndex={0}
-            className="max-h-96 overflow-auto whitespace-pre-wrap rounded bg-surface-muted p-2 font-mono text-caption"
+          <CodeBlock
+            label={t("endpoints.card.title")}
+            className="max-h-96 whitespace-pre-wrap rounded bg-surface-muted p-2 font-mono text-caption"
           >
             {card.data.text}
-          </pre>
+          </CodeBlock>
           <div>
             <CopyUrlButton
               url={card.data.text}

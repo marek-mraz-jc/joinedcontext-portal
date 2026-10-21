@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Badge, Button, Dialog } from "../../components/ui";
+import { CodeBlock, Alert, Badge, Button, Dialog } from "../../components/ui";
 import { safeHref } from "../../components/ui";
 import { dutyOf, licenceIri, offerSentences } from "./catalog";
 import type { CatalogManifest } from "./catalog";
@@ -194,9 +194,9 @@ export function CatalogSection({
             {t("app.loading")}
           </p>
         ) : (
-          <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-all rounded-md bg-surface-subtle p-3 font-mono text-caption">
+          <CodeBlock label={t("codeBlock.answer")} className="max-h-96 whitespace-pre-wrap break-all rounded-md bg-surface-subtle p-3 font-mono text-caption">
             {raw.body}
-          </pre>
+          </CodeBlock>
         )}
       </Dialog>
     </div>

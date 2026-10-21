@@ -10,7 +10,7 @@ import type { components } from "../../api/schema";
 import { RecordLink, RECORD_LINK_STYLE } from "../../components/RecordLink";
 import { CopyUrlButton } from "../../components/endpoints/links";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
-import {
+import { CodeBlock,
   Alert,
   Badge,
   Card,
@@ -173,9 +173,9 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
             <>
               <dt className="text-fg-muted">{t("mqttbrokers.connect.example")}</dt>
               <dd className="flex min-w-0 flex-col items-start gap-2">
-                <pre className="max-w-full overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">
+                <CodeBlock label={t("mqttbrokers.connect.example")} className="max-w-full overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">
                   {publishExample(address, `${project}-${devices[0]}`, publishTopic(roles))}
-                </pre>
+                </CodeBlock>
                 <CopyUrlButton
                   url={publishExample(address, `${project}-${devices[0]}`, publishTopic(roles))}
                   label={t("mqttbrokers.connect.copyExample")}

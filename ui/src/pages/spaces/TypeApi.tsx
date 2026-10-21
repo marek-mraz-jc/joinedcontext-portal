@@ -21,7 +21,7 @@ import {
   representationUrl,
   servedRepresentations,
 } from "../../components/endpoints/links";
-import { Alert, Button, Card, ExternalLink } from "../../components/ui";
+import { CodeBlock, Alert, Button, Card, ExternalLink } from "../../components/ui";
 
 /** The calls one Endpoint answers for one type, as a program writes them. */
 export function callsOf(
@@ -198,9 +198,9 @@ export function TypeApi({
                 </div>
               ))}
             </dl>
-            <pre tabIndex={0} className="focus-ring overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">
+            <CodeBlock label={t("codeBlock.curl")} className="overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">
               {`curl -H "Authorization: Bearer $TOKEN" \\\n  "${endpointUrl(slug, `/ngsi-ld/v1/entities?type=${encodeURIComponent(type)}&limit=10`)}"`}
-            </pre>
+            </CodeBlock>
             <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" variant="secondary" onClick={() => void tryIt(slug)}>
                 {t("spaces.api.try")}
@@ -214,9 +214,9 @@ export function TypeApi({
                 <p className="text-caption text-fg-muted" role="status">
                   {t("spaces.api.answered", { status: tried.status })}
                 </p>
-                <pre tabIndex={0} className="focus-ring max-h-64 overflow-auto rounded-md bg-surface-subtle p-2 font-mono text-caption" data-testid="api-tried">
+                <CodeBlock label={t("codeBlock.answer")} className="max-h-64 rounded-md bg-surface-subtle p-2 font-mono text-caption" data-testid="api-tried">
                   {tried.text}
-                </pre>
+                </CodeBlock>
               </div>
             ) : null}
           </Card>

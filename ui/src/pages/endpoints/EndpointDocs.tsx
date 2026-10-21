@@ -2,7 +2,7 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { endpointUrl } from "../../components/endpoints/links";
-import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
+import { CodeBlock, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
 import { EndpointStandards } from "./EndpointStandards";
 import { snippetsOf } from "./Playground";
 
@@ -137,7 +137,7 @@ export function EndpointDocs({ slug, open, heading = true }: { slug: string; ope
                 </TableBody>
               </Table>
             ) : null}
-            <pre className="overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">{code.curl}</pre>
+            <CodeBlock label={t("codeBlock.curl")} className="overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">{code.curl}</CodeBlock>
           </section>
         );
       })}

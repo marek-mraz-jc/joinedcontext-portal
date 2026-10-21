@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Button, Icon, PageHeader, PageLoading } from "../../components/ui";
+import { CodeBlock, Alert, Button, Icon, PageHeader, PageLoading } from "../../components/ui";
 import { ANONYMOUS_CALLS_PER_MINUTE, clientName, readServer, serverUrl, setups } from "./connect";
 
 /**
@@ -57,9 +57,9 @@ function CopyBlock({ label, code }: { label: string; code: string }): JSX.Elemen
   };
   return (
     <div className="flex flex-col gap-1">
-      <pre ref={block} id={id} tabIndex={0} className="focus-ring overflow-x-auto whitespace-pre rounded bg-surface-muted p-3 font-mono text-caption">
+      <CodeBlock label={t("codeBlock.code")} ref={block} id={id} className="overflow-x-auto whitespace-pre rounded bg-surface-muted p-3 font-mono text-caption">
         {code}
-      </pre>
+      </CodeBlock>
       <div className="flex items-center gap-2">
         <Button
           size="sm"

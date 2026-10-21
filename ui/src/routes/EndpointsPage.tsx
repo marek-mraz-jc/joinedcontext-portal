@@ -58,7 +58,7 @@ import { catalogForm, catalogOf, prefillFromOrganization } from "../pages/endpoi
 import type { CatalogForm, CatalogManifest } from "../pages/endpoints/catalog";
 import type { ModelPickerState } from "../pages/endpoints/ModelPicker";
 import { EndpointDataView } from "../components/entities/EndpointDataView";
-import {
+import { CodeBlock,
   Alert,
   Badge,
   Button,
@@ -1762,12 +1762,13 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                 <summary className="cursor-pointer text-body font-medium text-fg">
                   {t("endpoints.section.manifests")}
                 </summary>
-                <pre
+                <CodeBlock
+                  label={t("endpoints.section.manifests")}
                   data-testid="endpoint-preview"
-                  className="mt-3 max-h-72 overflow-auto rounded border border-border bg-surface p-2.5 font-mono text-xs text-fg-muted"
+                  className="mt-3 max-h-72 rounded border border-border bg-surface p-2.5 font-mono text-xs text-fg-muted"
                 >
                   {JSON.stringify(previewManifests, null, 2)}
-                </pre>
+                </CodeBlock>
               </details>
             ) : null}
           </>

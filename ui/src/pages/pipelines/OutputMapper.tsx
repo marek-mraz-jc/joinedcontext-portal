@@ -12,7 +12,7 @@ import { api, ApiError } from "../../api/client";
 import type { components } from "../../api/schema";
 import { RecordLink } from "../../components/RecordLink";
 import { TypePicker } from "../../components/pickers/TypePicker";
-import { Alert, Badge, Button, Field, Input, Select } from "../../components/ui";
+import { CodeBlock, Alert, Badge, Button, Field, Input, Select } from "../../components/ui";
 import type { Expiry, Lifetime, LifetimeMode } from "./lifetime";
 import { autoMatch, generate, idFieldOf, migrated, preview, problemsOf, readBack } from "./outputMapper";
 import type { Attribute, MapperProblem, MapperState, Source } from "./outputMapper";
@@ -379,13 +379,13 @@ export function OutputMapper({ project, space, orgDomain, records, bloblang, onB
             {records.length === 0 ? (
               <p className="text-caption text-fg-subtle">{t("pipelines.mapper.previewEmpty")}</p>
             ) : (
-              <pre
-                tabIndex={0}
+              <CodeBlock
+                label={t("pipelines.mapper.preview")}
                 data-testid="mapper-preview"
-                className="focus-ring max-h-72 overflow-auto rounded border border-border bg-surface-subtle p-2 font-mono text-caption whitespace-pre-wrap break-words"
+                className="max-h-72 rounded border border-border bg-surface-subtle p-2 font-mono text-caption whitespace-pre-wrap break-words"
               >
                 {JSON.stringify(preview(current, attributes, records, space, orgDomain, undefined, entityEnd), null, 2)}
-              </pre>
+              </CodeBlock>
             )}
           </section>
         </>

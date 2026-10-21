@@ -15,7 +15,7 @@ import { api, ApiError, unwrap } from "../../api/client";
 import { readModelSource } from "../../api/datamodelSource";
 import { SchemaForm } from "../../components/forms/SchemaForm";
 import type { JsonSchema } from "../../components/forms/types";
-import { Alert, Button, Field, Select, Skeleton, Tabs, tabPanelProps } from "../../components/ui";
+import { CodeBlock, Alert, Button, Field, Select, Skeleton, Tabs, tabPanelProps } from "../../components/ui";
 import { download } from "./diagramExport";
 import { LinkmlGraphView } from "./LinkmlGraphView";
 import type { Artifacts } from "./LinkmlPreviewPanel";
@@ -212,10 +212,9 @@ export function ModelYaml({ source, name }: { source: string; name: string }): J
           {copied === "yes" ? t("models.page.copied") : copied === "no" ? t("models.page.copyFailed") : ""}
         </span>
       </div>
-      <pre
-        aria-label={t("models.page.yaml")}
-        tabIndex={0}
-        className="focus-ring max-h-96 overflow-auto rounded border border-border bg-surface-subtle p-3 font-mono text-caption text-fg"
+      <CodeBlock
+        label={t("models.page.yaml")}
+        className="max-h-96 rounded border border-border bg-surface-subtle p-3 font-mono text-caption text-fg"
       >
         {lines.map((line, index) => {
           const parts = yamlParts(line);
@@ -228,7 +227,7 @@ export function ModelYaml({ source, name }: { source: string; name: string }): J
             </span>
           );
         })}
-      </pre>
+      </CodeBlock>
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../../api/client";
 import type { components } from "../../api/schema";
-import {
+import { CodeBlock,
   Alert,
   Badge,
   Button,
@@ -456,13 +456,12 @@ function SnippetBlock({ item }: { item: Snippet }): JSX.Element {
       </div>
       {/* A long line scrolls sideways, so the block takes the keyboard focus that scrolls it
           (axe scrollable-region-focusable) and is named by its heading. */}
-      <pre
-        aria-label={title}
-        tabIndex={0}
-        className="focus-ring overflow-x-auto rounded-md bg-surface-muted p-3 font-mono text-caption text-fg"
+      <CodeBlock
+        label={title}
+        className="overflow-x-auto rounded-md bg-surface-muted p-3 font-mono text-caption text-fg"
       >
         <code>{item.code}</code>
-      </pre>
+      </CodeBlock>
     </Card>
   );
 }

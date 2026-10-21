@@ -12,7 +12,7 @@ import { EntityFilters } from "../../components/entities/EntityFilters";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { deleteEntity, enumsOfModel, fetchEntity, filterSlotsOf, qProblem, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import type { EntityQuery } from "../../components/entities/filters";
-import { Alert, Button, Dialog, EmptyState, Field, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
+import { CodeBlock, Alert, Button, Dialog, EmptyState, Field, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
 import { TypeQuality } from "./TypeQuality";
 import { TypeLink } from "../models/ModelLinks";
 import { localId } from "../apps/QueryResultCard";
@@ -525,14 +525,15 @@ export function ExplorePage({
           ) : (
             // Opening an entity announced nothing and arriving announced nothing either: a
             // screen-reader user was left waiting on a pane that had already filled (T-1768).
-            <pre
-              className="mt-2 max-h-96 overflow-auto text-caption"
+            <CodeBlock
+              label={t("codeBlock.entity")}
+              className="mt-2 max-h-96 text-caption"
               data-testid="explore-entity"
               aria-live="polite"
               aria-busy={detail.isPending || undefined}
             >
               {detail.data ? JSON.stringify(detail.data, null, 2) : t("app.loading")}
-            </pre>
+            </CodeBlock>
           )}
         </section>
       ) : null}

@@ -19,6 +19,8 @@ export interface UnitPickerProps {
   disabled?: boolean;
   invalid?: boolean;
   describedBy?: string;
+  /** The wrapping Field's hint and error ids, kept beside `describedBy`. */
+  "aria-describedby"?: string;
   /** Only the units this keeps are offered (a source unit that converts to the model's). */
   among?: (unit: Unit) => boolean;
 }
@@ -38,6 +40,7 @@ export function UnitPicker({
   disabled,
   invalid,
   describedBy,
+  "aria-describedby": fieldDescribedBy,
   among,
 }: UnitPickerProps): JSX.Element {
   const { t } = useTranslation();
@@ -81,6 +84,7 @@ export function UnitPicker({
       disabled={disabled}
       invalid={invalid}
       describedBy={describedBy}
+      aria-describedby={fieldDescribedBy}
       placeholder={t("units.search")}
       empty={t("units.noMatch")}
       note={found.total > found.units.length ? t("units.more", { shown: found.units.length, total: found.total }) : undefined}

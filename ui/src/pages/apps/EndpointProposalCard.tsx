@@ -1,4 +1,4 @@
-import { Card } from "../../components/ui";
+import { CodeBlock, Card } from "../../components/ui";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -153,9 +153,9 @@ export function EndpointProposalCard({
           <div className="mt-1 space-y-2">
             {proposal.policies.map((policy, index) => (
               <div key={index}>
-                <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-surface-subtle p-2 font-mono">
+                <CodeBlock label={t("codeBlock.json")} className="max-h-48 whitespace-pre-wrap break-words rounded bg-surface-subtle p-2 font-mono">
                   {JSON.stringify(policy, null, 2)}
-                </pre>
+                </CodeBlock>
                 <Button
                   size="sm"
                   onClick={() => {

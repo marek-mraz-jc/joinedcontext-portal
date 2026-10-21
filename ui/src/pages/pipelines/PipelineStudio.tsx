@@ -10,7 +10,7 @@ import { AccessPanel, deniedAttributes, useAccess } from "../../components/entit
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { fetchEntities, filterSlotsOf, useModelSource } from "../../components/entities/filters";
 import type { Entity, EntityQuery, FilterSlot } from "../../components/entities/filters";
-import {
+import { CodeBlock,
   Alert,
   Button,
   Checkbox,
@@ -1237,9 +1237,10 @@ export function PipelineStudio({
                       <span className="text-caption font-semibold text-fg">
                         {t("pipelines.flow.samplesIn", { defaultValue: "Input sample" })}
                       </span>
-                      <pre
+                      <CodeBlock
+                        label={t("pipelines.flow.samplesIn", { defaultValue: "Input sample" })}
                         data-testid="flow-sample-in"
-                        className="max-h-36 overflow-auto font-mono text-caption whitespace-pre-wrap break-words"
+                        className="max-h-36 font-mono text-caption whitespace-pre-wrap break-words"
                       >
                         {(() => {
                           const sampleIn = samplesOf(flowTrace, toFlow(draft).nodes, selectedNode).in;
@@ -1249,15 +1250,16 @@ export function PipelineStudio({
                               : JSON.stringify(sampleIn, null, 2)
                             : t("pipelines.flow.noSample", { defaultValue: "No sample" });
                         })()}
-                      </pre>
+                      </CodeBlock>
                     </div>
                     <div className="flex flex-col gap-1 rounded-md border border-border bg-surface p-2">
                       <span className="text-caption font-semibold text-fg">
                         {t("pipelines.flow.samplesOut", { defaultValue: "Output sample" })}
                       </span>
-                      <pre
+                      <CodeBlock
+                        label={t("pipelines.flow.samplesOut", { defaultValue: "Output sample" })}
                         data-testid="flow-sample-out"
-                        className="max-h-36 overflow-auto font-mono text-caption whitespace-pre-wrap break-words"
+                        className="max-h-36 font-mono text-caption whitespace-pre-wrap break-words"
                       >
                         {(() => {
                           const sampleOut = samplesOf(flowTrace, toFlow(draft).nodes, selectedNode).out;
@@ -1267,7 +1269,7 @@ export function PipelineStudio({
                               : JSON.stringify(sampleOut, null, 2)
                             : t("pipelines.flow.noSample", { defaultValue: "No sample" });
                         })()}
-                      </pre>
+                      </CodeBlock>
                     </div>
                   </div>
                 ) : null}

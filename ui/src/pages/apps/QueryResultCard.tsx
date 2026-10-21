@@ -2,7 +2,7 @@ import { Fragment } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { parse as parseYaml } from "yaml";
-import { Card, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
+import { CodeBlock, Card, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
 import { ModelLink, TypeLink } from "../models/ModelLinks";
 
 /**
@@ -422,7 +422,7 @@ export function QueryAnswer({ view, project }: { view: QueryView; project?: stri
       ))}
     </dl>
   ) : (
-    <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono">{view.text}</pre>
+    <CodeBlock label={t("codeBlock.answer")} className="mt-1 max-h-48 whitespace-pre-wrap break-words font-mono">{view.text}</CodeBlock>
   );
 }
 
@@ -478,7 +478,7 @@ function SchemaAnswer({
         <summary className="cursor-pointer text-fg-muted">
           {t("assistant.query.document", { format: view.format })}
         </summary>
-        <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono">{view.document}</pre>
+        <CodeBlock label={t("assistant.query.document", { format: view.format })} className="mt-1 max-h-48 whitespace-pre-wrap break-words font-mono">{view.document}</CodeBlock>
       </details>
     </>
   );

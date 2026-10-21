@@ -8,7 +8,7 @@ import type { ErrorSchema } from "@rjsf/utils";
 import { SchemaForm } from "../../components/forms/SchemaForm";
 import { AttributePicker } from "../../components/pickers/AttributePicker";
 import { TypePicker } from "../../components/pickers/TypePicker";
-import { Button, Field, Input, Select, Tabs, tabPanelProps, Textarea } from "../../components/ui";
+import { CodeBlock, Button, Field, Input, Select, Tabs, tabPanelProps, Textarea } from "../../components/ui";
 import processorCatalogue from "../../schemas/bento-processors.json";
 import { COMPUTE_KINDS, OUTPUT_MODES, YamlFieldError } from "../../schemas/kinds";
 import type { OutputForm, PipelineForm, RouteForm, SourceForm, StepForm } from "./PipelineEditor";
@@ -1688,12 +1688,13 @@ export function StepBlock({ entry, onChange, onRemove, variables = [] }: StepBlo
         </div>
       ) : processor ? null : (
         <>
-          <pre
+          <CodeBlock
+            label={t("codeBlock.code")}
             data-testid="flow-step-readonly"
-            className="max-h-48 overflow-auto rounded-md border border-border bg-surface-subtle p-2 font-mono text-caption break-words whitespace-pre-wrap text-fg"
+            className="max-h-48 rounded-md border border-border bg-surface-subtle p-2 font-mono text-caption break-words whitespace-pre-wrap text-fg"
           >
             {text}
-          </pre>
+          </CodeBlock>
           <p className="text-caption text-fg-muted">{t("pipelines.flow.stepReadOnly")}</p>
         </>
       )}

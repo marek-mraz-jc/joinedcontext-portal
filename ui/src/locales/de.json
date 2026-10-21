@@ -9212,5 +9212,16 @@
       "ports": "Portnummern: {ports}.",
       "full": "Alle {limit} Broker sind belegt: ein neuer wird abgelehnt. Ein Administrator der Organisation kann das Limit unter Verwaltung › Projekte erhöhen."
     }
+  },
+  "codeBlock": {
+    "code": "Code",
+    "sample": "Beispieldatensatz",
+    "answer": "Antwort",
+    "curl": "Anfrage mit curl",
+    "schema": "Datenschema",
+    "entity": "Entität",
+    "result": "Skriptergebnis",
+    "text": "Gespeicherter Text",
+    "json": "Details als JSON"
   }
 }

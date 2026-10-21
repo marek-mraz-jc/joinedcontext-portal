@@ -9,7 +9,7 @@ import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { testPipeline } from "../../api/pipelineTest";
 import type { Trace } from "../../api/pipelineTest";
-import { Alert, Button, Field, Select } from "../../components/ui";
+import { CodeBlock, Alert, Button, Field, Select } from "../../components/ui";
 import type { PipelineForm } from "./PipelineEditor";
 import { paintOf, samplesOf } from "./PipelineFlow";
 import type { FlowEdge, FlowNode, FlowNodeId } from "./PipelineFlow";
@@ -68,9 +68,9 @@ export function NodeDebug({ project, form, trace, nodes, id, toManifest }: NodeD
         <Alert tone="danger" title={t("pipelines.debug.failedHere")}>
           <p>{error}</p>
           <p className="mt-1 text-caption">{t("pipelines.debug.brokeIt")}</p>
-          <pre className={pre} data-testid="flow-breaking-input">
+          <CodeBlock label={t("codeBlock.sample")} className={pre} data-testid="flow-breaking-input">
             {samples.in === undefined ? t("pipelines.flow.noSample") : shown(samples.in)}
-          </pre>
+          </CodeBlock>
         </Alert>
       ) : null}
       {samples.in !== undefined && samples.out !== undefined ? (
@@ -116,7 +116,7 @@ export function NodeDebug({ project, form, trace, nodes, id, toManifest }: NodeD
                 </Alert>
               ) : (
                 <Alert tone="success" title={t("pipelines.debug.rerunOk")}>
-                  <pre className={pre}>{shown(rerun.trace.stages?.[0]?.sample ?? rerun.trace.mapping[0])}</pre>
+                  <CodeBlock label={t("codeBlock.sample")} className={pre}>{shown(rerun.trace.stages?.[0]?.sample ?? rerun.trace.mapping[0])}</CodeBlock>
                 </Alert>
               )
             ) : null}
@@ -190,7 +190,7 @@ export function DebugSidebar({ log, nodes, edges, taps, nameOf, onClear }: Debug
                         : t("pipelines.debug.message", { number: entry.message + 1 })}{" "}
                       · {t("pipelines.debug.wire", { from: nameOf(edge.from), to: nameOf(edge.to) })}
                     </span>
-                    <pre className={pre}>{sample === undefined ? t("pipelines.debug.notReached") : shown(sample)}</pre>
+                    <CodeBlock label={t("codeBlock.sample")} className={pre}>{sample === undefined ? t("pipelines.debug.notReached") : shown(sample)}</CodeBlock>
                   </li>
                 );
               })}
