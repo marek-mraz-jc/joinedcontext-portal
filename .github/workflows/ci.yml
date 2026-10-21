@@ -11,7 +11,37 @@ permissions: { contents: read }
 # behind it (GitHub keeps one pending run per group). Branches still cancel.
 concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: "${{ github.ref != 'refs/heads/main' }}" }
 jobs:
+  # Which jobs the change needs (T-4985): the paths changed since the branch left main (a pull
+  # request: since its base), mapped by scripts/ci/changes.sh. 15 jobs on every push filled the
+  # runners and main waited behind branch runs. Main runs every job, and gitleaks runs on every
+  # push without asking; a skipped job counts as success in the run's conclusion.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      rust: ${{ steps.paths.outputs.rust }}
+      ui: ${{ steps.paths.outputs.ui }}
+      apps: ${{ steps.paths.outputs.apps }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: the path filter self-test
+        run: sh scripts/ci/changes.sh --selftest
+      - id: paths
+        name: the jobs this change needs
+        env: { BASE_REF: "${{ github.base_ref || 'main' }}" }
+        run: |
+          set -eu
+          base=""
+          # A branch push checks out one commit: fetch the base and deepen both, or merge-base
+          # finds no fork; no fork found runs everything.
+          if [ "$GITHUB_REF" != refs/heads/main ] &&
+            git fetch -q --deepen=100 origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"; then
+            base=$(git merge-base HEAD "origin/$BASE_REF" || true)
+          fi
+          sh scripts/ci/changes.sh "$base" | tee -a "$GITHUB_OUTPUT"
   rust:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     # A warm cache runs this in a few minutes. A cold one (the repo's 10 GB cache evicts the job's
     # key) needs longer; a run cut off at the timeout never saves its cache, so 8 min turned one
@@ -65,6 +95,8 @@ jobs:
       - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
   ui:
+    needs: changes
+    if: needs.changes.outputs.ui == 'true'
     runs-on: ubuntu-latest
     # The suite runs in three shards of one matrix: every file once, in one of them, nothing
     # skipped (vitest --shard splits the files, not the cases). It outgrew one job twice (8 minutes
@@ -128,6 +160,8 @@ jobs:
   # its own, and after the UI suite they ran past the ui job's budget (d40934c, run 35714368871).
   # Same steps as before, in their own job; nothing is skipped or sharded.
   wasm-example:
+    needs: changes
+    if: needs.changes.outputs.apps == 'true'
     # AP-142, T-3327: the SDK's React + Rust/WebAssembly example built by the lane's own
     # builder/build-wasm.sh (the crate store is the runner's registry, fetched here once), then its
     # tests, its bundle and its page in Chromium under the static host's policy.
@@ -167,6 +201,8 @@ jobs:
   # A change to the SDK runs every App (T-3373); three shards keep that inside the job's timeout
   # (APPS_SHARD in scripts/apps-ci.sh: every App in exactly one shard).
   apps-ui:
+    needs: changes
+    if: needs.changes.outputs.apps == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     strategy:
@@ -194,6 +230,8 @@ jobs:
         env: { APPS_SHARD: "${{ matrix.shard }}/3" }
         run: sh scripts/apps-ci.sh ui
   apps:
+    needs: changes
+    if: needs.changes.outputs.apps == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
