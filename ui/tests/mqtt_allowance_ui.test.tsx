@@ -9,11 +9,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import type { Effective } from "../src/api/permissions";
-import { MqttBrokersPage, publishExample, publishTopic } from "../src/pages/mqttbrokers/MqttBrokersPage";
+import { MqttBrokersPage, publishExample, publishTopic, shellQuoted } from "../src/pages/mqttbrokers/MqttBrokersPage";
 import { fromProjectAllowance, toProjectAllowance, withMqttDefault } from "../src/pages/mqttbrokers/allowance";
 import { ProjectMqtt, ProjectMqttState } from "../src/pages/organization/ProjectMqtt";
-import { fromMqttBrokerManifest, mqttBrokerSchema, toMqttBrokerManifest } from "../src/schemas/mqttbroker";
-import { json, list, renderPage } from "./page_contract";
+import { durationWords, fromMqttBrokerManifest, mqttBrokerSchema, toMqttBrokerManifest } from "../src/schemas/mqttbroker";
+import { json, list, problem, renderPage } from "./page_contract";
 
 const PROJECT = "helsinki";
 
@@ -57,12 +57,12 @@ const BROKER = {
   status: { phase: "Ready" },
 };
 
-function showPage(allowance: unknown) {
+function showPage(allowance: unknown, brokers: unknown[] = [BROKER]) {
   return renderPage(<MqttBrokersPage project={PROJECT} />, {
     path: `/projects/${PROJECT}/mqttbrokers`,
     answer: (url) => {
-      if (url.pathname.endsWith("/mqtt/allowance")) return json(allowance);
-      if (url.pathname.endsWith("/mqttbrokers")) return json(list([BROKER]));
+      if (url.pathname.endsWith("/mqtt/allowance")) return allowance instanceof Response || allowance instanceof Promise ? allowance : json(allowance);
+      if (url.pathname.endsWith("/mqttbrokers")) return json(list(brokers));
       return undefined;
     },
   });
@@ -107,8 +107,25 @@ describe("the project's MQTT page (T-4860)", () => {
 
   it("shows the broker's mode and what a capture broker keeps", async () => {
     showPage(ON);
-    expect(await screen.findByText("Keeps the last 50 messages per topic for PT2H, for building the mapping.")).toBeInTheDocument();
+    expect(await screen.findByText("Keeps the last 50 messages per topic for 2 hours, for building the mapping.")).toBeInTheDocument();
     expect(document.querySelector("[data-mode='capture']")?.textContent).toBe(en.mqttAllowance.mode.capture);
+  });
+
+  it("shows a placeholder while the allowance loads", async () => {
+    showPage(new Promise<Response>(() => undefined));
+    await waitFor(() => expect(document.querySelector("[data-allowance='loading']")).not.toBeNull());
+    expect(document.querySelector("[data-allowance='loading']")?.getAttribute("aria-busy")).toBe("true");
+  });
+
+  it("says so when the allowance does not load", async () => {
+    showPage(problem(500, "The allowance store did not answer."));
+    expect(await screen.findByText(en.mqttAllowance.project.errorTitle)).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("The allowance store did not answer.");
+  });
+
+  it("names a mode it has no words for by its value, never by a key", async () => {
+    showPage(ON, [{ ...BROKER, spec: { ...BROKER.spec, mode: "bridge" } }]);
+    await waitFor(() => expect(document.querySelector("[data-mode='bridge']")?.textContent).toBe("bridge"));
   });
 });
 
@@ -120,6 +137,11 @@ describe("the device example", () => {
     expect(line).toContain("-i helsinki-door-1 -u helsinki-door-1 -P \"$TOKEN\"");
     expect(line).toContain("-t 'doors/helsinki-door-1/data'");
     expect(publishTopic([{ publish: ["s/+/t"] }])).toBe("s/1/t");
+  });
+
+  it("keeps a topic with a quote one shell word", () => {
+    expect(shellQuoted("it's/data")).toBe("'it'\\''s/data'");
+    expect(publishExample("b.example:8883", "c", "it's")).toContain("-t 'it'\\''s' -m");
   });
 });
 
@@ -163,10 +185,17 @@ describe("the broker form's mode", () => {
     const capture = toMqttBrokerManifest(PROJECT, { ...base, mode: "capture", capture: { messagesPerTopic: 5, window: "" } }) as { spec: Record<string, unknown> };
     expect(capture.spec).toMatchObject({ mode: "capture", capture: { messagesPerTopic: 5 } });
     expect(fromMqttBrokerManifest(BROKER).mode).toBe("capture");
-    const window = (mqttBrokerSchema((key) => key) as { properties: { capture: { properties: { window: { pattern: string } } } } })
-      .properties.capture.properties.window.pattern;
-    expect(["PT1H", "PT30M", "PT1H30M"].every((value) => new RegExp(window).test(value))).toBe(true);
-    expect(["PT", "P1D", "1H"].some((value) => new RegExp(window).test(value))).toBe(false);
+    const window = (mqttBrokerSchema((key) => key) as { properties: { capture: { properties: { window: { oneOf: { const: string; title: string }[] } } } } })
+      .properties.capture.properties.window.oneOf;
+    expect(window.map((option) => option.const)).toContain("PT24H");
+    expect(window.find((option) => option.const === "PT30M")?.title).toBe("30 minutes");
+    expect(window.every((option) => !option.title.startsWith("PT"))).toBe(true);
+  });
+
+  it("says a duration in words", () => {
+    expect(durationWords("PT1H30M", "en")).toBe("1 hour 30 minutes");
+    expect(durationWords("PT2H", "de")).toBe("2 Stunden");
+    expect(durationWords("P1D", "en")).toBe("P1D");
   });
 });
 

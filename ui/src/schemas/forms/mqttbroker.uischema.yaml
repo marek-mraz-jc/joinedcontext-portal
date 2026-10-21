@@ -88,10 +88,10 @@ spec:
         de: Wie viele der neuesten Nachrichten je Topic bleiben; höchstens 1000.
     capture.window:
       help:
-        en: How long a message is kept from its arrival, as PT1H or PT30M; at most PT24H.
-        sk: Ako dlho sa správa uchová od príchodu, napríklad PT1H alebo PT30M; najviac PT24H.
-        cs: Jak dlouho se zpráva uchová od příchodu, například PT1H nebo PT30M; nejvýše PT24H.
-        de: Wie lange eine Nachricht ab Eingang bleibt, etwa PT1H oder PT30M; höchstens PT24H.
+        en: How long a message is kept from its arrival; at most a day.
+        sk: Ako dlho sa správa uchová od príchodu; najviac deň.
+        cs: Jak dlouho se zpráva uchová od příchodu; nejvýše den.
+        de: Wie lange eine Nachricht ab Eingang bleibt; höchstens einen Tag.
     roles:
       help:
         en: One role per group of devices that may do the same; at least one.

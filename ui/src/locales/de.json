@@ -7953,7 +7953,7 @@
       "mode": "Was der Broker tut",
       "capture": "Aufbewahrte Nachrichten",
       "messagesPerTopic": "Nachrichten je Thema",
-      "window": "Aufbewahrt für (z. B. PT1H, höchstens PT24H)"
+      "window": "Aufbewahrt für"
     },
     "acl": {
       "caption": "Topic-Zugriff von {broker} nach Rolle",
@@ -8407,6 +8407,8 @@
       "off": "Aus"
     },
     "project": {
+      "errorTitle": "Das MQTT-Kontingent wurde nicht geladen",
+      "error": "Das Portal konnte nicht lesen, was dieses Projekt hinzufügen darf. Laden Sie die Seite neu; bleibt es so, fragen Sie eine Organisationsadministration.",
       "offTitle": "MQTT ist für dieses Projekt aus",
       "off": "Ein Administrator der Organisation kann es unter Verwaltung › Projekte › {project} › MQTT einschalten.",
       "title": "Was dieses Projekt hinzufügen darf",

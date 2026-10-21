@@ -39,7 +39,26 @@ export const BROKER_MODES = ["ingest", "capture", "relay"] as const;
 /** A capture window: an ISO 8601 duration of at most a day, as jc-core reads it. */
 export const CAPTURE_WINDOW = "^PT(?=\\d)(\\d+H)?(\\d+M)?(\\d+S)?$";
 
-export function mqttBrokerSchema(t: (key: string) => string): JsonSchema {
+/** The windows the broker form offers, at most a day (jc-core's ceiling). */
+export const CAPTURE_WINDOWS = ["PT15M", "PT30M", "PT1H", "PT2H", "PT6H", "PT12H", "PT24H"] as const;
+
+/**
+ * An ISO 8601 time duration in words of the language ("2 hours", "1 hour 30 minutes"), so no person
+ * reads `PT2H`. A value that is not PT…H…M…S comes back as it was.
+ */
+export function durationWords(iso: string, language: string): string {
+  const match = new RegExp(CAPTURE_WINDOW).exec(iso);
+  if (!match) return iso;
+  const units = ["hour", "minute", "second"] as const;
+  return units
+    .flatMap((unit, index) => {
+      const amount = Number.parseInt(match[index + 1] ?? "", 10);
+      return Number.isNaN(amount) ? [] : [new Intl.NumberFormat(language, { style: "unit", unit, unitDisplay: "long" }).format(amount)];
+    })
+    .join(" ");
+}
+
+export function mqttBrokerSchema(t: (key: string) => string, language = "en"): JsonSchema {
   const title = (key: string) => t(`mqttbrokers.field.${key}`);
   const filters = (key: string, pattern?: string): JsonSchema => ({
     type: "array",
@@ -68,7 +87,11 @@ export function mqttBrokerSchema(t: (key: string) => string): JsonSchema {
         title: title("capture"),
         properties: {
           messagesPerTopic: { type: "integer", title: title("messagesPerTopic"), minimum: 1, maximum: 1000 },
-          window: { type: "string", title: title("window"), pattern: CAPTURE_WINDOW, maxLength: 16 },
+          window: {
+            type: "string",
+            title: title("window"),
+            oneOf: CAPTURE_WINDOWS.map((window) => ({ const: window, title: durationWords(window, language) })),
+          },
         },
       },
       roles: {

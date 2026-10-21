@@ -164,13 +164,17 @@ test.describe("MQTT allowance", () => {
     await expect(page.getByText(/mosquitto_pub -h doors\.helsinki\.mqtt\.dev\.joinedcontext\.com -p 8883/)).toBeVisible();
     await expect(page.getByText(/-P "\$TOKEN"/)).toBeVisible();
     await expect(page.getByText("1 of 2 brokers in use, 900 of 1,000 connections left, 9,000 messages per second left.")).toBeVisible();
-    await expect(page.getByText("Keeps the last 50 messages per topic for PT2H, for building the mapping.")).toBeVisible();
+    await expect(page.getByText("Keeps the last 50 messages per topic for 2 hours, for building the mapping.")).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
     await shoot(page, "mqtt-capture");
 
     // The steward adds the second broker.
     await page.getByRole("button", { name: "New MQTT broker" }).first().click();
-    await expect(page.getByRole("combobox", { name: /What the broker does/ })).toBeVisible();
+    await page
+      .getByRole("combobox", { name: /What the broker does/ })
+      .selectOption({ label: "…and keep the last messages so you can build the mapping" });
+    // The window is a choice in words, never an ISO duration to type.
+    await page.getByRole("combobox", { name: /^Kept for/ }).selectOption({ label: "2 hours" });
     await shoot(page, "mqtt-add-broker");
     await page.goBack();
 

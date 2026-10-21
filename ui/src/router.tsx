@@ -25,6 +25,10 @@ const InboxPage = lazy(() => import("./pages/inbox/InboxPage").then((module) => 
 import { FormRouteHost } from "./components/forms/FormRoute";
 import type { FormTarget } from "./components/forms/FormRoute";
 import { ActivityPage } from "./routes/ActivityPage";
+// The Organization page (people, settings, limits, MQTT, agents) loads with its first visit (T-3280).
+const OrganizationPage = lazy(() =>
+  import("./pages/organization/OrganizationPage").then((module) => ({ default: module.OrganizationPage })),
+);
 const ApprovalsPage = lazy(() => import("./routes/ApprovalsPage").then((module) => ({ default: module.ApprovalsPage })));
 const ApprovalDetailPage = lazy(() => import("./routes/ApprovalDetailPage").then((module) => ({ default: module.ApprovalDetailPage })));
 const ModelsPage = lazy(() => import("./pages/models/ModelsPage").then((module) => ({ default: module.ModelsPage })));
@@ -78,9 +82,8 @@ const BringBackPage = lazy(() => import("./pages/workspaces/BringBackPage").then
 const TryItPage = lazy(() => import("./pages/workspaces/TryItPage").then((module) => ({ default: module.TryItPage })));
 const Gallery = lazy(() => import("./pages/gallery/Gallery").then((module) => ({ default: module.Gallery })));
 import { ORG_NAMESPACE } from "./api/manifest";
-import { isOrganizationTab, OrganizationPage } from "./pages/organization/OrganizationPage";
-import type { OrganizationTab } from "./pages/organization/OrganizationPage";
-import { AdminNav } from "./pages/organization/AdminNav";
+import { AdminNav, isOrganizationTab } from "./pages/organization/AdminNav";
+import type { OrganizationTab } from "./pages/organization/AdminNav";
 import { isProjectSettingsTab } from "./pages/projectSettings/tabs";
 import type { ProjectSettingsTab } from "./pages/projectSettings/tabs";
 import type { AuthState } from "./auth/AuthProvider";

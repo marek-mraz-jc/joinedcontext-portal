@@ -2,7 +2,7 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { api, unwrap } from "../../api/client";
+import { api, forPeople, unwrap } from "../../api/client";
 import { asManifests } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { useReadableList } from "../../api/permissions";
@@ -14,6 +14,7 @@ import {
   Alert,
   Badge,
   Card,
+  Skeleton,
   Table,
   TableBody,
   TableCell,
@@ -22,6 +23,7 @@ import {
   TableRow,
 } from "../../components/ui";
 import { KindList } from "../../routes/ResourceListPage";
+import { durationWords } from "../../schemas/mqttbroker";
 import { useMqttAllowance } from "./allowance";
 import { connectionsOf } from "./connections";
 import type { Edge } from "./connections";
@@ -67,7 +69,7 @@ export function brokerAddress(name: string, project: string, hostname: string, p
 }
 
 function BrokerCard({ project, broker }: { project: string; broker: Manifest }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const name = broker.metadata.name;
   const spec = (broker.spec ?? {}) as {
     roles?: Role[];
@@ -99,14 +101,14 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
           </h2>
           <LifecycleBadge kind="phase" value={broker.status?.phase} />
           <Badge tone="info" data-mode={mode}>
-            {t(`mqttAllowance.mode.${mode}`)}
+            {t(`mqttAllowance.mode.${mode}`, { defaultValue: mode })}
           </Badge>
         </div>
         {mode === "capture" ? (
           <p className="text-body text-fg-muted">
             {t("mqttbrokers.capture.kept", {
               count: spec.capture?.messagesPerTopic ?? 20,
-              window: spec.capture?.window ?? "PT1H",
+              window: durationWords(spec.capture?.window ?? "PT1H", i18n.resolvedLanguage ?? i18n.language ?? "en"),
             })}
           </p>
         ) : null}
@@ -136,7 +138,7 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
             ))}
           </TableBody>
         </Table>
-        <dl className="grid gap-x-4 gap-y-1 text-body sm:grid-cols-[max-content_1fr]">
+        <dl className="grid grid-cols-[minmax(0,1fr)] gap-x-4 gap-y-1 text-body sm:grid-cols-[max-content_minmax(0,1fr)]">
           <dt className="text-fg-muted">{t("mqttbrokers.measured.title")}</dt>
           <dd>
             <Measurement measured={measured.data} failed={measured.isError} />
@@ -145,7 +147,7 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
           <dd className="flex flex-wrap items-center gap-2">
             {address ? (
               <>
-                <code className="font-mono">{address}</code>
+                <code className="min-w-0 break-all font-mono">{address}</code>
                 <Badge tone="neutral">TLS</Badge>
                 <CopyUrlButton url={address} label={t("mqttbrokers.connect.copy")} />
               </>
@@ -154,7 +156,7 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
             )}
           </dd>
           <dt className="text-fg-muted">{t("mqttbrokers.connect.certificate")}</dt>
-          <dd>{address ? t("mqttbrokers.connect.certificateIssued", { host: address.split(":")[0] }) : "—"}</dd>
+          <dd className="break-words">{address ? t("mqttbrokers.connect.certificateIssued", { host: address.split(":")[0] }) : "—"}</dd>
           <dt className="text-fg-muted">{t("mqttbrokers.connect.client")}</dt>
           <dd>
             {devices.length > 0
@@ -170,7 +172,7 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
           {address && devices.length > 0 ? (
             <>
               <dt className="text-fg-muted">{t("mqttbrokers.connect.example")}</dt>
-              <dd className="flex flex-col items-start gap-2">
+              <dd className="flex min-w-0 flex-col items-start gap-2">
                 <pre className="max-w-full overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">
                   {publishExample(address, `${project}-${devices[0]}`, publishTopic(roles))}
                 </pre>
@@ -205,18 +207,38 @@ export function publishExample(address: string, client: string, topic: string): 
   return [
     `mosquitto_pub -h ${host} -p ${port}`,
     `  --capath /etc/ssl/certs -i ${client} -u ${client} -P "$TOKEN"`,
-    `  -t '${topic.replaceAll("${clientid}", client)}' -m '{"temperature": 21.5}'`,
+    `  -t ${shellQuoted(topic.replaceAll("${clientid}", client))} -m '{"temperature": 21.5}'`,
   ].join(" \\\n");
+}
+
+/** One shell word: single quotes, each ' inside closed, escaped and reopened. */
+export function shellQuoted(text: string): string {
+  return `'${text.replaceAll("'", "'\\''")}'`;
 }
 
 /**
  * What the project may still add (T-4860, API/01 §47): off with who can turn it on, or the
  * brokers, connections and message rate left, the modes and the addresses it may use.
  */
-function AllowancePanel({ project }: { project: string }): JSX.Element | null {
+function AllowancePanel({ project }: { project: string }): JSX.Element {
   const { t, i18n } = useTranslation();
   const allowance = useMqttAllowance(project);
-  if (allowance.isPending || allowance.isError) return null;
+  if (allowance.isPending) {
+    return (
+      <Card aria-busy="true" data-allowance="loading">
+        <span className="sr-only">{t("app.loading")}</span>
+        <Skeleton className="h-6 w-1/3" />
+        <Skeleton className="mt-3 h-4 w-2/3" />
+      </Card>
+    );
+  }
+  if (allowance.isError) {
+    return (
+      <Alert role="alert" tone="danger" title={t("mqttAllowance.project.errorTitle")} data-allowance="error">
+        {allowance.error instanceof Error ? forPeople(allowance.error.message) : t("mqttAllowance.project.error")}
+      </Alert>
+    );
+  }
   const data = allowance.data;
   if (!data.enabled) {
     return (
@@ -245,13 +267,13 @@ function AllowancePanel({ project }: { project: string }): JSX.Element | null {
         <ul className="flex flex-wrap gap-2" aria-label={t("mqttAllowance.project.modes")}>
           {data.modes.map((mode) => (
             <li key={mode}>
-              <Badge tone="neutral">{t(`mqttAllowance.modeLong.${mode}`)}</Badge>
+              <Badge tone="neutral">{t(`mqttAllowance.modeLong.${mode}`, { defaultValue: mode })}</Badge>
             </li>
           ))}
         </ul>
         <p className="text-caption text-fg-muted">
           {t("mqttAllowance.project.addresses", {
-            addresses: data.addresses.map((address) => t(`mqttAllowance.address.${address}`)).join(", "),
+            addresses: data.addresses.map((address) => t(`mqttAllowance.address.${address}`, { defaultValue: address })).join(", "),
           })}
           {data.ports.length > 0 ? ` ${t("mqttAllowance.project.ports", { ports: data.ports.join(", ") })}` : ""}
         </p>

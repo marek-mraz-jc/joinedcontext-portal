@@ -7953,7 +7953,7 @@
       "mode": "What the broker does",
       "capture": "Kept messages",
       "messagesPerTopic": "Messages kept per topic",
-      "window": "Kept for (e.g. PT1H, at most PT24H)"
+      "window": "Kept for"
     },
     "acl": {
       "caption": "Topic access of {broker} by role",
@@ -8407,6 +8407,8 @@
       "off": "Off"
     },
     "project": {
+      "errorTitle": "The MQTT allowance did not load",
+      "error": "The Portal could not read what this project may add. Reload the page; if it stays, ask an organization administrator.",
       "offTitle": "MQTT is off for this project",
       "off": "An organization administrator can turn it on in Administration › Projects › {project} › MQTT.",
       "title": "What this project may add",

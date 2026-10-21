@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -10,6 +10,10 @@ import { mayRead, useAdministers, usePermissions } from "../../api/permissions";
 import { kindPlural } from "../../kindWords";
 import { useProjects } from "../../api/projects";
 import { DeleteProjectAction } from "../../components/DeleteProjectDialog";
+
+// The MQTT allowance and its form load with the projects tab, not with every page (T-3280).
+const ProjectMqtt = lazy(() => import("./ProjectMqtt").then((module) => ({ default: module.ProjectMqtt })));
+const ProjectMqttState = lazy(() => import("./ProjectMqtt").then((module) => ({ default: module.ProjectMqttState })));
 import { ExportButton } from "../../components/export/ExportButton";
 import { ImportProjectDialog } from "../../components/ImportProjectDialog";
 import { NewProjectButton } from "../../components/layout/NewProject";
@@ -37,7 +41,6 @@ import { Roles } from "../access/Roles";
 import { ServiceAccounts } from "../access/ServiceAccounts";
 import { OrganizationApplications } from "./OrganizationApplications";
 import { OrganizationModels } from "../models/OrganizationModels";
-import { ProjectMqtt, ProjectMqttState } from "./ProjectMqtt";
 import { OrganizationSettings } from "./OrganizationSettings";
 import { OrganizationSetup, SetupReminder } from "./OrganizationSetup";
 import { People } from "./People";
@@ -48,17 +51,8 @@ import { McpServersPage } from "../mcp/McpServersPage";
 import { ORGANIZATION_GROUPS } from "./AdminNav";
 import type { OrganizationTab } from "./AdminNav";
 
-/**
- * The sections of `/organization/{tab}`, in the order of the side navigation's groups
- * (Architecture/09 §14.1, T-4831).
- */
-export const ORGANIZATION_TABS: readonly OrganizationTab[] = ORGANIZATION_GROUPS.flatMap((group) => group.tabs);
-
+export { ORGANIZATION_TABS, isOrganizationTab } from "./AdminNav";
 export type { OrganizationTab };
-
-export function isOrganizationTab(value: string): value is OrganizationTab {
-  return (ORGANIZATION_TABS as readonly string[]).includes(value);
-}
 
 /**
  * Organization → Members (PF-59, T-2605): the bindings at organization scope, shown only to a
@@ -240,7 +234,9 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
                         : t("organization.projects.peopleHidden")}
                     </TableCell>
                     <TableCell>
-                      <ProjectMqttState project={name} />
+                      <Suspense fallback={t("app.loading")}>
+                        <ProjectMqttState project={name} />
+                      </Suspense>
                     </TableCell>
                     <TableCell align="right">
                       <span className="inline-flex items-center gap-2">
@@ -251,7 +247,9 @@ function OrganizationProjects({ anchor }: { anchor: string }): JSX.Element {
                         >
                           {t("organization.projects.settings")}
                         </Link>
-                        <ProjectMqtt project={name} title={titles.get(name) || name} />
+                        <Suspense fallback={null}>
+                          <ProjectMqtt project={name} title={titles.get(name) || name} />
+                        </Suspense>
                         {/* The whole project leaves here and nowhere else (UI-87, CC-49). */}
                         <ExportButton
                           project={name}

@@ -7953,7 +7953,7 @@
       "mode": "Čo broker robí",
       "capture": "Uchované správy",
       "messagesPerTopic": "Uchovaných správ na tému",
-      "window": "Uchované počas (napr. PT1H, najviac PT24H)"
+      "window": "Uchované počas"
     },
     "acl": {
       "caption": "Prístup k témam brokera {broker} podľa roly",
@@ -8407,6 +8407,8 @@
       "off": "Vypnuté"
     },
     "project": {
+      "errorTitle": "MQTT povolenie sa nenačítalo",
+      "error": "Portál nevedel prečítať, čo smie tento projekt pridať. Načítajte stránku znova; ak to pretrvá, obráťte sa na správcu organizácie.",
       "offTitle": "MQTT je pre tento projekt vypnuté",
       "off": "Zapnúť ho môže administrátor organizácie v Administrácia › Projekty › {project} › MQTT.",
       "title": "Čo môže projekt pridať",
