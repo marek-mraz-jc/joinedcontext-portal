@@ -526,6 +526,8 @@
       "data": "Dáta",
       "dataEmpty": "Zatiaľ nič: do tohto priestoru ešte nezapísala žiadna pipeline.",
       "addRow": "Pridať riadok",
+      "copyLive": "Entity zostávajú v kópii živé",
+      "copyLiveHint": "Kópia drží zdroje projektu, nie jeho entity: riadky tu sú živý priestor, preto sa v nich z kópie nedá nič zmeniť. Ak chcete meniť údaje bez zásahu do projektu, spustite náhľad kópie, skopírujte doň údaje a zmeňte ich tam:",
       "addRowTitle": "Nový záznam: {type}",
       "dataThroughEndpoints": "Tento priestor môžete vidieť cez jeho endpointy:",
       "dataNoTypes": "Tento priestor nepomenúva dátový model, takže nie je čo čítať.",

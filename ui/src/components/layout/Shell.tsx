@@ -37,6 +37,7 @@ import { isHiddenSection, NAV_SECTIONS, sameSection } from "./navigation";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { NewProjectButton } from "./NewProject";
 import { WorkspaceBar } from "./WorkspaceBar";
+import { withoutCopy } from "./WorkspaceContext";
 
 const NAV_LINK =
   "focus-ring-inset flex items-center gap-2.5 rounded-md px-2.5 py-2 text-body text-fg-muted transition-colors hover:bg-surface-muted hover:text-fg";
@@ -86,6 +87,7 @@ function ProjectSelector({ active }: { active: string }) {
             <Link
               to="/projects/$project/$plural"
               params={{ project, plural: here.plural }}
+              search={withoutCopy({})}
               aria-current={project === active ? "true" : undefined}
             >
               {project === active ? <Icon name="check" className="size-4" /> : <span className="size-4" />}
