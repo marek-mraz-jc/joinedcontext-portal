@@ -172,8 +172,10 @@ jobs:
     # What the UI suite covers, measured and never targeted (T-2136, TS-01). The thresholds in
     # `ui/vite.config.ts` are what it reached when they were written, so the number can rise and
     # cannot fall. Not in the fast lane: instrumenting every module costs more than its budget.
+    # 40 minutes: the instrumented suite took 15, 24 and then over 25 minutes on main on
+    # 2026-10-21 (runs 39640761469, 39593671500, 39680049167 cancelled mid-suite, T-5151).
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - id: has
