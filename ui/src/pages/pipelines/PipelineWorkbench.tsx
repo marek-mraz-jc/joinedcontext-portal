@@ -37,6 +37,7 @@ import type { SampleFormat } from "./PipelineTest";
 import { SlotUnit } from "./SlotUnit";
 import { OutputMapper } from "./OutputMapper";
 import { LifetimeChoice } from "./LifetimeChoice";
+import { timeSlotsOf } from "./history";
 import { withEntry } from "./lifetime";
 import { RecordTable, TargetCard, grantedNames, useTargetType } from "./WorkbenchTarget";
 import { HEADER } from "./outputMapper";
@@ -85,7 +86,7 @@ interface ValidationAnswer {
 }
 
 /** Where a record's write is judged (T-4840): the space's model, the target Endpoint, the lifetime. */
-export type FindingSource = "model" | "endpoint" | "lifetime";
+export type FindingSource = "model" | "endpoint" | "lifetime" | "history";
 
 /** One reason a record would not be written, from the check of its write (T-4840). */
 interface Finding {
@@ -105,7 +106,7 @@ interface RecordVerdict {
   expires?: { entity?: string; attributes: Record<string, string> };
 }
 
-const SOURCES: readonly FindingSource[] = ["model", "endpoint", "lifetime"];
+const SOURCES: readonly FindingSource[] = ["model", "endpoint", "lifetime", "history"];
 
 /** The value a mapping writes most often for a slot's range, shown as its example. */
 export function exampleOf(slot: Pick<LinkmlSlot, "range" | "kind" | "multivalued">, enumFirst?: string): string {
@@ -620,6 +621,17 @@ export function PipelineWorkbench({
   // output's declared type or the mapper's own, while the model's text is not read (T-4842).
   const writtenType = writtenClass ?? draft?.output?.type ?? mapperType(bloblang);
   const target = useTargetType(project, targetSpace, writtenType, manifest, targetName);
+  // The History column's verdicts: the record check's history findings, once per attribute and rule.
+  const historyFindings = validated.data
+    ? [
+        ...new Map(
+          validated.data.verdicts
+            .flatMap((verdict) => verdict.findings ?? [])
+            .filter((finding) => finding.source === "history")
+            .map((finding) => [`${finding.field} ${finding.rule}`, finding] as const),
+        ).values(),
+      ]
+    : undefined;
   const slots = parsed && klass ? classSlots(parsed, klass).filter((slot) => !["id", "type"].includes(slot.name)) : [];
 
   // T-3211: a source picked from the project drafts the mapping from its first record, once, as a
@@ -796,7 +808,15 @@ export function PipelineWorkbench({
               : t("pipelines.workbench.target.landsUnmodelled", { space: targetSpace })}
           </p>
         ) : null}
-        {targetSpace && (targetModel || target.model) ? <TargetCard space={targetSpace} type={writtenType} target={target} /> : null}
+        {targetSpace && (targetModel || target.model) ? <TargetCard
+            space={targetSpace}
+            type={writtenType}
+            target={target}
+            history={draft?.history}
+            onHistory={(history) => onChange({ ...(draft ?? {}), history })}
+            timeSlots={timeSlotsOf(target.attributes.filter((a) => a.format === "date-time").map((a) => a.name), records)}
+            historyFindings={historyFindings}
+          /> : null}
       </Step>
 
       <Step number={4} id="workbench-mapping" title={t("pipelines.workbench.mapping.title")} hint={t("pipelines.workbench.mapping.hint")}>

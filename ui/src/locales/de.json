@@ -2277,7 +2277,8 @@
         "source": {
           "model": "Modell",
           "endpoint": "Endpoint",
-          "lifetime": "Lebensdauer"
+          "lifetime": "Lebensdauer",
+          "history": "Verlauf"
         },
         "expiresLabel": "Ablauf, mit dem der Datensatz geschrieben wird",
         "expiresEntity": "Entität läuft ab {at}",
@@ -2621,6 +2622,30 @@
         "at": "am {date}",
         "stale": "Einmal pro Stunde löscht die Pipeline jeden {type}, den sie seit {span} nicht aktualisiert hat."
       }
+    },
+    "history": {
+      "column": "Verlauf",
+      "explain": "Verlauf: welche Zeilen der Raum von jedem Feld behält und woher die Zeit einer Zeile kommt. Die Prüfung nach der zugeordneten Ausgabe sagt, ob der Raum das einhalten kann.",
+      "keepOf": "Was von {name} behalten wird",
+      "asMapped": "Wie die Zuordnung es schreibt",
+      "keep": {
+        "every": "Jede Messung behalten",
+        "changes": "Nur Änderungen behalten",
+        "latest": "Nur den letzten Wert behalten"
+      },
+      "timeOf": "Zeit einer Zeile von {name}",
+      "timeMapped": "Zeit: wie die Zuordnung sie schreibt",
+      "timeFrom": "Zeit: aus {slot}",
+      "timeReceived": "Zeit: beim Eingang",
+      "heartbeatOf": "Mindestens eine Zeile je, für {name}",
+      "heartbeat": {
+        "PT15M": "mindestens alle 15 Minuten eine Zeile",
+        "PT1H": "mindestens jede Stunde eine Zeile",
+        "P1D": "mindestens jeden Tag eine Zeile",
+        "P7D": "mindestens alle 7 Tage eine Zeile"
+      },
+      "refused": "nicht einzuhalten",
+      "kept": "wie gewählt behalten"
     }
   },
   "dashboards": {

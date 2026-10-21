@@ -2277,7 +2277,8 @@
         "source": {
           "model": "Model",
           "endpoint": "Endpoint",
-          "lifetime": "Životnost"
+          "lifetime": "Životnost",
+          "history": "Historie"
         },
         "expiresLabel": "Platnost, se kterou se záznam zapíše",
         "expiresEntity": "Entita vyprší {at}",
@@ -2621,6 +2622,30 @@
         "at": "{date}",
         "stale": "Jednou za hodinu pipeline smaže každou entitu {type}, kterou neaktualizovala {span}."
       }
+    },
+    "history": {
+      "column": "Historie",
+      "explain": "Historie: které záznamy si prostor ponechá z každého pole a odkud se bere čas záznamu. Kontrola po namapovaném výstupu řekne, zda to prostor dokáže dodržet.",
+      "keepOf": "Co ponechat z {name}",
+      "asMapped": "Jak to zapíše mapování",
+      "keep": {
+        "every": "Ponechat každé měření",
+        "changes": "Ponechat jen změny",
+        "latest": "Ponechat jen poslední hodnotu"
+      },
+      "timeOf": "Čas záznamu {name}",
+      "timeMapped": "Čas: jak ho zapíše mapování",
+      "timeFrom": "Čas: z {slot}",
+      "timeReceived": "Čas: když přijde",
+      "heartbeatOf": "Záznam alespoň jednou za, pro {name}",
+      "heartbeat": {
+        "PT15M": "záznam alespoň každých 15 minut",
+        "PT1H": "záznam alespoň každou hodinu",
+        "P1D": "záznam alespoň každý den",
+        "P7D": "záznam alespoň každých 7 dní"
+      },
+      "refused": "nelze dodržet",
+      "kept": "ponechá se podle volby"
     }
   },
   "dashboards": {
