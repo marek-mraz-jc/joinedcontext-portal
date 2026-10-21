@@ -7,7 +7,7 @@ import { OperationsPicker } from "./OperationsPicker";
 import { ResourcePicker } from "./ResourcePicker";
 import { RolePresetField } from "./RolePresetField";
 import { SecretRefWidget } from "./SecretRef";
-import { AssigneePicker, AttributeSuggest } from "./SuggestWidgets";
+import { AssigneePicker, AttributeSuggest, PersonPickerWidget } from "./SuggestWidgets";
 import { CronScheduleWidget } from "./CronSchedule";
 
 export {
@@ -28,6 +28,7 @@ export const portalWidgets = {
   dataModelPicker: DataModelPickerWidget,
   entityPicker: EntityPicker,
   operations: OperationsPicker,
+  personPicker: PersonPickerWidget,
   resourcePicker: ResourcePicker,
   secretRef: SecretRefWidget,
   typePicker: TypePickerWidget,

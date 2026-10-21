@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { JSX } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized } from "../../api/manifest";
@@ -13,8 +13,11 @@ export interface ResourceNamePickerProps {
   label: string;
   /** Named by a `<label for={id}>` of the page (see `Combobox`). */
   labelled?: boolean;
-  /** Whose manifests: a project's `{plural}`, or `"projects"` for the projects the caller reads. */
-  from: { project: string; plural: string } | "projects";
+  /**
+   * Whose manifests: a project's `{plural}`, several such lists offered as one (a project's roles
+   * and the organization's), or `"projects"` for the projects the caller reads.
+   */
+  from: { project: string; plural: string } | { project: string; plural: string }[] | "projects";
   value: string;
   onChange: (name: string) => void;
   /** Offer the typed text as a new name, where the form creates what it names. */
@@ -23,6 +26,8 @@ export interface ResourceNamePickerProps {
   required?: boolean;
   invalid?: boolean;
   describedBy?: string;
+  /** What a surrounding `Field` hands its control: its hint and error ids. */
+  "aria-describedby"?: string;
   placeholder?: string;
 }
 
@@ -43,9 +48,11 @@ export function ResourceNamePicker({
   invalid,
   describedBy,
   placeholder,
+  "aria-describedby": fieldDescribedBy,
 }: ResourceNamePickerProps): JSX.Element {
   const { t, i18n } = useTranslation();
-  const inProject = from === "projects" ? undefined : from;
+  const lists = from === "projects" ? [] : Array.isArray(from) ? from : [from];
+  const inProject = lists.length > 0 ? lists : undefined;
   // The projects are asked for only by a picker of projects: the key is `useProjects`' own.
   const projects = useQuery({
     queryKey: queryKeys.projects(),
@@ -53,23 +60,33 @@ export function ResourceNamePicker({
     select: (list) => list.items.map((item) => item.name),
     enabled: !inProject,
   });
-  const manifests = useQuery({
-    queryKey: queryKeys.list(inProject?.project ?? "", inProject?.plural ?? ""),
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/{plural}", {
-          params: { path: { project: inProject?.project ?? "", plural: inProject?.plural ?? "" } },
-        }),
-      ),
-    enabled: Boolean(inProject?.project && inProject.plural),
+  const manifests = useQueries({
+    queries: lists.map((list) => ({
+      queryKey: queryKeys.list(list.project, list.plural),
+      queryFn: async () =>
+        unwrap(
+          await api.GET("/api/v1/projects/{project}/{plural}", {
+            params: { path: { project: list.project, plural: list.plural } },
+          }),
+        ),
+      enabled: Boolean(list.project && list.plural),
+    })),
   });
-  const query = inProject ? manifests : projects;
+  const failedList = manifests.find((list) => list.isError);
+  const loading = inProject ? manifests.some((list) => list.isLoading) : projects.isLoading;
+  const failure = inProject ? failedList : projects.isError ? projects : undefined;
 
   const options = useMemo<PickerOption[]>(() => {
     if (!inProject) {
       return (projects.data ?? []).map((name) => ({ value: name, label: name, group: label }));
     }
-    return asManifests(manifests.data?.items ?? []).map((manifest) => {
+    const seen = new Set<string>();
+    return manifests.flatMap((list) => asManifests(list.data?.items ?? [])).filter((manifest) => {
+      // The first list wins a name both hold: a project's own role over the organization's (PF-69).
+      if (seen.has(manifest.metadata.name)) return false;
+      seen.add(manifest.metadata.name);
+      return true;
+    }).map((manifest) => {
       const title = localized(manifest.metadata.title, i18n.language, manifest.metadata.name);
       return {
         value: manifest.metadata.name,
@@ -78,7 +95,7 @@ export function ResourceNamePicker({
         group: label,
       };
     });
-  }, [inProject, projects.data, manifests.data, i18n.language, label]);
+  }, [inProject, projects.data, manifests, i18n.language, label]);
 
   return (
     <Combobox
@@ -90,10 +107,10 @@ export function ResourceNamePicker({
       disabled={disabled}
       required={required}
       invalid={invalid}
-      describedBy={describedBy}
+      describedBy={describedBy ?? fieldDescribedBy}
       placeholder={placeholder}
-      loading={query.isLoading}
-      failed={query.isError ? { reason: reasonOf(query.error), retry: () => void query.refetch() } : undefined}
+      loading={loading}
+      failed={failure ? { reason: reasonOf(failure.error), retry: () => void failure.refetch() } : undefined}
       empty={t("form.noResults")}
       onChange={(values) => {
         onChange(values[0] ?? "");

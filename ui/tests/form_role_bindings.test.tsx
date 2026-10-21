@@ -125,11 +125,12 @@ describe("the grant dialog (T-1759)", () => {
       },
     });
     const person = await screen.findByLabelText(/Username or e-mail/);
-    await waitFor(() => expect(person).toHaveAttribute("list"));
-    const listed = document.getElementById(person.getAttribute("list") ?? "");
-    const values = [...(listed?.querySelectorAll("option") ?? [])].map((option) => option.getAttribute("value"));
+    await userEvent.click(person);
+    // The shared people picker (T-4947): each person by name, the e-mail under it.
+    const values = within(await screen.findByRole("listbox")).getAllByRole("option").map((option) => option.textContent ?? "");
     // A disabled account is not offered: a grant to it would do nothing.
-    expect(values).toEqual(["jana.kovacova@example.sk"]);
+    expect(values).toHaveLength(1);
+    expect(values[0]).toContain("jana.kovacova@example.sk");
   });
 
   it("offers_no_list_and_keeps_typing_open_to_a_caller_who_may_not_read_people (T-3216)", async () => {

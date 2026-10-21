@@ -2,6 +2,7 @@ import { useContext, useId } from "react";
 import type { JSX } from "react";
 import type { FieldProps } from "@rjsf/utils";
 import { useQuery } from "@tanstack/react-query";
+import { TypePicker } from "../../pickers/TypePicker";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../../api/client";
 import { asManifests, refName } from "../../../api/manifest";
@@ -106,12 +107,16 @@ export function IcalMappingField(props: FieldProps): JSX.Element {
                 {frozen ? (
                   <span className="font-mono text-body font-normal">{type}</span>
                 ) : (
-                <Input
+                  // The classes of the space's model and what it imports, from the models the
+                  // server lists to this caller (T-4947); the Endpoint's door still checks it.
+                  <TypePicker
                     id={`${id}-type`}
-                    value={type}
-                    autoComplete="off"
-                    spellCheck={false}
-                    onChange={(event) => write(withType(stored, event.currentTarget.value))}
+                    label={t("endpoints.ical.type")}
+                    labelled
+                    project={project}
+                    space={space || undefined}
+                    value={type ? [type] : []}
+                    onChange={(types) => write(withType(stored, types[0] ?? "Event"))}
                   />
                 )}
               </label>

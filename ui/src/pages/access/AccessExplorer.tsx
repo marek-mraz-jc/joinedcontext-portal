@@ -8,6 +8,7 @@ import { asManifests, ORG_NAMESPACE } from "../../api/manifest";
 import { administersOrganization, usePermissions } from "../../api/permissions";
 import { useBranding } from "../../branding";
 import { RecordLink } from "../../components/RecordLink";
+import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 import { CopyUrlButton, hubUrl, namedServerUrl, representationUrl } from "../../components/endpoints/links";
 import { Alert, Badge, Button, Card, CardHeader, ConfirmDialog, EmptyState, Field, Input, Select } from "../../components/ui";
 
@@ -169,7 +170,23 @@ function Explorer({ project }: { project: string }): JSX.Element {
         ) : null}
         {kind === "group" || kind === "role" ? (
           <Field id={`${id}-name`} label={t(`policies.try.kinds.${kind}`)} description={t("access.explorer.nameHelp")} required>
-            <Input id={`${id}-name`} value={name} onChange={(e) => setName(e.target.value)} maxLength={255} autoComplete="off" />
+            <ResourceNamePicker
+              id={`${id}-name`}
+              label={t(`policies.try.kinds.${kind}`)}
+              labelled
+              // The groups of the organization, or the roles of this project and the organization.
+              from={
+                kind === "group"
+                  ? { project: ORG_NAMESPACE, plural: "groups" }
+                  : [
+                      { project, plural: "roles" },
+                      { project: ORG_NAMESPACE, plural: "roles" },
+                    ]
+              }
+              value={name}
+              onChange={setName}
+              required
+            />
           </Field>
         ) : null}
         <div className="sm:col-span-3">

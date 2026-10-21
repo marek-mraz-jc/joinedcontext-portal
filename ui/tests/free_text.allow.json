@@ -57,12 +57,6 @@
       "class": "SUGGEST",
       "reason": "already a combobox: the feed's fields offered through a datalist, free entry kept"
     },
-    "src/components/forms/widgets/IcalMappingField.tsx :: Type it maps": {
-      "class": "REF",
-      "reason": "the entity type an iCal feed maps to: typed today",
-      "task": "T-4947",
-      "rule": "list: the space's DataModel types and imports (TypePickerWidget reads GET /api/v1/projects/{project}/datamodels, may_read DataModel); submit: the Endpoint's Policy (jc-core policy check) and the space model refuse a type outside them"
-    },
     "src/components/forms/widgets/SuggestWidgets.tsx :: (no label)": {
       "class": "FREE",
       "reason": "the shared suggest widget itself (datalist of the existing choices)"
@@ -78,24 +72,6 @@
     "src/pages/access/AccessExplorer.tsx :: Search people": {
       "class": "FREE",
       "reason": "a search box: the text filters a list on the page, the list itself is the choice"
-    },
-    "src/pages/access/AccessExplorer.tsx :: policies.try.kinds.${kind}": {
-      "class": "REF",
-      "reason": "a group or role name to explore: typed today",
-      "task": "T-4947",
-      "rule": "list: the organization's groups (groups.rs) and roles the caller holds; submit: RoleBinding Effective::check(RoleBinding, Propose); a role above the caller's own is refused (PF-68)"
-    },
-    "src/pages/access/GroupPage.tsx :: E-mail of the person": {
-      "class": "REF",
-      "reason": "a person: a datalist suggests people, any text is still taken",
-      "task": "T-4947",
-      "rule": "list: GET /api/v1/organization/people (people.rs list_people, organization admin); submit: groups::check and the RoleBinding door (Effective::check RoleBinding Propose) refuse an unknown person"
-    },
-    "src/pages/access/RoleBindings.tsx :: Group name": {
-      "class": "REF",
-      "reason": "the subject of a binding (person or group): a datalist suggests people, any text is still taken",
-      "task": "T-4947",
-      "rule": "list: the organization's groups (groups.rs) and roles the caller holds; submit: RoleBinding Effective::check(RoleBinding, Propose); a role above the caller's own is refused (PF-68)"
     },
     "src/pages/apps/AppGenerator.tsx :: App name": {
       "class": "FREE",
@@ -139,12 +115,6 @@
       "class": "FREE",
       "reason": "the address of an outside feed"
     },
-    "src/pages/endpoints/EndpointPage.tsx :: Geometry attribute": {
-      "class": "REF",
-      "reason": "a GeoProperty of the Endpoint's types: typed today",
-      "task": "T-4947",
-      "rule": "list: the attributes of the chosen type in the space model (AttributeSuggest, filterSlotsOf); submit: the Policy's propertyNames/relationshipNames and the model check refuse an attribute outside them"
-    },
     "src/pages/endpoints/EndpointPage.tsx :: endpoints.area.${corner}": {
       "class": "FREE",
       "reason": "a coordinate of the bounding box"
@@ -154,21 +124,12 @@
       "reason": "an NGSI-LD q, scopeQ, geoQ or temporalQ expression"
     },
     "src/pages/endpoints/ModelPicker.tsx :: Scope": {
-      "class": "SUGGEST",
-      "reason": "an NGSI-LD scope: the space's scopes should be offered, free entry kept",
-      "task": "T-4947"
-    },
-    "src/pages/endpoints/Playground.tsx :: Entity type": {
-      "class": "REF",
-      "reason": "an entity type the Endpoint serves: typed today",
-      "task": "T-4947",
-      "rule": "list: the space's DataModel types and imports (TypePickerWidget reads GET /api/v1/projects/{project}/datamodels, may_read DataModel); submit: the Endpoint's Policy (jc-core policy check) and the space model refuse a type outside them"
+      "class": "FREE",
+      "reason": "an NGSI-LD scope path pattern a writer is held to (/city/#); scopes are written per entity and no registry lists them to offer (T-4947 decided)"
     },
     "src/pages/endpoints/SchemaProjectionPanel.tsx :: Hide an attribute by name": {
-      "class": "REF",
-      "reason": "an attribute of the projected types: typed today",
-      "task": "T-4947",
-      "rule": "list: the attributes of the chosen type in the space model (AttributeSuggest, filterSlotsOf); submit: the Policy's propertyNames/relationshipNames and the model check refuse an attribute outside them"
+      "class": "FREE",
+      "reason": "the published attributes are ticked in the list above it; this box names one the schema does not publish yet (T-1767), shape-checked (T-4947 decided)"
     },
     "src/pages/import/ImportPage.tsx :: Organisation domain": {
       "class": "SUGGEST",
@@ -303,21 +264,9 @@
       "task": "T-4946",
       "rule": "list: the space's DataModel types and imports (TypePickerWidget reads GET /api/v1/projects/{project}/datamodels, may_read DataModel); submit: the Endpoint's Policy (jc-core policy check) and the space model refuse a type outside them"
     },
-    "src/pages/policies/TryAPerson.tsx :: Entity type": {
-      "class": "REF",
-      "reason": "an entity type to try: typed today",
-      "task": "T-4947",
-      "rule": "list: the space's DataModel types and imports (TypePickerWidget reads GET /api/v1/projects/{project}/datamodels, may_read DataModel); submit: the Endpoint's Policy (jc-core policy check) and the space model refuse a type outside them"
-    },
     "src/pages/policies/TryAPerson.tsx :: Find a person": {
       "class": "FREE",
       "reason": "a search box: the text filters a list on the page, the list itself is the choice"
-    },
-    "src/pages/policies/TryAPerson.tsx :: policies.try.kinds.${kind}": {
-      "class": "REF",
-      "reason": "a group or role name to try: typed today",
-      "task": "T-4947",
-      "rule": "list: the organization's groups (groups.rs) and roles the caller holds; submit: RoleBinding Effective::check(RoleBinding, Propose); a role above the caller's own is refused (PF-68)"
     },
     "src/pages/spaces/AiField.tsx :: Attribute to fill": {
       "class": "REF",
@@ -354,11 +303,6 @@
     "src/routes/AllEndpointsPage.tsx :: Find an endpoint by project, space, name or slug": {
       "class": "FREE",
       "reason": "a search box: the text filters a list on the page, the list itself is the choice"
-    },
-    "src/routes/ApprovalsHistory.tsx :: Kind": {
-      "class": "ENUM",
-      "reason": "a manifest kind: a datalist suggests kinds, any text is still taken",
-      "task": "T-4947"
     },
     "src/routes/EndpointsPage.tsx :: Find an endpoint by name or title": {
       "class": "FREE",
