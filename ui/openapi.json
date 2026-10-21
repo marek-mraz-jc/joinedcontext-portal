@@ -2157,6 +2157,58 @@
         }
       }
     },
+    "/api/v1/organization/health-checks": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "List Organization Health Checks",
+        "description": "Every project's checks (T-5067), errors first. Only an administrator of the organization: approve and delete on RoleBinding at organization scope (PF-03).",
+        "operationId": "list_all",
+        "responses": {
+          "200": {
+            "description": "Every project's checks, errors first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthCheckList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The health log could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organization/limits": {
       "get": {
         "tags": [
@@ -9183,6 +9235,69 @@
           },
           "503": {
             "description": "The git forge is not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/health-checks": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "List Project Health Checks",
+        "description": "Every check of the project's pipelines, Context Spaces, Endpoints, models and data sources the caller may read (T-5067): its status, since when it holds, when it was last ok, what it found with credentials masked, a fix hint and the statuses of the last 7 days. A project the caller cannot read is 404.",
+        "operationId": "list_project",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project's checks, errors first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthCheckList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The health log could not be read",
             "content": {
               "application/json": {
                 "schema": {
@@ -23805,6 +23920,155 @@
           "down",
           "unknown"
         ]
+      },
+      "HealthCheck": {
+        "type": "object",
+        "description": "One check of one resource as the Health page shows it.",
+        "required": [
+          "project",
+          "kind",
+          "name",
+          "check",
+          "status",
+          "since",
+          "checkedAt",
+          "detail",
+          "fix",
+          "evidenceUrl",
+          "history"
+        ],
+        "properties": {
+          "check": {
+            "type": "string",
+            "description": "`reconcile`, `runs`, `freshness`, `entities`, `storage`, `validation`, `reachable`, or a\nsurface an Endpoint serves (`ngsi-ld`, `odata`, `mcp`, ...)."
+          },
+          "checkedAt": {
+            "type": "string",
+            "description": "When the leader last judged it, RFC 3339."
+          },
+          "detail": {
+            "$ref": "#/components/schemas/HealthCheckText",
+            "description": "What the check found, credentials masked."
+          },
+          "evidenceUrl": {
+            "type": "string",
+            "description": "The Portal page of the resource."
+          },
+          "fix": {
+            "$ref": "#/components/schemas/HealthCheckText",
+            "description": "The manifest field or the page to change; empty when there is nothing to fix."
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthCheckPoint"
+            },
+            "description": "The statuses of the last 7 days, oldest first."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/HealthCheckKind"
+          },
+          "lastOk": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the check was last ok, RFC 3339; absent when it never was."
+          },
+          "name": {
+            "type": "string"
+          },
+          "project": {
+            "type": "string"
+          },
+          "since": {
+            "type": "string",
+            "description": "Since when this status holds, RFC 3339."
+          },
+          "status": {
+            "$ref": "#/components/schemas/HealthCheckStatus"
+          }
+        }
+      },
+      "HealthCheckKind": {
+        "type": "string",
+        "enum": [
+          "pipeline",
+          "space",
+          "endpoint",
+          "model",
+          "datasource"
+        ]
+      },
+      "HealthCheckList": {
+        "type": "object",
+        "description": "The checks, errors first, then warnings, then ok.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthCheck"
+            }
+          }
+        }
+      },
+      "HealthCheckPoint": {
+        "type": "object",
+        "description": "One point of a check's history.",
+        "required": [
+          "at",
+          "status"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "description": "RFC 3339."
+          },
+          "status": {
+            "$ref": "#/components/schemas/HealthCheckStatus"
+          }
+        }
+      },
+      "HealthCheckStatus": {
+        "type": "string",
+        "description": "Errors first, then warnings, then what is well.",
+        "enum": [
+          "error",
+          "warn",
+          "ok"
+        ]
+      },
+      "HealthCheckText": {
+        "type": "object",
+        "description": "A message of the health log: its key under `health.say` in the UI's locales with the values\nit names, and its English text for the API and the logs. A text a component wrote (a broker's\nerror) has no key: it is shown as it came, credentials masked.",
+        "required": [
+          "code",
+          "args",
+          "text"
+        ],
+        "properties": {
+          "args": {
+            "type": "object",
+            "description": "The values the message names, by placeholder.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "code": {
+            "type": "string",
+            "description": "The key under `health.say`; empty for a component's own words."
+          },
+          "text": {
+            "type": "string",
+            "description": "The message in English."
+          }
+        }
       },
       "HoldReason": {
         "type": "string",

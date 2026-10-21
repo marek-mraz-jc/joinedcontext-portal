@@ -608,6 +608,15 @@ pub fn may_read_space(
     person: &str,
     now: DateTime<Utc>,
 ) -> bool {
+    let identity = named_person(mirror, person);
+    // No bootstrap group: a person named in a comment is judged by their bindings alone.
+    let granted = effective(mirror, "", &identity, project, now);
+    granted.may_read_project() && granted.may_read_in("ContextSpace", Some(space))
+}
+
+/// The identity of the person `person` names (an e-mail, as a RoleBinding or a Group names
+/// people), with the `Group` manifests whose members name them as groups.
+pub fn named_person(mirror: &Mirror, person: &str) -> Identity {
     let groups = mirror
         .list(ORG_NAMESPACE, "Group", &ListOptions::default())
         .items
@@ -623,7 +632,7 @@ pub fn may_read_space(
         })
         .map(|env| env.metadata.name)
         .collect();
-    let identity = Identity {
+    Identity {
         client: None,
         subject: person.to_owned(),
         username: person.to_owned(),
@@ -631,10 +640,7 @@ pub fn may_read_space(
         name: None,
         roles: Vec::new(),
         groups,
-    };
-    // No bootstrap group: a person named in a comment is judged by their bindings alone.
-    let granted = effective(mirror, "", &identity, project, now);
-    granted.may_read_project() && granted.may_read_in("ContextSpace", Some(space))
+    }
 }
 
 /// Who reaches one project's repository in the forge, by lower-case identifier (PF-87): the

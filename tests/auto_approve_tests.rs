@@ -291,6 +291,11 @@ async fn an_administrators_own_change_is_approved_as_it_is_proposed() {
         message.contains(&format!("Approved in the Portal by {EMAIL}, its author, as an administrator of ContextSpace (PF-58)")),
         "{message}"
     );
+    // PL-95: the proposer beside the approver, for the reconciler's re-check.
+    assert!(
+        message.contains(&format!("Proposed in the Portal by {EMAIL}")),
+        "{message}"
+    );
 }
 
 /// PF-58, CC-39: a red-lane change of an administrator lands with the name typed back at propose.
