@@ -430,6 +430,8 @@ use crate::tools::model_tools::{
         crate::api::endpoint_standards::Example,
         crate::api::catalogue_draft::CatalogueDraftRequest,
         crate::api::catalogue_draft::CatalogueDraft,
+        crate::api::catalogue_draft::DraftAttribute,
+        crate::api::catalogue_draft::Withheld,
         InstanceSummary,
         PublicationStatus,
         ResourceLink,

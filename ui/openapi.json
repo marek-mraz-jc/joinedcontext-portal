@@ -19546,12 +19546,25 @@
           "makesPublic",
           "catalog",
           "publish",
-          "missing"
+          "missing",
+          "attributes",
+          "datastoreAvailable"
         ],
         "properties": {
+          "attributes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DraftAttribute"
+            },
+            "description": "The model's attributes per type, and whether the public dataset can carry each one."
+          },
           "catalog": {
             "type": "object",
             "description": "The drafted `spec.catalog` (EP-78), or the one the Endpoint already declares."
+          },
+          "datastoreAvailable": {
+            "type": "boolean",
+            "description": "The Endpoint serves `csv`, so its rows can be mirrored into the CKAN DataStore (EP-65)."
           },
           "endpoint": {
             "type": "string"
@@ -21233,6 +21246,34 @@
               "null"
             ],
             "description": "The workspace the draft belongs to, or none (CC-76): a draft of one workspace is not\na draft of another, nor of the main project."
+          }
+        }
+      },
+      "DraftAttribute": {
+        "type": "object",
+        "description": "One attribute of one type the Endpoint serves, as the publish form lists it.",
+        "required": [
+          "type",
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "description": "The class (entity type) the attribute belongs to."
+          },
+          "withheld": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Withheld",
+                "description": "Why it is not offered; absent when the public dataset may carry it."
+              }
+            ]
           }
         }
       },
@@ -27482,6 +27523,14 @@
             "format": "date-time"
           }
         }
+      },
+      "Withheld": {
+        "type": "string",
+        "description": "Why an attribute stays out of a public dataset.",
+        "enum": [
+          "personal",
+          "hidden"
+        ]
       },
       "WorkflowRun": {
         "type": "object",

@@ -522,10 +522,25 @@ function Publications({
                       hideIcon
                       className="rounded border border-border px-2 py-1 text-sm hover:no-underline"
                     >
-                      {resource.format}
+                      {resource.name && resource.name !== resource.format
+                        ? `${resource.name} (${resource.format})`
+                        : resource.format}
                     </ExternalLink>
                   </li>
                 ))}
+                {/* The theme draws the map and the DataStore table on the dataset page itself
+                    (T-4639, EP-65), so that page is where both open. */}
+                {publication.datasetUrl ? (
+                  <li>
+                    <ExternalLink
+                      href={publication.datasetUrl}
+                      hideIcon
+                      className="rounded border border-border px-2 py-1 text-sm hover:no-underline"
+                    >
+                      {t("ckan.publications.mapAndTable")}
+                    </ExternalLink>
+                  </li>
+                ) : null}
               </ul>
             </Card>
           </li>

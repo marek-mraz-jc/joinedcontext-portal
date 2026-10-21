@@ -56,3 +56,6 @@ export function nutsCode(value: string): string {
 export function areaLabel(value: string): string {
   return NUTS[nutsCode(value)] ?? value;
 }
+
+/** Every region the table names, for the area picker: codes in the table's order. */
+export const NUTS_CODES: readonly string[] = Object.keys(NUTS);

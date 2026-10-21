@@ -1,5 +1,6 @@
 // covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
-// src/pages/catalogue/PublishDataset.tsx and publish.ts: the one-step publish flow (EP-83, T-2726).
+// src/pages/catalogue/PublishDataset.tsx, PublicationPreview.tsx and publish.ts: the one-step publish
+// flow (EP-83, T-2726) and its CKAN page preview (T-4847).
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -7,8 +8,9 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
-import { catalogOf, formOf, problems } from "../src/pages/catalogue/publish";
+import { applyFields, catalogOf, columnsOf, formOf, hiddenOf, problems, textsWith } from "../src/pages/catalogue/publish";
 import { PublishDatasetDialog } from "../src/pages/catalogue/PublishDataset";
+import { PublicationPreview } from "../src/pages/catalogue/PublicationPreview";
 
 const LIST = "joinedcontext.com/v1alpha1";
 const IDENTITY = { subject: "b7c1e0f4", username: "jana.kovacova", name: "Jana Kováčová", roles: ["portal-editor"] };
@@ -17,7 +19,7 @@ const ENDPOINT = {
   apiVersion: LIST,
   kind: "Endpoint",
   metadata: { name: "bbsk-kpi", namespace: "bbsk", title: { sk: "Ukazovatele kraja" } },
-  spec: { contextSpaceRef: "kpi", slug: "k7m2qz4tv6xh3n5jb2ryd3wcfa", audience: "organization", enabledRepresentations: ["ngsi-ld"] },
+  spec: { contextSpaceRef: "kpi", slug: "k7m2qz4tv6xh3n5jb2ryd3wcfa", audience: "organization", enabledRepresentations: ["ngsi-ld", "csv"], projection: { hiddenAttributes: ["internalNote"] } },
   status: { phase: "Live" },
 };
 
@@ -32,8 +34,16 @@ const DRAFT = {
     contactPoint: { name: "Open data desk", email: "opendata@example.org" },
     attribution: { sk: "Zdroj: BBSK" },
   },
-  publish: { ckan: { instanceRef: { kind: "CkanInstance", name: "bbsk" } } },
+  publish: { ckan: { instanceRef: { kind: "CkanInstance", name: "bbsk" }, datastore: { representation: "csv" } } },
   missing: ["spatial", "temporal", "frequency"],
+  attributes: [
+    { type: "KeyPerformanceIndicator", name: "kpiValue" },
+    { type: "KeyPerformanceIndicator", name: "location" },
+    { type: "KeyPerformanceIndicator", name: "comment" },
+    { type: "KeyPerformanceIndicator", name: "reporter", withheld: "personal" },
+    { type: "KeyPerformanceIndicator", name: "internalNote", withheld: "hidden" },
+  ],
+  datastoreAvailable: true,
 };
 
 const CHANGE = {
@@ -132,24 +142,58 @@ describe("publish a dataset in one step (EP-83)", () => {
     expect(await within(dialog).findByText("Choose a licence.")).toBeInTheDocument();
     await user.selectOptions(within(dialog).getByRole("combobox", { name: /Licence/ }), "CC0");
     await user.click(within(dialog).getByRole("checkbox", { name: "Environment" }));
-    fireEvent.change(within(dialog).getByLabelText("Area"), { target: { value: "SK032, SK032 ," } });
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: "Area on the map" }), "SK032");
+
+    // A title is required and in the space's language; the description is optional.
+    const title = within(dialog).getByRole("textbox", { name: /Dataset title/ });
+    expect(title).toHaveValue("Ukazovatele kraja");
+    await user.clear(title);
+    await user.click(within(dialog).getByRole("button", { name: "Preview the entry" }));
+    expect(await within(dialog).findByText("Give the dataset a title.")).toBeInTheDocument();
+    await user.type(title, "Ukazovatele kraja 2026");
+    await user.type(within(dialog).getByRole("textbox", { name: /Description/ }), "Mesačné ukazovatele kraja.");
+
+    // Personal and already hidden attributes are shown greyed with the reason, never offered.
+    expect(within(dialog).getByRole("checkbox", { name: /reporter/ })).toBeDisabled();
+    expect(within(dialog).getByText("Personal data in the model: a public dataset never carries it.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("checkbox", { name: /internalNote/ })).toBeDisabled();
+    expect(within(dialog).getByRole("checkbox", { name: /kpiValue/ })).toBeChecked();
+    await user.click(within(dialog).getByRole("checkbox", { name: /comment/ }));
+    expect(within(dialog).getByRole("checkbox", { name: /Put the rows into a CKAN table/ })).toBeChecked();
     fireEvent.change(within(dialog).getByLabelText("Covers data from"), { target: { value: "2020-01-01" } });
     await user.click(within(dialog).getByRole("button", { name: "Preview the entry" }));
 
     const preview = await within(dialog).findByRole("region", { name: "3. Preview" });
-    expect(within(preview).getByRole("heading", { name: "Ukazovatele kraja" })).toBeInTheDocument();
     expect(within(preview).getByText("Creative Commons Zero 1.0")).toBeInTheDocument();
     expect(within(preview).getByText("Environment")).toBeInTheDocument();
+    expect(within(preview).getByRole("heading", { name: "Ukazovatele kraja 2026" })).toBeInTheDocument();
+    expect(within(preview).getByText("Banskobystrický kraj")).toBeInTheDocument();
+    const resources = within(preview).getByRole("list", { name: "Data and resources" });
+    expect(within(resources).getByText(/Table in CKAN/)).toBeInTheDocument();
+    expect(within(resources).getByText(/Map of the records/)).toBeInTheDocument();
+    expect(within(resources).getByText(/DCAT-AP record/)).toBeInTheDocument();
+    const columns = within(preview).getByRole("list", { name: "Columns" });
+    expect(within(columns).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["kpiValue", "location"]);
 
+    // Public is the red lane: the proposer types the endpoint's name before the button acts.
+    const proposeButton = within(dialog).getByRole("button", { name: "Make public and propose publication" });
+    expect(proposeButton).toHaveAttribute("aria-disabled", "true");
+    await user.click(proposeButton);
+    expect(sent.some((s) => s.method === "PUT")).toBe(false);
+    await user.type(within(dialog).getByRole("textbox", { name: /Type the endpoint's name/ }), "bbsk-kpi");
     await user.click(within(dialog).getByRole("button", { name: "Make public and propose publication" }));
     await within(dialog).findByText(/next reconcile/);
 
     const puts = sent.filter((s) => s.method === "PUT");
     expect(puts.map((p) => p.url.searchParams.get("dryRun"))).toEqual(["All", null]);
-    const body = puts[1].body as { spec: Record<string, unknown>; status?: unknown };
+    const body = puts[1].body as { metadata: Record<string, unknown>; spec: Record<string, unknown>; status?: unknown };
     expect(body.status).toBeUndefined();
     expect(body.spec.audience).toBe("public");
     expect(body.spec.publish).toEqual(DRAFT.publish);
+    expect(body.metadata.title).toEqual({ sk: "Ukazovatele kraja 2026" });
+    expect(body.metadata.description).toEqual({ sk: "Mesačné ukazovatele kraja." });
+    // The personal slot is hidden, so the public projection is never refused (DM-122).
+    expect(body.spec.projection).toEqual({ hiddenAttributes: ["comment", "internalNote", "reporter"] });
     expect(body.spec.contextSpaceRef).toBe("kpi");
     expect(body.spec.catalog).toEqual({
       license: "CC0",
@@ -223,6 +267,55 @@ describe("publish a dataset in one step (EP-83)", () => {
     );
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(sent).toEqual([]);
+  });
+});
+
+describe("the publication's attributes and the approval's preview", () => {
+  const attributes = DRAFT.attributes as Parameters<typeof hiddenOf>[1];
+
+  it("hides every personal attribute and each one left out, keeping what was hidden", () => {
+    expect(hiddenOf(["internalNote"], attributes, ["comment"])).toEqual(["comment", "internalNote", "reporter"]);
+    expect(hiddenOf(undefined, [], [])).toEqual([]);
+    expect(hiddenOf("not a list", attributes, [])).toEqual(["reporter"]);
+    expect(columnsOf(attributes, ["comment"])).toEqual(["kpiValue", "location"]);
+  });
+
+  it("sets a text in one language and keeps the others", () => {
+    expect(textsWith({ sk: "A", en: "B" }, "sk", " C ")).toEqual({ sk: "C", en: "B" });
+    expect(textsWith("A", "sk", "")).toBeUndefined();
+    expect(textsWith(undefined, "de", "X")).toEqual({ de: "X" });
+  });
+
+  it("previews a dataset without a table or known columns: the map stays, no column list", async () => {
+    await i18n.changeLanguage("en");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <PublicationPreview label="Preview" title="Dopravné nehody" description="" catalog={{ license: "CC0" }} datastore={false} />
+      </I18nextProvider>,
+    );
+    const preview = screen.getByRole("region", { name: "Preview" });
+    expect(within(preview).getByRole("heading", { name: "Dopravné nehody" })).toBeInTheDocument();
+    expect(within(preview).queryByText(/Table in CKAN/)).toBeNull();
+    expect(within(preview).getByText(/Map of the records/)).toBeInTheDocument();
+    expect(within(preview).queryByRole("list", { name: "Columns" })).toBeNull();
+  });
+
+  it("applies a change's field diff to the live manifest", () => {
+    const live = { metadata: { name: "e", title: { sk: "Old" } }, spec: { catalog: { themes: ["ECON", "ENVI"] } } };
+    const head = applyFields(live, [
+      { path: "metadata.title.sk", to: "New" },
+      { path: "spec.catalog.themes[1]" },
+      { path: "spec.catalog.keywords.sk[0]", to: "kpi" },
+      { path: "spec.publish.ckan.datastore.representation", to: "csv" },
+    ]);
+    expect(head).toEqual({
+      metadata: { name: "e", title: { sk: "New" } },
+      spec: {
+        catalog: { themes: ["ECON"], keywords: { sk: ["kpi"] } },
+        publish: { ckan: { datastore: { representation: "csv" } } },
+      },
+    });
+    expect(live.spec.catalog.themes).toEqual(["ECON", "ENVI"]);
   });
 });
 

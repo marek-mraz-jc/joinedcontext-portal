@@ -9,10 +9,22 @@ import { proposeChecked } from "../../api/proposal";
 import type { components } from "../../api/schema";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
-import { Alert, Badge, Button, Checkbox, Dialog, Field, Input, Select } from "../../components/ui";
-import { problemOf, useThemeLabel } from "./CataloguePage";
-import { catalogOf, formOf, FREQUENCIES, LICENCES, problems, THEMES } from "./publish";
-import type { CatalogBlock, PublishForm } from "./publish";
+import { Alert, Button, Checkbox, Dialog, Field, Input, Select, Textarea } from "../../components/ui";
+import { problemOf } from "./CataloguePage";
+import { areaLabel, nutsCode, NUTS_CODES } from "./nuts";
+import { PublicationPreview } from "./PublicationPreview";
+import {
+  catalogOf,
+  columnsOf,
+  formOf,
+  FREQUENCIES,
+  hiddenOf,
+  LICENCES,
+  problems,
+  textsWith,
+  THEMES,
+} from "./publish";
+import type { CatalogBlock, DraftAttribute, PublishForm } from "./publish";
 
 type Draft = components["schemas"]["CatalogueDraft"];
 type Step = "pick" | "describe" | "preview";
@@ -21,6 +33,22 @@ interface Drafted {
   draft: Draft;
   manifest: ResourceProposal;
   form: PublishForm;
+  /** The dataset's title and description, in the form's language (`metadata.title`, `.description`). */
+  title: string;
+  description: string;
+  /** Mirror the rows into the CKAN DataStore (`spec.publish.ckan.datastore`, EP-65). */
+  datastore: boolean;
+  /** Offered attributes the person left out of the dataset; they join `projection.hiddenAttributes`. */
+  leftOut: string[];
+}
+
+function attributesOf(draft: Draft): DraftAttribute[] {
+  return (draft.attributes ?? []) as DraftAttribute[];
+}
+
+function ckanOf(publish: unknown): Record<string, unknown> {
+  const ckan = (publish as { ckan?: unknown } | undefined)?.ckan;
+  return ckan && typeof ckan === "object" ? (ckan as Record<string, unknown>) : {};
 }
 
 /**
@@ -73,6 +101,7 @@ function Flow({
   const [drafted, setDrafted] = useState<Drafted | null>(null);
   const [touched, setTouched] = useState(false);
   const [change, setChange] = useState<Change | null>(null);
+  const [confirm, setConfirm] = useState("");
 
   const load = useMutation({
     mutationFn: async (name: string): Promise<Drafted> => {
@@ -90,7 +119,16 @@ function Flow({
       // What the Change carries back is the manifest, never the status the Portal computed.
       const manifest: ResourceProposal = { apiVersion, kind, metadata, spec };
       const language = i18n.resolvedLanguage ?? i18n.language ?? "en";
-      return { draft, manifest, form: formOf(draft.catalog as CatalogBlock, language) };
+      const form = formOf(draft.catalog as CatalogBlock, language);
+      return {
+        draft,
+        manifest,
+        form,
+        title: localized(metadata.title, form.language, metadata.name),
+        description: localized(metadata.description, form.language, ""),
+        datastore: draft.datastoreAvailable && ckanOf(draft.publish).datastore !== undefined,
+        leftOut: [],
+      };
     },
     onSuccess: (result) => {
       setDrafted(result);
@@ -101,14 +139,25 @@ function Flow({
   const propose = useMutation({
     mutationFn: async (value: Drafted) => {
       const { apiVersion, kind, metadata, spec } = value.manifest;
+      const current = spec as Record<string, unknown>;
+      const projection = (current.projection ?? {}) as Record<string, unknown>;
+      const hidden = hiddenOf(projection.hiddenAttributes, attributesOf(value.draft), value.leftOut);
+      const ckan = { ...ckanOf(value.draft.publish) };
+      if (value.datastore) ckan.datastore = ckan.datastore ?? { representation: "csv" };
+      else delete ckan.datastore;
       const body = {
         apiVersion,
         kind,
-        metadata,
+        metadata: {
+          ...metadata,
+          title: textsWith(metadata.title, value.form.language, value.title),
+          description: textsWith(metadata.description, value.form.language, value.description),
+        },
         spec: {
-          ...(spec as Record<string, unknown>),
+          ...current,
           catalog: catalogOf(value.draft.catalog as CatalogBlock, value.form),
-          publish: value.draft.publish,
+          publish: { ...(value.draft.publish as Record<string, unknown>), ckan },
+          ...(hidden.length > 0 ? { projection: { ...projection, hiddenAttributes: hidden } } : {}),
           // Publishing a restricted Endpoint would list a dataset nobody browsing can open; the
           // flow said so before this button, and the Change takes the red lane (EP-76, PF-72).
           ...(value.draft.makesPublic ? { audience: "public" } : {}),
@@ -185,18 +234,51 @@ function Flow({
     );
   }
 
-  const found = problems(drafted.form);
+  const found: Partial<Record<keyof PublishForm | "title", string>> = {
+    ...problems(drafted.form),
+    ...(drafted.title.trim() === "" ? { title: "catalogue.publish.error.title" } : {}),
+  };
   const invalid = Object.keys(found).length > 0;
-  const errorOf = (field: keyof PublishForm) => (touched && found[field] ? [t(found[field])] : undefined);
+  const errorOf = (field: keyof PublishForm | "title") => (touched && found[field] ? [t(found[field])] : undefined);
   const update = (patch: Partial<PublishForm>) =>
     setDrafted({ ...drafted, form: { ...drafted.form, ...patch } });
+  const attributes = attributesOf(drafted.draft);
+  const columns = columnsOf(attributes, drafted.leftOut);
+  // The area is one region of the table; a value the draft carried that the table lacks stays
+  // a choice of its own, so opening the flow never drops it.
+  const spatialFirst = drafted.form.spatial.split(",")[0]?.trim() ?? "";
+  const areas = spatialFirst && !NUTS_CODES.includes(nutsCode(spatialFirst)) ? [spatialFirst, ...NUTS_CODES] : NUTS_CODES;
 
   if (step === "preview") {
     return (
       <div className="flex flex-col gap-4">
-        <Preview drafted={drafted} />
+        <PublicationPreview
+          label={t("catalogue.publish.step.preview")}
+          title={drafted.title}
+          description={drafted.description}
+          catalog={catalogOf(drafted.draft.catalog as CatalogBlock, drafted.form)}
+          datastore={drafted.datastore}
+          columns={attributes.length > 0 ? columns : undefined}
+        />
         {drafted.draft.makesPublic ? (
-          <Alert tone="warning">{t("catalogue.publish.makesPublic")}</Alert>
+          <>
+            <Alert tone="warning">{t("catalogue.publish.makesPublic")}</Alert>
+            {/* The red lane's typed confirmation, asked of the proposer too (CC-39, EP-142). */}
+            <Field
+              id="publish-confirm"
+              label={t("catalogue.publish.confirmLabel")}
+              description={t("catalogue.publish.confirmHelp", { name: drafted.draft.endpoint })}
+              required
+            >
+              <Input
+                id="publish-confirm"
+                value={confirm}
+                autoComplete="off"
+                spellCheck={false}
+                onChange={(e) => setConfirm(e.target.value)}
+              />
+            </Field>
+          </>
         ) : null}
         {propose.error ? (
           <Alert tone="danger" role="alert">
@@ -205,7 +287,13 @@ function Flow({
         ) : null}
         <div className="flex justify-between gap-2">
           <Button onClick={() => setStep("describe")}>{t("catalogue.publish.back")}</Button>
-          <Button variant="primary" loading={propose.isPending} onClick={() => propose.mutate(drafted)}>
+          <Button
+            variant="primary"
+            loading={propose.isPending}
+            disabled={drafted.draft.makesPublic && confirm.trim() !== drafted.draft.endpoint}
+            disabledReason={t("catalogue.publish.confirmFirst", { name: drafted.draft.endpoint })}
+            onClick={() => propose.mutate(drafted)}
+          >
             {drafted.draft.makesPublic ? t("catalogue.publish.proposePublic") : t("catalogue.publish.propose")}
           </Button>
         </div>
@@ -234,6 +322,28 @@ function Flow({
           })}
         </Alert>
       ) : null}
+      <Field
+        id="publish-title"
+        label={t("catalogue.publish.datasetTitle")}
+        required
+        description={t("catalogue.publish.datasetTitleHelp", { language: drafted.form.language })}
+        errors={errorOf("title")}
+      >
+        <Input id="publish-title" value={drafted.title} maxLength={200} onChange={(e) => setDrafted({ ...drafted, title: e.target.value })} />
+      </Field>
+      <Field
+        id="publish-description"
+        label={t("catalogue.publish.datasetDescription")}
+        description={t("catalogue.publish.datasetDescriptionHelp", { language: drafted.form.language })}
+      >
+        <Textarea
+          id="publish-description"
+          rows={3}
+          value={drafted.description}
+          maxLength={2000}
+          onChange={(e) => setDrafted({ ...drafted, description: e.target.value })}
+        />
+      </Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field id="publish-publisher" label={t("catalogue.facets.publisher")} description={t("catalogue.publish.inLanguage", { language: drafted.form.language })}>
           <Input id="publish-publisher" value={drafted.form.publisher} maxLength={200} onChange={(e) => update({ publisher: e.target.value })} />
@@ -278,8 +388,15 @@ function Flow({
         <Input id="publish-keywords" value={drafted.form.keywords} maxLength={1000} onChange={(e) => update({ keywords: e.target.value })} />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field id="publish-spatial" label={t("catalogue.facets.spatial")} description={t("catalogue.publish.spatialHelp")}>
-          <Input id="publish-spatial" value={drafted.form.spatial} maxLength={500} onChange={(e) => update({ spatial: e.target.value })} />
+        <Field id="publish-spatial" label={t("catalogue.publish.mapExtent")} description={t("catalogue.publish.spatialHelp")}>
+          <Select id="publish-spatial" value={spatialFirst} onChange={(e) => update({ spatial: e.target.value })}>
+            <option value="">{t("catalogue.publish.noArea")}</option>
+            {areas.map((code) => (
+              <option key={code} value={code}>
+                {areaLabel(code) === code ? code : `${areaLabel(code)} (${nutsCode(code)})`}
+              </option>
+            ))}
+          </Select>
         </Field>
         <Field id="publish-frequency" label={t("catalogue.dataset.frequency")}>
           <Select id="publish-frequency" value={drafted.form.frequency} onChange={(e) => update({ frequency: e.target.value })}>
@@ -298,6 +415,56 @@ function Flow({
           <Input id="publish-end" type="date" value={drafted.form.temporalEnd} onChange={(e) => update({ temporalEnd: e.target.value })} />
         </Field>
       </div>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-1 text-body font-medium text-fg">{t("catalogue.publish.attributes")}</legend>
+        <p className="text-caption text-fg-muted">{t("catalogue.publish.attributesHelp")}</p>
+        {attributes.length === 0 ? (
+          <p className="text-body text-fg-muted">{t("catalogue.publish.noAttributes")}</p>
+        ) : (
+          [...new Set(attributes.map((a) => a.type))].map((type) => (
+            <div key={type} className="flex flex-col gap-1.5">
+              <p className="text-caption font-semibold text-fg-muted">{t("catalogue.publish.ofType", { type })}</p>
+              <div className="grid gap-1.5 sm:grid-cols-2">
+                {attributes
+                  .filter((a) => a.type === type)
+                  .map((a) => (
+                    <Checkbox
+                      key={`${type}-${a.name}`}
+                      label={a.name}
+                      checked={!a.withheld && !drafted.leftOut.includes(a.name)}
+                      // The reason shows beside the greyed box, and is read with its name.
+                      disabled={a.withheld !== undefined}
+                      hint={a.withheld ? t(`catalogue.publish.withheld.${a.withheld}`) : undefined}
+                      title={a.withheld ? t(`catalogue.publish.withheld.${a.withheld}`) : undefined}
+                      onChange={() =>
+                        setDrafted({
+                          ...drafted,
+                          leftOut: drafted.leftOut.includes(a.name)
+                            ? drafted.leftOut.filter((x) => x !== a.name)
+                            : [...drafted.leftOut, a.name],
+                        })
+                      }
+                    />
+                  ))}
+              </div>
+            </div>
+          ))
+        )}
+      </fieldset>
+      <div className="flex flex-col gap-1">
+        <Checkbox
+          label={t("catalogue.publish.datastore")}
+          aria-describedby="publish-datastore-help"
+          checked={drafted.datastore}
+          disabled={!drafted.draft.datastoreAvailable}
+          disabledReason={t("catalogue.publish.datastoreUnavailable")}
+          onChange={() => setDrafted({ ...drafted, datastore: !drafted.datastore })}
+        />
+        {/* Below the box, not beside it: at phone width a hint beside it squeezes the label. */}
+        <p id="publish-datastore-help" className="text-caption text-fg-muted">
+          {t(drafted.draft.datastoreAvailable ? "catalogue.publish.datastoreHelp" : "catalogue.publish.datastoreUnavailable")}
+        </p>
+      </div>
       <div className="flex justify-between gap-2">
         <Button onClick={() => setStep("pick")}>{t("catalogue.publish.back")}</Button>
         <Button type="submit" variant="primary">
@@ -305,62 +472,5 @@ function Flow({
         </Button>
       </div>
     </form>
-  );
-}
-
-/** The catalogue entry as the dataset page will show it (Architecture/21 §7, step 3). */
-function Preview({ drafted }: { drafted: Drafted }): JSX.Element {
-  const { t, i18n } = useTranslation();
-  const themeLabel = useThemeLabel();
-  const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
-  const { form } = drafted;
-  const title = localized(drafted.manifest.metadata.title, locale, drafted.manifest.metadata.name);
-  const description = localized(drafted.manifest.metadata.description, locale, "");
-  const keywords = form.keywords.split(",").map((k) => k.trim()).filter(Boolean);
-  const facts: Array<[string, string]> = [
-    [t("catalogue.facets.publisher"), form.publisher],
-    [t("catalogue.facets.licence"), form.license ? t(`catalogue.licence.${form.license}`) : ""],
-    [t("catalogue.dataset.frequency"), form.frequency ? t(`catalogue.frequency.${form.frequency}`) : ""],
-    [t("catalogue.facets.spatial"), form.spatial],
-    [
-      t("catalogue.facets.year"),
-      form.temporalStart || form.temporalEnd
-        ? t("catalogue.dataset.period", {
-            start: form.temporalStart || t("catalogue.dataset.open"),
-            end: form.temporalEnd || t("catalogue.dataset.open"),
-          })
-        : "",
-    ],
-    [t("catalogue.dataset.contact"), [form.contactName, form.contactEmail].filter(Boolean).join(", ")],
-  ];
-  return (
-    <section aria-label={t("catalogue.publish.step.preview")} className="flex flex-col gap-3 rounded-md border border-border p-4">
-      <h3 className="font-heading text-title font-semibold text-fg">{title}</h3>
-      {description ? <p className="text-body text-fg">{description}</p> : null}
-      <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
-        {facts
-          .filter(([, value]) => value.trim() !== "")
-          .map(([label, value]) => (
-            <div key={label}>
-              <dt className="text-caption font-semibold text-fg-muted">{label}</dt>
-              <dd className="text-body text-fg">{value}</dd>
-            </div>
-          ))}
-      </dl>
-      {form.themes.length > 0 || keywords.length > 0 ? (
-        <ul className="flex flex-wrap gap-1" aria-label={t("catalogue.dataset.tags")}>
-          {form.themes.map((theme) => (
-            <li key={`theme-${theme}`}>
-              <Badge tone="info">{themeLabel(theme)}</Badge>
-            </li>
-          ))}
-          {keywords.map((keyword) => (
-            <li key={`keyword-${keyword}`}>
-              <Badge>{keyword}</Badge>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </section>
   );
 }
