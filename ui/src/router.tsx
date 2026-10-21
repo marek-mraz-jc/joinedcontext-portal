@@ -56,6 +56,7 @@ const ProjectSettingsPage = lazy(() =>
 const ImportPage = lazy(() => import("./pages/import/ImportPage").then((module) => ({ default: module.ImportPage })));
 // A page that carries a map, a grid or an editor loads with its route, not with the Portal: the
 // entry every visit downloads first was 1.7 MB gzipped while these sat in it (T-3280).
+const OrganizationPage = lazy(() => import("./pages/organization/OrganizationPage").then((module) => ({ default: module.OrganizationPage })));
 const SpaceInside = lazy(() => import("./pages/spaces/SpaceInside").then((module) => ({ default: module.SpaceInside })));
 const UploadCsv = lazy(() => import("./pages/spaces/UploadCsv").then((module) => ({ default: module.UploadCsv })));
 const AppPage = lazy(() => import("./pages/apps/AppPage").then((module) => ({ default: module.AppPage })));
@@ -78,9 +79,8 @@ const BringBackPage = lazy(() => import("./pages/workspaces/BringBackPage").then
 const TryItPage = lazy(() => import("./pages/workspaces/TryItPage").then((module) => ({ default: module.TryItPage })));
 const Gallery = lazy(() => import("./pages/gallery/Gallery").then((module) => ({ default: module.Gallery })));
 import { ORG_NAMESPACE } from "./api/manifest";
-import { isOrganizationTab, OrganizationPage } from "./pages/organization/OrganizationPage";
-import type { OrganizationTab } from "./pages/organization/OrganizationPage";
-import { AdminNav } from "./pages/organization/AdminNav";
+import { AdminNav, isOrganizationTab } from "./pages/organization/AdminNav";
+import type { OrganizationTab } from "./pages/organization/AdminNav";
 import { isProjectSettingsTab } from "./pages/projectSettings/tabs";
 import type { ProjectSettingsTab } from "./pages/projectSettings/tabs";
 import type { AuthState } from "./auth/AuthProvider";
