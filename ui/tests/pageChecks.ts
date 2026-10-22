@@ -57,7 +57,8 @@ export function pageFindings(options: PageCheckOptions): string[] {
   const root = document.querySelector("main") ?? document.body;
   const say = (check: string, detail: string) => found.push(`${check}: ${detail.replace(/\s+/g, " ").trim().slice(0, 160)}`);
   const shown = (element: Element) => {
-    if (element.closest("[hidden], [aria-hidden='true'], .sr-only")) return false;
+    // A closed disclosure's body keeps its boxes in Chromium (content-visibility), yet nobody sees it.
+    if (element.closest("[hidden], [aria-hidden='true'], .sr-only, details:not([open]) > :not(summary)")) return false;
     if (!options.layout) return true;
     const style = getComputedStyle(element);
     return style.display !== "none" && style.visibility !== "hidden" && element.getClientRects().length > 0;

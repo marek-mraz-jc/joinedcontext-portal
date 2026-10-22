@@ -81,3 +81,18 @@ describe("the walkers' error-text check", () => {
     expect(findings("error-text")).toEqual(['error-text: the form says only "Request failed"']);
   });
 });
+
+describe("the walkers' raw-json check", () => {
+  const body = '503 {"type":"https://joinedcontext.com/errors/broker-failure","status":503}';
+
+  it("passes a problem body kept behind a closed disclosure (T-5177)", () => {
+    document.body.innerHTML = `<main><p>Endpoint helsinki-transport was not published.</p>
+      <details><summary>Technical details</summary><p>${body}</p></details></main>`;
+    expect(findings("raw-json")).toEqual([]);
+  });
+
+  it("flags the same body once it shows on the page", () => {
+    document.body.innerHTML = `<main><p>${body}</p><details open><summary>Technical details</summary><p>${body}</p></details></main>`;
+    expect(findings("raw-json")).toEqual([`raw-json: ${body}`]);
+  });
+});
