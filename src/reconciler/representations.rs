@@ -3,8 +3,9 @@
 //!
 //! CSV is the one file an Endpoint serves; `xlsx`, `parquet`, `json`, `zip` and `geojson` left
 //! the vocabulary, and the gateway refuses a manifest that lists one. A run that finds such an
-//! Endpoint rewrites its file without them, in one commit per repository; a repository with
-//! none is not touched, so the second run changes nothing.
+//! Endpoint, or an App whose `dataNeeds` name one (T-5305), rewrites its file without them, in
+//! one commit per repository; a repository with none is not touched, so the second run changes
+//! nothing.
 
 use std::collections::BTreeSet;
 
@@ -18,22 +19,31 @@ pub const RETIRED: [&str; 5] = ["xlsx", "parquet", "json", "zip", "geojson"];
 /// The two `spec` lists a representation is named in.
 const LISTS: [&str; 2] = ["enabledRepresentations", "disabledRepresentations"];
 
-/// Whether an Endpoint's `spec` names a retired representation in either list.
-pub fn names_retired(spec: &serde_json::Value) -> bool {
-    LISTS.iter().any(|list| {
-        spec.get(list)
+/// Whether a manifest of `kind` names a retired representation: an Endpoint in either `spec`
+/// list, an App in any `dataNeeds[].representations` (jc-core refuses both, T-5305).
+pub fn names_retired(kind: &str, spec: &serde_json::Value) -> bool {
+    let named = |items: Option<&serde_json::Value>| {
+        items
             .and_then(serde_json::Value::as_array)
             .is_some_and(|items| items.iter().any(|item| is_retired(item.as_str())))
-    })
+    };
+    match kind {
+        "Endpoint" => LISTS.iter().any(|list| named(spec.get(list))),
+        "App" => spec
+            .get("dataNeeds")
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(|needs| needs.iter().any(|need| named(need.get("representations")))),
+        _ => false,
+    }
 }
 
 fn is_retired(name: Option<&str>) -> bool {
     name.is_some_and(|name| RETIRED.contains(&name))
 }
 
-/// The file `text` with every retired representation dropped from its Endpoint documents, or
-/// `None` when it names none (or is not YAML this can read, which the loader reports itself).
-/// Every document of a changed file is written back as YAML values: comments in that file do
+/// The file `text` with every retired representation dropped from its Endpoint documents and
+/// from its Apps' `dataNeeds[].representations` (T-5305), or `None` when it names none (or is
+/// not YAML this can read, which the loader reports itself). Every document of a changed file is written back as YAML values: comments in that file do
 /// not survive, the manifests do.
 pub fn strip(text: &str) -> Option<String> {
     let mut documents = Vec::new();
@@ -42,31 +52,44 @@ pub fn strip(text: &str) -> Option<String> {
     }
     let mut changed = false;
     for document in &mut documents {
-        if document.get("kind").and_then(Value::as_str) != Some("Endpoint") {
-            continue;
-        }
+        let kind = document
+            .get("kind")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
         let Some(spec) = document.get_mut("spec").and_then(Value::as_mapping_mut) else {
             continue;
         };
-        for list in LISTS {
-            let Some(Value::Sequence(items)) = spec.get_mut(list) else {
-                continue;
-            };
-            let before = items.len();
-            items.retain(|item| !is_retired(item.as_str()));
-            if items.len() == before {
-                continue;
-            }
-            changed = true;
-            if items.is_empty() {
-                if list == "enabledRepresentations" {
-                    // jc-core refuses an empty listed set; NGSI-LD is served anyway (EP-10), so
-                    // naming it alone keeps the Endpoint as narrow as it was.
-                    items.push(Value::String("ngsi-ld".to_owned()));
-                } else {
-                    spec.remove(list);
+        match kind.as_deref() {
+            Some("Endpoint") => {
+                for list in LISTS {
+                    let Some(Value::Sequence(items)) = spec.get_mut(list) else {
+                        continue;
+                    };
+                    if !drop_retired(items) {
+                        continue;
+                    }
+                    changed = true;
+                    if list == "enabledRepresentations" {
+                        refill(items);
+                    } else if items.is_empty() {
+                        spec.remove(list);
+                    }
                 }
             }
+            Some("App") => {
+                let Some(Value::Sequence(needs)) = spec.get_mut("dataNeeds") else {
+                    continue;
+                };
+                for need in needs {
+                    if let Some(Value::Sequence(items)) = need.get_mut("representations") {
+                        if drop_retired(items) {
+                            refill(items);
+                            changed = true;
+                        }
+                    }
+                }
+            }
+            _ => {}
         }
     }
     if !changed {
@@ -78,6 +101,21 @@ pub fn strip(text: &str) -> Option<String> {
         .collect::<Result<_, _>>()
         .ok()?;
     Some(written.join("---\n"))
+}
+
+/// `items` without the retired representations; answers whether one went.
+fn drop_retired(items: &mut Vec<Value>) -> bool {
+    let before = items.len();
+    items.retain(|item| !is_retired(item.as_str()));
+    items.len() != before
+}
+
+/// An emptied listed set names `ngsi-ld` alone: jc-core refuses an Endpoint's empty one,
+/// NGSI-LD is served anyway (EP-10), so the Endpoint or App need stays as narrow as it was.
+fn refill(items: &mut Vec<Value>) {
+    if items.is_empty() {
+        items.push(Value::String("ngsi-ld".to_owned()));
+    }
 }
 
 /// The repository a loaded path belongs to and its path there: in layout 2 a project's files are
@@ -118,7 +156,7 @@ pub async fn migrate(
     gitea
         .update_files(
             branch,
-            "endpoints: CSV is the one file an Endpoint offers (T-4600)",
+            "endpoints and apps: CSV is the one file an Endpoint offers (T-4600)",
             Author {
                 name: crate::sync::proposal::AUTHOR_NAME,
                 email: crate::sync::proposal::AUTHOR_EMAIL,
@@ -188,10 +226,10 @@ mod tests {
     #[test]
     fn a_clean_endpoint_and_other_kinds_are_not_rewritten() {
         let clean = "kind: Endpoint\nmetadata:\n  name: air\nspec:\n  enabledRepresentations: [ngsi-ld, csv]\n";
-        // An App's dataNeeds is not an Endpoint's list: its file is left as written here.
-        let app = "kind: App\nmetadata:\n  name: map\nspec:\n  enabledRepresentations: [geojson]\n";
+        // Only an Endpoint's own lists and an App's dataNeeds are read: another kind is left.
+        let other = "kind: ContextSpace\nmetadata:\n  name: map\nspec:\n  enabledRepresentations: [geojson]\n";
         assert_eq!(strip(clean), None);
-        assert_eq!(strip(app), None);
+        assert_eq!(strip(other), None);
         assert_eq!(strip("kind: Endpoint\nspec: {}\n"), None);
         assert_eq!(strip("not: [valid"), None);
     }
@@ -246,18 +284,85 @@ mod tests {
         assert!(migrate(&gitea, "main", &paths).await.is_err());
     }
 
+    const APP: &str = "apiVersion: joinedcontext.com/v1alpha1\nkind: App\nmetadata:\n  name: air-quality\n  namespace: helsinki\nspec:\n  dataNeeds:\n  - contextSpaceRef: air\n    types: [AirQualityObserved]\n    operations: [queryEntities]\n    representations: [ngsi-ld, geojson]\n  - contextSpaceRef: air\n    types: [WeatherObserved]\n    operations: [queryEntities]\n    representations: [xlsx]\n  - contextSpaceRef: air\n    types: [Device]\n    operations: [queryEntities]\n";
+
+    fn need_lists(text: &str) -> Vec<Option<Vec<String>>> {
+        let value: Value = serde_norway::from_str(text).expect("yaml");
+        value["spec"]["dataNeeds"]
+            .as_sequence()
+            .expect("needs")
+            .iter()
+            .map(|need| {
+                need.get("representations")
+                    .and_then(Value::as_sequence)
+                    .map(|items| {
+                        items
+                            .iter()
+                            .filter_map(|item| item.as_str().map(str::to_owned))
+                            .collect()
+                    })
+            })
+            .collect()
+    }
+
+    /// jc-core refuses an App whose data need names a retired representation, so its Endpoint
+    /// and Policies stop rendering (T-5305): the run drops the name, a need left with none
+    /// names ngsi-ld alone, and a need that listed nothing stays without a list.
     #[test]
-    fn names_retired_reads_both_lists() {
+    fn an_app_data_need_loses_the_retired_files_and_keeps_ngsi_ld() {
+        let stripped = strip(APP).expect("the app names retired files");
+
+        assert_eq!(
+            need_lists(&stripped),
+            [
+                Some(vec!["ngsi-ld".to_owned()]),
+                Some(vec!["ngsi-ld".to_owned()]),
+                None
+            ]
+        );
+        assert_eq!(strip(&stripped), None, "a second run changes nothing");
+        let value: Value = serde_norway::from_str(&stripped).expect("yaml");
+        assert_eq!(
+            value["spec"]["dataNeeds"][0]["types"][0].as_str(),
+            Some("AirQualityObserved")
+        );
+    }
+
+    #[test]
+    fn a_clean_app_is_not_rewritten() {
+        let clean = "kind: App\nmetadata:\n  name: map\nspec:\n  dataNeeds:\n  - contextSpaceRef: air\n    types: [Device]\n    operations: [queryEntities]\n    representations: [ngsi-ld, csv]\n";
+        assert_eq!(strip(clean), None);
+        assert_eq!(strip("kind: App\nspec: {}\n"), None);
+        assert_eq!(strip("kind: App\nspec:\n  dataNeeds: []\n"), None);
+    }
+
+    #[test]
+    fn names_retired_reads_both_lists_and_app_data_needs() {
         assert!(names_retired(
+            "Endpoint",
             &json!({"enabledRepresentations": ["csv", "zip"]})
         ));
         assert!(names_retired(
+            "Endpoint",
             &json!({"disabledRepresentations": ["geojson"]})
         ));
         assert!(!names_retired(
+            "Endpoint",
             &json!({"enabledRepresentations": ["csv", "ngsi-ld"]})
         ));
-        assert!(!names_retired(&json!({})));
+        assert!(!names_retired("Endpoint", &json!({})));
+        assert!(names_retired(
+            "App",
+            &json!({"dataNeeds": [{"representations": ["csv"]}, {"representations": ["ngsi-ld", "geojson"]}]})
+        ));
+        assert!(!names_retired(
+            "App",
+            &json!({"dataNeeds": [{"representations": ["csv"]}, {}]})
+        ));
+        assert!(!names_retired(
+            "ContextSpace",
+            &json!({"enabledRepresentations": ["geojson"]})
+        ));
     }
 
     #[test]
