@@ -32,6 +32,35 @@ function remapText(source: IcalSource): string {
     .join(", ");
 }
 
+/** What the list shows of one named calendar of `spec.representations.ical` (EP-159). */
+interface IcalOutputSummary {
+  name?: unknown;
+  title?: Record<string, unknown>;
+}
+
+/** The named calendars an Endpoint lists, each with its title and address, read only. */
+export function IcalOutputList({ outputs }: { outputs: IcalOutputSummary[] }): JSX.Element {
+  const { t, i18n } = useTranslation();
+  return (
+    <div className="flex flex-col gap-2" data-testid="ical-outputs">
+      <p className="text-caption text-fg-muted">{t("endpoints.ical.outputs")}</p>
+      <ul className="flex flex-col gap-1">
+        {outputs.map((output, index) => {
+          const name = typeof output.name === "string" ? output.name : "";
+          const titles = output.title ?? {};
+          const title = titles[i18n.language] ?? Object.values(titles)[0];
+          return (
+            <li key={`${name}-${index}`} className="flex flex-wrap items-baseline gap-2">
+              <span className="text-body">{typeof title === "string" ? title : name}</span>
+              <span className="font-mono text-caption text-fg-muted">{`ical/v1/${name}.ics`}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 /**
  * `spec.representations`: how the iCalendar feed maps RFC 5545 fields from the attributes of the
  * space's model (EP-125, T-4900). A row per field, its attribute picked from the type's slots, the
@@ -47,7 +76,10 @@ export function IcalMappingField(props: FieldProps): JSX.Element {
   const root = useContext(FormDataContext) as { contextSpaceRef?: unknown; enabledRepresentations?: unknown } | undefined;
   const served = Array.isArray(root?.enabledRepresentations) && root.enabledRepresentations.includes("ical");
   const space = typeof root?.contextSpaceRef === "string" ? root.contextSpaceRef : "";
-  const stored = (formData as { ical?: IcalMapping } | undefined)?.ical ?? {};
+  const ical = (formData as { ical?: IcalMapping | IcalOutputSummary[] } | undefined)?.ical;
+  // A list of named calendars (EP-159) is shown, never rewritten by this one-mapping table.
+  const outputs = Array.isArray(ical) ? ical : undefined;
+  const stored: IcalMapping = outputs || !ical ? {} : ical;
   const type = stored.type ?? "Event";
   const base = baseOf(stored);
   const fromPreset = presetSources(base);
@@ -73,6 +105,8 @@ export function IcalMappingField(props: FieldProps): JSX.Element {
       <div className={`${LIST_BODY} flex flex-col gap-3`}>
         {!served ? (
           <p className="text-caption text-fg-muted">{t("endpoints.ical.off")}</p>
+        ) : outputs ? (
+          <IcalOutputList outputs={outputs} />
         ) : (
           <>
             <p id={`${id}__help`} className="text-caption text-fg-muted">

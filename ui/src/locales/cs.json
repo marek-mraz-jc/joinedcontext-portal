@@ -1565,6 +1565,7 @@
       "off": "Zapněte kalendář iCalendar v části Reprezentace, abyste mohli mapovat jeho pole.",
       "help": "Ze kterého atributu modelu prostoru pochází každé pole kalendáře. Prázdný řádek použije atribut předvolby, zobrazený šedě. Zkontrolujte formulář a uvidíte verdikt serveru vůči datovému modelu.",
       "start": "Začít od",
+      "outputs": "Tento Endpoint uvádí pojmenované kalendáře, každý na vlastní adrese. Upravte je v YAML Endpointu v části spec.representations.ical, například - name: sport s názvem a zdroji.",
       "presetDefault": "Výchozí (Smart Data Models Event)",
       "preset": {
         "sdm-event": "Smart Data Models Event",
