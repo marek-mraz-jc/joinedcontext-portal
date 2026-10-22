@@ -13,7 +13,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { EntityGrid, DEFAULT_LABELS, originTransport, sourceFor } from "@joinedcontext/sdk";
-import type { EntityGridProps, GeoLabels, GridLabels, GridMapLabels, GridSource, GridState, ResolvedGridConfig } from "@joinedcontext/sdk";
+import type { ColumnLayout, EntityGridProps, GeoLabels, GridLabels, GridMapLabels, GridSource, GridState, ResolvedGridConfig } from "@joinedcontext/sdk";
 
 /** Where the layout a person set is kept, per project and per type. */
 function layoutKey(project: string, type: string): string {
@@ -27,6 +27,32 @@ function layoutKey(project: string, type: string): string {
  * worse than starting at the top, and an unapplied edit must not outlive the page it was typed on.
  */
 type Layout = Pick<GridState, "shown" | "sort">;
+
+/**
+ * The column order, widths and renames a person set from the header (T-5192), kept per project and
+ * type in this browser beside the layout above; a host that keeps its own passes `layout`.
+ */
+function columnsKey(project: string, type: string): string {
+  return `${layoutKey(project, type)}.columns`;
+}
+
+function readColumns(project: string, type: string): ColumnLayout {
+  try {
+    const raw = window.localStorage.getItem(columnsKey(project, type));
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? (parsed as ColumnLayout) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeColumns(project: string, type: string, columns: ColumnLayout): void {
+  try {
+    window.localStorage.setItem(columnsKey(project, type), JSON.stringify(columns));
+  } catch {
+    // Kept for this page only: the widths are a convenience, not the data.
+  }
+}
 
 function readLayout(project: string, type: string): Layout | null {
   try {
@@ -301,6 +327,14 @@ export function PortalEntityGrid({ project, config, source, view, onGridState, e
     [project, config.type, onGridState],
   );
   const state = useMemo(() => (view ? { ...layout, ...view } : layout), [layout, view]);
+  const [columns, setColumns] = useState<ColumnLayout>(() => readColumns(project, config.type));
+  const onColumns = useCallback(
+    (next: ColumnLayout) => {
+      setColumns(next);
+      writeColumns(project, config.type, next);
+    },
+    [project, config.type],
+  );
 
   return (
     <EntityGrid
@@ -318,6 +352,8 @@ export function PortalEntityGrid({ project, config, source, view, onGridState, e
       // grid's own, so nothing a person is in the middle of survives a reload it should not.
       state={state}
       onStateChange={onStateChange}
+      layout={rest.layout ?? columns}
+      onLayout={rest.onLayout ?? onColumns}
     />
   );
 }

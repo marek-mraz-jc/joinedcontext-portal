@@ -3,9 +3,14 @@
    the grid's structure and its focus rings stay the Portal's. */
 .jc-explorer table { border-collapse: collapse; font-size: 0.875rem; }
 .jc-explorer thead th { background: var(--jc-datastore-head, #f6f6f6); border-bottom: 2px solid #ddd; font-weight: 700; }
+/* Opaque rows (T-5192): the pinned name column scrolls over the others without them showing through. */
+.jc-explorer tbody td { background: var(--jc-datastore-row, #fff); }
 .jc-explorer tbody tr:nth-child(even) td { background: var(--jc-datastore-stripe, #f9f9f9); }
 .jc-explorer td, .jc-explorer th { border-bottom: 1px solid #ddd; padding: 0.375rem 0.5rem; }
+/* Dark only when the page is (T-5192): a host that passes `&theme=light` keeps light rows. */
 @media (prefers-color-scheme: dark) {
-  .jc-explorer { --jc-datastore-head: #23272e; --jc-datastore-stripe: #1b1f24; }
-  .jc-explorer td, .jc-explorer th { border-color: #3a3f47; }
+  :root:not([data-theme="light"]) .jc-explorer { --jc-datastore-head: #23272e; --jc-datastore-stripe: #1b1f24; --jc-datastore-row: #0b1220; }
+  :root:not([data-theme="light"]) .jc-explorer td, :root:not([data-theme="light"]) .jc-explorer th { border-color: #3a3f47; }
 }
+:root[data-theme="dark"] .jc-explorer { --jc-datastore-head: #23272e; --jc-datastore-stripe: #1b1f24; --jc-datastore-row: #0b1220; }
+:root[data-theme="dark"] .jc-explorer td, :root[data-theme="dark"] .jc-explorer th { border-color: #3a3f47; }

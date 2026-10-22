@@ -12,7 +12,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { EntityCompare, enumsOf, originTransport, parseGridConfig, relationsOf, sourceFor } from "@joinedcontext/sdk";
 import { fetchJson, publishedTypes } from "../../pages/endpoints/SchemaProjectionPanel";
-import { Button, Field, InlineError, Select, safeHref } from "../ui";
+import { classSlots, parseModel } from "../../pages/models/linkml";
+import type { LinkmlSlot } from "../../pages/models/linkml";
+import { Button, Checkbox, Field, InlineError, Select, safeHref } from "../ui";
+import { columnLabel, displayOrder } from "./displayOrder";
 import { gridLabels, PortalEntityGrid } from "./PortalEntityGrid";
 
 interface SchemaIndex {
@@ -41,6 +44,64 @@ export interface FieldRow {
   name: string;
   kind: string;
   description: string;
+  /** The model's label in the page's language; absent without a published model. */
+  label?: string;
+}
+
+/**
+ * The columns of a type as its published model orders and names them (T-5192, DM-98, DM-100): the
+ * ranked slots in rank order are shown, everything else the endpoint answers stays one tick away;
+ * a GeoProperty is left to the map. Without a model the schema's attributes keep their order, all
+ * shown. Titles resolve model label > model title > field-order.json > the name made readable.
+ */
+export function columnModel(
+  slots: readonly LinkmlSlot[],
+  attributes: readonly string[],
+  locale: string,
+): { order: string[]; shown: string[]; labels: Record<string, string> } {
+  const bySlot = new Map(slots.map((slot) => [slot.name, slot]));
+  const titled = (names: readonly string[]) => Object.fromEntries(names.map((name) => [name, columnLabel(bySlot.get(name), name, locale)]));
+  if (slots.length === 0) return { order: [...attributes], shown: [...attributes], labels: titled(attributes) };
+  const order = displayOrder(slots, attributes);
+  const ranked = order.filter((name) => bySlot.get(name)?.rank !== undefined && bySlot.get(name)?.kind !== "GeoProperty");
+  return {
+    order,
+    shown: ranked.length > 0 ? ranked : order,
+    labels: titled(order),
+  };
+}
+
+/**
+ * Where a table opens when its link names no query or order (T-5192): as the class's model says
+ * (`view_order_by`, `view_upcoming`), for any type; an events model opens at today, soonest first,
+ * the undated last. An attribute the endpoint does not answer is ignored.
+ */
+export function modelView(
+  view: { orderBy?: string; upcoming?: string } | undefined,
+  attributes: readonly string[],
+  today: string,
+): { filterText: string | null; sort: Sort } | null {
+  const upcoming = view?.upcoming && attributes.includes(view.upcoming) ? view.upcoming : undefined;
+  const sort = sortOfLink(view?.orderBy, [...attributes]) ?? (upcoming ? { attr: upcoming, dir: "asc" as const } : null);
+  if (!upcoming && !sort) return null;
+  return { filterText: upcoming ? `!${upcoming}|${upcoming}>="${today}"` : null, sort };
+}
+
+/** Today in the reader's own calendar, as `orderBy` and `q` compare a date: `2026-10-22`. */
+function localToday(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+/** An http(s) address a person opens in a new tab; anything else stays text. */
+function webLink(value: unknown, text: string): JSX.Element | string {
+  const href = typeof value === "string" && /^https?:\/\//i.test(value.trim()) ? safeHref(value) : undefined;
+  if (!href) return typeof value === "string" ? value : "";
+  return (
+    <a className="text-primary-soft-fg underline hover:no-underline" href={href} target="_blank" rel="noopener noreferrer" title={href}>
+      {text}
+    </a>
+  );
 }
 
 /** The Fields of one type from the endpoint's JSON Schema, in the column order. */
@@ -67,18 +128,31 @@ function csvHref(origin: string | undefined, slug: string, type: string, q: stri
   return `${origin ?? ""}/api/endpoint/${encodeURIComponent(slug)}/file.csv?${query.toString()}`;
 }
 
-/** The attributes of the type as a list rather than a table: three columns do not fit a phone, one entry a line does. */
-function FieldList({ fields }: { fields: FieldRow[] }): JSX.Element {
+/**
+ * The attributes of the type as a list rather than a table: three columns do not fit a phone, one
+ * entry a line does. With a published model each entry ticks its column in or out (T-5192).
+ */
+function FieldList({ fields, shown, onShown }: { fields: FieldRow[]; shown?: string[]; onShown?: (next: string[]) => void }): JSX.Element {
   const { t } = useTranslation();
   return (
     <details className="rounded border border-border p-2">
       <summary className="cursor-pointer text-body font-medium text-fg">{t("endpoints.data.fields")}</summary>
+      {onShown ? <p className="mt-1 text-caption text-fg-muted">{t("endpoints.data.fieldsHint")}</p> : null}
       <ul className="mt-2 divide-y divide-border" aria-label={t("endpoints.data.fields")}>
         {fields.map((field) => (
           <li key={field.name} className="flex flex-col gap-0.5 py-2">
             <span className="text-body">
-              <span className="font-mono">{field.name}</span>
+              {onShown && shown ? (
+                <Checkbox
+                  label={field.label ?? field.name}
+                  checked={shown.includes(field.name)}
+                  onChange={() => onShown(shown.includes(field.name) ? shown.filter((each) => each !== field.name) : [...shown, field.name])}
+                />
+              ) : (
+                <span className="font-mono">{field.name}</span>
+              )}
               <span className="text-caption text-fg-muted">
+                {field.label ? <> · <span className="font-mono">{field.name}</span></> : null}
                 {" · "}
                 {t("endpoints.data.fieldType")}: {field.kind || "—"}
               </span>
@@ -194,12 +268,30 @@ export function EndpointDataView({
     queryFn: () => fetchJson(`${base}/v${version}/json-schema`),
   });
 
+  // The published model names and orders the columns (T-5192); an endpoint without one, or a read
+  // that fails, keeps the schema's own attribute names.
+  const model = useQuery({
+    queryKey: ["endpoint-schema-artifact", slug, version, "linkml"],
+    enabled: index.isSuccess,
+    retry: false,
+    queryFn: async () => {
+      const answer = await fetch(new Request(`${base}/v${version}/model.linkml.yaml`, { headers: { Accept: "text/yaml" } }));
+      return answer.ok ? parseModel(await answer.text()) : null;
+    },
+  });
+
   const types = useMemo(() => publishedTypes(schema.data), [schema.data]);
   const type = types.find((each) => each.name === chosen) ?? types[0];
   const columns = useMemo(() => (type ? type.attributes.filter((attribute) => !hidden.includes(attribute)) : []), [type, hidden]);
+  const klass = type && model.data ? model.data.classes.find((each) => each.name === type.name) : undefined;
+  const slots = useMemo(() => (klass && model.data ? classSlots(model.data, klass) : []), [model.data, klass]);
+  const shape = useMemo(() => columnModel(slots, columns, i18n.language), [slots, columns, i18n.language]);
+  const [picked, setPicked] = useState<string[] | null>(null);
+  const shownColumns = useMemo(() => shape.order.filter((name) => (picked ?? shape.shown).includes(name)), [shape, picked]);
   // The order and the typed query the grid opens with; the grid holds them from then on.
   const [view, setView] = useState<{ filterText: string | null; sort: Sort } | null>(null);
-  const opened = view ?? { filterText: link?.q ?? null, sort: sortOfLink(link?.sort, columns) };
+  const opened = view ??
+    (link?.q || link?.sort ? null : modelView(klass?.view, columns, localToday())) ?? { filterText: link?.q ?? null, sort: sortOfLink(link?.sort, columns) };
   const sortText = opened.sort ? `${opened.sort.attr}${opened.sort.dir === "desc" ? ";desc" : ""}` : undefined;
   useEffect(() => {
     if (type) onLink?.({ type: type.name, q: asked || undefined, sort: sortText });
@@ -221,14 +313,24 @@ export function EndpointDataView({
   // Its relationship ends are columns picked from the target's entities (UI-84).
   const relations = useMemo(() => (type ? relationsOf(defs[type.name]) : {}), [defs, type]);
 
+  // A `uri` attribute is a link a person opens, named in words rather than printed whole (T-5192).
+  const links = useMemo(
+    () => new Set(type ? fieldsOf(defs[type.name], columns).filter((field) => field.kind === "uri").map((field) => field.name) : []),
+    [defs, type, columns],
+  );
   const config = useMemo(() => {
     if (!type) {
       return null;
     }
-    const shown = columns
+    const shown = shownColumns
       // `name` is the label attribute of the Smart Data Models: the primary field, first and pinned,
       // and what opens a row (T-3097).
-      .map((attribute) => ({ attr: attribute, ...(attribute === "name" ? { pinned: true } : {}) }));
+      .map((attribute) => ({
+        attr: attribute,
+        ...(attribute === "name" ? { pinned: true } : {}),
+        ...(shape.labels[attribute] ? { label: shape.labels[attribute] } : {}),
+        ...(links.has(attribute) ? { format: "link" as const } : {}),
+      }));
     return (
       parseGridConfig({
         source: { kind: "endpoint", slug },
@@ -241,7 +343,7 @@ export function EndpointDataView({
         history: { enabled: true },
       }).config ?? null
     );
-  }, [slug, type, columns]);
+  }, [slug, type, shownColumns, shape, links]);
 
   const compareLabels = useMemo(
     () => ({
@@ -261,7 +363,21 @@ export function EndpointDataView({
     [t],
   );
   const labels = useMemo(() => gridLabels(t), [t]);
-  const fields = useMemo(() => (type ? fieldsOf(defs[type.name], columns) : []), [defs, type, columns]);
+  const fields = useMemo(
+    () => (type ? fieldsOf(defs[type.name], shape.order).map((field) => ({ ...field, label: shape.labels[field.name] })) : []),
+    [defs, type, shape],
+  );
+  const renderers = useMemo(() => {
+    return Object.fromEntries(
+      [...links].map((name) => [
+        name,
+        (cell: unknown) => {
+          const value = cell && !Array.isArray(cell) ? (cell as { value?: unknown }).value : undefined;
+          return webLink(value, t("endpoints.data.openLink"));
+        },
+      ]),
+    );
+  }, [links, t]);
 
   // A refused or failed schema read says why, in the surface's own sentence (a 403 names the grant).
   const failed = index.error ?? schema.error;
@@ -290,6 +406,7 @@ export function EndpointDataView({
             setChosen(event.target.value);
             // Another type has other columns: its query and order start empty.
             setView({ filterText: null, sort: null });
+            setPicked(null);
             setAsked(undefined);
           }}
         >
@@ -312,7 +429,7 @@ export function EndpointDataView({
         onFull={() => setFull((each) => !each)}
         csv={csv ? csvHref(origin, slug, type.name, asked, sortText) : undefined}
       />
-      <FieldList fields={fields} />
+      <FieldList fields={fields} shown={slots.length > 0 ? shownColumns : undefined} onShown={slots.length > 0 ? setPicked : undefined} />
 
       {comparing && space ? (
         <EntityCompare
@@ -331,6 +448,7 @@ export function EndpointDataView({
           source={source}
           enums={enums}
           relations={relations}
+          renderers={renderers}
           view={opened}
           onGridState={(next) => setView({ filterText: next.filterText ?? null, sort: next.sort ?? null })}
           onQuery={onQuery}
