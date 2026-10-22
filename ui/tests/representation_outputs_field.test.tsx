@@ -177,12 +177,48 @@ describe("the catalogue map defaults (T-5239)", () => {
     expect(screen.queryByLabelText("area", { exact: true })).toBeNull();
     expect(screen.queryByLabelText(o.filterField.label)).toBeNull();
     await user.selectOptions(colour, "category");
-    await user.click(screen.getByLabelText("startDate"));
-    await user.click(screen.getByLabelText("name"));
+    const popup = within(screen.getByRole("group", { name: o.map.popup.label }));
+    await user.click(popup.getByLabelText("startDate"));
+    await user.click(popup.getByLabelText("name"));
     await user.selectOptions(screen.getByLabelText(o.map.cluster.label), "off");
     expect(seen.at(-1)).toEqual({
       widget: [{ name: "mapa", sources: [{ type: "Event", mapping: { colour: "category", popup: ["name", "startDate"] }, cluster: false }] }],
     });
+  });
+});
+
+describe("the catalogue table start (API/11 EP-164, T-5197)", () => {
+  it("offers the class's slots for order and columns, page lengths 10 to 100, and writes the start", async () => {
+    const user = userEvent.setup();
+    const seen = show({ widget: [{ name: "mapa", sources: [{ type: "Event" }] }] }, ON, MAP_LINKML);
+    expect(screen.getByText(o.table.filter.hint)).toBeInTheDocument();
+    const order = screen.getByLabelText(o.table.order.label);
+    expect(optionsOf(order)).not.toContain("area");
+    expect(optionsOf(order)).toEqual(expect.arrayContaining(["", "name", "startDate"]));
+    expect(screen.getByLabelText(o.table.direction.label)).toBeDisabled();
+    expect(optionsOf(screen.getByLabelText(o.table.length.label))).toEqual(["", "10", "20", "50", "100"]);
+    await user.type(screen.getByLabelText(o.table.filter.label), "startDate>=today");
+    await user.selectOptions(order, "startDate");
+    await user.selectOptions(screen.getByLabelText(o.table.direction.label), "desc");
+    await user.selectOptions(screen.getByLabelText(o.table.length.label), "50");
+    const columns = within(screen.getByRole("group", { name: o.table.columns.label }));
+    await user.click(columns.getByLabelText("startDate"));
+    await user.click(columns.getByLabelText("name"));
+    expect(seen.at(-1)).toEqual({
+      widget: [
+        {
+          name: "mapa",
+          sources: [{ type: "Event", table: { filter: "startDate>=today", orderBy: "startDate;desc", pageLength: 50, columns: ["name", "startDate"] } }],
+        },
+      ],
+    });
+    // Emptied members are left to the model, and an empty start is not written at all.
+    await user.clear(screen.getByLabelText(o.table.filter.label));
+    await user.selectOptions(order, "");
+    await user.selectOptions(screen.getByLabelText(o.table.length.label), "");
+    await user.click(columns.getByLabelText("startDate"));
+    await user.click(columns.getByLabelText("name"));
+    expect(seen.at(-1)).toEqual({ widget: [{ name: "mapa", sources: [{ type: "Event" }] }] });
   });
 });
 

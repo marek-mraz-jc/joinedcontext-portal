@@ -2079,7 +2079,7 @@
     },
     "src/components/forms/widgets/OutputSourceEditors.tsx": {
       "controls": {
-        "Checkbox": 1
+        "Checkbox": 2
       },
       "tests": [
         "representation_outputs_field.test.tsx"

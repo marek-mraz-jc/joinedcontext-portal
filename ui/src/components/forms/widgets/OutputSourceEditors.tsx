@@ -3,10 +3,10 @@ import { useTranslation } from "react-i18next";
 import type { Manifest } from "../../../api/manifest";
 import { TypePicker } from "../../pickers/TypePicker";
 import { filterSlotsOf, useModelSource } from "../../entities/filters";
-import { Badge, Checkbox, Field, InlineError, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TableRowHeaderCell } from "../../ui";
+import { Badge, Checkbox, Field, InlineError, Input, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TableRowHeaderCell } from "../../ui";
 import { baseOf, CORE_ATTRIBUTES, ICAL_FIELDS, ICAL_PRESETS, presetSources, unmappedRequired, withPreset, withSource, withType } from "./icalMapping";
 import type { IcalMapping, IcalSource } from "./icalMapping";
-import { CORE_GEOMETRIES, FEED_PRESETS, FEED_ROLES, feedPresetRoles, MAX_POPUP, unmappedRoles, withMapRole, withPopup, withRole } from "./representationOutputs";
+import { CORE_GEOMETRIES, FEED_PRESETS, FEED_ROLES, feedPresetRoles, MAX_COLUMNS, MAX_POPUP, TABLE_PAGE_LENGTHS, unmappedRoles, withMapRole, withPopup, withRole, withTable } from "./representationOutputs";
 import type { FeedSource, MapSource } from "./representationOutputs";
 
 /** A remap written in YAML, shown as it is: the table edits plain attribute names only. */
@@ -371,6 +371,112 @@ export function MapSourceEditor({ id, value, onChange, project, space, model, fr
           ))}
         </div>
       </fieldset>
+      <TableStartEditor id={id} value={value} onChange={onChange} shown={shown} frozen={frozen} />
     </div>
+  );
+}
+
+/**
+ * Where the widget's table of one class starts (API/11 EP-164): its default filter, order, page
+ * length and columns, above the model's `view_*`. Attributes come from the class's slots; the save
+ * checks the filter with the gateway's `q` parser and each attribute against the model again.
+ */
+function TableStartEditor({
+  id,
+  value,
+  onChange,
+  shown,
+  frozen,
+}: {
+  id: string;
+  value: MapSource;
+  onChange: (next: MapSource) => void;
+  shown: string[];
+  frozen?: boolean;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const table = value.table ?? {};
+  const [orderAttr, orderDir] = (table.orderBy ?? "").split(";");
+  const columns = table.columns ?? [];
+  const full = columns.length >= MAX_COLUMNS;
+  const toggle = (name: string, on: boolean) => {
+    const now = new Set(columns);
+    if (on) now.add(name);
+    else now.delete(name);
+    // Ticked in the order the class lists them, then any the class no longer has.
+    onChange(withTable(value, "columns", [...shown.filter((n) => now.has(n)), ...[...now].filter((n) => !shown.includes(n))]));
+  };
+  return (
+    <fieldset className="flex flex-col gap-3" aria-describedby={`${id}-table-hint`}>
+      <legend className="text-caption font-semibold">{t("endpoints.outputs.table.title")}</legend>
+      <p id={`${id}-table-hint`} className="text-caption text-fg-muted">
+        {t("endpoints.outputs.table.lead")}
+      </p>
+      <Field id={`${id}-table-filter`} label={t("endpoints.outputs.table.filter.label")} help={t("endpoints.outputs.table.filter.hint")}>
+        <Input
+          id={`${id}-table-filter`}
+          className="font-mono"
+          value={table.filter ?? ""}
+          maxLength={1000}
+          onChange={(event) => onChange(withTable(value, "filter", event.currentTarget.value.trim() === "" ? undefined : event.currentTarget.value))}
+        />
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Field id={`${id}-table-order`} label={t("endpoints.outputs.table.order.label")} help={t("endpoints.outputs.table.order.hint")}>
+          <AttributeSelect
+            id={`${id}-table-order`}
+            value={orderAttr ?? ""}
+            choices={shown}
+            empty={t("endpoints.outputs.table.order.default")}
+            onChange={(attribute) => onChange(withTable(value, "orderBy", attribute ? `${attribute}${orderDir === "desc" ? ";desc" : ""}` : undefined))}
+          />
+        </Field>
+        <Field id={`${id}-table-direction`} label={t("endpoints.outputs.table.direction.label")} help={t("endpoints.outputs.table.direction.hint")}>
+          <Select
+            id={`${id}-table-direction`}
+            value={orderDir === "desc" ? "desc" : "asc"}
+            disabled={!orderAttr}
+            title={orderAttr ? undefined : t("endpoints.outputs.table.direction.needsOrder")}
+            onChange={(event) => onChange(withTable(value, "orderBy", `${orderAttr}${event.currentTarget.value === "desc" ? ";desc" : ""}`))}
+          >
+            <option value="asc">{t("endpoints.outputs.table.direction.asc")}</option>
+            <option value="desc">{t("endpoints.outputs.table.direction.desc")}</option>
+          </Select>
+        </Field>
+        <Field id={`${id}-table-length`} label={t("endpoints.outputs.table.length.label")} help={t("endpoints.outputs.table.length.hint")}>
+          <Select
+            id={`${id}-table-length`}
+            value={table.pageLength === undefined ? "" : String(table.pageLength)}
+            onChange={(event) => onChange(withTable(value, "pageLength", event.currentTarget.value === "" ? undefined : Number(event.currentTarget.value)))}
+          >
+            <option value="">{t("endpoints.outputs.table.length.default")}</option>
+            {TABLE_PAGE_LENGTHS.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+      <fieldset className="flex flex-col gap-2" aria-describedby={`${id}-table-columns-hint`}>
+        <legend className="text-caption font-semibold">{t("endpoints.outputs.table.columns.label")}</legend>
+        <p id={`${id}-table-columns-hint`} className="text-caption text-fg-muted">
+          {t(shown.length > 0 ? "endpoints.outputs.table.columns.hint" : "endpoints.outputs.table.columns.none", { max: MAX_COLUMNS })}
+        </p>
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {[...new Set([...shown, ...columns])].map((name) => (
+            <Checkbox
+              key={name}
+              id={`${id}-table-column-${name}`}
+              label={<span className="font-mono">{name}</span>}
+              checked={columns.includes(name)}
+              disabled={frozen || (full && !columns.includes(name))}
+              disabledReason={full && !columns.includes(name) ? t("endpoints.outputs.table.columns.full", { max: MAX_COLUMNS }) : undefined}
+              onChange={(event) => toggle(name, event.currentTarget.checked)}
+            />
+          ))}
+        </div>
+      </fieldset>
+    </fieldset>
   );
 }

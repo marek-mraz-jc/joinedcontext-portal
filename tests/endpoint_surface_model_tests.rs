@@ -545,6 +545,88 @@ async fn a_map_role_the_model_cannot_fill_is_a_422_naming_the_member() {
     refused(&state, &gitea, not_a_flag, "spec.representations").await;
 }
 
+fn table(start: Value) -> Value {
+    with_outputs(
+        json!({ "widget": [{ "name": "tabulka", "sources": [{ "type": "Event", "table": start }] }] }),
+    )
+}
+
+/// API/11 EP-164 (T-5197): a table start whose filter parses and whose attributes the class has saves.
+#[tokio::test]
+async fn a_table_start_that_fits_the_model_opens_a_change() {
+    let (state, _gitea) = portal(MAP_EVENTS).await;
+    let start = json!({ "filter": "startDate>=today;category==\"music\"", "orderBy": "startDate;desc",
+        "pageLength": 50, "columns": ["name", "startDate"] });
+    let answer = propose(&state, table(start)).await;
+    assert!(
+        answer.status.is_success(),
+        "{} {}",
+        answer.status,
+        answer.text
+    );
+}
+
+/// One 422 per table member the widget cannot use, naming the member.
+#[tokio::test]
+async fn a_table_start_the_widget_cannot_use_is_a_422_naming_the_member() {
+    let (state, gitea) = portal(MAP_EVENTS).await;
+    for (start, member) in [
+        (
+            json!({ "filter": "startDate>=>today" }),
+            "`table.filter` is not an NGSI-LD q",
+        ),
+        (
+            json!({ "orderBy": "nowhere" }),
+            "`table.orderBy` names `nowhere`",
+        ),
+        (
+            json!({ "orderBy": "location" }),
+            "`table.orderBy` names `location`, a GeoProperty",
+        ),
+        (
+            json!({ "pageLength": 25 }),
+            "`table.pageLength: 25` is not one of 10, 20, 50 or 100",
+        ),
+        (
+            json!({ "columns": ["name", "nowhere"] }),
+            "`table.columns` names `nowhere`",
+        ),
+        (
+            json!({ "columns": ["name", "name"] }),
+            "`table.columns` names `name` twice",
+        ),
+    ] {
+        refused(&state, &gitea, table(start), member).await;
+    }
+    refused(
+        &state,
+        &gitea,
+        table(json!({ "sort": "name" })),
+        "spec.representations",
+    )
+    .await;
+}
+
+/// A table start is an Endpoint change: a person without the Endpoint right gets 403.
+#[tokio::test]
+async fn a_person_without_the_endpoint_right_cannot_set_a_table_start() {
+    let (state, gitea) = portal(MAP_EVENTS).await;
+    let answer = common::checked_send(
+        &state,
+        common::person("visitor"),
+        "POST",
+        &format!("/api/v1/projects/{PROJECT}/endpoints"),
+        Some(table(json!({ "pageLength": 50 }))),
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::FORBIDDEN, "{}", answer.text);
+    let requests = gitea.received_requests().await.expect("recorded");
+    assert!(
+        !requests.iter().any(|r| r.method.as_str() == "POST"),
+        "no Change was opened"
+    );
+}
+
 /// The map defaults are an Endpoint change: a person without the Endpoint right gets 403.
 #[tokio::test]
 async fn a_person_without_the_endpoint_right_cannot_set_map_defaults() {

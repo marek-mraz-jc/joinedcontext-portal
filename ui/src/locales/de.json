@@ -2089,6 +2089,37 @@
           "none": "Dieser Typ hat keine Felder zum Anzeigen; wählen Sie zuerst einen Typ des Datenmodells.",
           "full": "Höchstens {max} Felder; entfernen Sie eines, um ein anderes zu wählen."
         }
+      },
+      "table": {
+        "title": "Tabellenstart",
+        "lead": "Wie sich die Tabelle auf der Datensatzseite für diesen Typ öffnet; Lesende können jede Vorgabe entfernen. Leer behält die Vorgabe des Datenmodells.",
+        "filter": {
+          "label": "Standardfilter",
+          "hint": "Ein NGSI-LD q, mit dem sich die Tabelle öffnet; Datumswerte dürfen today, today+7d oder today-1d sein. Beispiel: startDate>=today"
+        },
+        "order": {
+          "label": "Sortieren nach",
+          "hint": "Die Spalte, nach der die Zeilen sortiert sind, zum Beispiel startDate.",
+          "default": "Wie das Datenmodell sagt"
+        },
+        "direction": {
+          "label": "Richtung",
+          "hint": "Aufsteigend zeigt das Kleinste oder Früheste zuerst, zum Beispiel die nächste Veranstaltung.",
+          "asc": "Aufsteigend",
+          "desc": "Absteigend",
+          "needsOrder": "Wählen Sie zuerst eine Spalte zum Sortieren."
+        },
+        "length": {
+          "label": "Zeilen pro Seite",
+          "hint": "Wie viele Zeilen eine Seite zeigt, zum Beispiel 20.",
+          "default": "Wie das Datenmodell sagt"
+        },
+        "columns": {
+          "label": "Angezeigte Spalten",
+          "hint": "Höchstens {max} Spalten in der Reihenfolge des Typs ankreuzen, zum Beispiel name und startDate; ohne Kreuz gilt das Datenmodell.",
+          "none": "Dieser Typ hat keine Felder zum Anzeigen; wählen Sie zuerst einen Typ aus dem Datenmodell des Bereichs.",
+          "full": "Höchstens {max} Spalten; entfernen Sie ein Kreuz, um eine andere zu wählen."
+        }
       }
     }
   },

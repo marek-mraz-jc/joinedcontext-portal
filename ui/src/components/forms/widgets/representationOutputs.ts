@@ -35,6 +35,32 @@ export interface MapSource {
   type: string;
   mapping?: { geometry?: string; colour?: string; popup?: string[] };
   cluster?: boolean;
+  table?: TableStart;
+}
+
+/** Where the widget's table of one class starts (API/11 EP-164): defaults the reader can remove. */
+export interface TableStart {
+  filter?: string;
+  orderBy?: string;
+  pageLength?: number;
+  columns?: string[];
+}
+
+/** The most columns a table start names (jc-core MAX_COLUMNS). */
+export const MAX_COLUMNS = 30;
+
+/** The page lengths the widget offers (DM-134). */
+export const TABLE_PAGE_LENGTHS = [10, 20, 50, 100] as const;
+
+/** A table start with one member set, or left to the model when emptied; an empty start is dropped. */
+export function withTable<K extends keyof TableStart>(source: MapSource, member: K, value: TableStart[K] | undefined): MapSource {
+  const table: TableStart = { ...(source.table ?? {}) };
+  const empty = value === undefined || value === "" || (Array.isArray(value) && value.length === 0);
+  if (empty) delete table[member];
+  else table[member] = value;
+  const next: MapSource = { ...source, table };
+  if (Object.keys(table).length === 0) delete next.table;
+  return next;
 }
 
 export type IcalOutput = Output<IcalMapping>;

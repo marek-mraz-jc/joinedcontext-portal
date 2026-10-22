@@ -2089,6 +2089,37 @@
           "none": "This type has no fields to show; pick a type of the space's data model first.",
           "full": "At most {max} fields; untick one to pick another."
         }
+      },
+      "table": {
+        "title": "Table start",
+        "lead": "Where the dataset page's table opens for this type; a reader can remove each default. Empty keeps the data model's.",
+        "filter": {
+          "label": "Default filter",
+          "hint": "An NGSI-LD q the table opens with; dates may be today, today+7d or today-1d. Example: startDate>=today"
+        },
+        "order": {
+          "label": "Sort by",
+          "hint": "The column the rows open sorted by, for example startDate.",
+          "default": "As the data model says"
+        },
+        "direction": {
+          "label": "Direction",
+          "hint": "Ascending puts the smallest or earliest first, for example the next event.",
+          "asc": "Ascending",
+          "desc": "Descending",
+          "needsOrder": "Pick a column to sort by first."
+        },
+        "length": {
+          "label": "Rows per page",
+          "hint": "How many rows one page shows, for example 20.",
+          "default": "As the data model says"
+        },
+        "columns": {
+          "label": "Columns shown",
+          "hint": "Tick up to {max} columns in the order the type lists them, for example name and startDate; none ticked keeps the data model's.",
+          "none": "This type has no fields to show; pick a type of the space's data model first.",
+          "full": "At most {max} columns; untick one to pick another."
+        }
       }
     }
   },

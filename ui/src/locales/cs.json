@@ -2089,6 +2089,37 @@
           "none": "Tento typ nemá pole k zobrazení; nejprve vyberte typ z datového modelu prostoru.",
           "full": "Nejvýše {max} polí; chcete-li jiné, jedno odškrtněte."
         }
+      },
+      "table": {
+        "title": "Začátek tabulky",
+        "lead": "Jak se tabulka na stránce datové sady otevře pro tento typ; čtenář může každé výchozí nastavení odebrat. Prázdné ponechá nastavení datového modelu.",
+        "filter": {
+          "label": "Výchozí filtr",
+          "hint": "NGSI-LD q, se kterým se tabulka otevře; datum může být today, today+7d nebo today-1d. Příklad: startDate>=today"
+        },
+        "order": {
+          "label": "Řadit podle",
+          "hint": "Sloupec, podle kterého jsou řádky seřazeny, například startDate.",
+          "default": "Podle datového modelu"
+        },
+        "direction": {
+          "label": "Směr",
+          "hint": "Vzestupně dá nejmenší nebo nejdřívější první, například nejbližší akci.",
+          "asc": "Vzestupně",
+          "desc": "Sestupně",
+          "needsOrder": "Nejprve vyberte sloupec, podle kterého řadit."
+        },
+        "length": {
+          "label": "Řádků na stránku",
+          "hint": "Kolik řádků ukáže jedna stránka, například 20.",
+          "default": "Podle datového modelu"
+        },
+        "columns": {
+          "label": "Zobrazené sloupce",
+          "hint": "Zaškrtněte nejvýše {max} sloupců v pořadí typu, například name a startDate; bez zaškrtnutí platí datový model.",
+          "none": "Tento typ nemá pole k zobrazení; nejprve vyberte typ z datového modelu prostoru.",
+          "full": "Nejvýše {max} sloupců; chcete-li jiný, jeden odškrtněte."
+        }
       }
     }
   },
