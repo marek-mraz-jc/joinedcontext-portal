@@ -756,13 +756,13 @@ describe("the space's own data", () => {
 
     const picker = await screen.findByLabelText(en.spaces.saved.view);
     await waitFor(() => expect(within(picker).getAllByRole("option")).toHaveLength(2));
-    expect(await screen.findByRole("columnheader", { name: /no2/i })).toBeInTheDocument();
+    expect(await screen.findByRole("columnheader", { name: /NO₂/ })).toBeInTheDocument();
     await userEvent.selectOptions(picker, view.id);
 
     const marked = await screen.findAllByRole("img", { name: en.spaces.saved.toneLabel.replace("{when}", "pm10>50") });
     expect(marked).toHaveLength(1);
     expect(marked[0].closest("tr")).toHaveTextContent("52");
-    expect(screen.queryByRole("columnheader", { name: /no2/i })).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: /NO₂/ })).toBeNull();
   });
 
   // T-4827: values by what they hold, the model's order and labels, on the caller's own answer.

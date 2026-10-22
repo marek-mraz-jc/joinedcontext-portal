@@ -210,11 +210,44 @@
   align-items: center;
 }
 
+/* The Portal's own control (T-5192): readable 14px text in normal weight, not the header's bold,
+   the field's border and radius, and the Portal's small chevron, so the list a browser opens from
+   it inherits a readable size as well. */
 .jc-grid-filter-cell select,
 .jc-grid-filter-cell input {
   font: inherit;
+  font-size: max(14px, 0.875rem);
+  font-weight: 400;
+  line-height: 1.25;
   min-width: 0;
   max-width: 100%;
+  min-height: 2.25rem;
+  box-sizing: border-box;
+  padding: 0.25rem 0.5rem;
+  color: var(--jc-color-ink, #1a1a1a);
+  background-color: var(--jc-color-surface, #ffffff);
+  border: 1px solid var(--jc-color-line, #cbd5e1);
+  border-radius: var(--jc-radius-md, 6px);
+}
+
+.jc-grid-filter-cell select:not([multiple]) {
+  appearance: none;
+  padding-right: 2rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2364748b' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 1rem 1rem;
+}
+
+.jc-grid-filter-cell select option {
+  font-size: max(14px, 0.875rem);
+  font-weight: 400;
+}
+
+.jc-grid-filter-cell select:focus-visible,
+.jc-grid-filter-cell input:focus-visible {
+  outline: 2px solid var(--jc-color-accent, #1d4ed8);
+  outline-offset: 1px;
 }
 
 .jc-grid-query {
@@ -1077,3 +1110,18 @@ button.jc-cell-chip:hover {
 .jc-grid-tr[class*="jc-grid-tr--"] td.jc-grid-rownum {
   box-shadow: inset 4px 0 0 var(--jc-tone, transparent);
 }
+
+/* The widest a column grows by its values (T-5192, owner 2026-10-22 "set max width for attributes"):
+   28 characters, the row's name 40, a link 16; a longer value wraps to three lines and ends in "…",
+   whole in the row's detail. A width the person drags replaces the cap. */
+.jc-grid-cell {
+  max-width: 28ch;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.jc-grid-pinned > .jc-grid-cell { max-width: 40ch; }
+.jc-grid-cell[data-format="link"] { max-width: 16ch; }
