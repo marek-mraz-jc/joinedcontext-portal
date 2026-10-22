@@ -9571,7 +9571,7 @@
       "ical": "Kalender (iCal)",
       "mcp": "Assistenten (MCP)",
       "websocket": "Live-Aktualisierungen",
-      "download": "Downloads (CSV)"
+      "download": "Herunterladen (CSV)"
     },
     "hint": {
       "window": "Die Tage bis heute (UTC), z. B. die letzten 30 Tage.",
