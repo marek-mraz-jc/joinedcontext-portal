@@ -1416,7 +1416,16 @@
       "hiddenColumn": "durch die Projektion verborgen",
       "same": "Dieser Endpunkt antwortet diese Seite genau so, wie der Raum sie hält.",
       "spaceRefused": "Sie dürfen diesen Endpunkt lesen, aber nicht den Raum dahinter, also gibt es nichts zu vergleichen.",
-      "typeHelp": "Welchen Datensatztyp die Tabelle zeigt; einen anderen wählen, um seine Zeilen zu sehen, z. B. die Luftqualitätsmessungen."
+      "typeHelp": "Welchen Datensatztyp die Tabelle zeigt; einen anderen wählen, um seine Zeilen zu sehen, z. B. die Luftqualitätsmessungen.",
+      "full": "Ganzes Fenster",
+      "fullLeave": "Ganzes Fenster verlassen",
+      "csv": "Diese Zeilen als CSV herunterladen",
+      "csvHelp": "Die Datei enthält alle Zeilen der aktuellen Abfrage und Reihenfolge bis zum Download-Limit des Endpoints; dieselbe Abfrage steht in seiner Adresse auch für ein Skript.",
+      "fields": "Felder",
+      "fieldType": "Typ",
+      "noDescription": "Das Modell gibt keine Beschreibung an.",
+      "section": "Daten",
+      "sectionLead": "Die Zeilen, die dieser Endpoint Ihnen mit Ihrem eigenen Zugriff antwortet: sortieren, filtern und die Adresse des Gesehenen teilen."
     },
     "projection": {
       "title": "Veröffentlichte Attribute",
@@ -4877,6 +4886,7 @@
     "editAsText": "Als Text bearbeiten",
     "filterRow": "Filter",
     "sortPage": "Diese Seite sortieren nach",
+    "sortAll": "Alle Zeilen sortieren nach",
     "matching": "passend",
     "noTotal": "der Endpoint nennt für diese Antwort keine Gesamtzahl",
     "history": "Verlauf",
@@ -9540,6 +9550,45 @@
       "body": "Wenn unsere Antwort Sie nicht zufriedenstellt, wenden Sie sich an das Ministerium für Investitionen, regionale Entwicklung und Informatisierung der Slowakischen Republik, das die Barrierefreiheit von Websites der öffentlichen Verwaltung beaufsichtigt."
     },
     "footer": "Über diese Seite"
+  },
+  "quality": {
+    "score": {
+      "title": "Datenqualität",
+      "measured": "Gemessen {when}",
+      "notYet": "Noch nicht gemessen: der erste Qualitätslauf und die Zustandsprüfung füllen dies innerhalb eines Tages.",
+      "badge": "{score} / 100 · {word}",
+      "good": "gut",
+      "fair": "mittel",
+      "poor": "schwach",
+      "unmeasured": "nicht gemessen",
+      "dash": "—",
+      "of100": "{score} / 100",
+      "toFix": "Zu beheben:",
+      "hint": "Der Wert ist der Mittelwert der gemessenen Teile. Aktualität und Links folgen den Zustandsprüfungen alle paar Minuten; Vollständigkeit und Gültigkeit stammen aus dem täglichen Qualitätslauf.",
+      "part": {
+        "freshness": "Aktualität",
+        "completeness": "Vollständigkeit",
+        "validity": "Gültigkeit",
+        "links": "Links"
+      },
+      "say": {
+        "notMeasured": "noch nicht gemessen",
+        "noSchedule": "keine Pipeline verspricht für diese Daten einen Zeitplan",
+        "onTime": "{fresh} von {total} Quellen sind pünktlich",
+        "late": "{late} von {total} Quellen sind verspätet; die neueste Beobachtung ist vom {newest}",
+        "noRequired": "das Modell markiert kein Feld als Pflichtfeld",
+        "complete": "{complete} von {fields} Pflichtfeldern sind in jeder Entität gefüllt",
+        "valid": "{valid} von {checked} Entitäten entsprechen dem Modell",
+        "linksUp": "{up} von {total} Zugriffslinks antworten",
+        "fixLate": "{type} hat keine neuen Daten nach Zeitplan: öffnen Sie Pipeline {pipeline}, lesen Sie ihren neuesten Lauf und nutzen Sie Jetzt ausführen",
+        "fixFailing": "Pipeline {pipeline} schlägt seit {since} fehl: öffnen Sie sie und beheben Sie den Schritt, den ihr neuester Lauf nennt",
+        "fixSilent": "Pipeline {pipeline} schreibt seit {since} nichts: vergleichen Sie ihre Quelle mit Filter und Mapping",
+        "fixMissing": "{attribute} von {type} fehlt in {missing} von {count} Entitäten: bilden Sie es in der Pipeline ab oder markieren Sie es im Modell als optional",
+        "fixInvalid": "Am häufigsten {rule} bei {path} ({count} Entitäten): öffnen Sie den Reiter Qualität des Raums und beheben Sie das Mapping der Pipeline oder das Modell",
+        "fixLink": "{surface}: {said}"
+      },
+      "unavailable": "Der Qualitätswert konnte nicht gelesen werden; laden Sie die Seite neu, um es erneut zu versuchen."
+    }
   },
   "endpointUsage": {
     "title": "Nutzung",

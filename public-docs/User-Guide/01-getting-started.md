@@ -2,6 +2,12 @@
 sidebar_position: 2
 title: "Getting Started"
 description: Your first hour in the Portal, task by task, each one done by hand and asked of the assistant in one sentence.
+routes:
+  - /login
+  - /
+  - /projects/$project
+  - /projects/$project/home
+  - /playground
 ---
 
 # Getting Started
@@ -18,6 +24,8 @@ Nothing in this guide goes live when you press Save. Every write is proposed as 
 4. The assistant sits in the corner behind **Open the assistant**. It can read the pages you can read and fill in the forms you can fill in, and it can propose a change, exactly like you; it cannot approve one.
 
 If a page says you may not see something, that is your role talking, not a fault. **Access** shows what your roles let you do here.
+
+Signing in starts at the **Sign in** button: it sends you to your organization's sign-in and back to the page you asked for. **Home** greets you with what matters for your role: the **Getting started** checklist in a new project, and under **Next for you** the changes that wait for your approval, failing pipelines, drafts you left and dashboards you can read. An old link to `/playground` opens your home page.
 
 ## 2. See what the project already holds
 

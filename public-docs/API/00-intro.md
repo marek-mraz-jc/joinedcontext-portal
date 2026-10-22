@@ -119,7 +119,7 @@ The extension members (T-3243):
 
 A problem type is one of the slugs [Problem Types](09-errors.md) lists, with what happened and what to do for each: jc-core's `PROBLEM_TYPES` and, for the Portal's own, its `PORTAL_PROBLEM_TYPES`. `ProblemDetails::new` with any other slug fails the platform's catalogue test, a Portal slug outside both lists fails the Portal's, and the docs check fails on a slug with no section on that page (T-4485). A status without a type of its own answers with the generic one for its class. The Portal links the section from every error it shows.
 
-The edge's own `too-many-requests` (the per-address limit of a route) is the one refusal that also comes as a page. A request whose `Accept` names `text/html` (a browser opening a page) gets an HTML page in the language its `Accept-Language` puts first (Slovak, Czech or German, otherwise English). The page says the same thing and reloads itself after the seconds `Retry-After` names. It loads nothing and runs no script. Every other caller gets the Problem Details above, with the same status and `Retry-After` (T-4201).
+The edge's own `too-many-requests` (the per-address limit of a route) is the one refusal that also comes as a page. A request whose `Accept` names `text/html` (a browser opening a page) gets an HTML page in the language its `Accept-Language` puts first (Slovak, Czech or German, otherwise English). The page says the same thing, names the seconds `Retry-After` names, and links the same address to load it again; it does not reload itself, since a timed reload the reader cannot stop fails WCAG 2.2.1 (T-5078). It loads nothing and runs no script. Every other caller gets the Problem Details above, with the same status and `Retry-After` (T-4201).
 
 ### Existence Masking
 

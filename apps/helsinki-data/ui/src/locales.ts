@@ -151,6 +151,7 @@ const fi: Strings = {
     filterHintOther: "Valitse ehto, esim. on arvo tai tyhjä.",
     editAsTextHint: "Kirjoita NGSI-LD-kysely itse, esim. pm10>40;name~=\"Espoo\".",
     sortPage: "Lajittele tämä sivu sarakkeen mukaan",
+    sortAll: "Lajittele kaikki rivit sarakkeen mukaan",
     matching: "vastaa",
     history: "Historia",
     edit: "Muokkaa",

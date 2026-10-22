@@ -2241,6 +2241,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/endpoints/{name}/quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Dataset Quality Score
+         * @description The quality score of the dataset an Endpoint serves, 0 to 100, and its four parts: freshness against the writing pipelines' schedules and health, completeness of the model's required fields, the share of entities that follow the model, and the Endpoint's surfaces answering. Each part has its reason and the time it was measured; a part nothing measures yet has no score. What to fix comes only to a caller who reads the Endpoint's Context Space. Counts and names, never a value (T-5112).
+         */
+        get: operations["get_endpoint_quality"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/endpoints/{name}/usage": {
         parameters: {
             query?: never;
@@ -5008,6 +5028,7 @@ export interface components {
             name: string;
             notes?: string | null;
             publisher?: null | components["schemas"]["CataloguePublisher"];
+            quality?: null | components["schemas"]["DatasetScore"];
             resources: components["schemas"]["CatalogueResource"][];
             spatial: string[];
             temporal?: null | components["schemas"]["CatalogueTemporal"];
@@ -5564,6 +5585,39 @@ export interface components {
             updatedAt: string;
             /** Format: int64 */
             version: number;
+        };
+        DatasetScore: {
+            /** @description The newest measurement among the parts, RFC 3339. */
+            measuredAt?: string | null;
+            parts: components["schemas"]["DatasetScorePart"][];
+            /**
+             * Format: int32
+             * @description The mean of the parts that have a score; absent while none has.
+             */
+            score?: number | null;
+        };
+        DatasetScorePart: {
+            fix?: null | components["schemas"]["DatasetScoreText"];
+            /** @description When the part was measured, RFC 3339. */
+            measuredAt?: string | null;
+            part: components["schemas"]["Part"];
+            reason: components["schemas"]["DatasetScoreText"];
+            /**
+             * Format: int32
+             * @description 0 to 100; absent while nothing measures the part.
+             */
+            score?: number | null;
+        };
+        /**
+         * @description A message of the score: its key under `quality.score.say` in the UI's locales with the
+         *     values it names, and its English.
+         */
+        DatasetScoreText: {
+            args: {
+                [key: string]: string;
+            };
+            code: string;
+            text: string;
         };
         /** @description One Endpoint's calls on one day, by surface. */
         Day: {
@@ -6682,6 +6736,8 @@ export interface components {
         PageContextRequest: {
             route: string;
         };
+        /** @enum {string} */
+        Part: "freshness" | "completeness" | "validity" | "links";
         /** @description What the collector reads: how many records the Portal refused, and why the first one was. */
         PartialSuccess: {
             errorMessage?: string;
@@ -15129,6 +15185,49 @@ export interface operations {
             };
             /** @description No broker, or the Endpoint's view is not compiled yet */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_endpoint_quality: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Endpoint name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The score */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetScore"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such Endpoint the caller may read */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

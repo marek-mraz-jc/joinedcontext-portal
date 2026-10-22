@@ -2,6 +2,9 @@
 sidebar_position: 8
 title: Users, Roles, Approvals & Drift Management
 description: Managing team permissions, service accounts, change proposals, and live configuration drift in the Portal.
+routes:
+  - /projects/$project/approvals
+  - /projects/$project/approvals/$id
 ---
 
 # Users, Roles, Approvals & Drift Management
@@ -118,7 +121,7 @@ Open a row. It lists:
 
 ### Connect One MCP Client to All of It
 
-Under **One MCP connector for all of it**, **Connect all** copies the hub's address (`/api/mcp`). One connector there covers every Endpoint in the list; the Endpoint is named on each call. The named MCP servers that include these Endpoints are listed below it.
+Under **One MCP connector for all of it**, **Connect all (copy hub URL)** copies the hub's address (`/api/mcp`). One connector there covers every Endpoint in the list; the Endpoint is named on each call. The named MCP servers that include these Endpoints are listed below it.
 
 ### Revoke a Connected Client
 

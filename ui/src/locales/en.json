@@ -1439,7 +1439,16 @@
       "hiddenColumn": "hidden by the projection",
       "same": "This endpoint answers this page exactly as the space holds it.",
       "spaceRefused": "You may read this endpoint but not the space behind it, so there is nothing to compare it with.",
-      "typeHelp": "Which type of record the table lists; pick another to see its rows, e.g. the air quality readings."
+      "typeHelp": "Which type of record the table lists; pick another to see its rows, e.g. the air quality readings.",
+      "full": "Full window",
+      "fullLeave": "Leave full window",
+      "csv": "Download these rows as CSV",
+      "csvHelp": "The file holds every row of the current query and order, up to the endpoint's download limit; the address beside it is the same query for a script.",
+      "fields": "Fields",
+      "fieldType": "Type",
+      "noDescription": "The model gives no description.",
+      "section": "Data",
+      "sectionLead": "The rows this endpoint answers you, read with your own access: sort, filter and share the address of what you see."
     },
     "projection": {
       "title": "Published attributes",
@@ -4877,6 +4886,7 @@
     "editAsText": "Edit as text",
     "filterRow": "Filters",
     "sortPage": "Sort this page by",
+    "sortAll": "Sort all rows by",
     "matching": "matching",
     "noTotal": "the endpoint gives no total for this answer",
     "history": "History",
@@ -9540,6 +9550,45 @@
       "body": "If our answer does not satisfy you, turn to the Ministry of Investments, Regional Development and Informatization of the Slovak Republic, which oversees the accessibility of public administration websites."
     },
     "footer": "About this site"
+  },
+  "quality": {
+    "score": {
+      "title": "Data quality",
+      "measured": "Measured {when}",
+      "notYet": "Not measured yet: the first quality run and health check fill this in within a day.",
+      "badge": "{score} / 100 · {word}",
+      "good": "good",
+      "fair": "fair",
+      "poor": "poor",
+      "unmeasured": "not measured",
+      "dash": "—",
+      "of100": "{score} / 100",
+      "toFix": "To fix:",
+      "hint": "The score is the mean of the measured parts. Freshness and links follow the health checks every few minutes; completeness and validity come from the daily quality run.",
+      "part": {
+        "freshness": "Freshness",
+        "completeness": "Completeness",
+        "validity": "Validity",
+        "links": "Links"
+      },
+      "say": {
+        "notMeasured": "not measured yet",
+        "noSchedule": "no pipeline promises a schedule for this data",
+        "onTime": "{fresh} of {total} feeds are on schedule",
+        "late": "{late} of {total} feeds are late; the newest observation is from {newest}",
+        "noRequired": "the model marks no field required",
+        "complete": "{complete} of {fields} required fields are filled in every entity",
+        "valid": "{valid} of {checked} entities follow the model",
+        "linksUp": "{up} of {total} access links answer",
+        "fixLate": "{type} has no new data on schedule: open pipeline {pipeline}, read its newest run and use Run now",
+        "fixFailing": "Pipeline {pipeline} fails since {since}: open it and fix the step its newest run names",
+        "fixSilent": "Pipeline {pipeline} writes nothing since {since}: compare its source with its filter and mapping",
+        "fixMissing": "{attribute} of {type} is missing in {missing} of {count} entities: map it in the pipeline or mark it optional in the model",
+        "fixInvalid": "Most often {rule} at {path} ({count} entities): open the space's Quality tab, then fix the pipeline's mapping or the model",
+        "fixLink": "{surface}: {said}"
+      },
+      "unavailable": "The quality score could not be read; reload the page to try again."
+    }
   },
   "endpointUsage": {
     "title": "Usage",

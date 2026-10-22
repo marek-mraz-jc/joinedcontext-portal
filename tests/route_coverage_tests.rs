@@ -82,6 +82,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/projects/{project}/mqttbrokers/{name}/measured", "what an MQTT broker measures, read from its own HTTP API for the brokers page; it writes nothing and an agent reads the broker with jc_resource_get (T-4043, API/01 §44)"),
 ("GET", "/organization/limits", "a summary for the settings page: the catalog and the operator's bounds beside the values the Organization and Project manifests hold, which jc_resource_get reaches; it writes nothing (T-2715, API/01 §28)"),
 ("GET", "/organization/setup", "a summary for the setup page, read from manifests the operations registry already reaches and from the deployment; it writes nothing (T-2748, API/01 §25)"),
+("GET", "/projects/{project}/endpoints/{name}/quality", "the dataset's quality score, a reading about the data the Endpoint page shows and not a manifest (T-5112)"),
 ("POST", "/projects/{project}/endpoints/{name}/preview", "the filter editor's proof, one page through a draft a person is typing; the assistant proposes a filter and reads the saved Endpoint (EP-85)"),
 ("POST", "/projects/{project}/access/explore", "an administrator's look at what another principal reaches, from the Access explorer; no tool asks it (API/01 §41, EP-103)"),
 ("GET", "/projects/{project}/serviceaccounts/{name}/access", "an agent account's grants on its Access view; no tool asks it (API/01 §52, AG-130)"),

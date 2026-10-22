@@ -2,6 +2,8 @@
 sidebar_position: 12
 title: Apps on Demand
 description: Generating, previewing in sandboxes, and publishing purpose-built web applications from endpoint data models.
+routes:
+  - /projects/$project/apps
 ---
 
 # Apps on Demand
