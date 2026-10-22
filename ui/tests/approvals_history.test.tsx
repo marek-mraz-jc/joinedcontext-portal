@@ -6,6 +6,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { download } from "../src/pages/models/diagramExport";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { ApprovalsHistory } from "../src/routes/ApprovalsHistory";
@@ -19,6 +20,11 @@ import {
 } from "./pageHarness";
 
 const PATH = "/projects/helsinki/approvals";
+
+vi.mock("../src/pages/models/diagramExport", async (original) => ({
+  ...(await original<typeof import("../src/pages/models/diagramExport")>()),
+  download: vi.fn(),
+}));
 
 const closed = (name: string, over: Record<string, unknown> = {}) => ({
   apiVersion: "joinedcontext.com/v1alpha1",
@@ -192,6 +198,41 @@ describe("the change history", () => {
       await screen.findByText(en.approvals.history.empty),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(en.approvals.history.kind)).toHaveValue("");
+  });
+
+  // T-5114: the audit trail leaves the Portal as CSV, under the filter the list was asked for.
+  it("exports_the_filtered_history_as_csv_and_says_when_the_file_is_cut", async () => {
+    const { answer, asked } = historyOf({ "1": { items: [REJECTED] } });
+    const exported: string[] = [];
+    const csv = "closedAt,change\r\n2026-10-02T10:00:00Z,chg-00000002\r\n";
+    await renderRoute({
+      path: PATH,
+      answer: (path, request) => {
+        if (!path.endsWith("/changes/history/export")) return answer(path, request);
+        exported.push(new URL(request.url).search);
+        const headers: Record<string, string> = { "content-type": "text/csv; charset=utf-8" };
+        if (exported.length > 1) headers["jc-next-page"] = "11";
+        return new Response(csv, { status: 200, headers });
+      },
+      permissions: { project: "helsinki", bootstrap: false, grants: [{ rule: { kinds: ["Endpoint"], verbs: ["read"] } }] },
+    });
+    await openHistory();
+    const button = screen.getByRole("button", { name: en.approvals.history.export });
+    expect(button).toHaveAccessibleDescription(i18n.t("approvals.history.exportHint", { project: "helsinki" }));
+    expect(screen.getByText(en.approvals.history.dataWrites)).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText(en.approvals.history.kind), "Endpoint");
+    await userEvent.click(screen.getByRole("button", { name: en.approvals.history.apply }));
+    await waitFor(() => expect(asked).toContain("?page=1&kind=Endpoint"));
+    await userEvent.click(button);
+    await waitFor(() =>
+      expect(download).toHaveBeenCalledWith(csv, "helsinki-changes.csv", "text/csv;charset=utf-8"),
+    );
+    expect(exported).toEqual(["?kind=Endpoint"]);
+    expect(screen.queryByText(en.approvals.history.exportCut)).toBeNull();
+
+    await userEvent.click(button);
+    expect(await screen.findByText(en.approvals.history.exportCut)).toBeInTheDocument();
   });
 
   it("says_why_the_history_could_not_be_read", async () => {

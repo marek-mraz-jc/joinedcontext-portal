@@ -271,3 +271,135 @@ async fn a_full_forge_page_points_at_the_next_one() {
     assert_eq!(list["items"], json!([]));
     assert_eq!(list["next"], json!(2));
 }
+
+/// What a download answers: the status, its headers and the file.
+struct Download {
+    status: u16,
+    headers: axum::http::HeaderMap,
+    text: String,
+}
+
+async fn export(state: &AppState, who: &str, query: &str) -> Download {
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+    let response = joinedcontext_portal::server::app(state.clone())
+        .oneshot(
+            axum::http::Request::builder()
+                .uri(format!(
+                    "/api/v1/projects/{PROJECT}/changes/history/export{query}"
+                ))
+                .header(
+                    axum::http::header::COOKIE,
+                    common::cookie(&state.config, person(who)),
+                )
+                .body(axum::body::Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let status = response.status().as_u16();
+    let headers = response.headers().clone();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body")
+        .to_bytes();
+    Download {
+        status,
+        headers,
+        text: String::from_utf8_lossy(&bytes).into_owned(),
+    }
+}
+
+/// T-5114: the history as a file, one row per closed change: when, what, the outcome, who
+/// proposed, who decided and why; the proposer's e-mail stays out of it.
+#[tokio::test]
+async fn the_export_is_the_history_as_csv_with_names_and_reasons() {
+    let (_forge, state) = world().await;
+    let answer = export(&state, "anna", "").await;
+    assert_eq!(answer.status, 200, "{}", answer.text);
+    assert_eq!(answer.headers["content-type"], "text/csv; charset=utf-8");
+    assert_eq!(
+        answer.headers["content-disposition"],
+        format!("attachment; filename=\"{PROJECT}-changes.csv\"")
+    );
+    assert!(answer.headers.get("jc-next-page").is_none());
+    let lines: Vec<&str> = answer.text.lines().collect();
+    assert_eq!(
+        lines,
+        vec![
+            "closedAt,change,outcome,kind,name,operation,proposedBy,decidedBy,reason,mergeRequest",
+            &format!("2026-10-02T10:00:00Z,chg-00000002,Rejected,Endpoint,public-air,update,Jana Kováčová,{APPROVER},the URL is the old one,https://gitea.example.sk/pulls/2"),
+            &format!("2026-10-01T10:00:00Z,chg-00000001,Merged,ContextSpace,mobility,create,Jana Kováčová,{APPROVER},,https://gitea.example.sk/pulls/1"),
+        ],
+        "{}",
+        answer.text
+    );
+    assert!(!answer.text.contains("jana@banskabystrica.sk"));
+}
+
+/// The export keeps the history's filter, its read rule and its 404 for a project the caller is
+/// no member of (R20): a viewer of another project gets no file.
+#[tokio::test]
+async fn the_export_keeps_the_filter_and_the_read_rule() {
+    let (_forge, state) = world().await;
+    let by_kind = export(&state, "anna", "?kind=Endpoint").await;
+    assert_eq!(by_kind.text.lines().count(), 2, "{}", by_kind.text);
+    assert!(by_kind.text.contains("chg-00000002"), "{}", by_kind.text);
+    let by_author = export(&state, "anna", "?author=peter").await;
+    assert_eq!(by_author.text.lines().count(), 1, "{}", by_author.text);
+    let by_day = export(&state, "anna", "?since=2026-10-02").await;
+    assert!(!by_day.text.contains("chg-00000001"), "{}", by_day.text);
+    let by_name = export(&state, "anna", "?name=mob").await;
+    assert!(!by_name.text.contains("public-air"), "{}", by_name.text);
+
+    let narrow = export(&state, "peter", "").await;
+    assert_eq!(narrow.status, 200, "{}", narrow.text);
+    assert!(!narrow.text.contains("public-air"), "{}", narrow.text);
+    assert!(narrow.text.contains("chg-00000001"), "{}", narrow.text);
+
+    let stranger = export(&state, "nobody", "").await;
+    assert_eq!(stranger.status, 404, "{}", stranger.text);
+    assert!(!stranger.text.contains("chg-"), "{}", stranger.text);
+    for bad in ["?page=0", "?since=yesterday", "?format=json"] {
+        assert_eq!(export(&state, "anna", bad).await.status, 400, "{bad}");
+    }
+}
+
+/// One file reads at most ten forge pages; the header names the page that continues it.
+#[tokio::test]
+async fn a_long_history_exports_ten_pages_and_names_the_next() {
+    let forge = MockServer::start().await;
+    let page: Vec<Value> = (1..=20)
+        .map(|n| closed(n, "mirror/bb-peer", true, ""))
+        .collect();
+    Mock::given(method("GET"))
+        .and(path(format!("{REPO}/pulls")))
+        .and(query_param("limit", "20"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(page))
+        .mount(&forge)
+        .await;
+    let state = state_on(&forge);
+    state.mirror.upsert(envelope(
+        "Role",
+        "reader",
+        ORG_NAMESPACE,
+        json!({ "rules": [{ "kinds": ["ContextSpace"], "verbs": ["read"] }] }),
+    ));
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "readers",
+        ORG_NAMESPACE,
+        json!({ "subjects": [{ "user": "anna@hel.fi" }], "role": "reader", "scope": { "organization": "bb" } }),
+    ));
+    let answer = export(&state, "anna", "?page=3").await;
+    assert_eq!(answer.status, 200, "{}", answer.text);
+    assert_eq!(answer.headers["jc-next-page"], "13");
+    let asked = forge.received_requests().await.unwrap_or_default();
+    let pulls = asked
+        .iter()
+        .filter(|request| request.url.path().ends_with("/pulls"))
+        .count();
+    assert_eq!(pulls, 10);
+}

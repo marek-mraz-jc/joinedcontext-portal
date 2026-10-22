@@ -1,8 +1,7 @@
 import type { JSX } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, unwrap } from "../../api/client";
 import { safeHref } from "../../components/ui/safeHref";
+import { useStandards } from "./DeveloperPanel";
 
 /**
  * A public Endpoint's query standards (API/01 §16a, T-4484): the fields each one filters on and
@@ -11,12 +10,7 @@ import { safeHref } from "../../components/ui/safeHref";
  */
 export function EndpointStandards({ slug }: { slug: string }): JSX.Element | null {
   const { t } = useTranslation();
-  const standards = useQuery({
-    queryKey: ["endpoint-standards", slug],
-    retry: false,
-    queryFn: async () =>
-      unwrap(await api.GET("/api/v1/catalogue/endpoints/{slug}/standards", { params: { path: { slug } } })),
-  });
+  const standards = useStandards(slug);
   if (standards.isPending) return null;
   const list = standards.data?.standards;
   // an answer that is not the documented shape says nothing, like a failed one; it never takes

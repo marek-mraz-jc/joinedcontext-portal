@@ -1647,13 +1647,8 @@ async fn approve_every_file(
     let mut deletes_every_kind = true;
     let mut changes_access = false;
     let mut publishes = false;
+    let mut files = Vec::new();
     for file in gitea.pull_request_files(pr.number).await? {
-        // A file outside `projects/` belongs to the organization — `users/`, `environments/`,
-        // `blueprints/`, `org.yaml` — and is decided where the approval is made, as before.
-        let home = project_of_path(&file.path).unwrap_or(project).to_owned();
-        let effective = grants
-            .entry(home.clone())
-            .or_insert_with(|| crate::permissions::for_request(state, identity, &home));
         let git_ref = if file.deleted {
             pr.base_ref()
         } else {
@@ -1669,7 +1664,17 @@ async fn approve_every_file(
                 ))
             })?
             .content;
-        let Ok(envelope) = serde_norway::from_str::<ResourceEnvelope>(&content) else {
+        let envelope = serde_norway::from_str::<ResourceEnvelope>(&content).ok();
+        files.push((file, envelope));
+    }
+    for (file, envelope) in &files {
+        // A file outside `projects/` belongs to the organization — `users/`, `environments/`,
+        // `blueprints/`, `org.yaml` — and is decided where the approval is made, as before.
+        let home = project_of_path(&file.path).unwrap_or(project).to_owned();
+        let effective = grants
+            .entry(home.clone())
+            .or_insert_with(|| crate::permissions::for_request(state, identity, &home));
+        let Some(envelope) = envelope else {
             let kind = crate::api::import::native_kind(&file.path).ok_or_else(|| {
                 ApiError::Denied(format!(
                     "'{}' belongs to no kind this platform serves, so no role grants approving \
@@ -1677,11 +1682,29 @@ async fn approve_every_file(
                     file.path
                 ))
             })?;
-            // No manifest to read the space from, but the path names it; a target that holds
-            // only the space leaves every constraint as it was and lets a grant scoped to that
-            // space reach the file (PF-35, T-1404).
-            let target = crate::api::import::space_in_path(&file.path)
-                .map(|space| serde_json::json!({ "spec": { "contextSpaceRef": space } }));
+            // A native file whose manifest is in the same change (a DataModel's `.linkml.yaml`)
+            // is judged as that manifest, which this walk checks too: a role constrained by
+            // `metadata.name` reads the owner's name (T-5162). Without one the path still names
+            // the space; a target that holds only the space leaves every constraint as it was
+            // and lets a grant scoped to that space reach the file (PF-35, T-1404).
+            let owner = files.iter().find_map(|(other, manifest)| {
+                manifest.as_ref().filter(|manifest| {
+                    manifest.kind == kind
+                        && crate::api::import::owns_native(
+                            &file.path,
+                            &other.path,
+                            &manifest.metadata.name,
+                        )
+                })
+            });
+            let target = match owner {
+                Some(manifest) => Some(
+                    serde_json::to_value(manifest)
+                        .map_err(|e| ApiError::Internal(e.to_string()))?,
+                ),
+                None => crate::api::import::space_in_path(&file.path)
+                    .map(|space| serde_json::json!({ "spec": { "contextSpaceRef": space } })),
+            };
             effective.check(kind, jc_core::kinds::Verb::Approve, target.as_ref())?;
             if file.deleted {
                 effective.check(kind, jc_core::kinds::Verb::Delete, target.as_ref())?;
@@ -1703,7 +1726,7 @@ async fn approve_every_file(
             )));
         }
         let manifest =
-            serde_json::to_value(&envelope).map_err(|e| ApiError::Internal(e.to_string()))?;
+            serde_json::to_value(envelope).map_err(|e| ApiError::Internal(e.to_string()))?;
         effective.check(
             &envelope.kind,
             jc_core::kinds::Verb::Approve,
@@ -1725,7 +1748,7 @@ async fn approve_every_file(
             .mirror
             .get(namespace, "App", &envelope.metadata.name)
             .is_some_and(|stored| app_is_public(&stored.kind, &stored.spec));
-        let public = public_publication(identity, &file, &envelope, was_public)?;
+        let public = public_publication(identity, file, envelope, was_public)?;
         publishes |= public;
         // A public publication is held for a second person like an access change (EP-142).
         changes_access |= public;
@@ -1778,12 +1801,12 @@ async fn approve_every_file(
         crate::api::mutate::public_app_allowed(
             state,
             envelope.metadata.namespace.as_deref().unwrap_or_default(),
-            &envelope,
+            envelope,
             ApiError::Conflict,
         )?;
         lane = crate::api::import::riskiest(
             lane,
-            change::classify_manifest(&envelope, Operation::Create),
+            change::classify_manifest(envelope, Operation::Create),
         );
     }
     Ok((lane, deletes_every_kind, changes_access, publishes))

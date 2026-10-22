@@ -26,6 +26,11 @@ evidence=${WALK_EVIDENCE:-/workspace/evidence/walker}
 users=${DEMO_USERS:-/workspace/.secrets/demo-users.txt}
 cap=${WALK_CAP:-900}
 keep=${WALK_KEEP:-20}
+# The host cron's outer timeout (supervisor/tools/walker-cron.sh) only catches a hung script: every
+# step below has its own cap. --budget prints the sum, so the cron's limit follows this file: the
+# steward walk, then the viewer walk (WALK_CAP + 30 s kill grace each), the journeys (SWEEP_CAP +
+# 30 s) and 600 s for install, worktree and summary (T-5161: a flat 1200 s killed the viewer walk).
+if [ "${1:-}" = --budget ]; then echo $(( 2 * (cap + 30) + ${SWEEP_CAP:-3600} + 30 + 600 )); exit 0; fi
 mkdir -p "$evidence"
 
 exec 9>"$evidence/.lock"
@@ -38,7 +43,15 @@ dir=$evidence/$sha
 
 PORTAL_PASSWORD=$(awk '$1=="demo.steward@hel.fi"{print $2}' "$users")
 VIEWER_PASSWORD=$(awk '$1=="demo.viewer@hel.fi"{print $2}' "$users")
-export PORTAL_PASSWORD VIEWER_PASSWORD
+# The steward signs in with TOTP (deployment T-5120): its seed is a third column of the users file or,
+# without one, Secret keycloak-user-demo-steward, key totp, read through the dev kubeconfig.
+PORTAL_TOTP=$(awk '$1=="demo.steward@hel.fi"{print $3}' "$users")
+kubeconfig=${WALK_KUBECONFIG:-/workspace/.secrets/kubeconfig-dev.yaml}
+if [ -z "$PORTAL_TOTP" ] && [ -r "$kubeconfig" ]; then
+  PORTAL_TOTP=$(KUBECONFIG=$kubeconfig kubectl get secret keycloak-user-demo-steward -n "${WALK_NAMESPACE:-dev}" \
+    -o jsonpath='{.data.totp}' 2>/dev/null | base64 -d 2>/dev/null || true)
+fi
+export PORTAL_PASSWORD VIEWER_PASSWORD PORTAL_TOTP
 if [ -z "$PORTAL_PASSWORD" ] || [ -z "$VIEWER_PASSWORD" ]; then echo "rollout-walk: no steward or viewer password in $users" >&2; exit 2; fi
 
 git -C "$repo" fetch -q origin || { echo "rollout-walk: git fetch failed" >&2; exit 2; }

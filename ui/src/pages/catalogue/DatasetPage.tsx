@@ -147,6 +147,7 @@ function Dataset({ detail, back }: { detail: DatasetDetail; back: JSX.Element })
   const blocks = notesBlocks(detail.notes ?? "");
   const lead = blocks[0]?.code === false ? blocks[0] : undefined;
   const rest = lead ? blocks.slice(1) : blocks;
+  const developer = developerSlug(detail.endpoint?.url);
 
   return (
     <div className="flex flex-col gap-section">
@@ -190,6 +191,11 @@ function Dataset({ detail, back }: { detail: DatasetDetail; back: JSX.Element })
       <Resources detail={detail} />
       {detail.model ? <Model model={detail.model} /> : null}
       {detail.endpoint ? <Sample name={detail.name} /> : null}
+      {developer ? (
+        <a className="w-fit text-body text-primary-soft-fg underline" href={`/d/${developer}`}>
+          {t("catalogue.dataset.developerPage")}
+        </a>
+      ) : null}
       {detail.endpoint ? (
         <UseThisData
           items={snippets(
@@ -202,6 +208,11 @@ function Dataset({ detail, back }: { detail: DatasetDetail; back: JSX.Element })
       ) : null}
     </div>
   );
+}
+
+/** The slug of a public Endpoint address, the name of its developer page `/d/{slug}` (T-5111). */
+export function developerSlug(url: string | undefined): string | undefined {
+  return /\/api\/endpoint\/([a-z0-9]{16,64})\//.exec(url ?? "")?.[1];
 }
 
 function Resources({ detail }: { detail: DatasetDetail }): JSX.Element {

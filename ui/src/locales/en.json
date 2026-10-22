@@ -296,6 +296,10 @@
       "closed": "Closed",
       "reason": "Reason: {reason}",
       "inForge": "Closed in the repository",
+      "export": "Export CSV",
+      "exportHint": "Downloads the closed changes the filter shows: when, what, who proposed, who decided and why. The file: {project}-changes.csv.",
+      "exportCut": "The file holds the newest 200 closed changes. Narrow the days to export older ones.",
+      "dataWrites": "Who wrote an entity, when and why: open the Endpoint's data, open the entity's History and tick \"Every version, with who changed it and why\".",
       "older": "Show older changes",
       "empty": "No change has been merged or rejected yet.",
       "emptyHint": "A change lands here with who decided it once it is approved or rejected on the Open tab.",
@@ -1817,6 +1821,76 @@
       "answered": "{count, plural, one {# entity} other {# entities}} on the first page",
       "none": "No example yet: no entity was found to build one from.",
       "unavailable": "The standards of this endpoint cannot be read right now; try again in a minute."
+    },
+    "developer": {
+      "terms": "Terms of use",
+      "licence": "Licence",
+      "noLicence": "The publisher names no licence: ask them before you reuse the data.",
+      "limit": "Rate limit",
+      "perMinute": "{rate} requests a minute per address. Beyond that the API refuses calls; wait the seconds its Retry-After header names.",
+      "noLimit": "The installation sets no limit of its own.",
+      "access": "Access",
+      "accessText": "Open: no sign-in and no token. Every sample below runs as it stands.",
+      "samples": "Code samples",
+      "language": "Language",
+      "sample": "Sample in {language}",
+      "copy": "Copy the sample",
+      "send": "Try it",
+      "anonymous": "Sent without your sign-in, as any visitor sends it.",
+      "answered": "Answer: HTTP {status}.",
+      "limited": "HTTP {status}: too many requests. Wait a minute and try again.",
+      "cut": "The first {chars} characters are shown.",
+      "failed": "The call did not reach the API: {reason}. Check your connection and try again.",
+      "request": "Request",
+      "requestHint": "A path below this endpoint, for example {example}",
+      "problem": {
+        "start": "Type a path that starts with /, for example /ngsi-ld/v1/types.",
+        "outside": "Keep the path below this endpoint: remove .., // and encoded slashes."
+      },
+      "surfaceName": {
+        "ngsi-ld": "NGSI-LD",
+        "ogc-features": "OGC API Features",
+        "geojson": "GeoJSON",
+        "odata": "OData",
+        "sta": "SensorThings",
+        "csv": "CSV",
+        "ical": "iCalendar",
+        "websocket": "WebSocket",
+        "mcp": "MCP"
+      },
+      "surface": {
+        "ngsi-ld": "The ETSI NGSI-LD API: the first entities of a type as JSON-LD.",
+        "ogc-features": "OGC API - Features: the first features of a collection, for GIS tools.",
+        "geojson": "The same features saved as a GeoJSON file.",
+        "odata": "OData v4: the first rows of an entity set, for Excel and Power BI.",
+        "sta": "OGC SensorThings API: the first Things.",
+        "csv": "Every entity as one CSV file.",
+        "ical": "The events as an iCalendar feed.",
+        "websocket": "Live changes over a WebSocket: subscribe, then each change arrives as a message.",
+        "mcp": "Model Context Protocol for AI assistants: the first call a client sends."
+      },
+      "tool": {
+        "qgis": {
+          "title": "QGIS",
+          "steps": "Layer > Add Layer > Add WFS / OGC API - Features Layer. Choose New, set the URL below, choose OGC API - Features as the version, then Connect and add a collection."
+        },
+        "arcgis": {
+          "title": "ArcGIS Pro",
+          "steps": "Insert > Connections > Server > New OGC API Server. Paste the URL below, then drag a collection from the Catalog pane onto the map."
+        },
+        "excel": {
+          "title": "Excel and Power BI",
+          "steps": "Data > Get Data > From Other Sources > From OData Feed. Paste the URL below and choose Anonymous access."
+        },
+        "calendar": {
+          "title": "Calendar",
+          "steps": "Subscribe to the address below in Outlook, Google Calendar or Apple Calendar."
+        },
+        "claude": {
+          "title": "Claude and other MCP clients",
+          "steps": "Add a custom connector with the URL below. No sign-in is needed."
+        }
+      }
     },
     "shareFlow": {
       "section": "Share with another project",
@@ -7584,7 +7658,8 @@
         "model": "The data model as {format}."
       },
       "forDevelopers": "For developers",
-      "moreFormats": "{count, plural, one {+# format} other {+# formats}}"
+      "moreFormats": "{count, plural, one {+# format} other {+# formats}}",
+      "developerPage": "Developer page: code samples for every surface, try-it, licence and rate limit"
     },
     "use": {
       "title": "Use this data",

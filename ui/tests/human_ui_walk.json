@@ -1020,6 +1020,20 @@
         "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
       ]
     },
+    "src/pages/endpoints/DeveloperPanel.tsx": {
+      "walkedBy": "worker-t5111",
+      "date": "2026-10-22",
+      "screenshots": [
+        "evidence/worker-t5111/T-5111/developer-1440-terms.png",
+        "evidence/worker-t5111/T-5111/developer-1440-ogc.png",
+        "evidence/worker-t5111/T-5111/developer-1440-refused-path.png",
+        "evidence/worker-t5111/T-5111/developer-1440-limited.png",
+        "evidence/worker-t5111/T-5111/developer-400-terms.png",
+        "evidence/worker-t5111/T-5111/developer-400-ogc.png",
+        "evidence/worker-t5111/T-5111/developer-400-refused-path.png",
+        "evidence/worker-t5111/T-5111/developer-400-limited.png"
+      ]
+    },
     "src/pages/endpoints/EndpointPage.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",

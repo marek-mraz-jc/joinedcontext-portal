@@ -286,13 +286,9 @@ fn matches_filters(
 /// directory is (`pipelines/aq/pipeline.yaml` for `pipelines/aq/bento.yaml`) or the one the file
 /// is named after (`datamodels/air.yaml` for `datamodels/air.linkml.yaml`).
 fn owner<'a>(native: &str, files: &'a [Exported]) -> Option<&'a ResourceEnvelope> {
-    let (dir, file) = native.rsplit_once('/')?;
-    let dir_name = dir.rsplit('/').next().unwrap_or_default();
     files.iter().find_map(|candidate| {
         let envelope = candidate.manifest.as_ref()?;
-        let (candidate_dir, _) = candidate.path.rsplit_once('/')?;
-        let name = envelope.metadata.name.as_str();
-        (candidate_dir == dir && (dir_name == name || file.starts_with(&format!("{name}."))))
+        crate::api::import::owns_native(native, &candidate.path, &envelope.metadata.name)
             .then_some(envelope)
     })
 }

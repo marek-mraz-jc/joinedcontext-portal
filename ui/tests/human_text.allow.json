@@ -171,17 +171,41 @@
       ],
       "reason": "WebSocket is the protocol's own name; the option lists the kinds of source by protocol"
     },
-    "endpoints.representationOption.websocket": {
+    "endpoints.developer.surface.sta": {
       "rules": [
         "kind"
       ],
-      "reason": "WebSocket is the protocol's own name; the option lists the standards an Endpoint serves"
+      "reason": "SensorThings and WebSocket are the standards' own names; the developer page names the surface a sample calls (T-5111)"
+    },
+    "endpoints.developer.surface.websocket": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "SensorThings and WebSocket are the standards' own names; the developer page names the surface a sample calls (T-5111)"
+    },
+    "endpoints.developer.surfaceName.sta": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "SensorThings and WebSocket are the standards' own names; the developer page names the surface a sample calls (T-5111)"
+    },
+    "endpoints.developer.surfaceName.websocket": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "SensorThings and WebSocket are the standards' own names; the developer page names the surface a sample calls (T-5111)"
     },
     "endpoints.representationOption.sta": {
       "rules": [
         "kind"
       ],
       "reason": "SensorThings API is the OGC standard's own name, the one a reader searches for."
+    },
+    "endpoints.representationOption.websocket": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "WebSocket is the protocol's own name; the option lists the standards an Endpoint serves"
     },
     "entityGrid.geo.paste": {
       "rules": [
@@ -316,6 +340,18 @@
       ],
       "reason": "SensorThings is the OGC standard's own name, the one a developer searches for"
     },
+    "spaces.api.surface.sta": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "SensorThings is the OGC standard's own name; an endpoint row names the surfaces it serves"
+    },
+    "spaces.api.surface.websocket": {
+      "rules": [
+        "kind"
+      ],
+      "reason": "WebSocket is the protocol's own name; an endpoint row names the surfaces it serves"
+    },
     "spaces.form.problem.urn": {
       "rules": [
         "urn"
@@ -333,18 +369,6 @@
         "kind"
       ],
       "reason": "file formats' own names (GeoJSON, NGSI-LD)"
-    },
-    "spaces.api.surface.sta": {
-      "rules": [
-        "kind"
-      ],
-      "reason": "SensorThings is the OGC standard's own name; an endpoint row names the surfaces it serves"
-    },
-    "spaces.api.surface.websocket": {
-      "rules": [
-        "kind"
-      ],
-      "reason": "WebSocket is the protocol's own name; an endpoint row names the surfaces it serves"
     }
   },
   "disabled": {

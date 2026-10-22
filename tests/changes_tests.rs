@@ -2959,6 +2959,46 @@ async fn a_space_steward_approves_a_deletion_in_its_own_space_and_no_other() {
     }
 }
 
+/// T-5162: a role constrained by `metadata.name` (the residue janitor) approves removing a
+/// DataModel whose `.linkml.yaml` companion goes with it: the companion is judged as the manifest
+/// it belongs to. A LinkML file no manifest of the change owns is judged by its path alone, as
+/// before, so it never borrows the name of another model in the same change.
+#[tokio::test]
+async fn a_name_constrained_role_approves_removing_a_data_model_with_its_linkml_file() {
+    let dir = "projects/ovzdusie/spaces/t4668-space-0636/datamodels";
+    let model = "apiVersion: joinedcontext.com/v1alpha1\nkind: DataModel\nmetadata:\n  name: t4668-model-0636\n  namespace: ovzdusie\nspec:\n  contextSpaceRef: t4668-space-0636\n  linkml: ./t4668-model-0636.linkml.yaml\n  version: 1.0.0\n";
+    let linkml = "id: https://example.org/t4668\nname: t4668\nclasses: {}\n";
+    let janitor = json!([
+        { "kinds": ["Pipeline"], "verbs": ["approve", "delete"] },
+        {
+            "kinds": ["DataModel"],
+            "verbs": ["approve", "delete"],
+            "constraints": [{ "field": "metadata.name", "pattern": "t[0-9]{4}[a-z]?-.+" }]
+        }
+    ]);
+    let manifest_path = format!("{dir}/t4668-model-0636.yaml");
+    let own = format!("{dir}/t4668-model-0636.linkml.yaml");
+    let other = format!("{dir}/air.linkml.yaml");
+    for (companion, expected) in [
+        (own.as_str(), StatusCode::ACCEPTED),
+        (other.as_str(), StatusCode::FORBIDDEN),
+    ] {
+        let (server, state) = bundle_of_with_status(
+            janitor.clone(),
+            &[(manifest_path.as_str(), model), (companion, linkml)],
+            "deleted",
+        )
+        .await;
+        let (status, body) = approve_bundle(state, Some("aq")).await;
+        assert_eq!(status, expected, "{companion}: {body}");
+        assert_eq!(
+            merged(&server).await,
+            expected == StatusCode::ACCEPTED,
+            "{companion}: {body}"
+        );
+    }
+}
+
 /// AP-175 (T-4913): making an App public is decided by a second person, as a public publication
 /// of data (EP-142): its proposer is refused even holding approve and delete on App, and a
 /// publisher who did not propose it approves it.
