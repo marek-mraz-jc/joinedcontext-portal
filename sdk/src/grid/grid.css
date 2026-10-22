@@ -1128,3 +1128,9 @@ button.jc-cell-chip:hover {
 .jc-grid-cell, .jc-grid-cell > .jc-grid-open { white-space: normal; text-align: start; }
 .jc-grid-cell > .jc-grid-open { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 .jc-grid-cell[data-format="link"] { max-width: 16ch; }
+
+/* Numbered pages (T-5196): 24 px targets at least, 44 px on a touch screen (WCAG 2.5.8). */
+.jc-grid-pages { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; }
+.jc-grid-pages button { min-width: 2rem; min-height: 2rem; }
+.jc-grid-pages button[aria-current="page"] { font-weight: 600; text-decoration: underline; }
+@media (pointer: coarse) { .jc-grid-pages button { min-width: 44px; min-height: 44px; } }

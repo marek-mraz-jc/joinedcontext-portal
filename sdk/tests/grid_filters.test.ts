@@ -183,3 +183,14 @@ describe("a column whose type the caller does not know", () => {
     expect(q, "a period is a string, and a text column says so").toBe('a=="2023"');
   });
 });
+
+describe("pageNumbers: a DataTables pager (T-5196)", () => {
+  it("shows the first, the last and the pages beside the current one, with gaps", async () => {
+    const { pageNumbers } = await import("../src/grid/EntityGrid");
+    expect(pageNumbers(1, 1)).toEqual([1]);
+    expect(pageNumbers(1, 12)).toEqual([1, 2, null, 12]);
+    expect(pageNumbers(6, 12)).toEqual([1, null, 5, 6, 7, null, 12]);
+    expect(pageNumbers(12, 12)).toEqual([1, null, 11, 12]);
+    expect(pageNumbers(3, 4)).toEqual([1, 2, 3, 4]);
+  });
+});

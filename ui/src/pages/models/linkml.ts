@@ -125,6 +125,12 @@ export interface LinkmlSlot {
   rank?: number;
   /** `annotations.label`: the slot's label per language, before its title (DM-100). */
   label?: Record<string, string>;
+  /** `view_width`: the column's maximum width in characters, 8 to 80 (DM-134). */
+  width?: number;
+  /** `view_hidden`: the column stays one tick away (DM-134). */
+  hidden?: boolean;
+  /** `view_role`: what the column is to a row (DM-134). */
+  role?: SlotRole;
   /** The profiles this slot belongs to, as LinkML `subsets`: which of them a projection takes. */
   subsets?: string[];
   /** The other end of a relationship, as LinkML `inverse` (DM-64). */
@@ -162,8 +168,28 @@ export interface LinkmlClass {
    * How a table of the class opens (T-5192), from its `view_order_by` (an `orderBy`, `startDate` or
    * `startDate;desc`) and `view_upcoming` (a date slot: rows from today on, the undated last) annotations.
    */
-  view?: { orderBy?: string; upcoming?: string };
+  view?: ClassView;
 }
+
+/**
+ * How a table of the class is presented (DM-133, DM-134), from its `view_*` annotations as written:
+ * the viewer checks each against the slots the Endpoint answers before it uses one.
+ */
+export interface ClassView {
+  orderBy?: string;
+  upcoming?: string;
+  /** `view_filter`: the default filter, an NGSI-LD `q` that may name `today`, `today+7d`, `today-1d`. */
+  filter?: string;
+  /** `view_page_length`: rows per page, one of 10, 20, 50, 100. */
+  pageLength?: number;
+  /** `view_columns`: the slots shown by default, in order. */
+  columns?: string[];
+}
+
+/** What a column of a slot does in a table (DM-134): the row's title, its time, place, link or image. */
+export type SlotRole = "title" | "time" | "place" | "link" | "image";
+const SLOT_ROLES = new Set<string>(["title", "time", "place", "link", "image"]);
+const PAGE_LENGTHS = new Set([10, 20, 50, 100]);
 
 /** What a class may narrow of a slot it uses (LinkML `slot_usage`); only what it names. */
 export type SlotUsage = Partial<Pick<LinkmlSlot, "range" | "required" | "multivalued" | "description">>;
@@ -312,6 +338,7 @@ function slotOf(name: string, raw: Record<string, unknown>): LinkmlSlot {
     on_delete: text(annotated.on_delete),
     ...(typeof raw.rank === "number" ? { rank: raw.rank } : {}),
     ...(labelOf(annotated.label) ? { label: labelOf(annotated.label) } : {}),
+    ...presentationOf(annotated),
     ...(text(raw.equals_expression) ? { equals_expression: text(raw.equals_expression) } : {}),
   };
 }
@@ -333,6 +360,22 @@ function labelOf(raw: unknown): Record<string, string> | undefined {
   }
   if (typeof value === "string") return value.trim() === "" ? undefined : { "": value };
   return languageMap(value);
+}
+
+/** A slot's `view_width`, `view_hidden` and `view_role` (DM-134); a value out of range is left out. */
+function presentationOf(annotated: Record<string, unknown>): Pick<LinkmlSlot, "width" | "hidden" | "role"> {
+  const note = (key: string) => {
+    const raw = annotated[key];
+    const value = raw && typeof raw === "object" ? record(raw).value : raw;
+    return typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? String(value).trim() : undefined;
+  };
+  const width = Number(note("view_width"));
+  const role = note("view_role");
+  return {
+    ...(Number.isInteger(width) && width >= 8 && width <= 80 ? { width } : {}),
+    ...(note("view_hidden") === "true" ? { hidden: true } : {}),
+    ...(role && SLOT_ROLES.has(role) ? { role: role as SlotRole } : {}),
+  };
 }
 
 /** A list of names as the metamodel writes them: a YAML sequence of strings, or nothing. */
@@ -377,11 +420,20 @@ export function parseModel(source: string): LinkmlModel {
       ? (raw.slots as unknown[]).filter((s): s is string => typeof s === "string")
       : [];
     const notes = record(raw.annotations);
-    const note = (key: string) => text(notes[key]) ?? text(record(notes[key]).value);
-    const view = { orderBy: note("view_order_by"), upcoming: note("view_upcoming") };
+    const scalar = (value: unknown) => (typeof value === "number" ? String(value) : text(value));
+    const note = (key: string) => scalar(notes[key]) ?? scalar(record(notes[key]).value);
+    const length = Number(note("view_page_length"));
+    const columns = note("view_columns")?.split(",").map((each) => each.trim()).filter(Boolean);
+    const view: ClassView = {
+      ...(note("view_order_by") ? { orderBy: note("view_order_by") } : {}),
+      ...(note("view_upcoming") ? { upcoming: note("view_upcoming") } : {}),
+      ...(note("view_filter") ? { filter: note("view_filter") } : {}),
+      ...(PAGE_LENGTHS.has(length) ? { pageLength: length } : {}),
+      ...(columns && columns.length > 0 ? { columns } : {}),
+    };
     return {
       name,
-      ...(view.orderBy || view.upcoming ? { view } : {}),
+      ...(Object.keys(view).length > 0 ? { view } : {}),
       class_uri: text(raw.class_uri),
       description: text(raw.description),
       title: languageMap(raw.title),
