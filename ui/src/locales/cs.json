@@ -3243,7 +3243,7 @@
       "linksStatus": "odpověď {status}",
       "linksNoAnswer": "bez odpovědi",
       "linksMore": "a další ({count})",
-      "linksFix": "Zdroj přesunul své stránky: zkontrolujte events_url v seeds/bbsk-events/sources.csv.",
+      "linksFix": "Zdroj přesunul tyto stránky: upravte adresu v jeho zdroji dat nebo se obraťte na jeho vydavatele.",
       "states": {
         "ok": "Doručuje",
         "empty": "Nic nenašel",

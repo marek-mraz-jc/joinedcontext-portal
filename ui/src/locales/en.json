@@ -3243,7 +3243,7 @@
       "linksStatus": "answered {status}",
       "linksNoAnswer": "no answer",
       "linksMore": "and {count} more",
-      "linksFix": "The source moved its pages: check events_url in seeds/bbsk-events/sources.csv.",
+      "linksFix": "The source moved these pages: update the address in its data source, or ask its publisher.",
       "states": {
         "ok": "Delivering",
         "empty": "Found nothing",

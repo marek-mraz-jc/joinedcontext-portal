@@ -3243,7 +3243,7 @@
       "linksStatus": "Antwort {status}",
       "linksNoAnswer": "keine Antwort",
       "linksMore": "und {count} weitere",
-      "linksFix": "Die Quelle hat ihre Seiten verschoben: prüfen Sie events_url in seeds/bbsk-events/sources.csv.",
+      "linksFix": "Die Quelle hat diese Seiten verschoben: passen Sie die Adresse in ihrer Datenquelle an oder fragen Sie ihren Herausgeber.",
       "states": {
         "ok": "Liefert",
         "empty": "Nichts gefunden",

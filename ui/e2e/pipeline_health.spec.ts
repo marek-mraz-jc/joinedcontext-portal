@@ -82,7 +82,7 @@ test.describe("the source health tab (T-5048)", () => {
       await expect(rows.nth(1)).toContainText("14 of 20 answer (70 %)");
       await expect(rows.nth(1)).toContainText("Dead links: 6");
       await expect(rows.nth(1)).toContainText("and 1 more");
-      await expect(rows.nth(1)).toContainText("check events_url in seeds/bbsk-events/sources.csv");
+      await expect(rows.nth(1)).toContainText("update the address in its data source");
       await expect(table.getByText("117 of 118 answer (99 %)")).toBeVisible();
       expect(await axeViolations(page)).toEqual([]);
       await shot(page, `health-filled-${width}`);
