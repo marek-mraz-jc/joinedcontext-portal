@@ -160,7 +160,9 @@ describe("the places that name a model or a type", () => {
 
   it("an endpoint's entity types", async () => {
     await renderRoute({ path: "/projects/helsinki/endpoints/air-public", answer });
-    expect(await screen.findByRole("link", { name: "AirQualityObserved" })).toHaveAttribute(
+    // The types come after the page's whole fact list: 2.4 s idle, 5.4-6 s on a CI runner under
+    // coverage, past the harness's 5 s (ci-full 39819576000, T-5251).
+    expect(await screen.findByRole("link", { name: "AirQualityObserved" }, { timeout: 10_000 })).toHaveAttribute(
       "href",
       "/projects/helsinki/models/air?class=AirQualityObserved",
     );

@@ -47,8 +47,37 @@ def unattested(lines):
     return [(number, image) for image, number in signed.items() if image not in attested]
 
 
+def branch_cache_saves(lines):
+    """A workflow that also runs on branches or pull requests saves its Rust cache only on main
+    (T-5251): every branch push saved ~1.4 GB, and past the repository's 10 GB cap GitHub evicted
+    main's caches, so ci-full compiled cold until its timeout."""
+    triggers = "\n".join(line.split("#", 1)[0] for line in lines)
+    if "pull_request" not in triggers and "agent/" not in triggers:
+        return []
+    found = []
+    for number, line in enumerate(lines, 1):
+        used = USES.match(line)
+        if not used or not used.group(1).startswith("Swatinem/rust-cache@"):
+            continue
+        indent = len(line) - len(line.lstrip(" -"))
+        step = []
+        for follow in lines[number:]:
+            outdented = len(follow) - len(follow.lstrip(" ")) < indent
+            if follow.strip() and (outdented or follow.lstrip().startswith("- ")):
+                break
+            step.append(follow)
+        if "save-if" not in "\n".join(step):
+            found.append(number)
+    return found
+
+
 def problems(path: Path):
     lines = path.read_text().splitlines()
+    for number in branch_cache_saves(lines):
+        yield (
+            f"{path.name}:{number}: a branch or pull request run saves this Rust cache; "
+            "add `save-if: ${{ github.ref == 'refs/heads/main' }}` (T-5251)"
+        )
     for number, image in unattested(lines):
         yield (
             f"{path.name}:{number}: {image} is signed and no CycloneDX SBOM is attested to it "

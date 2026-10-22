@@ -11,7 +11,9 @@ concurrency: { group: "ci-full-${{ github.ref }}", cancel-in-progress: false }
 jobs:
   test-all:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    # A cold cache compiles for ~31 min before the first test (run 39819576000), and a run cut
+    # off at the timeout saves no cache, so 40 min kept every later run cold (T-5251).
+    timeout-minutes: 60
     # The Portal's own PostgreSQL. Without it every test gated on
     # JC_PORTAL_TEST_DATABASE_URL skips itself, so the key store, the preferences and the
     # builder-run tables were covered by tests that never ran (T-2063, T-2064). The fast `ci`
