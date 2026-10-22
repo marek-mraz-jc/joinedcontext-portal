@@ -945,6 +945,7 @@
       ]
     },
     "src/pages/catalogue/DatasetPage.tsx": null,
+    "src/pages/catalogue/SubscribeMenu.tsx": null,
     "src/pages/catalogue/PublishDataset.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",

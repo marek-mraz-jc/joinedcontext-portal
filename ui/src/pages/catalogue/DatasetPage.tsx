@@ -28,6 +28,7 @@ import { snippets } from "./snippets";
 import type { Snippet } from "./snippets";
 import { areaLabel } from "./nuts";
 import { QualityScore } from "../../components/quality/QualityScore";
+import { SubscribeMenu } from "./SubscribeMenu";
 
 type DatasetDetail = components["schemas"]["CatalogueDatasetDetail"];
 
@@ -156,7 +157,12 @@ function Dataset({ detail, back }: { detail: DatasetDetail; back: JSX.Element })
       <PageHeader
         title={detail.title}
         description={lead ? <Inline text={lead.text} /> : undefined}
-        actions={<ExternalLink href={detail.catalogueUrl}>{t("catalogue.dataset.inCatalogue")}</ExternalLink>}
+        actions={
+          <div className="flex flex-wrap items-center gap-3">
+            {detail.endpoint ? <SubscribeMenu endpoint={detail.endpoint} /> : null}
+            <ExternalLink href={detail.catalogueUrl}>{t("catalogue.dataset.inCatalogue")}</ExternalLink>
+          </div>
+        }
       />
       {rest.length > 0 ? <Blocks blocks={rest} className="max-w-prose text-body text-fg-muted" /> : null}
 

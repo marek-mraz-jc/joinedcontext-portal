@@ -905,11 +905,21 @@ fn view_of(
         ),
     );
     view.insert("operations".into(), json!(operations));
-    // the broker serves a calendar only for the outputs listed here (EP-159, T-5208)
+    // the broker serves a calendar only for the outputs listed here (EP-159, T-5208), and the feed
+    // outputs as the Endpoint lists them, the broker's `antares-feed` contract (EP-150); a view
+    // without a member serves no such format.
+    let mut representations = serde_json::Map::new();
     let ical = e.spec.ical_outputs();
     if !ical.is_empty() {
         let outputs = serde_json::to_value(ical).map_err(|err| err.to_string())?;
-        view.insert("representations".into(), json!({ "ical": outputs }));
+        representations.insert("ical".into(), outputs);
+    }
+    let feeds = e.spec.feed_outputs();
+    if !feeds.is_empty() {
+        representations.insert("feed".into(), json!(feeds));
+    }
+    if !representations.is_empty() {
+        view.insert("representations".into(), Value::Object(representations));
     }
     Ok(Value::Object(view))
 }

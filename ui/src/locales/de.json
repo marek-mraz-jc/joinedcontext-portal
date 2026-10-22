@@ -7858,6 +7858,15 @@
       "ODC_BY": "Open Data Commons Attribution",
       "ODC_ODBL": "Open Data Commons Open Database Licence",
       "ODC_PDDL": "Open Data Commons Public Domain Dedication and Licence"
+    },
+    "subscribe": {
+      "button": "Abonnieren",
+      "calendar": "Kalender",
+      "calendarApp": "Zum Kalender hinzufügen",
+      "calendarFile": "Kalender herunterladen (.ics)",
+      "news": "Neuigkeiten",
+      "feed": "{title} ({format})",
+      "hint": "Kopieren Sie die Adresse in einen Feedreader oder Kalender, zum Beispiel Feedly oder Google Kalender; neue Einträge erscheinen von selbst."
     }
   },
   "dataagreements": {
