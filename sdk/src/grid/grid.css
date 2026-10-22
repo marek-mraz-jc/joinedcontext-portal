@@ -1126,5 +1126,5 @@ button.jc-cell-chip:hover {
 .jc-grid-pinned > .jc-grid-cell { max-width: 40ch; }
 /* The cell's own wrapping, not the row's single line; the name's button wraps and clamps with it. */
 .jc-grid-cell, .jc-grid-cell > .jc-grid-open { white-space: normal; text-align: start; }
-.jc-grid-cell > .jc-grid-open { display: inline; }
+.jc-grid-cell > .jc-grid-open { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 .jc-grid-cell[data-format="link"] { max-width: 16ch; }
