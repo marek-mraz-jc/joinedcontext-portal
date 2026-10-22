@@ -59,6 +59,26 @@ pub struct EndpointStandards {
     /// The type of the entity the examples were built from; absent when none was read.
     pub entity_type: Option<String>,
     pub standards: Vec<StandardGuide>,
+    /// The Endpoint's public address, ending in `/`: every sample a developer page shows starts here.
+    pub base: String,
+    /// Every representation the Endpoint serves, query standards and files alike.
+    pub served: Vec<String>,
+    /// The licence the Endpoint's catalogue entry names; absent when it names none.
+    pub licence: Option<EndpointLicence>,
+    /// The requests a minute the edge lets one anonymous caller send (ADR-N-035, class
+    /// `publicEndpoint`); beyond it the edge answers 429.
+    pub requests_per_minute: Option<u32>,
+}
+
+/// A licence of the EU licence table.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EndpointLicence {
+    /// The EU licence table code, such as `CC_BY_4_0`.
+    pub code: String,
+    pub title: String,
+    /// The licence's IRI in the EU licence table.
+    pub url: String,
 }
 
 /// One query standard the Endpoint serves.
@@ -70,6 +90,9 @@ pub struct StandardGuide {
     /// The names this standard filters on.
     pub fields: Vec<String>,
     pub examples: Vec<Example>,
+    /// The first five entities of the example type in this standard, kept only when that call
+    /// answered with entities.
+    pub first: Option<String>,
 }
 
 /// A query that answered with at least one entity when the page was built.
@@ -121,6 +144,16 @@ pub async fn get_standards(
             }
             answer
         }
+    };
+    // What the Organization and the catalogue entry say now, never an hour old.
+    let answer = EndpointStandards {
+        licence: licence_of(&endpoint.spec),
+        requests_per_minute: crate::reconciler::edge_file::EdgeLimits::of(
+            crate::api::organization_limits::limits_in(&state.mirror).as_ref(),
+            &state.config.organization_bounds,
+        )
+        .of_class("publicEndpoint"),
+        ..answer
     };
     Ok((
         [(
@@ -181,6 +214,10 @@ async fn build(
         types,
         entity_type: entity.map(|(name, _)| name),
         standards,
+        base: at.shown.clone(),
+        served,
+        licence: None,
+        requests_per_minute: None,
     };
     (answer, complete)
 }
@@ -195,6 +232,7 @@ async fn guide(
         representation: representation.to_owned(),
         fields: Vec::new(),
         examples: Vec::new(),
+        first: None,
     };
     let Some((name, entity)) = entity else {
         return out;
@@ -214,6 +252,14 @@ async fn guide(
     let Some(base) = base else {
         return out;
     };
+    let first = format!("{base}{}", first_page(representation));
+    if at
+        .read(&first)
+        .await
+        .is_some_and(|a| count(representation, &a) > 0)
+    {
+        out.first = Some(format!("{}{first}", at.shown));
+    }
     // Equality on the first text the endpoint answers, else on a number when none does (air
     // quality: numbers, and station names the old ASCII-only rule refused, T-4571). Texts are
     // tried in turn because a source may match a name and never an address.
@@ -368,6 +414,25 @@ fn query(representation: &str, kind: &str, field: &str, value: &str) -> Option<S
             encode(&format!("properties/{field} ge {value}"))
         ),
         _ => return None,
+    })
+}
+
+/// The query string of a first page of five in the standard's own syntax.
+fn first_page(representation: &str) -> &'static str {
+    match representation {
+        "odata" | "sta" => "$top=5",
+        _ => "limit=5",
+    }
+}
+
+/// The licence `spec.catalog.license` names, as the EU licence table writes it.
+fn licence_of(spec: &Value) -> Option<EndpointLicence> {
+    let licence: jc_core::kinds::catalog::Licence =
+        serde_json::from_value(spec["catalog"]["license"].clone()).ok()?;
+    Some(EndpointLicence {
+        code: licence.code().to_owned(),
+        title: licence.title().to_owned(),
+        url: licence.iri(),
     })
 }
 

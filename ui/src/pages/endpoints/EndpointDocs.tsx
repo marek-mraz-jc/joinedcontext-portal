@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { endpointUrl } from "../../components/endpoints/links";
 import { CodeBlock, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
+import { DeveloperPanel, TryIt } from "./DeveloperPanel";
 import { EndpointStandards } from "./EndpointStandards";
 import { snippetsOf } from "./Playground";
 
@@ -70,7 +71,8 @@ export function typesOf(doc: OpenApi): { name: string; attributes: { name: strin
 /**
  * An Endpoint's API documentation (EP-99, T-3265): the gateway's generated OpenAPI document, read
  * as the person (or an anonymous visitor on a public Endpoint) may read it, each operation with
- * its parameters and an example call as curl, Python and JavaScript.
+ * its parameters and an example call as curl, Python and JavaScript. On a public Endpoint it is
+ * the developer page (T-5111): licence, rate limit, a sample per surface and try-it.
  */
 export function EndpointDocs({ slug, open, heading = true }: { slug: string; open: boolean; heading?: boolean }): JSX.Element {
   const { t } = useTranslation();
@@ -104,6 +106,7 @@ export function EndpointDocs({ slug, open, heading = true }: { slug: string; ope
       <a className="w-fit text-caption text-primary-soft-fg underline" href={endpointUrl(slug, "/openapi.json")}>
         {t("endpoints.docs.download")}
       </a>
+      {open ? <DeveloperPanel slug={slug} /> : null}
       {open ? <EndpointStandards slug={slug} /> : null}
       {operationsOf(doc.data).map((operation) => {
         const code = snippetsOf(endpointUrl(slug, operation.example), open);
@@ -138,6 +141,7 @@ export function EndpointDocs({ slug, open, heading = true }: { slug: string; ope
               </Table>
             ) : null}
             <CodeBlock label={t("codeBlock.curl")} className="overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">{code.curl}</CodeBlock>
+            {open && operation.method === "GET" ? <TryIt slug={slug} path={operation.example} accept="application/ld+json" editable /> : null}
           </section>
         );
       })}
