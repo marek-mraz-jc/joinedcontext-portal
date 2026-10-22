@@ -5,10 +5,11 @@
  * that Change is live the rows are upserted through the gateway with the person's own session.
  */
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { download, originTransport } from "@joinedcontext/sdk";
-import { api, unwrap } from "../../api/client";
+import { api, queryKeys, unwrap } from "../../api/client";
 import { callOperation } from "../../api/operations";
 import { useOrgDomain } from "../../api/projects";
 import type { Change } from "../../api/manifest";
@@ -46,6 +47,17 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
   const [proposed, setProposed] = useState<Proposed | null>(null);
   const [progress, setProgress] = useState<{ sent: number; total: number } | null>(null);
   const [done, setDone] = useState<{ written: number; rejected: Rejected[] } | null>(null);
+
+  // The rows go in once the Change is live: a write before that is refused row by row (T-5109).
+  const changeId = proposed?.change?.metadata.name ?? "";
+  const followed = useQuery({
+    queryKey: queryKeys.change(project, changeId),
+    enabled: changeId !== "",
+    queryFn: async () => unwrap(await api.GET("/api/v1/projects/{project}/changes/{id}", { params: { path: { project, id: changeId } } })),
+    refetchInterval: (query) => (query.state.data?.status.phase === "Applied" || query.state.data?.status.phase === "Rejected" ? false : 5_000),
+  });
+  const change = followed.data ?? proposed?.change ?? null;
+  const live = change === null || change.status.phase === "Applied";
 
   const reason = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
@@ -200,7 +212,7 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
       ) : null}
       {proposed ? (
         <Card className="flex flex-col gap-4">
-          {proposed.change ? <ChangeNotice change={proposed.change} project={project} /> : null}
+          {change ? <ChangeNotice change={change} project={project} /> : null}
           <p className="text-body">{t("spaces.upload.afterApproval", { space: proposed.space, type: proposed.type })}</p>
           {checked ? (
             <p role="status" className="text-body">
@@ -224,7 +236,7 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
               {t("spaces.import.writing", progress)}
             </p>
           ) : (
-            <Button className="w-fit" onClick={() => void write()} disabled={!checked || checked.entities.length === 0} disabledReason={t("spaces.import.nothingToCreate")}>
+            <Button className="w-fit" onClick={() => void write()} disabled={!live || !checked || checked.entities.length === 0} disabledReason={t(live ? "spaces.import.nothingToCreate" : "spaces.upload.notLive")}>
               {t("spaces.upload.write", { count: checked?.entities.length ?? 0 })}
             </Button>
           )}
