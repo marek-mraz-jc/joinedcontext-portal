@@ -371,13 +371,17 @@ impl Sources {
                     }
                 }
                 "Policy" => {
+                    // One grant per rule, `{policy}#{n}`, as the gateway reads it (ADR-N-057);
+                    // an invalid shape is left out like an unreadable manifest.
                     if let Ok(spec) = serde_json::from_value::<PolicySpec>(spec.clone()) {
-                        let space = spec.context_space_ref.name().to_owned();
-                        sources
-                            .policies
-                            .entry((project, space))
-                            .or_default()
-                            .push((id.name.clone(), spec));
+                        if let Ok(rules) = spec.expand(&id.name) {
+                            let space = spec.context_space_ref.name().to_owned();
+                            sources
+                                .policies
+                                .entry((project, space))
+                                .or_default()
+                                .extend(rules);
+                        }
                     }
                 }
                 "ModelProjection" => {
@@ -504,7 +508,8 @@ impl Sources {
             .iter()
             .filter(|(name, _)| match &e.spec.policy_ref {
                 Some(reference) => {
-                    reference.space() == Some(e.tenant.as_str()) && name == reference.local_id()
+                    reference.space() == Some(e.tenant.as_str())
+                        && PolicySpec::policy_of(name) == reference.local_id()
                 }
                 None => true,
             })
@@ -3519,6 +3524,48 @@ mod tests {
                 slug('d'): ["city/mine", "city/no-trucks"],
             })
         );
+    }
+
+    /// T-5036, ADR-N-057: a `rules[]` Policy is one engine policy per rule, `{policy}#{n}`,
+    /// permit or prohibit as the rule says, and a `policyRef` naming the Policy binds every rule.
+    #[test]
+    fn a_rules_policy_is_one_engine_policy_per_rule() {
+        let kiosks: PolicySpec = serde_json::from_value(json!({
+            "contextSpaceRef": "air", "assigner": "did:web:city.example",
+            "rules": [
+                {"assignee": {"kind": "role", "id": "public"}, "operations": ["retrieveOps"]},
+                {"effect": "prohibition", "assignee": {"kind": "role", "id": "public"},
+                 "operations": ["queryEntity"], "information": [{"entities": [{"type": "Truck"}]}]}
+            ]
+        }))
+        .expect("a rules Policy");
+        let rules = kiosks.expand("kiosks").expect("a valid shape");
+        let mut named: Vec<(&str, PolicySpec)> = rules
+            .iter()
+            .map(|(name, rule)| (name.as_str(), rule.clone()))
+            .collect();
+        named.push(("cars", cars()));
+        let mut s = sources(named);
+        s.endpoints = vec![endpoint_named(
+            "kiosks",
+            json!({"slug": "b".repeat(26),
+                   "policyRef": "urn:ngsi-ld:Policy:city.example:city-air:kiosks"}),
+        )];
+        let document = &desired(&s).documents["city-air"].1;
+        assert_eq!(
+            document["views"],
+            json!({ "b".repeat(26): ["city/kiosks#1", "city/kiosks#2"] })
+        );
+        let effect = |id: &str| {
+            document["policies"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find(|p| p["id"] == id)
+                .map(|p| p["effect"].clone())
+        };
+        assert_eq!(effect("city/kiosks#1"), Some(json!("permit")));
+        assert_eq!(effect("city/kiosks#2"), Some(json!("prohibit")));
     }
 
     /// ADR-N-049: the gateway's fan-out subscribes through a listed view only where the Endpoint

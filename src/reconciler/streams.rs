@@ -5602,6 +5602,7 @@ output:
             mapping_ref: None,
             bloblang: None,
             kpi: None,
+            datacube: None,
         })];
         assert!(!eligible(&wasm));
     }

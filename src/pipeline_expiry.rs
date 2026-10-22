@@ -207,10 +207,12 @@ fn policies(mirror: &Mirror, project: &str) -> Vec<(String, PolicySpec)> {
         .items
         .into_iter()
         .filter_map(|p| {
-            serde_json::from_value(p.spec.clone())
+            serde_json::from_value::<PolicySpec>(p.spec.clone())
                 .ok()
                 .map(|spec| (p.metadata.name, spec))
         })
+        // One grant per rule, `{policy}#{n}` (ADR-N-057); an invalid shape grants nothing.
+        .flat_map(|(name, spec)| spec.expand(&name).unwrap_or_default())
         .collect()
 }
 
@@ -298,7 +300,7 @@ fn pipeline_policy<'a>(policies: &'a [(String, PolicySpec)], space: &str) -> Opt
     policies
         .iter()
         .find(|(_, policy)| !policy.effect.is_prohibition() && for_pipelines(policy, space))
-        .map(|(name, _)| name.as_str())
+        .map(|(name, _)| PolicySpec::policy_of(name))
 }
 
 /// The sweep of one pipeline: once an hour, every page of the listed types on the output
