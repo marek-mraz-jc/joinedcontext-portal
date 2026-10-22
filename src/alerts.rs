@@ -766,7 +766,7 @@ pub struct Signal {
 }
 
 /// The output Endpoints' names and the output types of a pipeline spec, either version.
-fn outputs_of(spec: &Value) -> Vec<(Option<String>, Option<String>)> {
+pub(crate) fn outputs_of(spec: &Value) -> Vec<(Option<String>, Option<String>)> {
     let endpoint = |urn: Option<&Value>| {
         urn.and_then(Value::as_str)
             .and_then(|u| u.rsplit(':').next())
@@ -1000,6 +1000,8 @@ pub struct Evaluator {
         Arc<crate::health_log::HealthStore>,
         Arc<crate::health_probe::Probes>,
     )>,
+    /// The weekly link check, started from a run when it is due (T-5133).
+    links: Option<Arc<crate::link_check::Checker>>,
     running: AtomicBool,
 }
 
@@ -1017,6 +1019,7 @@ impl Evaluator {
             runs: None,
             health: tokio::sync::Mutex::new(None),
             log: None,
+            links: None,
             running: AtomicBool::new(false),
         }
     }
@@ -1045,6 +1048,12 @@ impl Evaluator {
         probes: Arc<crate::health_probe::Probes>,
     ) -> Self {
         self.log = Some((log, probes));
+        self
+    }
+
+    /// Asks the stored links of every pipeline once a week (T-5133); `None` without a gateway.
+    pub fn with_link_check(mut self, links: Option<Arc<crate::link_check::Checker>>) -> Self {
+        self.links = links;
         self
     }
 
@@ -1096,6 +1105,9 @@ impl Evaluator {
 
     /// Starts a run in the background unless one is under way; the sync never waits.
     pub fn start(self: &Arc<Self>) {
+        if let Some(links) = &self.links {
+            links.start_due(Utc::now());
+        }
         if self.running.swap(true, Ordering::AcqRel) {
             return;
         }
