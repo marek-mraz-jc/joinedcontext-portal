@@ -328,6 +328,7 @@
         "Checkbox": 1
       },
       "tests": [
+        "grid_toolbar.test.tsx",
         "view_options.test.tsx"
       ]
     },
@@ -1834,10 +1835,11 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 13,
+        "Button": 15,
         "RadioGroup": 1
       },
       "tests": [
+        "grid_toolbar.test.tsx",
         "part_space_inside.test.tsx",
         "space_inside.test.tsx"
       ]

@@ -1,10 +1,10 @@
 import { AlertDialog } from "../../components/AlertDialog";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
 import type { JSX, ReactNode } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
-import { andQ, attributesOf, cellText, endpointSource, matchesQ, originTransport, parseGridConfig, queryFromGroup, searchQuery, sourceFor, targetName } from "@joinedcontext/sdk";
+import { andQ, applyChanges, attributesOf, cellText, endpointSource, matchesQ, MAX_ENTITIES, originTransport, parseGridConfig, queryFromGroup, searchQuery, sourceFor, targetName } from "@joinedcontext/sdk";
 import type { FilterColumn, FilterGroup, GridState, RichRow } from "@joinedcontext/sdk";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -74,7 +74,7 @@ import { SharePanel } from "./PublicView";
 import { ExportLinks, ImportRowsDialog } from "./ImportRows";
 import { useWorkspace } from "../../components/layout/WorkspaceContext";
 import { CommentsPanel } from "./Comments";
-import { importSlotsOf } from "./importRows";
+import { importSlotsOf, MAX_EXPORT_IDS } from "./importRows";
 import { useOrgDomain } from "../../api/projects";
 import { FormSettingsEditor, FormSharePanel, FormView } from "./FormView";
 import type { FormSettings } from "./formView";
@@ -416,6 +416,12 @@ function SpaceData({
   const [aggregations, setAggregations] = useState<Record<string, Aggregation>>({});
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [loadedRows, setLoadedRows] = useState<RichRow[]>([]);
+  // Live changes (T-5186): a change of the type reads the rows again where they are, and the rows
+  // that differ from what was shown flash for a few seconds, the reason named for a screen reader.
+  const [reloadKey, setReloadKey] = useState(0);
+  const [live, setLive] = useState<LiveChange | null>(null);
+  const [flashed, setFlashed] = useState<ReadonlySet<string>>(NO_ROWS);
+  const shownBefore = useRef<Map<string, string> | null>(null);
   const applyView = useCallback((next: SavedView | null, forType: string = type) => {
     setSaved(next);
     const settings = (next?.kind === "grid" ? next.config.settings : undefined) as Record<string, unknown> | undefined;
@@ -485,6 +491,10 @@ function SpaceData({
   // The attributes a view can hide: the model's slots of the type and whatever the rows carry.
   const onRows = useCallback((rows: RichRow[]) => {
     setLoadedRows(rows);
+    if (shownBefore.current) {
+      setFlashed(changedRows(shownBefore.current, rows));
+      shownBefore.current = null;
+    }
     setSeen((before) => {
       const next = [...new Set([...before, ...attributesOf(rows)])];
       return next.length === before.length ? before : next;
@@ -504,13 +514,26 @@ function SpaceData({
     () => Object.fromEntries(Object.entries(modelRelations).filter(([attr]) => seen.includes(attr))),
     [modelRelations, seen],
   );
-  // The first colour rule a row matches marks it, with the rule as the reason a screen reader hears.
+  useLive(project, space, view === "grid" ? type : "", (change) => {
+    setLive(change);
+    // Before the first rows arrive there is nothing to compare: the read alone is enough.
+    shownBefore.current = loadedRows.length > 0 ? rowSignatures(loadedRows) : null;
+    setReloadKey((n) => n + 1);
+  });
+  useEffect(() => {
+    if (flashed.size === 0) return;
+    const wait = setTimeout(() => setFlashed(NO_ROWS), FLASH_MS);
+    return () => clearTimeout(wait);
+  }, [flashed]);
+  // The first colour rule a row matches marks it, with the rule as the reason a screen reader hears;
+  // a row a live change just touched is marked first.
   const rowTone = useCallback(
     (row: RichRow) => {
+      if (flashed.has(row.id)) return { tone: "info", label: t("spaces.toolbar.changedLive") };
       const rule = (extras.colour ?? []).find((each) => each.when.trim() !== "" && matchesQ(row, each.when) === true);
       return rule ? { tone: rule.colour, label: t("spaces.saved.toneLabel", { when: rule.when }) } : undefined;
     },
-    [extras.colour, t],
+    [extras.colour, flashed, t],
   );
   // What the grid asks beyond its own query: the panel, the search and the chosen group (T-4883).
   const gridQuery = useMemo(() => {
@@ -870,6 +893,19 @@ function SpaceData({
           />
           <div className="ml-auto flex items-center gap-1">
             {addRow}
+            <PermissionGuard project={project} kind="Endpoint" verb="propose">
+              <ToolbarPopover label={t("spaces.toolbar.share")} wide end>
+                <SharePanel
+                  key={type}
+                  project={project}
+                  space={space}
+                  type={type}
+                  attributes={slots.map((slot) => slot.name)}
+                  shownAtFirst={slots.map((slot) => slot.name).filter((attr) => !(extras.hidden ?? []).includes(attr))}
+                  open
+                />
+              </ToolbarPopover>
+            </PermissionGuard>
             <ToolbarPopover label={t("spaces.toolbar.more")} wide end>
               <div className="flex flex-col gap-3">
                 <ViewBar
@@ -901,6 +937,20 @@ function SpaceData({
           count={selectedRows.length}
           rows={loadedRows.filter((row) => selectedRows.includes(row.id))}
           canDelete={grants.some((doc) => mayDelete(doc, type))}
+          writable={writer ? slots.filter((slot) => writer.attrs.includes(slot.name) && slot.kind === "Property" && !slot.formula) : []}
+          writeSource={gridSource}
+          onChanged={() => setReloadKey((n) => n + 1)}
+          exportLinks={
+            <ExportLinks
+              endpoints={endpoints}
+              type={type}
+              q={undefined}
+              attrs={slots.map((slot) => slot.name)}
+              ids={selectedRows.slice(0, MAX_EXPORT_IDS)}
+              label={t("spaces.toolbar.exportSelected")}
+            />
+          }
+          tooManyToExport={selectedRows.length > MAX_EXPORT_IDS}
           onClear={() => setSelectedRows([])}
           onDeleted={(kept) => {
             // The refused rows stay checked, so the bar keeps naming them and they can be tried again.
@@ -909,6 +959,7 @@ function SpaceData({
           }}
         />
       ) : null}
+      {probe.isSuccess && config && view === "grid" ? <LiveNotice change={live} /> : null}
       {probe.isSuccess && config && view === "grid" && extras.group && enums[extras.group] ? (
         <GroupCounts
           source={source}
@@ -1000,6 +1051,7 @@ function SpaceData({
           onLayout={onLayout}
           onOpenRelationship={openTarget}
           rowTone={rowTone}
+          reloadKey={reloadKey}
           query={gridQuery}
           filterRow={false}
           onFilterColumns={onFilterColumns}
@@ -1049,6 +1101,11 @@ function BulkBar({
   count,
   rows,
   canDelete,
+  writable,
+  writeSource,
+  onChanged,
+  exportLinks,
+  tooManyToExport,
   onClear,
   onDeleted,
 }: {
@@ -1059,11 +1116,19 @@ function BulkBar({
   count: number;
   rows: RichRow[];
   canDelete: boolean;
+  /** The fields a grant lets the person write: the only ones "Set a field" offers (T-5186). */
+  writable: FilterSlot[];
+  /** Where the values are written: the granting Endpoint, whose Policy judges each row again. */
+  writeSource: ReturnType<typeof sourceFor>;
+  onChanged: () => void;
+  exportLinks: ReactNode;
+  tooManyToExport: boolean;
   onClear: () => void;
   onDeleted: (kept: string[]) => void;
 }): JSX.Element {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const [setting, setSetting] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [running, setRunning] = useState(false);
   const [refused, setRefused] = useState<{ name: string; reason: string }[]>([]);
@@ -1096,6 +1161,16 @@ function BulkBar({
         >
           {t("spaces.toolbar.deleteSelected")}
         </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={writable.length === 0 || rows.length === 0}
+          disabledReason={t("spaces.toolbar.setNotGranted")}
+          onClick={() => setSetting(true)}
+        >
+          {t("spaces.toolbar.setField")}
+        </Button>
+        {tooManyToExport ? <span className="text-caption text-fg-muted">{t("spaces.toolbar.exportTooMany", { n: MAX_EXPORT_IDS })}</span> : exportLinks}
         <Button size="sm" variant="ghost" onClick={onClear}>
           {t("spaces.toolbar.clearSelection")}
         </Button>
@@ -1119,7 +1194,163 @@ function BulkBar({
         pending={running}
         onConfirm={() => void remove()}
       />
+      <BulkSetDialog open={setting} onOpenChange={setSetting} rows={rows} slots={writable} source={writeSource} onDone={onChanged} />
     </div>
+  );
+}
+
+/** How long a row a live change touched stays marked. */
+const FLASH_MS = 4000;
+const NO_ROWS: ReadonlySet<string> = new Set();
+
+/** What each shown row holds, by id, to tell after a read which rows changed. */
+export function rowSignatures(rows: readonly RichRow[]): Map<string, string> {
+  return new Map(rows.map((row) => [row.id, JSON.stringify(row.cells)]));
+}
+
+/** The rows that are new or hold something else than before. */
+export function changedRows(before: ReadonlyMap<string, string>, rows: readonly RichRow[]): ReadonlySet<string> {
+  return new Set(rows.filter((row) => before.get(row.id) !== JSON.stringify(row.cells)).map((row) => row.id));
+}
+
+/**
+ * The value typed for "Set a field", as the field's range takes it, or undefined while it is none:
+ * an enum's own value, a finite number, true or false, or text that is not empty.
+ */
+export function bulkValue(slot: FilterSlot, text: string): string | number | boolean | undefined {
+  const typed = text.trim();
+  if (typed === "") return undefined;
+  if (slot.values) return slot.values.includes(typed) ? typed : undefined;
+  if (["integer", "float", "double", "decimal"].includes(slot.range ?? "")) {
+    const n = Number(typed);
+    return Number.isFinite(n) && (slot.range !== "integer" || Number.isInteger(n)) ? n : undefined;
+  }
+  if (slot.range === "boolean") return typed === "true" ? true : typed === "false" ? false : undefined;
+  return typed;
+}
+
+/**
+ * One value written into a field of every checked row (T-5186): a PATCH per row through the
+ * granting Endpoint with the person's session and their reason, so its Policy judges each row and
+ * each value; a refused row is named with the Endpoint's own sentence.
+ */
+function BulkSetDialog({
+  open,
+  onOpenChange,
+  rows,
+  slots,
+  source,
+  onDone,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  rows: RichRow[];
+  slots: FilterSlot[];
+  source: ReturnType<typeof sourceFor>;
+  onDone: () => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const id = useId();
+  const [attr, setAttr] = useState("");
+  const [text, setText] = useState("");
+  const [reason, setReason] = useState("");
+  const [running, setRunning] = useState(false);
+  const [refused, setRefused] = useState<{ name: string; reason: string }[] | null>(null);
+  const slot = slots.find((each) => each.name === attr);
+  const value = slot ? bulkValue(slot, text) : undefined;
+  const nameOf = (rowId: string) => cellText(rows.find((row) => row.id === rowId)?.cells.name) || rowId;
+  const apply = async () => {
+    if (!slot || value === undefined) return;
+    setRunning(true);
+    const failed: { name: string; reason: string }[] = [];
+    for (let at = 0; at < rows.length; at += MAX_ENTITIES) {
+      const entities = rows.slice(at, at + MAX_ENTITIES).map((row) => ({ id: row.id, changes: [{ attribute: slot.name, after: value }] }));
+      try {
+        const result = await applyChanges({ source, entities, reason, fallback: t("spaces.toolbar.setRefusedRow") });
+        failed.push(...result.refused.map((each) => ({ name: nameOf(each.id), reason: each.detail })));
+      } catch (error) {
+        failed.push(...entities.map((each) => ({ name: nameOf(each.id), reason: error instanceof Error ? error.message : String(error) })));
+      }
+    }
+    setRunning(false);
+    setRefused(failed);
+    if (failed.length < rows.length) onDone();
+  };
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (next) setRefused(null);
+        onOpenChange(next);
+      }}
+      title={t("spaces.toolbar.setTitle", { n: rows.length })}
+      closeLabel={t("app.close")}
+    >
+      <div className="flex flex-col gap-3">
+        <p className="text-body text-fg-muted">{t("spaces.toolbar.setLead")}</p>
+        <Field id={`${id}-attr`} label={t("spaces.toolbar.setFieldLabel")} help={t("spaces.toolbar.setFieldHint")}>
+          <Select
+            id={`${id}-attr`}
+            value={attr}
+            onChange={(e) => {
+              setAttr(e.target.value);
+              setText("");
+            }}
+          >
+            <option value="">{t("spaces.toolbar.setFieldPick")}</option>
+            {slots.map((each) => (
+              <option key={each.name} value={each.name}>
+                {each.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        {slot ? (
+          <Field
+            id={`${id}-value`}
+            label={t("spaces.toolbar.setValue")}
+            help={slot.values ? t("spaces.toolbar.setValueEnumHint") : t("spaces.toolbar.setValueHint")}
+            errors={text.trim() !== "" && value === undefined ? [t("spaces.toolbar.setValueInvalid", { range: slot.range ?? "" })] : undefined}
+          >
+            {slot.values ? (
+              <Select id={`${id}-value`} value={text} onChange={(e) => setText(e.target.value)}>
+                <option value="">{t("spaces.toolbar.setValuePick")}</option>
+                {slot.values.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              <Input id={`${id}-value`} value={text} onChange={(e) => setText(e.target.value)} />
+            )}
+          </Field>
+        ) : null}
+        <Field id={`${id}-reason`} label={t("spaces.toolbar.setReason")} help={t("spaces.toolbar.setReasonHint")}>
+          <Input id={`${id}-reason`} value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} />
+        </Field>
+        {refused && refused.length > 0 ? (
+          <Alert tone="danger" title={t("spaces.toolbar.setRefused", { n: refused.length })}>
+            <ul className="list-disc pl-5">
+              {refused.map((each) => (
+                <li key={each.name}>{`${each.name}: ${each.reason}`}</li>
+              ))}
+            </ul>
+          </Alert>
+        ) : null}
+        {refused && refused.length === 0 ? (
+          <Alert tone="success" role="status" title={t("spaces.toolbar.setDone", { n: rows.length })} />
+        ) : null}
+        <Button
+          className="w-fit"
+          disabled={value === undefined || reason.trim() === "" || running}
+          disabledReason={running ? t("app.loading") : t("spaces.toolbar.setIncomplete")}
+          onClick={() => void apply()}
+        >
+          {t("spaces.toolbar.setApply", { n: rows.length })}
+        </Button>
+      </div>
+    </Dialog>
   );
 }
 

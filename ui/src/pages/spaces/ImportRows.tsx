@@ -4,7 +4,7 @@
  * gateway with the person's session; what was refused is listed and can be downloaded. The export
  * is a link to an Endpoint's file of the type, narrowed to the view's filter.
  */
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { download } from "@joinedcontext/sdk";
@@ -475,13 +475,20 @@ export function ExportLinks({
   type,
   q,
   attrs,
+  ids,
+  label,
 }: {
   endpoints: Manifest[];
   type: string;
   q: string | undefined;
   attrs: string[];
+  /** Only these rows, by id: the grid's checked rows (T-5186). */
+  ids?: readonly string[];
+  /** What the links are introduced with, "Export" without it. */
+  label?: string;
 }): JSX.Element | null {
   const { t } = useTranslation();
+  const id = useId();
   const offering = endpoints
     .map((endpoint) => {
       const spec = (endpoint.spec ?? {}) as { slug?: string };
@@ -498,8 +505,8 @@ export function ExportLinks({
   return (
     <div className="flex flex-wrap items-end gap-2">
       {offering.length > 1 ? (
-        <Field id="space-export-endpoint" label={t("spaces.export.endpoint")} className="w-fit">
-          <Select id="space-export-endpoint" value={endpoint.name} onChange={(event) => setChosen(event.target.value)}>
+        <Field id={id} label={t("spaces.export.endpoint")} className="w-fit">
+          <Select id={id} value={endpoint.name} onChange={(event) => setChosen(event.target.value)}>
             {offering.map((each) => (
               <option key={each.name} value={each.name}>
                 {each.name}
@@ -508,12 +515,12 @@ export function ExportLinks({
           </Select>
         </Field>
       ) : null}
-      <span className="text-body text-fg-muted">{t("spaces.export.label")}</span>
+      <span className="text-body text-fg-muted">{label ?? t("spaces.export.label")}</span>
       {endpoint.formats.map((format) => (
         <a
           key={format}
           className="focus-ring rounded-md border border-border px-3 py-1.5 text-body hover:bg-surface-muted"
-          href={safeHref(exportUrl(endpoint.slug, format, type, q, attrs))}
+          href={safeHref(exportUrl(endpoint.slug, format, type, q, attrs, ids))}
           download
         >
           {t(`spaces.export.format.${format}`)}

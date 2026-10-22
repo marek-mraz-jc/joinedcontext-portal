@@ -92,6 +92,8 @@ export interface EntityGridProps extends UseEntityGridOptions {
    * way the row says it.
    */
   rowTone?: (row: RichRow) => { tone: string; label: string } | undefined;
+  /** Each new value reads the rows again where they are, keeping the scroll and the checked rows: a host's live change. */
+  reloadKey?: number;
   className?: string;
   classNames?: Partial<Record<"root" | "table" | "header" | "row" | "cell" | "pager", string>>;
   /** The reader's language tag, for numbers and dates (`fi`, `en-GB`); the browser's without it. */
@@ -191,6 +193,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     empty: emptySlot,
     rules,
     rowTone,
+    reloadKey,
     className,
     classNames,
     locale,
@@ -217,6 +220,13 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     [onHide, hostHidden, ownHidden],
   );
   const grid = useEntityGrid({ ...hookOptions, layout, hidden: hiddenNow });
+  const reloadGrid = grid.reload;
+  const reloadedFor = useRef(reloadKey);
+  useEffect(() => {
+    if (reloadedFor.current === reloadKey) return;
+    reloadedFor.current = reloadKey;
+    reloadGrid();
+  }, [reloadKey, reloadGrid]);
   const where = locale ?? (typeof navigator !== "undefined" ? navigator.language : "en");
   const selection = useEntitySelection();
   const queryHintId = React.useId();

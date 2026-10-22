@@ -185,6 +185,10 @@
       "class": "FREE",
       "reason": "the address of an outside NGSI-LD Endpoint"
     },
+    "src/pages/spaces/SpaceInside.tsx :: (no label)": {
+      "class": "FREE",
+      "reason": "Set a field's typed value for a field with no enum (a number or a text); an enum field gets a Select, and the Endpoint's Policy judges the value on write"
+    },
     "src/pages/spaces/SpacePersonalData.tsx :: Person's identifier": {
       "class": "FREE",
       "reason": "a data subject's value as the space stores it (DM-124); the Portal lists no persons, so no picker may offer them, and the server checks the owner's right and the value (erasure::subject_refusal)"

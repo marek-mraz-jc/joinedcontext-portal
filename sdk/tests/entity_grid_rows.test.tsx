@@ -79,3 +79,21 @@ describe("EntityGrid rows (T-4883)", () => {
     expect(last.find((c) => c.attr === "name")?.kind).toBe("text");
   });
 });
+
+describe("EntityGrid reloadKey (T-5186)", () => {
+  it("reads the rows again on a new key and keeps the checked rows", async () => {
+    const source = fixtureSource(entities);
+    const query = vi.spyOn(source, "query");
+    const grid = (key: number) => (
+      <EntityGrid config={config} source={source} rowNumbers={NUMBERS} selected={["urn:ngsi-ld:Station:2"]} filterRow={false} reloadKey={key} />
+    );
+    const { rerender, container } = render(grid(0));
+    await waitFor(() => expect(screen.getByText("Pasila")).toBeInTheDocument());
+    const first = query.mock.calls.length;
+    rerender(grid(0));
+    expect(query.mock.calls.length).toBe(first);
+    rerender(grid(1));
+    await waitFor(() => expect(query.mock.calls.length).toBe(first + 1));
+    expect(container.querySelectorAll('tr[aria-selected="true"]')).toHaveLength(1);
+  });
+});

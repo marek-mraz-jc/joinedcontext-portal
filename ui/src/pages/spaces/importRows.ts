@@ -744,9 +744,21 @@ export const EXPORTS = ["csv"] as const;
  * Where an Endpoint's file of the view is: its `file.{format}` narrowed to the type, the view's
  * query and the type's fields, read by the gateway with the person's session at the edge.
  */
-export function exportUrl(slug: string, format: (typeof EXPORTS)[number], type: string, q: string | undefined, attrs: string[]): string {
+/** Checked rows one export names at most: their ids travel in the address. */
+export const MAX_EXPORT_IDS = 100;
+
+export function exportUrl(
+  slug: string,
+  format: (typeof EXPORTS)[number],
+  type: string,
+  q: string | undefined,
+  attrs: string[],
+  ids: readonly string[] = [],
+): string {
   const params = new URLSearchParams({ type });
-  if (q) params.set("q", q);
+  // Checked rows go as their ids (T-5186): the gateway reads them through the view like a filter.
+  if (ids.length > 0) params.set("id", ids.join(","));
+  else if (q) params.set("q", q);
   if (attrs.length > 0) params.set("attrs", attrs.join(","));
   return `/api/endpoint/${encodeURIComponent(slug)}/file.${format}?${params.toString()}`;
 }

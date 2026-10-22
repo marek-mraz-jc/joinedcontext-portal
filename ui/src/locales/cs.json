@@ -852,7 +852,8 @@
       "notPublished": "Tento pohled není zveřejněn nebo už není.",
       "types": "Typy",
       "first": "Prvních {count} entit.",
-      "count": "{count, plural, one {# entita} few {# entity} other {# entit}}."
+      "count": "{count, plural, one {# entita} few {# entity} other {# entit}}.",
+      "viewNote": "Odkaz zobrazí každý řádek typu, který Policy endpointu propustí: filtr pohledu jeho součástí není."
     },
     "ai": {
       "title": "Vyplnit atribut pomocí AI",
@@ -929,7 +930,10 @@
       "toneLabel": "Označeno: {when}",
       "titleFirst": "Dejte pohledu název s nejvýše 120 znaky.",
       "modeLocked": "Kdo pohled vidí, může změnit jen jeho vlastník nebo správce dat.",
-      "coloursFull": "Pohled má nejvýše 20 pravidel barev; nejprve jedno odstraňte."
+      "coloursFull": "Pohled má nejvýše 20 pravidel barev; nejprve jedno odstraňte.",
+      "colourBy": "Barva podle pole",
+      "colourByHelp": "Vytvoří jedno pravidlo pro každou hodnotu pole se seznamem, např. status: open, closed; nahradí pravidla níže.",
+      "colourByPick": "Vyberte pole"
     },
     "form": {
       "settings": "Pole formuláře",
@@ -1210,7 +1214,30 @@
       "clearSelection": "Zrušit výběr",
       "deleteRefused": "Nesmazané řádky: {n}",
       "deleteTitle": "Smazat řádky ({n})?",
-      "deleteBody": "Každý řádek se maže přes Policy prostoru, která ho může odmítnout. Kopie každého smazaného řádku zůstane 30 dní ve vašem koši."
+      "deleteBody": "Každý řádek se maže přes Policy prostoru, která ho může odmítnout. Kopie každého smazaného řádku zůstane 30 dní ve vašem koši.",
+      "changedLive": "Právě změněno",
+      "share": "Sdílet pohled",
+      "exportSelected": "Exportovat vybrané",
+      "exportTooMany": "Export vezme nejvýše {n} označených řádků: některé odznačte, nebo exportujte filtrovaný pohled v nabídce Více.",
+      "setField": "Nastavit pole",
+      "setNotGranted": "Žádný endpoint tohoto prostoru vám nedovoluje zapisovat pole tohoto typu.",
+      "setRefusedRow": "endpoint hodnotu odmítl",
+      "setTitle": "Nastavit pole v {n} řádcích",
+      "setLead": "Každý řádek se zapíše přes endpoint, který vám pole povoluje, a jeho Policy může řádek nebo hodnotu odmítnout. Každý zápis zůstane v historii řádku i s vaším důvodem.",
+      "setFieldLabel": "Pole",
+      "setFieldHint": "Jen pole, která vám oprávnění dovoluje zapisovat.",
+      "setFieldPick": "Vyberte pole",
+      "setValue": "Nová hodnota",
+      "setValueHint": "Hodnota, kterou dostane každý označený řádek, ve tvaru pole: celé číslo pro celočíselné pole.",
+      "setValueEnumHint": "Jedna z hodnot, které model pro toto pole povoluje.",
+      "setValueInvalid": "Toto pole bere hodnotu typu {range}.",
+      "setValuePick": "Vyberte hodnotu",
+      "setReason": "Proč",
+      "setReasonHint": "Uloží se ke každému zápisu, např. Uzavřeno po kontrole 21. října.",
+      "setRefused": "{n, plural, one {# řádek se nezměnil} few {# řádky se nezměnily} other {# řádků se nezměnilo}}",
+      "setDone": "Všech {n} řádků se změnilo.",
+      "setIncomplete": "Vyberte pole, hodnotu, kterou bere, a důvod.",
+      "setApply": "Nastavit v {n} řádcích"
     },
     "temporal": {
       "title": "Jak vznikají řádky historie",

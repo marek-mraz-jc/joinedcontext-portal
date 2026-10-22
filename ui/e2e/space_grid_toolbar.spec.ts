@@ -62,7 +62,21 @@ function event(n: number) {
   };
 }
 
-async function stubApi(page: Page, asked: string[], deleted: string[]): Promise<void> {
+// The bulk tools' model adds a status enum, which "Colour by field" and "Set a field" pick from.
+const LINKML_STATUS = LINKML.replace("audience]", "audience, status]")
+  .replace("slots:\n  id", "enums:\n  EventStatus:\n    permissible_values: { open: {}, cancelled: {} }\nslots:\n  id")
+  .concat("  status: { range: EventStatus, title: Status }\n");
+
+interface Recorded {
+  asked: string[];
+  deleted: string[];
+  patched: { id: string; body: unknown; reason: string | null }[];
+  /** Live changes the space's event stream has sent. */
+  live: number;
+}
+
+async function stubApi(page: Page, asked: string[], deleted: string[], extra?: { linkml: string; seen: Recorded }): Promise<void> {
+  const linkml = extra?.linkml ?? LINKML;
   await page.route("**/{api,cs}/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -73,7 +87,24 @@ async function stubApi(page: Page, asked: string[], deleted: string[]): Promise<
       return json({ subject: "b7c1e0f4", username: "jana.kovacova", name: "Jana Kováčová", roles: ["portal-editor"] });
     }
     if (path.endsWith("/datamodels/helsinki-events/source")) {
-      return route.fulfill({ status: 200, contentType: "text/yaml", body: LINKML });
+      return route.fulfill({ status: 200, contentType: "text/yaml", body: linkml });
+    }
+    if (extra && path.endsWith("/attrs") && method === "PATCH") {
+      // The Policy refuses the value on the second row: the dialog names it, the others land.
+      const id = decodeURIComponent(path.split("/entities/")[1]?.replace(/\/attrs$/, "") ?? "");
+      if (id.endsWith(":2")) return json({ title: "Forbidden", detail: "the Policy does not grant status on this row" }, 403);
+      extra.seen.patched.push({ id, body: route.request().postDataJSON(), reason: route.request().headers()["jc-reason"] ?? null });
+      return route.fulfill({ status: 204 });
+    }
+    if (extra && path.endsWith("/live")) {
+      // The change comes after the rows are on the screen, as one made by someone else would.
+      if (extra.seen.live === 0) await page.getByText("Workshop for Families").first().waitFor();
+      extra.seen.live += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body: extra.seen.live === 1 ? 'retry: 600000\nevent: changed\ndata: {"type":"Event"}\n\n' : "retry: 600000\n\n",
+      });
     }
     if (path.includes("/entities/") && method === "DELETE") {
       // The Policy refuses the second row: the bar names it and keeps it.
@@ -85,7 +116,10 @@ async function stubApi(page: Page, asked: string[], deleted: string[]): Promise<
     if (path.endsWith("/entities")) {
       const q = url.searchParams.get("q") ?? "";
       asked.push(q);
-      const rows = Array.from({ length: 24 }, (_, i) => event(i + 1));
+      // After a live change the third row holds another name: the grid flashes it.
+      const rows = Array.from({ length: 24 }, (_, i) => event(i + 1)).map((row, i) =>
+        extra && extra.seen.live > 0 && i === 2 ? { ...row, name: { type: "Property", value: "Renamed while you looked" } } : row,
+      );
       const total = q.endsWith(";audience") || q === "audience" ? 18 : 24;
       return json(rows, 200, { "NGSILD-Results-Count": String(total) });
     }
@@ -99,10 +133,10 @@ async function stubApi(page: Page, asked: string[], deleted: string[]): Promise<
       return json(manifest("ContextSpace", SPACE, { dataModelRef: "helsinki-events" }, "Helsinki city context"));
     }
     if (path.endsWith("/datamodels")) {
-      return json(list([manifest("DataModel", "helsinki-events", { contextSpaceRef: SPACE, version: "1.0.0", classes: [TYPE], linkml: LINKML })]));
+      return json(list([manifest("DataModel", "helsinki-events", { contextSpaceRef: SPACE, version: "1.0.0", classes: [TYPE], linkml })]));
     }
     if (path.endsWith("/endpoints")) {
-      return json(list([manifest("Endpoint", "app-helsinki-data", { contextSpaceRef: SPACE, slug: "k7m2qz4tv6xh3n5jb2ryd3wcfa", audience: "project", enabledRepresentations: ["ngsi-ld"] })]));
+      return json(list([manifest("Endpoint", "app-helsinki-data", { contextSpaceRef: SPACE, slug: "k7m2qz4tv6xh3n5jb2ryd3wcfa", audience: "project", enabledRepresentations: ["ngsi-ld", "csv"] })]));
     }
     return json(list([]));
   });
@@ -179,5 +213,61 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await expect(page.locator(".jc-grid")).toHaveAttribute("data-row-size", "large");
     await page.keyboard.press("Escape");
     await shot(page, `grid-row-large-${label}`);
+  });
+}
+
+for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400", 400, 860]] as const) {
+  test(`The grid's bulk tools, live flash, colours and share (${label})`, async ({ page }) => {
+    const seen: Recorded = { asked: [], deleted: [], patched: [], live: 0 };
+    await page.setViewportSize({ width, height });
+    await stubApi(page, seen.asked, seen.deleted, { linkml: LINKML_STATUS, seen });
+    await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
+    const toolbar = page.getByTestId("grid-toolbar");
+
+    // A live change reads the rows again and flashes the one that changed, its reason named.
+    await expect(page.getByText("Renamed while you looked")).toBeVisible();
+    await expect(page.locator("tr.jc-grid-tr--info")).toHaveCount(1);
+    await expect(page.locator("tr.jc-grid-tr--info")).toContainText("Renamed while you looked");
+    await shot(page, `grid-live-flash-${label}`);
+
+    // Colour by an enum field: one rule per value.
+    await toolbar.locator("summary", { hasText: "Row colour" }).click();
+    await page.getByRole("combobox", { name: "Colour by field" }).selectOption("status");
+    await expect(page.getByRole("textbox", { name: "When" })).toHaveCount(2);
+    await expect(page.getByRole("textbox", { name: "When" }).first()).toHaveValue('status=="open"');
+    await shot(page, `grid-colour-by-${label}`);
+    await page.keyboard.press("Escape");
+
+    // Check three rows: export just them, then set a field in each through the Policy.
+    for (const at of [0, 1, 3]) await page.getByRole("checkbox", { name: /^Select row: / }).nth(at).click();
+    await expect(page.getByText("3 selected")).toBeVisible();
+    const csv = page.getByRole("region", { name: "Selected rows" }).getByRole("link", { name: /CSV/i });
+    await expect(csv).toHaveAttribute("href", /[?&]id=urn%3Angsi-ld%3AEvent%3Ahel\.fi%3Alinkedevents%3A1%2C/);
+    await page.getByRole("button", { name: "Set a field" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("combobox", { name: "Field" }).selectOption("audience");
+    await dialog.getByRole("textbox", { name: "New value" }).fill("4.5");
+    await expect(dialog.getByText("This field takes a value of type integer.")).toBeVisible();
+    await dialog.getByRole("combobox", { name: "Field" }).selectOption("status");
+    await dialog.getByRole("combobox", { name: "New value" }).selectOption("cancelled");
+    await expect(dialog.getByRole("button", { name: "Set in 3 rows" })).toBeDisabled();
+    await dialog.getByRole("textbox", { name: "Why" }).fill("Venue closed for repairs");
+    expect(await axeViolations(page)).toEqual([]);
+    await shot(page, `grid-bulk-set-${label}`);
+    await dialog.getByRole("button", { name: "Set in 3 rows" }).click();
+    await expect(dialog.getByText("1 row was not changed")).toBeVisible();
+    await expect(dialog.getByText(/the Policy does not grant status on this row/)).toBeVisible();
+    expect(seen.patched.map((each) => each.id)).toEqual(["urn:ngsi-ld:Event:hel.fi:linkedevents:1", "urn:ngsi-ld:Event:hel.fi:linkedevents:4"]);
+    expect(seen.patched[0]?.body).toEqual({ status: { type: "Property", value: "cancelled" } });
+    await shot(page, `grid-bulk-set-refused-${label}`);
+    await page.keyboard.press("Escape");
+
+    // Share the view: the public Endpoint proposal opens from the toolbar with the view's fields.
+    await toolbar.locator("summary", { hasText: "Share view" }).click();
+    await expect(page.getByRole("textbox", { name: "Endpoint name" })).toBeVisible();
+    await expect(page.getByText("the view's filter is not part of it")).toBeVisible();
+    const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(sideways).toBeLessThanOrEqual(0);
+    await shot(page, `grid-share-${label}`);
   });
 }

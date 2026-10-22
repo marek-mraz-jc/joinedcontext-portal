@@ -852,7 +852,8 @@
       "notPublished": "Diese Ansicht ist nicht oder nicht mehr veröffentlicht.",
       "types": "Typen",
       "first": "Die ersten {count} Entitäten.",
-      "count": "{count, plural, one {# Entität} other {# Entitäten}}."
+      "count": "{count, plural, one {# Entität} other {# Entitäten}}.",
+      "viewNote": "Der Link zeigt jede Zeile des Typs, die die Policy des Endpoints durchlässt: der Filter der Ansicht gehört nicht dazu."
     },
     "ai": {
       "title": "Ein Attribut mit KI füllen",
@@ -929,7 +930,10 @@
       "toneLabel": "Markiert: {when}",
       "titleFirst": "Geben Sie der Ansicht einen Titel mit höchstens 120 Zeichen.",
       "modeLocked": "Wer die Ansicht sieht, ändert nur ihr Eigentümer oder eine Datenverwaltung.",
-      "coloursFull": "Eine Ansicht hat höchstens 20 Farbregeln; entfernen Sie zuerst eine."
+      "coloursFull": "Eine Ansicht hat höchstens 20 Farbregeln; entfernen Sie zuerst eine.",
+      "colourBy": "Nach Feld färben",
+      "colourByHelp": "Legt eine Regel je Wert eines Listenfelds an, z. B. status: open, closed; ersetzt die Regeln unten.",
+      "colourByPick": "Feld wählen"
     },
     "form": {
       "settings": "Felder des Formulars",
@@ -1210,7 +1214,30 @@
       "clearSelection": "Auswahl aufheben",
       "deleteRefused": "{n} Zeilen wurden nicht gelöscht",
       "deleteTitle": "{n} Zeilen löschen?",
-      "deleteBody": "Jede Zeile wird über die Policy des Raums gelöscht, die sie ablehnen kann. Eine Kopie jeder gelöschten Zeile bleibt 30 Tage in Ihrem Papierkorb."
+      "deleteBody": "Jede Zeile wird über die Policy des Raums gelöscht, die sie ablehnen kann. Eine Kopie jeder gelöschten Zeile bleibt 30 Tage in Ihrem Papierkorb.",
+      "changedLive": "Gerade geändert",
+      "share": "Ansicht teilen",
+      "exportSelected": "Auswahl exportieren",
+      "exportTooMany": "Der Export nimmt höchstens {n} markierte Zeilen: entfernen Sie einige Häkchen oder exportieren Sie die gefilterte Ansicht unter Mehr.",
+      "setField": "Feld setzen",
+      "setNotGranted": "Kein Endpoint dieses Raums erlaubt Ihnen, ein Feld dieses Typs zu schreiben.",
+      "setRefusedRow": "der Endpoint hat den Wert abgelehnt",
+      "setTitle": "Ein Feld in {n} Zeilen setzen",
+      "setLead": "Jede Zeile wird über den Endpoint geschrieben, der Ihnen das Feld erlaubt; seine Policy kann eine Zeile oder einen Wert ablehnen. Jeder Schreibvorgang bleibt mit Ihrer Begründung im Verlauf der Zeile.",
+      "setFieldLabel": "Feld",
+      "setFieldHint": "Nur die Felder, die Ihre Berechtigung schreiben lässt.",
+      "setFieldPick": "Feld wählen",
+      "setValue": "Neuer Wert",
+      "setValueHint": "Der Wert, den jede markierte Zeile erhält, in der Form des Felds: eine ganze Zahl für ein Ganzzahlfeld.",
+      "setValueEnumHint": "Einer der Werte, die das Modell für dieses Feld erlaubt.",
+      "setValueInvalid": "Dieses Feld nimmt einen Wert vom Typ {range}.",
+      "setValuePick": "Wert wählen",
+      "setReason": "Warum",
+      "setReasonHint": "Wird mit jedem Schreibvorgang gespeichert, z. B. Nach der Prüfung am 21. Oktober geschlossen.",
+      "setRefused": "{n, plural, one {# Zeile wurde} other {# Zeilen wurden}} nicht geändert",
+      "setDone": "Alle {n} Zeilen wurden geändert.",
+      "setIncomplete": "Wählen Sie ein Feld, einen passenden Wert und eine Begründung.",
+      "setApply": "In {n} Zeilen setzen"
     },
     "temporal": {
       "title": "Wie Verlaufszeilen entstehen",

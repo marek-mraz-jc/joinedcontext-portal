@@ -618,7 +618,8 @@ describe("the space's own data", () => {
     const reads = () =>
       fetchMock.mock.calls.map((call) => urlOf(call[0])).filter((url) => url.pathname.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities") && url.searchParams.get("limit") === "500").length;
     const before = reads();
-    const stream = opened.find((source) => source.url.includes("/spaces/ovzdusie/live?type=AirQualityObserved"));
+    // The grid listens too (T-5186) and closes its stream when the gallery opens: the gallery's is the open one.
+    const stream = opened.find((source) => !source.closed && source.url.includes("/spaces/ovzdusie/live?type=AirQualityObserved"));
     expect(stream).toBeDefined();
     act(() => stream?.emit("changed", { type: "AirQualityObserved" }));
     await waitFor(() => expect(reads()).toBeGreaterThan(before));
@@ -949,8 +950,10 @@ describe("the space's own data", () => {
       // The columns follow the answer (DM-102): the open button settles in the Name column once rows arrive.
       await screen.findByRole("button", { name: /: Name$/ });
       expect(screen.getByRole("button", { name: `${en.entityGrid.openRow}: Námestie SNP` })).toBeInTheDocument();
-      expect(screen.queryByRole("spinbutton")).toBeNull();
-      expect(screen.queryByRole("textbox", { name: /pm10|name/ })).toBeNull();
+      // In the grid: the toolbar's Share view panel holds an "Endpoint name" box of its own (T-5186).
+      const grid = screen.getByRole("grid");
+      expect(within(grid).queryByRole("spinbutton")).toBeNull();
+      expect(within(grid).queryByRole("textbox", { name: /pm10|name/ })).toBeNull();
     });
   });
 
