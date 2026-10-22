@@ -905,6 +905,12 @@ fn view_of(
         ),
     );
     view.insert("operations".into(), json!(operations));
+    // The feed outputs as the Endpoint lists them, the broker's `antares-feed` contract (EP-150);
+    // a view without the member serves no feed.
+    let feeds = e.spec.feed_outputs();
+    if !feeds.is_empty() {
+        view.insert("representations".into(), json!({ "feed": feeds }));
+    }
     Ok(Value::Object(view))
 }
 

@@ -260,4 +260,49 @@ test.describe("the public catalogue", () => {
     await page.getByRole("link", { name: "All datasets" }).click();
     await expect(page).toHaveURL(/\/catalogue(\?.*)?$/);
   });
+
+  // T-5203: an Event dataset with a calendar and one news output offers "Odoberať" and names each
+  // feed in the head, so a browser or reader finds it; sk and en, on a desktop and a phone.
+  const FEED = {
+    name: "kultura",
+    title: { sk: "Kultúra", en: "Culture" },
+    links: [
+      { format: "Atom", mediaType: "application/atom+xml", url: `${ENDPOINT}feed/v1/kultura/atom.xml` },
+      { format: "RSS 2.0", mediaType: "application/rss+xml", url: `${ENDPOINT}feed/v1/kultura/rss.xml` },
+      { format: "JSON Feed", mediaType: "application/feed+json", url: `${ENDPOINT}feed/v1/kultura/feed.json` },
+    ],
+  };
+  for (const [lang, button, news, item] of [
+    ["sk", "Odoberať", "Novinky", "Kultúra (RSS 2.0)"],
+    ["en", "Subscribe", "News", "Culture (RSS 2.0)"],
+  ] as const) {
+    for (const width of [1440, 400]) {
+      test(`a feed dataset offers its subscriptions in ${lang} at ${width} px`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await stubApi(page, []);
+        await page.route((url) => url.pathname === "/api/v1/catalogue/datasets/bbsk-kpi", (route) =>
+          route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              ...DETAIL,
+              title: "Podujatia v kraji",
+              endpoint: { url: ENDPOINT, representations: ["ngsi-ld", "ical"], feeds: [FEED] },
+            }),
+          }),
+        );
+        await page.goto(`/catalogue/bbsk-kpi?lang=${lang}`);
+        await expect(page.getByRole("heading", { level: 1, name: "Podujatia v kraji" })).toBeVisible();
+        const alternates = page.locator('head link[rel="alternate"]');
+        await expect(alternates).toHaveCount(3);
+        await expect(alternates.nth(1)).toHaveAttribute("href", FEED.links[1].url);
+        await page.getByRole("button", { name: button }).click();
+        await expect(page.getByText(news, { exact: true })).toBeVisible();
+        await expect(page.getByRole("menuitem", { name: item })).toHaveAttribute("href", FEED.links[1].url);
+        if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/dataset-subscribe-${lang}-${width}.png` });
+        await page.keyboard.press("Escape");
+        await expect(page.getByRole("menuitem", { name: item })).toBeHidden();
+      });
+    }
+  }
 });

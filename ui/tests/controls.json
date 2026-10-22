@@ -1037,6 +1037,14 @@
         "catalogue_page.test.tsx"
       ]
     },
+    "src/pages/catalogue/SubscribeMenu.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "catalogue_subscribe.test.tsx"
+      ]
+    },
     "src/pages/catalogue/PublishDataset.tsx": {
       "controls": {
         "Button": 6,
