@@ -62,9 +62,9 @@ function definitionsOf(schema: unknown): Record<string, unknown> {
 }
 
 /** The download of exactly the rows the grid asked: the endpoint's `file.csv` with its type, query and order. */
-function csvHref(origin: string | undefined, slug: string, type: string, q: string | undefined, orderBy: string | undefined): string | undefined {
+function csvHref(origin: string | undefined, slug: string, type: string, q: string | undefined, orderBy: string | undefined): string {
   const query = new URLSearchParams({ type, ...(q ? { q } : {}), ...(orderBy ? { orderBy } : {}) });
-  return safeHref(`${origin ?? ""}/api/endpoint/${encodeURIComponent(slug)}/file.csv?${query.toString()}`);
+  return `${origin ?? ""}/api/endpoint/${encodeURIComponent(slug)}/file.csv?${query.toString()}`;
 }
 
 /** The attributes of the type as a list rather than a table: three columns do not fit a phone, one entry a line does. */
@@ -123,7 +123,7 @@ function DataActions({
           {full ? t("endpoints.data.fullLeave") : t("endpoints.data.full")}
         </Button>
         {csv ? (
-          <a className="focus-ring rounded-sm text-caption text-primary-soft-fg underline hover:no-underline" href={csv} download>
+          <a className="focus-ring rounded-sm text-caption text-primary-soft-fg underline hover:no-underline" href={safeHref(csv)} download>
             {t("endpoints.data.csv")}
           </a>
         ) : null}
