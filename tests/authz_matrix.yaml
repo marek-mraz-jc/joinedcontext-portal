@@ -237,6 +237,14 @@ routes:
     rule: "org-admin (approve and delete on RoleBinding, PF-03)"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]
     note: "each broker's health and load, asked by the Portal; the browser never reaches a broker (API/01 §43, PF-116)"
+  - route: GET /organization/costs
+    rule: "org-admin (approve and delete on RoleBinding, PF-03)"
+    expect: [401, 403, 403, 403, 403, allow, 403, 403]
+    note: "every project's month cost; the fixture sets no price table, so the administrator gets 503 (T-5126)"
+  - route: GET /organization/costs/export
+    rule: "org-admin (approve and delete on RoleBinding, PF-03)"
+    expect: [401, 403, 403, 403, 403, allow, 403, 403]
+    note: "the same month as CSV; 503 without a price table in the fixture (T-5126)"
   - route: GET /organization/limits
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]

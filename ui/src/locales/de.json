@@ -6386,7 +6386,8 @@
       "endpoints": "Alle Endpunkte",
       "mcp-servers": "MCP-Server der Organisation",
       "brokers": "Broker",
-      "agents": "Agenten"
+      "agents": "Agenten",
+      "costs": "Kosten"
     },
     "settings": {
       "title": "Einstellungen",
@@ -6968,6 +6969,31 @@
         "unknown": "Keine Adresse"
       }
     },
+    "costs": {
+      "title": "Kosten pro Projekt",
+      "lead": "Was ein Monat der Installation jedes Projekt kostet: der Anteil am Server nach den Bytes, die die Spaces des Projekts speichern, sein Speicher zum Volume-Preis und die KI-Ausgaben seiner Assistenten. Was kein Projekt trägt, gehört der Plattform; die Zeilen ergeben zusammen die Preistabelle, die die Cloud-Rechnung abrechnet.",
+      "hidden": "Nur ein Administrator der Organisation sieht die Kosten.",
+      "month": "Monat",
+      "monthHelp": "Ein Kalendermonat, zum Beispiel 2026-09. Die Seite öffnet sich mit dem letzten vollen Monat.",
+      "export": "CSV herunterladen",
+      "saving": "CSV wird vorbereitet…",
+      "summary": "Infrastruktur {infrastructure} + KI {ai} = {total}",
+      "measured": "Speicher gemessen {at}; KI umgerechnet zu {rate} {currency} für einen US-Dollar.",
+      "partial": "Einige Spaces oder Assistenten haben nicht geantwortet; sie zählen hier 0. Die Gründe stehen in den Zeilen jedes Projekts.",
+      "empty": "Noch kein Projekt hat einen Space oder einen Assistenten, daher gehört der ganze Monat der Plattform. Legen Sie in einem Projekt einen Context Space an, um seinen Anteil zu sehen.",
+      "caption": "Kosten pro Projekt, {month}",
+      "project": "Projekt",
+      "node": "Serveranteil",
+      "storage": "Speicher",
+      "ai": "KI",
+      "total": "Summe",
+      "parts": "{spaces, plural, one {# Space} other {# Spaces}}, {assistants, plural, one {# Assistent} other {# Assistenten}}",
+      "spaceLine": "Raum {space}: {size}, {cost}",
+      "assistantLine": "Assistent {assistant}: {questions} Fragen, {usd}, {cost}",
+      "uncosted": "{count, plural, one {# Frage hatte keinen Preis vom Anbieter und wird nicht gezählt.} other {# Fragen hatten keinen Preis vom Anbieter und werden nicht gezählt.}}",
+      "platform": "Plattform",
+      "platformHint": "Ungenutzter Volume-Platz, und der Server, wenn nichts gemessen wurde."
+    },
     "nav": {
       "back": "Zurück zu den Projekten"
     },
@@ -6980,7 +7006,7 @@
     "groupLead": {
       "access": "Wer zur Organisation gehört und was jede Person, Gruppe und jedes Dienstkonto darf. Jede Änderung wird vorgeschlagen und genehmigt.",
       "projects": "Was alle Projekte der Organisation halten und veröffentlichen, an einem Ort.",
-      "platform": "Was die Installation für jedes Projekt betreibt: Broker, Umgebungen, Datenraum-Mitgliedschaft und Zustand.",
+      "platform": "Was die Installation für jedes Projekt betreibt: Broker, Umgebungen, Datenraum-Mitgliedschaft, Zustand und Kosten.",
       "settings": "Domain, Sprachen, Kontakte, Regeln und Grenzen der Organisation und was der Einrichtung noch fehlt."
     },
     "kindHidden": "Hier sieht sie nur eine Organisationsadministration, deren Rolle {kinds} umfasst. Bitten Sie die Organisationsadministration, sie Ihrer Rolle hinzuzufügen.",

@@ -1521,6 +1521,14 @@
         "organization_agents.test.tsx"
       ]
     },
+    "src/pages/organization/Costs.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "organization_costs.test.tsx"
+      ]
+    },
     "src/pages/organization/OrganizationApplications.tsx": {
       "controls": {
         "Button": 6,
@@ -1536,6 +1544,7 @@
       },
       "tests": [
         "organization_brokers.test.tsx",
+        "organization_costs.test.tsx",
         "organization_health.test.tsx",
         "organization_limits.test.tsx",
         "organization_page.test.tsx",

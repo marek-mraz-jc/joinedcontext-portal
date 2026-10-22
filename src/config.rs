@@ -216,6 +216,11 @@ pub struct Config {
     /// the file the deployment renders `portal.organizationBounds` into; PF-97, ADR-N-035). No
     /// file keeps every entry at the catalog's built-in bound.
     pub organization_bounds: jc_core::kinds::OrganizationBounds,
+    /// The operator's price table for Administration → Costs (`JC_PORTAL_COST_PRICES_FILE`, the
+    /// file the deployment renders `portal.costPrices` into; T-5126): the currency, the rate
+    /// for one US dollar, each node, volume and fixed item with its monthly price. No file leaves
+    /// the page saying no table is set.
+    pub cost_prices: Option<crate::costs::CostPrices>,
     /// Where an App's four Kubernetes objects are applied (`JC_PORTAL_APPS_NAMESPACE` with
     /// `JC_PORTAL_ORG_DOMAIN`; AP-13, AP-18, T-0411). `None` leaves
     /// the reconciler reading apps and applying nothing, which is what a Portal outside a
@@ -1246,6 +1251,29 @@ fn organization_bounds(
     Ok(bounds)
 }
 
+/// The operator's price table (T-5126). Absent or empty, the Costs page says no table is set; a
+/// file that cannot be read, does not parse or prices nothing stops the start, naming the field.
+fn cost_prices(
+    lookup: &impl Fn(&str) -> Option<String>,
+) -> Result<Option<crate::costs::CostPrices>, ConfigError> {
+    const VAR: &str = "JC_PORTAL_COST_PRICES_FILE";
+    let Some(path) = lookup(VAR).filter(|path| !path.trim().is_empty()) else {
+        return Ok(None);
+    };
+    let invalid = |reason: String| ConfigError::Invalid { var: VAR, reason };
+    let text = std::fs::read_to_string(&path)
+        .map_err(|e| invalid(format!("cannot read '{path}': {e}")))?;
+    if text.trim().is_empty() || text.trim() == "{}" {
+        return Ok(None);
+    }
+    let prices: crate::costs::CostPrices = serde_norway::from_str(&text)
+        .map_err(|e| invalid(format!("'{path}' is no price table: {e}")))?;
+    match prices.refusal() {
+        Some(why) => Err(invalid(format!("'{path}': {why}"))),
+        None => Ok(Some(prices)),
+    }
+}
+
 fn basemap_config(
     lookup: &impl Fn(&str) -> Option<String>,
 ) -> Result<Option<BasemapConfig>, ConfigError> {
@@ -1666,6 +1694,7 @@ impl Config {
             journey_users,
             keycloak_admin,
             organization_bounds: organization_bounds(&lookup)?,
+            cost_prices: cost_prices(&lookup)?,
             app_settings,
             build_pods,
             agent_settings,
@@ -1736,6 +1765,7 @@ impl Config {
             journey_users: Vec::new(),
             keycloak_admin: None,
             organization_bounds: jc_core::kinds::OrganizationBounds::default(),
+            cost_prices: None,
         }
     }
 

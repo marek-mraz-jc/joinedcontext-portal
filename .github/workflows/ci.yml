@@ -304,6 +304,9 @@ jobs:
       # Feedback from the Portal as blocked, quoted tasks on the board (T-3272).
       - name: feedback as proposed tasks
         run: node --test scripts/feedback-to-tasks.test.mjs
+      # The Costs page against the cloud invoice (T-5126).
+      - name: the cost reconciliation check
+        run: node --test scripts/cost-reconcile.test.mjs
       # The build lane's package check and functions bundle (AP-82, AP-84, ADR-N-026); the bundle
       # test needs Vite, which the SDK step above installed.
       - if: steps.has.outputs.ui == 'yes'

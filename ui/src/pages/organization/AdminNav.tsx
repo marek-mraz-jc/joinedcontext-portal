@@ -16,7 +16,7 @@ export const ORGANIZATION_GROUPS = [
     id: "projects",
     tabs: ["projects", "applications", "endpoints", "mcp-servers", "models", "blueprints", "agentprofiles"],
   },
-  { id: "platform", tabs: ["brokers", "environments", "dataspaceparticipants", "health"] },
+  { id: "platform", tabs: ["brokers", "environments", "dataspaceparticipants", "health", "costs"] },
   { id: "settings", tabs: ["settings", "setup"] },
 ] as const;
 
