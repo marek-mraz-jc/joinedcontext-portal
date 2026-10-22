@@ -7,7 +7,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::routing::post;
 use axum::Router;
 
-use crate::endpoint_usage::{check, rows, Post};
+use crate::endpoint_usage::{parse, rows};
 use crate::error::ApiError;
 use crate::state::AppState;
 
@@ -22,19 +22,21 @@ pub async fn take_counts(
     body: Bytes,
 ) -> Result<StatusCode, ApiError> {
     crate::auth::internal::authenticate_gateway(&state, &headers).await?;
-    let post: Post = serde_json::from_slice(&body)
-        .map_err(|e| ApiError::BadRequest(format!("the usage post is not readable: {e}")))?;
-    check(&post).map_err(ApiError::BadRequest)?;
+    let post = parse(&body).map_err(ApiError::BadRequest)?;
     let slugs = endpoint_slugs(&state);
     let today = chrono::Utc::now().date_naive();
     let rows = rows(&post, today, |slug| slugs.get(slug).cloned());
-    state.endpoint_usage.add(rows, today).await.map_err(|e| {
-        tracing::error!(error = %e, "the usage counts were not stored");
-        ApiError::Unavailable(
-            "the usage counts were not stored; the gateway sends them again".into(),
-        )
-    })?;
+    state
+        .endpoint_usage
+        .add(rows, today)
+        .await
+        .map_err(not_stored)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+fn not_stored(e: sqlx::Error) -> ApiError {
+    tracing::error!(error = %e, "the usage counts were not stored");
+    ApiError::Unavailable("the usage counts were not stored; the gateway sends them again".into())
 }
 
 /// Every Endpoint's slug with its project and name, from the mirror.
