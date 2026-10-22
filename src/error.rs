@@ -60,6 +60,10 @@ pub enum ApiError {
     /// A bad request with one entry per violation, so the caller gets them all at once (CC-24).
     #[error("bad request: {detail}")]
     Invalid { detail: String, errors: Vec<String> },
+    /// 422: the manifest parses, and a member of it names what the model or the contract
+    /// refuses, one entry per member with its path (API/11 EP-159, the UI DONE rule).
+    #[error("unprocessable: {detail}")]
+    Unprocessable { detail: String, errors: Vec<String> },
     #[error("unauthorized")]
     Unauthorized,
     #[error("forbidden")]
@@ -125,6 +129,18 @@ impl IntoResponse for ApiError {
                     StatusCode::BAD_REQUEST,
                     "invalid-request",
                     "Invalid Request",
+                    Some(detail),
+                )
+            }
+            Self::Unprocessable {
+                detail,
+                errors: violations,
+            } => {
+                errors = Some(violations);
+                (
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    "unprocessable",
+                    "Unprocessable Content",
                     Some(detail),
                 )
             }

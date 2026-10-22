@@ -1372,7 +1372,7 @@
       "publicUrl": "Öffentliche Adresse",
       "audience": "Zielgruppe",
       "representations": "Repräsentationen",
-      "representationMappings": "Kalender-Zuordnung",
+      "representationMappings": "Kalender und Nachrichten-Feeds",
       "more": "+{count} weitere",
       "noRepresentations": "keine Repräsentationen",
       "phase": "Zustand",
@@ -1965,7 +1965,83 @@
     },
     "find": "Endpunkt nach Name oder Titel finden",
     "shownOf": "{shown} von {count} angezeigt",
-    "showMore": "{count} weitere anzeigen"
+    "showMore": "{count} weitere anzeigen",
+    "outputs": {
+      "help": "Benannte Kalender und Nachrichten-Feeds, die dieser Endpoint anbietet. Jede Ausgabe hat eine eigene Adresse, einen Titel und eine Attributzuordnung und kann die Daten mit einer Abfrage eingrenzen. Die Datensatzseite listet alle unter Abonnieren.",
+      "icalOff": "Schalten Sie den iCalendar-Feed unter Repräsentationen ein, um Kalender hinzuzufügen.",
+      "presetHint": "Die Vorlage füllt die Felder; wählen Sie unten nur dort ein Attribut, wo Ihres abweicht.",
+      "feedPresetHint": "event für Veranstaltungen, article für Nachrichten und Bekanntmachungen, generic für alles mit Namen.",
+      "fromPreset": "Aus der Vorlage: {attribute}",
+      "rolesCaption": "Teile eines Feed-Eintrags und die Attribute, aus denen sie stammen",
+      "role": "Teil des Eintrags",
+      "roles": {
+        "title": "Titel",
+        "updated": "Aktualisiert",
+        "published": "Veröffentlicht",
+        "summary": "Zusammenfassung",
+        "content": "Inhalt",
+        "link": "Link",
+        "author": "Autor",
+        "category": "Kategorie",
+        "image": "Bild"
+      },
+      "feedPreset": {
+        "event": "Veranstaltung",
+        "article": "Artikel oder Bekanntmachung",
+        "generic": "Alles mit Namen"
+      },
+      "duplicateOne": "Eine andere Ausgabe hat diesen Namen bereits.",
+      "duplicate": "Jede Ausgabe braucht einen eigenen Namen; diese kommen doppelt vor: {names}",
+      "full": "Ein Endpoint bietet höchstens {max} Ausgaben eines Formats an.",
+      "title": {
+        "sk": "Titel auf Slowakisch",
+        "en": "Titel auf Englisch"
+      },
+      "source": "Typ {n}: {type}",
+      "removeSource": "Diesen Typ entfernen",
+      "remove": "Entfernen",
+      "removeNamed": "Ausgabe {name} entfernen",
+      "ical": {
+        "heading": "Kalender (iCal)",
+        "add": "Kalender hinzufügen",
+        "emptyTitle": "Noch kein Kalender",
+        "emptyHint": "Fügen Sie einen Kalender hinzu, damit Menschen eine .ics-Adresse erhalten, die ihre Kalender-App abonniert, zum Beispiel alle Veranstaltungen oder nur Sport."
+      },
+      "feed": {
+        "heading": "Nachrichten-Feeds (Atom, RSS, JSON Feed)",
+        "add": "Nachrichten-Feed hinzufügen",
+        "emptyTitle": "Noch kein Nachrichten-Feed",
+        "emptyHint": "Fügen Sie einen Feed hinzu, wo Einträge mit der Zeit erscheinen, etwa Veranstaltungen oder Bekanntmachungen; ein Feed-Reader zeigt dann jeden neuen."
+      },
+      "type": {
+        "hint": "Eine Klasse des Datenmodells des Raums, zum Beispiel Event."
+      },
+      "nameField": {
+        "label": "Name in der Adresse",
+        "hint": "Kleinbuchstaben, Ziffern und -, zum Beispiel kultura. Adresse: {address}",
+        "bad": "Verwenden Sie 1 bis 40 Kleinbuchstaben, Ziffern oder -, beginnend mit Buchstabe oder Ziffer."
+      },
+      "filterField": {
+        "label": "Nur passende Entitäten (optional)",
+        "hint": "Eine NGSI-LD-Abfrage, die diese Ausgabe eingrenzt und nie erweitert, zum Beispiel eventCategory==\"sport\"."
+      },
+      "sourceAdd": {
+        "label": "Weiteren Typ hinzufügen",
+        "hint": "Eine Ausgabe kann mehrere Typen enthalten, zum Beispiel Veranstaltungen und Ratssitzungen in einem Kalender."
+      },
+      "icalTitleSk": {
+        "hint": "Zum Beispiel Kalendár podujatí"
+      },
+      "icalTitleEn": {
+        "hint": "Zum Beispiel Events calendar"
+      },
+      "feedTitleSk": {
+        "hint": "Zum Beispiel Novinky z kultúry"
+      },
+      "feedTitleEn": {
+        "hint": "Zum Beispiel Culture news"
+      }
+    }
   },
   "datasources": {
     "title": "Datenquellen",
@@ -7865,7 +7941,9 @@
       "calendarFile": "Kalender herunterladen (.ics)",
       "news": "Neuigkeiten",
       "feed": "{title} ({format})",
-      "hint": "Kopieren Sie die Adresse in einen Feedreader oder Kalender, zum Beispiel Feedly oder Google Kalender; neue Einträge erscheinen von selbst."
+      "hint": "Kopieren Sie die Adresse in einen Feedreader oder Kalender, zum Beispiel Feedly oder Google Kalender; neue Einträge erscheinen von selbst.",
+      "calendarAppNamed": "Zum Kalender hinzufügen: {title}",
+      "calendarFileNamed": "{title} herunterladen (.ics)"
     }
   },
   "dataagreements": {

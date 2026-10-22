@@ -1394,7 +1394,7 @@
       "slug": "Slug",
       "audience": "Publikum",
       "representations": "Reprezentácie",
-      "representationMappings": "Mapovanie kalendára",
+      "representationMappings": "Kalendáre a odbery noviniek",
       "more": "+{count} ďalších",
       "noRepresentations": "žiadne reprezentácie",
       "phase": "Stav",
@@ -1965,7 +1965,83 @@
     },
     "find": "Nájsť endpoint podľa názvu",
     "shownOf": "Zobrazených {shown} z {count}",
-    "showMore": "Zobraziť ďalších {count}"
+    "showMore": "Zobraziť ďalších {count}",
+    "outputs": {
+      "help": "Pomenované kalendáre a odbery noviniek, ktoré tento Endpoint ponúka. Každý výstup má vlastnú adresu, názov a mapovanie atribútov a dotazom môže zúžiť údaje. Stránka datasetu ich všetky uvádza v ponuke Odoberať.",
+      "icalOff": "Zapnite kalendár iCalendar v časti Reprezentácie, aby ste mohli pridať kalendáre.",
+      "presetHint": "Predvoľba vyplní polia; atribút nižšie vyberte len tam, kde sa váš líši.",
+      "feedPresetHint": "event pre podujatia, article pre novinky a oznamy, generic pre čokoľvek s názvom.",
+      "fromPreset": "Z predvoľby: {attribute}",
+      "rolesCaption": "Časti položky noviniek a atribúty, z ktorých pochádzajú",
+      "role": "Časť položky",
+      "roles": {
+        "title": "Nadpis",
+        "updated": "Aktualizované",
+        "published": "Zverejnené",
+        "summary": "Zhrnutie",
+        "content": "Obsah",
+        "link": "Odkaz",
+        "author": "Autor",
+        "category": "Kategória",
+        "image": "Obrázok"
+      },
+      "feedPreset": {
+        "event": "Podujatie",
+        "article": "Článok alebo oznam",
+        "generic": "Čokoľvek s názvom"
+      },
+      "duplicateOne": "Tento názov už má iný výstup.",
+      "duplicate": "Každý výstup potrebuje vlastný názov; tieto sa opakujú: {names}",
+      "full": "Endpoint ponúka najviac {max} výstupov jedného formátu.",
+      "title": {
+        "sk": "Názov po slovensky",
+        "en": "Názov po anglicky"
+      },
+      "source": "Typ {n}: {type}",
+      "removeSource": "Odstrániť tento typ",
+      "remove": "Odstrániť",
+      "removeNamed": "Odstrániť výstup {name}",
+      "ical": {
+        "heading": "Kalendáre (iCal)",
+        "add": "Pridať kalendár",
+        "emptyTitle": "Zatiaľ žiadny kalendár",
+        "emptyHint": "Pridajte kalendár a ľudia dostanú adresu .ics, ktorú si kalendárová aplikácia odoberá, napríklad všetky podujatia alebo len šport."
+      },
+      "feed": {
+        "heading": "Odbery noviniek (Atom, RSS, JSON Feed)",
+        "add": "Pridať odber noviniek",
+        "emptyTitle": "Zatiaľ žiadny odber noviniek",
+        "emptyHint": "Pridajte odber tam, kde položky pribúdajú v čase, napríklad podujatia alebo oznamy; čítačka noviniek potom ukáže každú novú."
+      },
+      "type": {
+        "hint": "Trieda dátového modelu priestoru, napríklad Event."
+      },
+      "nameField": {
+        "label": "Názov v adrese",
+        "hint": "Malé písmená, číslice a -, napríklad kultura. Adresa: {address}",
+        "bad": "Použite 1 až 40 malých písmen, číslic alebo -, na začiatku písmeno alebo číslicu."
+      },
+      "filterField": {
+        "label": "Len entity, ktoré vyhovujú (nepovinné)",
+        "hint": "Dotaz NGSI-LD, ktorý tento výstup zúži a nikdy nerozšíri, napríklad eventCategory==\"šport\"."
+      },
+      "sourceAdd": {
+        "label": "Pridať ďalší typ",
+        "hint": "Jeden výstup môže zahŕňať viac typov, napríklad podujatia aj zasadnutia zastupiteľstva v jednom kalendári."
+      },
+      "icalTitleSk": {
+        "hint": "Napríklad Kalendár podujatí"
+      },
+      "icalTitleEn": {
+        "hint": "Napríklad Events calendar"
+      },
+      "feedTitleSk": {
+        "hint": "Napríklad Novinky z kultúry"
+      },
+      "feedTitleEn": {
+        "hint": "Napríklad Culture news"
+      }
+    }
   },
   "datasources": {
     "title": "Zdroje údajov",
@@ -7865,7 +7941,9 @@
       "calendarFile": "Stiahnuť kalendár (.ics)",
       "news": "Novinky",
       "feed": "{title} ({format})",
-      "hint": "Skopírujte adresu do čítačky noviniek alebo kalendára, napríklad Feedly alebo Google Kalendár; nové položky sa objavia samy."
+      "hint": "Skopírujte adresu do čítačky noviniek alebo kalendára, napríklad Feedly alebo Google Kalendár; nové položky sa objavia samy.",
+      "calendarAppNamed": "Pridať do kalendára: {title}",
+      "calendarFileNamed": "Stiahnuť {title} (.ics)"
     }
   },
   "dataagreements": {

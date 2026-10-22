@@ -71,6 +71,7 @@ import {
 import { ResourcePageFailed, PageFailed } from "../../components/ui/PageState";
 import { andQ, areaQuery, queryFromFilters, ringOfBounds } from "@joinedcontext/sdk";
 import type { FilterOp } from "@joinedcontext/sdk";
+import { outputsOf } from "../../components/forms/widgets/representationOutputs";
 
 /**
  * One endpoint, the whole window (T-2281, EP-51, UI-26, UI-61).
@@ -411,22 +412,28 @@ export function EndpointPage({
               ))}
             </ul>
           </Fact>
-          {slug && servedRepresentations(spec).includes("ical") ? (
-            // The feed a calendar client subscribes to (EP-125): the https address, and the same
-            // address as webcal://, which a phone's calendar opens as a subscription.
-            <Fact label={t("endpoints.ical.subscribe")}>
-              <div className="flex flex-col gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <EndpointLink href={representationUrl(slug, "ical", domain)}>{t("endpoints.ical.preview")}</EndpointLink>
-                  <CopyUrlButton url={representationUrl(slug, "ical", domain)} />
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <code className="break-all font-mono text-caption">{webcalUrl(representationUrl(slug, "ical", domain))}</code>
-                  <CopyUrlButton url={webcalUrl(representationUrl(slug, "ical", domain))} />
-                </div>
-              </div>
-            </Fact>
-          ) : null}
+          {slug && servedRepresentations(spec).includes("ical")
+            ? // Each calendar a client subscribes to (EP-125, API/11 EP-159): the https address, and
+              // the same address as webcal://, which a phone's calendar opens as a subscription.
+              outputsOf((spec as { representations?: unknown }).representations).ical.map((calendar) => {
+                const url = representationUrl(slug, "ical", domain).replace(/events\.ics$/, `${calendar.name}.ics`);
+                const title = calendar.title?.[i18n.resolvedLanguage ?? "sk"] ?? Object.values(calendar.title ?? {})[0];
+                return (
+                  <Fact key={calendar.name} label={title ? `${t("endpoints.ical.subscribe")}: ${title}` : t("endpoints.ical.subscribe")}>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <EndpointLink href={url}>{t("endpoints.ical.preview")}</EndpointLink>
+                        <CopyUrlButton url={url} />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <code className="break-all font-mono text-caption">{webcalUrl(url)}</code>
+                        <CopyUrlButton url={webcalUrl(url)} />
+                      </div>
+                    </div>
+                  </Fact>
+                );
+              })
+            : null}
           {slug ? (
             <Fact label={t("endpoints.page.alwaysThere")}>
               <ul className="flex flex-wrap gap-1">
