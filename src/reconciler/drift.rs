@@ -183,12 +183,7 @@ impl Watch {
             &[("type", entity_type), ("q", q), ("limit", "1000")],
         )
         .await
-        .and_then(|found| match found {
-            // a query that matches nothing answers `[]`; a 404 is the surface refusing the
-            // Portal, and an export or erasure must not read it as "nothing about this person"
-            Value::Null => Err("the space surface did not let the Portal read this space".into()),
-            found => Ok(found.as_array().cloned().unwrap_or_default()),
-        })
+        .map(|found| found.as_array().cloned().unwrap_or_default())
     }
 
     /// The stored versions of one entity's attributes, as the space's temporal surface answers
@@ -223,8 +218,11 @@ impl Watch {
             .send()
             .await
             .map_err(|err| err.without_url().to_string())?;
+        // A query that matches nothing answers `[]` and a held Entity has a history; a 404 is
+        // the surface refusing the Portal, and an export or erasure must not read it as
+        // "nothing about this person" (T-5098, T-5168).
         if response.status() == reqwest::StatusCode::NOT_FOUND {
-            return Ok(Value::Null);
+            return Err("the space surface did not let the Portal read this space".into());
         }
         if !response.status().is_success() {
             return Err(format!("the space answered {}", response.status()));
@@ -539,6 +537,18 @@ mod tests {
             .mount(&server)
             .await;
         Mock::given(method("GET"))
+            .and(path("/cs/failing/ngsi-ld/v1/entities"))
+            .respond_with(ResponseTemplate::new(503))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(
+                "/cs/refused/ngsi-ld/v1/temporal/entities/urn:ngsi-ld:Rider:1",
+            ))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
             .and(path("/cs/empty/ngsi-ld/v1/entities"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
             .mount(&server)
@@ -556,6 +566,70 @@ mod tests {
         );
         let empty = watch.named("t", "empty", "Rider", "rider==\"r-1\"").await;
         assert_eq!(empty, Ok(Vec::new()));
+        let failing = watch.named("t", "failing", "Rider", "rider==\"r-1\"").await;
+        assert_eq!(
+            failing,
+            Err("the space answered 503 Service Unavailable".to_owned())
+        );
+        let unread = watch.history("t", "refused", "urn:ngsi-ld:Rider:1").await;
+        assert_eq!(
+            unread,
+            Err("the space surface did not let the Portal read this space".to_owned())
+        );
+    }
+
+    /// T-5168: the subject's Entity the space holds is found by its subject slot, and its
+    /// history comes with every stored version.
+    #[tokio::test]
+    async fn a_subject_s_entity_is_found_with_every_stored_version() {
+        use wiremock::matchers::{method, path, query_param};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        let id = "urn:ngsi-ld:Rider:r-1";
+        Mock::given(method("GET"))
+            .and(path("/cs/riders/ngsi-ld/v1/entities"))
+            .and(query_param("type", "Rider"))
+            .and(query_param("q", "rider==\"r-1\""))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                { "id": id, "type": "Rider", "rider": { "type": "Property", "value": "r-1" } }
+            ])))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let versions = json!([
+            { "type": "Property", "value": "Jana", "observedAt": "2026-10-22T00:30:00Z" },
+            { "type": "Property", "value": "Jana N.", "observedAt": "2026-10-22T00:40:00Z" }
+        ]);
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/cs/riders/ngsi-ld/v1/temporal/entities/{id}"
+            )))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({ "id": id, "type": "Rider", "riderName": versions })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let watch = Watch::new(
+            server.uri(),
+            &format!("{}/realms/city", server.uri()),
+            "portal".to_owned(),
+            ClientAuth::Secret("s".into()),
+        );
+        let found = watch
+            .named(
+                "t",
+                "riders",
+                "Rider",
+                &crate::erasure::subject_query("rider", "r-1"),
+            )
+            .await
+            .expect("the subject's Entities");
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0]["id"], id);
+        let history = watch.history("t", "riders", id).await.expect("its history");
+        assert_eq!(history["riderName"], versions);
     }
 
     #[tokio::test]
