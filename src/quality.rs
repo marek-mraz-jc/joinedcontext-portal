@@ -5,8 +5,11 @@
 //! space that names a model through the space surface, as its own client, holds each one to the
 //! model the way a pipeline's validation stage does, and compares the age of the newest entity a
 //! pipeline writes with the pipeline's freshness target. The result is held in memory per space
-//! and, with a database, kept there too (T-5066), so a restarted Portal shows the last report and
-//! does not run again before it is due; a space whose read fails keeps its previous report. A rule
+//! and, with a database, kept there too (T-5066), so a restarted Portal shows the last report. A
+//! space is due when its report is missing or a day old, so a run a restart cut short, or a space
+//! whose read failed, is taken up at the next try, an hour on; a failed space keeps its previous
+//! report until then. Each space reads with a token of its own, so a long run never outlives its
+//! token and leaves the spaces at the end of the list unread. A rule
 //! and path a space breaks that its previous report did not is new, and opens an `invalid` alert.
 
 use std::collections::BTreeMap;
@@ -29,7 +32,7 @@ pub const PAGE: usize = 1_000;
 pub const PER_SPACE: usize = 20_000;
 /// How often a run is due.
 pub const EVERY: chrono::Duration = chrono::Duration::hours(24);
-/// How soon a run that failed is tried again.
+/// The least time between two runs: how soon a space that was not read is tried again.
 const RETRY: chrono::Duration = chrono::Duration::hours(1);
 /// Example ids kept per rule.
 const EXAMPLES: usize = 5;
@@ -409,7 +412,7 @@ pub struct Store {
     /// Per space, the `rule path` pairs its last report broke and the one before did not.
     new_rules: RwLock<BTreeMap<(String, String), Vec<String>>>,
     running: AtomicBool,
-    /// When the last run started; a failed run moves it back so the next try is an hour away.
+    /// When the last run started; the next starts no sooner than `RETRY` after it.
     last_start: RwLock<Option<DateTime<Utc>>>,
     db: Option<sqlx::PgPool>,
 }
@@ -477,21 +480,19 @@ impl Store {
             .retain(|key, _| spaces.contains(key));
     }
 
-    /// Reads the kept reports back after a restart, and counts the newest as the last run, so a
-    /// restart does not start a run that is not due. A row that no longer parses is skipped.
+    /// Reads the kept reports back after a restart, so only the spaces whose report is missing
+    /// or a day old are read again. A row that no longer parses is skipped.
     pub async fn load(&self) -> Result<usize, sqlx::Error> {
         let Some(db) = &self.db else { return Ok(0) };
         let rows: Vec<(String, String, Value, Vec<String>)> =
             sqlx::query_as("SELECT project, space, report, new_rules FROM space_quality")
                 .fetch_all(db)
                 .await?;
-        let mut newest: Option<DateTime<Utc>> = None;
         let mut loaded = 0;
         for (project, space, report, fresh) in rows {
             let Ok(report) = serde_json::from_value::<SpaceQuality>(report) else {
                 continue;
             };
-            newest = newest.max(Some(report.observed_at));
             let key = (project, space);
             self.new_rules
                 .write()
@@ -503,8 +504,6 @@ impl Store {
                 .insert(key, report);
             loaded += 1;
         }
-        let mut last = self.last_start.write().unwrap_or_else(|e| e.into_inner());
-        *last = (*last).max(newest);
         Ok(loaded)
     }
 
@@ -540,10 +539,25 @@ impl Store {
         Ok(())
     }
 
-    /// Whether a run is due at `now`; when it is, this call claims it.
+    /// The spaces of `spaces` whose report is missing or [`EVERY`] old at `now`.
+    pub fn due(&self, spaces: &[(String, String)], now: DateTime<Utc>) -> Vec<(String, String)> {
+        let by_space = self.by_space.read().unwrap_or_else(|e| e.into_inner());
+        spaces
+            .iter()
+            .filter(|key| {
+                by_space
+                    .get(*key)
+                    .is_none_or(|report| now - report.observed_at >= EVERY)
+            })
+            .cloned()
+            .collect()
+    }
+
+    /// Whether a run may start at `now`, an hour or more after the last one; when it may, this
+    /// call claims it.
     pub fn claim(&self, now: DateTime<Utc>) -> bool {
         let mut last = self.last_start.write().unwrap_or_else(|e| e.into_inner());
-        if last.is_some_and(|at| now - at < EVERY) {
+        if last.is_some_and(|at| now - at < RETRY) {
             return false;
         }
         if self.running.swap(true, Ordering::AcqRel) {
@@ -553,11 +567,7 @@ impl Store {
         true
     }
 
-    fn finish(&self, failed: bool) {
-        if failed {
-            let mut last = self.last_start.write().unwrap_or_else(|e| e.into_inner());
-            *last = last.map(|at| at - EVERY + RETRY);
-        }
+    fn finish(&self) {
         self.running.store(false, Ordering::Release);
     }
 }
@@ -572,30 +582,29 @@ pub struct Scanner {
 }
 
 impl Scanner {
-    /// Starts a run in the background when one is due; the reconciler calls it on every sync of
-    /// the leader and never waits for it.
+    /// Starts a run in the background when a space is due; the reconciler calls it on every
+    /// sync of the leader and never waits for it.
     pub fn start_if_due(self: &Arc<Self>) {
-        if !self.store.claim(Utc::now()) {
+        let now = Utc::now();
+        let spaces = self.schemas.spaces();
+        let due = self.store.due(&spaces, now);
+        if due.is_empty() || !self.store.claim(now) {
             return;
         }
         let scanner = Arc::clone(self);
         tokio::spawn(async move {
-            let failed = match scanner.run().await {
-                Ok(()) => false,
-                Err(err) => {
-                    tracing::warn!(error = %err, "the data-quality run did not complete");
-                    true
-                }
-            };
-            scanner.store.finish(failed);
+            scanner.run(&spaces, &due).await;
+            scanner.store.finish();
         });
     }
 
-    async fn run(&self) -> Result<(), String> {
-        let spaces = self.schemas.spaces();
-        let token = self.watch.scan_token().await?;
-        for (project, space) in &spaces {
-            match self.space(&token, project, space).await {
+    async fn run(&self, spaces: &[(String, String)], due: &[(String, String)]) {
+        for (project, space) in due {
+            let read = match self.watch.scan_token().await {
+                Ok(token) => self.space(&token, project, space).await,
+                Err(err) => Err(err),
+            };
+            match read {
                 Ok(quality) => {
                     for row in &quality.freshness {
                         crate::telemetry::pipeline_stale(project, &row.pipeline, row.alerting());
@@ -609,11 +618,10 @@ impl Scanner {
                 Err(err) => tracing::warn!(project, space, error = %err, "a space was not checked"),
             }
         }
-        self.store.keep_only(&spaces);
-        if let Err(err) = self.store.forget_others(&spaces).await {
+        self.store.keep_only(spaces);
+        if let Err(err) = self.store.forget_others(spaces).await {
             tracing::warn!(error = %err, "the reports of removed spaces were not dropped");
         }
-        Ok(())
     }
 
     async fn space(&self, token: &str, project: &str, space: &str) -> Result<SpaceQuality, String> {
@@ -942,17 +950,45 @@ mod tests {
     }
 
     #[test]
-    fn a_run_is_claimed_once_a_day_and_retried_an_hour_after_a_failure() {
+    fn a_run_is_claimed_one_at_a_time_and_an_hour_apart() {
         let store = Store::default();
         let start = at("2026-09-25T02:00:00Z");
         assert!(store.claim(start));
         assert!(!store.claim(start), "one run at a time");
-        store.finish(false);
-        assert!(!store.claim(start + chrono::Duration::hours(23)));
-        assert!(store.claim(start + chrono::Duration::hours(24)));
-        store.finish(true);
-        assert!(!store.claim(start + chrono::Duration::hours(24) + chrono::Duration::minutes(59)));
-        assert!(store.claim(start + chrono::Duration::hours(25)));
+        store.finish();
+        assert!(!store.claim(start + chrono::Duration::minutes(59)));
+        assert!(store.claim(start + chrono::Duration::hours(1)));
+    }
+
+    /// A run cut short by a restart, or a space whose read failed, leaves spaces without a
+    /// report: those stay due, while a space read today is not (helsinki on dev, 2026-10-22).
+    #[test]
+    fn a_space_is_due_until_it_has_a_report_less_than_a_day_old() {
+        let store = Store::default();
+        let old = report(&[]);
+        let day = old.observed_at + chrono::Duration::hours(24);
+        store.put("p", "old", old.clone());
+        store.put(
+            "p",
+            "read",
+            SpaceQuality {
+                observed_at: day - chrono::Duration::hours(1),
+                ..old
+            },
+        );
+        let spaces: Vec<(String, String)> = ["old", "read", "unread"]
+            .iter()
+            .map(|space| ("p".to_owned(), (*space).to_owned()))
+            .collect();
+        let due = |now| store.due(&spaces, now);
+        assert_eq!(
+            due(day),
+            vec![
+                ("p".to_owned(), "old".to_owned()),
+                ("p".to_owned(), "unread".to_owned())
+            ]
+        );
+        assert_eq!(due(day + chrono::Duration::hours(23)), spaces);
     }
 
     fn report(rules: &[(&str, &str)]) -> SpaceQuality {
@@ -994,8 +1030,8 @@ mod tests {
         assert_eq!(back, first, "what the database keeps reads back the same");
     }
 
-    /// A restarted Portal reads the last reports back, with their new rules, and counts the
-    /// newest as the last run; a space that no longer names a model leaves the table.
+    /// A restarted Portal reads the last reports back, with their new rules, and a space read
+    /// today is not due again; a space that no longer names a model leaves the table.
     #[tokio::test]
     async fn a_kept_report_comes_back_after_a_restart() {
         let Some(url) = std::env::var("JC_PORTAL_TEST_DATABASE_URL")
@@ -1023,7 +1059,12 @@ mod tests {
         assert_eq!(after.get("t5066", "gone"), None);
         assert_eq!(after.new_rules("t5066", "air"), vec!["In status"]);
         assert!(
-            !after.claim(kept.observed_at + chrono::Duration::hours(23)),
+            after
+                .due(
+                    &[("t5066".into(), "air".into())],
+                    kept.observed_at + chrono::Duration::hours(23)
+                )
+                .is_empty(),
             "not due yet"
         );
     }

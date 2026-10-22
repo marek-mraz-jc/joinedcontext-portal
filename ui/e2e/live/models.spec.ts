@@ -18,7 +18,7 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { guideShot, helpClipStart } from "./guide";
-import { APPROVER, STEWARD, VIEWER, approve, csrf, proposedChange, reject, removeCompletely, signIn, sweepDrafts } from "./portal";
+import { APPROVER, STEWARD, VIEWER, approve, checkManifest, csrf, proposedChange, reject, removeCompletely, signIn, sweepDrafts } from "./portal";
 
 const PROJECT = "helsinki";
 const SUFFIX = process.env.E2E_SUFFIX ?? new Date().toISOString().slice(11, 16).replace(":", "");
@@ -39,11 +39,13 @@ async function addClass(page: Page, name: string): Promise<void> {
   await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
 }
 
-/** The run's sandbox space, made once and approved by the steward when the lane asks (CC-67). */
+/** The run's sandbox space, checked then proposed (PF-57), made once and approved by the steward when the lane asks (CC-67). */
 async function sandboxSpace(page: Page): Promise<void> {
+  const manifest = { apiVersion: "joinedcontext.com/v1alpha1", kind: "ContextSpace", metadata: { name: SPACE, namespace: PROJECT }, spec: { isSandbox: true } };
+  await checkManifest(page, page.context(), PROJECT, manifest);
   const answer = await page.request.post(`/api/v1/projects/${PROJECT}/spaces`, {
     headers: { "x-csrf-token": await csrf(page.context()) },
-    data: { apiVersion: "joinedcontext.com/v1alpha1", kind: "ContextSpace", metadata: { name: SPACE, namespace: PROJECT }, spec: { isSandbox: true } },
+    data: manifest,
   });
   expect(answer.status(), await answer.text()).toBe(202);
   const change = (await answer.json()) as { metadata: { name: string }; status: { phase: string } };
