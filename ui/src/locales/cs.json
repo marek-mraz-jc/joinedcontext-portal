@@ -9465,5 +9465,42 @@
       "body": "Pokud vás naše odpověď neuspokojí, obraťte se na Ministerstvo investic, regionálního rozvoje a informatizace Slovenské republiky, které dohlíží na přístupnost webových sídel veřejné správy."
     },
     "footer": "O této stránce"
+  },
+  "endpointUsage": {
+    "title": "Využití",
+    "lead": "Zodpovězená volání za endpoint a den, jak je počítá brána. Měsíc si stáhnete jako CSV do zprávy.",
+    "endpointLead": "Jak často tento endpoint odpověděl, za den a podle způsobu čtení: volání API, stažení a asistenti (MCP).",
+    "window": "Období",
+    "days": "Posledních {count} dní",
+    "total": "Zodpovězená volání: {calls} ({from} – {to})",
+    "chart": "Volání za den: celkem {calls} za {days} dní",
+    "perDay": "Volání podle dnů",
+    "day": "Den",
+    "calls": "Volání",
+    "endpoint": "Endpoint",
+    "trend": "Za den",
+    "none": "Bez volání",
+    "noCalls": "Tento endpoint v tomto období nikdo nevolal. Sdílejte jeho adresu z části výše nebo ho zveřejněte v katalogu; počty se zde objeví do pěti minut od prvního volání.",
+    "noEndpoints": "Zatím nesmíte číst žádný endpoint tohoto projektu. Požádejte jeho správce o přístup ke čtení datového prostoru endpointu.",
+    "failed": "Využití se nepodařilo načíst: {reason}. Obnovte stránku a zkuste to znovu.",
+    "privacy": "Jen počty: neukládá se IP adresa, cookie, osoba ani dotaz. Dny jsou v UTC a uchovávají se 13 měsíců.",
+    "month": "Měsíc ke stažení",
+    "monthInvalid": "Vyberte měsíc v kalendáři.",
+    "export": "Stáhnout CSV",
+    "exporting": "Připravuji CSV…",
+    "surface": {
+      "ngsi-ld": "NGSI-LD API",
+      "ogc": "OGC API Features",
+      "odata": "OData",
+      "sta": "Senzorové API (STA)",
+      "ical": "Kalendář (iCal)",
+      "mcp": "Asistenti (MCP)",
+      "websocket": "Živé aktualizace",
+      "download": "Stažení (CSV)"
+    },
+    "hint": {
+      "window": "Dny končící dneškem (UTC), např. posledních 30 dní.",
+      "month": "Měsíc ve tvaru RRRR-MM, např. 2026-10."
+    }
   }
 }

@@ -1,6 +1,7 @@
 import { FormHeading, useFormRoute } from "../components/forms/FormRoute";
 import { CopyUrlButton } from "../components/endpoints/links";
 import { ConnectAssistant } from "../components/endpoints/ConnectAssistant";
+import { ProjectUsageSection } from "../components/endpoints/UsageSection";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1361,6 +1362,8 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       ) : null}
 
       {endpoints.length > 0 ? <ConnectAssistant domain={domain} /> : null}
+
+      {endpoints.length > 0 ? <ProjectUsageSection project={project} /> : null}
 
       <section aria-labelledby="shared-with-project" className="flex flex-col gap-3">
         <div>

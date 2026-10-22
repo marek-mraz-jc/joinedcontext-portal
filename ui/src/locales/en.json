@@ -9465,5 +9465,42 @@
       "body": "If our answer does not satisfy you, turn to the Ministry of Investments, Regional Development and Informatization of the Slovak Republic, which oversees the accessibility of public administration websites."
     },
     "footer": "About this site"
+  },
+  "endpointUsage": {
+    "title": "Usage",
+    "lead": "Answered calls per Endpoint and day, as the gateway counts them. Download a month as CSV for a report.",
+    "endpointLead": "How often this Endpoint answered, per day and per way of reading it: API calls, downloads and assistants (MCP).",
+    "window": "Period",
+    "days": "Last {count} days",
+    "total": "Answered calls: {calls} ({from} – {to})",
+    "chart": "Calls per day: {calls} in total over {days} days",
+    "perDay": "Calls per day",
+    "day": "Day",
+    "calls": "Calls",
+    "endpoint": "Endpoint",
+    "trend": "Per day",
+    "none": "No calls",
+    "noCalls": "Nobody called this Endpoint in this period. Share its address from the section above or publish it in the catalogue; the counts appear here within five minutes of the first call.",
+    "noEndpoints": "You may read no Endpoint of this project yet. Ask its administrator for read access to an Endpoint's Context Space.",
+    "failed": "The usage could not be read: {reason}. Reload the page to try again.",
+    "privacy": "Counts only: no IP address, cookie, person or query is kept. Days are in UTC and kept for 13 months.",
+    "month": "Month to download",
+    "monthInvalid": "Pick a month in the calendar.",
+    "export": "Download CSV",
+    "exporting": "Preparing the CSV…",
+    "surface": {
+      "ngsi-ld": "NGSI-LD API",
+      "ogc": "OGC API Features",
+      "odata": "OData",
+      "sta": "Sensor API (STA)",
+      "ical": "Calendar (iCal)",
+      "mcp": "Assistants (MCP)",
+      "websocket": "Live updates",
+      "download": "Downloads (CSV)"
+    },
+    "hint": {
+      "window": "The days ending today (UTC), e.g. the last 30 days.",
+      "month": "A month as YYYY-MM, e.g. 2026-10."
+    }
   }
 }

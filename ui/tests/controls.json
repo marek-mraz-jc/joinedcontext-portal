@@ -259,6 +259,14 @@
         "query_card.test.tsx"
       ]
     },
+    "src/components/endpoints/UsageSection.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "endpoint_usage.test.tsx"
+      ]
+    },
     "src/components/endpoints/links.tsx": {
       "controls": {
         "Button": 1

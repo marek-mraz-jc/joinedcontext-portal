@@ -42,6 +42,7 @@ import type { Binding } from "../../components/endpoints/policyBinding";
 import { grantWrites, groupOf } from "../../components/endpoints/operationGroups";
 import { CatalogSection } from "./CatalogSection";
 import { VisualizationsSection } from "./VisualizationsSection";
+import { EndpointUsageSection } from "../../components/endpoints/UsageSection";
 import { FilterProof, classesWithSlots } from "./FilterProof";
 import { filterSlotsOf, useModelSource } from "../../components/entities/filters";
 import { parseModel } from "../models/linkml";
@@ -621,6 +622,10 @@ export function EndpointPage({
             )}
           </Fact>
         </Facts>
+      </Section>
+
+      <Section title={t("endpointUsage.title")} lead={t("endpointUsage.endpointLead")}>
+        <EndpointUsageSection project={project} name={name} />
       </Section>
 
       {spec.publish?.ckan ? (

@@ -1,4 +1,4 @@
-//! Usage per Endpoint, surface and day for the publishers' Usage tab (T-5118, API/01 §38).
+//! Usage per Endpoint, surface and day for the publishers' Usage tab (T-5118, API/01 §54).
 //!
 //! Every gateway replica posts what each Endpoint's surfaces answered since its last post, every
 //! five minutes (`POST /internal/usage`); the Portal adds the counts into one row per project,

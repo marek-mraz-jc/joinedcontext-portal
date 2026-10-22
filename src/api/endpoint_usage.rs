@@ -1,4 +1,4 @@
-//! Usage per Endpoint for publishers (T-5118, API/01 §38): one Endpoint's calls per day and
+//! Usage per Endpoint for publishers (T-5118, API/01 §54): one Endpoint's calls per day and
 //! surface, every Endpoint of a project over the same window, and a month as CSV. The counts are
 //! the gateway's, names and numbers only; whoever may read an Endpoint may read its usage.
 
