@@ -2335,7 +2335,7 @@ impl Syncer {
         Ok(())
     }
 
-    /// Step 7a: every Endpoint the run loaded that names a retired representation, rewritten
+    /// Step 7a: every Endpoint or App the run loaded that names a retired representation, rewritten
     /// in the repository that holds it. A project rendered at a ref that is no branch refuses
     /// the commit; that is a line in the log, and the gateway's refusal says the rest.
     async fn drop_retired_representations(
@@ -2348,7 +2348,7 @@ impl Syncer {
         let mut by_repository: BTreeMap<String, std::collections::BTreeSet<String>> =
             BTreeMap::new();
         for (_, loaded) in repository.iter() {
-            if loaded.manifest.kind != "Endpoint" || !names_retired(&loaded.manifest.spec) {
+            if !names_retired(&loaded.manifest.kind, &loaded.manifest.spec) {
                 continue;
             }
             let (slug, path) = owner(render.layout, &loaded.path.to_string_lossy());
@@ -2376,7 +2376,7 @@ impl Syncer {
             match migrate(gitea, &branch, &paths).await {
                 Ok(0) => {}
                 Ok(files) => {
-                    tracing::info!(project = %slug, files, "retired representations dropped from Endpoint manifests")
+                    tracing::info!(project = %slug, files, "retired representations dropped from Endpoint and App manifests")
                 }
                 Err(error) => {
                     tracing::warn!(project = %slug, %error, "retired representations stay in the repository")
