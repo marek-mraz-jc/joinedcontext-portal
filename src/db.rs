@@ -20,8 +20,51 @@ pub async fn connect(url: &str) -> Result<PgPool, sqlx::Error> {
         .acquire_timeout(Duration::from_secs(5))
         .connect(url)
         .await?;
-    sqlx::migrate!("./migrations").run(&pool).await?;
+    let mut migrator = sqlx::migrate!("./migrations");
+    let newest = migrator.iter().map(|m| m.version).max().unwrap_or(0);
+    let newer = newer_migrations(&pool, newest).await?;
+    if tolerate_newer(newest, &newer).map_err(|e| sqlx::Error::Migrate(Box::new(e)))? {
+        tracing::warn!(
+            "the database holds migrations {newer:?} of a newer release, none marked breaking: \
+             serving it as a rollback; roll forward again before another schema change"
+        );
+        migrator.set_ignore_missing(true);
+    }
+    migrator.run(&pool).await?;
     Ok(pool)
+}
+
+/// Version and description of each applied migration above `newest`.
+async fn newer_migrations(pool: &PgPool, newest: i64) -> Result<Vec<(i64, String)>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT version, description FROM _sqlx_migrations WHERE version > $1 ORDER BY version",
+    )
+    .bind(newest)
+    .fetch_all(pool)
+    .await
+    .or_else(|e| match &e {
+        // a database never migrated has no history table yet
+        sqlx::Error::Database(d) if d.code().as_deref() == Some("42P01") => Ok(Vec::new()),
+        _ => Err(e),
+    })
+}
+
+/// What the boot does with the migrations a newer release applied (`newer`: version and
+/// description of each applied version above `newest`, this binary's own newest). A rollback
+/// starts the previous image on the schema the release it rolls back already migrated, and
+/// sqlx refuses every applied version it does not ship, so without this the previous image
+/// never boots (T-5105, docs Deployment/16-release-runbook.md §5). A migration whose file name
+/// starts with `breaking_` is one the previous release cannot serve: the way back is the
+/// backup taken before the release, so the boot stops there. An unknown version at or below
+/// `newest` is still refused by sqlx. `Ok(true)`: tolerate the newer, compatible migrations.
+fn tolerate_newer(
+    newest: i64,
+    newer: &[(i64, String)],
+) -> Result<bool, sqlx::migrate::MigrateError> {
+    match newer.iter().find(|(_, d)| d.starts_with("breaking ")) {
+        Some((v, _)) => Err(sqlx::migrate::MigrateError::VersionTooNew(*v, newest)),
+        None => Ok(!newer.is_empty()),
+    }
 }
 
 /// The stored document of one subject, `None` before the first save.
@@ -640,4 +683,98 @@ pub async fn remove_person_deletion(pool: &PgPool, person_id: &str) -> Result<()
         .execute(pool)
         .await
         .map(drop)
+}
+
+#[cfg(test)]
+mod rollback_tests {
+    use super::tolerate_newer;
+
+    /// A rollback boots on a newer release's compatible migrations and stops on a breaking
+    /// one, naming its version (T-5105).
+    #[test]
+    fn a_rollback_tolerates_compatible_migrations_and_stops_on_a_breaking_one() {
+        assert_eq!(tolerate_newer(38, &[]).ok(), Some(false));
+        let compatible = [(39, "space notes".to_owned())];
+        assert_eq!(tolerate_newer(38, &compatible).ok(), Some(true));
+        let breaking = [
+            (39, "space notes".to_owned()),
+            (40, "breaking drop names".to_owned()),
+        ];
+        assert_eq!(
+            tolerate_newer(38, &breaking).err().map(|e| e.to_string()),
+            Some("migration 40 is newer than the latest applied migration 38".to_owned())
+        );
+    }
+
+    /// The same on a live database: the boot accepts a compatible migration of a newer release
+    /// and stops on a breaking one. A scratch database of its own, so no parallel test boots on
+    /// the rows it plants.
+    #[tokio::test]
+    async fn a_live_rollback_boots_on_a_compatible_migration_and_not_on_a_breaking_one() {
+        let Some(url) = std::env::var("JC_PORTAL_TEST_DATABASE_URL")
+            .ok()
+            .filter(|url| !url.trim().is_empty())
+        else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let admin = sqlx::PgPool::connect(&url).await.expect("connect");
+        let name = format!("jc_rollback_{}", std::process::id());
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "DROP DATABASE IF EXISTS {name}"
+        )))
+        .execute(&admin)
+        .await
+        .expect("drop");
+        sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {name}")))
+            .execute(&admin)
+            .await
+            .expect("create");
+        let mut scratch = url::Url::parse(&url).expect("url");
+        scratch.set_path(&name);
+        let db = super::connect(scratch.as_str()).await.expect("migrate");
+        let newest: i64 = sqlx::query_scalar("SELECT max(version) FROM _sqlx_migrations")
+            .fetch_one(&db)
+            .await
+            .expect("newest");
+        let plant = |v: i64, d: &'static str| {
+            sqlx::query(
+                "INSERT INTO _sqlx_migrations (version, description, success, checksum, \
+                 execution_time) VALUES ($1, $2, true, '\\x00', 0)",
+            )
+            .bind(v)
+            .bind(d)
+        };
+        plant(newest + 1, "space notes")
+            .execute(&db)
+            .await
+            .expect("plant");
+        let compatible = super::connect(scratch.as_str())
+            .await
+            .map(|_| ())
+            .map_err(|e| e.to_string());
+        plant(newest + 2, "breaking drop names")
+            .execute(&db)
+            .await
+            .expect("plant");
+        let breaking = super::connect(scratch.as_str())
+            .await
+            .map(|_| ())
+            .map_err(|e| e.to_string());
+        db.close().await;
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "DROP DATABASE {name} WITH (FORCE)"
+        )))
+        .execute(&admin)
+        .await
+        .expect("drop");
+        assert_eq!(compatible, Ok(()));
+        assert_eq!(
+            breaking,
+            Err(format!(
+                "migration {} is newer than the latest applied migration {newest}",
+                newest + 2
+            ))
+        );
+    }
 }

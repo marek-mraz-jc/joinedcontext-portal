@@ -97,18 +97,14 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
-  ui:
+  # The SDK's own checks, the inventories, lint, the build and the bundle weight: the steps that
+  # run once. They used to ride on vitest shard 1, which then ran 450-720 s against a 720 s cap
+  # and was cut off with every test green (T-5158, run 39687447235); in their own job they take
+  # 4-6 minutes beside the shards.
+  ui-checks:
     needs: changes
     if: needs.changes.outputs.ui == 'true'
     runs-on: ubuntu-latest
-    # The suite runs in three shards of one matrix: every file once, in one of them, nothing
-    # skipped (vitest --shard splits the files, not the cases). It outgrew one job twice (8 minutes
-    # in T-2447, 12 in T-2920: 372 files took 570 s of vitest alone, and nearly every push to main
-    # was cut at the cap). The cap stays; the suite now spreads under it.
-    name: ui (${{ matrix.shard }}/3)
-    strategy:
-      fail-fast: false
-      matrix: { shard: [1, 2, 3] }
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -116,7 +112,7 @@ jobs:
         run: echo "ui=$([ -f ui/package.json ] && echo yes || echo no)" >> "$GITHUB_OUTPUT"
       # DM-06: the unit list is the platform's one code list, copied byte for byte; nobody edits
       # the copy. Regenerate with the platform's `tools/units/generate.py <this path>`.
-      - if: steps.has.outputs.ui == 'yes' && matrix.shard == 1
+      - if: steps.has.outputs.ui == 'yes'
         name: the unit list is the platform's code list, unedited (DM-06)
         run: |
           curl -fsSL https://raw.githubusercontent.com/marek-mraz-jc/joinedcontext-platform/main/crates/jc-core/data/unece-rec20.json \
@@ -129,34 +125,62 @@ jobs:
         with: { node-version: 22, cache: pnpm, cache-dependency-path: ui/pnpm-lock.yaml }
       # The SDK before the UI: the UI links the SDK's sources (`link:../sdk`, T-1439), and `link:`
       # installs nothing for the sibling, so the UI's own typecheck and Vite build need the SDK's
-      # dependencies to be beside its sources already (the red main of 1a7c5b9). Every shard needs
-      # them; the SDK's own checks run once.
-      - if: steps.has.outputs.ui == 'yes' && matrix.shard == 1
+      # dependencies to be beside its sources already (the red main of 1a7c5b9).
+      - if: steps.has.outputs.ui == 'yes'
         name: the SDK builds and its screens pass (SDK-01, AP-56)
         run: cd sdk && pnpm install --frozen-lockfile && pnpm typecheck && pnpm test && pnpm build
-      - if: steps.has.outputs.ui == 'yes' && matrix.shard != 1
-        name: the SDK the UI links
-        run: cd sdk && pnpm install --frozen-lockfile && pnpm build
       - if: steps.has.outputs.ui == 'yes'
         run: cd ui && pnpm install --frozen-lockfile
       # The four inventories first (T-2136, T-2728): they read the tree and need no browser, so a
       # module with no test, a route no spec opens, a control nothing uses or a workflow step with
       # no journey fails in seconds with its own step name instead of somewhere inside the
-      # 4 000-case suite that follows.
-      - if: steps.has.outputs.ui == 'yes' && matrix.shard == 1
+      # 4 000-case suite of the shards.
+      - if: steps.has.outputs.ui == 'yes'
         name: every module, route, control and workflow step has a test (T-2136, T-2728), and no text box for a picked value (T-4945)
         run: cd ui && pnpm vitest run tests/gate_modules.test.ts tests/gate_routes.test.ts tests/gate_controls.test.ts tests/gate_workflows.test.ts tests/gate_human_text.test.ts tests/gate_free_text.test.ts
-      - if: steps.has.outputs.ui == 'yes' && matrix.shard == 1
+      - if: steps.has.outputs.ui == 'yes'
         run: cd ui && pnpm lint
       - if: steps.has.outputs.ui == 'yes'
-        name: the UI suite, shard ${{ matrix.shard }} of 3
-        run: cd ui && pnpm vitest run --shard=${{ matrix.shard }}/3
-      - if: steps.has.outputs.ui == 'yes' && matrix.shard == 1
         run: cd ui && pnpm build
       # What every page downloads before it answers stays under its budget (T-3280).
-      - if: steps.has.outputs.ui == 'yes' && matrix.shard == 1
+      - if: steps.has.outputs.ui == 'yes'
         name: the weight of every visit
         run: node --test scripts/bundle-budget.test.mjs && node scripts/bundle-budget.mjs ui/dist
+      - if: steps.has.outputs.ui == 'no'
+        run: echo "no ui/package.json yet"
+  ui:
+    needs: changes
+    if: needs.changes.outputs.ui == 'true'
+    runs-on: ubuntu-latest
+    # The suite runs in four shards of one matrix: every file once, in one of them, nothing
+    # skipped (vitest --shard splits the files, not the cases). It outgrew one job twice (8 minutes
+    # in T-2447, 12 in T-2920: 372 files took 570 s of vitest alone), and three shards plus the
+    # once-only steps on shard 1 reached the cap again (T-5158: vitest 200-433 s per shard over
+    # 20 main runs). The cap stays; the suite now spreads under it.
+    name: ui (${{ matrix.shard }}/4)
+    strategy:
+      fail-fast: false
+      matrix: { shard: [1, 2, 3, 4] }
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - id: has
+        run: echo "ui=$([ -f ui/package.json ] && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+      - if: steps.has.outputs.ui == 'yes'
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with: { version: 10 }
+      - if: steps.has.outputs.ui == 'yes'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: ui/pnpm-lock.yaml }
+      # The UI links the SDK's sources; ui-checks runs the SDK's own checks.
+      - if: steps.has.outputs.ui == 'yes'
+        name: the SDK the UI links
+        run: cd sdk && pnpm install --frozen-lockfile && pnpm build
+      - if: steps.has.outputs.ui == 'yes'
+        run: cd ui && pnpm install --frozen-lockfile
+      - if: steps.has.outputs.ui == 'yes'
+        name: the UI suite, shard ${{ matrix.shard }} of 4
+        run: cd ui && pnpm vitest run --shard=${{ matrix.shard }}/4
       - if: steps.has.outputs.ui == 'no'
         run: echo "no ui/package.json yet"
   # The applications, beside the UI rather than after it: each app installs, tests and builds on
