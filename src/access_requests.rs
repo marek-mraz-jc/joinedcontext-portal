@@ -377,6 +377,71 @@ pub fn revoke_bundle(
     manifests
 }
 
+/// Why the gateway now refuses a pipeline one of whose grants ended (PL-93): "access revoked by
+/// {owner} on {date}" for a revoked grant, "access ended on {date}" for one whose end passed, the
+/// newest of them; `None` when no grant ended, or while another grant on the same Endpoint holds.
+pub fn refusal_reason(requests: &[AccessRequest], now: OffsetDateTime) -> Option<String> {
+    let in_force =
+        |r: &AccessRequest| r.state == "approved" && r.until.is_none_or(|until| until > now);
+    let held = |r: &AccessRequest| {
+        requests.iter().any(|other| {
+            in_force(other)
+                && other.endpoint_project == r.endpoint_project
+                && other.endpoint == r.endpoint
+        })
+    };
+    requests
+        .iter()
+        .filter(|r| !held(r))
+        .filter_map(|r| match (r.state.as_str(), r.decided_at, r.until) {
+            ("revoked", Some(at), _) => Some((
+                at,
+                format!(
+                    "access revoked by {} on {}",
+                    r.decided_by.as_deref().unwrap_or("an owner of the space"),
+                    at.date()
+                ),
+            )),
+            ("approved", _, Some(until)) if until <= now => {
+                Some((until, format!("access ended on {}", until.date())))
+            }
+            _ => None,
+        })
+        .max_by_key(|(at, _)| *at)
+        .map(|(_, text)| text)
+}
+
+/// Whether a Policy of another project grants the pipeline's own account now (PL-92, PL-93): an
+/// approval after a revocation brings a pipeline paused for its refusals back.
+pub fn grant_in_force(
+    mirror: &crate::store::Mirror,
+    project: &str,
+    pipeline: &str,
+    now: OffsetDateTime,
+) -> bool {
+    let account = format!("{project}/pl-{pipeline}");
+    mirror
+        .matching(|env| {
+            env.kind == "Policy"
+                && env.metadata.namespace.as_deref() != Some(project)
+                && env.spec["assignee"]["id"] == account.as_str()
+        })
+        .iter()
+        .any(|policy| {
+            policy.spec["validity"]["to"]
+                .as_str()
+                .and_then(|to| {
+                    OffsetDateTime::parse(to, &time::format_description::well_known::Rfc3339).ok()
+                })
+                .is_none_or(|to| to > now)
+        })
+}
+
+/// Whether a run log line is a refusal [`refusal_reason`] wrote (PL-93).
+pub fn is_refusal(message: &str) -> bool {
+    message.starts_with("access revoked by ") || message.starts_with("access ended on ")
+}
+
 /// A new request id: `ar-` and twelve hex digits from the CSPRNG.
 pub fn new_id() -> String {
     use sha2::{Digest, Sha256};
@@ -680,6 +745,48 @@ mod tests {
             json!(["upsertBatch", "createBatch", "queryBatch"])
         );
         assert!(policy["spec"].get("validity").is_none());
+    }
+
+    /// PL-93 (T-4882): the run log names who revoked the grant and when, or when it ended; a
+    /// grant on the same Endpoint still in force refuses nothing.
+    #[test]
+    fn a_refusal_names_the_revoking_owner_or_the_end() {
+        let now = OffsetDateTime::parse(
+            "2026-10-22T12:00:00Z",
+            &time::format_description::well_known::Rfc3339,
+        )
+        .expect("now");
+        let mut revoked = request();
+        revoked.state = "revoked".into();
+        revoked.decided_by = Some("anna@helsinki.example".into());
+        revoked.decided_at = Some(now - time::Duration::days(1));
+        assert_eq!(
+            refusal_reason(std::slice::from_ref(&revoked), now).as_deref(),
+            Some("access revoked by anna@helsinki.example on 2026-10-21")
+        );
+        let mut ended = request();
+        ended.state = "approved".into();
+        ended.until = Some(now - time::Duration::days(3));
+        let reason = refusal_reason(&[revoked.clone(), ended.clone()], now);
+        assert_eq!(
+            reason.as_deref(),
+            Some("access revoked by anna@helsinki.example on 2026-10-21")
+        );
+        assert!(is_refusal(reason.as_deref().unwrap_or_default()));
+        assert_eq!(
+            refusal_reason(std::slice::from_ref(&ended), now).as_deref(),
+            Some("access ended on 2026-10-19")
+        );
+        let mut renewed = request();
+        renewed.state = "approved".into();
+        assert_eq!(
+            refusal_reason(&[revoked, ended, renewed.clone()], now),
+            None
+        );
+        assert_eq!(refusal_reason(&[renewed], now), None);
+        assert!(!is_refusal(
+            "HTTP request returned unexpected response code (403)"
+        ));
     }
 
     /// PL-93: revoking ends the Policy now and takes the project off the list unless another
