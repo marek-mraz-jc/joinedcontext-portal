@@ -150,6 +150,8 @@ export interface LinkmlClass {
   class_uri?: string;
   description?: string;
   title?: Record<string, string>;
+  /** `annotations.label`: what a reader calls one of the class, per language (DM-135), e.g. Podujatie. */
+  label?: Record<string, string>;
   slots: string[];
   /** The class this one specialises, as LinkML `is_a` (DM-13). */
   is_a?: string;
@@ -437,6 +439,7 @@ export function parseModel(source: string): LinkmlModel {
       class_uri: text(raw.class_uri),
       description: text(raw.description),
       title: languageMap(raw.title),
+      ...(labelOf(notes.label) ? { label: labelOf(notes.label) } : {}),
       slots,
       // The hierarchy the model declares (DM-13): read so the editor, the preview and the
       // breaking-change detector see what the YAML says instead of only the flat class list.

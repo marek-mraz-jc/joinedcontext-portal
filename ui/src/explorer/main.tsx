@@ -14,7 +14,7 @@ import i18n from "./i18n";
 import "../index.css";
 import "./explorer.css";
 import { EndpointDataView } from "../components/entities/EndpointDataView";
-import type { DataLink } from "../components/entities/EndpointDataView";
+import type { DataLink, RowCard } from "../components/entities/EndpointDataView";
 
 export interface MountOptions {
   /** `https://api.{domain}`: the only origin the widget reads. */
@@ -24,6 +24,10 @@ export interface MountOptions {
   /** The type, query and order the address opens with. */
   link?: DataLink;
   onLink?: (next: DataLink) => void;
+  /** The chosen type's card: labels, units and kinds for the page's own row card (DM-135). */
+  onCard?: (card: RowCard) => void;
+  /** A row the reader opened: the page shows it in its own card (DM-135). */
+  onOpenRow?: (id: string) => void;
   /** The endpoint serves `file.csv`. */
   csv?: boolean;
 }
@@ -50,6 +54,8 @@ export function mount(element: Element, options: MountOptions): Root {
               origin={options.origin}
               link={options.link}
               onLink={options.onLink}
+              onCard={options.onCard}
+              onOpenRow={options.onOpenRow}
               csv={options.csv ?? true}
             />
           </div>

@@ -290,7 +290,7 @@
     },
     "src/components/entities/EndpointDataView.tsx": {
       "controls": {
-        "Button": 3,
+        "Button": 5,
         "Checkbox": 1
       },
       "tests": [

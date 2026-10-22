@@ -85,9 +85,10 @@ describe("what an endpoint answers", () => {
   it("draws the types the endpoint publishes and reads through the endpoint itself", async () => {
     show();
     const picker = await screen.findByLabelText(en.endpoints.data.type);
-    expect([...picker.querySelectorAll("option")].map((o) => o.textContent)).toEqual([
-      "AirQualityObserved",
-      "WeatherObserved",
+    // A reader sees the type's label (DM-135: the class label, else the name made readable); the value stays the type.
+    expect([...picker.querySelectorAll("option")].map((o) => [o.textContent, o.getAttribute("value")])).toEqual([
+      ["Air quality observed", "AirQualityObserved"],
+      ["Weather observed", "WeatherObserved"],
     ]);
     await waitFor(() => expect(screen.getByRole("grid")).toBeInTheDocument());
     const reads = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.map(
@@ -478,6 +479,79 @@ describe("the presentation chain (DM-134, T-5196)", () => {
     await waitFor(() => expect(asked.slice(before).some((url) => url.pathname.includes("/entities") && !url.searchParams.get("q"))).toBe(true));
     expect(screen.queryByRole("button", { name: "Zrušiť filtre" })).toBeNull();
     await i18n.changeLanguage("en");
+  });
+});
+
+describe("the row card and the removable default filter (DM-135, T-5231)", () => {
+  it("builds the card from the model: class label, labels in table order, units, enum titles, hidden slots", async () => {
+    const { parseModel, classSlots } = await import("../src/pages/models/linkml");
+    const { cardOf, columnModel } = await import("../src/components/entities/EndpointDataView");
+    const model = parseModel(
+      "classes:\n  Stop:\n    annotations:\n      label: {tag: label, value: '{\"sk\": \"Železničná stanica\", \"en\": \"Railway station\"}'}\n" +
+        "    attributes:\n      name: {rank: 1}\n      dailyDepartures:\n        rank: 2\n        unit: {symbol: '/d'}\n      kind: {rank: 3}\n      stopCode:\n        annotations:\n          view_hidden: {tag: view_hidden, value: 'true'}\n",
+    );
+    const klass = model.classes[0];
+    const slots = classSlots(model, klass);
+    const attrs = ["stopCode", "kind", "dailyDepartures", "name"];
+    const card = cardOf("Stop", klass, slots, columnModel(slots, attrs, "sk"), new Map([["dailyDepartures", "integer"]]), { kind: [{ value: "rail", title: "Vlak" }] }, "sk");
+    expect(card.typeLabel).toBe("Železničná stanica");
+    expect(card.title).toBe("name");
+    expect(card.fields.map((field) => field.name)).toEqual(["name", "dailyDepartures", "kind", "stopCode"]);
+    expect(card.fields[1]).toEqual({ name: "dailyDepartures", label: "Daily departures", unit: "/d", kind: "integer" });
+    expect(card.fields[2].titles).toEqual({ rail: "Vlak" });
+    expect(card.fields[3].hidden).toBe(true);
+    // No model at all: the type and every key made readable.
+    const bare = cardOf("GtfsStop", undefined, [], columnModel([], ["dailyDepartures"], "en"), new Map(), {}, "en");
+    expect(bare).toEqual({ type: "GtfsStop", typeLabel: "Gtfs stop", title: "name", fields: [{ name: "dailyDepartures", label: "Daily departures" }] });
+  });
+
+  it("says a default filter in the reader's words", async () => {
+    const { filterWords } = await import("../src/components/entities/EndpointDataView");
+    expect(filterWords("startDate>=today", { startDate: "Začiatok" }, "dnes")).toBe("Začiatok ≥ dnes");
+    expect(filterWords('startDate>=today;kind=="a"|x<3', { startDate: "Start", kind: "Kind" }, "today")).toBe('Start ≥ today, Kind = "a" | x < 3');
+  });
+
+  it("shows the default filter as a chip; removing it widens the rows and the link, restore brings it back", async () => {
+    await i18n.changeLanguage("sk");
+    const user = userEvent.setup();
+    const asked: URL[] = [];
+    const onLink = vi.fn();
+    show({ slug: "events", project: "catalogue", onLink }, presentedAnswer(asked));
+    const remove = await screen.findByRole("button", { name: "Odstrániť predvolený filter Začiatok ≥ dnes" });
+    expect(screen.getByText("Predvolený filter: Začiatok ≥ dnes")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Obnoviť predvolené" })).toBeNull();
+    const before = asked.length;
+    await user.click(remove);
+    await waitFor(() => expect(asked.slice(before).some((url) => url.pathname.includes("/entities") && !url.searchParams.get("q"))).toBe(true));
+    await waitFor(() => expect(onLink).toHaveBeenLastCalledWith(expect.objectContaining({ noDefault: true, q: undefined })));
+    expect(screen.queryByRole("button", { name: /^Odstrániť predvolený filter/ })).toBeNull();
+    const after = asked.length;
+    await user.click(screen.getByRole("button", { name: "Obnoviť predvolené" }));
+    await screen.findByRole("button", { name: "Odstrániť predvolený filter Začiatok ≥ dnes" });
+    await waitFor(() => expect(asked.slice(after).some((url) => /^startDate>=\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get("q") ?? ""))).toBe(true));
+    expect(onLink.mock.lastCall?.[0]).not.toHaveProperty("noDefault");
+    await i18n.changeLanguage("en");
+  });
+
+  it("opens without the default filter when the link says the reader removed it", async () => {
+    const asked: URL[] = [];
+    show({ slug: "events", project: "catalogue", link: { noDefault: true } }, presentedAnswer(asked));
+    await screen.findByRole("button", { name: "Restore default" });
+    await waitFor(() => expect(asked.some((url) => url.pathname.includes("/entities"))).toBe(true));
+    expect(asked.filter((url) => url.pathname.includes("/entities")).every((url) => !url.searchParams.get("q"))).toBe(true);
+  });
+
+  it("hands an opened row and the type's card to the host instead of the grid's own detail", async () => {
+    const user = userEvent.setup();
+    const asked: URL[] = [];
+    const onOpenRow = vi.fn();
+    const onCard = vi.fn();
+    show({ slug: "events", project: "catalogue", onOpenRow, onCard }, eventAnswer(asked));
+    await waitFor(() => expect(onCard).toHaveBeenCalledWith(expect.objectContaining({ type: "Event", title: "name" })));
+    const open = await screen.findAllByRole("button", { name: /^Open.*Koncert/ });
+    await user.click(open[0]);
+    expect(onOpenRow).toHaveBeenCalledWith("urn:ngsi-ld:Event:a");
+    expect(document.querySelector(".jc-grid-detail")).toBeNull();
   });
 });
 
