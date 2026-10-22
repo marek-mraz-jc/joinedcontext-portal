@@ -260,7 +260,7 @@ list serves every standard but SensorThings, less `spec.disabledRepresentations`
 is the `Representation` enum of the Endpoint kind (`crates/jc-core/src/kinds/endpoint.rs`), which is
 what the published `schemas/kinds/Endpoint.json` validates a manifest against.
 
-`file.csv` accepts the NGSI-LD `GET /entities` query parameters and stream the result as an attachment:
+`file.csv` accepts the NGSI-LD `GET /entities` query parameters and returns the result as an attachment:
 
 ```http
 GET /api/endpoint/zt4qm7ge2xdv6ksb3ncf5arw2y/file.csv?type=WeatherObserved&q=temperature>20&humanHeaders=true
@@ -270,15 +270,20 @@ GET /api/endpoint/zt4qm7ge2xdv6ksb3ncf5arw2y/file.csv?type=WeatherObserved&q=tem
 HTTP/1.1 200 OK
 Content-Type: text/csv; charset=utf-8; header=present
 Content-Disposition: attachment; filename="zt4qm7ge2xdv6ksb3ncf5arw2y.csv"
+ETag: "9f2c…"
+Cache-Control: no-cache
 ```
 
 The file is named after the endpoint slug and the extension, which are both literals the gateway
-controls, so nothing a caller sent reaches the `Content-Disposition` header. A download carries no
-`ETag`: the body is a whole query answered afresh, and a validator over a paged export would have to
-be computed by running the export. Limits: `spec.fileLimits.maxFileRows` /
+controls, so nothing a caller sent reaches the `Content-Disposition` header. A download carries a
+strong `ETag`, the SHA-256 of the bytes, and answers `304 Not Modified` with no body when
+`If-None-Match` names it (EP-43): the export still runs, the transfer does not. Limits: `spec.fileLimits.maxFileRows` /
 `spec.fileLimits.maxFileBytes` on the Endpoint manifest (413 when exceeded).
 
-Exports entities as flat tabular data with RFC 4180 compliance.
+Exports entities as flat tabular data with RFC 4180 compliance. The answer is always normalized
+NGSI-LD before it is flattened: `options` and `format` are dropped from the query, so `keyValues`
+cannot rename the columns. `lang=sk` stays: each LanguageProperty then arrives as one Property in
+that language.
 
 ### Flattening Rules
 
@@ -287,12 +292,21 @@ One entity is one row. A column is the dot-joined path to a leaf value in the en
 - `id` and `type` are the first two columns, in that order, and carry the entity URN and its NGSI-LD type.
 - Nested members are joined with `.`: a Property's value is `temperature.value`, its metadata `temperature.observedAt`, a sub-property `temperature.accuracy.value`.
 - An array whose members are all scalars gives each member a column with its index in brackets: `location.value.coordinates[0]`, `location.value.coordinates[1]`.
-- An array that holds an array or an object (the rings of a `Polygon`, the points of a `LineString`, the instances of a multi-attribute) is one cell carrying the array as JSON, in the column named by the array's path: `location.value.coordinates`. A table's width never grows with a geometry's vertex count, so a polygon layer still fits a spreadsheet and the 1600-column table of a CKAN DataStore mirror (EP-65). An answer mixing Points and Polygons carries both the indexed columns and the one JSON column.
-- The structural discriminator of an attribute (`"type": "Property"`, `"GeoProperty"`, `"Relationship"`, `"LanguageProperty"`, `"VocabProperty"`, `"JsonProperty"`, `"ListProperty"`) is not data and gets no column. The `type` of a GeoJSON geometry does, because it says which geometry it is.
+- An attribute with several instances (CIM 009 4.5.5) keeps its default instance, the one without a `datasetId`, in the attribute's own columns; each other instance gets its own columns, named `speed[datasetId=…].value` with the instance's `datasetId` in the brackets.
+- Any other array that holds an array or an object (the rings of a `Polygon`, the points of a `LineString`) is one cell carrying the array as JSON, in the column named by the array's path: `location.value.coordinates`. A table's width never grows with a geometry's vertex count, so a polygon layer still fits a spreadsheet and the 1600-column table of a CKAN DataStore mirror (EP-65). An answer mixing Points and Polygons carries both the indexed columns and the one JSON column.
+- The structural discriminator of an attribute (`"type": "Property"`, `"GeoProperty"`, `"Relationship"`, `"ListRelationship"`, `"LanguageProperty"`, `"VocabProperty"`, `"JsonProperty"`, `"ListProperty"`, or any `type` beside an attribute's own members `value`, `object`, `languageMap`, `vocab`, `json`, `valueList` or `objectList`) is not data and gets no column. The `type` of a GeoJSON geometry does, because it says which geometry it is.
 - A Relationship is its target URN as a string, in the column `refDistrict.object` (EP-08).
 - `@context` and the other JSON-LD keywords get no column.
-- Columns appear in the order the rows first mention them, so two runs over the same answer produce the same header.
-- The encoding is UTF-8 and the separator is a comma; a field carrying a comma, a quote or a newline is quoted per RFC 4180.
+- The columns come from the model, not from the rows (T-5209): `id`, `type`, then each attribute of the space's model (of the classes `type` names, or of every class the Endpoint serves) in the model's order, with the columns its kind always has: a scalar Property `x.value` (and `x.unitCode` when the model gives a unit), a GeoProperty `x.value.type`, `x.value.coordinates[0]` and `[1]`, a Relationship `x.object`, a VocabProperty `x.vocab`. The Endpoint's projection and `hiddenAttributes` narrow that list as they narrow the answer. Inside one attribute, paths the rows add (an object's members, a list's items) follow in natural order (`[2]` before `[10]`); attributes the model does not name come last, by name. A `q` that narrows the rows, or leaves none, keeps the header; an Endpoint serving a view of another model, or a space with no generated schema, has `id,type` and the rows' attributes by name.
+- The encoding is UTF-8 and the separator is a comma; a field carrying the separator, a quote or a newline is quoted per RFC 4180.
+- A text field starting with `=`, `+`, `-`, `@`, a tab or a carriage return gets a `'` in front and is quoted, so a spreadsheet opens it as text instead of running it as a formula (OWASP CSV Injection). A number, such as `-12.5`, stays as it is. The rule applies to headers too.
+- An entity that a later page repeats (an insert shifted the offsets while the download paged) is written once.
+
+`delimiter` picks the separator: `comma` (default), `semicolon` for a spreadsheet whose locale writes decimals with a comma (Slovak Excel), or `tab`. `bom=true` starts the file with the UTF-8 byte order mark Excel needs to read diacritics; it is on by default with `humanHeaders=true` and off otherwise, because a program would read the mark as part of the first column's name. Any other value of either parameter is a `400` naming it.
+
+```http
+GET /api/endpoint/zt4qm7ge2xdv6ksb3ncf5arw2y/file.csv?humanHeaders=true&delimiter=semicolon
+```
 
 ```csv
 id,type,location.value.type,location.value.coordinates[0],location.value.coordinates[1],temperature.value,temperature.observedAt,refDistrict.object
@@ -301,16 +315,16 @@ urn:ngsi-ld:WeatherObserved:hel.fi:air-quality:station-01,WeatherObserved,Point,
 
 ### Human headers and units (EP-45)
 
-`humanHeaders=true` asks for a header row a person reads instead of a path a program parses. Each column then loses its trailing `.value`, and a Property that carries a `unitCode` (the UN/CEFACT common code of CIM 009, declared in the model per DM-06) gets that code appended in brackets. The `unitCode` column itself is dropped, because it has moved into the header.
+`humanHeaders=true` asks for a header row a person reads instead of a path a program parses. Each column then loses the members NGSI-LD wraps a value in (`.value`, `.object`, `.languageMap`, `.vocab`, `.json`, `.valueList`, `.objectList`), so `address.value.addressCountry` reads `address.addressCountry` and `name.languageMap.sk` reads `name.sk`. A Property that carries a `unitCode` (the UN/CEFACT common code of CIM 009, declared in the model per DM-06) gets the unit's symbol from the platform's Rec 20 table appended in brackets, `no2 [µg/m³]`, or the code itself when the table gives no symbol. The `unitCode` column itself is dropped, because it has moved into the header.
 
 ```csv
-id,type,temperature [CEL],temperature.observedAt
+id,type,temperature [°C],temperature.observedAt
 urn:ngsi-ld:WeatherObserved:hel.fi:air-quality:station-01,WeatherObserved,22.4,2026-08-15T12:00:00Z
 ```
 
 ### Paging and limits (EP-44)
 
-The gateway pages through the broker with `limit` and `offset` and appends each page to the answer as it arrives, so the response size is bounded by the endpoint's limits and not by one broker page. `spec.fileLimits.maxFileRows` and `spec.fileLimits.maxFileBytes` are checked while the rows are being written: the first row that would cross either limit ends the download with `413 Payload Too Large` rather than a truncated file that looks complete. An endpoint that declares neither falls back to the gateway's own ceiling.
+The gateway pages through the broker with `limit` and `offset` and appends each page to the table as it arrives, dropping the page's parsed entities, so the gateway's memory is bounded by the endpoint's limits and not by one broker page. The body is sent once it is complete: a strong `ETag` needs every byte, and a refusal has to come before the first one. This is a proposed amendment of EP-44 (T-5209), which still asks for streamed rows until the owner accepts it. `spec.fileLimits.maxFileRows` and `spec.fileLimits.maxFileBytes` are checked while the rows are being written: the first row that would cross either limit ends the download with `413 Payload Too Large` rather than a truncated file that looks complete. An endpoint that declares neither falls back to the gateway's own ceiling.
 
 ---
 
@@ -1037,6 +1051,79 @@ Endpoint banskabystrica/banskabystrica-podujatia, space banskabystrica-verejne: 
 
 The broker renders the mapping (T-4901). An entity read with no value for `DTSTART` or `SUMMARY`, a `DTEND` not after `DTSTART`, a `GEO` outside -90..90 / -180..180, a `URL` that is not http(s) or a date it cannot parse is left out of the feed and counted in `antares_surface_records_skipped_total{surface="ical", reason}`; the feed stays valid RFC 5545 (CRLF lines, 75-octet folding, TEXT escaping, one `UID` per entity, EP-126).
 
+### Feeds (`feed`: Atom, RSS 2.0, JSON Feed)
+
+A feed is for data whose items appear over time and that a person follows: news and articles, notices and announcements, alerts, events, procurement notices, council resolutions and meetings, petitions. It is off by default: an Endpoint serves a feed only where `spec.representations.feed` lists an output (EP-150), with no entry in `spec.enabledRepresentations`. Static registers and geometry (Address, CadastralParcel, Bridge, Organization lists), live sensor and state data (AirQualityObserved, WeatherObserved, BikeHireDockingStation, OffStreetParking, Vehicle, served by subscriptions and the WebSocket) and bulk statistics get no feed.
+
+`spec.representations.feed` is a list of named outputs in the shape every representation shares (one output, several model classes, a role mapping per class: the mapping contract of T-5207). At most 20 outputs per Endpoint; a duplicate `name` is refused when the Endpoint is saved (EP-151).
+
+```yaml excerpt
+spec:
+  representations:
+    feed:
+      - name: kultura                  # slug [a-z0-9-], 1 to 63, unique on the Endpoint; part of the URL
+        version: 1                     # the output contract version; 1 when left out. A newer one is served
+                                       # from each source's type and preset, its filter kept (API/11)
+        title: { sk: Kultúra v kraji, en: Culture in the region }
+        description: { sk: Podujatia kultúrnych inštitúcií BBSK }
+        sources:                       # one or more model classes, each with its roles
+          - type: Event
+            preset: event
+          - type: CulturalEvent
+            preset: event
+            mapping: { category: eventType }
+        filter: { q: 'category=="kultúra"' }   # narrows the view, never widens it
+        lang: sk                       # the feed's language unless the request names one
+        limit: 50                      # the default page size, 1 to 200
+        sort: updated                  # the only order: newest first by updated, what a feed reader expects
+```
+
+| Role | Atom (RFC 4287) | RSS 2.0 | JSON Feed 1.1 | Level |
+|---|---|---|---|---|
+| `title` | `entry/title` | `item/title` | `title` | required |
+| `updated` | `entry/updated` | `item/pubDate` when `published` is unmapped | `date_modified` | required |
+| `published` | `entry/published` | `item/pubDate` | `date_published` | optional |
+| `summary` | `entry/summary` | `item/description` | `summary` | optional |
+| `content` | `entry/content type="text"` | `item/description` when `summary` is unmapped | `content_text` | optional |
+| `link` | `entry/link rel="alternate"` | `item/link` | `url` | optional, http(s) only |
+| `author` | `entry/author/name` | `item/dc:creator` | `authors[].name` | optional |
+| `category` | `entry/category/@term` | `item/category` | `tags` | optional, one per value |
+| `image` | `entry/link rel="enclosure"` | not served (an RSS enclosure needs a length) | `image` | optional, http(s) only |
+
+A role names an attribute path (`name`, `address.addressLocality`) or a list of them, the first with a value winning. `modifiedAt` and `createdAt` name the system attributes. A LanguageProperty gives its text in the feed's language, else its first text. Presets:
+
+| Preset | `title` | `updated` | `published` | `summary` | `content` | `link` | `author` | `category` | `image` |
+|---|---|---|---|---|---|---|---|---|---|
+| `event` | `name` | `modifiedAt` | `createdAt` | `description` | | `url` | `organizer` | `category` | `image` |
+| `article` | `headline`, `name` | `dateModified`, `modifiedAt` | `datePublished`, `dateCreated` | `description` | `articleBody` | `url` | `author` | `category` | `image` |
+| `generic` | `name` | `modifiedAt` | | `description` | | `url` | | | |
+
+A `mapping` without a `preset` is the whole mapping and names `title` and `updated` itself. The gateway checks every role against the data model when the Endpoint is saved, with the rules of the iCalendar model check above: the attribute exists, a time role reads a `date` or `datetime`, `link` and `image` read a `uri`.
+
+URLs, on the broker and mirrored on the Endpoint's public path (`/api/endpoint/{slug}/feed/v1/…`):
+
+| Path | Media type |
+|---|---|
+| `/x/views/{view}/feed/v1/{name}/atom.xml` | `application/atom+xml; charset=utf-8` |
+| `/x/views/{view}/feed/v1/{name}/rss.xml` | `application/rss+xml; charset=utf-8` |
+| `/x/views/{view}/feed/v1/{name}/feed.json` | `application/feed+json; charset=utf-8` |
+
+On the Endpoint's path the gateway admits the caller as for every other representation (audience, Policy, rate limit; a non-public Endpoint answers `401` without a token and `403` to a caller its Policy does not admit), forwards the request read-only to the view, and writes every link, `tag:` id and the feed's author on its public host, so an id stays the same wherever the broker runs. An Endpoint without an output answers `404` on `feed/v1/…`. The Endpoint's DCAT-AP record lists one `dcat:Distribution` per output and format (title `{output title} (Atom)`, `dcat:mediaType` as above, `dct:format` ATOM, RSS or JSON), its HTML page carries one `<link rel="alternate">` per output and format, and a published CKAN dataset one resource per output and format (EP-150, EP-151, T-5203).
+
+Parameters: `q`, `scopeQ`, `georel`, `geometry`, `coordinates`, `geoproperty`, `lang`, `attrs` and `type` as the iCalendar surface reads them, plus `limit` (default the output's, at most 200) and `offset` (default 0). The output's `filter` and the request's `q` are joined with `;` (both hold), and a request `q` with unbalanced parentheses is `400`, so a request never widens the filter. An output whose filter names a geometry refuses a request geometry. Any other parameter, a repeated one or a `type` that is not one of the output's sources is `400`; any method but `GET` and `HEAD` is `405`; an unknown view, a view without a feed member and an unknown output name answer the same `404`.
+
+Entries:
+
+- are sorted newest first by `updated`, then by entity id; the surface reads at most the broker's residual-scan cap of entities per request and answers `413` past it;
+- carry the id `tag:{host},2026:{view}/{entity id}` (RFC 4151; `{host}` is the host of `ANTARES_PUBLIC_URL`), the same in all three formats and in every output of the view;
+- `updated` of the feed is the newest entry's (`1970-01-01T00:00:00Z` for an empty feed);
+- the feed's language (`xml:lang`, RSS `language`, JSON Feed `language`) is `lang` of the request, else of the output; the feed's title and description are the output's in that language, else its first;
+- links are absolute, on the public base URL (`ANTARES_PUBLIC_URL`, else the request's host); RFC 5005 paging links `first`, `previous` and `next` (JSON Feed `next_url`) keep every parameter of the request;
+- text is never markup: Atom and JSON Feed carry text only (`type="text"`, `content_text`), RSS `description` is HTML-escaped once more, characters XML 1.0 excludes are dropped, and a `link` or `image` that is not http(s) is left out;
+- an entity without a title or an `updated` time it can read is left out and counted in `antares_surface_records_skipped_total{surface="feed", reason}` and the `antares-skipped-records` header (EP-126).
+
+Caching: every answer carries `ETag` (of the body), `Last-Modified` (the feed's `updated`) and `Cache-Control: private, max-age=300` (the Policy decides per caller, so a shared cache may not keep it, R9); `If-None-Match`, else `If-Modified-Since`, answers `304` when nothing changed.
+
 ### SensorThings (`sta`, OGC 18-088 v1.1)
 
 No fixed type: the broker reads each entity as a Thing and each numeric Property as a Datastream with its Observations (`docs/analysis/sta-mapping.md` in Antares). The model must give at least one class a slot that is a measurement:
@@ -1138,6 +1225,7 @@ A surface the Endpoint stops serving, by `spec.disabledRepresentations` or an ex
 
 ## Related
 
+- [API/11 Mapping and Representation Contract](11-representation-contract.md): versions, named outputs and the open/strict member rules every representation here follows (EP-152…EP-160).
 - [SP-03](../Requirements/space-surface.md) — referenced above.
 - [00-intro](00-intro.md) — all API surfaces.
 - [07-websocket](07-websocket.md) — live updates over one WebSocket.

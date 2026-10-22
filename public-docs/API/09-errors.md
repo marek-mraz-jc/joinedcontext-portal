@@ -236,6 +236,14 @@ The endpoint's iCalendar feed needs a broker view the endpoint does not have.
 
 What to do: Read this endpoint through its NGSI-LD surface; its iCalendar feed needs a broker view it does not have.
 
+### `feed-view-unavailable` {#feed-view-unavailable}
+
+**Feed View Unavailable**, status 501.
+
+The endpoint's Atom, RSS and JSON Feed outputs need a broker view the endpoint does not have.
+
+What to do: Read this endpoint through its NGSI-LD surface; its Atom, RSS and JSON Feed outputs need a broker view it does not have.
+
 ### `odata-batch-unavailable` {#odata-batch-unavailable}
 
 **OData Batch Unavailable**, status 501.
