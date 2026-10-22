@@ -1399,7 +1399,7 @@
       "publicUrl": "Public address",
       "audience": "Audience",
       "representations": "Representations",
-      "representationMappings": "Calendar mapping",
+      "representationMappings": "Calendars and news feeds",
       "more": "+{count} more",
       "noRepresentations": "no representations",
       "phase": "State",
@@ -1973,7 +1973,83 @@
     },
     "find": "Find an endpoint by name or title",
     "shownOf": "Showing {shown} of {count}",
-    "showMore": "Show {count} more"
+    "showMore": "Show {count} more",
+    "outputs": {
+      "help": "Named calendars and news feeds this Endpoint offers. Each output has its own address, title and attribute mapping, and may narrow the data with a query. A dataset page lists every output under Subscribe.",
+      "icalOff": "Turn on the iCalendar feed under Representations to add calendars.",
+      "presetHint": "The preset fills the fields; pick an attribute below only where yours differs.",
+      "feedPresetHint": "event for events, article for news and notices, generic for anything with a name.",
+      "fromPreset": "From the preset: {attribute}",
+      "rolesCaption": "Feed entry parts and the attributes they come from",
+      "role": "Entry part",
+      "roles": {
+        "title": "Title",
+        "updated": "Updated",
+        "published": "Published",
+        "summary": "Summary",
+        "content": "Content",
+        "link": "Link",
+        "author": "Author",
+        "category": "Category",
+        "image": "Image"
+      },
+      "feedPreset": {
+        "event": "Event",
+        "article": "Article or notice",
+        "generic": "Anything with a name"
+      },
+      "duplicateOne": "Another output already has this name.",
+      "duplicate": "Each output needs its own name; these occur twice: {names}",
+      "full": "An Endpoint offers at most {max} outputs of one format.",
+      "title": {
+        "sk": "Title in Slovak",
+        "en": "Title in English"
+      },
+      "source": "Type {n}: {type}",
+      "removeSource": "Remove this type",
+      "remove": "Remove",
+      "removeNamed": "Remove output {name}",
+      "ical": {
+        "heading": "Calendars (iCal)",
+        "add": "Add a calendar",
+        "emptyTitle": "No calendar yet",
+        "emptyHint": "Add a calendar to give people an .ics address their calendar app subscribes to, for example all events or only sport."
+      },
+      "feed": {
+        "heading": "News feeds (Atom, RSS, JSON Feed)",
+        "add": "Add a news feed",
+        "emptyTitle": "No news feed yet",
+        "emptyHint": "Add a feed where items appear over time, such as events or notices; a feed reader then shows each new one."
+      },
+      "type": {
+        "hint": "A class of the space's data model, for example Event."
+      },
+      "nameField": {
+        "label": "Name in the address",
+        "hint": "Lowercase letters, digits and -, for example kultura. Address: {address}",
+        "bad": "Use 1 to 40 lowercase letters, digits or -, starting with a letter or digit."
+      },
+      "filterField": {
+        "label": "Only entities matching (optional)",
+        "hint": "An NGSI-LD query that narrows this output and never widens it, for example eventCategory==\"sport\"."
+      },
+      "sourceAdd": {
+        "label": "Add another type",
+        "hint": "One output can list several types, for example events and council meetings in one calendar."
+      },
+      "icalTitleSk": {
+        "hint": "For example Kalendár podujatí"
+      },
+      "icalTitleEn": {
+        "hint": "For example Events calendar"
+      },
+      "feedTitleSk": {
+        "hint": "For example Novinky z kultúry"
+      },
+      "feedTitleEn": {
+        "hint": "For example Culture news"
+      }
+    }
   },
   "datasources": {
     "title": "Data sources",
@@ -7873,7 +7949,9 @@
       "calendarFile": "Download the calendar (.ics)",
       "news": "News",
       "feed": "{title} ({format})",
-      "hint": "Copy the address into a feed reader or calendar, for example Feedly or Google Calendar; new items appear by themselves."
+      "hint": "Copy the address into a feed reader or calendar, for example Feedly or Google Calendar; new items appear by themselves.",
+      "calendarAppNamed": "Add to a calendar: {title}",
+      "calendarFileNamed": "Download {title} (.ics)"
     }
   },
   "dataagreements": {

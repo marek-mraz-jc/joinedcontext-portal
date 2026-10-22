@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import type { components } from "../../api/schema";
@@ -7,9 +7,10 @@ import { Button, Icon, Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, Me
 
 type Endpoint = components["schemas"]["CatalogueEndpoint"];
 type Feed = components["schemas"]["CatalogueFeed"];
+type Calendar = components["schemas"]["CatalogueCalendar"];
 
-/** A feed output's title in the reader's language, else its first, else its name. */
-export function feedTitle(feed: Feed, language: string): string {
+/** An output's title in the reader's language, else its first, else its name. */
+export function feedTitle(feed: Pick<Feed, "name" | "title">, language: string): string {
   return feed.title[language] ?? Object.values(feed.title)[0] ?? feed.name;
 }
 
@@ -19,11 +20,59 @@ export function calendarUrl(endpoint: Endpoint): string | null {
 }
 
 /**
- * Puts one `<link rel="alternate">` per feed output and format into the page head while the page
- * is open, so a feed reader given the page's address finds the feeds (EP-150, EP-151).
+ * The calendars a dataset serves, one per output (API/11 EP-159); an answer of an older Portal
+ * has no `calendars` and stands for the one `events.ics`.
  */
-export function useFeedAlternates(feeds: Feed[], language: string): void {
+export function calendarsOf(endpoint: Endpoint): Calendar[] {
+  const listed = (endpoint as Partial<Endpoint>).calendars;
+  if (listed) return listed;
+  const url = calendarUrl(endpoint);
+  return url ? [{ name: "events", title: {}, url }] : [];
+}
+
+/** One calendar's two rows: subscribe in a calendar app (webcal) and download the file. */
+function CalendarItems({ calendar, label }: { calendar: Calendar; label: string | null }): JSX.Element | null {
+  const { t } = useTranslation();
+  const https = safeHref(calendar.url);
+  if (!https) return null;
+  // `webcal://` of the checked https address; safeHref itself refuses the webcal scheme.
+  const safe = webcalUrl(https);
+  return (
+    <>
+      <MenuItem asChild>
+        <a href={safe}>
+          <Icon name="link" className="size-4" />
+          {label ? t("catalogue.subscribe.calendarAppNamed", { title: label }) : t("catalogue.subscribe.calendarApp")}
+        </a>
+      </MenuItem>
+      <MenuItem asChild>
+        <a href={safeHref(calendar.url)} type="text/calendar">
+          <Icon name="external" className="size-4" />
+          {label ? t("catalogue.subscribe.calendarFileNamed", { title: label }) : t("catalogue.subscribe.calendarFile")}
+        </a>
+      </MenuItem>
+    </>
+  );
+}
+
+/**
+ * Puts one `<link rel="alternate">` per feed output and format, and one per calendar, into the page
+ * head while the page is open, so a feed reader or calendar given the page's address finds them
+ * (EP-150, EP-151, API/11 EP-159).
+ */
+export function useFeedAlternates(feeds: Feed[], language: string, calendars: Calendar[] = []): void {
   useEffect(() => {
+    const ics = calendars.flatMap((calendar) => {
+      const href = safeHref(calendar.url);
+      if (!href) return [];
+      const element = document.createElement("link");
+      element.rel = "alternate";
+      element.type = "text/calendar";
+      element.title = feedTitle(calendar, language);
+      element.href = href;
+      element.dataset.calendar = calendar.name;
+      return [element];
+    });
     const links = feeds.flatMap((feed) =>
       feed.links.flatMap((link) => {
         const href = safeHref(link.url);
@@ -37,9 +86,10 @@ export function useFeedAlternates(feeds: Feed[], language: string): void {
         return [element];
       }),
     );
-    links.forEach((element) => document.head.appendChild(element));
-    return () => links.forEach((element) => element.remove());
-  }, [feeds, language]);
+    const all = [...links, ...ics];
+    all.forEach((element) => document.head.appendChild(element));
+    return () => all.forEach((element) => element.remove());
+  }, [feeds, language, calendars]);
 }
 
 /**
@@ -52,12 +102,11 @@ export function SubscribeMenu({ endpoint }: { endpoint: Endpoint }): JSX.Element
   const language = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   // A dataset answer of an older Portal has no `feeds`.
   const feeds: Feed[] = (endpoint as Partial<Endpoint>).feeds ?? [];
-  useFeedAlternates(feeds, language);
-  const found = calendarUrl(endpoint);
-  const calendar = found ? safeHref(found) : undefined;
-  // `webcal://` of the checked https address; safeHref itself refuses the webcal scheme.
-  const safe = calendar ? webcalUrl(calendar) : undefined;
-  if (!calendar && feeds.length === 0) return null;
+  const calendars = useMemo(() => calendarsOf(endpoint).filter((calendar) => safeHref(calendar.url)), [endpoint]);
+  useFeedAlternates(feeds, language, calendars);
+  if (calendars.length === 0 && feeds.length === 0) return null;
+  // One calendar keeps the plain labels; several are told apart by their titles.
+  const titled = calendars.length > 1 || calendars.some((calendar) => Object.keys(calendar.title).length > 0);
   return (
     <Menu>
       <MenuTrigger asChild>
@@ -67,24 +116,11 @@ export function SubscribeMenu({ endpoint }: { endpoint: Endpoint }): JSX.Element
         </Button>
       </MenuTrigger>
       <MenuContent align="end" collisionPadding={16} className="min-w-64 max-w-sm">
-        {calendar ? (
-          <>
-            <MenuLabel>{t("catalogue.subscribe.calendar")}</MenuLabel>
-            <MenuItem asChild>
-              <a href={safe}>
-                <Icon name="link" className="size-4" />
-                {t("catalogue.subscribe.calendarApp")}
-              </a>
-            </MenuItem>
-            <MenuItem asChild>
-              <a href={safeHref(calendar)} type="text/calendar">
-                <Icon name="external" className="size-4" />
-                {t("catalogue.subscribe.calendarFile")}
-              </a>
-            </MenuItem>
-          </>
-        ) : null}
-        {calendar && feeds.length > 0 ? <MenuSeparator /> : null}
+        {calendars.length > 0 ? <MenuLabel>{t("catalogue.subscribe.calendar")}</MenuLabel> : null}
+        {calendars.map((calendar) => (
+          <CalendarItems key={calendar.name} calendar={calendar} label={titled ? feedTitle(calendar, language) : null} />
+        ))}
+        {calendars.length > 0 && feeds.length > 0 ? <MenuSeparator /> : null}
         {feeds.length > 0 ? <MenuLabel>{t("catalogue.subscribe.news")}</MenuLabel> : null}
         {feeds.map((feed) =>
           feed.links.map((link) => (
