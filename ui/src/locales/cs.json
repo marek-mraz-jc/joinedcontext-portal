@@ -1472,7 +1472,7 @@
       "csv": "Stáhnout tyto řádky jako CSV",
       "csvHelp": "Soubor obsahuje všechny řádky aktuálního dotazu a pořadí do limitu stahování endpointu; stejný dotaz je v jeho adrese i pro skript.",
       "fields": "Sloupce",
-      "fieldsHint": "Zaškrtněte sloupec a zobrazí se v tabulce, např. Popis; odškrtnutím jej skryjete.",
+      "fieldsHint": "Zaškrtněte sloupec a zobrazí se v tabulce; odškrtnutím jej skryjete.",
       "openLink": "Otevřít stránku",
       "fieldType": "Typ",
       "noDescription": "Model neuvádí popis.",
