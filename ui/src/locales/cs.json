@@ -1147,6 +1147,7 @@
       "ownTypeHint": "Jedno slovo s velkým počátečním písmenem, například Garage.",
       "space": "Název prostoru",
       "notReady": "Nejprve vyberte soubor, typ a prostor.",
+      "notLive": "Řádky zapíšete, až bude změna schválená a nasazená.",
       "propose": "Navrhnout změnu",
       "proposing": "Navrhuje se…",
       "afterApproval": "Když je změna schválená a nasazená, zapište řádky do {space} jako {type}. Opakovaný zápis stejného souboru aktualizuje tytéž entity.",

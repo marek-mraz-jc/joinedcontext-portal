@@ -1147,6 +1147,7 @@
       "ownTypeHint": "Ein Wort mit großem Anfangsbuchstaben, etwa Garage.",
       "space": "Name des Raums",
       "notReady": "Wählen Sie zuerst eine Datei, einen Typ und einen Space.",
+      "notLive": "Die Zeilen lassen sich schreiben, sobald die Änderung genehmigt und live ist.",
       "propose": "Änderung vorschlagen",
       "proposing": "Wird vorgeschlagen…",
       "afterApproval": "Sobald die Änderung genehmigt und live ist, schreiben Sie die Zeilen als {type} in {space}. Dieselbe Datei erneut zu schreiben aktualisiert dieselben Entitäten.",

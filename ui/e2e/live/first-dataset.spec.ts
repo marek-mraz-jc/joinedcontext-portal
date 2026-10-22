@@ -120,15 +120,11 @@ test("a new editor publishes a CSV as a public dataset with its map and catalogu
   const audience = ((await (await page.request.get(`/api/v1/projects/${PROJECT}/endpoints/${endpoint}`)).json()) as { spec?: { audience?: string } }).spec?.audience;
   expect(audience, "the upload's Endpoint is not public until the person chooses it").not.toBe("public");
 
-  // The rows go in once the space is live; a write before that is refused and tried again.
+  // The page holds the write until the Change is Applied, so the first click writes.
   const write = page.getByRole("button", { name: /^Write \d+ rows?$/ });
-  await expect
-    .poll(async () => {
-      await write.click();
-      await expect(page.getByText(/rows? written|No row was written/)).toBeVisible({ timeout: 120_000 });
-      return (await page.getByText("10 rows written, none refused.").count()) > 0;
-    }, { timeout: 300_000, intervals: [15_000], message: "the ten rows are written through the gateway" })
-    .toBe(true);
+  await expect(write).not.toHaveAttribute("aria-disabled", "true", { timeout: 300_000 });
+  await write.click();
+  await expect(page.getByText("10 rows written, none refused.")).toBeVisible({ timeout: 120_000 });
   lap("rows written");
 
   // 3. Public by an explicit choice: the dialog asks for the Endpoint's name typed back.
