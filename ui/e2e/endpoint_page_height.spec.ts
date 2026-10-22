@@ -6,7 +6,8 @@ import { expect, test } from "@playwright/test";
 // entities with every attribute, and "Who may call it" printed each of the space's 40 policies with
 // one line per operation. The proof now pages 12 entities, single operations share a row and the
 // policies fold after five and the proof's frame scrolls: the page stays under 6,000 px at 1440
-// (9,000 at 400) with the same data.
+// (9,000 at 400) with the same data. T-5118 added the Usage section (about 420 px of chart and
+// totals at 1440): the 1440 budget is 6,600 since, still a quarter of what dev showed.
 
 const API = "joinedcontext.com/v1alpha1";
 const SLOTS = ["address", "description", "endDate", "eventStatus", "location", "name", "source", "startDate"];
@@ -47,6 +48,16 @@ const EVENTS = Array.from({ length: 120 }, (_, n) => ({
   source: { type: "Property", value: "https://api.hel.fi/linkedevents/v1/" },
   startDate: { type: "Property", value: "2020-11-11T09:00:00Z" },
 }));
+// A busy Endpoint is read every day (T-5118): its Usage section draws the month, not a placeholder.
+const day = (n: number) => new Date(Date.UTC(2026, 8, 23 + n)).toISOString().slice(0, 10);
+const USAGE = {
+  name: "events",
+  from: day(0),
+  to: day(29),
+  days: Array.from({ length: 30 }, (_, n) => ({ day: day(n), calls: { "ngsi-ld": 400 + n, mcp: 20 }, total: 420 + n })),
+  totals: { "ngsi-ld": 12435, mcp: 600 },
+  total: 13035,
+};
 
 for (const width of [1440, 400]) {
   test(`a busy Endpoint's page stays short at ${width} px (T-5015)`, async ({ page }) => {
@@ -68,6 +79,7 @@ for (const width of [1440, 400]) {
       if (path.endsWith("/projections")) return json(list([PROJECTION]));
       if (path.endsWith("/spaces")) return json(list([SPACE]));
       if (path.endsWith("/policies")) return json(list(POLICIES));
+      if (path === "/api/v1/projects/helsinki/endpoints/events/usage") return json(USAGE);
       return json(list([]));
     });
     // The space's canonical surface, read with the person's rights, answers one page of the events.
@@ -89,7 +101,7 @@ for (const width of [1440, 400]) {
     await expect(grants.getByRole("listitem")).toHaveCount(5);
     const height = await page.evaluate(() => document.documentElement.scrollHeight);
     // A phone stacks every fact in one column: its gate is wider, still a third of what dev showed.
-    expect(height).toBeLessThan(width === 1440 ? 6000 : 9000);
+    expect(height).toBeLessThan(width === 1440 ? 6600 : 9000);
 
     const dir = join("test-results", "T-5015");
     mkdirSync(dir, { recursive: true });
