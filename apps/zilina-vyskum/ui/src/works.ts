@@ -55,7 +55,7 @@ export function workOf(row: RichRow): Work {
   const names = one(row, "name")?.languageMap ?? {};
   const [language, title] = Object.entries(names).find(([, value]) => typeof value === "string" && value.trim() !== "") ?? [null, null];
   const year = one(row, "yearPublished")?.value;
-  const collection = text(row, "isPartOf");
+  const collection = text(row, "collectionName");
   return {
     id: row.id,
     title: title ? title.trim() : null,

@@ -34,6 +34,6 @@ spec:
         kind: ContextSpace
         name: zilina-uniza
       types: [Article]
-      attrs: [name, workType, yearPublished, isPartOf, license, url]
+      attrs: [name, workType, yearPublished, isPartOf, collectionName, license, url]
       operations: [queryEntity, retrieveEntity]
       representations: [ngsi-ld, ogc-features]
