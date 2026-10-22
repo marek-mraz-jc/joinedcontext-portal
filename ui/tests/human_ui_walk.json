@@ -428,6 +428,7 @@
       ]
     },
     "src/components/forms/widgets/RepresentationOutputsField.tsx": null,
+    "src/components/forms/widgets/OutputSourceEditors.tsx": null,
     "src/components/forms/widgets/ListFailed.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",

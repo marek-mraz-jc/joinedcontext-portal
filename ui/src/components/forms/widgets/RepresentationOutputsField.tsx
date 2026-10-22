@@ -10,9 +10,9 @@ import { LIST_BODY, LIST_FIELDSET, ListLegend, pathOf } from "../theme";
 import { FormDataContext } from "./EntitySelectorField";
 import { ListFailed, reasonOf } from "./ListFailed";
 import { FormProjectContext } from "./ModelWidgets";
-import { FeedSourceEditor, IcalSourceEditor } from "./OutputSourceEditors";
+import { FeedSourceEditor, IcalSourceEditor, MapSourceEditor } from "./OutputSourceEditors";
 import { duplicateNames, isSlug, MAX_OUTPUTS, newOutput, outputsOf, withText, written } from "./representationOutputs";
-import type { FeedOutput, FeedSource, Format, IcalOutput, Output, Outputs } from "./representationOutputs";
+import type { FeedOutput, FeedSource, Format, IcalOutput, MapSource, Output, Outputs, WidgetOutput } from "./representationOutputs";
 import type { IcalMapping } from "./icalMapping";
 
 const LANGUAGES = ["sk", "en"] as const;
@@ -79,12 +79,23 @@ export function RepresentationOutputsField(props: FieldProps): JSX.Element {
           )}
           frozen={frozen}
         />
+        <OutputList
+          id={`${id}-widget`}
+          format="widget"
+          outputs={outputs.widget}
+          onChange={(widget) => write({ ...outputs, widget: widget as WidgetOutput[] })}
+          renderSource={(sourceId, source, change) => (
+            <MapSourceEditor id={sourceId} value={source as MapSource} onChange={change} {...common} />
+          )}
+          frozen={frozen}
+        />
       </div>
     </fieldset>
   );
 }
 
-type AnyOutput = Output<IcalMapping | FeedSource>;
+type AnyOutput = Output<IcalMapping | FeedSource | MapSource>;
+type AnySource = IcalMapping | FeedSource | MapSource;
 
 interface OutputListProps {
   id: string;
@@ -93,7 +104,7 @@ interface OutputListProps {
   /** Why the list cannot be edited now (the representation is off), shown instead of it. */
   off?: string;
   onChange: (next: AnyOutput[]) => void;
-  renderSource: (id: string, source: IcalMapping | FeedSource, onChange: (next: IcalMapping | FeedSource) => void) => JSX.Element;
+  renderSource: (id: string, source: AnySource, onChange: (next: AnySource) => void) => JSX.Element;
   frozen: boolean;
 }
 
@@ -173,9 +184,9 @@ function OutputCard({ id, format, output, duplicate, onChange, onRemove, renderS
     ...(isSlug(output.name) ? [] : [t("endpoints.outputs.nameField.bad")]),
     ...(duplicate ? [t("endpoints.outputs.duplicateOne")] : []),
   ];
-  const address = format === "ical" ? `ical/v1/${output.name}.ics` : `feed/v1/${output.name}/atom.xml`;
+  const address = format === "ical" ? `ical/v1/${output.name}.ics` : format === "feed" ? `feed/v1/${output.name}/atom.xml` : "";
   const q = output.filter?.q ?? "";
-  const setSource = (index: number, next: IcalMapping | FeedSource): void =>
+  const setSource = (index: number, next: AnySource): void =>
     onChange({ ...output, sources: output.sources.map((s, i) => (i === index ? next : s)) });
 
   return (
@@ -189,7 +200,7 @@ function OutputCard({ id, format, output, duplicate, onChange, onRemove, renderS
         )}
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
-        <Field id={`${id}-name`} label={t("endpoints.outputs.nameField.label")} required help={t("endpoints.outputs.nameField.hint", { address })} errors={nameErrors}>
+        <Field id={`${id}-name`} label={t("endpoints.outputs.nameField.label")} required help={format === "widget" ? t("endpoints.outputs.widgetName.hint") : t("endpoints.outputs.nameField.hint", { address })} errors={nameErrors}>
           <Input
             id={`${id}-name`}
             value={output.name}
@@ -215,7 +226,8 @@ function OutputCard({ id, format, output, duplicate, onChange, onRemove, renderS
           </Field>
         ))}
       </div>
-      <Field id={`${id}-q`} label={t("endpoints.outputs.filterField.label")} help={t("endpoints.outputs.filterField.hint")}>
+      {/* The widget's defaults narrow nothing: a reader's map shows what the table queries. */}
+      {format === "widget" ? null : <Field id={`${id}-q`} label={t("endpoints.outputs.filterField.label")} help={t("endpoints.outputs.filterField.hint")}>
         <Input
           id={`${id}-q`}
           value={q}
@@ -231,7 +243,7 @@ function OutputCard({ id, format, output, duplicate, onChange, onRemove, renderS
             onChange(Object.keys(filter).length === 0 ? rest : { ...rest, filter });
           }}
         />
-      </Field>
+      </Field>}
       {output.sources.map((source, index) => (
         <div key={index} className="flex flex-col gap-2 border-t border-border pt-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -257,7 +269,7 @@ function OutputCard({ id, format, output, duplicate, onChange, onRemove, renderS
             variant="secondary"
             size="sm"
             onClick={() =>
-              onChange({ ...output, sources: [...output.sources, { ...(newOutput(format, [], "Event").sources[0] as IcalMapping | FeedSource) }] })
+              onChange({ ...output, sources: [...output.sources, { ...(newOutput(format, [], "Event").sources[0] as AnySource) }] })
             }
           >
             {t("endpoints.outputs.sourceAdd.label")}

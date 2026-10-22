@@ -2044,6 +2044,47 @@
       },
       "feedTitleEn": {
         "hint": "Například Culture news"
+      },
+      "widget": {
+        "heading": "Výchozí nastavení mapy v katalogu",
+        "add": "Přidat nastavení mapy",
+        "emptyTitle": "Mapa používá vestavěné výchozí hodnoty",
+        "emptyHint": "Přidejte nastavení mapy a pro každý typ zvolte pole, podle kterého se značky barví, co ukáže bublina a zda se značky seskupují. Čtenář je na stránce datové sady může stále změnit."
+      },
+      "widgetTitleSk": {
+        "hint": "Například Mapa podujatí"
+      },
+      "widgetTitleEn": {
+        "hint": "Například Events map"
+      },
+      "widgetName": {
+        "hint": "Malá písmena, číslice a -, například mapa. Mapa nemá vlastní adresu."
+      },
+      "map": {
+        "geometry": {
+          "label": "Poloha z",
+          "hint": "Atribut polohy, který mapa kreslí, například location.",
+          "default": "Vestavěná: location, jinak první atribut polohy typu"
+        },
+        "colour": {
+          "label": "Barva podle",
+          "hint": "Pole s výčtem hodnot nebo ano/ne; legenda uvede jeho hodnoty, například category.",
+          "none": "Tento typ nemá pole s výčtem hodnot ani ano/ne; mapa použije jednu barvu na typ.",
+          "default": "Jedna barva na typ"
+        },
+        "cluster": {
+          "label": "Seskupit blízké značky",
+          "hint": "Automaticky seskupí značky, když je jich v záběru více než 200, například na mapě celého města.",
+          "auto": "Automaticky (nad 200 v záběru)",
+          "on": "Vždy",
+          "off": "Nikdy"
+        },
+        "popup": {
+          "label": "Bublina ukáže",
+          "hint": "Zaškrtněte nejvýše {max} polí, která čtenář uvidí na značce, například name a startDate; bez výběru zůstane název, čas, místo a odkaz.",
+          "none": "Tento typ nemá pole k zobrazení; nejprve vyberte typ z datového modelu prostoru.",
+          "full": "Nejvýše {max} polí; chcete-li jiné, jedno odškrtněte."
+        }
       }
     }
   },

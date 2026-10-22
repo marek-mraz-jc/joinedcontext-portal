@@ -2044,6 +2044,47 @@
       },
       "feedTitleEn": {
         "hint": "Zum Beispiel Culture news"
+      },
+      "widget": {
+        "heading": "Kartenvorgaben im Katalog",
+        "add": "Kartenvorgaben hinzufügen",
+        "emptyTitle": "Die Karte nutzt ihre eingebauten Vorgaben",
+        "emptyHint": "Fügen Sie Kartenvorgaben hinzu, um je Typ das Feld für die Markerfarbe, den Inhalt des Popups und die Gruppierung der Marker zu wählen. Leser können sie auf der Datensatzseite weiterhin ändern."
+      },
+      "widgetTitleSk": {
+        "hint": "Zum Beispiel Mapa podujatí"
+      },
+      "widgetTitleEn": {
+        "hint": "Zum Beispiel Events map"
+      },
+      "widgetName": {
+        "hint": "Kleinbuchstaben, Ziffern und -, zum Beispiel mapa. Die Karte hat keine eigene Adresse."
+      },
+      "map": {
+        "geometry": {
+          "label": "Position aus",
+          "hint": "Das Positionsattribut, das die Karte zeichnet, zum Beispiel location.",
+          "default": "Eingebaut: location, sonst das erste Positionsattribut des Typs"
+        },
+        "colour": {
+          "label": "Farbe nach",
+          "hint": "Ein Aufzählungs- oder Ja/Nein-Feld; die Legende listet seine Werte, zum Beispiel category.",
+          "none": "Dieser Typ hat kein Aufzählungs- oder Ja/Nein-Feld; die Karte nutzt eine Farbe je Typ.",
+          "default": "Eine Farbe je Typ"
+        },
+        "cluster": {
+          "label": "Nahe Marker gruppieren",
+          "hint": "Automatisch gruppiert Marker ab mehr als 200 im Ausschnitt, zum Beispiel auf einer Stadtkarte.",
+          "auto": "Automatisch (ab 200 im Ausschnitt)",
+          "on": "Immer",
+          "off": "Nie"
+        },
+        "popup": {
+          "label": "Popup zeigt",
+          "hint": "Wählen Sie bis zu {max} Felder, die Leser am Marker sehen, zum Beispiel name und startDate; ohne Auswahl bleiben Titel, Zeit, Ort und Link.",
+          "none": "Dieser Typ hat keine Felder zum Anzeigen; wählen Sie zuerst einen Typ des Datenmodells.",
+          "full": "Höchstens {max} Felder; entfernen Sie eines, um ein anderes zu wählen."
+        }
       }
     }
   },

@@ -2044,6 +2044,47 @@
       },
       "feedTitleEn": {
         "hint": "For example Culture news"
+      },
+      "widget": {
+        "heading": "Catalogue map defaults",
+        "add": "Add map defaults",
+        "emptyTitle": "The map uses its built-in defaults",
+        "emptyHint": "Add map defaults to choose, per type, the field the markers are coloured by, what the popup shows and whether markers cluster. A reader can still change them on the dataset page."
+      },
+      "widgetTitleSk": {
+        "hint": "For example Mapa podujatí"
+      },
+      "widgetTitleEn": {
+        "hint": "For example Events map"
+      },
+      "widgetName": {
+        "hint": "Lowercase letters, digits and -, for example mapa. The map has no address of its own."
+      },
+      "map": {
+        "geometry": {
+          "label": "Position from",
+          "hint": "The position attribute the map draws, for example location.",
+          "default": "Built-in: location, else the type's first position attribute"
+        },
+        "colour": {
+          "label": "Colour by",
+          "hint": "An enum or yes/no field; the legend lists its values, for example category.",
+          "none": "This type has no enum or yes/no field to colour by; the map uses one colour per type.",
+          "default": "One colour per type"
+        },
+        "cluster": {
+          "label": "Group nearby markers",
+          "hint": "Automatic groups markers when more than 200 are in view, for example on a city-wide map.",
+          "auto": "Automatic (above 200 in view)",
+          "on": "Always",
+          "off": "Never"
+        },
+        "popup": {
+          "label": "Popup shows",
+          "hint": "Tick up to {max} fields a reader sees on a marker, for example name and startDate; none ticked keeps the title, time, place and link.",
+          "none": "This type has no fields to show; pick a type of the space's data model first.",
+          "full": "At most {max} fields; untick one to pick another."
+        }
       }
     }
   },

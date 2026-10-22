@@ -56,6 +56,31 @@ export interface RowCard {
   /** The attribute holding the row's title. */
   title: string;
   fields: CardField[];
+  /** The publisher's map defaults for the type (API/11 EP-163), which the host checks against the model. */
+  map?: MapDefaults;
+}
+
+/** What the widget's map starts from for one type, as `widget.json` lists it. */
+export interface MapDefaults {
+  geometry?: string;
+  colour?: string;
+  popup?: string[];
+  cluster?: boolean;
+}
+
+/** The map defaults of `type` in a `widget.json` answer, members of the wrong shape left out. */
+export function mapDefaultsOf(answer: unknown, type: string): MapDefaults | undefined {
+  const map = (answer as { map?: unknown } | null)?.map;
+  const one = map && typeof map === "object" && Object.hasOwn(map, type) ? (map as Record<string, unknown>)[type] : undefined;
+  if (!one || typeof one !== "object") return undefined;
+  const { geometry, colour, popup, cluster } = one as Record<string, unknown>;
+  const out: MapDefaults = {
+    ...(typeof geometry === "string" ? { geometry } : {}),
+    ...(typeof colour === "string" ? { colour } : {}),
+    ...(Array.isArray(popup) && popup.every((p) => typeof p === "string") ? { popup: popup as string[] } : {}),
+    ...(typeof cluster === "boolean" ? { cluster } : {}),
+  };
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 type Sort = { attr: string; dir: "asc" | "desc" } | null;
@@ -126,15 +151,18 @@ export function cardOf(
   kinds: ReadonlyMap<string, string>,
   enums: Record<string, readonly { value: string; title?: string }[]>,
   locale: string,
+  map?: MapDefaults,
 ): RowCard {
   const bySlot = new Map(slots.map((slot) => [slot.name, slot]));
   return {
+    ...(map ? { map } : {}),
     type,
     typeLabel: columnLabel(klass, type, locale),
     title: shape.title ?? "name",
     fields: shape.order.map((name) => {
       const slot = bySlot.get(name);
-      const titles = Object.fromEntries((enums[name] ?? []).flatMap((one) => (one.title ? [[one.value, one.title]] : [])));
+      // Every enum value, its title or itself: the host offers an enum as a map colour by its titles (T-5239).
+      const titles = Object.fromEntries((enums[name] ?? []).map((one) => [one.value, one.title ?? one.value]));
       return {
         name,
         label: shape.labels[name] ?? columnLabel(undefined, name, locale),
@@ -506,11 +534,12 @@ function useRowCard(
   kinds: ReadonlyMap<string, string>,
   enums: Record<string, readonly { value: string; title?: string }[]>,
   locale: string,
+  map: MapDefaults | undefined,
   onCard: ((card: RowCard) => void) | undefined,
 ) {
   const card = useMemo(
-    () => (type ? cardOf(type, klass, slots, shape, kinds, enums, locale) : null),
-    [type, klass, slots, shape, kinds, enums, locale],
+    () => (type ? cardOf(type, klass, slots, shape, kinds, enums, locale, map) : null),
+    [type, klass, slots, shape, kinds, enums, locale, map],
   );
   useEffect(() => {
     if (card) onCard?.(card);
@@ -626,7 +655,15 @@ export function EndpointDataView({
   useEffect(() => {
     if (type) onLink?.({ type: type.name, q: asked || undefined, sort: sortText, ...(dropped ? { noDefault: true } : {}) });
   }, [type, asked, sortText, dropped, onLink]);
-  useRowCard(type?.name, klass, slots, shape, kinds, enums, i18n.language, onCard);
+  // The publisher's map defaults only matter to a host that draws the card (T-5239); none is no error.
+  const widget = useQuery({
+    queryKey: ["endpoint-widget", slug],
+    enabled: Boolean(onCard),
+    retry: false,
+    queryFn: () => fetchJson(`${root}/api/endpoint/${slug}/widget.json`),
+  });
+  const map = useMemo(() => (type ? mapDefaultsOf(widget.data, type.name) : undefined), [widget.data, type]);
+  useRowCard(type?.name, klass, slots, shape, kinds, enums, i18n.language, map, onCard);
   const onQuery = useCallback((query: { q?: string }) => setAsked(query.q), []);
 
   // Escape leaves the full window, as it closes a dialog.
