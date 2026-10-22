@@ -79,7 +79,7 @@ export function IcalMappingField(props: FieldProps): JSX.Element {
   const ical = (formData as { ical?: IcalMapping | IcalOutputSummary[] } | undefined)?.ical;
   // A list of named calendars (EP-159) is shown, never rewritten by this one-mapping table.
   const outputs = Array.isArray(ical) ? ical : undefined;
-  const stored: IcalMapping = outputs || !ical ? {} : ical;
+  const stored: IcalMapping = Array.isArray(ical) || !ical ? {} : ical;
   const type = stored.type ?? "Event";
   const base = baseOf(stored);
   const fromPreset = presetSources(base);
