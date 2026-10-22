@@ -7,8 +7,6 @@ import type { BadgeTone } from "../ui/Badge";
 type Score = components["schemas"]["DatasetScore"];
 type Said = components["schemas"]["DatasetScoreText"];
 
-/** The parts in the order the server sends them (`src/dataset_score.rs`). */
-export const PARTS = ["freshness", "completeness", "validity", "links"] as const;
 /** The message keys the server sends (`SAY` in `src/dataset_score.rs`), each under `quality.score.say`. */
 export const SAID = [
   "notMeasured", "noSchedule", "onTime", "late", "noRequired", "complete", "valid", "linksUp",

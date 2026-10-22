@@ -5,7 +5,9 @@
 Entry points: the binaries' `main` (`src/main.rs`, `src/bin/*.rs`, `build.rs`), from which the
 router reaches every route handler; the UI's `ui/src/main.tsx`; and every module the UI imports
 lazily (`import("./pages/…")`), which the graph has no edge for. A symbol is reached through
-CALLS, DISPATCHES, REFERENCES and IMPORTS from an entry point. A Rust type reached also reaches
+CALLS, DISPATCHES, REFERENCES and IMPORTS from an entry point. Every file a `ui/vite*.config.ts`
+names (a library `entry`, an alias `replacement`) is an entry point too: the explorer widget's
+`mount` is called by the page that loads its script, and its stand-in modules by the bundle. A Rust type reached also reaches
 its trait impls (derives, `From` through `?`, `Display` in `format!`) and its fields and
 variants; a UI symbol reached also reaches its file's module, whose top-level code runs on
 import. What is left outside tests is a row: a function, method, type, constant or class.
@@ -65,6 +67,8 @@ LAZY = re.compile(r'\bimport\(\s*["\'](\.[^"\']+)["\']\s*\)'
 DEFAULT = re.compile(r'\bexport\s+default\s+(?:async\s+)?(?:function\s+|class\s+)?(\w+)')
 STATIC = re.compile(r'\bfrom\s+["\'](\.[^"\']+)["\']')
 UI_ENTRY = "ui/src/main.tsx"
+# `entry: "src/explorer/main.tsx"`, `new URL("./src/explorer/i18n.ts", import.meta.url)`
+VITE_FILE = re.compile(r'["\'](?:\./)?(src/[^"\']+\.tsx?)["\']')
 UI_TEST = re.compile(r'(\.test\.|\.spec\.|/test/|/__tests__/|/setupTests|/test-setup|/api/schema\.d\.ts$)')
 
 
@@ -138,9 +142,16 @@ def ui_imports(root: pathlib.Path) -> tuple[set[tuple[str, str]], set[tuple[str,
     return static, lazy
 
 
+def vite_entries(root: pathlib.Path) -> set[str]:
+    """The UI files the Vite configs name, each a whole-file entry point."""
+    return {f"ui/{f}" for p in (root / "ui").glob("vite*.config.ts")
+            for f in VITE_FILE.findall(p.read_text(errors="ignore")) if (root / "ui" / f).is_file()}
+
+
 def unreachable(symbols: list[dict[str, str]], edges: list[dict[str, str]],
                 named: set[tuple[str, str]] = frozenset(),
-                imports: tuple[set[tuple[str, str]], set[tuple[str, str]]] = (set(), set())
+                imports: tuple[set[tuple[str, str]], set[tuple[str, str]]] = (set(), set()),
+                ui_entries: frozenset[str] | set[str] = frozenset({UI_ENTRY})
                 ) -> list[dict[str, str]]:
     syms = {s["s.id"]: s for s in symbols}
     out = collections.defaultdict(set)
@@ -165,7 +176,7 @@ def unreachable(symbols: list[dict[str, str]], edges: list[dict[str, str]],
     for i, s in syms.items():
         name = s["s.path"].rsplit("::", 1)[-1]
         owned = f"{s['s.self_type']}::{name}" if s["s.self_type"] else name
-        if is_main(s) or s["s.file"] == UI_ENTRY or (s["s.file"], name) in lazy_names:
+        if is_main(s) or s["s.file"] in ui_entries or (s["s.file"], name) in lazy_names:
             entries.add(i)
         elif production(s) and s["s.package"] == RUST and (
                 (s["s.file"], name) in named or ("", owned) in named or ("", name) in named
@@ -245,6 +256,7 @@ def selftest() -> None:
         sym("wv", "p::Walker::visit_x", kind="Method", trait="VisitMut<'a>", self_type="Walker<'a>"),
         sym("ux", "ui/src/util.ts::cgFixtureUnreachable", pkg=UI, file="ui/src/util.ts"),
         sym("ut", "ui/src/util.test.ts::helper", pkg=UI, file="ui/src/util.test.ts"),
+        sym("wm", "ui/src/widget/main.tsx::mount", pkg=UI, file="ui/src/widget/main.tsx"),
     ]
     # main -> handler -> Thing; main.tsx -> App; App's module top level calls banner; App.tsx
     # imports v.ts by default (no edge), whose top level makes a V, whose render React calls
@@ -253,7 +265,10 @@ def selftest() -> None:
              {"a.id": "vM", "b.id": "vc"}, {"a.id": "vc", "b.id": "vm"},
              {"a.id": "vm", "b.id": "en"}, {"a.id": "h", "b.id": "w"}]
     rows = unreachable(symbols, edges, {("src/lib.rs", "default_mode"), ("", "LIMIT")},
-                       ({("ui/src/App.tsx", "ui/src/v.ts")}, {(page, "Lazy")}))
+                       ({("ui/src/App.tsx", "ui/src/v.ts")}, {(page, "Lazy")}),
+                       {UI_ENTRY, "ui/src/widget/main.tsx"})
+    assert VITE_FILE.findall('entry: "src/explorer/main.tsx", x: new URL("./src/no-map.ts", u), '
+                             'y: new URL("./src/no-map.css", u)') == ["src/explorer/main.tsx", "src/no-map.ts"]
     assert SERDE_FN.findall('#[serde(default = "default_mode", skip_serializing_if = "x::is_unset")]') \
         == [("", "default_mode"), ("x", "is_unset")]
     assert CAPTURE.findall('format!("limit={LIMIT}&w={WIDTH:>4}", x = "{lower}")') == ["LIMIT", "WIDTH"]
@@ -299,7 +314,7 @@ def main(argv: list[str]) -> int:
         texts = [query(q) for q in (SYMBOLS, EDGES, MEMBERS)]
     sym_text, edge_text, member_text = texts
     rows = unreachable(table(sym_text), table(edge_text) + table(member_text),
-                       string_named(ROOT), ui_imports(ROOT))
+                       string_named(ROOT), ui_imports(ROOT), {UI_ENTRY} | vite_entries(ROOT))
     counts = collections.Counter(s["s.package"] for s in rows)
     for name in sorted(counts):
         print(f"{name} | {counts[name]}")
