@@ -381,12 +381,12 @@ export interface EndpointDataViewProps {
 }
 
 /** Where the grid opens: the kept or preset view, else the link's query and order; the page length and order as text. */
-function gridState(kept: OpenedView | null, link: DataLink | undefined, columns: string[], pageLength: number | undefined) {
+function gridState(kept: OpenedView | null, link: DataLink | undefined, columns: string[], pageLength: number | null, modelLength: number | undefined) {
   const opened: OpenedView = kept ?? { filterText: link?.q ?? null, sort: sortOfLink(link?.sort, columns) };
   return {
     opened,
     filtered: opened.filterText !== null || Object.keys(opened.filters ?? {}).length > 0,
-    rowsPerPage: pageLength ?? 20,
+    rowsPerPage: pageLength ?? modelLength ?? 20,
     sortText: opened.sort ? `${opened.sort.attr}${opened.sort.dir === "desc" ? ";desc" : ""}` : undefined,
   };
 }
@@ -484,6 +484,104 @@ function useTypeColumns(
   return { types, type, columns, klass, slots, shape, shownColumns, defs, enums, relations, links, kinds, gridColumns };
 }
 
+/** The model's default view, and whether the reader removed it (DM-135): kept in the link. */
+function useDefaultView(
+  view: ClassView | undefined,
+  gridColumns: readonly GridColumn[],
+  enums: Record<string, unknown[]>,
+  link: DataLink | undefined,
+) {
+  const [dropped, setDropped] = useState(link?.noDefault === true);
+  const defaults = useMemo(() => presetView(view, gridColumns, enums, new Date()), [view, gridColumns, enums]);
+  const preset = link?.q || link?.sort || dropped ? null : defaults;
+  return { dropped, setDropped, defaults, preset };
+}
+
+/** Hands the host the card of the chosen type (DM-135) whenever it changes. */
+function useRowCard(
+  type: string | undefined,
+  klass: { label?: Record<string, string> } | undefined,
+  slots: readonly LinkmlSlot[],
+  shape: { order: string[]; labels: Record<string, string>; title?: string },
+  kinds: ReadonlyMap<string, string>,
+  enums: Record<string, readonly { value: string; title?: string }[]>,
+  locale: string,
+  onCard: ((card: RowCard) => void) | undefined,
+) {
+  const card = useMemo(
+    () => (type ? cardOf(type, klass, slots, shape, kinds, enums, locale) : null),
+    [type, klass, slots, shape, kinds, enums, locale],
+  );
+  useEffect(() => {
+    if (card) onCard?.(card);
+  }, [card, onCard]);
+}
+
+/** A class's label in the page's language, else its name made readable. */
+function classLabel(model: LinkmlModel | null | undefined, name: string, locale: string): string {
+  return columnLabel(model?.classes.find((one) => one.name === name), name, locale);
+}
+
+/** A host that opens rows itself takes them from the grid, which then opens none. */
+function openRowProps(onOpenRow: ((id: string) => void) | undefined) {
+  return onOpenRow ? { openRow: null, onOpenRow: (id: string | null) => id && onOpenRow(id) } : {};
+}
+
+/**
+ * The model's default filter as a chip the reader removes (DM-135), shown as filled inputs too (DM-134);
+ * a reset of every filter and a way back to the default.
+ */
+function DefaultFilter({
+  filter,
+  defaults,
+  opened,
+  filtered,
+  labels,
+  onClear,
+  onRestore,
+}: {
+  filter: string | undefined;
+  defaults: OpenedView | null;
+  opened: OpenedView;
+  filtered: boolean;
+  labels: Record<string, string>;
+  onClear: () => void;
+  onRestore: () => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const set = defaults !== null && (defaults.filterText !== null || Object.keys(defaults.filters ?? {}).length > 0);
+  const words = filter && set ? filterWords(filter, labels, t("endpoints.data.today")) : null;
+  const atDefault = words !== null && sameFilter(opened, defaults);
+  return (
+    <>
+      {atDefault ? (
+        <span className="inline-flex min-h-11 items-center gap-1 rounded-full border border-border bg-surface-muted pl-3 text-body">
+          {t("endpoints.data.defaultFilter", { filter: words })}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="min-h-11 min-w-11 rounded-full"
+            aria-label={t("endpoints.data.removeDefault", { filter: words })}
+            onClick={onClear}
+          >
+            <span aria-hidden="true">×</span>
+          </Button>
+        </span>
+      ) : null}
+      {filtered ? (
+        <Button size="sm" variant="secondary" onClick={onClear}>
+          {t("endpoints.data.resetFilters")}
+        </Button>
+      ) : null}
+      {words !== null && !atDefault ? (
+        <Button size="sm" variant="secondary" onClick={onRestore}>
+          {t("endpoints.data.restoreDefault")}
+        </Button>
+      ) : null}
+    </>
+  );
+}
+
 export function EndpointDataView({
   project,
   slug,
@@ -523,25 +621,12 @@ export function EndpointDataView({
   // The order, the column inputs and the typed query the grid opens with; the grid holds them from then on.
   const [view, setView] = useState<OpenedView | null>(null);
   const [pageLength, setPageLength] = useState<number | null>(null);
-  const linkQ = link?.q;
-  const linkSort = link?.sort;
-  // The model's default view, and whether the reader removed it (DM-135): kept in the link.
-  const [dropped, setDropped] = useState(link?.noDefault === true);
-  const defaults = useMemo(() => presetView(klass?.view, gridColumns, enums, new Date()), [klass, gridColumns, enums]);
-  const preset = linkQ || linkSort || dropped ? null : defaults;
-  const { opened, filtered, rowsPerPage, sortText } = gridState(view ?? preset, link, columns, pageLength ?? klass?.view?.pageLength);
-  const defaultFilter = klass?.view?.filter && defaults && (defaults.filterText !== null || Object.keys(defaults.filters ?? {}).length > 0) ? klass.view.filter : null;
-  const atDefault = defaultFilter !== null && sameFilter(opened, defaults);
+  const { dropped, setDropped, defaults, preset } = useDefaultView(klass?.view, gridColumns, enums, link);
+  const { opened, filtered, rowsPerPage, sortText } = gridState(view ?? preset, link, columns, pageLength, klass?.view?.pageLength);
   useEffect(() => {
     if (type) onLink?.({ type: type.name, q: asked || undefined, sort: sortText, ...(dropped ? { noDefault: true } : {}) });
   }, [type, asked, sortText, dropped, onLink]);
-  const card = useMemo(
-    () => (type ? cardOf(type.name, klass, slots, shape, kinds, enums, i18n.language) : null),
-    [type, klass, slots, shape, kinds, enums, i18n.language],
-  );
-  useEffect(() => {
-    if (card) onCard?.(card);
-  }, [card, onCard]);
+  useRowCard(type?.name, klass, slots, shape, kinds, enums, i18n.language, onCard);
   const onQuery = useCallback((query: { q?: string }) => setAsked(query.q), []);
 
   // Escape leaves the full window, as it closes a dialog.
@@ -623,7 +708,7 @@ export function EndpointDataView({
         >
           {types.map((each) => (
             <option key={each.name} value={each.name}>
-              {columnLabel(model.data?.classes.find((one) => one.name === each.name), each.name, i18n.language)}
+              {classLabel(model.data, each.name, i18n.language)}
             </option>
           ))}
         </Select>
@@ -650,50 +735,23 @@ export function EndpointDataView({
             ))}
           </Select>
         </Field>
-        {/* The default filter is a chip the reader removes (DM-135), and shows as filled inputs (DM-134). */}
-        {atDefault && defaultFilter ? (
-          <span className="inline-flex min-h-11 items-center gap-1 rounded-full border border-border bg-surface-muted pl-3 text-body">
-            {t("endpoints.data.defaultFilter", { filter: filterWords(defaultFilter, shape.labels, t("endpoints.data.today")) })}
-            <Button
-              size="sm"
-              variant="ghost"
-              className="min-h-11 min-w-11 rounded-full"
-              aria-label={t("endpoints.data.removeDefault", { filter: filterWords(defaultFilter, shape.labels, t("endpoints.data.today")) })}
-              onClick={() => {
-                setDropped(true);
-                setView({ filterText: null, filters: {}, sort: opened.sort });
-              }}
-            >
-              <span aria-hidden="true">×</span>
-            </Button>
-          </span>
-        ) : null}
-        {filtered ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => {
-              setDropped(true);
-              setView({ filterText: null, filters: {}, sort: opened.sort });
-            }}
-          >
-            {t("endpoints.data.resetFilters")}
-          </Button>
-        ) : null}
-        {defaultFilter && !atDefault ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => {
-              setDropped(false);
-              setView(defaults);
-            }}
-          >
-            {t("endpoints.data.restoreDefault")}
-          </Button>
-        ) : null}
+        <DefaultFilter
+          filter={klass?.view?.filter}
+          defaults={defaults}
+          opened={opened}
+          filtered={filtered}
+          labels={shape.labels}
+          onClear={() => {
+            setDropped(true);
+            setView({ filterText: null, filters: {}, sort: opened.sort });
+          }}
+          onRestore={() => {
+            setDropped(false);
+            setView(defaults);
+          }}
+        />
       </div>
-      <FieldList fields={fields} shown={slots.length > 0 ? shownColumns : undefined} onShown={slots.length > 0 ? setPicked : undefined} />
+      <FieldList fields={fields} {...(slots.length > 0 ? { shown: shownColumns, onShown: setPicked } : {})} />
 
       {comparing && space ? (
         <EntityCompare
@@ -716,7 +774,7 @@ export function EndpointDataView({
           view={opened}
           onGridState={(next) => setView({ filterText: next.filterText ?? null, filters: next.filters, sort: next.sort ?? null })}
           onQuery={onQuery}
-          {...(onOpenRow ? { openRow: null, onOpenRow: (id: string | null) => id && onOpenRow(id) } : {})}
+          {...openRowProps(onOpenRow)}
         />
       )}
     </div>
