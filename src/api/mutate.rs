@@ -2652,6 +2652,50 @@ fn keep_languages(sent: &mut Option<jc_core::i18n::Text>, stored: Option<&jc_cor
 mod tests {
     use super::*;
     use crate::auth::session::{Identity, Session};
+
+    /// PF-121: an Organization loaded from the legacy `org.yaml` is written back there; any other
+    /// Organization at `organizations/{name}.yaml`, so the repository never holds one twice.
+    #[tokio::test]
+    async fn an_organization_at_the_legacy_path_is_written_back_there() {
+        use wiremock::matchers::{method, path, query_param};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        let legacy = "apiVersion: joinedcontext.com/v1alpha1\nkind: Organization\nmetadata:\n  name: hel\nspec:\n  domain: hel.fi\n";
+        Mock::given(method("GET"))
+            .and(path("/api/v1/repos/o/r/contents/org.yaml"))
+            .and(query_param("ref", "main"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "sha": "b1",
+                "content": base64::engine::Engine::encode(
+                    &base64::engine::general_purpose::STANDARD,
+                    legacy.as_bytes()
+                ),
+            })))
+            .mount(&server)
+            .await;
+        let gitea = crate::git::GiteaClient::new(
+            server.uri().parse().expect("forge url"),
+            "o",
+            "r",
+            "token",
+        )
+        .expect("client");
+        let path_of = |name: &str| {
+            let info = resource::by_kind("Organization").expect("a kind");
+            resource::repository_path(info, crate::permissions::ORG_NAMESPACE, None, name)
+                .expect("a path")
+        };
+        assert_eq!(path_of("zilina"), "organizations/zilina.yaml");
+        let hel = organization_path(&gitea, "main", "hel", path_of("hel"))
+            .await
+            .expect("answers");
+        assert_eq!(hel, "org.yaml");
+        let zilina = organization_path(&gitea, "main", "zilina", path_of("zilina"))
+            .await
+            .expect("answers");
+        assert_eq!(zilina, "organizations/zilina.yaml");
+    }
+
     use crate::change::Lane;
     use crate::config::Config;
     use crate::resource::ObjectMeta;
