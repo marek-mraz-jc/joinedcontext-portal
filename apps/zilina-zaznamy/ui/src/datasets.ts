@@ -44,8 +44,8 @@ export const SPEC: Readonly<Record<Dataset, DatasetSpec>> = {
   works: {
     space: "zilina-uniza",
     type: "Article",
-    columns: ["name", "workType", "yearPublished", "isPartOf", "publisher", "license", "url"],
-    filters: ["workType", "yearPublished", "isPartOf", "publisher", "license"],
+    columns: ["name", "workType", "yearPublished", "collectionName", "publisher", "license", "url"],
+    filters: ["workType", "yearPublished", "collectionName", "publisher", "license"],
   },
 };
 
