@@ -60,6 +60,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/internal/pipelines/{project}/{name}/samples", "the pipeline runner's taps post a sample of what crossed a node, authenticated as a workload (T-3974)"),
 ("POST", "/internal/pipelines/{project}/{name}/outcomes", "the pipeline runner's outcome sink posts the records of a batch the gateway took, authenticated as a workload (PL-62)"),
 ("POST", "/internal/pipelines/{project}/{name}/source-deletes", "a snapshot pipeline's delete stream posts what the gateway deleted, found gone or refused, authenticated as the pipeline's workload (PL-97)"),
+("POST", "/internal/pipelines/{project}/{name}/source-events", "an events pipeline's stream posts the ids its deletedWhen marked and the records it could not judge, authenticated as the pipeline's workload (PL-98)"),
 ("POST", "/internal/pipelines/{project}/{name}/rejected", "the pipeline runner's validation stage posts a refused record, authenticated as a workload (PL-61)"),
 ("GET", "/internal/agent-runs/{id}/inbox", "the runner's own callback, authenticated as a workload"),
 ("POST", "/internal/agent-runs/{id}/mcp", "the whole registry for one run, narrowed by its AgentProfile (AG-70) and refused an approval (AG-11)"),

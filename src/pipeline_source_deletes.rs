@@ -13,6 +13,13 @@
 //! through the pipeline's output Endpoint as the pipeline's own account, with the reason in
 //! `JC-Reason`, so the gateway judges, audits and tombstones every delete like a write (DM-115);
 //! the stream reports what went back here and only those rows leave the ledger.
+//!
+//! An `events` pipeline (PL-98, T-5360) feeds the same ledger. Its stream reads `deletedWhen` on
+//! each mapped record and posts the ids it marked to [`marked_at_source`]; only ids in the ledger
+//! are kept, and they go in one delete stream when the run ends, or every [`SWEEP`] for a pipeline
+//! that waits for pushes and has no runs. Before any delete the stream reads each entity's
+//! `modifiedAt`: one someone changed after the pipeline last wrote it stays and is reported
+//! (PL-100).
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::RwLock;
@@ -33,6 +40,44 @@ const CHUNK: usize = 100;
 const STREAM_WINDOW: Duration = Duration::from_secs(120);
 /// The longest entity id the ledger keeps.
 const MAX_ID: usize = 256;
+/// How often the marks of a pipeline without runs (a push source) go to their delete stream.
+pub const SWEEP: Duration = Duration::from_secs(300);
+/// Seconds a `modifiedAt` may pass the pipeline's last write before it counts as someone else's
+/// change: the write is confirmed a moment after the broker stamps it.
+const EDIT_SLACK: u64 = 5;
+
+/// Why a delete stream deletes: a snapshot run missed the id, or the source marked it (PL-100).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cause {
+    Snapshot,
+    Event,
+}
+
+impl Cause {
+    fn as_str(self) -> &'static str {
+        match self {
+            Cause::Snapshot => "source-snapshot",
+            Cause::Event => "source-event",
+        }
+    }
+
+    fn parse(text: &str) -> Self {
+        if text == "source-event" {
+            Cause::Event
+        } else {
+            Cause::Snapshot
+        }
+    }
+
+    /// The cause of a pipeline's deletes, from its spec.
+    fn of(spec: &Value) -> Self {
+        if events_rule(spec).is_some() {
+            Cause::Event
+        } else {
+            Cause::Snapshot
+        }
+    }
+}
 
 /// Why a run deleted nothing and alerts the pipeline's subscribers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, utoipa::ToSchema)]
@@ -117,6 +162,20 @@ pub fn snapshot_rule(spec: &Value) -> Option<SourceDeletes> {
     .then_some(rule)
 }
 
+/// The `deletedWhen` of an `events` pipeline (PL-98); `None` for any other mode.
+pub fn events_rule(spec: &Value) -> Option<String> {
+    let rule: SourceDeletes = serde_json::from_value(spec.get("sourceDeletes")?.clone()).ok()?;
+    if rule.mode != SourceDeleteMode::Events {
+        return None;
+    }
+    rule.deleted_when.filter(|query| !query.trim().is_empty())
+}
+
+/// Whether the pipeline keeps a source ledger: a snapshot or an events pipeline.
+fn ledgered(spec: &Value) -> bool {
+    snapshot_rule(spec).is_some() || events_rule(spec).is_some()
+}
+
 /// What a complete run decides.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Verdict {
@@ -184,6 +243,10 @@ struct Book {
     complete: Option<(String, String)>,
     /// What the pipeline deleted, oldest first, at most `REMOVALS_KEPT`.
     removed: Vec<(String, Removal)>,
+    /// The ids the source marked as deleted, with the run that marked them (PL-98).
+    marked: BTreeMap<String, String>,
+    /// When the pipeline last wrote each id, unix seconds (PL-100).
+    written: HashMap<String, i64>,
 }
 
 enum Inner {
@@ -234,10 +297,10 @@ impl Ledger {
         }
         if let Inner::Postgres(pool) = &self.inner {
             let sql = if wrote {
-                "INSERT INTO pipeline_source_ledger (project, pipeline, entity_id, last_run) \
-                 SELECT $1, $2, i, $3 FROM UNNEST($4::text[]) AS t(i) \
+                "INSERT INTO pipeline_source_ledger (project, pipeline, entity_id, last_run, \
+                 last_written) SELECT $1, $2, i, $3, now() FROM UNNEST($4::text[]) AS t(i) \
                  ON CONFLICT (project, pipeline, entity_id) DO UPDATE SET last_run = $3, \
-                 last_seen = now()"
+                 last_seen = now(), last_written = now()"
             } else {
                 "UPDATE pipeline_source_ledger SET last_run = $3, last_seen = now() \
                  WHERE project = $1 AND pipeline = $2 AND entity_id = ANY($4::text[])"
@@ -264,6 +327,10 @@ impl Ledger {
                 }
                 if let Some(row) = book.rows.get_mut(id) {
                     row.last_run = run.to_owned();
+                    if wrote {
+                        book.written
+                            .insert(id.to_owned(), chrono::Utc::now().timestamp());
+                    }
                 }
             }
         }
@@ -382,6 +449,8 @@ impl Ledger {
             if let Some(book) = map.get_mut(&(project.to_owned(), pipeline.to_owned())) {
                 ids.iter().for_each(|id| {
                     book.rows.remove(id);
+                    book.marked.remove(id);
+                    book.written.remove(id);
                 });
             }
         }
@@ -409,6 +478,145 @@ impl Ledger {
             }
         }
         Ok(())
+    }
+
+    /// Marks the ids `run`'s source said are deleted (PL-98) and answers the ones the ledger holds:
+    /// only those may go, since the pipeline never wrote the others.
+    pub async fn mark(
+        &self,
+        project: &str,
+        pipeline: &str,
+        run: &str,
+        ids: &[String],
+    ) -> Result<Vec<String>, sqlx::Error> {
+        if let Inner::Postgres(pool) = &self.inner {
+            return sqlx::query_scalar(
+                "UPDATE pipeline_source_ledger SET marked_run = $3 \
+                 WHERE project = $1 AND pipeline = $2 AND entity_id = ANY($4::text[]) \
+                 RETURNING entity_id",
+            )
+            .bind(project)
+            .bind(pipeline)
+            .bind(run)
+            .bind(ids)
+            .fetch_all(pool)
+            .await;
+        }
+        let mut map = self.memory();
+        let Some(book) = map
+            .as_mut()
+            .and_then(|map| map.get_mut(&(project.to_owned(), pipeline.to_owned())))
+        else {
+            return Ok(Vec::new());
+        };
+        let held: Vec<String> = ids
+            .iter()
+            .filter(|id| book.rows.contains_key(*id))
+            .cloned()
+            .collect();
+        for id in &held {
+            book.marked.insert(id.clone(), run.to_owned());
+        }
+        Ok(held)
+    }
+
+    /// Takes the marks of the pipeline's oldest marked run, at most [`MAX_PER_STREAM`]: the run
+    /// and its ids, which are no longer marked once taken.
+    pub async fn take_marked(
+        &self,
+        project: &str,
+        pipeline: &str,
+    ) -> Result<Option<(String, Vec<String>)>, sqlx::Error> {
+        if let Inner::Postgres(pool) = &self.inner {
+            let rows: Vec<(String, String)> = sqlx::query_as(
+                "WITH oldest AS (SELECT min(marked_run) AS run FROM pipeline_source_ledger \
+                 WHERE project = $1 AND pipeline = $2 AND marked_run IS NOT NULL), \
+                 taken AS (SELECT l.entity_id FROM pipeline_source_ledger l, oldest \
+                 WHERE l.project = $1 AND l.pipeline = $2 AND l.marked_run = oldest.run \
+                 ORDER BY l.entity_id LIMIT $3 FOR UPDATE OF l) \
+                 UPDATE pipeline_source_ledger l SET marked_run = NULL FROM taken, oldest \
+                 WHERE l.project = $1 AND l.pipeline = $2 AND l.entity_id = taken.entity_id \
+                 RETURNING oldest.run, l.entity_id",
+            )
+            .bind(project)
+            .bind(pipeline)
+            .bind(i64::try_from(MAX_PER_STREAM).unwrap_or(i64::MAX))
+            .fetch_all(pool)
+            .await?;
+            let run = rows.first().map(|(run, _)| run.clone());
+            return Ok(run.map(|run| (run, rows.into_iter().map(|(_, id)| id).collect())));
+        }
+        let mut map = self.memory();
+        let Some(book) = map
+            .as_mut()
+            .and_then(|map| map.get_mut(&(project.to_owned(), pipeline.to_owned())))
+        else {
+            return Ok(None);
+        };
+        let Some(run) = book.marked.values().min().cloned() else {
+            return Ok(None);
+        };
+        let ids: Vec<String> = book
+            .marked
+            .iter()
+            .filter(|(_, at)| **at == run)
+            .map(|(id, _)| id.clone())
+            .take(MAX_PER_STREAM)
+            .collect();
+        ids.iter().for_each(|id| {
+            book.marked.remove(id);
+        });
+        Ok(Some((run, ids)))
+    }
+
+    /// The pipelines with marks waiting, for the sweep.
+    pub async fn marking(&self) -> Result<Vec<(String, String)>, sqlx::Error> {
+        if let Inner::Postgres(pool) = &self.inner {
+            return sqlx::query_as(
+                "SELECT DISTINCT project, pipeline FROM pipeline_source_ledger \
+                 WHERE marked_run IS NOT NULL",
+            )
+            .fetch_all(pool)
+            .await;
+        }
+        let map = self.memory();
+        Ok(map
+            .iter()
+            .flat_map(|map| map.iter())
+            .filter(|(_, book)| !book.marked.is_empty())
+            .map(|((project, pipeline), _)| (project.clone(), pipeline.clone()))
+            .collect())
+    }
+
+    /// When the pipeline last wrote each of `ids`, unix seconds; an id it never confirmed a write
+    /// of is missing and counts as changed by someone else.
+    pub async fn written(
+        &self,
+        project: &str,
+        pipeline: &str,
+        ids: &[String],
+    ) -> Result<HashMap<String, i64>, sqlx::Error> {
+        if let Inner::Postgres(pool) = &self.inner {
+            let rows: Vec<(String, i64)> = sqlx::query_as(
+                "SELECT entity_id, EXTRACT(EPOCH FROM COALESCE(last_written, last_seen))::bigint \
+                 FROM pipeline_source_ledger WHERE project = $1 AND pipeline = $2 \
+                 AND entity_id = ANY($3::text[])",
+            )
+            .bind(project)
+            .bind(pipeline)
+            .bind(ids)
+            .fetch_all(pool)
+            .await?;
+            return Ok(rows.into_iter().collect());
+        }
+        let map = self.memory();
+        let book = map
+            .as_ref()
+            .and_then(|map| map.get(&(project.to_owned(), pipeline.to_owned())));
+        Ok(ids
+            .iter()
+            .filter_map(|id| Some((id.clone(), *book?.written.get(id)?)))
+            .collect())
     }
 
     /// Every hold, for the alerts.
@@ -521,7 +729,7 @@ impl Ledger {
         project: &str,
         space: &str,
         pipeline: &str,
-        run: &str,
+        (run, cause): (&str, Cause),
         ids: &[String],
     ) -> Result<(), sqlx::Error> {
         if ids.is_empty() {
@@ -530,16 +738,17 @@ impl Ledger {
         if let Inner::Postgres(pool) = &self.inner {
             let mut tx = pool.begin().await?;
             sqlx::query(
-                "INSERT INTO pipeline_source_removed (project, space, entity_id, pipeline, run) \
-                 SELECT $1, $2, i, $3, $4 FROM UNNEST($5::text[]) AS t(i) \
+                "INSERT INTO pipeline_source_removed (project, space, entity_id, pipeline, run, \
+                 cause) SELECT $1, $2, i, $3, $4, $6 FROM UNNEST($5::text[]) AS t(i) \
                  ON CONFLICT (project, space, entity_id) DO UPDATE SET pipeline = $3, run = $4, \
-                 at = now()",
+                 cause = $6, at = now()",
             )
             .bind(project)
             .bind(space)
             .bind(pipeline)
             .bind(run)
             .bind(ids)
+            .bind(cause.as_str())
             .execute(&mut *tx)
             .await?;
             sqlx::query(
@@ -564,7 +773,7 @@ impl Ledger {
                     pipeline: pipeline.to_owned(),
                     run: run.to_owned(),
                     at: at.clone(),
-                    reason: reason(pipeline, run),
+                    reason: reason(cause, pipeline, run),
                 };
                 book.removed.push((space.to_owned(), removal));
             }
@@ -586,8 +795,8 @@ impl Ledger {
             RemovalsOf::Space(name) => (None, Some(name)),
         };
         if let Inner::Postgres(pool) = &self.inner {
-            let rows: Vec<(String, String, String, time::OffsetDateTime)> = sqlx::query_as(
-                "SELECT entity_id, pipeline, run, at FROM pipeline_source_removed \
+            let rows: Vec<(String, String, String, String, time::OffsetDateTime)> = sqlx::query_as(
+                "SELECT entity_id, pipeline, run, cause, at FROM pipeline_source_removed \
                  WHERE project = $1 AND ($2::text IS NULL OR pipeline = $2) \
                  AND ($3::text IS NULL OR space = $3) ORDER BY at DESC, entity_id LIMIT $4",
             )
@@ -599,8 +808,8 @@ impl Ledger {
             .await?;
             return Ok(rows
                 .into_iter()
-                .map(|(id, pipeline, run, at)| Removal {
-                    reason: reason(&pipeline, &run),
+                .map(|(id, pipeline, run, cause, at)| Removal {
+                    reason: reason(Cause::parse(&cause), &pipeline, &run),
                     id,
                     pipeline,
                     run,
@@ -670,8 +879,8 @@ pub struct RunEnd {
     pub finished: bool,
 }
 
-/// Feeds the ledger from one outcome report of a snapshot pipeline: what was written and what the
-/// model refused both exist at the source.
+/// Feeds the ledger from one outcome report of a snapshot or events pipeline: what was written and
+/// what the model refused both exist at the source.
 pub async fn note_seen(
     state: &AppState,
     project: &str,
@@ -680,11 +889,11 @@ pub async fn note_seen(
     ids: &[String],
     wrote: bool,
 ) {
-    let snapshot = state
+    let tracked = state
         .mirror
         .get(project, "Pipeline", pipeline)
-        .is_some_and(|p| snapshot_rule(&p.spec).is_some());
-    if !snapshot || ids.is_empty() {
+        .is_some_and(|p| ledgered(&p.spec));
+    if !tracked || ids.is_empty() {
         return;
     }
     if let Err(error) = state
@@ -696,7 +905,9 @@ pub async fn note_seen(
     }
 }
 
-/// Judges one ended run of a snapshot pipeline and starts its deletes (PL-97).
+/// Judges one ended run of a snapshot pipeline and starts its deletes (PL-97); for an events
+/// pipeline, starts the deletes its source marked (PL-98), whether the run finished or not, since
+/// each mark is the source's own word.
 pub async fn run_ended(state: &AppState, end: RunEnd) {
     let RunEnd {
         project,
@@ -711,6 +922,10 @@ pub async fn run_ended(state: &AppState, end: RunEnd) {
     else {
         return;
     };
+    if events_rule(&spec).is_some() {
+        launch_marked(state, &project, &pipeline).await;
+        return;
+    }
     let Some(rule) = snapshot_rule(&spec) else {
         return;
     };
@@ -774,6 +989,129 @@ async fn judge_and_delete(
     }
 }
 
+/// Starts one delete stream for the marks of the pipeline's oldest marked run (PL-98). Marks a
+/// stream could not take are put back for the next run end or sweep.
+async fn launch_marked(state: &AppState, project: &str, pipeline: &str) {
+    let taken = match state.source_ledger.take_marked(project, pipeline).await {
+        Ok(Some(taken)) => taken,
+        Ok(None) => return,
+        Err(error) => {
+            tracing::warn!(project, pipeline, %error, "the source's delete marks were not read");
+            return;
+        }
+    };
+    let (run, ids) = taken;
+    if let Err(reason) = launch(state, project, pipeline, &run, &ids).await {
+        tracing::warn!(project, pipeline, run, %reason, "the marked deletes were not started; they go with the next run");
+        if let Err(error) = state
+            .source_ledger
+            .mark(project, pipeline, &run, &ids)
+            .await
+        {
+            tracing::warn!(project, pipeline, %error, "the source's delete marks were lost");
+        }
+    }
+}
+
+/// Starts the marked deletes of every events pipeline that has no runs to end (PL-98): one whose
+/// source waits for pushes, with neither a `period` nor a `schedule`. Called every [`SWEEP`].
+pub async fn sweep_marks(state: &AppState) {
+    let marking = match state.source_ledger.marking().await {
+        Ok(marking) => marking,
+        Err(error) => {
+            tracing::warn!(%error, "the pipelines with delete marks were not read");
+            return;
+        }
+    };
+    for (project, pipeline) in marking {
+        let Some(spec) = state
+            .mirror
+            .get(&project, "Pipeline", &pipeline)
+            .map(|p| p.spec)
+        else {
+            continue;
+        };
+        let pushed = spec.get("period").is_none() && spec.get("schedule").is_none();
+        if pushed && events_rule(&spec).is_some() {
+            launch_marked(state, &project, &pipeline).await;
+        }
+    }
+}
+
+/// What an events stream posts for one message (PL-98): the ids `deletedWhen` marked and the
+/// records it could not judge.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Marks {
+    #[serde(default)]
+    pub run: Option<String>,
+    pub ids: Vec<String>,
+    #[serde(default)]
+    pub failed: Vec<Failed>,
+}
+
+/// Takes one post of an events stream: ids the ledger holds are marked for the run's delete
+/// stream; any other id the pipeline never wrote, so it is reported on the activity feed and never
+/// deleted; a record `deletedWhen` could not judge is a failed line of the run's log.
+pub async fn marked_at_source(
+    state: &AppState,
+    project: &str,
+    pipeline: &str,
+    marks: Marks,
+) -> Result<(), sqlx::Error> {
+    let run = crate::pipeline_log::run_name(marks.run.as_deref());
+    let ids: Vec<String> = marks.ids.into_iter().filter(|id| deletable(id)).collect();
+    let held = state
+        .source_ledger
+        .mark(project, pipeline, &run, &ids)
+        .await?;
+    let lines: Vec<crate::pipeline_log::NewLine> = marks
+        .failed
+        .iter()
+        .map(|failed| crate::pipeline_log::NewLine {
+            record_id: failed.id.clone(),
+            step: None,
+            outcome: crate::pipeline_log::Outcome::Failed,
+            message: format!(
+                "deletedWhen: {}",
+                crate::pipeline_outcomes::mask_text(&failed.message)
+            ),
+        })
+        .collect();
+    if !lines.is_empty() {
+        state
+            .pipeline_log
+            .append(project, pipeline, &run, &lines)
+            .await?;
+    }
+    let strangers: Vec<&String> = ids.iter().filter(|id| !held.contains(id)).collect();
+    if strangers.is_empty() {
+        return Ok(());
+    }
+    let event = crate::activity::ActivityEvent {
+        time: chrono::Utc::now(),
+        project: project.to_owned(),
+        space: None,
+        kind: "pipeline.source-delete".to_owned(),
+        source: "portal".to_owned(),
+        summary: format!(
+            "pipeline {pipeline}'s source marked {} records as deleted that the pipeline never wrote; nothing of them is deleted (run {run})",
+            strangers.len()
+        ),
+        severity: "warning".to_owned(),
+        correlation_id: None,
+        details: json!({
+            "object": format!("pipelines/{pipeline}"),
+            "run": run,
+            "notInLedger": strangers.iter().take(20).collect::<Vec<_>>(),
+        }),
+    };
+    if let Err(error) = state.activity.append(&[event]).await {
+        tracing::warn!(project, pipeline, %error, "the marks outside the ledger are not on the activity feed");
+    }
+    Ok(())
+}
+
 /// The ids whose misses reached the rule: what the next delete takes, and what a release deletes.
 pub fn doomed(rows: &BTreeMap<String, Row>, rule: &SourceDeletes) -> Vec<String> {
     rows.iter()
@@ -808,8 +1146,9 @@ pub fn space_of(state: &AppState, project: &str, spec: &Value) -> Option<String>
     crate::api::assistant::ref_name(endpoint.get("contextSpaceRef")?)
 }
 
-/// Hands the runner the stream that deletes `ids` (PL-97): through the output Endpoint, as the
-/// pipeline's account, its answers reported to the Portal's internal listener.
+/// Hands the runner the stream that deletes `ids` (PL-97, PL-98): through the output Endpoint, as
+/// the pipeline's account, its answers reported to the Portal's internal listener. The cause
+/// follows the pipeline's mode, and each id carries when the pipeline last wrote it (PL-100).
 pub async fn launch(
     state: &AppState,
     project: &str,
@@ -844,8 +1183,24 @@ pub async fn launch(
         .take(MAX_PER_STREAM)
         .cloned()
         .collect();
+    let written = state
+        .source_ledger
+        .written(project, pipeline, &ids)
+        .await
+        .map_err(|error| error.to_string())?;
+    let wrote: Vec<i64> = ids
+        .iter()
+        .map(|id| written.get(id).copied().unwrap_or(0))
+        .collect();
     let report = format!("{internal}/internal/pipelines/{project}/{pipeline}/source-deletes");
-    let mut config = render(project, pipeline, &slug, run, &ids, &report);
+    let mut config = render(
+        project,
+        pipeline,
+        &slug,
+        (run, Cause::of(&spec)),
+        (&ids, &wrote),
+        &report,
+    );
     if state.config.pipeline_identity {
         crate::reconciler::streams::with_pipeline_identity(&mut config, project, pipeline);
     }
@@ -870,14 +1225,14 @@ pub async fn launch(
     Ok(ids.len())
 }
 
-/// The reason a snapshot delete names (PL-100): the pipeline and the run that decided it.
-fn reason(pipeline: &str, run: &str) -> String {
-    format!("source-snapshot: pipeline {pipeline} run {run}")
+/// The reason a source delete names (PL-100): its cause, the pipeline and the run that decided it.
+fn reason(cause: Cause, pipeline: &str, run: &str) -> String {
+    format!("{}: pipeline {pipeline} run {run}", cause.as_str())
 }
 
 /// `JC-Reason` as the gateway reads it: percent-encoded UTF-8.
-fn reason_header(pipeline: &str, run: &str) -> String {
-    reason(pipeline, run)
+fn reason_header(cause: Cause, pipeline: &str, run: &str) -> String {
+    reason(cause, pipeline, run)
         .bytes()
         .map(|b| match b {
             b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
@@ -888,24 +1243,29 @@ fn reason_header(pipeline: &str, run: &str) -> String {
         .collect()
 }
 
-/// The delete stream: one message per `CHUNK` ids, each a batch delete on the Endpoint, its
-/// answer reduced to what went, what was gone already and what the gateway refused, and posted
-/// to `report`. The ids ride base64-encoded, so no id is ever read as config.
+/// The delete stream: one message per `CHUNK` ids, each first read for its entities'
+/// `modifiedAt`, so one someone changed after the pipeline last wrote it (`wrote`, unix seconds,
+/// beside each id) is kept and reported as `edited` (PL-100); the rest is a batch delete on the
+/// Endpoint, its answer reduced to what went, what was gone already and what the gateway
+/// refused, and posted to `report`. A chunk whose read fails deletes nothing. The ids ride
+/// base64-encoded, so no id is ever read as config.
 pub fn render(
     project: &str,
     pipeline: &str,
     slug: &str,
-    run: &str,
-    ids: &[String],
+    (run, cause): (&str, Cause),
+    (ids, wrote): (&[String], &[i64]),
     report: &str,
 ) -> Value {
     use base64::Engine;
     let chunks: Vec<Value> = ids
         .chunks(CHUNK)
-        .map(|chunk| json!({ "run": run, "ids": chunk }))
+        .zip(wrote.chunks(CHUNK))
+        .map(|(chunk, wrote)| json!({ "run": run, "ids": chunk, "wrote": wrote }))
         .collect();
     let encoded = base64::engine::general_purpose::STANDARD.encode(Value::from(chunks).to_string());
     let oauth2 = crate::reconciler::streams::pipeline_oauth2(project);
+    let entities = format!("${{JC_GATEWAY_URL}}/api/endpoint/{slug}/ngsi-ld/v1");
     let not_found = r#"e.error.status.or(0) == 404 || e.error.type.or("").string().has_suffix("ResourceNotFound")"#;
     json!({
         "input": { "generate": {
@@ -917,14 +1277,34 @@ pub fn render(
             { "unarchive": { "format": "json_array" } },
             { "try": [
                 { "branch": {
-                    "request_map": "root = this.ids",
+                    "request_map": "meta jc_ids = this.ids.map_each(i -> i.escape_url_query()).join(\",\")\nroot = \"\"",
                     "processors": [{ "http": {
-                        "url": format!("${{JC_GATEWAY_URL}}/api/endpoint/{slug}/ngsi-ld/v1/entityOperations/delete"),
+                        "url": format!("{entities}/entities?id=${{! meta(\"jc_ids\") }}&options=sysAttrs,keyValues&limit={CHUNK}"),
+                        "verb": "GET",
+                        "headers": { "Accept": "application/json" },
+                        "oauth2": oauth2,
+                        "timeout": "30s",
+                        "retries": 1,
+                    }}],
+                    "result_map": "root.found = this.map_each(e -> {\"id\": e.id.or(\"\"), \"at\": e.modifiedAt.or(\"\").ts_unix().catch(0)})",
+                }},
+                { "mapping": format!(
+                    "let found = this.found\n\
+                     let wrote = this.wrote\n\
+                     let edited = this.ids.enumerated().filter(p -> $found.any(f -> f.id == p.value && f.at > $wrote.index(p.index).or(0) + {EDIT_SLACK})).map_each(p -> p.value)\n\
+                     root = this.without(\"found\", \"wrote\")\n\
+                     root.edited = $edited\n\
+                     root.ids = this.ids.filter(i -> !$edited.contains(i))"
+                ) },
+                { "branch": {
+                    "request_map": "root = if this.ids.length() == 0 { deleted() } else { this.ids }",
+                    "processors": [{ "http": {
+                        "url": format!("{entities}/entityOperations/delete"),
                         "verb": "POST",
                         "headers": {
                             "Content-Type": "application/json",
                             "Accept": "application/json",
-                            "JC-Reason": reason_header(pipeline, run),
+                            "JC-Reason": reason_header(cause, pipeline, run),
                         },
                         "oauth2": oauth2,
                         "timeout": "30s",
@@ -937,11 +1317,12 @@ pub fn render(
                      root.run = this.run\n\
                      root.deleted = if this.answer == null {{ this.ids }} else {{ this.answer.success.or([]) }}\n\
                      root.gone = $errors.filter(e -> {not_found}).map_each(e -> e.entityId)\n\
-                     root.failed = $errors.filter(e -> !({not_found})).map_each(e -> {{\"id\": e.entityId, \"message\": e.error.title.or(e.error.detail).or(\"refused\").string()}})"
+                     root.failed = $errors.filter(e -> !({not_found})).map_each(e -> {{\"id\": e.entityId, \"message\": e.error.title.or(e.error.detail).or(\"refused\").string()}})\n\
+                     root.edited = this.edited"
                 ) },
             ]},
             { "catch": [{ "mapping":
-                "root = {\"run\": this.run, \"deleted\": [], \"gone\": [], \"failed\": this.ids.map_each(id -> {\"id\": id, \"message\": error().or(\"the gateway did not answer\")})}"
+                "root = {\"run\": this.run, \"deleted\": [], \"gone\": [], \"edited\": [], \"failed\": this.ids.map_each(id -> {\"id\": id, \"message\": error().or(\"the gateway did not answer\")})}"
             }]},
         ]},
         "output": { "http_client": {
@@ -962,6 +1343,9 @@ pub struct Report {
     pub deleted: Vec<String>,
     pub gone: Vec<String>,
     pub failed: Vec<Failed>,
+    /// Ids kept because someone changed the entity after the pipeline's last write (PL-100).
+    #[serde(default)]
+    pub edited: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -980,30 +1364,47 @@ pub async fn reported(
     report: Report,
 ) -> Result<(), sqlx::Error> {
     let (rows, _) = state.source_ledger.book(project, pipeline).await?;
-    let left: Vec<String> = report
-        .deleted
-        .iter()
-        .chain(&report.gone)
-        .filter(|id| rows.contains_key(*id))
-        .cloned()
-        .collect();
+    let held = |ids: &[String]| -> Vec<String> {
+        ids.iter()
+            .filter(|id| rows.contains_key(*id))
+            .cloned()
+            .collect()
+    };
+    let deleted = held(&report.deleted);
+    // An entity someone changed after the pipeline's last write is theirs now: it leaves the
+    // ledger without a delete, so no later run takes it either (PL-100).
+    let edited = held(&report.edited);
+    let left: Vec<String> = [deleted.clone(), held(&report.gone), edited.clone()].concat();
     state.source_ledger.forget(project, pipeline, &left).await?;
-    let deleted: Vec<String> = report
-        .deleted
-        .iter()
-        .filter(|id| rows.contains_key(*id))
-        .cloned()
-        .collect();
-    let space = state
+    let spec = state
         .mirror
         .get(project, "Pipeline", pipeline)
-        .and_then(|p| space_of(state, project, &p.spec));
-    if let Some(space) = space {
+        .map(|p| p.spec);
+    let cause = spec.as_ref().map_or(Cause::Snapshot, Cause::of);
+    if let Some(space) = spec.and_then(|spec| space_of(state, project, &spec)) {
         state
             .source_ledger
-            .removed(project, &space, pipeline, &report.run, &deleted)
+            .removed(project, &space, pipeline, (&report.run, cause), &deleted)
             .await?;
     }
+    if let Some(event) = feed_event(project, pipeline, cause, &report, &deleted, &edited) {
+        if let Err(error) = state.activity.append(&[event]).await {
+            tracing::warn!(project, pipeline, %error, "the source deletes are not on the activity feed");
+        }
+    }
+    Ok(())
+}
+
+/// The activity feed's line for one report: what went, what someone changed and was kept, and
+/// what the gateway refused; `None` when nothing happened.
+fn feed_event(
+    project: &str,
+    pipeline: &str,
+    cause: Cause,
+    report: &Report,
+    deleted: &[String],
+    edited: &[String],
+) -> Option<crate::activity::ActivityEvent> {
     let failed: Vec<String> = report
         .failed
         .iter()
@@ -1016,39 +1417,46 @@ pub async fn reported(
             )
         })
         .collect();
-    if deleted.is_empty() && failed.is_empty() {
-        return Ok(());
+    if deleted.is_empty() && failed.is_empty() && edited.is_empty() {
+        return None;
     }
-    let event = crate::activity::ActivityEvent {
+    let why = match cause {
+        Cause::Snapshot => "its source no longer lists",
+        Cause::Event => "its source marked as deleted",
+    };
+    let mut summary = format!(
+        "pipeline {pipeline} deleted {} entities {why} (run {})",
+        deleted.len(),
+        report.run
+    );
+    if !edited.is_empty() {
+        summary.push_str(&format!(
+            "; kept {} that someone changed after the pipeline's last write",
+            edited.len()
+        ));
+    }
+    if !failed.is_empty() {
+        summary.push_str(&format!("; the gateway refused {}", report.failed.len()));
+    }
+    let quiet = failed.is_empty() && edited.is_empty();
+    Some(crate::activity::ActivityEvent {
         time: chrono::Utc::now(),
         project: project.to_owned(),
         space: None,
         kind: "pipeline.source-delete".to_owned(),
         source: "portal".to_owned(),
-        summary: format!(
-            "pipeline {pipeline} deleted {} entities its source no longer lists (run {}){}",
-            deleted.len(),
-            report.run,
-            if failed.is_empty() {
-                String::new()
-            } else {
-                format!("; the gateway refused {}", report.failed.len())
-            }
-        ),
-        severity: if failed.is_empty() { "info" } else { "warning" }.to_owned(),
+        summary,
+        severity: if quiet { "info" } else { "warning" }.to_owned(),
         correlation_id: None,
         details: json!({
             "object": format!("pipelines/{pipeline}"),
             "run": report.run,
-            "reason": reason(pipeline, &report.run),
+            "reason": reason(cause, pipeline, &report.run),
             "deleted": deleted.iter().take(20).collect::<Vec<_>>(),
+            "edited": edited.iter().take(20).collect::<Vec<_>>(),
             "refused": failed,
         }),
-    };
-    if let Err(error) = state.activity.append(&[event]).await {
-        tracing::warn!(project, pipeline, %error, "the source deletes are not on the activity feed");
-    }
-    Ok(())
+    })
 }
 
 /// The ledger as the pipeline's page shows it, with the dry run: what the next complete run that
@@ -1336,12 +1744,13 @@ mod tests {
     #[test]
     fn the_delete_stream_goes_through_the_endpoint_with_the_reason_and_reports_back() {
         let ids: Vec<String> = (0..250).map(|n| format!("urn:x:{n}")).collect();
+        let wrote: Vec<i64> = (0..250).collect();
         let stream = render(
             "helsinki",
             "registry",
             "ep-slug",
-            "2026-10-20T05:00:00Z",
-            &ids,
+            ("2026-10-20T05:00:00Z", Cause::Snapshot),
+            (&ids, &wrote),
             "http://portal-internal:8081/internal/pipelines/helsinki/registry/source-deletes",
         );
         let text = stream.to_string();
@@ -1365,8 +1774,17 @@ mod tests {
         assert_eq!(chunks.len(), 3);
         assert_eq!(chunks[2]["ids"].as_array().map(Vec::len), Some(50));
         assert_eq!(chunks[0]["run"], "2026-10-20T05:00:00Z");
-        let http =
+        assert_eq!(chunks[2]["wrote"][0], 200);
+        // Each chunk first reads its entities' modifiedAt through the same Endpoint (PL-100).
+        let read =
             &stream["pipeline"]["processors"][1]["try"][0]["branch"]["processors"][0]["http"];
+        assert_eq!(read["verb"], "GET");
+        assert_eq!(
+            read["url"],
+            "${JC_GATEWAY_URL}/api/endpoint/ep-slug/ngsi-ld/v1/entities?id=${! meta(\"jc_ids\") }&options=sysAttrs,keyValues&limit=100"
+        );
+        let http =
+            &stream["pipeline"]["processors"][1]["try"][2]["branch"]["processors"][0]["http"];
         assert_eq!(
             http["url"],
             "${JC_GATEWAY_URL}/api/endpoint/ep-slug/ngsi-ld/v1/entityOperations/delete"
@@ -1387,12 +1805,13 @@ mod tests {
     #[test]
     fn the_delete_stream_matches_its_golden() {
         let ids: Vec<String> = (0..160).map(|n| format!("urn:x:{n}")).collect();
+        let wrote = vec![1_792_000_000; ids.len()];
         let stream = render(
             "helsinki",
             "registry",
             "ep-slug",
-            "2026-10-20T05:00:00Z",
-            &ids,
+            ("2026-10-20T05:00:00Z", Cause::Event),
+            (&ids, &wrote),
             "http://127.0.0.1:18089/report",
         );
         let golden = concat!(
@@ -1556,5 +1975,178 @@ mod tests {
             (after.missing, after.missing_ids.clone()),
             (1, vec!["urn:c".to_owned()])
         );
+    }
+
+    fn events_world() -> AppState {
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        let mut spec = snapshot_spec();
+        spec["sourceDeletes"] = json!({ "mode": "events", "deletedWhen": "this.gone.or(false)" });
+        spec.as_object_mut().map(|s| s.remove("schedule"));
+        snapshot_world(vec![ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: "Pipeline".to_owned(),
+            metadata: ObjectMeta::new("pushed", "helsinki"),
+            spec,
+            status: None,
+        }])
+    }
+
+    async fn feed(state: &AppState) -> Vec<crate::activity::ActivityEvent> {
+        let filter = crate::activity::ActivityFilter {
+            limit: 50,
+            ..Default::default()
+        };
+        state
+            .activity
+            .list("helsinki", &filter)
+            .await
+            .expect("feed")
+            .items
+    }
+
+    /// PL-98, PL-100 (T-5360): a mark keeps only ids the pipeline wrote; another id is reported and
+    /// never deleted, a record deletedWhen could not judge is a failed line of the run.
+    #[tokio::test]
+    async fn a_source_mark_takes_only_ledger_ids_and_reports_the_rest() {
+        let state = events_world();
+        let ledger = &state.source_ledger;
+        let ids = ["urn:a", "urn:b"].map(str::to_owned);
+        ledger
+            .seen("helsinki", "pushed", "r0", &ids, true)
+            .await
+            .expect("seen");
+        let marks: Marks = serde_json::from_value(json!({
+            "run": "r1",
+            "ids": ["urn:a", "urn:z", "bad id"],
+            "failed": [{ "id": "urn:c", "message": "expected bool value, got string" }],
+        }))
+        .expect("marks");
+        marked_at_source(&state, "helsinki", "pushed", marks)
+            .await
+            .expect("kept");
+        assert_eq!(
+            ledger.marking().await.expect("marking"),
+            vec![("helsinki".to_owned(), "pushed".to_owned())]
+        );
+        let events = feed(&state).await;
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].severity, "warning");
+        assert_eq!(events[0].details["notInLedger"], json!(["urn:z"]));
+        let runs = state
+            .pipeline_log
+            .runs("helsinki", "pushed", 10)
+            .await
+            .expect("runs");
+        assert_eq!(
+            runs.iter().find(|r| r.run == "r1").map(|r| r.failed),
+            Some(1)
+        );
+        let taken = ledger
+            .take_marked("helsinki", "pushed")
+            .await
+            .expect("take");
+        assert_eq!(taken, Some(("r1".to_owned(), vec!["urn:a".to_owned()])));
+        assert_eq!(
+            ledger
+                .take_marked("helsinki", "pushed")
+                .await
+                .expect("take"),
+            None
+        );
+        let written = ledger
+            .written("helsinki", "pushed", &ids)
+            .await
+            .expect("written");
+        assert_eq!(written.len(), 2, "each written id has its write time");
+    }
+
+    /// A mark the runner could not take (no runner here) is put back, for the run end and the sweep.
+    #[tokio::test]
+    async fn marks_a_stream_could_not_take_wait_for_the_next_run_end_or_sweep() {
+        let state = events_world();
+        let ledger = &state.source_ledger;
+        ledger
+            .seen("helsinki", "pushed", "r0", &["urn:a".to_owned()], true)
+            .await
+            .expect("seen");
+        ledger
+            .mark("helsinki", "pushed", "r1", &["urn:a".to_owned()])
+            .await
+            .expect("mark");
+        sweep_marks(&state).await;
+        run_ended(
+            &state,
+            RunEnd {
+                project: "helsinki".to_owned(),
+                pipeline: "pushed".to_owned(),
+                run: "r1".to_owned(),
+                finished: false,
+            },
+        )
+        .await;
+        assert_eq!(
+            ledger
+                .take_marked("helsinki", "pushed")
+                .await
+                .expect("take"),
+            Some(("r1".to_owned(), vec!["urn:a".to_owned()]))
+        );
+    }
+
+    /// PL-100: what someone changed after the pipeline's last write leaves the ledger undeleted,
+    /// and the feed says so with the source-event reason.
+    #[tokio::test]
+    async fn a_report_keeps_what_someone_changed_and_names_the_source_event() {
+        let state = events_world();
+        let ledger = &state.source_ledger;
+        let ids = ["urn:a", "urn:b", "urn:c"].map(str::to_owned);
+        ledger
+            .seen("helsinki", "pushed", "r0", &ids, true)
+            .await
+            .expect("seen");
+        let report: Report = serde_json::from_value(json!({
+            "run": "r1", "deleted": ["urn:a"], "gone": [], "failed": [], "edited": ["urn:b", "urn:q"],
+        }))
+        .expect("report");
+        reported(&state, "helsinki", "pushed", report)
+            .await
+            .expect("reported");
+        let (rows, _) = ledger.book("helsinki", "pushed").await.expect("book");
+        assert_eq!(rows.keys().collect::<Vec<_>>(), ["urn:c"]);
+        let removals = ledger
+            .removals("helsinki", RemovalsOf::Pipeline("pushed"), 10)
+            .await
+            .expect("removals");
+        assert_eq!(removals.len(), 1);
+        assert_eq!(removals[0].reason, "source-event: pipeline pushed run r1");
+        let events = feed(&state).await;
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].details["edited"], json!(["urn:b"]));
+        assert!(
+            events[0].summary.contains("marked as deleted"),
+            "{}",
+            events[0].summary
+        );
+        assert!(
+            events[0].summary.contains("kept 1"),
+            "{}",
+            events[0].summary
+        );
+    }
+
+    #[test]
+    fn only_an_events_rule_with_a_query_marks() {
+        assert_eq!(
+            events_rule(
+                &json!({ "sourceDeletes": { "mode": "events", "deletedWhen": "this.gone" } })
+            ),
+            Some("this.gone".to_owned())
+        );
+        assert_eq!(
+            events_rule(&json!({ "sourceDeletes": { "mode": "events", "deletedWhen": "  " } })),
+            None
+        );
+        assert_eq!(events_rule(&snapshot_spec()), None);
+        assert_eq!(Cause::of(&snapshot_spec()), Cause::Snapshot);
     }
 }

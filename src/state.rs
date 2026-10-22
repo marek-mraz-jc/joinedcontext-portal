@@ -811,6 +811,15 @@ impl AppState {
                     crate::pipeline_source_deletes::run_ended(&judge, end).await;
                 }
             });
+            // An events pipeline without runs deletes what its source marked every sweep (T-5360).
+            let sweeper = self.clone();
+            tokio::spawn(async move {
+                let mut every = tokio::time::interval(crate::pipeline_source_deletes::SWEEP);
+                loop {
+                    every.tick().await;
+                    crate::pipeline_source_deletes::sweep_marks(&sweeper).await;
+                }
+            });
             let deployer = StreamDeployer::new(url)
                 .with_pipeline_identity(self.config.pipeline_identity)
                 .with_concurrency(batch, short)

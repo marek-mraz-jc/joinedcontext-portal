@@ -145,6 +145,9 @@ routes:
   - route: POST /internal/pipelines/{project}/{name}/source-deletes
     rule: "workload:pipeline-runner"
     expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: POST /internal/pipelines/{project}/{name}/source-events
+    rule: "workload:pipeline-runner"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
   - route: GET /internal/agent-runs/{id}/inbox
     rule: "workload:agent-proxy"
     expect: [401, 401, 401, 401, 401, 401, 401, 401]

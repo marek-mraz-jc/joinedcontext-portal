@@ -17,12 +17,13 @@ use joinedcontext_portal::config::Config;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
 use joinedcontext_portal::pipeline_log::{NewLine, Outcome};
 use joinedcontext_portal::pipeline_source_deletes::{
-    note_seen, reported, run_ended, HoldReason, Report, RunEnd,
+    marked_at_source, note_seen, reported, run_ended, HoldReason, Marks, Report, RunEnd,
 };
 use joinedcontext_portal::state::AppState;
 
 const PAGE: &str = "/api/v1/projects/helsinki/pipelines/registry/source-deletes";
 const STREAM: &str = "/streams/helsinki.registry.source-deletes";
+const EVENTS_STREAM: &str = "/streams/helsinki.changes.source-deletes";
 
 fn id(n: usize) -> String {
     format!("urn:ngsi-ld:Dataset:hel.fi:open:ds-{n}")
@@ -32,11 +33,13 @@ fn id(n: usize) -> String {
 /// and deletes what two complete runs in a row no longer list, at most `max_share` percent.
 async fn world(max_share: u8) -> (AppState, MockServer) {
     let runner = MockServer::start().await;
-    Mock::given(method("POST"))
-        .and(path(STREAM))
-        .respond_with(ResponseTemplate::new(200))
-        .mount(&runner)
-        .await;
+    for stream in [STREAM, EVENTS_STREAM] {
+        Mock::given(method("POST"))
+            .and(path(stream))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&runner)
+            .await;
+    }
     Mock::given(method("DELETE"))
         .respond_with(ResponseTemplate::new(200))
         .mount(&runner)
@@ -101,6 +104,10 @@ async fn world(max_share: u8) -> (AppState, MockServer) {
             json!({ "mode": "snapshot", "misses": 2, "maxShare": max_share }),
         ),
         ("other", json!({ "mode": "never" })),
+        (
+            "changes",
+            json!({ "mode": "events", "deletedWhen": "this.status.or(\"\") == \"withdrawn\"" }),
+        ),
     ] {
         state.mirror.upsert(envelope(
             "Pipeline",
@@ -185,7 +192,7 @@ async fn handed(runner: &MockServer) -> Vec<(Vec<String>, String)> {
                 .flat_map(|chunk| chunk["ids"].as_array().cloned().unwrap_or_default())
                 .filter_map(|id| id.as_str().map(str::to_owned))
                 .collect();
-            let http = &stream["pipeline"]["processors"][1]["try"][0]["branch"]["processors"][0]["http"];
+            let http = &stream["pipeline"]["processors"][1]["try"][2]["branch"]["processors"][0]["http"];
             assert_eq!(
                 http["url"],
                 "${JC_GATEWAY_URL}/api/endpoint/k7r2m4xq9vbn3tdw6hcy5pajfe/ngsi-ld/v1/entityOperations/delete"
@@ -234,6 +241,7 @@ async fn three_of_fifty_dropped_are_deleted_after_two_complete_runs_with_the_rea
         deleted: vec![id(4), id(17)],
         gone: vec![id(33)],
         failed: Vec::new(),
+        edited: Vec::new(),
     };
     reported(&state, "helsinki", "registry", report)
         .await
@@ -436,6 +444,7 @@ async fn another_writers_entities_are_never_in_the_ledger_and_never_deleted() {
         deleted: shared.clone(),
         gone: Vec::new(),
         failed: Vec::new(),
+        edited: Vec::new(),
     };
     reported(&state, "helsinki", "registry", report)
         .await
@@ -557,4 +566,52 @@ async fn more_than_the_share_is_held_until_a_steward_releases_or_keeps_it() {
     )
     .await;
     assert_eq!(other.status, StatusCode::CONFLICT);
+}
+
+/// PL-98 (T-5360): what the source marked as deleted goes in one delete stream when the run ends,
+/// with the source-event reason; a marked id the pipeline never wrote is never in it.
+#[tokio::test]
+async fn an_events_run_deletes_what_its_source_marked_once_the_run_ends() {
+    let (state, runner) = world(10).await;
+    let written: Vec<String> = (0..5).map(id).collect();
+    run(&state, "changes", "r1", &written, 0, true).await;
+    let marks: Marks = serde_json::from_value(json!({
+        "run": "r2",
+        "ids": [id(1), id(3), id(99)],
+        "failed": [],
+    }))
+    .expect("marks");
+    marked_at_source(&state, "helsinki", "changes", marks)
+        .await
+        .expect("marked");
+    let before = runner.received_requests().await.unwrap_or_default();
+    assert!(
+        !before.iter().any(|r| r.url.path() == EVENTS_STREAM),
+        "nothing is deleted before the run ends"
+    );
+    run(&state, "changes", "r2", &[id(0)], 0, true).await;
+    let requests = runner.received_requests().await.unwrap_or_default();
+    let streams: Vec<Value> = requests
+        .iter()
+        .filter(|r| r.method.as_str() == "POST" && r.url.path() == EVENTS_STREAM)
+        .map(|r| serde_json::from_slice(&r.body).expect("stream"))
+        .collect();
+    assert_eq!(streams.len(), 1, "one delete stream per run");
+    let mapping = streams[0]["input"]["generate"]["mapping"]
+        .as_str()
+        .expect("mapping");
+    let chunks: Vec<Value> = serde_json::from_slice(
+        &base64::engine::general_purpose::STANDARD
+            .decode(mapping.split('"').nth(1).expect("encoded"))
+            .expect("base64"),
+    )
+    .expect("chunks");
+    assert_eq!(chunks[0]["ids"], json!([id(1), id(3)]));
+    assert_eq!(chunks[0]["run"], "r2");
+    let http =
+        &streams[0]["pipeline"]["processors"][1]["try"][2]["branch"]["processors"][0]["http"];
+    assert_eq!(
+        http["headers"]["JC-Reason"],
+        "source-event%3A%20pipeline%20changes%20run%20r2"
+    );
 }
