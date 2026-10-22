@@ -12,6 +12,9 @@ use url::Url;
 
 use crate::error::ApiError;
 
+/// Pages of a recursive tree read before giving up: 100,000 files, far above any project.
+const MAX_TREE_PAGES: usize = 100;
+
 /// Gitea repository client.
 #[derive(Clone)]
 pub struct GiteaClient {
@@ -719,6 +722,8 @@ struct MergePayload<'a> {
 
 #[derive(Deserialize)]
 struct GitTreeResponse {
+    #[serde(default)]
+    sha: String,
     #[serde(default)]
     tree: Vec<GitTreeEntryDto>,
     #[serde(default)]
@@ -1762,7 +1767,7 @@ impl GiteaClient {
         Self::check_status(res).await.map(|_| ())
     }
 
-    /// `GET /git/trees/{git_ref}?recursive=true&per_page=1000` — retrieves the Git tree.
+    /// `GET /git/trees/{git_ref}?recursive=true&per_page=1000&page=N` — retrieves the Git tree.
     pub async fn list_tree(&self, git_ref: &str) -> Result<Vec<String>, GitError> {
         Ok(self
             .list_tree_blobs(git_ref)
@@ -1773,6 +1778,9 @@ impl GiteaClient {
     }
 
     /// The tree's files with their blob ids, so two trees compare without reading a file.
+    ///
+    /// Gitea hands a recursive tree out 1000 entries a page and sets `truncated` while more
+    /// remain: every page is read, so a project of more than 1000 files stages (T-5047).
     ///
     /// A branch whose name carries a slash — every workspace branch, `workspace/{name}` (CC-76) —
     /// is resolved to its head commit first: Gitea's `git/trees/{ref}` answers `404` for such a
@@ -1785,34 +1793,50 @@ impl GiteaClient {
             git_ref.to_owned()
         };
         let git_ref = resolved.as_str();
-        let mut url = self.repo_url(&format!("git/trees/{git_ref}"))?;
-        url.query_pairs_mut()
-            .append_pair("recursive", "true")
-            .append_pair("per_page", "1000");
+        let mut paths = Vec::new();
+        let mut tree_sha: Option<String> = None;
+        for page in 1..=MAX_TREE_PAGES {
+            let mut url = self.repo_url(&format!("git/trees/{git_ref}"))?;
+            url.query_pairs_mut()
+                .append_pair("recursive", "true")
+                .append_pair("per_page", "1000")
+                .append_pair("page", &page.to_string());
 
-        let res = self.send(self.http.get(url)).await?;
-        let res = Self::check_status(res).await?;
-        let status_code = res.status().as_u16();
-        let raw: GitTreeResponse = res
-            .json()
-            .await
-            .map_err(|e| GitError::Transport(format!("failed to parse tree response: {e}")))?;
+            let res = self.send(self.http.get(url)).await?;
+            let res = Self::check_status(res).await?;
+            let status = res.status().as_u16();
+            let raw: GitTreeResponse = res
+                .json()
+                .await
+                .map_err(|e| GitError::Transport(format!("failed to parse tree response: {e}")))?;
 
-        if raw.truncated {
-            return Err(GitError::Api {
-                status: status_code,
-                message: "git tree was truncated".to_string(),
-            });
+            // A ref that moved between two pages would mix two trees into one listing.
+            if *tree_sha.get_or_insert_with(|| raw.sha.clone()) != raw.sha {
+                return Err(GitError::Api {
+                    status,
+                    message: format!("git tree of {git_ref} changed while it was read"),
+                });
+            }
+            let empty = raw.tree.is_empty();
+            paths.extend(
+                raw.tree
+                    .into_iter()
+                    .filter(|entry| entry.entry_type == "blob")
+                    .map(|entry| (self.render_path(entry.path), entry.sha)),
+            );
+            if !raw.truncated {
+                return Ok(paths);
+            }
+            if empty {
+                break;
+            }
         }
-
-        let paths = raw
-            .tree
-            .into_iter()
-            .filter(|entry| entry.entry_type == "blob")
-            .map(|entry| (self.render_path(entry.path), entry.sha))
-            .collect();
-
-        Ok(paths)
+        Err(GitError::Api {
+            status: 200,
+            message: format!(
+                "git tree was truncated: more than {MAX_TREE_PAGES} pages of 1000 entries"
+            ),
+        })
     }
 
     /// `GET /branches/{branch}` — returns the head commit id for the given branch.

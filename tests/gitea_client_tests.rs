@@ -505,6 +505,62 @@ async fn list_tree_filters_blobs_and_detects_truncated() {
     }
 }
 
+/// T-5047: Gitea hands a recursive tree out 1000 entries a page; a project of 1321 files read
+/// only page 1 and refused to stage. Every page is read now, and a tree whose sha changes
+/// between pages (a push in between) is refused rather than mixed.
+#[tokio::test]
+async fn list_tree_reads_every_page_of_a_large_tree() {
+    let server = MockServer::start().await;
+    let base_url = server.uri().parse().unwrap();
+    let client = GiteaClient::new(base_url, "test-owner", "test-repo", "secret-token").unwrap();
+
+    let entries = |from: usize, to: usize| -> Vec<serde_json::Value> {
+        (from..to)
+            .map(|i| json!({ "path": format!("seed/f{i}.yaml"), "type": "blob", "sha": format!("b{i}") }))
+            .collect()
+    };
+    let page = |ref_: &'static str,
+                n: &'static str,
+                sha: &str,
+                tree: Vec<serde_json::Value>,
+                truncated: bool| {
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/api/v1/repos/test-owner/test-repo/git/trees/{ref_}"
+            )))
+            .and(query_param("recursive", "true"))
+            .and(query_param("per_page", "1000"))
+            .and(query_param("page", n))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({ "sha": sha, "truncated": truncated, "tree": tree })),
+            )
+    };
+    page("big", "1", "t1", entries(0, 1000), true)
+        .mount(&server)
+        .await;
+    page("big", "2", "t1", entries(1000, 1321), false)
+        .mount(&server)
+        .await;
+    let blobs = client.list_tree_blobs("big").await.unwrap();
+    assert_eq!(blobs.len(), 1321);
+    assert_eq!(
+        blobs[1320],
+        ("seed/f1320.yaml".to_string(), "b1320".to_string())
+    );
+
+    page("moving", "1", "t1", entries(0, 1000), true)
+        .mount(&server)
+        .await;
+    page("moving", "2", "t2", entries(1000, 1001), false)
+        .mount(&server)
+        .await;
+    match client.list_tree_blobs("moving").await.unwrap_err() {
+        GitError::Api { message, .. } => assert!(message.contains("changed while it was read")),
+        other => panic!("expected GitError::Api, got {other:?}"),
+    }
+}
+
 #[test]
 fn git_error_converts_to_api_error() {
     let not_found = GitError::NotFound;
