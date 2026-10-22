@@ -496,6 +496,8 @@ export interface PipelineEditorDialogProps {
   ) => void;
   /** The draft this form edits when the address named one (`?draft=`, AG-61, UI-47). */
   draftName?: string;
+  /** Opens the KPI editor over several sources in place of this form (PL-105). */
+  onSeveralSources?: () => void;
 }
 
 /**
@@ -515,6 +517,7 @@ export function PipelineEditorDialog({
   error,
   onSubmit,
   draftName,
+  onSeveralSources,
 }: PipelineEditorDialogProps): JSX.Element {
   const { t } = useTranslation();
   const { orgDomain } = useBranding();
@@ -716,6 +719,7 @@ export function PipelineEditorDialog({
               endpoints={endpointList}
               targets={endpointOptions}
               onUse={(form) => setDraft(completeOutput(form))}
+              onSeveralSources={onSeveralSources}
             >
               <TemplateList project={project} onUse={(form) => setDraft(completeOutput(form))} />
             </RecipeGallery>

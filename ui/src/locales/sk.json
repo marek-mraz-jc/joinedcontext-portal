@@ -2937,7 +2937,8 @@
         "type": "Typ entity",
         "attribute": "Atribút na priemer",
         "attributeHelp": "Číselný atribút typu, napr. pm10.",
-        "typeHelp": "Typ, ktorý modeluje priestor zvoleného endpointu; jeho čísla sa ponúknu nižšie."
+        "typeHelp": "Typ, ktorý modeluje priestor zvoleného endpointu; jeho čísla sa ponúknu nižšie.",
+        "several": "Spojiť viac zdrojov…"
       },
       "problem": {
         "source": "Vyberte zdroj.",
@@ -3323,6 +3324,91 @@
         "failing": "Zlyháva",
         "never": "Ešte nebežal"
       }
+    },
+    "kpiEditor": {
+      "title": "Nový ukazovateľ z viacerých zdrojov",
+      "lead": "Vyberte dva až päť endpointov, určte, ako sa ich riadky spoja a čo sa má vypočítať. Každé pole sa kontroluje počas písania; Náhľad vypočíta hodnotu z toho, čo endpointy poskytujú teraz. Nič sa nezapíše, kým zmenu neschváli schvaľovateľ.",
+      "name": "Názov ukazovateľa",
+      "titleField": "Nadpis",
+      "sources": "Zdroje",
+      "sourceName": "Názov vstupu",
+      "endpoint": "Endpoint",
+      "type": "Typ entity",
+      "attribute": "Číslo, ktoré číta",
+      "addSource": "Pridať zdroj",
+      "remove": "Odstrániť",
+      "removeSource": "Odstrániť zdroj {name}",
+      "readable": "Pipeline to môže čítať",
+      "notReadable": "Pipeline to zatiaľ nemôže čítať",
+      "askAccess": "Po schválení zmeny požiadajte o prístup na karte Prístup danej pipeline; dovtedy každý beh zlyhá na odmietnutí tohto zdroja.",
+      "noEndpoints": "Tento projekt zatiaľ nemá endpoint, ktorý môžete čítať. Najprv zverejnite priestor cez endpoint a potom sa vráťte.",
+      "join": "Ako sa riadky spoja",
+      "joinBy": {
+        "time": "Všetky riadky behu, jedna hodnota",
+        "area": "Za každú oblasť spoločnú pre zdroje",
+        "entity": "Za každú entitu, ktorú zdroje uvádzajú"
+      },
+      "joinHint": {
+        "time": "Jeden ukazovateľ za beh zo všetkých riadkov, ktoré zdroje vrátili.",
+        "area": "Jeden ukazovateľ za každú hodnotu oblasti, ktorú majú všetky zdroje; k názvu sa pridá jej skratka.",
+        "entity": "Jeden ukazovateľ za každú entitu, ktorú uvádzajú všetky zdroje; k názvu sa pridá jej skratka."
+      },
+      "key": {
+        "area": "Atribút oblasti",
+        "entity": "Atribút entity",
+        "column": "Kľúč"
+      },
+      "choice": "Čo vypočítať",
+      "choices": {
+        "count": "Počet riadkov prvého zdroja",
+        "sum": "Súčet čísla prvého zdroja",
+        "average": "Priemer čísla prvého zdroja",
+        "share": "Podiel: prvý súčet delený druhým súčtom",
+        "per": "Prvý súčet na riadok druhého zdroja"
+      },
+      "writes": "Vzorec, ktorý zapíše: {formula}",
+      "advanced": "Pokročilé: napísať vzorec",
+      "formula": "Vzorec",
+      "unit": "Kód jednotky",
+      "schedule": "Ako často",
+      "every": {
+        "quarter": "Každých 15 minút",
+        "hourly": "Každú hodinu",
+        "daily": "Každý deň o 03:00 UTC"
+      },
+      "target": "Zapisuje sa cez",
+      "noTarget": "Projekt nemá endpoint v priestore ukazovateľov (priestor s názvom končiacim na -kpi). Najprv ho vytvorte.",
+      "preview": "Náhľad",
+      "runPreview": "Vypočítať teraz",
+      "previewing": "Počíta sa…",
+      "previewHint": "Prečíta najviac 100 riadkov každého zdroja tak, ako ich vidíte vy, a vypočíta {formula}.",
+      "noKeys": "Žiadny kľúč sa nenachádza vo všetkých zdrojoch, teraz by sa teda nezapísal žiadny ukazovateľ.",
+      "indicator": "Ukazovateľ",
+      "value": "Hodnota",
+      "wholeRun": "Celý beh",
+      "rows": "{name}: {count} riadkov",
+      "fixFirst": "Najprv opravte polia označené vyššie.",
+      "missing": {
+        "name": "Najprv pomenujte ukazovateľ.",
+        "source": "Najprv vyberte endpoint a typ entity pre každý zdroj.",
+        "target": "Najprv vyberte endpoint, cez ktorý sa ukazovateľ zapíše."
+      },
+      "hint": {
+        "name": "Malé písmená, číslice a pomlčky, najviac 48, napríklad parking-per-stop.",
+        "title": "Čo ľudia čítajú v zoznamoch, napríklad Obsadené parkovacie miesta na zastávku.",
+        "sources": "Každý zdroj číta jeden typ entity cez jeden endpoint, napríklad parkoviská cez helsinki-parking.",
+        "sourceName": "Ako vzorec pomenúva tento zdroj, napríklad parking.",
+        "endpoint": "Endpoint tohto projektu, ktorý môžete čítať, napríklad helsinki-parking.",
+        "type": "Typ entity, ktorý tento zdroj číta, napríklad parkoviská z modelu priestoru.",
+        "attribute": "Číselný atribút, ktorý číta súčet alebo priemer, napríklad occupiedSpotNumber.",
+        "unit": "Kód UN/CEFACT výsledku, napríklad C62 pre počet alebo pomer, P1 pre percentá.",
+        "schedule": "Ako často beh vypočíta ukazovateľ, napríklad každú hodinu.",
+        "target": "Endpoint priestoru ukazovateľov, cez ktorý sa zapisuje, napríklad kpi-writer.",
+        "formula": "sum, avg, min, max z input.attribute a count(input), s + - * / a zátvorkami, napríklad sum(parking.occupiedSpotNumber) / count(stops).",
+        "areaKey": "Atribút s názvom alebo kódom oblasti v tomto zdroji, napríklad district.",
+        "entityKey": "id pre samotnú entitu alebo vzťah, ktorý ju pomenúva, napríklad refParkingSite."
+      },
+      "previewFirst": "Náhľad sa spustí, keď sú všetky polia skontrolované bez problému."
     }
   },
   "dashboards": {

@@ -2937,7 +2937,8 @@
         "type": "Entitätstyp",
         "attribute": "Zu mittelndes Attribut",
         "attributeHelp": "Ein numerisches Attribut des Typs, z. B. pm10.",
-        "typeHelp": "Ein Typ, den der Raum des gewählten Endpunkts modelliert; seine Zahlen werden unten angeboten."
+        "typeHelp": "Ein Typ, den der Raum des gewählten Endpunkts modelliert; seine Zahlen werden unten angeboten.",
+        "several": "Mehrere Quellen kombinieren…"
       },
       "problem": {
         "source": "Wählen Sie die Quelle.",
@@ -3323,6 +3324,91 @@
         "failing": "Schlägt fehl",
         "never": "Noch nicht gelaufen"
       }
+    },
+    "kpiEditor": {
+      "title": "Neue Kennzahl aus mehreren Quellen",
+      "lead": "Wählen Sie zwei bis fünf Endpunkte, legen Sie fest, wie ihre Zeilen zusammenkommen und was berechnet wird. Jedes Feld wird beim Tippen geprüft; die Vorschau berechnet den Wert aus dem, was die Endpunkte jetzt liefern. Geschrieben wird erst, wenn die Änderung genehmigt ist.",
+      "name": "Name der Kennzahl",
+      "titleField": "Titel",
+      "sources": "Quellen",
+      "sourceName": "Eingabename",
+      "endpoint": "Endpunkt",
+      "type": "Entitätstyp",
+      "attribute": "Gelesene Zahl",
+      "addSource": "Quelle hinzufügen",
+      "remove": "Entfernen",
+      "removeSource": "Quelle {name} entfernen",
+      "readable": "Die Pipeline kann dies lesen",
+      "notReadable": "Die Pipeline kann dies noch nicht lesen",
+      "askAccess": "Nach der Genehmigung beantragen Sie den Zugriff im Reiter Zugriff der Pipeline; bis dahin scheitert jeder Lauf an der Ablehnung dieser Quelle.",
+      "noEndpoints": "Dieses Projekt hat noch keinen Endpunkt, den Sie lesen dürfen. Veröffentlichen Sie zuerst einen Raum über einen Endpunkt und kommen Sie dann zurück.",
+      "join": "Wie die Zeilen zusammenkommen",
+      "joinBy": {
+        "time": "Alle Zeilen des Laufs, ein Wert",
+        "area": "Je Gebiet, das alle Quellen haben",
+        "entity": "Je Entität, die alle Quellen nennen"
+      },
+      "joinHint": {
+        "time": "Eine Kennzahl je Lauf über alle Zeilen, die jede Quelle lieferte.",
+        "area": "Eine Kennzahl je Gebietswert, den jede Quelle hat; sein Kürzel wird an den Namen angehängt.",
+        "entity": "Eine Kennzahl je Entität, die jede Quelle nennt; ihr Kürzel wird an den Namen angehängt."
+      },
+      "key": {
+        "area": "Gebietsattribut",
+        "entity": "Entitätsattribut",
+        "column": "Schlüssel"
+      },
+      "choice": "Was berechnet wird",
+      "choices": {
+        "count": "Zeilen der ersten Quelle zählen",
+        "sum": "Summe der Zahl der ersten Quelle",
+        "average": "Durchschnitt der Zahl der ersten Quelle",
+        "share": "Anteil: erste Summe geteilt durch zweite Summe",
+        "per": "Erste Summe je Zeile der zweiten Quelle"
+      },
+      "writes": "Die Formel, die daraus entsteht: {formula}",
+      "advanced": "Erweitert: Formel eingeben",
+      "formula": "Formel",
+      "unit": "Einheitencode",
+      "schedule": "Wie oft",
+      "every": {
+        "quarter": "Alle 15 Minuten",
+        "hourly": "Jede Stunde",
+        "daily": "Täglich um 03:00 UTC"
+      },
+      "target": "Geschrieben über",
+      "noTarget": "Das Projekt hat keinen Endpunkt in einem Kennzahlenraum (ein Raum, dessen Name auf -kpi endet). Legen Sie zuerst einen an.",
+      "preview": "Vorschau",
+      "runPreview": "Jetzt berechnen",
+      "previewing": "Wird berechnet…",
+      "previewHint": "Liest bis zu 100 Zeilen jeder Quelle so, wie Sie sie sehen, und berechnet {formula}.",
+      "noKeys": "Kein Schlüssel kommt in jeder Quelle vor, daher würde jetzt keine Kennzahl geschrieben.",
+      "indicator": "Kennzahl",
+      "value": "Wert",
+      "wholeRun": "Ganzer Lauf",
+      "rows": "{name}: {count} Zeilen",
+      "fixFirst": "Korrigieren Sie zuerst die oben markierten Felder.",
+      "missing": {
+        "name": "Geben Sie der Kennzahl zuerst einen Namen.",
+        "source": "Wählen Sie zuerst für jede Quelle einen Endpunkt und einen Entitätstyp.",
+        "target": "Wählen Sie zuerst den Endpunkt, über den die Kennzahl geschrieben wird."
+      },
+      "hint": {
+        "name": "Kleinbuchstaben, Ziffern und Bindestriche, höchstens 48, zum Beispiel parking-per-stop.",
+        "title": "Was in Listen zu lesen ist, zum Beispiel Belegte Parkplätze je Haltestelle.",
+        "sources": "Jede Quelle liest einen Entitätstyp über einen Endpunkt, zum Beispiel Parkplätze über helsinki-parking.",
+        "sourceName": "Wie die Formel diese Quelle nennt, zum Beispiel parking.",
+        "endpoint": "Ein Endpunkt dieses Projekts, den Sie lesen dürfen, zum Beispiel helsinki-parking.",
+        "type": "Der Entitätstyp, den diese Quelle liest, zum Beispiel die Parkplätze aus dem Modell des Raums.",
+        "attribute": "Das numerische Attribut, das eine Summe oder ein Durchschnitt liest, zum Beispiel occupiedSpotNumber.",
+        "unit": "Der UN/CEFACT-Code des Ergebnisses, zum Beispiel C62 für eine Anzahl oder ein Verhältnis, P1 für Prozent.",
+        "schedule": "Wie oft ein Lauf die Kennzahl berechnet, zum Beispiel jede Stunde.",
+        "target": "Der Endpunkt des Kennzahlenraums, über den geschrieben wird, zum Beispiel kpi-writer.",
+        "formula": "sum, avg, min, max von input.attribute und count(input), mit + - * / und Klammern, zum Beispiel sum(parking.occupiedSpotNumber) / count(stops).",
+        "areaKey": "Das Attribut mit Name oder Code des Gebiets in dieser Quelle, zum Beispiel district.",
+        "entityKey": "id für die Entität selbst oder die Beziehung, die sie nennt, zum Beispiel refParkingSite."
+      },
+      "previewFirst": "Die Vorschau läuft, sobald jedes Feld ohne Problem geprüft ist."
     }
   },
   "dashboards": {

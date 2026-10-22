@@ -23,11 +23,13 @@ export interface RecipeGalleryProps {
   /** The Endpoints a load may write through, as the form offers them. */
   targets: { name: string; urn?: string }[];
   onUse: (form: PipelineForm) => void;
+  /** Opens the KPI editor over several sources (PL-105); absent hides its button. */
+  onSeveralSources?: () => void;
   /** The project's own templates, listed under the recipes (T-3976). */
   children?: ReactNode;
 }
 
-export function RecipeGallery({ project, orgDomain, dataSources, endpoints, targets, onUse, children }: RecipeGalleryProps): JSX.Element {
+export function RecipeGallery({ project, orgDomain, dataSources, endpoints, targets, onUse, onSeveralSources, children }: RecipeGalleryProps): JSX.Element {
   const { t } = useTranslation();
   const [picked, setPicked] = useState<Recipe | null>(null);
   const [source, setSource] = useState("");
@@ -164,10 +166,15 @@ export function RecipeGallery({ project, orgDomain, dataSources, endpoints, targ
               </Select>
             </Field>
           )}
-          <div>
+          <div className="flex flex-wrap gap-2">
             <Button variant="primary" size="sm" onClick={use}>
               {t("pipelines.recipe.use")}
             </Button>
+            {picked.id === "kpi" && onSeveralSources ? (
+              <Button variant="secondary" size="sm" onClick={onSeveralSources}>
+                {t("pipelines.recipe.kpi.several")}
+              </Button>
+            ) : null}
           </div>
         </div>
       ) : null}

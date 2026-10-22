@@ -212,6 +212,10 @@
     "src/components/forms/widgets/RepresentationOutputsField.tsx :: endpoints.outputs.title.${lang}": {
       "class": "FREE",
       "reason": "a calendar's or feed's own title per language, written by the person, not a pick of an existing thing"
+    },
+    "src/pages/pipelines/KpiEditor.tsx :: Unit code": {
+      "class": "FREE",
+      "reason": "a UN/CEFACT common code from a list of thousands; the KPI check refuses any code but the formula's own unit (PL-103) and says which one it is"
     }
   }
 }
