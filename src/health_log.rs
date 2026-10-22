@@ -631,7 +631,7 @@ impl Memory {
         self.history.retain(|(_, at, _)| *at >= now - KEEP);
     }
 
-    fn list(&self, project: Option<&str>, now: DateTime<Utc>) -> Vec<Check> {
+    fn list(&self, project: Option<&str>, from: DateTime<Utc>) -> Vec<Check> {
         self.latest
             .iter()
             .filter(|(key, _)| project.is_none_or(|p| key.0 == p))
@@ -650,7 +650,7 @@ impl Memory {
                 history: self
                     .history
                     .iter()
-                    .filter(|(k, at, _)| k == key && *at > now - SHOWN)
+                    .filter(|(k, at, _)| k == key && *at > from)
                     .map(|(_, at, status)| Point {
                         at: rfc3339(*at),
                         status: *status,
@@ -796,10 +796,29 @@ impl HealthStore {
         project: Option<&str>,
         now: DateTime<Utc>,
     ) -> Result<Vec<Check>, sqlx::Error> {
+        self.list_from(project, now - SHOWN).await
+    }
+
+    /// The checks of one project as they stand, without their history: what a dataset's score
+    /// reads on every catalogue request (T-5112).
+    pub async fn current(
+        &self,
+        project: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Vec<Check>, sqlx::Error> {
+        self.list_from(Some(project), now).await
+    }
+
+    /// The checks with their history after `from`.
+    async fn list_from(
+        &self,
+        project: Option<&str>,
+        from: DateTime<Utc>,
+    ) -> Result<Vec<Check>, sqlx::Error> {
         let mut checks = match &self.inner {
             Inner::Memory(memory) => memory
                 .read()
-                .map(|memory| memory.list(project, now))
+                .map(|memory| memory.list(project, from))
                 .unwrap_or_default(),
             Inner::Postgres(pool) => {
                 let rows: Vec<Row> = sqlx::query_as(
@@ -816,7 +835,7 @@ impl HealthStore {
                      WHERE $1::text IS NULL OR h.project = $1",
                 )
                 .bind(project)
-                .bind(stamp_of(now - SHOWN))
+                .bind(stamp_of(from))
                 .fetch_all(pool)
                 .await?;
                 rows.into_iter()

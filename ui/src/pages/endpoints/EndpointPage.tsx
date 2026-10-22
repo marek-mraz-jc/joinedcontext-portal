@@ -19,6 +19,7 @@ import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { SaveAsResourceAction } from "../../components/SaveAsDialog";
 import { WorkOnCopyAction } from "../../components/WorkOnCopyDialog";
 import { ExportButton } from "../../components/export/ExportButton";
+import { EndpointQuality } from "./EndpointQuality";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { RowActions } from "../../components/ui/RowActions";
@@ -651,6 +652,8 @@ export function EndpointPage({
           </Facts>
         </Section>
       ) : null}
+
+      <EndpointQuality project={project} name={name} />
 
       <Section title={t("endpoints.page.catalog.title")} lead={t("endpoints.page.catalog.lead")}>
         <CatalogSection slug={slug} catalog={spec.catalog} audience={spec.audience ?? "project-list"} />

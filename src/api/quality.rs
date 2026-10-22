@@ -1,6 +1,7 @@
 //! `GET /api/v1/projects/{project}/spaces/{space}/quality`: the last data-quality run's report
 //! of one space (DM-74, API/01 §27), and `…/quality/checks`: its checks on write over 24 hours
-//! and 7 days (DM-94, §27.1).
+//! and 7 days (DM-94, §27.1). `GET …/endpoints/{name}/quality`: a dataset's quality score
+//! (T-5112, §27.2).
 
 use axum::extract::{Path, State};
 use axum::routing::get;
@@ -100,6 +101,43 @@ pub async fn get_checks(
     Ok(Json(state.quality_checks.report(&segment, &rules)))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/endpoints/{name}/quality",
+    summary = "Read Dataset Quality Score",
+    description = "The quality score of the dataset an Endpoint serves, 0 to 100, and its four parts: freshness against the writing pipelines' schedules and health, completeness of the model's required fields, the share of entities that follow the model, and the Endpoint's surfaces answering. Each part has its reason and the time it was measured; a part nothing measures yet has no score. What to fix comes only to a caller who reads the Endpoint's Context Space. Counts and names, never a value (T-5112).",
+    tag = "endpoints",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("name" = String, Path, description = "Endpoint name"),
+    ),
+    responses(
+        (status = 200, description = "The score", body = crate::dataset_score::DatasetScore),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such Endpoint the caller may read", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn get_endpoint_quality(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+) -> Result<Json<crate::dataset_score::DatasetScore>, ApiError> {
+    let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
+    let endpoint =
+        (is_dns1123(&project) && effective.may_read_project() && effective.may_read("Endpoint"))
+            .then(|| state.mirror.get(&project, "Endpoint", &name))
+            .flatten()
+            .ok_or_else(|| {
+                ApiError::NotFound(format!(
+                    "endpoint '{name}' not found in project '{project}'"
+                ))
+            })?;
+    let score = crate::dataset_score::of_endpoint(&state, &project, &endpoint).await;
+    let publisher = crate::resource::reference_name(&endpoint.spec["contextSpaceRef"])
+        .is_some_and(|space| effective.may_read_in("ContextSpace", Some(space)));
+    Ok(Json(if publisher { score } else { score.public() }))
+}
+
 /// The counts are the space's; which entities they are, and the values they hold (a range, an
 /// outlier's id), are for whoever reads its entities.
 fn for_caller(mut quality: SpaceQuality, reads_entities: bool) -> SpaceQuality {
@@ -129,6 +167,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/projects/{project}/spaces/{space}/quality/checks",
             get(get_checks),
+        )
+        .route(
+            "/projects/{project}/endpoints/{name}/quality",
+            get(get_endpoint_quality),
         )
 }
 
