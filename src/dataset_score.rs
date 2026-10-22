@@ -652,6 +652,57 @@ mod tests {
         assert_eq!(part(&none, Part::Completeness).reason.code, "noRequired");
     }
 
+    // The Endpoint's score reads the space's report and model, and a hidden attribute is no
+    // required field of it.
+    #[tokio::test]
+    async fn an_endpoint_is_scored_from_its_space_without_its_hidden_fields() {
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
+        let schema = serde_json::json!({ "definitions": { "WeatherObserved": {
+            "type": "object",
+            "required": ["id", "type", "temperature", "dateObserved", "secret"],
+            "properties": {
+                "temperature": { "type": "number", "x-ngsi-ld-kind": "Property" },
+                "dateObserved": { "type": "string", "x-ngsi-ld-kind": "Property" },
+                "secret": { "type": "string", "x-ngsi-ld-kind": "Property" }
+            }
+        }}});
+        let model = crate::pipeline_validation::ModelSchema::compile(
+            "weather",
+            "1.0.0",
+            &schema,
+            &["WeatherObserved".to_owned()],
+            false,
+        );
+        state
+            .model_schemas
+            .replace(std::collections::HashMap::from([(
+                ("bbsk".to_owned(), "weather".to_owned()),
+                std::sync::Arc::new(model),
+            )]));
+        state.quality.put("bbsk", "weather", report());
+        let endpoint = |hidden: serde_json::Value| ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: "Endpoint".to_owned(),
+            metadata: ObjectMeta::new("weather", "bbsk"),
+            spec: serde_json::json!({
+                "contextSpaceRef": { "kind": "ContextSpace", "name": "weather" },
+                "projection": { "hiddenAttributes": hidden },
+            }),
+            status: None,
+        };
+
+        let hidden = of_endpoint(&state, "bbsk", &endpoint(serde_json::json!(["secret"]))).await;
+        let completeness = part(&hidden, Part::Completeness);
+        assert_eq!(completeness.reason.args["fields"], "2");
+        assert_eq!(completeness.score, Some(97));
+
+        let shown = of_endpoint(&state, "bbsk", &endpoint(serde_json::json!([]))).await;
+        // (190 + 200 + 200) / 600 = 98.3 %
+        assert_eq!(part(&shown, Part::Completeness).reason.args["fields"], "3");
+        assert_eq!(part(&shown, Part::Completeness).score, Some(98));
+    }
+
     fn score_with(report: &SpaceQuality, required: BTreeMap<String, Vec<String>>) -> DatasetScore {
         score(&Inputs {
             report: Some(report),
