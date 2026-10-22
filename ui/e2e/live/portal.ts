@@ -173,8 +173,10 @@ export async function goSignedIn(
   // the whole test budget on the login hop and every journey read as a timeout on whatever came
   // next (T-2452). Each step below waits for the thing it actually needs instead.
   await page.goto(url, { waitUntil: "load" });
+  let redirected = false;
   for (let step = 0; step < 4; step += 1) {
     if (await page.locator("#username").count()) {
+      redirected = true;
       await page.fill("#username", who.user);
       await page.fill("#password", who.password);
       await Promise.all([page.waitForURL(() => true, { waitUntil: "load" }), page.click("#kc-login")]);
@@ -182,6 +184,7 @@ export async function goSignedIn(
     }
     const signInButton = page.getByRole("button", { name: "Sign in" });
     if (page.url().includes("/login") && (await signInButton.count())) {
+      redirected = true;
       await Promise.all([
         page.waitForURL(() => true, { waitUntil: "load" }),
         signInButton.first().click(),
@@ -189,6 +192,11 @@ export async function goSignedIn(
       continue;
     }
     break;
+  }
+  // Playwright routes only the first request of a redirect chain, so the page the sign-in lands on
+  // is the deployed shell, not `WALK_UI_DIST`'s: one reload takes the local build (T-5066).
+  if (redirected && process.env.WALK_UI_DIST) {
+    await page.reload({ waitUntil: "load" });
   }
   // The shell's own notice that its entry script never ran (index.html #boot-failed, opaque after
   // 8 s): the edge answered a chunk 429 (300 requests a minute per address, about 60 chunks a
