@@ -673,6 +673,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   // The primary column stays first: nothing moves in front of it.
   const firstMovable = columns.some((c) => c.pinned && c.attr !== null) ? 1 : 0;
   const [dragOver, setDragOver] = useState<string | null>(null);
+  const formatOf = useMemo(() => new Map(hookOptions.config.columns.map((column) => [column.attr, column.format])), [hookOptions.config.columns]);
   const kindOf = useMemo(() => {
     const kinds = new Map<string, ColumnKind>();
     const sample = rows.slice(0, 50);
@@ -1242,7 +1243,11 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                     {colIndex === 0 && tone ? (
                       <span className={`jc-grid-tone jc-grid-tone--${tone.tone}`} role="img" aria-label={tone.label} title={tone.label} />
                     ) : null}
-                    {renderCellContent(row, col)}
+                    {/* At most three lines at the column's widest (T-5192): a dragged width replaces
+                        the cap, the full value stays in the row's detail. */}
+                    <div className="jc-grid-cell" data-format={col.attr ? formatOf.get(col.attr) : undefined} style={col.width ? { maxWidth: "none" } : undefined}>
+                      {renderCellContent(row, col)}
+                    </div>
                   </td>
                 ))}
               </tr>
@@ -1503,6 +1508,26 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         </button>
         <span className="jc-grid-page-info">{`${labels.page} ${currentPage}`}</span>
         {totalPages !== undefined && <span className="jc-grid-page-count">{`/ ${totalPages}`}</span>}
+        {/* Numbered pages as a DataTables pager (T-5196): the first, the last and the two around this one. */}
+        {totalPages !== undefined && totalPages > 1 && (
+          <span className="jc-grid-pages">
+            {pageNumbers(currentPage, totalPages).map((page, at) =>
+              page === null ? (
+                <span key={`gap-${at}`} aria-hidden="true">…</span>
+              ) : (
+                <button
+                  key={page}
+                  type="button"
+                  aria-label={`${labels.page} ${page}`}
+                  aria-current={page === currentPage ? "page" : undefined}
+                  onClick={() => setOffset((page - 1) * hookOptions.config.pageSize)}
+                >
+                  {page}
+                </button>
+              ),
+            )}
+          </span>
+        )}
         {/* The endpoint's own count, not the page's: an answer the gateway narrowed carries none,
             and then the footer says nothing rather than a number it guessed (R22). */}
         {grid.total !== undefined && (
@@ -1519,6 +1544,12 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       )}
     </div>
   );
+}
+
+/** The page buttons a pager shows: 1, the pages beside the current one and the last, `null` for a gap. */
+export function pageNumbers(current: number, total: number): (number | null)[] {
+  const kept = [...new Set([1, current - 1, current, current + 1, total])].filter((page) => page >= 1 && page <= total).sort((a, b) => a - b);
+  return kept.flatMap((page, at) => (at > 0 && page - (kept[at - 1] ?? page) > 1 ? [null, page] : [page]));
 }
 
 /** A row's height until one is measured, and the rows drawn when the box has no height yet. */
