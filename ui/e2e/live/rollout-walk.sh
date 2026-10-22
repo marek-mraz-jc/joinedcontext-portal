@@ -48,8 +48,9 @@ git -C "$repo" worktree add -q --detach "$work/portal" "$sha" || { echo "rollout
 mkdir -p "$dir"
 run=$(date -u +%Y-%m-%dT%H:%MZ)
 echo "rollout-walk: walking portal $sha on $PORTAL_URL ($run)"
-# The steward and the viewer walk side by side, the viewer 30 s later so the two Keycloak sign-ins
-# do not meet; each walk has the whole cap.
+# The steward walks, then the viewer, each with the whole cap. Side by side they shared one address
+# at the edge (300 requests a minute, portal-ui limit-count): the steward's walk used the minute up
+# and every load of the viewer's shell met 429 on its chunks, so the viewer wrote no report (T-5068).
 walk() {
   WALK_WIDTHS=1440,400 WALK_LANGS=en WALK_REPORT_DIR="$dir" timeout --kill-after=30 "$cap" \
     npx playwright test --config playwright.live.config.ts e2e/live/walker.spec.ts --grep "for the $1\$" \
@@ -60,10 +61,8 @@ walk() {
   pnpm install --frozen-lockfile --prefer-offline >"$dir/install.log" 2>&1 || exit 2
   # A walker older than T-4950 writes its report only beside the UX shots.
   grep -q WALK_REPORT_DIR e2e/live/walker.spec.ts || export SHOTS_DIR="$dir"
-  walk steward &
-  sleep 30
+  walk steward
   walk viewer
-  wait
 )
 echo "rollout-walk: walks done (logs $dir/walk-steward.log, $dir/walk-viewer.log)"
 
