@@ -1398,7 +1398,7 @@
       "slug": "Slug",
       "audience": "Publikum",
       "representations": "Reprezentace",
-      "representationMappings": "Mapování kalendáře",
+      "representationMappings": "Kalendáře a kanály novinek",
       "more": "+{count} dalších",
       "noRepresentations": "žádné reprezentace",
       "phase": "Stav",
@@ -1973,7 +1973,124 @@
     },
     "find": "Najít koncový bod podle názvu",
     "shownOf": "Zobrazeno {shown} z {count}",
-    "showMore": "Zobrazit dalších {count}"
+    "showMore": "Zobrazit dalších {count}",
+    "outputs": {
+      "help": "Pojmenované kalendáře a kanály novinek, které tento Endpoint nabízí. Každý výstup má vlastní adresu, název a mapování atributů a dotazem může zúžit data. Stránka datasetu je všechny uvádí v nabídce Odebírat.",
+      "icalOff": "Zapněte kanál iCalendar v části Reprezentace, abyste mohli přidat kalendáře.",
+      "presetHint": "Předvolba vyplní pole; atribut níže vyberte jen tam, kde se váš liší.",
+      "feedPresetHint": "event pro události, article pro novinky a oznámení, generic pro cokoli s názvem.",
+      "fromPreset": "Z předvolby: {attribute}",
+      "rolesCaption": "Části položky kanálu a atributy, ze kterých pocházejí",
+      "role": "Část položky",
+      "roles": {
+        "title": "Nadpis",
+        "updated": "Aktualizováno",
+        "published": "Zveřejněno",
+        "summary": "Shrnutí",
+        "content": "Obsah",
+        "link": "Odkaz",
+        "author": "Autor",
+        "category": "Kategorie",
+        "image": "Obrázek"
+      },
+      "feedPreset": {
+        "event": "Událost",
+        "article": "Článek nebo oznámení",
+        "generic": "Cokoli s názvem"
+      },
+      "duplicateOne": "Tento název už má jiný výstup.",
+      "duplicate": "Každý výstup potřebuje vlastní název; tyto se opakují: {names}",
+      "full": "Endpoint nabízí nejvýše {max} výstupů jednoho formátu.",
+      "title": {
+        "sk": "Název slovensky",
+        "en": "Název anglicky"
+      },
+      "source": "Typ {n}: {type}",
+      "removeSource": "Odebrat tento typ",
+      "remove": "Odebrat",
+      "removeNamed": "Odebrat výstup {name}",
+      "ical": {
+        "heading": "Kalendáře (iCal)",
+        "add": "Přidat kalendář",
+        "emptyTitle": "Zatím žádný kalendář",
+        "emptyHint": "Přidejte kalendář a lidé dostanou adresu .ics, kterou si kalendářová aplikace odebírá, například všechny události nebo jen sport."
+      },
+      "feed": {
+        "heading": "Kanály novinek (Atom, RSS, JSON Feed)",
+        "add": "Přidat kanál novinek",
+        "emptyTitle": "Zatím žádný kanál novinek",
+        "emptyHint": "Přidejte kanál tam, kde položky přibývají v čase, například události nebo oznámení; čtečka kanálů pak ukáže každou novou."
+      },
+      "type": {
+        "hint": "Třída datového modelu prostoru, například Event."
+      },
+      "nameField": {
+        "label": "Název v adrese",
+        "hint": "Malá písmena, číslice a -, například kultura. Adresa: {address}",
+        "bad": "Použijte 1 až 40 malých písmen, číslic nebo -, na začátku písmeno nebo číslici."
+      },
+      "filterField": {
+        "label": "Jen entity, které vyhovují (nepovinné)",
+        "hint": "Dotaz NGSI-LD, který tento výstup zúží a nikdy nerozšíří, například eventCategory==\"sport\"."
+      },
+      "sourceAdd": {
+        "label": "Přidat další typ",
+        "hint": "Jeden výstup může zahrnovat více typů, například události i zasedání zastupitelstva v jednom kalendáři."
+      },
+      "icalTitleSk": {
+        "hint": "Například Kalendár podujatí"
+      },
+      "icalTitleEn": {
+        "hint": "Například Events calendar"
+      },
+      "feedTitleSk": {
+        "hint": "Například Novinky z kultúry"
+      },
+      "feedTitleEn": {
+        "hint": "Například Culture news"
+      },
+      "widget": {
+        "heading": "Výchozí nastavení mapy v katalogu",
+        "add": "Přidat nastavení mapy",
+        "emptyTitle": "Mapa používá vestavěné výchozí hodnoty",
+        "emptyHint": "Přidejte nastavení mapy a pro každý typ zvolte pole, podle kterého se značky barví, co ukáže bublina a zda se značky seskupují. Čtenář je na stránce datové sady může stále změnit."
+      },
+      "widgetTitleSk": {
+        "hint": "Například Mapa podujatí"
+      },
+      "widgetTitleEn": {
+        "hint": "Například Events map"
+      },
+      "widgetName": {
+        "hint": "Malá písmena, číslice a -, například mapa. Mapa nemá vlastní adresu."
+      },
+      "map": {
+        "geometry": {
+          "label": "Poloha z",
+          "hint": "Atribut polohy, který mapa kreslí, například location.",
+          "default": "Vestavěná: location"
+        },
+        "colour": {
+          "label": "Barva podle",
+          "hint": "Pole s výčtem hodnot nebo ano/ne; legenda uvede jeho hodnoty, například category.",
+          "none": "Tento typ nemá pole s výčtem hodnot ani ano/ne; mapa použije jednu barvu na typ.",
+          "default": "Jedna barva na typ"
+        },
+        "cluster": {
+          "label": "Seskupit blízké značky",
+          "hint": "Automaticky seskupí značky, když je jich v záběru více než 200, například na mapě celého města.",
+          "auto": "Automaticky (nad 200 v záběru)",
+          "on": "Vždy",
+          "off": "Nikdy"
+        },
+        "popup": {
+          "label": "Bublina ukáže",
+          "hint": "Zaškrtněte nejvýše {max} polí, která čtenář uvidí na značce, například name a startDate; bez výběru zůstane název, čas, místo a odkaz.",
+          "none": "Tento typ nemá pole k zobrazení; nejprve vyberte typ z datového modelu prostoru.",
+          "full": "Nejvýše {max} polí; chcete-li jiné, jedno odškrtněte."
+        }
+      }
+    }
   },
   "datasources": {
     "title": "Zdroje dat",
@@ -7873,7 +7990,9 @@
       "calendarFile": "Stáhnout kalendář (.ics)",
       "news": "Novinky",
       "feed": "{title} ({format})",
-      "hint": "Zkopírujte adresu do čtečky novinek nebo kalendáře, například Feedly nebo Google Kalendář; nové položky se objeví samy."
+      "hint": "Zkopírujte adresu do čtečky novinek nebo kalendáře, například Feedly nebo Google Kalendář; nové položky se objeví samy.",
+      "calendarAppNamed": "Přidat do kalendáře: {title}",
+      "calendarFileNamed": "Stáhnout {title} (.ics)"
     }
   },
   "dataagreements": {

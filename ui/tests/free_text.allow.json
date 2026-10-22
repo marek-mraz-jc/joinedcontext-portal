@@ -41,10 +41,6 @@
       "class": "FREE",
       "reason": "the search box inside the entity picker"
     },
-    "src/components/forms/widgets/IcalMappingField.tsx :: (no label)": {
-      "class": "SUGGEST",
-      "reason": "already a combobox: the feed's fields offered through a datalist, free entry kept"
-    },
     "src/components/forms/widgets/SuggestWidgets.tsx :: (no label)": {
       "class": "FREE",
       "reason": "the shared suggest widget itself (datalist of the existing choices)"
@@ -212,6 +208,10 @@
     "src/routes/PoliciesPage.tsx :: Find a policy": {
       "class": "FREE",
       "reason": "a search box: the text filters a list on the page, the list itself is the choice"
+    },
+    "src/components/forms/widgets/RepresentationOutputsField.tsx :: endpoints.outputs.title.${lang}": {
+      "class": "FREE",
+      "reason": "a calendar's or feed's own title per language, written by the person, not a pick of an existing thing"
     }
   }
 }
