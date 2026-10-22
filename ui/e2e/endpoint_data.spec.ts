@@ -105,7 +105,7 @@ for (const width of [1440, 400]) {
     await section.screenshot({ path: join(dir, `data-filled-${width}.png`) });
 
     // Highest PM10 first, across all 42 rows: the endpoint is asked, the first page shows 89.
-    const sort = section.getByRole("button", { name: "Sort all rows by pm10" });
+    const sort = section.getByRole("button", { name: "Sort all rows by PM10", exact: true });
     await sort.click();
     await sort.click();
     await expect.poll(() => asked.at(-1)?.searchParams.get("orderBy")).toBe("pm10;desc");
@@ -116,14 +116,14 @@ for (const width of [1440, 400]) {
     // The address opens the same order on a fresh load.
     await page.reload();
     await expect.poll(() => asked.at(-1)?.searchParams.get("orderBy")).toBe("pm10;desc");
-    await expect(section.getByRole("columnheader", { name: /pm10/ }).first()).toHaveAttribute("aria-sort", "descending");
+    await expect(section.getByRole("columnheader", { name: /Sort all rows by PM10/ }).first()).toHaveAttribute("aria-sort", "descending");
 
     const csv = section.getByRole("link", { name: "Download these rows as CSV" });
     expect(await csv.getAttribute("href")).toBe(`/api/endpoint/${SLUG}/file.csv?type=AirQualityObserved&orderBy=pm10%3Bdesc`);
 
-    await section.getByText("Fields", { exact: true }).first().click();
+    await section.getByText("Columns", { exact: true }).first().click();
     await expect(section.getByText("PM10 in µg/m³, the hourly mean")).toBeVisible();
-    await section.getByRole("list", { name: "Fields" }).screenshot({ path: join(dir, `data-fields-${width}.png`) });
+    await section.getByRole("list", { name: "Columns" }).screenshot({ path: join(dir, `data-fields-${width}.png`) });
 
     await section.getByRole("button", { name: "Full window" }).click();
     const full = page.getByRole("dialog", { name: "What this endpoint answers" });
