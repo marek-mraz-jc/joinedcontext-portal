@@ -2546,7 +2546,10 @@ pub(crate) fn is_candidate_manifest(path: &str) -> bool {
     // are org-level manifests of their own (PF-62), which the reconciler writes into the realm
     // (PF-63); left out here, no Group reached the mirror (T-3031).
     // The builder profiles are organization-level too (AG-26): `agentprofiles/{name}.yaml`.
+    // Each Organization of the installation has a file of its own beside the legacy `org.yaml`
+    // (PF-121, ADR-N-058).
     clean.starts_with("projects/")
+        || clean.starts_with("organizations/")
         || clean.starts_with("users/roles/")
         || clean.starts_with("users/groups/")
         || clean.starts_with("users/assignments/")
@@ -3804,6 +3807,7 @@ output_error{stream="kpi"} 6
     #[test]
     fn candidate_manifest_path_filtering() {
         assert!(is_candidate_manifest("org.yaml"));
+        assert!(is_candidate_manifest("organizations/zilina.yaml"));
         assert!(is_candidate_manifest("bundle.yaml"));
         assert!(is_candidate_manifest(
             "projects/ovzdusie/spaces/mobility/space.yaml"

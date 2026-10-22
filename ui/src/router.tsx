@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect } from "react";
-import { keepCopy } from "./components/layout/keepCopy";
+import { keepCopy, keepOrganization, ORG_NAME } from "./components/layout/keepCopy";
 import {
   createRootRouteWithContext,
   createRoute,
@@ -412,12 +412,15 @@ const protectedRoute = createRoute({
   },
   // `?workspace=` on any page reads and writes that copy (UI-61, CC-76): declared here, so every
   // page below carries it in its search type and a link into a copy needs no cast (T-1488).
-  validateSearch: (search: Record<string, unknown>): { workspace?: string } => ({
+  // `?org=` is the Organization the switcher shows (PF-124): a name, else nothing.
+  validateSearch: (search: Record<string, unknown>): { workspace?: string; org?: string } => ({
     workspace:
       typeof search.workspace === "string" && search.workspace !== "" ? search.workspace : undefined,
+    org: typeof search.org === "string" && ORG_NAME.test(search.org) ? search.org : undefined,
   }),
-  // And every link below keeps it, until Leave or another project says otherwise (T-4868).
-  search: { middlewares: [keepCopy] },
+  // And every link below keeps it, until Leave or another project says otherwise (T-4868); the
+  // chosen Organization likewise, until the switcher says otherwise.
+  search: { middlewares: [keepCopy, keepOrganization] },
   component: function ProtectedRoute() {
     return (
       <WorkspaceProvider>

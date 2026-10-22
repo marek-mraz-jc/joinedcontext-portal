@@ -22,6 +22,21 @@ pub struct ProjectList {
     pub api_version: String,
     pub kind: String,
     pub items: Vec<ProjectSummary>,
+    /// The Organizations that own a listed project, by name, when the installation holds more
+    /// than one (PF-124, ADR-N-058 section 2.7): what the organization switcher offers. Empty
+    /// with one Organization, so a person who sees one gets no switcher.
+    pub organizations: Vec<OrganizationSummary>,
+}
+
+/// One Organization a caller sees (PF-124): its name, the `?org=` value, and its title.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OrganizationSummary {
+    pub name: String,
+    /// The `Organization` manifest's `metadata.title`, absent when it names none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(schema_with = crate::openapi::text_ref)]
+    pub title: Option<jc_core::i18n::Text>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -37,6 +52,9 @@ pub struct ProjectSummary {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(schema_with = crate::openapi::text_ref)]
     pub title: Option<jc_core::i18n::Text>,
+    /// The Organization that owns the project, its `spec.organizationRef` (PF-122).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub organization: Option<String>,
 }
 
 /// The label that marks a project as the sample of real open data the first-run checklist offers
@@ -69,7 +87,7 @@ pub async fn list_projects(
     user: CurrentUser,
     State(state): State<AppState>,
 ) -> Result<Json<ProjectList>, ApiError> {
-    let items = state
+    let items: Vec<ProjectSummary> = state
         .mirror
         .namespaces()
         .into_iter()
@@ -87,18 +105,45 @@ pub async fn list_projects(
                     == Some("true")
             });
             let title = manifest.and_then(|project| project.metadata.title);
+            let organization = crate::permissions::organization_of(&state.mirror, &name);
             ProjectSummary {
                 name,
                 sample,
                 title,
+                organization,
             }
         })
         .collect();
+    let organizations = organizations_seen(&state, &items);
     Ok(Json(ProjectList {
         api_version: API_VERSION.to_string(),
         kind: "List".to_string(),
         items,
+        organizations,
     }))
+}
+
+/// The Organizations owning one of `items`, in name order, when there are two or more (PF-124).
+/// Only what the caller reads already: an Organization none of whose projects they read stays
+/// unnamed, as the project list keeps an unreadable project unnamed.
+fn organizations_seen(state: &AppState, items: &[ProjectSummary]) -> Vec<OrganizationSummary> {
+    let names: std::collections::BTreeSet<&str> = items
+        .iter()
+        .filter_map(|item| item.organization.as_deref())
+        .collect();
+    if names.len() < 2 {
+        return Vec::new();
+    }
+    names
+        .into_iter()
+        .map(|name| OrganizationSummary {
+            name: name.to_owned(),
+            title: state
+                .mirror
+                .get(crate::permissions::ORG_NAMESPACE, "Organization", name)
+                .and_then(|organization| organization.metadata.title),
+        })
+        .collect()
 }
 
 /// One quota dimension of a project: what it holds and what it may (PF-75).
@@ -522,18 +567,10 @@ pub(crate) fn open_project_files(
     request: &OpenProject,
     name: &str,
 ) -> Result<Vec<(String, String)>, ApiError> {
-    let organization = state
-        .mirror
-        .list(
-            crate::permissions::ORG_NAMESPACE,
-            "Organization",
-            &crate::store::ListOptions::default(),
-        )
-        .items
-        .into_iter()
-        .next()
-        .map(|env| env.metadata.name)
-        .ok_or_else(|| {
+    // A new project belongs to the installation's Organization (ADR-N-058 section 2.2); moving
+    // it to another is a change of its `organizationRef`.
+    let organization =
+        crate::permissions::installation_organization(&state.mirror).ok_or_else(|| {
             ApiError::Unavailable(
                 "the organization's own manifest is not in the mirror yet; a project belongs to \
                  one (PF-66)"

@@ -39,8 +39,8 @@ use crate::api::ops::{OperationAnnotations, OperationSummary};
 use crate::api::pipelines::PipelineMetrics;
 use crate::api::preferences::Preferences;
 use crate::api::projects::{
-    DuplicateProject, OpenProject, ProjectDetail, ProjectList, ProjectStatus, ProjectSummary,
-    RegistryEntry, RegistryTag, Repoint, Usage,
+    DuplicateProject, OpenProject, OrganizationSummary, ProjectDetail, ProjectList, ProjectStatus,
+    ProjectSummary, RegistryEntry, RegistryTag, Repoint, Usage,
 };
 use crate::api::resources::{ListMeta, ResourceList};
 use crate::auth::oidc::{LogoutTarget, Me};
@@ -534,6 +534,7 @@ use crate::tools::model_tools::{
         Usage,
         ProjectList,
         ProjectSummary,
+        OrganizationSummary,
         Change,
         ChangeMeta,
         ChangeStatus,
