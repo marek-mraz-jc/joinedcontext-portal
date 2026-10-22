@@ -19,4 +19,10 @@ spec:
   - mcp
   - ogc-features
   - ical
+  representations:
+    ical:
+    - name: events
+      sources:
+      - preset: sdm-event
+        type: Event
   slug: suaf5rzxgkoptcss4ghgke75ck

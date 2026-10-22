@@ -1573,6 +1573,7 @@
       "off": "Schalten Sie den iCalendar-Feed unter Darstellungen ein, um seine Felder zuzuordnen.",
       "help": "Aus welchem Attribut des Raummodells jedes Kalenderfeld stammt. Eine leere Zeile nutzt das grau gezeigte Attribut der Vorlage. Prüfen Sie das Formular, um das Urteil des Servers gegen das Datenmodell zu sehen.",
       "start": "Beginnen mit",
+      "outputs": "Dieser Endpoint listet benannte Kalender, jeder unter einer eigenen Adresse. Bearbeiten Sie sie im YAML des Endpoints unter spec.representations.ical, zum Beispiel - name: sport mit Titel und Quellen.",
       "presetDefault": "Standard (Smart Data Models Event)",
       "preset": {
         "sdm-event": "Smart Data Models Event",

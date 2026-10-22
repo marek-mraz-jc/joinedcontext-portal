@@ -1573,6 +1573,7 @@
       "off": "Turn on the iCalendar feed under Representations to map its fields.",
       "help": "Which attribute of the space's model each calendar field comes from. An empty row uses the preset's attribute, shown greyed. Check the form to see the server's verdict against the data model.",
       "start": "Start from",
+      "outputs": "This Endpoint lists named calendars, each served at its own address. Edit them in the Endpoint's YAML under spec.representations.ical, for example - name: sport with a title and sources.",
       "presetDefault": "The default (Smart Data Models Event)",
       "preset": {
         "sdm-event": "Smart Data Models Event",

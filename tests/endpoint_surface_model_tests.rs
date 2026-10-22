@@ -95,7 +95,20 @@ async fn portal_at(linkml: &str, lifecycle: &str) -> (AppState, wiremock::MockSe
     (state, gitea)
 }
 
+/// The Endpoint; one that serves `ical` lists one calendar, `vsetky`, over the `sdm-event`
+/// preset, as a calendar is served only for a listed output (EP-159, T-5208).
 fn endpoint(representations: Value) -> Value {
+    let mut manifest = plain_endpoint(representations);
+    if manifest["spec"]["enabledRepresentations"]
+        .as_array()
+        .is_some_and(|served| served.contains(&json!("ical")))
+    {
+        manifest["spec"]["representations"] = json!({ "ical": [{ "name": "vsetky", "sources": [{ "type": "Event", "preset": "sdm-event" }] }] });
+    }
+    manifest
+}
+
+fn plain_endpoint(representations: Value) -> Value {
     json!({
         "apiVersion": "joinedcontext.com/v1alpha1",
         "kind": "Endpoint",
@@ -128,7 +141,7 @@ async fn ical_on_a_space_without_the_event_type_is_refused_with_jcctl_s_sentence
     assert_eq!(answer.status, StatusCode::BAD_REQUEST, "{}", answer.text);
     assert!(
         answer.text.contains(
-            "Endpoint kultura/kalendar, space podujatia: `ical` maps the type Event, which the \
+            "Endpoint kultura/kalendar, space podujatia: `ical` output `vsetky` maps the type Event, which the \
              data model does not have (EP-125)"
         ),
         "{}",
@@ -153,7 +166,7 @@ async fn ical_without_a_required_start_names_the_attribute() {
     assert_eq!(answer.status, StatusCode::BAD_REQUEST, "{}", answer.text);
     assert!(
         answer.text.contains(
-            "`ical` maps DTSTART to `startDate`, which is not a required attribute of Event"
+            "`ical` output `vsetky` maps DTSTART to `startDate`, which is not a required attribute of Event"
         ),
         "{}",
         answer.text
@@ -199,8 +212,8 @@ async fn a_written_mapping_is_refused_per_gap_and_the_dry_run_says_the_same() {
     let answer = propose(&state, broken.clone()).await;
     assert_eq!(answer.status, StatusCode::BAD_REQUEST, "{}", answer.text);
     let lines = [
-        "Endpoint kultura/kalendar, space podujatia: `ical` maps no DTSTART, which every calendar entry needs (EP-125)",
-        "Endpoint kultura/kalendar, space podujatia: `ical` maps DTEND to `name`, range string; DTEND takes date or datetime (EP-125)",
+        "Endpoint kultura/kalendar, space podujatia: `ical` output `events` maps no DTSTART, which every calendar entry needs (EP-125)",
+        "Endpoint kultura/kalendar, space podujatia: `ical` output `events` maps DTEND to `name`, range string; DTEND takes date or datetime (EP-125)",
     ];
     for line in lines {
         assert!(answer.text.contains(line), "{line} in {}", answer.text);
