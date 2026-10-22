@@ -45,6 +45,8 @@ const ENDPOINT = {
 const REFUSAL =
   "Endpoint bbsk/podujatia, space podujatia: spec.representations.feed: feed output `novinky`: `filter.q` is no NGSI-LD query: unexpected end of input";
 
+const TABLE_REFUSAL =
+  "Endpoint bbsk/podujatia, space podujatia: widget output `mapa`, Event: `table.filter` is not an NGSI-LD q of at most 1000 characters, such as `startDate>=today` or `category==\"concert\"` (EP-125)";
 const MAP_REFUSAL =
   "Endpoint bbsk/podujatia, space podujatia: widget output `mapa`, Event: `mapping.colour` reads `name`, a LanguageProperty; colour takes an enum or a boolean (EP-125)";
 
@@ -66,6 +68,8 @@ async function stubApi(page: Page, answer: "refuse" | "forbid" | "accept" | "ref
         return json({ type: "https://joinedcontext.com/problems/unprocessable", title: "Unprocessable Content", status: 422, detail: REFUSAL, errors: [REFUSAL] }, 422);
       if (answer === "refuseMap")
         return json({ type: "https://joinedcontext.com/problems/unprocessable", title: "Unprocessable Content", status: 422, detail: MAP_REFUSAL, errors: [MAP_REFUSAL] }, 422);
+      if (answer === "refuseTable")
+        return json({ type: "https://joinedcontext.com/problems/unprocessable", title: "Unprocessable Content", status: 422, detail: TABLE_REFUSAL, errors: [TABLE_REFUSAL] }, 422);
       if (answer === "forbid")
         return json({ type: "https://joinedcontext.com/problems/forbidden", title: "Forbidden", status: 403, detail: "no role of yours grants create on endpoints in project bbsk" }, 403);
     }
@@ -143,8 +147,9 @@ for (const width of [1440, 400]) {
       const colour = map.getByLabel("Colour by");
       await expect(colour.locator("option")).toHaveText(["One colour per type", "category", "free"]);
       await colour.selectOption("category");
-      await map.getByRole("checkbox", { name: "startDate" }).check();
-      await map.getByRole("checkbox", { name: "url" }).check();
+      const popup = map.getByRole("group", { name: "Popup shows" });
+      await popup.getByRole("checkbox", { name: "startDate" }).check();
+      await popup.getByRole("checkbox", { name: "url" }).check();
       await map.getByLabel("Group nearby markers").selectOption("off");
       await shot(page, "map-filled", map);
       await page.getByRole("button", { name: "Check", exact: true }).click();
@@ -152,6 +157,29 @@ for (const width of [1440, 400]) {
       await expect(refusal).toBeVisible();
       await shot(page, "map-refused");
       expect(posted.find((body) => body.includes('"widget"'))).toContain('"widget":[{"name":"mapa","sources":[{"type":"Event","mapping":{"colour":"category","popup":["startDate","url"]},"cluster":false}]}]');
+    });
+
+    test("table start: filter, sort, page length and columns from the model, then the server's 422 naming the member (T-5197)", async ({ page }) => {
+      const posted = await stubApi(page, "refuseTable");
+      const section = await openForm(page);
+      const map = section.locator("section").filter({ hasText: "Catalogue map defaults" });
+      await map.getByRole("button", { name: "Add map defaults" }).click();
+      const table = map.getByRole("group", { name: "Table start" });
+      await expect(table.getByText("Example: startDate>=today")).toBeVisible();
+      await expect(table.getByLabel("Direction")).toBeDisabled();
+      await shot(page, "table-empty", table);
+      await table.getByLabel("Default filter").fill("startDate>=today");
+      await table.getByLabel("Sort by").selectOption("startDate");
+      await table.getByLabel("Direction").selectOption("desc");
+      await table.getByLabel("Rows per page").selectOption("50");
+      const columns = table.getByRole("group", { name: "Columns shown" });
+      await columns.getByRole("checkbox", { name: "name" }).check();
+      await columns.getByRole("checkbox", { name: "startDate" }).check();
+      await shot(page, "table-filled", table);
+      await page.getByRole("button", { name: "Check", exact: true }).click();
+      await expect(page.getByRole("alert").filter({ hasText: "table.filter" })).toBeVisible();
+      await shot(page, "table-refused");
+      expect(posted.find((body) => body.includes('"table"'))).toContain('"table":{"filter":"startDate>=today","orderBy":"startDate;desc","pageLength":50,"columns":["name","startDate"]}');
     });
 
     test("a person without the Endpoint right is refused with the reason", async ({ page }) => {
