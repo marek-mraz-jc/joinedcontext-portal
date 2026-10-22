@@ -68,6 +68,20 @@ const ASKED = {
   details: { actor: "jana.kovacova", action: "asked for access" },
 };
 
+// T-5177: a failed publication keeps the broker's problem body behind a closed disclosure; the
+// walker read that hidden body as raw JSON on dev's helsinki activity.
+const FAILED_REASON =
+  'the dataset is updated, its sheet was not refreshed: GET https://portal.example/api/endpoint/x/file.csv: 503 {"type":"https://joinedcontext.com/errors/broker-failure","status":503}';
+const FAILED = {
+  time: "2026-09-16T09:11:00Z",
+  project: "helsinki",
+  kind: "catalogue.published",
+  source: "ckan",
+  summary: `Endpoint helsinki-transport was not published: ${FAILED_REASON}`,
+  severity: "error",
+  details: { reason: FAILED_REASON, object: "endpoints/helsinki-transport" },
+};
+
 const NAMESPACES = Object.keys(
   JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/locales/en.json"), "utf8")) as object,
 );
@@ -165,7 +179,7 @@ test.describe("activity", () => {
   for (const width of [1440, 400]) {
     test(`kinds the Portal writes read as words at ${width} px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
-      await stubApi(page, { items: [UPLOADED], live: ASKED });
+      await stubApi(page, { items: [UPLOADED, FAILED], live: ASKED });
 
       await page.goto("/projects/helsinki/activity?lang=en");
       await expect(page.getByRole("cell", { name: UPLOADED.summary })).toBeVisible();
@@ -175,6 +189,7 @@ test.describe("activity", () => {
       await expect(row(UPLOADED.summary)).toContainText("File added to a knowledge source");
       await expect(row(ASKED.summary)).toContainText("Access request");
       await expect(page.getByLabel("Kind").locator("option", { hasText: "File added to a knowledge source" })).toHaveCount(1);
+      await expect(row("Endpoint helsinki-transport was not published.")).toContainText("Technical details");
 
       // The live walker's own checks (tests/pageChecks.ts), raw-i18n-key among them.
       expect(await page.evaluate(pageFindings, { namespaces: NAMESPACES, layout: true })).toEqual([]);
