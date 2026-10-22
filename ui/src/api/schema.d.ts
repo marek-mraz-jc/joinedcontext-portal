@@ -2958,7 +2958,7 @@ export interface paths {
         };
         /**
          * List Pipeline Health
-         * @description Each pipeline the caller approves, with its health from its kept runs (T-5048, PL-62): when it last sent records, how many its newest run sent against the median of the 7 days before, how many runs failed in a row, and the newest failed or rejected line of its log with every URL's query cut off. `alert` is true after 3 failed runs in a row or a drop of more than 80 %, the same test that opens a failure or zero-output alert. Needs approve on Pipeline (a steward).
+         * @description Each pipeline the caller approves, with its health from its kept runs (T-5048, PL-62): when it last sent records, how many its newest run sent against the median of the 7 days before, how many runs failed in a row, and the newest failed or rejected line of its log with every URL's query cut off. `alert` is true after 3 failed runs in a row or a drop of more than 80 %, the same test that opens a failure or zero-output alert. `links` is the newest weekly link check of the `url` and `organizer.url` its entities carry (T-5133): links asked, answered, skipped (robots.txt or a host that is no source of the project) and the first 5 of those that failed 2 checks in a row. Needs approve on Pipeline (a steward).
          */
         get: operations["get_pipeline_health"];
         put?: never;
@@ -5739,6 +5739,17 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
+        /** @description A link that failed [`DEAD_AFTER`] checks in a row. */
+        DeadLink: {
+            /** @description Why it did not answer (a timeout, a refused connection). */
+            error?: string | null;
+            /**
+             * Format: int32
+             * @description The status it answered, none when it did not answer.
+             */
+            status?: number | null;
+            url: string;
+        };
         /** @description Why an owner declines or revokes. */
         Decision: {
             reason: string;
@@ -6933,6 +6944,7 @@ export interface components {
             lastSent?: number | null;
             /** @description The newest run that sent at least one record, RFC 3339. */
             lastSuccessAt?: string | null;
+            links?: null | components["schemas"]["PipelineLinks"];
             /**
              * Format: double
              * @description The median of what the runs of the 7 days before the newest one sent.
@@ -6948,6 +6960,21 @@ export interface components {
         };
         /** @enum {string} */
         PipelineHealthState: "ok" | "empty" | "drift" | "failing" | "never";
+        /** @description The newest link check of one pipeline, as the source health view shows it. */
+        PipelineLinks: {
+            /** @description Links that answered 2xx or 3xx. */
+            answered: number;
+            /** @description Links asked. */
+            checked: number;
+            /** @description When the check ran, RFC 3339. */
+            checkedAt: string;
+            /** @description The first [`SHOWN`] of them. */
+            dead: components["schemas"]["DeadLink"][];
+            /** @description Links that failed [`DEAD_AFTER`] checks in a row. */
+            deadCount: number;
+            /** @description Links not asked: their robots.txt refuses the reader, or their host is no source of the project. */
+            skipped: number;
+        };
         /** @description One line of a run's log. */
         PipelineLogLine: {
             /** @description When the Portal took the line, RFC 3339. */

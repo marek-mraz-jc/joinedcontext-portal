@@ -21,6 +21,54 @@ import {
 
 type Health = components["schemas"]["PipelineHealth"];
 type HealthState = components["schemas"]["PipelineHealthState"];
+type Links = components["schemas"]["PipelineLinks"];
+
+/** The share of asked links that answered, in whole percent; T-5081 asks for 95 % or more. */
+export function answeredShare(links: Links): number | null {
+  return links.checked === 0 ? null : Math.floor((links.answered / links.checked) * 100);
+}
+
+/** The weekly link check of one source (T-5133): its share, its dead links and how to fix them. */
+function LinksCell({ links, when }: { links: Links | null | undefined; when: (at: string) => string }): JSX.Element {
+  const { t } = useTranslation();
+  if (links == null) {
+    return <span className="block max-w-xs text-caption text-fg-muted">{t("pipelines.health.linksNotChecked")}</span>;
+  }
+  const share = answeredShare(links);
+  return (
+    <span className="flex min-w-48 max-w-60 flex-col items-start gap-1 text-caption">
+      {share == null ? null : (
+        <span className={share < 95 ? "tabular-nums text-danger" : "tabular-nums"}>
+          {t("pipelines.health.linksAnswer", { answered: links.answered, checked: links.checked, share })}
+        </span>
+      )}
+      <span className="text-fg-muted">
+        <time dateTime={links.checkedAt}>{t("pipelines.health.linksChecked", { at: when(links.checkedAt), skipped: links.skipped })}</time>
+      </span>
+      {links.deadCount > 0 ? (
+        <>
+          <span className="font-medium text-danger">{t("pipelines.health.linksDead", { count: links.deadCount })}</span>
+          <ul className="flex flex-col gap-0.5">
+            {links.dead.map((dead) => (
+              <li key={dead.url}>
+                <span className="break-all" title={dead.url}>
+                  {dead.url.replace(/^https?:\/\//, "")}
+                </span>{" "}
+                <span className="whitespace-nowrap text-fg-muted">
+                  ({dead.status == null ? t("pipelines.health.linksNoAnswer") : t("pipelines.health.linksStatus", { status: dead.status })})
+                </span>
+              </li>
+            ))}
+          </ul>
+          {links.deadCount > links.dead.length ? (
+            <span className="text-fg-muted">{t("pipelines.health.linksMore", { count: links.deadCount - links.dead.length })}</span>
+          ) : null}
+          <span>{t("pipelines.health.linksFix")}</span>
+        </>
+      ) : null}
+    </span>
+  );
+}
 
 const TONE: Record<HealthState, BadgeTone> = {
   failing: "danger",
@@ -76,7 +124,7 @@ export function PipelineHealthView({
   if (health.isPending) {
     return (
       <Table caption={t("pipelines.health.caption")} status={t("app.loading")}>
-        <TableSkeleton columns={6} />
+        <TableSkeleton columns={7} />
       </Table>
     );
   }
@@ -112,6 +160,7 @@ export function PipelineHealthView({
           <TableHeaderCell>{t("pipelines.health.lastSent")}</TableHeaderCell>
           <TableHeaderCell>{t("pipelines.health.change")}</TableHeaderCell>
           <TableHeaderCell>{t("pipelines.health.lastLogLine")}</TableHeaderCell>
+          <TableHeaderCell>{t("pipelines.health.links")}</TableHeaderCell>
           <TableHeaderCell>
             <span className="sr-only">{t("pipelines.runs.log")}</span>
           </TableHeaderCell>
@@ -179,6 +228,9 @@ export function PipelineHealthView({
                     ) : null}
                   </span>
                 )}
+              </TableCell>
+              <TableCell>
+                <LinksCell links={item.links} when={(at) => when(at)} />
               </TableCell>
               <TableCell>
                 <Button

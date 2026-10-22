@@ -90,6 +90,22 @@ async fn a_steward_reads_each_source_with_its_state_and_its_error_without_url_qu
     )
     .await
     .unwrap();
+    // Two weekly link checks of detva: one page gone both times is dead (T-5133).
+    let gone = [(
+        "https://detva.example/podujatia/1".to_owned(),
+        joinedcontext_portal::link_check::Outcome::Failed {
+            status: Some(404),
+            error: None,
+        },
+    )];
+    let now = chrono::Utc::now();
+    let first = joinedcontext_portal::link_check::fold(None, &gone, 3, now);
+    let links = joinedcontext_portal::link_check::fold(Some(&first), &gone, 3, now);
+    state
+        .link_check
+        .put("bbsk", "podujatia-detva", &links)
+        .await
+        .unwrap();
     let response = server::app(state)
         .oneshot(
             Request::builder()
@@ -123,4 +139,13 @@ async fn a_steward_reads_each_source_with_its_state_and_its_error_without_url_qu
         "GET https://zvolen.example/rss answered 403"
     );
     assert!(!String::from_utf8_lossy(&body).contains("s3cr3t"));
+    assert_eq!(items[0]["links"]["checked"], 1);
+    assert_eq!(items[0]["links"]["skipped"], 3);
+    assert_eq!(items[0]["links"]["deadCount"], 1);
+    assert_eq!(
+        items[0]["links"]["dead"][0],
+        serde_json::json!({"url": "https://detva.example/podujatia/1", "status": 404})
+    );
+    assert!(items[0]["links"].get("failing").is_none());
+    assert!(items[1].get("links").is_none());
 }

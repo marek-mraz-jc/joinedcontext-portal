@@ -12638,7 +12638,7 @@
           "pipelines"
         ],
         "summary": "List Pipeline Health",
-        "description": "Each pipeline the caller approves, with its health from its kept runs (T-5048, PL-62): when it last sent records, how many its newest run sent against the median of the 7 days before, how many runs failed in a row, and the newest failed or rejected line of its log with every URL's query cut off. `alert` is true after 3 failed runs in a row or a drop of more than 80 %, the same test that opens a failure or zero-output alert. Needs approve on Pipeline (a steward).",
+        "description": "Each pipeline the caller approves, with its health from its kept runs (T-5048, PL-62): when it last sent records, how many its newest run sent against the median of the 7 days before, how many runs failed in a row, and the newest failed or rejected line of its log with every URL's query cut off. `alert` is true after 3 failed runs in a row or a drop of more than 80 %, the same test that opens a failure or zero-output alert. `links` is the newest weekly link check of the `url` and `organizer.url` its entities carry (T-5133): links asked, answered, skipped (robots.txt or a host that is no source of the project) and the first 5 of those that failed 2 checks in a row. Needs approve on Pipeline (a steward).",
         "operationId": "get_pipeline_health",
         "parameters": [
           {
@@ -23489,6 +23489,34 @@
           }
         }
       },
+      "DeadLink": {
+        "type": "object",
+        "description": "A link that failed [`DEAD_AFTER`] checks in a row.",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it did not answer (a timeout, a refused connection)."
+          },
+          "status": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The status it answered, none when it did not answer.",
+            "minimum": 0
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
       "Decision": {
         "type": "object",
         "description": "Why an owner declines or revokes.",
@@ -26945,6 +26973,17 @@
             ],
             "description": "The newest run that sent at least one record, RFC 3339."
           },
+          "links": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PipelineLinks",
+                "description": "The newest weekly link check of its entities' links (T-5133); none before the first."
+              }
+            ]
+          },
           "medianSent": {
             "type": [
               "number",
@@ -26986,6 +27025,51 @@
           "failing",
           "never"
         ]
+      },
+      "PipelineLinks": {
+        "type": "object",
+        "description": "The newest link check of one pipeline, as the source health view shows it.",
+        "required": [
+          "checkedAt",
+          "checked",
+          "answered",
+          "skipped",
+          "deadCount",
+          "dead"
+        ],
+        "properties": {
+          "answered": {
+            "type": "integer",
+            "description": "Links that answered 2xx or 3xx.",
+            "minimum": 0
+          },
+          "checked": {
+            "type": "integer",
+            "description": "Links asked.",
+            "minimum": 0
+          },
+          "checkedAt": {
+            "type": "string",
+            "description": "When the check ran, RFC 3339."
+          },
+          "dead": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeadLink"
+            },
+            "description": "The first [`SHOWN`] of them."
+          },
+          "deadCount": {
+            "type": "integer",
+            "description": "Links that failed [`DEAD_AFTER`] checks in a row.",
+            "minimum": 0
+          },
+          "skipped": {
+            "type": "integer",
+            "description": "Links not asked: their robots.txt refuses the reader, or their host is no source of the project.",
+            "minimum": 0
+          }
+        }
       },
       "PipelineLogLine": {
         "type": "object",
