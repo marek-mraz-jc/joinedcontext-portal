@@ -64,6 +64,7 @@ for (const [who, person] of [
 }
 
 test("every space with a model has a daily validation report less than a day old", async ({ browser }) => {
+  test.setTimeout(600_000);
   const { page, context } = await signIn(browser, STEWARD, `/projects/${PROJECT}/models?lang=en`);
   const listed = await page.request.get(`/api/v1/projects/${PROJECT}/datamodels`);
   expect(listed.ok()).toBe(true);
@@ -75,12 +76,17 @@ test("every space with a model has a daily validation report less than a day old
   const spaces = [...new Set(items.map((item) => item.spec.contextSpaceRef).filter((one): one is string => Boolean(one) && live.has(one ?? "")))].sort();
   const stale: string[] = [];
   for (const space of spaces) {
-    const answer = await page.request.get(`/api/v1/projects/${PROJECT}/spaces/${space}/quality`);
+    let answer = await page.request.get(`/api/v1/projects/${PROJECT}/spaces/${space}/quality`);
+    // The dev edge answers 429 when the swarm's address is over its minute: wait the window out.
+    for (let retry = 0; answer.status() === 429 && retry < 2; retry += 1) {
+      await page.waitForTimeout(60_000);
+      answer = await page.request.get(`/api/v1/projects/${PROJECT}/spaces/${space}/quality`);
+    }
     const report = answer.ok() ? ((await answer.json()) as { observedAt?: string; checked?: number; invalid?: number } | null) : null;
     const age = report?.observedAt ? Date.now() - Date.parse(report.observedAt) : Infinity;
     // One line per space, the counts the task records.
     console.log(`quality ${space}: http ${answer.status()} observedAt ${report?.observedAt ?? "-"} checked ${report?.checked ?? "-"} invalid ${report?.invalid ?? "-"}`);
-    if (!(age < 86_400_000)) stale.push(space);
+    if (!(age < 86_400_000)) stale.push(`${space} (http ${answer.status()}, observedAt ${report?.observedAt ?? "-"})`);
   }
   expect(stale, "spaces without a report from the last 24 h").toEqual([]);
   await context.close();
