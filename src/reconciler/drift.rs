@@ -183,7 +183,12 @@ impl Watch {
             &[("type", entity_type), ("q", q), ("limit", "1000")],
         )
         .await
-        .map(|found| found.as_array().cloned().unwrap_or_default())
+        .and_then(|found| match found {
+            // a query that matches nothing answers `[]`; a 404 is the surface refusing the
+            // Portal, and an export or erasure must not read it as "nothing about this person"
+            Value::Null => Err("the space surface did not let the Portal read this space".into()),
+            found => Ok(found.as_array().cloned().unwrap_or_default()),
+        })
     }
 
     /// The stored versions of one entity's attributes, as the space's temporal surface answers
@@ -519,6 +524,38 @@ mod tests {
             .await
             .expect("the history");
         assert_eq!(history["id"], "urn:ngsi-ld:A:1");
+    }
+
+    /// T-5098: a space surface that refuses the Portal (404) is an error, never "no Entity names
+    /// the subject": an erasure must not report done while the person's data stays.
+    #[tokio::test]
+    async fn a_subject_lookup_the_space_refuses_is_an_error() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/cs/refused/ngsi-ld/v1/entities"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/cs/empty/ngsi-ld/v1/entities"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+            .mount(&server)
+            .await;
+        let watch = Watch::new(
+            server.uri(),
+            &format!("{}/realms/city", server.uri()),
+            "portal".to_owned(),
+            ClientAuth::Secret("s".into()),
+        );
+        let refused = watch.named("t", "refused", "Rider", "rider==\"r-1\"").await;
+        assert_eq!(
+            refused,
+            Err("the space surface did not let the Portal read this space".to_owned())
+        );
+        let empty = watch.named("t", "empty", "Rider", "rider==\"r-1\"").await;
+        assert_eq!(empty, Ok(Vec::new()));
     }
 
     #[tokio::test]
