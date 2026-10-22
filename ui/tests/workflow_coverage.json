@@ -1,5 +1,17 @@
 {
   "workflows": {
+    "mqttbroker": {
+      "clear-capture": {
+        "live": {
+          "spec": "mqtt-capture.spec.ts",
+          "test": "a steward reads and clears a broker's capture; a viewer finds no broker"
+        },
+        "personOnly": "clearing a broker's captured device messages is a steward's call on payloads no agent reads (PL-87)",
+        "routes": [
+          "DELETE /api/v1/projects/{project}/mqttbrokers/{name}/captured"
+        ]
+      }
+    },
     "session": {
       "sign-in": {
         "live": {

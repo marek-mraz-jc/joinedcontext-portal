@@ -93,6 +93,8 @@ pub struct AppState {
     pub link_check: Arc<crate::link_check::LinkStore>,
     /// Calls per Endpoint, surface and day, as the gateways post them (T-5118).
     pub endpoint_usage: Arc<crate::endpoint_usage::UsageStore>,
+    /// What `capture` MqttBrokers kept (ADR-N-048 §2.10, T-4880).
+    pub mqtt_capture: Arc<crate::mqtt_capture::CaptureStore>,
     /// The live updates of open data views (API/01 §32, T-3105).
     pub live: Arc<crate::live::LiveHub>,
     /// The runner readings behind each pipeline's stats, kept 15 minutes (PL-68).
@@ -218,6 +220,7 @@ impl AppState {
             health_log: Arc::new(crate::health_log::HealthStore::new(None)),
             link_check: Arc::new(crate::link_check::LinkStore::new(None)),
             endpoint_usage: Arc::new(crate::endpoint_usage::UsageStore::new(None)),
+            mqtt_capture: Arc::new(crate::mqtt_capture::CaptureStore::new(None)),
             live: Arc::new(crate::live::LiveHub::new(&public_base, None)),
             pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),
             source_ledger: Arc::new(crate::pipeline_source_deletes::Ledger::new(None)),
@@ -296,6 +299,7 @@ impl AppState {
         self.health_log = Arc::new(crate::health_log::HealthStore::new(Some(db.clone())));
         self.link_check = Arc::new(crate::link_check::LinkStore::new(Some(db.clone())));
         self.endpoint_usage = Arc::new(crate::endpoint_usage::UsageStore::new(Some(db.clone())));
+        self.mqtt_capture = Arc::new(crate::mqtt_capture::CaptureStore::new(Some(db.clone())));
         self.db = Some(db);
         self
     }
@@ -509,6 +513,10 @@ impl AppState {
             crate::apps::kube::KubeClient::in_cluster(),
         ) {
             (Some(namespace), Ok(Some(kube))) => {
+                syncer = syncer.with_mqtt_capture(Arc::new(crate::mqtt_capture::Capture::new(
+                    Arc::clone(&self.mqtt_capture),
+                    namespace.clone(),
+                )));
                 syncer = syncer.with_mqtt_brokers(Arc::new(
                     crate::reconciler::mqtt_brokers::MqttBrokers::new(kube, namespace),
                 ));
@@ -990,6 +998,7 @@ impl AppState {
         self.health_log = Arc::new(crate::health_log::HealthStore::new(db.clone()));
         self.link_check = Arc::new(crate::link_check::LinkStore::new(db.clone()));
         self.endpoint_usage = Arc::new(crate::endpoint_usage::UsageStore::new(db.clone()));
+        self.mqtt_capture = Arc::new(crate::mqtt_capture::CaptureStore::new(db.clone()));
         self.quality = Arc::new(crate::quality::Store::new(db.clone()));
     }
 
