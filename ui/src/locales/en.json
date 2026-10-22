@@ -1147,6 +1147,7 @@
       "ownTypeHint": "One word starting with a capital letter, such as Garage.",
       "space": "Context Space",
       "notReady": "Choose a file, a type and a space first.",
+      "notLive": "The rows can be written once the change is approved and live.",
       "propose": "Propose the change",
       "proposing": "Proposing…",
       "afterApproval": "Once the change is approved and live, write the rows into {space} as {type}. Writing the same file again updates the same entities.",

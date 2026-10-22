@@ -3,7 +3,7 @@
  * model with the upload grant through `jc_space_complete`, and upserts the rows through the
  * gateway; an own model, a refused proposal and refused rows each say what happened.
  */
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -45,7 +45,7 @@ const CSV = "name,totalSpotNumber,availableSpotNumber,lat,lon\nKamppi,500,120,60
 
 type Calls = { url: URL; body: unknown }[];
 
-function server(answers: { op?: () => Response; write?: () => Response; catalogue?: () => Promise<Response> } = {}): Calls {
+function server(answers: { op?: () => Response; write?: () => Response; catalogue?: () => Promise<Response>; change?: () => Response } = {}): Calls {
   const calls: Calls = [];
   vi.stubGlobal(
     "fetch",
@@ -60,6 +60,7 @@ function server(answers: { op?: () => Response; write?: () => Response; catalogu
       if (url.pathname.endsWith("/ops/jc_space_complete")) {
         return answers.op?.() ?? Response.json({ space: "parking", found: [], drafts: [], proposeReady: true, lane: "yellow", change: null });
       }
+      if (url.pathname.includes("/changes/")) return answers.change?.() ?? new Response(null, { status: 404 });
       if (url.pathname.includes("/entityOperations/")) return answers.write?.() ?? new Response(null, { status: 204 });
       return new Response(null, { status: 404 });
     }),
@@ -115,6 +116,29 @@ describe("Upload CSV", () => {
     expect(screen.getByRole("button", { name: "Download the refused rows (CSV)" })).toBeInTheDocument();
     expectNoRawKeys(container);
   });
+
+  it("holds the write until the proposed change is live", async () => {
+    let phase = "PendingApproval";
+    const change = () => ({ kind: "Change", metadata: { name: "chg-1" }, spec: {}, status: { phase, lane: "yellow" } });
+    const calls = server({
+      op: () => Response.json({ space: "parking", found: [], drafts: [], proposeReady: true, lane: "yellow", change: change() }),
+      change: () => Response.json(change()),
+    });
+    const user = userEvent.setup();
+    page("parking");
+    await user.upload(screen.getByLabelText("Choose a CSV file"), new File([CSV], "garages.csv", { type: "text/csv" }));
+    await screen.findByRole("radio", { name: /OffStreetParking/ });
+    await user.click(screen.getByRole("button", { name: "Propose the change" }));
+    const write = await screen.findByRole("button", { name: "Write 1 row" });
+    expect(write).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText("The rows can be written once the change is approved and live.")).toBeInTheDocument();
+
+    phase = "Applied";
+    await waitFor(() => expect(screen.getByRole("button", { name: "Write 1 row" })).not.toHaveAttribute("aria-disabled", "true"), { timeout: 8_000 });
+    await user.click(screen.getByRole("button", { name: "Write 1 row" }));
+    await screen.findByText("1 row written, 1 refused.");
+    expect(calls.some((c) => c.url.pathname === "/api/v1/projects/helsinki/changes/chg-1")).toBe(true);
+  }, 15_000);
 
   it("asks for a type name when no type fits, and says why the proposal was refused", async () => {
     const calls = server({ op: () => Response.json({ detail: "no right to propose" }, { status: 403 }) });
