@@ -114,6 +114,9 @@ jsonwebtoken = "9"
 # ring, the stack reqwest and sqlx already use.
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls", "ring", "webpki-roots"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "blocking", "stream"] }
+# The capture subscriber of `capture` MqttBrokers (ADR-N-048 §2.10, T-4880): plain MQTT 3.1.1 on a
+# broker's internal listener, which the mesh wraps in mTLS, so no TLS stack of its own.
+rumqttc = { version = "0.25.1", default-features = false }
 # The preferences and API-key tiers (UI-09, PF-36). rustls over ring, the TLS stack reqwest
 # already brought in; `time` because the key rows carry timestamps and the crate is here anyway.
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "migrate", "json", "macros", "time"] }
