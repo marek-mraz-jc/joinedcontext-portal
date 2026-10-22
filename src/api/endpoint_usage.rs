@@ -222,19 +222,21 @@ pub async fn export_project_usage(
         .collect();
     let mut rows = stored(&state, &project, from, to).await?;
     rows.retain(|row| names.contains(&row.name));
-    let file = format!(
-        "attachment; filename=\"{project}-usage-{}.csv\"",
-        query.month
-    );
-    Ok((
+    Ok(csv_download(&project, &query.month, &rows))
+}
+
+/// The month's rows as a CSV file the browser saves and no cache keeps.
+fn csv_download(project: &str, month: &str, rows: &[Stored]) -> Response {
+    let file = format!("attachment; filename=\"{project}-usage-{month}.csv\"");
+    (
         [
             (header::CONTENT_TYPE, "text/csv; charset=utf-8".to_owned()),
             (header::CONTENT_DISPOSITION, file),
             (header::CACHE_CONTROL, "no-store".to_owned()),
         ],
-        csv(&rows),
+        csv(rows),
     )
-        .into_response())
+        .into_response()
 }
 
 pub fn router() -> Router<AppState> {
@@ -251,4 +253,21 @@ pub fn router() -> Router<AppState> {
             "/projects/{project}/usage/endpoints/export",
             get(export_project_usage),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_export_is_a_csv_file_no_cache_keeps() {
+        let answer = csv_download("city", "2026-10", &[]);
+        let head = |name| answer.headers().get(name).and_then(|v| v.to_str().ok());
+        assert_eq!(head(header::CONTENT_TYPE), Some("text/csv; charset=utf-8"));
+        assert_eq!(
+            head(header::CONTENT_DISPOSITION),
+            Some("attachment; filename=\"city-usage-2026-10.csv\"")
+        );
+        assert_eq!(head(header::CACHE_CONTROL), Some("no-store"));
+    }
 }
