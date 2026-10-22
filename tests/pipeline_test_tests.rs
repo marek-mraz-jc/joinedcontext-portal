@@ -233,11 +233,11 @@ async fn play_runner_as(
 fn runner_mocks(create: ResponseTemplate) -> (Mock, Mock) {
     (
         Mock::given(method("POST"))
-            .and(path_regex(r"^/[a-z-]+/streams/pipeline-test-[a-z2-7]{26}$"))
+            .and(path_regex(r"^/[a-z-]+/streams/pipeline-test-[a-z0-9-]+$"))
             .respond_with(create)
             .expect(1),
         Mock::given(method("DELETE"))
-            .and(path_regex(r"^/[a-z-]+/streams/pipeline-test-[a-z2-7]{26}$"))
+            .and(path_regex(r"^/[a-z-]+/streams/pipeline-test-[a-z0-9-]+$"))
             .respond_with(ResponseTemplate::new(200))
             .expect(1),
     )
@@ -452,9 +452,15 @@ async fn a_harness_the_runner_refuses_is_a_lint_error_with_its_line() {
     );
     create.mount(&runner).await;
     delete.mount(&runner).await;
-    let state = AppState::new(config(Some(&runner)), None).with_mirror(mirror("espoo"));
+    let state = AppState::new(config(Some(&runner)), None).with_mirror(mirror("espoo-lint"));
 
-    let (status, body) = post(&state, "dev@hel.fi", "espoo", &request("root.id = = 1")).await;
+    let (status, body) = post(
+        &state,
+        "dev@hel.fi",
+        "espoo-lint",
+        &request("root.id = = 1"),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["input"]["events"], 0);
     assert_eq!(body["errors"][0]["stage"], "lint");
@@ -469,7 +475,7 @@ async fn a_harness_the_runner_refuses_is_a_lint_error_with_its_line() {
 async fn a_runner_that_fails_the_create_is_503_and_no_trace() {
     let runner = MockServer::start().await;
     Mock::given(method("POST"))
-        .and(path_regex(r"^/[a-z-]+/streams/pipeline-test-[a-z2-7]{26}$"))
+        .and(path_regex(r"^/[a-z-]+/streams/pipeline-test-[a-z0-9-]+$"))
         .respond_with(ResponseTemplate::new(503).set_body_string("no capacity"))
         .expect(1)
         .mount(&runner)
@@ -694,7 +700,7 @@ async fn a_data_source_check_with_no_runner_still_names_a_probe() {
     let refusing = MockServer::start().await;
     // Only the create call happens: the stream the delete would remove was never made.
     Mock::given(method("POST"))
-        .and(path_regex(r"^/[a-z-]+/streams/pipeline-test-[a-z2-7]{26}$"))
+        .and(path_regex(r"^/[a-z-]+/streams/pipeline-test-[a-z0-9-]+$"))
         .respond_with(ResponseTemplate::new(503))
         .mount(&refusing)
         .await;
@@ -732,7 +738,7 @@ async fn runner_answering(create: ResponseTemplate, delete: ResponseTemplate) ->
     for (verb, answer) in [("POST", create), ("DELETE", delete)] {
         Mock::given(method(verb))
             .and(path_regex(
-                r"^/[a-z0-9-]+/streams/pipeline-test-[a-z2-7]{26}$",
+                r"^/[a-z0-9-]+/streams/pipeline-test-[a-z0-9-]+$",
             ))
             .respond_with(answer)
             .mount(&runner)
@@ -784,7 +790,7 @@ async fn a_refused_delete_is_said_as_a_runner_error() {
 // ---- T-2520: `run_harness`, one test stream per project, always removed (PL-43) -------------
 // The running tests are one table per process, so every case below has a project of its own.
 
-const STREAM: &str = r"^/[a-z0-9-]+/streams/pipeline-test-[a-z2-7]{26}$";
+const STREAM: &str = r"^/[a-z0-9-]+/streams/pipeline-test-[a-z0-9-]+$";
 
 /// A runner answering the create with `create` and the delete with `delete`, and a Portal on it.
 async fn world_of(
@@ -876,6 +882,87 @@ async fn a_second_test_of_the_same_project_while_one_is_running_is_409() {
     let (status, answer) = first.await.expect("the first test");
     assert_eq!(status, StatusCode::OK, "{answer}");
     assert_eq!(asked(&runner, "DELETE").await, asked(&runner, "POST").await);
+}
+
+// ---- T-4936: one runner stream name per project, so the runner's metrics stay bounded ---------
+// Bento keeps every stream name's metric series after the stream is deleted: a name per test grew
+// the dev runner by about 160 KB a test, past 2 GiB in three days.
+
+/// Two tests of a project reuse one stream name: the runner holds no new series for the second.
+#[tokio::test]
+async fn every_test_of_a_project_runs_under_the_one_stream_name_of_the_project() {
+    let (runner, state) = world_of(
+        "t4936-name",
+        ResponseTemplate::new(200),
+        ResponseTemplate::new(200),
+    )
+    .await;
+    let body = request("root = this");
+    for _ in 0..2 {
+        let (status, answer) = post(&state, "dev@hel.fi", "t4936-name", &body).await;
+        assert_eq!(status, StatusCode::OK, "{answer}");
+    }
+    let stream = "/t4936-name/streams/pipeline-test-t4936-name".to_owned();
+    assert_eq!(
+        asked(&runner, "POST").await,
+        vec![stream.clone(), stream.clone()]
+    );
+    assert_eq!(asked(&runner, "DELETE").await, vec![stream.clone(), stream]);
+}
+
+/// The runner's answer to a create of a name it already runs (Bento 1.22.0), and its description
+/// of that stream `uptime` seconds after its create.
+async fn runner_holding(project: &str, uptime: f64) -> (MockServer, AppState) {
+    let runner = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path_regex(STREAM))
+        .respond_with(ResponseTemplate::new(400).set_body_string("Stream already exists"))
+        .up_to_n_times(1)
+        .mount(&runner)
+        .await;
+    Mock::given(method("POST"))
+        .and(path_regex(STREAM))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&runner)
+        .await;
+    Mock::given(method("GET"))
+        .and(path_regex(STREAM))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({ "active": true, "uptime": uptime })),
+        )
+        .mount(&runner)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path_regex(STREAM))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&runner)
+        .await;
+    let state = AppState::new(config(Some(&runner)), None).with_mirror(mirror(project));
+    (runner, state)
+}
+
+/// Another Portal replica's test of the project is running: 409, and its stream stays.
+#[tokio::test]
+async fn a_test_stream_another_replica_is_running_is_409_and_kept() {
+    let (runner, state) = runner_holding("t4936-live", 2.0).await;
+    let (status, answer) = post(&state, "dev@hel.fi", "t4936-live", &request("root = this")).await;
+    assert_eq!(status, StatusCode::CONFLICT, "{answer}");
+    assert_eq!(asked(&runner, "POST").await.len(), 1);
+    assert!(
+        asked(&runner, "DELETE").await.is_empty(),
+        "a live test's stream was deleted"
+    );
+}
+
+/// A stream left by a test whose delete failed is removed, and the new test runs.
+#[tokio::test]
+async fn a_left_over_test_stream_is_removed_and_the_test_runs() {
+    let (runner, state) = runner_holding("t4936-old", 3600.0).await;
+    let (status, answer) = post(&state, "dev@hel.fi", "t4936-old", &request("root = this")).await;
+    assert_eq!(status, StatusCode::OK, "{answer}");
+    assert_eq!(asked(&runner, "POST").await.len(), 2);
+    // The left-over's delete, then the new test's own.
+    assert_eq!(asked(&runner, "DELETE").await.len(), 2);
 }
 
 /// T-2520, PL-43: another project's test runs beside it.
@@ -996,10 +1083,10 @@ async fn the_project_name_is_url_templated_safely_even_with_reserved_characters(
         .is_empty());
 }
 
-/// T-2520: every test names a fresh stream: 26 characters of base32 from the OS's randomness,
-/// and the delete names the stream the create made.
+/// T-2520, T-4936: every test reaches the Portal under a fresh capture id, 26 characters of
+/// base32 from the OS's randomness, while the stream keeps the project's one name.
 #[tokio::test]
-async fn the_stream_id_is_unique_per_call_never_reused() {
+async fn the_capture_id_is_unique_per_call_never_reused() {
     let (runner, state) = world_of(
         "t2520-ids",
         ResponseTemplate::new(400).set_body_string("line 1: no"),
@@ -1009,12 +1096,23 @@ async fn the_stream_id_is_unique_per_call_never_reused() {
     for _ in 0..5 {
         post(&state, "dev@hel.fi", "t2520-ids", &request("root = this")).await;
     }
-    let mut created = asked(&runner, "POST").await;
-    assert_eq!(created.len(), 5);
-    assert_eq!(asked(&runner, "DELETE").await, created);
-    created.sort();
-    created.dedup();
-    assert_eq!(created.len(), 5, "a stream id was used twice");
+    let capture = regex::Regex::new(r"/internal/pipeline-tests/([a-z2-7]{26})").expect("regex");
+    let mut ids: Vec<String> = runner
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|r| r.method.as_str() == "POST")
+        .filter_map(|r| {
+            let body = String::from_utf8_lossy(&r.body).into_owned();
+            capture.captures(&body).map(|c| c[1].to_owned())
+        })
+        .collect();
+    assert_eq!(ids.len(), 5);
+    assert_eq!(asked(&runner, "DELETE").await, asked(&runner, "POST").await);
+    ids.sort();
+    ids.dedup();
+    assert_eq!(ids.len(), 5, "a capture id was used twice");
 }
 
 /// T-2520, PL-43: without a capture route there is nowhere for the harness to post, so the

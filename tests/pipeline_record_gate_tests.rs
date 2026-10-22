@@ -157,7 +157,7 @@ async fn test_run(
     runner.reset().await;
     for verb in ["POST", "DELETE"] {
         Mock::given(method(verb))
-            .and(path_regex(r"^/[a-z-]+/streams/pipeline-test-[a-z2-7]{26}$"))
+            .and(path_regex(r"^/[a-z-]+/streams/pipeline-test-[a-z0-9-]+$"))
             .respond_with(ResponseTemplate::new(200))
             .mount(runner)
             .await;

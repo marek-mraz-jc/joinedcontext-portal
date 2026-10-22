@@ -1824,7 +1824,7 @@ async fn change_on_the_runner(
     let runner = MockServer::start().await;
     Mock::given(method("POST"))
         .and(wiremock::matchers::path_regex(
-            r"^/helsinki/streams/pipeline-test-[a-z2-7]{26}$",
+            r"^/helsinki/streams/pipeline-test-[a-z0-9-]+$",
         ))
         .respond_with(ResponseTemplate::new(200))
         .mount(&runner)
