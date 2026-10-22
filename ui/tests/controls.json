@@ -1096,6 +1096,14 @@
         "endpoint_catalog.test.tsx"
       ]
     },
+    "src/pages/endpoints/DeveloperPanel.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "endpoint_developer_page.test.tsx"
+      ]
+    },
     "src/pages/endpoints/EndpointPage.tsx": {
       "controls": {
         "Button": 7,

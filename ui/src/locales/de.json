@@ -1817,6 +1817,76 @@
       "none": "Noch kein Beispiel: Es wurde keine Entität gefunden, aus der eines entstehen könnte.",
       "unavailable": "Die Standards dieses Endpoints können gerade nicht gelesen werden; versuchen Sie es in einer Minute erneut."
     },
+    "developer": {
+      "terms": "Nutzungsbedingungen",
+      "licence": "Lizenz",
+      "noLicence": "Der Anbieter nennt keine Lizenz: Fragen Sie ihn, bevor Sie die Daten weiterverwenden.",
+      "limit": "Anfragelimit",
+      "perMinute": "{rate} Anfragen pro Minute und Adresse. Darüber lehnt die API Aufrufe ab; warten Sie so viele Sekunden, wie der Header Retry-After nennt.",
+      "noLimit": "Die Installation setzt kein eigenes Limit.",
+      "access": "Zugang",
+      "accessText": "Offen: ohne Anmeldung und ohne Token. Jedes Beispiel unten läuft so, wie es ist.",
+      "samples": "Codebeispiele",
+      "language": "Sprache",
+      "sample": "Beispiel in {language}",
+      "copy": "Beispiel kopieren",
+      "send": "Ausprobieren",
+      "anonymous": "Ohne Ihre Anmeldung gesendet, wie von jedem Besucher.",
+      "answered": "Antwort: HTTP {status}.",
+      "limited": "HTTP {status}: zu viele Anfragen. Warten Sie eine Minute und versuchen Sie es erneut.",
+      "cut": "Die ersten {chars} Zeichen werden gezeigt.",
+      "failed": "Der Aufruf hat die API nicht erreicht: {reason}. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+      "request": "Anfrage",
+      "requestHint": "Ein Pfad unter diesem Endpoint, zum Beispiel {example}",
+      "problem": {
+        "start": "Geben Sie einen Pfad ein, der mit / beginnt, zum Beispiel /ngsi-ld/v1/types.",
+        "outside": "Lassen Sie den Pfad unter diesem Endpoint: Entfernen Sie .., // und kodierte Schrägstriche."
+      },
+      "surfaceName": {
+        "ngsi-ld": "NGSI-LD",
+        "ogc-features": "OGC API Features",
+        "geojson": "GeoJSON",
+        "odata": "OData",
+        "sta": "SensorThings",
+        "csv": "CSV",
+        "ical": "iCalendar",
+        "websocket": "WebSocket",
+        "mcp": "MCP"
+      },
+      "surface": {
+        "ngsi-ld": "Die ETSI-NGSI-LD-API: die ersten Entitäten eines Typs als JSON-LD.",
+        "ogc-features": "OGC API - Features: die ersten Features einer Collection, für GIS-Werkzeuge.",
+        "geojson": "Dieselben Features als GeoJSON-Datei gespeichert.",
+        "odata": "OData v4: die ersten Zeilen einer Entitätsmenge, für Excel und Power BI.",
+        "sta": "OGC SensorThings API: die ersten Things.",
+        "csv": "Alle Entitäten als eine CSV-Datei.",
+        "ical": "Die Termine als iCalendar-Feed.",
+        "websocket": "Live-Änderungen über einen WebSocket: abonnieren, dann kommt jede Änderung als Nachricht.",
+        "mcp": "Model Context Protocol für KI-Assistenten: der erste Aufruf, den ein Client sendet."
+      },
+      "tool": {
+        "qgis": {
+          "title": "QGIS",
+          "steps": "Layer > Layer hinzufügen > WFS-/OGC-API-Features-Layer hinzufügen. Neu wählen, die URL unten eintragen, als Version OGC API - Features wählen, dann Verbinden und eine Collection hinzufügen."
+        },
+        "arcgis": {
+          "title": "ArcGIS Pro",
+          "steps": "Insert > Connections > Server > New OGC API Server. Die URL unten einfügen und eine Collection aus dem Catalog-Bereich auf die Karte ziehen."
+        },
+        "excel": {
+          "title": "Excel und Power BI",
+          "steps": "Daten > Daten abrufen > Aus anderen Quellen > Aus OData-Feed. Die URL unten einfügen und anonymen Zugriff wählen."
+        },
+        "calendar": {
+          "title": "Kalender",
+          "steps": "Abonnieren Sie die Adresse unten in Outlook, Google Kalender oder Apple Kalender."
+        },
+        "claude": {
+          "title": "Claude und andere MCP-Clients",
+          "steps": "Fügen Sie einen eigenen Connector mit der URL unten hinzu. Keine Anmeldung nötig."
+        }
+      }
+    },
     "shareFlow": {
       "section": "Mit einem anderen Projekt teilen",
       "lead": "Wählen Sie das Projekt, was es liest und bis wann; die Freigabe und ihr Ende sind eine Änderung, über die ein Genehmigender entscheidet.",
@@ -7583,7 +7653,8 @@
         "model": "Das Datenmodell als {format}."
       },
       "forDevelopers": "Für Entwickler",
-      "moreFormats": "{count, plural, one {+# Format} other {+# Formate}}"
+      "moreFormats": "{count, plural, one {+# Format} other {+# Formate}}",
+      "developerPage": "Entwicklerseite: Codebeispiele für jede Schnittstelle, Ausprobieren, Lizenz und Anfragelimit"
     },
     "use": {
       "title": "Diese Daten nutzen",

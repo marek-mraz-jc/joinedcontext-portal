@@ -28,7 +28,8 @@ fn mirror(slug: &str, audience: &str) -> Mirror {
             "slug": slug,
             "audience": audience,
             "contextSpaceRef": {"name": "air"},
-            "enabledRepresentations": ["ngsi-ld", "ogc-features", "odata", "sta", "csv"]
+            "enabledRepresentations": ["ngsi-ld", "ogc-features", "odata", "sta", "csv"],
+            "catalog": {"license": "CC_BY_4_0"}
         }),
     ));
     mirror.upsert(common::envelope(
@@ -121,6 +122,22 @@ async fn gateway(slug: &str) -> MockServer {
         Mock::given(method("GET"))
             .and(path(at("odata/v4/AirQualityObserved")))
             .and(query_param("$filter", "no2 ge 21.5"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"value": []}))),
+        // The first pages of five (T-5111): OData's answers nothing and is left out.
+        Mock::given(method("GET"))
+            .and(path(at("ngsi-ld/v1/entities")))
+            .and(query_param("type", "AirQualityObserved"))
+            .and(query_param("limit", "5"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([entity]))),
+        Mock::given(method("GET"))
+            .and(path(at(
+                "ogc/features/collections/AirQualityObserved/items",
+            )))
+            .and(query_param("limit", "5"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"features": [{}]}))),
+        Mock::given(method("GET"))
+            .and(path(at("odata/v4/AirQualityObserved")))
+            .and(query_param("$top", "5"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({"value": []}))),
     ];
     for mock in mounts {
@@ -246,6 +263,38 @@ async fn the_examples_are_built_from_one_real_entity_and_each_answered() {
     assert!(
         !answer.to_string().contains("Hlavn"),
         "a value with a space is never quoted into an example"
+    );
+
+    // T-5111: what a developer page needs beyond the standards.
+    assert_eq!(answer["base"], base);
+    assert_eq!(
+        answer["served"],
+        json!(["ngsi-ld", "ogc-features", "odata", "sta", "csv", "mcp"])
+    );
+    assert_eq!(
+        answer["licence"],
+        json!({
+            "code": "CC_BY_4_0",
+            "title": "Creative Commons Attribution 4.0",
+            "url": "http://publications.europa.eu/resource/authority/licence/CC_BY_4_0"
+        })
+    );
+    assert_eq!(
+        answer["requestsPerMinute"], 5000,
+        "the catalog's default for an Organization that sets none"
+    );
+    assert_eq!(
+        standard(&answer, "ngsi-ld")["first"],
+        format!("{base}ngsi-ld/v1/entities?type=AirQualityObserved&limit=5")
+    );
+    assert_eq!(
+        standard(&answer, "ogc-features")["first"],
+        format!("{base}ogc/features/collections/AirQualityObserved/items?limit=5")
+    );
+    assert_eq!(
+        standard(&answer, "odata")["first"],
+        Value::Null,
+        "a first page with no entity is no sample"
     );
 }
 

@@ -5650,6 +5650,14 @@ export interface components {
          * @enum {string}
          */
         EndpointAccess: "read" | "readWrite";
+        /** @description A licence of the EU licence table. */
+        EndpointLicence: {
+            /** @description The EU licence table code, such as `CC_BY_4_0`. */
+            code: string;
+            title: string;
+            /** @description The licence's IRI in the EU licence table. */
+            url: string;
+        };
         /** @description The Endpoint a request names. */
         EndpointName: {
             name: string;
@@ -5657,8 +5665,19 @@ export interface components {
         };
         /** @description What a public Endpoint's page shows under "Standards". */
         EndpointStandards: {
+            /** @description The Endpoint's public address, ending in `/`: every sample a developer page shows starts here. */
+            base: string;
             /** @description The type of the entity the examples were built from; absent when none was read. */
             entityType?: string | null;
+            licence?: null | components["schemas"]["EndpointLicence"];
+            /**
+             * Format: int32
+             * @description The requests a minute the edge lets one anonymous caller send (ADR-N-035, class
+             *     `publicEndpoint`); beyond it the edge answers 429.
+             */
+            requestsPerMinute?: number | null;
+            /** @description Every representation the Endpoint serves, query standards and files alike. */
+            served: string[];
             slug: string;
             standards: components["schemas"]["StandardGuide"][];
             /** @description The entity types of the Endpoint's data model. */
@@ -7690,6 +7709,11 @@ export interface components {
             examples: components["schemas"]["Example"][];
             /** @description The names this standard filters on. */
             fields: string[];
+            /**
+             * @description The first five entities of the example type in this standard, kept only when that call
+             *     answered with entities.
+             */
+            first?: string | null;
             /** @description `ngsi-ld`, `ogc-features`, `odata` or `sta`. */
             representation: string;
         };
