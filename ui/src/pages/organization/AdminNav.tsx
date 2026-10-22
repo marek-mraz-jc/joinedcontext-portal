@@ -2,7 +2,7 @@ import type { JSX } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAdministers } from "../../api/permissions";
-import { navLinkClass } from "../../components/layout/Shell";
+import { navLinkClass } from "../../components/layout/BrandMark";
 import { Icon } from "../../components/ui";
 
 /**

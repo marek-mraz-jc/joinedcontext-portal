@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/AuthProvider";
 import { useBranding } from "../branding";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
-import { BrandMark } from "../components/layout/Shell";
+import { BrandMark } from "../components/layout/BrandMark";
 import { Button, Card, Icon } from "../components/ui";
 
 /** Where to land after the login: the location the session ran out on, never another origin. */

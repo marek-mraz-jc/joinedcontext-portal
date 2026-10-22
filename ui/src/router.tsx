@@ -14,7 +14,8 @@ import {
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { lastProject, preferredProject, useProjects } from "./api/projects";
-import { BrandMark, Shell } from "./components/layout/Shell";
+import { BrandMark } from "./components/layout/BrandMark";
+import { Shell } from "./components/layout/LazyShell";
 import { isHiddenSection } from "./components/layout/navigation";
 import { useHiddenSections } from "./branding";
 import { EmptyState, PageFailed, PageLoading } from "./components/ui";
@@ -207,7 +208,14 @@ function IndexRedirect(): React.JSX.Element {
 }
 
 const rootRoute = createRootRouteWithContext<RouterContext>()({
-  component: Outlet,
+  // A signed-in page waits here for the shell's chunk (T-5122), drawn as the empty page it becomes.
+  component: function Root() {
+    return (
+      <Suspense fallback={<main aria-busy="true" className="min-h-screen bg-bg" />}>
+        <Outlet />
+      </Suspense>
+    );
+  },
 });
 
 /**

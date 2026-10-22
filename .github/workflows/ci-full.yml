@@ -198,6 +198,36 @@ jobs:
       - if: steps.has.outputs.ui == 'yes'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with: { name: ui-coverage, path: ui/coverage, if-no-files-found: error }
+  web-performance:
+    # The public pages on a phone (T-5122): Lighthouse's mobile profile against dev, three runs a
+    # page, judged by scripts/web-performance.mjs (a ceiling fails, the Core Web Vitals target
+    # warns). Lighthouse runs on the runner; nothing is added to the pages it measures, and the
+    # reports stay in this run's artifact, never on a third-party server.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 22 }
+      - name: the ceilings' judge
+        run: node --test scripts/web-performance.test.mjs
+      - name: Lighthouse, mobile profile, three runs a page
+        run: |
+          mkdir -p "$RUNNER_TEMP/lighthouse"
+          # npx resolves from the registry with no lock; --before keeps it to releases a week old (the cooldown).
+          before=$(date -u -d '7 days ago' +%Y-%m-%d)
+          node scripts/web-performance.mjs urls dev.joinedcontext.com | while read -r slug url; do
+            for run in 1 2 3; do
+              npx --yes --before="$before" lighthouse@12.8.2 "$url" --quiet --only-categories=performance \
+                --chrome-flags="--headless=new --no-sandbox" --output=json \
+                --output-path="$RUNNER_TEMP/lighthouse/$slug-$run.json" || true
+            done
+          done
+      - name: every public page under its ceiling
+        run: node scripts/web-performance.mjs check "$RUNNER_TEMP/lighthouse"
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with: { name: lighthouse, path: "${{ runner.temp }}/lighthouse", if-no-files-found: warn }
   apps-all:
     # Every App, its tests, the coverage gate and its bundle (T-3373); the fast lane runs only the
     # Apps a change touched. The WebAssembly Apps with the lane's builder and wasm-bindgen.

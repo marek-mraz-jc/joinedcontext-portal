@@ -60,6 +60,10 @@ export default defineConfig({
         find: /^.*\/forms\/LazySchemaForm$/,
         replacement: fileURLToPath(new URL("./src/components/forms/SchemaForm.tsx", import.meta.url)),
       },
+      {
+        find: /^.*\/layout\/LazyShell$/,
+        replacement: fileURLToPath(new URL("./src/components/layout/Shell.tsx", import.meta.url)),
+      },
     ],
     globals: true,
     css: true,

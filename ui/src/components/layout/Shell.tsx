@@ -16,7 +16,7 @@ import { PageTools } from "../../navigation/PageTools";
 import { useAuth } from "../../auth/AuthProvider";
 import { rememberProject, useProjects, useProjectTitles, useSampleProjects } from "../../api/projects";
 import { useAdministers } from "../../api/permissions";
-import { logoUrl, useBranding, useHiddenSections } from "../../branding";
+import { useBranding, useHiddenSections } from "../../branding";
 import {
   Alert,
   Badge,
@@ -38,10 +38,9 @@ import { ErrorBoundary } from "../ErrorBoundary";
 import { NewProjectButton } from "./NewProject";
 import { WorkspaceBar } from "./WorkspaceBar";
 import { withoutCopy } from "./WorkspaceContext";
+import { BrandMark, navLinkClass } from "./BrandMark";
 
-const NAV_LINK =
-  "focus-ring-inset flex items-center gap-2.5 rounded-md px-2.5 py-2 text-body text-fg-muted transition-colors hover:bg-surface-muted hover:text-fg";
-const NAV_LINK_ACTIVE = "bg-primary-soft font-semibold text-primary-soft-fg hover:bg-primary-soft hover:text-primary-soft-fg";
+export { BrandMark, navLinkClass };
 
 /** Switches between the projects the repository holds; the active one is listed whatever the API says. */
 function ProjectSelector({ active }: { active: string }) {
@@ -235,36 +234,6 @@ function ProfileBlock(): JSX.Element | null {
       </Button>
     </section>
   );
-}
-
-/** The instance name and its logo, which is what every page is titled with (UI-30). */
-export function BrandMark({ short = false }: { short?: boolean }): JSX.Element {
-  const branding = useBranding();
-  const logo = logoUrl(branding);
-  const name = short ? (branding.shortName ?? branding.instanceName) : branding.instanceName;
-  return (
-    <span className="inline-flex min-w-0 items-center gap-2.5">
-      {logo ? (
-        <img src={logo} alt="" aria-hidden="true" className="h-7 w-auto max-w-32 object-contain" />
-      ) : (
-        <span
-          aria-hidden="true"
-          className="inline-flex size-7 items-center justify-center rounded-md bg-primary text-caption font-bold text-primary-fg"
-        >
-          {name.trim().charAt(0).toUpperCase()}
-        </span>
-      )}
-      {/* Beside a logo the name is cut to "joi…" on a phone and at 200 % zoom; below md the logo
-          stands alone and the name stays for a screen reader (T-4165, audits T-4157, T-4163). */}
-      <span className={clsx("truncate font-heading font-semibold tracking-tight", logo && "max-md:sr-only")}>
-        {name}
-      </span>
-    </span>
-  );
-}
-
-export function navLinkClass(active: boolean): string {
-  return clsx(NAV_LINK, active && NAV_LINK_ACTIVE);
 }
 
 function NavLabel({ icon, label }: { icon: IconName; label: string }) {
