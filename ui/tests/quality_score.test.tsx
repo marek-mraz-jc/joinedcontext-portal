@@ -10,9 +10,14 @@ import cs from "../src/locales/cs.json";
 import de from "../src/locales/de.json";
 import en from "../src/locales/en.json";
 import sk from "../src/locales/sk.json";
-import { PARTS, QualityScore, SAID, toneOf } from "../src/components/quality/QualityScore";
+import { QualityScore, SAID, toneOf } from "../src/components/quality/QualityScore";
 import { EndpointQuality } from "../src/pages/endpoints/EndpointQuality";
 import { expectAxeClean, jsonResponse, problem } from "./pageHarness";
+import type { components } from "../src/api/schema";
+
+// Every part the API names (`src/dataset_score.rs`): `satisfies` fails the typecheck on a missing or unknown one.
+const PARTS = Object.keys({ freshness: 1, completeness: 1, validity: 1, links: 1 } satisfies
+  Record<components["schemas"]["DatasetScorePart"]["part"], 1>) as components["schemas"]["DatasetScorePart"]["part"][];
 
 const said = (code: string, text: string, args: Record<string, string> = {}) => ({ code, args, text });
 
