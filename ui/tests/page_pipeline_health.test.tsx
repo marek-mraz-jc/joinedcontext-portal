@@ -32,6 +32,7 @@ const HEALTH = [
     changePercent: 3,
     failedRuns: 0,
     alert: false,
+    links: { checkedAt: "2026-10-19T02:00:00Z", checked: 40, answered: 39, skipped: 0, deadCount: 0, dead: [] },
   },
   {
     pipeline: "podujatia-zvolen",
@@ -45,6 +46,17 @@ const HEALTH = [
     lastError: "GET https://zvolen.example/rss answered 404",
     lastErrorAt: "2026-10-21T06:00:01Z",
     alert: true,
+    links: {
+      checkedAt: "2026-10-19T02:00:00Z",
+      checked: 8,
+      answered: 1,
+      skipped: 2,
+      deadCount: 7,
+      dead: [
+        ...[1, 2, 3, 4].map((n) => ({ url: `https://zvolen.example/podujatia/${n}`, status: 404 as number | undefined })),
+        { url: "https://zvolen.example/podujatia/5", status: undefined, error: "no answer in 10 s" },
+      ],
+    },
   },
   { pipeline: "podujatia-revuca", state: "empty", lastRunAt: "2026-10-21T06:00:00Z", lastSent: 0, failedRuns: 0, alert: false },
   { pipeline: "podujatia-new", state: "never", failedRuns: 0, alert: false },
@@ -100,6 +112,29 @@ describe("the source health tab", () => {
     await waitFor(() =>
       expect(calls()).toContain("GET /api/v1/projects/helsinki/pipelines/podujatia-zvolen/runs"),
     );
+  });
+
+  it("flags_a_source_with_dead_links_and_says_how_to_fix_it", async () => {
+    const { container } = await renderRoute({
+      path: PATH,
+      answer: answering(() => jsonResponse({ items: HEALTH })),
+    });
+    await openHealthTab();
+    const table = await screen.findByRole("table", { name: en.pipelines.health.caption });
+    const rows = within(table).getAllByRole("row").slice(1);
+    const zvolen = rows[0];
+    expect(within(zvolen).getByText("1 of 8 answer (12 %)")).toHaveClass("text-danger");
+    expect(within(zvolen).getByText("Dead links: 7")).toBeInTheDocument();
+    expect(within(zvolen).getAllByRole("listitem")).toHaveLength(5);
+    expect(within(zvolen).getByTitle("https://zvolen.example/podujatia/1").closest("li")).toHaveTextContent("(answered 404)");
+    expect(within(zvolen).getByTitle("https://zvolen.example/podujatia/5").closest("li")).toHaveTextContent("(no answer)");
+    expect(within(zvolen).getByText("and 2 more")).toBeInTheDocument();
+    expect(within(zvolen).getByText(en.pipelines.health.linksFix)).toBeInTheDocument();
+    const detva = rows[3];
+    expect(within(detva).getByText("39 of 40 answer (97 %)")).not.toHaveClass("text-danger");
+    expect(within(detva).queryByText(en.pipelines.health.linksFix)).toBeNull();
+    expect(within(rows[2]).getByText(en.pipelines.health.linksNotChecked)).toBeInTheDocument();
+    await expectAxeClean(container);
   });
 
   it("is_not_offered_to_a_person_who_approves_no_pipeline", async () => {
