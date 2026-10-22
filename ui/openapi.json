@@ -9278,6 +9278,101 @@
         }
       }
     },
+    "/api/v1/projects/{project}/endpoints/{name}/usage": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Read Endpoint Usage",
+        "description": "The Endpoint's answered calls per UTC day and surface (ngsi-ld, ogc, odata, sta, ical, mcp, websocket, download) over the last `days` days, every day present, as the gateways count them (T-5118). No address, person or query is kept. Whoever may read the Endpoint may read its usage; anyone else gets 404.",
+        "operationId": "get_endpoint_usage",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Endpoint name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "description": "The days ending today (UTC), 1 to 90; 30 when absent.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Calls per day",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EndpointUsage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`days` out of 1 to 90",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such Endpoint the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The usage database did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/export": {
       "get": {
         "tags": [
@@ -17058,6 +17153,174 @@
         }
       }
     },
+    "/api/v1/projects/{project}/usage/endpoints": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "List Endpoint Usage",
+        "description": "Every Endpoint of the project the caller may read, with its calls over the last `days` days: the total, the total per surface and one number per day (T-5118). An Endpoint nobody called is listed with zeros.",
+        "operationId": "list_project_usage",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "description": "The days ending today (UTC), 1 to 90; 30 when absent.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usage per Endpoint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectUsage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`days` out of 1 to 90",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The usage database did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/usage/endpoints/export": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Export Endpoint Usage",
+        "description": "One month of the project's Endpoint usage as CSV, `day,endpoint,surface,calls`, one line per UTC day, Endpoint and surface with calls, for the Endpoints the caller may read (T-5118).",
+        "operationId": "export_project_usage",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "description": "`YYYY-MM`, e.g. `2026-10`.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "text/csv",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`month` is not YYYY-MM",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The usage database did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/workspaces": {
       "get": {
         "tags": [
@@ -23101,6 +23364,37 @@
           }
         }
       },
+      "Day": {
+        "type": "object",
+        "description": "One Endpoint's calls on one day, by surface.",
+        "required": [
+          "day",
+          "calls",
+          "total"
+        ],
+        "properties": {
+          "calls": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "day": {
+            "type": "string",
+            "description": "`YYYY-MM-DD`, UTC."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "Decision": {
         "type": "object",
         "description": "Why an owner declines or revokes.",
@@ -23715,6 +24009,97 @@
               "type": "string"
             },
             "description": "The entity types of the Endpoint's data model."
+          }
+        }
+      },
+      "EndpointTotal": {
+        "type": "object",
+        "description": "One Endpoint's line in the project's usage.",
+        "required": [
+          "name",
+          "slug",
+          "total",
+          "totals",
+          "daily"
+        ],
+        "properties": {
+          "daily": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "description": "Calls per day, oldest first, one number for every day of the window."
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totals": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "EndpointUsage": {
+        "type": "object",
+        "description": "One Endpoint's usage over a window, a row for every day, empty days included.",
+        "required": [
+          "name",
+          "from",
+          "to",
+          "days",
+          "totals",
+          "total"
+        ],
+        "properties": {
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Day"
+            }
+          },
+          "from": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "The Endpoint's manifest name."
+          },
+          "to": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totals": {
+            "type": "object",
+            "description": "The window's calls by surface.",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "propertyNames": {
+              "type": "string"
+            }
           }
         }
       },
@@ -27881,6 +28266,29 @@
           },
           "title": {
             "$ref": "#/components/schemas/Text"
+          }
+        }
+      },
+      "ProjectUsage": {
+        "type": "object",
+        "description": "Every Endpoint of a project the caller may read, over one window.",
+        "required": [
+          "from",
+          "to",
+          "endpoints"
+        ],
+        "properties": {
+          "endpoints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EndpointTotal"
+            }
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
           }
         }
       },

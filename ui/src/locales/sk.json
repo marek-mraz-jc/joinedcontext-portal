@@ -9615,5 +9615,42 @@
       },
       "unavailable": "Skóre kvality sa nepodarilo načítať; obnovte stránku a skúste to znova."
     }
+  },
+  "endpointUsage": {
+    "title": "Využitie",
+    "lead": "Zodpovedané volania za endpoint a deň, ako ich počíta brána. Mesiac si stiahnete ako CSV do správy.",
+    "endpointLead": "Ako často tento endpoint odpovedal, za deň a podľa spôsobu čítania: volania API, stiahnutia a asistenti (MCP).",
+    "window": "Obdobie",
+    "days": "Posledných {count} dní",
+    "total": "Zodpovedané volania: {calls} ({from} – {to})",
+    "chart": "Volania za deň: spolu {calls} za {days} dní",
+    "perDay": "Volania podľa dní",
+    "day": "Deň",
+    "calls": "Volania",
+    "endpoint": "Endpoint",
+    "trend": "Za deň",
+    "none": "Bez volaní",
+    "noCalls": "Tento endpoint v tomto období nikto nevolal. Zdieľajte jeho adresu z časti vyššie alebo ho zverejnite v katalógu; počty sa tu objavia do piatich minút od prvého volania.",
+    "noEndpoints": "Zatiaľ nesmiete čítať žiadny endpoint tohto projektu. Požiadajte jeho správcu o prístup na čítanie dátového priestoru endpointu.",
+    "failed": "Využitie sa nepodarilo načítať: {reason}. Obnovte stránku a skúste to znova.",
+    "privacy": "Len počty: neukladá sa IP adresa, cookie, osoba ani dopyt. Dni sú v UTC a uchovávajú sa 13 mesiacov.",
+    "month": "Mesiac na stiahnutie",
+    "monthInvalid": "Vyberte mesiac v kalendári.",
+    "export": "Stiahnuť CSV",
+    "exporting": "Pripravujem CSV…",
+    "surface": {
+      "ngsi-ld": "NGSI-LD",
+      "ogc": "OGC API Features",
+      "odata": "OData",
+      "sta": "Senzorové API (STA)",
+      "ical": "Kalendár (iCal)",
+      "mcp": "Asistenti (MCP)",
+      "websocket": "Živé aktualizácie",
+      "download": "Stiahnutia (CSV)"
+    },
+    "hint": {
+      "window": "Dni končiace dnešným dňom (UTC), napr. posledných 30 dní.",
+      "month": "Mesiac v tvare RRRR-MM, napr. 2026-10."
+    }
   }
 }

@@ -194,6 +194,10 @@ function renderPage({
     if (path.endsWith(`/endpoints/${NAME}/preview`)) {
       return json({ entities: [], count: 0 });
     }
+    // T-5118: the page's Usage section, with nobody having called yet.
+    if (path.endsWith(`/endpoints/${NAME}/usage`)) {
+      return json({ name: NAME, from: "2026-09-23", to: "2026-10-22", days: [], totals: {}, total: 0 });
+    }
     if (path.endsWith(`/endpoints/${NAME}`)) {
       return endpoint === null ? json({ title: "Not Found", detail: "no such endpoint" }, 404) : json(endpoint);
     }

@@ -35,6 +35,7 @@ pub mod drift;
 pub mod dry_run;
 pub mod endpoint_preview;
 pub mod endpoint_standards;
+pub mod endpoint_usage;
 pub mod entity_comments;
 pub mod entity_trash;
 pub mod erasures;
@@ -150,6 +151,7 @@ pub fn router() -> Router<AppState> {
         .merge(sync_sources::router())
         .merge(validation::router())
         .merge(health_checks::router())
+        .merge(endpoint_usage::router())
         .merge(visualization_templates::router())
         .merge(organization_limits::router())
         .merge(brokers::router())

@@ -9615,5 +9615,42 @@
       },
       "unavailable": "Der Qualitätswert konnte nicht gelesen werden; laden Sie die Seite neu, um es erneut zu versuchen."
     }
+  },
+  "endpointUsage": {
+    "title": "Nutzung",
+    "lead": "Beantwortete Aufrufe je Endpunkt und Tag, wie das Gateway sie zählt. Einen Monat laden Sie als CSV für einen Bericht herunter.",
+    "endpointLead": "Wie oft dieser Endpunkt geantwortet hat, je Tag und Zugriffsart: API-Aufrufe, Downloads und Assistenten (MCP).",
+    "window": "Zeitraum",
+    "days": "Letzte {count} Tage",
+    "total": "Beantwortete Aufrufe: {calls} ({from} – {to})",
+    "chart": "Aufrufe pro Tag: insgesamt {calls} in {days} Tagen",
+    "perDay": "Aufrufe pro Tag",
+    "day": "Tag",
+    "calls": "Aufrufe",
+    "endpoint": "Endpunkt",
+    "trend": "Pro Tag",
+    "none": "Keine Aufrufe",
+    "noCalls": "In diesem Zeitraum hat niemand diesen Endpunkt aufgerufen. Teilen Sie seine Adresse aus dem Abschnitt oben oder veröffentlichen Sie ihn im Katalog; die Zahlen erscheinen hier binnen fünf Minuten nach dem ersten Aufruf.",
+    "noEndpoints": "Sie dürfen noch keinen Endpunkt dieses Projekts lesen. Bitten Sie die Verwaltung um Lesezugriff auf den Kontextraum eines Endpunkts.",
+    "failed": "Die Nutzung konnte nicht gelesen werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen.",
+    "privacy": "Nur Zahlen: keine IP-Adresse, kein Cookie, keine Person und keine Abfrage wird gespeichert. Tage in UTC, 13 Monate aufbewahrt.",
+    "month": "Monat zum Herunterladen",
+    "monthInvalid": "Wählen Sie einen Monat im Kalender.",
+    "export": "CSV herunterladen",
+    "exporting": "CSV wird vorbereitet…",
+    "surface": {
+      "ngsi-ld": "NGSI-LD-API",
+      "ogc": "OGC API Features",
+      "odata": "OData",
+      "sta": "Sensor-API (STA)",
+      "ical": "Kalender (iCal)",
+      "mcp": "Assistenten (MCP)",
+      "websocket": "Live-Aktualisierungen",
+      "download": "Herunterladen (CSV)"
+    },
+    "hint": {
+      "window": "Die Tage bis heute (UTC), z. B. die letzten 30 Tage.",
+      "month": "Ein Monat als JJJJ-MM, z. B. 2026-10."
+    }
   }
 }
