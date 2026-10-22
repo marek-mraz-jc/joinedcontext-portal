@@ -35,6 +35,8 @@ pub const EVERY: Duration = Duration::days(7);
 pub const PER_HOST: StdDuration = StdDuration::from_secs(1);
 /// How long one request waits for its answer.
 pub const TIMEOUT: StdDuration = StdDuration::from_secs(10);
+/// How long a link's host has to accept the connection.
+const CONNECT_TIMEOUT: StdDuration = StdDuration::from_secs(5);
 /// Redirects followed per link.
 pub const REDIRECTS: usize = 5;
 /// Failed checks in a row that make a link dead.
@@ -525,12 +527,30 @@ impl LinkStore {
     }
 }
 
+/// The client that asks event links: no proxy, [`crate::sync::guard::PublicOnly`] judges every
+/// name once it resolves (each redirect hop included), so a public name answering 10.x or
+/// 127.x is never asked. Redirects are followed by hand in [`HostQueue`].
+fn link_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .no_proxy()
+        .dns_resolver(Arc::new(crate::sync::guard::PublicOnly))
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(TIMEOUT)
+        .redirect(reqwest::redirect::Policy::none())
+        .user_agent(USER_AGENT)
+        .build()
+        .unwrap_or_default()
+}
+
 /// The weekly run: reads the spaces through the gateway, asks the links, keeps the result.
 pub struct Checker {
     mirror: Arc<Mirror>,
     store: Arc<LinkStore>,
     gateway: Url,
+    /// Reads the installation's own gateway, an internal Service.
     http: reqwest::Client,
+    /// Asks the event links: a name that resolves to an internal address is refused.
+    links: reqwest::Client,
     running: AtomicBool,
 }
 
@@ -547,6 +567,7 @@ impl Checker {
                 .user_agent(USER_AGENT)
                 .build()
                 .unwrap_or_default(),
+            links: link_client(),
             running: AtomicBool::new(false),
         }
     }
@@ -656,7 +677,7 @@ impl Checker {
             }
         }
         let asked = stream::iter(by_host)
-            .map(|(host, urls)| HostQueue::new(&self.http, host, inventoried).ask_all(urls))
+            .map(|(host, urls)| HostQueue::new(&self.links, host, inventoried).ask_all(urls))
             .buffer_unordered(HOSTS_AT_ONCE)
             .collect::<Vec<_>>()
             .await;
@@ -1089,6 +1110,35 @@ mod tests {
             "spec": spec,
         }))
         .expect("manifest")
+    }
+
+    /// T-5133 review: a link whose name resolves to an internal address is never asked, robots.txt
+    /// included; the run's own link client refuses it at resolution.
+    #[tokio::test]
+    async fn a_name_resolving_to_an_internal_address_is_never_asked() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let port = listener.local_addr().expect("address").port();
+        let hits = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let seen = Arc::clone(&hits);
+        let app = axum::Router::new().fallback(move || {
+            seen.fetch_add(1, Ordering::SeqCst);
+            async { axum::http::StatusCode::OK }
+        });
+        tokio::spawn(async move { axum::serve(listener, app).await });
+        let http = link_client();
+        let url = Url::parse(&format!("http://localhost:{port}/podujatia/1")).expect("url");
+        let refused = http.head(url.clone()).send().await.expect_err("refused");
+        assert!(
+            format!("{refused:?}").contains("not a public address"),
+            "{refused:?}"
+        );
+        let inventoried = BTreeSet::from(["localhost".to_owned()]);
+        let mut queue = HostQueue::new(&http, "localhost".into(), &inventoried);
+        queue.pause = StdDuration::from_millis(1);
+        assert_eq!(queue.ask(&url).await, Outcome::Skipped);
+        assert_eq!(hits.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test]
