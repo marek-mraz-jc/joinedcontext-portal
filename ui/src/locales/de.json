@@ -8645,6 +8645,7 @@
     "service-off": "Schalten Sie den Dienst auf der Ebene ein, die die Beschreibung nennt (Organisation, Projekt oder App), oder lassen Sie den Aufruf weg.",
     "quota": "Warten Sie, bis das Kontingent zur angegebenen Zeit zurückgesetzt wird, oder bitten Sie die Administration um ein größeres Kontingent; Dateiplatz wird frei, wenn die App Dateien löscht.",
     "file-too-large": "Speichern Sie ein kleineres Objekt; ein Objekt darf höchstens das angegebene Limit groß sein.",
+    "unprocessable": "Beheben Sie jeden Befund, den die Antwort nennt; ein Probelauf zeigt dieselben Befunde vor dem Senden.",
     "recipient-refused": "Senden Sie nur an Personen der Organisation mit bestätigter E-Mail-Adresse.",
     "no-model-key": "Bitten Sie die Administration der Organisation, den Modellschlüssel hinzuzufügen oder zu erneuern, und versuchen Sie es erneut.",
     "no-json": "Fragen Sie erneut; die Antwort des Modells entsprach nicht dem angeforderten Schema."

@@ -8645,6 +8645,7 @@
     "service-off": "Zapnite službu na úrovni, ktorú uvádza popis (organizácia, projekt alebo aplikácia), alebo volanie vynechajte.",
     "quota": "Počkajte, kým sa kvóta v uvedenom čase obnoví, alebo požiadajte správcu o vyššiu kvótu; miesto na súbory sa uvoľní, keď aplikácia súbory zmaže.",
     "file-too-large": "Uložte menší objekt; jeden objekt môže mať najviac uvedený limit.",
+    "unprocessable": "Opravte každé zistenie, ktoré odpoveď uvádza; skúšobný beh ukáže tie isté zistenia ešte pred odoslaním.",
     "recipient-refused": "Posielajte len ľuďom z organizácie s overenou e-mailovou adresou.",
     "no-model-key": "Požiadajte správcu organizácie, aby pridal alebo obnovil kľúč k modelu, a skúste to znova.",
     "no-json": "Opýtajte sa znova; odpoveď modelu nezodpovedala požadovanej schéme."
