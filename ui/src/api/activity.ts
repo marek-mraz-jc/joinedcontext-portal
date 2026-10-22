@@ -33,6 +33,7 @@ export const ACTIVITY_KINDS = [
   "knowledge.answers.forgotten",
   "access-request",
   "personal-data",
+  "mqtt.capture.deleted",
 ] as const;
 
 export const ACTIVITY_SOURCES = [

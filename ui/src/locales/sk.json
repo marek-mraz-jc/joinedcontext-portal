@@ -5948,7 +5948,12 @@
         }
       },
       "access-request": "Žiadosť o prístup",
-      "personal-data": "Žiadosť o osobné údaje"
+      "personal-data": "Žiadosť o osobné údaje",
+      "mqtt": {
+        "capture": {
+          "deleted": "Záznam MQTT vymazaný"
+        }
+      }
     },
     "sources": {
       "reconciler": "Konfigurácia",

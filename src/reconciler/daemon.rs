@@ -176,6 +176,8 @@ pub struct Syncer {
     /// Every `MqttBroker`'s release and its Keycloak client (ADR-N-048, T-3994).
     mqtt_brokers: Option<Arc<super::mqtt_brokers::MqttBrokers>>,
     mqtt_clients: Option<Arc<super::mqtt_brokers::MqttClientSync>>,
+    /// The subscriber of every `capture` MqttBroker (ADR-N-048 §2.10, T-4880).
+    mqtt_capture: Option<Arc<crate::mqtt_capture::Capture>>,
     /// Where a run says what it did (OPS-48). `None` leaves the loop silent, which is what a
     /// Portal built without a state does in a unit test.
     activity: Option<ActivityStore>,
@@ -274,6 +276,7 @@ impl Syncer {
             wasm_shards: None,
             mqtt_brokers: None,
             mqtt_clients: None,
+            mqtt_capture: None,
             activity: None,
             apps_cache_dir: None,
             apps_dir: None,
@@ -475,6 +478,12 @@ impl Syncer {
         self
     }
 
+    /// Makes each run of the leader capture every `capture` MqttBroker (T-4880).
+    pub fn with_mqtt_capture(mut self, capture: Arc<crate::mqtt_capture::Capture>) -> Self {
+        self.mqtt_capture = Some(capture);
+        self
+    }
+
     /// Makes each run keep every `MqttBroker`'s bearer-only client (T-3994).
     pub fn with_mqtt_clients(mut self, clients: Arc<super::mqtt_brokers::MqttClientSync>) -> Self {
         self.mqtt_clients = Some(clients);
@@ -604,6 +613,10 @@ impl Syncer {
         let leader = self.claim_leadership().await;
         if !leader {
             tracing::debug!("another replica holds the reconciler lock, loading the mirror only");
+            // The leader's subscribers take the brokers' client ids; two would push each other off.
+            if let Some(capture) = self.mqtt_capture.as_ref() {
+                capture.stop();
+            }
         }
 
         let before = self.status();
@@ -1889,6 +1902,12 @@ impl Syncer {
         scratch: &Render,
         transitions: &super::transitions::Transitions,
     ) {
+        if let Some(capture) = self.mqtt_capture.as_ref() {
+            let brokers = super::mqtt_brokers::declared(&self.mirror);
+            capture
+                .converge(&brokers, scratch.unstaged.is_empty())
+                .await;
+        }
         if self.mqtt_brokers.is_some() || self.mqtt_clients.is_some() {
             let brokers = super::mqtt_brokers::declared(&self.mirror);
             let mut failed: BTreeMap<String, String> = brokers

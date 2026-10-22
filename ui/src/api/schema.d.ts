@@ -2869,6 +2869,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/mqttbrokers/{name}/captured": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read An MQTT Broker's Capture
+         * @description The newest messages a broker in `capture` mode kept, newest first (API/01 §47, ADR-N-048 §2.10). Only a person who may approve MqttBrokers in the project; anybody else gets 404.
+         */
+        get: operations["get_captured"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete An MQTT Broker's Capture
+         * @description Deletes every message the broker kept at once and records who did it in the activity log, without the payloads (API/01 §47). Only a person who may approve MqttBrokers in the project; anybody else gets 404.
+         */
+        delete: operations["delete_captured"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/mqttbrokers/{name}/measured": {
         parameters: {
             query?: never;
@@ -5028,6 +5052,32 @@ export interface components {
                 [key: string]: components["schemas"]["EndpointAccess"];
             };
             preset: components["schemas"]["Preset"];
+        };
+        /** @description A broker's capture, newest first. */
+        Captured: {
+            broker: string;
+            messages: components["schemas"]["CapturedMessage"][];
+            /** Format: int32 */
+            messagesPerTopic?: number | null;
+            /** @description `ingest`, `capture` or `relay`; only `capture` keeps messages. */
+            mode: string;
+            /** @description More messages are kept than `limit` answered. */
+            truncated: boolean;
+            /** @description The capture's window, an ISO 8601 duration; absent outside `capture`. */
+            window?: string | null;
+        };
+        /** @description One kept message. */
+        CapturedMessage: {
+            bytes: number;
+            /** @description The device, where a publish filter of the broker names it as `${clientid}`. */
+            clientId?: string | null;
+            /** @description `utf-8` or `base64`. */
+            encoding: string;
+            /** @description UTF-8 text when the payload decodes, else base64. */
+            payload: string;
+            /** Format: date-time */
+            receivedAt: string;
+            topic: string;
         };
         /** @description The catalogue index Model Tools caches and refreshes daily (DM-12). */
         Catalogue: {
@@ -17677,6 +17727,131 @@ export interface operations {
             };
             /** @description No such project, or not readable by the caller */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_captured: {
+        parameters: {
+            query?: {
+                /** @description One exact topic, no wildcard, e.g. `cams/cam-west/frame-meta`. */
+                topic?: string;
+                /** @description How many messages, 1 to 1000; default 100. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description MqttBroker name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The kept messages; empty outside capture mode */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Captured"];
+                };
+            };
+            /** @description A topic with a wildcard, or a limit outside 1…1000 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such broker, or the caller may not approve brokers here */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The capture store did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    delete_captured: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description MqttBroker name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The capture is gone */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such broker, or the caller may not approve brokers here */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The capture store did not answer */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

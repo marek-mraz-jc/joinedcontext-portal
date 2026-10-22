@@ -5948,7 +5948,12 @@
         }
       },
       "access-request": "Zugriffsanfrage",
-      "personal-data": "Anfrage zu personenbezogenen Daten"
+      "personal-data": "Anfrage zu personenbezogenen Daten",
+      "mqtt": {
+        "capture": {
+          "deleted": "MQTT-Mitschnitt gelöscht"
+        }
+      }
     },
     "sources": {
       "reconciler": "Konfiguration",
