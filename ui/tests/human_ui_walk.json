@@ -1443,6 +1443,24 @@
         "evidence/worker-t4849/T-4849/agents-settings-400.png"
       ]
     },
+    "src/pages/organization/Costs.tsx": {
+      "walkedBy": "worker-t5126",
+      "date": "2026-10-22",
+      "screenshots": [
+        "evidence/worker-t5126/T-5126/costs-empty-1440.png",
+        "evidence/worker-t5126/T-5126/costs-empty-400.png",
+        "evidence/worker-t5126/T-5126/costs-filled-en-1440.png",
+        "evidence/worker-t5126/T-5126/costs-filled-en-400.png",
+        "evidence/worker-t5126/T-5126/costs-filled-sk-1440.png",
+        "evidence/worker-t5126/T-5126/costs-filled-sk-400.png",
+        "evidence/worker-t5126/T-5126/costs-no-prices-1440.png",
+        "evidence/worker-t5126/T-5126/costs-no-prices-400.png",
+        "evidence/worker-t5126/T-5126/costs-partial-1440.png",
+        "evidence/worker-t5126/T-5126/costs-partial-400.png",
+        "evidence/worker-t5126/T-5126/costs-refused-1440.png",
+        "evidence/worker-t5126/T-5126/costs-refused-400.png"
+      ]
+    },
     "src/pages/organization/OrganizationApplications.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",

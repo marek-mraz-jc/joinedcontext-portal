@@ -1928,6 +1928,152 @@
         }
       }
     },
+    "/api/v1/organization/costs": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Read Costs per Project",
+        "description": "One calendar month split per project (T-5126): the nodes and fixed items by the project's share of the bytes its spaces store, its bytes at the blended volume price, and each AssistantDeployment's priced turns at the table's rate. What no project carries is the platform's; the projects and the platform add up to the operator's price table. Organization administrators only.",
+        "operationId": "get_costs",
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "description": "The calendar month, e.g. `2026-09`; the last whole month when absent.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The month split",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Costs"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "month is no started calendar month such as 2026-09",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an organization administrator",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No price table is configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organization/costs/export": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Export Costs per Project",
+        "description": "The month of `GET /api/v1/organization/costs` as CSV: one line per node share, space and assistant, the platform's lines last (T-5126). Organization administrators only.",
+        "operationId": "export_costs",
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "description": "The calendar month, e.g. `2026-09`; the last whole month when absent.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "text/csv",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "month is no started calendar month such as 2026-09",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an organization administrator",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No price table is configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organization/datamodels": {
       "get": {
         "tags": [
@@ -20439,6 +20585,49 @@
           }
         }
       },
+      "AssistantCost": {
+        "type": "object",
+        "description": "One assistant's line.",
+        "required": [
+          "assistant",
+          "questions",
+          "uncostedQuestions",
+          "cost"
+        ],
+        "properties": {
+          "assistant": {
+            "type": "string"
+          },
+          "cost": {
+            "type": "number",
+            "format": "double"
+          },
+          "costUsd": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "What the provider billed, in USD; absent when the assistant did not answer."
+          },
+          "questions": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "uncostedQuestions": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "Attribute": {
         "type": "object",
         "description": "One attribute of a class as the space's model states it (T-3223): what an editor needs to map\na field onto it.",
@@ -22451,6 +22640,79 @@
             "description": "`entities`, `rejectedRecords`, `runs`, `grants` or `bindings`."
           }
         }
+      },
+      "CostPrices": {
+        "type": "object",
+        "description": "The operator's price table: what the cloud bills a month.",
+        "required": [
+          "currency",
+          "perUsd",
+          "nodes"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217, e.g. `EUR`."
+          },
+          "fixed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PricedItem"
+            },
+            "description": "Billed every month whatever runs: addresses, backups."
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PricedItem"
+            }
+          },
+          "perUsd": {
+            "type": "number",
+            "format": "double",
+            "description": "The table's currency for one US dollar, which the model provider bills in."
+          },
+          "volumes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PricedVolume"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "Costs": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Split"
+          },
+          {
+            "type": "object",
+            "required": [
+              "month",
+              "currency",
+              "measuredAt",
+              "prices"
+            ],
+            "properties": {
+              "currency": {
+                "type": "string"
+              },
+              "measuredAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When the bytes were measured: storage is read now, not averaged over the month."
+              },
+              "month": {
+                "type": "string"
+              },
+              "prices": {
+                "$ref": "#/components/schemas/CostPrices"
+              }
+            }
+          }
+        ],
+        "description": "A month of the installation split per project, in the price table's currency."
       },
       "Counts": {
         "type": "object",
@@ -26880,6 +27142,29 @@
           }
         }
       },
+      "PlatformCost": {
+        "type": "object",
+        "description": "What no project carries: the volumes' unused gigabytes, and the nodes when nothing was\nmeasured.",
+        "required": [
+          "node",
+          "storage",
+          "total"
+        ],
+        "properties": {
+          "node": {
+            "type": "number",
+            "format": "double"
+          },
+          "storage": {
+            "type": "number",
+            "format": "double"
+          },
+          "total": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
       "PlatformRole": {
         "type": "object",
         "description": "A platform role the person holds, and the binding and the way it reaches them (PF-94).",
@@ -27254,6 +27539,50 @@
           }
         }
       },
+      "PricedItem": {
+        "type": "object",
+        "description": "One priced line of the table: a node, an address, a backup.",
+        "required": [
+          "name",
+          "monthly"
+        ],
+        "properties": {
+          "monthly": {
+            "type": "number",
+            "format": "double",
+            "description": "Its price a month, in the table's currency, without VAT."
+          },
+          "name": {
+            "type": "string",
+            "description": "What it is, e.g. `cpx42 nbg1`."
+          }
+        },
+        "additionalProperties": false
+      },
+      "PricedVolume": {
+        "type": "object",
+        "description": "One volume, billed per GiB provisioned.",
+        "required": [
+          "name",
+          "gigabytes",
+          "monthlyPerGigabyte"
+        ],
+        "properties": {
+          "gigabytes": {
+            "type": "number",
+            "format": "double"
+          },
+          "monthlyPerGigabyte": {
+            "type": "number",
+            "format": "double",
+            "description": "The price of one GiB a month."
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "Probe": {
         "type": "object",
         "description": "One fetch of a DataSource on the project's runner, or why there was none (MF-39).",
@@ -27389,6 +27718,60 @@
           "creation": {
             "$ref": "#/components/schemas/Affordance",
             "description": "Whether `POST /api/v1/projects` would open a project for this caller."
+          }
+        }
+      },
+      "ProjectCost": {
+        "type": "object",
+        "description": "One project's month, in the table's currency.",
+        "required": [
+          "project",
+          "node",
+          "storage",
+          "ai",
+          "total",
+          "share",
+          "spaces",
+          "assistants"
+        ],
+        "properties": {
+          "ai": {
+            "type": "number",
+            "format": "double"
+          },
+          "assistants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistantCost"
+            }
+          },
+          "node": {
+            "type": "number",
+            "format": "double",
+            "description": "The project's share of the nodes and fixed items, by its share of the measured bytes."
+          },
+          "project": {
+            "type": "string"
+          },
+          "share": {
+            "type": "number",
+            "format": "double",
+            "description": "Its share of the measured bytes, 0 to 1."
+          },
+          "spaces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpaceCost"
+            }
+          },
+          "storage": {
+            "type": "number",
+            "format": "double",
+            "description": "Its bytes at the blended volume price."
+          },
+          "total": {
+            "type": "number",
+            "format": "double"
           }
         }
       },
@@ -28988,6 +29371,39 @@
           }
         }
       },
+      "SpaceCost": {
+        "type": "object",
+        "description": "One space's line.",
+        "required": [
+          "space",
+          "storage"
+        ],
+        "properties": {
+          "bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The entities and history the broker measured; absent when it did not answer.",
+            "minimum": 0
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why `bytes` is missing."
+          },
+          "space": {
+            "type": "string"
+          },
+          "storage": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
       "SpaceMapping": {
         "type": "object",
         "description": "One space of the origin mapped onto a space of the target project (T-1441).",
@@ -29090,6 +29506,41 @@
             "type": "string",
             "format": "date-time",
             "description": "When the broker answered."
+          }
+        }
+      },
+      "Split": {
+        "type": "object",
+        "description": "The month split.",
+        "required": [
+          "projects",
+          "platform",
+          "infrastructure",
+          "ai",
+          "total"
+        ],
+        "properties": {
+          "ai": {
+            "type": "number",
+            "format": "double"
+          },
+          "infrastructure": {
+            "type": "number",
+            "format": "double",
+            "description": "The table: what the cloud bills, which the projects and the platform add up to."
+          },
+          "platform": {
+            "$ref": "#/components/schemas/PlatformCost"
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectCost"
+            }
+          },
+          "total": {
+            "type": "number",
+            "format": "double"
           }
         }
       },
