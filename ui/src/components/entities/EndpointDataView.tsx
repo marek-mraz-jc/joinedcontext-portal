@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { EntityCompare, enumsOf, filtersFromQ, originTransport, parseGridConfig, parseQ, relationsOf, sourceFor } from "@joinedcontext/sdk";
+import { EntityCompare, enumsOf, originTransport, parseGridConfig, parseQ, relationsOf, sourceFor } from "@joinedcontext/sdk";
 import type { ColumnFilter, FilterColumn, FilterKind, GridColumn } from "@joinedcontext/sdk";
 import { fetchJson, publishedTypes } from "../../pages/endpoints/SchemaProjectionPanel";
 import { classSlots, parseModel } from "../../pages/models/linkml";
@@ -18,6 +18,7 @@ import type { ClassView, LinkmlSlot } from "../../pages/models/linkml";
 import { Button, Checkbox, Field, InlineError, Select, safeHref } from "../ui";
 import { columnLabel, displayOrder } from "./displayOrder";
 import { gridLabels, PortalEntityGrid } from "./PortalEntityGrid";
+import { filtersFromQ } from "./presetFilters";
 
 interface SchemaIndex {
   models?: { name?: string; version?: number }[];

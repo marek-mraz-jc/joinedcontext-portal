@@ -67,7 +67,7 @@ export type { GeoCheck, GeoFinding, Geometry, GeometryType, Position } from "../
 export type { EntitySource, GridPage, GridQuery, HistoryPoint, HistoryWindow } from "../grid/source";
 export { attributesOf, cellText, projectRow, toRichCell, toRichRow } from "../grid/model";
 export type { CellKind, RichCell, RichRow } from "../grid/model";
-export { andQ, filtersFromQ, opsForKind, queryFromFilters, queryFromGroup, searchQuery } from "../grid/filters";
+export { andQ, opsForKind, queryFromFilters, queryFromGroup, searchQuery } from "../grid/filters";
 export type { ColumnFilter, FilterColumn, FilterCondition, FilterGroup, FilterKind, FilterOp } from "../grid/filters";
 export { applyChanges, attrsBody, MAX_ENTITIES } from "../grid/apply";
 export type { ApplyResult, AttributeChange, EntityChange, Observed } from "../grid/apply";

@@ -9,7 +9,6 @@
 import { describe, expect, it } from "vitest";
 import {
   andQ,
-  filtersFromQ,
   complete,
   opsForKind,
   queryFromFilters,
@@ -182,27 +181,6 @@ describe("a column whose type the caller does not know", () => {
       { a: { op: "equals", value: "2023" } },
     ).q;
     expect(q, "a period is a string, and a text column says so").toBe('a=="2023"');
-  });
-});
-
-describe("filtersFromQ: a default filter as the filter row's inputs (DM-134)", () => {
-  const columns: FilterColumn[] = [
-    { key: "startDate", attr: "startDate", kind: "date" },
-    { key: "name", attr: "name", kind: "text" },
-    { key: "category", attr: "category", kind: "enum", options: [] },
-  ];
-  it("fills one input per column, a range on one column as between, an enum as its picked values", () => {
-    expect(filtersFromQ('startDate>=2026-10-22;startDate<=2026-10-31;name=="Koncert";category=="a","b"', columns)).toEqual({
-      startDate: { op: "between", value: "2026-10-22", value2: "2026-10-31" },
-      name: { op: "equals", value: "Koncert" },
-      category: { op: "anyOf", value: "", values: ["a", "b"] },
-    });
-    expect(filtersFromQ("name", columns)).toEqual({ name: { op: "present", value: "" } });
-  });
-  it("answers null for what one input per column cannot hold", () => {
-    for (const q of ["name==\"a\"|name==\"b\"", "startDate.observedAt>2026-01-01", "missing==1", 'name~="a"', "startDate>=2026-01-01;startDate>=2026-02-01", "(name)", "name>\"a\""]) {
-      expect(filtersFromQ(q, columns), q).toBeNull();
-    }
   });
 });
 

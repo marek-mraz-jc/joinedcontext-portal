@@ -14,6 +14,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { EndpointDataView, fieldsOf, sortOfLink } from "../src/components/entities/EndpointDataView";
+import { filtersFromQ } from "../src/components/entities/presetFilters";
+import type { FilterColumn } from "@joinedcontext/sdk";
 import { expectNoAxeViolations, json, renderPart } from "./page_contract";
 import type { PageHarness } from "./page_contract";
 
@@ -476,5 +478,26 @@ describe("the presentation chain (DM-134, T-5196)", () => {
     await waitFor(() => expect(asked.slice(before).some((url) => url.pathname.includes("/entities") && !url.searchParams.get("q"))).toBe(true));
     expect(screen.queryByRole("button", { name: "Zrušiť filtre" })).toBeNull();
     await i18n.changeLanguage("en");
+  });
+});
+
+describe("filtersFromQ: a default filter as the filter row's inputs (DM-134)", () => {
+  const columns: FilterColumn[] = [
+    { key: "startDate", attr: "startDate", kind: "date" },
+    { key: "name", attr: "name", kind: "text" },
+    { key: "category", attr: "category", kind: "enum", options: [] },
+  ];
+  it("fills one input per column, a range on one column as between, an enum as its picked values", () => {
+    expect(filtersFromQ('startDate>=2026-10-22;startDate<=2026-10-31;name=="Koncert";category=="a","b"', columns)).toEqual({
+      startDate: { op: "between", value: "2026-10-22", value2: "2026-10-31" },
+      name: { op: "equals", value: "Koncert" },
+      category: { op: "anyOf", value: "", values: ["a", "b"] },
+    });
+    expect(filtersFromQ("name", columns)).toEqual({ name: { op: "present", value: "" } });
+  });
+  it("answers null for what one input per column cannot hold", () => {
+    for (const q of ["name==\"a\"|name==\"b\"", "startDate.observedAt>2026-01-01", "missing==1", 'name~="a"', "startDate>=2026-01-01;startDate>=2026-02-01", "(name)", "name>\"a\""]) {
+      expect(filtersFromQ(q, columns), q).toBeNull();
+    }
   });
 });
