@@ -24,9 +24,9 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import type { Page, Response } from "@playwright/test";
 import { axeViolations } from "../axe";
-import { edgeRetryMs, pageFindings, unexcused, viewerWriteFindings } from "../../tests/pageChecks";
+import { pageFindings, unexcused, viewerWriteFindings } from "../../tests/pageChecks";
 import type { Excused } from "../../tests/pageChecks";
-import { STEWARD, VIEWER, hiddenSections, inHiddenSection, journeyMarkerOnPortalOnly, signIn } from "./portal";
+import { STEWARD, VIEWER, afterSelfReload, hiddenSections, inHiddenSection, journeyMarkerOnPortalOnly, openToJudge, signIn } from "./portal";
 import { secretMasks, shot, writeIndex } from "./shoot";
 import { P, visits } from "./walk-routes";
 
@@ -120,26 +120,11 @@ for (const [who, person] of [
           current = [];
           await page.setViewportSize(size);
           if (index === 0) {
-            let answer = await page.goto(`${visit.address}${visit.address.includes("?") ? "&" : "?"}lang=${lang}`, { waitUntil: "load" });
-            // The edge's own 429 page is no Portal page: wait the seconds it names and load again,
-            // twice at most; a page still refused is reported as `boot`, never judged (T-5078).
-            for (let retry = 0; retry < 2 && answer?.status() === 429; retry++) {
-              await page.waitForTimeout(edgeRetryMs(answer.headers()["retry-after"]));
-              answer = await page.reload({ waitUntil: "load" });
-            }
-            edgeRefused = answer?.status() === 429;
-            await page.locator("h1:visible").first().waitFor({ timeout: 30_000 }).catch(() => undefined);
-            // index.html's fallback means a script the edge refused (429 while the swarm is busy):
-            // load the page again after the edge's minute window, twice at most; a page still on the
-            // fallback is reported as `boot`, never judged as the page (T-5069).
-            for (let retry = 0; retry < 2 && !edgeRefused && (await page.locator("#boot-failed").count()) > 0; retry++) {
-              await page.waitForTimeout(20_000);
-              await page.reload({ waitUntil: "load" });
-              await page.locator("h1:visible").first().waitFor({ timeout: 30_000 }).catch(() => undefined);
-            }
-            // The lists and forms read after the first paint; judge the page a person looks at.
-            await page.waitForTimeout(1500);
-          } else await page.waitForTimeout(300);
+            edgeRefused = await openToJudge(page, `${visit.address}${visit.address.includes("?") ? "&" : "?"}lang=${lang}`);
+          } else {
+            await page.waitForTimeout(300);
+            if (!edgeRefused) await afterSelfReload(page);
+          }
           const findings = edgeRefused ? ["boot: the edge refused the page with 429 Too Many Requests, after two loads again"] : [
             ...current,
             ...(await page.evaluate(pageFindings, { namespaces: NAMESPACES, layout: true })),

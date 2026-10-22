@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { expect } from "@playwright/test";
 import type { APIRequestContext, Browser, BrowserContext, Locator, Page } from "@playwright/test";
 import { clipRecording, recordingSince } from "./guide";
+import { edgeRetryMs } from "../../tests/pageChecks";
 import { answerOtp, submitted } from "./totp";
 
 /**
@@ -210,6 +211,45 @@ export async function goSignedIn(
     await page.reload({ waitUntil: "load" });
   }
   await expect(ready(page)).toBeVisible({ timeout: 60_000 });
+}
+
+/**
+ * Opens a page for the walker to judge, true when the edge still refuses it with 429 after two
+ * loads again (T-5078). Otherwise it waits for the page a person looks at: the first heading, the
+ * lists that read after it, and while index.html's fallback is the document (a script the edge
+ * refused), a load again after `retryMs`, twice at most (T-5069).
+ */
+export async function openToJudge(page: Page, address: string, retryMs = 20_000): Promise<boolean> {
+  let answer = await page.goto(address, { waitUntil: "load" });
+  for (let retry = 0; retry < 2 && answer?.status() === 429; retry++) {
+    await page.waitForTimeout(edgeRetryMs(answer.headers()["retry-after"]));
+    answer = await page.reload({ waitUntil: "load" });
+  }
+  if (answer?.status() === 429) return true;
+  await settle(page, retryMs);
+  await page.waitForTimeout(1500);
+  await afterSelfReload(page, retryMs);
+  return false;
+}
+
+/**
+ * The Portal reloads itself once for a chunk it could not load (T-4949): a check that lands in that
+ * reload judged index.html's fallback of a page that drew a moment later (T-5185). Waits it out.
+ */
+export async function afterSelfReload(page: Page, retryMs = 20_000): Promise<void> {
+  if ((await page.locator("#boot-failed").count()) === 0) return;
+  await settle(page, retryMs);
+  await page.waitForTimeout(1500);
+}
+
+async function settle(page: Page, retryMs: number): Promise<void> {
+  const heading = () => page.locator("h1:visible").first().waitFor({ timeout: 30_000 }).catch(() => undefined);
+  await heading();
+  for (let retry = 0; retry < 2 && (await page.locator("#boot-failed").count()) > 0; retry++) {
+    await page.waitForTimeout(retryMs);
+    await page.reload({ waitUntil: "load" });
+    await heading();
+  }
 }
 
 /** How long a sign-in waits before it reloads a Portal that did not boot: the edge's rate window. */
