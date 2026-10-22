@@ -27,6 +27,7 @@
   },
   "include": [
     "src",
+    "public-locales.d.ts",
     "tests"
   ]
 }

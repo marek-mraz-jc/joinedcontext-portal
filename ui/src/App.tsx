@@ -6,7 +6,7 @@ import { BrandingProvider } from "./branding";
 import { SessionEndedDialog } from "./components/SessionEndedDialog";
 import { createPortalRouter } from "./router";
 
-function RoutedApp({ router }: { router: ReturnType<typeof createPortalRouter> }) {
+export function RoutedApp({ router }: { router: ReturnType<typeof createPortalRouter> }) {
   const auth = useAuth();
   const { t } = useTranslation();
 

@@ -15,22 +15,23 @@ import { gzipSync } from "node:zlib";
  * KB, gzipped. Measured 1 679 on 2026-10-08 before T-3280 and 978 after the heavy pages, the form
  * engine and the map loaded with their routes; 1 000 before and 729 after T-3316 loaded only the
  * chosen language, 493 once the create and edit dialogs loaded with their first opening, 385 once
- * the signed-in shell loaded with the first signed-in page (T-5122). The budget is the last measure
- * plus 5 %.
+ * the signed-in shell loaded with the first signed-in page, 146 once a public page booted its own
+ * router with its own words and the shared controls became tree-shakable (T-5122). The full
+ * Portal's own code loads after the entry (main.tsx). The budget is the last measure plus 5 %.
  */
-export const ENTRY_BUDGET_KB = 404;
+export const ENTRY_BUDGET_KB = 154;
 
 /**
  * KB gzipped that each public route loads beyond the entry, keyed by its chunk's name: measured on
  * 2026-10-22 (T-5122) plus 5 %, and at least 2 KB so a one-line change does not flap the lane.
  */
 export const ROUTE_BUDGETS_KB = {
-  CataloguePage: 9,
-  DatasetPage: 12,
+  CataloguePage: 26,
+  DatasetPage: 10,
   AccessibilityPage: 3,
-  GlossaryPage: 3,
-  PublicView: 6,
-  FormView: 15,
+  GlossaryPage: 4,
+  PublicView: 60,
+  FormView: 74,
 };
 
 /** The scripts index.html loads at once: the entry, and the chunks it preloads. */

@@ -1,11 +1,40 @@
 /// <reference types="vitest/config" />
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
+import type { Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
+const PUBLIC_LOCALE = "\0public-locale:";
+
+/**
+ * `./locales/<lng>.json?public` is that locale's groups the public pages use (T-5122), listed in
+ * src/locales/public-groups.json; the rest of the file loads with the full Portal (src/i18n.ts).
+ * Vitest gets the whole file, so a test reads every word at once as it did before the split.
+ */
+function publicLocales(): Plugin {
+  const groups: string[] = JSON.parse(readFileSync(new URL("./src/locales/public-groups.json", import.meta.url), "utf8"));
+  return {
+    name: "public-locales",
+    enforce: "pre",
+    async resolveId(source, importer) {
+      if (!source.endsWith(".json?public")) return null;
+      const file = await this.resolve(source.slice(0, -"?public".length), importer);
+      // The id must not end in .json, or Vite's own JSON plugin parses the module this one writes.
+      return file ? `${PUBLIC_LOCALE}${file.id}.js` : null;
+    },
+    load(id) {
+      if (!id.startsWith(PUBLIC_LOCALE)) return null;
+      const all: Record<string, unknown> = JSON.parse(readFileSync(id.slice(PUBLIC_LOCALE.length, -".js".length), "utf8"));
+      const kept = process.env.VITEST ? all : Object.fromEntries(groups.filter((group) => group in all).map((group) => [group, all[group]]));
+      return `export default ${JSON.stringify(kept)};`;
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [publicLocales(), react(), tailwindcss()],
   // `@joinedcontext/sdk` is linked from this repository (T-1439) and carries its own `react` in
   // `sdk/node_modules`. Without deduping, a component from it renders against a second copy of
   // React whose hook dispatcher is null — every hook inside the grid throws "invalid hook call"
@@ -15,6 +44,13 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
+    rolldownOptions: {
+      // The shared controls (src/components/ui) run nothing when imported, so a page that takes a
+      // Button from the barrel does not also download the menus and dialogs beside it (T-5122:
+      // the public entry carried Radix and floating-ui, about 50 KB gzipped, for a sign-in button).
+      // tests/ui_pure.test.ts keeps that folder free of top-level statements.
+      treeshake: { moduleSideEffects: (id: string) => !id.includes("/src/components/ui/") },
+    },
   },
   // The policy the Rust server sends (src/server.rs), so the e2e journeys run under the same
   // rules as dev: a library that needs `eval` fails here before it fails there.

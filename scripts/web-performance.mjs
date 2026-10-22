@@ -13,14 +13,15 @@ export const TARGET = { lcp: 2500, cls: 0.1, tbt: 300 };
 
 /**
  * Each page with its ceiling. Measured 2026-10-22 (T-5122) with Lighthouse 12.8.2 in this profile
- * after the edge compressed static code and the signed-in shell left the entry: the Portal's
- * catalogue 5.0 s (12.5 s before), CKAN's home 1.8 s (9.4 s), the assistant 1.8 s (2.5 s). A
- * ceiling is the measure plus a margin for the runner, never above the measure before the fix.
+ * after the edge compressed static code and the public pages got their own entry: the Portal's
+ * catalogue 3.0 s (12.5 s before), its dataset page 3.3 s, its accessibility statement 2.54 s,
+ * CKAN's home 1.8 s (9.4 s), the assistant 1.8 s (2.5 s). A ceiling is the measure plus a margin
+ * for the runner, never above the measure before the fix.
  */
 export const PAGES = [
-  { slug: "portal-catalogue", path: (d) => `https://portal.${d}/catalogue`, ceiling: { lcp: 6500, cls: 0.15, tbt: 1500 } },
-  { slug: "portal-dataset", path: (d, ds) => `https://portal.${d}/catalogue/${ds}`, ceiling: { lcp: 6500, cls: 0.15, tbt: 1500 } },
-  { slug: "portal-accessibility", path: (d) => `https://portal.${d}/accessibility`, ceiling: { lcp: 6000, cls: 0.15, tbt: 1500 } },
+  { slug: "portal-catalogue", path: (d) => `https://portal.${d}/catalogue`, ceiling: { lcp: 3600, cls: 0.1, tbt: 600 } },
+  { slug: "portal-dataset", path: (d, ds) => `https://portal.${d}/catalogue/${ds}`, ceiling: { lcp: 4000, cls: 0.1, tbt: 600 } },
+  { slug: "portal-accessibility", path: (d) => `https://portal.${d}/accessibility`, ceiling: { lcp: 3000, cls: 0.1, tbt: 600 } },
   { slug: "ckan-home", path: (d) => `https://opendata.${d}/`, ceiling: { lcp: 3500, cls: 0.1, tbt: 600 } },
   { slug: "ckan-dataset", path: (d, ds) => `https://opendata.${d}/dataset/${ds}`, ceiling: { lcp: 6000, cls: 0.1, tbt: 1500 } },
   { slug: "assistant", path: (d) => `https://ai.${d}/bbsk/`, ceiling: { lcp: 3500, cls: 0.1, tbt: 600 } },

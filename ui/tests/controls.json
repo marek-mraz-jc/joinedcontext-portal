@@ -411,6 +411,14 @@
       },
       "tests": []
     },
+    "src/components/layout/PublicFrame.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "public_app.test.tsx"
+      ]
+    },
     "src/components/layout/WorkspaceBar.tsx": {
       "controls": {
         "Button": 3
@@ -1885,14 +1893,6 @@
       "tests": [
         "page_try_it_page.test.tsx",
         "try_it.test.tsx"
-      ]
-    },
-    "src/router.tsx": {
-      "controls": {
-        "Button": 1
-      },
-      "tests": [
-        "part_router.test.tsx"
       ]
     },
     "src/routes/AllEndpointsPage.tsx": {

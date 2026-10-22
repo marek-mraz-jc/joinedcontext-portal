@@ -461,6 +461,7 @@
         "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
       ]
     },
+    "src/components/layout/PublicFrame.tsx": null,
     "src/components/layout/Shell.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
@@ -1858,7 +1859,6 @@
         "supervisor/reports/workflows-2026-10-21/copies/walk/try-it-copied-400.png"
       ]
     },
-    "src/router.tsx": null,
     "src/routes/AllEndpointsPage.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
