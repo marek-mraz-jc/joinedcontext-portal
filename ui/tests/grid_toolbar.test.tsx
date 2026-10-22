@@ -9,7 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
-import { queryFromGroup } from "@joinedcontext/sdk";
+import { queryFromGroup, SourceError } from "@joinedcontext/sdk";
 import type { EntitySource, FilterColumn, FilterGroup, GridQuery } from "@joinedcontext/sdk";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
@@ -18,7 +18,7 @@ import { FooterAggregate, percent, ToolbarPopover } from "../src/components/enti
 import { mayDelete } from "../src/components/entities/AccessPanel";
 import type { Aggregation } from "../src/components/entities/GridToolbar";
 import { viewerWriteFindings } from "./pageChecks";
-import { bulkValue, changedRows, rowSignatures } from "../src/pages/spaces/SpaceInside";
+import { BulkSetDialog, bulkValue, changedRows, rowSignatures } from "../src/pages/spaces/SpaceInside";
 import { enumColours } from "../src/components/entities/ViewOptions";
 import type { FilterSlot } from "../src/components/entities/filters";
 import type { RichRow } from "@joinedcontext/sdk";
@@ -237,5 +237,64 @@ describe("enumColours", () => {
       { when: 'status=="say \\"hi\\""', colour: "success" },
     ]);
     expect(enumColours("n", Array.from({ length: 30 }, (_, at) => ({ value: String(at) })))).toHaveLength(20);
+  });
+});
+
+describe("BulkSetDialog", () => {
+  const row = (id: string, name: string) => ({ id, type: "T", cells: { name: { kind: "property", value: name } } }) as unknown as RichRow;
+  const rows = [row("urn:ngsi-ld:T:a", "Alpha"), row("urn:ngsi-ld:T:b", "Beta")];
+  const slots: FilterSlot[] = [
+    { name: "seats", range: "integer", kind: "property" },
+    { name: "status", range: "Status", kind: "property", values: ["open", "closed"] },
+  ] as FilterSlot[];
+  const applyName = L.setApply.replace("{n}", "2");
+
+  function setup(patch: (id: string, body: Record<string, unknown>, reason: string) => Promise<void>) {
+    const onDone = vi.fn();
+    wrap(<BulkSetDialog open onOpenChange={() => {}} rows={rows} slots={slots} source={{ patch }} onDone={onDone} />);
+    return { onDone, user: userEvent.setup() };
+  }
+
+  it("refuses a value the field's range does not take and writes nothing without a reason", async () => {
+    const patch = vi.fn(async () => {});
+    const { user } = setup(patch);
+    const invalid = L.setValueInvalid.replace("{range}", "integer");
+    await user.selectOptions(screen.getByLabelText(L.setFieldLabel), "seats");
+    await user.type(screen.getByLabelText(L.setValue), "2.5");
+    expect(screen.getByText(invalid)).toBeInTheDocument();
+    await user.clear(screen.getByLabelText(L.setValue));
+    await user.type(screen.getByLabelText(L.setValue), "40");
+    expect(screen.queryByText(invalid)).toBeNull();
+    await user.click(screen.getByRole("button", { name: applyName }));
+    expect(patch).not.toHaveBeenCalled();
+  });
+
+  it("writes the enum value into every row with the reason, names a refused row and reloads", async () => {
+    const patch = vi.fn(async (id: string) => {
+      if (id === "urn:ngsi-ld:T:b") throw new SourceError(403, "status closed needs an approver");
+    });
+    const { user, onDone } = setup(patch);
+    await user.selectOptions(screen.getByLabelText(L.setFieldLabel), "status");
+    await user.selectOptions(screen.getByLabelText(L.setValue), "closed");
+    await user.type(screen.getByLabelText(L.setReason), "Closed after the inspection");
+    await user.click(screen.getByRole("button", { name: applyName }));
+    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+    expect(patch).toHaveBeenCalledTimes(2);
+    expect(patch).toHaveBeenCalledWith("urn:ngsi-ld:T:a", { status: { type: "Property", value: "closed" } }, "Closed after the inspection");
+    expect(screen.getByText("Beta: status closed needs an approver")).toBeInTheDocument();
+    expect(screen.getByText("1 row was not changed")).toBeInTheDocument();
+  });
+
+  it("does not reload when every row is refused", async () => {
+    const { user, onDone } = setup(async () => {
+      throw new SourceError(403, "");
+    });
+    await user.selectOptions(screen.getByLabelText(L.setFieldLabel), "seats");
+    await user.type(screen.getByLabelText(L.setValue), "40");
+    await user.type(screen.getByLabelText(L.setReason), "Recount");
+    await user.click(screen.getByRole("button", { name: applyName }));
+    await waitFor(() => expect(screen.getByText("2 rows were not changed")).toBeInTheDocument());
+    expect(screen.getByText(`Alpha: ${L.setRefusedRow} (403)`)).toBeInTheDocument();
+    expect(onDone).not.toHaveBeenCalled();
   });
 });
