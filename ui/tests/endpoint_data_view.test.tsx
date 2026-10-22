@@ -505,6 +505,18 @@ describe("the row card and the removable default filter (DM-135, T-5231)", () =>
     expect(bare).toEqual({ type: "GtfsStop", typeLabel: "Gtfs stop", title: "name", fields: [{ name: "dailyDepartures", label: "Daily departures" }] });
   });
 
+  it("hands the host the publisher's map defaults of the type, a member of the wrong shape left out (T-5239)", async () => {
+    const { cardOf: card, columnModel, mapDefaultsOf } = await import("../src/components/entities/EndpointDataView");
+    const answer = { map: { Event: { geometry: "location", colour: "category", popup: ["name", 3], cluster: "yes" }, Stop: { cluster: false } } };
+    expect(mapDefaultsOf(answer, "Event")).toEqual({ geometry: "location", colour: "category" });
+    expect(mapDefaultsOf(answer, "Stop")).toEqual({ cluster: false });
+    expect(mapDefaultsOf(answer, "Place")).toBeUndefined();
+    expect(mapDefaultsOf({ map: { toString: { colour: "x" } } }, "constructor")).toBeUndefined();
+    expect(mapDefaultsOf(null, "Event")).toBeUndefined();
+    const withMap = card("Event", undefined, [], columnModel([], ["name"], "en"), new Map(), {}, "en", { colour: "category" });
+    expect(withMap.map).toEqual({ colour: "category" });
+  });
+
   it("says a default filter in the reader's words", async () => {
     const { filterWords } = await import("../src/components/entities/EndpointDataView");
     expect(filterWords("startDate>=today", { startDate: "Začiatok" }, "dnes")).toBe("Začiatok ≥ dnes");

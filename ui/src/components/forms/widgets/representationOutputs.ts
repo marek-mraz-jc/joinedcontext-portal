@@ -7,7 +7,7 @@
  */
 import type { IcalMapping } from "./icalMapping";
 
-export type Format = "ical" | "feed";
+export type Format = "ical" | "feed" | "widget";
 
 /** An output's query on top of the view: it narrows, never widens (EP-157). */
 export interface OutputFilter {
@@ -30,12 +30,52 @@ export interface Output<S> {
   [member: string]: unknown;
 }
 
+/** The catalogue widget's map defaults of one class (API/11 EP-163); an absent role keeps the widget's own. */
+export interface MapSource {
+  type: string;
+  mapping?: { geometry?: string; colour?: string; popup?: string[] };
+  cluster?: boolean;
+}
+
 export type IcalOutput = Output<IcalMapping>;
 export type FeedOutput = Output<FeedSource>;
+export type WidgetOutput = Output<MapSource>;
 
 export interface Outputs {
   ical: IcalOutput[];
   feed: FeedOutput[];
+  widget: WidgetOutput[];
+}
+
+/** The most popup fields one class names (jc-core MAX_POPUP). */
+export const MAX_POPUP = 10;
+
+/** The GeoProperties every entity may carry besides the model's own (EP-161). */
+export const CORE_GEOMETRIES = ["location", "observationSpace", "operationSpace"] as const;
+
+/** A map role set, or left to the widget's default when emptied. */
+export function withMapRole(source: MapSource, role: "geometry" | "colour", attribute: string): MapSource {
+  const mapping = { ...(source.mapping ?? {}) };
+  if (attribute === "") delete mapping[role];
+  else mapping[role] = attribute;
+  return mappedSource(source, mapping);
+}
+
+/** The popup fields with `attribute` shown or not, kept in the order `order` lists them. */
+export function withPopup(source: MapSource, attribute: string, shown: boolean, order: string[]): MapSource {
+  const now = new Set(source.mapping?.popup ?? []);
+  if (shown) now.add(attribute);
+  else now.delete(attribute);
+  const popup = [...order.filter((name) => now.has(name)), ...[...now].filter((name) => !order.includes(name))];
+  const mapping: NonNullable<MapSource["mapping"]> = { ...(source.mapping ?? {}), popup };
+  if (popup.length === 0) delete mapping.popup;
+  return mappedSource(source, mapping);
+}
+
+function mappedSource(source: MapSource, mapping: NonNullable<MapSource["mapping"]>): MapSource {
+  const next: MapSource = { ...source, mapping };
+  if (Object.keys(mapping).length === 0) delete next.mapping;
+  return next;
 }
 
 /** The most outputs of one format an Endpoint lists (jc-core MAX_OUTPUTS). */
@@ -94,14 +134,15 @@ export function feedPresetRoles(preset: string | undefined): Record<string, stri
  * `events`, which is what the platform loads it as and what `events.ics` keeps serving.
  */
 export function outputsOf(value: unknown): Outputs {
-  const block = (value ?? {}) as { ical?: unknown; feed?: unknown };
+  const block = (value ?? {}) as { ical?: unknown; feed?: unknown; widget?: unknown };
   const ical = Array.isArray(block.ical)
     ? (block.ical as IcalOutput[])
     : block.ical && typeof block.ical === "object"
       ? [{ name: LEGACY_OUTPUT, sources: [block.ical as IcalMapping] }]
       : [];
   const feed = Array.isArray(block.feed) ? (block.feed as FeedOutput[]) : [];
-  return { ical, feed };
+  const widget = Array.isArray(block.widget) ? (block.widget as WidgetOutput[]) : [];
+  return { ical, feed, widget };
 }
 
 /** What the form writes back: the members it does not edit kept, an empty list left out. */
@@ -109,9 +150,11 @@ export function written(previous: unknown, next: Outputs): Record<string, unknow
   const rest = { ...((previous ?? {}) as Record<string, unknown>) };
   delete rest.ical;
   delete rest.feed;
+  delete rest.widget;
   const out: Record<string, unknown> = { ...rest };
   if (next.ical.length > 0) out.ical = next.ical;
   if (next.feed.length > 0) out.feed = next.feed;
+  if (next.widget.length > 0) out.widget = next.widget;
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
@@ -129,7 +172,8 @@ export function freeName(taken: string[], base: string): string {
 }
 
 /** A new output of `format` over `type`, from the preset that fits it. */
-export function newOutput(format: Format, taken: string[], type: string): IcalOutput | FeedOutput {
+export function newOutput(format: Format, taken: string[], type: string): IcalOutput | FeedOutput | WidgetOutput {
+  if (format === "widget") return { name: freeName(taken, "mapa"), sources: [{ type }] };
   if (format === "ical") {
     return { name: freeName(taken, "kalendar"), sources: [{ type, preset: "sdm-event" }] };
   }

@@ -3,11 +3,11 @@ import { useTranslation } from "react-i18next";
 import type { Manifest } from "../../../api/manifest";
 import { TypePicker } from "../../pickers/TypePicker";
 import { filterSlotsOf, useModelSource } from "../../entities/filters";
-import { Badge, InlineError, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TableRowHeaderCell } from "../../ui";
+import { Badge, Checkbox, Field, InlineError, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TableRowHeaderCell } from "../../ui";
 import { baseOf, CORE_ATTRIBUTES, ICAL_FIELDS, ICAL_PRESETS, presetSources, unmappedRequired, withPreset, withSource, withType } from "./icalMapping";
 import type { IcalMapping, IcalSource } from "./icalMapping";
-import { FEED_PRESETS, FEED_ROLES, feedPresetRoles, unmappedRoles, withRole } from "./representationOutputs";
-import type { FeedSource } from "./representationOutputs";
+import { CORE_GEOMETRIES, FEED_PRESETS, FEED_ROLES, feedPresetRoles, MAX_POPUP, unmappedRoles, withMapRole, withPopup, withRole } from "./representationOutputs";
+import type { FeedSource, MapSource } from "./representationOutputs";
 
 /** A remap written in YAML, shown as it is: the table edits plain attribute names only. */
 function remapText(source: IcalSource): string {
@@ -278,6 +278,99 @@ export function FeedSourceEditor({ id, value, onChange, project, space, model, f
           })}
         </TableBody>
       </Table>
+    </div>
+  );
+}
+
+/**
+ * The map defaults of one class for the catalogue widget (API/11 EP-163): the GeoProperty it draws,
+ * the enum or boolean field its markers are coloured by, the fields its popup shows and whether
+ * markers cluster. Each dropdown offers only the slots of the type that fit the role, from the
+ * model the server lists to this person; the save checks each again and names the one it refuses.
+ */
+export function MapSourceEditor({ id, value, onChange, project, space, model, frozen }: SourceEditorProps<MapSource>): JSX.Element {
+  const { t } = useTranslation();
+  const slots = filterSlotsOf(useModelSource(project, model), value.type);
+  const geometries = [...new Set([...slots.filter((s) => s.kind === "GeoProperty").map((s) => s.name), ...CORE_GEOMETRIES])];
+  const colours = slots.filter((s) => s.kind === "Property" && (s.range === "boolean" || (s.values?.length ?? 0) > 0)).map((s) => s.name);
+  const shown = slots.filter((s) => s.kind !== "GeoProperty").map((s) => s.name);
+  const popup = value.mapping?.popup ?? [];
+  const full = popup.length >= MAX_POPUP;
+  const cluster = value.cluster === undefined ? "" : value.cluster ? "on" : "off";
+
+  return (
+    <div className="flex flex-col gap-4">
+      <label className="flex min-w-48 flex-col gap-1 text-caption font-semibold">
+        {t("endpoints.ical.type")}
+        {frozen ? (
+          <span className="font-mono text-body font-normal">{value.type}</span>
+        ) : (
+          <TypePicker
+            id={`${id}-type`}
+            label={t("endpoints.ical.type")}
+            labelled
+            project={project}
+            space={space || undefined}
+            value={value.type ? [value.type] : []}
+            onChange={(types) => onChange({ type: types[0] ?? value.type })}
+          />
+        )}
+      </label>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Field id={`${id}-geometry`} label={t("endpoints.outputs.map.geometry.label")} help={t("endpoints.outputs.map.geometry.hint")}>
+          <AttributeSelect
+            id={`${id}-geometry`}
+            value={value.mapping?.geometry ?? ""}
+            choices={geometries}
+            empty={t("endpoints.outputs.map.geometry.default")}
+            onChange={(attribute) => onChange(withMapRole(value, "geometry", attribute))}
+          />
+        </Field>
+        <Field id={`${id}-colour`} label={t("endpoints.outputs.map.colour.label")} help={t(colours.length > 0 ? "endpoints.outputs.map.colour.hint" : "endpoints.outputs.map.colour.none")}>
+          <AttributeSelect
+            id={`${id}-colour`}
+            value={value.mapping?.colour ?? ""}
+            choices={colours}
+            empty={t("endpoints.outputs.map.colour.default")}
+            onChange={(attribute) => onChange(withMapRole(value, "colour", attribute))}
+          />
+        </Field>
+        <Field id={`${id}-cluster`} label={t("endpoints.outputs.map.cluster.label")} help={t("endpoints.outputs.map.cluster.hint")}>
+          <Select
+            id={`${id}-cluster`}
+            value={cluster}
+            onChange={(event) => {
+              const picked = event.currentTarget.value;
+              const next: MapSource = { ...value, cluster: picked === "on" };
+              if (picked === "") delete next.cluster;
+              onChange(next);
+            }}
+          >
+            <option value="">{t("endpoints.outputs.map.cluster.auto")}</option>
+            <option value="on">{t("endpoints.outputs.map.cluster.on")}</option>
+            <option value="off">{t("endpoints.outputs.map.cluster.off")}</option>
+          </Select>
+        </Field>
+      </div>
+      <fieldset className="flex flex-col gap-2" aria-describedby={`${id}-popup-hint`}>
+        <legend className="text-caption font-semibold">{t("endpoints.outputs.map.popup.label")}</legend>
+        <p id={`${id}-popup-hint`} className="text-caption text-fg-muted">
+          {t(shown.length > 0 ? "endpoints.outputs.map.popup.hint" : "endpoints.outputs.map.popup.none", { max: MAX_POPUP })}
+        </p>
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {[...new Set([...shown, ...popup])].map((name) => (
+            <Checkbox
+              key={name}
+              id={`${id}-popup-${name}`}
+              label={<span className="font-mono">{name}</span>}
+              checked={popup.includes(name)}
+              disabled={frozen || (full && !popup.includes(name))}
+              disabledReason={full && !popup.includes(name) ? t("endpoints.outputs.map.popup.full", { max: MAX_POPUP }) : undefined}
+              onChange={(event) => onChange(withPopup(value, name, event.currentTarget.checked, shown))}
+            />
+          ))}
+        </div>
+      </fieldset>
     </div>
   );
 }
