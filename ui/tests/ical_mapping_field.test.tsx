@@ -67,6 +67,23 @@ function show(initial?: unknown, form: unknown = { contextSpaceRef: "events", en
 }
 
 describe("the calendar mapping table", () => {
+  it("lists named calendars read only and never rewrites the list (EP-159, T-5208)", async () => {
+    const outputs = [
+      { name: "vsetky", title: { sk: "Všetky podujatia", en: "All events" }, sources: [{ type: "Event", preset: "sdm-event" }] },
+      { name: "sport", sources: [{ type: "Event" }] },
+    ];
+    const seen = show({ ical: outputs });
+    expect(screen.getByTestId("ical-outputs")).toBeInTheDocument();
+    expect(screen.getByText(c.outputs)).toBeInTheDocument();
+    expect(screen.getByText("All events")).toBeInTheDocument();
+    expect(screen.getByText("ical/v1/vsetky.ics")).toBeInTheDocument();
+    expect(screen.getByText("sport")).toBeInTheDocument();
+    expect(screen.queryByLabelText("DTSTART")).toBeNull();
+    expect(screen.queryAllByRole("textbox")).toHaveLength(0);
+    await userEvent.tab();
+    expect(seen).toEqual([]);
+  });
+
   it("shows the default preset's attributes and the fixed fields while nothing is written", () => {
     show();
     expect(screen.getByLabelText("DTSTART")).toHaveAttribute("placeholder", "startDate");
