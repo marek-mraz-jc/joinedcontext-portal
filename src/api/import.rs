@@ -2075,6 +2075,20 @@ pub(crate) fn space_in_path(path: &str) -> Option<&str> {
     }
 }
 
+/// Whether the manifest at `manifest_path`, named `name`, owns the native file at `native`: in the
+/// same directory, and either the resource that directory is (`pipelines/aq/pipeline.yaml` for
+/// `pipelines/aq/bento.yaml`) or the one the file is named after (`datamodels/air.yaml` for
+/// `datamodels/air.linkml.yaml`).
+pub(crate) fn owns_native(native: &str, manifest_path: &str, name: &str) -> bool {
+    let (Some((dir, file)), Some((manifest_dir, _))) =
+        (native.rsplit_once('/'), manifest_path.rsplit_once('/'))
+    else {
+        return false;
+    };
+    let dir_name = dir.rsplit('/').next().unwrap_or_default();
+    manifest_dir == dir && (dir_name == name || file.starts_with(&format!("{name}.")))
+}
+
 pub(crate) fn native_kind(path: &str) -> Option<&'static str> {
     let mut segments = path.split('/').skip(2);
     let first = segments.next()?;
