@@ -673,6 +673,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   // The primary column stays first: nothing moves in front of it.
   const firstMovable = columns.some((c) => c.pinned && c.attr !== null) ? 1 : 0;
   const [dragOver, setDragOver] = useState<string | null>(null);
+  const formatOf = useMemo(() => new Map(hookOptions.config.columns.map((column) => [column.attr, column.format])), [hookOptions.config.columns]);
   const kindOf = useMemo(() => {
     const kinds = new Map<string, ColumnKind>();
     const sample = rows.slice(0, 50);
@@ -1242,7 +1243,11 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                     {colIndex === 0 && tone ? (
                       <span className={`jc-grid-tone jc-grid-tone--${tone.tone}`} role="img" aria-label={tone.label} title={tone.label} />
                     ) : null}
-                    {renderCellContent(row, col)}
+                    {/* At most three lines at the column's widest (T-5192): a dragged width replaces
+                        the cap, the full value stays in the row's detail. */}
+                    <div className="jc-grid-cell" data-format={col.attr ? formatOf.get(col.attr) : undefined} style={col.width ? { maxWidth: "none" } : undefined}>
+                      {renderCellContent(row, col)}
+                    </div>
                   </td>
                 ))}
               </tr>

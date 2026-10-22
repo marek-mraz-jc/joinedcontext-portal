@@ -158,6 +158,11 @@ export interface LinkmlClass {
   slot_usage?: Record<string, SlotUsage>;
   /** The import the class came from, when it is not the model's own. */
   from?: string;
+  /**
+   * How a table of the class opens (T-5192), from its `view_order_by` (an `orderBy`, `startDate` or
+   * `startDate;desc`) and `view_upcoming` (a date slot: rows from today on, the undated last) annotations.
+   */
+  view?: { orderBy?: string; upcoming?: string };
 }
 
 /** What a class may narrow of a slot it uses (LinkML `slot_usage`); only what it names. */
@@ -268,7 +273,8 @@ function languageMap(value: unknown): Record<string, string> | undefined {
 
 function slotOf(name: string, raw: Record<string, unknown>): LinkmlSlot {
   const annotated = record(raw.annotations);
-  const kind = text(annotated.ngsi_ld_kind);
+  // An annotation is a plain value or LinkML's `{ tag, value }`, as a published model writes it (T-5192).
+  const kind = text(annotated.ngsi_ld_kind) ?? text(record(annotated.ngsi_ld_kind).value);
   const unit = record(raw.unit);
   const mappings = Array.isArray(unit.exact_mappings)
     ? (unit.exact_mappings as unknown[]).filter((m): m is string => typeof m === "string")
@@ -316,6 +322,15 @@ function slotOf(name: string, raw: Record<string, unknown>): LinkmlSlot {
  */
 function labelOf(raw: unknown): Record<string, string> | undefined {
   const value = typeof raw === "object" && raw !== null && "value" in raw ? (raw as { value: unknown }).value : raw;
+  if (typeof value === "string" && value.trim().startsWith("{")) {
+    // A published model (Model Tools' compiled LinkML) writes the map as JSON text in the value (T-5192).
+    try {
+      const map = languageMap(JSON.parse(value) as unknown);
+      if (map) return map;
+    } catch {
+      // Not JSON after all: the label is that text.
+    }
+  }
   if (typeof value === "string") return value.trim() === "" ? undefined : { "": value };
   return languageMap(value);
 }
@@ -361,8 +376,12 @@ export function parseModel(source: string): LinkmlModel {
     const slots = Array.isArray(raw.slots)
       ? (raw.slots as unknown[]).filter((s): s is string => typeof s === "string")
       : [];
+    const notes = record(raw.annotations);
+    const note = (key: string) => text(notes[key]) ?? text(record(notes[key]).value);
+    const view = { orderBy: note("view_order_by"), upcoming: note("view_upcoming") };
     return {
       name,
+      ...(view.orderBy || view.upcoming ? { view } : {}),
       class_uri: text(raw.class_uri),
       description: text(raw.description),
       title: languageMap(raw.title),

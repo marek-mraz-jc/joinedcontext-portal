@@ -5,6 +5,12 @@
  */
 import { readableName } from "@joinedcontext/sdk";
 import type { LinkmlSlot } from "../../pages/models/linkml";
+// A byte copy of jc-core's data/field-order.json at the pinned platform rev (T-4661, T-5192): the one
+// label table the assistant widget, the CKAN map popup and the publisher already read;
+// tests/field_order_copy.rs keeps it equal to the pinned crate's.
+import fieldOrder from "../../data/field-order.json";
+
+const SHARED_LABELS = fieldOrder.labels as Record<string, Record<string, string>>;
 
 /** Last unless ranked (DM-98). */
 const SYSTEM = new Set(["id", "type", "location", "dateCreated", "dateModified"]);
@@ -54,12 +60,14 @@ export function readable(attr: string): string {
 }
 
 /**
- * An attribute's label (DM-100): the slot's `annotations.label` in the language, in the model's
- * own language, in English; its title; the name made readable. Shown as text, never as markup.
+ * An attribute's label (DM-100, T-5192): the slot's `annotations.label` in the language, in the
+ * model's own language, in English; its title; the shared field-order.json label of a common
+ * NGSI-LD attribute; the name made readable. Shown as text, never as markup.
  */
 export function columnLabel(slot: Pick<LinkmlSlot, "label" | "title"> | undefined, attr: string, locale: string): string {
   const base = locale.split("-")[0];
   const pick = (map: Record<string, string> | undefined) =>
     map ? (map[locale] ?? map[base] ?? map[""] ?? map.en) : undefined;
-  return pick(slot?.label) ?? pick(slot?.title) ?? readable(attr);
+  const shared = Object.hasOwn(SHARED_LABELS, attr) ? SHARED_LABELS[attr] : undefined;
+  return pick(slot?.label) ?? pick(slot?.title) ?? pick(shared) ?? readable(attr);
 }
