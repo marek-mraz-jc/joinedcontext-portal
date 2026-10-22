@@ -2221,6 +2221,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/endpoints/{name}/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Endpoint Usage
+         * @description The Endpoint's answered calls per UTC day and surface (ngsi-ld, ogc, odata, sta, ical, mcp, websocket, download) over the last `days` days, every day present, as the gateways count them (T-5118). No address, person or query is kept. Whoever may read the Endpoint may read its usage; anyone else gets 404.
+         */
+        get: operations["get_endpoint_usage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/export": {
         parameters: {
             query?: never;
@@ -3723,6 +3743,46 @@ export interface paths {
          * @description Runs one SyncSource at once; what it finds becomes changes a person approves.
          */
         post: operations["sync_now"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/usage/endpoints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Endpoint Usage
+         * @description Every Endpoint of the project the caller may read, with its calls over the last `days` days: the total, the total per surface and one number per day (T-5118). An Endpoint nobody called is listed with zeros.
+         */
+        get: operations["list_project_usage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/usage/endpoints/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Endpoint Usage
+         * @description One month of the project's Endpoint usage as CSV, `day,endpoint,surface,calls`, one line per UTC day, Endpoint and surface with calls, for the Endpoints the caller may read (T-5118).
+         */
+        get: operations["export_project_usage"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5485,6 +5545,16 @@ export interface components {
             /** Format: int64 */
             version: number;
         };
+        /** @description One Endpoint's calls on one day, by surface. */
+        Day: {
+            calls: {
+                [key: string]: number;
+            };
+            /** @description `YYYY-MM-DD`, UTC. */
+            day: string;
+            /** Format: int64 */
+            total: number;
+        };
         /** @description Why an owner declines or revokes. */
         Decision: {
             reason: string;
@@ -5663,6 +5733,32 @@ export interface components {
             standards: components["schemas"]["StandardGuide"][];
             /** @description The entity types of the Endpoint's data model. */
             types: string[];
+        };
+        /** @description One Endpoint's line in the project's usage. */
+        EndpointTotal: {
+            /** @description Calls per day, oldest first, one number for every day of the window. */
+            daily: number[];
+            name: string;
+            slug: string;
+            /** Format: int64 */
+            total: number;
+            totals: {
+                [key: string]: number;
+            };
+        };
+        /** @description One Endpoint's usage over a window, a row for every day, empty days included. */
+        EndpointUsage: {
+            days: components["schemas"]["Day"][];
+            from: string;
+            /** @description The Endpoint's manifest name. */
+            name: string;
+            to: string;
+            /** Format: int64 */
+            total: number;
+            /** @description The window's calls by surface. */
+            totals: {
+                [key: string]: number;
+            };
         };
         /** @description The sequence number a relayed event was given. */
         EventReceipt: {
@@ -7114,6 +7210,12 @@ export interface components {
              */
             sample: boolean;
             title?: components["schemas"]["Text"];
+        };
+        /** @description Every Endpoint of a project the caller may read, over one window. */
+        ProjectUsage: {
+            endpoints: components["schemas"]["EndpointTotal"][];
+            from: string;
+            to: string;
         };
         /** @description What one endpoint publishes, and where. */
         PublicationStatus: {
@@ -14920,6 +15022,70 @@ export interface operations {
             };
         };
     };
+    get_endpoint_usage: {
+        parameters: {
+            query?: {
+                /** @description The days ending today (UTC), 1 to 90; 30 when absent. */
+                days?: number | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Endpoint name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Calls per day */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EndpointUsage"];
+                };
+            };
+            /** @description `days` out of 1 to 90 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such Endpoint the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The usage database did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     export: {
         parameters: {
             query?: {
@@ -20518,6 +20684,130 @@ export interface operations {
                 };
             };
             /** @description No repository configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_project_usage: {
+        parameters: {
+            query?: {
+                /** @description The days ending today (UTC), 1 to 90; 30 when absent. */
+                days?: number | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Usage per Endpoint */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectUsage"];
+                };
+            };
+            /** @description `days` out of 1 to 90 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The usage database did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    export_project_usage: {
+        parameters: {
+            query: {
+                /** @description `YYYY-MM`, e.g. `2026-10`. */
+                month: string;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description text/csv */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description `month` is not YYYY-MM */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The usage database did not answer */
             503: {
                 headers: {
                     [name: string]: unknown;

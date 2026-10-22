@@ -89,6 +89,8 @@ pub struct AppState {
     pub alerts: Arc<crate::alerts::AlertStore>,
     /// The health log of every project's resources (T-5067).
     pub health_log: Arc<crate::health_log::HealthStore>,
+    /// Calls per Endpoint, surface and day, as the gateways post them (T-5118).
+    pub endpoint_usage: Arc<crate::endpoint_usage::UsageStore>,
     /// The live updates of open data views (API/01 §32, T-3105).
     pub live: Arc<crate::live::LiveHub>,
     /// The runner readings behind each pipeline's stats, kept 15 minutes (PL-68).
@@ -212,6 +214,7 @@ impl AppState {
             feedback: Arc::new(crate::feedback::FeedbackStore::new(None)),
             alerts: Arc::new(crate::alerts::AlertStore::new(None)),
             health_log: Arc::new(crate::health_log::HealthStore::new(None)),
+            endpoint_usage: Arc::new(crate::endpoint_usage::UsageStore::new(None)),
             live: Arc::new(crate::live::LiveHub::new(&public_base, None)),
             pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),
             source_ledger: Arc::new(crate::pipeline_source_deletes::Ledger::new(None)),
@@ -288,6 +291,7 @@ impl AppState {
         self.feedback = Arc::new(crate::feedback::FeedbackStore::new(Some(db.clone())));
         self.alerts = Arc::new(crate::alerts::AlertStore::new(Some(db.clone())));
         self.health_log = Arc::new(crate::health_log::HealthStore::new(Some(db.clone())));
+        self.endpoint_usage = Arc::new(crate::endpoint_usage::UsageStore::new(Some(db.clone())));
         self.db = Some(db);
         self
     }
@@ -966,6 +970,7 @@ impl AppState {
         self.feedback = Arc::new(crate::feedback::FeedbackStore::new(db.clone()));
         self.alerts = Arc::new(crate::alerts::AlertStore::new(db.clone()));
         self.health_log = Arc::new(crate::health_log::HealthStore::new(db.clone()));
+        self.endpoint_usage = Arc::new(crate::endpoint_usage::UsageStore::new(db.clone()));
         self.quality = Arc::new(crate::quality::Store::new(db.clone()));
     }
 

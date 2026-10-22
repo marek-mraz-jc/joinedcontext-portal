@@ -18,6 +18,7 @@ pub mod model_key;
 pub mod pipeline_rejected;
 pub mod pipeline_tests;
 pub mod previews;
+pub mod usage;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -28,6 +29,7 @@ pub fn router() -> Router<AppState> {
         .merge(domain_verifications::router())
         .merge(model_key::router())
         .merge(connectors::router())
+        .merge(usage::router())
 }
 
 /// A JSON body the gateway polls every ten seconds: its `ETag` is a SHA-256 over the body, and a

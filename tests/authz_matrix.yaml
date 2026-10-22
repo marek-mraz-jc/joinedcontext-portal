@@ -121,6 +121,9 @@ routes:
   - route: GET /internal/connectors/{sub}
     rule: "workload:gateway"
     expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: POST /internal/usage
+    rule: "workload:gateway"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
   - route: GET /internal/agent-runs/{id}
     rule: "workload:agent-proxy"
     expect: [401, 401, 401, 401, 401, 401, 401, 401]
@@ -380,6 +383,16 @@ routes:
   - route: GET /projects/{project}/health-checks
     rule: "project-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/endpoints/{name}/usage
+    rule: "project-read, then read of the Endpoint in its space"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/usage/endpoints
+    rule: "project-read; lists the Endpoints the caller may read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/usage/endpoints/export
+    rule: "project-read; exports the Endpoints the caller may read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    query: "month=2026-10"
   - route: GET /projects/{project}/spaces/{space}/quality
     rule: "space-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
