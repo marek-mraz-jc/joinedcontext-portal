@@ -41,6 +41,7 @@ pub mod openapi;
 pub mod ops;
 pub use ops::drafts;
 pub use ops::verdict;
+pub mod costs;
 pub mod mqtt_allowance;
 pub mod people;
 pub mod permissions;

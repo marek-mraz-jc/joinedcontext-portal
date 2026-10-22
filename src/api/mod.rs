@@ -24,6 +24,7 @@ pub mod catalogue;
 pub mod catalogue_draft;
 pub mod changes;
 pub mod ckan;
+pub mod costs;
 pub mod data_views;
 pub mod datamodels;
 pub mod datasource_test;
@@ -150,6 +151,7 @@ pub fn router() -> Router<AppState> {
         .merge(visualization_templates::router())
         .merge(organization_limits::router())
         .merge(brokers::router())
+        .merge(costs::router())
         .merge(agent_registry::router())
         .merge(agent_activity::router())
         .merge(space_move::router())

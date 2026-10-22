@@ -117,6 +117,10 @@ function answer(path: string): Response | undefined {
     const none = { publisher: [], theme: [], format: [], licence: [], spatial: [], year: [] };
     return jsonResponse({ total: 0, page: 1, pageSize: 20, datasets: [], facets: none, unavailable: [] });
   }
+  // Costs (T-5126) on an installation whose operator set no price table: the 503 naming the value.
+  if (path === "/api/v1/organization/costs") {
+    return problem(503, "no price table is set: the operator sets portal.costPrices in the deployment values");
+  }
   // The assistant's usage summary (API/05 §3.1) is one object: an empty range, zeros and nulls.
   if (path.endsWith("/knowledge/conversations/usage")) {
     const spread = { p50: null, p90: null, max: null };

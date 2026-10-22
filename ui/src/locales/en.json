@@ -6302,7 +6302,8 @@
       "endpoints": "All endpoints",
       "mcp-servers": "Organization MCP servers",
       "brokers": "Brokers",
-      "agents": "Agents"
+      "agents": "Agents",
+      "costs": "Costs"
     },
     "settings": {
       "title": "Settings",
@@ -6884,6 +6885,31 @@
         "unknown": "No address"
       }
     },
+    "costs": {
+      "title": "Costs per project",
+      "lead": "What one month of the installation costs each project: the node's share by the bytes the project's spaces store, its storage at the volume price, and its assistants' AI spend. What no project carries is the platform's; the rows add up to the price table, which the cloud invoice bills.",
+      "hidden": "Only an administrator of the organization can see the costs.",
+      "month": "Month",
+      "monthHelp": "A calendar month, for example 2026-09. It opens on the last whole month.",
+      "export": "Download CSV",
+      "saving": "Preparing the CSV…",
+      "summary": "Infrastructure {infrastructure} + AI {ai} = {total}",
+      "measured": "Storage measured {at}; AI converted at {rate} {currency} for one US dollar.",
+      "partial": "Some spaces or assistants did not answer; they count 0 here. Their reasons are in each project's lines.",
+      "empty": "No project has a space or an assistant yet, so the whole month is the platform's. Create a Context Space in a project to see its share.",
+      "caption": "Costs per project, {month}",
+      "project": "Project",
+      "node": "Node share",
+      "storage": "Storage",
+      "ai": "AI",
+      "total": "Total",
+      "parts": "{spaces, plural, one {# space} other {# spaces}}, {assistants, plural, one {# assistant} other {# assistants}}",
+      "spaceLine": "Space {space}: {size}, {cost}",
+      "assistantLine": "Assistant {assistant}: {questions} questions, {usd}, {cost}",
+      "uncosted": "{count, plural, one {# question had no price from the provider and is not counted.} other {# questions had no price from the provider and are not counted.}}",
+      "platform": "Platform",
+      "platformHint": "Unused volume space, and the node when nothing was measured."
+    },
     "nav": {
       "back": "Back to the projects"
     },
@@ -6896,7 +6922,7 @@
     "groupLead": {
       "access": "Who belongs to the organization and what each person, group and service account may do. Every change is proposed and approved.",
       "projects": "What every project of the organization holds and publishes, in one place.",
-      "platform": "What the installation runs for every project: brokers, environments, data space membership and health.",
+      "platform": "What the installation runs for every project: brokers, environments, data space membership, health and costs.",
       "settings": "The organization's domain, languages, contacts, policies and limits, and what setup still lacks."
     },
     "kindHidden": "Only an organization administrator whose role includes {kinds} sees them here. Ask an organization administrator to add them to your role.",

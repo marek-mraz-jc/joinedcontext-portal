@@ -6302,7 +6302,8 @@
       "endpoints": "Všetky endpointy",
       "mcp-servers": "MCP servery organizácie",
       "brokers": "Brokery",
-      "agents": "Agenti"
+      "agents": "Agenti",
+      "costs": "Náklady"
     },
     "settings": {
       "title": "Nastavenia",
@@ -6884,6 +6885,31 @@
         "unknown": "Bez adresy"
       }
     },
+    "costs": {
+      "title": "Náklady podľa projektov",
+      "lead": "Koľko stojí jeden mesiac inštalácie každý projekt: podiel na serveri podľa bajtov, ktoré uchovávajú priestory projektu, jeho úložisko za cenu zväzku a výdavky jeho asistentov na AI. Čo nenesie žiadny projekt, patrí platforme; riadky dávajú spolu cenník, ktorý fakturuje cloud.",
+      "hidden": "Náklady vidí len administrátor organizácie.",
+      "month": "Mesiac",
+      "monthHelp": "Kalendárny mesiac, napríklad 2026-09. Stránka sa otvorí na poslednom celom mesiaci.",
+      "export": "Stiahnuť CSV",
+      "saving": "Pripravuje sa CSV…",
+      "summary": "Infraštruktúra {infrastructure} + AI {ai} = {total}",
+      "measured": "Úložisko zmerané {at}; AI prepočítané kurzom {rate} {currency} za jeden americký dolár.",
+      "partial": "Niektoré priestory alebo asistenti neodpovedali; počítajú sa tu ako 0. Dôvody sú v riadkoch každého projektu.",
+      "empty": "Žiadny projekt ešte nemá priestor ani asistenta, preto celý mesiac patrí platforme. Vytvorte v projekte Context Space a uvidíte jeho podiel.",
+      "caption": "Náklady podľa projektov, {month}",
+      "project": "Projekt",
+      "node": "Podiel na serveri",
+      "storage": "Úložisko",
+      "ai": "AI",
+      "total": "Spolu",
+      "parts": "{spaces, plural, one {# priestor} few {# priestory} other {# priestorov}}, {assistants, plural, one {# asistent} few {# asistenti} other {# asistentov}}",
+      "spaceLine": "Priestor {space}: {size}, {cost}",
+      "assistantLine": "Asistent {assistant}: otázky {questions}, {usd}, {cost}",
+      "uncosted": "{count, plural, one {# otázka nemala od poskytovateľa cenu a nezapočítava sa.} few {# otázky nemali od poskytovateľa cenu a nezapočítavajú sa.} other {# otázok nemalo od poskytovateľa cenu a nezapočítava sa.}}",
+      "platform": "Platforma",
+      "platformHint": "Nevyužité miesto na zväzku a server, keď sa nič nezmeralo."
+    },
     "nav": {
       "back": "Späť na projekty"
     },
@@ -6896,7 +6922,7 @@
     "groupLead": {
       "access": "Kto patrí do organizácie a čo smie každý človek, skupina a servisný účet. Každá zmena sa navrhne a schváli.",
       "projects": "Čo držia a zverejňujú všetky projekty organizácie, na jednom mieste.",
-      "platform": "Čo inštalácia prevádzkuje pre každý projekt: brokery, prostredia, členstvo v dátovom priestore a stav.",
+      "platform": "Čo inštalácia prevádzkuje pre každý projekt: brokery, prostredia, členstvo v dátovom priestore, stav a náklady.",
       "settings": "Doména organizácie, jazyky, kontakty, pravidlá a limity a čo ešte chýba v nastavení."
     },
     "kindHidden": "Tu ich vidí len administrátor organizácie, ktorého rola zahŕňa {kinds}. Požiadajte administrátora organizácie, aby ich pridal do vašej roly.",
