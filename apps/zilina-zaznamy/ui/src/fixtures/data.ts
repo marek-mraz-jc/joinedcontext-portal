@@ -441,7 +441,7 @@ export const WORKS = [
       "value": "Žilinská univerzita v Žiline, DREPO"
     },
     "id": "urn:ngsi-ld:Article:zilina.sk:zilina-uniza:hdluniza-936",
-    "isPartOf": {
+    "collectionName": {
       "type": "Property",
       "value": "Práce a štúdie - Vydanie 13"
     },
@@ -483,7 +483,7 @@ export const WORKS = [
       "value": "Žilinská univerzita v Žiline, DREPO"
     },
     "id": "urn:ngsi-ld:Article:zilina.sk:zilina-uniza:hdluniza-237",
-    "isPartOf": {
+    "collectionName": {
       "type": "Property",
       "value": "Pošta, Telekomunikácie a Elektronický obchod - ročník 13.; číslo 2/2018"
     },
@@ -525,7 +525,7 @@ export const WORKS = [
       "value": "Žilinská univerzita v Žiline, DREPO"
     },
     "id": "urn:ngsi-ld:Article:zilina.sk:zilina-uniza:hdluniza-95",
-    "isPartOf": {
+    "collectionName": {
       "type": "Property",
       "value": "Pošta, Telekomunikácie a Elektronický obchod - ročník 11.; číslo 1/2016"
     },
@@ -567,7 +567,7 @@ export const WORKS = [
       "value": "Žilinská univerzita v Žiline, DREPO"
     },
     "id": "urn:ngsi-ld:Article:zilina.sk:zilina-uniza:hdluniza-94",
-    "isPartOf": {
+    "collectionName": {
       "type": "Property",
       "value": "Pošta, Telekomunikácie a Elektronický obchod - ročník 10.; číslo 2/2015"
     },
@@ -609,7 +609,7 @@ export const WORKS = [
       "value": "Žilinská univerzita v Žiline, DREPO"
     },
     "id": "urn:ngsi-ld:Article:zilina.sk:zilina-uniza:hdluniza-157",
-    "isPartOf": {
+    "collectionName": {
       "type": "Property",
       "value": "Práce a štúdie - Vydanie 07"
     },
@@ -651,7 +651,7 @@ export const WORKS = [
       "value": "Žilinská univerzita v Žiline, DREPO"
     },
     "id": "urn:ngsi-ld:Article:zilina.sk:zilina-uniza:hdluniza-905",
-    "isPartOf": {
+    "collectionName": {
       "type": "Property",
       "value": "Súčasné problémy v koľajových vozidlách – PRORAIL 2023  Diel I."
     },
@@ -693,7 +693,7 @@ export const WORKS = [
       "value": "Žilinská univerzita v Žiline, DREPO"
     },
     "id": "urn:ngsi-ld:Article:zilina.sk:zilina-uniza:hdluniza-979",
-    "isPartOf": {
+    "collectionName": {
       "type": "Property",
       "value": "Práce a štúdie - Vydanie 14"
     },
@@ -735,7 +735,7 @@ export const WORKS = [
       "value": "Žilinská univerzita v Žiline, DREPO"
     },
     "id": "urn:ngsi-ld:Article:zilina.sk:zilina-uniza:hdluniza-524",
-    "isPartOf": {
+    "collectionName": {
       "type": "Property",
       "value": "Pošta, Telekomunikácie a Elektronický obchod - ročník 15.; číslo 2/2020"
     },

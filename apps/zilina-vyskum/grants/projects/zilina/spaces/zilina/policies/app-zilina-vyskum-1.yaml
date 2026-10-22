@@ -21,6 +21,7 @@ spec:
     - workType
     - yearPublished
     - isPartOf
+    - collectionName
     - license
     - url
     relationshipNames:
@@ -28,6 +29,7 @@ spec:
     - workType
     - yearPublished
     - isPartOf
+    - collectionName
     - license
     - url
   operations:
