@@ -8650,6 +8650,7 @@
     "service-off": "Turn the service on at the layer the detail names (organization, project or App), or leave the call out.",
     "quota": "Wait until the quota resets at the time given, or ask an administrator for a larger quota; file space frees up when the App deletes files.",
     "file-too-large": "Store a smaller object; one object is at most the limit given.",
+    "unprocessable": "Correct each finding the answer lists; a dry run shows the same findings before you send.",
     "recipient-refused": "Send only to people of the organization whose e-mail address is verified.",
     "no-model-key": "Ask an administrator of the organization to add or renew the model key, then try again.",
     "no-json": "Ask again; the model's answer did not match the requested schema."
