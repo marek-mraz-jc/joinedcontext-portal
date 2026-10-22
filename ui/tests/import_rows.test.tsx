@@ -344,6 +344,10 @@ describe("export", () => {
       `/api/endpoint/abc/file.csv?type=${TYPE}&q=name%3D%3D%22A%22&attrs=name%2Cstatus`,
     );
     expect(exportUrl("abc", "csv", TYPE, undefined, [])).toBe(`/api/endpoint/abc/file.csv?type=${TYPE}`);
+    // Checked rows go as their ids, and the view's filter does not narrow them further (T-5186).
+    expect(exportUrl("abc", "csv", TYPE, 'name=="A"', ["name"], ["urn:ngsi-ld:X:1", "urn:ngsi-ld:X:2"])).toBe(
+      `/api/endpoint/abc/file.csv?type=${TYPE}&id=urn%3Angsi-ld%3AX%3A1%2Curn%3Angsi-ld%3AX%3A2&attrs=name`,
+    );
   });
 
   it("offers only the formats an Endpoint of the space serves, and says when none does", () => {

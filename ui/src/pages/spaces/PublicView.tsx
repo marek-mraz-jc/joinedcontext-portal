@@ -67,16 +67,22 @@ export function SharePanel({
   space,
   type,
   attributes,
+  shownAtFirst,
+  open,
 }: {
   project: string;
   space: string;
   type: string;
   /** The type's attributes, from the model or the rows read. */
   attributes: string[];
+  /** The attributes ticked at first: a grid view's visible fields (T-5186); every one without it. */
+  shownAtFirst?: string[];
+  /** Opened at once, as the grid toolbar's Share panel shows it. */
+  open?: boolean;
 }): JSX.Element {
   const { t } = useTranslation();
   const [name, setName] = useState(() => publicName(space, type));
-  const [shown, setShown] = useState<string[]>(attributes);
+  const [shown, setShown] = useState<string[]>(shownAtFirst ?? attributes);
   const [change, setChange] = useState<Change | null>(null);
   const [slug, setSlug] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -101,10 +107,11 @@ export function SharePanel({
   };
 
   return (
-    <details className="rounded-lg border border-border p-3" data-testid="view-share">
+    <details className="rounded-lg border border-border p-3" data-testid="view-share" open={open}>
       <summary className="cursor-pointer text-body font-semibold text-fg">{t("spaces.share.title")}</summary>
       <div className="mt-2 flex flex-col gap-3">
         <p className="text-body text-fg-muted">{t("spaces.share.lead", { type })}</p>
+        {shownAtFirst ? <p className="text-caption text-fg-muted">{t("spaces.share.viewNote")}</p> : null}
         <Field
           id="share-name"
           label={t("spaces.share.name")}

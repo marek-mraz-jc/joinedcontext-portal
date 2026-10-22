@@ -18,6 +18,10 @@ import { FooterAggregate, percent, ToolbarPopover } from "../src/components/enti
 import { mayDelete } from "../src/components/entities/AccessPanel";
 import type { Aggregation } from "../src/components/entities/GridToolbar";
 import { viewerWriteFindings } from "./pageChecks";
+import { bulkValue, changedRows, rowSignatures } from "../src/pages/spaces/SpaceInside";
+import { enumColours } from "../src/components/entities/ViewOptions";
+import type { FilterSlot } from "../src/components/entities/filters";
+import type { RichRow } from "@joinedcontext/sdk";
 
 const L = en.spaces.toolbar;
 const COLUMNS: FilterColumn[] = [
@@ -198,5 +202,40 @@ describe("mayDelete", () => {
     expect(mayDelete({ permissions: [{ ...grant, actions: ["queryEntity", "updateAttrs"] }] }, "Event")).toBe(false);
     expect(mayDelete({ permissions: [grant], prohibitions: [{ resource: { type: "*" }, actions: ["deleteEntity"] }] }, "Event")).toBe(false);
     expect(mayDelete(undefined, "Event")).toBe(false);
+  });
+});
+
+describe("bulkValue", () => {
+  const slot = (over: Partial<FilterSlot>): FilterSlot => ({ name: "f", kind: "Property", ...over });
+  it("takes a value only in the shape the field's range takes it", () => {
+    expect(bulkValue(slot({ values: ["open", "closed"] }), "open")).toBe("open");
+    expect(bulkValue(slot({ values: ["open", "closed"] }), "ajar")).toBeUndefined();
+    expect(bulkValue(slot({ range: "integer" }), " 42 ")).toBe(42);
+    expect(bulkValue(slot({ range: "integer" }), "4.2")).toBeUndefined();
+    expect(bulkValue(slot({ range: "float" }), "4.2")).toBe(4.2);
+    expect(bulkValue(slot({ range: "float" }), "Infinity")).toBeUndefined();
+    expect(bulkValue(slot({ range: "boolean" }), "false")).toBe(false);
+    expect(bulkValue(slot({ range: "boolean" }), "no")).toBeUndefined();
+    expect(bulkValue(slot({ range: "string" }), "  Main Street 1 ")).toBe("Main Street 1");
+    expect(bulkValue(slot({ range: "string" }), "   ")).toBeUndefined();
+  });
+});
+
+describe("live flash", () => {
+  const row = (id: string, name: string) => ({ id, type: "T", cells: { name: { kind: "text", value: name } } }) as unknown as RichRow;
+  it("marks the rows that are new or changed since the last read, not the rest", () => {
+    const before = rowSignatures([row("a", "A"), row("b", "B")]);
+    expect([...changedRows(before, [row("a", "A"), row("b", "B2"), row("c", "C")])]).toEqual(["b", "c"]);
+    expect(changedRows(before, [row("a", "A")]).size).toBe(0);
+  });
+});
+
+describe("enumColours", () => {
+  it("makes one rule per value with the tones in turn, at most twenty", () => {
+    expect(enumColours("status", [{ value: "open" }, { value: 'say "hi"' }])).toEqual([
+      { when: 'status=="open"', colour: "info" },
+      { when: 'status=="say \\"hi\\""', colour: "success" },
+    ]);
+    expect(enumColours("n", Array.from({ length: 30 }, (_, at) => ({ value: String(at) })))).toHaveLength(20);
   });
 });

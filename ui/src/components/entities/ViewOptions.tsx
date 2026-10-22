@@ -60,6 +60,24 @@ export function ViewOptions({ attributes, enums, value, onChange, part }: ViewOp
         <fieldset className="flex flex-col gap-2">
           <legend className="text-body font-semibold">{t("spaces.saved.colours")}</legend>
           <p className="text-caption text-fg-muted">{t("spaces.saved.coloursHelp")}</p>
+          {Object.keys(enums).length > 0 ? (
+            <Field id={`${id}-by-enum`} label={t("spaces.saved.colourBy")} help={t("spaces.saved.colourByHelp")}>
+              <Select
+                id={`${id}-by-enum`}
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) setColour(enumColours(e.target.value, enums[e.target.value] ?? []));
+                }}
+              >
+                <option value="">{t("spaces.saved.colourByPick")}</option>
+                {Object.keys(enums).map((attr) => (
+                  <option key={attr} value={attr}>
+                    {attr}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : null}
           {colour.map((rule, index) => {
             const unreadable = rule.when.trim() !== "" && parseQ(rule.when) === null;
             return (
@@ -133,6 +151,12 @@ export function ViewOptions({ attributes, enums, value, onChange, part }: ViewOp
       </div>
     </details>
   );
+}
+
+/** Rules that colour rows by an enum's value (T-5186): one per value, at most twenty, the tones in turn. */
+export function enumColours(attr: string, options: EnumOption[]): ColourRule[] {
+  const tones = TONES.filter((tone) => tone !== "neutral");
+  return options.slice(0, 20).map((option, at) => ({ when: groupTerm(attr, option.value), colour: tones[at % tones.length] }));
 }
 
 /** The query that narrows the grid to one group: the enum attribute equal to one value. */
