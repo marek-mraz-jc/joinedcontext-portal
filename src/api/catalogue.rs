@@ -279,6 +279,35 @@ pub struct CatalogueEndpoint {
     pub representations: Vec<String>,
     /// Its feed outputs, in the order the Endpoint lists them (EP-150, EP-151).
     pub feeds: Vec<CatalogueFeed>,
+    /// Its calendar outputs, in the order the Endpoint lists them (API/11 EP-159).
+    pub calendars: Vec<CatalogueCalendar>,
+}
+
+/// One calendar output of an Endpoint: its name, its title per language and its `.ics` address.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueCalendar {
+    pub name: String,
+    /// The title per language (`sk`, `en`); empty: the name stands for it.
+    pub title: BTreeMap<String, String>,
+    pub url: String,
+}
+
+/// The calendar outputs an Endpoint spec serves with their absolute addresses under `url`: none
+/// unless it lists `ical` and an output (off by default, owner 2026-10-22T09:25Z); a spec the
+/// platform would refuse reads as none.
+fn calendars_of(spec: &Value, url: &str) -> Vec<CatalogueCalendar> {
+    let Ok(endpoint) = serde_json::from_value::<jc_core::kinds::EndpointSpec>(spec.clone()) else {
+        return Vec::new();
+    };
+    jc_core::kinds::ical_links(endpoint.ical_outputs())
+        .into_iter()
+        .map(|(output, path)| CatalogueCalendar {
+            name: output.name.clone(),
+            title: output.title.clone(),
+            url: format!("{url}{path}"),
+        })
+        .collect()
 }
 
 /// One feed output of an Endpoint: its name, its title per language and its three documents.
@@ -1175,6 +1204,7 @@ pub async fn detail(state: &AppState, catalogue: &str, dataset: &Value) -> Catal
             (
                 Some(CatalogueEndpoint {
                     feeds: feeds_of(&endpoint.spec, &url),
+                    calendars: calendars_of(&endpoint.spec, &url),
                     url,
                     representations: served_representations(&endpoint.spec),
                 }),

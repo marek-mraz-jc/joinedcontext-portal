@@ -1407,6 +1407,12 @@ async fn check_content(
         )));
     }
 
+    // 4a. An Endpoint's representation outputs, member by member (API/11 EP-159): a 422 that
+    //     names the output and the member, which the form shows beside the field.
+    if kind == "Endpoint" && operation != Operation::Delete {
+        check_representation_shape(&envelope.spec)?;
+    }
+
     // 4b. The kind's own parse and invariants (T-0412, CC-08, MF-24). `jcctl apply` would
     //     refuse this manifest on `main`, after an approval; refusing it here turns a broken
     //     repository into a form error that names the field. Kinds without a jc-core type
@@ -2088,15 +2094,50 @@ async fn check_surfaces(
     let at = format!("Endpoint {project}/{name}, space {space}");
     match endpoint.representation_gaps(linkml.as_deref()) {
         Ok(gaps) if gaps.is_empty() => Ok(()),
-        Ok(gaps) => Err(ApiError::BadRequest(
+        Ok(gaps) => Err(unprocessable(
             gaps.iter()
                 .map(|gap| format!("{at}: {gap} (EP-125)"))
-                .collect::<Vec<_>>()
-                .join("\n"),
+                .collect(),
         )),
         Err(err) => Err(ApiError::BadRequest(format!(
             "{at}: the representations cannot be checked against the data model: {err} (EP-125)"
         ))),
+    }
+}
+
+/// A 422 whose detail is every line and whose `errors` lists each, so the form's dry run shows
+/// one finding per member (API/11 EP-159).
+fn unprocessable(lines: Vec<String>) -> ApiError {
+    ApiError::Unprocessable {
+        detail: lines.join("\n"),
+        errors: lines,
+    }
+}
+
+/// The shape of `spec.representations` alone, before the kind's own parse: an unknown member, a
+/// duplicate or malformed output name, a 21st output, a filter the broker would refuse. Each is
+/// a 422 naming the member's path (API/11 EP-157, EP-159); the model check is `check_surfaces`.
+fn check_representation_shape(spec: &Value) -> Result<(), ApiError> {
+    use jc_core::kinds::{feed_gaps, outputs_gaps, Representations};
+    let Some(block) = spec.get("representations") else {
+        return Ok(());
+    };
+    let representations: Representations = serde_json::from_value(block.clone())
+        .map_err(|e| unprocessable(vec![format!("spec.representations: {e}")]))?;
+    let gaps: Vec<String> = outputs_gaps(&representations.ical)
+        .into_iter()
+        .map(|gap| format!("spec.representations.ical: {gap}"))
+        .chain(
+            feed_gaps(&representations.feed, None)
+                .map_err(|e| unprocessable(vec![format!("spec.representations.feed: {e}")]))?
+                .into_iter()
+                .map(|gap| format!("spec.representations.feed: {gap}")),
+        )
+        .collect();
+    if gaps.is_empty() {
+        Ok(())
+    } else {
+        Err(unprocessable(gaps))
     }
 }
 
