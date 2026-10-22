@@ -3025,7 +3025,8 @@ GET /api/v1/projects/{project}/endpoints/{name}/quality     the score → 200, 4
 }
 ```
 
-- The route answers whoever reads the project and its Endpoints, 404 otherwise. `fix` comes only
+- The route answers whoever reads the project and this Endpoint in its Context Space (a grant
+  scoped to another space gets 404), 404 otherwise. `fix` comes only
   to a caller who reads the Endpoint's Context Space; it names the pipeline, field, rule or surface
   to change.
 - `GET /api/v1/catalogue/datasets/{name}` carries the same score as `quality` in its public form:

@@ -123,15 +123,19 @@ pub async fn get_endpoint_quality(
     Path((project, name)): Path<(String, String)>,
 ) -> Result<Json<crate::dataset_score::DatasetScore>, ApiError> {
     let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
-    let endpoint =
-        (is_dns1123(&project) && effective.may_read_project() && effective.may_read("Endpoint"))
-            .then(|| state.mirror.get(&project, "Endpoint", &name))
-            .flatten()
-            .ok_or_else(|| {
-                ApiError::NotFound(format!(
-                    "endpoint '{name}' not found in project '{project}'"
-                ))
-            })?;
+    // The Endpoint lives in its space: a grant scoped to another space does not reach it.
+    let endpoint = (is_dns1123(&project) && effective.may_read_project())
+        .then(|| state.mirror.get(&project, "Endpoint", &name))
+        .flatten()
+        .filter(|endpoint| {
+            serde_json::to_value(endpoint)
+                .is_ok_and(|manifest| effective.may_read_manifest("Endpoint", &manifest))
+        })
+        .ok_or_else(|| {
+            ApiError::NotFound(format!(
+                "endpoint '{name}' not found in project '{project}'"
+            ))
+        })?;
     let score = crate::dataset_score::of_endpoint(&state, &project, &endpoint).await;
     let publisher = crate::resource::reference_name(&endpoint.spec["contextSpaceRef"])
         .is_some_and(|space| effective.may_read_in("ContextSpace", Some(space)));
