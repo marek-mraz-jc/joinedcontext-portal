@@ -1472,7 +1472,7 @@
       "csv": "Download these rows as CSV",
       "csvHelp": "The file holds every row of the current query and order, up to the endpoint's download limit; the address beside it is the same query for a script.",
       "fields": "Columns",
-      "fieldsHint": "Tick a column to show it in the table; untick to hide it.",
+      "fieldsHint": "Tick a column to show it in the table; untick it to hide it.",
       "openLink": "Open the page",
       "pageLength": "Rows per page",
       "pageLengthHelp": "How many rows one page shows; the first number comes from the data model.",
