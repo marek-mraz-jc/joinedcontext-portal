@@ -70,6 +70,12 @@ async function stubApi(page: Page): Promise<void> {
     }
     if (path.endsWith("/entities")) {
       const rows = Array.from({ length: 8 }, (_, i) => kpi(i + 1));
+      // The grid asks the broker to order the whole answer (`orderBy`, CIM 009 4.23): answer as it does.
+      const [attr, dir] = (url.searchParams.get("orderBy") ?? "").split(";");
+      if (attr) {
+        const value = (row: object) => String((row as Record<string, { value?: unknown } | undefined>)[attr]?.value ?? "");
+        rows.sort((a, b) => value(a).localeCompare(value(b)) * (dir === "desc" ? -1 : 1));
+      }
       return json(rows, 200, { "NGSILD-Results-Count": String(rows.length) });
     }
     if (path === "/api/v1/projects") return json({ kind: "ProjectList", items: [{ name: PROJECT }] });

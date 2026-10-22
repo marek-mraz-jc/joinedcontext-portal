@@ -204,6 +204,22 @@ const MORE: Record<string, unknown> = {
   },
 };
 
+// The project's Endpoint read on 28 of the last 30 days (T-5118), as the Endpoints page's Usage reads it.
+const DAILY = Array.from({ length: 30 }, (_, n) => (n % 14 === 6 ? 0 : 60 + ((n * 37) % 90)));
+const PROJECT_USAGE = {
+  from: "2026-08-14",
+  to: "2026-09-12",
+  endpoints: [
+    {
+      name: "public-air",
+      slug: "k7m2qz4tv6xh3n5jb2ryd3wcfa",
+      total: DAILY.reduce((a, b) => a + b, 0),
+      totals: { "ngsi-ld": DAILY.reduce((a, b) => a + b, 0) - 56, mcp: 56 },
+      daily: DAILY,
+    },
+  ],
+};
+
 /** The API from the browser: the lists above, the one change, the one run; the rest 404. */
 async function stubApi(page: Page, more: Record<string, unknown> = {}): Promise<void> {
   await page.route("**/api/**", async (route) => {
@@ -217,6 +233,9 @@ async function stubApi(page: Page, more: Record<string, unknown> = {}): Promise<
     if (path in more) return json(more[path]);
     if (path === "/api/v1/projects") return json(PROJECTS);
     if (path === `/api/v1/projects/${PROJECT}`) return json(PROJECT_DETAIL);
+    if (path === `/api/v1/projects/${PROJECT}/usage/endpoints`) return json(PROJECT_USAGE);
+    // No other project shared an App: the home page's Shared with me shows its empty state.
+    if (path === "/api/v1/shared-apps") return json([]);
     if (path.endsWith("/events")) {
       return route.fulfill({ status: 200, contentType: "text/event-stream", body: "" });
     }

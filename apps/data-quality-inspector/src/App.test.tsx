@@ -323,8 +323,12 @@ describe("data-quality-inspector", () => {
   });
 
   it("opens a type from its bar in the chart, and nothing from a click beside the bars", async () => {
+    // The chart takes its click handler in an effect that can run after the canvas is in the DOM:
+    // wait for this render's handler, never call the one an earlier test's chart left behind.
+    chart.click = null as typeof chart.click;
     show();
     await screen.findByRole("img", { name: "Completeness by type" });
+    await waitFor(() => expect(chart.click).not.toBeNull());
     chart.click?.({});
     expect(screen.queryByRole("button", { name: "← All types" })).toBeNull();
     chart.click?.({ name: "Event" });
