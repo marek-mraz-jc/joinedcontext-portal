@@ -37,6 +37,7 @@ pub const PORTAL_PROBLEM_TYPES: &[ProblemType] = &[
     ProblemType { slug: "draft-conflict", status: 409, title: "Draft Conflict", hint: "Someone saved the draft since you opened it: read current, then make your change on it." },
     ProblemType { slug: "verdict-required", status: 409, title: "Verdict Required", hint: "Run the check the answer names and send the change again with its verdict." },
     ProblemType { slug: "file-too-large", status: 413, title: "File Too Large", hint: "Store a smaller object; the answer names the limit in bytes." },
+    ProblemType { slug: "unprocessable", status: 422, title: "Unprocessable Content", hint: "Correct each member errors names; the dry run lists the same findings before you send." },
     ProblemType { slug: "quota", status: 429, title: "Quota Used", hint: "Wait until resetAt, delete what the App no longer needs, or ask an administrator to raise the quota." },
     ProblemType { slug: "not-implemented", status: 501, title: "Not Implemented", hint: "This Portal does not do this yet; the detail names what it does instead." },
     ProblemType { slug: "no-json", status: 502, title: "No JSON", hint: "The model answered with something other than JSON of the schema; ask again." },
