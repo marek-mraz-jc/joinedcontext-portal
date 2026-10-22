@@ -333,7 +333,7 @@ describe("the Event column model (T-5192)", () => {
     expect(columnModel([], ["url", "fooBar"], "sk")).toEqual({ order: ["url", "fooBar"], shown: ["url", "fooBar"], labels: { url: "Odkaz", fooBar: "Foo bar" } });
   });
 
-  it("opens where the class's model says, for any type, and ignores what the endpoint does not answer", async () => {
+  it("DM-133: opens where the class's model says, for any type, and ignores what the endpoint does not answer", async () => {
     const { modelView } = await import("../src/components/entities/EndpointDataView");
     expect(modelView({ upcoming: "startDate" }, ["name", "startDate"], "2026-10-22")).toEqual({
       filterText: '!startDate|startDate>="2026-10-22"',
