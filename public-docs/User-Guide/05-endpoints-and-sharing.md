@@ -2,6 +2,12 @@
 sidebar_position: 6
 title: Endpoints, Data Sharing & Integration
 description: Publishing multi-representation endpoints, configuring audiences, projections, filters, and cross-project sharing.
+routes:
+  - /projects/$project/endpoints
+  - /projects/$project/policies
+  - /projects/$project/subscriptions
+  - /projects/$project/csrs
+  - /projects/$project/shared
 ---
 
 # Endpoints, Data Sharing & Integration
@@ -34,7 +40,7 @@ Each endpoint has its own address: a 26-character random slug nobody can guess.
 5. Click **Generate slug** to mint a random address.
 6. Under **Audience**, select `Public: anyone with the address` (or `Organization`).
 7. Under **Representations**, check the needed formats: `NGSI-LD API`, `CSV`, `OGC API Features`, and `MCP for AI assistants`.
-8. Leave **Traffic and caching** empty for an endpoint without a rate limit, the default. Set **Requests per minute** only to protect a public endpoint from one heavy caller.
+8. Leave **Traffic and limits** empty for an endpoint without a rate limit, the default. Set **Requests per minute** only to protect a public endpoint from one heavy caller.
 9. Under **Model projection**, tick the classes (e.g. `BikeHireDockingStation`) and slots to expose. Identity slots `id` and `type` remain locked.
 10. Click **Check**. You should see the verdict chip display `Checked`.
 11. Click **Propose change**.

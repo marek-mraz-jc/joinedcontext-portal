@@ -2,6 +2,12 @@
 sidebar_position: 4
 title: Data Modeling & The LinkML Editor
 description: Authoring, importing, adapting, and versioning data models using LinkML, model projections, and mappings.
+routes:
+  - /projects/$project/models
+  - /projects/$project/models/$name
+  - /projects/$project/datamodels
+  - /projects/$project/projections
+  - /projects/$project/mappings
 ---
 
 # Data Modeling & The LinkML Editor

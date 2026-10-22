@@ -27,6 +27,7 @@ import { problemOf, useThemeLabel } from "./CataloguePage";
 import { snippets } from "./snippets";
 import type { Snippet } from "./snippets";
 import { areaLabel } from "./nuts";
+import { QualityScore } from "../../components/quality/QualityScore";
 
 type DatasetDetail = components["schemas"]["CatalogueDatasetDetail"];
 
@@ -188,6 +189,7 @@ function Dataset({ detail, back }: { detail: DatasetDetail; back: JSX.Element })
         ) : null}
       </Card>
 
+      {detail.quality ? <QualityScore score={detail.quality} /> : null}
       <Resources detail={detail} />
       {detail.model ? <Model model={detail.model} /> : null}
       {detail.endpoint ? <Sample name={detail.name} /> : null}

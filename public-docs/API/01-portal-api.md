@@ -507,6 +507,7 @@ view of those merge requests, so that an approver never has to open the forge to
 ```text
 GET  /api/v1/projects/{project}/changes                  open proposals, newest first
 GET  /api/v1/projects/{project}/changes/history          merged and rejected ones, newest first, paged
+GET  /api/v1/projects/{project}/changes/history/export   the same, as CSV (T-5114)
 POST /api/v1/projects/{project}/changes/{id}/restore     propose again what a merged removal took
 POST /api/v1/projects/{project}/changes/{id}/undo        propose again what a merged update altered
 GET  /api/v1/projects/{project}/changes/{id}/manifests   the manifests a merged change wrote
@@ -586,6 +587,13 @@ the rejection. A change merged or closed in the forge itself carries no `decisio
 
 An unknown parameter or `page=0` is `400`. A page reads 20 closed merge requests of the forge, so it
 can hold fewer items than that, none at all included, and still carry `next`.
+
+`GET …/changes/history/export` takes the same parameters and read rule and answers `text/csv` as an
+attachment `{project}-changes.csv`, one row per closed change: `closedAt`, `change`, `outcome`,
+`kind`, `name`, `operation`, `proposedBy`, `decidedBy`, `reason`, `mergeRequest` (T-5114). It reads
+up to ten pages from `page`; while the forge holds older ones, the `JC-Next-Page` header names the
+page that continues the file. The proposer is a name, never an e-mail, and a cell starting with
+`=`, `+`, `-` or `@` gets a leading `'` so a spreadsheet does not run it.
 
 ```json
 {
@@ -861,6 +869,28 @@ A run is named by its due time, `2026-10-17T05:00:00Z`, and its log files every 
 ```
 
 The run waits its turn in its lane, so runs started for 97 pipelines go one after another. A second `POST` while the run waits answers the same run. A pipeline whose run is in the runner answers `409` and names that run. A pipeline that waits for pushes, and so always runs, answers `409` too, as does one the reconciler has not deployed. A caller without propose and approve on Pipeline gets `403`, and one who may not read the pipeline gets `404`. Each accepted `POST` writes one `pipeline.run` activity event with the actor, the run and `object: pipelines/{name}`.
+
+### 7d. Source health (PL-62, T-5048)
+
+```text
+GET  /api/v1/projects/{project}/pipeline-health    each pipeline's health from its kept runs (approve on Pipeline)
+```
+
+One item per pipeline the caller approves, by name:
+
+```json
+{ "items": [
+  { "pipeline": "podujatia-zvolen", "state": "failing", "lastSuccessAt": "2026-10-18T06:00:00Z",
+    "lastRunAt": "2026-10-21T06:00:00Z", "lastSent": 0, "medianSent": 10, "changePercent": -100,
+    "failedRuns": 3, "lastError": "GET https://www.zvolen.sk/rss.html answered 404",
+    "lastErrorAt": "2026-10-21T06:00:01Z", "alert": true }
+] }
+```
+
+- A run fails when it sent nothing and its log holds failed or rejected lines. `state` is `failing` when the newest run failed, `drift` when it sent 20 % or less of the median of the runs in the 7 days before it, `empty` when it sent nothing and reported nothing, `never` with no run kept, and `ok` otherwise.
+- `lastError` is the newest failed or rejected line of the log, masked as the log is (§7c) and with the query and fragment cut from every URL in it.
+- `alert` is `true` after 3 failed runs in a row, or on a drop. The Portal's alert check reads the same health once an hour: 3 failed runs open a `failure` incident and a drop a `zero` incident (§37), so a person who follows the pipeline, its space or its type is told once.
+- A caller who approves no pipeline of the project gets `403`; one who may not read the project gets `404`. The Portal's pipelines page shows the answer on its Source health tab, to stewards only.
 
 ### 7a. Testing a candidate pipeline (PL-43, MF-38)
 
@@ -2993,6 +3023,44 @@ GET /api/v1/projects/{project}/spaces/{space}/quality/checks     the space's che
   kind (`entity`, `history`), and `POST …/retention/preview` with a draft `retention` answers
   what a shorter one would delete now; `503` when the broker does not answer.
 - Whoever reads the space reads its checks; a project or space the caller may not read is `404`.
+
+### 27.2 A dataset's quality score (T-5112)
+
+The score of the dataset an Endpoint serves is a number from 0 to 100, the mean of four parts.
+A part nothing measures yet has no `score` and stays out of the mean.
+
+- `freshness`: each type a pipeline promises a schedule for, as the daily run (§27) found it,
+  and each writing pipeline as the health log judged it at its last beat: a pipeline whose `runs`
+  check is not ok makes its types late within one beat, not at the next daily run.
+- `completeness`: the mean share of entities carrying each required field of the model; a field
+  the Endpoint's `spec.projection.hiddenAttributes` hides is not counted.
+- `validity`: the entities that follow the model over those the daily run checked.
+- `links`: the Endpoint's surfaces as the health probes answered; a slow one counts half.
+
+```text
+GET /api/v1/projects/{project}/endpoints/{name}/quality     the score → 200, 404
+```
+
+```json
+{
+  "score": 72,
+  "measuredAt": "2026-10-22T08:04:00Z",
+  "parts": [
+    {
+      "part": "freshness", "score": 0, "measuredAt": "2026-10-22T08:04:00Z",
+      "reason": { "code": "late", "args": { "late": "1", "total": "1", "newest": "2026-10-21T02:50:00Z" }, "text": "1 of 1 feeds are late; the newest observation is from 2026-10-21T02:50:00Z" },
+      "fix": { "code": "fixFailing", "args": { "pipeline": "weather", "since": "2026-10-22T08:00:00Z" }, "text": "Pipeline weather fails since 2026-10-22T08:00:00Z: open it and fix the step its newest run names" }
+    }
+  ]
+}
+```
+
+- The route answers whoever reads the project and this Endpoint in its Context Space (a grant
+  scoped to another space gets 404), 404 otherwise. `fix` comes only
+  to a caller who reads the Endpoint's Context Space; it names the pipeline, field, rule or surface
+  to change.
+- `GET /api/v1/catalogue/datasets/{name}` carries the same score as `quality` in its public form:
+  counts and dates, no `fix`, no field, type, rule or pipeline name. A score never holds a value.
 
 ## 28. Organization limits (PF-96…PF-102, ADR-N-035)
 

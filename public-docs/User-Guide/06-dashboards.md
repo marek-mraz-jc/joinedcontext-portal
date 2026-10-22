@@ -2,6 +2,9 @@
 sidebar_position: 7
 title: Dashboards & Geospatial Visualization
 description: Building map dashboards and layers over the endpoints of a project, and exploring the entities behind them.
+routes:
+  - /projects/$project/dashboards
+  - /projects/$project/explore
 ---
 
 # Dashboards & Geospatial Visualization
