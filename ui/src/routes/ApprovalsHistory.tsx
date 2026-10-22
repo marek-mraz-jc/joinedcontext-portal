@@ -8,6 +8,7 @@ import { ownRights, usePermissions } from "../api/permissions";
 import { ChangeNotice } from "../components/ChangeNotice";
 import { changeSentence } from "./changeWords";
 import { ChangedFields } from "../components/ResourceHistory";
+import { download } from "../pages/models/diagramExport";
 import { ResourceList } from "../components/ResourceList";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import {
@@ -50,6 +51,17 @@ function kindChoices(held: readonly string[], params: readonly unknown[], curren
   return [...new Set([...held, ...named, ...(current ? [current] : [])])].sort();
 }
 
+/** The history's query parameters for `filter`, an empty field left out. */
+function filterQuery(filter: Filter) {
+  return {
+    kind: filter.kind || undefined,
+    name: filter.name || undefined,
+    author: filter.author || undefined,
+    since: filter.since || undefined,
+    until: filter.until || undefined,
+  };
+}
+
 export function ApprovalsHistory({
   project,
 }: {
@@ -89,8 +101,21 @@ export function ApprovalsHistory({
       void queryClient.invalidateQueries({ queryKey: queryKeys.changes(project) });
     },
   });
+  // The audit trail as a file, under the filter the list was last asked for (T-5114); true when
+  // the forge holds older closed changes than the file.
+  const exported = useMutation({
+    mutationFn: async () => {
+      const result = await api.GET("/api/v1/projects/{project}/changes/history/export", {
+        params: { path: { project }, query: filterQuery(filter) },
+        parseAs: "text",
+      });
+      const csv: unknown = await unwrap(result);
+      download(typeof csv === "string" ? csv : "", `${project}-changes.csv`, "text/csv;charset=utf-8");
+      return result.response.headers.get("jc-next-page") !== null;
+    },
+  });
   const proposed = undo.data ?? restore.data;
-  const refused = undo.error ?? restore.error;
+  const refused = undo.error ?? restore.error ?? exported.error;
 
   const history = useInfiniteQuery({
     queryKey: [
@@ -108,14 +133,7 @@ export function ApprovalsHistory({
         await api.GET("/api/v1/projects/{project}/changes/history", {
           params: {
             path: { project },
-            query: {
-              page: pageParam,
-              kind: filter.kind || undefined,
-              name: filter.name || undefined,
-              author: filter.author || undefined,
-              since: filter.since || undefined,
-              until: filter.until || undefined,
-            },
+            query: { page: pageParam, ...filterQuery(filter) },
           },
         }),
       ),
@@ -208,6 +226,25 @@ export function ApprovalsHistory({
           </Button>
         ) : null}
       </form>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          variant="secondary"
+          loading={exported.isPending}
+          aria-describedby={`${id}-export-hint`}
+          onClick={() => exported.mutate()}
+        >
+          {t("approvals.history.export")}
+        </Button>
+        <p id={`${id}-export-hint`} className="text-caption text-fg-muted">
+          {t("approvals.history.exportHint", { project })}
+        </p>
+      </div>
+      {exported.data ? (
+        <Alert tone="warning" role="status">
+          {t("approvals.history.exportCut")}
+        </Alert>
+      ) : null}
       <ResourceList
         query={history}
         caption={t("approvals.history.caption")}
@@ -337,6 +374,7 @@ export function ApprovalsHistory({
           </TableRow>
         ))}
       </ResourceList>
+      <p className="text-caption text-fg-muted">{t("approvals.history.dataWrites")}</p>
       {history.hasNextPage ? (
         <div>
           <Button

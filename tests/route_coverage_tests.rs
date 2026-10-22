@@ -151,6 +151,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/projects/{project}/basemap/{style}/{z}/{x}/{tile}", "map tiles the browser fetches"),
 ("GET", "/projects/{project}/changes", "jc_change_list"),
 ("GET", "/projects/{project}/changes/history", "a person reads what was merged or rejected and by whom on the Approvals history (T-3292); an agent reads one change with jc_change_get"),
+("GET", "/projects/{project}/changes/history/export", "a person or auditor downloads the closed changes under the history filter as CSV from the Approvals history (T-5114)"),
 ("GET", "/projects/{project}/changes/{id}", "jc_change_get"),
 ("POST", "/projects/{project}/changes/{id}/approve", "jc_change_approve"),
 ("POST", "/projects/{project}/changes/{id}/reject", "jc_change_reject"),
