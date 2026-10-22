@@ -244,9 +244,9 @@ describe("BulkSetDialog", () => {
   const row = (id: string, name: string) => ({ id, type: "T", cells: { name: { kind: "property", value: name } } }) as unknown as RichRow;
   const rows = [row("urn:ngsi-ld:T:a", "Alpha"), row("urn:ngsi-ld:T:b", "Beta")];
   const slots: FilterSlot[] = [
-    { name: "seats", range: "integer", kind: "property" },
-    { name: "status", range: "Status", kind: "property", values: ["open", "closed"] },
-  ] as FilterSlot[];
+    { name: "seats", range: "integer", kind: "Property" },
+    { name: "status", range: "Status", kind: "Property", values: ["open", "closed"] },
+  ];
   const applyName = L.setApply.replace("{n}", "2");
 
   function setup(patch: (id: string, body: Record<string, unknown>, reason: string) => Promise<void>) {
