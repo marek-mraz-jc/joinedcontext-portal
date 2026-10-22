@@ -6820,6 +6820,11 @@ export interface components {
             kind: string;
             smartDataModels: components["schemas"]["CatalogueEntry"][];
         };
+        /** @description One Organization a caller sees (PF-124): its name, the `?org=` value, and its title. */
+        OrganizationSummary: {
+            name: string;
+            title?: components["schemas"]["Text"];
+        };
         /** @description An open merge request in the forge that the Portal does not offer for approval (T-3433). */
         OutsideMergeRequest: {
             /** @description The forge account that opened it. */
@@ -7437,6 +7442,12 @@ export interface components {
             apiVersion: string;
             items: components["schemas"]["ProjectSummary"][];
             kind: string;
+            /**
+             * @description The Organizations that own a listed project, by name, when the installation holds more
+             *     than one (PF-124, ADR-N-058 section 2.7): what the organization switcher offers. Empty
+             *     with one Organization, so a person who sees one gets no switcher.
+             */
+            organizations: components["schemas"]["OrganizationSummary"][];
         };
         /** @description The quota in force for one project the caller may read. */
         ProjectQuota: {
@@ -7456,6 +7467,8 @@ export interface components {
         ProjectSummary: {
             /** @description The project slug, the `{project}` segment of every other path. */
             name: string;
+            /** @description The Organization that owns the project, its `spec.organizationRef` (PF-122). */
+            organization?: string | null;
             /**
              * @description Whether its `Project` manifest carries [`SAMPLE_LABEL`]: real open data a newcomer may look
              *     around in (PF-109).

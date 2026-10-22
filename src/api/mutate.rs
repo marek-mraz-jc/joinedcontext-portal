@@ -945,7 +945,7 @@ async fn propose_engine(
     let mut plan = plan::diff(current.as_ref(), Some(&envelope));
 
     // The same folder as the manifest, so a path is checked against where it will be written.
-    let manifest_path = resolve_repo_path(&envelope, kind_info, project)?;
+    let mut manifest_path = resolve_repo_path(&envelope, kind_info, project)?;
     let mut sidecars = sidecars(sidecar_files, &manifest_path)?;
     let folder = manifest_path.rsplit_once('/').map_or("", |(dir, _)| dir);
     for (relative, content) in space_model {
@@ -1022,6 +1022,15 @@ async fn propose_engine(
     let gitea: &crate::git::GiteaClient = &gitea;
 
     let default_branch = gitea.default_branch().await?;
+    if kind_info.kind == "Organization" && operation != Operation::Create {
+        manifest_path = organization_path(
+            gitea,
+            &default_branch,
+            &envelope.metadata.name,
+            manifest_path,
+        )
+        .await?;
+    }
 
     // 8a. Every check above judged the body against the mirror, and a fresh branch starts at
     //     main. A mirror that has not caught up with main on this resource would put the body
@@ -1252,6 +1261,27 @@ fn held_under_another_name(
         .find(|held| held.metadata.name != name)?;
     let path = kind_info.repo_path(project, "", &held.metadata.name);
     Some(path_taken(kind_info.kind, &held.metadata.name, name, &path))
+}
+
+/// An Organization still in the legacy `org.yaml` is changed or deleted there (PF-121): written to
+/// `organizations/{name}.yaml` instead, the repository would hold it twice and load neither.
+async fn organization_path(
+    gitea: &crate::git::GiteaClient,
+    branch: &str,
+    name: &str,
+    path: String,
+) -> Result<String, ApiError> {
+    let legacy = jc_core::kinds::LEGACY_ORGANIZATION_PATH;
+    let held = gitea.get_file(legacy, branch).await?.and_then(|file| {
+        serde_norway::from_str::<ResourceEnvelope>(&file.content)
+            .ok()
+            .map(|held| held.metadata.name)
+    });
+    Ok(if held.as_deref() == Some(name) {
+        legacy.to_owned()
+    } else {
+        path
+    })
 }
 
 /// The manifest as committed: no status, except a build write's, whose component and shard are

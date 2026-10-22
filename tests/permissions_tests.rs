@@ -1460,3 +1460,160 @@ async fn a_steward_without_the_pipeline_grant_cannot_set_a_history_plan() {
         "{body}"
     );
 }
+
+/// Two Organizations (PF-121): `hel` the installation's, `zilina` owning the project `ovzdusie`;
+/// each with an administrator bound at its own organization scope, and the role both hold.
+fn two_organizations() -> Vec<ResourceEnvelope> {
+    let admin_role = org(
+        "Role",
+        "org-admin",
+        json!({ "rules": [
+            { "kinds": ["Pipeline", "DataSource", "Endpoint", "ContextSpace"], "verbs": ["propose", "approve", "delete"] },
+            { "kinds": ["RoleBinding", "Organization", "ContextBroker"], "verbs": ["propose", "approve", "delete"] }
+        ]}),
+    );
+    vec![
+        org(
+            "Organization",
+            "hel",
+            json!({ "domain": "hel.fi", "installation": true }),
+        ),
+        org("Organization", "zilina", json!({ "domain": "zilina.sk" })),
+        org(
+            "Project",
+            "ovzdusie",
+            json!({ "organizationRef": { "kind": "Organization", "name": "zilina" } }),
+        ),
+        org(
+            "Project",
+            "helsinki",
+            json!({ "organizationRef": { "kind": "Organization", "name": "hel" } }),
+        ),
+        admin_role,
+        binding(
+            "hel-admins",
+            "org-admin",
+            json!([{ "user": "jana@hel.fi" }]),
+            json!({ "organization": "hel" }),
+            None,
+        ),
+        binding(
+            "zilina-admins",
+            "org-admin",
+            json!([{ "user": "eva@zilina.sk" }]),
+            json!({ "organization": "zilina" }),
+            None,
+        ),
+        in_project("ContextSpace", "ovzdusie"),
+        in_project("DataSource", "mqtt-mesto"),
+    ]
+}
+
+/// PF-123 (ADR-N-058 section 2.4): an organization-scoped binding ends at its Organization. The
+/// Helsinki administrator proposes nothing in Žilina's project, the Žilina administrator proposes
+/// there exactly what the Helsinki one did before the move.
+#[tokio::test]
+async fn pf_123_an_organization_admin_proposes_only_in_its_own_organizations_projects() {
+    let config = Config::for_tests();
+    let target = pipeline("aq");
+    let uri = "/api/v1/projects/ovzdusie/pipelines?dryRun=All";
+    let app = || app_with(&config, two_organizations());
+    let (status, body) = post(app(), &config, identity("jana@hel.fi", &[]), uri, &target).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    let (status, body) = post(app(), &config, identity("eva@zilina.sk", &[]), uri, &target).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+
+    // Reading the project's private parts: the stranger organization's admin reads nothing.
+    let read = |who: &str| {
+        get(
+            app_with(&config, two_organizations()),
+            &config,
+            identity(who, &[]),
+            "/api/v1/projects/ovzdusie/datasources",
+        )
+    };
+    let (status, body) = read("jana@hel.fi").await;
+    assert!(
+        status == StatusCode::FORBIDDEN || status == StatusCode::NOT_FOUND,
+        "{status} {body}"
+    );
+    assert!(!body.contains("mqtt-mesto"), "{body}");
+    let (status, body) = read("eva@zilina.sk").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains("mqtt-mesto"), "{body}");
+}
+
+/// PF-123: approving follows the same line, and the installation-wide kinds (bindings, brokers,
+/// every Organization) stay with the installation's administrators: a change filed in Žilina's
+/// project carries none of them past its approver.
+#[test]
+fn pf_123_approval_and_installation_kinds_end_at_the_organization() {
+    let now = Utc.with_ymd_and_hms(2026, 10, 22, 12, 0, 0).unwrap();
+    let mirror = mirror_with(two_organizations());
+    let target = pipeline("aq");
+    let at = |who: &str, project: &str| {
+        effective(
+            &mirror,
+            "platform-admins",
+            &identity(who, &[]),
+            project,
+            now,
+        )
+    };
+
+    let hel_in_zilina = at("jana@hel.fi", "ovzdusie");
+    assert!(hel_in_zilina.grants.is_empty());
+    assert!(hel_in_zilina
+        .check("Pipeline", Verb::Approve, Some(&target))
+        .is_err());
+    assert!(!hel_in_zilina.may_read_project());
+
+    let zilina = at("eva@zilina.sk", "ovzdusie");
+    assert!(zilina
+        .check("Pipeline", Verb::Approve, Some(&target))
+        .is_ok());
+    assert!(zilina
+        .check("Pipeline", Verb::Propose, Some(&target))
+        .is_ok());
+    for kind in ["RoleBinding", "Organization", "ContextBroker"] {
+        assert!(
+            !zilina.may(kind, Verb::Propose),
+            "{kind} in a Žilina project"
+        );
+        assert!(
+            !zilina.may(kind, Verb::Approve),
+            "{kind} in a Žilina project"
+        );
+    }
+    // Neither in the installation's namespace nor in the installation's projects.
+    assert!(at("eva@zilina.sk", ORG_NAMESPACE).grants.is_empty());
+    assert!(at("eva@zilina.sk", "helsinki").grants.is_empty());
+
+    // The installation's administrator keeps the installation-wide kinds and its own projects.
+    let hel = at("jana@hel.fi", ORG_NAMESPACE);
+    assert!(hel.may("RoleBinding", Verb::Approve) && hel.may("Organization", Verb::Propose));
+    assert!(at("jana@hel.fi", "helsinki")
+        .check("Pipeline", Verb::Approve, Some(&target))
+        .is_ok());
+}
+
+/// One Organization, as every installation before ADR-N-058: a binding at organization scope
+/// still covers every project, whatever name it gives (PF-03).
+#[test]
+fn pf_123_one_organization_covers_every_project_as_before() {
+    let now = Utc.with_ymd_and_hms(2026, 10, 22, 12, 0, 0).unwrap();
+    let mut envelopes = two_organizations();
+    envelopes.retain(|env| !(env.kind == "Organization" && env.metadata.name == "zilina"));
+    let mirror = mirror_with(envelopes);
+    let hel = effective(
+        &mirror,
+        "platform-admins",
+        &identity("jana@hel.fi", &[]),
+        "ovzdusie",
+        now,
+    );
+    assert!(hel
+        .check("Pipeline", Verb::Approve, Some(&pipeline("aq")))
+        .is_ok());
+    assert!(hel.may("RoleBinding", Verb::Approve));
+}

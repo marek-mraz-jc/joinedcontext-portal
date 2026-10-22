@@ -129,7 +129,8 @@ pub fn effective(
         .into_iter()
         .filter_map(|(reach, mut grant)| {
             grant.space = match reach {
-                Reach::Organization => None,
+                Reach::Organization(org) if organization_reaches(mirror, &org, project) => None,
+                Reach::Organization(_) => return None,
                 Reach::Project(p) if p == project => None,
                 Reach::Project(_) => return None,
                 Reach::Space(space) => {
@@ -145,6 +146,7 @@ pub fn effective(
             Some(grant)
         })
         .collect();
+    let grants = without_organization_kinds(mirror, project, grants);
     Effective {
         project: project.to_owned(),
         bootstrap: false,
@@ -359,7 +361,7 @@ fn declares_egress(target: Option<&Value>) -> bool {
 /// Where a binding applies.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Reach {
-    Organization,
+    Organization(String),
     Project(String),
     Space(String),
 }
@@ -368,7 +370,7 @@ impl Reach {
     /// What `permissions/me` calls this scope (PF-61).
     fn name(&self) -> String {
         match self {
-            Self::Organization => "organization".to_owned(),
+            Self::Organization(_) => "organization".to_owned(),
             Self::Project(project) => format!("project:{project}"),
             Self::Space(space) => format!("contextSpace:{space}"),
         }
@@ -376,18 +378,26 @@ impl Reach {
 
     fn of(scope: &RoleScope) -> Option<Self> {
         match (&scope.organization, &scope.project, &scope.context_space) {
-            (Some(_), _, _) => Some(Self::Organization),
+            (Some(organization), _, _) => Some(Self::Organization(organization.clone())),
             (_, Some(project), _) => Some(Self::Project(project.clone())),
             (_, _, Some(space)) => Some(Self::Space(space.clone())),
             _ => None,
         }
     }
 
-    /// Whether a grant held here also holds at `target`: the organization covers everything, a
-    /// project its own context spaces.
+    /// Whether a grant held here also holds at `target`: an Organization covers its own projects
+    /// and their spaces, the installation's also every Organization (it hands a new one its first
+    /// administrator, ADR-N-058 section 2.4), a project its own context spaces.
     fn covers(&self, target: &Self, mirror: &Mirror) -> bool {
         match (self, target) {
-            (Self::Organization, _) => true,
+            (Self::Organization(held), Self::Organization(wanted)) => {
+                held == wanted || organization_reaches(mirror, held, ORG_NAMESPACE)
+            }
+            (Self::Organization(held), Self::Project(project)) => {
+                organization_reaches(mirror, held, project)
+            }
+            (Self::Organization(held), Self::Space(space)) => project_of_space(mirror, space)
+                .is_some_and(|project| organization_reaches(mirror, held, &project)),
             (Self::Project(held), Self::Project(wanted)) => held == wanted,
             (Self::Project(held), Self::Space(space)) => {
                 mirror.get(held, "ContextSpace", space).is_some()
@@ -396,6 +406,89 @@ impl Reach {
             _ => false,
         }
     }
+}
+
+/// The Organizations of the repository by name (PF-121).
+fn organizations(mirror: &Mirror) -> Vec<(String, Value)> {
+    mirror
+        .list(ORG_NAMESPACE, "Organization", &ListOptions::default())
+        .items
+        .into_iter()
+        .map(|env| (env.metadata.name, env.spec))
+        .collect()
+}
+
+/// The installation's Organization (PF-121, ADR-N-058 section 2.2): the only one, else the only
+/// one that sets `spec.installation`; none when two claim it or none does. The mirror does not
+/// keep the file a manifest came from, so a legacy `org.yaml` beside other Organizations counts
+/// only when it sets `spec.installation` too.
+pub fn installation_organization(mirror: &Mirror) -> Option<String> {
+    let all = organizations(mirror);
+    if let [(only, _)] = all.as_slice() {
+        return Some(only.clone());
+    }
+    let mut claims = all
+        .into_iter()
+        .filter(|(_, spec)| spec.get("installation") == Some(&Value::Bool(true)));
+    match (claims.next(), claims.next()) {
+        (Some((one, _)), None) => Some(one),
+        _ => None,
+    }
+}
+
+/// The Organization that owns `project`: its Project's `spec.organizationRef`, or the
+/// installation's for a project without one (ADR-N-058 section 2.3).
+pub fn organization_of(mirror: &Mirror, project: &str) -> Option<String> {
+    mirror
+        .get(ORG_NAMESPACE, "Project", project)
+        .and_then(|env| {
+            env.spec
+                .get("organizationRef")
+                .and_then(crate::resource::reference_name)
+                .map(str::to_owned)
+        })
+        .or_else(|| installation_organization(mirror))
+}
+
+/// Whether a binding scoped to `organization` applies in `project` (PF-123, ADR-N-058 section
+/// 2.4). With one Organization it applies everywhere, as before several existed. With several, the
+/// organization's own namespace ([`ORG_NAMESPACE`]: bindings, groups, brokers, platform settings)
+/// is the installation Organization's alone, and a project is its Organization's alone: deny by
+/// default, so a binding naming an Organization that owns nothing grants nothing.
+fn organization_reaches(mirror: &Mirror, organization: &str, project: &str) -> bool {
+    if organizations(mirror).len() <= 1 {
+        return true;
+    }
+    let owner = if project == ORG_NAMESPACE || project.is_empty() {
+        installation_organization(mirror)
+    } else {
+        organization_of(mirror, project)
+    };
+    owner.as_deref() == Some(organization)
+}
+
+/// In a project of an Organization other than the installation's, a grant reaches the project's
+/// own kinds alone (PF-123, ADR-N-058 section 2.2): the installation-wide manifests (brokers,
+/// environments, platform settings, bindings, groups, every `Organization`) are judged at
+/// [`ORG_NAMESPACE`] by the installation's administrators, so a change filed in such a project
+/// carries none of them past its approver.
+fn without_organization_kinds(mirror: &Mirror, project: &str, grants: Vec<Grant>) -> Vec<Grant> {
+    if project == ORG_NAMESPACE
+        || organizations(mirror).len() <= 1
+        || organization_of(mirror, project) == installation_organization(mirror)
+    {
+        return grants;
+    }
+    grants
+        .into_iter()
+        .filter_map(|mut grant| {
+            grant
+                .rule
+                .kinds
+                .retain(|kind| !crate::resource::belongs_to_the_organization(kind, Some(project)));
+            (!grant.rule.kinds.is_empty()).then_some(grant)
+        })
+        .collect()
 }
 
 /// The roles of one namespace: the organization's `users/roles/`, or one project's own (PF-68).
@@ -451,7 +544,7 @@ fn role_of(
         return Some((found.clone(), spec.clone()));
     }
     let project = match reach {
-        Reach::Organization => return None,
+        Reach::Organization(_) => return None,
         Reach::Project(project) => project.clone(),
         Reach::Space(space) => project_of_space(mirror, space)?,
     };
@@ -669,7 +762,9 @@ pub fn project_members(mirror: &Mirror, project: &str, now: DateTime<Utc>) -> Pr
             continue;
         }
         let reach = match Reach::of(&binding.scope) {
-            Some(Reach::Organization) => Reach::Organization,
+            Some(Reach::Organization(org)) if organization_reaches(mirror, &org, project) => {
+                Reach::Organization(org)
+            }
             Some(Reach::Project(p)) if p == project => Reach::Project(p),
             _ => continue,
         };
@@ -998,7 +1093,9 @@ pub fn within_own_rights(
                     .and_then(Value::as_str)
                     .unwrap_or(ORG_NAMESPACE);
                 let at = match namespace {
-                    ORG_NAMESPACE | "" => Reach::Organization,
+                    ORG_NAMESPACE | "" => {
+                        Reach::Organization(installation_organization(mirror).unwrap_or_default())
+                    }
                     project => Reach::Project(project.to_owned()),
                 };
                 ("role", vec![(role.rules, at)])

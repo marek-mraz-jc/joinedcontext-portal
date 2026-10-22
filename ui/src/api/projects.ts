@@ -15,6 +15,22 @@ export function useProjects() {
 }
 
 /**
+ * The Organizations the person sees, when they see more than one, and the Organization of each
+ * project they read (PF-124, ADR-N-058 section 2.7). The server lists only Organizations owning a
+ * project the person reads. Same request as [`useProjects`].
+ */
+export function useOrganizations() {
+  return useQuery({
+    queryKey: queryKeys.projects(),
+    queryFn: async () => unwrap(await api.GET("/api/v1/projects")),
+    select: (list) => ({
+      organizations: list.organizations ?? [],
+      ownerOf: new Map(list.items.map((item) => [item.name, item.organization])),
+    }),
+  });
+}
+
+/**
  * The sample projects among those the person may read (PF-109): real open data to look around in,
  * marked by the `joinedcontext.com/sample` label on their Project manifest. Same request as
  * [`useProjects`], so it costs nothing more.

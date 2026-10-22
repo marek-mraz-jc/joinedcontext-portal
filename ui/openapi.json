@@ -26558,6 +26558,21 @@
           }
         }
       },
+      "OrganizationSummary": {
+        "type": "object",
+        "description": "One Organization a caller sees (PF-124): its name, the `?org=` value, and its title.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "$ref": "#/components/schemas/Text"
+          }
+        }
+      },
       "OutsideMergeRequest": {
         "type": "object",
         "description": "An open merge request in the forge that the Portal does not offer for approval (T-3433).",
@@ -28253,7 +28268,8 @@
         "required": [
           "apiVersion",
           "kind",
-          "items"
+          "items",
+          "organizations"
         ],
         "properties": {
           "apiVersion": {
@@ -28267,6 +28283,13 @@
           },
           "kind": {
             "type": "string"
+          },
+          "organizations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrganizationSummary"
+            },
+            "description": "The Organizations that own a listed project, by name, when the installation holds more\nthan one (PF-124, ADR-N-058 section 2.7): what the organization switcher offers. Empty\nwith one Organization, so a person who sees one gets no switcher."
           }
         }
       },
@@ -28318,6 +28341,13 @@
           "name": {
             "type": "string",
             "description": "The project slug, the `{project}` segment of every other path."
+          },
+          "organization": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Organization that owns the project, its `spec.organizationRef` (PF-122)."
           },
           "sample": {
             "type": "boolean",
