@@ -6029,7 +6029,12 @@
         }
       },
       "access-request": "Access request",
-      "personal-data": "Personal data request"
+      "personal-data": "Personal data request",
+      "mqtt": {
+        "capture": {
+          "deleted": "MQTT capture deleted"
+        }
+      }
     },
     "sources": {
       "reconciler": "Configuration",

@@ -12338,6 +12338,180 @@
         }
       }
     },
+    "/api/v1/projects/{project}/mqttbrokers/{name}/captured": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Read An MQTT Broker's Capture",
+        "description": "The newest messages a broker in `capture` mode kept, newest first (API/01 §47, ADR-N-048 §2.10). Only a person who may approve MqttBrokers in the project; anybody else gets 404.",
+        "operationId": "get_captured",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "MqttBroker name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "topic",
+            "in": "query",
+            "description": "One exact topic, no wildcard, e.g. `cams/cam-west/frame-meta`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "How many messages, 1 to 1000; default 100.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The kept messages; empty outside capture mode",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Captured"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A topic with a wildcard, or a limit outside 1…1000",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such broker, or the caller may not approve brokers here",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The capture store did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Delete An MQTT Broker's Capture",
+        "description": "Deletes every message the broker kept at once and records who did it in the activity log, without the payloads (API/01 §47). Only a person who may approve MqttBrokers in the project; anybody else gets 404.",
+        "operationId": "delete_captured",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "MqttBroker name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The capture is gone"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such broker, or the caller may not approve brokers here",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The capture store did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/mqttbrokers/{name}/measured": {
       "get": {
         "tags": [
@@ -21354,6 +21528,89 @@
           }
         },
         "additionalProperties": false
+      },
+      "Captured": {
+        "type": "object",
+        "description": "A broker's capture, newest first.",
+        "required": [
+          "broker",
+          "mode",
+          "messages",
+          "truncated"
+        ],
+        "properties": {
+          "broker": {
+            "type": "string"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CapturedMessage"
+            }
+          },
+          "messagesPerTopic": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "mode": {
+            "type": "string",
+            "description": "`ingest`, `capture` or `relay`; only `capture` keeps messages."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "More messages are kept than `limit` answered."
+          },
+          "window": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The capture's window, an ISO 8601 duration; absent outside `capture`."
+          }
+        }
+      },
+      "CapturedMessage": {
+        "type": "object",
+        "description": "One kept message.",
+        "required": [
+          "topic",
+          "receivedAt",
+          "bytes",
+          "payload",
+          "encoding"
+        ],
+        "properties": {
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "clientId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The device, where a publish filter of the broker names it as `${clientid}`."
+          },
+          "encoding": {
+            "type": "string",
+            "description": "`utf-8` or `base64`."
+          },
+          "payload": {
+            "type": "string",
+            "description": "UTF-8 text when the payload decodes, else base64."
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "topic": {
+            "type": "string"
+          }
+        }
       },
       "Catalogue": {
         "type": "object",

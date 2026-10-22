@@ -6029,7 +6029,12 @@
         }
       },
       "access-request": "Žádost o přístup",
-      "personal-data": "Žádost o osobní údaje"
+      "personal-data": "Žádost o osobní údaje",
+      "mqtt": {
+        "capture": {
+          "deleted": "Záznam MQTT smazán"
+        }
+      }
     },
     "sources": {
       "reconciler": "Konfigurace",
