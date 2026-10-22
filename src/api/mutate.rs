@@ -2118,7 +2118,7 @@ fn unprocessable(lines: Vec<String>) -> ApiError {
 /// duplicate or malformed output name, a 21st output, a filter the broker would refuse. Each is
 /// a 422 naming the member's path (API/11 EP-157, EP-159); the model check is `check_surfaces`.
 fn check_representation_shape(spec: &Value) -> Result<(), ApiError> {
-    use jc_core::kinds::{feed_gaps, outputs_gaps, Representations};
+    use jc_core::kinds::{feed_gaps, outputs_gaps, widget_gaps, Representations};
     let Some(block) = spec.get("representations") else {
         return Ok(());
     };
@@ -2132,6 +2132,12 @@ fn check_representation_shape(spec: &Value) -> Result<(), ApiError> {
                 .map_err(|e| unprocessable(vec![format!("spec.representations.feed: {e}")]))?
                 .into_iter()
                 .map(|gap| format!("spec.representations.feed: {gap}")),
+        )
+        .chain(
+            widget_gaps(&representations.widget, None)
+                .map_err(|e| unprocessable(vec![format!("spec.representations.widget: {e}")]))?
+                .into_iter()
+                .map(|gap| format!("spec.representations.widget: {gap}")),
         )
         .collect();
     if gaps.is_empty() {

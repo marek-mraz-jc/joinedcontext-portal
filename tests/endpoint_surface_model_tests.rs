@@ -470,3 +470,179 @@ async fn a_person_without_the_endpoint_right_gets_403() {
         "no Change was opened"
     );
 }
+
+/// The Event with a category enum and a free-entry flag, the fields a map legend colours by.
+const MAP_EVENTS: &str = r#"id: https://example.org/models/events
+name: events
+classes:
+  Event:
+    slots: [name, startDate, category, free]
+slots:
+  name: { range: string, required: true }
+  startDate: { range: datetime, required: true }
+  category: { range: EventCategory }
+  free: { range: boolean }
+enums:
+  EventCategory:
+    permissible_values: { sport: {}, music: {} }
+"#;
+
+fn map(mapping: Value) -> Value {
+    with_outputs(
+        json!({ "widget": [{ "name": "mapa", "sources": [{ "type": "Event", "mapping": mapping, "cluster": false }] }] }),
+    )
+}
+
+/// API/11 EP-163 (T-5239): the publisher's map defaults save when every role fits the model.
+#[tokio::test]
+async fn map_defaults_that_fit_the_model_open_a_change() {
+    let (state, _gitea) = portal(MAP_EVENTS).await;
+    for mapping in [
+        json!({ "geometry": "location", "colour": "category", "popup": ["name", "startDate"] }),
+        json!({ "colour": "free" }),
+    ] {
+        let answer = propose(&state, map(mapping.clone())).await;
+        assert!(
+            answer.status.is_success(),
+            "{mapping}: {} {}",
+            answer.status,
+            answer.text
+        );
+    }
+}
+
+/// One 422 per map role, unknown slot and wrong range alike, naming the member.
+#[tokio::test]
+async fn a_map_role_the_model_cannot_fill_is_a_422_naming_the_member() {
+    let (state, gitea) = portal(MAP_EVENTS).await;
+    for (mapping, member) in [
+        (
+            json!({ "geometry": "startDate" }),
+            "`mapping.geometry` reads `startDate`",
+        ),
+        (
+            json!({ "geometry": "place" }),
+            "`mapping.geometry` names `place`",
+        ),
+        (json!({ "colour": "name" }), "`mapping.colour` reads `name`"),
+        (
+            json!({ "colour": "colour" }),
+            "`mapping.colour` names `colour`",
+        ),
+        (
+            json!({ "popup": ["name", "nowhere"] }),
+            "`mapping.popup` names `nowhere`",
+        ),
+        (
+            json!({ "popup": ["location"] }),
+            "`mapping.popup` names `location`, a GeoProperty",
+        ),
+    ] {
+        refused(&state, &gitea, map(mapping), member).await;
+    }
+    let mut not_a_flag = map(json!({}));
+    not_a_flag["spec"]["representations"]["widget"][0]["sources"][0]["cluster"] = json!("often");
+    refused(&state, &gitea, not_a_flag, "spec.representations").await;
+}
+
+fn table(start: Value) -> Value {
+    with_outputs(
+        json!({ "widget": [{ "name": "tabulka", "sources": [{ "type": "Event", "table": start }] }] }),
+    )
+}
+
+/// API/11 EP-164 (T-5197): a table start whose filter parses and whose attributes the class has saves.
+#[tokio::test]
+async fn a_table_start_that_fits_the_model_opens_a_change() {
+    let (state, _gitea) = portal(MAP_EVENTS).await;
+    let start = json!({ "filter": "startDate>=today;category==\"music\"", "orderBy": "startDate;desc",
+        "pageLength": 50, "columns": ["name", "startDate"] });
+    let answer = propose(&state, table(start)).await;
+    assert!(
+        answer.status.is_success(),
+        "{} {}",
+        answer.status,
+        answer.text
+    );
+}
+
+/// One 422 per table member the widget cannot use, naming the member.
+#[tokio::test]
+async fn a_table_start_the_widget_cannot_use_is_a_422_naming_the_member() {
+    let (state, gitea) = portal(MAP_EVENTS).await;
+    for (start, member) in [
+        (
+            json!({ "filter": "startDate>=>today" }),
+            "`table.filter` is not an NGSI-LD q",
+        ),
+        (
+            json!({ "orderBy": "nowhere" }),
+            "`table.orderBy` names `nowhere`",
+        ),
+        (
+            json!({ "orderBy": "location" }),
+            "`table.orderBy` names `location`, a GeoProperty",
+        ),
+        (
+            json!({ "pageLength": 25 }),
+            "`table.pageLength: 25` is not one of 10, 20, 50 or 100",
+        ),
+        (
+            json!({ "columns": ["name", "nowhere"] }),
+            "`table.columns` names `nowhere`",
+        ),
+        (
+            json!({ "columns": ["name", "name"] }),
+            "`table.columns` names `name` twice",
+        ),
+    ] {
+        refused(&state, &gitea, table(start), member).await;
+    }
+    refused(
+        &state,
+        &gitea,
+        table(json!({ "sort": "name" })),
+        "spec.representations",
+    )
+    .await;
+}
+
+/// A table start is an Endpoint change: a person without the Endpoint right gets 403.
+#[tokio::test]
+async fn a_person_without_the_endpoint_right_cannot_set_a_table_start() {
+    let (state, gitea) = portal(MAP_EVENTS).await;
+    let answer = common::checked_send(
+        &state,
+        common::person("visitor"),
+        "POST",
+        &format!("/api/v1/projects/{PROJECT}/endpoints"),
+        Some(table(json!({ "pageLength": 50 }))),
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::FORBIDDEN, "{}", answer.text);
+    let requests = gitea.received_requests().await.expect("recorded");
+    assert!(
+        !requests.iter().any(|r| r.method.as_str() == "POST"),
+        "no Change was opened"
+    );
+}
+
+/// The map defaults are an Endpoint change: a person without the Endpoint right gets 403.
+#[tokio::test]
+async fn a_person_without_the_endpoint_right_cannot_set_map_defaults() {
+    let (state, gitea) = portal(MAP_EVENTS).await;
+    let answer = common::checked_send(
+        &state,
+        common::person("visitor"),
+        "POST",
+        &format!("/api/v1/projects/{PROJECT}/endpoints"),
+        Some(map(json!({ "colour": "category" }))),
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::FORBIDDEN, "{}", answer.text);
+    let requests = gitea.received_requests().await.expect("recorded");
+    assert!(
+        !requests.iter().any(|r| r.method.as_str() == "POST"),
+        "no Change was opened"
+    );
+}

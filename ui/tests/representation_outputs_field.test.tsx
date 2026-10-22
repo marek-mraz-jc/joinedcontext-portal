@@ -19,8 +19,8 @@ import { RepresentationOutputsField } from "../src/components/forms/widgets/Repr
 import { FormProjectContext } from "../src/components/forms/widgets/ModelWidgets";
 import { AttributeSelect } from "../src/components/forms/widgets/OutputSourceEditors";
 import { baseOf, unmappedRequired, withPreset, withSource } from "../src/components/forms/widgets/icalMapping";
-import { duplicateNames, freeName, isSlug, outputsOf, unmappedRoles, written } from "../src/components/forms/widgets/representationOutputs";
-import { representationSpec } from "../src/routes/EndpointsPage";
+import { duplicateNames, freeName, isSlug, outputsOf, unmappedRoles, withMapRole, withPopup, written } from "../src/components/forms/widgets/representationOutputs";
+import { keptRepresentations, representationSpec } from "../src/routes/EndpointsPage";
 
 const c = en.endpoints.ical;
 const o = en.endpoints.outputs;
@@ -42,7 +42,7 @@ function Held({ initial, seen }: { initial?: unknown; seen: unknown[] }) {
   return <RepresentationOutputsField {...props} />;
 }
 
-function show(initial?: unknown, form: unknown = ON) {
+function show(initial?: unknown, form: unknown = ON, linkml = LINKML) {
   const seen: unknown[] = [];
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   client.setQueryData(queryKeys.list("city", "datamodels"), {
@@ -53,7 +53,7 @@ function show(initial?: unknown, form: unknown = ON) {
         apiVersion: "joinedcontext.com/v1alpha1",
         kind: "DataModel",
         metadata: { name: "events", namespace: "city" },
-        spec: { contextSpaceRef: "events", linkml: LINKML, version: "1.0.0" },
+        spec: { contextSpaceRef: "events", linkml, version: "1.0.0" },
       },
     ],
   });
@@ -153,12 +153,81 @@ describe("the attribute dropdown", () => {
   });
 });
 
+const MAP_LINKML = [
+  "id: x\nname: x\nclasses:\n  Event:\n    slots: [name, startDate, category, free, area]",
+  "slots:\n  name: { required: true }\n  startDate: { range: datetime, required: true }",
+  "  category: { range: EventCategory }\n  free: { range: boolean }",
+  "  area: { range: GeoJSON, annotations: { ngsi_ld_kind: GeoProperty } }",
+  "enums:\n  EventCategory:\n    permissible_values: { sport: {}, music: {} }\n",
+].join("\n");
+
+describe("the catalogue map defaults (T-5239)", () => {
+  it("says the map keeps its built-in defaults until a publisher adds some", () => {
+    show(undefined, ON, MAP_LINKML);
+    expect(screen.getByText(o.widget.emptyTitle)).toBeInTheDocument();
+    expect(screen.getByText(o.widget.emptyHint)).toBeInTheDocument();
+  });
+
+  it("offers each role only the slots that fit it and writes the class's defaults", async () => {
+    const user = userEvent.setup();
+    const seen = show({ widget: [{ name: "mapa", sources: [{ type: "Event" }] }] }, ON, MAP_LINKML);
+    const colour = screen.getByLabelText(o.map.colour.label);
+    expect(optionsOf(colour)).toEqual(["", "category", "free"]);
+    expect(optionsOf(screen.getByLabelText(o.map.geometry.label))).toEqual(["", "area", "location", "observationSpace", "operationSpace"]);
+    expect(screen.queryByLabelText("area", { exact: true })).toBeNull();
+    expect(screen.queryByLabelText(o.filterField.label)).toBeNull();
+    await user.selectOptions(colour, "category");
+    const popup = within(screen.getByRole("group", { name: o.map.popup.label }));
+    await user.click(popup.getByLabelText("startDate"));
+    await user.click(popup.getByLabelText("name"));
+    await user.selectOptions(screen.getByLabelText(o.map.cluster.label), "off");
+    expect(seen.at(-1)).toEqual({
+      widget: [{ name: "mapa", sources: [{ type: "Event", mapping: { colour: "category", popup: ["name", "startDate"] }, cluster: false }] }],
+    });
+  });
+});
+
+describe("the catalogue table start (API/11 EP-164, T-5197)", () => {
+  it("offers the class's slots for order and columns, page lengths 10 to 100, and writes the start", async () => {
+    const user = userEvent.setup();
+    const seen = show({ widget: [{ name: "mapa", sources: [{ type: "Event" }] }] }, ON, MAP_LINKML);
+    expect(screen.getByText(o.table.filter.hint)).toBeInTheDocument();
+    const order = screen.getByLabelText(o.table.order.label);
+    expect(optionsOf(order)).not.toContain("area");
+    expect(optionsOf(order)).toEqual(expect.arrayContaining(["", "name", "startDate"]));
+    expect(screen.getByLabelText(o.table.direction.label)).toBeDisabled();
+    expect(optionsOf(screen.getByLabelText(o.table.length.label))).toEqual(["", "10", "20", "50", "100"]);
+    await user.type(screen.getByLabelText(o.table.filter.label), "startDate>=today");
+    await user.selectOptions(order, "startDate");
+    await user.selectOptions(screen.getByLabelText(o.table.direction.label), "desc");
+    await user.selectOptions(screen.getByLabelText(o.table.length.label), "50");
+    const columns = within(screen.getByRole("group", { name: o.table.columns.label }));
+    await user.click(columns.getByLabelText("startDate"));
+    await user.click(columns.getByLabelText("name"));
+    expect(seen.at(-1)).toEqual({
+      widget: [
+        {
+          name: "mapa",
+          sources: [{ type: "Event", table: { filter: "startDate>=today", orderBy: "startDate;desc", pageLength: 50, columns: ["name", "startDate"] } }],
+        },
+      ],
+    });
+    // Emptied members are left to the model, and an empty start is not written at all.
+    await user.clear(screen.getByLabelText(o.table.filter.label));
+    await user.selectOptions(order, "");
+    await user.selectOptions(screen.getByLabelText(o.table.length.label), "");
+    await user.click(columns.getByLabelText("startDate"));
+    await user.click(columns.getByLabelText("name"));
+    expect(seen.at(-1)).toEqual({ widget: [{ name: "mapa", sources: [{ type: "Event" }] }] });
+  });
+});
+
 describe("the output helpers", () => {
   it("reads and writes the lists as jc-core does", () => {
-    expect(outputsOf(undefined)).toEqual({ ical: [], feed: [] });
+    expect(outputsOf(undefined)).toEqual({ ical: [], feed: [], widget: [] });
     expect(outputsOf({ ical: { type: "Event" } }).ical).toEqual([{ name: "events", sources: [{ type: "Event" }] }]);
-    expect(written({ other: 1, ical: {} }, { ical: [], feed: [] })).toEqual({ other: 1 });
-    expect(written(undefined, { ical: [], feed: [] })).toBeUndefined();
+    expect(written({ other: 1, ical: {} }, { ical: [], feed: [], widget: [] })).toEqual({ other: 1 });
+    expect(written(undefined, { ical: [], feed: [], widget: [] })).toBeUndefined();
     expect(freeName(["kalendar", "kalendar-2"], "kalendar")).toBe("kalendar-3");
     expect(isSlug("kultura-2")).toBe(true);
     expect(isSlug("Kultúra")).toBe(false);
@@ -168,12 +237,34 @@ describe("the output helpers", () => {
     expect(unmappedRoles({ type: "Event" })).toEqual(["title", "updated"]);
   });
 
+  it("writes the map roles of a class, an emptied role left to the widget's default", () => {
+    const source = withMapRole({ type: "Event" }, "colour", "category");
+    expect(source).toEqual({ type: "Event", mapping: { colour: "category" } });
+    expect(withMapRole(source, "colour", "")).toEqual({ type: "Event" });
+    const order = ["name", "startDate", "url"];
+    const two = withPopup(withPopup({ type: "Event" }, "url", true, order), "name", true, order);
+    expect(two.mapping?.popup).toEqual(["name", "url"]);
+    expect(withPopup(withPopup(two, "url", false, order), "name", false, order)).toEqual({ type: "Event" });
+    expect(written(undefined, { ical: [], feed: [], widget: [{ name: "mapa", sources: [source] }] })).toEqual({
+      widget: [{ name: "mapa", sources: [{ type: "Event", mapping: { colour: "category" } }] }],
+    });
+  });
+
   it("reads the base preset as jc-core does", () => {
     expect(baseOf({})).toBe("sdm-event");
     expect(baseOf({ mapping: { DTSTART: "startDate" } })).toBeUndefined();
     expect(unmappedRequired({ mapping: { DTSTART: "startDate" } })).toEqual(["SUMMARY"]);
     expect(withSource({}, "URL", "  ")).toBeUndefined();
     expect(withPreset({ mapping: { URL: "url" }, preset: "sdm-event" }, "schema-org")).toEqual({ preset: "schema-org", mapping: { URL: "url" } });
+  });
+
+  it("keeps feeds and map defaults whatever the boxes say, calendars only with iCalendar on", () => {
+    const all = { ical: [{ name: "k" }], feed: [{ name: "n" }], widget: [{ name: "mapa" }] };
+    expect(keptRepresentations(all, ["ical"])).toEqual({ representations: all });
+    expect(keptRepresentations(all, [])).toEqual({ representations: { feed: [{ name: "n" }], widget: [{ name: "mapa" }] } });
+    expect(keptRepresentations({ widget: [{ name: "mapa" }] }, [])).toEqual({ representations: { widget: [{ name: "mapa" }] } });
+    expect(keptRepresentations({ ical: [{ name: "k" }] }, [])).toEqual({});
+    expect(keptRepresentations(undefined, ["ical"])).toEqual({});
   });
 
   it("iCalendar is opt-in: checking it writes a list, never a disabled entry", () => {

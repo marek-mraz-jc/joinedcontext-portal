@@ -482,6 +482,58 @@ describe("the presentation chain (DM-134, T-5196)", () => {
   });
 });
 
+describe("the Endpoint's table start (API/11 EP-164, T-5197)", () => {
+  it("reads widget.json's table of the type, a member of the wrong shape left out", async () => {
+    const { tableDefaultsOf } = await import("../src/components/entities/EndpointDataView");
+    const answer = {
+      table: {
+        Event: { filter: "startDate>=today", orderBy: "startDate;desc", pageLength: 50, columns: ["name", "startDate"] },
+        Stop: { pageLength: 25, columns: [1], filter: 3 },
+      },
+    };
+    expect(tableDefaultsOf(answer, "Event")).toEqual({ filter: "startDate>=today", orderBy: "startDate;desc", pageLength: 50, columns: ["name", "startDate"] });
+    expect(tableDefaultsOf(answer, "Stop")).toBeUndefined();
+    expect(tableDefaultsOf({ table: { toString: { pageLength: 10 } } }, "constructor")).toBeUndefined();
+    expect(tableDefaultsOf({ map: {} }, "Event")).toBeUndefined();
+  });
+
+  it("ranks the Endpoint's filter, page length and columns above the model's; reset clears the filter", async () => {
+    await i18n.changeLanguage("sk");
+    const user = userEvent.setup();
+    const asked: URL[] = [];
+    const model = presentedAnswer(asked);
+    show({ slug: "events", project: "catalogue" }, (url) =>
+      url.pathname.endsWith("/widget.json")
+        ? json({ map: {}, table: { Event: { filter: "startDate>=today+7d", pageLength: 50, columns: ["name", "startDate"] } } })
+        : model(url),
+    );
+    const now = new Date();
+    const week = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7);
+    const day = `${week.getFullYear()}-${String(week.getMonth() + 1).padStart(2, "0")}-${String(week.getDate()).padStart(2, "0")}`;
+    await waitFor(() => expect(asked.some((url) => url.searchParams.get("q") === `startDate>=${day}`)).toBe(true));
+    expect(asked.some((url) => url.searchParams.get("q") === `startDate>=${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`)).toBe(false);
+    expect(asked.find((url) => url.searchParams.get("q"))?.searchParams.get("limit")).toBe("50");
+    expect(screen.getByRole("combobox", { name: "Záznamov na stranu" })).toHaveValue("50");
+    await waitFor(() => expect(columns().map((text) => text.replace(/[⋮↑↓]/g, "").trim()).slice(0, 4)).toEqual(["ID", "Názov", "Začiatok", expect.stringMatching(/^Vyberte test/)]));
+    const before = asked.length;
+    await user.click(screen.getByRole("button", { name: "Zrušiť filtre" }));
+    await waitFor(() => expect(asked.slice(before).some((url) => url.pathname.includes("/entities") && !url.searchParams.get("q"))).toBe(true));
+    await i18n.changeLanguage("en");
+  });
+
+  it("keeps the model's start when widget.json fails", async () => {
+    await i18n.changeLanguage("sk");
+    const asked: URL[] = [];
+    const model = presentedAnswer(asked);
+    show({ slug: "events", project: "catalogue" }, (url) =>
+      url.pathname.endsWith("/widget.json") ? new Response("{}", { status: 503 }) : model(url),
+    );
+    await waitFor(() => expect(asked.some((url) => /^startDate>=\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get("q") ?? ""))).toBe(true));
+    expect(asked.find((url) => url.searchParams.get("q"))?.searchParams.get("limit")).toBe("10");
+    await i18n.changeLanguage("en");
+  });
+});
+
 describe("the row card and the removable default filter (DM-135, T-5231)", () => {
   it("builds the card from the model: class label, labels in table order, units, enum titles, hidden slots", async () => {
     const { parseModel, classSlots } = await import("../src/pages/models/linkml");
@@ -503,6 +555,18 @@ describe("the row card and the removable default filter (DM-135, T-5231)", () =>
     // No model at all: the type and every key made readable.
     const bare = cardOf("GtfsStop", undefined, [], columnModel([], ["dailyDepartures"], "en"), new Map(), {}, "en");
     expect(bare).toEqual({ type: "GtfsStop", typeLabel: "Gtfs stop", title: "name", fields: [{ name: "dailyDepartures", label: "Daily departures" }] });
+  });
+
+  it("hands the host the publisher's map defaults of the type, a member of the wrong shape left out (T-5239)", async () => {
+    const { cardOf: card, columnModel, mapDefaultsOf } = await import("../src/components/entities/EndpointDataView");
+    const answer = { map: { Event: { geometry: "location", colour: "category", popup: ["name", 3], cluster: "yes" }, Stop: { cluster: false } } };
+    expect(mapDefaultsOf(answer, "Event")).toEqual({ geometry: "location", colour: "category" });
+    expect(mapDefaultsOf(answer, "Stop")).toEqual({ cluster: false });
+    expect(mapDefaultsOf(answer, "Place")).toBeUndefined();
+    expect(mapDefaultsOf({ map: { toString: { colour: "x" } } }, "constructor")).toBeUndefined();
+    expect(mapDefaultsOf(null, "Event")).toBeUndefined();
+    const withMap = card("Event", undefined, [], columnModel([], ["name"], "en"), new Map(), {}, "en", { colour: "category" });
+    expect(withMap.map).toEqual({ colour: "category" });
   });
 
   it("says a default filter in the reader's words", async () => {

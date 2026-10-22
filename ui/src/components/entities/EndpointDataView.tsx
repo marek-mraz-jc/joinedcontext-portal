@@ -56,6 +56,49 @@ export interface RowCard {
   /** The attribute holding the row's title. */
   title: string;
   fields: CardField[];
+  /** The publisher's map defaults for the type (API/11 EP-163), which the host checks against the model. */
+  map?: MapDefaults;
+}
+
+/** What the widget's map starts from for one type, as `widget.json` lists it. */
+export interface MapDefaults {
+  geometry?: string;
+  colour?: string;
+  popup?: string[];
+  cluster?: boolean;
+}
+
+/** The map defaults of `type` in a `widget.json` answer, members of the wrong shape left out. */
+export function mapDefaultsOf(answer: unknown, type: string): MapDefaults | undefined {
+  const map = (answer as { map?: unknown } | null)?.map;
+  const one = map && typeof map === "object" && Object.hasOwn(map, type) ? (map as Record<string, unknown>)[type] : undefined;
+  if (!one || typeof one !== "object") return undefined;
+  const { geometry, colour, popup, cluster } = one as Record<string, unknown>;
+  const out: MapDefaults = {
+    ...(typeof geometry === "string" ? { geometry } : {}),
+    ...(typeof colour === "string" ? { colour } : {}),
+    ...(Array.isArray(popup) && popup.every((p) => typeof p === "string") ? { popup: popup as string[] } : {}),
+    ...(typeof cluster === "boolean" ? { cluster } : {}),
+  };
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
+ * Where the publisher starts the table of `type` (API/11 EP-164), as `widget.json` lists it under
+ * `table`; members of the wrong shape are left out. It ranks above the model's `view_*` (DM-134).
+ */
+export function tableDefaultsOf(answer: unknown, type: string): ClassView | undefined {
+  const table = (answer as { table?: unknown } | null)?.table;
+  const one = table && typeof table === "object" && Object.hasOwn(table, type) ? (table as Record<string, unknown>)[type] : undefined;
+  if (!one || typeof one !== "object") return undefined;
+  const { filter, orderBy, pageLength, columns } = one as Record<string, unknown>;
+  const out: ClassView = {
+    ...(typeof filter === "string" ? { filter } : {}),
+    ...(typeof orderBy === "string" ? { orderBy } : {}),
+    ...(typeof pageLength === "number" && (PAGE_LENGTHS as readonly number[]).includes(pageLength) ? { pageLength } : {}),
+    ...(Array.isArray(columns) && columns.length > 0 && columns.every((c) => typeof c === "string") ? { columns: columns as string[] } : {}),
+  };
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 type Sort = { attr: string; dir: "asc" | "desc" } | null;
@@ -126,15 +169,18 @@ export function cardOf(
   kinds: ReadonlyMap<string, string>,
   enums: Record<string, readonly { value: string; title?: string }[]>,
   locale: string,
+  map?: MapDefaults,
 ): RowCard {
   const bySlot = new Map(slots.map((slot) => [slot.name, slot]));
   return {
+    ...(map ? { map } : {}),
     type,
     typeLabel: columnLabel(klass, type, locale),
     title: shape.title ?? "name",
     fields: shape.order.map((name) => {
       const slot = bySlot.get(name);
-      const titles = Object.fromEntries((enums[name] ?? []).flatMap((one) => (one.title ? [[one.value, one.title]] : [])));
+      // Every enum value, its title or itself: the host offers an enum as a map colour by its titles (T-5239).
+      const titles = Object.fromEntries((enums[name] ?? []).map((one) => [one.value, one.title ?? one.value]));
       return {
         name,
         label: shape.labels[name] ?? columnLabel(undefined, name, locale),
@@ -445,13 +491,19 @@ function useTypeColumns(
   hidden: string[],
   picked: string[] | null,
   language: string,
+  widgetData: unknown,
 ) {
   const types = useMemo(() => publishedTypes(schemaData), [schemaData]);
   const type = types.find((each) => each.name === chosen) ?? types[0];
   const columns = useMemo(() => (type ? type.attributes.filter((attribute) => !hidden.includes(attribute)) : []), [type, hidden]);
   const klass = type && modelData ? modelData.classes.find((each) => each.name === type.name) : undefined;
+  // The Endpoint's table start wins over the model's, member by member (EP-164, DM-134).
+  const view = useMemo((): ClassView | undefined => {
+    const table = type ? tableDefaultsOf(widgetData, type.name) : undefined;
+    return klass?.view || table ? { ...klass?.view, ...table } : undefined;
+  }, [klass, widgetData, type]);
   const slots = useMemo(() => (klass && modelData ? classSlots(modelData, klass) : []), [modelData, klass]);
-  const shape = useMemo(() => columnModel(slots, columns, language, klass?.view?.columns), [slots, columns, language, klass]);
+  const shape = useMemo(() => columnModel(slots, columns, language, view?.columns), [slots, columns, language, view]);
   const shownColumns = useMemo(() => shape.order.filter((name) => (picked ?? shape.shown).includes(name)), [shape, picked]);
   // The endpoint's own schema names its enums: such a column is filtered by picking (UI-86).
   const defs = useMemo(() => definitionsOf(schemaData), [schemaData]);
@@ -481,7 +533,7 @@ function useTypeColumns(
       }),
     [shownColumns, kinds, shape],
   );
-  return { types, type, columns, klass, slots, shape, shownColumns, defs, enums, relations, links, kinds, gridColumns };
+  return { types, type, columns, klass, view, slots, shape, shownColumns, defs, enums, relations, links, kinds, gridColumns };
 }
 
 /** The model's default view, and whether the reader removed it (DM-135): kept in the link. */
@@ -506,11 +558,12 @@ function useRowCard(
   kinds: ReadonlyMap<string, string>,
   enums: Record<string, readonly { value: string; title?: string }[]>,
   locale: string,
+  map: MapDefaults | undefined,
   onCard: ((card: RowCard) => void) | undefined,
 ) {
   const card = useMemo(
-    () => (type ? cardOf(type, klass, slots, shape, kinds, enums, locale) : null),
-    [type, klass, slots, shape, kinds, enums, locale],
+    () => (type ? cardOf(type, klass, slots, shape, kinds, enums, locale, map) : null),
+    [type, klass, slots, shape, kinds, enums, locale, map],
   );
   useEffect(() => {
     if (card) onCard?.(card);
@@ -609,24 +662,25 @@ export function EndpointDataView({
   );
 
   const { index, schema, model } = useEndpointSchema(base, slug);
+  // The publisher's widget defaults (EP-163, EP-164); none, or an error, leaves the model's.
+  const widget = useQuery({
+    queryKey: ["endpoint-widget", slug],
+    retry: false,
+    queryFn: () => fetchJson(`${root}/api/endpoint/${slug}/widget.json`),
+  });
   const [picked, setPicked] = useState<string[] | null>(null);
-  const { types, type, columns, klass, slots, shape, shownColumns, defs, enums, relations, links, kinds, gridColumns } = useTypeColumns(
-    schema.data,
-    model.data,
-    chosen,
-    hidden,
-    picked,
-    i18n.language,
-  );
+  const { types, type, columns, klass, view: classView, slots, shape, shownColumns, defs, enums, relations, links, kinds, gridColumns } =
+    useTypeColumns(schema.data, model.data, chosen, hidden, picked, i18n.language, widget.data);
   // The order, the column inputs and the typed query the grid opens with; the grid holds them from then on.
   const [view, setView] = useState<OpenedView | null>(null);
   const [pageLength, setPageLength] = useState<number | null>(null);
-  const { dropped, setDropped, defaults, preset } = useDefaultView(klass?.view, gridColumns, enums, link);
-  const { opened, filtered, rowsPerPage, sortText } = gridState(view ?? preset, link, columns, pageLength, klass?.view?.pageLength);
+  const { dropped, setDropped, defaults, preset } = useDefaultView(classView, gridColumns, enums, link);
+  const { opened, filtered, rowsPerPage, sortText } = gridState(view ?? preset, link, columns, pageLength, classView?.pageLength);
   useEffect(() => {
     if (type) onLink?.({ type: type.name, q: asked || undefined, sort: sortText, ...(dropped ? { noDefault: true } : {}) });
   }, [type, asked, sortText, dropped, onLink]);
-  useRowCard(type?.name, klass, slots, shape, kinds, enums, i18n.language, onCard);
+  const map = useMemo(() => (type ? mapDefaultsOf(widget.data, type.name) : undefined), [widget.data, type]);
+  useRowCard(type?.name, klass, slots, shape, kinds, enums, i18n.language, map, onCard);
   const onQuery = useCallback((query: { q?: string }) => setAsked(query.q), []);
 
   // Escape leaves the full window, as it closes a dialog.
@@ -685,7 +739,7 @@ export function EndpointDataView({
   if (failed) {
     return <InlineError>{failed.message}</InlineError>;
   }
-  if (index.isPending || schema.isPending) {
+  if (index.isPending || schema.isPending || widget.isPending) {
     return <p role="status">{t("endpoints.projection.loading")}</p>;
   }
   if (!type || !config) {
@@ -736,7 +790,7 @@ export function EndpointDataView({
           </Select>
         </Field>
         <DefaultFilter
-          filter={klass?.view?.filter}
+          filter={classView?.filter}
           defaults={defaults}
           opened={opened}
           filtered={filtered}
