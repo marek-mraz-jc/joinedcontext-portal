@@ -8736,6 +8736,7 @@
     "service-off": "Zapněte službu na úrovni, kterou uvádí popis (organizace, projekt nebo aplikace), nebo volání vynechte.",
     "quota": "Počkejte, až se kvóta v uvedeném čase obnoví, nebo požádejte správce o vyšší kvótu; místo na soubory se uvolní, když aplikace soubory smaže.",
     "file-too-large": "Uložte menší objekt; jeden objekt může mít nejvýše uvedený limit.",
+    "unprocessable": "Opravte každé zjištění, které odpověď uvádí; zkušební běh ukáže stejná zjištění ještě před odesláním.",
     "recipient-refused": "Posílejte jen lidem z organizace s ověřenou e-mailovou adresou.",
     "no-model-key": "Požádejte správce organizace, aby přidal nebo obnovil klíč k modelu, a zkuste to znovu.",
     "no-json": "Zeptejte se znovu; odpověď modelu neodpovídala požadovanému schématu."
