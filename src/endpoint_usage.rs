@@ -53,6 +53,14 @@ pub struct Post {
     pub counts: Vec<Line>,
 }
 
+/// A post as the gateway sent it, read and checked; the error names the first fault.
+pub fn parse(body: &[u8]) -> Result<Post, String> {
+    let post: Post =
+        serde_json::from_slice(body).map_err(|e| format!("the usage post is not readable: {e}"))?;
+    check(&post)?;
+    Ok(post)
+}
+
 /// The first fault of a post, as the 422 names it; a post is taken whole or not at all.
 pub fn check(post: &Post) -> Result<(), String> {
     if post.counts.len() > MAX_LINES {
@@ -440,6 +448,18 @@ mod tests {
             csv(&rows),
             "day,endpoint,surface,calls\n2026-10-02,a,mcp,1\n2026-10-02,b,ogc,3\n"
         );
+    }
+
+    #[test]
+    fn a_post_is_read_and_checked_whole() {
+        let read = parse(br#"{"counts":[{"endpoint":"air","surface":"ogc","count":2}]}"#);
+        assert_eq!(read.map(|p| p.counts.len()), Ok(1));
+        assert_eq!(
+            parse(br#"{"counts":[{"endpoint":"Air!","surface":"ogc","count":2}]}"#).err(),
+            Some("counts[0].endpoint: not an Endpoint slug".to_owned())
+        );
+        assert!(parse(b"{\"counts\":[],\"extra\":1}")
+            .is_err_and(|e| e.starts_with("the usage post is not readable")));
     }
 
     /// The store holds names, a day and a number; it has no column a person could be in.
