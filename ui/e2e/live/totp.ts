@@ -53,6 +53,15 @@ export async function answerOtp(page: Page, who: { user: string; totp?: string }
     );
   }
   await page.fill("#otp", await unusedCode(who.user, who.totp));
-  await Promise.all([page.waitForURL(() => true, { waitUntil: "load" }), page.click("#kc-login")]);
+  await submitted(page, () => page.click("#kc-login"));
   return true;
+}
+
+/**
+ * Clicks and waits for the next document's load. `waitForURL(() => true)` matched the page being
+ * left and returned at once, so a sign-in looked at the old form while Keycloak was still answering
+ * and stopped before the TOTP form came (T-5176: the steward's walk of dev wrote no report).
+ */
+export async function submitted(page: Page, click: () => Promise<unknown>): Promise<void> {
+  await Promise.all([page.waitForEvent("load"), click()]);
 }

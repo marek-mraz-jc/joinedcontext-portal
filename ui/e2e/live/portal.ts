@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { expect } from "@playwright/test";
 import type { APIRequestContext, Browser, BrowserContext, Locator, Page } from "@playwright/test";
 import { clipRecording, recordingSince } from "./guide";
-import { answerOtp } from "./totp";
+import { answerOtp, submitted } from "./totp";
 
 /**
  * The project sections the installation hides (`hiddenSections` of `/api/v1/branding`, T-2874):
@@ -182,17 +182,14 @@ export async function goSignedIn(
       redirected = true;
       await page.fill("#username", who.user);
       await page.fill("#password", who.password);
-      await Promise.all([page.waitForURL(() => true, { waitUntil: "load" }), page.click("#kc-login")]);
+      await submitted(page, () => page.click("#kc-login"));
       continue;
     }
     if (await answerOtp(page, who)) continue;
     const signInButton = page.getByRole("button", { name: "Sign in" });
     if (page.url().includes("/login") && (await signInButton.count())) {
       redirected = true;
-      await Promise.all([
-        page.waitForURL(() => true, { waitUntil: "load" }),
-        signInButton.first().click(),
-      ]);
+      await submitted(page, () => signInButton.first().click());
       continue;
     }
     break;

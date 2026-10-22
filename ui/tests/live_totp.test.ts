@@ -20,7 +20,7 @@ function fakePage(otpShown: boolean) {
     locator: (selector: string) => ({ count: async () => (selector === "#otp" && otpShown ? 1 : 0) }),
     fill: async (selector: string, value: string) => void filled.push([selector, value]),
     click: async (selector: string) => void clicked.push(selector),
-    waitForURL: async () => undefined,
+    waitForEvent: async () => undefined,
   } as unknown as Page;
   return { page, filled, clicked };
 }

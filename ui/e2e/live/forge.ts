@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { expect } from "@playwright/test";
 import type { Browser, BrowserContext, Page } from "@playwright/test";
-import { answerOtp } from "./totp";
+import { answerOtp, submitted } from "./totp";
 
 const run = promisify(execFile);
 
@@ -65,7 +65,7 @@ export async function forgeSignIn(
   if (await page.locator("#username").count()) {
     await page.fill("#username", who.user);
     await page.fill("#password", who.password);
-    await Promise.all([page.waitForURL(() => true, { waitUntil: "load" }), page.click("#kc-login")]);
+    await submitted(page, () => page.click("#kc-login"));
     await answerOtp(page, who);
   }
   await expect(page, `${who.user} is back in the forge after the Keycloak login`).toHaveURL(ON_FORGE, { timeout: 60_000 });
