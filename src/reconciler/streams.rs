@@ -488,7 +488,7 @@ impl StreamDeployer {
                     let reason = if !spec.enabled {
                         "pipeline is disabled"
                     } else if let Some(compute) = first_compute(&spec) {
-                        if compute.kind != ComputeKind::Bloblang {
+                        if !compute.kind.is_mapping() {
                             "compute is not bloblang"
                         } else {
                             "endpoint pipeline requires bloblang mapping"
@@ -1341,10 +1341,13 @@ pub fn render_stream(
 
     match (first_compute(pipeline).as_ref(), bento) {
         (Some(compute), _) => {
-            if compute.kind != ComputeKind::Bloblang {
+            if !compute.kind.is_mapping() {
                 return Err(RenderError::MissingCompute);
             }
-            if let Some(bloblang) = compute.bloblang.as_deref().filter(|b| !b.trim().is_empty()) {
+            if let Some(bloblang) = compute
+                .mapping()
+                .map_err(|err| RenderError::Custom(err.to_string()))?
+            {
                 processors.push(labelled(
                     serde_json::json!({ "mapping": bloblang }),
                     COMPUTE_LABEL,
@@ -2289,12 +2292,10 @@ pub const ROUTES_LABEL: &str = "routes";
 fn step_processor(step: Step) -> Result<Option<Value>, RenderError> {
     match step {
         Step::Processor(step) => Ok(Some(serde_json::to_value(&step.processor)?)),
-        Step::Compute(compute) if compute.kind != ComputeKind::Bloblang => {
-            Err(RenderError::MissingCompute)
-        }
+        Step::Compute(compute) if !compute.kind.is_mapping() => Err(RenderError::MissingCompute),
         Step::Compute(compute) => Ok(compute
-            .bloblang
-            .filter(|b| !b.trim().is_empty())
+            .mapping()
+            .map_err(|err| RenderError::Custom(err.to_string()))?
             .map(|bloblang| serde_json::json!({ "mapping": bloblang }))),
     }
 }
@@ -2409,7 +2410,7 @@ pub fn eligible(spec: &PipelineSpec) -> bool {
     // run elsewhere (PL-33).
     if !steps.iter().all(|step| match step {
         Step::Processor(_) => true,
-        Step::Compute(c) => matches!(c.kind, ComputeKind::Bloblang | ComputeKind::Kpi),
+        Step::Compute(c) => c.kind.is_mapping() || c.kind == ComputeKind::Kpi,
     }) {
         return false;
     }
@@ -5394,6 +5395,81 @@ output:
         assert_eq!(render(&first), render(&second));
     }
 
+    #[test]
+    fn a_datacube_step_renders_the_stream_its_copied_bloblang_ran() {
+        let datacube = serde_json::json!({
+            "wholeArea": "SK0",
+            "datasetPage": "https://opendata.example.org/dataset/susr-{cube}",
+            "cubes": { "vh3001rr": {
+                "source": "https://data.statistics.sk/api/v2/dataset/vh3001rr/all/all/all?lang=sk&type=json",
+                "update": "2025-10-31",
+                "period": "vh3001rr_rok",
+                "area": "nuts14",
+                "indicator": "vh3001rr_ukaz"
+            } }
+        });
+        let step: jc_core::datacube::DatacubeStep =
+            serde_json::from_value(datacube.clone()).expect("valid datacube step");
+        let copied = jc_core::datacube::bloblang(&step).expect("renders");
+        let shaped = |step: serde_json::Value| {
+            second_shape(serde_json::json!({
+                "class": "auto",
+                "period": "24h",
+                "sources": [{ "dataSourceRef": { "kind": "DataSource", "name": "hsl-citybikes-free" } }],
+                "steps": [step],
+                "outputs": [{ "targetEndpoint": "urn:ngsi-ld:Endpoint:example.org:helsinki:helsinki-all" }]
+            }))
+        };
+        let connector = shaped(serde_json::json!({ "kind": "datacube", "datacube": datacube }));
+        let bloblang = shaped(serde_json::json!({ "kind": "bloblang", "bloblang": copied }));
+        assert!(eligible(&connector), "a datacube step runs in the stream");
+        let ds = helsinki_datasource_spec();
+        let render = |spec: &PipelineSpec| {
+            serde_json::to_string(
+                &render_stream(
+                    spec,
+                    "susr-vh",
+                    "slovensko",
+                    &ds,
+                    "hsl-citybikes-free",
+                    "slug1",
+                    None,
+                )
+                .expect("renders"),
+            )
+            .expect("serializes")
+        };
+        assert_eq!(render(&connector), render(&bloblang));
+        assert!(render(&connector).contains("KeyPerformanceIndicator"));
+    }
+
+    #[test]
+    fn a_datacube_step_whose_parameters_do_not_check_is_not_rendered() {
+        let spec = second_shape(serde_json::json!({
+            "class": "auto",
+            "period": "24h",
+            "sources": [{ "dataSourceRef": { "kind": "DataSource", "name": "hsl-citybikes-free" } }],
+            "steps": [{ "kind": "datacube", "datacube": {
+                "wholeArea": "SK0\" } else { env(\"JC_TOKEN\")",
+                "datasetPage": "https://opendata.example.org/dataset/susr-{cube}",
+                "cubes": { "vh3001rr": { "source": "https://data.statistics.sk/x", "period": "vh3001rr_rok" } }
+            } }],
+            "outputs": [{ "targetEndpoint": "urn:ngsi-ld:Endpoint:example.org:helsinki:helsinki-all" }]
+        }));
+        let ds = helsinki_datasource_spec();
+        let err = render_stream(
+            &spec,
+            "susr-vh",
+            "slovensko",
+            &ds,
+            "hsl-citybikes-free",
+            "slug1",
+            None,
+        )
+        .expect_err("refused");
+        assert!(err.to_string().contains("wholeArea"), "{err}");
+    }
+
     fn routed() -> PipelineSpec {
         second_shape(serde_json::json!({
             "class": "resident",
@@ -5602,6 +5678,7 @@ output:
             mapping_ref: None,
             bloblang: None,
             kpi: None,
+            datacube: None,
         })];
         assert!(!eligible(&wasm));
     }
