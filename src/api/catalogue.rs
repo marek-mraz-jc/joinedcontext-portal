@@ -204,6 +204,9 @@ pub struct CatalogueDatasetDetail {
     /// The model the Endpoint's space holds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<CatalogueDataModel>,
+    /// The dataset's quality score in its public form: counts and dates, no names (T-5112).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quality: Option<crate::dataset_score::DatasetScore>,
 }
 
 /// An EU data theme: its code and its English name (the UI names it in the reader's language).
@@ -1107,7 +1110,7 @@ pub async fn detail(state: &AppState, catalogue: &str, dataset: &Value) -> Catal
     let found = extra(dataset, "endpoint")
         .and_then(|e| our_endpoint_slug(state, &e))
         .and_then(|slug| public_endpoint(state, &slug).map(|found| (slug, found)));
-    let (endpoint, model) = match found {
+    let (endpoint, model, quality) = match found {
         Some((slug, (project, endpoint))) => {
             let url = endpoint_url(base, &slug);
             let docs_url = resources
@@ -1116,15 +1119,19 @@ pub async fn detail(state: &AppState, catalogue: &str, dataset: &Value) -> Catal
                 .find(|u| u.starts_with(&url) && u.ends_with(".md"))
                 .cloned();
             let model = model_of(state, &project, &endpoint.spec, docs_url).await;
+            let quality = crate::dataset_score::of_endpoint(state, &project, &endpoint)
+                .await
+                .public();
             (
                 Some(CatalogueEndpoint {
                     url,
                     representations: served_representations(&endpoint.spec),
                 }),
                 model,
+                Some(quality),
             )
         }
-        None => (None, None),
+        None => (None, None, None),
     };
 
     CatalogueDatasetDetail {
@@ -1149,6 +1156,7 @@ pub async fn detail(state: &AppState, catalogue: &str, dataset: &Value) -> Catal
         resources,
         endpoint,
         model,
+        quality,
         name,
         title: summary.title,
         notes: summary.notes,

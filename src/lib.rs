@@ -23,6 +23,7 @@ pub mod catalog;
 pub mod change;
 pub mod config;
 pub mod dashboards;
+pub mod dataset_score;
 pub mod db;
 pub mod domain_verification;
 pub mod entity_comments;

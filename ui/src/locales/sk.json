@@ -9540,5 +9540,44 @@
       "body": "Ak vás naša odpoveď neuspokojí, obráťte sa na Ministerstvo investícií, regionálneho rozvoja a informatizácie Slovenskej republiky, ktoré dohliada na prístupnosť webových sídiel verejnej správy."
     },
     "footer": "O tejto stránke"
+  },
+  "quality": {
+    "score": {
+      "title": "Kvalita údajov",
+      "measured": "Namerané {when}",
+      "notYet": "Zatiaľ nenamerané: prvá kontrola kvality a stavu to doplní do jedného dňa.",
+      "badge": "{score} / 100 · {word}",
+      "good": "dobrá",
+      "fair": "priemerná",
+      "poor": "slabá",
+      "unmeasured": "nenamerané",
+      "dash": "—",
+      "of100": "{score} / 100",
+      "toFix": "Na opravu:",
+      "hint": "Skóre je priemer nameraných častí. Aktuálnosť a odkazy sledujú kontroly stavu každých pár minút; úplnosť a platnosť pochádzajú z dennej kontroly kvality.",
+      "part": {
+        "freshness": "Aktuálnosť",
+        "completeness": "Úplnosť",
+        "validity": "Platnosť",
+        "links": "Odkazy"
+      },
+      "say": {
+        "notMeasured": "zatiaľ nenamerané",
+        "noSchedule": "žiadny pipeline nesľubuje pre tieto údaje harmonogram",
+        "onTime": "{fresh} z {total} zdrojov je načas",
+        "late": "{late} z {total} zdrojov mešká; najnovšie pozorovanie je z {newest}",
+        "noRequired": "model neoznačuje žiadne pole ako povinné",
+        "complete": "{complete} z {fields} povinných polí je vyplnených v každej entite",
+        "valid": "{valid} z {checked} entít zodpovedá modelu",
+        "linksUp": "{up} z {total} prístupových odkazov odpovedá",
+        "fixLate": "{type} nemá nové údaje podľa harmonogramu: otvorte pipeline {pipeline}, prečítajte jeho posledný beh a použite Spustiť teraz",
+        "fixFailing": "Pipeline {pipeline} zlyháva od {since}: otvorte ho a opravte krok, ktorý menuje jeho posledný beh",
+        "fixSilent": "Pipeline {pipeline} nezapisuje nič od {since}: porovnajte jeho zdroj s filtrom a mapovaním",
+        "fixMissing": "{attribute} typu {type} chýba v {missing} z {count} entít: namapujte ho v pipeline alebo ho v modeli označte ako nepovinné",
+        "fixInvalid": "Najčastejšie {rule} v {path} ({count} entít): otvorte kartu Kvalita priestoru a opravte mapovanie pipeline alebo model",
+        "fixLink": "{surface}: {said}"
+      },
+      "unavailable": "Skóre kvality sa nepodarilo načítať; obnovte stránku a skúste to znova."
+    }
   }
 }

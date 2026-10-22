@@ -9070,6 +9070,68 @@
         }
       }
     },
+    "/api/v1/projects/{project}/endpoints/{name}/quality": {
+      "get": {
+        "tags": [
+          "endpoints"
+        ],
+        "summary": "Read Dataset Quality Score",
+        "description": "The quality score of the dataset an Endpoint serves, 0 to 100, and its four parts: freshness against the writing pipelines' schedules and health, completeness of the model's required fields, the share of entities that follow the model, and the Endpoint's surfaces answering. Each part has its reason and the time it was measured; a part nothing measures yet has no score. What to fix comes only to a caller who reads the Endpoint's Context Space. Counts and names, never a value (T-5112).",
+        "operationId": "get_endpoint_quality",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Endpoint name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The score",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetScore"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such Endpoint the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/export": {
       "get": {
         "tags": [
@@ -21086,6 +21148,17 @@
               }
             ]
           },
+          "quality": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DatasetScore",
+                "description": "The dataset's quality score in its public form: counts and dates, no names (T-5112)."
+              }
+            ]
+          },
           "resources": {
             "type": "array",
             "items": {
@@ -22665,6 +22738,104 @@
           "version": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "DatasetScore": {
+        "type": "object",
+        "required": [
+          "parts"
+        ],
+        "properties": {
+          "measuredAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The newest measurement among the parts, RFC 3339."
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DatasetScorePart"
+            }
+          },
+          "score": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The mean of the parts that have a score; absent while none has.",
+            "minimum": 0
+          }
+        }
+      },
+      "DatasetScorePart": {
+        "type": "object",
+        "required": [
+          "part",
+          "reason"
+        ],
+        "properties": {
+          "fix": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DatasetScoreText",
+                "description": "What the publisher changes; absent in the public catalogue and when nothing is wrong."
+              }
+            ]
+          },
+          "measuredAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the part was measured, RFC 3339."
+          },
+          "part": {
+            "$ref": "#/components/schemas/Part"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/DatasetScoreText"
+          },
+          "score": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "0 to 100; absent while nothing measures the part.",
+            "minimum": 0
+          }
+        }
+      },
+      "DatasetScoreText": {
+        "type": "object",
+        "description": "A message of the score: its key under `quality.score.say` in the UI's locales with the\nvalues it names, and its English.",
+        "required": [
+          "code",
+          "args",
+          "text"
+        ],
+        "properties": {
+          "args": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "code": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
           }
         }
       },
@@ -25722,6 +25893,15 @@
           }
         },
         "additionalProperties": false
+      },
+      "Part": {
+        "type": "string",
+        "enum": [
+          "freshness",
+          "completeness",
+          "validity",
+          "links"
+        ]
       },
       "PartialSuccess": {
         "type": "object",

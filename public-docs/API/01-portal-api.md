@@ -2994,6 +2994,44 @@ GET /api/v1/projects/{project}/spaces/{space}/quality/checks     the space's che
   what a shorter one would delete now; `503` when the broker does not answer.
 - Whoever reads the space reads its checks; a project or space the caller may not read is `404`.
 
+### 27.2 A dataset's quality score (T-5112)
+
+The score of the dataset an Endpoint serves is a number from 0 to 100, the mean of four parts.
+A part nothing measures yet has no `score` and stays out of the mean.
+
+- `freshness`: each type a pipeline promises a schedule for, as the daily run (§27) found it,
+  and each writing pipeline as the health log judged it at its last beat: a pipeline whose `runs`
+  check is not ok makes its types late within one beat, not at the next daily run.
+- `completeness`: the mean share of entities carrying each required field of the model; a field
+  the Endpoint's `spec.projection.hiddenAttributes` hides is not counted.
+- `validity`: the entities that follow the model over those the daily run checked.
+- `links`: the Endpoint's surfaces as the health probes answered; a slow one counts half.
+
+```text
+GET /api/v1/projects/{project}/endpoints/{name}/quality     the score → 200, 404
+```
+
+```json
+{
+  "score": 72,
+  "measuredAt": "2026-10-22T08:04:00Z",
+  "parts": [
+    {
+      "part": "freshness", "score": 0, "measuredAt": "2026-10-22T08:04:00Z",
+      "reason": { "code": "late", "args": { "late": "1", "total": "1", "newest": "2026-10-21T02:50:00Z" }, "text": "1 of 1 feeds are late; the newest observation is from 2026-10-21T02:50:00Z" },
+      "fix": { "code": "fixFailing", "args": { "pipeline": "weather", "since": "2026-10-22T08:00:00Z" }, "text": "Pipeline weather fails since 2026-10-22T08:00:00Z: open it and fix the step its newest run names" }
+    }
+  ]
+}
+```
+
+- The route answers whoever reads the project and this Endpoint in its Context Space (a grant
+  scoped to another space gets 404), 404 otherwise. `fix` comes only
+  to a caller who reads the Endpoint's Context Space; it names the pipeline, field, rule or surface
+  to change.
+- `GET /api/v1/catalogue/datasets/{name}` carries the same score as `quality` in its public form:
+  counts and dates, no `fix`, no field, type, rule or pipeline name. A score never holds a value.
+
 ## 28. Organization limits (PF-96…PF-102, ADR-N-035)
 
 What Organization settings shows for every policy and limit (PF-102): the catalog of ADR-N-035

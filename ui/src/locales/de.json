@@ -9540,5 +9540,44 @@
       "body": "Wenn unsere Antwort Sie nicht zufriedenstellt, wenden Sie sich an das Ministerium für Investitionen, regionale Entwicklung und Informatisierung der Slowakischen Republik, das die Barrierefreiheit von Websites der öffentlichen Verwaltung beaufsichtigt."
     },
     "footer": "Über diese Seite"
+  },
+  "quality": {
+    "score": {
+      "title": "Datenqualität",
+      "measured": "Gemessen {when}",
+      "notYet": "Noch nicht gemessen: der erste Qualitätslauf und die Zustandsprüfung füllen dies innerhalb eines Tages.",
+      "badge": "{score} / 100 · {word}",
+      "good": "gut",
+      "fair": "mittel",
+      "poor": "schwach",
+      "unmeasured": "nicht gemessen",
+      "dash": "—",
+      "of100": "{score} / 100",
+      "toFix": "Zu beheben:",
+      "hint": "Der Wert ist der Mittelwert der gemessenen Teile. Aktualität und Links folgen den Zustandsprüfungen alle paar Minuten; Vollständigkeit und Gültigkeit stammen aus dem täglichen Qualitätslauf.",
+      "part": {
+        "freshness": "Aktualität",
+        "completeness": "Vollständigkeit",
+        "validity": "Gültigkeit",
+        "links": "Links"
+      },
+      "say": {
+        "notMeasured": "noch nicht gemessen",
+        "noSchedule": "keine Pipeline verspricht für diese Daten einen Zeitplan",
+        "onTime": "{fresh} von {total} Quellen sind pünktlich",
+        "late": "{late} von {total} Quellen sind verspätet; die neueste Beobachtung ist vom {newest}",
+        "noRequired": "das Modell markiert kein Feld als Pflichtfeld",
+        "complete": "{complete} von {fields} Pflichtfeldern sind in jeder Entität gefüllt",
+        "valid": "{valid} von {checked} Entitäten entsprechen dem Modell",
+        "linksUp": "{up} von {total} Zugriffslinks antworten",
+        "fixLate": "{type} hat keine neuen Daten nach Zeitplan: öffnen Sie Pipeline {pipeline}, lesen Sie ihren neuesten Lauf und nutzen Sie Jetzt ausführen",
+        "fixFailing": "Pipeline {pipeline} schlägt seit {since} fehl: öffnen Sie sie und beheben Sie den Schritt, den ihr neuester Lauf nennt",
+        "fixSilent": "Pipeline {pipeline} schreibt seit {since} nichts: vergleichen Sie ihre Quelle mit Filter und Mapping",
+        "fixMissing": "{attribute} von {type} fehlt in {missing} von {count} Entitäten: bilden Sie es in der Pipeline ab oder markieren Sie es im Modell als optional",
+        "fixInvalid": "Am häufigsten {rule} bei {path} ({count} Entitäten): öffnen Sie den Reiter Qualität des Raums und beheben Sie das Mapping der Pipeline oder das Modell",
+        "fixLink": "{surface}: {said}"
+      },
+      "unavailable": "Der Qualitätswert konnte nicht gelesen werden; laden Sie die Seite neu, um es erneut zu versuchen."
+    }
   }
 }

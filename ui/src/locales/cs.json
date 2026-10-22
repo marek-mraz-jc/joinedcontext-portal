@@ -9540,5 +9540,44 @@
       "body": "Pokud vás naše odpověď neuspokojí, obraťte se na Ministerstvo investic, regionálního rozvoje a informatizace Slovenské republiky, které dohlíží na přístupnost webových sídel veřejné správy."
     },
     "footer": "O této stránce"
+  },
+  "quality": {
+    "score": {
+      "title": "Kvalita dat",
+      "measured": "Změřeno {when}",
+      "notYet": "Zatím nezměřeno: první kontrola kvality a stavu to doplní do jednoho dne.",
+      "badge": "{score} / 100 · {word}",
+      "good": "dobrá",
+      "fair": "průměrná",
+      "poor": "slabá",
+      "unmeasured": "nezměřeno",
+      "dash": "—",
+      "of100": "{score} / 100",
+      "toFix": "K opravě:",
+      "hint": "Skóre je průměr změřených částí. Aktuálnost a odkazy sledují kontroly stavu každých pár minut; úplnost a platnost pocházejí z denní kontroly kvality.",
+      "part": {
+        "freshness": "Aktuálnost",
+        "completeness": "Úplnost",
+        "validity": "Platnost",
+        "links": "Odkazy"
+      },
+      "say": {
+        "notMeasured": "zatím nezměřeno",
+        "noSchedule": "žádná pipeline pro tato data neslibuje harmonogram",
+        "onTime": "{fresh} z {total} zdrojů je včas",
+        "late": "{late} z {total} zdrojů se zpožďuje; nejnovější pozorování je z {newest}",
+        "noRequired": "model neoznačuje žádné pole jako povinné",
+        "complete": "{complete} z {fields} povinných polí je vyplněno v každé entitě",
+        "valid": "{valid} z {checked} entit odpovídá modelu",
+        "linksUp": "{up} z {total} přístupových odkazů odpovídá",
+        "fixLate": "{type} nemá nová data podle harmonogramu: otevřete pipeline {pipeline}, přečtěte její poslední běh a použijte Spustit nyní",
+        "fixFailing": "Pipeline {pipeline} selhává od {since}: otevřete ji a opravte krok, který jmenuje její poslední běh",
+        "fixSilent": "Pipeline {pipeline} nezapisuje nic od {since}: porovnejte její zdroj s filtrem a mapováním",
+        "fixMissing": "{attribute} typu {type} chybí v {missing} z {count} entit: namapujte ho v pipeline nebo ho v modelu označte jako nepovinné",
+        "fixInvalid": "Nejčastěji {rule} v {path} ({count} entit): otevřete kartu Kvalita prostoru a opravte mapování pipeline nebo model",
+        "fixLink": "{surface}: {said}"
+      },
+      "unavailable": "Skóre kvality se nepodařilo načíst; obnovte stránku a zkuste to znovu."
+    }
   }
 }
