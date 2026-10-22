@@ -21711,9 +21711,17 @@
         "description": "The Endpoint a dataset describes, on this installation's own host.",
         "required": [
           "url",
-          "representations"
+          "representations",
+          "feeds"
         ],
         "properties": {
+          "feeds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueFeed"
+            },
+            "description": "Its feed outputs, in the order the Endpoint lists them (EP-150, EP-151)."
+          },
           "representations": {
             "type": "array",
             "items": {
@@ -21829,6 +21837,57 @@
             "items": {
               "$ref": "#/components/schemas/CatalogueFacetValue"
             }
+          }
+        }
+      },
+      "CatalogueFeed": {
+        "type": "object",
+        "description": "One feed output of an Endpoint: its name, its title per language and its three documents.",
+        "required": [
+          "name",
+          "title",
+          "links"
+        ],
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueFeedLink"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "object",
+            "description": "The title per language (`sk`, `en`); empty: the name stands for it.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CatalogueFeedLink": {
+        "type": "object",
+        "description": "One document of a feed output.",
+        "required": [
+          "format",
+          "mediaType",
+          "url"
+        ],
+        "properties": {
+          "format": {
+            "type": "string",
+            "description": "`Atom`, `RSS 2.0` or `JSON Feed`."
+          },
+          "mediaType": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
           }
         }
       },
