@@ -26,6 +26,11 @@ evidence=${WALK_EVIDENCE:-/workspace/evidence/walker}
 users=${DEMO_USERS:-/workspace/.secrets/demo-users.txt}
 cap=${WALK_CAP:-900}
 keep=${WALK_KEEP:-20}
+# The host cron's outer timeout (supervisor/tools/walker-cron.sh) only catches a hung script: every
+# step below has its own cap. --budget prints the sum, so the cron's limit follows this file: the
+# steward walk, then the viewer walk (WALK_CAP + 30 s kill grace each), the journeys (SWEEP_CAP +
+# 30 s) and 600 s for install, worktree and summary (T-5161: a flat 1200 s killed the viewer walk).
+if [ "${1:-}" = --budget ]; then echo $(( 2 * (cap + 30) + ${SWEEP_CAP:-3600} + 30 + 600 )); exit 0; fi
 mkdir -p "$evidence"
 
 exec 9>"$evidence/.lock"
