@@ -66,7 +66,7 @@ export function SubscribeMenu({ endpoint }: { endpoint: Endpoint }): JSX.Element
           {t("catalogue.subscribe.button")}
         </Button>
       </MenuTrigger>
-      <MenuContent align="end" className="min-w-64 max-w-sm">
+      <MenuContent align="end" collisionPadding={16} className="min-w-64 max-w-sm">
         {calendar ? (
           <>
             <MenuLabel>{t("catalogue.subscribe.calendar")}</MenuLabel>
