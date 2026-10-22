@@ -3597,6 +3597,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/spaces/{space}/surface-fit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Surface Fit
+         * @description For each representation that needs the space's data model (SensorThings, iCalendar), the sentence an Endpoint listing it is refused with, or none when the model serves it. Reading the space is all it needs.
+         */
+        get: operations["surface_fit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/spaces/{space}/temporal-audit": {
         parameters: {
             query?: never;
@@ -8208,6 +8228,30 @@ export interface components {
             timesFailed?: number | null;
             /** Format: int64 */
             timesSent?: number | null;
+        };
+        /** @description What one space's model serves of the surfaces that need a model. */
+        SurfaceFit: {
+            /**
+             * @description The DataModel the surfaces are judged by, the one the form links to; none for a space
+             *     without its own model.
+             */
+            dataModel?: string | null;
+            /** @description One row per representation that needs the model (`sta`, `ical`). */
+            surfaces: components["schemas"]["SurfaceGap"][];
+        };
+        /** @description One representation and why the model cannot serve it. */
+        SurfaceGap: {
+            /**
+             * @description The sentence propose refuses it with; none when the model serves it. `ical` is judged by
+             *     its mapping as well, which the form checks on save.
+             * @example `sta` needs a type with a numeric attribute that declares its unit
+             */
+            gap?: string | null;
+            /**
+             * @description The representation's wire name, as `enabledRepresentations` lists it.
+             * @example sta
+             */
+            representation: string;
         };
         /** @description What one run did, and where the source stands afterwards. */
         SyncRunReport: {
@@ -20390,6 +20434,49 @@ export interface operations {
             };
             /** @description The space or the key is not available */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    surface_fit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The surfaces and their gaps */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurfaceFit"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

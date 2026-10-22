@@ -2049,7 +2049,7 @@ async fn check_surfaces(
     name: &str,
     spec: &Value,
 ) -> Result<(), ApiError> {
-    use jc_core::kinds::{DataModelLifecycle, DataModelSpec, EndpointSpec};
+    use jc_core::kinds::EndpointSpec;
     let Ok(endpoint) = serde_json::from_value::<EndpointSpec>(spec.clone()) else {
         return Ok(());
     };
@@ -2061,33 +2061,17 @@ async fn check_surfaces(
         return Ok(());
     };
     let space = endpoint.context_space_ref.name();
-    // The space's own model, a published version first: jcctl validate's choice (EP-125).
-    let model = state
-        .mirror
-        .list(project, "DataModel", &crate::store::ListOptions::default())
-        .items
-        .into_iter()
-        .filter_map(|model| {
-            serde_json::from_value::<DataModelSpec>(model.spec.clone())
-                .ok()
-                .filter(|m| {
-                    m.context_space_ref.as_deref() == Some(space)
-                        && m.lifecycle != DataModelLifecycle::Mirrored
-                        && m.validate().is_ok()
-                })
-                .map(|m| (m.lifecycle, model))
-        })
-        .min_by_key(|(lifecycle, _)| !published(*lifecycle));
-    // A draft can still change under a public feed (DM-26).
-    if let Some((lifecycle, _)) = model.as_ref().filter(|(l, _)| !published(*l)) {
+    let model = crate::api::surface_fit::backing_model(state, project, space);
+    if let Some(gap) = model.as_ref().and_then(|(lifecycle, _)| {
+        crate::api::surface_fit::lifecycle_gap(wanted, space, *lifecycle)
+    }) {
         return Err(ApiError::BadRequest(format!(
-            "Endpoint {project}/{name}: `{wanted}` needs a published data model in space {space}; its model is {} (EP-125, DM-26)",
-            lifecycle.as_str()
+            "Endpoint {project}/{name}: {gap}"
         )));
     }
-    let linkml = match model.map(|(_, model)| model) {
-        Some(model) => {
-            Some(crate::api::datamodels::read_source(state, project, &model.metadata.name).await?)
+    let linkml = match model {
+        Some((_, model)) => {
+            Some(crate::api::datamodels::read_source(state, project, &model).await?)
         }
         None => None,
     };
@@ -2145,13 +2129,6 @@ fn check_representation_shape(spec: &Value) -> Result<(), ApiError> {
     } else {
         Err(unprocessable(gaps))
     }
-}
-
-/// Whether a model in this lifecycle backs a domain-standard representation (EP-125, DM-26);
-/// jc-core's `DataModelLifecycle::backs_surfaces` once the platform pin carries it.
-fn published(lifecycle: jc_core::kinds::DataModelLifecycle) -> bool {
-    use jc_core::kinds::DataModelLifecycle::{Deprecated, Published};
-    matches!(lifecycle, Published | Deprecated)
 }
 
 async fn check_projection(state: &AppState, project: &str, spec: &Value) -> Result<(), ApiError> {

@@ -1352,6 +1352,11 @@
     }
   },
   "endpoints": {
+    "surfaceFit": {
+      "lead": "The data model of space {space} cannot serve these standards, so their boxes are greyed out:",
+      "openModel": "Open the data model {model}",
+      "addModel": "Add a data model for the space"
+    },
     "check": "Check",
     "lead": "Where a space is published: who may call it, in which representations, under which URL.",
     "title": "Endpoints",

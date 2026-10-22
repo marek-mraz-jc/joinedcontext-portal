@@ -788,6 +788,7 @@ fn view_of(
     e: &EndpointSource,
     projection: Option<&ModelProjectionSpec>,
 ) -> Result<Value, String> {
+    surface_fit(sources, e)?;
     let mapping = view_mapping(sources, e)?;
     let id = e.spec.slug.to_string();
     if id.len() > MAX_ID {
@@ -884,6 +885,38 @@ fn view_of(
         view.insert("representations".into(), json!({ "feed": feeds }));
     }
     Ok(Value::Object(view))
+}
+
+/// Refuses an Endpoint that lists a surface its space's model cannot serve (EP-125): the
+/// Portal's propose check, again for a manifest pushed to the forge past it. A measurement an
+/// import declares serves `sta` too. A space without `dataModelRef` gives the reconciler no
+/// model to judge by; propose judged it.
+fn surface_fit(sources: &Sources, e: &EndpointSource) -> Result<(), String> {
+    let space = e.spec.context_space_ref.name();
+    let Some(Ok(model)) = sources.models.get(&(e.project.clone(), space.to_owned())) else {
+        return Ok(());
+    };
+    let mut gaps = e.spec.representation_gaps(Some(&model.source))?;
+    let measured = |text: &String| {
+        Representation::Sta
+            .model_gap(text)
+            .is_ok_and(|g| g.is_none())
+    };
+    if model.imports.values().any(measured) {
+        let sta = Representation::Sta
+            .missing_model_gap()
+            .map(|gap| format!("`sta` needs {gap}"));
+        gaps.retain(|gap| Some(gap) != sta.as_ref());
+    }
+    if gaps.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "its data model {} cannot serve what it lists: {}; drop the surface from \
+         enabledRepresentations or extend the model (EP-125)",
+        model.model,
+        gaps.join("; ")
+    ))
 }
 
 /// The classes and slots `projection` shows, its filters written into `view`.
@@ -2546,6 +2579,57 @@ mod tests {
             json!({"id": SLUG, "tenant": "city-air", "selector": ["Car"],
                    "rules": [{"types": ["Car"], "attributes": ["speed"]}],
                    "operations": ["query_entities", "retrieve_attribute_info", "retrieve_attribute_value", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info"]})
+        );
+    }
+
+    /// T-5299, EP-125: an Endpoint pushed past the Portal that lists `sta` on a model with no
+    /// measurement gets no view, and its condition names the gap; a measurement in the model or
+    /// in an import serves it, and a space without a model is propose's to judge.
+    #[test]
+    fn an_endpoint_listing_sta_its_model_cannot_serve_is_refused() {
+        let sta = || endpoint(json!({"enabledRepresentations": ["ngsi-ld", "sta"]}));
+        let mut s = fleet(sources(vec![("cars", cars())]));
+        s.endpoints.push(sta());
+        let refused = desired(&s);
+        assert!(!refused.views.contains_key(SLUG));
+        let (owner, reason) = &refused.refused[0];
+        assert_eq!(owner.name, "air-public");
+        assert!(
+            reason.contains("fleet")
+                && reason
+                    .contains("`sta` needs a type with a numeric attribute that declares its unit"),
+            "{reason}"
+        );
+
+        let unit = "\n    attributes: {pm10: {range: float, unit: {ucum_code: ug/m3}}}\n";
+        let mut imported = fleet(sources(vec![("cars", cars())]));
+        if let Some(Ok(model)) = imported.models.get_mut(&("city".into(), "air".into())) {
+            for text in model.imports.values_mut() {
+                text.push_str("  Air:");
+                text.push_str(unit);
+            }
+        }
+        assert!(
+            view_of(&imported, &sta()).is_ok(),
+            "an import's measurement serves sta"
+        );
+
+        let mut own = fleet(sources(vec![("cars", cars())]));
+        if let Some(Ok(model)) = own.models.get_mut(&("city".into(), "air".into())) {
+            model.source = model
+                .source
+                .replace("slots:\n  id:", &format!("  Air:{unit}slots:\n  id:"));
+        }
+        assert!(
+            view_of(&own, &sta()).is_ok(),
+            "the model's own measurement serves sta"
+        );
+
+        let unmodelled = sources(vec![("cars", cars())]);
+        assert!(view_of(&unmodelled, &sta()).is_ok());
+        assert!(
+            view_of(&s, &endpoint(json!({}))).is_ok(),
+            "ngsi-ld needs no model"
         );
     }
 
