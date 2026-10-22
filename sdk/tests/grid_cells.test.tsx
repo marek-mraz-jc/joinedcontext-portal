@@ -128,6 +128,8 @@ describe("links in cells (T-5134)", () => {
       expect(container.querySelector("a")).toBeNull();
       unmount();
     }
-    expect(cellDisplayText(cell({ type: "Property", value: { name: "Obec Bíňovce" } }), "en", labels)).toBe("name: Obec Bíňovce");
+    expect(cellDisplayText(cell({ type: "Property", value: { name: "Obec Bíňovce" } }), "en", labels)).toBe("Obec Bíňovce");
+    expect(cellDisplayText(cell({ type: "Property", value: { name: "Obec Bíňovce", url: "binovce.sk" } }), "en", labels)).toBe("Obec Bíňovce");
+    expect(cellDisplayText(cell({ type: "Property", value: { name: "Obec", kind: "town" } }), "en", labels)).toBe("name: Obec · kind: town");
   });
 });

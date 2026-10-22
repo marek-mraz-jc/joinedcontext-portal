@@ -196,6 +196,14 @@ export function cellLink(cell: RichCell | RichCell[] | undefined): { text: strin
   return href && name ? { text: name, href } : undefined;
 }
 
+/** A `{name}` or `{name, url}` object (an organizer without a usable web site) as its name alone. */
+function organizerName(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  const name = typeof record.name === "string" ? record.name.trim() : "";
+  return name && Object.keys(record).every((key) => key === "name" || key === "url") ? name : undefined;
+}
+
 /** One cell's text, as `CellView` shows it: what an export, a title or a test reads. */
 export function cellDisplayText(cell: RichCell | RichCell[] | undefined, locale: string, labels: CellLabels): string {
   if (cell === undefined) return "";
@@ -217,7 +225,7 @@ export function cellDisplayText(cell: RichCell | RichCell[] | undefined, locale:
     case "datetime":
       return formatDate(cell.value as string, locale);
     case "structured":
-      return cellLink(cell)?.text ?? structuredText(cell.value, locale, labels);
+      return cellLink(cell)?.text ?? organizerName(cell.value) ?? structuredText(cell.value, locale, labels);
     case "list":
       return structuredText(cell.value, locale, labels);
     default:
