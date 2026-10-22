@@ -194,6 +194,7 @@ function readableName(attr: string): string
 function queryFromFilters(columns: FilterColumn[], filters: Record<string, ColumnFilter>): { q?: string; idPattern?: string }
 function opsForKind(kind: FilterKind): FilterOp[]
 function andQ(...parts: (string | undefined)[]): string | undefined
+function filtersFromQ(q: string, columns: readonly FilterColumn[]): Record<string, ColumnFilter> | null  // a default filter as the filter row's inputs (DM-134)
 
 // Cells corrected by hand, applied through the source's own `patch` (T-1430; UI-67, AG-78)
 function applyChanges(options: { source, entities, observed?, fallback?, now? }): Promise<ApplyResult>

@@ -160,10 +160,10 @@ export function modelView(
 
 /** An http(s) address a person opens in a new tab; anything else stays text. */
 function webLink(value: unknown, text: string): JSX.Element | string {
-  const href = typeof value === "string" && /^https?:\/\//i.test(value.trim()) ? safeHref(value) : undefined;
-  if (!href) return typeof value === "string" ? value : "";
+  const safe = typeof value === "string" && /^https?:\/\//i.test(value.trim()) ? safeHref(value) : undefined;
+  if (!safe) return typeof value === "string" ? value : "";
   return (
-    <a className="text-primary-soft-fg underline hover:no-underline" href={href} target="_blank" rel="noopener noreferrer" title={href}>
+    <a className="text-primary-soft-fg underline hover:no-underline" href={safe} target="_blank" rel="noopener noreferrer" title={safe}>
       {text}
     </a>
   );
