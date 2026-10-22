@@ -14,7 +14,7 @@ import { EntityCompare, enumsOf, originTransport, parseGridConfig, parseQ, relat
 import type { ColumnFilter, FilterColumn, FilterKind, GridColumn } from "@joinedcontext/sdk";
 import { fetchJson, publishedTypes } from "../../pages/endpoints/SchemaProjectionPanel";
 import { classSlots, parseModel } from "../../pages/models/linkml";
-import type { ClassView, LinkmlSlot } from "../../pages/models/linkml";
+import type { ClassView, LinkmlModel, LinkmlSlot } from "../../pages/models/linkml";
 import { Button, Checkbox, Field, InlineError, Select, safeHref } from "../ui";
 import { columnLabel, displayOrder } from "./displayOrder";
 import { gridLabels, PortalEntityGrid } from "./PortalEntityGrid";
@@ -297,30 +297,36 @@ export interface EndpointDataViewProps {
   origin?: string;
 }
 
-export function EndpointDataView({
-  project,
-  slug,
-  hidden = [],
-  space,
-  link,
-  onLink,
-  csv = false,
-  origin,
-}: EndpointDataViewProps): JSX.Element {
-  const { t, i18n } = useTranslation();
-  const [chosen, setChosen] = useState<string>(link?.type ?? "");
-  const [full, setFull] = useState(false);
-  // The query the grid last asked, for the link and the download of exactly these rows.
-  const [asked, setAsked] = useState<string | undefined>(link?.q);
-  const [comparing, setComparing] = useState(false);
-  const root = origin ?? window.location.origin;
-  const base = `${root}/api/endpoint/${slug}/schema`;
-  // Another origin is read anonymously: a cross-origin fetch with `same-origin` credentials sends no cookie.
-  const source = useMemo(
-    () => (origin ? sourceFor({ kind: "endpoint", slug }, originTransport((path, init) => fetch(origin + String(path), init)), i18n.language) : undefined),
-    [origin, slug, i18n.language],
-  );
+/** Where the grid opens: the kept or preset view, else the link's query and order; the page length and order as text. */
+function gridState(kept: OpenedView | null, link: DataLink | undefined, columns: string[], pageLength: number | undefined) {
+  const opened: OpenedView = kept ?? { filterText: link?.q ?? null, sort: sortOfLink(link?.sort, columns) };
+  return {
+    opened,
+    filtered: opened.filterText !== null || Object.keys(opened.filters ?? {}).length > 0,
+    rowsPerPage: pageLength ?? 20,
+    sortText: opened.sort ? `${opened.sort.attr}${opened.sort.dir === "desc" ? ";desc" : ""}` : undefined,
+  };
+}
 
+/** A `uri` column's cell as a link named in words (T-5192). */
+function linkRenderers(links: Set<string>, text: string): Record<string, (cell: unknown) => JSX.Element | string> {
+  return Object.fromEntries(
+    [...links].map((name) => [
+      name,
+      (cell: unknown) => webLink(cell && !Array.isArray(cell) ? (cell as { value?: unknown }).value : undefined, text),
+    ]),
+  );
+}
+
+/** The full window is a modal dialog over the page; Escape leaves it. */
+function windowProps(full: boolean, label: string): JSX.IntrinsicElements["div"] {
+  return full
+    ? { className: "fixed inset-0 z-50 flex flex-col gap-3 overflow-auto bg-bg p-4", role: "dialog", "aria-modal": true, "aria-label": label }
+    : { className: "flex flex-col gap-3" };
+}
+
+/** The endpoint's published schema: its index, the JSON Schema of the newest version and its model. */
+function useEndpointSchema(base: string, slug: string) {
   const index = useQuery({
     queryKey: ["endpoint-schema-index", slug],
     retry: false,
@@ -345,21 +351,28 @@ export function EndpointDataView({
       return answer.ok ? parseModel(await answer.text()) : null;
     },
   });
+  return { index, schema, model };
+}
 
-  const types = useMemo(() => publishedTypes(schema.data), [schema.data]);
+/** The chosen type of the schema and its columns as the published model presents them (DM-134). */
+function useTypeColumns(
+  schemaData: unknown,
+  modelData: LinkmlModel | null | undefined,
+  chosen: string,
+  hidden: string[],
+  picked: string[] | null,
+  language: string,
+) {
+  const types = useMemo(() => publishedTypes(schemaData), [schemaData]);
   const type = types.find((each) => each.name === chosen) ?? types[0];
   const columns = useMemo(() => (type ? type.attributes.filter((attribute) => !hidden.includes(attribute)) : []), [type, hidden]);
-  const klass = type && model.data ? model.data.classes.find((each) => each.name === type.name) : undefined;
-  const slots = useMemo(() => (klass && model.data ? classSlots(model.data, klass) : []), [model.data, klass]);
-  const shape = useMemo(() => columnModel(slots, columns, i18n.language, klass?.view?.columns), [slots, columns, i18n.language, klass]);
-  const [picked, setPicked] = useState<string[] | null>(null);
+  const klass = type && modelData ? modelData.classes.find((each) => each.name === type.name) : undefined;
+  const slots = useMemo(() => (klass && modelData ? classSlots(modelData, klass) : []), [modelData, klass]);
+  const shape = useMemo(() => columnModel(slots, columns, language, klass?.view?.columns), [slots, columns, language, klass]);
   const shownColumns = useMemo(() => shape.order.filter((name) => (picked ?? shape.shown).includes(name)), [shape, picked]);
-  // The order, the column inputs and the typed query the grid opens with; the grid holds them from then on.
-  const [view, setView] = useState<OpenedView | null>(null);
-  const [pageLength, setPageLength] = useState<number | null>(null);
   // The endpoint's own schema names its enums: such a column is filtered by picking (UI-86).
-  const defs = useMemo(() => definitionsOf(schema.data), [schema.data]);
-  const enums = useMemo(() => (type ? enumsOf(defs[type.name], defs, i18n.language) : {}), [defs, type, i18n.language]);
+  const defs = useMemo(() => definitionsOf(schemaData), [schemaData]);
+  const enums = useMemo(() => (type ? enumsOf(defs[type.name], defs, language) : {}), [defs, type, language]);
   // Its relationship ends are columns picked from the target's entities (UI-84).
   const relations = useMemo(() => (type ? relationsOf(defs[type.name]) : {}), [defs, type]);
   const kinds = useMemo(
@@ -385,14 +398,53 @@ export function EndpointDataView({
       }),
     [shownColumns, kinds, shape],
   );
-  const preset = useMemo(
-    () => (link?.q || link?.sort ? null : presetView(klass?.view, gridColumns, enums, new Date())),
-    [link?.q, link?.sort, klass, gridColumns, enums],
+  return { types, type, columns, klass, slots, shape, shownColumns, defs, enums, relations, links, gridColumns };
+}
+
+export function EndpointDataView({
+  project,
+  slug,
+  hidden = [],
+  space,
+  link,
+  onLink,
+  csv = false,
+  origin,
+}: EndpointDataViewProps): JSX.Element {
+  const { t, i18n } = useTranslation();
+  const [chosen, setChosen] = useState<string>(link?.type ?? "");
+  const [full, setFull] = useState(false);
+  // The query the grid last asked, for the link and the download of exactly these rows.
+  const [asked, setAsked] = useState<string | undefined>(link?.q);
+  const [comparing, setComparing] = useState(false);
+  const root = origin ?? window.location.origin;
+  const base = `${root}/api/endpoint/${slug}/schema`;
+  // Another origin is read anonymously: a cross-origin fetch with `same-origin` credentials sends no cookie.
+  const source = useMemo(
+    () => (origin ? sourceFor({ kind: "endpoint", slug }, originTransport((path, init) => fetch(origin + String(path), init)), i18n.language) : undefined),
+    [origin, slug, i18n.language],
   );
-  const opened: OpenedView = view ?? preset ?? { filterText: link?.q ?? null, sort: sortOfLink(link?.sort, columns) };
-  const filtered = opened.filterText !== null || Object.keys(opened.filters ?? {}).length > 0;
-  const rowsPerPage = pageLength ?? klass?.view?.pageLength ?? 20;
-  const sortText = opened.sort ? `${opened.sort.attr}${opened.sort.dir === "desc" ? ";desc" : ""}` : undefined;
+
+  const { index, schema, model } = useEndpointSchema(base, slug);
+  const [picked, setPicked] = useState<string[] | null>(null);
+  const { types, type, columns, klass, slots, shape, shownColumns, defs, enums, relations, links, gridColumns } = useTypeColumns(
+    schema.data,
+    model.data,
+    chosen,
+    hidden,
+    picked,
+    i18n.language,
+  );
+  // The order, the column inputs and the typed query the grid opens with; the grid holds them from then on.
+  const [view, setView] = useState<OpenedView | null>(null);
+  const [pageLength, setPageLength] = useState<number | null>(null);
+  const linkQ = link?.q;
+  const linkSort = link?.sort;
+  const preset = useMemo(
+    () => (linkQ || linkSort ? null : presetView(klass?.view, gridColumns, enums, new Date())),
+    [linkQ, linkSort, klass, gridColumns, enums],
+  );
+  const { opened, filtered, rowsPerPage, sortText } = gridState(view ?? preset, link, columns, pageLength ?? klass?.view?.pageLength);
   useEffect(() => {
     if (type) onLink?.({ type: type.name, q: asked || undefined, sort: sortText });
   }, [type, asked, sortText, onLink]);
@@ -447,17 +499,7 @@ export function EndpointDataView({
     () => (type ? fieldsOf(defs[type.name], shape.order).map((field) => ({ ...field, label: shape.labels[field.name] })) : []),
     [defs, type, shape],
   );
-  const renderers = useMemo(() => {
-    return Object.fromEntries(
-      [...links].map((name) => [
-        name,
-        (cell: unknown) => {
-          const value = cell && !Array.isArray(cell) ? (cell as { value?: unknown }).value : undefined;
-          return webLink(value, t("endpoints.data.openLink"));
-        },
-      ]),
-    );
-  }, [links, t]);
+  const renderers = useMemo(() => linkRenderers(links, t("endpoints.data.openLink")), [links, t]);
 
   // A refused or failed schema read says why, in the surface's own sentence (a 403 names the grant).
   const failed = index.error ?? schema.error;
@@ -472,12 +514,7 @@ export function EndpointDataView({
   }
 
   return (
-    <div
-      className={full ? "fixed inset-0 z-50 flex flex-col gap-3 overflow-auto bg-bg p-4" : "flex flex-col gap-3"}
-      role={full ? "dialog" : undefined}
-      aria-modal={full ? true : undefined}
-      aria-label={full ? t("endpoints.data.title") : undefined}
-    >
+    <div {...windowProps(full, t("endpoints.data.title"))}>
       <Field id={`endpoint-data-type-${slug}`} label={t("endpoints.data.type")} description={t("endpoints.data.typeHelp")}>
         <Select
           id={`endpoint-data-type-${slug}`}
