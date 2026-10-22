@@ -2553,6 +2553,17 @@ pub(crate) fn is_candidate_manifest(path: &str) -> bool {
         || clean.starts_with("agentprofiles/")
 }
 
+/// Whether a file is a DataModel's generated JSON Schema (DM-02): `*.schema.json` as `jcctl model
+/// generate` names it, or `json-schema/*.json` as the Portal writes it, inside a project.
+fn is_model_schema(path: &str) -> bool {
+    let clean = path.trim_start_matches('/');
+    let segments: Vec<&str> = clean.split('/').collect();
+    clean.starts_with("projects/")
+        && !segments.iter().any(|s| *s == ".." || s.is_empty())
+        && (clean.ends_with(".schema.json")
+            || (clean.ends_with(".json") && segments.contains(&"json-schema")))
+}
+
 /// Whether a staged file is an encrypted secrets file rather than a manifest (CC-06).
 ///
 /// The same names `jcctl` skips when it loads a repository and reads when it resolves a
@@ -2672,9 +2683,10 @@ async fn listing(gitea: &GiteaClient, revision: &str, project: bool) -> Result<L
                 || if project {
                     // The project's own tree is what lay under `projects/{slug}/`; the slug
                     // is the registry's, so any one stands in for it here.
-                    is_candidate_manifest(&format!("projects/_/{}", p.trim_start_matches('/')))
+                    let p = format!("projects/_/{}", p.trim_start_matches('/'));
+                    is_candidate_manifest(&p) || is_model_schema(&p)
                 } else {
-                    is_candidate_manifest(p)
+                    is_candidate_manifest(p) || is_model_schema(p)
                 }
         })
         .collect();
@@ -2722,6 +2734,13 @@ async fn stage_listed(
             // Not a manifest: a DataModel's LinkML source (`spec.linkml` names only such a file,
             // DM-76), which the view writer compiles into the space's broker schema. Dropped
             // here, no space on the forge ever had its schema written (T-3781).
+            scratch.write(path, &file)?;
+            continue;
+        }
+        if is_model_schema(path) {
+            // Not a manifest: a DataModel's generated JSON Schema, which the runner's validation
+            // stage compiles beside its DataModel (PL-60). Left out, every forge model held its
+            // records to id and type alone (T-5081).
             scratch.write(path, &file)?;
             continue;
         }
@@ -3672,6 +3691,42 @@ output_error{stream="kpi"} 6
         );
     }
 
+    /// T-5081: a DataModel's JSON Schema artifact is no manifest, so the listing left it out,
+    /// the runner's stage compiled every forge model to "id and type" and pipelines stored
+    /// Events without the GPS, start or organizer their model requires. Staged from the forge,
+    /// the space's model refuses a record that lacks a required slot.
+    #[tokio::test]
+    async fn a_data_models_json_schema_staged_from_the_forge_holds_the_pipeline_stage() {
+        let space = "apiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata:\n  name: podujatia\n  namespace: bbsk\nspec:\n  urnSegment: podujatia\n  isSandbox: false\n  dataModelRef: { kind: DataModel, name: podujatia }\n";
+        let model = "apiVersion: joinedcontext.com/v1alpha1\nkind: DataModel\nmetadata:\n  name: podujatia\n  namespace: bbsk\nspec:\n  contextSpaceRef: podujatia\n  linkml: ./podujatia.linkml.yaml\n  version: 1.0.0\n  lifecycle: published\n  classes: [Event]\n  artifacts:\n    jsonSchema: ./podujatia.v1.schema.json\n";
+        let schema = r#"{"definitions": {"Event": {"properties": {"id": {"type": "string"}, "name": {"type": "string", "x-ngsi-ld-kind": "Property"}, "organizer": {"type": "string", "x-ngsi-ld-kind": "Property"}}, "required": ["id", "name", "organizer"]}}}"#;
+        let files = [
+            ("projects/bbsk/spaces/podujatia/space.yaml", space),
+            (
+                "projects/bbsk/spaces/podujatia/datamodels/podujatia.yaml",
+                model,
+            ),
+            (
+                "projects/bbsk/spaces/podujatia/datamodels/podujatia.v1.schema.json",
+                schema,
+            ),
+        ];
+        let (_forge, gitea) = forge(&files).await;
+        let scratch = stage(&gitea, "rev-1").await.expect("the run stages");
+        let repository = Repository::load(scratch.path()).expect("the staged tree loads");
+
+        let compiled = crate::pipeline_validation::load(&repository, scratch.path());
+        let held = compiled
+            .get(&("bbsk".to_owned(), "podujatia".to_owned()))
+            .expect("the space's model compiles");
+        let half = json!({"id": "urn:ngsi-ld:Event:a", "type": "Event", "name": {"type": "Property", "value": "Koncert"}});
+        let problems = held.check(&half);
+        assert!(
+            problems.iter().any(|p| p.path == "organizer"),
+            "a record without its required organizer passes: {problems:?}"
+        );
+    }
+
     #[test]
     fn only_the_encrypted_names_are_kept_for_the_secret_backend() {
         assert!(is_encrypted_secrets_file("projects/hel/secrets/a.enc.yaml"));
@@ -3757,6 +3812,15 @@ output_error{stream="kpi"} 6
             "/projects/ovzdusie/spaces/mobility/space.yaml"
         ));
         assert!(is_candidate_manifest("projects/ovzdusie/endpoints/air.yml"));
+        assert!(is_model_schema(
+            "projects/bbsk/spaces/p/datamodels/p.v1.schema.json"
+        ));
+        assert!(is_model_schema(
+            "projects/hel/datamodels/json-schema/air.v2.json"
+        ));
+        assert!(!is_model_schema("projects/hel/apps/a/package.json"));
+        assert!(!is_model_schema("projects/../x.schema.json"));
+        assert!(!is_model_schema("portal/x.schema.json"));
 
         // A Blueprint is a manifest kind of its own, so the gallery finds it in the mirror.
         assert!(is_candidate_manifest(
