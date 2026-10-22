@@ -21378,6 +21378,33 @@
           }
         }
       },
+      "CatalogueCalendar": {
+        "type": "object",
+        "description": "One calendar output of an Endpoint: its name, its title per language and its `.ics` address.",
+        "required": [
+          "name",
+          "title",
+          "url"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "object",
+            "description": "The title per language (`sk`, `en`); empty: the name stands for it.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
       "CatalogueClass": {
         "type": "object",
         "description": "One class of the model, described as its LinkML describes it.",
@@ -21712,9 +21739,17 @@
         "required": [
           "url",
           "representations",
-          "feeds"
+          "feeds",
+          "calendars"
         ],
         "properties": {
+          "calendars": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueCalendar"
+            },
+            "description": "Its calendar outputs, in the order the Endpoint lists them (API/11 EP-159)."
+          },
           "feeds": {
             "type": "array",
             "items": {
