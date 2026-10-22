@@ -101,7 +101,10 @@
     "OGC Features",
     "OData",
     "WebSocket",
-    "iCal"
+    "iCal",
+    "iCalendar",
+    "QGIS",
+    "ArcGIS Pro"
   ],
   "cs": [
     "@context",
@@ -202,7 +205,10 @@
     "OGC Features",
     "OData",
     "WebSocket",
-    "iCal"
+    "iCal",
+    "iCalendar",
+    "QGIS",
+    "ArcGIS Pro"
   ],
   "de": [
     "@context",
@@ -338,6 +344,9 @@
     "OGC Features",
     "OData",
     "WebSocket",
-    "iCal"
+    "iCal",
+    "iCalendar",
+    "QGIS",
+    "ArcGIS Pro"
   ]
 }

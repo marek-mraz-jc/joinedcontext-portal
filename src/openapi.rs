@@ -472,6 +472,7 @@ use crate::tools::model_tools::{
         CatalogueSample,
         crate::api::endpoint_standards::EndpointStandards,
         crate::api::endpoint_standards::StandardGuide,
+        crate::api::endpoint_standards::EndpointLicence,
         crate::api::endpoint_standards::Example,
         crate::api::catalogue_draft::CatalogueDraftRequest,
         crate::api::catalogue_draft::CatalogueDraft,

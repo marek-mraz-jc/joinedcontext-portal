@@ -1818,6 +1818,76 @@
       "none": "Zatím bez příkladu: nenašla se entita, ze které by šel sestavit.",
       "unavailable": "Standardy tohoto endpointu teď nelze načíst; zkuste to za minutu."
     },
+    "developer": {
+      "terms": "Podmínky užití",
+      "licence": "Licence",
+      "noLicence": "Poskytovatel neuvádí licenci: před dalším užitím dat se ho zeptejte.",
+      "limit": "Limit požadavků",
+      "perMinute": "{rate} požadavků za minutu na adresu. Nad limit API volání odmítne; počkejte tolik sekund, kolik uvádí hlavička Retry-After.",
+      "noLimit": "Instalace nenastavuje vlastní limit.",
+      "access": "Přístup",
+      "accessText": "Otevřený: bez přihlášení a bez tokenu. Každá ukázka níže funguje tak, jak je.",
+      "samples": "Ukázky kódu",
+      "language": "Jazyk",
+      "sample": "Ukázka v jazyce {language}",
+      "copy": "Kopírovat ukázku",
+      "send": "Vyzkoušet",
+      "anonymous": "Odešle se bez vašeho přihlášení, jako od kteréhokoli návštěvníka.",
+      "answered": "Odpověď: HTTP {status}.",
+      "limited": "HTTP {status}: příliš mnoho požadavků. Počkejte minutu a zkuste to znovu.",
+      "cut": "Zobrazuje se prvních {chars} znaků.",
+      "failed": "Volání se nedostalo k API: {reason}. Zkontrolujte připojení a zkuste to znovu.",
+      "request": "Požadavek",
+      "requestHint": "Cesta pod tímto endpointem, například {example}",
+      "problem": {
+        "start": "Zadejte cestu, která začíná znakem /, například /ngsi-ld/v1/types.",
+        "outside": "Ponechte cestu pod tímto endpointem: odstraňte .., // a kódovaná lomítka."
+      },
+      "surfaceName": {
+        "ngsi-ld": "NGSI-LD",
+        "ogc-features": "OGC API Features",
+        "geojson": "GeoJSON",
+        "odata": "OData",
+        "sta": "SensorThings",
+        "csv": "CSV",
+        "ical": "iCalendar",
+        "websocket": "WebSocket",
+        "mcp": "MCP"
+      },
+      "surface": {
+        "ngsi-ld": "ETSI NGSI-LD API: první entity typu jako JSON-LD.",
+        "ogc-features": "OGC API - Features: první prvky kolekce pro nástroje GIS.",
+        "geojson": "Tytéž prvky uložené jako soubor GeoJSON.",
+        "odata": "OData v4: první řádky množiny entit pro Excel a Power BI.",
+        "sta": "OGC SensorThings API: první objekty Things.",
+        "csv": "Všechny entity v jednom souboru CSV.",
+        "ical": "Události jako kanál iCalendar.",
+        "websocket": "Živé změny přes WebSocket: přihlaste odběr a každá změna přijde jako zpráva.",
+        "mcp": "Model Context Protocol pro AI asistenty: první volání, které klient pošle."
+      },
+      "tool": {
+        "qgis": {
+          "title": "QGIS",
+          "steps": "Vrstva > Přidat vrstvu > Přidat vrstvu WFS / OGC API - Features. Zvolte Nové, zadejte URL níže, jako verzi zvolte OGC API - Features, potom Připojit a přidejte kolekci."
+        },
+        "arcgis": {
+          "title": "ArcGIS Pro",
+          "steps": "Insert > Connections > Server > New OGC API Server. Vložte URL níže a přetáhněte kolekci z panelu Catalog na mapu."
+        },
+        "excel": {
+          "title": "Excel a Power BI",
+          "steps": "Data > Načíst data > Z jiných zdrojů > Z informačního kanálu OData. Vložte URL níže a zvolte anonymní přístup."
+        },
+        "calendar": {
+          "title": "Kalendář",
+          "steps": "Přihlaste odběr adresy níže v Outlooku, Kalendáři Google nebo v Kalendáři Apple."
+        },
+        "claude": {
+          "title": "Claude a jiní klienti MCP",
+          "steps": "Přidejte vlastní konektor s URL níže. Přihlášení není potřeba."
+        }
+      }
+    },
     "shareFlow": {
       "section": "Sdílet s jiným projektem",
       "lead": "Zvolte projekt, co čte a dokdy; sdílení a jeho konec jsou jedna změna, o které rozhodne schvalovatel.",
@@ -7584,7 +7654,8 @@
         "model": "Datový model ve formátu {format}."
       },
       "forDevelopers": "Pro vývojáře",
-      "moreFormats": "{count, plural, one {+# formát} few {+# formáty} other {+# formátů}}"
+      "moreFormats": "{count, plural, one {+# formát} few {+# formáty} other {+# formátů}}",
+      "developerPage": "Stránka pro vývojáře: ukázky kódu pro každé rozhraní, vyzkoušení, licence a limit požadavků"
     },
     "use": {
       "title": "Použít tato data",
