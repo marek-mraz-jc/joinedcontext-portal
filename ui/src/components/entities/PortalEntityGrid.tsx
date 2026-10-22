@@ -284,7 +284,7 @@ export interface PortalEntityGridProps extends Omit<EntityGridProps, "labels" | 
    * What a saved view sets (API/01 §30): the typed query and the order, held by the host so a view
    * can be applied and saved. The column layout stays the person's own either way.
    */
-  view?: Pick<GridState, "filterText" | "sort">;
+  view?: Pick<GridState, "filterText" | "sort"> & Partial<Pick<GridState, "filters">>;
   /** Every change of the grid's state, for the host that holds `view`. */
   onGridState?: (next: GridState) => void;
   /** What an empty answer says instead of "No entities here", e.g. that a filter excluded all. */

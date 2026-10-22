@@ -1508,6 +1508,26 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         </button>
         <span className="jc-grid-page-info">{`${labels.page} ${currentPage}`}</span>
         {totalPages !== undefined && <span className="jc-grid-page-count">{`/ ${totalPages}`}</span>}
+        {/* Numbered pages as a DataTables pager (T-5196): the first, the last and the two around this one. */}
+        {totalPages !== undefined && totalPages > 1 && (
+          <span className="jc-grid-pages">
+            {pageNumbers(currentPage, totalPages).map((page, at) =>
+              page === null ? (
+                <span key={`gap-${at}`} aria-hidden="true">…</span>
+              ) : (
+                <button
+                  key={page}
+                  type="button"
+                  aria-label={`${labels.page} ${page}`}
+                  aria-current={page === currentPage ? "page" : undefined}
+                  onClick={() => setOffset((page - 1) * hookOptions.config.pageSize)}
+                >
+                  {page}
+                </button>
+              ),
+            )}
+          </span>
+        )}
         {/* The endpoint's own count, not the page's: an answer the gateway narrowed carries none,
             and then the footer says nothing rather than a number it guessed (R22). */}
         {grid.total !== undefined && (
@@ -1524,6 +1544,12 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       )}
     </div>
   );
+}
+
+/** The page buttons a pager shows: 1, the pages beside the current one and the last, `null` for a gap. */
+export function pageNumbers(current: number, total: number): (number | null)[] {
+  const kept = [...new Set([1, current - 1, current, current + 1, total])].filter((page) => page >= 1 && page <= total).sort((a, b) => a - b);
+  return kept.flatMap((page, at) => (at > 0 && page - (kept[at - 1] ?? page) > 1 ? [null, page] : [page]));
 }
 
 /** A row's height until one is measured, and the rows drawn when the box has no height yet. */

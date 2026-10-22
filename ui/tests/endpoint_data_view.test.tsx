@@ -328,9 +328,8 @@ describe("the Event column model (T-5192)", () => {
     expect(sk.shown).toEqual(["name", "startDate", "url"]);
     expect(sk.labels).toMatchObject({ name: "Názov", startDate: "Začiatok", url: "Web" });
     expect(columnModel(slots, attrs, "en").labels.startDate).toBe("Start");
-    // Without a model nothing is renamed, reordered or hidden.
     // Without a model nothing is reordered or hidden; titles come from field-order.json, else the name.
-    expect(columnModel([], ["url", "fooBar"], "sk")).toEqual({ order: ["url", "fooBar"], shown: ["url", "fooBar"], labels: { url: "Odkaz", fooBar: "Foo bar" } });
+    expect(columnModel([], ["url", "fooBar"], "sk")).toEqual({ order: ["url", "fooBar"], shown: ["url", "fooBar"], labels: { url: "Odkaz", fooBar: "Foo bar" }, widths: {} });
   });
 
   it("DM-133: opens where the class's model says, for any type, and ignores what the endpoint does not answer", async () => {
@@ -383,5 +382,99 @@ describe("the data view names no type (T-5192)", () => {
       const code = readFileSync(file, "utf8");
       expect(code).not.toMatch(/["'`](Event|AirQualityObserved|Vehicle|BikeHireDockingStation|OffStreetParking|startDate)["'`]/);
     }
+  });
+});
+
+// DM-134 (T-5196): the presentation of a table comes from the model's annotations, never from code.
+const PRESENTED_MODEL = EVENT_MODEL.replace(
+  "      view_upcoming: {tag: view_upcoming, value: startDate}",
+  [
+    "      view_filter: {tag: view_filter, value: startDate>=today}",
+    "      view_page_length: {tag: view_page_length, value: 10}",
+    "      view_columns: {tag: view_columns, value: 'startDate, name, dataProvider'}",
+  ].join("\n"),
+).replace(
+  "          label: {tag: label, value: '{\"sk\": \"Web\", \"en\": \"Web page\"}'}",
+  "          label: {tag: label, value: '{\"sk\": \"Web\", \"en\": \"Web page\"}'}\n          view_width: {tag: view_width, value: 16}\n          view_role: {tag: view_role, value: link}",
+).replace(
+  "      dataProvider:\n        range: string",
+  "      dataProvider:\n        range: string\n        annotations:\n          view_hidden: {tag: view_hidden, value: 'true'}\n          view_role: {tag: view_role, value: title}",
+);
+const PRESENTED_SCHEMA = {
+  definitions: { Event: { properties: { ...EVENT_SCHEMA.definitions.Event.properties, startDate: { type: "string", format: "date-time" } } } },
+};
+
+function presentedAnswer(asked: URL[]) {
+  const events = eventAnswer(asked);
+  return (url: URL): Response | undefined => {
+    if (url.pathname.endsWith("/schema/v1/json-schema")) return json(PRESENTED_SCHEMA);
+    if (url.pathname.endsWith("/schema/v1/model.linkml.yaml")) return new Response(PRESENTED_MODEL, { status: 200, headers: { "Content-Type": "text/yaml" } });
+    return events(url);
+  };
+}
+
+describe("the presentation chain (DM-134, T-5196)", () => {
+  it("DM-134: the presentation resolves from the model's annotations, then labels, then field-order.json, then the name", async () => {
+    const { parseModel, classSlots } = await import("../src/pages/models/linkml");
+    const { columnModel } = await import("../src/components/entities/EndpointDataView");
+    const model = parseModel(PRESENTED_MODEL);
+    const klass = model.classes[0];
+    expect(klass.view).toEqual({ orderBy: "startDate", filter: "startDate>=today", pageLength: 10, columns: ["startDate", "name", "dataProvider"] });
+    const slots = classSlots(model, klass);
+    const attrs = Object.keys(EVENT_SCHEMA.definitions.Event.properties);
+    const shape = columnModel(slots, attrs, "sk", klass.view?.columns);
+    // view_columns orders and picks; view_hidden wins over it; the rest follows in rank order.
+    expect(shape.shown).toEqual(["startDate", "name"]);
+    expect(shape.order.slice(0, 3)).toEqual(["startDate", "name", "dataProvider"]);
+    expect(shape.widths).toEqual({ url: 16 * 8 + 24 });
+    expect(shape.title).toBe("dataProvider");
+    // 1 model label, 3 field-order.json (`url` has no model label without the annotation), 4 the name made readable.
+    expect(shape.labels.startDate).toBe("Začiatok");
+    expect(columnModel([], ["url", "fooBar"], "sk").labels).toEqual({ url: "Odkaz", fooBar: "Foo bar" });
+    // 2 the model's title when it has no label annotation.
+    const titled = parseModel("classes:\n  T:\n    attributes:\n      speed:\n        rank: 1\n        title: {sk: Rýchlosť, en: Speed}\n");
+    expect(columnModel(classSlots(titled, titled.classes[0]), ["speed"], "sk").labels.speed).toBe("Rýchlosť");
+    // A value out of range is no presentation at all.
+    const wrong = parseModel(
+      "classes:\n  T:\n    annotations:\n      view_page_length: 7\n    attributes:\n      a:\n        annotations:\n          view_width: 500\n          view_role: script\n",
+    );
+    expect(wrong.classes[0].view).toBeUndefined();
+    expect(classSlots(wrong, wrong.classes[0])[0]).not.toHaveProperty("width");
+    expect(classSlots(wrong, wrong.classes[0])[0]).not.toHaveProperty("role");
+  });
+
+  it("resolves today in the reader's calendar and keeps only a default filter that names the type's columns", async () => {
+    const { presetView, relativeDates } = await import("../src/components/entities/EndpointDataView");
+    const day = new Date(2026, 9, 31, 23, 30);
+    expect(relativeDates('startDate>=today;endDate<="today+1d";x>today-31d', day)).toBe('startDate>=2026-10-31;endDate<="2026-11-01";x>2026-09-30');
+    const columns = [{ attr: "startDate", format: "date" as const }, { attr: "name", format: "text" as const }];
+    expect(presetView({ filter: "startDate>=today", orderBy: "startDate" }, columns, {}, day)).toEqual({
+      filterText: null,
+      filters: { startDate: { op: "gte", value: "2026-10-31" } },
+      sort: { attr: "startDate", dir: "asc" },
+    });
+    // An OR has no one-input-per-column form: it opens as text the reader can clear.
+    expect(presetView({ filter: 'name=="a"|name=="b"' }, columns, {}, day)).toEqual({ filterText: 'name=="a"|name=="b"', sort: null });
+    // A column the endpoint does not answer, or a q the parser refuses, is ignored.
+    expect(presetView({ filter: "secret==1" }, columns, {}, day)).toBeNull();
+    expect(presetView({ filter: "name==(" }, columns, {}, day)).toBeNull();
+  });
+
+  it("pre-fills the inputs from the default filter, narrows the rows, and reset clears them", async () => {
+    await i18n.changeLanguage("sk");
+    const user = userEvent.setup();
+    const asked: URL[] = [];
+    show({ slug: "events", project: "catalogue" }, presentedAnswer(asked));
+    const op = await screen.findByRole("combobox", { name: /^Filter.*: Začiatok$/ });
+    await waitFor(() => expect(op).toHaveValue("gte"));
+    await waitFor(() => expect(asked.some((url) => /^startDate>=\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get("q") ?? ""))).toBe(true));
+    expect(asked.find((url) => url.searchParams.get("q"))?.searchParams.get("limit")).toBe("10");
+    expect(screen.getByRole("combobox", { name: "Záznamov na stranu" })).toHaveValue("10");
+    const before = asked.length;
+    await user.click(screen.getByRole("button", { name: "Zrušiť filtre" }));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /^Filter.*: Začiatok$/ })).toHaveValue(""));
+    await waitFor(() => expect(asked.slice(before).some((url) => url.pathname.includes("/entities") && !url.searchParams.get("q"))).toBe(true));
+    expect(screen.queryByRole("button", { name: "Zrušiť filtre" })).toBeNull();
+    await i18n.changeLanguage("en");
   });
 });

@@ -10,10 +10,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { EntityCompare, enumsOf, originTransport, parseGridConfig, relationsOf, sourceFor } from "@joinedcontext/sdk";
+import { EntityCompare, enumsOf, filtersFromQ, originTransport, parseGridConfig, parseQ, relationsOf, sourceFor } from "@joinedcontext/sdk";
+import type { ColumnFilter, FilterColumn, FilterKind, GridColumn } from "@joinedcontext/sdk";
 import { fetchJson, publishedTypes } from "../../pages/endpoints/SchemaProjectionPanel";
 import { classSlots, parseModel } from "../../pages/models/linkml";
-import type { LinkmlSlot } from "../../pages/models/linkml";
+import type { ClassView, LinkmlSlot } from "../../pages/models/linkml";
 import { Button, Checkbox, Field, InlineError, Select, safeHref } from "../ui";
 import { columnLabel, displayOrder } from "./displayOrder";
 import { gridLabels, PortalEntityGrid } from "./PortalEntityGrid";
@@ -31,6 +32,16 @@ export interface DataLink {
 }
 
 type Sort = { attr: string; dir: "asc" | "desc" } | null;
+
+/** Where the grid stands: the typed query (or none), the column inputs and the order. */
+export interface OpenedView {
+  filterText: string | null;
+  filters?: Record<string, ColumnFilter>;
+  sort: Sort;
+}
+
+/** Rows per page a reader picks; the model's `view_page_length` picks the first (DM-134). */
+export const PAGE_LENGTHS = [10, 20, 50, 100] as const;
 
 /** A link's order, kept only when it names a column of the type: nothing else reaches `orderBy`. */
 export function sortOfLink(raw: string | undefined, attributes: string[]): Sort {
@@ -58,17 +69,77 @@ export function columnModel(
   slots: readonly LinkmlSlot[],
   attributes: readonly string[],
   locale: string,
-): { order: string[]; shown: string[]; labels: Record<string, string> } {
+  columns?: readonly string[],
+): { order: string[]; shown: string[]; labels: Record<string, string>; widths: Record<string, number>; title?: string } {
   const bySlot = new Map(slots.map((slot) => [slot.name, slot]));
   const titled = (names: readonly string[]) => Object.fromEntries(names.map((name) => [name, columnLabel(bySlot.get(name), name, locale)]));
-  if (slots.length === 0) return { order: [...attributes], shown: [...attributes], labels: titled(attributes) };
-  const order = displayOrder(slots, attributes);
+  if (slots.length === 0) return { order: [...attributes], shown: [...attributes], labels: titled(attributes), widths: {} };
+  const named = (columns ?? []).filter((name) => attributes.includes(name));
+  // `view_columns` orders and picks the shown ones; the rest follow in the model's order.
+  const order = [...new Set([...named, ...displayOrder(slots, attributes)])];
   const ranked = order.filter((name) => bySlot.get(name)?.rank !== undefined && bySlot.get(name)?.kind !== "GeoProperty");
-  return {
-    order,
-    shown: ranked.length > 0 ? ranked : order,
-    labels: titled(order),
-  };
+  const shown = (named.length > 0 ? named : ranked.length > 0 ? ranked : order).filter((name) => !bySlot.get(name)?.hidden);
+  // A width in characters as the cell's pixels at the grid's 14 px type, padding included.
+  const widths = Object.fromEntries(
+    order.flatMap((name) => {
+      const width = bySlot.get(name)?.width;
+      return width ? [[name, Math.round(width * 8 + 24)]] : [];
+    }),
+  );
+  const title = order.find((name) => bySlot.get(name)?.role === "title");
+  return { order, shown, labels: titled(order), widths, ...(title ? { title } : {}) };
+}
+
+/**
+ * `today`, `today+7d`, `today-1d` in a default filter as dates of the reader's calendar (DM-134),
+ * quoted or not; the rest of the `q` stays as written.
+ */
+export function relativeDates(q: string, today: Date): string {
+  return q.replace(/\btoday(?:([+-])(\d{1,3})d)?\b/g, (_match, sign: string | undefined, days: string | undefined) => {
+    const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() + (sign === "-" ? -1 : 1) * Number(days ?? 0));
+    return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+  });
+}
+
+/** What filters a column of this schema kind takes: chosen by the schema, never by the loaded rows (critic B5). */
+export function formatOfKind(kind: string): GridColumn["format"] | undefined {
+  if (kind === "date" || kind === "date-time") return "date";
+  if (kind === "number" || kind === "integer") return "number";
+  if (kind === "uri") return "link";
+  return kind === "string" ? "text" : undefined;
+}
+
+const KIND_OF_FORMAT: Record<string, FilterKind> = { date: "date", number: "number", link: "text", text: "text" };
+
+/**
+ * Where a table opens without a link of its own (DM-133, DM-134): the model's default filter as
+ * filled column inputs, or as text when one input per column cannot hold it; else `view_upcoming`.
+ * A filter the `q` parser refuses or that names a column the endpoint does not answer is ignored.
+ */
+export function presetView(
+  view: ClassView | undefined,
+  columns: readonly GridColumn[],
+  enums: Record<string, unknown[]>,
+  today: Date,
+): OpenedView | null {
+  const attributes = columns.map((column) => column.attr);
+  const day = relativeDates("today", today);
+  const upcoming = modelView(view, attributes, day);
+  if (!view?.filter) return upcoming;
+  const q = relativeDates(view.filter, today);
+  const sort = upcoming?.sort ?? null;
+  const known: FilterColumn[] = columns.map((column) => ({
+    key: column.attr,
+    attr: column.attr,
+    kind: enums[column.attr]?.length ? "enum" : (KIND_OF_FORMAT[column.format ?? "text"] ?? "text"),
+  }));
+  const filters = filtersFromQ(q, known);
+  if (filters) return { filterText: null, filters, sort };
+  // Otherwise text the reader can read and clear, but only a `q` the parser takes whose every
+  // term names a column of this type: anything else is a publisher's mistake, and the table opens as without it.
+  const parsed = parseQ(q);
+  const fits = parsed !== null && parsed.every((all) => all.every((term) => attributes.includes(term.path[0] ?? "")));
+  return fits ? { filterText: q, sort } : upcoming;
 }
 
 /**
@@ -85,12 +156,6 @@ export function modelView(
   const sort = sortOfLink(view?.orderBy, [...attributes]) ?? (upcoming ? { attr: upcoming, dir: "asc" as const } : null);
   if (!upcoming && !sort) return null;
   return { filterText: upcoming ? `!${upcoming}|${upcoming}>="${today}"` : null, sort };
-}
-
-/** Today in the reader's own calendar, as `orderBy` and `q` compare a date: `2026-10-22`. */
-function localToday(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
 /** An http(s) address a person opens in a new tab; anything else stays text. */
@@ -285,13 +350,47 @@ export function EndpointDataView({
   const columns = useMemo(() => (type ? type.attributes.filter((attribute) => !hidden.includes(attribute)) : []), [type, hidden]);
   const klass = type && model.data ? model.data.classes.find((each) => each.name === type.name) : undefined;
   const slots = useMemo(() => (klass && model.data ? classSlots(model.data, klass) : []), [model.data, klass]);
-  const shape = useMemo(() => columnModel(slots, columns, i18n.language), [slots, columns, i18n.language]);
+  const shape = useMemo(() => columnModel(slots, columns, i18n.language, klass?.view?.columns), [slots, columns, i18n.language, klass]);
   const [picked, setPicked] = useState<string[] | null>(null);
   const shownColumns = useMemo(() => shape.order.filter((name) => (picked ?? shape.shown).includes(name)), [shape, picked]);
-  // The order and the typed query the grid opens with; the grid holds them from then on.
-  const [view, setView] = useState<{ filterText: string | null; sort: Sort } | null>(null);
-  const opened = view ??
-    (link?.q || link?.sort ? null : modelView(klass?.view, columns, localToday())) ?? { filterText: link?.q ?? null, sort: sortOfLink(link?.sort, columns) };
+  // The order, the column inputs and the typed query the grid opens with; the grid holds them from then on.
+  const [view, setView] = useState<OpenedView | null>(null);
+  const [pageLength, setPageLength] = useState<number | null>(null);
+  // The endpoint's own schema names its enums: such a column is filtered by picking (UI-86).
+  const defs = useMemo(() => definitionsOf(schema.data), [schema.data]);
+  const enums = useMemo(() => (type ? enumsOf(defs[type.name], defs, i18n.language) : {}), [defs, type, i18n.language]);
+  // Its relationship ends are columns picked from the target's entities (UI-84).
+  const relations = useMemo(() => (type ? relationsOf(defs[type.name]) : {}), [defs, type]);
+  const kinds = useMemo(
+    () => new Map(type ? fieldsOf(defs[type.name], columns).map((field) => [field.name, field.kind]) : []),
+    [defs, type, columns],
+  );
+  // A `uri` attribute is a link a person opens, named in words rather than printed whole (T-5192).
+  const links = useMemo(() => new Set([...kinds].filter(([, kind]) => kind === "uri").map(([name]) => name)), [kinds]);
+  // Every column as the model presents it (DM-134): its label, its width, the row's title pinned
+  // first, and the filter its schema type takes.
+  const gridColumns = useMemo(
+    (): GridColumn[] =>
+      shownColumns.map((attribute) => {
+        const format = formatOfKind(kinds.get(attribute) ?? "");
+        return {
+          attr: attribute,
+          // Without a `view_role: title`, `name` is the label attribute of the Smart Data Models (T-3097).
+          ...(attribute === (shape.title ?? "name") ? { pinned: true } : {}),
+          ...(shape.labels[attribute] ? { label: shape.labels[attribute] } : {}),
+          ...(shape.widths[attribute] ? { width: shape.widths[attribute] } : {}),
+          ...(format ? { format } : {}),
+        };
+      }),
+    [shownColumns, kinds, shape],
+  );
+  const preset = useMemo(
+    () => (link?.q || link?.sort ? null : presetView(klass?.view, gridColumns, enums, new Date())),
+    [link?.q, link?.sort, klass, gridColumns, enums],
+  );
+  const opened: OpenedView = view ?? preset ?? { filterText: link?.q ?? null, sort: sortOfLink(link?.sort, columns) };
+  const filtered = opened.filterText !== null || Object.keys(opened.filters ?? {}).length > 0;
+  const rowsPerPage = pageLength ?? klass?.view?.pageLength ?? 20;
   const sortText = opened.sort ? `${opened.sort.attr}${opened.sort.dir === "desc" ? ";desc" : ""}` : undefined;
   useEffect(() => {
     if (type) onLink?.({ type: type.name, q: asked || undefined, sort: sortText });
@@ -307,43 +406,23 @@ export function EndpointDataView({
     window.addEventListener("keydown", leave);
     return () => window.removeEventListener("keydown", leave);
   }, [full]);
-  // The endpoint's own schema names its enums: such a column is filtered by picking (UI-86).
-  const defs = useMemo(() => definitionsOf(schema.data), [schema.data]);
-  const enums = useMemo(() => (type ? enumsOf(defs[type.name], defs, i18n.language) : {}), [defs, type, i18n.language]);
-  // Its relationship ends are columns picked from the target's entities (UI-84).
-  const relations = useMemo(() => (type ? relationsOf(defs[type.name]) : {}), [defs, type]);
-
-  // A `uri` attribute is a link a person opens, named in words rather than printed whole (T-5192).
-  const links = useMemo(
-    () => new Set(type ? fieldsOf(defs[type.name], columns).filter((field) => field.kind === "uri").map((field) => field.name) : []),
-    [defs, type, columns],
-  );
   const config = useMemo(() => {
     if (!type) {
       return null;
     }
-    const shown = shownColumns
-      // `name` is the label attribute of the Smart Data Models: the primary field, first and pinned,
-      // and what opens a row (T-3097).
-      .map((attribute) => ({
-        attr: attribute,
-        ...(attribute === "name" ? { pinned: true } : {}),
-        ...(shape.labels[attribute] ? { label: shape.labels[attribute] } : {}),
-        ...(links.has(attribute) ? { format: "link" as const } : {}),
-      }));
     return (
       parseGridConfig({
         source: { kind: "endpoint", slug },
         type: type.name,
-        columns: shown,
-        pageSize: 25,
+        columns: gridColumns,
+        pageSize: rowsPerPage,
         // Read only here: a value is corrected in the explorer, where the person chose the endpoint
         // for that purpose.
         mode: "view",
         history: { enabled: true },
       }).config ?? null
     );
-  }, [slug, type, shownColumns, shape, links]);
+  }, [slug, type, gridColumns, rowsPerPage]);
 
   const compareLabels = useMemo(
     () => ({
@@ -429,6 +508,23 @@ export function EndpointDataView({
         onFull={() => setFull((each) => !each)}
         csv={csv ? csvHref(origin, slug, type.name, asked, sortText) : undefined}
       />
+      <div className="flex flex-wrap items-end gap-3">
+        <Field id={`endpoint-data-rows-${slug}`} label={t("endpoints.data.pageLength")} description={t("endpoints.data.pageLengthHelp")}>
+          <Select id={`endpoint-data-rows-${slug}`} value={String(rowsPerPage)} onChange={(event) => setPageLength(Number(event.target.value))}>
+            {PAGE_LENGTHS.map((each) => (
+              <option key={each} value={each}>
+                {each}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        {/* The default filter shows as filled inputs (DM-134); this clears them and any typed query. */}
+        {filtered ? (
+          <Button size="sm" variant="secondary" onClick={() => setView({ filterText: null, filters: {}, sort: opened.sort })}>
+            {t("endpoints.data.resetFilters")}
+          </Button>
+        ) : null}
+      </div>
       <FieldList fields={fields} shown={slots.length > 0 ? shownColumns : undefined} onShown={slots.length > 0 ? setPicked : undefined} />
 
       {comparing && space ? (
@@ -450,7 +546,7 @@ export function EndpointDataView({
           relations={relations}
           renderers={renderers}
           view={opened}
-          onGridState={(next) => setView({ filterText: next.filterText ?? null, sort: next.sort ?? null })}
+          onGridState={(next) => setView({ filterText: next.filterText ?? null, filters: next.filters, sort: next.sort ?? null })}
           onQuery={onQuery}
         />
       )}
