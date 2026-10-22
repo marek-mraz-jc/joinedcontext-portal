@@ -1234,7 +1234,7 @@ export function bulkValue(slot: FilterSlot, text: string): string | number | boo
  * granting Endpoint with the person's session and their reason, so its Policy judges each row and
  * each value; a refused row is named with the Endpoint's own sentence.
  */
-function BulkSetDialog({
+export function BulkSetDialog({
   open,
   onOpenChange,
   rows,
@@ -1246,7 +1246,7 @@ function BulkSetDialog({
   onOpenChange: (open: boolean) => void;
   rows: RichRow[];
   slots: FilterSlot[];
-  source: ReturnType<typeof sourceFor>;
+  source: Pick<ReturnType<typeof sourceFor>, "patch">;
   onDone: () => void;
 }): JSX.Element {
   const { t } = useTranslation();
