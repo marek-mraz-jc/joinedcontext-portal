@@ -277,6 +277,50 @@ pub struct CatalogueEndpoint {
     pub url: String,
     /// The representations it serves, which decide the "Use this data" snippets.
     pub representations: Vec<String>,
+    /// Its feed outputs, in the order the Endpoint lists them (EP-150, EP-151).
+    pub feeds: Vec<CatalogueFeed>,
+}
+
+/// One feed output of an Endpoint: its name, its title per language and its three documents.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueFeed {
+    pub name: String,
+    /// The title per language (`sk`, `en`); empty: the name stands for it.
+    pub title: BTreeMap<String, String>,
+    pub links: Vec<CatalogueFeedLink>,
+}
+
+/// One document of a feed output.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueFeedLink {
+    /// `Atom`, `RSS 2.0` or `JSON Feed`.
+    pub format: String,
+    pub media_type: String,
+    pub url: String,
+}
+
+/// The feed outputs of an Endpoint spec with their absolute addresses under `url` (the
+/// Endpoint's address, ending in `/`); a list the platform would refuse reads as none.
+fn feeds_of(spec: &Value, url: &str) -> Vec<CatalogueFeed> {
+    let outputs: Vec<jc_core::kinds::FeedOutput> =
+        serde_json::from_value(spec["representations"]["feed"].clone()).unwrap_or_default();
+    outputs
+        .iter()
+        .map(|output| CatalogueFeed {
+            name: output.name.clone(),
+            title: output.title.clone(),
+            links: jc_core::kinds::feed_links(std::slice::from_ref(output))
+                .into_iter()
+                .map(|(_, path, format, media_type)| CatalogueFeedLink {
+                    format: format.to_owned(),
+                    media_type: media_type.to_owned(),
+                    url: format!("{url}{path}"),
+                })
+                .collect(),
+        })
+        .collect()
 }
 
 /// The data model behind a dataset.
@@ -1071,8 +1115,14 @@ pub(crate) fn served_representations(spec: &Value) -> Vec<String> {
             .map(str::to_owned)
             .collect()
     });
+    // A feed is its outputs, listed or not (EP-150, jc-core `served_representations`).
+    served.retain(|r| r != "feed");
+    let feed = spec["representations"]["feed"]
+        .as_array()
+        .is_some_and(|outputs| !outputs.is_empty())
+        .then_some("feed");
     let mcp = (!mcp_off).then_some("mcp");
-    for always in ["ngsi-ld"].into_iter().chain(mcp) {
+    for always in ["ngsi-ld"].into_iter().chain(mcp).chain(feed) {
         if !served.iter().any(|r| r == always) {
             served.push(always.to_owned());
         }
@@ -1124,6 +1174,7 @@ pub async fn detail(state: &AppState, catalogue: &str, dataset: &Value) -> Catal
                 .public();
             (
                 Some(CatalogueEndpoint {
+                    feeds: feeds_of(&endpoint.spec, &url),
                     url,
                     representations: served_representations(&endpoint.spec),
                 }),

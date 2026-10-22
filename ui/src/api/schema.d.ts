@@ -5114,6 +5114,8 @@ export interface components {
         };
         /** @description The Endpoint a dataset describes, on this installation's own host. */
         CatalogueEndpoint: {
+            /** @description Its feed outputs, in the order the Endpoint lists them (EP-150, EP-151). */
+            feeds: components["schemas"]["CatalogueFeed"][];
             /** @description The representations it serves, which decide the "Use this data" snippets. */
             representations: string[];
             url: string;
@@ -5143,6 +5145,22 @@ export interface components {
             spatial: components["schemas"]["CatalogueFacetValue"][];
             theme: components["schemas"]["CatalogueFacetValue"][];
             year: components["schemas"]["CatalogueFacetValue"][];
+        };
+        /** @description One feed output of an Endpoint: its name, its title per language and its three documents. */
+        CatalogueFeed: {
+            links: components["schemas"]["CatalogueFeedLink"][];
+            name: string;
+            /** @description The title per language (`sk`, `en`); empty: the name stands for it. */
+            title: {
+                [key: string]: string;
+            };
+        };
+        /** @description One document of a feed output. */
+        CatalogueFeedLink: {
+            /** @description `Atom`, `RSS 2.0` or `JSON Feed`. */
+            format: string;
+            mediaType: string;
+            url: string;
         };
         /** @description A licence as the catalogue's register names it. */
         CatalogueLicence: {
