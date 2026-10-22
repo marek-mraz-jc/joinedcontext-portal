@@ -1434,7 +1434,16 @@
       "hiddenColumn": "skryté projekciou",
       "same": "Tento endpoint odpovedá túto stranu presne tak, ako ju priestor drží.",
       "spaceRefused": "Tento endpoint čítať smiete, priestor za ním nie, takže niet s čím porovnávať.",
-      "typeHelp": "Ktorý typ záznamov tabuľka zobrazuje; vyberte iný a uvidíte jeho riadky, napr. merania kvality ovzdušia."
+      "typeHelp": "Ktorý typ záznamov tabuľka zobrazuje; vyberte iný a uvidíte jeho riadky, napr. merania kvality ovzdušia.",
+      "full": "Celé okno",
+      "fullLeave": "Zavrieť celé okno",
+      "csv": "Stiahnuť tieto riadky ako CSV",
+      "csvHelp": "Súbor obsahuje všetky riadky aktuálneho dopytu a poradia do limitu sťahovania endpointu; rovnaký dopyt je v jeho adrese aj pre skript.",
+      "fields": "Polia",
+      "fieldType": "Typ",
+      "noDescription": "Model neuvádza popis.",
+      "section": "Údaje",
+      "sectionLead": "Riadky, ktoré vám tento endpoint odpovedá s vaším vlastným prístupom: zoraďte, filtrujte a zdieľajte adresu toho, čo vidíte."
     },
     "projection": {
       "title": "Zverejnené atribúty",
@@ -4802,6 +4811,7 @@
     "editAsText": "Upraviť ako text",
     "filterRow": "Filtre",
     "sortPage": "Zoradiť túto stranu podľa",
+    "sortAll": "Zoradiť všetky riadky podľa",
     "matching": "vyhovujúcich",
     "noTotal": "endpoint pri tejto odpovedi neuvádza celkový počet",
     "history": "História",

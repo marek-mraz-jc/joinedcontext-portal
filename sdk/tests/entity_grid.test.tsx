@@ -749,7 +749,8 @@ describe("EntityGrid", () => {
     });
 
     it("says that sorting orders the loaded page", async () => {
-      render(<EntityGrid config={config} source={fixtureSource(bikeEntities)} />);
+      // A source that cannot order the whole answer: the grid sorts what it loaded.
+      render(<EntityGrid config={config} source={{ ...fixtureSource(bikeEntities), orders: false }} />);
       await waitFor(() => expect(screen.getByText("Kamppi")).toBeInTheDocument());
 
       const sort = screen.getByRole("button", { name: `${DEFAULT_LABELS.sortPage} Bikes` });
@@ -763,6 +764,36 @@ describe("EntityGrid", () => {
       fireEvent.click(sort);
       expect(sort.closest('[role="columnheader"]')).toHaveAttribute("aria-sort", "descending");
       expect(screen.getByRole("button", { name: `${DEFAULT_LABELS.sortPage} Name` }).closest('[role="columnheader"]')).not.toHaveAttribute("aria-sort");
+    });
+  });
+
+  // A source that orders the whole answer is asked to (T-5082): the first page holds the first rows
+  // of the set, and the header promises every row, not the page.
+  describe("sorting through the source", () => {
+    it("asks the source for the order, from the first page, and keeps the rows as they came", async () => {
+      const asked: { orderBy?: string; offset: number }[] = [];
+      const fixture = fixtureSource(bikeEntities);
+      const source = {
+        ...fixture,
+        query: async (q: Parameters<typeof fixture.query>[0], page: { offset: number; limit: number }) => {
+          asked.push({ orderBy: q.orderBy, offset: page.offset });
+          return fixture.query(q, page);
+        },
+      };
+      render(<EntityGrid config={onePerPage} source={source} />);
+      await waitFor(() => expect(asked.length).toBeGreaterThan(0));
+      expect(asked[0].orderBy).toBeUndefined();
+      fireEvent.click(await screen.findByRole("button", { name: DEFAULT_LABELS.next }));
+      await waitFor(() => expect(asked.at(-1)?.offset).toBe(1));
+
+      fireEvent.click(screen.getByRole("button", { name: `${DEFAULT_LABELS.sortAll} Bikes` }));
+      await waitFor(() => expect(asked.at(-1)).toEqual({ orderBy: "availableBikeNumber", offset: 0 }));
+      const header = screen.getByRole("button", { name: `${DEFAULT_LABELS.sortAll} Bikes` });
+      expect(header.closest('[role="columnheader"]')).toHaveAttribute("aria-sort", "ascending");
+      fireEvent.click(header);
+      await waitFor(() => expect(asked.at(-1)).toEqual({ orderBy: "availableBikeNumber;desc", offset: 0 }));
+      // The source's highest comes first: the one row of the page is the most bikes.
+      await waitFor(() => expect(screen.getAllByRole("gridcell").map((c) => c.textContent)).toContain("5"));
     });
   });
 

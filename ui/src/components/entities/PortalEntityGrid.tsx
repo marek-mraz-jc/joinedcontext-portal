@@ -99,6 +99,7 @@ export function gridLabels(t: (key: string) => string): GridLabels {
     editAsText: t("entityGrid.editAsText"),
     filterRow: t("entityGrid.filterRow"),
     sortPage: t("entityGrid.sortPage"),
+    sortAll: t("entityGrid.sortAll"),
     matching: t("entityGrid.matching"),
     noTotal: t("entityGrid.noTotal"),
     history: t("entityGrid.history"),

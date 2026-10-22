@@ -221,6 +221,9 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const selection = useEntitySelection();
   const queryHintId = React.useId();
   const { rows, columns, loading, error, labels, state, cellOf, toggleMeta, setOffset, setSort, setFilter, setFilterText, filterColumns, askedQuery, setEdit, clearEdits, pendingChanges, reload, setEdits, getGridProps, getHeaderProps, getRowProps, getCellProps } = grid;
+  // The entity's own timestamps sort the page even where the source orders the answer (useEntityGrid).
+  const sortLabel = (col: { key: string }): string =>
+    grid.sortsAll && !col.key.startsWith("entity:") ? labels.sortAll : labels.sortPage;
 
   // A column offers a filter when it holds something `q` can ask about and the config allows it:
   // `filters.allowed` is the list a dashboard narrows its grid to.
@@ -1051,10 +1054,10 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                   <button
                     type="button"
                     className="jc-grid-sort-btn"
-                    // The order is of the loaded page: the endpoint decides which rows are on it,
-                    // so the label says "this page" and never promises the whole set (UI-66).
-                    title={`${labels.sortPage} ${col.label}`}
-                    aria-label={`${labels.sortPage} ${col.label}`}
+                    // A source that orders the whole answer sorts every row; elsewhere the order
+                    // is of the loaded page, and the label never promises the whole set (UI-66).
+                    title={`${sortLabel(col)} ${col.label}`}
+                    aria-label={`${sortLabel(col)} ${col.label}`}
                     onClick={() => setSort(col.attr ?? col.key)}
                   >
                     {col.label}

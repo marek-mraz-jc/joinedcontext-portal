@@ -155,6 +155,7 @@ const cs: Strings = {
     filterHintOther: "Vyberte test, např. má hodnotu nebo prázdné.",
     editAsTextHint: "Napište dotaz NGSI-LD sami, např. pm10>40;name~=\"Espoo\".",
     sortPage: "Seřadit tuto stranu podle",
+    sortAll: "Seřadit všechny řádky podle",
     matching: "odpovídá",
     history: "Historie",
     edit: "Upravit",
