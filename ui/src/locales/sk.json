@@ -9564,7 +9564,7 @@
     "export": "Stiahnuť CSV",
     "exporting": "Pripravujem CSV…",
     "surface": {
-      "ngsi-ld": "Rozhranie NGSI-LD",
+      "ngsi-ld": "NGSI-LD",
       "ogc": "OGC API Features",
       "odata": "OData",
       "sta": "Senzorové API (STA)",
