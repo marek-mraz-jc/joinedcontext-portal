@@ -2,6 +2,8 @@
 sidebar_position: 17
 title: Build Your Data, End to End
 description: One feed from nothing to entities you can read, in the order the Portal needs it (context space, data model, endpoint, data source, pipeline), with the defaults each step fills in and the mistake people make at each step.
+routes:
+  - /projects/$project/spaces/upload
 ---
 
 # Build Your Data, End to End

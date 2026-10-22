@@ -2,6 +2,12 @@
 sidebar_position: 5
 title: Pipelines & Ingestion
 description: Deploying, monitoring, and testing data ingestion pipelines, connecting data sources, and instantiating blueprints.
+routes:
+  - /projects/$project/pipelines
+  - /projects/$project/datasources
+  - /projects/$project/flows
+  - /projects/$project/blueprints
+  - /projects/$project/mqttbrokers
 ---
 
 # Pipelines & Ingestion
@@ -183,6 +189,20 @@ A lifetime gives what the pipeline writes an end time, and the broker removes it
 5. An approver merges the proposal in Approvals. The editor reads the lifetime back from the manifest, even after you edit the mapping by hand.
 
 The four choices and when each fits are in [Retention & Expiry](./14-retention-and-expiry.md#4-the-lifetime-step-of-the-pipeline-editor).
+
+## 9. Running an MQTT Broker for Your Devices
+
+When devices push their readings over MQTT, the project can run its own broker. **MQTT brokers**, at `/projects/{project}/mqttbrokers`, lists them; a pipeline then reads the broker's topics like any other source.
+
+1. Click **New MQTT broker** and give it a **Name**.
+2. Under **Roles**, add one role per group of devices: its **Service accounts (devices)**, the topics it **May publish to** such as `sensors/+/air`, and the topics it **May subscribe to**.
+3. Choose **What the broker does**: **Ingest** (a pipeline reads each message), **Ingest and keep** (the broker also keeps the last messages under **Kept messages**) or **Two-way** (devices also receive messages).
+4. Set the **Limits**: **Largest message (bytes)**, **Messages per second per device** and **Connections at most**.
+5. Click **Propose change**.
+
+Open the broker once it is approved. **Topic access** shows which role may publish and subscribe where; the connect panel gives the **Address**, the **Client id and user name**, how to get the **Password** and **Certificate**, and a **Try it** command to send a test message; **Measured** shows how many devices are **Connected now**; **Connections** draws who talks to whom and marks a step that needs **Fix it**.
+
+When the page says **MQTT is off for this project**, an organization administrator turns it on under **Administration**, in the project's MQTT settings. The same administrator raises the number of brokers a project may have.
 
 ## Related
 

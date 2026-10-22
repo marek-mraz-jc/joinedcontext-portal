@@ -29,7 +29,24 @@ A token in the query string is refused with `400`. A browser page opens the sock
 
 A plain `GET` of the address without an upgrade (a browser tab, `curl`) answers `426 Upgrade Required` with `Upgrade: websocket` and `Link: <https://{host}/docs/API/07-websocket>; rel="help"`: an HTML page for a browser (`Accept: text/html`) and a problem+json (`upgrade-required`) otherwise, naming the address, the subprotocol, whether a token is needed, one `x-subscribe` message for a type the Endpoint serves and a websocat line. The Endpoint's DCAT record lists the WebSocket distribution at the same address, with a one-sentence `dct:description` in the Endpoint's languages, `foaf:page` and `dct:conformsTo` both naming this page.
 
-The connection's identity is fixed when it opens. A connection opened with a token ends after 300 seconds, the lifetime of an access token: reconnect with a fresh token and resume (§4). An anonymous connection to a public Endpoint has no token to expire and lasts up to 24 hours.
+An AI agent finds the socket through the Endpoint's MCP surface (T-5045). Where the Endpoint serves the WebSocket, `initialize.instructions` names the address, and `describe_access` (format `permissions`) and the `access://{endpointSlug}` resource carry `liveUpdates`:
+
+| Member | Content |
+|---|---|
+| `address` | the `wss://` address above, on the gateway's public host |
+| `protocol` | `ngsi-ld-ws` |
+| `token` | whether a token is needed and where it goes; never a token |
+| `subscribe` | one `x-subscribe` message for a type the Endpoint serves |
+| `welcome` | the `x-welcome` first message and its resume members (§4) |
+| `limits` | `connectionsPerCaller`, `connectionsPerSpace`, `maxMessageBytes`, `maxFrameBytes`, and `lifetime` with `tokenSeconds` and, on a public Endpoint, `anonymousSeconds`: the values the gateway enforces (§3) |
+| `httpSubscription` | the alternative: notifications to your own HTTPS URL through `create_subscription` or `POST {endpointUrl}/ngsi-ld/v1/subscriptions`, where your grants list `createSubscription` |
+| `guide` | this page |
+
+An Endpoint that does not serve the WebSocket has no `liveUpdates`, and its `/ws` answers `404`.
+
+The connection's identity is fixed when it opens. A connection opened with a token ends when the token expires (its `exp`), and after 300 seconds at the latest: reconnect with a fresh token and resume (§4). An anonymous connection to a public Endpoint has no token to expire and lasts up to 24 hours.
+
+A connection never outlives a change to what admitted it. When the Endpoint is changed in any way (its audience, roles, Policies, hidden attributes or projection, a Policy granted or withdrawn) or the App client the token was issued to loses the Endpoint, every open connection of the Endpoint gets `x-closing` with `x-reason: endpoint-changed` and closes with code `1000` as soon as the gateway loads the change; nothing queued behind the close is sent. A deleted Endpoint, or one that stops serving the WebSocket, closes its connections the same way with `x-reason: view-removed`. The reason names no detail of the change. Reconnect: the new connection is admitted, or refused, under the Endpoint as it is now; a resume (§4) of the closed connection restores no Subscription, so subscribe again. A change that widens access never reaches an open connection.
 
 ## 2. Messages
 
@@ -45,7 +62,7 @@ Every message, in both directions, is one text frame holding one JSON object wit
 | `x-result` | server | the created or updated Subscription, or a ProblemDetails; `metadata.x-status` is the HTTP status the same request would get over REST, `x-id` echoes yours |
 | `x-notification` | server | the NGSI-LD Notification (TS 104 175 §5.2.6.9.1), the same body an HTTP subscriber would receive; `metadata.x-seq` counts from 1 per connection |
 | `x-gap` | server | none; notifications `x-from` to `x-to` were lost, so read the entities again over REST |
-| `x-closing` | server, before it closes | none; `x-reason` is `lifetime`, `overflow`, `view-removed`, `shutdown`, `idle` or `rate` |
+| `x-closing` | server, before it closes | none; `x-reason` is `lifetime`, `overflow`, `view-removed`, `endpoint-changed`, `shutdown`, `idle` or `rate` |
 
 A Subscription made over the socket lives on that connection only. The gateway serves your sockets of an Endpoint from one broker subscription made as you, which the Endpoint's Policy decides as a read, and matches your filters itself ([ADR-N-049](../Decisions/adr-n-049-websocket-fan-out-per-endpoint.md)), so `GET {endpointUrl}/ngsi-ld/v1/subscriptions` does not list it. It ends 30 seconds after the connection closes unless you resume. Keep its id from `x-result`; it is the `x-subscription` of every `x-update` and `x-unsubscribe`.
 
@@ -65,11 +82,15 @@ A notification carries only the attributes your grant reads. A change to an attr
 | Message the server sends | one entity per notification, up to 1 MiB | the gateway does not read the change, and every socket of the Endpoint gets `x-gap` |
 | Idle time (no message and no Subscription) | 60 s | `x-closing: idle` |
 | Unread notifications queued | 256 (an installation may set fewer) | `x-gap`, then `x-closing: overflow` |
-| Connection lifetime | 300 s with a token, 24 h anonymous | `x-closing: lifetime`; reconnect and resume |
+| A frame the server sends that your socket does not take | 10 s | the connection is dropped as `overflow`; reconnect and resume |
+| Compression | `permessage-deflate` and other extensions are not negotiated | a compressed frame (RSV1 set) closes the connection with code `1002` |
+| Connection lifetime | the token's `exp`, at most 300 s, with a token; 24 h anonymous | `x-closing: lifetime`; reconnect and resume |
 
 The 64 KiB bound applies only to what you send. A notification carries one entity and may be up to 1 MiB.
 
 The `ws-fanout` rig (EP-115) measures one gateway replica on a 4-vCPU GitHub runner, its clients in the same process, every notification checked against the ground truth. At 20 changes a second, the rate of dev's transit stream: 1 000 sockets p50 7 ms and p99 15 ms from change to socket; 5 000 sockets p50 25 ms and p99 237 ms, with 2.4 GiB resident. At 200 changes a second, 1 000 sockets reach p50 3.4 s and p99 6.5 s: the stream outruns one replica, and coalescing keeps each socket's latest state.
+
+The `ws-abuse` rig (T-4902, platform `crates/context-gateway/tests/ws_abuse_rig.rs`, job `abuse` of `ws-fanout-rig.yml`) holds these limits under abuse against one gateway replica, its clients in the same process. A control client's p99 from change to socket is measured alone, then beside each abuser, and must stay within twice that baseline plus 20 ms; the process stays under 512 MiB resident and no task panics. First run (2026-10-21, debug build on the shared 12-core host, 200 changes a second): baseline p99 45 ms; 10 000 upgrades from one address keep 10 sockets and answer 9 990 with `429`, 109 MiB resident; a subscriber that stops reading at 1 000 changes a second is dropped after the 10 s send bound and its address opens 10 sockets again; a 1 MiB message closes with `1009`; the `permessage-deflate` offer is not taken and a compressed frame closes with `1002`; a subscribe flood is closed with `x-closing: rate` and `1008` after 105 frames; 2 000 upgrades and closes 50 at a time from one address answer 644 upgrades and 1 356 `429`, then the address holds exactly 10 again. The control p99 stayed between 21 and 47 ms in every scenario. The conformance suite runs the 1009, 1002 and 1008 cases against a deployed Endpoint (`tests/ws/test_gateway_ws.py`).
 
 The server pings every 30 seconds and closes a connection that sent no pong for 60 seconds. Client libraries answer pings by themselves.
 

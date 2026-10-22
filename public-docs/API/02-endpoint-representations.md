@@ -628,7 +628,9 @@ refusal (`404` for a view it does not hold) is passed on. The gateway keeps no d
 of its own (T-3650): an Endpoint the broker can hold no view of (a slug longer than a view id, which
 the Portal's view writer refuses and names in the Endpoint's status) answers `503` `no-view` on
 `access`, `access/check` and `access/simulate`, and nothing is decided for it. The MCP
-`describe_access` tool and the `access://{slug}` resource read the same document.
+`describe_access` tool and the `access://{slug}` resource read the same document; in the
+`permissions` format they add `liveUpdates` where the Endpoint serves the WebSocket
+([API/07 §1](07-websocket.md#1-address-and-authentication), T-5045).
 
 The default, `application/json`, is the AuthZEN permissions document: one entry per entity type the caller may touch, and nothing about the types it may not (EP-59, [R20](../Requirements/policy-firewall.md)).
 

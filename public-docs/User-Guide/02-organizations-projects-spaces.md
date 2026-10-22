@@ -2,6 +2,15 @@
 sidebar_position: 3
 title: Organizations, Projects & Context Spaces
 description: Managing organizational domain boundaries, collaborative projects, context spaces, quotas, and working copies.
+routes:
+  - /projects/$project/spaces
+  - /projects/$project/spaces/complete
+  - /projects/$project/workspaces
+  - /projects/$project/workspaces/new
+  - /projects/$project/workspaces/$name/compare
+  - /projects/$project/workspaces/$name/try-it
+  - /projects/$project/workspaces/$name/bring-back
+  - /projects/$project/federation
 ---
 
 # Organizations, Projects & Context Spaces
@@ -122,6 +131,8 @@ The assistant analyzes the sample, drafts the schemas and pipelines, and navigat
 
 ## 5. Working on Project Copies
 
+A copy is the project on the side: change several resources, try them, and bring them back as one change a person approves. **Copies** lists yours under **My copies** and everyone else's, read only, under **Other people's copies**. **Try it** (`/projects/{project}/workspaces/{copy}/try-it`) runs a preview of the copy under addresses of its own; only the person who started the copy starts and stops it, and **Copy data in** fills it with real entities read with your own rights. A copy is deleted when the time under **Keep it for** is up; the project is never touched.
+
 ### Make Changes in a Copy
 
 #### By hand
@@ -145,6 +156,8 @@ Type into the assistant composer:
 The assistant starts the copy, creates the checked draft inside the copy, and stops at the door. Proposing the copy back to the project or discarding it must be executed by you.
 
 The live journey `copy-agent.spec.ts` replays these steps.
+
+An old link to `/projects/{project}/federation` opens **Context Spaces**: a space that answers with another source's data is set up under **Context sources** ([Endpoints, Data Sharing & Integration](05-endpoints-and-sharing.md#8-answering-from-another-source-context-source-registrations)).
 
 ## Related
 

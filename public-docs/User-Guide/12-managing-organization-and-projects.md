@@ -2,39 +2,47 @@
 sidebar_position: 13
 title: Managing Your Organization and Projects
 description: Where the organization's settings, members, roles and projects live, and where one project's settings live.
+routes:
+  - /organization
+  - /organization/$tab
+  - /organization/$tab/$
+  - /projects/$project/settings
+  - /projects/$project/settings/$tab
+  - /projects/$project/settings/$tab/$
+  - /endpoints
+  - /projects/$project/access
 ---
 
 # Managing Your Organization and Projects
 
-You manage access in two places. The **Organization** page holds what is the same in every project. **Project settings** holds what belongs to one project. Every change you make on either page is a proposed change that an approver merges, as everywhere else in the Portal ([07](07-users-roles-approvals.md)).
+You manage access in two places. **Administration**, at `/organization`, holds what is the same in every project. **Project settings** holds what belongs to one project. Every change you make on either page is a proposed change that an approver merges, as everywhere else in the Portal ([07](07-users-roles-approvals.md)).
 
-> Status (2026-09-22): the two pages are specified here and built by T-2605 and T-2606. Until they ship, everything below sits on **Project → Access**, as [07 §1](07-users-roles-approvals.md#1-granting-roles-to-team-members) describes.
+## 1. Administration
 
-## 1. The Organization page
+Administration is for organization administrators; anyone else reads "This page is for organization administrators" and asks one of them. Its side navigation has four groups:
 
-Open **Organization** in the top bar. You see it whatever project you are in, because nothing on it belongs to a project.
+| Group | Sections | What you do there |
+|---|---|---|
+| **People and access** | **People**, **Members**, **Roles**, **Groups**, **Service accounts**, **Agents** | See who belongs to the organization and with which role; add a person or a group, or remove them; read the roles in words and propose a new one; keep the groups you bind at once; the organization's service accounts and their keys; the agents acting for people. |
+| **Projects and apps** | **Projects**, **All applications**, **All endpoints**, **Organization MCP servers**, **Organization models**, **Blueprints**, **Agent profiles** | Open, import, export or delete a project, and turn MQTT on for it; see every application and Endpoint of the organization in one list; keep the MCP servers, models, blueprints and agent profiles every project shares. |
+| **Platform** | **Brokers**, **Environments**, **Data space**, **Health** | The brokers projects write to, the installations this one promotes changes to, the organization's data space membership ([Data Spaces, Scopes and Environments](19-data-spaces-scopes-environments.md)), and the health checks of every project at once. |
+| **Settings** | **Settings**, **Setup** | The organization's domain, languages and contacts, who may open a project, the project quota; the first-run setup. |
 
-| Tab | What you do there |
-|---|---|
-| **Settings** | Change the organization's domain and see whether it is verified, its languages and contacts, who may open a project, whether everyone in the organization sees every project, the project quota and how long a deleted project's name stays reserved. |
-| **Members** | See who is bound at organization scope and with which role; add a person or a group, or remove them. Only a person who may read organization bindings sees this list. |
-| **Roles** | Read the organization's roles in words; the ones every organization starts with are marked *seeded*. Propose a new role. |
-| **Groups** | Keep the groups of people you bind at once; a member who has never signed in is marked. |
-| **Service accounts** | The organization's own service accounts and their keys. |
-| **Projects** | Every project you may read. Open a new one, or delete one: the dialog lists everything the deletion removes and asks you to type the project's name. |
+An old link to `/endpoints` opens **All endpoints**. Deleting a project asks you to type its name, and the dialog lists everything the deletion removes.
 
 ## 2. Project settings
 
-Open a project and choose **Settings**, the last item of its menu.
+Open a project and choose **Settings**, the last item of its menu. **Find a setting** searches every tab, for example for `quota` or `delete`.
 
 | Tab | What you do there |
 |---|---|
-| **General** | The project's title, description and quotas. |
+| **General** | The project's title, description, who reads the projects and the catalogue publisher. |
 | **Members** | Who is bound in this project or in one of its spaces. Give a person or a group an organization role or one of this project's roles. |
 | **Roles** | This project's own roles, for example one that proposes pipelines but not endpoints. You can only write a role whose rights you hold yourself. |
 | **Service accounts** | The project's service accounts and keys. |
-| **Your access** | What you may read, propose, approve and delete in this project. |
-| **Delete project** | Delete the project, with the list of what goes with it. |
+| **Your access** | What you may read, propose, approve and delete in this project, and which binding gives it to you. |
+| **Access explorer** | For organization administrators: who may do what in this project. |
+| **Delete or hand over** | **Hand the project over** to another administrator, or **Delete project**: a red-lane change an administrator approves, with the list of what goes with it. |
 
 An old link to `/projects/{project}/access` opens **Settings → Members**.
 
@@ -42,7 +50,7 @@ An old link to `/projects/{project}/access` opens **Settings → Members**.
 
 | You want someone to… | Use | Where |
 |---|---|---|
-| hold the same rights in every project | an organization role, bound at organization scope | Organization → Members |
+| hold the same rights in every project | an organization role, bound at organization scope | Administration → Members |
 | hold an organization role in one project only | the organization role, bound at project scope | Project settings → Members |
 | hold rights your project defines | a project role | Project settings → Roles, then Members |
 | use one application in a certain way | an application role | the application's own page |

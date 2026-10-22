@@ -2,6 +2,10 @@
 sidebar_position: 10
 title: Export, Portability & Project Duplication
 description: Downloading project archives, importing bundles, configuring sync sources, and publishing open data to CKAN.
+routes:
+  - /projects/$project/import
+  - /projects/$project/syncsources
+  - /projects/$project/ckan
 ---
 
 # Export, Portability & Project Duplication

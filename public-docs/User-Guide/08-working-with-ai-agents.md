@@ -2,6 +2,16 @@
 sidebar_position: 9
 title: Collaborating with Autonomous AI Agents
 description: Using the docked assistant, running unattended agent tasks, inspecting agent access, and connecting outside tools via MCP.
+routes:
+  - /projects/$project/assistant
+  - /projects/$project/mcp
+  - /projects/$project/knowledge
+  - /projects/$project/knowledge/conversations
+  - /projects/$project/knowledge/$source
+  - /projects/$project/knowledgesources
+  - /projects/$project/assistantdeployments
+  - /projects/$project/agentprofiles
+  - /connectors
 ---
 
 # Collaborating with Autonomous AI Agents
@@ -112,6 +122,55 @@ You should see your external agent discover available data inspection tools and 
 #### By asking the assistant
 
 Type into the composer: `What is the MCP address for the helsinki-all endpoint?`. The assistant inspects the endpoint manifest and returns the complete Streamable HTTP URL ready to paste into your external client configuration.
+
+## 5. Knowledge Sources and Assistants
+
+An assistant answers from the knowledge sources you give it: a website, a data catalogue, this project's Context Spaces, the User Guide or files you upload. **Knowledge sources**, at `/projects/{project}/knowledge`, lists them with what the assistant has read, and lists the project's **Assistants** below.
+
+### Add a source and an assistant
+
+1. Click **Add a source**. Choose its **Type**, for example **Website**, give the **Start addresses** such as `https://www.example.sk/`, and limit what is read with **Read only these paths**, **Skip these paths**, **Link depth** and **Most pages**. Under **Who may be answered from it** choose **Internal: signed-in staff** or **Public: every channel**.
+2. Click **Propose change**. Once an approver approves it, the source is read within a few minutes. **Crawl now** reads it again on demand.
+3. Click **Add an assistant**. Give it a **Name**, a **Channel** (**Public**, **Internal (Portal)**, **Data catalogue** or **Embedded on a site**), the **Sources** it answers from and its **Instructions**, and propose it. On a public channel, set **Allowed sites** and a **Budget**.
+4. On the assistant's row, **Ask** tries it, **Embed** gives the snippet for your website, **Duplicate** starts a variant and **Usage** shows questions and tokens per day.
+
+The same kinds are listed as tables under **Knowledge sources** (`/projects/{project}/knowledgesources`), **Assistant deployments** (`/projects/{project}/assistantdeployments`) and **Agent profiles** (`/projects/{project}/agentprofiles`), with a button to add one and the same forms; an agent profile is described in section 3.
+
+### Decide what the assistant answers from
+
+Click a source to open its page. **Pages** and **Documents** list everything that was read, with its state: **Read**, **Skipped**, **Could not be read** or **Not read yet**.
+
+1. Find a page with **Find pages**, tick it, and click **Leave out of answers**. Tick **With every page below a selected page, and the documents they link** to leave out a whole part of the site. **Take back into answers** undoes it.
+2. Under **Try the search**, type a **Question or words** and click **Try the search** to see which passages the assistant would answer from.
+3. For a source of uploaded files, use **Choose files to upload** and **Upload files**: PDF, DOCX, XLSX, CSV, Markdown or text, at most 50 MB each.
+
+A page with **No passage** is never used in an answer.
+
+## 6. Reading Stored Conversations
+
+**Conversations**, linked from the knowledge page, shows what visitors asked a public assistant and how each answer was made. Only a person who approves the project's assistant deployments may read it, and every read is recorded; conversations are kept for 90 days.
+
+1. Narrow the list by **Words in a question or answer**, **Status**, **Rating**, **Assistant** and dates, or sort it, for example **Most expensive first**.
+2. Open a conversation to read its **Steps**: what the assistant searched, read and answered.
+3. **Same question** and **Compare** set two answers side by side. **Copy as test** turns a turn into a test case for the assistant.
+4. **Erase the conversation** deletes it when a visitor asks for it. This cannot be undone.
+5. The usage panel totals **Questions** and **Total cost** for the range, with **Download CSV**.
+
+## 7. MCP Servers and Your Own Connectors
+
+**MCP servers**, at `/projects/{project}/mcp`, bundles several Endpoints behind one address for AI clients.
+
+1. Click **New MCP server**. Give it a **Name** and **Title**, add Member Endpoints (find them with **Find an Endpoint**), optionally **Knowledge sources**, and choose **Who may connect**: **Listed projects**, **Organization** or **Public**.
+2. **Tools you would get** lists the reads and writes the server will offer. Click **Check and propose**. A public server needs an approver who may publish.
+3. On the server's card, copy the **Address** or the **Entry for the AI client's configuration**. A public server also has **Open the public connect page**, the page described in [The Catalogue and Public Pages](17-catalogue-and-public-pages.md#5-connect-an-ai-assistant-to-public-data).
+
+**My MCP connectors**, at `/connectors`, holds your own addresses, up to ten, outside any project. Only your sign-in opens them, and each reaches only Endpoints you may read.
+
+1. Click **New connector** and give it a **Name** such as `traffic`: lowercase letters, digits and dashes, the last part of its address.
+2. Narrow it with **Projects**, **Context spaces**, **Domains** and **Themes**, and choose **Access**: **Public**, **Whole organization**, **My projects** or **Shared with me**. "Reaches now" says how many Endpoints it reaches.
+3. Click **Save**, then copy the **Address** into your AI client.
+
+Starring an Endpoint on its own page adds it to a connector called `favourites`.
 
 ## Related
 
