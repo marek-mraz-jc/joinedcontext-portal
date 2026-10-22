@@ -3946,6 +3946,8 @@ GET    /api/v1/projects/{project}/spaces/{space}/erasures/{id}             its s
 
 Rectification (Art. 16) has no route of its own yet: the corrected value is written through the space's Endpoint like any other write, and its superseded version keeps the old value until a rectification route redacts it.
 
+The Portal finds those Entities on the space's own surface, `/cs/{space}`, as its `portal-reconciler` account. The gateway grants that account read access (`retrieveOps`, `queryTemporal`, `retrieveTemporal`) on the classes whose attributes the model marks `personalData`, through the Policy `portal-personal-data` it derives for each such space; no space owner writes it, and it grants no write. A surface that refuses the Portal (`404`) or fails is a `503`, never an answer of no Entities.
+
 The export answers every Entity of the space naming the subject, each with its class, its current state and its stored history, to the caller's session only. The read log of those Entities joins it once the gateway keeps one (DM-128, T-4666).
 
 An erasure finds the Entities naming the subject in each such class and erases, from every store that holds a copy, the class's Attributes marked `personalData` and the subject slot itself, or the whole Entity of a class marked `personalData` as a whole:
@@ -4266,6 +4268,83 @@ POST /api/v1/projects/{project}/serviceaccounts/{name}/revoke     → 202 Change
   than its proposer approves (PF-58, T-4833).
 - `POST /api/v1/projects/{project}/changes/{id}/approve` and `/reject` refuse every bearer token
   with `403` (AG-133).
+
+## 53. Costs per project (T-5126)
+
+One calendar month of the installation split per project, for Administration → Costs, and the
+same month as CSV. Organization administrators only (PF-03); anyone else gets `403`.
+
+```text
+GET /api/v1/organization/costs?month=2026-09          → 200
+GET /api/v1/organization/costs/export?month=2026-09   → 200 text/csv
+```
+
+```json
+{"month": "2026-09", "currency": "EUR", "measuredAt": "2026-10-22T01:00:00Z",
+ "prices": {"currency": "EUR", "perUsd": 0.86, "nodes": [{"name": "cpx42 nbg1", "monthly": 30.0}],
+            "volumes": [{"name": "postgres", "gigabytes": 300, "monthlyPerGigabyte": 0.044}],
+            "fixed": [{"name": "primary IPv4", "monthly": 0.5}]},
+ "projects": [
+   {"project": "doprava", "node": 30.5, "storage": 0.53, "ai": 3.61, "total": 34.64, "share": 1.0,
+    "spaces": [{"space": "cars", "bytes": 12884901888, "storage": 0.53}],
+    "assistants": [{"assistant": "help", "questions": 120, "uncostedQuestions": 2,
+                    "costUsd": 4.2, "cost": 3.61}]}
+ ],
+ "platform": {"node": 0.0, "storage": 12.67, "total": 12.67},
+ "infrastructure": 43.7, "ai": 3.61, "total": 47.31}
+```
+
+- `month` is `YYYY-MM`, the last whole month when absent; a month that has not started, or any
+  other parameter, is `400`. Without a price table (`JC_PORTAL_COST_PRICES_FILE`, the
+  deployment's `portal.costPrices`) the answer is `503` naming the value to set.
+- The rule: the nodes and fixed items are split by each project's share of the bytes the
+  brokers measure for its spaces (entities and history, §29); a project pays its own bytes at the
+  blended volume price; AI is each `AssistantDeployment`'s priced turns of the month (API/05
+  §3.1) at `perUsd`. What no project carries is `platform`, so the projects and the platform add
+  up to `infrastructure`, the price table, which the cloud invoice bills.
+- Storage is measured when the page is read, not averaged over the month. A space or an
+  assistant that did not answer counts `0` and carries its `reason`; an unpriced turn is counted
+  in `uncostedQuestions`, never as `0` cost.
+- The CSV has the columns `month,project,part,item,bytes,cost,currency`, one line per node
+  share (`node`), space (`storage`) and assistant (`ai`), then `platform-node` and
+  `platform-storage`. A cell that starts with `=`, `+`, `-` or `@` is prefixed with `'`.
+- The Portal's `scripts/cost-reconcile.mjs <csv> <invoice net total>` sums every line but `ai`
+  and exits `1` when the two are more than 10 % apart.
+
+## 54. Usage per Endpoint (T-5118)
+
+What each Endpoint answered, per UTC day and surface, for its publisher. Every gateway replica
+counts the calls it answered with a status below 400, by the Endpoint slug of the path and the
+surface of the route (`ngsi-ld`, `ogc`, `odata`, `sta`, `ical`, `mcp`, `websocket`, `download`
+for `file.csv`), and posts what it counted since its last post every five minutes. The Portal
+adds the counts into one row per project, Endpoint, surface and day and keeps rows 400 days.
+
+```text
+GET  /api/v1/projects/{project}/endpoints/{name}/usage?days=30    → 200 EndpointUsage
+GET  /api/v1/projects/{project}/usage/endpoints?days=30           → 200 ProjectUsage
+GET  /api/v1/projects/{project}/usage/endpoints/export?month=2026-10 → 200 text/csv
+```
+
+```json
+{"name": "air", "from": "2026-09-23", "to": "2026-10-22",
+ "days": [{"day": "2026-10-22", "calls": {"ngsi-ld": 120, "download": 3}, "total": 123}],
+ "totals": {"ngsi-ld": 120, "download": 3}, "total": 123}
+```
+
+- The gateway posts to the internal listener's `/internal/usage` (`204`); the body is `{"counts": [{"endpoint": "<slug>", "surface": "ogc", "count": 7}]}`, at most
+  5,000 lines and 10,000,000 per line; any other member, an unknown surface or a slug that is no
+  DNS-1123 name refuses the whole post with `400`. A slug no Endpoint has is dropped. The route
+  is on the internal listener and answers the gateway's own workload token alone (PF-46); any
+  other caller gets `401` before the body is read.
+- `days` is 1 to 90, 30 when absent; every day of the window is in `days`, an empty one with
+  `total: 0`. `ProjectUsage` lists every Endpoint the caller may read, with `daily` holding one
+  total per day, oldest first.
+- The export is `day,endpoint,surface,calls`, one line per day, Endpoint and surface with calls,
+  for the Endpoints the caller may read; `month` other than `YYYY-MM` is `400`.
+- Who may read: whoever may read the Endpoint (`read` on `Endpoint` in its Context Space); a
+  project the caller cannot read, or an Endpoint they cannot read, is `404`.
+- Nothing personal is kept: the gateway sends no address, token, person, query or entity id, and
+  `endpoint_usage_daily` has no column for one.
 
 ## Related
 

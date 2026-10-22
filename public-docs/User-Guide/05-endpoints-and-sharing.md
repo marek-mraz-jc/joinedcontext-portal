@@ -177,6 +177,14 @@ A registration tells a space's broker that another source holds some of its data
 6. Under **Schema mirror and expiry**, **Schema mirror interval** says how often the source's schemas are copied here, such as `24h`; left empty, once a day. **Expires at** makes the broker stop asking the source on that date.
 7. Click **Check**, then **Propose change**. Once an approver accepts it, a query to the space is also answered from the source.
 
+## 9. Seeing How an Endpoint Is Used
+
+Each Endpoint page has a **Usage** section, and the Endpoints page of a project lists every Endpoint you may read with its calls. A bar stands for one day; under the bars are the calls per way of reading: the NGSI-LD API, OGC API Features, OData, SensorThings, the calendar, assistants over MCP, live WebSocket clients and CSV downloads. Pick the **Period**, for example the last 30 days. To report a month, choose the **Month to download**, for example `2026-10`, and select **Download CSV**: one line per day, Endpoint and way of reading, `day,endpoint,surface,calls`.
+
+The gateway counts every answered call and posts the counts to the Portal every five minutes, so a new call shows within about five minutes. A refused call (a missing right, an unknown address) is not counted. Days are UTC days and are kept for 400 days. You see the usage of exactly the Endpoints you may read.
+
+Privacy (GDPR): the counts are anonymous statistics. The gateway keeps no IP address, sets no cookie, and stores no person, token, query or entity with a count; a row holds only the Endpoint, the way of reading, the day and a number. No personal data is processed for usage, so no consent banner is needed for it.
+
 ## Related
 
 - [Getting Started](./01-getting-started.md): first steps in the Portal.
