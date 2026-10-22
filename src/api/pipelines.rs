@@ -782,7 +782,7 @@ pub struct HealthList {
         (status = 503, description = "The runs could not be read", body = ProblemDetails)
     )
 )]
-pub async fn get_pipeline_health(
+pub(crate) async fn get_pipeline_health(
     user: CurrentUser,
     State(state): State<AppState>,
     Path(project): Path<String>,
