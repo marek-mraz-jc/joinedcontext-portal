@@ -229,6 +229,8 @@ pub struct Syncer {
     /// Whether the last run found the project teams the bootstrap's, so that is said once and
     /// not on every sync (T-3323).
     teams_left_to_bootstrap: Arc<std::sync::atomic::AtomicBool>,
+    /// The pipelines the last run paused for refused access (PL-93), so the feed says it once.
+    access_paused: Arc<tokio::sync::Mutex<BTreeMap<(String, String), String>>>,
 }
 
 impl Syncer {
@@ -253,6 +255,7 @@ impl Syncer {
             stalls: super::stall::StallWatch::default(),
             unscheduled: super::stall::Unscheduled::default(),
             teams_left_to_bootstrap: Arc::default(),
+            access_paused: Arc::default(),
             registrations: None,
             views: None,
             drift: None,
@@ -960,6 +963,9 @@ impl Syncer {
         let lost = self
             .lost_authors(&fresh_mirror, &repository, &scratch, &revision)
             .await;
+        // 5a-access. A pipeline the gateway refused three runs in a row for a revoked or ended
+        //      grant is held out the same way until a grant names it again (PL-93, T-4882).
+        let lost = self.paused_for_access(&fresh_mirror, lost).await;
         let held: BTreeMap<_, _> = refused
             .iter()
             .chain(&lost)
@@ -2070,6 +2076,68 @@ impl Syncer {
         if let Some(evaluator) = self.alerts.as_ref() {
             evaluator.start();
         }
+    }
+
+    /// `lost` with the pipelines whose last [`REFUSED_RUNS`] runs the gateway refused for an ended
+    /// grant and that no grant names now (PL-93); a pipeline newly paused is said in the feed of
+    /// its project, and the run log's alert names the same reason.
+    async fn paused_for_access(
+        &self,
+        mirror: &Mirror,
+        mut lost: BTreeMap<(String, String), String>,
+    ) -> BTreeMap<(String, String), String> {
+        let Some((_, log)) = self.pipeline_outcomes.as_ref() else {
+            return lost;
+        };
+        let streaks = match log.refused_streaks(REFUSED_RUNS).await {
+            Ok(streaks) => streaks,
+            Err(error) => {
+                tracing::warn!(%error, "the run log was not read: no pipeline is paused for refused access this run");
+                return lost;
+            }
+        };
+        let now = time::OffsetDateTime::now_utc();
+        let paused: BTreeMap<(String, String), String> = streaks
+            .into_iter()
+            .filter(|((project, name), _)| {
+                mirror.get(project, "Pipeline", name).is_some()
+                    && !crate::access_requests::grant_in_force(mirror, project, name, now)
+            })
+            .map(|(key, words)| {
+                let reason = words
+                    .split("; the gateway answered")
+                    .next()
+                    .unwrap_or(&words);
+                let reason = format!(
+                    "paused after {REFUSED_RUNS} runs the gateway refused: {reason}; ask the \
+                     space's owner for access again (PL-93)"
+                );
+                (key, reason)
+            })
+            .collect();
+        let mut said = self.access_paused.lock().await;
+        let events: Vec<ActivityEvent> = paused
+            .iter()
+            .filter(|(key, _)| !said.contains_key(*key))
+            .map(|((project, name), reason)| ActivityEvent {
+                time: chrono::Utc::now(),
+                project: project.clone(),
+                space: None,
+                kind: "pipeline.error".to_string(),
+                source: "reconciler".to_string(),
+                summary: format!("Pipeline {name} is {reason}."),
+                severity: "warning".to_string(),
+                correlation_id: None,
+                details: serde_json::json!({ "pipeline": name, "reason": reason }),
+            })
+            .collect();
+        *said = paused.clone();
+        drop(said);
+        self.record(events).await;
+        for (key, reason) in paused {
+            lost.entry(key).or_insert(reason);
+        }
+        lost
     }
 
     /// The Pipelines of this render an author of which lost a reference (PL-95), each read
@@ -3290,9 +3358,13 @@ fn bentos_beside(repository: &Repository, root: &Path) -> Bentos {
     bentos
 }
 
+/// Runs in a row the gateway refuses for an ended grant before the pipeline pauses (PL-93).
+const REFUSED_RUNS: usize = 3;
+
 /// A pipeline whose credential did not resolve reads Error, whatever else this run wrote on it
 /// (T-0927, PL-15). The condition names the reference, never the value. One whose author lost
-/// a reference reads the same with its own reason (PL-95).
+/// a reference reads the same with its own reason (PL-95), and so does one paused for refused
+/// access (PL-93).
 fn mark_refused_pipelines(
     fresh_mirror: &Mirror,
     refused: &BTreeMap<(String, String), String>,
@@ -3301,7 +3373,10 @@ fn mark_refused_pipelines(
     let marks = refused
         .iter()
         .map(|entry| (entry, "SecretUnresolved"))
-        .chain(lost.iter().map(|entry| (entry, "AuthorLostAccess")));
+        .chain(lost.iter().map(|entry| match entry.1.ends_with("(PL-93)") {
+            true => (entry, "AccessRevoked"),
+            false => (entry, "AuthorLostAccess"),
+        }));
     for (((namespace, name), reason), code) in marks {
         let Some(mut envelope) = fresh_mirror.get(namespace, "Pipeline", name) else {
             continue;
@@ -3895,6 +3970,108 @@ output_error{stream="kpi"} 6
             .expect("second sync should succeed");
         let page = activity.list("ovzdusie", &filter).await.expect("list");
         assert_eq!(page.items.len(), 1, "{:?}", page.items);
+    }
+
+    /// PL-93 (T-4882): approve -> read ok -> revoke -> three runs refused 403 -> paused, said once
+    /// in the feed; a grant in force again brings the pipeline back.
+    #[tokio::test]
+    async fn three_runs_refused_for_a_revoked_grant_pause_the_pipeline() {
+        use crate::pipeline_log::{NewLine, Outcome};
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        let client = Arc::new(
+            GiteaClient::new("http://localhost:3000".parse().unwrap(), "o", "r", "t").unwrap(),
+        );
+        let mirror = Arc::new(Mirror::new());
+        let envelope =
+            |kind: &str, namespace: &str, name: &str, spec: serde_json::Value| ResourceEnvelope {
+                api_version: API_VERSION.to_string(),
+                kind: kind.to_string(),
+                metadata: ObjectMeta {
+                    name: name.to_string(),
+                    namespace: Some(namespace.to_string()),
+                    ..Default::default()
+                },
+                spec,
+                status: None,
+            };
+        mirror.upsert(envelope(
+            "Pipeline",
+            "city-kpis",
+            "air",
+            serde_json::json!({}),
+        ));
+        let grant = |to: &str| {
+            envelope(
+                "Policy",
+                "helsinki",
+                "air-city-kpis-air",
+                serde_json::json!({
+                    "assignee": { "kind": "serviceAccount", "id": "city-kpis/pl-air" },
+                    "validity": { "to": to },
+                }),
+            )
+        };
+        mirror.upsert(grant("2099-01-01T00:00:00Z"));
+        let log = Arc::new(crate::pipeline_log::LogStore::new(None));
+        let activity = crate::activity::ActivityStore::new(None);
+        let syncer = Syncer::new(Arc::clone(&client), Arc::clone(&mirror))
+            .with_activity(activity.clone())
+            .with_pipeline_outcomes(
+                Arc::new(crate::pipeline_outcomes::RejectedStore::new(None)),
+                Arc::clone(&log),
+            );
+        let refused = "access revoked by anna@helsinki.example on 2026-10-21; the gateway \
+                       answered: HTTP request returned unexpected response code (403)";
+        for run in ["r1", "r2", "r3"] {
+            let line = NewLine {
+                record_id: String::new(),
+                step: None,
+                outcome: Outcome::Failed,
+                message: refused.to_owned(),
+            };
+            log.append("city-kpis", "air", run, &[line])
+                .await
+                .expect("append");
+        }
+        let key = ("city-kpis".to_owned(), "air".to_owned());
+        // The grant is in force (approved again): nothing is paused.
+        assert!(syncer
+            .paused_for_access(&mirror, BTreeMap::new())
+            .await
+            .is_empty());
+        // Revoked: the Policy ended, and the pipeline pauses with the owner's words.
+        mirror.upsert(grant("2026-10-21T10:00:00Z"));
+        for _ in 0..2 {
+            let held = syncer.paused_for_access(&mirror, BTreeMap::new()).await;
+            let reason = held.get(&key).expect("paused");
+            assert!(reason.starts_with("paused after 3 runs the gateway refused: access revoked by anna@helsinki.example on 2026-10-21; ask"), "{reason}");
+            assert!(!reason.contains("403"), "{reason}");
+        }
+        let filter = crate::activity::ActivityFilter {
+            limit: 50,
+            ..Default::default()
+        };
+        let page = activity.list("city-kpis", &filter).await.expect("list");
+        assert_eq!(page.items.len(), 1, "said once: {:?}", page.items);
+        assert_eq!(page.items[0].kind, "pipeline.error");
+        // Each held pipeline reads Error with its own reason code.
+        let held = syncer.paused_for_access(&mirror, BTreeMap::new()).await;
+        let marked = Mirror::new();
+        marked.upsert(super::tests::envelope("Pipeline", "p", "x"));
+        let reason = held.get(&key).cloned().expect("paused");
+        mark_refused_pipelines(
+            &marked,
+            &BTreeMap::new(),
+            &BTreeMap::from([(("p".to_owned(), "x".to_owned()), reason)]),
+        );
+        let x = status_of(&marked, "Pipeline", "x");
+        assert_eq!(x.conditions[0].reason.as_deref(), Some("AccessRevoked"));
+        // A new grant brings it back.
+        mirror.upsert(grant("2099-01-01T00:00:00Z"));
+        assert!(syncer
+            .paused_for_access(&mirror, BTreeMap::new())
+            .await
+            .is_empty());
     }
 
     #[tokio::test]

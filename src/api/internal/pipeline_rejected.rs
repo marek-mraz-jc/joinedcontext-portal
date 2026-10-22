@@ -210,6 +210,7 @@ pub(crate) async fn log_sent(
     if !sent.hashes.is_empty() && sent.hashes.len() != sent.sent.len() {
         return StatusCode::BAD_REQUEST;
     }
+    let refusal = refusal(state, project, name, &sent).await;
     let lines: Vec<NewLine> = sent
         .sent
         .iter()
@@ -223,7 +224,13 @@ pub(crate) async fn log_sent(
             record_id: failed.id.as_str().unwrap_or_default().to_owned(),
             step: None,
             outcome: Outcome::Failed,
-            message: runner_error(Some(failed.message.as_str()).filter(|m| !m.trim().is_empty())),
+            message: match &refusal {
+                Some(reason) if forbidden(&failed.message) => runner_error(Some(&format!(
+                    "{reason}; the gateway answered: {}",
+                    failed.message
+                ))),
+                _ => runner_error(Some(failed.message.as_str()).filter(|m| !m.trim().is_empty())),
+            },
         }))
         .collect();
     let run = run_name(sent.run.as_deref());
@@ -259,6 +266,30 @@ pub(crate) async fn log_sent(
         Err(error) => {
             tracing::warn!(project, pipeline = name, %error, "a run's log lines were not kept");
             StatusCode::SERVICE_UNAVAILABLE
+        }
+    }
+}
+
+/// Whether the runner's words carry the gateway's `403`.
+fn forbidden(message: &str) -> bool {
+    message.contains("403")
+}
+
+/// The ended grant a gateway `403` in this report means (PL-93): who revoked it and when, or when
+/// it ended, from the pipeline's access requests; `None` when no line was refused `403`, no grant
+/// of the pipeline ended, or the Portal keeps no requests.
+async fn refusal(state: &AppState, project: &str, name: &str, sent: &Sent) -> Option<String> {
+    if !sent.failed.iter().any(|failed| forbidden(&failed.message)) {
+        return None;
+    }
+    let pool = state.db.as_ref()?;
+    match crate::access_requests::outgoing(pool, project, name).await {
+        Ok(requests) => {
+            crate::access_requests::refusal_reason(&requests, time::OffsetDateTime::now_utc())
+        }
+        Err(error) => {
+            tracing::warn!(project, pipeline = name, %error, "the pipeline's access requests were not read for its refused run");
+            None
         }
     }
 }

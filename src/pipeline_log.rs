@@ -766,6 +766,51 @@ impl LogStore {
         }
     }
 
+    /// The pipelines whose newest `streak` runs the gateway each refused for an ended grant
+    /// (PL-93), with the newest run's words: a `failed` line [`crate::access_requests::is_refusal`]
+    /// reads as one.
+    pub async fn refused_streaks(
+        &self,
+        streak: usize,
+    ) -> Result<BTreeMap<Key, String>, sqlx::Error> {
+        match &self.inner {
+            Inner::Postgres(pool) => Ok(sqlx::query_as::<_, (String, String, String)>(
+                "WITH newest AS (SELECT project, pipeline, run, row_number() OVER                    (PARTITION BY project, pipeline ORDER BY last_at DESC) AS n FROM pipeline_runs)                  SELECT r.project, r.pipeline, (array_agg(m.message ORDER BY r.n))[1] FROM newest r                  JOIN LATERAL (SELECT message FROM pipeline_log g WHERE g.project = r.project                    AND g.pipeline = r.pipeline AND g.run = r.run AND g.outcome = 'failed'                    AND (g.message LIKE 'access revoked by %' OR g.message LIKE 'access ended on %')                    ORDER BY g.id DESC LIMIT 1) m ON true                  WHERE r.n <= $1 GROUP BY r.project, r.pipeline HAVING count(*) = $1",
+            )
+            .bind(streak as i64)
+            .fetch_all(pool)
+            .await?
+            .into_iter()
+            .map(|(project, pipeline, message)| ((project, pipeline), message))
+            .collect()),
+            Inner::Memory(map) => Ok(map
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .iter()
+                .filter_map(|(key, memory)| {
+                    let newest: Vec<&Run> = memory.runs.iter().rev().take(streak).collect();
+                    let refusals: Vec<&str> = newest
+                        .iter()
+                        .filter_map(|run| {
+                            memory
+                                .lines
+                                .iter()
+                                .rev()
+                                .find(|l| {
+                                    l.run == run.run
+                                        && l.outcome == Outcome::Failed
+                                        && crate::access_requests::is_refusal(&l.message)
+                                })
+                                .map(|l| l.message.as_str())
+                        })
+                        .collect();
+                    (newest.len() == streak && refusals.len() == streak)
+                        .then(|| (key.clone(), refusals[0].to_owned()))
+                })
+                .collect()),
+        }
+    }
+
     /// The newest failed or rejected line of the pipeline's log, with when it was taken (T-5048).
     pub async fn last_problem(
         &self,
@@ -1142,6 +1187,39 @@ mod tests {
         assert_eq!(message, "schema");
         assert!(!at.is_empty());
         assert_eq!(store.last_problem("p", "other").await.expect("read"), None);
+    }
+
+    /// PL-93 (T-4882): three runs in a row refused for an ended grant make a streak; a run between
+    /// them that was not refused breaks it.
+    #[tokio::test]
+    async fn three_refused_runs_in_a_row_are_a_streak() {
+        let store = LogStore::new(None);
+        let refused = "access revoked by anna on 2026-10-21; the gateway answered: 403";
+        for (pipeline, runs) in [("cut", ["r1", "r2", "r3"]), ("broken", ["r1", "r2", "r3"])] {
+            for run in runs {
+                let message = if pipeline == "broken" && run == "r2" {
+                    "timeout"
+                } else {
+                    refused
+                };
+                store
+                    .append("p", pipeline, run, &[line("", Outcome::Failed, message)])
+                    .await
+                    .expect("append");
+            }
+        }
+        store
+            .append("p", "short", "r1", &[line("", Outcome::Failed, refused)])
+            .await
+            .expect("append");
+        let streaks = store.refused_streaks(3).await.expect("read");
+        assert_eq!(streaks.len(), 1, "{streaks:?}");
+        assert_eq!(
+            streaks
+                .get(&("p".to_owned(), "cut".to_owned()))
+                .map(String::as_str),
+            Some(refused)
+        );
     }
 
     #[tokio::test]

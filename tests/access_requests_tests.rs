@@ -300,6 +300,76 @@ async fn a_request_is_approved_in_the_owning_project_and_revoked_there() {
         "{}",
         mine.text
     );
+
+    // PL-93 (T-4882): the revoke merged, so the gateway answers the pipeline's reads 403; the run
+    // log names who revoked it, and three such runs in a row pause the pipeline.
+    let pool = state.db.as_ref().expect("db");
+    let requests = joinedcontext_portal::access_requests::outgoing(pool, KPIS, &pipeline)
+        .await
+        .expect("read");
+    let now = time::OffsetDateTime::now_utc();
+    let reason = joinedcontext_portal::access_requests::refusal_reason(&requests, now)
+        .expect("a revoked grant refuses");
+    assert_eq!(reason, format!("access revoked by olli on {}", now.date()));
+    let key = (KPIS.to_owned(), pipeline.clone());
+    let log = joinedcontext_portal::pipeline_log::LogStore::new(Some(pool.clone()));
+    let line = || joinedcontext_portal::pipeline_log::NewLine {
+        record_id: String::new(),
+        step: None,
+        outcome: joinedcontext_portal::pipeline_log::Outcome::Failed,
+        message: format!(
+            "{reason}; the gateway answered: HTTP request returned unexpected response code (403)"
+        ),
+    };
+    for (n, run) in ["2026-10-22T01:00:00Z", "2026-10-22T02:00:00Z"]
+        .iter()
+        .enumerate()
+    {
+        log.append(KPIS, &pipeline, run, &[line()])
+            .await
+            .expect("append");
+        let streaks = log.refused_streaks(3).await.expect("read");
+        assert!(!streaks.contains_key(&key), "{n}: not three yet");
+    }
+    log.append(KPIS, &pipeline, "2026-10-22T03:00:00Z", &[line()])
+        .await
+        .expect("append");
+    let streaks = log.refused_streaks(3).await.expect("read");
+    assert!(
+        streaks
+            .get(&key)
+            .is_some_and(|words| words.starts_with(&reason)),
+        "{streaks:?}"
+    );
+    // The ended Policy grants nothing now; until the revoke merges the old one still does.
+    assert!(joinedcontext_portal::access_requests::grant_in_force(
+        &state.mirror,
+        KPIS,
+        &pipeline,
+        now
+    ));
+    let ended = joinedcontext_portal::access_requests::revoke_bundle(
+        &request,
+        &endpoint,
+        &[serde_json::to_value(
+            state
+                .mirror
+                .get(HELSINKI, "Policy", &request.policy_name())
+                .expect("the grant"),
+        )
+        .expect("json")],
+        now - time::Duration::seconds(1),
+    );
+    let ended = ended.last().cloned().expect("the ended Policy");
+    state
+        .mirror
+        .upsert(serde_json::from_value(ended).expect("an envelope"));
+    assert!(!joinedcontext_portal::access_requests::grant_in_force(
+        &state.mirror,
+        KPIS,
+        &pipeline,
+        now
+    ));
 }
 
 /// PL-91: the requester never approves their own request, even holding the owner's rights.
