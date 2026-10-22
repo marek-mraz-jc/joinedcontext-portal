@@ -817,35 +817,7 @@ fn view_of(
     view.insert("id".into(), json!(id));
     view.insert("tenant".into(), json!(e.tenant));
     let shown = match projection {
-        Some(projection) => {
-            // its `temporalQ` is the window of the view's permits, in the rule document
-            let filter = projection.filter.clone().unwrap_or_default();
-            if let Some(window) = &filter.temporal_q {
-                for policy in &permits {
-                    intersect(window, policy.temporal_q.as_deref()).map_err(|why| {
-                        format!("the projection's temporalQ and a Policy's: {why}")
-                    })?;
-                }
-            }
-            if let Some(q) = filter.q {
-                view.insert("q".into(), json!(q));
-            }
-            if let Some(scope_q) = filter.scope_q {
-                view.insert("scopeQ".into(), json!(scope_q));
-            }
-            if let Some(geo_q) = filter.geo_q {
-                view.insert("geoQ".into(), geo(&geo_q)?);
-            }
-            projection
-                .classes
-                .iter()
-                .map(|class| {
-                    let slots = (!class.slots.is_empty())
-                        .then(|| class.slots.iter().cloned().collect::<BTreeSet<_>>());
-                    (class.name.clone(), slots)
-                })
-                .collect()
-        }
+        Some(projection) => projected(projection, &permits, &mut view)?,
         None => granted(&permits, &sources.classes_of(&e.project, space))?,
     };
     let model = sources
@@ -912,6 +884,40 @@ fn view_of(
         view.insert("representations".into(), json!({ "feed": feeds }));
     }
     Ok(Value::Object(view))
+}
+
+/// The classes and slots `projection` shows, its filters written into `view`.
+fn projected(
+    projection: &ModelProjectionSpec,
+    permits: &[&PolicySpec],
+    view: &mut Map<String, Value>,
+) -> Result<BTreeMap<String, Option<BTreeSet<String>>>, String> {
+    // its `temporalQ` is the window of the view's permits, in the rule document
+    let filter = projection.filter.clone().unwrap_or_default();
+    if let Some(window) = &filter.temporal_q {
+        for policy in permits {
+            intersect(window, policy.temporal_q.as_deref())
+                .map_err(|why| format!("the projection's temporalQ and a Policy's: {why}"))?;
+        }
+    }
+    if let Some(q) = filter.q {
+        view.insert("q".into(), json!(q));
+    }
+    if let Some(scope_q) = filter.scope_q {
+        view.insert("scopeQ".into(), json!(scope_q));
+    }
+    if let Some(geo_q) = filter.geo_q {
+        view.insert("geoQ".into(), geo(&geo_q)?);
+    }
+    Ok(projection
+        .classes
+        .iter()
+        .map(|class| {
+            let slots = (!class.slots.is_empty())
+                .then(|| class.slots.iter().cloned().collect::<BTreeSet<_>>());
+            (class.name.clone(), slots)
+        })
+        .collect())
 }
 
 /// The IR, target class and source class of an Endpoint's `viewMappingRef` (G18), or why it
