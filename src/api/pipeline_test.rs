@@ -34,6 +34,8 @@ use crate::state::AppState;
 
 /// How long the runner has to produce the trace (Architecture/08 §7).
 const DEADLINE: Duration = Duration::from_secs(3);
+/// The age past which the project's test stream is a left-over of a failed delete, not a test.
+const LEFT_OVER: Duration = Duration::from_secs(60);
 /// Silence after the last captured message that ends the wait early.
 const QUIET: Duration = Duration::from_millis(300);
 /// The request body: the sample's five mebibytes plus the manifest and the JSON around them.
@@ -469,10 +471,18 @@ pub(crate) async fn run_stream_within(
     let (sender, mut receiver) = mpsc::unbounded_channel();
     let _slot = Slot::take(project, &id, sender)?;
 
-    let stream = format!("{runner}/streams/{STREAM_PREFIX}{id}");
+    // One stream name per project, never per test (T-4936): Bento keeps a stream name's metric
+    // series for its whole life after the stream is deleted (90 series, about 160 KB each in
+    // 1.22.0), so a fresh name per test grew the dev runner past 2 GiB in three days. The slot
+    // above keeps this Portal to one test per project; another replica's test answers 409.
+    let stream = format!("{runner}/streams/{STREAM_PREFIX}{project}");
     let identity = state.config.pipeline_identity;
     let outcome =
         create_and_trace(project, &stream, &config, identity, window, &mut receiver).await;
+    // Another replica's test in flight: its stream is not this test's to delete.
+    if matches!(outcome, Err(ApiError::Conflict(_))) {
+        return outcome;
+    }
 
     // Gone whatever happened: a runner that timed out or answered 5xx may still have created the
     // stream, and one it keeps answers 409 on the next test's create. A delete it refuses (anything
@@ -500,7 +510,9 @@ pub(crate) async fn run_stream_within(
 
 /// Creates the harness stream and reads its trace: what the harness posted back, or the lint
 /// errors of a create the runner refused (4xx). A create that did not answer, or answered 5xx,
-/// is the caller's 503 with the runner's words kept in the log.
+/// is the caller's 503 with the runner's words kept in the log. The project's stream still on the
+/// runner: a left-over one is removed and the create sent again, a live one (another Portal
+/// replica's test) is the caller's 409.
 async fn create_and_trace(
     project: &str,
     stream: &str,
@@ -510,12 +522,15 @@ async fn create_and_trace(
     receiver: &mut mpsc::UnboundedReceiver<Captured>,
 ) -> Result<(TestTrace, bool), ApiError> {
     let config = credentialed(config, project, identity);
-    let created = http().post(stream).json(&config).send().await.map_err(|err| {
-        tracing::warn!(project = %project, error = %err, "pipeline runner unreachable for a test");
-        ApiError::Unavailable("the pipeline runner did not answer".into())
-    })?;
-    let status = created.status();
-    let refusal = created.text().await.unwrap_or_default();
+    let (mut status, mut refusal) = create(project, stream, &config).await?;
+    if held(status, &refusal) && left_over_removed(stream).await {
+        (status, refusal) = create(project, stream, &config).await?;
+    }
+    if held(status, &refusal) {
+        return Err(ApiError::Conflict(format!(
+            "a pipeline test is already running in '{project}'; wait for it"
+        )));
+    }
 
     if status.is_success() {
         let (captured, limited) = collect(receiver, window).await;
@@ -532,6 +547,43 @@ async fn create_and_trace(
             "the pipeline runner did not answer".into(),
         ))
     }
+}
+
+/// The runner's answer to the create: its status and its words.
+async fn create(
+    project: &str,
+    stream: &str,
+    config: &Value,
+) -> Result<(StatusCode, String), ApiError> {
+    let created = http().post(stream).json(config).send().await.map_err(|err| {
+        tracing::warn!(project = %project, error = %err, "pipeline runner unreachable for a test");
+        ApiError::Unavailable("the pipeline runner did not answer".into())
+    })?;
+    let status = created.status();
+    Ok((status, created.text().await.unwrap_or_default()))
+}
+
+/// Bento 1.22.0's refusal of a create whose stream name it already runs: 400 and these words.
+fn held(status: StatusCode, refusal: &str) -> bool {
+    status == StatusCode::BAD_REQUEST && refusal.trim() == "Stream already exists"
+}
+
+/// A test stream older than any test lives (the longest window is seconds) is one whose delete
+/// failed: removed here, `true` when it is gone. A younger one, or one the runner will not
+/// describe, is left alone.
+async fn left_over_removed(stream: &str) -> bool {
+    let uptime = match http().get(stream).send().await {
+        Ok(answer) if answer.status().is_success() => answer
+            .json::<Value>()
+            .await
+            .ok()
+            .and_then(|held| held["uptime"].as_f64()),
+        _ => None,
+    };
+    if uptime.is_none_or(|seconds| seconds < LEFT_OVER.as_secs_f64()) {
+        return false;
+    }
+    matches!(http().delete(stream).send().await, Ok(answer) if answer.status().is_success())
 }
 
 /// The harness as the runner gets it: the project's `pipelines` client, or with the pipelines'
