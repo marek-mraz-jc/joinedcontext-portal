@@ -2048,6 +2048,78 @@
       },
       "feedTitleEn": {
         "hint": "Napríklad Culture news"
+      },
+      "widget": {
+        "heading": "Predvolené nastavenia mapy v katalógu",
+        "add": "Pridať nastavenia mapy",
+        "emptyTitle": "Mapa používa vstavané predvoľby",
+        "emptyHint": "Pridajte nastavenia mapy a pre každý typ zvoľte pole, podľa ktorého sa značky farbia, čo ukáže bublina a či sa značky zoskupujú. Čitateľ ich na stránke datasetu môže stále zmeniť."
+      },
+      "widgetTitleSk": {
+        "hint": "Napríklad Mapa podujatí"
+      },
+      "widgetTitleEn": {
+        "hint": "Napríklad Events map"
+      },
+      "widgetName": {
+        "hint": "Malé písmená, číslice a -, napríklad mapa. Mapa nemá vlastnú adresu."
+      },
+      "map": {
+        "geometry": {
+          "label": "Poloha z",
+          "hint": "Atribút polohy, ktorý mapa kreslí, napríklad location.",
+          "default": "Vstavaná: location"
+        },
+        "colour": {
+          "label": "Farba podľa",
+          "hint": "Pole s výberom hodnôt alebo áno/nie; legenda uvedie jeho hodnoty, napríklad category.",
+          "none": "Tento typ nemá pole s výberom hodnôt ani áno/nie; mapa použije jednu farbu na typ.",
+          "default": "Jedna farba na typ"
+        },
+        "cluster": {
+          "label": "Zoskupiť blízke značky",
+          "hint": "Automaticky zoskupí značky, keď ich je v zábere viac ako 200, napríklad na mape celého mesta.",
+          "auto": "Automaticky (nad 200 v zábere)",
+          "on": "Vždy",
+          "off": "Nikdy"
+        },
+        "popup": {
+          "label": "Bublina ukáže",
+          "hint": "Zaškrtnite najviac {max} polí, ktoré čitateľ uvidí na značke, napríklad name a startDate; bez výberu ostane názov, čas, miesto a odkaz.",
+          "none": "Tento typ nemá polia na zobrazenie; najprv vyberte typ z dátového modelu priestoru.",
+          "full": "Najviac {max} polí; ak chcete iné, jedno odškrtnite."
+        }
+      },
+      "table": {
+        "title": "Začiatok tabuľky",
+        "lead": "Ako sa tabuľka na stránke datasetu otvorí pre tento typ; čitateľ môže každé predvolené nastavenie odstrániť. Prázdne ponechá nastavenie dátového modelu.",
+        "filter": {
+          "label": "Predvolený filter",
+          "hint": "NGSI-LD q, s ktorým sa tabuľka otvorí; dátum môže byť today, today+7d alebo today-1d. Príklad: startDate>=today"
+        },
+        "order": {
+          "label": "Zoradiť podľa",
+          "hint": "Stĺpec, podľa ktorého sú riadky zoradené, napríklad startDate.",
+          "default": "Podľa dátového modelu"
+        },
+        "direction": {
+          "label": "Smer",
+          "hint": "Vzostupne dá najmenšie alebo najskoršie prvé, napríklad najbližšie podujatie.",
+          "asc": "Vzostupne",
+          "desc": "Zostupne",
+          "needsOrder": "Najprv vyberte stĺpec, podľa ktorého zoradiť."
+        },
+        "length": {
+          "label": "Riadkov na stranu",
+          "hint": "Koľko riadkov ukáže jedna strana, napríklad 20.",
+          "default": "Podľa dátového modelu"
+        },
+        "columns": {
+          "label": "Zobrazené stĺpce",
+          "hint": "Zaškrtnite najviac {max} stĺpcov v poradí typu, napríklad name a startDate; bez zaškrtnutia platí dátový model.",
+          "none": "Tento typ nemá polia na zobrazenie; najprv vyberte typ z dátového modelu priestoru.",
+          "full": "Najviac {max} stĺpcov; ak chcete iný, jeden odškrtnite."
+        }
       }
     }
   },
