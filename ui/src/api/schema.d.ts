@@ -5040,6 +5040,15 @@ export interface components {
             stale?: boolean;
             subjects?: components["schemas"]["CatalogueSubject"][];
         };
+        /** @description One calendar output of an Endpoint: its name, its title per language and its `.ics` address. */
+        CatalogueCalendar: {
+            name: string;
+            /** @description The title per language (`sk`, `en`); empty: the name stands for it. */
+            title: {
+                [key: string]: string;
+            };
+            url: string;
+        };
         /** @description One class of the model, described as its LinkML describes it. */
         CatalogueClass: {
             description?: string | null;
@@ -5114,6 +5123,8 @@ export interface components {
         };
         /** @description The Endpoint a dataset describes, on this installation's own host. */
         CatalogueEndpoint: {
+            /** @description Its calendar outputs, in the order the Endpoint lists them (API/11 EP-159). */
+            calendars: components["schemas"]["CatalogueCalendar"][];
             /** @description Its feed outputs, in the order the Endpoint lists them (EP-150, EP-151). */
             feeds: components["schemas"]["CatalogueFeed"][];
             /** @description The representations it serves, which decide the "Use this data" snippets. */

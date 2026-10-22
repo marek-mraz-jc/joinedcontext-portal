@@ -1974,7 +1974,7 @@
         "endpoint_catalog.test.tsx",
         "endpoint_open_data.test.tsx",
         "endpoint_representations.test.ts",
-        "ical_mapping_field.test.tsx"
+        "representation_outputs_field.test.tsx"
       ]
     },
     "src/routes/LoginPage.tsx": {
@@ -2067,6 +2067,14 @@
       },
       "tests": [
         "agent_access_matrix.test.tsx"
+      ]
+    },
+    "src/components/forms/widgets/RepresentationOutputsField.tsx": {
+      "controls": {
+        "Button": 4
+      },
+      "tests": [
+        "representation_outputs_field.test.tsx"
       ]
     }
   }

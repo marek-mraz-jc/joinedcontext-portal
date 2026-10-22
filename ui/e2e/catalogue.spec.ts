@@ -272,9 +272,14 @@ test.describe("the public catalogue", () => {
       { format: "JSON Feed", mediaType: "application/feed+json", url: `${ENDPOINT}feed/v1/kultura/feed.json` },
     ],
   };
-  for (const [lang, button, news, item] of [
-    ["sk", "Odoberať", "Novinky", "Kultúra (RSS 2.0)"],
-    ["en", "Subscribe", "News", "Culture (RSS 2.0)"],
+  // T-5218: two calendar outputs, each listed once by its title in the menu and in the head.
+  const CALENDARS = [
+    { name: "kalendar", title: { sk: "Kalendár podujatí", en: "Events calendar" }, url: `${ENDPOINT}ical/v1/kalendar.ics` },
+    { name: "zasadnutia", title: { sk: "Zasadnutia", en: "Council meetings" }, url: `${ENDPOINT}ical/v1/zasadnutia.ics` },
+  ];
+  for (const [lang, button, news, item, calendarItem] of [
+    ["sk", "Odoberať", "Novinky", "Kultúra (RSS 2.0)", "Pridať do kalendára: Zasadnutia"],
+    ["en", "Subscribe", "News", "Culture (RSS 2.0)", "Add to a calendar: Council meetings"],
   ] as const) {
     for (const width of [1440, 400]) {
       test(`a feed dataset offers its subscriptions in ${lang} at ${width} px`, async ({ page }) => {
@@ -287,18 +292,20 @@ test.describe("the public catalogue", () => {
             body: JSON.stringify({
               ...DETAIL,
               title: "Podujatia v kraji",
-              endpoint: { url: ENDPOINT, representations: ["ngsi-ld", "ical"], feeds: [FEED] },
+              endpoint: { url: ENDPOINT, representations: ["ngsi-ld", "ical"], feeds: [FEED], calendars: CALENDARS },
             }),
           }),
         );
         await page.goto(`/catalogue/bbsk-kpi?lang=${lang}`);
         await expect(page.getByRole("heading", { level: 1, name: "Podujatia v kraji" })).toBeVisible();
         const alternates = page.locator('head link[rel="alternate"]');
-        await expect(alternates).toHaveCount(3);
+        await expect(alternates).toHaveCount(5);
         await expect(alternates.nth(1)).toHaveAttribute("href", FEED.links[1].url);
+        await expect(page.locator('head link[rel="alternate"][type="text/calendar"]').nth(1)).toHaveAttribute("href", CALENDARS[1]!.url);
         await page.getByRole("button", { name: button }).click();
         await expect(page.getByText(news, { exact: true })).toBeVisible();
         await expect(page.getByRole("menuitem", { name: item })).toHaveAttribute("href", FEED.links[1].url);
+        await expect(page.getByRole("menuitem", { name: calendarItem })).toHaveAttribute("href", /^webcal:\/\/.*\/ical\/v1\/zasadnutia\.ics$/);
         if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/dataset-subscribe-${lang}-${width}.png` });
         await page.keyboard.press("Escape");
         await expect(page.getByRole("menuitem", { name: item })).toBeHidden();

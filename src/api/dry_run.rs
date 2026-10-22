@@ -96,25 +96,31 @@ pub fn refused_check(err: &ApiError, manifest: &serde_json::Value) -> Option<Dry
         // One entry per violation (CC-24). A producer that names the path of the violation puts it
         // there (`references.rs`: `errors: vec![reference.path]`), which is what makes a finding
         // actionable; one that wrote a sentence instead keeps it as the message.
-        ApiError::Invalid { detail, errors } if !errors.is_empty() => errors
-            .iter()
-            .map(|entry| {
-                if entry.contains(' ') {
-                    Finding {
-                        level: Level::Error,
-                        path: String::new(),
-                        message: entry.clone(),
+        ApiError::Invalid { detail, errors } | ApiError::Unprocessable { detail, errors }
+            if !errors.is_empty() =>
+        {
+            errors
+                .iter()
+                .map(|entry| {
+                    if entry.contains(' ') {
+                        Finding {
+                            level: Level::Error,
+                            path: String::new(),
+                            message: entry.clone(),
+                        }
+                    } else {
+                        Finding {
+                            level: Level::Error,
+                            path: entry.clone(),
+                            message: detail.clone(),
+                        }
                     }
-                } else {
-                    Finding {
-                        level: Level::Error,
-                        path: entry.clone(),
-                        message: detail.clone(),
-                    }
-                }
-            })
-            .collect(),
-        ApiError::Invalid { detail, .. } | ApiError::BadRequest(detail) => vec![Finding {
+                })
+                .collect()
+        }
+        ApiError::Invalid { detail, .. }
+        | ApiError::Unprocessable { detail, .. }
+        | ApiError::BadRequest(detail) => vec![Finding {
             level: Level::Error,
             path: String::new(),
             message: detail.clone(),

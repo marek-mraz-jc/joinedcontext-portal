@@ -174,8 +174,8 @@ export function endpointSchema(
         },
         uniqueItems: true,
       },
-      // How the iCalendar feed maps its fields from the model's attributes (EP-125, T-4900):
-      // drawn by the `icalMapping` field, written only when it differs from the default preset.
+      // The Endpoint's calendars and news feeds (EP-125, EP-150, T-5218):
+      // drawn by the `representationOutputs` field as named calendar and feed outputs (API/11 EP-159).
       representations: {
         type: "object",
         title: t("endpoints.field.representationMappings"),
@@ -398,7 +398,7 @@ export const endpointUiSchema: UiSchema = {
     "ui:widget": "checkboxes",
     "ui:enumDisabled": ["ngsi-ld", "mcp"],
   },
-  representations: { "ui:field": "icalMapping" },
+  representations: { "ui:field": "representationOutputs" },
   caching: { maxAgeSeconds: { "ui:widget": "range" } },
 };
 
