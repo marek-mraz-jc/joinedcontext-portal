@@ -16,11 +16,14 @@ concurrency:
 jobs:
   # Which jobs the change needs (T-4985): the paths changed since the branch left main (a pull
   # request: since its base), mapped by scripts/ci/changes.sh. 15 jobs on every push filled the
-  # runners and main waited behind branch runs. Main runs every job, and gitleaks runs on every
-  # push without asking; a skipped job counts as success in the run's conclusion.
+  # runners and main waited behind branch runs. On main the base is the newest commit whose ci run
+  # on main was green (T-4696: running every job on every merge billed ~1,800 minutes a day), so a
+  # range a red or cancelled run left unchecked runs again. gitleaks runs on every push without
+  # asking; a skipped job counts as success in the run's conclusion.
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 3
+    permissions: { contents: read, actions: read }
     outputs:
       rust: ${{ steps.paths.outputs.rust }}
       ui: ${{ steps.paths.outputs.ui }}
@@ -31,16 +34,22 @@ jobs:
         run: sh scripts/ci/changes.sh --selftest
       - id: paths
         name: the jobs this change needs
-        env: { BASE_REF: "${{ github.base_ref || 'main' }}" }
+        env:
+          BASE_REF: "${{ github.base_ref || 'main' }}"
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
           base=""
-          # A branch push checks out one commit: fetch the base and deepen both, or merge-base
-          # finds no fork; no fork found runs everything.
-          if [ "$GITHUB_REF" != refs/heads/main ] &&
-            git fetch -q --deepen=100 origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"; then
+          # The checkout holds one commit: fetch main's last green commit, or fetch the base and
+          # deepen both so merge-base finds the fork; no base found runs everything.
+          if [ "$GITHUB_REF" = refs/heads/main ]; then
+            green=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" \
+              --jq '.workflow_runs[0].head_sha // empty' || true)
+            if [ -n "$green" ] && git fetch -q --depth=1 origin "$green"; then base=$green; fi
+          elif git fetch -q --deepen=100 origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"; then
             base=$(git merge-base HEAD "origin/$BASE_REF" || true)
           fi
+          echo "base: ${base:-none}"
           sh scripts/ci/changes.sh "$base" | tee -a "$GITHUB_OUTPUT"
   rust:
     needs: changes

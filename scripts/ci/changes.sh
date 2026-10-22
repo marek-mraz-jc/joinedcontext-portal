@@ -1,8 +1,8 @@
 #!/bin/sh
 # Which ci.yml jobs a change needs (T-4985). Prints rust=, ui= and apps= as true/false for
 # $GITHUB_OUTPUT, from the paths changed between <base> and HEAD (or read on stdin, one per line).
-# No base, a line `*`, or ci.yml itself runs everything; gitleaks runs on every push and main
-# runs every job, both decided in ci.yml.
+# No base, a line `*`, or ci.yml itself runs everything; gitleaks runs on every push and main's
+# base (its last green commit, T-4696) is decided in ci.yml.
 #
 #   sh scripts/ci/changes.sh "$base"
 #   git diff --name-only "$base" HEAD | sh scripts/ci/changes.sh -
