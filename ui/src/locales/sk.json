@@ -1138,6 +1138,7 @@
       "title": "Nahrať CSV",
       "lead": "Vyberte CSV do 50 MB. Porovná sa s typmi Smart Data Models; model, priestor, jeho Endpoint a vaše právo zapisovať riadky sa navrhnú ako jedna zmena a keď je zmena nasadená, riadky sa zapíšu cez bránu pod vaším menom.",
       "choose": "Vybrať súbor CSV",
+      "reading": "Čítam {name} a porovnávam jeho stĺpce s typmi Smart Data Models…",
       "type": "Čo riadky sú",
       "noMatch": "Žiadny typ Smart Data Models nepomenúva dosť týchto stĺpcov: súbor dostane vlastný model.",
       "match": "{name} ({score} % stĺpcov)",
@@ -8410,26 +8411,29 @@
     },
     "next": "Ďalej pre vás",
     "firstRun": {
-      "title": "Začíname",
+      "title": "Váš prvý dataset",
+      "lead": "Zverejnite svoj prvý dataset asi za 10 minút: nahrajte súbor, skontrolujte, kto ho číta, a ak sa rozhodnete, zverejnite ho.",
       "progress": "Hotovo {done} z {total}",
       "done": "Hotovo",
       "todo": "Ešte zostáva",
       "dismiss": "Skryť zoznam krokov",
       "restore": "Zobraziť zoznam krokov na začiatok",
       "step": {
-        "space": "Vytvorte kontextový priestor",
-        "source": "Pripojte zdroj údajov",
-        "pipeline": "Spustite pipelinu",
-        "data": "Pozrite si dáta",
-        "share": "Zdieľajte ich cez endpoint"
+        "upload": "Nahrajte CSV a skontrolujte navrhnutý model",
+        "share": "Skontrolujte, kto ho číta: len vaša organizácia",
+        "publish": "Zverejnite ho ako verejný dataset"
       },
       "go": {
-        "space": "Vytvoriť priestor",
-        "source": "Pripojiť zdroj",
-        "pipeline": "Otvoriť pipeliny",
-        "data": "Otvoriť priestor",
-        "share": "Vytvoriť endpoint"
-      }
+        "upload": "Nahrať CSV",
+        "share": "Vytvoriť endpoint",
+        "publish": "Otvoriť endpoint"
+      },
+      "hint": {
+        "upload": "Súbor do 50 MB a 10 000 riadkov, napr. parkovanie.csv so stĺpcami name, lat, lon. Portál navrhne dátový model podľa stĺpcov a navrhne priestor aj jeho endpoint.",
+        "share": "Nahratie navrhne endpoint, ktorý číta len vaša organizácia. Nič nie je verejné, kým to nezvolíte.",
+        "publish": "Na stránke endpointu použite „Zverejniť dataset“. Verejný prístup potvrdíte napísaním názvu endpointu, schvaľovateľ ho prijme a nasleduje záznam v katalógu s mapou."
+      },
+      "liveSource": "Alebo pripojte živý zdroj cez URL alebo API"
     },
     "card": {
       "approvals": {

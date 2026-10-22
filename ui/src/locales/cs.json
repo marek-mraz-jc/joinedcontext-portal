@@ -1138,6 +1138,7 @@
       "title": "Nahrát CSV",
       "lead": "Vyberte CSV do 50 MB. Porovná se s typy Smart Data Models; model, prostor, jeho Endpoint a vaše právo zapisovat řádky se navrhnou jako jedna změna a když je změna nasazená, řádky se zapíší přes bránu pod vaším jménem.",
       "choose": "Vybrat soubor CSV",
+      "reading": "Čtu {name} a porovnávám jeho sloupce s typy Smart Data Models…",
       "type": "Co řádky jsou",
       "noMatch": "Žádný typ Smart Data Models nepojmenovává dost těchto sloupců: soubor dostane vlastní model.",
       "match": "{name} ({score} % sloupců)",
@@ -8410,26 +8411,29 @@
     },
     "next": "Dál pro vás",
     "firstRun": {
-      "title": "Začínáme",
+      "title": "Vaše první datová sada",
+      "lead": "Zveřejněte svou první datovou sadu asi za 10 minut: nahrajte soubor, zkontrolujte, kdo ho čte, a pokud se rozhodnete, zveřejněte ho.",
       "progress": "Hotovo {done} z {total}",
       "done": "Hotovo",
       "todo": "Ještě zbývá",
       "dismiss": "Skrýt seznam kroků",
       "restore": "Zobrazit seznam kroků na začátek",
       "step": {
-        "space": "Vytvořte kontextový prostor",
-        "source": "Připojte zdroj dat",
-        "pipeline": "Spusťte pipeline",
-        "data": "Prohlédněte si data",
-        "share": "Sdílejte je přes endpoint"
+        "upload": "Nahrajte CSV a zkontrolujte navržený model",
+        "share": "Zkontrolujte, kdo ho čte: jen vaše organizace",
+        "publish": "Zveřejněte ho jako veřejnou datovou sadu"
       },
       "go": {
-        "space": "Vytvořit prostor",
-        "source": "Připojit zdroj",
-        "pipeline": "Otevřít pipeliny",
-        "data": "Otevřít prostor",
-        "share": "Vytvořit endpoint"
-      }
+        "upload": "Nahrát CSV",
+        "share": "Vytvořit endpoint",
+        "publish": "Otevřít endpoint"
+      },
+      "hint": {
+        "upload": "Soubor do 50 MB a 10 000 řádků, např. parkovani.csv se sloupci name, lat, lon. Portál navrhne datový model podle sloupců a navrhne prostor i jeho endpoint.",
+        "share": "Nahrání navrhne endpoint, který čte jen vaše organizace. Nic není veřejné, dokud to nezvolíte.",
+        "publish": "Na stránce endpointu použijte „Zveřejnit datovou sadu“. Veřejný přístup potvrdíte napsáním názvu endpointu, schvalovatel ho přijme a následuje záznam v katalogu s mapou."
+      },
+      "liveSource": "Nebo připojte živý zdroj přes URL nebo API"
     },
     "card": {
       "approvals": {

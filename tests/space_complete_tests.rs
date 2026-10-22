@@ -969,14 +969,26 @@ async fn space_complete_endpoint_has_all_classes_projected() {
         .iter()
         .find(|d| d["kind"] == "Endpoint")
         .expect("Endpoint drafted");
-    let projected: Vec<&str> = endpoint["manifest"]["spec"]["projection"]["classes"]
-        .as_array()
-        .map(|classes| classes.iter().filter_map(Value::as_str).collect())
-        .unwrap_or_default();
+    // No projection: the Endpoint serves the classes its read Policy grants, and that Policy
+    // names every class the model declares (reconciler/views.rs; T-5109).
     assert_eq!(
-        projected, declared,
-        "the endpoint serves every class the model declares: {endpoint}"
+        endpoint["manifest"]["spec"].get("projection"),
+        None,
+        "{endpoint}"
     );
+    assert_eq!(endpoint["verdict"]["ok"], true, "{endpoint}");
+    let read = drafts
+        .iter()
+        .find(|d| d["kind"] == "Policy" && d["name"].as_str().is_some_and(|n| n.ends_with("-read")))
+        .expect("read Policy drafted");
+    let granted: Vec<&str> = read["manifest"]["spec"]["information"]
+        .as_array()
+        .expect("the read Policy names its types")
+        .iter()
+        .flat_map(|info| info["entities"].as_array().into_iter().flatten())
+        .filter_map(|entity| entity["type"].as_str())
+        .collect();
+    assert_eq!(granted, declared, "{read}");
 }
 
 /// PF-39, PL-55, T-1494: a grant names something that exists.
@@ -1013,11 +1025,14 @@ async fn a_project_without_a_pipeline_account_gets_one_drafted_and_named() {
         account["manifest"]["spec"]["credentials"][0]["kind"],
         "oauth-client"
     );
+    // The writer's role in this space alone (jc-core refuses an account without a role), and
+    // a draft that passes its check, so the bundle can be proposed (T-5109).
     assert_eq!(
         account["manifest"]["spec"]["roles"],
-        json!([]),
-        "what it may write is the Policy beside it: {account}"
+        json!([{ "role": "space-writer", "scope": { "contextSpace": "city-bikes" } }]),
+        "what it may write is this space, as the Policy beside it says: {account}"
     );
+    assert_eq!(account["verdict"]["ok"], true, "{account}");
 
     let write = drafts
         .iter()
@@ -1134,7 +1149,7 @@ async fn a_linkml_file_alone_drafts_the_model_the_space_and_its_grants() {
     let endpoint = &body["drafts"][2]["manifest"]["spec"];
     assert_eq!(endpoint["audience"], "project", "{endpoint}");
     assert_eq!(endpoint["contextSpaceRef"], "room-bookings");
-    assert_eq!(endpoint["projection"]["classes"], json!(["Booking"]));
+    assert_eq!(endpoint.get("projection"), None, "{endpoint}");
     assert_eq!(
         body["change"],
         Value::Null,
@@ -1165,8 +1180,16 @@ async fn an_uploaded_csv_drafts_the_endpoint_and_the_persons_write_grant() {
     };
     let endpoint = &named("room-bookings-all")["manifest"]["spec"];
     assert_eq!(endpoint["audience"], "organization", "{endpoint}");
-    assert_eq!(endpoint["projection"]["classes"], json!(["Booking"]));
-    named("room-bookings-all-read");
+    assert_eq!(endpoint.get("projection"), None, "{endpoint}");
+    assert_eq!(
+        named("room-bookings-all-read")["manifest"]["spec"]["information"],
+        json!([{ "entities": [{ "type": "Booking" }] }])
+    );
+    // Proposable as one Change: every draft passes its check, a reference to a sibling of the
+    // bundle (the space naming its new model, the Endpoint its new space) included (T-5109).
+    for draft in drafts {
+        assert_eq!(draft["verdict"]["ok"], true, "{draft}");
+    }
     let grant = &named("room-bookings-upload")["manifest"]["spec"];
     assert_eq!(
         grant["assignee"],

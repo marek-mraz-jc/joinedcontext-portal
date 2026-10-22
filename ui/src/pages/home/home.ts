@@ -5,7 +5,7 @@
  */
 import type { Effective } from "../../api/permissions";
 
-export type StepKey = "space" | "source" | "pipeline" | "data" | "share";
+export type StepKey = "upload" | "share" | "publish";
 
 export interface Step {
   key: StepKey;
@@ -14,34 +14,33 @@ export interface Step {
   to: string;
 }
 
-/** The project's state as the steps read it. `entities` is undefined while no space was counted. */
+/** The project's state as the steps read it. */
 export interface ProjectState {
-  spaces: string[];
-  datasources: number;
-  /** The phase each pipeline's status reports, lower-cased. */
-  pipelinePhases: string[];
-  endpoints: number;
+  /** The project's Endpoints, by name. */
+  endpoints: string[];
+  /** How many of them carry a catalogue publication (`spec.publish.ckan`). */
+  published: number;
   /** The first space that holds entities, if any was counted. */
   spaceWithData?: string;
 }
 
 /**
- * The five steps from nothing to shared data, each ticked by what the project holds, never by a
- * click: a space, a data source, a pipeline that runs, data a person can see, and an Endpoint.
+ * The first dataset in about ten minutes (T-5109), each step ticked by what the project holds,
+ * never by a click: data in a space (a CSV upload, its model suggested from the columns, which
+ * also proposes the space's Endpoint), that Endpoint, private to the organization until the
+ * person chooses otherwise, and its publication as a public dataset with its catalogue entry.
  */
 export function firstRunSteps(project: string, state: ProjectState): Step[] {
   const base = `/projects/${project}`;
-  const firstSpace = state.spaceWithData ?? state.spaces[0];
+  const endpoint = state.endpoints[0];
   return [
-    { key: "space", done: state.spaces.length > 0, to: `${base}/spaces/new` },
-    { key: "source", done: state.datasources > 0, to: `${base}/datasources/new` },
-    { key: "pipeline", done: state.pipelinePhases.includes("live"), to: `${base}/pipelines` },
+    { key: "upload", done: state.spaceWithData !== undefined, to: `${base}/spaces/upload` },
+    { key: "share", done: endpoint !== undefined, to: `${base}/endpoints/new` },
     {
-      key: "data",
-      done: state.spaceWithData !== undefined,
-      to: firstSpace ? `${base}/spaces/${firstSpace}` : `${base}/spaces`,
+      key: "publish",
+      done: state.published > 0,
+      to: endpoint ? `${base}/endpoints/${encodeURIComponent(endpoint)}` : `${base}/endpoints`,
     },
-    { key: "share", done: state.endpoints > 0, to: `${base}/endpoints/new` },
   ];
 }
 

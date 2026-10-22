@@ -7,23 +7,22 @@ import type { Effective } from "../src/api/permissions";
 const grants = (...verbs: string[]): Effective =>
   ({ project: "helsinki", grants: [{ rule: { kinds: ["Pipeline"], verbs } }] }) as unknown as Effective;
 
-describe("the first-run steps (T-3233)", () => {
+describe("the first-dataset steps (T-3233, T-5109)", () => {
   it("tick themselves from what the project holds, never from a click", () => {
-    const empty = firstRunSteps("helsinki", { spaces: [], datasources: 0, pipelinePhases: [], endpoints: 0 });
-    expect(empty.map((step) => step.done)).toEqual([false, false, false, false, false]);
+    const empty = firstRunSteps("helsinki", { endpoints: [], published: 0 });
+    expect(empty.map((step) => step.key)).toEqual(["upload", "share", "publish"]);
+    expect(empty.map((step) => step.done)).toEqual([false, false, false]);
     expect(empty.map((step) => step.to)).toEqual([
-      "/projects/helsinki/spaces/new",
-      "/projects/helsinki/datasources/new",
-      "/projects/helsinki/pipelines",
-      "/projects/helsinki/spaces",
+      "/projects/helsinki/spaces/upload",
       "/projects/helsinki/endpoints/new",
+      "/projects/helsinki/endpoints",
     ]);
-    const half = firstRunSteps("helsinki", { spaces: ["air"], datasources: 1, pipelinePhases: ["deploying", "error"], endpoints: 0 });
-    expect(half.map((step) => step.done)).toEqual([true, true, false, false, false]);
-    expect(half[3].to).toBe("/projects/helsinki/spaces/air");
-    const all = firstRunSteps("helsinki", { spaces: ["air", "bikes"], datasources: 2, pipelinePhases: ["live"], endpoints: 1, spaceWithData: "bikes" });
+    // The upload proposes the Endpoint with the space; it may land before the rows do.
+    const proposed = firstRunSteps("helsinki", { endpoints: ["parking lots"], published: 0 });
+    expect(proposed.map((step) => step.done)).toEqual([false, true, false]);
+    expect(proposed[2].to).toBe("/projects/helsinki/endpoints/parking%20lots");
+    const all = firstRunSteps("helsinki", { endpoints: ["parking"], published: 1, spaceWithData: "parking" });
     expect(all.every((step) => step.done)).toBe(true);
-    expect(all[3].to).toBe("/projects/helsinki/spaces/bikes");
   });
 });
 
