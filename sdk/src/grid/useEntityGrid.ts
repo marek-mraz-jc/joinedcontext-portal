@@ -64,6 +64,8 @@ export interface GridLabels {
   editAsTextHint: string;
   /** Said on a sortable header, because the order is of the loaded page only (UI-66). */
   sortPage: string;
+  /** Said on a sortable header whose source orders the whole answer. */
+  sortAll: string;
   /** What the footer calls the endpoint's own count of matching entities. */
   matching: string;
   /** Beside the loaded rows when the endpoint's answer carries no total (R22, T-4885). */
@@ -219,6 +221,7 @@ export const DEFAULT_LABELS: GridLabels = {
   filterHintOther: "Choose a test, e.g. has a value, or empty.",
   editAsTextHint: "Write the NGSI-LD query yourself, e.g. pm10>40;name~=\"Espoo\".",
   sortPage: "Sort this page by",
+  sortAll: "Sort all rows by",
   matching: "matching",
   noTotal: "the endpoint gives no total for this answer",
   history: "History",
@@ -368,6 +371,8 @@ export interface EntityGrid {
   loadingMore: boolean;
   loadMore(): void;
   rows: RichRow[];
+  /** The source orders the whole answer, so a header sorts every row and not the page. */
+  sortsAll: boolean;
   columns: VisibleColumn[];
   total?: number;
   loading: boolean;
@@ -646,9 +651,14 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     () => buildColumns(config, rows, shown, labels, relations, hiddenKey === "" ? [] : hiddenKey.split("\u0000"), layout),
     [config, rows, shown, labels, relations, hiddenKey, layout],
   );
-  // Sorting orders the loaded page only; the server's order decides which rows are on it (UI-66).
+  // A source that orders the whole answer is asked to (`orderBy`, CIM 009 4.23), so the first page
+  // holds the first rows of the set; elsewhere the order is of the loaded page only (UI-66).
+  // The entity's own timestamps are no attribute `orderBy` names here: they sort the page.
+  const serverOrder = source.orders === true && sort !== null && !sort.attr.startsWith("entity:")
+    ? (sort.dir === "desc" ? `${sort.attr};desc` : sort.attr)
+    : undefined;
   const sortedRows = useMemo(() => {
-    if (!sort) return rows;
+    if (!sort || serverOrder) return rows;
     const factor = sort.dir === "asc" ? 1 : -1;
     const key = (row: RichRow) => cellText(row.cells[sort.attr]);
     return [...rows].sort((a, b) => {
@@ -659,7 +669,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
       const byNumber = x !== "" && y !== "" && !Number.isNaN(nx) && !Number.isNaN(ny);
       return factor * (byNumber ? nx - ny : x.localeCompare(y));
     });
-  }, [rows, sort]);
+  }, [rows, sort, serverOrder]);
 
   const filterColumns = useMemo(
     (): FilterColumn[] =>
@@ -727,6 +737,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     // `areaQuery` refuses a shape that is not an area, so a half-drawn one asks for nothing
     // rather than for everything.
     area: areaQuery(area) ?? undefined,
+    orderBy: serverOrder,
   });
 
   const fetchData = useCallback(() => {
@@ -861,14 +872,19 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     (attr: string, dir?: "asc" | "desc") => {
       // A direction asked for is taken as it is; without one a second click turns the order round.
       const next = { attr, dir: dir ?? (sort?.attr === attr && sort.dir === "asc" ? ("desc" as const) : ("asc" as const)) };
+      // A new order of the whole set starts at its first page, as a new filter does.
+      const from = source.orders === true ? 0 : offset;
       if (onStateChange) {
-        onStateChange({ offset, activeCell, selected, shown, sort: next, filters, filterText, edits });
+        onStateChange({ offset: from, activeCell, selected, shown, sort: next, filters, filterText, edits });
       }
       if (controlledState?.sort === undefined) {
         setInternalSort(next);
       }
+      if (controlledState?.offset === undefined) {
+        setInternalOffset(from);
+      }
     },
-    [sort, offset, activeCell, selected, shown, onStateChange, controlledState],
+    [sort, offset, activeCell, selected, shown, onStateChange, controlledState, source.orders],
   );
 
   /**
@@ -1130,6 +1146,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     loadingMore,
     loadMore,
     rows: sortedRows,
+    sortsAll: source.orders === true,
     columns,
     total,
     loading,

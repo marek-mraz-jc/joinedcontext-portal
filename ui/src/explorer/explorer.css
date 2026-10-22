@@ -1,0 +1,11 @@
+/* The CKAN DataStore preview's look over the Portal grid (T-5082): a plain striped table, the
+   catalogue's blue for links and the current sort, compact rows. Only colours and spacing change;
+   the grid's structure and its focus rings stay the Portal's. */
+.jc-explorer table { border-collapse: collapse; font-size: 0.875rem; }
+.jc-explorer thead th { background: var(--jc-datastore-head, #f6f6f6); border-bottom: 2px solid #ddd; font-weight: 700; }
+.jc-explorer tbody tr:nth-child(even) td { background: var(--jc-datastore-stripe, #f9f9f9); }
+.jc-explorer td, .jc-explorer th { border-bottom: 1px solid #ddd; padding: 0.375rem 0.5rem; }
+@media (prefers-color-scheme: dark) {
+  .jc-explorer { --jc-datastore-head: #23272e; --jc-datastore-stripe: #1b1f24; }
+  .jc-explorer td, .jc-explorer th { border-color: #3a3f47; }
+}

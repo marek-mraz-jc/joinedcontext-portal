@@ -1439,7 +1439,16 @@
       "hiddenColumn": "hidden by the projection",
       "same": "This endpoint answers this page exactly as the space holds it.",
       "spaceRefused": "You may read this endpoint but not the space behind it, so there is nothing to compare it with.",
-      "typeHelp": "Which type of record the table lists; pick another to see its rows, e.g. the air quality readings."
+      "typeHelp": "Which type of record the table lists; pick another to see its rows, e.g. the air quality readings.",
+      "full": "Full window",
+      "fullLeave": "Leave full window",
+      "csv": "Download these rows as CSV",
+      "csvHelp": "The file holds every row of the current query and order, up to the endpoint's download limit; the address beside it is the same query for a script.",
+      "fields": "Fields",
+      "fieldType": "Type",
+      "noDescription": "The model gives no description.",
+      "section": "Data",
+      "sectionLead": "The rows this endpoint answers you, read with your own access: sort, filter and share the address of what you see."
     },
     "projection": {
       "title": "Published attributes",
@@ -4877,6 +4886,7 @@
     "editAsText": "Edit as text",
     "filterRow": "Filters",
     "sortPage": "Sort this page by",
+    "sortAll": "Sort all rows by",
     "matching": "matching",
     "noTotal": "the endpoint gives no total for this answer",
     "history": "History",

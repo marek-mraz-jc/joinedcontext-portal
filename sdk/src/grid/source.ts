@@ -22,6 +22,8 @@ export interface GridQuery {
   ids?: string[];
   /** The area drawn on the map, as a geo query the endpoint answers (UI-72). */
   area?: GeoQuery;
+  /** The order of the whole answer, as CIM 009 4.23 writes it: `attr` or `attr;desc`. */
+  orderBy?: string;
 }
 
 export interface GridPage {
@@ -58,6 +60,8 @@ export interface HistoryWindow {
 
 /** What a grid can do follows what its source offers: an absent capability switches its feature off. */
 export interface EntitySource {
+  /** The source orders the whole answer by `GridQuery.orderBy`; without it the grid sorts a page. */
+  orders?: boolean;
   query(q: GridQuery, page: { offset: number; limit: number }): Promise<GridPage>;
   get(id: string): Promise<RichRow | null>;
   history?(id: string, attr: string, window: HistoryWindow): Promise<HistoryPoint[]>;
@@ -155,6 +159,7 @@ function entitiesQuery(q: GridQuery, offset: number, limit: number): string {
     geometry: q.area?.geometry,
     coordinates: q.area?.coordinates,
     geoproperty: q.area?.geoproperty,
+    orderBy: q.orderBy || undefined,
   });
 }
 
@@ -217,6 +222,7 @@ function ngsiSource(base: string, transport: Transport, language: string, hidden
   const entity = (id: string) => `${base}/entities/${encodeURIComponent(id)}`;
 
   return {
+    orders: true,
     async query(q, page) {
       const { status, body, headers } = await transport({
         method: "GET",
@@ -272,6 +278,7 @@ export function spaceSource(space: string, transport: Transport, language = "en"
 export function fixtureSource(entities: Record<string, unknown>[], language = "en"): EntitySource {
   const rows = entities.map((entity) => toRichRow(entity, language));
   return {
+    orders: true,
     async query(q, page) {
       const pattern = q.idPattern ? new RegExp(q.idPattern) : null;
       const matching = rows.filter(
@@ -280,12 +287,38 @@ export function fixtureSource(entities: Record<string, unknown>[], language = "e
           (!pattern || pattern.test(row.id)) &&
           (!q.ids || q.ids.includes(row.id)),
       );
-      return { rows: matching.slice(page.offset, page.offset + page.limit), total: matching.length };
+      const ordered = q.orderBy ? orderRows(matching, q.orderBy) : matching;
+      return { rows: ordered.slice(page.offset, page.offset + page.limit), total: matching.length };
     },
     async get(id) {
       return rows.find((row) => row.id === id) ?? null;
     },
   };
+}
+
+/**
+ * `rows` in the order `orderBy` names (`attr` or `attr;desc`, one key), as the broker orders them
+ * (CIM 009 4.23.1): numbers by value, other values by their text, an entity without the attribute
+ * after every one that has it, either way.
+ */
+export function orderRows(rows: RichRow[], orderBy: string): RichRow[] {
+  const [attr, dir] = orderBy.split(";");
+  const factor = dir === "desc" ? -1 : 1;
+  const valueOf = (row: RichRow): unknown => {
+    if (attr === "id") return row.id;
+    const cell = row.cells[attr];
+    const one = Array.isArray(cell) ? cell[0] : cell;
+    return one?.kind === "relationship" ? one.object : one?.value;
+  };
+  return [...rows].sort((a, b) => {
+    const x = valueOf(a);
+    const y = valueOf(b);
+    const missingX = x === undefined || x === null;
+    const missingY = y === undefined || y === null;
+    if (missingX || missingY) return Number(missingX) - Number(missingY);
+    if (typeof x === "number" && typeof y === "number") return factor * (x - y);
+    return factor * String(x).localeCompare(String(y));
+  });
 }
 
 /** The built-in source a config names. */

@@ -99,7 +99,7 @@ test("a space at 1440: the types beside the grid and a Name column at least 180 
   await expect(page.getByRole("button", { name: `Open: ${EVENTS[0].name.value}` })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Entity types" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Type", exact: true })).toBeHidden();
-  const name = await page.getByRole("columnheader", { name: /Sort this page by Name/ }).boundingBox();
+  const name = await page.getByRole("columnheader", { name: /Sort all rows by Name/ }).boundingBox();
   expect(name?.width ?? 0).toBeGreaterThanOrEqual(180);
   await expect(page.locator("[data-assistant-bubble]")).toHaveCSS("position", "fixed");
   expect(await axeViolations(page)).toEqual([]);
