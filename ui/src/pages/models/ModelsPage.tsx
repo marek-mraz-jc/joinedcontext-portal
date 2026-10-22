@@ -139,8 +139,8 @@ export function ModelsPage({
   const [changeNotice, setChangeNotice] = useState<Change | null>(null);
   const [nameChoice, setNewName] = useState<string | undefined>(undefined);
   const [spaceChoice, setNewSpace] = useState<string | undefined>(handedOff.space);
-  /** The version of the shared draft this page last kept, for the next keep (AG-61). */
-  const [kept, setKept] = useState<{ name: string; version: number } | null>(null);
+  /** The shared draft this page last kept: its version for the next keep (AG-61), and what it held. */
+  const [kept, setKept] = useState<{ name: string; version: number; source: string; space: string } | null>(null);
   const [heldConflict, setHeldConflict] = useState(false);
 
   // A model imported or inferred here lives in this component until Save proposes it, and a
@@ -238,8 +238,14 @@ export function ModelsPage({
     models.isSuccess &&
     targetName !== undefined &&
     !(models.data ?? []).some((manifest) => manifest.metadata.name === targetName);
+  // Kept only when it differs from what the draft holds: each keep moved the version, and a keep
+  // keyed on the version alone wrote the same draft again every DRAFT_DEBOUNCE_MS (T-5066).
+  const lastKept = kept?.name === targetName ? kept : held;
   const keeping =
-    unpublished && source !== held?.source && edited !== undefined && !heldConflict;
+    unpublished &&
+    edited !== undefined &&
+    !heldConflict &&
+    (source !== lastKept?.source || newSpace !== (lastKept?.space ?? ""));
   const keptVersion = [kept, held].find(
     (candidate) => candidate !== null && candidate !== undefined && candidate.name === targetName,
   )?.version;
@@ -261,7 +267,7 @@ export function ModelsPage({
             },
             keptVersion,
           );
-          setKept({ name: targetName, version: answer.version });
+          setKept({ name: targetName, version: answer.version, source, space: newSpace });
           // The page's own address (T-3239): a bare replaceState read as an assistant hand-off
           // and mounted the page afresh, closing the editor view the person had open (T-5066).
           const query = new URLSearchParams(window.location.search);
