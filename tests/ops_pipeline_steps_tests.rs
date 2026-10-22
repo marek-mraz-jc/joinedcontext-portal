@@ -144,12 +144,12 @@ fn state(project: &str, runner: Option<&MockServer>) -> AppState {
 async fn runner() -> MockServer {
     let runner = MockServer::start().await;
     Mock::given(method("POST"))
-        .and(path_regex(r"^/[a-z-]+/streams/pipeline-test-[a-z2-7]{26}$"))
+        .and(path_regex(r"^/[a-z-]+/streams/pipeline-test-[a-z0-9-]+$"))
         .respond_with(ResponseTemplate::new(200))
         .mount(&runner)
         .await;
     Mock::given(method("DELETE"))
-        .and(path_regex(r"^/[a-z-]+/streams/pipeline-test-[a-z2-7]{26}$"))
+        .and(path_regex(r"^/[a-z-]+/streams/pipeline-test-[a-z0-9-]+$"))
         .respond_with(ResponseTemplate::new(200))
         .mount(&runner)
         .await;
