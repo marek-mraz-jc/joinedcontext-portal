@@ -9,14 +9,16 @@
  * - a removal proposed from the models' list, rejected, so the model stays.
  *
  * Nothing lands: every Change is rejected, the drafts the editor keeps are swept, and a sample
- * or an import that fills the editor is never saved. The import starts from a model that already
+ * or an import that fills the editor is never saved. A new model needs a space that holds none, and
+ * every seeded space holds its one model (DM-61), so the run makes a sandbox space for it and removes
+ * it again at the end; its `t5066-` name lets residue.spec.ts sweep it if a run dies first. The import starts from a model that already
  * has a class, because an import into an empty editor becomes a model that cannot be saved as new
  * (T-2847).
  */
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { guideShot, helpClipStart } from "./guide";
-import { APPROVER, STEWARD, VIEWER, csrf, proposedChange, reject, signIn, sweepDrafts } from "./portal";
+import { APPROVER, STEWARD, VIEWER, approve, csrf, proposedChange, reject, removeCompletely, signIn, sweepDrafts } from "./portal";
 
 const PROJECT = "helsinki";
 const SUFFIX = process.env.E2E_SUFFIX ?? new Date().toISOString().slice(11, 16).replace(":", "");
@@ -24,6 +26,9 @@ const MODEL = `jm-${SUFFIX}`;
 /** Every draft this run leaves: the model, and the one the sample fills, named after its file. */
 const MINE = new RegExp(`^jm-${SUFFIX}`);
 const SAMPLE = `jm-${SUFFIX}-sample`;
+/** The space this run's new models go into (see above). */
+const SPACE = `t5066-${Date.now().toString(36)}`;
+let sandbox: Promise<void> | undefined;
 
 test.setTimeout(600_000);
 
@@ -34,18 +39,40 @@ async function addClass(page: Page, name: string): Promise<void> {
   await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
 }
 
-/** A new, empty model in the editor, named, in the first space that has no model yet. */
+/** The run's sandbox space, made once and approved by the steward when the lane asks (CC-67). */
+async function sandboxSpace(page: Page): Promise<void> {
+  const answer = await page.request.post(`/api/v1/projects/${PROJECT}/spaces`, {
+    headers: { "x-csrf-token": await csrf(page.context()) },
+    data: { apiVersion: "joinedcontext.com/v1alpha1", kind: "ContextSpace", metadata: { name: SPACE, namespace: PROJECT }, spec: { isSandbox: true } },
+  });
+  expect(answer.status(), await answer.text()).toBe(202);
+  const change = (await answer.json()) as { metadata: { name: string }; status: { phase: string } };
+  if (change.status.phase === "PendingApproval") {
+    await approve(page, PROJECT, change.metadata.name);
+  }
+  await expect
+    .poll(async () => (await page.request.get(`/api/v1/projects/${PROJECT}/spaces/${SPACE}`)).status(), { timeout: 180_000, intervals: [3_000] })
+    .toBe(200);
+}
+
+test.afterAll(async ({ browser }) => {
+  if (!sandbox) return;
+  const owner = await signIn(browser, STEWARD, `/projects/${PROJECT}/spaces?lang=en`);
+  await removeCompletely(owner, PROJECT, "spaces", SPACE).catch(() => undefined);
+  await owner.context.close();
+});
+
+/** A new, empty model in the editor, named, in the run's sandbox space. */
 async function newModel(page: Page): Promise<void> {
+  sandbox ??= sandboxSpace(page);
+  await sandbox;
   await page.goto(`/projects/${PROJECT}/models?new=blank&lang=en`, { waitUntil: "load" });
   const region = page.getByRole("region", { name: "New model" });
   await expect(region).toBeVisible({ timeout: 60_000 });
   await region.getByLabel("Name", { exact: true }).fill(MODEL);
   const space = region.getByLabel("Space", { exact: true });
-  const free = await space.evaluate((element) =>
-    [...(element as HTMLSelectElement).options].find((option) => option.value !== "" && !option.disabled)?.value ?? "",
-  );
-  expect(free, "every space of the project has a model already, so none can take a new one").not.toBe("");
-  await space.selectOption(free);
+  await expect(space.locator(`option[value="${SPACE}"]`), "the sandbox space takes a new model").toBeEnabled({ timeout: 60_000 });
+  await space.selectOption(SPACE);
 }
 
 test("a steward builds a model with classes, an enum and a has-many relation, edits its source, checks and proposes it", async ({
