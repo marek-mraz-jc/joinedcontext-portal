@@ -1869,6 +1869,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/changes/history/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Closed Changes
+         * @description The closed changes the history lists, under its filter and read rule, as CSV, newest first: when, what, the outcome, who proposed and who decided, and the rejection reason. One file covers up to 200 closed merge requests from `page`; the `JC-Next-Page` header names the page that continues it.
+         */
+        get: operations["export_change_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/changes/{id}": {
         parameters: {
             query?: never;
@@ -5731,6 +5751,14 @@ export interface components {
          * @enum {string}
          */
         EndpointAccess: "read" | "readWrite";
+        /** @description A licence of the EU licence table. */
+        EndpointLicence: {
+            /** @description The EU licence table code, such as `CC_BY_4_0`. */
+            code: string;
+            title: string;
+            /** @description The licence's IRI in the EU licence table. */
+            url: string;
+        };
         /** @description The Endpoint a request names. */
         EndpointName: {
             name: string;
@@ -5738,8 +5766,19 @@ export interface components {
         };
         /** @description What a public Endpoint's page shows under "Standards". */
         EndpointStandards: {
+            /** @description The Endpoint's public address, ending in `/`: every sample a developer page shows starts here. */
+            base: string;
             /** @description The type of the entity the examples were built from; absent when none was read. */
             entityType?: string | null;
+            licence?: null | components["schemas"]["EndpointLicence"];
+            /**
+             * Format: int32
+             * @description The requests a minute the edge lets one anonymous caller send (ADR-N-035, class
+             *     `publicEndpoint`); beyond it the edge answers 429.
+             */
+            requestsPerMinute?: number | null;
+            /** @description Every representation the Endpoint serves, query standards and files alike. */
+            served: string[];
             slug: string;
             standards: components["schemas"]["StandardGuide"][];
             /** @description The entity types of the Endpoint's data model. */
@@ -7856,6 +7895,11 @@ export interface components {
             examples: components["schemas"]["Example"][];
             /** @description The names this standard filters on. */
             fields: string[];
+            /**
+             * @description The first five entities of the example type in this standard, kept only when that call
+             *     answered with entities.
+             */
+            first?: string | null;
             /** @description `ngsi-ld`, `ogc-features`, `odata` or `sta`. */
             representation: string;
         };
@@ -13602,6 +13646,78 @@ export interface operations {
                 };
             };
             /** @description An unknown parameter or page 0 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Project not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Git forge unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    export_change_history: {
+        parameters: {
+            query?: {
+                /** @description The page of closed changes, from 1; `next` of the previous answer. */
+                page?: number;
+                /** @description Closed changes to one kind only, as `Endpoint`. */
+                kind?: string;
+                /** @description Closed changes whose resource name contains this, any case. */
+                name?: string;
+                /** @description Closed changes whose author's name or e-mail contains this, any case (T-3274). */
+                author?: string;
+                /** @description Closed changes decided on or after this day, `YYYY-MM-DD` (T-3274). */
+                since?: string;
+                /** @description Closed changes decided on or before this day, `YYYY-MM-DD` (T-3274). */
+                until?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description text/csv, one row per closed change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description An unknown parameter, page 0 or a day that is not YYYY-MM-DD */
             400: {
                 headers: {
                     [name: string]: unknown;

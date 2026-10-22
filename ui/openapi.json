@@ -6990,6 +6990,135 @@
         }
       }
     },
+    "/api/v1/projects/{project}/changes/history/export": {
+      "get": {
+        "tags": [
+          "changes"
+        ],
+        "summary": "Export Closed Changes",
+        "description": "The closed changes the history lists, under its filter and read rule, as CSV, newest first: when, what, the outcome, who proposed and who decided, and the rejection reason. One file covers up to 200 closed merge requests from `page`; the `JC-Next-Page` header names the page that continues it.",
+        "operationId": "export_change_history",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "The page of closed changes, from 1; `next` of the previous answer.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "Closed changes to one kind only, as `Endpoint`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Closed changes whose resource name contains this, any case.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "author",
+            "in": "query",
+            "description": "Closed changes whose author's name or e-mail contains this, any case (T-3274).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "Closed changes decided on or after this day, `YYYY-MM-DD` (T-3274).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "description": "Closed changes decided on or before this day, `YYYY-MM-DD` (T-3274).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "text/csv, one row per closed change",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An unknown parameter, page 0 or a day that is not YYYY-MM-DD",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Git forge unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/changes/{id}": {
       "get": {
         "tags": [
@@ -23312,6 +23441,28 @@
           "readWrite"
         ]
       },
+      "EndpointLicence": {
+        "type": "object",
+        "description": "A licence of the EU licence table.",
+        "required": [
+          "code",
+          "title",
+          "url"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The EU licence table code, such as `CC_BY_4_0`."
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "The licence's IRI in the EU licence table."
+          }
+        }
+      },
       "EndpointName": {
         "type": "object",
         "description": "The Endpoint a request names.",
@@ -23335,15 +23486,48 @@
         "required": [
           "slug",
           "types",
-          "standards"
+          "standards",
+          "base",
+          "served"
         ],
         "properties": {
+          "base": {
+            "type": "string",
+            "description": "The Endpoint's public address, ending in `/`: every sample a developer page shows starts here."
+          },
           "entityType": {
             "type": [
               "string",
               "null"
             ],
             "description": "The type of the entity the examples were built from; absent when none was read."
+          },
+          "licence": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EndpointLicence",
+                "description": "The licence the Endpoint's catalogue entry names; absent when it names none."
+              }
+            ]
+          },
+          "requestsPerMinute": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The requests a minute the edge lets one anonymous caller send (ADR-N-035, class\n`publicEndpoint`); beyond it the edge answers 429.",
+            "minimum": 0
+          },
+          "served": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Every representation the Endpoint serves, query standards and files alike."
           },
           "slug": {
             "type": "string"
@@ -29201,6 +29385,13 @@
               "type": "string"
             },
             "description": "The names this standard filters on."
+          },
+          "first": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The first five entities of the example type in this standard, kept only when that call\nanswered with entities."
           },
           "representation": {
             "type": "string",

@@ -296,6 +296,10 @@
       "closed": "Uzavreté",
       "reason": "Dôvod: {reason}",
       "inForge": "Uzavreté v repozitári",
+      "export": "Exportovať CSV",
+      "exportHint": "Stiahne uzavreté zmeny, ktoré filter ukazuje: kedy, čo, kto navrhol, kto rozhodol a prečo. Súbor: {project}-changes.csv.",
+      "exportCut": "Súbor obsahuje 200 najnovších uzavretých zmien. Staršie exportujete po zúžení dní.",
+      "dataWrites": "Kto zapísal entitu, kedy a prečo: otvorte údaje Endpointu, pri entite História a zaškrtnite „Každá verzia, kto ju zmenil a prečo“.",
       "older": "Zobraziť staršie zmeny",
       "empty": "Zatiaľ nebola zlúčená ani zamietnutá žiadna zmena.",
       "emptyHint": "Zmena sa tu objaví aj s tým, kto o nej rozhodol, keď ju na karte Otvorené schválite alebo zamietnete.",
@@ -1817,6 +1821,76 @@
       "answered": "{count, plural, one {# entita} few {# entity} other {# entít}} na prvej strane",
       "none": "Zatiaľ bez príkladu: nenašla sa entita, z ktorej by sa dal zostaviť.",
       "unavailable": "Štandardy tohto endpointu sa teraz nedajú načítať; skúste to o minútu."
+    },
+    "developer": {
+      "terms": "Podmienky použitia",
+      "licence": "Licencia",
+      "noLicence": "Poskytovateľ neuvádza licenciu: pred ďalším použitím údajov sa ho opýtajte.",
+      "limit": "Limit požiadaviek",
+      "perMinute": "{rate} požiadaviek za minútu na adresu. Nad limit API volania odmietne; počkajte toľko sekúnd, koľko uvádza hlavička Retry-After.",
+      "noLimit": "Inštalácia nenastavuje vlastný limit.",
+      "access": "Prístup",
+      "accessText": "Otvorený: bez prihlásenia a bez tokenu. Každá ukážka nižšie funguje tak, ako je.",
+      "samples": "Ukážky kódu",
+      "language": "Jazyk",
+      "sample": "Ukážka v jazyku {language}",
+      "copy": "Kopírovať ukážku",
+      "send": "Vyskúšať",
+      "anonymous": "Odošle sa bez vášho prihlásenia, ako od ktoréhokoľvek návštevníka.",
+      "answered": "Odpoveď: HTTP {status}.",
+      "limited": "HTTP {status}: príliš veľa požiadaviek. Počkajte minútu a skúste znova.",
+      "cut": "Zobrazuje sa prvých {chars} znakov.",
+      "failed": "Volanie sa nedostalo k API: {reason}. Skontrolujte pripojenie a skúste to znova.",
+      "request": "Požiadavka",
+      "requestHint": "Cesta pod týmto endpointom, napríklad {example}",
+      "problem": {
+        "start": "Zadajte cestu, ktorá začína znakom /, napríklad /ngsi-ld/v1/types.",
+        "outside": "Ponechajte cestu pod týmto endpointom: odstráňte .., // a kódované lomky."
+      },
+      "surfaceName": {
+        "ngsi-ld": "NGSI-LD",
+        "ogc-features": "OGC API Features",
+        "geojson": "GeoJSON",
+        "odata": "OData",
+        "sta": "SensorThings",
+        "csv": "CSV",
+        "ical": "iCalendar",
+        "websocket": "WebSocket",
+        "mcp": "MCP"
+      },
+      "surface": {
+        "ngsi-ld": "ETSI NGSI-LD API: prvé entity typu ako JSON-LD.",
+        "ogc-features": "OGC API - Features: prvé prvky kolekcie pre nástroje GIS.",
+        "geojson": "Tie isté prvky uložené ako súbor GeoJSON.",
+        "odata": "OData v4: prvé riadky množiny entít pre Excel a Power BI.",
+        "sta": "OGC SensorThings API: prvé objekty Things.",
+        "csv": "Všetky entity v jednom súbore CSV.",
+        "ical": "Udalosti vo formáte iCalendar.",
+        "websocket": "Živé zmeny cez WebSocket: prihláste odber a každá zmena príde ako správa.",
+        "mcp": "Model Context Protocol pre AI asistentov: prvé volanie, ktoré klient pošle."
+      },
+      "tool": {
+        "qgis": {
+          "title": "QGIS",
+          "steps": "Vrstva > Pridať vrstvu > Pridať vrstvu WFS / OGC API - Features. Zvoľte Nové, zadajte URL nižšie, ako verziu zvoľte OGC API - Features, potom Pripojiť a pridajte kolekciu."
+        },
+        "arcgis": {
+          "title": "ArcGIS Pro",
+          "steps": "Insert > Connections > Server > New OGC API Server. Vložte URL nižšie a potiahnite kolekciu z panela Catalog na mapu."
+        },
+        "excel": {
+          "title": "Excel a Power BI",
+          "steps": "Údaje > Získať údaje > Z iných zdrojov > OData. Vložte URL nižšie a zvoľte anonymný prístup."
+        },
+        "calendar": {
+          "title": "Kalendár",
+          "steps": "Prihláste odber adresy nižšie v Outlooku, Kalendári Google alebo v Kalendári Apple."
+        },
+        "claude": {
+          "title": "Claude a iní klienti MCP",
+          "steps": "Pridajte vlastný konektor s URL nižšie. Prihlásenie netreba."
+        }
+      }
     },
     "shareFlow": {
       "section": "Zdieľať s iným projektom",
@@ -7610,7 +7684,8 @@
         "model": "Dátový model vo formáte {format}."
       },
       "forDevelopers": "Pre vývojárov",
-      "moreFormats": "{count, plural, one {+# formát} few {+# formáty} other {+# formátov}}"
+      "moreFormats": "{count, plural, one {+# formát} few {+# formáty} other {+# formátov}}",
+      "developerPage": "Stránka pre vývojárov: ukážky kódu pre každý štandard, vyskúšanie, licencia a limit požiadaviek"
     },
     "use": {
       "title": "Použiť tieto dáta",

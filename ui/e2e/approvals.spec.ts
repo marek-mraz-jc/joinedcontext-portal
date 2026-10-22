@@ -186,6 +186,58 @@ test.describe("approvals", () => {
     await page.screenshot({ path: test.info().outputPath("approval-create-1440.png"), fullPage: true });
   });
 
+  // T-5114: a steward finds who changed a Policy, filters the history and takes it away as CSV.
+  for (const width of [1440, 400]) {
+    test(`a steward exports the change history as CSV at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const policy = {
+        apiVersion: "joinedcontext.com/v1alpha1",
+        kind: "Change",
+        metadata: { name: "chg-0000002a", namespace: "helsinki" },
+        summary: { key: "change.summary.update", params: { kind: "Policy", name: "air-quality-write" } },
+        author: { name: "Marek Mráz" },
+        createdAt: "2026-10-20T08:00:00Z",
+        status: { lane: "red", phase: "Rejected", plan: {}, mergeRequest: "https://gitea.example/city/city-config/pulls/42" },
+        decision: { by: "jana.kovacova@banskabystrica.sk", at: "2026-10-20T09:30:00Z", reason: "Writes must stay with the steward group" },
+      };
+      const asked: string[] = [];
+      await stubApi(page);
+      await page.route("**/changes/history**", (route) => {
+        const url = new URL(route.request().url());
+        asked.push(`${url.pathname.split("/").pop()}${url.search}`);
+        if (url.pathname.endsWith("/export")) {
+          return route.fulfill({
+            status: 200,
+            headers: { "content-type": "text/csv; charset=utf-8" },
+            body: "closedAt,change,outcome,kind,name\r\n2026-10-20T09:30:00Z,chg-0000002a,Rejected,Policy,air-quality-write\r\n",
+          });
+        }
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ChangeList", items: [policy] }),
+        });
+      });
+      await page.goto("/projects/helsinki/approvals?lang=en");
+      await page.getByRole("tab", { name: "History" }).click();
+      await expect(page.getByText("Reason: Writes must stay with the steward group")).toBeVisible();
+      await page.getByLabel("Name contains").fill("air");
+      await page.getByRole("button", { name: "Filter", exact: true }).click();
+      await expect.poll(() => asked).toContain("history?page=1&name=air");
+      const download = page.waitForEvent("download");
+      await page.getByRole("button", { name: "Export CSV" }).click();
+      const file = await download;
+      expect(file.suggestedFilename()).toBe("helsinki-changes.csv");
+      expect(asked).toContain("export?name=air");
+      const sideways = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(sideways).toBe(0);
+      expect(await axeViolations(page)).toEqual([]);
+      await page.screenshot({ path: test.info().outputPath(`approvals-history-export-${width}.png`), fullPage: true });
+    });
+  }
+
   test("the approvals routes have no axe violations", async ({ page }) => {
     await stubApi(page);
 
