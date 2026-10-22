@@ -45,6 +45,7 @@ import { KindList } from "../../routes/ResourceListPage";
 import { ValidationHealth } from "./ValidationHealth";
 import { HealthLog } from "../health/HealthLog";
 import { Brokers } from "./Brokers";
+import { Costs } from "./Costs";
 import { McpServersPage } from "../mcp/McpServersPage";
 import { ORGANIZATION_GROUPS } from "./AdminNav";
 
@@ -358,6 +359,7 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
           </>
         ) : null}
         {tab === "brokers" ? <Brokers /> : null}
+        {tab === "costs" ? <Costs /> : null}
         {tab === "endpoints" ? <AllEndpointsPage /> : null}
         {tab === "mcp-servers" ? <McpServersPage project={ORG_NAMESPACE} embedded /> : null}
       </div>

@@ -6386,7 +6386,8 @@
       "endpoints": "Všechny koncové body",
       "mcp-servers": "MCP servery organizace",
       "brokers": "Brokery",
-      "agents": "Agenti"
+      "agents": "Agenti",
+      "costs": "Náklady"
     },
     "settings": {
       "title": "Nastavení",
@@ -6968,6 +6969,31 @@
         "unknown": "Bez adresy"
       }
     },
+    "costs": {
+      "title": "Náklady podle projektů",
+      "lead": "Kolik stojí jeden měsíc instalace každý projekt: podíl na serveru podle bajtů, které uchovávají prostory projektu, jeho úložiště za cenu svazku a výdaje jeho asistentů na AI. Co nenese žádný projekt, patří platformě; řádky dávají dohromady ceník, který fakturuje cloud.",
+      "hidden": "Náklady vidí jen administrátor organizace.",
+      "month": "Měsíc",
+      "monthHelp": "Kalendářní měsíc, například 2026-09. Stránka se otevře na posledním celém měsíci.",
+      "export": "Stáhnout CSV",
+      "saving": "Připravuje se CSV…",
+      "summary": "Infrastruktura {infrastructure} + AI {ai} = {total}",
+      "measured": "Úložiště změřeno {at}; AI přepočteno kurzem {rate} {currency} za jeden americký dolar.",
+      "partial": "Některé prostory nebo asistenti neodpověděli; počítají se zde jako 0. Důvody jsou v řádcích každého projektu.",
+      "empty": "Žádný projekt zatím nemá prostor ani asistenta, proto celý měsíc patří platformě. Vytvořte v projektu Context Space a uvidíte jeho podíl.",
+      "caption": "Náklady podle projektů, {month}",
+      "project": "Projekt",
+      "node": "Podíl na serveru",
+      "storage": "Úložiště",
+      "ai": "AI",
+      "total": "Celkem",
+      "parts": "{spaces, plural, one {# prostor} few {# prostory} other {# prostorů}}, {assistants, plural, one {# asistent} few {# asistenti} other {# asistentů}}",
+      "spaceLine": "Prostor {space}: {size}, {cost}",
+      "assistantLine": "Asistent {assistant}: otázky {questions}, {usd}, {cost}",
+      "uncosted": "{count, plural, one {# otázka neměla od poskytovatele cenu a nezapočítává se.} few {# otázky neměly od poskytovatele cenu a nezapočítávají se.} other {# otázek nemělo od poskytovatele cenu a nezapočítává se.}}",
+      "platform": "Platforma",
+      "platformHint": "Nevyužité místo na svazku a server, když se nic nezměřilo."
+    },
     "nav": {
       "back": "Zpět na projekty"
     },
@@ -6980,7 +7006,7 @@
     "groupLead": {
       "access": "Kdo patří do organizace a co smí každý člověk, skupina a servisní účet. Každá změna se navrhne a schválí.",
       "projects": "Co drží a zveřejňují všechny projekty organizace, na jednom místě.",
-      "platform": "Co instalace provozuje pro každý projekt: brokery, prostředí, členství v datovém prostoru a stav.",
+      "platform": "Co instalace provozuje pro každý projekt: brokery, prostředí, členství v datovém prostoru, stav a náklady.",
       "settings": "Doména organizace, jazyky, kontakty, pravidla a limity a co ještě chybí v nastavení."
     },
     "kindHidden": "Zde je vidí jen administrátor organizace, jehož role zahrnuje {kinds}. Požádejte administrátora organizace, aby je přidal do vaší role.",

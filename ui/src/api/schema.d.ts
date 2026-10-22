@@ -696,6 +696,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/costs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Costs per Project
+         * @description One calendar month split per project (T-5126): the nodes and fixed items by the project's share of the bytes its spaces store, its bytes at the blended volume price, and each AssistantDeployment's priced turns at the table's rate. What no project carries is the platform's; the projects and the platform add up to the operator's price table. Organization administrators only.
+         */
+        get: operations["get_costs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/costs/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Costs per Project
+         * @description The month of `GET /api/v1/organization/costs` as CSV: one line per node share, space and assistant, the platform's lines last (T-5126). Organization administrators only.
+         */
+        get: operations["export_costs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organization/datamodels": {
         parameters: {
             query?: never;
@@ -4668,6 +4708,22 @@ export interface components {
             /** @description `jc-types.ts`: the row types a generated application compiles against (SDK-10). */
             typescript?: string | null;
         };
+        /** @description One assistant's line. */
+        AssistantCost: {
+            assistant: string;
+            /** Format: double */
+            cost: number;
+            /**
+             * Format: double
+             * @description What the provider billed, in USD; absent when the assistant did not answer.
+             */
+            costUsd?: number | null;
+            /** Format: int64 */
+            questions: number;
+            reason?: string | null;
+            /** Format: int64 */
+            uncostedQuestions: number;
+        };
         /**
          * @description One attribute of a class as the space's model states it (T-3223): what an editor needs to map
          *     a field onto it.
@@ -5415,6 +5471,31 @@ export interface components {
             names?: string[];
             /** @description `entities`, `rejectedRecords`, `runs`, `grants` or `bindings`. */
             what: string;
+        };
+        /** @description The operator's price table: what the cloud bills a month. */
+        CostPrices: {
+            /** @description ISO 4217, e.g. `EUR`. */
+            currency: string;
+            /** @description Billed every month whatever runs: addresses, backups. */
+            fixed?: components["schemas"]["PricedItem"][];
+            nodes: components["schemas"]["PricedItem"][];
+            /**
+             * Format: double
+             * @description The table's currency for one US dollar, which the model provider bills in.
+             */
+            perUsd: number;
+            volumes?: components["schemas"]["PricedVolume"][];
+        };
+        /** @description A month of the installation split per project, in the price table's currency. */
+        Costs: components["schemas"]["Split"] & {
+            currency: string;
+            /**
+             * Format: date-time
+             * @description When the bytes were measured: storage is read now, not averaged over the month.
+             */
+            measuredAt: string;
+            month: string;
+            prices: components["schemas"]["CostPrices"];
         };
         /** @description The checks of one rule in one window. */
         Counts: {
@@ -6986,6 +7067,18 @@ export interface components {
             delete?: number;
             update?: number;
         };
+        /**
+         * @description What no project carries: the volumes' unused gigabytes, and the nodes when nothing was
+         *     measured.
+         */
+        PlatformCost: {
+            /** Format: double */
+            node: number;
+            /** Format: double */
+            storage: number;
+            /** Format: double */
+            total: number;
+        };
         /** @description A platform role the person holds, and the binding and the way it reaches them (PF-94). */
         PlatformRole: {
             binding: string;
@@ -7124,6 +7217,27 @@ export interface components {
                 [key: string]: unknown;
             }[];
         };
+        /** @description One priced line of the table: a node, an address, a backup. */
+        PricedItem: {
+            /**
+             * Format: double
+             * @description Its price a month, in the table's currency, without VAT.
+             */
+            monthly: number;
+            /** @description What it is, e.g. `cpx42 nbg1`. */
+            name: string;
+        };
+        /** @description One volume, billed per GiB provisioned. */
+        PricedVolume: {
+            /** Format: double */
+            gigabytes: number;
+            /**
+             * Format: double
+             * @description The price of one GiB a month.
+             */
+            monthlyPerGigabyte: number;
+            name: string;
+        };
         /** @description One fetch of a DataSource on the project's runner, or why there was none (MF-39). */
         Probe: {
             bytes?: number | null;
@@ -7167,6 +7281,31 @@ export interface components {
         ProjectAffordances: {
             /** @description Whether `POST /api/v1/projects` would open a project for this caller. */
             creation: components["schemas"]["Affordance"];
+        };
+        /** @description One project's month, in the table's currency. */
+        ProjectCost: {
+            /** Format: double */
+            ai: number;
+            assistants: components["schemas"]["AssistantCost"][];
+            /**
+             * Format: double
+             * @description The project's share of the nodes and fixed items, by its share of the measured bytes.
+             */
+            node: number;
+            project: string;
+            /**
+             * Format: double
+             * @description Its share of the measured bytes, 0 to 1.
+             */
+            share: number;
+            spaces: components["schemas"]["SpaceCost"][];
+            /**
+             * Format: double
+             * @description Its bytes at the blended volume price.
+             */
+            storage: number;
+            /** Format: double */
+            total: number;
         };
         /** @description One project as the Portal holds it, with what it is using of its quota (PF-75). */
         ProjectDetail: {
@@ -7742,6 +7881,19 @@ export interface components {
             rules: components["schemas"]["RuleChecks"][];
             windows?: null | components["schemas"]["Windows"];
         };
+        /** @description One space's line. */
+        SpaceCost: {
+            /**
+             * Format: int64
+             * @description The entities and history the broker measured; absent when it did not answer.
+             */
+            bytes?: number | null;
+            /** @description Why `bytes` is missing. */
+            reason?: string | null;
+            space: string;
+            /** Format: double */
+            storage: number;
+        };
         /** @description One space of the origin mapped onto a space of the target project (T-1441). */
         SpaceMapping: {
             from: string;
@@ -7779,6 +7931,20 @@ export interface components {
              * @description When the broker answered.
              */
             observedAt: string;
+        };
+        /** @description The month split. */
+        Split: {
+            /** Format: double */
+            ai: number;
+            /**
+             * Format: double
+             * @description The table: what the cloud bills, which the projects and the platform add up to.
+             */
+            infrastructure: number;
+            platform: components["schemas"]["PlatformCost"];
+            projects: components["schemas"]["ProjectCost"][];
+            /** Format: double */
+            total: number;
         };
         /** @description One query standard the Endpoint serves. */
         StandardGuide: {
@@ -9724,6 +9890,124 @@ export interface operations {
             };
             /** @description Not an organization administrator */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_costs: {
+        parameters: {
+            query?: {
+                /** @description The calendar month, e.g. `2026-09`; the last whole month when absent. */
+                month?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The month split */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Costs"];
+                };
+            };
+            /** @description month is no started calendar month such as 2026-09 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an organization administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No price table is configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    export_costs: {
+        parameters: {
+            query?: {
+                /** @description The calendar month, e.g. `2026-09`; the last whole month when absent. */
+                month?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description text/csv */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description month is no started calendar month such as 2026-09 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an organization administrator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No price table is configured */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
