@@ -224,4 +224,103 @@ mod tests {
         assert_eq!((hidden.checked, hidden.rules[0].count), (10, 1));
         assert_eq!(for_caller(report(), true), report());
     }
+
+    // T-5112: a stranger learns nothing, an Endpoint reader the public form, and a reader of
+    // its Context Space what to fix.
+    #[tokio::test]
+    async fn the_endpoint_score_is_shaped_by_what_the_caller_reads() {
+        use crate::auth::{session::Session, Identity};
+        use crate::permissions::ORG_NAMESPACE;
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        let envelope = |kind: &str, name: &str, namespace: &str, spec: Value| ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: kind.to_owned(),
+            metadata: ObjectMeta::new(name, namespace),
+            spec,
+            status: None,
+        };
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        state.mirror.upsert(envelope(
+            "Endpoint",
+            "stations",
+            "oulu",
+            json!({ "contextSpaceRef": { "kind": "ContextSpace", "name": "bikes" } }),
+        ));
+        for (role, kinds, user) in [
+            ("endpoint-reader", json!(["Endpoint"]), "reader@hel.fi"),
+            (
+                "space-reader",
+                json!(["Endpoint", "ContextSpace"]),
+                "owner@hel.fi",
+            ),
+        ] {
+            state.mirror.upsert(envelope(
+                "Role",
+                role,
+                ORG_NAMESPACE,
+                json!({ "rules": [{ "kinds": kinds, "verbs": ["read"] }] }),
+            ));
+            state.mirror.upsert(envelope(
+                "RoleBinding",
+                role,
+                ORG_NAMESPACE,
+                json!({ "subjects": [{ "user": user }], "role": role, "scope": { "project": "oulu" } }),
+            ));
+        }
+        let mut stale = report();
+        stale.freshness.push(crate::quality::Freshness {
+            pipeline: "stations".into(),
+            entity_type: "Station".into(),
+            newest: None,
+            target_seconds: Some(3_600),
+            state: crate::quality::FreshState::Stale,
+            paused: false,
+        });
+        state.quality.put("oulu", "bikes", stale);
+        let user = |email: &str| {
+            CurrentUser(Session {
+                identity: Identity {
+                    client: None,
+                    subject: format!("f:1:{email}"),
+                    username: email.to_owned(),
+                    email: Some(email.to_owned()),
+                    name: None,
+                    roles: Vec::new(),
+                    groups: Vec::new(),
+                },
+                expires_at: 0,
+                issued_at: 0,
+                id_token: String::new(),
+                access_expires_at: 0,
+                refresh_token: None,
+            })
+        };
+        let ask = |email: &str, project: &str, name: &str| {
+            get_endpoint_quality(
+                user(email),
+                State(state.clone()),
+                Path((project.to_owned(), name.to_owned())),
+            )
+        };
+
+        for (email, project, name) in [
+            ("stranger@hel.fi", "oulu", "stations"),
+            ("reader@hel.fi", "oulu", "nothing"),
+            ("reader@hel.fi", "Oulu!", "stations"),
+        ] {
+            assert!(
+                matches!(ask(email, project, name).await, Err(ApiError::NotFound(_))),
+                "{email} {project}/{name}"
+            );
+        }
+        let Ok(Json(public)) = ask("reader@hel.fi", "oulu", "stations").await else {
+            panic!("an Endpoint reader reads its score");
+        };
+        assert!(public.parts.iter().all(|part| part.fix.is_none()));
+        let Ok(Json(owned)) = ask("owner@hel.fi", "oulu", "stations").await else {
+            panic!("a space reader reads its score");
+        };
+        assert!(owned.parts.iter().any(|part| part.fix.is_some()));
+        assert_eq!(owned.score, public.score);
+    }
 }
