@@ -935,6 +935,14 @@ fn view_mapping(
             )
         })?;
     let ir = mapping.ir.clone()?;
+    // The broker runs only the IR version the gateway hands on (DM-52, T-5219): a Mapping from
+    // another Model Tools is the Endpoint's status here, never a view the broker refuses later.
+    context_gateway::view_mapping::ViewMapping::parse(&ir).map_err(|e| {
+        format!(
+            "the IR of the Mapping {}: {e}; recompile the Mapping with this platform's Model Tools",
+            reference.name
+        )
+    })?;
     let class = |member: &str| {
         ir.get(member)
             .and_then(Value::as_str)
@@ -2986,6 +2994,21 @@ mod tests {
                 with_mapping(vec![("v", vehicles())], Ok(json!({"version": 2}))),
                 mapped_endpoint(),
                 "names no targetClass",
+            ),
+            (
+                with_mapping(
+                    vec![("v", vehicles())],
+                    Ok(
+                        json!({"version": 3, "sourceClass": "Car", "targetClass": "Vehicle", "slots": []}),
+                    ),
+                ),
+                mapped_endpoint(),
+                "version 3, and this gateway serves version 2",
+            ),
+            (
+                with_mapping(vec![("v", vehicles())], Ok(json!({"sourceClass": "Car"}))),
+                mapped_endpoint(),
+                "not an object with a version",
             ),
             (
                 with_mapping(vec![("v", vehicles())], Ok(vehicles_ir())),
