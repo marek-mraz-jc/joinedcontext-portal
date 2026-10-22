@@ -9,11 +9,11 @@
  * - a removal proposed from the models' list, rejected, so the model stays.
  *
  * Nothing lands: every Change is rejected, the drafts the editor keeps are swept, and a sample
- * or an import that fills the editor is never saved. A new model needs a space that holds none, and
- * every seeded space holds its one model (DM-61), so the run makes a sandbox space for it and removes
- * it again at the end; its `t5066-` name lets residue.spec.ts sweep it if a run dies first. The import starts from a model that already
- * has a class, because an import into an empty editor becomes a model that cannot be saved as new
- * (T-2847).
+ * or an import that fills the editor is never saved. Every space holds exactly one model (DM-61), and
+ * a new space is created with its own empty one (named after the space), so the run makes a sandbox
+ * space and builds into that model, then removes the space at the end; its `t5066-` name lets
+ * residue.spec.ts sweep it if a run dies first. The import starts from a model that already has a
+ * class, because an import into an empty editor becomes a model that cannot be saved (T-2847).
  */
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
@@ -22,12 +22,12 @@ import { APPROVER, STEWARD, VIEWER, approve, checkManifest, csrf, proposedChange
 
 const PROJECT = "helsinki";
 const SUFFIX = process.env.E2E_SUFFIX ?? new Date().toISOString().slice(11, 16).replace(":", "");
-const MODEL = `jm-${SUFFIX}`;
-/** Every draft this run leaves: the model, and the one the sample fills, named after its file. */
-const MINE = new RegExp(`^jm-${SUFFIX}`);
-const SAMPLE = `jm-${SUFFIX}-sample`;
-/** The space this run's new models go into (see above). */
+/** The space this run builds in (see above); its empty model carries the space's name. */
 const SPACE = `t5066-${Date.now().toString(36)}`;
+const MODEL = SPACE;
+/** Every draft this run leaves: the space's model, and the one the sample fills, named after its file. */
+const MINE = new RegExp(`^(jm-${SUFFIX}|${SPACE}$)`);
+const SAMPLE = `jm-${SUFFIX}-sample`;
 let sandbox: Promise<void> | undefined;
 
 test.setTimeout(600_000);
@@ -52,9 +52,15 @@ async function sandboxSpace(page: Page): Promise<void> {
   if (change.status.phase === "PendingApproval") {
     await approve(page, PROJECT, change.metadata.name);
   }
-  await expect
-    .poll(async () => (await page.request.get(`/api/v1/projects/${PROJECT}/spaces/${SPACE}`)).status(), { timeout: 180_000, intervals: [3_000] })
-    .toBe(200);
+  for (const plural of ["spaces", "datamodels"]) {
+    await expect
+      .poll(async () => (await page.request.get(`/api/v1/projects/${PROJECT}/${plural}/${SPACE}`)).status(), {
+        message: `the sandbox ${plural} entry ${SPACE} exists`,
+        timeout: 180_000,
+        intervals: [3_000],
+      })
+      .toBe(200);
+  }
 }
 
 test.afterAll(async ({ browser }) => {
@@ -64,17 +70,12 @@ test.afterAll(async ({ browser }) => {
   await owner.context.close();
 });
 
-/** A new, empty model in the editor, named, in the run's sandbox space. */
+/** The sandbox space's own empty model, open in the editor. */
 async function newModel(page: Page): Promise<void> {
   sandbox ??= sandboxSpace(page);
   await sandbox;
-  await page.goto(`/projects/${PROJECT}/models?new=blank&lang=en`, { waitUntil: "load" });
-  const region = page.getByRole("region", { name: "New model" });
-  await expect(region).toBeVisible({ timeout: 60_000 });
-  await region.getByLabel("Name", { exact: true }).fill(MODEL);
-  const space = region.getByLabel("Space", { exact: true });
-  await expect(space.locator(`option[value="${SPACE}"]`), "the sandbox space takes a new model").toBeEnabled({ timeout: 60_000 });
-  await space.selectOption(SPACE);
+  await page.goto(`/projects/${PROJECT}/models?edit=${encodeURIComponent(MODEL)}&lang=en`, { waitUntil: "load" });
+  await expect(page.getByLabel("New type"), "the space's empty model opens in the editor").toBeVisible({ timeout: 60_000 });
 }
 
 test("a steward builds a model with classes, an enum and a has-many relation, edits its source, checks and proposes it", async ({
