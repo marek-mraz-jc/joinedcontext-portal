@@ -55,6 +55,84 @@ export function fieldsOf(definition: unknown, attributes: string[]): FieldRow[] 
   });
 }
 
+/** The definitions of an endpoint's JSON Schema, `$defs` and `definitions` alike. */
+function definitionsOf(schema: unknown): Record<string, unknown> {
+  const document = (schema ?? {}) as { definitions?: Record<string, unknown>; $defs?: Record<string, unknown> };
+  return { ...document.$defs, ...document.definitions };
+}
+
+/** The download of exactly the rows the grid asked: the endpoint's `file.csv` with its type, query and order. */
+function csvHref(origin: string | undefined, slug: string, type: string, q: string | undefined, orderBy: string | undefined): string {
+  const query = new URLSearchParams({ type, ...(q ? { q } : {}), ...(orderBy ? { orderBy } : {}) });
+  return `${origin ?? ""}/api/endpoint/${encodeURIComponent(slug)}/file.csv?${query.toString()}`;
+}
+
+/** The attributes of the type as a list rather than a table: three columns do not fit a phone, one entry a line does. */
+function FieldList({ fields }: { fields: FieldRow[] }): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <details className="rounded border border-border p-2">
+      <summary className="cursor-pointer text-body font-medium text-fg">{t("endpoints.data.fields")}</summary>
+      <ul className="mt-2 divide-y divide-border" aria-label={t("endpoints.data.fields")}>
+        {fields.map((field) => (
+          <li key={field.name} className="flex flex-col gap-0.5 py-2">
+            <span className="text-body">
+              <span className="font-mono">{field.name}</span>
+              <span className="text-caption text-fg-muted">
+                {" · "}
+                {t("endpoints.data.fieldType")}: {field.kind || "—"}
+              </span>
+            </span>
+            <span className="text-caption text-fg-muted">{field.description || t("endpoints.data.noDescription")}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/**
+ * The view's actions: compare with the space (only when the endpoint serves one, T-1435), the full
+ * window, and the CSV download of the current query.
+ */
+function DataActions({
+  space,
+  comparing,
+  onCompare,
+  full,
+  onFull,
+  csv,
+}: {
+  space?: string;
+  comparing: boolean;
+  onCompare: () => void;
+  full: boolean;
+  onFull: () => void;
+  csv?: string;
+}): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        {space ? (
+          <Button size="sm" variant="secondary" onClick={onCompare}>
+            {comparing ? t("endpoints.data.compareClose") : t("endpoints.data.compare")}
+          </Button>
+        ) : null}
+        <Button size="sm" variant="secondary" aria-pressed={full} onClick={onFull}>
+          {full ? t("endpoints.data.fullLeave") : t("endpoints.data.full")}
+        </Button>
+        {csv ? (
+          <a className="focus-ring rounded-sm text-caption text-primary-soft-fg underline hover:no-underline" href={safeHref(csv)} download>
+            {t("endpoints.data.csv")}
+          </a>
+        ) : null}
+      </div>
+      {csv ? <p className="text-caption text-fg-muted">{t("endpoints.data.csvHelp")}</p> : null}
+    </>
+  );
+}
+
 export interface EndpointDataViewProps {
   project: string;
   /** The endpoint's slug: the grid reads through it, never through a URL of its own (EP-55). */
@@ -138,16 +216,10 @@ export function EndpointDataView({
     return () => window.removeEventListener("keydown", leave);
   }, [full]);
   // The endpoint's own schema names its enums: such a column is filtered by picking (UI-86).
-  const enums = useMemo(() => {
-    const document = (schema.data ?? {}) as { definitions?: Record<string, unknown>; $defs?: Record<string, unknown> };
-    const defs = { ...document.$defs, ...document.definitions };
-    return type ? enumsOf(defs[type.name], defs, i18n.language) : {};
-  }, [schema.data, type, i18n.language]);
+  const defs = useMemo(() => definitionsOf(schema.data), [schema.data]);
+  const enums = useMemo(() => (type ? enumsOf(defs[type.name], defs, i18n.language) : {}), [defs, type, i18n.language]);
   // Its relationship ends are columns picked from the target's entities (UI-84).
-  const relations = useMemo(() => {
-    const document = (schema.data ?? {}) as { definitions?: Record<string, unknown>; $defs?: Record<string, unknown> };
-    return type ? relationsOf({ ...document.$defs, ...document.definitions }[type.name]) : {};
-  }, [schema.data, type]);
+  const relations = useMemo(() => (type ? relationsOf(defs[type.name]) : {}), [defs, type]);
 
   const config = useMemo(() => {
     if (!type) {
@@ -189,21 +261,7 @@ export function EndpointDataView({
     [t],
   );
   const labels = useMemo(() => gridLabels(t), [t]);
-  const fields = useMemo(() => {
-    const document = (schema.data ?? {}) as { definitions?: Record<string, unknown>; $defs?: Record<string, unknown> };
-    return type ? fieldsOf({ ...document.$defs, ...document.definitions }[type.name], columns) : [];
-  }, [schema.data, type, columns]);
-  // The whole answer of this query as one table, built by the endpoint under its own limits and
-  // read with the person's own session, as the rows above are (EP-08, EP-44).
-  const safe = type
-    ? safeHref(
-        `${origin ?? ""}/api/endpoint/${encodeURIComponent(slug)}/file.csv?${new URLSearchParams({
-          type: type.name,
-          ...(asked ? { q: asked } : {}),
-          ...(sortText ? { orderBy: sortText } : {}),
-        }).toString()}`,
-      )
-    : undefined;
+  const fields = useMemo(() => (type ? fieldsOf(defs[type.name], columns) : []), [defs, type, columns]);
 
   // A refused or failed schema read says why, in the surface's own sentence (a 403 names the grant).
   const failed = index.error ?? schema.error;
@@ -243,41 +301,18 @@ export function EndpointDataView({
         </Select>
       </Field>
       {/* Two doors on the same page of entities: what this endpoint's filter and projection leave
-          out is marked on the space's side (T-1435). */}
-      <div className="flex flex-wrap items-center gap-2">
-        {space ? (
-          <Button size="sm" variant="secondary" onClick={() => setComparing((each) => !each)}>
-            {comparing ? t("endpoints.data.compareClose") : t("endpoints.data.compare")}
-          </Button>
-        ) : null}
-        <Button size="sm" variant="secondary" aria-pressed={full} onClick={() => setFull((each) => !each)}>
-          {full ? t("endpoints.data.fullLeave") : t("endpoints.data.full")}
-        </Button>
-        {csv && safe ? (
-          <a className="focus-ring rounded-sm text-caption text-primary-soft-fg underline hover:no-underline" href={safe} download>
-            {t("endpoints.data.csv")}
-          </a>
-        ) : null}
-      </div>
-      {csv ? <p className="text-caption text-fg-muted">{t("endpoints.data.csvHelp")}</p> : null}
-      <details className="rounded border border-border p-2">
-        <summary className="cursor-pointer text-body font-medium text-fg">{t("endpoints.data.fields")}</summary>
-        {/* A list rather than a table: three columns do not fit a phone, one entry a line does. */}
-        <ul className="mt-2 divide-y divide-border" aria-label={t("endpoints.data.fields")}>
-          {fields.map((field) => (
-            <li key={field.name} className="flex flex-col gap-0.5 py-2">
-              <span className="text-body">
-                <span className="font-mono">{field.name}</span>
-                <span className="text-caption text-fg-muted">
-                  {" · "}
-                  {t("endpoints.data.fieldType")}: {field.kind || "—"}
-                </span>
-              </span>
-              <span className="text-caption text-fg-muted">{field.description || t("endpoints.data.noDescription")}</span>
-            </li>
-          ))}
-        </ul>
-      </details>
+          out is marked on the space's side (T-1435). The CSV is the whole answer of this query as
+          one table, built by the endpoint under its own limits and read with the person's own
+          session, as the rows are (EP-08, EP-44). */}
+      <DataActions
+        space={space}
+        comparing={comparing}
+        onCompare={() => setComparing((each) => !each)}
+        full={full}
+        onFull={() => setFull((each) => !each)}
+        csv={csv ? csvHref(origin, slug, type.name, asked, sortText) : undefined}
+      />
+      <FieldList fields={fields} />
 
       {comparing && space ? (
         <EntityCompare
