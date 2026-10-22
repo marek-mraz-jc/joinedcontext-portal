@@ -177,7 +177,7 @@ pub fn fold(
 /// The user agents of one robots.txt group and its rules, `true` an Allow.
 type RobotsGroup = (Vec<String>, Vec<(bool, String)>);
 
-/// Whether robots.txt `body` lets [`AGENT`] read `path` (RFC 9309): the group naming the agent,
+/// Whether robots.txt `body` lets `AGENT` read `path` (RFC 9309): the group naming the agent,
 /// else the `*` group; the longest matching rule wins, Allow on a tie.
 pub fn robots_allow(body: &str, path: &str) -> bool {
     let mut groups: Vec<RobotsGroup> = Vec::new();
