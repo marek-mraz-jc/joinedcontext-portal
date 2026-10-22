@@ -67,6 +67,9 @@ pub struct Health {
     pub last_error_at: Option<String>,
     /// The check names it: failed [`ALERT_STREAK`] runs in a row, or a drop.
     pub alert: bool,
+    /// The newest weekly link check of its entities' links (T-5133); none before the first.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub links: Option<crate::link_check::Links>,
 }
 
 fn failed(run: &Run) -> bool {
@@ -135,6 +138,7 @@ pub fn health(pipeline: &str, runs: &[Run], problem: Option<(String, String)>) -
         last_error,
         last_error_at,
         alert: failed_runs >= ALERT_STREAK || dropped,
+        links: None,
     }
 }
 

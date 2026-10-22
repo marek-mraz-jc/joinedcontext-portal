@@ -89,6 +89,8 @@ pub struct AppState {
     pub alerts: Arc<crate::alerts::AlertStore>,
     /// The health log of every project's resources (T-5067).
     pub health_log: Arc<crate::health_log::HealthStore>,
+    /// The weekly link check of each pipeline (T-5133).
+    pub link_check: Arc<crate::link_check::LinkStore>,
     /// Calls per Endpoint, surface and day, as the gateways post them (T-5118).
     pub endpoint_usage: Arc<crate::endpoint_usage::UsageStore>,
     /// The live updates of open data views (API/01 §32, T-3105).
@@ -214,6 +216,7 @@ impl AppState {
             feedback: Arc::new(crate::feedback::FeedbackStore::new(None)),
             alerts: Arc::new(crate::alerts::AlertStore::new(None)),
             health_log: Arc::new(crate::health_log::HealthStore::new(None)),
+            link_check: Arc::new(crate::link_check::LinkStore::new(None)),
             endpoint_usage: Arc::new(crate::endpoint_usage::UsageStore::new(None)),
             live: Arc::new(crate::live::LiveHub::new(&public_base, None)),
             pipeline_log: Arc::new(crate::pipeline_log::LogStore::new(None)),
@@ -291,6 +294,7 @@ impl AppState {
         self.feedback = Arc::new(crate::feedback::FeedbackStore::new(Some(db.clone())));
         self.alerts = Arc::new(crate::alerts::AlertStore::new(Some(db.clone())));
         self.health_log = Arc::new(crate::health_log::HealthStore::new(Some(db.clone())));
+        self.link_check = Arc::new(crate::link_check::LinkStore::new(Some(db.clone())));
         self.endpoint_usage = Arc::new(crate::endpoint_usage::UsageStore::new(Some(db.clone())));
         self.db = Some(db);
         self
@@ -399,6 +403,20 @@ impl AppState {
                                 .and_then(|g| url::Url::parse(g).ok()),
                             Some(Arc::clone(&state.space_usage)),
                         )),
+                    )
+                    .with_link_check(
+                        state
+                            .config
+                            .gateway_url
+                            .as_deref()
+                            .and_then(|g| url::Url::parse(g).ok())
+                            .map(|gateway| {
+                                Arc::new(crate::link_check::Checker::new(
+                                    Arc::clone(&state.mirror),
+                                    Arc::clone(&state.link_check),
+                                    gateway,
+                                ))
+                            }),
                     ),
                 ));
             syncer = state.wire_cluster_writers(syncer);
@@ -970,6 +988,7 @@ impl AppState {
         self.feedback = Arc::new(crate::feedback::FeedbackStore::new(db.clone()));
         self.alerts = Arc::new(crate::alerts::AlertStore::new(db.clone()));
         self.health_log = Arc::new(crate::health_log::HealthStore::new(db.clone()));
+        self.link_check = Arc::new(crate::link_check::LinkStore::new(db.clone()));
         self.endpoint_usage = Arc::new(crate::endpoint_usage::UsageStore::new(db.clone()));
         self.quality = Arc::new(crate::quality::Store::new(db.clone()));
     }

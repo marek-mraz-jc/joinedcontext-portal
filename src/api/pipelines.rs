@@ -771,7 +771,7 @@ pub struct HealthList {
     get,
     path = "/api/v1/projects/{project}/pipeline-health",
     summary = "List Pipeline Health",
-    description = "Each pipeline the caller approves, with its health from its kept runs (T-5048, PL-62): when it last sent records, how many its newest run sent against the median of the 7 days before, how many runs failed in a row, and the newest failed or rejected line of its log with every URL's query cut off. `alert` is true after 3 failed runs in a row or a drop of more than 80 %, the same test that opens a failure or zero-output alert. Needs approve on Pipeline (a steward).",
+    description = "Each pipeline the caller approves, with its health from its kept runs (T-5048, PL-62): when it last sent records, how many its newest run sent against the median of the 7 days before, how many runs failed in a row, and the newest failed or rejected line of its log with every URL's query cut off. `alert` is true after 3 failed runs in a row or a drop of more than 80 %, the same test that opens a failure or zero-output alert. `links` is the newest weekly link check of the `url` and `organizer.url` its entities carry (T-5133): links asked, answered, skipped (robots.txt or a host that is no source of the project) and the first 5 of those that failed 2 checks in a row. Needs approve on Pipeline (a steward).",
     tag = "pipelines",
     params(("project" = String, Path, description = "Project name")),
     responses(
@@ -788,12 +788,20 @@ pub async fn get_pipeline_health(
     Path(project): Path<String>,
 ) -> Result<Json<HealthList>, ApiError> {
     let names = stewarded_pipelines(&state, &user, &project)?;
-    let items = crate::pipeline_health::of_pipelines(&state.pipeline_log, &project, &names)
+    let unavailable = |error: sqlx::Error| {
+        tracing::warn!(%project, %error, "the pipelines' health could not be read");
+        ApiError::Unavailable("the pipelines' runs could not be read; try again".into())
+    };
+    let mut items = crate::pipeline_health::of_pipelines(&state.pipeline_log, &project, &names)
         .await
-        .map_err(|error| {
-            tracing::warn!(%project, %error, "the pipelines' health could not be read");
-            ApiError::Unavailable("the pipelines' runs could not be read; try again".into())
-        })?;
+        .map_err(unavailable)?;
+    for item in &mut items {
+        item.links = state
+            .link_check
+            .get(&project, &item.pipeline)
+            .await
+            .map_err(unavailable)?;
+    }
     Ok(Json(HealthList { items }))
 }
 

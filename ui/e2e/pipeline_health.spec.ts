@@ -19,8 +19,16 @@ const pipeline = (name: string) => ({
 });
 
 const HEALTH = [
-  { pipeline: "podujatia-banskabystrica", state: "ok", lastSuccessAt: "2026-10-21T06:00:10Z", lastRunAt: "2026-10-21T06:00:10Z", lastSent: 64, medianSent: 61, changePercent: 5, failedRuns: 0, alert: false },
-  { pipeline: "podujatia-zvolen", state: "failing", lastSuccessAt: "2026-10-18T06:00:00Z", lastRunAt: "2026-10-21T06:00:00Z", lastSent: 0, medianSent: 10, changePercent: -100, failedRuns: 3, lastError: "GET https://www.zvolen.sk/rss.html answered 404 Not Found", lastErrorAt: "2026-10-21T06:00:01Z", alert: true },
+  { pipeline: "podujatia-banskabystrica", state: "ok", lastSuccessAt: "2026-10-21T06:00:10Z", lastRunAt: "2026-10-21T06:00:10Z", lastSent: 64, medianSent: 61, changePercent: 5, failedRuns: 0, alert: false,
+    links: { checkedAt: "2026-10-19T02:00:00Z", checked: 118, answered: 117, skipped: 4, deadCount: 0, dead: [] } },
+  { pipeline: "podujatia-zvolen", state: "failing", lastSuccessAt: "2026-10-18T06:00:00Z", lastRunAt: "2026-10-21T06:00:00Z", lastSent: 0, medianSent: 10, changePercent: -100, failedRuns: 3, lastError: "GET https://www.zvolen.sk/rss.html answered 404 Not Found", lastErrorAt: "2026-10-21T06:00:01Z", alert: true,
+    links: { checkedAt: "2026-10-19T02:00:00Z", checked: 20, answered: 14, skipped: 1, deadCount: 6, dead: [
+      { url: "https://www.zvolen.sk/podujatia/jesenny-jarmok-2026", status: 404 },
+      { url: "https://www.zvolen.sk/podujatia/koncert-v-parku", status: 404 },
+      { url: "https://www.zvolen.sk/podujatia/divadlo-pre-deti", status: 410 },
+      { url: "https://www.zvolen.sk/podujatia/vystava-fotografii", status: 404 },
+      { url: "https://www.zvolen.sk/podujatia/beh-zvolenom", error: "no answer in 10 s" },
+    ] } },
   { pipeline: "podujatia-lucenec", state: "drift", lastSuccessAt: "2026-10-21T06:00:00Z", lastRunAt: "2026-10-21T06:00:00Z", lastSent: 2, medianSent: 12, changePercent: -83, failedRuns: 0, alert: true },
   { pipeline: "podujatia-jelsava", state: "empty", lastRunAt: "2026-10-21T06:00:00Z", lastSent: 0, failedRuns: 0, alert: false },
   { pipeline: "podujatia-detva", state: "failing", lastSuccessAt: "2026-10-20T06:00:00Z", lastRunAt: "2026-10-21T06:00:00Z", lastSent: 0, medianSent: 4, changePercent: -100, failedRuns: 1, lastError: "step 2: expected array, got object from method filter", lastErrorAt: "2026-10-21T06:00:02Z", alert: false },
@@ -70,6 +78,12 @@ test.describe("the source health tab (T-5048)", () => {
       await expect(rows.nth(1)).toContainText("3 failed runs in a row");
       await expect(rows.nth(1)).toContainText("https://www.zvolen.sk/rss.html answered 404");
       await expect(page.getByText("3 of 6 sources need a look; 2 are alerted.")).toBeVisible();
+      // The weekly link check (T-5133): the share that answers, the first dead links and the fix.
+      await expect(rows.nth(1)).toContainText("14 of 20 answer (70 %)");
+      await expect(rows.nth(1)).toContainText("Dead links: 6");
+      await expect(rows.nth(1)).toContainText("and 1 more");
+      await expect(rows.nth(1)).toContainText("check events_url in seeds/bbsk-events/sources.csv");
+      await expect(table.getByText("117 of 118 answer (99 %)")).toBeVisible();
       expect(await axeViolations(page)).toEqual([]);
       await shot(page, `health-filled-${width}`);
       await rows.nth(1).getByRole("button", { name: "Runs and log of podujatia-zvolen" }).click();
