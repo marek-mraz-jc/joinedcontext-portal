@@ -95,3 +95,39 @@ describe("cells by what they hold (T-4827)", () => {
     expect(container.textContent).toContain("<img src=x onerror=alert(1)>");
   });
 });
+
+describe("links in cells (T-5134)", () => {
+  it("an organizer {name, url} reads as its name linked to its url, a new tab without opener", () => {
+    const c = cell({ type: "Property", value: { name: "Obec Bíňovce", url: "https://www.binovce.sk" } });
+    expect(cellDisplayText(c, "sk", labels)).toBe("Obec Bíňovce");
+    const onRow = vi.fn();
+    render(
+      <div onClick={onRow}>
+        <CellView cell={c} locale="sk" labels={labels} />
+      </div>,
+    );
+    const link = screen.getByRole("link", { name: "Obec Bíňovce" });
+    expect(link).toHaveAttribute("href", "https://www.binovce.sk");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    fireEvent.click(link);
+    expect(onRow).not.toHaveBeenCalled();
+  });
+
+  it("a web address links to itself; an organizer without url, or with an unsafe one, stays text", () => {
+    render(<CellView cell={cell({ type: "Property", value: "https://www.binovce.sk/udalosti/1/" })} locale="en" labels={labels} />);
+    expect(screen.getByRole("link", { name: "https://www.binovce.sk/udalosti/1/" })).toHaveAttribute("href", "https://www.binovce.sk/udalosti/1/");
+    for (const value of [
+      { name: "Obec Bíňovce" },
+      { name: "Obec Bíňovce", url: "javascript:alert(1)" },
+      { name: "Obec Bíňovce", url: "java\tscript:alert(1)" },
+      { name: "Obec Bíňovce", url: "binovce.sk" },
+      "javascript:alert(1)",
+    ]) {
+      const { container, unmount } = render(<CellView cell={cell({ type: "Property", value })} locale="en" labels={labels} />);
+      expect(container.querySelector("a")).toBeNull();
+      unmount();
+    }
+    expect(cellDisplayText(cell({ type: "Property", value: { name: "Obec Bíňovce" } }), "en", labels)).toBe("name: Obec Bíňovce");
+  });
+});
