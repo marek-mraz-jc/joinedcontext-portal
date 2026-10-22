@@ -1913,7 +1913,7 @@
     },
     "src/routes/ApprovalsHistory.tsx": {
       "controls": {
-        "Button": 6
+        "Button": 7
       },
       "tests": [
         "approvals_history.test.tsx"
