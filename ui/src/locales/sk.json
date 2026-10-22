@@ -2064,7 +2064,7 @@
         "geometry": {
           "label": "Poloha z",
           "hint": "Atribút polohy, ktorý mapa kreslí, napríklad location.",
-          "default": "Vstavaná: location, inak prvý atribút polohy typu"
+          "default": "Vstavaná: location"
         },
         "colour": {
           "label": "Farba podľa",

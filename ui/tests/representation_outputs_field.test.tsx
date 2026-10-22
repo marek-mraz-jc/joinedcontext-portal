@@ -20,7 +20,7 @@ import { FormProjectContext } from "../src/components/forms/widgets/ModelWidgets
 import { AttributeSelect } from "../src/components/forms/widgets/OutputSourceEditors";
 import { baseOf, unmappedRequired, withPreset, withSource } from "../src/components/forms/widgets/icalMapping";
 import { duplicateNames, freeName, isSlug, outputsOf, unmappedRoles, withMapRole, withPopup, written } from "../src/components/forms/widgets/representationOutputs";
-import { representationSpec } from "../src/routes/EndpointsPage";
+import { keptRepresentations, representationSpec } from "../src/routes/EndpointsPage";
 
 const c = en.endpoints.ical;
 const o = en.endpoints.outputs;
@@ -220,6 +220,15 @@ describe("the output helpers", () => {
     expect(unmappedRequired({ mapping: { DTSTART: "startDate" } })).toEqual(["SUMMARY"]);
     expect(withSource({}, "URL", "  ")).toBeUndefined();
     expect(withPreset({ mapping: { URL: "url" }, preset: "sdm-event" }, "schema-org")).toEqual({ preset: "schema-org", mapping: { URL: "url" } });
+  });
+
+  it("keeps feeds and map defaults whatever the boxes say, calendars only with iCalendar on", () => {
+    const all = { ical: [{ name: "k" }], feed: [{ name: "n" }], widget: [{ name: "mapa" }] };
+    expect(keptRepresentations(all, ["ical"])).toEqual({ representations: all });
+    expect(keptRepresentations(all, [])).toEqual({ representations: { feed: [{ name: "n" }], widget: [{ name: "mapa" }] } });
+    expect(keptRepresentations({ widget: [{ name: "mapa" }] }, [])).toEqual({ representations: { widget: [{ name: "mapa" }] } });
+    expect(keptRepresentations({ ical: [{ name: "k" }] }, [])).toEqual({});
+    expect(keptRepresentations(undefined, ["ical"])).toEqual({});
   });
 
   it("iCalendar is opt-in: checking it writes a list, never a disabled entry", () => {

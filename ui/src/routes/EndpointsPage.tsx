@@ -97,8 +97,18 @@ interface EndpointForm {
   };
   /** The catalogue description, one string per text in the author's language (EP-78, UI-50). */
   catalog?: CatalogForm;
-  /** The iCalendar mapping (EP-125), kept as written: the form edits plain attribute names. */
-  representations?: { ical?: Record<string, unknown> };
+  /** The named outputs per format (EP-125, API/11 EP-159, EP-163), kept as written. */
+  representations?: Record<string, unknown>;
+}
+
+/**
+ * The outputs the manifest keeps: calendars only with the iCalendar box, which jc-core requires;
+ * feeds and the widget's map defaults always, so editing an Endpoint never drops them (T-5239).
+ */
+export function keptRepresentations(representations: Record<string, unknown> | undefined, checked: string[]): { representations?: Record<string, unknown> } {
+  const { ical, ...rest } = representations ?? {};
+  const kept = { ...rest, ...(ical && checked.includes("ical") ? { ical } : {}) };
+  return Object.keys(kept).length > 0 ? { representations: kept } : {};
 }
 
 /** The `publish` block of the manifest, or nothing when no catalogue is named (EP-62). */
@@ -223,8 +233,7 @@ function toSpec(
   return {
     ...rest,
     ...representationSpec(checked ?? [], stored),
-    // A mapping for a feed the Endpoint does not serve is refused by jc-core: it goes with the box.
-    ...(representations?.ical && (checked ?? []).includes("ical") ? { representations } : {}),
+    ...keptRepresentations(representations, checked ?? []),
     slug,
     ...publishOf(form),
     ...(catalog ? { catalog } : {}),
@@ -323,7 +332,7 @@ export function toForm(endpoint: Manifest): EndpointForm {
       };
     };
     catalog?: CatalogManifest;
-    representations?: { ical?: Record<string, unknown> };
+    representations?: Record<string, unknown>;
   };
   const catalog = catalogForm(spec.catalog);
   return {
@@ -338,7 +347,7 @@ export function toForm(endpoint: Manifest): EndpointForm {
     caching: spec.caching,
     publish: publishForm(spec),
     ...(catalog ? { catalog } : {}),
-    ...(spec.representations?.ical ? { representations: { ical: spec.representations.ical } } : {}),
+    ...(spec.representations ? { representations: spec.representations } : {}),
   };
 }
 

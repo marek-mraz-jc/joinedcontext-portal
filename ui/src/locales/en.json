@@ -2064,7 +2064,7 @@
         "geometry": {
           "label": "Position from",
           "hint": "The position attribute the map draws, for example location.",
-          "default": "Built-in: location, else the type's first position attribute"
+          "default": "Built-in: location"
         },
         "colour": {
           "label": "Colour by",

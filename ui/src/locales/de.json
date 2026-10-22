@@ -2064,7 +2064,7 @@
         "geometry": {
           "label": "Position aus",
           "hint": "Das Positionsattribut, das die Karte zeichnet, zum Beispiel location.",
-          "default": "Eingebaut: location, sonst das erste Positionsattribut des Typs"
+          "default": "Eingebaut: location"
         },
         "colour": {
           "label": "Farbe nach",
