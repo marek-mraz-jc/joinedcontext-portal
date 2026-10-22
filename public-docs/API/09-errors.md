@@ -408,6 +408,16 @@ An App stored an object larger than one call may store (AP-170); `limit` names t
 
 What to do: Store a smaller object; the answer names the limit in bytes.
 
+### `unprocessable` {#unprocessable}
+
+**Unprocessable Content**, status 422.
+
+A proposed Endpoint names representation outputs the model cannot serve: an unknown member, a duplicate or bad output
+name, more outputs than allowed, a source type outside the model, or a role naming a missing slot or one of the wrong
+range (EP-152..EP-160). `errors` lists one entry per refused member.
+
+What to do: Correct each member errors names; the dry run lists the same findings before you send.
+
 ### `quota` {#quota}
 
 **Quota Used**, status 429.

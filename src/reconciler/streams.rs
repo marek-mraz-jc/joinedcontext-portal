@@ -472,10 +472,8 @@ impl StreamDeployer {
                     .and_then(|s| s.data_source_ref.as_ref())
                     .map(|r| r.name().to_string());
 
-                let ep_ref_name = first
-                    .as_ref()
-                    .and_then(|s| s.endpoint_ref.as_ref())
-                    .map(|r| r.name().to_string());
+                let ep_ref = first.as_ref().and_then(|s| s.endpoint_ref.clone());
+                let ep_ref_name = ep_ref.as_ref().map(|r| r.name().to_string());
 
                 if ds_ref_name.is_none() && ep_ref_name.is_none() {
                     outcomes.push((
@@ -537,8 +535,9 @@ impl StreamDeployer {
                     .iter()
                     .filter_map(|source| source.endpoint_ref.as_ref())
                     .map(|reference| {
+                        let owner = reference.namespace().unwrap_or(&ns);
                         let space = mirror
-                            .get(&ns, "Endpoint", reference.name())
+                            .get(owner, "Endpoint", reference.name())
                             .and_then(|ep| {
                                 ep.spec.get("contextSpaceRef").and_then(|r| {
                                     r.as_str()
@@ -547,7 +546,7 @@ impl StreamDeployer {
                                 })
                             })
                             .unwrap_or_default();
-                        crate::spaces::segment(mirror, &ns, &space)
+                        crate::spaces::segment(mirror, owner, &space)
                     })
                     .collect();
                 // Every output's Endpoint, from the mirror (PL-52, PL-55).
@@ -672,17 +671,12 @@ impl StreamDeployer {
                             continue;
                         }
                     }
-                } else if let Some(source_ep_name) = ep_ref_name {
-                    let source_ep_env = match mirror.get(&ns, "Endpoint", &source_ep_name) {
-                        Some(e) => e,
-                        None => {
-                            outcomes.push((
-                                ns.clone(),
-                                name,
-                                StreamOutcome::Error(format!(
-                                    "source endpoint {source_ep_name} is not in the mirror"
-                                )),
-                            ));
+                } else if let Some(reference) = ep_ref {
+                    let source_ep_name = reference.name().to_owned();
+                    let source_ep_env = match source_endpoint(mirror, &ns, &reference) {
+                        Ok(e) => e,
+                        Err(reason) => {
+                            outcomes.push((ns.clone(), name, StreamOutcome::Error(reason)));
                             continue;
                         }
                     };
@@ -1950,6 +1944,50 @@ fn inject_source_space(value: &mut Value, segments: &[String]) {
     }
 }
 
+/// The Endpoint a pipeline source reads, from the project its reference names (PL-90, PL-55).
+///
+/// A typed `endpointRef` may name another project's Endpoint; that Endpoint must admit the
+/// pipeline's project by its audience (public, its own organization, or `allowedProjects`), and
+/// the gateway decides the read itself on that project's Policies at run time (PL-92).
+fn source_endpoint(
+    mirror: &Mirror,
+    ns: &str,
+    reference: &jc_core::Ref,
+) -> Result<crate::resource::ResourceEnvelope, String> {
+    let name = reference.name();
+    let owner = reference.namespace().unwrap_or(ns);
+    let endpoint = mirror
+        .get(owner, "Endpoint", name)
+        .ok_or_else(|| match owner == ns {
+            true => format!("source endpoint {name} is not in the mirror"),
+            false => format!("source endpoint {owner}/{name} is not in the mirror"),
+        })?;
+    if owner != ns && !admits(mirror, &endpoint.spec, owner, ns) {
+        return Err(format!(
+            "source endpoint {owner}/{name} does not admit project {ns}: ask its owner for \
+             access (PL-90)"
+        ));
+    }
+    Ok(endpoint)
+}
+
+/// Whether an Endpoint of project `owner` admits a reader from project `reader` by its audience;
+/// one without an audience admits nobody.
+fn admits(mirror: &Mirror, spec: &Value, owner: &str, reader: &str) -> bool {
+    match spec.get("audience").and_then(Value::as_str) {
+        Some("public") => true,
+        Some("organization") => {
+            crate::permissions::organization_of(mirror, owner)
+                == crate::permissions::organization_of(mirror, reader)
+        }
+        Some("project-list") => spec
+            .get("allowedProjects")
+            .and_then(Value::as_array)
+            .is_some_and(|list| list.iter().any(|p| p.as_str() == Some(reader))),
+        _ => false,
+    }
+}
+
 fn resolve_source(
     mirror: &Mirror,
     ns: &str,
@@ -1967,14 +2005,12 @@ fn resolve_source(
             name: ds_name,
         });
     }
-    let ep_name = source
+    let reference = source
         .endpoint_ref
         .as_ref()
-        .map(|r| r.name().to_owned())
         .ok_or_else(|| "a source names neither a DataSource nor an Endpoint".to_owned())?;
-    let ep_env = mirror
-        .get(ns, "Endpoint", &ep_name)
-        .ok_or_else(|| format!("source endpoint {ep_name} is not in the mirror"))?;
+    let ep_name = reference.name().to_owned();
+    let ep_env = source_endpoint(mirror, ns, reference)?;
     let slug = ep_env
         .spec
         .get("slug")
@@ -3753,6 +3789,73 @@ output:
         // The same names as configuration of an allowed processor are not processors.
         assert!(render("pipeline:\n  processors:\n    - redis: { url: redis://cache:6379, command: get, args_mapping: 'root = [this.id]' }\n").is_ok());
         assert!(render(BENTO).is_ok());
+    }
+
+    /// PL-90, PL-55 (T-4882): a typed `endpointRef` reads the Endpoint of the project it names, and
+    /// only when that Endpoint admits the pipeline's project; a bare name stays in its own.
+    #[test]
+    fn a_cross_project_source_resolves_where_its_endpoint_admits_the_pipeline() {
+        let mirror = Mirror::new();
+        let endpoint = |name: &str, spec: Value| ResourceEnvelope {
+            api_version: API_VERSION.to_string(),
+            kind: "Endpoint".to_string(),
+            metadata: ObjectMeta {
+                name: name.to_string(),
+                namespace: Some("espoo".to_string()),
+                ..Default::default()
+            },
+            spec,
+            status: None,
+        };
+        mirror.upsert(endpoint(
+            "roads",
+            serde_json::json!({ "contextSpaceRef": "roads", "slug": "roadsslug", "audience": "project-list", "allowedProjects": ["helsinki"] }),
+        ));
+        mirror.upsert(endpoint(
+            "closed",
+            serde_json::json!({ "contextSpaceRef": "roads", "slug": "closedslug", "audience": "project-list", "allowedProjects": ["vantaa"] }),
+        ));
+        let typed = |name: &str| -> jc_core::Ref {
+            serde_json::from_value(
+                serde_json::json!({ "kind": "Endpoint", "name": name, "namespace": "espoo" }),
+            )
+            .expect("a typed ref")
+        };
+        let read = source_endpoint(&mirror, "helsinki", &typed("roads")).expect("admitted");
+        assert_eq!(read.spec["slug"], "roadsslug");
+        let refused =
+            source_endpoint(&mirror, "helsinki", &typed("closed")).expect_err("not listed");
+        assert!(
+            refused.contains("espoo/closed does not admit project helsinki"),
+            "{refused}"
+        );
+        mirror.upsert(endpoint(
+            "bare",
+            serde_json::json!({ "contextSpaceRef": "roads", "slug": "bareslug" }),
+        ));
+        assert!(source_endpoint(&mirror, "helsinki", &typed("bare")).is_err());
+        let gone = source_endpoint(&mirror, "helsinki", &typed("gone")).expect_err("absent");
+        assert!(
+            gone.contains("source endpoint espoo/gone is not in the mirror"),
+            "{gone}"
+        );
+        // A bare name is the pipeline's own project's, where `roads` does not exist.
+        let bare = jc_core::Ref::Name("roads".to_owned());
+        let own = source_endpoint(&mirror, "helsinki", &bare).expect_err("own project");
+        assert!(
+            own.contains("source endpoint roads is not in the mirror"),
+            "{own}"
+        );
+        // The merged path resolves through the same rule.
+        let source: PipelineSource = serde_json::from_value(serde_json::json!({
+            "endpointRef": { "kind": "Endpoint", "name": "roads", "namespace": "espoo" },
+            "query": { "type": "Road" }
+        }))
+        .expect("a source");
+        match resolve_source(&mirror, "helsinki", source) {
+            Ok(ResolvedSource::Endpoint { slug, .. }) => assert_eq!(slug, "roadsslug"),
+            _ => panic!("the cross-project source did not resolve"),
+        }
     }
 
     #[tokio::test]
