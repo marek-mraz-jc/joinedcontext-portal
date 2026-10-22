@@ -72,16 +72,16 @@ path = "src/main.rs"
 # there (T-3167); the three crates share one reference, so cargo pulls one copy.
 # `version` is the crate's own version at that tag (the tag counts differently); without it
 # cargo-deny reads the requirement as `*` and the supply-chain check goes red (T-0287).
-jc-core = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "592bc9cc1bd2e14a3d5ab01774a09d7dae3cb396", version = "0.1.0", features = ["outbound"] }
+jc-core = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "93585128bbedbcc551693035b973c53ec5915cee", version = "0.1.0", features = ["outbound"] }
 # Blueprint expansion (CC-25) and the loader the reconciler validates a repository with
 # (T-0191), from the same engine the CLI runs, so both sides agree on what a manifest is. Same
 # tag as jc-core on purpose: cargo keys a git source by its reference, so two tags of one
 # repository would pull two copies of `jc-core` and its types would stop matching.
-jcctl = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "592bc9cc1bd2e14a3d5ab01774a09d7dae3cb396", version = "0.1.0", default-features = false, features = ["utoipa"] }
+jcctl = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "93585128bbedbcc551693035b973c53ec5915cee", version = "0.1.0", default-features = false, features = ["utoipa"] }
 # The gateway's own write decision (evaluator, write guard), which the record check of a pipeline's
 # sample runs before a proposal (T-4840), and the app-variant matrix asserts (T-2705). Same rev as
 # jc-core.
-context-gateway = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "592bc9cc1bd2e14a3d5ab01774a09d7dae3cb396", version = "0.1.0" }
+context-gateway = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "93585128bbedbcc551693035b973c53ec5915cee", version = "0.1.0" }
 # The operations check an input against the schema they publish (T-1659); already in the tree.
 jsonschema = { version = "0.54", default-features = false }
 # Only to render jc-core's schemas into the OpenAPI document; the Portal's own types use utoipa.
@@ -114,6 +114,9 @@ jsonwebtoken = "9"
 # ring, the stack reqwest and sqlx already use.
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls", "ring", "webpki-roots"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "blocking", "stream"] }
+# The capture subscriber of `capture` MqttBrokers (ADR-N-048 §2.10, T-4880): plain MQTT 3.1.1 on a
+# broker's internal listener, which the mesh wraps in mTLS, so no TLS stack of its own.
+rumqttc = { version = "0.25.1", default-features = false }
 # The preferences and API-key tiers (UI-09, PF-36). rustls over ring, the TLS stack reqwest
 # already brought in; `time` because the key rows carry timestamps and the crate is here anyway.
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "migrate", "json", "macros", "time"] }

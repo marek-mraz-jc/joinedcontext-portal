@@ -46,6 +46,7 @@ pub use ops::drafts;
 pub use ops::verdict;
 pub mod costs;
 pub mod mqtt_allowance;
+pub mod mqtt_capture;
 pub mod people;
 pub mod permissions;
 pub mod pipeline_expiry;

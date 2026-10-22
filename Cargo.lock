@@ -639,7 +639,7 @@ checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
 [[package]]
 name = "context-gateway"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=592bc9cc1bd2e14a3d5ab01774a09d7dae3cb396#592bc9cc1bd2e14a3d5ab01774a09d7dae3cb396"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=93585128bbedbcc551693035b973c53ec5915cee#93585128bbedbcc551693035b973c53ec5915cee"
 dependencies = [
  "arc-swap",
  "axum",
@@ -1266,6 +1266,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e0f1c7c3a72c66fd80abe965175f7523475c0489a87d3ff9d6e8c87d87a9d2d"
 
 [[package]]
+name = "fixedbitset"
+version = "0.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
+
+[[package]]
 name = "flate2"
 version = "1.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1336,6 +1342,17 @@ dependencies = [
  "borrow-or-share",
  "ref-cast",
  "serde",
+]
+
+[[package]]
+name = "flume"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da0e4dd2a88388a1f4ccc7c9ce104604dab68d9f408dc34cd45823d5a9069095"
+dependencies = [
+ "futures-core",
+ "futures-sink",
+ "spin",
 ]
 
 [[package]]
@@ -2453,7 +2470,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "jc-core"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=592bc9cc1bd2e14a3d5ab01774a09d7dae3cb396#592bc9cc1bd2e14a3d5ab01774a09d7dae3cb396"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=93585128bbedbcc551693035b973c53ec5915cee#93585128bbedbcc551693035b973c53ec5915cee"
 dependencies = [
  "arc-swap",
  "axum",
@@ -2481,7 +2498,7 @@ dependencies = [
 [[package]]
 name = "jc-dcat"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=592bc9cc1bd2e14a3d5ab01774a09d7dae3cb396#592bc9cc1bd2e14a3d5ab01774a09d7dae3cb396"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=93585128bbedbcc551693035b973c53ec5915cee#93585128bbedbcc551693035b973c53ec5915cee"
 dependencies = [
  "jc-core",
  "serde_json",
@@ -2490,7 +2507,7 @@ dependencies = [
 [[package]]
 name = "jc-manifest"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=592bc9cc1bd2e14a3d5ab01774a09d7dae3cb396#592bc9cc1bd2e14a3d5ab01774a09d7dae3cb396"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=93585128bbedbcc551693035b973c53ec5915cee#93585128bbedbcc551693035b973c53ec5915cee"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -2509,7 +2526,7 @@ dependencies = [
 [[package]]
 name = "jc-relationships"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=592bc9cc1bd2e14a3d5ab01774a09d7dae3cb396#592bc9cc1bd2e14a3d5ab01774a09d7dae3cb396"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=93585128bbedbcc551693035b973c53ec5915cee#93585128bbedbcc551693035b973c53ec5915cee"
 dependencies = [
  "jc-core",
  "serde_json",
@@ -2518,7 +2535,7 @@ dependencies = [
 [[package]]
 name = "jc-tabular"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=592bc9cc1bd2e14a3d5ab01774a09d7dae3cb396#592bc9cc1bd2e14a3d5ab01774a09d7dae3cb396"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=93585128bbedbcc551693035b973c53ec5915cee#93585128bbedbcc551693035b973c53ec5915cee"
 dependencies = [
  "jc-core",
  "serde_json",
@@ -2528,7 +2545,7 @@ dependencies = [
 [[package]]
 name = "jcctl"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=592bc9cc1bd2e14a3d5ab01774a09d7dae3cb396#592bc9cc1bd2e14a3d5ab01774a09d7dae3cb396"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=93585128bbedbcc551693035b973c53ec5915cee#93585128bbedbcc551693035b973c53ec5915cee"
 dependencies = [
  "aes-gcm",
  "age",
@@ -2683,6 +2700,7 @@ dependencies = [
  "regex",
  "reqwest",
  "rsa",
+ "rumqttc",
  "rust-embed",
  "schemars 0.8.22",
  "serde",
@@ -3291,7 +3309,7 @@ version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d"
 dependencies = [
- "base64 0.21.7",
+ "base64 0.22.1",
  "chrono",
  "getrandom 0.2.17",
  "http",
@@ -4564,6 +4582,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "rumqttc"
+version = "0.25.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0feff8d882bff0b2fddaf99355a10336d43dd3ed44204f85ece28cf9626ab519"
+dependencies = [
+ "bytes",
+ "fixedbitset",
+ "flume 0.11.1",
+ "futures-util",
+ "log",
+ "thiserror 2.0.20",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+]
+
+[[package]]
 name = "rust-embed"
 version = "8.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5334,7 +5369,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "488e99c397a62007e4229aec669a179816339afc6d2620ca6fa420dbee2e982c"
 dependencies = [
  "atoi",
- "flume",
+ "flume 0.12.0",
  "form_urlencoded",
  "futures-channel",
  "futures-core",

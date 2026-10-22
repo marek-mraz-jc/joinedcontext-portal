@@ -864,6 +864,14 @@ routes:
     rule: "project-verb:read:MqttBroker"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
     note: "what the broker measures, read by the Portal from the broker's own HTTP API; the browser never reaches a broker (API/01 §44, T-4043)"
+  - route: GET /projects/{project}/mqttbrokers/{name}/captured
+    rule: "project-verb:approve:MqttBroker (PL-87)"
+    expect: [401, 404, 404, allow, allow, allow, 404, 404]
+    note: "what a capture broker kept; a caller who may not approve MqttBrokers gets the 404 of a broker that does not exist (API/01 §47, T-4880)"
+  - route: DELETE /projects/{project}/mqttbrokers/{name}/captured
+    rule: "project-verb:approve:MqttBroker (PL-87)"
+    expect: [403, 404, 404, allow, allow, allow, 404, 404]
+    note: "deletes what a capture broker kept, recorded without payloads (API/01 §47, T-4880)"
   - route: GET /projects/{project}/pipelines/{name}/bento
     rule: "project-verb:read:Pipeline"
     expect: [401, 404, 404, 404, 404, 404, 404, 404]
