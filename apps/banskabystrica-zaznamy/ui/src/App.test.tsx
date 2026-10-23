@@ -282,9 +282,16 @@ describe("who may write the note (T-5137)", () => {
 });
 
 describe("writing the note", () => {
-  async function typeNote(user: ReturnType<typeof userEvent.setup>, text: string) {
+  /** Pastes a long note in one input: typed key by key, 501 characters re-render the grid 501 times
+   * and passed vitest's 5 s on a busy CI runner (T-5342, run 39845897785). */
+  async function typeNote(user: ReturnType<typeof userEvent.setup>, text: string, how: "type" | "paste" = "type") {
     await waitFor(() => expect(rows()).toHaveLength(CITY.length));
-    await user.type(noteBox(0), text);
+    if (how === "paste") {
+      await user.click(noteBox(0));
+      await user.paste(text);
+    } else {
+      await user.type(noteBox(0), text);
+    }
     await user.click(screen.getByRole("button", { name: sk.grid.review! }));
     const review = screen.getByRole("region", { name: sk.grid.review });
     // The review says in Slovak what each column holds, and "Uložiť" is only the button.
@@ -340,7 +347,7 @@ describe("writing the note", () => {
   it("never sends a note the model would refuse", async () => {
     const user = userEvent.setup();
     show();
-    await typeNote(user, "a".repeat(NOTE_MAX + 1));
+    await typeNote(user, "a".repeat(NOTE_MAX + 1), "paste");
 
     expect(calls.filter((call) => call.method === "PATCH")).toHaveLength(0);
     expect((await screen.findAllByText(new RegExp(noteWords(sk).tooLong(NOTE_MAX))))[0]).toBeInTheDocument();
