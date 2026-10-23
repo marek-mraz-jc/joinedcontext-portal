@@ -66,6 +66,11 @@ const DATASOURCES = list([
   }),
   dataSource("parking-csv", {
     type: "http",
+    http: { url: "https://opendata.hel.fi/parking/zones.csv", interval: "24h", format: "csv" },
+  }),
+  // The same file without `format: csv`: the runner sends it whole (PL-114, T-5350).
+  dataSource("parking-whole", {
+    type: "http",
     http: { url: "https://opendata.hel.fi/parking/zones.csv", interval: "24h" },
   }),
 ]);
@@ -334,6 +339,53 @@ test.describe("pipeline studio walk (CIVITAS/CORE comparison)", () => {
           mode: "upsert",
         },
       ]);
+    });
+  }
+
+  // T-5350, PL-114: a sample is split the way the live run splits it. A CSV http source without
+  // `format: csv` sends its whole body as one message, so the test does too and says which field
+  // reads it a row at a time; with the field the rows go one message each.
+  for (const [source, format, width] of [
+    ["parking-whole", "text", 1440],
+    ["parking-whole", "text", 400],
+    ["parking-csv", "csv", 1440],
+    ["parking-csv", "csv", 400],
+  ] as const) {
+    test(`tests a CSV sample of ${source} as the runner sends it at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await stubApi(page, {
+        input: { events: 1, bytes: 40, sample: {} },
+        mapping: [{ id: "urn:ngsi-ld:ParkingZone:1", type: "ParkingZone" }],
+        validation: [{ index: 0, ok: true, problems: [] }],
+        errors: [],
+      });
+      await page.goto("/projects/helsinki/pipelines?lang=en");
+      await page.getByRole("button", { name: "New pipeline" }).first().click();
+      const dialog = page.getByTestId("form-page");
+      await dialog.getByText("More options").click();
+      await dialog.getByText("Advanced editor").click();
+      await page.getByTestId("flow-node-source").dblclick();
+      await page.getByTestId("flow-node-editor-source").getByTestId("flow-source-ref").selectOption(`DataSource:${source}`);
+      await page.getByTestId("palette-bloblang").click();
+      await page.getByTestId("flow-bloblang").fill("root = this");
+      await dialog
+        .getByTestId("pipeline-studio")
+        .locator('input[type="file"]')
+        .setInputFiles({ name: "zones.csv", mimeType: "text/csv", buffer: Buffer.from("zone,tariff\n1,2.40\n2,1.20\n") });
+      const hint = dialog.getByTestId("test-whole-body");
+      if (format === "text") {
+        await expect(hint).toContainText(
+          "The source sends a CSV file as one message, so this test does too. To map it one row at a time, add format: csv to the data source's http block (spec.http.format: csv).",
+        );
+      } else {
+        await expect(hint).toHaveCount(0);
+      }
+      const sent = page.waitForRequest((request) => request.url().endsWith("/pipelines/test"));
+      await page.getByRole("button", { name: "Test mapping" }).click();
+      const body = (await sent).postDataJSON() as { sample: { format: string } };
+      expect(body.sample.format).toBe(format);
+      await dialog.getByTestId("pipeline-studio").getByRole("heading", { name: "Try it on a sample" }).scrollIntoViewIfNeeded();
+      await shot(page, `csv-${source}-${width}`);
     });
   }
 

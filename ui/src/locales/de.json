@@ -2509,7 +2509,8 @@
       "line": "Zeile {line}",
       "ready": "Alle {count} Nachrichten ergeben Entitäten. Pipeline unten vorschlagen.",
       "useUrl": "Mit der URL der Quelle testen",
-      "urlSample": "{url} · json · vom Runner geholt",
+      "urlSample": "{url} · {format} · vom Runner abgerufen",
+      "wholeBody": "Die Quelle sendet eine CSV-Datei als eine Nachricht, also auch dieser Test. Um sie Zeile für Zeile abzubilden, ergänzen Sie im http-Block der Datenquelle format: csv (spec.http.format: csv).",
       "gate": "Erst das Mapping testen: Vorschlagen öffnet sich, wenn der Test für dieses Mapping grün ist.",
       "replaceDrafted": "Durch eine entworfene Zuordnung ersetzen"
     },

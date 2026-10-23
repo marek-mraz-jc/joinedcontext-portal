@@ -27,6 +27,14 @@ pipeline:
         verb: GET
   - label: processor_1
     mutation: root = if errored() { deleted() }
+  - label: processor_2
+    mutation: root = if content().length() > 33554432 { throw("the response body is %d bytes, over spec.http.maxBytes 33554432".format(content().length())) }
+  - catch:
+    - log:
+        level: ERROR
+        message: 'http read refused: ${! error() }'
+    - mapping: root = deleted()
+    label: processor_3
   - label: compute
     mapping: root = this.data.bikes
   - label: lifetime
@@ -57,18 +65,18 @@ pipeline:
         meta jc_problem = "lifetime-from"
       }
       root = if $jc_out.type() == "array" { $jc_out.map_each(e -> if e.type() == "object" { e.without("_jc_lifetime_from") } else { e }) } else if $jc_out.type() == "object" { $jc_out.without("_jc_lifetime_from") } else { $jc_out }
-  - label: processor_4
+  - label: processor_6
     mapping: root = if this.type() == "array" { this } else { [this] }
-  - label: processor_5
+  - label: processor_7
     unarchive:
       format: json_array
-  - label: processor_6
+  - label: processor_8
     split:
       byte_size: 1048576
       size: 1000
   - archive:
       format: json_array
-    label: processor_7
+    label: processor_9
   - branch:
       processors:
       - http:

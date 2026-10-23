@@ -2509,7 +2509,8 @@
       "line": "řádek {line}",
       "ready": "Všech {count} zpráv se mapuje na entity. Navrhněte pipeline níže.",
       "useUrl": "Otestovat na URL zdroje",
-      "urlSample": "{url} · json · stáhne runner",
+      "urlSample": "{url} · {format} · stáhne runner",
+      "wholeBody": "Zdroj posílá soubor CSV jako jednu zprávu, a proto i tento test. Chcete-li mapovat po řádcích, doplňte do bloku http zdroje dat format: csv (spec.http.format: csv).",
       "gate": "Nejprve otestujte mapování: Navrhnout se otevře, když je test pro toto mapování zelený.",
       "replaceDrafted": "Nahradit navrženým mapováním"
     },
