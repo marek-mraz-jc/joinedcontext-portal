@@ -102,7 +102,13 @@ pub fn refused_check(err: &ApiError, manifest: &serde_json::Value) -> Option<Dry
             errors
                 .iter()
                 .map(|entry| {
-                    if entry.contains(' ') {
+                    if let Some((path, message)) = led_by_its_member(entry) {
+                        Finding {
+                            level: Level::Error,
+                            path: path.to_owned(),
+                            message: message.to_owned(),
+                        }
+                    } else if entry.contains(' ') {
                         Finding {
                             level: Level::Error,
                             path: String::new(),
@@ -140,6 +146,17 @@ pub fn refused_check(err: &ApiError, manifest: &serde_json::Value) -> Option<Dry
         awaited: Vec::new(),
         goes_with: Vec::new(),
     })
+}
+
+/// A sentence that starts with the member it is about, `spec.outputs.0.targetEndpoint: …`, as that
+/// path and the sentence after it, so the form marks the field (UI-45, T-5040).
+fn led_by_its_member(entry: &str) -> Option<(&str, &str)> {
+    let (path, message) = entry.split_once(": ")?;
+    let member = path
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'));
+    (member && (path.starts_with("spec.") || path.starts_with("metadata.")))
+        .then_some((path, message))
 }
 
 /// Every string under `value` that writes `org_domain` out, as a finding naming its JSON
@@ -265,6 +282,32 @@ pub async fn execute_dry_run(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-5040, UI-45: a refusal that starts with the member it is about becomes a finding on that
+    /// path, so the form marks the field; a plain sentence stays a finding without one.
+    #[test]
+    fn a_refusal_led_by_its_member_is_a_finding_on_that_field() {
+        let err = ApiError::Unprocessable {
+            detail: String::new(),
+            errors: vec![
+                "spec.outputs.0.targetEndpoint: Pipeline stations output 1 writes as pl-stations"
+                    .into(),
+                "Policy sensors-write grants a write: name it in a policyRef".into(),
+            ],
+        };
+        let refused = refused_check(&err, &serde_json::json!({})).expect("a red verdict");
+        let findings = refused.verdict.expect("a verdict").findings;
+        assert_eq!(findings[0].path, "spec.outputs.0.targetEndpoint");
+        assert_eq!(
+            findings[0].message,
+            "Pipeline stations output 1 writes as pl-stations"
+        );
+        assert_eq!(findings[1].path, "");
+        assert_eq!(
+            findings[1].message,
+            "Policy sensors-write grants a write: name it in a policyRef"
+        );
+    }
 
     #[tokio::test]
     async fn execute_dry_run_plans_sandbox_space() {

@@ -1493,6 +1493,11 @@ async fn check_content(
         check_replace(state, project, &envelope.metadata.name, &envelope.spec)?;
     }
 
+    // 4b-writes. A write nobody can make (PL-111, ADR-N-057 decision 5): a write Policy no
+    //       Endpoint binds, a Pipeline output whose targetEndpoint does not bind its write. The
+    //       rule `jcctl validate` runs, over the project with this change in place.
+    check_unmade_writes(state, project, operation, envelope)?;
+
     // 4b'. A public dashboard reads only through public Endpoints (UI-19, T-0528): the one
     //      rule that spans three manifests, so it is checked against the mirror here.
     crate::dashboards::check(
@@ -2039,6 +2044,83 @@ fn check_replace(
         Some(conflict) => Err(ApiError::BadRequest(conflict.to_string())),
         None => Ok(()),
     }
+}
+
+/// The kinds whose change can leave a write nobody can make (PL-111): the space segment of a
+/// policyRef, the Endpoints that bind, the Policies and Pipelines that write, an App's own Endpoint.
+const WRITE_BINDING_KINDS: [&str; 5] = ["ContextSpace", "Endpoint", "Policy", "Pipeline", "App"];
+
+/// Refuses a change after which a write Policy no Endpoint of its project binds, or a Pipeline
+/// output whose `targetEndpoint` does not grant its account the write (PL-111, ADR-N-057
+/// decision 5), with `jcctl validate`'s sentences. Only the findings this change brings count, so a
+/// project that already holds one can still be repaired one manifest at a time. Each line starts
+/// with the field to change when the finding is on the proposed manifest or it is an Endpoint.
+fn check_unmade_writes(
+    state: &AppState,
+    project: &str,
+    operation: Operation,
+    envelope: &ResourceEnvelope,
+) -> Result<(), ApiError> {
+    if !WRITE_BINDING_KINDS.contains(&envelope.kind.as_str()) {
+        return Ok(());
+    }
+    let options = crate::store::ListOptions::default();
+    let current: Vec<ResourceEnvelope> = WRITE_BINDING_KINDS
+        .iter()
+        .flat_map(|kind| state.mirror.list(project, kind, &options).items)
+        .collect();
+    let same =
+        |e: &ResourceEnvelope| e.kind == envelope.kind && e.metadata.name == envelope.metadata.name;
+    let mut proposed: Vec<ResourceEnvelope> =
+        current.iter().filter(|e| !same(e)).cloned().collect();
+    if operation != Operation::Delete {
+        let mut mine = envelope.clone();
+        mine.metadata.namespace = Some(project.to_owned());
+        mine.status = None;
+        proposed.push(mine);
+    }
+    let domain = crate::api::assistant::org_domain(state, "");
+    let domain = Some(domain.as_str()).filter(|d| !d.is_empty());
+    let before = unmade_writes(&current, domain);
+    let field = |unmade: &jcctl::commands::validate::UnmadeWrite| {
+        if unmade.id.kind == envelope.kind && unmade.id.name == envelope.metadata.name {
+            return unmade.field.clone();
+        }
+        (envelope.kind == "Endpoint" && operation != Operation::Delete).then(|| {
+            match envelope.spec.get("policyRef") {
+                Some(_) => "spec.policyRef".to_owned(),
+                None => "spec.contextSpaceRef".to_owned(),
+            }
+        })
+    };
+    let lines: Vec<String> = unmade_writes(&proposed, domain)
+        .into_iter()
+        .filter(|unmade| !before.contains(unmade))
+        .map(|unmade| match field(&unmade) {
+            Some(field) => format!("{field}: {}", unmade.message),
+            None => unmade.message,
+        })
+        .collect();
+    match lines.is_empty() {
+        true => Ok(()),
+        false => Err(unprocessable(lines)),
+    }
+}
+
+/// [`jcctl::commands::validate::unmade_writes`] over manifests of the mirror; a manifest that is no
+/// manifest, or a set the loader refuses, is judged by the checks that own it and yields nothing.
+fn unmade_writes(
+    envelopes: &[ResourceEnvelope],
+    domain: Option<&str>,
+) -> Vec<jcctl::commands::validate::UnmadeWrite> {
+    let manifests = envelopes
+        .iter()
+        .filter_map(|e| serde_json::to_value(e).ok())
+        .filter_map(|v| serde_json::from_value::<jcctl::RawManifest>(v).ok())
+        .collect();
+    jcctl::Repository::from_manifests(manifests, domain)
+        .map(|repo| jcctl::commands::validate::unmade_writes(&repo))
+        .unwrap_or_default()
 }
 
 /// Refuses an Endpoint whose representation mapping does not fit its space's model (EP-125), with
@@ -3462,6 +3544,231 @@ mod tests {
         assert_eq!(result.plan.fields[0].path, "spec.isSandbox");
         assert_eq!(result.plan.fields[0].from, Some(json!(false)));
         assert_eq!(result.plan.fields[0].to, Some(json!(true)));
+    }
+
+    /// The space `ovzdusie` of project `ovzdusie` with its public Endpoint `public-air`, narrowed
+    /// to the read Policy `public-read` by `policyRef`: the bbsk podujatia shape (T-5033).
+    fn narrowed_space() -> AppState {
+        let state = AppState::new(Config::for_tests(), None);
+        state.mirror.upsert(manifest(
+            "Endpoint",
+            "public-air",
+            public_air(Some(
+                "urn:ngsi-ld:Policy:banskabystrica.sk:ovzdusie-ovzdusie:public-read",
+            )),
+        ));
+        state.mirror.upsert(manifest(
+            "Policy",
+            "public-read",
+            space_policy(
+                "{ \"kind\": \"role\", \"id\": \"public\" }",
+                &["retrieveOps"],
+            ),
+        ));
+        state
+    }
+
+    fn manifest(kind: &str, name: &str, spec: Value) -> ResourceEnvelope {
+        ResourceEnvelope {
+            api_version: resource::API_VERSION.into(),
+            kind: kind.into(),
+            metadata: ObjectMeta {
+                name: name.into(),
+                namespace: Some("ovzdusie".into()),
+                ..Default::default()
+            },
+            spec,
+            status: None,
+        }
+    }
+
+    fn public_air(policy_ref: Option<&str>) -> Value {
+        let mut spec = json!({
+            "contextSpaceRef": "ovzdusie", "slug": "zt4qm7ge2xdv6ksb3ncf5arw2y",
+            "audience": "public", "enabledRepresentations": ["ngsi-ld"]
+        });
+        if let Some(reference) = policy_ref {
+            spec["policyRef"] = json!(reference);
+        }
+        spec
+    }
+
+    fn space_policy(assignee: &str, operations: &[&str]) -> Value {
+        json!({
+            "contextSpaceRef": { "kind": "ContextSpace", "name": "ovzdusie" },
+            "assigner": "did:web:banskabystrica.sk",
+            "assignee": serde_json::from_str::<Value>(assignee).expect("an assignee"),
+            "operations": operations,
+        })
+    }
+
+    fn air_pipeline(endpoint: &str) -> Value {
+        json!({
+            "class": "scheduled", "schedule": "0 * * * *",
+            "source": { "dataSourceRef": "feed" },
+            "targetEndpoint": format!("urn:ngsi-ld:Endpoint:banskabystrica.sk:ovzdusie:{endpoint}"),
+            "output": { "type": "AirQualityObserved", "mode": "upsert" }
+        })
+    }
+
+    fn refusal(result: Result<(), ApiError>) -> Vec<String> {
+        match result {
+            Err(ApiError::Unprocessable { errors, .. }) => errors,
+            other => panic!("expected a 422, got {other:?}"),
+        }
+    }
+
+    /// PL-111, ADR-N-057 decision 5, T-5040: a write Policy no Endpoint binds and a Pipeline aimed
+    /// at an Endpoint that does not grant its write are refused with jcctl validate's sentence and
+    /// the field to change; the fixed proposals pass.
+    #[test]
+    fn a_write_nobody_can_make_is_refused_naming_what_to_change() {
+        let state = narrowed_space();
+        let check = |operation, envelope: ResourceEnvelope| {
+            check_unmade_writes(&state, "ovzdusie", operation, &envelope)
+        };
+        let writer = || {
+            manifest(
+                "Policy",
+                "sensors-write",
+                space_policy(
+                    "{ \"kind\": \"serviceAccount\", \"id\": \"sensors\" }",
+                    &["upsertBatch"],
+                ),
+            )
+        };
+
+        let errors = refusal(check(Operation::Create, writer()));
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert!(
+            errors[0].starts_with("Policy sensors-write grants a write")
+                && errors[0].contains("public-air binds only its policyRef")
+                && errors[0].contains("add an Endpoint of the space without one"),
+            "{errors:?}"
+        );
+
+        let errors = refusal(check(
+            Operation::Create,
+            manifest("Pipeline", "stations", air_pipeline("public-air")),
+        ));
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert!(
+            errors[0].starts_with(
+                "spec.targetEndpoint: Pipeline stations output 1 writes as pl-stations"
+            ) && errors[0].contains("aim it at an Endpoint of the space without policyRef"),
+            "{errors:?}"
+        );
+        let errors = refusal(check(
+            Operation::Create,
+            manifest("Pipeline", "lost", air_pipeline("no-such-endpoint")),
+        ));
+        assert!(
+            errors[0].contains("declares no Endpoint no-such-endpoint"),
+            "{errors:?}"
+        );
+
+        // Fixed: an Endpoint of the space without policyRef binds both.
+        let mut air_write = public_air(None);
+        air_write["slug"] = json!("bq3kz7xw2mdv6ksb3ncf5arw2y");
+        state
+            .mirror
+            .upsert(manifest("Endpoint", "air-write", air_write.clone()));
+        assert!(check(Operation::Create, writer()).is_ok());
+        assert!(check(
+            Operation::Create,
+            manifest("Pipeline", "stations", air_pipeline("air-write"))
+        )
+        .is_ok());
+
+        // An Endpoint change that takes the only binding away is refused at its own field.
+        state.mirror.upsert(writer());
+        let errors = refusal(check(
+            Operation::Update,
+            manifest(
+                "Endpoint",
+                "air-write",
+                public_air(Some(
+                    "urn:ngsi-ld:Policy:banskabystrica.sk:ovzdusie-ovzdusie:public-read",
+                )),
+            ),
+        ));
+        assert!(
+            errors[0].starts_with("spec.policyRef: Policy sensors-write grants a write"),
+            "{errors:?}"
+        );
+        let errors = refusal(check(
+            Operation::Delete,
+            manifest("Endpoint", "air-write", air_write),
+        ));
+        assert!(errors[0].starts_with("Policy sensors-write"), "{errors:?}");
+    }
+
+    /// T-5040: a finding the project already holds does not stop an unrelated change, so a broken
+    /// project can be repaired one manifest at a time; a read Policy is no write.
+    #[test]
+    fn a_write_finding_already_in_the_project_does_not_block_another_change() {
+        let state = narrowed_space();
+        state.mirror.upsert(manifest(
+            "Policy",
+            "sensors-write",
+            space_policy(
+                "{ \"kind\": \"serviceAccount\", \"id\": \"sensors\" }",
+                &["upsertBatch"],
+            ),
+        ));
+        let check = |envelope: ResourceEnvelope| {
+            check_unmade_writes(&state, "ovzdusie", Operation::Create, &envelope)
+        };
+        assert!(check(manifest(
+            "Policy",
+            "more-readers",
+            space_policy(
+                "{ \"kind\": \"role\", \"id\": \"public\" }",
+                &["retrieveOps"]
+            ),
+        ))
+        .is_ok());
+        assert!(check(manifest("DataSource", "feed", json!({}))).is_ok());
+    }
+
+    /// T-5040: the dry run a person sees answers a red verdict whose finding names the field
+    /// (`spec.outputs.0.targetEndpoint`) and says what to change; the form marks that field.
+    #[tokio::test]
+    async fn a_dry_run_of_a_pipeline_aimed_at_a_policy_ref_endpoint_is_red() {
+        let state = narrowed_space();
+        let payload =
+            serde_json::to_value(manifest("Pipeline", "stations", air_pipeline("public-air")))
+                .expect("a manifest");
+        let result = propose(
+            &dummy_user(),
+            &state,
+            "ovzdusie",
+            "pipelines",
+            None,
+            Operation::Create,
+            true,
+            payload,
+        )
+        .await;
+        let Err(err) = result else {
+            panic!("the dry run refuses the pipeline");
+        };
+        let result = crate::api::dry_run::refused_check(&err, &serde_json::Value::Null)
+            .expect("a refusal of the manifest is a red verdict");
+        assert!(!result.valid);
+        let verdict = result.verdict.expect("a verdict");
+        assert!(!verdict.ok);
+        let errors: Vec<String> = verdict
+            .findings
+            .iter()
+            .map(|f| format!("{}|{}", f.path, f.message))
+            .collect();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.starts_with("spec.outputs.0.targetEndpoint|Pipeline stations output 1")),
+            "{errors:?}"
+        );
     }
 
     /// PL-79, T-4409: a replace beside another writer of the same ids in its space is refused
