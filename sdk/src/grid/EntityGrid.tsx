@@ -28,6 +28,7 @@ import { RowDetail } from "./RowDetail";
 import type { RowDetailTab } from "./RowDetail";
 import { parseClipboard, planPaste } from "./paste";
 import { problemOf } from "./rules";
+import { queryExample } from "./queryExample";
 import type { ValueRule } from "./rules";
 import "./grid.css";
 
@@ -265,6 +266,20 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     return byKey;
   }, [filterColumns, allowed]);
   const asText = state.filterText !== null;
+  const example = useMemo(
+    () => queryExample(columns.filter((c) => c.attr !== null && c.meta === null).map((c) => c.attr!), rows[0]),
+    [columns, rows],
+  );
+  // "Copied" for two seconds after the query reached the clipboard.
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
+  // On a phone the filter row folds under one button (T-5415); wider screens always show it.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilters = Object.keys(state.filters).length;
   useEffect(() => {
     onFilterColumns?.([...filterable.values()]);
   }, [filterable, onFilterColumns]);
@@ -339,6 +354,18 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   // rest, so ten thousand rows cost the DOM a screenful.
   const virtual = hookOptions.virtual === true;
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Columns waiting beyond the right edge: the table says so in words as well as by its shadow (T-5415).
+  const [overflows, setOverflows] = useState(false);
+  useEffect(() => {
+    const box = scrollRef.current;
+    if (!box || typeof ResizeObserver === "undefined") return;
+    const measure = () => setOverflows(box.scrollWidth > box.clientWidth + 1);
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    if (box.firstElementChild) observer.observe(box.firstElementChild);
+    measure();
+    return () => observer.disconnect();
+  }, []);
   const rowHeight = useRef(FALLBACK_ROW_HEIGHT);
   const [windowStart, setWindowStart] = useState(0);
   const [windowSize, setWindowSize] = useState(FALLBACK_VIEWPORT_ROWS);
@@ -1025,7 +1052,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
 
   return (
     // `data-jc-sdk`: the grid's own controls are the SDK suite's to test, not each App's (T-3373).
-    <div className={rootClass} data-density={hookOptions.config.density} data-row-size={rowSize} data-row-numbers={rowNumbers ? "" : undefined} data-jc-sdk="grid">
+    <div className={rootClass} data-density={hookOptions.config.density} data-row-size={rowSize} data-row-numbers={rowNumbers ? "" : undefined} data-jc-sdk="grid" data-filters={filtersOpen ? "open" : undefined}>
       {toolbar && <div className="jc-grid-toolbar">{toolbar}</div>}
 
       {pasteNote && (
@@ -1051,6 +1078,12 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
 
       {pendingBar(false)}
 
+      {filterRow && filterable.size > 0 && !asText && (
+        <button type="button" className="jc-grid-filter-toggle" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}>
+          {activeFilters > 0 ? `${labels.filterRow} (${activeFilters})` : labels.filterRow}
+        </button>
+      )}
+      {overflows && <p className="jc-grid-scroll-hint">{labels.scrollHint}</p>}
       <div className="jc-grid-scroll" ref={scrollRef} onScroll={virtual ? onScroll : undefined}>
         <table
           ref={tableRef}
@@ -1504,7 +1537,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       {queryBox && filterable.size > 0 && (
         <div className="jc-grid-query">
           <label className="jc-grid-query-text">
-            <span>{labels.query}</span>
+            <span className="jc-grid-query-label">{labels.query}</span>
             {asText ? (
               // The person owns the query from here: the row cannot show every `q` NGSI-LD allows
               // (a `|`, a bracket), so taking it over is how those are written at all.
@@ -1515,28 +1548,37 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                 onChange={(e) => setFilterText(e.target.value)}
               />
             ) : (
-              <output className="jc-grid-query-value">{queryText(askedQuery)}</output>
+              <output className="jc-grid-query-value">{queryText(askedQuery) || labels.queryAll}</output>
             )}
           </label>
-          <button
-            type="button"
-            onClick={() => {
-              void navigator.clipboard?.writeText(queryText(askedQuery));
-            }}
-          >
-            {labels.copyQuery}
-          </button>
-          <label className="jc-grid-query-switch">
-            <input
-              type="checkbox"
-              aria-describedby={queryHintId}
-              checked={asText}
-              onChange={(e) => setFilterText(e.target.checked ? (askedQuery.q ?? "") : null)}
-            />
-            {labels.editAsText}
-          </label>
+          <span className="jc-grid-query-actions">
+            {/* Nothing to copy while every row is asked for: the line says "all records" instead. */}
+            {queryText(askedQuery) !== "" && (
+              <button
+                type="button"
+                className="jc-grid-query-copy"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(queryText(askedQuery)).then(() => setCopied(true), () => setCopied(false));
+                }}
+              >
+                {copied ? labels.copied : labels.copyQuery}
+              </button>
+            )}
+            <label className="jc-grid-query-switch">
+              <input
+                type="checkbox"
+                aria-describedby={queryHintId}
+                checked={asText}
+                onChange={(e) => setFilterText(e.target.checked ? (askedQuery.q ?? "") : null)}
+              />
+              <span>{labels.editAsText}</span>
+            </label>
+          </span>
+          <span className="jc-grid-sr-only" role="status">{copied ? labels.copied : ""}</span>
+          {/* The example names this type's own attribute and the first row's value (T-5415). */}
           <span id={queryHintId} className="jc-grid-query-hint">
             {labels.editAsTextHint}
+            {example ? <>{`, ${labels.exampleLead} `}<code>{example}</code></> : null}.
           </span>
         </div>
       )}
@@ -1559,12 +1601,16 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         <button
           type="button"
           disabled={state.offset === 0}
+          className="jc-grid-pager-step"
           onClick={() => setOffset(Math.max(0, state.offset - hookOptions.config.pageSize))}
         >
-          {labels.previous}
+          {/* On a phone only the arrow shows; the word stays for a screen reader (T-5415). */}
+          <span aria-hidden="true">‹</span> <span className="jc-grid-pager-word">{labels.previous}</span>
         </button>
-        <span className="jc-grid-page-info">{`${labels.page} ${currentPage}`}</span>
-        {totalPages !== undefined && <span className="jc-grid-page-count">{`/ ${totalPages}`}</span>}
+        <span className="jc-grid-page-info">
+          {`${labels.page} ${currentPage}`}
+          {totalPages !== undefined && <span className="jc-grid-page-count">{` / ${totalPages}`}</span>}
+        </span>
         {/* Numbered pages as a DataTables pager (T-5196): the first, the last and the two around this one. */}
         {totalPages !== undefined && totalPages > 1 && (
           <span className="jc-grid-pages">
@@ -1593,9 +1639,10 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         <button
           type="button"
           disabled={totalPages !== undefined ? currentPage >= totalPages : rows.length < hookOptions.config.pageSize}
+          className="jc-grid-pager-step"
           onClick={() => setOffset(state.offset + hookOptions.config.pageSize)}
         >
-          {labels.next}
+          <span className="jc-grid-pager-word">{labels.next}</span> <span aria-hidden="true">›</span>
         </button>
       </div>
       )}

@@ -62,6 +62,14 @@ export interface GridLabels {
   filterHintOther: string;
   /** The hint of the switch that hands the query to the person. */
   editAsTextHint: string;
+  /** Before the example query the hint builds from the shown type (T-5415), e.g. "e.g.". */
+  exampleLead: string;
+  /** The query line when nothing narrows the rows. */
+  queryAll: string;
+  /** Said for a moment after the query was copied. */
+  copied: string;
+  /** Under the table while columns wait to its right (T-5415). */
+  scrollHint: string;
   /** Said on a sortable header, because the order is of the loaded page only (UI-66). */
   sortPage: string;
   /** Said on a sortable header whose source orders the whole answer. */
@@ -221,7 +229,11 @@ export const DEFAULT_LABELS: GridLabels = {
   filterHintDate: "Choose a test, then pick a date, e.g. after 2026-10-01.",
   filterHintEnum: "Choose a test; with any of, pick one or more allowed values:",
   filterHintOther: "Choose a test, e.g. has a value, or empty.",
-  editAsTextHint: "Write the NGSI-LD query yourself, e.g. pm10>40;name~=\"Espoo\".",
+  editAsTextHint: "Write the NGSI-LD query yourself",
+  exampleLead: "e.g.",
+  queryAll: "all records",
+  copied: "Copied",
+  scrollHint: "More columns to the right: scroll the table sideways.",
   sortPage: "Sort this page by",
   sortAll: "Sort all rows by",
   matching: "matching",

@@ -7,4 +7,6 @@ export class Map {
   }
 }
 export const setWorkerUrl = (): void => undefined;
-export default { Map, setWorkerUrl };
+// The SDK's tile protocol (T-5195) registers itself on import; without a map nothing reads a tile.
+export const addProtocol = (): void => undefined;
+export default { Map, setWorkerUrl, addProtocol };
