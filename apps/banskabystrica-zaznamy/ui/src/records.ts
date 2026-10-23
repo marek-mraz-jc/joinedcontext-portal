@@ -81,14 +81,18 @@ export function notesOnly(base: EntitySource, words: NoteWords): EntitySource {
   };
 }
 
-/** The grid this application is: one type, six columns, one of them open (UI-64, UI-71). */
-export function gridConfig(slug: string, labels: Record<string, string>): ResolvedGridConfig {
+/**
+ * The grid this application is: one type, six columns, the note open to a reader whose access
+ * document grants `updateAttrs` on it (UI-64, UI-71). Since T-5091 that is the steward role alone:
+ * everyone else gets the same grid read-only, never an editor whose save the gateway refuses.
+ */
+export function gridConfig(slug: string, labels: Record<string, string>, mayNote: boolean): ResolvedGridConfig {
   const columns: GridColumn[] = COLUMNS.map((attr) => ({
     attr,
     label: labels[attr] ?? attr,
     // No unit column: the code on the Property is UN/CEFACT's (`C62`, "one"), and the number is
     // drawn with the publisher's own unit text beside it instead (`cells.tsx`, T-2966).
-    ...(attr === NOTE ? { editable: true } : {}),
+    ...(attr === NOTE && mayNote ? { editable: true } : {}),
   }));
   return {
     source: { kind: "endpoint", slug },
@@ -99,8 +103,8 @@ export function gridConfig(slug: string, labels: Record<string, string>): Resolv
     // sent to the endpoint and the application never reads a space to filter it.
     filters: { allowed: [...COLUMNS] },
     pageSize: 25,
-    mode: "edit",
-    editableAttrs: [NOTE],
+    mode: mayNote ? "edit" : "view",
+    editableAttrs: mayNote ? [NOTE] : [],
     // The steward's grant is `retrieveOps` and `updateAttrs` (T-2434); it reaches no temporal
     // operation, so an offered history would be a 403 on every click.
     history: { enabled: false },

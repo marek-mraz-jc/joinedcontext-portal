@@ -37,7 +37,11 @@ export interface Served {
  * `#jc-config` first in the head, the host's Content Security Policy, and the endpoint answered
  * with the fixture the component tests use.
  */
-export async function serve(page: Page): Promise<Served> {
+/** The region's grants (seed bbsk-app-zaznamy-policy*.yaml): every member reads, a steward also writes the note (T-5091). */
+const READ = { resource: { type: "KeyPerformanceIndicator" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" };
+const NOTE_WRITE = { resource: { type: "KeyPerformanceIndicator" }, actions: ["updateAttrs"], attributes: ["stewardNote"] };
+
+export async function serve(page: Page, role: "member" | "steward" = "steward"): Promise<Served> {
   const served: Served = { outside: [], missing: [], problems: [] };
   page.on("pageerror", (error) => served.problems.push(error.message));
 
@@ -46,6 +50,10 @@ export async function serve(page: Page): Promise<Served> {
     if (url.origin !== ORIGIN) {
       served.outside.push(url.href);
       return route.abort();
+    }
+    if (url.pathname.includes("/api/endpoint/") && url.pathname.endsWith("/access")) {
+      const permissions = role === "steward" ? [READ, NOTE_WRITE] : [READ];
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ permissions, prohibitions: [] }) });
     }
     // The entity panel reads one record fresh by its id (SDK-40).
     const one = /\/ngsi-ld\/v1\/entities\/([^/]+)$/.exec(url.pathname);

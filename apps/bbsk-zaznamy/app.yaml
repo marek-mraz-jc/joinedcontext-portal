@@ -33,6 +33,15 @@ spec:
   visibility: project
   lifecycle: published
   embeddable: true
+  # Every member of the project reads the rows; only a steward writes the note (T-5091). The role
+  # goes to its default group, committed beside the App under grants/users/groups/ (AP-118).
+  roles:
+    - name: steward
+      title: { sk: "Správca", en: "Steward" }
+      description: "Also writes the steward's note on a record."
+  access:
+    - role: steward
+      subjects: [{ group: bbsk-zaznamy-steward }]
   dataNeeds:
     # One space, one type, and one write on one attribute — which is what puts this publication
     # in the red lane on purpose (AP-09, AP-39).
@@ -55,3 +64,4 @@ spec:
       attrs: [stewardNote]
       operations: [updateAttrs]
       representations: [ngsi-ld]
+      roles: [steward]
