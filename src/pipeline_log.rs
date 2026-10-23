@@ -464,7 +464,7 @@ impl LogStore {
     }
 
     /// Adds the lines of one report to the run's log and its counts, then drops what is beyond
-    /// the bounds (in the database only when [`Trims::due`]). A report with no lines is a pass that wrote nothing: the run is kept with its
+    /// the bounds (in the database only when `Trims::due`). A report with no lines is a pass that wrote nothing: the run is kept with its
     /// counts at zero, so "ran, nothing new" reads apart from "did not run" (T-3001).
     pub async fn append(
         &self,

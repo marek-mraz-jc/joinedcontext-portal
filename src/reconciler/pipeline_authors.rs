@@ -10,7 +10,7 @@
 //! own write. Bindings and `Group` manifests come from the mirror; with the realm's admin client
 //! the person's realm groups and roles count too, the bootstrap group included.
 //!
-//! The forge is asked once per manifest content (two calls), [`LOOKUPS_AT_ONCE`] Pipelines at a
+//! The forge is asked once per manifest content (two calls), `LOOKUPS_AT_ONCE` Pipelines at a
 //! time. A path the forge has no commit for is remembered with the ref it was asked at, so an
 //! unchanged revision asks nothing again (T-5292: ~640 lookups, ~23 s, on every run before).
 
@@ -153,7 +153,7 @@ impl AuthorRights {
 
 type Answered<'a> = ((String, String), u64, Placed<'a>, Option<Seen>);
 
-/// What the forge says of each of `pipelines`, [`LOOKUPS_AT_ONCE`] at a time, the answers of
+/// What the forge says of each of `pipelines`, `LOOKUPS_AT_ONCE` at a time, the answers of
 /// `known` that still hold asking nothing.
 async fn read_all<'a>(
     known: &HashMap<(String, String), (u64, Seen)>,
