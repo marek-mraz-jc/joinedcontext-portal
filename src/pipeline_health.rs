@@ -7,7 +7,7 @@
 //! runs in a row or a newest run that sent [`DROP_SHARE`] or less of the week's median.
 //!
 //! A run that sent records can still lose some: a step threw on them or the model refused them.
-//! Over the runs of the [`ERROR_WINDOW`] ending at the newest one, those failed and rejected
+//! Over the runs of the `ERROR_WINDOW` ending at the newest one, those failed and rejected
 //! records against every record the runs took is the error ratio (T-5291); above
 //! [`ERROR_SHARE`] the pipeline is `failing` and alerted at once. A run that sent nothing stays
 //! with the streak, so one broken run alone still alerts nobody.
@@ -108,7 +108,7 @@ impl ErrorRatio {
     }
 }
 
-/// The error ratio of the runs within [`ERROR_WINDOW`] of the newest one that sent something.
+/// The error ratio of the runs within `ERROR_WINDOW` of the newest one that sent something.
 fn error_ratio(runs: &[Run]) -> Option<ErrorRatio> {
     let end = runs.first().and_then(|run| at(&run.last_at))?;
     let (errors, records) = runs
