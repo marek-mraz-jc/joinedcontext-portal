@@ -917,14 +917,15 @@ impl AppState {
 
         // A declared ContextSourceRegistration is written straight at the broker, in the
         // tenant of its hub space (T-0345, SP-08): it is a control-plane act with no
-        // gateway operation behind it and no credential on the hop. Without the broker's
+        // gateway operation behind it, sent with the broker's admin token (T-5032). Without the broker's
         // address the manifests are read and served and no hub is federated.
         match self.config.broker_url.clone() {
             Some(broker) => {
                 syncer = syncer.with_registrations(Arc::new(
                     crate::reconciler::registrations::RegistrationSync::new(broker)
                         .with_broker_template(self.config.broker_url_template.clone())
-                        .with_gateway(self.config.gateway_url.clone()),
+                        .with_gateway(self.config.gateway_url.clone())
+                        .with_admin_token(self.config.broker_admin_token_file.clone()),
                 ));
             }
             None => tracing::info!(
