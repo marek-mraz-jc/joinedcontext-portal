@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useRouterState } from "@tanstack/react-router";
 import { api, queryKeys, unwrap } from "./client";
 import { asManifests, localized } from "./manifest";
 import { useTranslation } from "react-i18next";
@@ -28,6 +29,18 @@ export function useOrganizations() {
       ownerOf: new Map(list.items.map((item) => [item.name, item.organization])),
     }),
   });
+}
+
+/**
+ * The Organization `?org=` names when it is one the person sees among two or more (PF-124,
+ * ADR-N-058 section 2.7), else `undefined`: what the Administration lists show (T-5248).
+ */
+export function useChosenOrganizationName(): string | undefined {
+  const organizations = useOrganizations().data?.organizations ?? [];
+  const asked = useRouterState({ select: (state) => (state.location.search as { org?: string }).org });
+  return asked !== undefined && organizations.length > 1 && organizations.some((o) => o.name === asked)
+    ? asked
+    : undefined;
 }
 
 /**

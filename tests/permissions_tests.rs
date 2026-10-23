@@ -1585,8 +1585,12 @@ fn pf_123_approval_and_installation_kinds_end_at_the_organization() {
             "{kind} in a Žilina project"
         );
     }
-    // Neither in the installation's namespace nor in the installation's projects.
-    assert!(at("eva@zilina.sk", ORG_NAMESPACE).grants.is_empty());
+    // At the installation's namespace only Žilina's own settings (T-5248), none of the
+    // installation's projects.
+    assert!(at("eva@zilina.sk", ORG_NAMESPACE)
+        .grants
+        .iter()
+        .all(|g| g.organization.as_deref() == Some("zilina")));
     assert!(at("eva@zilina.sk", "helsinki").grants.is_empty());
 
     // The installation's administrator keeps the installation-wide kinds and its own projects.
@@ -1616,4 +1620,295 @@ fn pf_123_one_organization_covers_every_project_as_before() {
         .check("Pipeline", Verb::Approve, Some(&pipeline("aq")))
         .is_ok());
     assert!(hel.may("RoleBinding", Verb::Approve));
+}
+
+/// [`two_organizations`] with Groups in the administrators' role, a group a Helsinki binding
+/// names and a request helper for any method (T-5248).
+fn own_settings_repository() -> Vec<ResourceEnvelope> {
+    let mut envelopes = two_organizations();
+    envelopes.retain(|env| env.kind != "Role");
+    envelopes.push(org(
+        "Role",
+        "org-admin",
+        json!({ "rules": [
+            { "kinds": ["Pipeline", "DataSource", "Endpoint", "ContextSpace"], "verbs": ["propose", "approve", "delete"] },
+            { "kinds": ["RoleBinding", "Organization", "ContextBroker", "Group"], "verbs": ["propose", "approve", "delete"] }
+        ]}),
+    ));
+    envelopes.push(binding(
+        "hel-team",
+        "org-admin",
+        json!([{ "group": "hel-stewards" }]),
+        json!({ "project": "helsinki" }),
+        None,
+    ));
+    envelopes.push(org(
+        "Group",
+        "hel-stewards",
+        json!({ "members": [{ "user": "pekka@hel.fi" }] }),
+    ));
+    // A Policy of Helsinki's grants its data to every token holding the groups it names.
+    envelopes.push(ResourceEnvelope {
+        spec: json!({ "contextSpaceRef": "bikes", "assignee": { "kind": "group", "id": "helsinki" },
+                      "rules": [{ "assignee": { "kind": "group", "id": "zilina-bikes" } }] }),
+        ..in_("helsinki", "Policy", "bikes-ops-read")
+    });
+    envelopes
+}
+
+async fn send(
+    config: &Config,
+    method: &str,
+    who: &str,
+    uri: &str,
+    body: Option<&Value>,
+) -> (StatusCode, String) {
+    let request = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header(header::COOKIE, cookies(config, identity(who, &[])))
+        .header(CSRF_HEADER, CSRF)
+        .header(header::CONTENT_TYPE, "application/json");
+    let body = body.map_or_else(Body::empty, |b| {
+        Body::from(serde_json::to_vec(b).expect("json"))
+    });
+    let response = app_with(config, own_settings_repository())
+        .oneshot(request.body(body).expect("request"))
+        .await
+        .expect("response");
+    let status = response.status();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body")
+        .to_bytes();
+    (status, String::from_utf8_lossy(&bytes).into_owned())
+}
+
+fn manifest(kind: &str, name: &str, spec: Value) -> Value {
+    json!({ "apiVersion": API_VERSION, "kind": kind,
+            "metadata": { "name": name, "namespace": ORG_NAMESPACE }, "spec": spec })
+}
+
+fn zilina_binding(name: &str, scope: Value) -> Value {
+    manifest(
+        "RoleBinding",
+        name,
+        json!({ "subjects": [{ "user": "peter@zilina.sk" }], "role": "org-admin", "scope": scope }),
+    )
+}
+
+/// ADR-N-058 section 2.4 (T-5248): the Žilina administrator edits Žilina's own Organization and
+/// never Helsinki's nor the installation flag; binds people inside Žilina (its Organization, its
+/// project) and nowhere else.
+#[tokio::test]
+async fn an_organization_admin_changes_its_own_organization_and_binds_inside_it() {
+    let config = Config::for_tests();
+    let eva = "eva@zilina.sk";
+    let put = |name: &str, spec: Value| {
+        let uri = format!("/api/v1/projects/org/organizations/{name}?dryRun=All");
+        let body = manifest("Organization", name, spec);
+        let config = config.clone();
+        async move { send(&config, "PUT", eva, &uri, Some(&body)).await }
+    };
+    let (status, body) = put(
+        "zilina",
+        json!({ "domain": "zilina.sk", "locales": ["sk", "en"], "defaultLocale": "sk" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains(r#""valid":true"#), "{body}");
+    let (status, body) = put("hel", json!({ "domain": "hel.fi", "locales": ["en"], "defaultLocale": "en", "installation": true })).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    let (status, body) = put("zilina", json!({ "domain": "zilina.sk", "locales": ["sk"], "defaultLocale": "sk", "installation": true })).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert!(body.contains("spec.installation"), "{body}");
+
+    let bind = |scope: Value| {
+        let body = zilina_binding("zilina-peter", scope);
+        let config = config.clone();
+        async move {
+            send(
+                &config,
+                "POST",
+                eva,
+                "/api/v1/projects/org/rolebindings?dryRun=All",
+                Some(&body),
+            )
+            .await
+        }
+    };
+    for scope in [
+        json!({ "organization": "zilina" }),
+        json!({ "project": "ovzdusie" }),
+    ] {
+        let (status, body) = bind(scope.clone()).await;
+        assert_eq!(status, StatusCode::OK, "{scope}: {body}");
+        assert!(body.contains(r#""valid":true"#), "{scope}: {body}");
+    }
+    for scope in [
+        json!({ "organization": "hel" }),
+        json!({ "project": "helsinki" }),
+    ] {
+        let (status, body) = bind(scope.clone()).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{scope}: {body}");
+    }
+}
+
+/// T-5248: what stands in the repository for another Organization is not rewritten into one's
+/// own, read, listed or deleted; a group a Helsinki binding names stays Helsinki's.
+#[tokio::test]
+async fn an_organization_admin_reaches_no_binding_or_group_of_another_organization() {
+    let config = Config::for_tests();
+    let eva = "eva@zilina.sk";
+    let takeover = zilina_binding("hel-admins", json!({ "organization": "zilina" }));
+    let (status, body) = send(
+        &config,
+        "PUT",
+        eva,
+        "/api/v1/projects/org/rolebindings/hel-admins?dryRun=All",
+        Some(&takeover),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+
+    let (status, body) = send(
+        &config,
+        "GET",
+        eva,
+        "/api/v1/projects/org/rolebindings",
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains("zilina-admins"), "{body}");
+    assert!(
+        !body.contains("hel-admins") && !body.contains("jana@hel.fi"),
+        "{body}"
+    );
+    let (status, _) = send(
+        &config,
+        "GET",
+        eva,
+        "/api/v1/projects/org/rolebindings/hel-admins",
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = send(
+        &config,
+        "DELETE",
+        eva,
+        "/api/v1/projects/org/rolebindings/hel-admins?dryRun=All",
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, body) = send(
+        &config,
+        "GET",
+        eva,
+        "/api/v1/projects/org/organizations",
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(
+        body.contains("zilina.sk") && !body.contains("hel.fi"),
+        "{body}"
+    );
+
+    let group = |name: &str| {
+        manifest(
+            "Group",
+            name,
+            json!({ "members": [{ "user": "eva@zilina.sk" }] }),
+        )
+    };
+    let (status, body) = send(
+        &config,
+        "PUT",
+        eva,
+        "/api/v1/projects/org/groups/hel-stewards?dryRun=All",
+        Some(&group("hel-stewards")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    let (status, body) = send(
+        &config,
+        "POST",
+        eva,
+        "/api/v1/projects/org/groups?dryRun=All",
+        Some(&group("zilina-stewards")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.contains(r#""valid":true"#), "{body}");
+    // A group a Policy of another Organization names, or a name Žilina does not own, would put
+    // Žilina's people into Helsinki's data (integrator-2 review of T-5248).
+    for name in ["helsinki", "zilina-bikes", "bbsk-zaznamy-steward"] {
+        let (status, body) = send(
+            &config,
+            "POST",
+            eva,
+            "/api/v1/projects/org/groups?dryRun=All",
+            Some(&group(name)),
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{name}: {body}");
+        assert!(body.contains("metadata.name"), "{name}: {body}");
+    }
+    let mut app_group = group("zilina-app");
+    app_group["metadata"]["annotations"] = json!({ "joinedcontext.com/app": "helsinki/bikes" });
+    let (status, body) = send(
+        &config,
+        "POST",
+        eva,
+        "/api/v1/projects/org/groups?dryRun=All",
+        Some(&app_group),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert!(body.contains("metadata.annotations"), "{body}");
+}
+
+/// T-5248: the narrowed grants never make the Žilina administrator one of the installation's.
+#[test]
+fn own_settings_grants_administer_nothing_of_the_installation() {
+    let now = Utc.with_ymd_and_hms(2026, 10, 22, 12, 0, 0).unwrap();
+    let mirror = mirror_with(own_settings_repository());
+    let eva = effective(
+        &mirror,
+        "platform-admins",
+        &identity("eva@zilina.sk", &[]),
+        ORG_NAMESPACE,
+        now,
+    );
+    assert!(!eva.grants.is_empty());
+    assert!(eva
+        .grants
+        .iter()
+        .all(|g| g.organization.as_deref() == Some("zilina")));
+    assert!(!eva.administers_organization());
+    assert!(!eva.may_read("RoleBinding") && eva.may_read_some("RoleBinding"));
+    assert!(eva.may("RoleBinding", Verb::Propose));
+    assert!(!eva.may("ContextBroker", Verb::Propose));
+    assert!(!eva.may("Organization", Verb::Delete));
+    // A scope naming two levels applies at the widest: Helsinki's.
+    let mixed = zilina_binding(
+        "mixed",
+        json!({ "organization": "hel", "project": "ovzdusie" }),
+    );
+    assert!(eva
+        .check("RoleBinding", Verb::Propose, Some(&mixed))
+        .is_err());
+    let jana = effective(
+        &mirror,
+        "platform-admins",
+        &identity("jana@hel.fi", &[]),
+        ORG_NAMESPACE,
+        now,
+    );
+    assert!(jana.administers_organization());
 }
