@@ -10,19 +10,21 @@
 //! own write. Bindings and `Group` manifests come from the mirror; with the realm's admin client
 //! the person's realm groups and roles count too, the bootstrap group included.
 //!
-//! ponytail: the forge is asked once per manifest content (two calls), sequentially; a restart
-//! with hundreds of Pipelines spends a few seconds on its first run.
+//! The forge is asked once per manifest content (two calls), `LOOKUPS_AT_ONCE` Pipelines at a
+//! time. A path the forge has no commit for is remembered with the ref it was asked at, so an
+//! unchanged revision asks nothing again (T-5292: ~640 lookups, ~23 s, on every run before).
 
 use std::collections::{BTreeMap, HashMap};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
+use futures_util::StreamExt;
 use jc_core::kinds::Verb;
 use serde_json::Value;
 use tokio::sync::Mutex;
 
 use crate::auth::session::Identity;
-use crate::git::GiteaClient;
+use crate::git::{GitError, GiteaClient};
 use crate::people::{Admin, People, PeopleError};
 use crate::store::Mirror;
 
@@ -42,6 +44,30 @@ impl Authors {
     }
 }
 
+/// Forge lookups in flight at once, so a first run over hundreds of Pipelines does not take
+/// one round trip each in a row, nor open hundreds of requests to the forge.
+const LOOKUPS_AT_ONCE: usize = 8;
+
+/// What the forge said about one Pipeline's manifest.
+#[derive(Debug, Clone)]
+enum Seen {
+    Read(Authors),
+    /// No commit holds the path at this ref: asked again only when the ref or the manifest moves.
+    Missing {
+        git_ref: String,
+    },
+}
+
+impl Seen {
+    /// Whether this answer still holds at `git_ref` for the manifest it was asked for.
+    fn holds_at(&self, git_ref: &str) -> bool {
+        match self {
+            Seen::Read(_) => true,
+            Seen::Missing { git_ref: at } => at == git_ref,
+        }
+    }
+}
+
 /// One Pipeline of this render and where its manifest sits in the forge.
 pub struct Placed<'a> {
     pub namespace: String,
@@ -55,8 +81,8 @@ pub struct Placed<'a> {
 pub struct AuthorRights {
     bootstrap_group: String,
     people: Option<Arc<People>>,
-    /// The authors of each Pipeline by the hash of the manifest they were read for.
-    known: Mutex<HashMap<(String, String), (u64, Authors)>>,
+    /// What the forge said of each Pipeline, by the hash of the manifest it was asked for.
+    known: Mutex<HashMap<(String, String), (u64, Seen)>>,
 }
 
 impl AuthorRights {
@@ -75,16 +101,14 @@ impl AuthorRights {
         pipelines: Vec<Placed<'_>>,
     ) -> BTreeMap<(String, String), String> {
         let mut known = self.known.lock().await;
+        let answered = read_all(&known, pipelines).await;
         let mut kept = HashMap::new();
         let mut realm = Realm::default();
         let mut lost = BTreeMap::new();
-        for placed in pipelines {
-            let key = (placed.namespace.clone(), placed.name.clone());
-            let hash = hash_of(&placed.manifest);
-            let Some(authors) = authors_of(known.get(&key), hash, &placed).await else {
-                continue;
-            };
-            kept.insert(key.clone(), (hash, authors.clone()));
+        for (key, hash, placed, answer) in answered {
+            let Some(seen) = answer else { continue };
+            kept.insert(key.clone(), (hash, seen.clone()));
+            let Seen::Read(authors) = seen else { continue };
             if let Some(reason) = self.judge(&mut realm, mirror, &placed, &authors).await {
                 tracing::warn!(project = %placed.namespace, pipeline = %placed.name, %reason, "the pipeline is paused: an author no longer reaches what it reads or writes (PL-95)");
                 lost.insert(key, reason);
@@ -127,17 +151,64 @@ impl AuthorRights {
     }
 }
 
-/// The authors of `placed`: the last run's when its manifest is the same, else the forge's.
-async fn authors_of(
-    seen: Option<&(u64, Authors)>,
-    hash: u64,
-    placed: &Placed<'_>,
-) -> Option<Authors> {
-    if let Some((_, authors)) = seen.filter(|(at, _)| *at == hash) {
-        return Some(authors.clone());
+type Answered<'a> = ((String, String), u64, Placed<'a>, Option<Seen>);
+
+/// What the forge says of each of `pipelines`, `LOOKUPS_AT_ONCE` at a time, the answers of
+/// `known` that still hold asking nothing.
+async fn read_all<'a>(
+    known: &HashMap<(String, String), (u64, Seen)>,
+    pipelines: Vec<Placed<'a>>,
+) -> Vec<Answered<'a>> {
+    let asked: Vec<_> = pipelines
+        .into_iter()
+        .map(|placed| {
+            let key = (placed.namespace.clone(), placed.name.clone());
+            let hash = hash_of(&placed.manifest);
+            let cached = known
+                .get(&key)
+                .filter(|(at, seen)| *at == hash && seen.holds_at(placed.git_ref))
+                .map(|(_, seen)| seen.clone());
+            (key, hash, placed, cached)
+        })
+        .collect();
+    let started = std::time::Instant::now();
+    let forge_asked = asked.iter().filter(|(.., cached)| cached.is_none()).count();
+    // Collected first: a `map` closure inside the stream makes the sync future lose `Send`.
+    let lookups: Vec<_> = asked
+        .iter()
+        .map(|(.., placed, cached)| seen_of(cached.clone(), placed))
+        .collect();
+    let answers: Vec<Option<Seen>> = futures_util::stream::iter(lookups)
+        .buffered(LOOKUPS_AT_ONCE)
+        .collect()
+        .await;
+    tracing::info!(
+        pipelines = asked.len(),
+        forge_asked,
+        elapsed_ms = started.elapsed().as_millis() as u64,
+        "the authors of the pipelines were read (PL-95)"
+    );
+    asked
+        .into_iter()
+        .zip(answers)
+        .map(|((key, hash, placed, _), answer)| (key, hash, placed, answer))
+        .collect()
+}
+
+/// What the forge says of `placed`: the last run's answer when it still holds, else the
+/// forge's; `None` when the forge failed, so the next run asks again.
+async fn seen_of(cached: Option<Seen>, placed: &Placed<'_>) -> Option<Seen> {
+    if cached.is_some() {
+        return cached;
     }
     match authors_in_forge(placed).await {
-        Ok(authors) => Some(authors),
+        Ok(authors) => Some(Seen::Read(authors)),
+        Err(GitError::NotFound) => {
+            tracing::info!(project = %placed.namespace, pipeline = %placed.name, path = %placed.path, git_ref = %placed.git_ref, "the forge has no commit for the pipeline's manifest: its authors are not judged until the ref or the manifest changes");
+            Some(Seen::Missing {
+                git_ref: placed.git_ref.to_owned(),
+            })
+        }
         Err(error) => {
             tracing::warn!(project = %placed.namespace, pipeline = %placed.name, %error, "the authors of the pipeline were not read: their rights are checked next run");
             None
@@ -171,7 +242,7 @@ pub fn reason(
     (!missing.is_empty()).then(|| format!("author lost access to {}", missing.join(", ")))
 }
 
-async fn authors_in_forge(placed: &Placed<'_>) -> Result<Authors, crate::git::GitError> {
+async fn authors_in_forge(placed: &Placed<'_>) -> Result<Authors, GitError> {
     let last = placed
         .forge
         .list_commits(placed.git_ref, &placed.path, 1)
@@ -351,12 +422,21 @@ mod tests {
         rights: &AuthorRights,
         client: &GiteaClient,
     ) -> Option<String> {
+        judged_at(mirror, rights, client, "main").await
+    }
+
+    async fn judged_at(
+        mirror: &Mirror,
+        rights: &AuthorRights,
+        client: &GiteaClient,
+        git_ref: &str,
+    ) -> Option<String> {
         let placed = Placed {
             namespace: "helsinki".into(),
             name: "route".into(),
             manifest: route(),
             forge: client,
-            git_ref: "main",
+            git_ref,
             path: "pipelines/route/pipeline.yaml".into(),
         };
         rights
@@ -455,6 +535,57 @@ mod tests {
         let client = stub_client(&server);
         let rights = AuthorRights::new("portal-approver".into(), None);
         assert_eq!(judged(&mirror, &rights, &client).await, None);
+    }
+
+    async fn asked(server: &MockServer) -> usize {
+        server
+            .received_requests()
+            .await
+            .map_or(0, |requests| requests.len())
+    }
+
+    /// An unchanged revision asks the forge nothing: the last run's authors still judge it.
+    #[tokio::test]
+    async fn an_unchanged_revision_asks_the_forge_nothing() {
+        let mirror = world();
+        let (server, client) = forge(MERGED).await;
+        let rights = AuthorRights::new("portal-approver".into(), None);
+        let first = judged(&mirror, &rights, &client).await;
+        assert_eq!(asked(&server).await, 2, "list_commits and commit_message");
+        assert_eq!(judged(&mirror, &rights, &client).await, first);
+        assert_eq!(asked(&server).await, 2, "the second run asked again");
+    }
+
+    /// A path the forge has no commit for (404) is remembered with its ref: the same ref asks
+    /// nothing, a new ref asks once more.
+    #[tokio::test]
+    async fn a_path_without_a_commit_is_asked_once_per_ref() {
+        let mirror = world();
+        unbind(&mirror, "dev-a");
+        let server = MockServer::start().await;
+        let client = stub_client(&server);
+        let rights = AuthorRights::new("portal-approver".into(), None);
+        assert_eq!(judged_at(&mirror, &rights, &client, "r1").await, None);
+        assert_eq!(judged_at(&mirror, &rights, &client, "r1").await, None);
+        assert_eq!(asked(&server).await, 1);
+        assert_eq!(judged_at(&mirror, &rights, &client, "r2").await, None);
+        assert_eq!(asked(&server).await, 2);
+    }
+
+    /// A forge error other than 404 is not remembered: the next run asks again.
+    #[tokio::test]
+    async fn a_failing_forge_is_asked_again_next_run() {
+        let mirror = world();
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(503))
+            .mount(&server)
+            .await;
+        let client = stub_client(&server);
+        let rights = AuthorRights::new("portal-approver".into(), None);
+        assert_eq!(judged(&mirror, &rights, &client).await, None);
+        assert_eq!(judged(&mirror, &rights, &client).await, None);
+        assert_eq!(asked(&server).await, 2);
     }
 
     #[test]
