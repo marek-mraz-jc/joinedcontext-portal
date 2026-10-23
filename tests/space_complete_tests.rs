@@ -1147,9 +1147,17 @@ async fn a_linkml_file_alone_drafts_the_model_the_space_and_its_grants() {
         .collect();
     assert_eq!(kinds, ["DataModel", "ContextSpace", "Endpoint"], "{body}");
     let endpoint = &body["drafts"][2]["manifest"]["spec"];
-    assert_eq!(endpoint["audience"], "project", "{endpoint}");
+    assert_eq!(endpoint["audience"], "project-list", "{endpoint}");
+    assert_eq!(
+        endpoint["allowedProjects"],
+        json!(["helsinki"]),
+        "{endpoint}"
+    );
     assert_eq!(endpoint["contextSpaceRef"], "room-bookings");
     assert_eq!(endpoint.get("projection"), None, "{endpoint}");
+    // The space names its new model and the Endpoint its new space: siblings of one bundle, so
+    // the bundle is proposable as one Change (T-5348).
+    assert_eq!(body["proposeReady"], true, "{body}");
     assert_eq!(
         body["change"],
         Value::Null,
@@ -1190,6 +1198,7 @@ async fn an_uploaded_csv_drafts_the_endpoint_and_the_persons_write_grant() {
     for draft in drafts {
         assert_eq!(draft["verdict"]["ok"], true, "{draft}");
     }
+    assert_eq!(body["proposeReady"], true, "{body}");
     let grant = &named("room-bookings-upload")["manifest"]["spec"];
     assert_eq!(
         grant["assignee"],
