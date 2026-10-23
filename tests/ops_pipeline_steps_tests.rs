@@ -71,7 +71,7 @@ fn mirror(project: &str) -> Arc<Mirror> {
         "DataSource",
         "stations-csv",
         project,
-        json!({ "type": "http", "http": { "url": "https://feeds.example/stations.csv?day=1" } }),
+        json!({ "type": "http", "http": { "url": "https://feeds.example/stations.csv?day=1", "format": "csv" } }),
     ));
     mirror.upsert(envelope(
         "DataSource",
@@ -228,7 +228,8 @@ async fn a_sample_is_the_sources_first_records_with_their_fields() {
     assert_eq!(body["truncated"], false);
     assert_eq!(body["fields"], json!(["capacity", "free", "station"]));
     assert_eq!(body["records"][1]["free"], "3");
-    // The feed is fetched once, split as CSV because its path says so, with no step of anyone's.
+    // The feed is fetched once, split as CSV because the DataSource says `format: csv` (PL-114),
+    // with no step of anyone's.
     let text = harness.to_string();
     assert!(
         text.contains("https://feeds.example/stations.csv?day=1"),

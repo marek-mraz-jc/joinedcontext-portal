@@ -504,3 +504,18 @@ export async function removeCompletely(
   await approve(owner.page, project, change, name);
 }
 
+/**
+ * Waits until an approved removal has taken effect: the resource answers 404. A DataSource is
+ * refused with 409 while a Pipeline that reads it is still there, so its Pipelines go first and
+ * are waited out (T-5350).
+ */
+export async function waitGone(page: Page, project: string, plural: string, name: string): Promise<void> {
+  await expect
+    .poll(async () => (await page.request.get(`/api/v1/projects/${project}/${plural}/${name}`)).status(), {
+      message: `${plural}/${name} is still there after its removal was approved`,
+      timeout: 180_000,
+      intervals: [5_000],
+    })
+    .toBe(404);
+}
+

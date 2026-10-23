@@ -17,9 +17,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
-use context_gateway::pdp::evaluator::{
-    evaluate, Constraints, Request, Subject, Verdict as Decision,
-};
+use context_gateway::auth::subject::Subject;
+use context_gateway::pdp::evaluator::{evaluate, Constraints, Request, Verdict as Decision};
 use context_gateway::pdp::write_guard::{self, Refusal};
 use jc_core::kinds::pipeline_identity;
 use jc_core::kinds::{Operation, PipelineSpec, PolicySpec};

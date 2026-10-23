@@ -2363,10 +2363,12 @@ output:
         )
         .expect("renders from bento.yaml");
         let processors = rendered["pipeline"]["processors"].as_array().unwrap();
-        // The HTTP poll and its error guard first, the author's two, then the shared tail.
-        assert_eq!(processors[2]["mapping"], "root = this.data.stations");
-        assert_eq!(processors[3]["unarchive"]["format"], "json_array");
-        assert_eq!(processors.len(), 10, "the shared tail and the write");
+        // The HTTP poll and its error guard first, the body bound (PL-113), the author's two,
+        // then the shared tail.
+        assert!(processors[3]["catch"].is_array());
+        assert_eq!(processors[4]["mapping"], "root = this.data.stations");
+        assert_eq!(processors[5]["unarchive"]["format"], "json_array");
+        assert_eq!(processors.len(), 12, "the shared tail and the write");
         let url = upsert_at(&rendered, "write_0")["url"].as_str().unwrap();
         assert!(url.contains("/api/endpoint/abc123/"), "{url}");
         assert!(!url.contains("authored"));
@@ -3930,11 +3932,13 @@ output:
                 .filter_map(|step| step.as_object()?.keys().next().cloned())
                 .collect()
         };
-        assert_eq!(keys(&processors[2]["try"]), ["mapping", "unarchive"]);
+        // The body bound (PL-113) refuses an oversized directory read before it is parsed.
         assert!(processors[3]["catch"].is_array());
+        assert_eq!(keys(&processors[4]["try"]), ["mapping", "unarchive"]);
+        assert!(processors[5]["catch"].is_array());
         // Each member is a batch of its own and inflates through `unarchive: zip`, not the
         // wasm module Bento never frees (T-4752, PL-72).
-        let each = &processors[4]["for_each"];
+        let each = &processors[6]["for_each"];
         assert_eq!(keys(each), ["try", "catch"]);
         let read = &each[0]["try"];
         assert_eq!(
@@ -3944,7 +3948,7 @@ output:
         assert_eq!(read[1]["http"]["headers"]["Range"], "${! @range }");
         assert_eq!(read[3]["unarchive"]["format"], "zip");
         assert!(!rendered.to_string().contains("inflate.wasm"));
-        assert_eq!(processors[5]["label"], COMPUTE_LABEL);
+        assert_eq!(processors[7]["label"], COMPUTE_LABEL);
     }
 
     #[test]
