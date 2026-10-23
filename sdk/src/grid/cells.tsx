@@ -165,6 +165,45 @@ export function geoText(value: unknown, locale: string, labels: CellLabels): str
   return count > 0 ? `${geometry.type}, ${formatNumber(count, locale)} ${labels.points}` : geometry.type;
 }
 
+/**
+ * An http(s) address a cell may link to, else `undefined`. `URL` resolves the escapes and control
+ * characters a hand-written check misses, so `java\tscript:` never passes (PF-50, as the Portal's
+ * safeHref, without its relative paths: a cell's value is never a path on this host).
+ */
+export function webHref(value: unknown): string | undefined {
+  if (typeof value !== "string" || !/^https?:\/\//i.test(value.trim())) return undefined;
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? value.trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * A cell that reads as a link: a web address as itself, or a `{name, url}` object (an Event's
+ * `organizer`, T-5134) as its name linked to its url.
+ */
+export function cellLink(cell: RichCell | RichCell[] | undefined): { text: string; href: string } | undefined {
+  if (cell === undefined || Array.isArray(cell) || cell.kind === "relationship") return undefined;
+  const value = cell.value;
+  const direct = webHref(value);
+  if (direct) return { text: String(value).trim(), href: direct };
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  const href = webHref(record.url);
+  const name = typeof record.name === "string" ? record.name.trim() : "";
+  return href && name ? { text: name, href } : undefined;
+}
+
+/** A `{name}` or `{name, url}` object (an organizer without a usable web site) as its name alone. */
+function organizerName(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  const name = typeof record.name === "string" ? record.name.trim() : "";
+  return name && Object.keys(record).every((key) => key === "name" || key === "url") ? name : undefined;
+}
+
 /** One cell's text, as `CellView` shows it: what an export, a title or a test reads. */
 export function cellDisplayText(cell: RichCell | RichCell[] | undefined, locale: string, labels: CellLabels): string {
   if (cell === undefined) return "";
@@ -186,6 +225,7 @@ export function cellDisplayText(cell: RichCell | RichCell[] | undefined, locale:
     case "datetime":
       return formatDate(cell.value as string, locale);
     case "structured":
+      return cellLink(cell)?.text ?? organizerName(cell.value) ?? structuredText(cell.value, locale, labels);
     case "list":
       return structuredText(cell.value, locale, labels);
     default:
@@ -247,6 +287,22 @@ export function CellView({ cell, locale, labels, onOpen }: CellViewProps): React
   const one = all[0];
   const text = cellDisplayText(cell, locale, labels);
   const kind = kindOfCell(cell);
+  const link = cellLink(cell);
+  if (link) {
+    const safe = link.href;
+    return (
+      <a
+        className="jc-cell jc-cell--link"
+        href={safe}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={safe}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {link.text}
+      </a>
+    );
+  }
   return (
     <span className={`jc-cell jc-cell--${kind ?? "text"}`} title={one && !Array.isArray(cell) ? titleOf(one) : undefined}>
       {text}

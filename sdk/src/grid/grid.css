@@ -973,6 +973,18 @@ button.jc-cell-chip:hover {
   font-variant-numeric: tabular-nums;
 }
 
+/* A web address or an organizer's name, opening in a new tab (T-5134). */
+a.jc-cell--link {
+  color: var(--jc-color-accent, #0066cc);
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+
+a.jc-cell--link:focus-visible {
+  outline: 2px solid var(--jc-color-accent, #0066cc);
+  outline-offset: 1px;
+}
+
 .jc-grid-col-menu-input {
   border: 1px solid var(--jc-color-line, #e0e0e0);
   border-radius: var(--jc-radius-sm, 2px);
