@@ -1647,6 +1647,12 @@ fn own_settings_repository() -> Vec<ResourceEnvelope> {
         "hel-stewards",
         json!({ "members": [{ "user": "pekka@hel.fi" }] }),
     ));
+    // A Policy of Helsinki's grants its data to every token holding the groups it names.
+    envelopes.push(ResourceEnvelope {
+        spec: json!({ "contextSpaceRef": "bikes", "assignee": { "kind": "group", "id": "helsinki" },
+                      "rules": [{ "assignee": { "kind": "group", "id": "zilina-bikes" } }] }),
+        ..in_("helsinki", "Policy", "bikes-ops-read")
+    });
     envelopes
 }
 
@@ -1839,6 +1845,32 @@ async fn an_organization_admin_reaches_no_binding_or_group_of_another_organizati
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(body.contains(r#""valid":true"#), "{body}");
+    // A group a Policy of another Organization names, or a name Žilina does not own, would put
+    // Žilina's people into Helsinki's data (integrator-2 review of T-5248).
+    for name in ["helsinki", "zilina-bikes", "bbsk-zaznamy-steward"] {
+        let (status, body) = send(
+            &config,
+            "POST",
+            eva,
+            "/api/v1/projects/org/groups?dryRun=All",
+            Some(&group(name)),
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{name}: {body}");
+        assert!(body.contains("metadata.name"), "{name}: {body}");
+    }
+    let mut app_group = group("zilina-app");
+    app_group["metadata"]["annotations"] = json!({ "joinedcontext.com/app": "helsinki/bikes" });
+    let (status, body) = send(
+        &config,
+        "POST",
+        eva,
+        "/api/v1/projects/org/groups?dryRun=All",
+        Some(&app_group),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert!(body.contains("metadata.annotations"), "{body}");
 }
 
 /// T-5248: the narrowed grants never make the Žilina administrator one of the installation's.

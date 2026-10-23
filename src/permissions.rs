@@ -666,7 +666,7 @@ fn narrowed_to_own_settings(mirror: &Mirror, organization: &str, grant: Grant) -
                 }
             }
             _ => {
-                let elsewhere: BTreeSet<String> = mirror
+                let mut elsewhere: BTreeSet<String> = mirror
                     .list(ORG_NAMESPACE, "RoleBinding", &ListOptions::default())
                     .items
                     .into_iter()
@@ -676,15 +676,49 @@ fn narrowed_to_own_settings(mirror: &Mirror, organization: &str, grant: Grant) -
                     })
                     .flat_map(|binding| binding.subjects.into_iter().filter_map(|s| s.group))
                     .collect();
+                // A Policy grants its data to every token holding a group it names (gateway PDP).
+                elsewhere.extend(
+                    mirror
+                        .matching(|env| {
+                            env.kind == "Policy"
+                                && !env.metadata.namespace.as_deref().is_some_and(|project| {
+                                    organization_reaches(mirror, organization, project)
+                                })
+                        })
+                        .into_iter()
+                        .flat_map(|env| policy_groups(&env.spec)),
+                );
                 push(
                     kind,
                     verbs,
-                    vec![none_of("metadata.name", elsewhere.into_iter().collect())],
+                    vec![
+                        Constraint {
+                            pattern: Some(format!("{}-.+", regex::escape(organization))),
+                            ..one_of("metadata.name", Vec::new())
+                        },
+                        none_of("metadata.name", elsewhere.into_iter().collect()),
+                    ],
                 );
             }
         }
     }
     narrowed
+}
+
+/// The groups a Policy names as assignee, alone or in one of its `rules[]`.
+fn policy_groups(spec: &Value) -> Vec<String> {
+    let rules = spec.get("rules").and_then(Value::as_array);
+    std::iter::once(spec)
+        .chain(rules.into_iter().flatten())
+        .filter_map(|holder| holder.get("assignee"))
+        .filter(|assignee| assignee.get("kind").and_then(Value::as_str) == Some("group"))
+        .filter_map(|assignee| {
+            assignee
+                .get("id")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        })
+        .collect()
 }
 
 /// The roles of one namespace: the organization's `users/roles/`, or one project's own (PF-68).
@@ -1404,9 +1438,6 @@ fn replaces_only_own_settings(
     {
         return Ok(());
     }
-    let Some(replaced) = state.mirror.get(ORG_NAMESPACE, kind, name) else {
-        return Ok(());
-    };
     let verb = if who == "approver" {
         Verb::Approve
     } else {
@@ -1422,6 +1453,21 @@ fn replaces_only_own_settings(
     if !narrowed_only {
         return Ok(());
     }
+    // An App's default group carries that App's roles (AP-118): only the installation names one.
+    if kind == "Group"
+        && manifest
+            .pointer("/metadata/annotations")
+            .and_then(|annotations| annotations.get(crate::apps::reconciler::APP_LABEL))
+            .is_some()
+    {
+        return Err(ApiError::Denied(format!(
+            "metadata.annotations: the Group {name} may not name an App; an App's default group \
+             is the installation administrators' to make (ADR-N-058, AP-118)"
+        )));
+    }
+    let Some(replaced) = state.mirror.get(ORG_NAMESPACE, kind, name) else {
+        return Ok(());
+    };
     let replaced = serde_json::to_value(replaced).map_err(|e| ApiError::Internal(e.to_string()))?;
     effective.check(kind, verb, Some(&replaced)).map_err(|_| {
         ApiError::Denied(format!(
