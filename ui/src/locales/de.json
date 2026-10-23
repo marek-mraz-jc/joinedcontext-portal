@@ -3348,7 +3348,7 @@
     },
     "health": {
       "caption": "Zustand jeder Quelle",
-      "lead": "Der neueste Lauf jeder Pipeline gegenüber der Woche davor; Quellen, die Hilfe brauchen, stehen oben. Eine Quelle wird rot, wenn ihr neuester Lauf nichts geschrieben hat und ihr Log den Grund nennt, oder mehr als 80 % weniger als ihr 7-Tage-Median. Nach 3 fehlgeschlagenen Läufen in Folge oder einem solchen Einbruch erhalten ihre Beobachter eine Warnung.",
+      "lead": "Der neueste Lauf jeder Pipeline gegenüber der Woche davor; Quellen, die Hilfe brauchen, stehen oben. Eine Quelle wird rot, wenn ihr neuester Lauf nichts geschrieben hat und ihr Log den Grund nennt, oder mehr als 80 % weniger als ihr 7-Tage-Median. Sie wird auch rot, und ihre Beobachter erhalten sofort eine Warnung, wenn mehr als 5 % der Datensätze der letzten Stunde fehlgeschlagen sind. Nach 3 fehlgeschlagenen Läufen in Folge oder einem solchen Einbruch erhalten ihre Beobachter eine Warnung.",
       "empty": "Noch keine Pipelines zu prüfen",
       "emptyHint": "Fügen Sie auf dem Reiter Liste eine Pipeline hinzu. Ihr Zustand erscheint hier nach dem ersten Lauf.",
       "summary": "{broken, plural, one {# von {total} Quellen braucht} other {# von {total} Quellen brauchen}} einen Blick; {alerted, plural, =0 {noch keine Warnung} one {# mit Warnung} other {# mit Warnung}}.",
@@ -3361,6 +3361,7 @@
       "lastLogLine": "Letzter Fehler",
       "never": "Nie",
       "failedRuns": "{count, plural, one {# fehlgeschlagener Lauf} other {# fehlgeschlagene Läufe in Folge}}",
+      "errorRatio": "{percent} % fehlgeschlagen in der letzten Stunde ({errors} von {records})",
       "alerted": "Warnung an Beobachter gesendet",
       "median": "Median {median}",
       "openRuns": "Läufe und Log von {name}",
