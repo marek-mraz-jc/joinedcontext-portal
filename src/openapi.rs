@@ -603,6 +603,7 @@ use crate::tools::model_tools::{
         crate::api::pipelines::HealthList,
         crate::pipeline_health::Health,
         crate::pipeline_health::State,
+        crate::pipeline_health::ErrorRatio,
         crate::api::pipelines::RunStarted,
         crate::api::pipelines::LogPage,
         crate::api::pipelines::SourceDecision,
