@@ -8,15 +8,42 @@ import type { JSX, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { clsx } from "clsx";
-import { andQ } from "@joinedcontext/sdk";
-import type { EntitySource } from "@joinedcontext/sdk";
-import { buttonClass, Select } from "../ui";
+import { andQ, cellText } from "@joinedcontext/sdk";
+import type { EntitySource, RichCell } from "@joinedcontext/sdk";
+import { Button, buttonClass, Select } from "../ui";
 
 export const ROW_SIZES = ["small", "medium", "large"] as const;
 export type RowSize = (typeof ROW_SIZES)[number];
 
-export const AGGREGATIONS = ["none", "count", "filled", "empty", "percentFilled", "percentEmpty"] as const;
+export const AGGREGATIONS = ["none", "count", "filled", "empty", "percentFilled", "percentEmpty", "min", "max", "median", "earliest", "latest"] as const;
 export type Aggregation = (typeof AGGREGATIONS)[number];
+
+/**
+ * The aggregations read off the ordered set rather than counted (T-5188), by the column kind they
+ * fit: the first row of `orderBy=attr` (or `attr;desc`) among the rows that hold the attribute,
+ * and the middle one at its offset. Sum, average and distinct values need the broker's own
+ * aggregate and are not offered.
+ */
+const ORDERED: Record<string, Partial<Record<Aggregation, true>>> = {
+  number: { min: true, max: true, median: true },
+  date: { earliest: true, latest: true },
+};
+
+/** The aggregations a column offers: the counts always, the ordered ones by its kind where the source orders. */
+export function aggregationsFor(kind: string | undefined, orders: boolean): Aggregation[] {
+  return AGGREGATIONS.filter((each) => !ORDERED_ANY.has(each) || (orders && kind !== undefined && ORDERED[kind]?.[each] === true));
+}
+
+const ORDERED_ANY = new Set<Aggregation>(["min", "max", "median", "earliest", "latest"]);
+
+/** The value an ordered aggregation reads: the row's offset and order, given how many rows hold the attribute. */
+export function orderedRead(value: Aggregation, filled: number): { desc: boolean; offset: number; limit: number } | null {
+  if (filled <= 0) return null;
+  if (value === "min" || value === "earliest") return { desc: false, offset: 0, limit: 1 };
+  if (value === "max" || value === "latest") return { desc: true, offset: 0, limit: 1 };
+  if (value === "median") return { desc: false, offset: Math.floor((filled - 1) / 2), limit: filled % 2 === 0 ? 2 : 1 };
+  return null;
+}
 
 /**
  * A toolbar button with its panel: a `<details>` element, so the browser gives it a keyboard, a
@@ -99,6 +126,7 @@ export function FooterAggregate({
   attr,
   label,
   q,
+  kind,
   value,
   onChange,
 }: {
@@ -107,11 +135,14 @@ export function FooterAggregate({
   attr: string;
   label: string;
   q?: string;
+  /** The column's filter kind (`number`, `date`, …): which ordered aggregations it offers. */
+  kind?: string;
   value: Aggregation;
   onChange: (next: Aggregation) => void;
 }): JSX.Element {
   const { t } = useTranslation();
-  const needsTotal = value !== "none" && value !== "filled";
+  const ordered = ORDERED_ANY.has(value);
+  const needsTotal = value !== "none" && value !== "filled" && !ordered;
   const needsFilled = value !== "none" && value !== "count";
   const count = async (asked: string | undefined) => (await source.query({ type, q: asked }, { offset: 0, limit: 1 })).total ?? null;
   const total = useQuery({
@@ -128,16 +159,33 @@ export function FooterAggregate({
     staleTime: 30_000,
     queryFn: () => count(andQ(q, attr)),
   });
-  const failed = (needsTotal && total.isError) || (needsFilled && filled.isError);
-  const waiting = (needsTotal && total.isPending) || (needsFilled && filled.isPending);
-  const whole = total.data ?? null;
   const some = filled.data ?? null;
+  const read = ordered && some !== null ? orderedRead(value, some) : null;
+  const picked = useQuery({
+    queryKey: ["grid-aggregate", type, attr, value, q ?? "", some ?? -1],
+    enabled: read !== null,
+    retry: false,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const at = read ?? { desc: false, offset: 0, limit: 1 };
+      const page = await source.query(
+        { type, q: andQ(q, attr), attrs: [attr], orderBy: at.desc ? `${attr};desc` : attr },
+        { offset: at.offset, limit: at.limit },
+      );
+      return orderedValue(page.rows.map((row) => row.cells[attr]), value);
+    },
+  });
+  const failed = (needsTotal && total.isError) || (needsFilled && filled.isError) || (read !== null && picked.isError);
+  const waiting = (needsTotal && total.isPending) || (needsFilled && filled.isPending) || (read !== null && picked.isPending);
+  const whole = total.data ?? null;
+  const offered = aggregationsFor(kind, source.orders === true);
   let shown: string | null = null;
   if (value === "count") shown = whole === null ? null : String(whole);
   if (value === "filled") shown = some === null ? null : String(some);
   if (value === "empty") shown = whole === null || some === null ? null : String(whole - some);
   if (value === "percentFilled") shown = whole === null || some === null ? null : percent(some, whole);
   if (value === "percentEmpty") shown = whole === null || some === null ? null : percent(whole - some, whole);
+  if (ordered) shown = picked.data ?? null;
   return (
     <div className="flex items-center gap-1">
       {/* Baserow's quiet "Summarize" (T-5093): a text button under the column, its choice the
@@ -149,7 +197,7 @@ export function FooterAggregate({
         value={value}
         onChange={(event) => onChange(event.target.value as Aggregation)}
       >
-        {AGGREGATIONS.map((each) => (
+        {(offered.includes(value) ? offered : [...offered, value]).map((each) => (
           <option key={each} value={each}>
             {t(`spaces.toolbar.aggregate.${each}`)}
           </option>
@@ -168,4 +216,190 @@ export function FooterAggregate({
       )}
     </div>
   );
+}
+
+/** The keys a view orders by and the fields it groups by: at most three of each (T-5188, API/01 §30). */
+export const MAX_SORT_KEYS = 3;
+export const MAX_GROUP_FIELDS = 3;
+
+export interface SortKey {
+  attr: string;
+  dir: "asc" | "desc";
+}
+
+/** A field a panel offers: only those the person's own answer carries, so nothing names a hidden one. */
+export interface PanelField {
+  value: string;
+  label: string;
+}
+
+/**
+ * The Sort panel (T-5188): up to three keys, each ordering what the one before leaves equal, sent
+ * as one `orderBy` (CIM 009 4.23) so the endpoint orders the whole filtered set.
+ */
+export function SortPanel({ fields, value, onChange }: { fields: PanelField[]; value: SortKey[]; onChange: (next: SortKey[]) => void }): JSX.Element {
+  const { t } = useTranslation();
+  const set = (at: number, key: SortKey) => onChange(value.map((each, index) => (index === at ? key : each)));
+  return (
+    <KeyList
+      legend={t("spaces.toolbar.sortLegend")}
+      hint={t("spaces.toolbar.sortHint")}
+      empty={t("spaces.toolbar.sortEmpty")}
+      add={t("spaces.toolbar.sortAdd")}
+      full={t("spaces.toolbar.sortFull", { n: MAX_SORT_KEYS })}
+      fields={fields}
+      chosen={value.map((key) => key.attr)}
+      max={MAX_SORT_KEYS}
+      onAdd={(attr) => onChange([...value, { attr, dir: "asc" }])}
+      onPick={(at, attr) => set(at, { ...value[at], attr })}
+      onRemove={(at) => onChange(value.filter((_, index) => index !== at))}
+      extra={(at) => (
+        <Select
+          quiet
+          aria-label={t("spaces.toolbar.sortDirectionOf", { n: at + 1 })}
+          value={value[at].dir}
+          onChange={(event) => set(at, { ...value[at], dir: event.target.value === "desc" ? "desc" : "asc" })}
+        >
+          <option value="asc">{t("spaces.toolbar.sortAsc")}</option>
+          <option value="desc">{t("spaces.toolbar.sortDesc")}</option>
+        </Select>
+      )}
+    />
+  );
+}
+
+/** The Group panel (T-5188): up to three fields, outermost first; each group gets a header in the grid. */
+export function GroupPanel({ fields, value, onChange }: { fields: PanelField[]; value: string[]; onChange: (next: string[]) => void }): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <KeyList
+      legend={t("spaces.toolbar.groupLegend")}
+      hint={t("spaces.toolbar.groupHint")}
+      empty={t("spaces.toolbar.groupEmpty")}
+      add={t("spaces.toolbar.groupAdd")}
+      full={t("spaces.toolbar.groupFull", { n: MAX_GROUP_FIELDS })}
+      fields={fields}
+      chosen={value}
+      max={MAX_GROUP_FIELDS}
+      onAdd={(attr) => onChange([...value, attr])}
+      onPick={(at, attr) => onChange(value.map((each, index) => (index === at ? attr : each)))}
+      onRemove={(at) => onChange(value.filter((_, index) => index !== at))}
+    />
+  );
+}
+
+/** One list of fields to pick, each once, with its own remove and an add while there is room. */
+function KeyList({
+  legend,
+  hint,
+  empty,
+  add,
+  full,
+  fields,
+  chosen,
+  max,
+  onAdd,
+  onPick,
+  onRemove,
+  extra,
+}: {
+  legend: string;
+  hint: string;
+  empty: string;
+  add: string;
+  full: string;
+  fields: PanelField[];
+  chosen: string[];
+  max: number;
+  onAdd: (attr: string) => void;
+  onPick: (at: number, attr: string) => void;
+  onRemove: (at: number) => void;
+  extra?: (at: number) => ReactNode;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const free = fields.filter((field) => !chosen.includes(field.value));
+  const titleOf = (attr: string) => fields.find((field) => field.value === attr)?.label ?? attr;
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="text-body font-semibold">{legend}</legend>
+      <p className="text-caption text-fg-muted">{hint}</p>
+      {chosen.length === 0 ? <p className="text-caption text-fg-muted">{empty}</p> : null}
+      <ol className="flex flex-col gap-1">
+        {chosen.map((attr, at) => (
+          <li key={attr} className="flex flex-wrap items-center gap-1">
+            <Select
+              aria-label={t("spaces.toolbar.keyFieldOf", { legend, n: at + 1 })}
+              className="max-w-44"
+              value={attr}
+              onChange={(event) => onPick(at, event.target.value)}
+            >
+              {[{ value: attr, label: titleOf(attr) }, ...free].map((field) => (
+                <option key={field.value} value={field.value}>
+                  {field.label}
+                </option>
+              ))}
+            </Select>
+            {extra?.(at)}
+            <Button size="sm" variant="ghost" aria-label={t("spaces.toolbar.keyRemoveOf", { field: titleOf(attr) })} onClick={() => onRemove(at)}>
+              ✕
+            </Button>
+          </li>
+        ))}
+      </ol>
+      <Button
+        size="sm"
+        className="w-fit"
+        disabled={chosen.length >= max || free.length === 0}
+        disabledReason={chosen.length >= max ? full : t("spaces.toolbar.keyNoField")}
+        onClick={() => {
+          const next = free[0];
+          if (next) onAdd(next.value);
+        }}
+      >
+        {add}
+      </Button>
+    </fieldset>
+  );
+}
+
+/**
+ * The `q` term that holds one group's value, `null` for a value no term states (a structured one):
+ * an absent value is the attribute missing, a text is quoted, a number or a truth value is bare.
+ */
+export function groupValueTerm(attr: string, value: unknown): string | null {
+  if (value === undefined || value === null) return `!${attr}`;
+  if (typeof value === "string") return `${attr}==${JSON.stringify(value)}`;
+  if (typeof value === "number" || typeof value === "boolean") return `${attr}==${String(value)}`;
+  return null;
+}
+
+/** A group header's count (T-5188): the endpoint's `count=true` over the view's query and the group's values. */
+export function GroupCount({ source, type, q, path }: { source: EntitySource; type: string; q?: string; path: { attr: string; value: unknown }[] }): JSX.Element | null {
+  const { t } = useTranslation();
+  const terms = path.map((step) => groupValueTerm(step.attr, step.value));
+  const asked = terms.every((term): term is string => term !== null) ? andQ(q, ...terms) : null;
+  const count = useQuery({
+    queryKey: ["group-header-count", type, asked ?? ""],
+    enabled: asked !== null,
+    retry: false,
+    staleTime: 30_000,
+    queryFn: async () => (await source.query({ type, q: asked ?? undefined }, { offset: 0, limit: 1 })).total ?? null,
+  });
+  if (asked === null || count.isError || count.data === null) return null;
+  if (count.isPending) return <span className="text-caption text-fg-muted">…</span>;
+  return <span className="text-caption text-fg-muted">{t("spaces.toolbar.groupCount", { count: count.data })}</span>;
+}
+
+/**
+ * The text of an ordered read: the one value, or for a median of an even count the mean of the two
+ * middle numbers; `null` where the rows carry no value to show.
+ */
+export function orderedValue(cells: (RichCell | RichCell[] | undefined)[], value: Aggregation): string | null {
+  const values = cells.map((cell) => (Array.isArray(cell) ? cell[0] : cell)?.value);
+  if (value === "median" && values.length === 2) {
+    const [a, b] = values;
+    return typeof a === "number" && typeof b === "number" ? String((a + b) / 2) : null;
+  }
+  const one = cells[0];
+  return one === undefined ? null : cellText(one) || null;
 }
