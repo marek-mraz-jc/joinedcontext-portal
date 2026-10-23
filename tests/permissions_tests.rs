@@ -1653,6 +1653,25 @@ fn own_settings_repository() -> Vec<ResourceEnvelope> {
                       "rules": [{ "assignee": { "kind": "group", "id": "zilina-bikes" } }] }),
         ..in_("helsinki", "Policy", "bikes-ops-read")
     });
+    // A Helsinki App named zilina-x grants its roles to its default group by name (AP-118), and a
+    // second one names a plain group in its access.
+    envelopes.push(ResourceEnvelope {
+        spec: json!({ "access": [
+            { "role": "steward", "subjects": [{ "group": "zilina-x-steward" }] },
+            { "role": "viewer", "subjects": [{ "group": "zilina-x-viewers" }] }
+        ]}),
+        ..in_("helsinki", "App", "zilina-x")
+    });
+    let mut default_group = org(
+        "Group",
+        "zilina-x-steward",
+        json!({ "members": [{ "user": "pekka@hel.fi" }] }),
+    );
+    default_group.metadata.annotations.insert(
+        "joinedcontext.com/app".to_owned(),
+        "helsinki/zilina-x".to_owned(),
+    );
+    envelopes.push(default_group);
     envelopes
 }
 
@@ -1871,6 +1890,32 @@ async fn an_organization_admin_reaches_no_binding_or_group_of_another_organizati
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
     assert!(body.contains("metadata.annotations"), "{body}");
+    // An App outside Žilina grants its role to these groups by name: rewriting the default group
+    // without its annotation, or a group the App's access names, would hand Žilina that role
+    // (integrator-2 second review of T-5248).
+    for name in ["zilina-x-steward", "zilina-x-viewers"] {
+        let (status, body) = send(
+            &config,
+            "PUT",
+            eva,
+            &format!("/api/v1/projects/org/groups/{name}?dryRun=All"),
+            Some(&group(name)),
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{name}: {body}");
+    }
+    let (status, body) = send(
+        &config,
+        "DELETE",
+        eva,
+        "/api/v1/projects/org/groups/zilina-x-steward?dryRun=All",
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
+    let (status, body) = send(&config, "GET", eva, "/api/v1/projects/org/groups", None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(!body.contains("zilina-x-steward"), "{body}");
 }
 
 /// T-5248: the narrowed grants never make the Žilina administrator one of the installation's.

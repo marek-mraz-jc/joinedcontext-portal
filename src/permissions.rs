@@ -688,6 +688,31 @@ fn narrowed_to_own_settings(mirror: &Mirror, organization: &str, grant: Grant) -
                         .into_iter()
                         .flat_map(|env| policy_groups(&env.spec)),
                 );
+                // An App grants its roles to the groups its access names, and an annotated Group
+                // is one App's default group (AP-118): both stay with that App's administrators.
+                elsewhere.extend(
+                    mirror
+                        .matching(|env| {
+                            env.kind == "App"
+                                && !env.metadata.namespace.as_deref().is_some_and(|project| {
+                                    organization_reaches(mirror, organization, project)
+                                })
+                        })
+                        .into_iter()
+                        .flat_map(|env| app_groups(&env.spec)),
+                );
+                elsewhere.extend(
+                    mirror
+                        .list(ORG_NAMESPACE, "Group", &ListOptions::default())
+                        .items
+                        .into_iter()
+                        .filter(|env| {
+                            env.metadata
+                                .annotations
+                                .contains_key(crate::apps::reconciler::APP_LABEL)
+                        })
+                        .map(|env| env.metadata.name),
+                );
                 push(
                     kind,
                     verbs,
@@ -718,6 +743,19 @@ fn policy_groups(spec: &Value) -> Vec<String> {
                 .and_then(Value::as_str)
                 .map(str::to_owned)
         })
+        .collect()
+}
+
+/// The groups an App's `spec.access` gives a role to.
+fn app_groups(spec: &Value) -> Vec<String> {
+    spec.get("access")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| entry.get("subjects").and_then(Value::as_array))
+        .flatten()
+        .filter_map(|subject| subject.get("group").and_then(Value::as_str))
+        .map(str::to_owned)
         .collect()
 }
 
