@@ -32,7 +32,7 @@ export interface Draft {
 }
 
 /**
- * How the `http` DataSource the draft reads hands a poll's body to the steps (PL-113): `csv`, one
+ * How the `http` DataSource the draft reads hands a poll's body to the steps (PL-114): `csv`, one
  * message per row, when its `http.format` says so, else `whole`, the body as one message.
  * Undefined when the draft reads no `http` DataSource: then the sample's own format holds.
  */
@@ -250,7 +250,7 @@ export interface PipelineTestProps {
   toManifest: (form: PipelineForm) => unknown;
   /** The `http` DataSource's own URL, offered as the sample the runner fetches (PL-48). */
   sampleUrl?: string;
-  /** How that DataSource hands its body to the steps (`sourceBodyOf`, PL-113). */
+  /** How that DataSource hands its body to the steps (`sourceBodyOf`, PL-114). */
   sourceBody?: "csv" | "whole";
   /** The test's answer for the mapping it ran (PL-49). */
   onVerdict?: (ok: boolean, bloblang: string) => void;

@@ -639,7 +639,7 @@ checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
 [[package]]
 name = "context-gateway"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=9d74d1fd9ebb614b8a63302b0b831f56ac4a7c3e#9d74d1fd9ebb614b8a63302b0b831f56ac4a7c3e"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=207bf9bd1e4518469a77356c8789667a4e04ece3#207bf9bd1e4518469a77356c8789667a4e04ece3"
 dependencies = [
  "arc-swap",
  "axum",
@@ -652,6 +652,7 @@ dependencies = [
  "jc-core",
  "jc-dcat",
  "jc-manifest",
+ "jc-ngsi-input",
  "jc-relationships",
  "jc-tabular",
  "jsonschema",
@@ -2470,7 +2471,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "jc-core"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=9d74d1fd9ebb614b8a63302b0b831f56ac4a7c3e#9d74d1fd9ebb614b8a63302b0b831f56ac4a7c3e"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=207bf9bd1e4518469a77356c8789667a4e04ece3#207bf9bd1e4518469a77356c8789667a4e04ece3"
 dependencies = [
  "arc-swap",
  "axum",
@@ -2498,7 +2499,7 @@ dependencies = [
 [[package]]
 name = "jc-dcat"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=9d74d1fd9ebb614b8a63302b0b831f56ac4a7c3e#9d74d1fd9ebb614b8a63302b0b831f56ac4a7c3e"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=207bf9bd1e4518469a77356c8789667a4e04ece3#207bf9bd1e4518469a77356c8789667a4e04ece3"
 dependencies = [
  "jc-core",
  "serde_json",
@@ -2507,7 +2508,7 @@ dependencies = [
 [[package]]
 name = "jc-manifest"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=9d74d1fd9ebb614b8a63302b0b831f56ac4a7c3e#9d74d1fd9ebb614b8a63302b0b831f56ac4a7c3e"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=207bf9bd1e4518469a77356c8789667a4e04ece3#207bf9bd1e4518469a77356c8789667a4e04ece3"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -2524,9 +2525,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "jc-ngsi-input"
+version = "0.1.0"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=207bf9bd1e4518469a77356c8789667a4e04ece3#207bf9bd1e4518469a77356c8789667a4e04ece3"
+dependencies = [
+ "http",
+ "jc-core",
+ "serde_json",
+]
+
+[[package]]
 name = "jc-relationships"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=9d74d1fd9ebb614b8a63302b0b831f56ac4a7c3e#9d74d1fd9ebb614b8a63302b0b831f56ac4a7c3e"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=207bf9bd1e4518469a77356c8789667a4e04ece3#207bf9bd1e4518469a77356c8789667a4e04ece3"
 dependencies = [
  "jc-core",
  "serde_json",
@@ -2535,7 +2546,7 @@ dependencies = [
 [[package]]
 name = "jc-tabular"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=9d74d1fd9ebb614b8a63302b0b831f56ac4a7c3e#9d74d1fd9ebb614b8a63302b0b831f56ac4a7c3e"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=207bf9bd1e4518469a77356c8789667a4e04ece3#207bf9bd1e4518469a77356c8789667a4e04ece3"
 dependencies = [
  "jc-core",
  "serde_json",
@@ -2545,7 +2556,7 @@ dependencies = [
 [[package]]
 name = "jcctl"
 version = "0.1.0"
-source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=9d74d1fd9ebb614b8a63302b0b831f56ac4a7c3e#9d74d1fd9ebb614b8a63302b0b831f56ac4a7c3e"
+source = "git+https://github.com/marek-mraz-jc/joinedcontext-platform.git?rev=207bf9bd1e4518469a77356c8789667a4e04ece3#207bf9bd1e4518469a77356c8789667a4e04ece3"
 dependencies = [
  "aes-gcm",
  "age",

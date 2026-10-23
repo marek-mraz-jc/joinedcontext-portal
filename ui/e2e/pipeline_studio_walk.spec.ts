@@ -68,7 +68,7 @@ const DATASOURCES = list([
     type: "http",
     http: { url: "https://opendata.hel.fi/parking/zones.csv", interval: "24h", format: "csv" },
   }),
-  // The same file without `format: csv`: the runner sends it whole (PL-113, T-5350).
+  // The same file without `format: csv`: the runner sends it whole (PL-114, T-5350).
   dataSource("parking-whole", {
     type: "http",
     http: { url: "https://opendata.hel.fi/parking/zones.csv", interval: "24h" },
@@ -342,7 +342,7 @@ test.describe("pipeline studio walk (CIVITAS/CORE comparison)", () => {
     });
   }
 
-  // T-5350, PL-113: a sample is split the way the live run splits it. A CSV http source without
+  // T-5350, PL-114: a sample is split the way the live run splits it. A CSV http source without
   // `format: csv` sends its whole body as one message, so the test does too and says which field
   // reads it a row at a time; with the field the rows go one message each.
   for (const [source, format, width] of [

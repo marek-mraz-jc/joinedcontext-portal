@@ -640,7 +640,7 @@ fn answers_xml(spec: &Value, url: &str) -> bool {
 
 /// How one fetch of a DataSource at `url` is read, shared by the workbench's sample and the
 /// DataSource Check (MF-39, PL-43): a CSV split into rows when the connection says `format: csv`
-/// (PL-113) and kept whole otherwise, as the runner hands it over, an XML feed taken as it is and turned
+/// (PL-114) and kept whole otherwise, as the runner hands it over, an XML feed taken as it is and turned
 /// into JSON by the same `xml` step a pipeline reading it starts with, anything else parsed as
 /// JSON. Reading XML as JSON failed on its first `<` and the page said the source answered a
 /// web page (T-4818). The spec's target is the minimum a PipelineSpec needs to exist.
@@ -655,7 +655,7 @@ pub(crate) fn sampling(
         .to_ascii_lowercase();
     let xml = answers_xml(spec, &url);
     // The runner splits an `http` body into rows only when the DataSource says `format: csv`
-    // (PL-113); any other CSV reaches the steps whole, so the sample does too (T-5350).
+    // (PL-114); any other CSV reaches the steps whole, so the sample does too (T-5350).
     let rows = spec.pointer("/http/format").and_then(Value::as_str) == Some("csv");
     let format = if xml {
         SampleFormat::Text
@@ -1082,7 +1082,7 @@ mod tests {
         let by_path = json!({ "type": "http", "http": { "url": "https://x.example/feed.XML" } });
         let (sample, _) = sampling(&by_path, "https://x.example/feed.XML".into()).expect("plan");
         assert_eq!(sample.format, SampleFormat::Text);
-        // T-5350, PL-113: rows only when the connection says `format: csv`, as the runner sends
+        // T-5350, PL-114: rows only when the connection says `format: csv`, as the runner sends
         // them; a `.csv` URL without it reaches the steps whole, so its sample is one message.
         for (http, format) in [
             (

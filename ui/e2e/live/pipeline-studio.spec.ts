@@ -57,7 +57,7 @@ const BIKES_MAPPING = [
   "})",
 ].join("\n");
 
-/** One CSV row of `file.csv`, one message: the DataSource says `format: csv` (PL-113, T-5350). */
+/** One CSV row of `file.csv`, one message: the DataSource says `format: csv` (PL-114, T-5350). */
 const CSV_MAPPING = [
   'root = if this.id.or("").has_prefix("urn:ngsi-ld:BikeHireDockingStation:") { {',
   '  "id": this.id,',

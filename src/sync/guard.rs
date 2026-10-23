@@ -14,43 +14,18 @@
 //!   internal address — the whole of DNS rebinding — is refused at the point of connecting;
 //! - the target of every redirect, which is a second URL the origin chooses and the first
 //!   check never saw.
+//!
+//! The address list and the resolver are the platform's one guard, [`jc_core::outbound`]
+//! (T-4776, T-5335); this module keeps the Portal's stricter `https`-only redirect rule.
 
-use std::net::{IpAddr, SocketAddr};
+use std::net::IpAddr;
 
+use jc_core::outbound::is_public;
 use reqwest::Url;
-
-/// An address the Portal never fetches from: the cluster's own network, the node, the link and
-/// everything else that is not a public host.
-pub(crate) fn is_internal(ip: IpAddr) -> bool {
-    match ip {
-        IpAddr::V4(v4) => {
-            let [a, b, ..] = v4.octets();
-            v4.is_private()
-                || v4.is_loopback()
-                || v4.is_link_local()
-                || v4.is_unspecified()
-                || v4.is_broadcast()
-                || v4.is_documentation()
-                || a == 0
-                || a >= 224
-                // 100.64.0.0/10, the carrier-grade NAT range a cluster may sit in.
-                || (a == 100 && (64..128).contains(&b))
-        }
-        IpAddr::V6(v6) => {
-            v6.is_loopback()
-                || v6.is_unspecified()
-                || v6.is_multicast()
-                // fc00::/7 unique local, fe80::/10 link local: `is_unique_local` is unstable.
-                || (v6.segments()[0] & 0xfe00) == 0xfc00
-                || (v6.segments()[0] & 0xffc0) == 0xfe80
-                || v6.to_ipv4_mapped().is_some_and(|v4| is_internal(IpAddr::V4(v4)))
-        }
-    }
-}
 
 /// The internal address a URL names outright, if it names one.
 ///
-/// A host that is a name answers `None` here and is judged by [`PublicOnly`] instead, once it
+/// A host that is a name answers `None` here and is judged by [`jc_core::outbound::PublicOnly`] instead, once it
 /// has resolved. A host written in any other notation — `0177.0.0.1`, `2852039166` — is not an
 /// address as far as the URL parser is concerned, so it too arrives at the resolver, which is
 /// the check that sees what the C library made of it.
@@ -61,7 +36,7 @@ pub(crate) fn internal_host(url: &str) -> Option<IpAddr> {
         url::Host::Ipv6(v6) => IpAddr::V6(v6),
         url::Host::Domain(_) => return None,
     };
-    is_internal(ip).then_some(ip)
+    (!is_public(ip)).then_some(ip)
 }
 
 /// Whether one redirect hop may be followed.
@@ -71,44 +46,20 @@ pub(crate) fn internal_host(url: &str) -> Option<IpAddr> {
 /// rather than inside the closure that reqwest takes, because a closure a test cannot call is
 /// a defence nobody proves.
 pub(crate) fn follows(next: &Url, hops: usize, max: usize) -> bool {
-    if next.scheme() != "https" || hops >= max {
-        return false;
-    }
-    match next.host() {
-        Some(url::Host::Ipv4(v4)) => !is_internal(IpAddr::V4(v4)),
-        Some(url::Host::Ipv6(v6)) => !is_internal(IpAddr::V6(v6)),
-        Some(url::Host::Domain(_)) => true,
-        None => false,
-    }
+    next.scheme() == "https" && hops < max && jc_core::outbound::check(next).is_ok()
 }
 
-/// The resolver both fetchers use: a name that answers with an internal address is refused
-/// after it resolves, not by the look of it.
-///
-/// Every hop of a redirect chain goes through the same client and therefore the same resolver,
-/// which is what makes the check hold for a name that answers differently the second time it
-/// is asked.
-pub(crate) struct PublicOnly;
-
-impl reqwest::dns::Resolve for PublicOnly {
-    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
-        let host = name.as_str().to_owned();
-        Box::pin(async move {
-            let addrs: Vec<SocketAddr> = tokio::net::lookup_host((host.as_str(), 0_u16))
-                .await
-                .map_err(|err| -> Box<dyn std::error::Error + Send + Sync> { Box::new(err) })?
-                .collect();
-            if let Some(addr) = addrs.iter().find(|addr| is_internal(addr.ip())) {
-                return Err(format!(
-                    "{host} resolves to {}, which is not a public address; the Portal fetches \
-                     from public hosts only",
-                    addr.ip()
-                )
-                .into());
-            }
-            Ok(Box::new(addrs.into_iter()) as reqwest::dns::Addrs)
-        })
-    }
+/// The redirect rule of every https-only fetcher: each hop judged by [`follows`], and a hop it
+/// refuses stopped rather than failed with a reason, so the caller says the URL could not be
+/// read, never what the redirect pointed at.
+pub(crate) fn https_redirects(max: usize) -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(move |attempt| {
+        if follows(attempt.url(), attempt.previous().len(), max) {
+            attempt.follow()
+        } else {
+            attempt.stop()
+        }
+    })
 }
 
 /// The address rule of MF-28 and DM-49, played as the attack of T-1705: the metadata service, a
@@ -116,7 +67,6 @@ impl reqwest::dns::Resolve for PublicOnly {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use reqwest::dns::Resolve;
 
     /// MF-28, DM-49 (T-1705): the addresses that are inside the cluster, and the ones that are
     /// not. The counterpart matters as much as the list: a rule that refuses everything is a
@@ -137,10 +87,10 @@ mod tests {
             "fe80::abcd",
             "::ffff:10.0.0.1",
         ] {
-            assert!(is_internal(ip.parse().expect(ip)), "{ip} passed as public");
+            assert!(!is_public(ip.parse().expect(ip)), "{ip} passed as public");
         }
         for ip in ["1.1.1.1", "93.184.216.34", "2606:4700:4700::1111"] {
-            assert!(!is_internal(ip.parse().expect(ip)), "{ip} was refused");
+            assert!(is_public(ip.parse().expect(ip)), "{ip} was refused");
         }
     }
 
@@ -198,22 +148,6 @@ mod tests {
         assert!(
             !follows(&url("file:///etc/passwd"), 0, 3),
             "a redirect into a scheme with no host reads a file off the node"
-        );
-    }
-
-    /// MF-28, DM-49 (T-1705): a name that resolves inside the cluster is refused at the point
-    /// of connecting, which is the answer to a rebinding name that was public a moment ago.
-    #[tokio::test]
-    async fn a_name_that_resolves_inside_the_cluster_is_refused_by_the_resolver() {
-        let name: reqwest::dns::Name = "localhost".parse().expect("a name");
-        let why = match PublicOnly.resolve(name).await {
-            Err(error) => error.to_string(),
-            Ok(_) => panic!("localhost resolves to the loopback and is not fetched from"),
-        };
-        assert!(why.contains("not a public address"), "{why}");
-        assert!(
-            why.contains("localhost"),
-            "the refusal names the host: {why}"
         );
     }
 }

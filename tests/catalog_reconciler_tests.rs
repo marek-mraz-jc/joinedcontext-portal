@@ -317,13 +317,26 @@ impl Gateway {
         }
     }
 
+    /// A wave reading CKAN through a plain client: the mock answers on the loopback.
     fn sync(&self) -> CatalogSync {
-        CatalogSync::new(Arc::new(Watch::new(
-            self.server.uri(),
-            &format!("{}/realms/city", self.server.uri()),
-            "portal".to_owned(),
-            ClientAuth::Secret("s".into()),
-        )))
+        self.sync_reading_ckan_with(reqwest::Client::new())
+    }
+
+    fn sync_reading_ckan_with(&self, ckan: reqwest::Client) -> CatalogSync {
+        CatalogSync::new(
+            Arc::new(Watch::new(
+                self.server.uri(),
+                &format!("{}/realms/city", self.server.uri()),
+                "portal".to_owned(),
+                ClientAuth::Secret("s".into()),
+            )),
+            ckan,
+        )
+    }
+
+    /// The mock's address under a name, which the URL check leaves to the resolver.
+    fn named_uri(&self) -> String {
+        format!("http://localhost:{}", self.server.address().port())
     }
 
     /// The ids each batch call since `from` sent, by operation, and how many listings ran.
@@ -671,7 +684,7 @@ async fn ckan_datasets_and_their_organizations_are_the_catalogue() {
         })
         .mount(&gateway.server)
         .await;
-    let repo = city_with_ckan(&dir, &gateway.server.uri());
+    let repo = city_with_ckan(&dir, &gateway.named_uri());
     let sync = gateway.sync();
     sync.converge(&repo).await.expect("the first wave");
     let (sent, _) = gateway.sent(0).await;
@@ -752,6 +765,50 @@ async fn ckan_datasets_and_their_organizations_are_the_catalogue() {
     assert!(err.contains("CKAN"), "{err}");
     let (sent, _) = gateway.sent(from).await;
     assert!(sent.is_empty(), "{sent:?}");
+}
+
+/// T-5335: the Portal's CKAN client is the platform's outbound guard. A `CkanInstance` naming the
+/// loopback, by its address or by a name resolving to it, is never read, though a CKAN answers
+/// there, and the run fails and writes nothing.
+#[tokio::test]
+async fn a_ckan_on_the_loopback_is_not_read_by_the_portal_s_client() {
+    let dir = scratch("8-loopback");
+    let gateway = Gateway::start(air_feed("Air quality in Banská Bystrica")).await;
+    Mock::given(method("GET"))
+        .and(path("/api/3/action/package_search"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(search(&[ckan_package(
+                "air-quality",
+                AIR,
+                "mesto",
+                None,
+                false,
+            )])),
+        )
+        .mount(&gateway.server)
+        .await;
+    let sync = gateway.sync_reading_ckan_with(joinedcontext_portal::api::catalogue::ckan_client(
+        joinedcontext_portal::reconciler::catalog::CKAN_TIMEOUT,
+    ));
+    for (site, why) in [
+        (gateway.server.uri(), "internal address"),
+        (gateway.named_uri(), "did not list its datasets"),
+    ] {
+        let repo = city_with_ckan(&dir, &site);
+        let from = gateway.requests().await;
+        let err = sync.converge(&repo).await.expect_err(&site);
+        assert!(err.contains(why), "{site}: {err}");
+        let requests = gateway.server.received_requests().await.expect("recorded");
+        assert!(
+            requests
+                .iter()
+                .skip(from)
+                .all(|r| !r.url.path().ends_with("package_search")),
+            "{site} was read"
+        );
+        let (sent, _) = gateway.sent(from).await;
+        assert!(sent.is_empty(), "{site}: {sent:?}");
+    }
 }
 
 /// T-4746: the installation's catalogue (segment `catalog`) holds every project, a project's own

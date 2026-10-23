@@ -26,7 +26,8 @@ use std::time::Duration;
 
 use jcctl::foreign_models::{FetchError, SchemaApi};
 
-use super::guard::{follows, internal_host, PublicOnly};
+use super::guard::{https_redirects, internal_host};
+use jc_core::outbound::PublicOnly;
 
 /// How long one document may take. A peer that cannot answer in this is a peer whose mirror
 /// waits until the next run.
@@ -52,18 +53,11 @@ impl PeerSchemaApi {
     /// task. An async client bridged with `block_on` would be the same wait with a way to
     /// deadlock the runtime in it.
     pub fn new() -> Result<Self, reqwest::Error> {
-        let redirect = reqwest::redirect::Policy::custom(|attempt| {
-            // Stopped rather than failed with a reason: the mirror says the surface could not
-            // be read, never what the redirect pointed at, so a peer learns nothing about the
-            // inside of this cluster from the shape of the answer.
-            if follows(attempt.url(), attempt.previous().len(), MAX_REDIRECTS) {
-                attempt.follow()
-            } else {
-                attempt.stop()
-            }
-        });
+        // A refused hop is stopped, not failed with a reason: a peer learns nothing about the
+        // inside of this cluster from the shape of the answer.
         let http = reqwest::blocking::Client::builder()
-            .redirect(redirect)
+            .no_proxy()
+            .redirect(https_redirects(MAX_REDIRECTS))
             .dns_resolver(Arc::new(PublicOnly))
             .timeout(TIMEOUT)
             .build()?;

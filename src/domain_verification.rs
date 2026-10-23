@@ -240,7 +240,7 @@ pub async fn check(
 
 /// Where a domain's DID document lives, unless the domain is an address inside the cluster: the
 /// verifier runs in it, and a domain is whatever an org administrator writes (T-3877). A name is
-/// judged once it resolves, by the client's [`crate::sync::guard::PublicOnly`] resolver.
+/// judged once it resolves, by the client's [`jc_core::outbound::PublicOnly`] resolver.
 fn did_url(domain: &str) -> Result<String, Unanswered> {
     let url = format!("https://{domain}/.well-known/did.json");
     match crate::sync::guard::internal_host(&url) {
@@ -263,8 +263,9 @@ impl NetLookup {
             .map_err(|e| format!("the resolver configuration is unreadable: {e}"))?;
         builder.options_mut().timeout = LOOKUP_TIMEOUT;
         let http = reqwest::Client::builder()
+            .no_proxy()
             .redirect(reqwest::redirect::Policy::none())
-            .dns_resolver(std::sync::Arc::new(crate::sync::guard::PublicOnly))
+            .dns_resolver(std::sync::Arc::new(jc_core::outbound::PublicOnly))
             .timeout(LOOKUP_TIMEOUT)
             .user_agent("joinedcontext-portal domain verification")
             .build()

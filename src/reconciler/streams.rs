@@ -1688,8 +1688,8 @@ pub fn endpoint_source_url(
     ))
 }
 
-/// The runner's shared cache in which an on-change stream keeps the hash of the last page it
-/// passed (PL-51); declared beside the runner's other shared resources.
+/// The runner's cache in which an on-change stream keeps the hash of the last page it passed
+/// (PL-51); the runner declares it per project as `cache_label` makes it (T-5337).
 pub const CHANGE_CACHE: &str = "pipeline_changes";
 /// How often an on-change stream looks at its source when the pipeline names no period.
 const CHANGE_POLL: &str = "10s";
@@ -2662,6 +2662,13 @@ pub fn with_pipeline_identity(stream: &mut Value, project: &str, pipeline: &str)
     }
 }
 
+/// Makes a rendered stream its project's own before the runner gets it: the credential
+/// ([`own_client`]) and every cache it names ([`own_caches`]).
+pub(crate) fn own_credential(value: &mut Value, project: &str) {
+    own_client(value, project);
+    own_caches(value, project);
+}
+
 /// Rewrites an author's `${JC_CLIENT_ID}` and `${JC_CLIENT_SECRET}` into the stream's own
 /// project's pipeline client (PL-16, T-3163).
 ///
@@ -2669,7 +2676,7 @@ pub fn with_pipeline_identity(stream: &mut Value, project: &str, pipeline: &str)
 /// `JC_CLIENT_SECRET` is one project's, so a step that wrote it as it stands would present that
 /// project's client from any other. jc-core lets a step name only these two aliases of a
 /// credential; here they become the same client [`pipeline_oauth2`] renders for the project.
-pub(crate) fn own_credential(value: &mut Value, project: &str) {
+fn own_client(value: &mut Value, project: &str) {
     match value {
         Value::String(text) if text.contains("${JC_CLIENT_") => {
             *text = text
@@ -2682,12 +2689,45 @@ pub(crate) fn own_credential(value: &mut Value, project: &str) {
                     &format!("${{{}}}", client_secret_var(project)),
                 );
         }
-        Value::Array(items) => items
-            .iter_mut()
-            .for_each(|item| own_credential(item, project)),
-        Value::Object(map) => map
-            .values_mut()
-            .for_each(|item| own_credential(item, project)),
+        Value::Array(items) => items.iter_mut().for_each(|item| own_client(item, project)),
+        Value::Object(map) => map.values_mut().for_each(|item| own_client(item, project)),
+        _ => {}
+    }
+}
+
+/// The processors that name a runner cache, and the field that holds its label.
+const CACHE_FIELDS: &[(&str, &str)] = &[
+    ("cache", "resource"),
+    ("cached", "cache"),
+    ("dedupe", "cache"),
+];
+
+/// The label one project's cache `name` has on the runner (PL-50, T-5337): `<project>__<name>`,
+/// the project with `-` as `_`, since a Bento label holds only `[a-z0-9_]`. jc-core refuses a
+/// step's cache name with `__` or an edge `_`, so no two projects' labels meet.
+fn cache_label(project: &str, name: &str) -> String {
+    format!("{}__{name}", project.replace('-', "_"))
+}
+
+/// Puts every cache a stream names, the platform's own [`CHANGE_CACHE`] among them, under its
+/// project's prefix (PL-50, T-5337). One runner may carry every project's streams, and the
+/// caches its resources file declares are visible to each of them: under the bare name one
+/// project's step read and overwrote what another's cached.
+fn own_caches(value: &mut Value, project: &str) {
+    match value {
+        Value::Array(items) => items.iter_mut().for_each(|item| own_caches(item, project)),
+        Value::Object(map) => {
+            for (key, inner) in map.iter_mut() {
+                let field = CACHE_FIELDS
+                    .iter()
+                    .find(|(processor, _)| processor == key)
+                    .map(|(_, at)| *at);
+                if let Some(Value::String(name)) = field.and_then(|at| inner.get_mut(at)) {
+                    *name = cache_label(project, name);
+                }
+                own_caches(inner, project);
+            }
+        }
         _ => {}
     }
 }
@@ -3801,10 +3841,12 @@ output:
         )
         .expect("renders from bento.yaml");
         let processors = rendered["pipeline"]["processors"].as_array().unwrap();
-        // The HTTP poll and its error guard first, the author's two, then the shared tail.
-        assert_eq!(processors[2]["mapping"], "root = this.data.stations");
-        assert_eq!(processors[3]["unarchive"]["format"], "json_array");
-        assert_eq!(processors.len(), 10, "the shared tail and the write");
+        // The HTTP poll and its error guard first, the body bound (PL-113), the author's two,
+        // then the shared tail.
+        assert!(processors[3]["catch"].is_array());
+        assert_eq!(processors[4]["mapping"], "root = this.data.stations");
+        assert_eq!(processors[5]["unarchive"]["format"], "json_array");
+        assert_eq!(processors.len(), 12, "the shared tail and the write");
         let url = upsert_at(&rendered, "write_0")["url"].as_str().unwrap();
         assert!(url.contains("/api/endpoint/abc123/"), "{url}");
         assert!(!url.contains("authored"));
@@ -4062,6 +4104,39 @@ output:
         own_credential(&mut other, "bbsk");
         assert_eq!(other["x"], "${JC_CLIENT_SECRET_HELSINKI}");
         assert_eq!(rendered["output"], before_output);
+    }
+
+    /// T-5337: every cache a stream names, an author's nested ones and the platform's own change
+    /// cache alike, becomes its project's `<project>__<name>`, so one project's step never reads
+    /// or overwrites what another's cached in the runner they share; other fields are left alone.
+    #[test]
+    fn own_credential_keeps_every_cache_to_the_project() {
+        let mut stream = serde_json::json!({
+            "pipeline": { "processors": [
+                { "cache": { "resource": "gtfs", "operator": "get", "key": "k" } },
+                { "branch": { "processors": [{ "cached": { "cache": "gtfs", "key": "k" } }] } },
+                { "dedupe": { "cache": "seen", "key": "k" } },
+                { "cache": { "resource": CHANGE_CACHE, "operator": "set", "key": "a/b" } },
+                { "rate_limit": { "resource": "hfp_vehicles" } },
+                { "mapping": "root.cache = \"gtfs\"" }
+            ] }
+        });
+        own_credential(&mut stream, "banska-bystrica");
+        let p = &stream["pipeline"]["processors"];
+        assert_eq!(p[0]["cache"]["resource"], "banska_bystrica__gtfs");
+        assert_eq!(p[0]["cache"]["key"], "k");
+        assert_eq!(
+            p[1]["branch"]["processors"][0]["cached"]["cache"],
+            "banska_bystrica__gtfs"
+        );
+        assert_eq!(p[2]["dedupe"]["cache"], "banska_bystrica__seen");
+        assert_eq!(
+            p[3]["cache"]["resource"],
+            "banska_bystrica__pipeline_changes"
+        );
+        assert_eq!(p[4]["rate_limit"]["resource"], "hfp_vehicles");
+        assert_eq!(p[5]["mapping"], "root.cache = \"gtfs\"");
+        assert_eq!(cache_label("helsinki", "gtfs"), "helsinki__gtfs");
     }
 
     /// PL-06: a `bento.yaml` cannot turn a pipeline into a request/response service: an input
@@ -5335,11 +5410,13 @@ output:
                 .filter_map(|step| step.as_object()?.keys().next().cloned())
                 .collect()
         };
-        assert_eq!(keys(&processors[2]["try"]), ["mapping", "unarchive"]);
+        // The body bound (PL-113) refuses an oversized directory read before it is parsed.
         assert!(processors[3]["catch"].is_array());
+        assert_eq!(keys(&processors[4]["try"]), ["mapping", "unarchive"]);
+        assert!(processors[5]["catch"].is_array());
         // Each member is a batch of its own and inflates through `unarchive: zip`, not the
         // wasm module Bento never frees (T-4752, PL-72).
-        let each = &processors[4]["for_each"];
+        let each = &processors[6]["for_each"];
         assert_eq!(keys(each), ["try", "catch"]);
         let read = &each[0]["try"];
         assert_eq!(
@@ -5349,7 +5426,7 @@ output:
         assert_eq!(read[1]["http"]["headers"]["Range"], "${! @range }");
         assert_eq!(read[3]["unarchive"]["format"], "zip");
         assert!(!rendered.to_string().contains("inflate.wasm"));
-        assert_eq!(processors[5]["label"], COMPUTE_LABEL);
+        assert_eq!(processors[7]["label"], COMPUTE_LABEL);
     }
 
     #[test]

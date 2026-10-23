@@ -230,7 +230,7 @@ describe("the sample test in the studio (PL-43)", () => {
     expect(await screen.findByText(/All 1 messages map to entities/)).toBeInTheDocument();
   });
 
-  // T-5350, PL-113: the test splits a sample the way the live run will. An http source sends its
+  // T-5350, PL-114: the test splits a sample the way the live run will. An http source sends its
   // whole body as one message unless its DataSource says `format: csv`; a per-row mapping that
   // passed a row-split test wrote nothing live.
   const CSV_SOURCE: Manifest = {
@@ -262,7 +262,7 @@ describe("the sample test in the studio (PL-43)", () => {
     expect(await sentSample(fetchMock)).toEqual({ text: CSV, format: "text" });
   });
 
-  it("tests a CSV row by row when the http source says format: csv (PL-113)", async () => {
+  it("tests a CSV row by row when the http source says format: csv (PL-114)", async () => {
     const fetchMock = mockFetch({ status: 200, body: CLEAN });
     renderStudio(STATIONS, [ROWS_SOURCE]);
     await drop(csvFile());
@@ -270,7 +270,7 @@ describe("the sample test in the studio (PL-43)", () => {
     expect(await sentSample(fetchMock)).toEqual({ text: CSV, format: "csv" });
   });
 
-  it("fetches a format: csv source's URL as rows (PL-113)", async () => {
+  it("fetches a format: csv source's URL as rows (PL-114)", async () => {
     const fetchMock = mockFetch({ status: 200, body: CLEAN });
     renderStudio({ ...STATIONS, compute: { kind: "bloblang", bloblang: "root = this" } }, [ROWS_SOURCE]);
     await userEvent.click(await screen.findByRole("button", { name: en.pipelines.test.useUrl }));

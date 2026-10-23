@@ -226,7 +226,7 @@ describe("a sample dropped on a pipeline that already has a mapping (T-3971)", (
   });
 });
 
-describe("the split a test runs follows the source (PL-113, T-5350)", () => {
+describe("the split a test runs follows the source (PL-114, T-5350)", () => {
   const source = (http: Record<string, unknown>, type = "http") => ({
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "DataSource",
