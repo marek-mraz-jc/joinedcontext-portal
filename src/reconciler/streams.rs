@@ -367,6 +367,13 @@ impl StreamDeployer {
             internal.trim_end_matches('/')
         );
         *output = crate::pipeline_log::with_outcomes(output.take(), &url);
+        with_source_events(
+            stream,
+            &format!(
+                "{}/internal/pipelines/{project}/{pipeline}/source-events",
+                internal.trim_end_matches('/')
+            ),
+        );
         crate::pipeline_log::with_passes(stream, &url);
         crate::pipeline_log::with_problems(stream, KPI_PROBLEM_LABEL, &url);
         // What last crossed each node, for the studio's drawer (T-3974).
@@ -1361,6 +1368,7 @@ pub fn render_stream(
     }
 
     processors.extend(history_step(pipeline)?);
+    processors.extend(source_events_step(pipeline));
     processors.extend(lifetime_step(pipeline)?);
     processors.extend(batching());
     processors.extend(writes(
@@ -1405,6 +1413,102 @@ pub const LIFETIME_LABEL: &str = "lifetime";
 pub(crate) fn lifetime_step(pipeline: &PipelineSpec) -> Result<Option<Value>, RenderError> {
     let step = jcctl::lifetime::step(pipeline).map_err(|e| RenderError::Custom(e.to_string()))?;
     Ok(step.map(|text| labelled(serde_json::json!({ "mapping": text }), LIFETIME_LABEL)))
+}
+
+/// The label of the step `spec.sourceDeletes.deletedWhen` compiles to (PL-98).
+pub const SOURCE_EVENTS_LABEL: &str = "source_events";
+
+/// `spec.sourceDeletes` in `events` mode as Bento steps (PL-98, T-5360): after the author's steps
+/// and routes, before the lifetime step. `deletedWhen` is read on each mapped record: `true` takes
+/// it out of the write and marks its id, `false` writes it, an error or any other answer takes it
+/// out as failed. The marks ride in metadata to the Portal's post the deployer puts right after
+/// [`SOURCE_EVENTS_LABEL`]; a message left without a record is dropped.
+pub(crate) fn source_events_step(pipeline: &PipelineSpec) -> Vec<Value> {
+    let Some(query) = pipeline
+        .source_deletes
+        .as_ref()
+        .filter(|rule| rule.mode == jc_core::kinds::SourceDeleteMode::Events)
+        .and_then(|rule| rule.deleted_when.as_deref())
+        .filter(|query| !query.trim().is_empty())
+    else {
+        return Vec::new();
+    };
+    let mapping = format!(
+        "# spec.sourceDeletes.deletedWhen (PL-98), rendered by the Portal.\n\
+         map jc_deleted_when {{\n  root = (\n{query}\n  )\n}}\n\
+         let records = if this.type() == \"array\" {{ this }} else {{ [this] }}\n\
+         let judged = $records.map_each(e -> {{\"record\": e, \"verdict\": if e.type() == \"object\" {{ e.apply(\"jc_deleted_when\").catch(err -> {{\"error\": err}}) }} else {{ false }}}})\n\
+         let kept = $judged.filter(j -> j.verdict == false).map_each(j -> j.record)\n\
+         meta {MARKED_META} = $judged.filter(j -> j.verdict == true).map_each(j -> j.record.id.or(\"\").string()).format_json(no_indent: true).string()\n\
+         meta {MARK_FAILED_META} = $judged.filter(j -> j.verdict.type() != \"bool\").map_each(j -> {{\"id\": j.record.id.or(\"\").string(), \"message\": if j.verdict.type() == \"object\" {{ j.verdict.error.or(\"\").string() }} else {{ \"deletedWhen answered \" + j.verdict.format_json(no_indent: true).string() + \", not true or false\" }}}}).format_json(no_indent: true).string()\n\
+         root = if this.type() == \"array\" {{ $kept }} else if $kept.length() == 1 {{ $kept.index(0) }} else {{ [] }}"
+    );
+    vec![
+        labelled(
+            serde_json::json!({ "mapping": mapping }),
+            SOURCE_EVENTS_LABEL,
+        ),
+        labelled(
+            serde_json::json!({ "mapping": "root = if this.type() == \"array\" && this.length() == 0 { deleted() } else { this }" }),
+            "source_events_kept",
+        ),
+    ]
+}
+
+/// The metadata keys the [`source_events_step`] leaves its marks and its failed records in.
+const MARKED_META: &str = "jc_marked";
+const MARK_FAILED_META: &str = "jc_marked_failed";
+
+/// Posts what [`source_events_step`] marked to the Portal's `url` (PL-98), right after the step.
+/// A Portal that does not answer loses the marks: nothing is deleted, the record is not written,
+/// and the stream is never held back. A stream without the step is left as it is.
+fn with_source_events(stream: &mut Value, url: &str) {
+    let Some(processors) = stream
+        .pointer_mut("/pipeline/processors")
+        .and_then(Value::as_array_mut)
+    else {
+        return;
+    };
+    let Some(at) = processors
+        .iter()
+        .position(|p| p.get("label").and_then(Value::as_str) == Some(SOURCE_EVENTS_LABEL))
+    else {
+        return;
+    };
+    let post = serde_json::json!({
+        "label": "source_events_post",
+        "switch": [{
+            "check": "!errored()",
+            "processors": [
+                { "branch": {
+                    "request_map": format!(
+                        "let ids = meta(\"{MARKED_META}\").or(\"[]\").parse_json()\n\
+                         let failed = meta(\"{MARK_FAILED_META}\").or(\"[]\").parse_json()\n\
+                         root = if $ids.length() + $failed.length() == 0 {{ deleted() }} else {{ {{\"run\": {}, \"ids\": $ids, \"failed\": $failed}} }}",
+                        crate::pipeline_log::RUN
+                    ),
+                    "processors": [{ "http": {
+                        "url": url,
+                        "verb": "POST",
+                        "headers": { "Content-Type": "application/json" },
+                        "timeout": "5s",
+                        "retries": 1,
+                        "oauth2": {
+                            "enabled": true,
+                            "client_key": "${JC_CLIENT_ID}",
+                            "client_secret": "${JC_CLIENT_SECRET}",
+                            "token_url": "${JC_TOKEN_URL}",
+                        },
+                    }}],
+                }},
+                { "catch": [{ "log": {
+                    "level": "WARN",
+                    "message": "the source's delete marks did not reach the Portal; nothing is deleted: ${! error() }",
+                }}]},
+            ],
+        }],
+    });
+    processors.insert(at + 1, post);
 }
 
 /// `spec.history` as its one Bento step (PL-107, T-4845): the planned `observedAt` of each
@@ -1685,6 +1789,7 @@ pub fn render_endpoint_stream(
     ));
 
     processors.extend(history_step(pipeline)?);
+    processors.extend(source_events_step(pipeline));
     processors.extend(lifetime_step(pipeline)?);
     processors.extend(batching());
     processors.extend(writes(
@@ -2121,6 +2226,7 @@ pub fn render_merged(
         Some(cases)
     };
     processors.extend(history_step(pipeline)?);
+    processors.extend(source_events_step(pipeline));
     processors.extend(lifetime_step(pipeline)?);
     processors.extend(batching());
     match routed {
@@ -6175,6 +6281,104 @@ output:
         let stream = render_routed(&routed);
         let labels = processor_labels(&stream);
         let at = lifetime_at(&stream).expect("a lifetime step");
+        let steps = labels
+            .iter()
+            .position(|l| l == "route_steps")
+            .expect("route steps");
+        let writes = labels
+            .iter()
+            .position(|l| l == ROUTES_LABEL)
+            .expect("the routed writes");
+        assert!(steps < at && at < writes, "{labels:?}");
+    }
+
+    fn with_events(spec: &PipelineSpec, deleted_when: &str) -> PipelineSpec {
+        let mut value = serde_json::to_value(spec).expect("serializes");
+        value["sourceDeletes"] =
+            serde_json::json!({ "mode": "events", "deletedWhen": deleted_when });
+        serde_json::from_value(value).expect("a PipelineSpec in events mode")
+    }
+
+    /// PL-98 (T-5360): `deletedWhen` runs after the author's steps and before the lifetime step,
+    /// and the deployer posts its marks right after it; the stream matches its golden file.
+    #[test]
+    fn an_events_pipeline_renders_its_golden_stream_with_the_marks_before_the_lifetime() {
+        let ds = helsinki_datasource_spec();
+        let spec = with_events(
+            &with_lifetime(&helsinki_pipeline_spec(), &lifetimes()[0].1),
+            "this.status.or(\"\") == \"withdrawn\"",
+        );
+        let mut stream = render_stream(
+            &spec,
+            "buses",
+            "helsinki",
+            &ds,
+            "hsl-citybikes-free",
+            "busslug",
+            None,
+        )
+        .expect("renders");
+        with_source_events(
+            &mut stream,
+            "http://portal-internal:8081/internal/pipelines/helsinki/buses/source-events",
+        );
+        let labels = processor_labels(&stream);
+        let at = labels
+            .iter()
+            .position(|l| l == SOURCE_EVENTS_LABEL)
+            .expect("the events step");
+        assert_eq!(labels[at - 1], COMPUTE_LABEL, "{labels:?}");
+        assert_eq!(labels[at + 1], "source_events_post", "{labels:?}");
+        assert_eq!(labels[at + 2], "source_events_kept", "{labels:?}");
+        assert_eq!(lifetime_at(&stream), Some(at + 3), "{labels:?}");
+        let yaml = serde_norway::to_string(&stream).expect("yaml");
+        let golden = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/source-deletes/events.yaml");
+        if std::env::var_os("JC_UPDATE_GOLDEN").is_some() {
+            std::fs::write(&golden, &yaml).expect("golden written");
+        }
+        let expected = std::fs::read_to_string(&golden).unwrap_or_else(|_| {
+            panic!("{} missing: run with JC_UPDATE_GOLDEN=1", golden.display())
+        });
+        assert_eq!(
+            yaml, expected,
+            "the events stream moved from its golden file"
+        );
+    }
+
+    #[test]
+    fn only_events_mode_renders_the_step_and_a_stream_without_it_gets_no_post() {
+        let ds = helsinki_datasource_spec();
+        let mut value = serde_json::to_value(helsinki_pipeline_spec()).expect("serializes");
+        value["sourceDeletes"] = serde_json::json!({ "mode": "never" });
+        let never: PipelineSpec = serde_json::from_value(value).expect("never");
+        let mut stream = render_stream(
+            &never,
+            "buses",
+            "helsinki",
+            &ds,
+            "hsl-citybikes-free",
+            "busslug",
+            None,
+        )
+        .expect("renders");
+        let before = stream.clone();
+        with_source_events(&mut stream, "http://portal/source-events");
+        assert_eq!(stream, before);
+        assert!(!processor_labels(&stream)
+            .iter()
+            .any(|l| l.starts_with("source_events")));
+    }
+
+    #[test]
+    fn a_routed_events_stream_marks_after_the_route_steps_and_before_every_write() {
+        let spec = with_events(&routed(), "this.gone.or(false)");
+        let stream = render_routed(&spec);
+        let labels = processor_labels(&stream);
+        let at = labels
+            .iter()
+            .position(|l| l == SOURCE_EVENTS_LABEL)
+            .expect("the events step");
         let steps = labels
             .iter()
             .position(|l| l == "route_steps")

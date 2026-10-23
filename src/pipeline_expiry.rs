@@ -219,6 +219,12 @@ fn policies(mirror: &Mirror, project: &str) -> Vec<(String, PolicySpec)> {
 /// A `snapshot` or `events` pipeline deletes through each output Endpoint: every output's space
 /// must grant the pipelines account `queryBatch` and `deleteBatch` on the output's type, or on
 /// every type for an untyped output (PL-99). The Portal never widens a grant for it.
+/// What a source delete stream does on the Endpoint: read the chunk, then delete it.
+pub(crate) const SOURCE_DELETE_OPERATIONS: [(Operation, &str); 2] = [
+    (Operation::QueryBatch, "queryBatch"),
+    (Operation::DeleteBatch, "deleteBatch"),
+];
+
 fn source_delete_grants(mirror: &Mirror, project: &str, pipeline: &PipelineSpec) -> Vec<String> {
     use jc_core::kinds::SourceDeleteMode;
     let deletes = pipeline.source_deletes.as_ref().is_some_and(|rule| {
@@ -238,10 +244,7 @@ fn source_delete_grants(mirror: &Mirror, project: &str, pipeline: &PipelineSpec)
             continue;
         };
         let entity_type = output.entity_type.as_deref();
-        for (operation, wire) in [
-            (Operation::QueryBatch, "queryBatch"),
-            (Operation::DeleteBatch, "deleteBatch"),
-        ] {
+        for (operation, wire) in SOURCE_DELETE_OPERATIONS {
             if granted(&policies, &space, operation, entity_type) {
                 continue;
             }
