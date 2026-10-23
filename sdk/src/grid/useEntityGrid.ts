@@ -399,6 +399,8 @@ export interface EntityGrid {
   askedQuery: { q?: string; idPattern?: string };
   /** The area drawn on the map, which the filter row cannot hold (UI-72); `null` for none. */
   area: GeoArea | null;
+  /** Whether the source is asked for less than the whole type (a q, an id pattern, a scope, an area). */
+  narrowed: boolean;
   /** Puts the active cell on a row and column outright, for a selection from the map (UI-72). */
   setActive(row: number, col: number): void;
   /** Draws the area or removes it; either way the answer starts again at page one. */
@@ -739,6 +741,11 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     area: areaQuery(area) ?? undefined,
     orderBy: serverOrder,
   });
+
+  const narrowed = useMemo(() => {
+    const asked = JSON.parse(gridQueryKey) as GridQuery;
+    return Boolean(asked.q || asked.idPattern || asked.scopeQ || asked.area);
+  }, [gridQueryKey]);
 
   const fetchData = useCallback(() => {
     const nonce = ++nonceRef.current;
@@ -1160,6 +1167,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     filterColumns,
     askedQuery,
     area,
+    narrowed,
     setArea,
     setActive,
     setEdit,
