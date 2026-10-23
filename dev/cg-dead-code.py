@@ -23,7 +23,8 @@ too until the line is lowered, so the baseline only goes down.
 
 A function a serde attribute names by string (`default = "f"`, `skip_serializing_if = "f"`,
 `deserialize_with`, `serialize_with`) is reached, and so is a constant a format string
-captures (`"{PAGE_LIMIT}"`): cg has no edge for a string. A `macro_rules!` body or a closure
+captures (`"{PAGE_LIMIT}"`): cg has no edge for a string. So is a `#[global_allocator]` static,
+which only the compiler uses. A `macro_rules!` body or a closure
 stored in a field stays a row; GREP each row before a delete.
 """
 
@@ -59,6 +60,7 @@ KINDS = {"Function", "Method", "StaticMethod", "TraitMethod", "Struct", "Enum", 
 SERDE_FN = re.compile(
     r'\b(?:default|skip_serializing_if|deserialize_with|serialize_with)\s*=\s*"(?:[\w:]*?(\w+)::)?(\w+)(?:::<[^"]*>)?"')
 CAPTURE = re.compile(r'\{([A-Z][A-Z0-9_]*)[}:]')
+ALLOCATOR = re.compile(r'#\[global_allocator\]\s*(?:pub(?:\([^)]*\))?\s+)?static\s+(\w+)')
 # `import("./pages/X").then((module) => ({ default: module.X }))`: the module, and the name taken.
 LAZY = re.compile(r'\bimport\(\s*["\'](\.[^"\']+)["\']\s*\)'
                   r'(?:\.then\(\s*\(?(\w+)\)?\s*=>\s*\(\{\s*default:\s*\2\.(\w+))?')
@@ -101,13 +103,14 @@ def is_main(s: dict[str, str]) -> bool:
 def string_named(root: pathlib.Path) -> set[tuple[str, str]]:
     """What a string names, which cg has no edge for: a serde attribute's function, keyed
     `(file, fn)` when bare and `("", Type::fn)` when it names a type, and a constant a format
-    string captures, keyed `("", NAME)`."""
+    string captures, keyed `("", NAME)`; a `#[global_allocator]` static, keyed `(file, NAME)`."""
     found = set()
     for p in root.glob("src/**/*.rs"):
         text, rel = p.read_text(errors="ignore"), str(p.relative_to(root))
         for owner, name in SERDE_FN.findall(text):
             found.add(("", f"{owner}::{name}") if owner else (rel, name))
         found |= {("", name) for name in CAPTURE.findall(text)}
+        found |= {(rel, name) for name in ALLOCATOR.findall(text)}
     return found
 
 
@@ -238,6 +241,7 @@ def selftest() -> None:
         sym("x", "p::cg_fixture_unreachable"),
         sym("d", "p::default_mode"),
         sym("c", "p::LIMIT", kind="Constant", file="src/page.rs"),
+        sym("g", "p::ALLOCATOR", kind="StaticVariable", file="src/main.rs"),
         sym("z", "p::helper", file="tests/t.rs") | {"s.is_test": "True"},
         sym("ct", "p::for_unit_tests") | {"s.cfg": "test"},
         sym("um", UI_ENTRY, kind="Module", pkg=UI, file=UI_ENTRY),
@@ -264,7 +268,8 @@ def selftest() -> None:
              {"a.id": "um", "b.id": "ua"}, {"a.id": "uM", "b.id": "ub"},
              {"a.id": "vM", "b.id": "vc"}, {"a.id": "vc", "b.id": "vm"},
              {"a.id": "vm", "b.id": "en"}, {"a.id": "h", "b.id": "w"}]
-    rows = unreachable(symbols, edges, {("src/lib.rs", "default_mode"), ("", "LIMIT")},
+    rows = unreachable(symbols, edges, {("src/lib.rs", "default_mode"), ("", "LIMIT"),
+                                        ("src/main.rs", "ALLOCATOR")},
                        ({("ui/src/App.tsx", "ui/src/v.ts")}, {(page, "Lazy")}),
                        {UI_ENTRY, "ui/src/widget/main.tsx"})
     assert VITE_FILE.findall('entry: "src/explorer/main.tsx", x: new URL("./src/no-map.ts", u), '
@@ -275,6 +280,7 @@ def selftest() -> None:
     assert LAZY.findall('lazy(() => import("./pages/L").then((module) => ({ default: module.L })))') \
         == [("./pages/L", "module", "L")]
     assert LAZY.findall('() => import("./locales/sk.json")') == [("./locales/sk.json", "", "")]
+    assert ALLOCATOR.findall("#[global_allocator]\nstatic ALLOCATOR: Jemalloc = Jemalloc;") == ["ALLOCATOR"]
     assert DEFAULT.findall("export default function MonacoSourceView(") == ["MonacoSourceView"]
     assert STATIC.findall('import validator from "./forms/validator";') == ["./forms/validator"]
     assert sorted(s["s.path"] for s in rows) == ["p::cg_fixture_unreachable",
