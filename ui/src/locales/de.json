@@ -1355,6 +1355,11 @@
     }
   },
   "endpoints": {
+    "surfaceFit": {
+      "lead": "Das Datenmodell des Raums {space} kann diese Standards nicht bedienen, daher sind ihre Felder ausgegraut:",
+      "openModel": "Datenmodell {model} öffnen",
+      "addModel": "Ein Datenmodell für den Raum hinzufügen"
+    },
     "check": "Prüfen",
     "lead": "Wo ein Raum veröffentlicht ist: wer ihn aufrufen darf, in welchen Darstellungen, unter welcher URL.",
     "title": "Endpunkte",
