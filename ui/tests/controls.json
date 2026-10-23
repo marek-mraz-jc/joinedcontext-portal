@@ -1598,6 +1598,15 @@
         "pipeline_debug_view.test.tsx"
       ]
     },
+    "src/pages/pipelines/KpiEditor.tsx": {
+      "controls": {
+        "Button": 5,
+        "Switch": 1
+      },
+      "tests": [
+        "kpi_editor.test.tsx"
+      ]
+    },
     "src/pages/pipelines/LifetimeChoice.tsx": {
       "controls": {
         "Button": 2,
@@ -1742,7 +1751,7 @@
     },
     "src/pages/pipelines/RecipeGallery.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 3
       },
       "tests": [
         "pipeline_recipes.test.tsx"

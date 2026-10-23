@@ -849,6 +849,11 @@ routes:
     rule: "project-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
     note: "the project's MQTT allowance and the broker modes it may use (T-4859)"
+  - route: POST /projects/{project}/kpis/check
+    rule: "project-verb:propose:Pipeline, then a person"
+    expect: [403, 403, allow, allow, 403, allow, 403, 403]
+    body: {"pipeline": {"apiVersion": "joinedcontext.com/v1alpha2", "kind": "Pipeline", "metadata": {"name": "kpi"}, "spec": {"class": "scheduled", "schedule": "0 * * * *"}}}
+    note: "the problems come back as 200 (PL-105); a workload token is 403 (tests/kpi_check_tests.rs)"
   - route: POST /projects/{project}/pipelines/test
     rule: "project-verb:propose:Pipeline"
     expect: [403, 403, allow, allow, 403, allow, 403, 403]

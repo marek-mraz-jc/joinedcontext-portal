@@ -997,4 +997,39 @@ mod tests {
         );
         assert_eq!(per_minute(1, "not a time", "2026-10-21T04:00:30Z"), None);
     }
+
+    /// PL-105: a KPI over several sources is one node with one read edge from each source
+    /// Endpoint, each with its grant, and writes into the KPI space.
+    #[test]
+    fn a_kpi_over_two_sources_reads_from_each_endpoint() {
+        let mirror = helsinki();
+        mirror.upsert(manifest(
+            "helsinki",
+            "Pipeline",
+            "delay-per-stop",
+            json!({ "class": "scheduled", "schedule": "0 * * * *",
+                    "sources": [
+                        { "name": "vehicles", "endpointRef": "ep-vehicles", "query": { "type": "Vehicle", "attrs": ["delay", "stop"] } },
+                        { "name": "stops", "endpointRef": "ep-stops", "query": { "type": "TransitStop", "attrs": ["stop"] } }
+                    ],
+                    "steps": [{ "kind": "kpi", "kpi": { "name": "delay-per-stop",
+                        "formula": "sum(vehicles.delay) / count(stops)", "unitCode": "C62",
+                        "join": { "by": "entity", "keys": { "vehicles": "stop", "stops": "id" } } } }],
+                    "outputs": [{ "targetEndpoint": target("ep-kpi") }] }),
+        ));
+        let reader = Reader {
+            may: &everyone,
+            may_project: &|_| true,
+        };
+        let map = build(&mirror, "helsinki", &reader, None);
+        let kpi = "helsinki/Pipeline/delay-per-stop";
+        assert_eq!(node(&map, kpi).role, Some(FlowRole::Kpi));
+        for from in [
+            "helsinki/Endpoint/ep-vehicles",
+            "helsinki/Endpoint/ep-stops",
+        ] {
+            assert_eq!(edge(&map, from, kpi).relation, FlowRelation::Reads);
+        }
+        edge(&map, kpi, "helsinki/Endpoint/ep-kpi");
+    }
 }

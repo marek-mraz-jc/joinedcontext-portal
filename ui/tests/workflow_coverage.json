@@ -634,7 +634,8 @@
         },
         "assistant": "jc_pipeline_test",
         "routes": [
-          "POST /api/v1/projects/{project}/pipelines/test"
+          "POST /api/v1/projects/{project}/pipelines/test",
+          "POST /api/v1/projects/{project}/kpis/check"
         ]
       },
       "target": {

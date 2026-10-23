@@ -1751,6 +1751,25 @@ impl ViewSync {
         Ok(Some((e.spec.slug.to_string(), view)))
     }
 
+    /// The view id of the Endpoint `name` of `project` and its view as the last run compiled it
+    /// (the KPI preview, PL-105). `Ok(None)` when that run read no such Endpoint.
+    pub fn saved_view(&self, project: &str, name: &str) -> Result<Option<(String, Value)>, String> {
+        let Some(sources) = lock(&self.last).clone() else {
+            return Ok(None);
+        };
+        let Some(saved) = sources
+            .endpoints
+            .iter()
+            .find(|e| e.project == project && e.name == name)
+        else {
+            return Ok(None);
+        };
+        Ok(Some((
+            saved.spec.slug.to_string(),
+            endpoint_view(&sources, saved)?,
+        )))
+    }
+
     /// One page of `query` (a Query Entities query string) through the candidate `view`, read
     /// as the subject `headers` name (Antares `POST /q/views/{id}/preview`, T-3813): the
     /// broker's status and body. Nothing is stored.

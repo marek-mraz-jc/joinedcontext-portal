@@ -2937,7 +2937,8 @@
         "type": "Typ entity",
         "attribute": "Atribut k průměru",
         "attributeHelp": "Číselný atribut typu, např. pm10.",
-        "typeHelp": "Typ, který modeluje prostor zvoleného endpointu; jeho čísla se nabídnou níže."
+        "typeHelp": "Typ, který modeluje prostor zvoleného endpointu; jeho čísla se nabídnou níže.",
+        "several": "Spojit více zdrojů…"
       },
       "problem": {
         "source": "Vyberte zdroj.",
@@ -3323,6 +3324,91 @@
         "failing": "Selhává",
         "never": "Ještě neběžel"
       }
+    },
+    "kpiEditor": {
+      "title": "Nový ukazatel z více zdrojů",
+      "lead": "Vyberte dva až pět koncových bodů, určete, jak se jejich řádky spojí a co se má spočítat. Každé pole se kontroluje při psaní; Náhled spočítá hodnotu z toho, co koncové body poskytují teď. Nic se nezapíše, dokud změnu neschválí schvalovatel.",
+      "name": "Název ukazatele",
+      "titleField": "Nadpis",
+      "sources": "Zdroje",
+      "sourceName": "Název vstupu",
+      "endpoint": "Koncový bod",
+      "type": "Typ entity",
+      "attribute": "Číslo, které čte",
+      "addSource": "Přidat zdroj",
+      "remove": "Odebrat",
+      "removeSource": "Odebrat zdroj {name}",
+      "readable": "Pipeline to může číst",
+      "notReadable": "Pipeline to zatím nemůže číst",
+      "askAccess": "Po schválení změny požádejte o přístup na kartě Přístup dané pipeline; do té doby každý běh selže na odmítnutí tohoto zdroje.",
+      "noEndpoints": "Tento projekt zatím nemá koncový bod, který můžete číst. Nejprve zveřejněte prostor přes koncový bod a pak se vraťte.",
+      "join": "Jak se řádky spojí",
+      "joinBy": {
+        "time": "Všechny řádky běhu, jedna hodnota",
+        "area": "Za každou oblast společnou pro zdroje",
+        "entity": "Za každou entitu, kterou zdroje uvádějí"
+      },
+      "joinHint": {
+        "time": "Jeden ukazatel za běh ze všech řádků, které zdroje vrátily.",
+        "area": "Jeden ukazatel za každou hodnotu oblasti, kterou mají všechny zdroje; k názvu se přidá její zkratka.",
+        "entity": "Jeden ukazatel za každou entitu, kterou uvádějí všechny zdroje; k názvu se přidá její zkratka."
+      },
+      "key": {
+        "area": "Atribut oblasti",
+        "entity": "Atribut entity",
+        "column": "Klíč"
+      },
+      "choice": "Co spočítat",
+      "choices": {
+        "count": "Počet řádků prvního zdroje",
+        "sum": "Součet čísla prvního zdroje",
+        "average": "Průměr čísla prvního zdroje",
+        "share": "Podíl: první součet dělený druhým součtem",
+        "per": "První součet na řádek druhého zdroje"
+      },
+      "writes": "Vzorec, který zapíše: {formula}",
+      "advanced": "Pokročilé: napsat vzorec",
+      "formula": "Vzorec",
+      "unit": "Kód jednotky",
+      "schedule": "Jak často",
+      "every": {
+        "quarter": "Každých 15 minut",
+        "hourly": "Každou hodinu",
+        "daily": "Každý den v 03:00 UTC"
+      },
+      "target": "Zapisuje se přes",
+      "noTarget": "Projekt nemá koncový bod v prostoru ukazatelů (prostor s názvem končícím na -kpi). Nejprve ho vytvořte.",
+      "preview": "Náhled",
+      "runPreview": "Spočítat teď",
+      "previewing": "Počítá se…",
+      "previewHint": "Přečte nejvýše 100 řádků každého zdroje tak, jak je vidíte vy, a spočítá {formula}.",
+      "noKeys": "Žádný klíč není ve všech zdrojích, teď by se tedy nezapsal žádný ukazatel.",
+      "indicator": "Ukazatel",
+      "value": "Hodnota",
+      "wholeRun": "Celý běh",
+      "rows": "{name}: {count} řádků",
+      "fixFirst": "Nejprve opravte pole označená výše.",
+      "missing": {
+        "name": "Nejprve pojmenujte ukazatel.",
+        "source": "Nejprve vyberte koncový bod a typ entity pro každý zdroj.",
+        "target": "Nejprve vyberte koncový bod, přes který se ukazatel zapíše."
+      },
+      "hint": {
+        "name": "Malá písmena, číslice a pomlčky, nejvýše 48, například parking-per-stop.",
+        "title": "Co lidé čtou v seznamech, například Obsazená parkovací místa na zastávku.",
+        "sources": "Každý zdroj čte jeden typ entity přes jeden koncový bod, například parkoviště přes helsinki-parking.",
+        "sourceName": "Jak vzorec pojmenovává tento zdroj, například parking.",
+        "endpoint": "Koncový bod tohoto projektu, který můžete číst, například helsinki-parking.",
+        "type": "Typ entity, který tento zdroj čte, například parkoviště z modelu prostoru.",
+        "attribute": "Číselný atribut, který čte součet nebo průměr, například occupiedSpotNumber.",
+        "unit": "Kód UN/CEFACT výsledku, například C62 pro počet nebo poměr, P1 pro procenta.",
+        "schedule": "Jak často běh spočítá ukazatel, například každou hodinu.",
+        "target": "Koncový bod prostoru ukazatelů, přes který se zapisuje, například kpi-writer.",
+        "formula": "sum, avg, min, max z input.attribute a count(input), s + - * / a závorkami, například sum(parking.occupiedSpotNumber) / count(stops).",
+        "areaKey": "Atribut s názvem nebo kódem oblasti v tomto zdroji, například district.",
+        "entityKey": "id pro samotnou entitu nebo vztah, který ji pojmenovává, například refParkingSite."
+      },
+      "previewFirst": "Náhled se spustí, až budou všechna pole zkontrolovaná bez problému."
     }
   },
   "dashboards": {

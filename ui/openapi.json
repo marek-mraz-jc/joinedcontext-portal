@@ -12285,6 +12285,154 @@
         }
       }
     },
+    "/api/v1/projects/{project}/kpis/check": {
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Check A KPI Over Several Sources",
+        "description": "Checks a v1alpha2 Pipeline draft with one kpi step by jc-core's admission rules (PL-102, PL-103), with each attribute's unit from its space's model, and says of each source whether the pipeline's account may read it. `preview: true` also computes the indicator on each source Endpoint's current page, read as the person (PL-105). Needs propose on Pipeline in the project, from a person's session; a source in a space the caller may not read is named as unknown. Changes no data.",
+        "operationId": "check_kpi",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KpiCheckRequest"
+              },
+              "example": {
+                "pipeline": {
+                  "apiVersion": "joinedcontext.com/v1alpha2",
+                  "kind": "Pipeline",
+                  "metadata": {
+                    "name": "parking-per-stop"
+                  },
+                  "spec": {
+                    "class": "scheduled",
+                    "outputs": [
+                      {
+                        "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:helsinki-kpi:kpi-writer"
+                      }
+                    ],
+                    "schedule": "0 * * * *",
+                    "sources": [
+                      {
+                        "endpointRef": {
+                          "kind": "Endpoint",
+                          "name": "helsinki-parking"
+                        },
+                        "name": "parking",
+                        "query": {
+                          "attrs": [
+                            "occupiedSpotNumber",
+                            "district"
+                          ],
+                          "type": "ParkingSite"
+                        }
+                      },
+                      {
+                        "endpointRef": {
+                          "kind": "Endpoint",
+                          "name": "helsinki-transit"
+                        },
+                        "name": "stops",
+                        "query": {
+                          "attrs": [
+                            "district"
+                          ],
+                          "type": "TransitStop"
+                        }
+                      }
+                    ],
+                    "steps": [
+                      {
+                        "kind": "kpi",
+                        "kpi": {
+                          "formula": "sum(parking.occupiedSpotNumber) / count(stops)",
+                          "join": {
+                            "by": "area",
+                            "keys": {
+                              "parking": "district",
+                              "stops": "district"
+                            }
+                          },
+                          "name": "parking-per-stop",
+                          "unitCode": "C62"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "preview": true
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The problems, the sources and, when asked, the preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KpiChecked"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is not a Pipeline of this project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No propose on Pipeline here, or a workload token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/mqtt/allowance": {
       "get": {
         "tags": [
@@ -25766,6 +25914,163 @@
           }
         },
         "additionalProperties": false
+      },
+      "KpiCheckRequest": {
+        "type": "object",
+        "description": "The body of `POST …/kpis/check`.",
+        "required": [
+          "pipeline"
+        ],
+        "properties": {
+          "pipeline": {
+            "type": "object",
+            "description": "The draft `joinedcontext.com/v1alpha2` Pipeline with one `kpi` step.",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "preview": {
+            "type": "boolean",
+            "description": "Also compute the indicator on the sources' current pages."
+          }
+        },
+        "additionalProperties": false
+      },
+      "KpiChecked": {
+        "type": "object",
+        "description": "The check's answer.",
+        "required": [
+          "problems",
+          "sources"
+        ],
+        "properties": {
+          "preview": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/KpiPreview",
+                "description": "Present when asked for and the draft has no problem."
+              }
+            ]
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KpiProblem"
+            },
+            "description": "Empty when the draft is a KPI admission takes."
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KpiSource"
+            }
+          }
+        }
+      },
+      "KpiPreview": {
+        "type": "object",
+        "description": "The indicator on the sources' current pages.",
+        "required": [
+          "values",
+          "rows"
+        ],
+        "properties": {
+          "problem": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why nothing is computed: a division by zero, an average over nothing, a source that did\nnot answer (PL-104)."
+          },
+          "rows": {
+            "type": "object",
+            "description": "The rows each source's page held, at most 100.",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KpiValue"
+            },
+            "description": "One value per key, one for a join by time."
+          }
+        }
+      },
+      "KpiProblem": {
+        "type": "object",
+        "description": "One field jc-core refuses, and why.",
+        "required": [
+          "field",
+          "reason"
+        ],
+        "properties": {
+          "field": {
+            "type": "string",
+            "description": "The manifest path at fault, `spec.steps.kpi.formula`."
+          },
+          "reason": {
+            "type": "string",
+            "description": "The rule it breaks, in words."
+          }
+        }
+      },
+      "KpiSource": {
+        "type": "object",
+        "description": "What the editor knows of one source.",
+        "required": [
+          "name",
+          "endpoint",
+          "readable"
+        ],
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "description": "The source Endpoint."
+          },
+          "name": {
+            "type": "string",
+            "description": "The source's `name`, the input's name in the formula."
+          },
+          "readable": {
+            "type": "boolean",
+            "description": "Whether the pipeline's account reads the source's type through the Endpoint now: a\nPolicy grants it, or the Endpoint is public (PL-55, PL-90)."
+          }
+        }
+      },
+      "KpiValue": {
+        "type": "object",
+        "description": "One computed indicator.",
+        "required": [
+          "name",
+          "value"
+        ],
+        "properties": {
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The entity or area key; absent for a join by time."
+          },
+          "name": {
+            "type": "string",
+            "description": "The indicator's `{localId}`."
+          },
+          "value": {
+            "type": "number",
+            "format": "double"
+          }
+        }
       },
       "Lane": {
         "type": "string",
