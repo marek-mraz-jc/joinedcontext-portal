@@ -81,7 +81,7 @@ export function ConversationsPage({
   if (permissions !== undefined && !allowed) {
     return (
       <section aria-label={t("conversations.title")} className="space-y-6">
-        <PageHeader title={t("conversations.title")} />
+        <PageHeader title={t("conversations.title")} description={t("conversations.intro")} />
         <Alert tone="info">{t("conversations.notAllowed")}</Alert>
       </section>
     );

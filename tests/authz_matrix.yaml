@@ -38,6 +38,10 @@ routes:
   - route: GET /templates/assets/{file}
     rule: "public"
     expect: [404, 404, 404, 404, 404, 404, 404, 404]
+  - route: GET /assistant-preview/{public_id}
+    rule: "public"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "the embed dialog's launcher preview: a public id's launcher line, no data; 404 here, where the test Portal has no domain (T-5328)"
   - route: POST /apps/{name}/api/functions/{fn}
     rule: "app-edge"
     expect: [404, 404, 404, 404, 404, 404, 404, 404]

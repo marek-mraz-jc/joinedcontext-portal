@@ -270,7 +270,11 @@ describe("the knowledge sources page (T-3057)", () => {
     const data = within(table).getByText("bb-data").closest("tr") as HTMLElement;
     expect(within(data).getByText("Not crawled yet")).toBeInTheDocument();
     expect(within(data).getByText("Data catalogue")).toBeInTheDocument();
-    expect(within(data).queryByRole("link", { name: "bb-data" })).toBeNull();
+    // T-5328: a source not crawled yet opens too, and every row hands its click to its link.
+    expect(within(data).getByRole("link", { name: "bb-data" })).toHaveAttribute("href", "/projects/banskabystrica/knowledge/bb-data");
+    for (const row of within(table).getAllByRole("row").slice(1)) {
+      expect(row.querySelector("a[data-row-link]")).not.toBeNull();
+    }
     // AG-116: the project's own catalogue, of every space when it names none.
     const catalogue = within(table).getByText("bb-catalogue").closest("tr") as HTMLElement;
     expect(within(catalogue).getByText("Context spaces' catalogue")).toBeInTheDocument();
@@ -785,7 +789,10 @@ describe("asking an assistant in the Portal (T-3058, AG-115)", () => {
     expect(writeText).toHaveBeenCalledWith(line);
     const preview = within(dialog).getByTitle("Preview of the launcher on a blank page");
     expect(preview).toHaveAttribute("sandbox", "allow-scripts");
-    expect(preview.getAttribute("srcdoc")).toContain(line);
+    // T-5328: the Portal serves the blank page under its own policy; a srcdoc frame inherited the
+    // Portal's `script-src 'self'`, which refused the launcher.
+    expect(preview).not.toHaveAttribute("srcdoc");
+    expect(preview).toHaveAttribute("src", "/assistant-preview/bb-obcania?lang=sk");
   });
 });
 

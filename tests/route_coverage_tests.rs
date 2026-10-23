@@ -22,6 +22,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/apps/{name}/{*path}", "a published application, served as files"),
 ("GET", "/edge/apps/{name}/admit", "the edge's forward-auth before a pod or wasm App answers: the static host's own visibility check, nothing an agent calls (T-4922)"),
 ("GET", "/docs/{chapter}/{page}", "the public API and User Guide pages as HTML for anyone, no data (T-4063, API/00 §1)"),
+("GET", "/assistant-preview/{public_id}", "the embed dialog's launcher preview on a blank page: a public id's launcher line under its own CSP, no data (T-5328)"),
 ("GET", "/templates/{name}", "an App template's demo on its fixtures, served as files, no data (AP-141)"),
 ("GET", "/templates/{name}/", "an App template's demo on its fixtures, served as files, no data (AP-141)"),
 ("GET", "/templates/assets/{file}", "the App templates' demo bundle, served as files (AP-141)"),

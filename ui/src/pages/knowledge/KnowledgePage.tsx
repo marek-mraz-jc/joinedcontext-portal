@@ -180,18 +180,17 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
               return (
                 <TableRow key={row.source}>
                   <TableCell className="font-mono">
-                    {/* An upload source opens before its first file: that page is where it is sent (T-4185). */}
-                    {row.state === "crawled" || row.type === "upload" ? (
-                      <Link
-                        to="/projects/$project/knowledge/$source"
-                        params={{ project, source: row.source }}
-                        className="focus-ring rounded-sm text-primary-soft-fg underline underline-offset-2"
-                      >
-                        {row.source}
-                      </Link>
-                    ) : (
-                      row.source
-                    )}
+                    {/* Every source opens: an upload before its first file is where it is sent
+                        (T-4185), a source not crawled yet or whose crawl failed says so there and
+                        offers a search; the row hands its click to this link (T-5328). */}
+                    <Link
+                      data-row-link=""
+                      to="/projects/$project/knowledge/$source"
+                      params={{ project, source: row.source }}
+                      className="focus-ring rounded-sm text-primary-soft-fg underline underline-offset-2"
+                    >
+                      {row.source}
+                    </Link>
                   </TableCell>
                   <TableCell secondary>
                     {t(`knowledge.type.${row.type}`)}

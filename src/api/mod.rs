@@ -15,6 +15,7 @@ pub mod app_templates;
 pub mod app_transfer;
 pub mod assistant;
 pub mod assistant_context;
+pub mod assistant_preview;
 pub mod basemap;
 pub mod blueprints;
 pub mod branding;

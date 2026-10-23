@@ -273,6 +273,8 @@ describe("Asistent → Konverzácie", () => {
   it("a member without approve reads nothing and the assistant is never asked", async () => {
     const calls = renderAs(["read"]);
     expect(await screen.findByText(i18n.t("conversations.notAllowed"))).toBeInTheDocument();
+    // T-5328: the refused page still says what it is for under its title.
+    expect(screen.getByRole("heading", { level: 1, name: "Conversations" }).nextElementSibling).toHaveTextContent(i18n.t("conversations.intro"));
     expect(calls.filter((c) => c.url.pathname.includes("/conversations"))).toEqual([]);
   });
 

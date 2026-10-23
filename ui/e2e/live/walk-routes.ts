@@ -61,6 +61,9 @@ export async function visits(page: Page, who: string): Promise<Visit[]> {
     { route: "/organization/$tab/$", address: "/organization/groups/new" },
     ...[
       "home", "inbox", "workspaces", "activity", "health", "approvals", "access", "settings", "models", "explore", "ckan", "mcp", "federation", "import", "assistant", "shared",
+      // The knowledge pages, back since T-5328 linked every source row and gave the refused
+      // conversations page its purpose line.
+      "knowledge", "knowledge/conversations",
     ].map((page) => ({
       route: `/projects/$project/${page}`,
       address: `${P}/${page}`,
@@ -80,6 +83,7 @@ export async function visits(page: Page, who: string): Promise<Visit[]> {
     ["/projects/$project/$plural/$name", `${P}/spaces`, new RegExp(`^${P}/spaces/(?!complete$)[^/]+$`)],
     ["/projects/$project/$plural/$name", `${P}/endpoints`, new RegExp(`^${P}/endpoints/[^/]+$`)],
     ["/projects/$project/$plural/$name", `${P}/apps`, new RegExp(`^${P}/apps/[^/]+$`)],
+    ["/projects/$project/knowledge/$source", `${P}/knowledge`, new RegExp(`^${P}/knowledge/(?!conversations$)[^/]+$`)],
     ["/projects/$project/models/$name", `${P}/models`, new RegExp(`^${P}/models/[^/]+$`)],
     ["/projects/$project/approvals/$id", `${P}/approvals`, new RegExp(`^${P}/approvals/[^/]+$`)],
     ["/projects/$project/workspaces/$name/compare", `${P}/workspaces`, new RegExp(`^${P}/workspaces/[^/]+/compare$`)],

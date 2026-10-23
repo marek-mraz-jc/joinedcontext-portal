@@ -83,6 +83,8 @@ pub fn app(state: AppState) -> Router {
         .merge(apps::template_demos::router())
         // The kit preview is an application document too: its own CSP, outside the Portal's.
         .merge(api::agent_runs::preview_router())
+        // The embed dialog's launcher preview: its own CSP names the assistant host (T-5328).
+        .merge(api::assistant_preview::router())
         // OPS-16: what `components/monitoring` scrapes. Outside the Portal's own security
         // headers and outside `/api/v1`, so no session or CSRF guard stands in front of a
         // scrape; the edge refuses the path, which is what keeps it inside the cluster.

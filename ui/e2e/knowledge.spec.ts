@@ -147,6 +147,26 @@ test.describe("the knowledge sources", () => {
     expect(await axeViolations(p)).toEqual([]);
   });
 
+  // T-5328: the live walk found no source row opening its page, and the refused conversations page
+  // without the line under its title.
+  test("a click on any source row opens its page, a source not crawled yet too; the refused conversations page says what it is for", async ({ page: p }) => {
+    await stubApi(p);
+    await p.goto("/projects/helsinki/knowledge?lang=en");
+    const table = p.getByRole("table", { name: "Knowledge sources" });
+    await expect(table.getByRole("row", { name: /hel-data/ })).toBeVisible();
+    await expect(table.locator("tbody tr:not(:has(a[data-row-link]))")).toHaveCount(0);
+    await keep(p, "knowledge-sources");
+    await table.getByRole("row", { name: /hel-data/ }).getByText("Not crawled yet").click();
+    await expect(p).toHaveURL(/\/projects\/helsinki\/knowledge\/hel-data$/);
+    await expect(p.getByRole("heading", { level: 1 })).toContainText("hel-data");
+    await keep(p, "knowledge-source-not-crawled");
+    await p.goto("/projects/helsinki/knowledge/conversations?lang=en");
+    await expect(p.getByText("Only the assistant's administrator")).toBeVisible();
+    await expect(p.locator("h1 + p")).toContainText("What visitors asked the project's assistants");
+    await keep(p, "conversations-refused");
+    expect(await axeViolations(p)).toEqual([]);
+  });
+
   // T-4265 (photo audit T-4160 #23): at 375 px both tables ran past their cards, the crawl time one
   // letter a line and the row's Ask off the screen. A phone keeps the name, the state and the actions.
   test("both tables fit a phone in Slovak, their actions on the screen", async ({ page: p }) => {
