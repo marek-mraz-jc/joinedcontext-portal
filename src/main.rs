@@ -1,6 +1,13 @@
 use joinedcontext_portal::config::Config;
 use joinedcontext_portal::{server, telemetry};
 
+/// jemalloc, not glibc's malloc (T-5283): each reconcile reads the runner's whole /metrics text
+/// per project with a Live stream (13 MB on dev, 30 MB on prod) and frees it; glibc kept such
+/// freed blocks resident (474 Mi on dev against a 320 Mi request). `_RJEM_MALLOC_CONF` in the
+/// Dockerfile starts jemalloc's background thread, which returns them, as in the gateway (T-4782).
+#[global_allocator]
+static ALLOCATOR: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
 #[tokio::main]
 async fn main() {
     // OPS-15: JSON lines on stdout, nothing on disk.
