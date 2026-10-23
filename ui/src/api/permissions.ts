@@ -144,15 +144,14 @@ export function usePermissions(project: string) {
  * Whether the caller administers the organization (PF-03, UI-75): `approve` and `delete` on
  * `RoleBinding` in the organization's permissions, as the seeded `org-admin` holds them and the
  * server asks. `known` is false until the document is read, and a document that never came means
- * no: what only an administrator sees is not shown while it is unknown.
+ * no: what only an administrator sees is not shown while it is unknown. `opensAdministration`
+ * also holds for an Organization's own administrator, who opens its own sections (T-5248).
  */
-export function useAdministers(): { known: boolean; administers: boolean; own?: string } {
+export function useAdministers(): { known: boolean; administers: boolean; own?: string; opensAdministration: boolean } {
   const permissions = usePermissions(ORG_NAMESPACE);
-  return {
-    known: !permissions.isLoading,
-    administers: administersOrganization(permissions.data),
-    own: ownOrganizationOf(permissions.data),
-  };
+  const administers = administersOrganization(permissions.data);
+  const own = ownOrganizationOf(permissions.data);
+  return { known: !permissions.isLoading, administers, own, opensAdministration: administers || own !== undefined };
 }
 
 export interface GrantedRule {

@@ -197,8 +197,7 @@ function UserMenu() {
   const { identity, signOut } = useAuth();
   const firstRun = useFirstRun();
   const navigate = useNavigate();
-  const { administers, own } = useAdministers();
-  const opensAdministration = administers || own !== undefined;
+  const { opensAdministration } = useAdministers();
   if (!identity) {
     return null;
   }
@@ -525,9 +524,8 @@ export function Shell({
   );
 
   const organizationActive = Boolean(matchRoute({ to: "/organization/$tab", fuzzy: true }));
-  const { administers, own } = useAdministers();
   // An Organization's own administrator opens its own sections of Administration (T-5248).
-  const opensAdministration = administers || own !== undefined;
+  const { opensAdministration } = useAdministers();
   const modelsActive = Boolean(matchRoute({ to: "/projects/$project/models", params: { project } }));
   const exploreActive = Boolean(matchRoute({ to: "/projects/$project/explore", params: { project } }));
   const ckanActive = Boolean(matchRoute({ to: "/projects/$project/ckan", params: { project } }));
