@@ -144,10 +144,16 @@ const ALERTS = [
 
 async function stub(
   page: Page,
-  activity: { status: number; runs: unknown[]; alerts: unknown[] },
-): Promise<{ cancels: string[]; asked: string[] }> {
+  activity: {
+    status: number;
+    runs: unknown[];
+    alerts: unknown[];
+    alertProjects?: string[];
+  },
+): Promise<{ cancels: string[]; asked: string[]; subscribed: unknown[] }> {
   const cancels: string[] = [];
   const asked: string[] = [];
+  const subscribed: unknown[] = [];
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -172,6 +178,7 @@ async function stub(
             choices: {
               people: ["jana.kovacova@hel.fi", "peter.novak@hel.fi"],
               spaces: ["air-quality"],
+              alertProjects: activity.alertProjects ?? ["espoo", "helsinki"],
             },
           })
         : json(
@@ -185,6 +192,15 @@ async function stub(
             403,
           );
     }
+    if (path === "/api/v1/alerts" && request.method() === "GET")
+      return json({
+        items: subscribed.map((body) => ({ id: 7, mutedUntil: null, ...(body as object) })),
+      });
+    if (path === "/api/v1/alerts" && request.method() === "PUT") {
+      const body = request.postDataJSON() as object;
+      subscribed.push(body);
+      return json({ id: 7, mutedUntil: null, ...body });
+    }
     if (
       path === "/api/v1/projects/helsinki/agent-runs/run-7f3a/cancel" &&
       request.method() === "POST"
@@ -194,7 +210,7 @@ async function stub(
     }
     return json(LIST([]));
   });
-  return { cancels, asked };
+  return { cancels, asked, subscribed };
 }
 
 const shots = process.env.AGENTS_SHOTS;
@@ -265,6 +281,43 @@ for (const width of [1440, 400]) {
       await shoot(page, "stop", width);
       await page.getByRole("button", { name: "Stop the run" }).click();
       await expect.poll(() => cancels.length).toBe(1);
+    });
+
+    test("an approver asks for the agent's alerts in a project the server offered (T-5301)", async ({
+      page,
+    }) => {
+      const { subscribed } = await stub(page, {
+        status: 200,
+        runs: RUNS,
+        alerts: ALERTS,
+      });
+      await openActivity(page);
+      await page.getByRole("button", { name: "Alert me…" }).click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog.getByLabel("Project")).toBeVisible();
+      await dialog.getByLabel("Project").selectOption("helsinki");
+      await expect(
+        dialog.getByLabel("it has 5 or more tool calls refused within an hour"),
+      ).toBeChecked();
+      expect(await axeViolations(page)).toEqual([]);
+      await shoot(page, "alert-dialog", width);
+      await dialog.getByRole("button", { name: "Alert me" }).click();
+      await expect.poll(() => subscribed.length).toBe(1);
+      expect(subscribed[0]).toEqual({
+        project: "helsinki",
+        scope: "agent",
+        target: "app-builder",
+        events: ["refusalSpike", "spendShare", "offHoursWrite"],
+        delivery: "portal",
+      });
+      await expect(dialog.getByRole("button", { name: "Save" })).toBeVisible();
+      await shoot(page, "alert-subscribed", width);
+      await page.unrouteAll();
+      await stub(page, { status: 200, runs: RUNS, alerts: [], alertProjects: [] });
+      await openActivity(page);
+      const none = page.getByRole("button", { name: "Alert me…" });
+      await expect(none).toHaveAttribute("aria-disabled", "true");
+      await shoot(page, "alert-none", width);
     });
 
     test("says when no run is there and when the person reads no project", async ({

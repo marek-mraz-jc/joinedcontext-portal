@@ -261,3 +261,55 @@ describe("an agent's Activity tab", () => {
     expect(await screen.findByText(t.none)).toBeInTheDocument();
   });
 });
+
+describe("alerts of an agent as notices (T-5301)", () => {
+  const a = en.alerts;
+  function alerting(alertProjects: string[]) {
+    const puts: unknown[] = [];
+    renderPage(<AgentActivity scope={{ profile: "builder" }} />, {
+      path: "/organization/agents",
+      answer: async (url, request) => {
+        if (url.pathname === "/api/v1/organization/agents/activity") {
+          return json({ runs: [RUN], alerts: [], choices: { people: [], spaces: [], alertProjects } });
+        }
+        if (url.pathname === "/api/v1/alerts" && request.method === "GET") return json({ items: [] });
+        if (url.pathname === "/api/v1/alerts" && request.method === "PUT") {
+          const body = await request.clone().json();
+          puts.push(body);
+          return json({ id: 9, mutedUntil: null, ...body });
+        }
+        return undefined;
+      },
+    });
+    return puts;
+  }
+
+  it("an approver subscribes in a project the server offered, to the agent's own events", async () => {
+    const puts = alerting(["espoo", "helsinki"]);
+    fireEvent.click(await screen.findByRole("button", { name: t.alertMe }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(a.projectHelp)).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText(a.project), { target: { value: "helsinki" } });
+    expect(within(dialog).getByLabelText(a.event.refusalSpike)).toBeChecked();
+    expect(within(dialog).queryByLabelText(a.event.failure)).toBeNull();
+    fireEvent.click(within(dialog).getByLabelText(a.event.offHoursWrite));
+    fireEvent.click(within(dialog).getByRole("button", { name: a.subscribe }));
+    await vi.waitFor(() => expect(puts).toHaveLength(1));
+    expect(puts[0]).toEqual({
+      project: "helsinki",
+      scope: "agent",
+      target: "builder",
+      events: ["refusalSpike", "spendShare"],
+      delivery: "portal",
+    });
+    await expectNoAxeViolations(document.body);
+  });
+
+  it("someone who approves nowhere is told why they cannot be alerted", async () => {
+    alerting([]);
+    const button = await screen.findByRole("button", { name: t.alertMe });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getAllByText(t.alertMeNone).length).toBeGreaterThan(0);
+    expect(screen.queryByText(t.alertMeHint)).toBeNull();
+  });
+});

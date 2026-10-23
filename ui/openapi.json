@@ -155,10 +155,10 @@
           "auth"
         ],
         "summary": "Subscribe To An Alert",
-        "description": "Subscribes the caller to a pipeline's, a space's or a type's failure, stale and zero-output alerts, or changes their subscription of the same target (API/01 §37). E-mail is refused while the Portal has no mail relay.",
+        "description": "Subscribes the caller to a pipeline's, a space's or a type's failure, stale and zero-output alerts, or to an agent profile's refusal spikes, token-cap share and off-hours writes (scope `agent`, approvers of the project only), or changes their subscription of the same target (API/01 §37). E-mail is refused while the Portal has no mail relay.",
         "operationId": "subscribe",
         "requestBody": {
-          "description": "The project, the scope (`pipeline`, `space` or `type`), its target, the events and the delivery",
+          "description": "The project, the scope (`pipeline`, `space`, `type` or `agent`), its target, the events and the delivery",
           "content": {
             "application/json": {
               "schema": {
@@ -210,7 +210,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs",
+            "description": "An agent profile in a project the caller does not approve in",
             "content": {
               "application/json": {
                 "schema": {
@@ -19936,9 +19936,17 @@
         "type": "object",
         "required": [
           "people",
-          "spaces"
+          "spaces",
+          "alertProjects"
         ],
         "properties": {
+          "alertProjects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The projects in which this caller may subscribe to an agent's alerts (`PUT /alerts`,\nscope `agent`): those they approve in, sorted (T-5301)."
+          },
           "people": {
             "type": "array",
             "items": {
@@ -20676,7 +20684,10 @@
           "failure",
           "stale",
           "zero",
-          "invalid"
+          "invalid",
+          "refusalSpike",
+          "spendShare",
+          "offHoursWrite"
         ]
       },
       "AlertKind": {
@@ -20734,7 +20745,8 @@
             "format": "int64"
           },
           "pipeline": {
-            "type": "string"
+            "type": "string",
+            "description": "The pipeline, or the agent profile for `refusalSpike`, `spendShare` and `offHoursWrite`."
           },
           "project": {
             "type": "string"
@@ -20773,7 +20785,8 @@
         "enum": [
           "pipeline",
           "space",
-          "type"
+          "type",
+          "agent"
         ]
       },
       "AlertSubscription": {
