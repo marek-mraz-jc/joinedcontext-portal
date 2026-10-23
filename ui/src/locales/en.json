@@ -1626,6 +1626,8 @@
     "ical": {
       "subscribe": "Calendar subscription",
       "preview": "Open the feed (.ics)",
+      "qr": "QR code of the calendar subscription {address}",
+      "qrHint": "Scan it with a phone camera to add the calendar.",
       "off": "Turn on the iCalendar feed under Representations to map its fields.",
       "help": "Which attribute of the space's model each calendar field comes from. An empty row uses the preset's attribute, shown greyed. Check the form to see the server's verdict against the data model.",
       "start": "Start from",
