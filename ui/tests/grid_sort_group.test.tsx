@@ -141,6 +141,7 @@ function orderedSource(filled: number, values: number[]): { source: EntitySource
       const rows: RichRow[] = sorted.slice(page.offset, page.offset + page.limit).map((value, at) => ({
         id: `urn:ngsi-ld:Event:${at}`,
         type: "Event",
+        raw: {},
         cells: { seats: { kind: "property", value } },
       }));
       return { rows, total: filled };
