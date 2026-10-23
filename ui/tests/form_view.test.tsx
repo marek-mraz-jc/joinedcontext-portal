@@ -122,7 +122,7 @@ describe("the form view", () => {
     });
     const reason = await screen.findByRole("textbox", { name: new RegExp(en.spaces.form.reason) });
     expect(reason).toHaveValue(en.spaces.form.reasonDefault);
-    expect(reason).toHaveAccessibleDescription(new RegExp(en.spaces.form.reasonHint.slice(0, 20)));
+    expect(reason).toHaveAccessibleDescription(new RegExp(en.spaces.form.hint.reason.slice(0, 20)));
     await userEvent.clear(reason);
     await userEvent.click(screen.getByRole("button", { name: en.spaces.form.submit }));
     expect(screen.getByText(en.spaces.form.reasonError.required)).toBeInTheDocument();

@@ -965,7 +965,9 @@
       "lon": "Longitude",
       "submit": "Create",
       "reason": "Reason",
-      "reasonHint": "Why you add it, recorded with the entity, for example: Inspection on 2026-10-22.",
+      "hint": {
+        "reason": "Why you add it, recorded with the entity, for example: Inspection on 2026-10-22."
+      },
       "reasonDefault": "Entered through the form",
       "reasonError": {
         "required": "Enter why you add it, for example: Inspection on 2026-10-22.",
@@ -5378,7 +5380,7 @@
     "removeConfirm": "Delete",
     "removeNote": "The endpoint's Policy decides: the deletion runs with your session, not with a service identity, and it cannot be undone.",
     "removeReason": "Reason",
-    "removeReasonHint": "Why you delete it, recorded with the deletion, for example: Duplicate of urn:ngsi-ld:Sensor:12.",
+    "removeReasonHint": "Why you delete it, recorded with the deletion, for example: Duplicate of the Main Square dock.",
     "removeReasonError": {
       "required": "Enter why you delete it, for example: Duplicate entry.",
       "tooLong": "Use at most {max} characters."
@@ -5709,7 +5711,8 @@
       "overCount": "count of {type}",
       "overAgg": "{agg} of {attribute} over {type}",
       "overWhere": "{over} where {filter}",
-      "minutesUnused": "Minutes apply when the indicator is kept every few minutes, not on every change."
+      "minutesUnused": "Minutes apply when the indicator is kept every few minutes, not on every change.",
+      "reason": "Wrote the indicator an agent run computed"
     },
     "changeTest": {
       "title": "The change's test",

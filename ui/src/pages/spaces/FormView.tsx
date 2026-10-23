@@ -238,7 +238,7 @@ function EntityFormBody({
           id={`${idPrefix}-reason`}
           label={t("spaces.form.reason")}
           required
-          help={t("spaces.form.reasonHint")}
+          help={t("spaces.form.hint.reason")}
           errors={tried && reasonError ? [t(`spaces.form.reasonError.${reasonError}`, { max: MAX_REASON })] : undefined}
         >
           <Input

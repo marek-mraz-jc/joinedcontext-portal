@@ -965,7 +965,9 @@
       "lon": "Zemepisná dĺžka",
       "submit": "Vytvoriť",
       "reason": "Dôvod",
-      "reasonHint": "Prečo ho pridávate, zaznamená sa so záznamom, napríklad: Kontrola 22. 10. 2026.",
+      "hint": {
+        "reason": "Prečo ho pridávate, zaznamená sa so záznamom, napríklad: Kontrola 22. 10. 2026."
+      },
       "reasonDefault": "Zadané cez formulár",
       "reasonError": {
         "required": "Napíšte, prečo ho pridávate, napríklad: Kontrola 22. 10. 2026.",
@@ -5378,7 +5380,7 @@
     "removeConfirm": "Zmazať",
     "removeNote": "Rozhoduje Policy endpointu: zmazanie beží s vaším prihlásením, nie so servisnou identitou, a nedá sa vrátiť.",
     "removeReason": "Dôvod",
-    "removeReasonHint": "Prečo ho mažete, zaznamená sa so zmazaním, napríklad: Duplikát urn:ngsi-ld:Sensor:12.",
+    "removeReasonHint": "Prečo ho mažete, zaznamená sa so zmazaním, napríklad: Duplikát stanice na Hlavnom námestí.",
     "removeReasonError": {
       "required": "Napíšte, prečo ho mažete, napríklad: Duplicitný záznam.",
       "tooLong": "Použite najviac {max} znakov."
@@ -5709,7 +5711,8 @@
       "overCount": "počet typu {type}",
       "overAgg": "{agg} atribútu {attribute} nad typom {type}",
       "overWhere": "{over}, kde {filter}",
-      "minutesUnused": "Minúty platia, keď sa ukazovateľ obnovuje každých pár minút, nie pri každej zmene."
+      "minutesUnused": "Minúty platia, keď sa ukazovateľ obnovuje každých pár minút, nie pri každej zmene.",
+      "reason": "Zapísaný ukazovateľ, ktorý vypočítal beh agenta"
     },
     "changeTest": {
       "title": "Test zmeny",

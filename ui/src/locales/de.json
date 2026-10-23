@@ -965,7 +965,9 @@
       "lon": "Längengrad",
       "submit": "Anlegen",
       "reason": "Grund",
-      "reasonHint": "Warum Sie sie anlegen, wird mit der Entität festgehalten, zum Beispiel: Prüfung am 22.10.2026.",
+      "hint": {
+        "reason": "Warum Sie sie anlegen, wird mit der Entität festgehalten, zum Beispiel: Prüfung am 22.10.2026."
+      },
       "reasonDefault": "Über das Formular erfasst",
       "reasonError": {
         "required": "Geben Sie an, warum Sie sie anlegen, zum Beispiel: Prüfung am 22.10.2026.",
@@ -5378,7 +5380,7 @@
     "removeConfirm": "Löschen",
     "removeNote": "Die Policy des Endpunkts entscheidet: Die Löschung läuft mit Ihrer Anmeldung, nicht mit einer Dienstidentität, und lässt sich nicht rückgängig machen.",
     "removeReason": "Grund",
-    "removeReasonHint": "Warum Sie sie löschen, wird mit der Löschung festgehalten, zum Beispiel: Duplikat von urn:ngsi-ld:Sensor:12.",
+    "removeReasonHint": "Warum Sie sie löschen, wird mit der Löschung festgehalten, zum Beispiel: Duplikat der Station am Hauptplatz.",
     "removeReasonError": {
       "required": "Geben Sie an, warum Sie sie löschen, zum Beispiel: Doppelter Eintrag.",
       "tooLong": "Verwenden Sie höchstens {max} Zeichen."
@@ -5709,7 +5711,8 @@
       "overCount": "Anzahl von {type}",
       "overAgg": "{agg} von {attribute} über {type}",
       "overWhere": "{over}, wobei {filter}",
-      "minutesUnused": "Minuten gelten, wenn der Indikator alle paar Minuten aktualisiert wird, nicht bei jeder Änderung."
+      "minutesUnused": "Minuten gelten, wenn der Indikator alle paar Minuten aktualisiert wird, nicht bei jeder Änderung.",
+      "reason": "Von einem Agentenlauf berechneten Indikator geschrieben"
     },
     "changeTest": {
       "title": "Test der Änderung",
