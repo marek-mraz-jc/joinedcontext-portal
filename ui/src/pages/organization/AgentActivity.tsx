@@ -22,6 +22,7 @@ import {
   TableSkeleton,
 } from "../../components/ui";
 import { PageFailed } from "../../components/ui/PageState";
+import { AlertDialog } from "../../components/AlertDialog";
 
 type Activity = components["schemas"]["AgentActivity"];
 type ActivityRun = components["schemas"]["ActivityRun"];
@@ -99,7 +100,9 @@ export function AgentActivity({
   });
   const runs = activity.data?.pages.flatMap((page) => page.runs) ?? [];
   const alerts = activity.data?.pages[0]?.alerts ?? [];
-  const choices = activity.data?.pages[0]?.choices ?? { people: [], spaces: [] };
+  const choices = activity.data?.pages[0]?.choices ?? { people: [], spaces: [], alertProjects: [] };
+  const alertProjects = choices.alertProjects ?? [];
+  const [alerting, setAlerting] = useState(false);
   const denied =
     activity.error instanceof ApiError && activity.error.status === 403
       ? (activity.error.problem?.detail ?? activity.error.message)
@@ -113,6 +116,37 @@ export function AgentActivity({
       >
         {t("organization.agents.activity.title")}
       </h2>
+      {scope.profile !== undefined && activity.isSuccess ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="secondary"
+            disabled={alertProjects.length === 0}
+            disabledReason={
+              alertProjects.length === 0
+                ? t("organization.agents.activity.alertMeNone")
+                : undefined
+            }
+            onClick={() => setAlerting(true)}
+          >
+            {t("organization.agents.activity.alertMe")}
+          </Button>
+          <p className="text-caption text-fg-muted">
+            {alertProjects.length === 0
+              ? t("organization.agents.activity.alertMeNone")
+              : t("organization.agents.activity.alertMeHint")}
+          </p>
+        </div>
+      ) : null}
+      {alerting && scope.profile !== undefined && alertProjects[0] ? (
+        <AlertDialog
+          project={alertProjects[0]}
+          projects={alertProjects}
+          scope="agent"
+          target={scope.profile}
+          label={scope.profile}
+          onClose={() => setAlerting(false)}
+        />
+      ) : null}
       {scope.run === undefined ? (
         <form
           className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"

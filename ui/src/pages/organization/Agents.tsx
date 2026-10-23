@@ -303,7 +303,10 @@ function homeOf(item: AgentItem): string {
 export function AgentPage({ path }: { path: string }): JSX.Element {
   const { t } = useTranslation();
   const agents = useAgents();
-  const [tab, setTab] = useState<AgentTab>("overview");
+  // An alert notice opens the Activity tab with `#activity` (T-5301).
+  const [tab, setTab] = useState<AgentTab>(() =>
+    window.location.hash === "#activity" ? "activity" : "overview",
+  );
   const item = agents.data?.items.find(
     (candidate) => agentPath(candidate) === path,
   );
