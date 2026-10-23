@@ -221,3 +221,27 @@
     }
   }
 }
+
+/*
+ * The SDK's grid and views draw with their own --jc-color-* tokens and light defaults. In the dark
+ * theme the Portal hands them its own colours, or the grid stays a white island on a dark page
+ * (T-5093). The light theme keeps the SDK's defaults, which every gallery snapshot is drawn with.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --jc-color-ink: var(--portal-fg);
+    --jc-color-surface: var(--portal-surface);
+    --jc-color-card: var(--portal-surface-subtle);
+    --jc-color-line: var(--portal-border);
+    --jc-color-border: var(--portal-border-strong);
+    --jc-color-muted: var(--portal-fg-muted);
+    --jc-color-neutral: var(--portal-fg-subtle);
+    --jc-color-accent: var(--portal-primary);
+    --jc-color-primary: var(--portal-primary);
+    --jc-color-focus: var(--portal-ring);
+    --jc-color-danger: var(--portal-danger);
+    --jc-color-success: var(--portal-success);
+    --jc-color-warning: var(--portal-warning);
+    --jc-color-info: var(--portal-info);
+  }
+}

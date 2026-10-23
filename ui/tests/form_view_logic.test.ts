@@ -5,7 +5,9 @@
  */
 // covers (T-2137, the module gate in gate_modules.test.ts): src/pages/spaces/formView.ts.
 import { describe, expect, it } from "vitest";
+import { classSlots, parseModel } from "../src/pages/models/linkml";
 import type { LinkmlSlot } from "../src/pages/models/linkml";
+import { enumsOfModel } from "../src/components/entities/filters";
 import { createdId, embedSnippets, isEmbedOrigin, parseEmbedOrigins, entityOf, fieldsOf, fieldsOfSchema, prefilled, problemsOf, trapName, visibleFields } from "../src/pages/spaces/formView";
 import type { FormField } from "../src/pages/spaces/formView";
 
@@ -54,6 +56,51 @@ describe("the fields", () => {
       ["capacity", "Places", true],
       ["name", "Name", true],
     ]);
+  });
+});
+
+describe("the labels a seed gives", () => {
+  // The seeds' shape (T-5093): the slot has no title, the class labels it in slot_usage, and each
+  // enum value carries its label as an annotation.
+  const SEED = `
+id: https://example.org/m
+name: m
+slots:
+  startDate: { range: datetime }
+  eventStatus: { range: EventStatus }
+classes:
+  Event:
+    slots: [startDate, eventStatus]
+    slot_usage:
+      startDate:
+        annotations:
+          label: { tag: label, value: { fi: Alkaa, en: Starts, sk: Začiatok } }
+      eventStatus:
+        annotations:
+          label: { tag: label, value: { en: Status, sk: Stav } }
+enums:
+  EventStatus:
+    permissible_values:
+      EventScheduled:
+        annotations:
+          label: { tag: label, value: { en: Scheduled, sk: Naplánované } }
+      EventCancelled: {}
+`;
+
+  it("label the form's fields and options by the model's labels, never the raw attribute", () => {
+    const model = parseModel(SEED);
+    const slots = classSlots(model, model.classes[0]);
+    const fields = fieldsOf(slots, enumsOfModel(SEED, "Event", "sk"), undefined, "sk");
+    expect(fields.map((f) => [f.attr, f.label, f.kind])).toEqual([
+      ["startDate", "Začiatok", "datetime"],
+      ["eventStatus", "Stav", "enum"],
+    ]);
+    expect(fields[1].options).toEqual([
+      { value: "EventScheduled", title: "Naplánované", description: undefined },
+      { value: "EventCancelled", title: undefined, description: undefined },
+    ]);
+    // A language the model does not label falls back to English, then to the attribute.
+    expect(fieldsOf(slots, {}, undefined, "de").map((f) => f.label)).toEqual(["Starts", "Status"]);
   });
 });
 

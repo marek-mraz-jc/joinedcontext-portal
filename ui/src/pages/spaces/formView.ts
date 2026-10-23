@@ -107,7 +107,9 @@ export function fieldsOf(
     if (!slot || seen.has(slot.name)) continue;
     seen.add(slot.name);
     const options = enums[slot.name];
-    const title = slot.title?.[locale.slice(0, 2)] ?? slot.title?.en;
+    // The model's label for the slot (DM-100) before its title, in the reader's language first.
+    const lang = locale.slice(0, 2);
+    const title = slot.label?.[lang] ?? slot.title?.[lang] ?? slot.label?.en ?? slot.title?.en ?? slot.label?.[""];
     fields.push({
       attr: slot.name,
       label: setting.label?.trim() || title || slot.name,

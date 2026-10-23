@@ -1853,7 +1853,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 15,
+        "Button": 17,
         "RadioGroup": 1
       },
       "tests": [
