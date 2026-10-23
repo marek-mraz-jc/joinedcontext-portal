@@ -1441,17 +1441,23 @@
       "screenshots": []
     },
     "src/pages/organization/AgentActivity.tsx": {
-      "walkedBy": "worker-t4851",
-      "date": "2026-10-21",
+      "walkedBy": "worker-t5301",
+      "date": "2026-10-23",
       "screenshots": [
-        "evidence/worker-t4851/T-4851/activity-empty-1440.png",
-        "evidence/worker-t4851/T-4851/activity-empty-400.png",
-        "evidence/worker-t4851/T-4851/activity-filled-1440.png",
-        "evidence/worker-t4851/T-4851/activity-filled-400.png",
-        "evidence/worker-t4851/T-4851/activity-refused-1440.png",
-        "evidence/worker-t4851/T-4851/activity-refused-400.png",
-        "evidence/worker-t4851/T-4851/activity-stop-1440.png",
-        "evidence/worker-t4851/T-4851/activity-stop-400.png"
+        "evidence/worker-t5301/T-5301/activity-alert-dialog-1440.png",
+        "evidence/worker-t5301/T-5301/activity-alert-dialog-400.png",
+        "evidence/worker-t5301/T-5301/activity-alert-none-1440.png",
+        "evidence/worker-t5301/T-5301/activity-alert-none-400.png",
+        "evidence/worker-t5301/T-5301/activity-alert-subscribed-1440.png",
+        "evidence/worker-t5301/T-5301/activity-alert-subscribed-400.png",
+        "evidence/worker-t5301/T-5301/activity-empty-1440.png",
+        "evidence/worker-t5301/T-5301/activity-empty-400.png",
+        "evidence/worker-t5301/T-5301/activity-filled-1440.png",
+        "evidence/worker-t5301/T-5301/activity-filled-400.png",
+        "evidence/worker-t5301/T-5301/activity-refused-1440.png",
+        "evidence/worker-t5301/T-5301/activity-refused-400.png",
+        "evidence/worker-t5301/T-5301/activity-stop-1440.png",
+        "evidence/worker-t5301/T-5301/activity-stop-400.png"
       ]
     },
     "src/pages/organization/Agents.tsx": {

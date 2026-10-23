@@ -1,7 +1,9 @@
 /**
  * "Alert me" on a pipeline or a space (API/01 §37, PL-71, T-3261): which of failure, stale data,
  * zero output and a newly broken model rule (T-5066) to be told about, now or as a daily digest, muted for a while or stopped. E-mail is
- * shown and refused with its reason: the Portal has no mail relay yet.
+ * shown and refused with its reason: the Portal has no mail relay yet. On an agent profile
+ * (T-5301) the events are its refusal spikes, runs near the token cap and off-hours writes, in a
+ * project the person approves in, picked from `projects`.
  */
 import { useState } from "react";
 import type { JSX } from "react";
@@ -9,23 +11,28 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, unwrap } from "../api/client";
 import type { components } from "../api/schema";
-import { Alert, Button, Checkbox, Dialog, RadioGroup, Select } from "./ui";
+import { Alert, Button, Checkbox, Dialog, Field, RadioGroup, Select } from "./ui";
 
 type Subscription = components["schemas"]["AlertSubscription"];
 type Event = Subscription["events"][number];
-const EVENTS: Event[] = ["failure", "stale", "zero", "invalid"];
+const PIPELINE_EVENTS: Event[] = ["failure", "stale", "zero", "invalid"];
+const AGENT_EVENTS: Event[] = ["refusalSpike", "spendShare", "offHoursWrite"];
 export const ALERTS_KEY = ["alerts"];
 
 export interface AlertDialogProps {
   project: string;
   scope: Subscription["scope"];
   target: string;
-  /** What the dialog names in its title: the pipeline, the space or the type. */
+  /** What the dialog names in its title: the pipeline, the space, the type or the agent. */
   label: string;
+  /** The projects the person may choose between, as the server offered them; `project` first. */
+  projects?: string[];
   onClose: () => void;
 }
 
-export function AlertDialog({ project, scope, target, label, onClose }: AlertDialogProps): JSX.Element {
+export function AlertDialog({ project: offered, scope, target, label, projects, onClose }: AlertDialogProps): JSX.Element {
+  const EVENTS = scope === "agent" ? AGENT_EVENTS : PIPELINE_EVENTS;
+  const [project, setProject] = useState(offered);
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const mine = useQuery({
@@ -80,6 +87,25 @@ export function AlertDialog({ project, scope, target, label, onClose }: AlertDia
       closeLabel={t("alerts.close")}
     >
       <div className="flex flex-col gap-3">
+        {projects && projects.length > 1 ? (
+          <Field id="alert-project" label={t("alerts.project")} help={t("alerts.projectHelp")}>
+            <Select
+              id="alert-project"
+              value={project}
+              onChange={(event) => {
+                setProject(event.target.value);
+                setEvents(null);
+                setDelivery(null);
+              }}
+            >
+              {projects.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        ) : null}
         <fieldset className="flex flex-col gap-1">
           <legend className="text-body font-medium text-fg">{t("alerts.events")}</legend>
           {EVENTS.map((event) => (
