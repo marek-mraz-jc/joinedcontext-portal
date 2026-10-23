@@ -10,6 +10,7 @@ use jc_core::kinds::{DataModelLifecycle, DataModelSpec, Representation};
 use serde::Serialize;
 use utoipa::ToSchema;
 
+use crate::api::datamodels::read_source;
 use crate::auth::CurrentUser;
 use crate::error::{ApiError, ProblemDetails};
 use crate::state::AppState;
@@ -101,18 +102,32 @@ pub async fn surface_fit(
 ) -> Result<Json<SurfaceFit>, ApiError> {
     crate::api::data_views::readable_space(&state, &user.0.identity, &project, &space)?;
     let model = backing_model(&state, &project, &space);
+    let lifecycle = model.as_ref().map(|(lifecycle, _)| *lifecycle);
     let linkml = match &model {
-        Some((lifecycle, name)) if lifecycle.backs_surfaces() => {
-            Some(crate::api::datamodels::read_source(&state, &project, name).await?)
-        }
+        Some((l, name)) if l.backs_surfaces() => Some(read_source(&state, &project, name).await?),
         _ => None,
     };
-    let surfaces = Representation::ALL
+    let surfaces = surfaces(&space, lifecycle, linkml.as_deref());
+    let data_model = model.map(|(_, name)| name);
+    Ok(Json(SurfaceFit {
+        data_model,
+        surfaces,
+    }))
+}
+
+/// The gap of each representation that needs a model: the lifecycle's when the model cannot back
+/// surfaces (`linkml` none), the model text's when it can, the missing model's without one.
+fn surfaces(
+    space: &str,
+    lifecycle: Option<DataModelLifecycle>,
+    linkml: Option<&str>,
+) -> Vec<SurfaceGap> {
+    Representation::ALL
         .into_iter()
         .filter(Representation::needs_model)
         .map(|representation| {
-            let gap = match (&model, &linkml) {
-                (Some((lifecycle, _)), None) => lifecycle_gap(representation, &space, *lifecycle),
+            let gap = match (lifecycle, linkml) {
+                (Some(lifecycle), None) => lifecycle_gap(representation, space, lifecycle),
                 (_, Some(text)) => representation
                     .model_gap(text)
                     .unwrap_or_else(|err| Some(format!("the data model does not read: {err}")))
@@ -126,11 +141,7 @@ pub async fn surface_fit(
                 gap,
             }
         })
-        .collect();
-    Ok(Json(SurfaceFit {
-        data_model: model.map(|(_, name)| name),
-        surfaces,
-    }))
+        .collect()
 }
 
 pub fn router() -> Router<AppState> {
@@ -138,4 +149,42 @@ pub fn router() -> Router<AppState> {
         "/projects/{project}/spaces/{space}/surface-fit",
         get(surface_fit),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_draft_model_gaps_every_surface_with_its_lifecycle() {
+        let rows = surfaces("traffic", Some(DataModelLifecycle::Draft), None);
+        assert_eq!(rows.len(), 2);
+        for row in rows {
+            let gap = row.gap.unwrap_or_default();
+            assert!(
+                gap.contains("needs a published data model in space traffic"),
+                "{gap}"
+            );
+        }
+    }
+
+    #[test]
+    fn no_model_gaps_every_surface_with_the_missing_model() {
+        let rows = surfaces("traffic", None, None);
+        assert_eq!(
+            rows.iter()
+                .map(|r| r.representation.as_str())
+                .collect::<Vec<_>>(),
+            ["sta", "ical"]
+        );
+        let sta = rows.first().and_then(|r| r.gap.clone()).unwrap_or_default();
+        assert!(sta.starts_with("`sta` needs a type"), "{sta}");
+    }
+
+    #[test]
+    fn an_unreadable_model_says_so() {
+        let rows = surfaces("traffic", Some(DataModelLifecycle::Published), Some(": ["));
+        let gap = rows.first().and_then(|r| r.gap.clone()).unwrap_or_default();
+        assert!(gap.contains("does not read"), "{gap}");
+    }
 }
