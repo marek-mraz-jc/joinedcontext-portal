@@ -137,6 +137,40 @@ describe("the source health tab", () => {
     await expectAxeClean(container);
   });
 
+  // T-5291: a stream that keeps sending but loses a tenth of its records is red, with the ratio.
+  it("shows_a_running_source_that_loses_records_as_failing_with_its_error_ratio", async () => {
+    const losing = [
+      {
+        pipeline: "hsl-hfp-vehicles",
+        state: "failing",
+        lastSuccessAt: "2026-10-22T18:00:00Z",
+        lastRunAt: "2026-10-22T18:00:00Z",
+        lastSent: 900,
+        failedRuns: 0,
+        lastError: "step 2 threw: speed is not a number",
+        errors: { errors: 100, records: 1000, percent: 10 },
+        alert: true,
+      },
+      { ...HEALTH[0], errors: { errors: 1, records: 100, percent: 1 } },
+    ];
+    const { container } = await renderRoute({
+      path: PATH,
+      answer: (path) => {
+        if (path.endsWith("/pipeline-health")) return jsonResponse({ items: losing });
+        if (path.endsWith("/pipelines")) return jsonResponse(list(losing.map((h) => pipeline(h.pipeline))));
+        return undefined;
+      },
+    });
+    await openHealthTab();
+    const table = await screen.findByRole("table", { name: en.pipelines.health.caption });
+    const [hsl, detva] = within(table).getAllByRole("row").slice(1);
+    expect(within(hsl).getByText(en.pipelines.health.states.failing)).toBeInTheDocument();
+    expect(within(hsl).getByText("10 % failed in the last hour (100 of 1,000)")).toHaveClass("text-danger");
+    expect(within(hsl).getByText(en.pipelines.health.alerted)).toBeInTheDocument();
+    expect(within(detva).getByText("1 % failed in the last hour (1 of 100)")).not.toHaveClass("text-danger");
+    await expectAxeClean(container);
+  });
+
   it("is_not_offered_to_a_person_who_approves_no_pipeline", async () => {
     await renderRoute({
       path: PATH,

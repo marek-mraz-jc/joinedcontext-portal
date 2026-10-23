@@ -5,14 +5,16 @@
 //! it, `failed` when one of the author's steps threw. A run is one tick of the pipeline's clock,
 //! or one UTC hour for a source that never ends; the runner names it.
 //!
-//! Bounded per pipeline: the newest [`LINES_KEPT`] lines and the newest [`RUNS_KEPT`] runs. A
+//! Bounded per pipeline: the newest [`LINES_KEPT`] lines and the newest [`RUNS_KEPT`] runs, the
+//! database trimmed per [`TRIM_EVERY_LINES`] lines or [`TRIM_EVERY`] rather than per batch. A
 //! run's counts are kept apart from its lines, so a run of 4000 records still says 4000 after
 //! most of its lines have aged out. Record ids and messages are masked before they are stored:
 //! an id is whatever the mapping produced, and a message can quote the source.
 
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::sync::RwLock;
+use std::sync::{Mutex, RwLock};
+use std::time::{Duration, Instant};
 
 /// The labels of the sink and each of its parts; an unlabelled part would count its reports as
 /// the stream's own writes.
@@ -163,9 +165,38 @@ enum Inner {
     Memory(RwLock<HashMap<Key, Memory>>),
 }
 
+/// Lines a pipeline writes after its last trim before the database trims it again. Each trim
+/// walks the newest [`LINES_KEPT`] ids; per batch it took 1.1-1.8 s on dev (T-5292).
+pub const TRIM_EVERY_LINES: usize = 500;
+/// The longest a pipeline's log goes untrimmed while it writes.
+pub const TRIM_EVERY: Duration = Duration::from_secs(60);
+
+/// When each pipeline's log was last trimmed and the lines written since.
+#[derive(Default)]
+struct Trims(HashMap<Key, (Instant, usize)>);
+
+impl Trims {
+    /// Whether writing `lines` more for `key` at `now` trims its log: the first write of this
+    /// process does, then every [`TRIM_EVERY_LINES`] lines or [`TRIM_EVERY`].
+    fn due(&mut self, key: &Key, lines: usize, now: Instant) -> bool {
+        let Some((at, since)) = self.0.get_mut(key) else {
+            self.0.insert(key.clone(), (now, 0));
+            return true;
+        };
+        *since = since.saturating_add(lines);
+        if *since < TRIM_EVERY_LINES && now.saturating_duration_since(*at) < TRIM_EVERY {
+            return false;
+        }
+        *at = now;
+        *since = 0;
+        true
+    }
+}
+
 /// The runs and logs of every pipeline.
 pub struct LogStore {
     inner: Inner,
+    trims: Mutex<Trims>,
 }
 
 /// A run name the runner sent, or the current UTC hour when it sent none a person could read:
@@ -428,11 +459,12 @@ impl LogStore {
                 Some(pool) => Inner::Postgres(pool),
                 None => Inner::Memory(RwLock::new(HashMap::new())),
             },
+            trims: Mutex::new(Trims::default()),
         }
     }
 
     /// Adds the lines of one report to the run's log and its counts, then drops what is beyond
-    /// the bounds. A report with no lines is a pass that wrote nothing: the run is kept with its
+    /// the bounds (in the database only when `Trims::due`). A report with no lines is a pass that wrote nothing: the run is kept with its
     /// counts at zero, so "ran, nothing new" reads apart from "did not run" (T-3001).
     pub async fn append(
         &self,
@@ -483,6 +515,15 @@ impl LogStore {
                 .bind(failed)
                 .execute(&mut *tx)
                 .await?;
+                let key = (project.to_owned(), pipeline.to_owned());
+                let due = self.trims.lock().unwrap_or_else(|e| e.into_inner()).due(
+                    &key,
+                    lines.len(),
+                    Instant::now(),
+                );
+                if !due {
+                    return tx.commit().await;
+                }
                 sqlx::query(
                     "DELETE FROM pipeline_log WHERE project = $1 AND pipeline = $2 AND id < \
                      (SELECT coalesce(min(id), 0) FROM (SELECT id FROM pipeline_log \
@@ -1315,6 +1356,40 @@ mod tests {
             .await
             .expect("lines")
             .is_empty());
+    }
+
+    /// The database trims a pipeline's log on its first write, then once a minute or per
+    /// [`TRIM_EVERY_LINES`] lines, each pipeline on its own clock (T-5292).
+    #[test]
+    fn the_trim_runs_at_most_once_a_minute_or_per_500_lines() {
+        let mut trims = Trims::default();
+        let (x, y) = (
+            ("p".to_owned(), "x".to_owned()),
+            ("p".to_owned(), "y".to_owned()),
+        );
+        let start = Instant::now();
+        assert!(
+            trims.due(&x, 10, start),
+            "a restart trims on its first write"
+        );
+        let mut trimmed = 0;
+        for second in 1..60 {
+            trimmed += usize::from(trims.due(&x, 1, start + Duration::from_secs(second)));
+        }
+        assert_eq!(trimmed, 0, "59 batches of one line within the minute");
+        assert!(trims.due(&x, 1, start + TRIM_EVERY));
+        assert!(trims.due(&y, 1, start + TRIM_EVERY), "y has its own clock");
+        assert!(!trims.due(&x, TRIM_EVERY_LINES - 1, start + TRIM_EVERY));
+        assert!(
+            trims.due(&x, 1, start + TRIM_EVERY),
+            "500 lines since the last trim"
+        );
+        // 3,000 batches of 10 lines, 20 ms apart, trim per 500 lines: 60 times, not 3,000.
+        let mut trims = Trims::default();
+        let trims_run = (0..3000u64)
+            .filter(|n| trims.due(&x, 10, start + Duration::from_millis(n * 20)))
+            .count();
+        assert_eq!(trims_run, 60);
     }
 
     #[test]

@@ -33,6 +33,8 @@ const HEALTH = [
   { pipeline: "podujatia-jelsava", state: "empty", lastRunAt: "2026-10-21T06:00:00Z", lastSent: 0, failedRuns: 0, alert: false },
   { pipeline: "podujatia-detva", state: "failing", lastSuccessAt: "2026-10-20T06:00:00Z", lastRunAt: "2026-10-21T06:00:00Z", lastSent: 0, medianSent: 4, changePercent: -100, failedRuns: 1, lastError: "step 2: expected array, got object from method filter", lastErrorAt: "2026-10-21T06:00:02Z", alert: false },
   { pipeline: "podujatia-novy", state: "never", failedRuns: 0, alert: false },
+  // T-5291: still sending, but a step threw on 13 of the hour's 120 records.
+  { pipeline: "slovensko-podujatia-casta", state: "failing", lastSuccessAt: "2026-10-21T06:00:00Z", lastRunAt: "2026-10-21T06:00:00Z", lastSent: 107, medianSent: 110, changePercent: -3, failedRuns: 0, lastError: "step 3 threw: date 31.09.2026 is not a calendar day", lastErrorAt: "2026-10-21T06:00:03Z", errors: { errors: 13, records: 120, percent: 10.8 }, alert: true },
 ];
 
 async function stubApi(page: Page, health: unknown[]): Promise<void> {
@@ -77,13 +79,15 @@ test.describe("the source health tab (T-5048)", () => {
       await expect(rows.nth(1)).toContainText("podujatia-zvolen");
       await expect(rows.nth(1)).toContainText("3 failed runs in a row");
       await expect(rows.nth(1)).toContainText("https://www.zvolen.sk/rss.html answered 404");
-      await expect(page.getByText("3 of 6 sources need a look; 2 are alerted.")).toBeVisible();
+      await expect(page.getByText("4 of 7 sources need a look; 3 are alerted.")).toBeVisible();
       // The weekly link check (T-5133): the share that answers, the first dead links and the fix.
       await expect(rows.nth(1)).toContainText("14 of 20 answer (70 %)");
       await expect(rows.nth(1)).toContainText("Dead links: 6");
       await expect(rows.nth(1)).toContainText("and 1 more");
       await expect(rows.nth(1)).toContainText("update the address in its data source");
       await expect(table.getByText("117 of 118 answer (99 %)")).toBeVisible();
+      await expect(rows.nth(2)).toContainText("slovensko-podujatia-casta");
+      await expect(rows.nth(2)).toContainText("10.8 % failed in the last hour (13 of 120)");
       expect(await axeViolations(page)).toEqual([]);
       await shot(page, `health-filled-${width}`);
       await rows.nth(1).getByRole("button", { name: "Runs and log of podujatia-zvolen" }).click();

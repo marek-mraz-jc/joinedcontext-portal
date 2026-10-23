@@ -3338,7 +3338,7 @@
     },
     "health": {
       "caption": "Zdravie každého zdroja",
-      "lead": "Najnovší beh každej pipeline oproti týždňu pred ním; zdroje, ktoré treba riešiť, sú navrchu. Zdroj zčervenie, keď jeho najnovší beh nezapísal nič a log hovorí prečo, alebo zapísal o viac ako 80 % menej ako jeho 7-dňový medián. Po 3 neúspešných behoch za sebou alebo takom poklese dostanú jeho sledovatelia upozornenie.",
+      "lead": "Najnovší beh každej pipeline oproti týždňu pred ním; zdroje, ktoré treba riešiť, sú navrchu. Zdroj zčervenie, keď jeho najnovší beh nezapísal nič a log hovorí prečo, alebo zapísal o viac ako 80 % menej ako jeho 7-dňový medián. Zčervenie aj vtedy, keď za poslednú hodinu zlyhalo viac ako 5 % záznamov, a sledovatelia dostanú upozornenie hneď. Po 3 neúspešných behoch za sebou alebo takom poklese dostanú jeho sledovatelia upozornenie.",
       "empty": "Zatiaľ niet pipelines na kontrolu",
       "emptyHint": "Pridajte pipeline na karte Zoznam. Jej zdravie sa tu ukáže po prvom behu.",
       "summary": "{broken, plural, one {# z {total} zdrojov treba} other {# z {total} zdrojov treba}} skontrolovať; {alerted, plural, =0 {upozornenie zatiaľ nešlo} one {upozornenie šlo pre #} other {upozornenie šlo pre #}}.",
@@ -3351,6 +3351,7 @@
       "lastLogLine": "Posledná chyba",
       "never": "Nikdy",
       "failedRuns": "{count, plural, one {# neúspešný beh} few {# neúspešné behy za sebou} other {# neúspešných behov za sebou}}",
+      "errorRatio": "{percent} % zlyhalo za poslednú hodinu ({errors} z {records})",
       "alerted": "Sledovatelia dostali upozornenie",
       "median": "medián {median}",
       "openRuns": "Behy a log {name}",
