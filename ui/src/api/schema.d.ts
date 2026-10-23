@@ -7075,15 +7075,37 @@ export interface components {
          * @description Lifecycle phase enumeration.
          */
         Phase: "Draft" | "Pending" | "Deploying" | "Live" | "Error" | "Drifted";
+        /** @description How many of the records the runs of an hour took did not reach the space (T-5291). */
+        PipelineErrorRatio: {
+            /**
+             * Format: int64
+             * @description Records a step threw on or the model refused.
+             */
+            errors: number;
+            /**
+             * Format: double
+             * @description `errors` of `records`, in percent, one decimal.
+             */
+            percent: number;
+            /**
+             * Format: int64
+             * @description Every record the runs took: sent, failed and rejected.
+             */
+            records: number;
+        };
         /** @description What the health view shows for one pipeline. */
         PipelineHealth: {
-            /** @description The check names it: failed [`ALERT_STREAK`] runs in a row, or a drop. */
+            /**
+             * @description The check names it: failed [`ALERT_STREAK`] runs in a row, a drop, or an error ratio above
+             *     [`ERROR_SHARE`].
+             */
             alert: boolean;
             /**
              * Format: int64
              * @description The newest run against that median, in percent: -100 sent nothing, 0 the same.
              */
             changePercent?: number | null;
+            errors?: null | components["schemas"]["PipelineErrorRatio"];
             /** @description Failed runs in a row, newest first. */
             failedRuns: number;
             /** @description The newest failed or rejected line of the log, URLs without their query. */
