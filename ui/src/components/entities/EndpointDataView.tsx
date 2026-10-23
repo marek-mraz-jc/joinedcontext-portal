@@ -748,6 +748,9 @@ export function EndpointDataView({
 
   return (
     <div {...windowProps(full, t("endpoints.data.title"))}>
+      {/* One level of controls (T-5415): type and page size side by side from md (768 px), full width each
+          on a phone, so both selects have one width and one left edge. */}
+      <div className="grid gap-3 md:grid-cols-2">
       <Field id={`endpoint-data-type-${slug}`} label={t("endpoints.data.type")} description={t("endpoints.data.typeHelp")}>
         <Select
           id={`endpoint-data-type-${slug}`}
@@ -767,6 +770,16 @@ export function EndpointDataView({
           ))}
         </Select>
       </Field>
+        <Field id={`endpoint-data-rows-${slug}`} label={t("endpoints.data.pageLength")} description={t("endpoints.data.pageLengthHelp")}>
+          <Select id={`endpoint-data-rows-${slug}`} value={String(rowsPerPage)} onChange={(event) => setPageLength(Number(event.target.value))}>
+            {PAGE_LENGTHS.map((each) => (
+              <option key={each} value={each}>
+                {each}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
       {/* Two doors on the same page of entities: what this endpoint's filter and projection leave
           out is marked on the space's side (T-1435). The CSV is the whole answer of this query as
           one table, built by the endpoint under its own limits and read with the person's own
@@ -779,16 +792,7 @@ export function EndpointDataView({
         onFull={() => setFull((each) => !each)}
         csv={csv ? csvHref(origin, slug, type.name, asked, sortText) : undefined}
       />
-      <div className="flex flex-wrap items-end gap-3">
-        <Field id={`endpoint-data-rows-${slug}`} label={t("endpoints.data.pageLength")} description={t("endpoints.data.pageLengthHelp")}>
-          <Select id={`endpoint-data-rows-${slug}`} value={String(rowsPerPage)} onChange={(event) => setPageLength(Number(event.target.value))}>
-            {PAGE_LENGTHS.map((each) => (
-              <option key={each} value={each}>
-                {each}
-              </option>
-            ))}
-          </Select>
-        </Field>
+      <div className="flex flex-wrap items-center gap-2 empty:hidden">
         <DefaultFilter
           filter={classView?.filter}
           defaults={defaults}

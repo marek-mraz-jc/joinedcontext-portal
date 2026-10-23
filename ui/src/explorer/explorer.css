@@ -14,3 +14,43 @@
 }
 :root[data-theme="dark"] .jc-explorer { --jc-datastore-head: #23272e; --jc-datastore-stripe: #1b1f24; --jc-datastore-row: #0b1220; }
 :root[data-theme="dark"] .jc-explorer td, :root[data-theme="dark"] .jc-explorer th { border-color: #3a3f47; }
+/* T-5415: the host's `&theme=light` wins over a dark device. The light catalogue page passes it, and
+   the Portal's tokens follow the device alone, which drew a dark panel inside the white dataset card;
+   here the light values of tokens.css and index.css come back, the SDK's tokens to their defaults. */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --portal-paper: var(--portal-color-surface);
+    --portal-ink: var(--portal-color-surface-fg);
+    --portal-brand: var(--portal-color-primary);
+    --portal-brand-fg: var(--portal-color-primary-fg);
+    --portal-danger-base: var(--portal-color-danger);
+    --portal-danger-base-fg: var(--portal-color-danger-fg);
+    --portal-success-base: #166534;
+    --portal-warning-base: #9a3412;
+    --portal-info-base: var(--portal-color-secondary);
+    --portal-bg: var(--portal-neutral-50);
+    --portal-surface: var(--portal-neutral-0);
+    --portal-surface-subtle: var(--portal-neutral-50);
+    --portal-surface-muted: var(--portal-neutral-100);
+    --portal-surface-raised: var(--portal-neutral-0);
+    --portal-primary-soft: var(--portal-primary-50);
+    --portal-primary-hover: var(--portal-primary-600);
+    --portal-primary-active: var(--portal-primary-700);
+    --portal-overlay: color-mix(in oklab, var(--portal-neutral-900) 45%, transparent);
+    --jc-color-accent: initial;
+    --jc-color-border: initial;
+    --jc-color-card: initial;
+    --jc-color-danger: initial;
+    --jc-color-focus: initial;
+    --jc-color-info: initial;
+    --jc-color-ink: initial;
+    --jc-color-line: initial;
+    --jc-color-muted: initial;
+    --jc-color-neutral: initial;
+    --jc-color-primary: initial;
+    --jc-color-success: initial;
+    --jc-color-surface: initial;
+    --jc-color-warning: initial;
+  }
+}

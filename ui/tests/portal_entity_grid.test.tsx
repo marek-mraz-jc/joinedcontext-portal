@@ -64,7 +64,10 @@ describe("the Portal's entity grid", () => {
     show();
     await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
 
-    const text = document.body.textContent ?? "";
+    // The query hint's example is data (an attribute name such as availableBikeNumber), not a label.
+    const page = document.body.cloneNode(true) as HTMLElement;
+    page.querySelectorAll(".jc-grid-query-hint code").forEach((code) => code.remove());
+    const text = page.textContent ?? "";
     for (const [key, english] of Object.entries(en.entityGrid)) {
       if (typeof english !== "string") {
         continue;
