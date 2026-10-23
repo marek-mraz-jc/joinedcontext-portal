@@ -1617,9 +1617,11 @@
           "spec": "personal-data.spec.ts",
           "test": "the owner of a space exports and erases a data subject with a reason, and nobody else may"
         },
-        "personOnly": "erasing a person's data is irreversible and the space owner's decision with a reason (DM-126, API/01 §46); no assistant tool erases",
+        "personOnly": "erasing a person's data is irreversible: one space owner proposes it with a reason and another approves it (DM-126, DM-142, API/01 §46); no assistant tool erases",
         "routes": [
-          "POST /api/v1/projects/{project}/spaces/{space}/erasures"
+          "POST /api/v1/projects/{project}/spaces/{space}/erasures",
+          "POST /api/v1/projects/{project}/spaces/{space}/erasures/{id}/approve",
+          "POST /api/v1/projects/{project}/spaces/{space}/erasures/{id}/decline"
         ]
       }
     },
